@@ -1,0 +1,122 @@
+#!/bin/sh
+
+LED="/sys/class/leds/blue:wlan"
+WIFI_IF="phy0-ap0"
+
+POLL_INTERVAL=2
+BLINK_ON=250
+BLINK_OFF=250
+
+set_blue_off()
+{
+        [ -e "$LED/trigger" ] || return 1
+
+        echo none > "$LED/trigger" 2>/dev/null
+        echo 0 > "$LED/brightness" 2>/dev/null
+}
+
+set_blue_on()
+{
+        [ -e "$LED/trigger" ] || return 1
+
+        echo none > "$LED/trigger" 2>/dev/null
+        echo 1 > "$LED/brightness" 2>/dev/null
+}
+
+set_blue_blink()
+{
+        [ -e "$LED/trigger" ] || return 1
+
+        echo timer > "$LED/trigger" 2>/dev/null
+        echo "$BLINK_ON" > "$LED/delay_on" 2>/dev/null
+        echo "$BLINK_OFF" > "$LED/delay_off" 2>/dev/null
+}
+
+wifi_ap_present()
+{
+        [ -d "/sys/class/net/$WIFI_IF" ] || return 1
+
+        return 0
+}
+
+wifi_ap_up()
+{
+        wifi_ap_present || return 1
+
+        # The interface must be administratively/radio operational.
+        #
+        # For mac80211 AP interfaces operstate may be "up" or "unknown",
+        # so don't rely solely on /sys/class/net/.../operstate.
+        iw dev "$WIFI_IF" info >/dev/null 2>&1 || return 1
+
+        return 0
+}
+
+wifi_has_clients()
+{
+        wifi_ap_up || return 1
+
+        iw dev "$WIFI_IF" station dump 2>/dev/null |
+                grep -q '^Station '
+
+        return $?
+}
+
+#
+# Boot/service startup state:
+#
+# Keep blue OFF until we have confirmed that the Wi-Fi AP exists.
+#
+set_blue_off
+
+LAST=""
+
+while true; do
+
+        if ! wifi_ap_up; then
+
+                STATE="wifi-down"
+
+        elif wifi_has_clients; then
+
+                STATE="client-connected"
+
+        else
+
+                STATE="ap-ready"
+
+        fi
+
+        #
+        # Only reprogram the LED when state changes.
+        #
+        if [ "$STATE" != "$LAST" ]; then
+
+                case "$STATE" in
+
+                        wifi-down)
+                                set_blue_off
+                                logger -t hmu05-wifi-led \
+                                        "Wi-Fi AP unavailable: blue OFF"
+                                ;;
+
+                        ap-ready)
+                                set_blue_on
+                                logger -t hmu05-wifi-led \
+                                        "Wi-Fi AP ready, no clients: blue ON"
+                                ;;
+
+                        client-connected)
+                                set_blue_blink
+                                logger -t hmu05-wifi-led \
+                                        "Wi-Fi client connected: blue BLINK"
+                                ;;
+
+                esac
+
+                LAST="$STATE"
+        fi
+
+        sleep "$POLL_INTERVAL"
+
+done
