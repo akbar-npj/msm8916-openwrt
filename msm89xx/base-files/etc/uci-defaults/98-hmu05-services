@@ -4,11 +4,8 @@ if [ -x /etc/init.d/hmu05-wifi-led ]; then
     /etc/init.d/hmu05-wifi-led enable
 fi
 
-<<<<<<< HEAD
-=======
 if [ -x /etc/init.d/hmu05-modem-led ]; then
     /etc/init.d/hmu05-modem-led enable
 fi
 
->>>>>>> snapshot-upgrade
 exit 0
