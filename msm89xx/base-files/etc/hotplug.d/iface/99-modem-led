@@ -21,13 +21,13 @@ case "$ACTION:$INTERFACE" in
 
         ifup:modem)
                 green_blink
-                logger -t hmu05-green-led \
+                logger -t modem-green-led \
                         "LTE interface up: green BLINK"
                 ;;
 
         ifdown:modem)
                 green_off
-                logger -t hmu05-green-led \
+                logger -t modem-green-led \
                         "LTE interface down: green OFF"
                 ;;
 

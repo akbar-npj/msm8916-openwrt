@@ -96,19 +96,19 @@ while true; do
 
                         wifi-down)
                                 set_blue_off
-                                logger -t hmu05-wifi-led \
+                                logger -t wifi-led-monitor \
                                         "Wi-Fi AP unavailable: blue OFF"
                                 ;;
 
                         ap-ready)
                                 set_blue_on
-                                logger -t hmu05-wifi-led \
+                                logger -t wifi-led-monitor \
                                         "Wi-Fi AP ready, no clients: blue ON"
                                 ;;
 
                         client-connected)
                                 set_blue_blink
-                                logger -t hmu05-wifi-led \
+                                logger -t wifi-led-monitor \
                                         "Wi-Fi client connected: blue BLINK"
                                 ;;
 

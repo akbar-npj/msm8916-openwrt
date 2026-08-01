@@ -1,7 +1,9 @@
 #!/bin/sh
 
 #
-# HMU05 modem subsystem health LED
+#
+# Generic modem subsystem health monitor
+#
 #
 # RED LED:
 #
@@ -163,7 +165,8 @@ while true; do
 
                 set_red "$VALUE"
 
-                logger -t hmu05-modem-led \
+
+logger -t modem-led-monitor \
                         "modem health: $STATE"
 
                 LAST="$STATE"
