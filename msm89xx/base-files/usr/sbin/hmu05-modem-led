@@ -1,0 +1,175 @@
+#!/bin/sh
+
+#
+# HMU05 modem subsystem health LED
+#
+# RED LED:
+#
+#   Modem subsystem healthy  -> OFF
+#   Modem starting/unhealthy -> BLINK
+#
+# Health means:
+#
+#   - Qualcomm MSS remoteproc exists
+#   - MSS is running
+#   - WWAN core exists
+#   - QMI control port exists
+#   - ModemManager sees the modem
+#
+# An intentional "ifdown modem" does NOT count as a modem failure.
+#
+
+LED="/sys/class/leds/red:power"
+QMI="/sys/class/wwan/wwan0qmi0"
+MSS_NAME="4080000.remoteproc"
+
+CHECK_INTERVAL=5
+
+
+set_red()
+{
+        [ -e "$LED/trigger" ] || return 1
+
+        case "$1" in
+                0)
+                        #
+                        # Modem healthy:
+                        # RED OFF
+                        #
+                        echo none > "$LED/trigger" 2>/dev/null
+                        echo 0 > "$LED/brightness" 2>/dev/null
+                        ;;
+
+                1)
+                        #
+                        # Modem unhealthy / starting:
+                        # RED BLINK
+                        #
+                        echo timer > "$LED/trigger" 2>/dev/null
+                        echo 500 > "$LED/delay_on" 2>/dev/null
+                        echo 500 > "$LED/delay_off" 2>/dev/null
+                        ;;
+        esac
+}
+
+
+find_mss()
+{
+        for r in /sys/class/remoteproc/remoteproc*; do
+                [ -r "$r/name" ] || continue
+
+                name="$(cat "$r/name" 2>/dev/null)"
+
+                if [ "$name" = "$MSS_NAME" ]; then
+                        echo "$r"
+                        return 0
+                fi
+        done
+
+        return 1
+}
+
+
+modem_healthy()
+{
+        #
+        # Find MSS dynamically.
+        #
+        # Do not assume MSS will always be remoteproc0.
+        #
+
+        rproc="$(find_mss)" || return 1
+
+
+        #
+        # MSS must be running.
+        #
+
+        [ -r "$rproc/state" ] || return 1
+
+        [ "$(cat "$rproc/state" 2>/dev/null)" = "running" ] || return 1
+
+
+        #
+        # WWAN subsystem must exist.
+        #
+
+        [ -e /sys/class/wwan/wwan0 ] || return 1
+
+
+        #
+        # QMI control port must exist.
+        #
+
+        [ -e "$QMI" ] || return 1
+
+
+        #
+        # ModemManager must see the modem.
+        #
+        # We deliberately do NOT check bearer/connection state.
+        #
+        # Therefore:
+        #
+        #       ifdown modem
+        #
+        # leaves RED off as long as the modem subsystem itself
+        # remains healthy.
+        #
+
+        command -v mmcli >/dev/null 2>&1 || return 1
+
+        mmcli -L 2>/dev/null | grep -q '/Modem/' || return 1
+
+
+        return 0
+}
+
+
+#
+# Fail-safe startup state.
+#
+# DTS also has red:power ON during early boot.
+# Once this monitor starts, blink RED until the modem
+# subsystem has been confirmed healthy.
+#
+
+set_red 1
+
+
+LAST=""
+
+
+while true; do
+
+        if modem_healthy; then
+
+                STATE="healthy"
+                VALUE=0
+
+        else
+
+                STATE="failed"
+                VALUE=1
+
+        fi
+
+
+        #
+        # Only update the LED when the health state changes.
+        #
+
+        if [ "$STATE" != "$LAST" ]; then
+
+                set_red "$VALUE"
+
+                logger -t hmu05-modem-led \
+                        "modem health: $STATE"
+
+                LAST="$STATE"
+        fi
+
+
+        sleep "$CHECK_INTERVAL"
+
+done

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if [ -x /etc/init.d/hmu05-wifi-led ]; then
+    /etc/init.d/hmu05-wifi-led enable
+fi
+
+exit 0
