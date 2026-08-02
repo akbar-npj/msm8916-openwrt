@@ -52,6 +52,19 @@ define Device/generic-uf02
 endef
 TARGET_DEVICES += generic-uf02
 
+define Device/generic-ufi001b
+  $(Device/msm8916)
+  DEVICE_VENDOR := Generic
+  DEVICE_MODEL := UFI001B
+  DEVICE_DTS := msm8916-generic-ufi001b
+  SUPPORTED_DEVICES := ufi001b,250605v0s
+  FILESYSTEMS := squashfs
+  DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+                     block-mount f2fs-tools \
+                     msm-firmware-dumper
+endef
+TARGET_DEVICES += generic-ufi001b
+
 define Device/generic-hmu05
   $(Device/msm8916)
   DEVICE_VENDOR := Generic
