@@ -2,7 +2,7 @@ services:
   chown-fix:
     image: alpine:latest
     command: >
-      sh -c "chown -R 1000:1000 /home/builder/openwrt/dl /home/builder/openwrt/bin"
+      sh -c "chown -R ${HOST_UID:-1000}:${HOST_GID:-1000} /home/builder/openwrt/dl /home/builder/openwrt/bin"
     volumes:
       - ../bin:/home/builder/openwrt/bin
       - dl:/home/builder/openwrt/dl
@@ -15,21 +15,27 @@ services:
       dockerfile: devenv/Dockerfile
       args:
         OPENWRT_VERSION: ${OPENWRT_VERSION:-main}
+        UID: ${HOST_UID:-1000}
+        GID: ${HOST_GID:-1000}
+
     container_name: openwrt-builder
     working_dir: /home/builder/openwrt
+
     stdin_open: true
     tty: true
+
     volumes:
       - ..:/repo
       - ../packages:/home/builder/openwrt/package/msm8916
       - ../msm89xx:/home/builder/openwrt/target/linux/msm89xx
       - ../bin:/home/builder/openwrt/bin
       - dl:/home/builder/openwrt/dl
+
     command: ["/bin/bash"]
+
     depends_on:
       chown-fix:
         condition: service_completed_successfully
 
 volumes:
   dl:
-#  build_dir:

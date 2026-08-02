@@ -8,8 +8,14 @@ RUN chmod +x /install_dependencies && \
     /install_dependencies && \
     rm -rf /install_dependencies
 
-# Create a non-root user with sudo access (no password required)
-RUN useradd -m -u 1000 -G sudo builder && \
+# Create a non-root user matching the host UID/GID
+ARG UID=1000
+ARG GID=1000
+
+RUN if ! getent group ${GID} >/dev/null; then \
+        groupadd -g ${GID} builder; \
+    fi && \
+    useradd -m -u ${UID} -g ${GID} -G sudo builder && \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 USER builder
@@ -33,10 +39,10 @@ RUN cd openwrt && \
     ./scripts/feeds install -a && \
     rm -rf tmp
 
-# Fix LuCI getFeatures crash when odhcpd is present (conditional - may be fixed in release)
+# Fix LuCI getFeatures crash when odhcpd is present
 RUN LUCI_FILE="openwrt/feeds/luci/modules/luci-base/root/usr/share/rpcd/ucode/luci" && \
     if [ -f "$LUCI_FILE" ] && grep -q 'result\.odhcpd = false;' "$LUCI_FILE"; then \
-      sed -i 's/result\.odhcpd = false;/result.odhcpd = {};/' "$LUCI_FILE"; \
+        sed -i 's/result\.odhcpd = false;/result.odhcpd = {};/' "$LUCI_FILE"; \
     fi
 
 WORKDIR /home/builder/openwrt

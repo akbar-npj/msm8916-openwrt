@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Enable LED monitor services only on boards exposing the
+# standard LED names used by the modem/wifi monitors.
+
+if [ -d /sys/class/leds/red:power ] &&
+   [ -d /sys/class/leds/green:wan ] &&
+   [ -d /sys/class/leds/blue:wlan ]; then
+
+    [ -x /etc/init.d/modem-led-monitor ] &&
+        /etc/init.d/modem-led-monitor enable
+
+    [ -x /etc/init.d/wifi-led-monitor ] &&
+        /etc/init.d/wifi-led-monitor enable
+fi
+
+exit 0

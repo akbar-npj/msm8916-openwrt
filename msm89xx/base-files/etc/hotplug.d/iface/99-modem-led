@@ -1,15 +1,36 @@
 #!/bin/sh
 
 LED="/sys/class/leds/green:wan"
+
 [ -d "$LED" ] || exit 0
 
+green_off()
+{
+        echo none > "$LED/trigger" 2>/dev/null
+        echo 0 > "$LED/brightness" 2>/dev/null
+}
+
+green_blink()
+{
+        echo timer > "$LED/trigger" 2>/dev/null
+        echo 500 > "$LED/delay_on" 2>/dev/null
+        echo 500 > "$LED/delay_off" 2>/dev/null
+}
+
 case "$ACTION:$INTERFACE" in
-	ifup:modem)
-		echo none > "$LED/trigger"
-		echo 1 > "$LED/brightness"
-		;;
-	ifdown:modem)
-		echo none > "$LED/trigger"
-		echo 0 > "$LED/brightness"
-		;;
+
+        ifup:modem)
+                green_blink
+                logger -t modem-green-led \
+                        "LTE interface up: green BLINK"
+                ;;
+
+        ifdown:modem)
+                green_off
+                logger -t modem-green-led \
+                        "LTE interface down: green OFF"
+                ;;
+
 esac
+
+exit 0
