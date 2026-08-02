@@ -1,0 +1,123 @@
+diff --git a/arch/arm64/boot/dts/qcom/msm8916-generic-ufi001b.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi001b.dts
+new file mode 100644
+index 0000000..ea8a3df
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi001b.dts
+@@ -0,0 +1,117 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "UFI001B 4G Modem Stick";
++	compatible = "ufi001b,250605v0s", "qcom,msm8916";
++};
++
++/*
++ * Reset button
++ *
++ * Android:
++ *   GPIO37 = key_freset
++ */
++&button_restart {
++	gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++	pins = "gpio37";
++	bias-pull-up;
++};
++
++/*
++ * LEDs
++ *
++ * Android mapping:
++ *
++ * GPIO20 = WIFI_S  (Blue)
++ * GPIO21 = 4G_L2   (Green)
++ * GPIO22 = 4G_S    (Red)
++ */
++
++&led_r {
++	function = LED_FUNCTION_POWER;
++	gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>;
++	default-state = "on";
++};
++
++&led_g {
++	function = LED_FUNCTION_WAN;
++	gpios = <&tlmm 21 GPIO_ACTIVE_HIGH>;
++	default-state = "off";
++};
++
++&led_b {
++	function = LED_FUNCTION_WLAN;
++	gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>;
++	default-state = "off";
++};
++
++&gpio_leds_default {
++	pins = "gpio20", "gpio21", "gpio22";
++};
++
++/*
++ * Board-specific GPIO initialization
++ *
++ * These GPIO states were recovered from the
++ * original Android firmware.
++ */
++
++&tlmm {
++
++	/*
++	 * Physical SIM enable.
++	 *
++	 * Android:
++	 *   GPIO1 = SIM_EN = output LOW
++	 */
++	sim_en {
++		gpio-hog;
++		gpios = <1 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim_en";
++	};
++
++	/*
++	 * SIM selector.
++	 *
++	 * Android:
++	 *   GPIO2 = SIM_SEL = output LOW
++	 *
++	 * This board has both a physical SIM and an
++	 * embedded SIM. We currently force the
++	 * physical SIM by holding SIM_SEL low.
++	 */
++	sim_sel {
++		gpio-hog;
++		gpios = <2 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim_sel";
++	};
++
++	/*
++	 * Fourth LTE indicator.
++	 *
++	 * Android:
++	 *   GPIO68 = 4G_L3 = output LOW
++	 *
++	 * Keep this in the Android state for now.
++	 * Once the board is fully functional we can
++	 * expose it as a fourth LED.
++	 */
++	lte_aux {
++		gpio-hog;
++		gpios = <68 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "4G_L3";
++	};
++};
