@@ -1,47 +1,152 @@
 ![OpenWrt logo](https://raw.githubusercontent.com/openwrt/openwrt/refs/heads/main/include/logo.png)
 
-Modern OpenWrt build targeting MSM8916 devices with full modem, USB gadget, and WiFi support.
+# OpenWrt for Qualcomm MSM8916 Devices
 
-## Table of Contents
+- Features
+- Supported Devices
+- Repository Layout
+- Requirements
+- Building
+- OpenWrt Version Management
+- Flashing
+- Carrier Configuration
+- GitHub Actions
+- Roadmap
+- Development
+- Credits
 
-- [About OpenWrt](#about-openwrt)
-- [Supported Devices](#supported-devices)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Building](#building)
-- [Installation](#installation)
-  - [Flashing from OEM Firmware](#flashing-from-oem-firmware)
-  - [Accessing Boot Modes](#accessing-boot-modes)
-- [Troubleshooting](#troubleshooting)
-  - [No Network / Modem Stuck at Searching](#no-network--modem-stuck-at-searching)
-- [Roadmap](#roadmap)
-- [Credits](#credits)
 
----
+# About OpenWrt for Qualcomm MSM8916 Devices
 
-## About OpenWrt
+This repository provides a complete OpenWrt build environment for Qualcomm
+MSM8916-based LTE routers and USB dongles.
 
-OpenWrt Project is a Linux operating system targeting embedded devices. Instead of trying to create a single, static firmware, OpenWrt provides a fully writable filesystem with package management. This frees you from the application selection and configuration provided by the vendor and allows you to customize the device through the use of packages to suit any application.
+Unlike a traditional OpenWrt tree, this project includes:
+
+• Docker-based reproducible build environment
+• Automated OpenWrt source preparation
+• MSM8916 target
+• Device packages
+• Firmware generation scripts
+• GitHub Actions for release builds
+
+The project supports both stable OpenWrt releases and the latest development
+branch.
 
 ## Supported Devices
 
-All devices use the Qualcomm MSM8916 SoC with 384 MB RAM and 4 GB eMMC.
+Supported Devices
 
-- **UZ801v3** (`yiming-uz801v3`) -- USB dongle form factor.
-- **UF02** (`generic-uf02`) -- USB dongle form factor, most likely with only asian bands. Can be somewhat changed via QPST and the `qcn` file from UZ801.
+Qualcomm MSM8916
+384 MB RAM
+4 GB eMMC
 
-MF68E and M9S device support has been moved to the [TBR](TBR/readme.md) directory for reference. See that README for re-integration instructions.
+Currently supported
+
+• UZ801v3
+• UF02
+• UFI001B
+• HMU05
+
+Reference devices
+
+• MF68E
+• M9S
+
+Reference work for MF68E and M9S has been moved to TBR/.
 
 ## Features
 
-### Working Components
-- **Modem**: Fully functional with cellular connectivity
-  - ModemManager Rx/Tx stats not displayed in LuCI (known issue)
-- **WiFi**: Complete wireless support
-- **USB Gadget Modes**: NCM, RNDIS, Mass Storage, ACM Shell
-  - Configure via [UCI](packages/uci-usb-gadget/readme.md) or LuCI app
-- **VPN Ready**: TUN driver and WireGuard pre-installed
-- **LED Control**: Managed via `hotplug.d` scripts (sysfs-based, no extra packages)
+Features
+
+Networking
+
+• Fully functional LTE modem
+• Wi-Fi
+• USB Gadget
+    - ECM
+    - NCM
+    - RNDIS
+    - ACM Shell
+    - Mass Storage
+
+System
+
+• SquashFS
+• OverlayFS
+• Automatic overlay formatting
+• Factory reset
+
+Connectivity
+
+• WireGuard
+• Tailscale
+• ModemManager
+• QRTR
+• RMTFS
+
+Utilities
+
+• LuCI
+• USB Gadget LuCI app
+• LED management
+• Firmware dumper
+
+### Repository Layout
+ 
+
+build.sh
+    Main build manager
+
+scripts/
+    OpenWrt helper scripts
+
+devenv/
+    Docker environment
+
+msm89xx/
+    Target
+
+packages/
+    Project packages
+
+openwrt-overlay/
+    Files copied into OpenWrt
+
+TBR/
+    Experimental work
+
+### Requirement
+
+Docker
+Docker Compose
+Git
+Linux host
+For flashing: [edl tool](https://github.com/bkerler/edl)
+
+
+### Building
+./build.sh image
+./build.sh shell
+./build.sh build uz801
+./build.sh build uf02
+./build.sh menuconfig uz801
+./build.sh clean
+
+### OpenWrt Version Management
+OpenWrt Version
+
+Show current version
+
+./build.sh version
+
+Switch version
+
+./build.sh version v25.12.5
+
+Rebuild Docker image
+
+./build.sh image
 
 ### Storage & Recovery
 - **SquashFS Root**: Compressed root filesystem
@@ -51,13 +156,9 @@ MF68E and M9S device support has been moved to the [TBR](TBR/readme.md) director
 ### Additional Packages
 - **Tailscale**: LuCI app available as standalone package (APK and IPK)
 
-## Prerequisites
 
-- Docker installed on your system
-- Basic knowledge of Linux command line
-- For flashing: [edl tool](https://github.com/bkerler/edl)
 
-## Building
+
 
 ### GitHub Actions (release builds)
 
