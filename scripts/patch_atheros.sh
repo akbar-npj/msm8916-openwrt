@@ -1,7 +1,10 @@
 #!/bin/bash
-# apply_patches.sh
-# Applies wcn36xx and ath10k-sdio support patches to OpenWrt's mac80211 package.
-# Replaces the git patch approach to work across different OpenWrt versions.
+#
+# patch_atheros.sh
+#
+# Applies the project's Atheros/mac80211 customizations
+# (WCN36xx and ath10k-sdio support).
+#
 # NOTE: Requires GNU sed (Linux only - runs in Docker or GHA).
 set -e
 
