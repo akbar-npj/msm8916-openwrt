@@ -1,2 +1,19 @@
-bin
+# Build output
+bin/
+
+# OpenWrt source tree
+openwrt/
+
+# Temporary build cache (if you ever create it)
+dl/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor
+.vscode/
+.idea/
+
+# Local notes
 pr_description.md
