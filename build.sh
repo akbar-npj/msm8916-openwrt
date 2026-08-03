@@ -13,6 +13,13 @@
 set -euo pipefail
 
 ###############################################################################
+# Variables
+###############################################################################
+
+TMP_DIFFCONFIG=""
+CONFIG_ACTION="ask"
+
+###############################################################################
 # Directories
 ###############################################################################
 
@@ -381,13 +388,273 @@ prepare_config() {
     run_openwrt_make "make defconfig V=sc"
 }
 
+
+config_is_modified() {
+
+    local tmpfile
+
+    tmpfile="$(mktemp)"
+
+    if ! docker_exec bash -lc "
+        cd $CONTAINER_OPENWRT_DIR &&
+        ./scripts/diffconfig.sh
+    " > "$tmpfile"; then
+
+        rm -f "$tmpfile"
+
+        die "Failed to generate diffconfig."
+
+    fi
+
+    if cmp -s \
+        "$SCRIPT_DIR/$DIFFCONFIG_NAME" \
+        "$tmpfile"; then
+
+        rm -f "$tmpfile"
+
+        return 1
+    fi
+
+    rm -f "$tmpfile"
+
+    return 0
+}
+
+config_action() {
+
+    #
+    # Session defaults
+    #
+
+    case "$CONFIG_ACTION" in
+
+        existing)
+
+            msg "Using existing .config"
+
+            return
+            ;;
+
+        reload)
+
+            prepare_config
+
+            return
+            ;;
+
+    esac
+
+    #
+    # No existing modifications
+    #
+
+    if ! config_is_modified; then
+
+        prepare_config
+
+        return
+    fi
+
+    #
+    # Interactive menu
+    #
+
+    while true; do
+
+        echo
+        echo "======================================================"
+        echo " Modified .config detected"
+        echo "======================================================"
+        echo
+        echo "1) Use existing .config (this build only)"
+        echo "2) Reload $DIFFCONFIG_NAME (this build only)"
+        echo "3) Show differences"
+        echo "4) Save .config as $DIFFCONFIG_NAME"
+        echo "5) Always use existing .config (this session)"
+        echo "6) Always reload $DIFFCONFIG_NAME (this session)"
+        echo "7) Cancel"
+        echo
+
+        read -rp "Selection [1-7]: " choice
+
+        case "$choice" in
+
+            1)
+
+                msg "Using existing .config"
+
+                return
+                ;;
+
+            2)
+
+                prepare_config
+
+                return
+                ;;
+
+            3)
+
+                show_diffconfig_diff
+                ;;
+
+            4)
+
+                save_diffconfig
+                ;;
+
+            5)
+
+                CONFIG_ACTION="existing"
+
+                msg "Using existing .config"
+
+                return
+                ;;
+
+            6)
+
+                CONFIG_ACTION="reload"
+
+                prepare_config
+
+                return
+                ;;
+
+            7)
+
+                die "Build cancelled."
+                ;;
+
+            *)
+
+                echo
+                warn "Invalid selection."
+                ;;
+
+        esac
+
+    done
+}
+
+###############################################################################
+# Configuration helpers
+###############################################################################
+
+show_diffconfig_diff() {
+
+    msg "Generating configuration diff..."
+
+    local tmpfile
+
+    tmpfile="$(mktemp)"
+
+    if ! docker_exec bash -lc "
+     cd $CONTAINER_OPENWRT_DIR &&
+     ./scripts/diffconfig.sh
+     " > "$tmpfile"; then
+
+     rm -f "$tmpfile"
+
+     die "Failed to generate diffconfig."
+
+    fi
+
+    echo
+    echo "======================================================"
+    echo " Configuration differences"
+    echo "======================================================"
+    echo
+
+    if diff -u \
+        "$SCRIPT_DIR/$DIFFCONFIG_NAME" \
+        "$tmpfile"; then
+
+        echo
+        ok "No configuration differences."
+
+    else
+
+        echo
+    fi
+
+    rm -f "$TMP_DIFFCONFIG"
+
+    TMP_DIFFCONFIG="$tmpfile"
+
+    echo
+    read -rp "Press Enter to continue..."
+
+}
+
+save_diffconfig() {
+
+    ensure_prepared
+
+    [ -n "$TMP_DIFFCONFIG" ] || {
+
+    TMP_DIFFCONFIG="$(mktemp)"
+
+    if ! docker_exec bash -lc "
+        cd $CONTAINER_OPENWRT_DIR &&
+        ./scripts/diffconfig.sh
+    " > "$TMP_DIFFCONFIG"; then
+
+        rm -f "$TMP_DIFFCONFIG"
+        TMP_DIFFCONFIG=""
+
+        die "Failed to generate diffconfig."
+
+    fi
+}
+
+
+    if cmp -s "$TMP_DIFFCONFIG" "$SCRIPT_DIR/$DIFFCONFIG_NAME"; then
+
+        ok "$DIFFCONFIG_NAME is already up to date."
+        rm -f "$TMP_DIFFCONFIG"
+        TMP_DIFFCONFIG=""
+
+        return
+    fi
+
+    echo
+    warn "Configuration changes detected."
+    echo
+
+    read -rp "Overwrite $DIFFCONFIG_NAME? [y/N] " reply
+
+    case "${reply,,}" in
+
+        y|yes)
+
+            mv "$TMP_DIFFCONFIG" \
+               "$SCRIPT_DIR/$DIFFCONFIG_NAME"
+
+               TMP_DIFFCONFIG=""
+
+            ok "Updated $DIFFCONFIG_NAME."
+            ;;
+
+        *)
+
+            warn "Configuration was not saved."
+            ;;
+
+    esac
+
+    [ -n "$TMP_DIFFCONFIG" ] && rm -f "$TMP_DIFFCONFIG"
+
+    TMP_DIFFCONFIG=""
+}
+
 build_target() {
 
     local clean="${1:-0}"
 
     ensure_prepared
 
-    prepare_config
+    config_action
 
     if [ "$clean" -eq 1 ]; then
 
@@ -412,7 +679,11 @@ run_menuconfig() {
     echo
     warn "Save the updated diffconfig with:"
     echo
-    echo "    ./scripts/diffconfig.sh > /repo/$DIFFCONFIG_NAME"
+    echo
+    echo "To save this configuration permanently, run:"
+    echo
+    echo "    ./build.sh saveconfig $BOARD"
+    echo
     echo
 }
 
@@ -465,6 +736,9 @@ Commands
 
     build <board>
         Build firmware.
+
+    saveconfig <board>
+        Save the current OpenWrt .config back to the board diffconfig.
 
     rebuild <board>
         Clean and rebuild firmware.
@@ -597,6 +871,21 @@ menuconfig)
 
     timed run_menuconfig
     ;;
+
+
+###############################################################################
+# Save diffconfig
+###############################################################################
+
+saveconfig)
+
+    BOARD="${2:-}"
+
+    check_board
+
+    timed save_diffconfig
+    ;;
+
 
 ###############################################################################
 # Cleaning
