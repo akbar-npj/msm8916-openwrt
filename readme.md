@@ -4,400 +4,284 @@ A complete OpenWrt build environment for Qualcomm MSM8916-based LTE routers and 
 
 This repository provides everything required to build reproducible firmware images using Docker, including the MSM8916 target, device-specific packages, overlays, firmware generation scripts, and GitHub Actions.
 
----
 
-# Table of Contents
+# README Update
 
-* Features
-* Supported Devices
-* Repository Layout
-* Requirements
-* Quick Start
-* Build System
-* OpenWrt Version Management
-* Building Firmware
-* Menuconfig
-* Flashing
-* Carrier Configuration
-* GitHub Actions
-* Roadmap
-* Development
-* Credits
+## Supported Devices
+
+| Device | Status | Notes |
+|---------|--------|-------|
+| Generic UFI001B | ✅ Supported | Tested |
+| Generic HMU05 | ✅ Supported | Tested |
+| Generic UF02 | ✅ Supported | Tested |
+| YiMing UZ801V3 | ✅ Supported | Tested |
 
 ---
 
-# Features
+## Features
 
-## Reproducible Builds
+- OpenWrt stable branch 25.12.x based
+- Qualcomm MSM8916 platform support
+- LuCI Web Interface
+- ModemManager support
+- SMS Manager (LuCI)
+- USB Gadget support
+- WireGuard VPN
+- ZeroTier
+- Collectd monitoring
+- LuCI Statistics
+- CPU Performance Manager
+- Automatic firmware package generation
+- Cached firmware downloads
+- Interactive build helper
 
-* Docker-based build environment
-* Persistent OpenWrt source tree
-* Automatic source tree preparation
-* Automatic feed installation
-* Version-aware build workflow
+---
+
+## Repository Layout
+
+```
+.
+├── build.sh                  Interactive build script
+├── scripts/                  Build helper scripts
+├── msm89xx/                  MSM8916 target additions
+├── packages/                 Local packages and git submodules
+├── openwrt-overlay/          Files copied into OpenWrt
+├── diffconfig_*              Device configurations
+└── readme.md
+```
+
+---
+
+## Quick Start
+
+Clone the repository together with all submodules.
+
+```bash
+git clone --recurse-submodules https://github.com/akbar-npj/msm8916-openwrt.git
+cd msm8916-openwrt
+```
+
+If you already cloned the repository:
+
+```bash
+git submodule update --init --recursive
+```
+
+---
+
+## Build
+
+Run the interactive build helper.
+
+```bash
+./build.sh
+```
+
+The build helper can:
+
+- Download OpenWrt
+- Prepare the build environment
+- Launch Docker
+- Configure builds
+- Save device configurations
+- Build firmware
+- Clean build trees
+
+---
+
+## Device Configurations
+
+Current device profiles:
+
+- HMU05
+- UFI001B
+- UF02
+- UZ801V3
+
+Device configurations are stored as:
+
+```
+diffconfig_hmu05
+diffconfig_ufi001b
+diffconfig_uf02
+diffconfig_uz801
+```
+
+---
+
+## Build Output
+
+Generated firmware is placed under:
+
+```
+openwrt/bin/targets/msm89xx/msm8916/
+```
+
+Artifacts include:
+
+- firmware.zip
+- flash.sh
+- squashfs-gpt_both0.bin
+- sysupgrade images
+- factory images (where applicable)
+
+---
+
+## Firmware Generation
+
+Firmware generation automatically:
+
+- Downloads required Qualcomm bootloader files
+- Builds qhypstub
+- Builds lk2nd
+- Signs images using qtestsign
+- Generates firmware.zip
+
+Downloaded repositories and firmware archives are cached under:
+
+```
+openwrt/dl/msm8916-firmware/
+```
+
+This avoids downloading the same repositories and firmware on every build.
+
+---
+
+## Local Packages
+
+Additional packages included by this project:
+
+- luci-app-sms-manager
+- luci-app-cpu-perf
+
+Some packages are maintained as Git submodules.
+
+After cloning, initialize submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+---
+
+## Build Helper Scripts
+
+### build.sh
+
+Interactive build manager.
+
+Features:
+
+- Docker support
+- Device selection
+- menuconfig
+- saveconfig
+- clean
+- rebuild
+- firmware generation
+
+---
+
+### openwrt-prepare.sh
+
+Automatically prepares the OpenWrt tree.
+
+Responsibilities:
+
+- Install MSM8916 target
+- Install local packages
+- Apply repository overlay
+- Apply project patches
+- Configure feeds
+- Apply compatibility fixes
+
+Refresh package feeds when required:
+
+```bash
+./scripts/openwrt-prepare.sh --refresh-feeds
+```
+
+---
+
+## Included LuCI Applications
+
+- CPU Performance
+- SMS Manager
+- Statistics
+- File Manager
+- Wake-on-LAN
+- Package Manager
+- USB Gadget
+
+---
 
 ## Networking
 
-* Fully functional LTE modem
-* Wi-Fi support
-* USB Gadget support
+Included services:
 
-  * ECM
-  * NCM
-  * RNDIS
-  * ACM Shell
-  * Mass Storage
-
-## System
-
-* SquashFS root filesystem
-* OverlayFS
-* Automatic overlay formatting
-* Factory reset support
-
-## Connectivity
-
-* WireGuard
-* Tailscale
-* ModemManager
-* QRTR
-* RMTFS
-
-## Utilities
-
-* LuCI
-* USB Gadget LuCI application
-* LED management
-* Firmware dumper
+- ModemManager
+- QMI
+- MBIM
+- QRTR
+- WireGuard
+- ZeroTier
 
 ---
 
-# Supported Devices
+## Monitoring
 
-All supported devices use:
+Included monitoring packages:
 
-* Qualcomm MSM8916
-* 384 MB RAM
-* 4 GB eMMC
-
-## Currently Supported
-
-* UZ801v3
-* UF02
-* UFI001B
-* HMU05
-
-## Reference Devices
-
-Development work for these devices has been moved to `TBR/`.
-
-* MF68E
-* M9S
+- collectd
+- collectd-mod-cpu
+- collectd-mod-interface
+- collectd-mod-memory
+- collectd-mod-load
+- collectd-mod-network
+- collectd-mod-iwinfo
+- collectd-mod-sensors
+- collectd-mod-thermal
+- LuCI Statistics
 
 ---
 
-# Repository Layout
+## Development Notes
 
-```text
-.
-├── build.sh                 Build manager
-├── scripts/
-│   ├── openwrt-version.sh
-│   ├── openwrt-prepare.sh
-│   └── patch_atheros.sh
-├── devenv/
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── dependencies.sh
-├── msm89xx/                 MSM8916 target
-├── packages/                Project packages
-├── openwrt-overlay/         Repository overlay
-├── diffconfig_*             Board configurations
-├── TBR/                     Experimental work
-└── openwrt/                 OpenWrt source tree (created automatically)
+The project uses a persistent firmware download cache.
+
+Repositories are downloaded only once and reused on subsequent builds.
+
+To force feed updates:
+
+```bash
+./scripts/openwrt-prepare.sh --refresh-feeds
 ```
 
 ---
 
-# Requirements
+## Roadmap
 
-* Linux
-* Docker
-* Docker Compose
-* Git
-
-For flashing:
-
-* EDL Tool
-
----
-
-# Quick Start
-
-Clone the repository.
-
-Build the Docker image.
-
-```bash
-./build.sh image
-```
-
-Build firmware.
-
-```bash
-./build.sh build ufi001b
-```
-
-The build system automatically:
-
-* clones OpenWrt if required
-* checks out the configured version
-* prepares the source tree
-* updates feeds
-* builds the firmware
-
-No manual preparation is required.
+- [x] HMU05 support
+- [x] UFI001B support
+- [x] UF02 support
+- [x] UZ801V3 support
+- [x] Firmware generation
+- [x] Download caching
+- [x] Interactive build helper
+- [ ] GitHub Actions
+- [ ] Automatic release builds
+- [ ] Additional MSM8916 devices
 
 ---
 
-# Build System
+## Credits
 
-The build system is divided into three independent components.
+This project builds upon the work of:
 
-## build.sh
+- OpenWrt
+- msm8916-mainline
+- lk2nd
+- qhypstub
+- qtestsign
 
-Repository orchestrator.
-
-Responsibilities:
-
-* Docker management
-* OpenWrt checkout
-* Build orchestration
-* Board selection
-
-## scripts/openwrt-version.sh
-
-Version management.
-
-Responsibilities:
-
-* Show current version
-* Change OpenWrt version
-* Machine-readable `--current` output
-
-Examples:
-
-```bash
-./scripts/openwrt-version.sh
-./scripts/openwrt-version.sh --current
-./scripts/openwrt-version.sh main
-./scripts/openwrt-version.sh v25.12.5
-```
-
-## scripts/openwrt-prepare.sh
-
-Prepares an existing OpenWrt source tree.
-
-Responsibilities:
-
-* Install MSM8916 target
-* Install project packages
-* Apply repository overlay
-* Apply project patches
-* Update feeds
-* Record preparation state
-
-This script never:
-
-* clones OpenWrt
-* changes Git branches or tags
-* invokes Docker
-
----
-
-# OpenWrt Version Management
-
-Show the configured version.
-
-```bash
-./build.sh version
-```
-
-Show only the configured version.
-
-```bash
-./build.sh version --current
-```
-
-Switch to a release.
-
-```bash
-./build.sh version v25.12.5
-```
-
-Switch to the development branch.
-
-```bash
-./build.sh version main
-```
-
-After changing the version:
-
-```bash
-./build.sh prepare --force
-```
-
-or simply build again:
-
-```bash
-./build.sh build ufi001b
-```
-
-The build system automatically detects when the source tree must be re-prepared.
-
----
-
-# Building Firmware
-
-List supported boards.
-
-```bash
-./build.sh list
-```
-
-Build firmware.
-
-```bash
-./build.sh build ufi001b
-```
-
-Rebuild from a clean tree.
-
-```bash
-./build.sh rebuild ufi001b
-```
-
-Open a shell inside the builder.
-
-```bash
-./build.sh shell
-```
-
-Run menuconfig.
-
-```bash
-./build.sh menuconfig ufi001b
-```
-
-Clean the build.
-
-```bash
-./build.sh clean
-```
-
-Deep clean.
-
-```bash
-./build.sh dirclean
-```
-
-Complete clean.
-
-```bash
-./build.sh distclean
-```
-
----
-
-# Flashing
-
-Install the EDL tool.
-
-https://github.com/bkerler/edl
-
-Backup the original firmware.
-
-```bash
-edl rf backup.bin
-```
-
-Flash OpenWrt.
-
-```bash
-./openwrt-msm89xx-msm8916-*-flash.sh
-```
-
-The flashing script:
-
-* backs up radio partitions
-* writes GPT
-* flashes firmware
-* restores radio partitions
-
----
-
-# Carrier Configuration
-
-Some carriers require a device-specific MCFG configuration.
-
-Extract the MCFG file from the original firmware.
-
-Copy it to the router.
-
-```bash
-scp -O mcfg_sw.mbn \
-root@192.168.1.1:/lib/firmware/MCFG_SW.MBN
-```
-
-Reboot the device.
-
----
-
-# GitHub Actions
-
-Two workflows are provided.
-
-## Firmware Builds
-
-Build firmware images for selected boards.
-
-## Package Builds
-
-Build project packages as APK and IPK.
-
----
-
-# Roadmap
-
-* Package repository for MSM8916
-* eSIM (LPAC) support
-* Additional device support
-* Further build automation
-
----
-
-# Development
-
-The recommended workflow is:
-
-```bash
-./build.sh image
-./build.sh build ufi001b
-```
-
-The build manager automatically:
-
-* creates the Docker environment
-* clones OpenWrt
-* prepares the source tree
-* builds firmware
-
----
-
-# Credits
-
-* **@ghosthgy** — Initial project foundation
-* **@lkiuyu** — MSM8916 support, patches, and OpenStick feeds
-* **@Mio-sha512** — USB gadget and firmware loader concepts
-* **@AlienWolfX** — Carrier policy troubleshooting
-* **@gw826943555** and **@asvow** — Tailscale LuCI application
+Special thanks to all OpenWrt and MSM8916 developers.
