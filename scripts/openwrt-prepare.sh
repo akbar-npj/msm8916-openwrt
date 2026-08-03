@@ -40,24 +40,31 @@ PATCH_SCRIPT="$SCRIPT_DIR/patch_atheros.sh"
 ###############################################################################
 
 OPENWRT_VERSION="unknown"
+REFRESH_FEEDS=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
 
-        --version)
+    --version)
 
-            shift
+        shift
 
-           [ $# -gt 0 ] || die "--version requires an argument."
+        [ $# -gt 0 ] || die "--version requires an argument."
 
-            OPENWRT_VERSION="$1"
-            ;;
+        OPENWRT_VERSION="$1"
+        ;;
 
-        -h|--help)
+    --refresh-feeds)
 
-            usage
-            exit 0
-            ;;
+        REFRESH_FEEDS=1
+        ;;
+
+    -h|--help)
+
+        usage
+        exit 0
+        ;;
+
 
         *)
 
@@ -108,6 +115,10 @@ Options
 
         Record the prepared OpenWrt version in .builder-state.
 
+    --refresh-feeds
+
+        Force update/install of all package feeds.
+
 Examples
 
     ./scripts/openwrt-prepare.sh
@@ -115,6 +126,8 @@ Examples
     ./scripts/openwrt-prepare.sh openwrt
 
     ./scripts/openwrt-prepare.sh --version v25.12.5 openwrt
+
+    ./scripts/openwrt-prepare.sh --refresh-feeds
 
 If no directory is specified:
 
@@ -157,11 +170,11 @@ install_target() {
 
     mkdir -p "$OPENWRT_DIR/target/linux"
 
-rm -rf "$OPENWRT_DIR/target/linux/msm89xx"
+    rm -rf "$OPENWRT_DIR/target/linux/msm89xx"
 
-cp -a \
-    "$TARGET_DIR" \
-    "$OPENWRT_DIR/target/linux/"
+    cp -a \
+        "$TARGET_DIR" \
+        "$OPENWRT_DIR/target/linux/"
 }
 
 install_packages() {
@@ -170,11 +183,11 @@ install_packages() {
 
     mkdir -p "$OPENWRT_DIR/package"
 
-rm -rf "$OPENWRT_DIR/package/msm8916"
+    rm -rf "$OPENWRT_DIR/package/msm8916"
 
-cp -a \
-    "$PACKAGES_DIR" \
-    "$OPENWRT_DIR/package/msm8916"
+    cp -a \
+        "$PACKAGES_DIR" \
+        "$OPENWRT_DIR/package/msm8916"
 }
 
 install_overlay() {
@@ -201,18 +214,72 @@ patch_openwrt() {
 
 update_feeds() {
 
-    info "Updating package feeds..."
-
     (
         cd "$OPENWRT_DIR"
 
-        rm -rf tmp
+        #######################################################################
+        # Ensure custom feed exists
+        #######################################################################
 
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
+        grep -q '^src-git smsmanager ' feeds.conf.default || \
+            echo 'src-git smsmanager https://github.com/akbar-npj/luci-app-sms-manager.git' \
+                >> feeds.conf.default
+      
+
+        #######################################################################
+        # User requested a full refresh
+        #######################################################################
+
+        if [ "$REFRESH_FEEDS" -eq 1 ]; then
+
+            info "Refreshing package feeds..."
+
+            rm -rf tmp
+
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
+
+            return
+
+        fi
+
+        #######################################################################
+        # Normal mode
+        #######################################################################
+
+        needs_install=0
+
+        for feed in packages luci routing telephony video smsmanager; do
+
+            if [ ! -d "feeds/$feed" ]; then
+
+                info "Updating feed: $feed"
+
+                ./scripts/feeds update "$feed"
+
+                needs_install=1
+
+            else
+
+                info "Feed '$feed' already present."
+
+            fi
+
+        done
+
+        if [ "$needs_install" -eq 1 ]; then
+
+            info "Installing package feeds..."
+
+            ./scripts/feeds install -a
+
+        else
+
+            info "Package feeds already installed."
+
+        fi
     )
 }
-
 apply_compatibility_fixes() {
 
     info "Applying compatibility fixes..."
@@ -227,6 +294,7 @@ apply_compatibility_fixes() {
         sed -i \
             's/result\.odhcpd = false;/result.odhcpd = {};/' \
             "$luci_file"
+
     fi
 }
 

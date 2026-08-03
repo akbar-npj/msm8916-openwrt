@@ -1,0 +1,3 @@
+[submodule "packages/luci-app-cpu-perf"]
+	path = packages/luci-app-cpu-perf
+	url = https://github.com/akbar-npj/luci-app-cpu-perf.git

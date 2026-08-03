@@ -10,6 +10,7 @@ dl/
 # Python
 __pycache__/
 *.pyc
+.python-version
 
 # Editor
 .vscode/
