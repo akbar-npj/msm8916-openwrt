@@ -276,6 +276,16 @@ To force feed updates:
 
 ## Credits
 
+    @ghosthgy - Initial project foundation
+    @lkiuyu - MSM8916 support, patches, and OpenStick feeds
+    @Mio-sha512 - USB gadget and firmware loader concepts
+    @AlienWolfX - Carrier policy troubleshooting guide
+    @gw826943555 & @asvow - Tailscale LuCI application
+    @hkfuertes - For his work on bringing these devices to latest snapshot
+
+Special thanks to all OpenWrt and MSM8916 developers.
+
+
 This project builds upon the work of:
 
 - OpenWrt
@@ -284,4 +294,3 @@ This project builds upon the work of:
 - qhypstub
 - qtestsign
 
-Special thanks to all OpenWrt and MSM8916 developers.
