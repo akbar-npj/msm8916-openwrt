@@ -1,0 +1,29 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -318,6 +318,8 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
+ 		if (!atomic_long_fetch_or(BIT(skb_dma - dmux->tx_skbs),
+ 					  &dmux->tx_deferred_skb))
+ 			queue_pm_work(&dmux->tx_wakeup_work);
++		DEV_STATS_INC(netdev, tx_packets);
++		DEV_STATS_ADD(netdev, tx_bytes, skb->len);
+ 		return NETDEV_TX_OK;
+ 	}
+ 
+@@ -326,6 +328,8 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
+ 		goto drop;
+ 
+ 	dma_async_issue_pending(dmux->tx);
++	DEV_STATS_INC(netdev, tx_packets);
++	DEV_STATS_ADD(netdev, tx_bytes, skb->len);
+ 	return NETDEV_TX_OK;
+ 
+ drop:
+@@ -467,6 +471,9 @@ static void bam_dmux_cmd_data(struct bam_dmux_skb_dma *skb_dma)
+ 		break;
+ 	}
+ 
++	DEV_STATS_INC(netdev, rx_packets);
++	DEV_STATS_ADD(netdev, rx_bytes, skb->len);
++
+ 	netif_receive_skb(skb);
+ }
