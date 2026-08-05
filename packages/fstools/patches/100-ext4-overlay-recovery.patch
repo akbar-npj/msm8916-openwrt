@@ -1,0 +1,294 @@
+--- a/mount_root.c
++++ b/mount_root.c
+@@ -11,12 +11,16 @@
+  * GNU General Public License for more details.
+  */
+ 
++
+ #include <sys/mount.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
++#include <sys/wait.h>
+ #include <unistd.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <stdarg.h>
++#include <string.h>
+ 
+ #include <libubox/ulog.h>
+ 
+@@ -26,6 +30,88 @@
+ 
+ #define BUFLEN 64
+ 
++enum ext4_check_result {
++	EXT4_OK,
++	EXT4_REPAIRED,
++	EXT4_FORMAT_REQUIRED,
++	EXT4_FAILED,
++};
++
++static int run_command(const char *fmt, ...)
++{
++	char cmd[512];
++	va_list ap;
++	int status;
++
++	va_start(ap, fmt);
++	vsnprintf(cmd, sizeof(cmd), fmt, ap);
++	va_end(ap);
++
++	ULOG_INFO("Executing: %s\n", cmd);
++
++	status = system(cmd);
++
++	if (status == -1) {
++        ULOG_ERR("system() failed\n");
++        return -1;
++        }
++
++	if (!WIFEXITED(status)) {
++        ULOG_ERR("Command terminated abnormally\n");
++        return -1;
++        }
++
++	return WEXITSTATUS(status);
++}
++
++static enum ext4_check_result check_ext4(struct volume *v)
++{
++	int rc;
++
++	/* NOTE:
++	 * Assumes struct volume has a member named 'blk'
++	 * containing the block device path.
++	 */
++	if (!v || !v->blk)
++		return EXT4_FAILED;
++
++	ULOG_INFO("Checking overlay filesystem on %s\n", v->blk);
++
++	rc = run_command(
++		"e2fsck -fy %s >/dev/kmsg 2>&1",
++		v->blk);
++
++	switch (rc) {
++	case 0:
++		ULOG_INFO("Overlay filesystem is clean\n");
++		return EXT4_OK;
++
++	case 1:
++	case 2:
++	case 3:
++		ULOG_INFO("Overlay filesystem repaired successfully\n");
++		return EXT4_REPAIRED;
++
++	default:
++		/*
++		 * e2fsck returns a bitmask:
++		 *   1 = filesystem errors corrected
++		 *   2 = system should be rebooted
++		 *   4 = filesystem errors left uncorrected
++		 *   8 = operational error
++		 *  16 = usage/syntax error
++		 *  32 = canceled by user
++		 * 128 = shared library error
++		 */
++		if (rc & 4) {
++			ULOG_WARN("Overlay filesystem is corrupted beyond repair\n");
++			return EXT4_FORMAT_REQUIRED;
++		}
++
++		ULOG_ERR("e2fsck failed (exit code %d)\n", rc);
++		return EXT4_FAILED;
++	}
++}
+ /*
+  * Called in the early (PREINIT) stage, when we immediately need some writable
+  * filesystem.
+@@ -38,8 +124,12 @@
+ 	struct volume *root;
+ 	struct volume *data;
+ 	struct stat s;
++	int fs;
+ 
+-	if (get_var_from_file("/proc/cmdline", "fstools_overlay_name", dataparam, sizeof(dataparam)))
++	if (get_var_from_file("/proc/cmdline",
++			      "fstools_overlay_name",
++			      dataparam,
++			      sizeof(dataparam)))
+ 		dataname = dataparam;
+ 
+ 	data = volume_find(dataname);
+@@ -50,55 +140,117 @@
+ 	if (!data) {
+ 		root = volume_find("rootfs");
+ 		volume_init(root);
++
+ 		if (argc < 3)
+ 			ULOG_NOTE("mounting /dev/root\n");
+ 		else
+-			ULOG_NOTE("mounting /dev/root with options %s\n", argv[2]);
++			ULOG_NOTE("mounting /dev/root with options %s\n",
++				  argv[2]);
+ 
+-		/*
+-		 * If present, mount rootfs with passed options.
+-		 * Example F2FS filesystem with compress_algorithm option.
+-		 */
+-		mount("/dev/root", "/", NULL, MS_NOATIME | MS_REMOUNT,
++		mount("/dev/root",
++		      "/",
++		      NULL,
++		      MS_NOATIME | MS_REMOUNT,
+ 		      argc < 3 ? 0 : argv[2]);
+ 	}
+ 
+-	/* Check for extroot config in rootfs before even trying rootfs_data */
++	/* Check for extroot config first */
+ 	if (!mount_extroot("")) {
+ 		ULOG_NOTE("switched to extroot\n");
+ 		return 0;
+ 	}
+ 
+-	/* There isn't extroot, so just try to mount "rootfs_data" */
+-	volume_init(data);
+-	switch (volume_identify(data)) {
++	/* Mount rootfs_data */
++	if (volume_init(data)) {
++        ULOG_ERR("volume_init() failed\n");
++        return ramoverlay();
++    }
++
++	fs = volume_identify(data);
++
++    switch (fs) {
++
+ 	case FS_NONE:
+ 		ULOG_WARN("no usable overlay filesystem found, using tmpfs overlay\n");
+ 		return ramoverlay();
+ 
+ 	case FS_DEADCODE:
+-		/*
+-		 * Filesystem isn't ready yet and we are in the preinit, so we
+-		 * can't afford waiting for it. Use tmpfs for now and handle it
+-		 * properly in the "done" call.
+-		 */
+ 		ULOG_NOTE("jffs2 not ready yet, using temporary tmpfs overlay\n");
+ 		return ramoverlay();
+ 
+-	case FS_EXT4:
+-	case FS_F2FS:
+-	case FS_JFFS2:
+-	case FS_UBIFS:
+-		mount_overlay(data);
++	case FS_EXT4: {
++		enum ext4_check_result rc;
++
++		rc = check_ext4(data);
++
++		switch (rc) {
++
++			case EXT4_OK:
++			case EXT4_REPAIRED:
++				ULOG_INFO("Mounting EXT4 overlay\n");
++				mount_overlay(data);
++				break;
++
++        case EXT4_FORMAT_REQUIRED:
++
++            ULOG_WARN("Formatting overlay filesystem %s\n", data->blk);
++
++            if (run_command(
++                "mkfs.ext4 "
++                "-q "
++                "-F "
++                "-O ^has_journal "
++                "-L rootfs_data "
++                "%s >/dev/kmsg 2>&1",
++                data->blk) != 0) {
++
++                ULOG_ERR("Failed to create new overlay filesystem\n");
++                return ramoverlay();
++            }
++        
++            sync();
++
++            if (volume_init(data)) {
++                ULOG_ERR("volume_init() after format failed\n");
++                return ramoverlay();
++            }
++
++            if (volume_identify(data) != FS_EXT4) {
++                ULOG_ERR("Formatted filesystem is not recognized as EXT4\n");
++                return ramoverlay();
++            }
++
++            ULOG_INFO("Mounting newly formatted EXT4 overlay\n");
++			mount_overlay(data);
++            
++            break;
++        case EXT4_FAILED:
++		default:
++			ULOG_ERR("Unable to recover EXT4 overlay, using RAM overlay\n");
++			return ramoverlay();
++		}
++
+ 		break;
++}
++
++		case FS_F2FS:
++		case FS_JFFS2:
++		case FS_UBIFS:
++			mount_overlay(data);
++			break;
+ 
+ 	case FS_SNAPSHOT:
+-		mount_snapshot(data);
+-		break;
+-	}
++            if (mount_snapshot(data)) {
++                ULOG_ERR("Failed to mount snapshot overlay\n");
++                return ramoverlay();
++            }
++            break;
++    
++        }
++	
+ 
+ 	return 0;
+-}
++   }
+ 
+ static int
+ stop(int argc, char *argv[1])
+@@ -121,6 +273,7 @@
+ 		return -1;
+ 
+ 	switch (volume_identify(v)) {
++
+ 	case FS_NONE:
+ 	case FS_DEADCODE:
+ 		return jffs2_switch(v);
+@@ -136,15 +289,20 @@
+ 	return 0;
+ }
+ 
+-int main(int argc, char **argv)
++int
++main(int argc, char **argv)
+ {
+ 	if (argc < 2 || !strcmp(argv[1], "start"))
+ 		return start(argc, argv);
++
+ 	if (!strcmp(argv[1], "ram"))
+ 		return ramoverlay();
++
+ 	if (!strcmp(argv[1], "stop"))
+ 		return stop(argc, argv);
++
+ 	if (!strcmp(argv[1], "done"))
+ 		return done(argc, argv);
++
+ 	return -1;
+ }

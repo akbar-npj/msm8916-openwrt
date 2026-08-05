@@ -205,6 +205,45 @@ install_overlay() {
 # Preparation helpers
 ###############################################################################
 
+
+install_package_patches() {
+
+    #
+    # Install patches for OpenWrt packages.
+    #
+    # Repository layout:
+    #
+    #   packages/<pkg>/patches/*.patch
+    #
+    # becomes:
+    #
+    #   openwrt/package/system/<pkg>/patches/
+    #
+
+
+    local pkg
+
+    for pkg in "$PACKAGES_DIR"/*; do
+
+    [ -d "$pkg/patches" ] || continue
+
+    pkg="$(basename "$pkg")"
+
+    [ -d "$OPENWRT_DIR/package/system/$pkg" ] || {
+        die "OpenWrt package not found: package/system/$pkg"
+    }
+
+    info "Installing $pkg patches..."
+
+    rm -rf "$OPENWRT_DIR/package/system/$pkg/patches"
+
+    mkdir -p "$OPENWRT_DIR/package/system/$pkg/patches"
+
+    cp -a \
+        "$PACKAGES_DIR/$pkg/patches/." \
+        "$OPENWRT_DIR/package/system/$pkg/patches/"
+   done
+}
 patch_openwrt() {
 
     info "Applying project patches..."
@@ -319,6 +358,8 @@ main() {
     install_target
 
     install_packages
+
+    install_package_patches
 
     install_overlay
 

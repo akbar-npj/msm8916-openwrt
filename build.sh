@@ -17,8 +17,6 @@ set -euo pipefail
 ###############################################################################
 
 TMP_DIFFCONFIG=""
-CONFIG_ACTION="ask"
-
 
 ###############################################################################
 # Directories
@@ -390,203 +388,7 @@ prepare_config() {
 }
 
 
-config_is_modified() {
 
-    local tmpfile
-
-    tmpfile="$(mktemp)"
-
-    if ! docker_exec bash -lc "
-        cd $CONTAINER_OPENWRT_DIR &&
-        ./scripts/diffconfig.sh
-    " > "$tmpfile"; then
-
-        rm -f "$tmpfile"
-
-        die "Failed to generate diffconfig."
-
-    fi
-
-    if cmp -s \
-        "$SCRIPT_DIR/$DIFFCONFIG_NAME" \
-        "$tmpfile"; then
-
-        rm -f "$tmpfile"
-
-        return 1
-    fi
-
-    rm -f "$tmpfile"
-
-    return 0
-}
-
-config_action() {
-
-    #
-    # Session defaults
-    #
-
-    case "$CONFIG_ACTION" in
-
-        existing)
-
-            msg "Using existing .config"
-
-            return
-            ;;
-
-        reload)
-
-            prepare_config
-
-            return
-            ;;
-
-    esac
-
-    #
-    # No existing modifications
-    #
-
-    if ! config_is_modified; then
-
-        prepare_config
-
-        return
-    fi
-
-    #
-    # Interactive menu
-    #
-
-    while true; do
-
-        echo
-        echo "======================================================"
-        echo " Modified .config detected"
-        echo "======================================================"
-        echo
-        echo "1) Use existing .config (this build only)"
-        echo "2) Reload $DIFFCONFIG_NAME (this build only)"
-        echo "3) Show differences"
-        echo "4) Save .config as $DIFFCONFIG_NAME"
-        echo "5) Always use existing .config (this session)"
-        echo "6) Always reload $DIFFCONFIG_NAME (this session)"
-        echo "7) Cancel"
-        echo
-
-        read -rp "Selection [1-7]: " choice
-
-        case "$choice" in
-
-            1)
-
-                msg "Using existing .config"
-
-                return
-                ;;
-
-            2)
-
-                prepare_config
-
-                return
-                ;;
-
-            3)
-
-                show_diffconfig_diff
-                ;;
-
-            4)
-
-                save_diffconfig
-                ;;
-
-            5)
-
-                CONFIG_ACTION="existing"
-
-                msg "Using existing .config"
-
-                return
-                ;;
-
-            6)
-
-                CONFIG_ACTION="reload"
-
-                prepare_config
-
-                return
-                ;;
-
-            7)
-
-                die "Build cancelled."
-                ;;
-
-            *)
-
-                echo
-                warn "Invalid selection."
-                ;;
-
-        esac
-
-    done
-}
-
-###############################################################################
-# Configuration helpers
-###############################################################################
-
-show_diffconfig_diff() {
-
-    msg "Generating configuration diff..."
-
-    local tmpfile
-
-    tmpfile="$(mktemp)"
-
-    if ! docker_exec bash -lc "
-     cd $CONTAINER_OPENWRT_DIR &&
-     ./scripts/diffconfig.sh
-     " > "$tmpfile"; then
-
-     rm -f "$tmpfile"
-
-     die "Failed to generate diffconfig."
-
-    fi
-
-    echo
-    echo "======================================================"
-    echo " Configuration differences"
-    echo "======================================================"
-    echo
-
-    if diff -u \
-        "$SCRIPT_DIR/$DIFFCONFIG_NAME" \
-        "$tmpfile"; then
-
-        echo
-        ok "No configuration differences."
-
-    else
-
-        echo
-    fi
-
-    rm -f "$TMP_DIFFCONFIG"
-
-    TMP_DIFFCONFIG="$tmpfile"
-
-    echo
-    read -rp "Press Enter to continue..."
-
-}
 
 save_diffconfig() {
 
@@ -655,7 +457,7 @@ build_target() {
 
     ensure_prepared
 
-    config_action
+    prepare_config
 
     if [ "$clean" -eq 1 ]; then
 
