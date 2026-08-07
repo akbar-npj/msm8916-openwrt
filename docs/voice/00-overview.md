@@ -1,151 +1,274 @@
-# MSM8916 Voice Support Overview
+# MSM8916 Voice Support for OpenWrt
 
-## Purpose
+## Overview
 
-The goal of this project is to enable native voice calling on Qualcomm MSM8916-based LTE devices running OpenWrt.
+This project aims to enable native cellular voice calling on Qualcomm MSM8916-based LTE devices running OpenWrt.
 
-Unlike normal mobile phones, OpenWrt currently uses the modem primarily for packet data (LTE internet). Although the modem firmware exposes the Qualcomm Voice (QMI Voice) service, there is currently no complete software stack to route call audio between Linux and the modem.
+Unlike Android, OpenWrt currently uses the modem almost exclusively for packet data (LTE Internet). Although Qualcomm modem firmware already provides complete voice capabilities through the Qualcomm Voice (QMI Voice) service, there is currently no upstream OpenWrt implementation capable of routing voice audio between the modem and an external audio device.
 
-This project documents the investigation and implementation required to enable voice calling.
+The primary objective of this project is to bridge this gap using existing upstream Linux kernel support together with modern userspace components.
 
 ---
 
-## Target Hardware
+# Target Hardware
 
-Current target:
+Current development platform:
 
-- UFI001B LTE USB modem
-- Qualcomm Snapdragon 410 (MSM8916)
-- External modem firmware loaded using remoteproc
-- Linux 6.12
-- OpenWrt master
+| Item | Value |
+|------|-------|
+| Device | UFI001B LTE USB Modem |
+| SoC | Qualcomm Snapdragon 410 (MSM8916) |
+| Kernel | Linux 6.12 |
+| Distribution | OpenWrt Master |
+| Modem firmware | Remoteproc loaded |
+| Bluetooth | Qualcomm WCNSS |
+| Audio hardware | None (no speaker or microphone) |
 
 The device exposes:
 
+- USB LTE modem
 - QMI interface
-- AT interface
-- Multiple WWAN network interfaces
+- AT command interface
+- Bluetooth controller
+- Wi-Fi controller
 
-Bluetooth is available.
+The hardware contains no:
 
-No built-in speaker or microphone is present.
+- Speaker
+- Microphone
+- Earpiece
+- Audio codec
 
----
-
-## Project Goal
-
-Enable the following workflow:
-
-Mobile Network
-        │
-        ▼
-   Qualcomm Modem
-        │
-        ▼
-   QMI Voice Service
-        │
-        ▼
-   APR / QDSP6 Audio Services
-        │
-        ▼
-   ALSA Sound Card
-        │
-        ▼
-Bluetooth HFP
-        │
-        ▼
-Bluetooth Headset
-
-The objective is to make the device capable of placing and receiving normal cellular voice calls using a Bluetooth headset.
+Therefore all voice audio must be transported externally.
 
 ---
 
-## Current Status
+# Project Goal
 
-### Verified
+The final objective is to make the router behave as a fully functional Bluetooth hands-free gateway.
 
-✓ Modem firmware boots successfully.
+The desired call flow is:
 
-✓ LTE data works.
+```text
+                Cellular Network
+                       │
+                       ▼
+              Qualcomm Modem Firmware
+                       │
+                Qualcomm Voice Service
+                       │
+                       ▼
+                 ModemManager
+                       │
+                D-Bus Call Events
+                       │
+        ┌──────────────┴──────────────┐
+        │                             │
+        ▼                             ▼
+    q6voiced                  PipeWire Telephony
+        │                             │
+ Opens Voice PCM          Bluetooth HFP Audio Gateway
+        │                             │
+        ▼                             ▼
+       ALSA                     RFCOMM + SCO
+        │                             │
+        └──────────────┬──────────────┘
+                       │
+                       ▼
+              Bluetooth Headset
+```
 
-✓ QMI Voice service version 2.1 is present.
+The headset should be capable of:
 
-✓ Upstream Linux already contains:
-
-- APR driver
-- QDSP6 audio framework
-- MSM8916 QDSP6 sound card driver
-- MSM8916 modem DTS include
-
-✓ Bluetooth works.
-
----
-
-## Not Yet Verified
-
-- APR communication with modem
-- ADSP audio services
-- ALSA sound card registration
-- Audio routing
-- Voice session establishment
-- Bluetooth HFP integration
-
----
-
-## Expected Software Stack
-
-Application
-    ↓
-ModemManager / Custom Voice Manager
-    ↓
-libqmi
-    ↓
-QMI Voice
-    ↓
-APR
-    ↓
-QDSP6
-    ↓
-ALSA ASoC
-    ↓
-Bluetooth HFP
+- Making outgoing calls
+- Receiving incoming calls
+- Two-way audio
+- Call control
+- Wideband speech (where supported)
 
 ---
 
-## Documentation Structure
+# Design Philosophy
 
-00-overview.md
+One important discovery during this project is that almost every required component already exists upstream.
 
-High level project overview.
+Rather than implementing a completely new voice stack, the objective is to integrate existing upstream Linux components.
 
-01-qmi-voice.md
+The overall architecture consists of:
 
-Qualcomm Voice service.
+## Kernel
 
-02-qdsp6.md
+- APR (Asynchronous Packet Router)
+- QDSP6 Audio Framework
+- Qualcomm Voice driver
+- MSM8916 ASoC sound card
+- Bluetooth HCI driver
+- Bluetooth WCNSS transport
 
-Qualcomm Hexagon DSP audio architecture.
+## Userspace
 
-03-apr.md
+- ModemManager
+- q6voiced
+- PipeWire
+- WirePlumber
+- BlueZ
 
-APR messaging protocol.
+The work therefore focuses primarily on integration rather than new driver development.
 
-04-device-tree.md
+---
 
-Device tree requirements.
+# Current Status
 
-05-kernel-config.md
+## Working
 
-Kernel configuration.
+✓ LTE data
 
-06-bluetooth-hfp.md
+✓ Remoteproc modem boot
 
-Bluetooth call audio routing.
+✓ Qualcomm Voice service (QMI)
 
-07-testing.md
+✓ Bluetooth controller
 
-Testing procedures.
+✓ Bluetooth discovery
 
-TODO.md
+✓ Bluetooth pairing
 
-Remaining work.
+✓ Bluetooth device naming
+
+✓ WCNSS firmware loading
+
+✓ Upstream Linux QDSP6 drivers identified
+
+✓ Upstream q6voice driver identified
+
+✓ Upstream q6voiced daemon identified
+
+✓ PipeWire Bluetooth HFP implementation identified
+
+---
+
+## Under Investigation
+
+- APR communication
+- QDSP6 voice services
+- ALSA voice PCM
+- MSM8916 sound card registration
+- PipeWire integration
+- Bluetooth HFP audio
+- Voice routing
+- Wideband speech
+
+---
+
+# Software Architecture
+
+The complete software stack is expected to be:
+
+```text
+                    Applications
+                          │
+                          ▼
+                   ModemManager
+                          │
+                 D-Bus Call Events
+                          │
+          ┌───────────────┴──────────────┐
+          │                              │
+          ▼                              ▼
+     q6voiced                 PipeWire Telephony
+          │                              │
+     Opens PCM                Bluetooth Audio Gateway
+          │                              │
+          └───────────────┬──────────────┘
+                          ▼
+                        ALSA
+                          │
+                          ▼
+                     q6voice Driver
+                          │
+                          ▼
+                     APR Messaging
+                          │
+                          ▼
+                      Qualcomm DSP
+                          │
+                          ▼
+                    Modem Firmware
+                          │
+                          ▼
+                   Cellular Network
+```
+
+---
+
+# Documentation Structure
+
+| Document | Description |
+|----------|-------------|
+| 00-overview.md | Project overview |
+| 01-qmi-voice.md | Qualcomm Voice service |
+| 02-qdsp6.md | Qualcomm DSP architecture |
+| 03-apr.md | APR messaging protocol |
+| 04-device-tree.md | Device Tree requirements |
+| 05-kernel-config.md | Kernel configuration |
+| 06-bluetooth.md | Bluetooth bring-up |
+| 07-bluetooth-hfp.md | Bluetooth Hands-Free Profile |
+| 08-testing.md | Validation and testing |
+| 09-pipewire.md | PipeWire telephony architecture |
+| TODO.md | Remaining work |
+
+---
+
+# Project Roadmap
+
+## Phase 1 — Platform Bring-up
+
+- Modem boot
+- LTE data
+- Bluetooth support
+- Kernel bring-up
+
+Status: **Completed**
+
+---
+
+## Phase 2 — Voice Infrastructure
+
+- QMI Voice
+- APR
+- QDSP6
+- ALSA
+- Voice PCM
+
+Status: **In Progress**
+
+---
+
+## Phase 3 — Audio Routing
+
+- q6voiced
+- PipeWire
+- Bluetooth HFP
+- SCO audio
+
+Status: **Planned**
+
+---
+
+## Phase 4 — Voice Calling
+
+- Outgoing calls
+- Incoming calls
+- Two-way audio
+- Bluetooth headset
+- Wideband speech
+
+Status: **Planned**
+
+---
+
+# Long-Term Goal
+
+The long-term objective is to provide a completely upstream, reproducible implementation of cellular voice support for MSM8916-based OpenWrt devices without relying on proprietary Android userspace components.
+
+Whenever possible, existing upstream Linux kernel drivers and open-source userspace projects will be used instead of custom implementations.
