@@ -21,3 +21,5 @@ pr_description.md
 
 #Book Keeping Directory
 GitIgnore
+openwrt/.builder-state
+openwrt/package/.python-version

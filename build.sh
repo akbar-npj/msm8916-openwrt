@@ -27,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$SCRIPT_DIR"
 
 OPENWRT_DIR="$REPO_DIR/openwrt"
+CONFIGS_DIR="$REPO_DIR/configs"
 
 SCRIPTS_DIR="$REPO_DIR/scripts"
 
@@ -237,14 +238,23 @@ check_openwrt_clean() {
 
     [ -d "$OPENWRT_DIR/.git" ] || return
 
-    if ! git -C "$OPENWRT_DIR" diff --quiet ||
-       ! git -C "$OPENWRT_DIR" diff --cached --quiet; then
+    #
+    # Ignore files intentionally managed by openwrt-prepare.sh.
+    #
+    local diff
 
+    diff="$(
+        git -C "$OPENWRT_DIR" status --porcelain \
+        --untracked-files=no \
+        | grep -v ' feeds.conf.default$' || true
+    )"
+
+    if [ -n "$diff" ]; then
+        echo "$diff"
         die "OpenWrt tree contains local modifications.
 Commit, stash, or discard them before switching versions."
     fi
 }
-
 checkout_openwrt() {
 
     local version="$1"
@@ -342,7 +352,7 @@ ensure_prepared() {
 
 list_boards() {
 
-    for cfg in "$REPO_DIR"/diffconfig_*; do
+    for cfg in "$CONFIGS_DIR"/diffconfig_*; do
         [ -f "$cfg" ] || continue
         echo "  ${cfg##*/diffconfig_}"
     done
@@ -357,7 +367,7 @@ check_board() {
 
     DIFFCONFIG_NAME="diffconfig_${BOARD}"
 
-    if [ ! -f "$REPO_DIR/$DIFFCONFIG_NAME" ]; then
+    if [ ! -f "$CONFIGS_DIR/$DIFFCONFIG_NAME" ]; then
 
         echo
         echo "Available boards:"
@@ -381,7 +391,7 @@ prepare_config() {
 
     docker_exec sh -c "
         cd $CONTAINER_OPENWRT_DIR &&
-        cp $CONTAINER_REPO_DIR/$DIFFCONFIG_NAME .config
+        cp $CONTAINER_REPO_DIR/configs/$DIFFCONFIG_NAME .config
     "
 
     run_openwrt_make "make defconfig V=sc"
@@ -412,7 +422,7 @@ save_diffconfig() {
 }
 
 
-    if cmp -s "$TMP_DIFFCONFIG" "$SCRIPT_DIR/$DIFFCONFIG_NAME"; then
+    if cmp -s "$TMP_DIFFCONFIG" "$CONFIGS_DIR/$DIFFCONFIG_NAME"; then
 
         ok "$DIFFCONFIG_NAME is already up to date."
         rm -f "$TMP_DIFFCONFIG"
@@ -432,7 +442,7 @@ save_diffconfig() {
         y|yes)
 
             mv "$TMP_DIFFCONFIG" \
-               "$SCRIPT_DIR/$DIFFCONFIG_NAME"
+                "$CONFIGS_DIR/$DIFFCONFIG_NAME"
 
                TMP_DIFFCONFIG=""
 

@@ -8,7 +8,7 @@
 #   • Install msm89xx target
 #   • Install project packages
 #   • Apply repository overlay
-#   • Apply project patches
+#   • Apply OpenWrt repository patches
 #   • Update/install package feeds
 #   • Apply compatibility fixes
 #   • Record preparation state
@@ -33,7 +33,9 @@ TARGET_DIR="$REPO_DIR/msm89xx"
 PACKAGES_DIR="$REPO_DIR/packages"
 OVERLAY_DIR="$REPO_DIR/openwrt-overlay"
 
-PATCH_SCRIPT="$SCRIPT_DIR/patch_atheros.sh"
+
+# Apply OpenWrt repository patches
+APPLY_PATCHES_SCRIPT="$SCRIPT_DIR/apply_openwrt_patches.sh"
 
 ###############################################################################
 # Arguments
@@ -156,8 +158,8 @@ check_requirements() {
     [ -d "$PACKAGES_DIR" ] ||
         die "Missing: packages/"
 
-    [ -x "$PATCH_SCRIPT" ] ||
-        die "Missing executable: $PATCH_SCRIPT"
+    [ -x "$APPLY_PATCHES_SCRIPT" ] ||
+        die "Missing executable: $APPLY_PATCHES_SCRIPT"
 }
 
 ###############################################################################
@@ -244,11 +246,11 @@ install_package_patches() {
         "$OPENWRT_DIR/package/system/$pkg/patches/"
    done
 }
-patch_openwrt() {
+apply_openwrt_patches() {
 
     info "Applying project patches..."
 
-    "$PATCH_SCRIPT" "$OPENWRT_DIR"
+    "$APPLY_PATCHES_SCRIPT" "$OPENWRT_DIR"
 }
 
 update_feeds() {
@@ -363,7 +365,7 @@ main() {
 
     install_overlay
 
-    patch_openwrt
+    apply_openwrt_patches
 
     update_feeds
 
