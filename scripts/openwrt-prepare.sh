@@ -33,7 +33,22 @@ TARGET_DIR="$REPO_DIR/msm89xx"
 PACKAGES_DIR="$REPO_DIR/packages"
 OVERLAY_DIR="$REPO_DIR/openwrt-overlay"
 
-PATCH_SCRIPT="$SCRIPT_DIR/patch_atheros.sh"
+###############################################################################
+# Special OpenWrt-tree patch
+#
+# 809 modifies:
+#
+#   package/kernel/mac80211/ath.mk
+#
+# It is stored together with the BSP patches for repository organization,
+# but it must NOT be left in:
+#
+#   target/linux/msm89xx/patches/
+#
+# because that directory is used for patches against the Linux kernel source.
+###############################################################################
+
+OPENWRT_MAC80211_PATCH="$TARGET_DIR/patches/809-mac80211-enable-wcn36xx.patch"
 
 ###############################################################################
 # Arguments
@@ -65,11 +80,10 @@ while [ $# -gt 0 ]; do
         exit 0
         ;;
 
+    *)
 
-        *)
-
-            OPENWRT_DIR="$(realpath "$1")"
-            ;;
+        OPENWRT_DIR="$(realpath "$1")"
+        ;;
 
     esac
 
@@ -156,8 +170,12 @@ check_requirements() {
     [ -d "$PACKAGES_DIR" ] ||
         die "Missing: packages/"
 
-    [ -x "$PATCH_SCRIPT" ] ||
-        die "Missing executable: $PATCH_SCRIPT"
+    if [ ! -f "$OPENWRT_MAC80211_PATCH" ]; then
+
+        die "Missing OpenWrt mac80211 patch:
+$OPENWRT_MAC80211_PATCH"
+
+    fi
 }
 
 ###############################################################################
@@ -175,6 +193,16 @@ install_target() {
     cp -a \
         "$TARGET_DIR" \
         "$OPENWRT_DIR/target/linux/"
+
+    ###########################################################################
+    # 809 is NOT a Linux kernel patch.
+    #
+    # It modifies OpenWrt's package/kernel/mac80211/ath.mk, so it must not
+    # remain in target/linux/msm89xx/patches/.
+    ###########################################################################
+
+    rm -f \
+        "$OPENWRT_DIR/target/linux/msm89xx/patches/809-mac80211-enable-wcn36xx.patch"
 }
 
 install_packages() {
@@ -205,7 +233,6 @@ install_overlay() {
 # Preparation helpers
 ###############################################################################
 
-
 install_package_patches() {
 
     #
@@ -220,36 +247,89 @@ install_package_patches() {
     #   openwrt/package/system/<pkg>/patches/
     #
 
-
     local pkg
 
     for pkg in "$PACKAGES_DIR"/*; do
 
-    [ -d "$pkg/patches" ] || continue
+        [ -d "$pkg/patches" ] || continue
 
-    pkg="$(basename "$pkg")"
+        pkg="$(basename "$pkg")"
 
-    [ -d "$OPENWRT_DIR/package/system/$pkg" ] || {
-        die "OpenWrt package not found: package/system/$pkg"
+        [ -d "$OPENWRT_DIR/package/system/$pkg" ] || {
+            die "OpenWrt package not found: package/system/$pkg"
+        }
+
+        info "Installing $pkg patches..."
+
+        rm -rf "$OPENWRT_DIR/package/system/$pkg/patches"
+
+        mkdir -p "$OPENWRT_DIR/package/system/$pkg/patches"
+
+        cp -a \
+            "$PACKAGES_DIR/$pkg/patches/." \
+            "$OPENWRT_DIR/package/system/$pkg/patches/"
+
+    done
+}
+
+###############################################################################
+# Apply patches to OpenWrt source itself
+###############################################################################
+
+apply_openwrt_patches() {
+
+    local patch_file
+
+    patch_file="$OPENWRT_MAC80211_PATCH"
+
+    [ -f "$patch_file" ] || {
+        die "Missing OpenWrt patch: $patch_file"
     }
 
-    info "Installing $pkg patches..."
+    info "Applying OpenWrt patch: $(basename "$patch_file")..."
 
-    rm -rf "$OPENWRT_DIR/package/system/$pkg/patches"
+    (
+        cd "$OPENWRT_DIR"
 
-    mkdir -p "$OPENWRT_DIR/package/system/$pkg/patches"
+        #######################################################################
+        # First check whether the patch can be applied normally.
+        #######################################################################
 
-    cp -a \
-        "$PACKAGES_DIR/$pkg/patches/." \
-        "$OPENWRT_DIR/package/system/$pkg/patches/"
-   done
+        if patch -p1 --dry-run < "$patch_file" >/dev/null 2>&1; then
+
+            patch -p1 < "$patch_file"
+
+            return
+
+        fi
+
+        #######################################################################
+        # If normal application fails, check whether it is already applied.
+        #######################################################################
+
+        if patch -p1 -R --dry-run < "$patch_file" >/dev/null 2>&1; then
+
+            info "OpenWrt patch already applied: $(basename "$patch_file")"
+
+            return
+
+        fi
+
+        #######################################################################
+        # Neither forward nor reverse application works.
+        #######################################################################
+
+        die "Cannot apply OpenWrt patch:
+$patch_file
+
+The patch is neither applicable nor already applied."
+
+    )
 }
-patch_openwrt() {
 
-    info "Applying project patches..."
-
-    "$PATCH_SCRIPT" "$OPENWRT_DIR"
-}
+###############################################################################
+# Package feeds
+###############################################################################
 
 update_feeds() {
 
@@ -263,7 +343,6 @@ update_feeds() {
         grep -q '^src-git smsmanager ' feeds.conf.default || \
             echo 'src-git smsmanager https://github.com/akbar-npj/luci-app-sms-manager.git' \
                 >> feeds.conf.default
-      
 
         #######################################################################
         # User requested a full refresh
@@ -319,6 +398,11 @@ update_feeds() {
         fi
     )
 }
+
+###############################################################################
+# Compatibility fixes
+###############################################################################
+
 apply_compatibility_fixes() {
 
     info "Applying compatibility fixes..."
@@ -336,6 +420,10 @@ apply_compatibility_fixes() {
 
     fi
 }
+
+###############################################################################
+# Builder state
+###############################################################################
 
 write_builder_state() {
 
@@ -363,7 +451,7 @@ main() {
 
     install_overlay
 
-    patch_openwrt
+    apply_openwrt_patches
 
     update_feeds
 

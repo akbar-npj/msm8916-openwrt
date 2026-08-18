@@ -114,7 +114,7 @@ docker_compose() {
 }
 
 docker_exec() {
-
+    ensure_builder
     docker_compose exec builder "$@"
 }
 
@@ -194,12 +194,15 @@ build_image() {
 }
 
 ensure_builder() {
-
     if ! builder_image_exists; then
         build_image
     fi
 
     docker_compose up -d builder >/dev/null
+
+    if ! docker_compose ps --status running --services | grep -qx builder; then
+        die "Docker builder service failed to start. Check: docker compose logs builder"
+    fi
 }
 
 ###############################################################################
@@ -336,6 +339,24 @@ ensure_prepared() {
 
     prepare_tree "$version"
 }
+
+###############################################################################
+# Feed helpers
+###############################################################################
+
+update_feeds() {
+
+    msg "Updating OpenWrt feeds..."
+
+    docker_exec sh -c "
+        cd $CONTAINER_OPENWRT_DIR &&
+        ./scripts/feeds update -a &&
+        ./scripts/feeds install -a
+    "
+
+    ok "OpenWrt feeds updated and installed."
+}
+
 ###############################################################################
 # Board helpers
 ###############################################################################
@@ -455,7 +476,26 @@ build_target() {
 
     local clean="${1:-0}"
 
-    ensure_prepared
+    ###########################################################################
+    # Always synchronize repository sources before building.
+    #
+    # This refreshes:
+    #
+    #   msm89xx/
+    #   packages/
+    #   package patches
+    #   openwrt-overlay/
+    #   package feeds
+    #
+    ###########################################################################
+
+    local version
+
+    version="$("$OPENWRT_VERSION_SCRIPT" --current)"
+
+    ensure_openwrt
+
+    prepare_tree "$version"
 
     prepare_config
 

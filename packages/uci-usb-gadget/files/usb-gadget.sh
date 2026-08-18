@@ -282,7 +282,9 @@ setup_gadget() {
     log "Gadget path: $CFG_GADGET_PATH"
     
     # Prepare system
-    modprobe libcomposite || error "Failed to load libcomposite module"
+    if ! lsmod | grep -q "^libcomposite "; then
+        modprobe libcomposite || error "Failed to load libcomposite module"
+    fi
     
     if ! mountpoint -q /sys/kernel/config; then
         log "Mounting configfs"
