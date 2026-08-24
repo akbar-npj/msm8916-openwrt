@@ -62,7 +62,7 @@ define Device/generic-ufi001b
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools \
-		msm-firmware-dumper
+		msm-firmware-dumper reboot-edl
 endef
 TARGET_DEVICES += generic-ufi001b
 
@@ -75,7 +75,7 @@ define Device/generic-hmu05
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools \
-		msm-firmware-dumper
+		msm-firmware-dumper reboot-edl
 endef
 TARGET_DEVICES += generic-hmu05
 

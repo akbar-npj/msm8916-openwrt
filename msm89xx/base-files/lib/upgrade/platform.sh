@@ -7,17 +7,8 @@ RAMFS_COPY_DATA="/lib/functions.sh /lib/upgrade/common.sh /lib/upgrade/fwtool.sh
 
 platform_check_image() {
     local fw_image="$1"
-    local boardname
-    
-    read boardname </tmp/sysinfo/board_name
-    boardname=${boardname//-/}
-    boardname=${boardname//,/-}
 
-    # Must be a tar archive
-    local control_len=$( (tar xf $fw_image sysupgrade-$boardname/CONTROL -O | wc -c) 2> /dev/null)
-
-    # check if valid sysupgrade tar archive
-    if [ "$control_len" = "0" ]; then
+    if ! tar tf "$fw_image" 2>/dev/null | grep -qE '^(\./)?sysupgrade-[^/]+/CONTROL$'; then
         echo "Invalid sysupgrade file: $fw_image"
         return 1
     fi
@@ -28,28 +19,33 @@ platform_check_image() {
 platform_do_upgrade() {
     local tar_file="$1"
     local boot_part rootfs_part
-    local board_dir=$(tar tf $tar_file | grep -m 1 '^sysupgrade-.*/$')
+    local board_dir=$(tar tf "$tar_file" 2>/dev/null | grep -m 1 '^sysupgrade-.*/$')
     board_dir=${board_dir%/}
 
     # Locate partitions by GPT label
     boot_part=$(find_mmc_part "boot")
     rootfs_part=$(find_mmc_part "rootfs")
+    [ -z "$rootfs_part" ] && rootfs_part=$(find_mmc_part "system")
 
     [ -z "$boot_part" ] && { echo "sysupgrade: cannot find 'boot' partition"; return 1; }
     [ -z "$rootfs_part" ] && { echo "sysupgrade: cannot find 'rootfs' partition"; return 1; }
 
     echo "sysupgrade: writing kernel to $boot_part"
-    tar -xOf "$tar_file" ${board_dir}/kernel 2>/dev/null | \
+    tar -xOf "$tar_file" "${board_dir}/kernel" 2>/dev/null | \
         dd of="$boot_part" bs=4096 conv=fsync
 
     echo "sysupgrade: writing rootfs to $rootfs_part"
-    tar -xOf "$tar_file" ${board_dir}/root 2>/dev/null | \
+    tar -xOf "$tar_file" "${board_dir}/root" 2>/dev/null | \
         dd of="$rootfs_part" bs=4096 conv=fsync
+
+    if [ -z "$UPGRADE_BACKUP" ]; then
+        local data_part=$(find_mmc_part "rootfs_data")
+        [ -n "$data_part" ] && {
+            echo "sysupgrade: wiping rootfs_data on $data_part"
+            dd if=/dev/zero of="$data_part" bs=4096 count=256 conv=fsync 2>/dev/null
+        }
+    fi
 
     sync
 }
 
-platform_pre_upgrade() {
-    rm -fr /overlay/upper/* /overlay/upper/.* 2>/dev/null
-    [ -f "$UPGRADE_BACKUP" ] && cp -f "$UPGRADE_BACKUP" "/overlay/upper/$BACKUP_FILE" 2>/dev/null
-}

@@ -1,0 +1,16 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+. /lib/functions/system.sh
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+# MSM8916 4G USB dongles operate as Wi-Fi / USB router without eth0
+ucidef_set_interface_lan ""
+ucidef_set_country "US"
+ucidef_set_wireless "all" "OpenWrt" "none"
+
+board_config_flush
+
+exit 0

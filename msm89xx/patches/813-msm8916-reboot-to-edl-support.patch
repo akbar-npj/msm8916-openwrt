@@ -1,0 +1,240 @@
+diff -u -N -r a/arch/arm64/boot/dts/qcom/msm8916.dtsi b/arch/arm64/boot/dts/qcom/msm8916.dtsi
+--- a/arch/arm64/boot/dts/qcom/msm8916.dtsi	2026-08-25 04:26:12.131994092 +0545
++++ b/arch/arm64/boot/dts/qcom/msm8916.dtsi	2026-08-25 04:26:12.134480797 +0545
+@@ -453,6 +453,24 @@
+ 			reg = <0x004ab000 0x4>;
+ 		};
+ 
++		qcom,msm-imem@8600000 {
++			compatible = "qcom,msm-imem", "syscon", "simple-mfd";
++			reg = <0x08600000 0x1000>;
++			ranges = <0x0 0x08600000 0x1000>;
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			restart_reason@65c {
++				compatible = "qcom,msm-imem-restart_reason";
++				reg = <0x65c 4>;
++			};
++
++			emergency_download_mode@fe0 {
++				compatible = "qcom,msm-imem-emergency_download_mode";
++				reg = <0xfe0 12>;
++			};
++		};
++
+ 		qfprom: qfprom@5c000 {
+ 			compatible = "qcom,msm8916-qfprom", "qcom,qfprom";
+ 			reg = <0x0005c000 0x1000>;
+diff -u -N -r a/drivers/firmware/qcom/qcom_scm.c b/drivers/firmware/qcom/qcom_scm.c
+--- a/drivers/firmware/qcom/qcom_scm.c	2026-08-25 04:26:02.650204754 +0545
++++ b/drivers/firmware/qcom/qcom_scm.c	2026-08-25 04:26:12.134377582 +0545
+@@ -558,6 +558,15 @@
+ 		dev_err(__scm->dev, "failed to set download mode: %d\n", ret);
+ }
+ 
++int qcom_scm_set_edload_mode(void)
++{
++	if (__scm && __scm->dload_mode_addr)
++		qcom_scm_set_download_mode(QCOM_DLOAD_FULLDUMP);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(qcom_scm_set_edload_mode);
++
+ /**
+  * qcom_scm_pas_init_image() - Initialize peripheral authentication service
+  *			       state machine for a given peripheral, using the
+diff -u -N -r a/drivers/power/reset/msm-poweroff.c b/drivers/power/reset/msm-poweroff.c
+--- a/drivers/power/reset/msm-poweroff.c	2026-08-25 04:26:11.446923896 +0545
++++ b/drivers/power/reset/msm-poweroff.c	2026-08-25 04:26:12.134418168 +0545
+@@ -8,15 +8,54 @@
+ #include <linux/kernel.h>
+ #include <linux/io.h>
+ #include <linux/of.h>
++#include <linux/of_address.h>
+ #include <linux/platform_device.h>
+ #include <linux/module.h>
+ #include <linux/reboot.h>
+ #include <linux/pm.h>
++#include <linux/string.h>
++#include <linux/firmware/qcom/qcom_scm.h>
++#include <asm/cacheflush.h>
++
++extern int pm8916_pon_configure_warm_reset(void);
+ 
+ static void __iomem *msm_ps_hold;
++static void __iomem *msm_imem_base;
++
++#define MSM_IMEM_EDL_MAGIC1 0x322A4F99
++#define MSM_IMEM_EDL_MAGIC2 0xC67E4350
++#define MSM_IMEM_EDL_MAGIC3 0x77777777
++
++#define IMEM_RESTART_REASON_OFFSET 0x65C
++#define IMEM_EDL_COOKIES_OFFSET    0xFE0
++
++static void msm_write_emergency_dload_magic(void)
++{
++	if (!msm_imem_base)
++		return;
++
++	/* 1. Write Restart Reason to 0x0860065C */
++	writel(0x00000001, msm_imem_base + IMEM_RESTART_REASON_OFFSET);
++
++	/* 2. Write 3 Magic Cookies to 0x08600FE0 */
++	writel(MSM_IMEM_EDL_MAGIC1, msm_imem_base + IMEM_EDL_COOKIES_OFFSET + 0x00);
++	writel(MSM_IMEM_EDL_MAGIC2, msm_imem_base + IMEM_EDL_COOKIES_OFFSET + 0x04);
++	writel(MSM_IMEM_EDL_MAGIC3, msm_imem_base + IMEM_EDL_COOKIES_OFFSET + 0x08);
++	mb();
++}
+ 
+ static int do_msm_poweroff(struct sys_off_data *data)
+ {
++	if (data->cmd && (!strcmp(data->cmd, "edl") || !strcmp(data->cmd, "dload"))) {
++		pr_emerg("MSM8916: Arming Qualcomm EDL / DLOAD Mode across Warm Reset\n");
++
++		msm_write_emergency_dload_magic();
++		qcom_scm_set_edload_mode();
++		pm8916_pon_configure_warm_reset();
++		flush_cache_all();
++		mdelay(50);
++	}
++
+ 	writel(0, msm_ps_hold);
+ 	mdelay(10000);
+ 
+@@ -25,12 +64,22 @@
+ 
+ static int msm_restart_probe(struct platform_device *pdev)
+ {
++	struct device_node *imem_np;
++	struct resource imem_res;
++
+ 	msm_ps_hold = devm_platform_ioremap_resource(pdev, 0);
+ 	if (IS_ERR(msm_ps_hold))
+ 		return PTR_ERR(msm_ps_hold);
+ 
++	imem_np = of_find_compatible_node(NULL, NULL, "qcom,msm-imem");
++	if (imem_np) {
++		if (!of_address_to_resource(imem_np, 0, &imem_res))
++			msm_imem_base = devm_ioremap(&pdev->dev, imem_res.start, resource_size(&imem_res));
++		of_node_put(imem_np);
++	}
++
+ 	devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_RESTART,
+-				      128, do_msm_poweroff, NULL);
++				      130, do_msm_poweroff, NULL);
+ 
+ 	devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_POWER_OFF,
+ 				      SYS_OFF_PRIO_DEFAULT, do_msm_poweroff,
+diff -u -N -r a/drivers/power/reset/qcom-pon.c b/drivers/power/reset/qcom-pon.c
+--- a/drivers/power/reset/qcom-pon.c	2026-08-25 04:26:06.148180805 +0545
++++ b/drivers/power/reset/qcom-pon.c	2026-08-25 04:26:12.134407834 +0545
+@@ -27,6 +27,95 @@
+ 	long reason_shift;
+ };
+ 
++#define QPNP_PON_REVISION2_OFF		0x01
++#define QPNP_PON_WD_RST_S2_CTL2		0x57
++#define QPNP_PON_PS_HOLD_RST_CTL	0x5A
++#define QPNP_PON_PS_HOLD_RST_CTL2	0x5B
++#define QPNP_PON_RESET_EN		BIT(7)
++#define QPNP_PON_POWER_OFF_MASK		0x0F
++#define PON_POWER_OFF_WARM_RESET	0x01
++#define QPNP_PON_WD_EN			BIT(7)
++
++int pm8916_pon_configure_warm_reset(void);
++
++int pm8916_pon_configure_warm_reset(void)
++{
++	struct device_node *np;
++	struct platform_device *pdev;
++	struct pm8916_pon *pon;
++	u32 rev2 = 0;
++	u32 rst_en_reg;
++	int ret;
++
++	np = of_find_compatible_node(NULL, NULL, "qcom,pm8916-pon");
++	if (!np)
++		return -ENODEV;
++
++	pdev = of_find_device_by_node(np);
++	of_node_put(np);
++	if (!pdev)
++		return -ENODEV;
++
++	pon = platform_get_drvdata(pdev);
++	if (!pon || !pon->regmap) {
++		put_device(&pdev->dev);
++		return -ENODEV;
++	}
++
++	ret = regmap_read(pon->regmap,
++			  pon->baseaddr + QPNP_PON_REVISION2_OFF,
++			  &rev2);
++	if (ret) {
++		put_device(&pdev->dev);
++		return ret;
++	}
++
++	rst_en_reg = (rev2 == 0) ?
++		     (pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL) :
++		     (pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL2);
++
++	ret = regmap_update_bits(pon->regmap,
++				 rst_en_reg,
++				 QPNP_PON_RESET_EN,
++				 0);
++	if (ret) {
++		put_device(&pdev->dev);
++		return ret;
++	}
++
++	udelay(500);
++
++	ret = regmap_update_bits(
++		pon->regmap,
++		pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL,
++		QPNP_PON_POWER_OFF_MASK,
++		PON_POWER_OFF_WARM_RESET);
++	if (ret) {
++		put_device(&pdev->dev);
++		return ret;
++	}
++
++	ret = regmap_update_bits(pon->regmap,
++				 rst_en_reg,
++				 QPNP_PON_RESET_EN,
++				 QPNP_PON_RESET_EN);
++	if (ret) {
++		put_device(&pdev->dev);
++		return ret;
++	}
++
++	ret = regmap_update_bits(
++		pon->regmap,
++		pon->baseaddr + QPNP_PON_WD_RST_S2_CTL2,
++		QPNP_PON_WD_EN,
++		0);
++
++	put_device(&pdev->dev);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(pm8916_pon_configure_warm_reset);
++
++
+ static int pm8916_reboot_mode_write(struct reboot_mode_driver *reboot,
+ 				    unsigned int magic)
+ {
+diff -u -N -r a/include/linux/firmware/qcom/qcom_scm.h b/include/linux/firmware/qcom/qcom_scm.h
+--- a/include/linux/firmware/qcom/qcom_scm.h	2026-08-25 04:26:00.886947143 +0545
++++ b/include/linux/firmware/qcom/qcom_scm.h	2026-08-25 04:26:12.134089021 +0545
+@@ -61,6 +61,8 @@
+ 
+ bool qcom_scm_is_available(void);
+ 
++int qcom_scm_set_edload_mode(void);
++
+ int qcom_scm_set_cold_boot_addr(void *entry);
+ int qcom_scm_set_warm_boot_addr(void *entry);
+ void qcom_scm_cpu_power_down(u32 flags);
