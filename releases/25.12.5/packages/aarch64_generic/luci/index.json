@@ -8,6 +8,7 @@
     "luci": "26.180.75667~128a781",
     "luci-app-filemanager": "26.180.75667~128a781",
     "luci-app-firewall": "26.180.75667~128a781",
+    "luci-app-p910nd": "26.180.75667~128a781",
     "luci-app-package-manager": "26.180.75667~128a781",
     "luci-app-statistics": "26.180.75667~128a781",
     "luci-app-wol": "26.180.75667~128a781",
