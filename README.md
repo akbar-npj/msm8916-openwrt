@@ -141,13 +141,10 @@ This repository hosts a live APK feed on GitHub Pages with all pre-compiled Qual
 ### Repository Feeds URL:
 - **Landing Page**: [https://akbar-npj.github.io/msm8916-openwrt/](https://akbar-npj.github.io/msm8916-openwrt/)
 
-### Enable Feeds on Device:
+### Enable Custom Feeds on Device:
 ```bash
 cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
 https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/luci/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
 EOF
 
 apk update
