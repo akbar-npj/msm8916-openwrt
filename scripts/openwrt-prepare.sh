@@ -337,14 +337,6 @@ update_feeds() {
         cd "$OPENWRT_DIR"
 
         #######################################################################
-        # Ensure custom feed exists
-        #######################################################################
-
-        grep -q '^src-git smsmanager ' feeds.conf.default || \
-            echo 'src-git smsmanager https://github.com/akbar-npj/luci-app-sms-manager.git' \
-                >> feeds.conf.default
-
-        #######################################################################
         # User requested a full refresh
         #######################################################################
 
@@ -367,7 +359,7 @@ update_feeds() {
 
         needs_install=0
 
-        for feed in packages luci routing telephony video smsmanager; do
+        for feed in packages luci routing telephony video; do
 
             if [ ! -d "feeds/$feed" ]; then
 

@@ -1,0 +1,788 @@
+msgid ""
+msgstr ""
+"Language: zh_TW\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "SMS Manager"
+msgstr "簡訊管理器"
+
+msgid "Please select the message(s) to be deleted"
+msgstr "請選擇要刪除的訊息"
+
+msgid "Delete all the messages?"
+msgstr "刪除所有訊息?"
+
+msgid "Delete selected message(s)?"
+msgstr "刪除所選訊息?"
+
+msgid "Please set the modem for communication"
+msgstr "請設定通訊數據機"
+
+msgid "No valid SMS IDs found"
+msgstr "找不到有效的簡訊 ID"
+
+msgid "Message(s) deleted successfully"
+msgstr "訊息已成功刪除"
+
+msgid "Error deleting messages: "
+msgstr "刪除訊息時發生錯誤: "
+
+msgid "Sender"
+msgstr "寄件者"
+
+msgid "Received"
+msgstr "已接收"
+
+msgid "Message"
+msgstr "訊息"
+
+msgid "Please configure the SMS reading modem first"
+msgstr "請先設定簡訊讀取數據機"
+
+msgid "No SMS messages found"
+msgstr "找不到簡訊"
+
+msgid "Error loading SMS details: "
+msgstr "載入簡訊詳細資訊時發生錯誤: "
+
+msgid "Error listing SMS: "
+msgstr "列出簡訊時發生錯誤: "
+
+msgid "SMS Messages"
+msgstr "簡訊"
+
+msgid "User interface for reading messages using ModemManager."
+msgstr "使用 ModemManager 讀取訊息的使用者介面。"
+
+msgid "Received Messages"
+msgstr "已接收的訊息"
+
+msgid "Message storage area"
+msgstr "訊息儲存區域"
+
+msgid "SM / ME (Automatic selection)"
+msgstr "SM / ME (自動選擇)"
+
+msgid "Storage SM / ME used"
+msgstr "已使用 SM / ME 儲存空間"
+
+msgid "Loading..."
+msgstr "載入中..."
+
+msgid "Delete message(s)"
+msgstr "刪除訊息"
+
+msgid "Refresh"
+msgstr "重新整理"
+
+msgid ""
+msgstr ""
+
+msgid "Please specify the command to send"
+msgstr "請指定要傳送的指令"
+
+msgid "Please set the modem for communication"
+msgstr "請設定通訊數據機"
+
+msgid "User interface for sending AT commands using ModemManager."
+msgstr "使用 ModemManager 傳送 AT 指令的使用者介面。"
+
+msgid "AT Commands"
+msgstr "AT 指令"
+
+msgid "User AT commands"
+msgstr "自訂 AT 指令"
+
+msgid "Command to send"
+msgstr "要傳送的指令"
+
+msgid "Press [Enter] to send the command, press [Delete] to delete the command"
+msgstr "按 [Enter] 傳送指令,按 [Delete] 刪除指令"
+
+msgid "Clear form"
+msgstr "清除表單"
+
+msgid "Send command"
+msgstr "傳送指令"
+
+msgid "Reply"
+msgstr "回覆"
+
+msgid ""
+msgstr ""
+
+msgid "Please specify the phone number to which you want to send the message"
+msgstr "請指定要傳送訊息的電話號碼"
+
+msgid "Please specify the message you want to send"
+msgstr "請指定要傳送的訊息內容"
+
+msgid "Please set the modem for communication"
+msgstr "請設定通訊數據機"
+
+msgid "Please specify phone number"
+msgstr "請指定電話號碼"
+
+msgid "SMS sent successfully to"
+msgstr "簡訊已成功傳送至"
+
+msgid "Failed to send SMS to"
+msgstr "傳送簡訊失敗至"
+
+msgid "Failed to create SMS"
+msgstr "建立簡訊失敗"
+
+msgid "Error creating SMS: "
+msgstr "建立簡訊時發生錯誤: "
+
+msgid "The phone number should be preceded by the country prefix (for Poland it is +48)."
+msgstr "電話號碼應以國碼開頭 (波蘭為 +48)。"
+
+msgid "User interface for sending messages using ModemManager."
+msgstr "使用 ModemManager 傳送訊息的使用者介面。"
+
+msgid "SMS Messages"
+msgstr "簡訊"
+
+msgid "User contacts"
+msgstr "使用者聯絡人"
+
+msgid "Send to"
+msgstr "傳送至"
+
+msgid "Press [Delete] to delete the phone number"
+msgstr "按 [Delete] 刪除電話號碼"
+
+msgid "Encoding standard"
+msgstr "編碼標準"
+
+msgid "GSM-7 encoding (160 characters)"
+msgstr "GSM-7 編碼 (160 個字元)"
+
+msgid "GSM-7 (160 characters)"
+msgstr "GSM-7 (160 個字元)"
+
+msgid "Unicode encoding (70 characters)"
+msgstr "Unicode 編碼 (70 個字元)"
+
+msgid "Unicode (70 characters)"
+msgstr "Unicode (70 個字元)"
+
+msgid "Message text"
+msgstr "訊息內容"
+
+msgid "Press [Delete] to delete the content of the message"
+msgstr "按 [Delete] 刪除訊息內容"
+
+msgid "Characters remaining:"
+msgstr "剩餘字元數:"
+
+msgid "160"
+msgstr "160"
+
+msgid "Clear form"
+msgstr "清除表單"
+
+msgid "Send"
+msgstr "傳送"
+
+msgid "to number"
+msgstr "至號碼"
+
+msgid "to group"
+msgstr "至群組"
+
+msgid "Send to number"
+msgstr "傳送至號碼"
+
+msgid "Status"
+msgstr "狀態"
+
+msgid ""
+msgstr ""
+
+msgid "Error sending USSD code. Please check modem status."
+msgstr "傳送 USSD 代碼時發生錯誤。請檢查數據機狀態。"
+
+msgid "ModemManager error. Please check if modem is available."
+msgstr "ModemManager 錯誤。請檢查數據機是否可用。"
+
+msgid "No modem found. Please check ModemManager."
+msgstr "找不到數據機。請檢查 ModemManager。"
+
+msgid "Please specify the code to send"
+msgstr "請指定要傳送的代碼"
+
+msgid "Please set the modem for communication"
+msgstr "請設定通訊數據機"
+
+msgid "User interface for sending USSD codes using ModemManager."
+msgstr "使用 ModemManager 傳送 USSD 代碼的使用者介面。"
+
+msgid "USSD Codes"
+msgstr "USSD 代碼"
+
+msgid "User USSD codes"
+msgstr "自訂 USSD 代碼"
+
+msgid "Code to send"
+msgstr "要傳送的代碼"
+
+msgid "Press [Enter] to send the code, press [Delete] to delete the code"
+msgstr "按 [Enter] 傳送代碼,按 [Delete] 刪除代碼"
+
+msgid "Check this option if you need to use the menu built on USSD codes"
+msgstr "如果需要使用基於 USSD 代碼的選單,請勾選此選項"
+
+msgid "Keep the previous reply when sending a new USSD code."
+msgstr "傳送新 USSD 代碼時保留先前的回覆。"
+
+msgid "View new reply from top"
+msgstr "從頂部檢視新回覆"
+
+msgid "Turn over the replies."
+msgstr "反轉回覆順序。"
+
+msgid "Clear form"
+msgstr "清除表單"
+
+msgid "Send code"
+msgstr "傳送代碼"
+
+msgid "Reply"
+msgstr "回覆"
+
+msgid ""
+msgstr ""
+
+msgid "The tab allows users to support the package."
+msgstr "此分頁允許使用者支持此套件。"
+
+msgid "Package update and support"
+msgstr "套件更新與支持"
+
+msgid "Luci-app-sms-manager Info"
+msgstr "Luci-app-sms-manager 資訊"
+
+msgid "Luci-app-sms-manager"
+msgstr "Luci-app-sms-manager"
+
+msgid "Buy a coffee"
+msgstr "請開發者喝咖啡"
+
+msgid "Buy a coffee if you want to support the development of the project and the author"
+msgstr "如果您想支持專案開發和作者,請贊助一杯咖啡"
+
+msgid "Check package version"
+msgstr "檢查套件版本"
+
+msgid "Install from the GitHub repository"
+msgstr "從 GitHub 儲存庫安裝"
+
+msgid "Update"
+msgstr "更新"
+
+msgid "Package version"
+msgstr "套件版本"
+
+msgid "Check version"
+msgstr "檢查版本"
+
+msgid "Your version:"
+msgstr "您的版本:"
+
+msgid "Current version:"
+msgstr "目前版本:"
+
+msgid "Checking package version…"
+msgstr "正在檢查套件版本…"
+
+msgid "Go to GitHub"
+msgstr "前往 GitHub"
+
+msgid "SMS Manager Settings"
+msgstr "簡訊管理器設定"
+
+msgid "User interface for sms manager configuration."
+msgstr "簡訊管理器設定的使用者介面。"
+
+msgid "SMS Settings"
+msgstr "簡訊設定"
+
+msgid "SMS reading modem"
+msgstr "簡訊讀取數據機"
+
+msgid "Select one of the available modems from ModemManager."
+msgstr "從 ModemManager 選擇一個可用的數據機。"
+
+msgid "Saved messages successfully!"
+msgstr "訊息已成功儲存!"
+
+msgid "Delete all messages?"
+msgstr "刪除所有訊息?"
+
+msgid "Permanently delete all SMS"
+msgstr "永久刪除所有簡訊"
+
+msgid "This action will permanently delete all messages. Continue?"
+msgstr "此操作將永久刪除所有訊息。是否繼續?"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Delete"
+msgstr "刪除"
+
+msgid "All messages deleted successfully"
+msgstr "所有訊息已成功刪除"
+
+msgid "Error deleting messages: "
+msgstr "刪除訊息時發生錯誤: "
+
+msgid "SMS sending modem"
+msgstr "簡訊傳送數據機"
+
+msgid "Phone number prefix"
+msgstr "電話號碼前綴"
+
+msgid "Country prefix for phone numbers (for Poland it is +48)."
+msgstr "電話號碼的國碼前綴 (波蘭為 +48)。"
+
+msgid "Expected format: +decimal value or decimal value"
+msgstr "預期格式: +十進位數值 或 十進位數值"
+
+msgid "Add prefix to phone number"
+msgstr "新增前綴至電話號碼"
+
+msgid "Automatically add prefix to the phone number field."
+msgstr "自動新增前綴至電話號碼欄位。"
+
+msgid "Enable group messaging"
+msgstr "啟用群組訊息"
+
+msgid "This option allows you to send one message to all contacts in the user's contact list."
+msgstr "此選項允許您將一則訊息傳送給使用者聯絡人清單中的所有聯絡人。"
+
+msgid "User contacts"
+msgstr "使用者聯絡人"
+
+msgid "Each line must have the following format: 'Contact name;phone number'. For user convenience, the file is saved to the location <code>/etc/modem/sms_manager_phonebook.user</code>."
+msgstr "每行必須採用以下格式:「聯絡人名稱;電話號碼」。為方便使用者,檔案儲存於 <code>/etc/modem/sms_manager_phonebook.user</code>。"
+
+msgid "USSD Codes Settings"
+msgstr "USSD 代碼設定"
+
+msgid "USSD sending modem"
+msgstr "USSD 傳送數據機"
+
+msgid "User USSD codes"
+msgstr "使用者 USSD 代碼"
+
+msgid "Each line must have the following format: 'Code description;code'. For user convenience, the file is saved to the location <code>/etc/modem/sms_manager_ussdcodes.user</code>."
+msgstr "每行必須採用以下格式:「代碼描述;代碼」。為方便使用者,檔案儲存於 <code>/etc/modem/sms_manager_ussdcodes.user</code>。"
+
+msgid "AT Commands Settings"
+msgstr "AT 指令設定"
+
+msgid "AT commands sending modem"
+msgstr "AT 指令傳送數據機"
+
+msgid "Select one of the available modems from ModemManager. <br /><br /><b>Important</b> <br />Sending AT commands via ModemManager requires the AT command interface to be compiled in. This functionality is not available in the standard ModemManager package and requires custom compilation with AT command support enabled."
+msgstr "從 ModemManager 選擇一個可用的數據機。<br /><br /><b>重要</b><br />透過 ModemManager 傳送 AT 指令需要編譯 AT 指令介面。標準的 ModemManager 套件不包含此功能,需要啟用 AT 指令支援的自訂編譯版本。"
+
+msgid "User AT commands"
+msgstr "使用者 AT 指令"
+
+msgid "Each line must have the following format: 'At command description;AT command'. For user convenience, the file is saved to the location <code>/etc/modem/sms_manager_atcmmds.user</code>."
+msgstr "每行必須採用以下格式:「AT 指令描述;AT 指令」。為方便使用者,檔案儲存於 <code>/etc/modem/sms_manager_atcmmds.user</code>。"
+
+msgid "Notification Settings"
+msgstr "通知設定"
+
+msgid "Notify new messages"
+msgstr "通知新訊息"
+
+msgid "The LED informs about a new message. Before activating this function, please config and save the SMS reading modem, time to check SMS inbox and select the notification LED."
+msgstr "LED 會通知有新訊息。啟用此功能前,請設定並儲存簡訊讀取數據機、檢查簡訊收件匣的時間,並選擇通知 LED。"
+
+msgid "Check inbox every minute(s)"
+msgstr "每隔幾分鐘檢查收件匣"
+
+msgid "Specify how many minutes you want your inbox to be checked."
+msgstr "指定檢查收件匣的分鐘間隔。"
+
+msgid "Expect a decimal value between five and fifty-nine"
+msgstr "預期數值為 5 到 59 之間的十進位數"
+
+msgid "Restart the inbox checking process every"
+msgstr "每隔一段時間重新啟動收件匣檢查程序"
+
+msgid "The process will restart at the selected time interval. This will eliminate the delay in checking your inbox."
+msgstr "程序將在選定的時間間隔重新啟動。這將消除檢查收件匣的延遲。"
+
+msgid "4h"
+msgstr "4 小時"
+
+msgid "6h"
+msgstr "6 小時"
+
+msgid "8h"
+msgstr "8 小時"
+
+msgid "12h"
+msgstr "12 小時"
+
+msgid "The diode is dedicated only to these notifications"
+msgstr "此 LED 專用於這些通知"
+
+msgid "Select 'No' in case the router has only one LED or if the LED is multi-tasking. <br /><br /><b>Important</b> <br />This option requires LED to be defined in the system (if possible) to work properly. This requirement applies when the diode supports multiple tasks."
+msgstr "如果路由器只有一個 LED 或 LED 為多功能,請選擇「否」。<br /><br /><b>重要</b><br />此選項需要在系統中定義 LED(如果可能)才能正常運作。此要求適用於 LED 支援多項任務時。"
+
+msgid "No"
+msgstr "否"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "<abbr title=\"Light Emitting Diode\">LED</abbr> Name"
+msgstr "<abbr title=\"發光二極體\">LED</abbr> 名稱"
+
+msgid "Select the notification LED."
+msgstr "選擇通知 LED。"
+
+msgid "SMS Forwarding to E-mail Settings"
+msgstr "簡訊轉寄至電子郵件設定"
+
+msgid "An e-mail will be sent.."
+msgstr "將傳送電子郵件.."
+
+msgid "Enable message forwarding"
+msgstr "啟用訊息轉寄"
+
+msgid "E-mail settings"
+msgstr "電子郵件設定"
+
+msgid "Select a predefined e-mail settings or enter settings manually."
+msgstr "選擇預定義的電子郵件設定或手動輸入設定。"
+
+msgid "Recipient"
+msgstr "收件者"
+
+msgid "E-mail address of the recipient."
+msgstr "收件者的電子郵件地址。"
+
+msgid "Sender"
+msgstr "寄件者"
+
+msgid "E-mail address of the sender."
+msgstr "寄件者的電子郵件地址。"
+
+msgid "User"
+msgstr "使用者"
+
+msgid "Username for SMTP authentication."
+msgstr "SMTP 驗證的使用者名稱。"
+
+msgid "Password"
+msgstr "密碼"
+
+msgid "Google app password / Password for SMTP authentication."
+msgstr "Google 應用程式密碼 / SMTP 驗證的密碼。"
+
+msgid "SMTP server"
+msgstr "SMTP 伺服器"
+
+msgid "Hostname/IP address of the SMTP server."
+msgstr "SMTP 伺服器的主機名稱/IP 位址。"
+
+msgid "SMTP server port"
+msgstr "SMTP 伺服器連接埠"
+
+msgid "Security"
+msgstr "安全性"
+
+msgid "TLS: use STARTTLS if the server supports it."
+msgstr "TLS: 如果伺服器支援,使用 STARTTLS。"
+
+msgid "SSL: SMTP over SSL."
+msgstr "SSL: 透過 SSL 的 SMTP。"
+
+msgid "Required Package"
+msgstr "必要套件"
+
+msgid "The SMS forwarding option requires the mailsend package to be installed."
+msgstr "簡訊轉寄選項需要安裝 mailsend 套件。"
+
+msgid "Check required packages"
+msgstr "檢查必要套件"
+
+msgid "Check"
+msgstr "檢查"
+
+msgid "Loading package data…"
+msgstr "正在載入套件資料…"
+
+msgid "Installed"
+msgstr "已安裝"
+
+msgid "Install…"
+msgstr "安裝…"
+
+msgid "Mailsend Package"
+msgstr "Mailsend 套件"
+
+msgid "Please select exactly one message to forward"
+msgstr "請只選擇一則訊息進行轉寄"
+
+msgid "Forward selected message to e-mail?"
+msgstr "將選定的訊息轉寄至電子郵件?"
+
+msgid "Sending e-mail..."
+msgstr "正在傳送電子郵件..."
+
+msgid "Message forwarded successfully"
+msgstr "訊息已成功轉寄"
+
+msgid "Failed to forward message: %s"
+msgstr "轉寄訊息失敗: %s"
+
+msgid "Error: %s"
+msgstr "錯誤: %s"
+
+msgid "user define"
+msgstr "使用者自訂"
+
+msgid "Forward SMS"
+msgstr "轉寄簡訊"
+
+msgid "Please select the message(s) to be forwarded"
+msgstr "請選擇要轉寄的訊息"
+
+msgid "SMS forwarding function is not enabled. Please configure it first"
+msgstr "簡訊轉寄功能未啟用。請先進行設定"
+
+msgid "My Router"
+msgstr "我的路由器"
+
+msgid "Forward SMS to E-mail"
+msgstr "將簡訊轉寄至電子郵件"
+
+msgid "Subject:"
+msgstr "主旨:"
+
+msgid "Message text:"
+msgstr "訊息內容:"
+
+msgid "Send"
+msgstr "傳送"
+
+msgid "Subject and body cannot be empty"
+msgstr "主旨和內容不能為空"
+
+msgid "Package mailsend is not installed. Please install it first using the Install... button below"
+msgstr "mailsend 套件尚未安裝。請先使用下方的「安裝...」按鈕進行安裝"
+
+msgid "Select modem"
+msgstr "選擇數據機"
+
+msgid "Changing a modem requires refreshing the messages"
+msgstr "更換數據機需要重新整理訊息"
+
+msgid "Defined AT command files"
+msgstr "已定義的AT指令檔案"
+
+msgid "Error loading AT commands file: "
+msgstr "載入AT指令檔案時發生錯誤："
+
+msgid "Select file with AT commands to load"
+msgstr "選擇要載入的AT指令檔案"
+
+msgid "No AT commands available"
+msgstr "沒有可用的AT指令"
+
+msgid "Error loading initial AT commands file:"
+msgstr "載入初始AT指令檔案時發生錯誤："
+
+msgid "Error loading USSD codes file: "
+msgstr "載入USSD代碼檔案時發生錯誤："
+
+msgid "Error loading initial USSD file:"
+msgstr "載入初始USSD檔案時發生錯誤："
+
+msgid "Select file with USSD codes to load"
+msgstr "選擇要載入的USSD代碼檔案"
+
+msgid "No USSD codes available"
+msgstr "沒有可用的USSD代碼"
+
+msgid "Defined USSD code files"
+msgstr "已定義的USSD代碼檔案"
+
+msgid "File uploaded and saved to"
+msgstr "檔案已上傳並儲存至"
+
+msgid "Unable to upload file"
+msgstr "無法上傳檔案"
+
+msgid "Phonebook saved successfully"
+msgstr "電話簿儲存成功"
+
+msgid "Unable to save the file"
+msgstr "無法儲存檔案"
+
+msgid "filename.user"
+msgstr "檔案名稱.user"
+
+msgid "Select or create a file to edit..."
+msgstr "選擇或建立要編輯的檔案..."
+
+msgid "Please enter a file name"
+msgstr "請輸入檔案名稱"
+
+msgid "File created successfully"
+msgstr "檔案建立成功"
+
+msgid "Unable to create file"
+msgstr "無法建立檔案"
+
+msgid "Please select a file to delete"
+msgstr "請選擇要刪除的檔案"
+
+msgid "Are you sure you want to delete this file?"
+msgstr "您確定要刪除此檔案嗎？"
+
+msgid "File deleted successfully"
+msgstr "檔案刪除成功"
+
+msgid "Unable to delete file"
+msgstr "無法刪除檔案"
+
+msgid "Please select or create a file first"
+msgstr "請先選擇或建立檔案"
+
+msgid "File saved successfully"
+msgstr "檔案儲存成功"
+
+msgid "Unable to save file"
+msgstr "無法儲存檔案"
+
+msgid "Load .user file"
+msgstr "載入.user檔案"
+
+msgid "Save .user file"
+msgstr "儲存.user檔案"
+
+msgid "Manage contacts"
+msgstr "管理聯絡人"
+
+msgid "Edit User Contacts"
+msgstr "編輯使用者聯絡人"
+
+msgid "Manage USSD codes"
+msgstr "管理USSD代碼"
+
+msgid "Manage User USSD Codes"
+msgstr "管理使用者USSD代碼"
+
+msgid "Each line must have the following format: 'Code description;code'. For user convenience, files are saved to <code>/etc/modem/sms_manager_ussdcodes/</code>."
+msgstr "每行必須採用以下格式：'代碼描述;代碼'。為方便使用者，檔案儲存至 <code>/etc/modem/sms_manager_ussdcodes/</code>。"
+
+msgid "Each line must have the following format: 'AT command description;AT command'. For user convenience, files are saved to <code>/etc/modem/sms_manager_atcmmds/</code>."
+msgstr "每行必須採用以下格式：'AT指令描述;AT指令'。為方便使用者，檔案儲存至 <code>/etc/modem/sms_manager_atcmmds/</code>。"
+
+msgid "Manage AT commands"
+msgstr "管理AT指令"
+
+msgid "Manage User AT Commands"
+msgstr "管理使用者AT指令"
+
+msgid "-- Select file --"
+msgstr "-- 選擇檔案 --"
+
+msgid "Select file"
+msgstr "選擇檔案"
+
+msgid "New file name"
+msgstr "新檔案名稱"
+
+msgid "Delete selected file"
+msgstr "刪除選取的檔案"
+
+msgid "Show notification icon"
+msgstr "顯示通知圖示"
+
+msgid "Show the new message notification icon on the status overview page."
+msgstr "在狀態概覽頁面上顯示新訊息通知圖示。"
+
+msgid "Loading..."
+msgstr "載入中..."
+
+msgid "Modem"
+msgstr "數據機"
+
+msgid "Modems"
+msgstr "數據機"
+
+msgid "Signal Quality"
+msgstr "訊號品質"
+
+msgid "Align preview to:"
+msgstr "預覽對齊方式："
+
+msgid "Left"
+msgstr "靠左"
+
+msgid "Center"
+msgstr "置中"
+
+msgid "Right"
+msgstr "靠右"
+
+msgid "New message information block settings"
+msgstr "新訊息資訊區塊設定"
+
+msgid "Alignment settings saved successfully"
+msgstr "對齊設定儲存成功"
+
+msgid "SMS Info"
+msgstr "簡訊資訊"
+
+msgid "New SMS"
+msgstr "新簡訊"
+
+msgid "No new SMS"
+msgstr "沒有新簡訊"
+
+msgid "Deleting files"
+msgstr "正在刪除檔案"
+
+msgid "Delete all files"
+msgstr "刪除所有檔案"
+
+msgid "Load .gz archive"
+msgstr "載入.gz壓縮檔"
+
+msgid "Save .gz archive"
+msgstr "儲存.gz壓縮檔"
+
+msgid "Failed to extract archive"
+msgstr "解壓縮檔案失敗"
+
+msgid "Archive extracted to"
+msgstr "壓縮檔已解壓縮至"
+
+msgid "Upload error"
+msgstr "上傳錯誤"
+
+msgid "Failed to create archive"
+msgstr "建立壓縮檔失敗"
+
+msgid "Failed to read archive"
+msgstr "讀取壓縮檔失敗"
+
+msgid "Are you sure you want to delete all files in the folder?"
+msgstr "您確定要刪除資料夾中的所有檔案嗎？"
+
+msgid "All files deleted successfully"
+msgstr "所有檔案刪除成功"
