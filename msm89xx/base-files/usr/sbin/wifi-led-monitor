@@ -1,13 +1,14 @@
 #!/bin/sh
 
-LED="/sys/class/leds/blue:wlan"
+LED="/sys/class/leds/green:wlan"
+[ -d "$LED" ] || LED="/sys/class/leds/green:wan"
 WIFI_IF="phy0-ap0"
 
 POLL_INTERVAL=2
 BLINK_ON=250
 BLINK_OFF=250
 
-set_blue_off()
+set_green_off()
 {
         [ -e "$LED/trigger" ] || return 1
 
@@ -15,7 +16,7 @@ set_blue_off()
         echo 0 > "$LED/brightness" 2>/dev/null
 }
 
-set_blue_on()
+set_green_on()
 {
         [ -e "$LED/trigger" ] || return 1
 
@@ -23,7 +24,7 @@ set_blue_on()
         echo 1 > "$LED/brightness" 2>/dev/null
 }
 
-set_blue_blink()
+set_green_blink()
 {
         [ -e "$LED/trigger" ] || return 1
 
@@ -65,9 +66,9 @@ wifi_has_clients()
 #
 # Boot/service startup state:
 #
-# Keep blue OFF until we have confirmed that the Wi-Fi AP exists.
+# Keep green OFF until we have confirmed that the Wi-Fi AP exists.
 #
-set_blue_off
+set_green_off
 
 LAST=""
 
@@ -95,21 +96,21 @@ while true; do
                 case "$STATE" in
 
                         wifi-down)
-                                set_blue_off
+                                set_green_off
                                 logger -t wifi-led-monitor \
-                                        "Wi-Fi AP unavailable: blue OFF"
+                                        "Wi-Fi AP unavailable: green OFF"
                                 ;;
 
                         ap-ready)
-                                set_blue_on
+                                set_green_on
                                 logger -t wifi-led-monitor \
-                                        "Wi-Fi AP ready, no clients: blue ON"
+                                        "Wi-Fi AP ready, no clients: green ON"
                                 ;;
 
                         client-connected)
-                                set_blue_blink
+                                set_green_blink
                                 logger -t wifi-led-monitor \
-                                        "Wi-Fi client connected: blue BLINK"
+                                        "Wi-Fi client connected: green BLINK"
                                 ;;
 
                 esac

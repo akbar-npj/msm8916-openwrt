@@ -22,9 +22,51 @@ log "start (marker not present)"
 # Prepare mount points and target
 mkdir -p "$MNT/modem" "$MNT/persist" "$FW/wlan/prima"
 
-# Mount partitions read-only (adjust device nodes if needed)
-mount -t vfat -o ro,nosuid,nodev,noexec,iocharset=iso8859-1,codepage=437 /dev/mmcblk0p3 "$MNT/modem" 2>/dev/null || log "WARN: modem mount failed"
-mount -t ext4 -o ro,nosuid,nodev,noexec /dev/mmcblk0p6 "$MNT/persist" 2>/dev/null || log "WARN: persist mount failed"
+find_part() {
+  local name="$1"
+  if [ -e "/dev/disk/by-partlabel/$name" ]; then
+    echo "/dev/disk/by-partlabel/$name"
+    return
+  fi
+  for dev in /dev/mmcblk[0-9]p[0-9]*; do
+    [ -b "$dev" ] || continue
+    local pname="$(cat "/sys/class/block/$(basename "$dev")/uevent" 2>/dev/null | grep PARTNAME | cut -d= -f2)"
+    if [ "$pname" = "$name" ]; then
+      echo "$dev"
+      return
+    fi
+  done
+  # Fallback mappings for known MSM8916 partition layouts
+  case "$name" in
+    modem)
+      [ -b /dev/mmcblk0p1 ] && echo "/dev/mmcblk0p1" && return
+      [ -b /dev/mmcblk0p3 ] && echo "/dev/mmcblk0p3" && return
+      ;;
+    persist)
+      [ -b /dev/mmcblk0p24 ] && echo "/dev/mmcblk0p24" && return
+      [ -b /dev/mmcblk0p6 ]  && echo "/dev/mmcblk0p6"  && return
+      ;;
+  esac
+}
+
+MODEM_DEV="$(find_part modem)"
+PERSIST_DEV="$(find_part persist)"
+
+# Mount partitions read-only
+if [ -n "$MODEM_DEV" ]; then
+  mount -t vfat -o ro,nosuid,nodev,noexec,iocharset=iso8859-1,codepage=437 "$MODEM_DEV" "$MNT/modem" 2>/dev/null || \
+  mount -t vfat -o ro "$MODEM_DEV" "$MNT/modem" 2>/dev/null || log "WARN: modem mount failed on $MODEM_DEV"
+else
+  log "WARN: modem partition not found"
+fi
+
+if [ -n "$PERSIST_DEV" ]; then
+  mount -t ext4 -o ro,nosuid,nodev,noexec "$PERSIST_DEV" "$MNT/persist" 2>/dev/null || \
+  mount -t vfat -o ro,nosuid,nodev,noexec "$PERSIST_DEV" "$MNT/persist" 2>/dev/null || \
+  mount -o ro "$PERSIST_DEV" "$MNT/persist" 2>/dev/null || log "WARN: persist mount failed on $PERSIST_DEV"
+else
+  log "WARN: persist partition not found"
+fi
 
 # Copy if exists!
 copy_if() {
@@ -35,26 +77,55 @@ copy_if() {
   return 0
 }
 
-# Modem/Wi-Fi core blobs (MDT + fragments + MBA if present)
-for p in "$MNT/modem"/image/wcnss.mdt "$MNT/modem"/image/wcnss.b* \
-         "$MNT/modem"/image/modem.mdt "$MNT/modem"/image/modem.b* \
-         "$MNT/modem"/image/mba.mbn
-do
-  [ -f "$p" ] && cp -af "$p" "$FW/"
+# Modem/Wi-Fi core blobs (search case-insensitively across common paths)
+for img_dir in "$MNT/modem/image" "$MNT/modem/IMAGE" "$MNT/modem"; do
+  [ -d "$img_dir" ] || continue
+  for f in "$img_dir"/*; do
+    [ -f "$f" ] || continue
+    fname="$(basename "$f" | tr '[:upper:]' '[:lower:]')"
+    case "$fname" in
+      wcnss.*|modem.*|mba.mbn|cmnlib.*|keymaste.*)
+        cp -af "$f" "$FW/$fname" && log "copied $fname"
+        ;;
+    esac
+  done
 done
 
 # Wi‑Fi NV/configs required by wcn36xx (place under wlan/prima)
-copy_if "$MNT/persist/WCNSS_qcom_wlan_nv.bin" "$FW/wlan/prima/WCNSS_qcom_wlan_nv.bin"
-copy_if "$MNT/modem/image/wlan/prima/WCNSS_qcom_wlan_nv.bin" "$FW/wlan/prima/WCNSS_qcom_wlan_nv.bin"
-copy_if "$MNT/modem/image/wlan/prima/WCNSS_cfg.dat" "$FW/wlan/prima/WCNSS_cfg.dat"
-copy_if "$MNT/modem/image/wlan/prima/WCNSS_qcom_cfg.ini" "$FW/wlan/prima/WCNSS_qcom_cfg.ini"
+mkdir -p "$FW/wlan/prima"
+
+for p in "$MNT/persist/WCNSS_qcom_wlan_nv.bin" "$MNT/persist/wlan/prima/WCNSS_qcom_wlan_nv.bin" \
+         "$MNT/modem/image/wlan/prima/WCNSS_qcom_wlan_nv.bin" "$MNT/modem/IMAGE/WLAN/PRIMA/WCNSS_QCOM_WLAN_NV.BIN" \
+         "$MNT/modem/wlan/prima/WCNSS_qcom_wlan_nv.bin"; do
+  if [ -f "$p" ]; then
+    cp -af "$p" "$FW/wlan/prima/WCNSS_qcom_wlan_nv.bin" && log "copied WCNSS_qcom_wlan_nv.bin"
+    break
+  fi
+done
+
+for p in "$MNT/modem/image/wlan/prima/WCNSS_cfg.dat" "$MNT/modem/IMAGE/WLAN/PRIMA/WCNSS_CFG.DAT" \
+         "$MNT/modem/wlan/prima/WCNSS_cfg.dat"; do
+  if [ -f "$p" ]; then
+    cp -af "$p" "$FW/wlan/prima/WCNSS_cfg.dat" && log "copied WCNSS_cfg.dat"
+    break
+  fi
+done
+
+for p in "$MNT/modem/image/wlan/prima/WCNSS_qcom_cfg.ini" "$MNT/modem/IMAGE/WLAN/PRIMA/WCNSS_QCOM_CFG.INI" \
+         "$MNT/modem/wlan/prima/WCNSS_qcom_cfg.ini"; do
+  if [ -f "$p" ]; then
+    cp -af "$p" "$FW/wlan/prima/WCNSS_qcom_cfg.ini" && log "copied WCNSS_qcom_cfg.ini"
+    break
+  fi
+done
 
 # MCFG handling:
-if [ -f "$MNT/modem/$MCFG_REL/mcfg_sw.mbn" ]; then
-  cp -af "$MNT/modem/$MCFG_REL/mcfg_sw.mbn" "$FW/MCFG_SW.MBN" && log "MCFG from modem:$MCFG_REL"
-else
-  log "WARN: MCFG 'MCFG_PATH=$MCFG_REL' not found in modem"
-fi
+for mcfg_try in "$MNT/modem/$MCFG_REL/mcfg_sw.mbn" "$MNT/modem/image/modem_pr/mcfg/configs/mcfg_sw/generic/common/row/gen_3gpp/mcfg_sw.mbn"; do
+  if [ -f "$mcfg_try" ]; then
+    cp -af "$mcfg_try" "$FW/MCFG_SW.MBN" && log "MCFG from modem"
+    break
+  fi
+done
 
 # Honoring any user copied MCFG to /lib/firmware
 [ -f "$FW/mcfg_sw.mbn" ] && ln -sf "$FW/mcfg_sw.mbn" "$FW/MCFG_SW.MBN" 2>/dev/null || true

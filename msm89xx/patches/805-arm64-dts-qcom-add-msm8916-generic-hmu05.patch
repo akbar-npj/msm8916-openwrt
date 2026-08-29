@@ -68,7 +68,7 @@
 + */
 +
 +&led_g {
-+    function = LED_FUNCTION_WAN;
++    function = LED_FUNCTION_WLAN;
 +    gpios = <&tlmm 71 GPIO_ACTIVE_HIGH>;
 +    default-state = "off";
 +};
@@ -89,7 +89,7 @@
 +};
 +
 +&led_b {
-+    function = LED_FUNCTION_WLAN;
++    function = LED_FUNCTION_WAN;
 +    gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
 +    default-state = "off";
 +};

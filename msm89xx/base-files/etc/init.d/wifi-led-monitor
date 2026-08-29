@@ -29,7 +29,8 @@ stop_service()
         # When the service is deliberately stopped,
         # leave the blue LED OFF.
         #
-        LED="/sys/class/leds/blue:wlan"
+        LED="/sys/class/leds/green:wlan"
+        [ -d "$LED" ] || LED="/sys/class/leds/green:wan"
 
         if [ -e "$LED/trigger" ]; then
                 echo none > "$LED/trigger" 2>/dev/null

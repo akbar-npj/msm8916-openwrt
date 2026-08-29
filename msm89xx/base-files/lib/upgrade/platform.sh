@@ -3,49 +3,120 @@
 
 PART_NAME=firmware
 REQUIRE_IMAGE_METADATA=1
-RAMFS_COPY_DATA="/lib/functions.sh /lib/upgrade/common.sh /lib/upgrade/fwtool.sh /lib/upgrade/luci-add-conffiles.sh /lib/upgrade/platform.sh /lib/upgrade/tar.sh"
+RAMFS_COPY_DATA="/lib/functions.sh /lib/upgrade/common.sh /lib/upgrade/fwtool.sh /lib/upgrade/luci-add-conffiles.sh /lib/upgrade/platform.sh /lib/upgrade/tar.sh /dev/disk"
+
+log_upgrade() {
+    echo "sysupgrade: $*"
+    echo "<5>sysupgrade: $*" > /dev/kmsg 2>/dev/null || true
+}
+
+find_mmc_part() {
+    local label="$1"
+    if [ -e "/dev/disk/by-partlabel/$label" ]; then
+        readlink -f "/dev/disk/by-partlabel/$label"
+    elif [ -e "/dev/disk/by-name/$label" ]; then
+        readlink -f "/dev/disk/by-name/$label"
+    else
+        for dev in /dev/mmcblk[0-9]p[0-9]*; do
+            [ -b "$dev" ] || continue
+            local pname="$(cat "/sys/class/block/$(basename "$dev")/uevent" 2>/dev/null | grep PARTNAME | cut -d= -f2)"
+            if [ "$pname" = "$label" ]; then
+                echo "$dev"
+                return
+            fi
+        done
+        case "$label" in
+            boot) [ -b /dev/mmcblk0p13 ] && echo "/dev/mmcblk0p13" ;;
+            rootfs|system) [ -b /dev/mmcblk0p14 ] && echo "/dev/mmcblk0p14" ;;
+            rootfs_data) [ -b /dev/mmcblk0p15 ] && echo "/dev/mmcblk0p15" ;;
+        esac
+    fi
+}
 
 platform_check_image() {
     local fw_image="$1"
 
     if ! tar tf "$fw_image" 2>/dev/null | grep -qE '^(\./)?sysupgrade-[^/]+/CONTROL$'; then
-        echo "Invalid sysupgrade file: $fw_image"
+        log_upgrade "ERROR: Invalid sysupgrade archive format in '$fw_image' (missing CONTROL metadata)"
         return 1
     fi
 
+    log_upgrade "Image validation successful for '$fw_image'"
     return 0
+}
+
+platform_pre_upgrade() {
+    log_upgrade "Gracefully stopping modem and network services before stage2..."
+    /etc/init.d/modemmanager stop 2>/dev/null || true
+    /etc/init.d/rmtfs stop 2>/dev/null || true
+    /etc/init.d/network stop 2>/dev/null || true
+    sleep 1
+}
+
+platform_copy_config() {
+    local data_part=$(find_mmc_part "rootfs_data")
+    [ -b "$data_part" ] || {
+        log_upgrade "WARNING: No rootfs_data partition found, skipping config backup"
+        return 0
+    }
+    mkdir -p /tmp/overlay
+    if mount -t ext4 -o rw,noatime "$data_part" /tmp/overlay 2>/dev/null; then
+        mkdir -p /tmp/overlay/upper /tmp/overlay/work
+        if [ -f "$UPGRADE_BACKUP" ]; then
+            log_upgrade "Restoring preserved configuration to $data_part"
+            tar -xzf "$UPGRADE_BACKUP" -C /tmp/overlay/upper 2>/dev/null || \
+                log_upgrade "WARNING: Failed to extract configuration backup"
+        fi
+        sync
+        umount /tmp/overlay 2>/dev/null || true
+    else
+        log_upgrade "WARNING: Failed to mount $data_part for config restoration"
+    fi
 }
 
 platform_do_upgrade() {
     local tar_file="$1"
-    local boot_part rootfs_part
-    local board_dir=$(tar tf "$tar_file" 2>/dev/null | grep -m 1 '^sysupgrade-.*/$')
-    board_dir=${board_dir%/}
+    local boot_part rootfs_part data_part
+    local board_dir=$(tar tf "$tar_file" 2>/dev/null | grep -m 1 -E '^(\./)?sysupgrade-[^/]+' | sed -e 's|^\./||' -e 's|/.*||')
 
-    # Locate partitions by GPT label
+    [ -z "$board_dir" ] && {
+        log_upgrade "ERROR: Cannot determine board directory inside '$tar_file'"
+        return 1
+    }
+
     boot_part=$(find_mmc_part "boot")
     rootfs_part=$(find_mmc_part "rootfs")
     [ -z "$rootfs_part" ] && rootfs_part=$(find_mmc_part "system")
+    data_part=$(find_mmc_part "rootfs_data")
 
-    [ -z "$boot_part" ] && { echo "sysupgrade: cannot find 'boot' partition"; return 1; }
-    [ -z "$rootfs_part" ] && { echo "sysupgrade: cannot find 'rootfs' partition"; return 1; }
+    log_upgrade "Board: $board_dir | Boot: ${boot_part:-NOT FOUND} | Rootfs: ${rootfs_part:-NOT FOUND} | Data: ${data_part:-NOT FOUND}"
 
-    echo "sysupgrade: writing kernel to $boot_part"
-    tar -xOf "$tar_file" "${board_dir}/kernel" 2>/dev/null | \
-        dd of="$boot_part" bs=4096 conv=fsync
+    [ -z "$boot_part" ] && { log_upgrade "ERROR: 'boot' partition not found"; return 1; }
+    [ -z "$rootfs_part" ] && { log_upgrade "ERROR: 'rootfs' partition not found"; return 1; }
 
-    echo "sysupgrade: writing rootfs to $rootfs_part"
-    tar -xOf "$tar_file" "${board_dir}/root" 2>/dev/null | \
-        dd of="$rootfs_part" bs=4096 conv=fsync
+    log_upgrade "Writing kernel image to $boot_part..."
+    if ! tar -xOf "$tar_file" "${board_dir}/kernel" "./${board_dir}/kernel" 2>/dev/null | dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null; then
+        log_upgrade "ERROR: Failed to write kernel to $boot_part"
+        return 1
+    fi
+    log_upgrade "Kernel written successfully"
+
+    log_upgrade "Writing rootfs image to $rootfs_part..."
+    if ! tar -xOf "$tar_file" "${board_dir}/root" "./${board_dir}/root" 2>/dev/null | dd of="$rootfs_part" bs=4096 conv=fsync 2>/dev/null; then
+        log_upgrade "ERROR: Failed to write rootfs to $rootfs_part"
+        return 1
+    fi
+    log_upgrade "Rootfs written successfully"
 
     if [ -z "$UPGRADE_BACKUP" ]; then
-        local data_part=$(find_mmc_part "rootfs_data")
-        [ -n "$data_part" ] && {
-            echo "sysupgrade: wiping rootfs_data on $data_part"
-            dd if=/dev/zero of="$data_part" bs=4096 count=256 conv=fsync 2>/dev/null
-        }
+        if [ -n "$data_part" ]; then
+            log_upgrade "Clean upgrade: wiping rootfs_data on $data_part"
+            dd if=/dev/zero of="$data_part" bs=4096 count=256 conv=fsync 2>/dev/null || true
+        fi
+    else
+        log_upgrade "Upgrade with configuration preservation complete"
     fi
 
     sync
+    log_upgrade "Upgrade completed successfully. System will now reboot."
 }
-

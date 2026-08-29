@@ -94,10 +94,10 @@ error() {
 
 get_serial_number() {
     if [ -f /etc/machine-id ]; then
-        sha256sum < /etc/machine-id | cut -d' ' -f1 | cut -c1-16
+        sha256sum < /etc/machine-id 2>/dev/null | cut -d' ' -f1 | cut -c1-16
         return
     fi
-    echo "$(date +%s)-$(shuf -i 1000-9999 -n 1)"
+    echo "$(date +%s)-$(( $$ + 1000 ))"
 }
 
 generate_mac() {
@@ -238,17 +238,39 @@ setup_ums() {
 # Network Configuration
 # ============================================================================
 
+bring_up_iface() {
+    local ifname_file="$1"
+    [ -f "$ifname_file" ] || return
+    local iface="$(cat "$ifname_file")"
+    [ -n "$iface" ] || return
+    ip link set "$iface" up 2>/dev/null || ifconfig "$iface" up 2>/dev/null || true
+}
+
 add_to_bridge() {
     local ifname_file="$1"
     
     [ -f "$ifname_file" ] || return
     
     local iface="$(cat "$ifname_file")"
+    [ -n "$iface" ] || return
     log "Adding $iface to bridge"
     
-    # Add the inteface to bridge
-    uci -q del_list "network.@device[0].ports=$iface" 2>/dev/null || true
-    uci add_list "network.@device[0].ports=$iface"
+    # Ensure interface is administrative UP so carrier is signalled to host
+    ip link set "$iface" up 2>/dev/null || ifconfig "$iface" up 2>/dev/null || true
+
+    local dev_sec=""
+    for s in $(uci -q show network | grep -E '\.name=.br-lan.' | cut -d. -f2); do
+        dev_sec="$s"
+        break
+    done
+    [ -z "$dev_sec" ] && dev_sec="@device[0]"
+
+    # Add the interface to bridge
+    uci -q del_list "network.${dev_sec}.ports=$iface" 2>/dev/null || true
+    uci add_list "network.${dev_sec}.ports=$iface"
+
+    # Immediately attach to kernel bridge
+    ip link set "$iface" master br-lan 2>/dev/null || brctl addif br-lan "$iface" 2>/dev/null || true
 }
 
 setup_network() {
@@ -260,6 +282,14 @@ setup_network() {
     
     uci commit network
     /etc/init.d/network reload
+    /etc/init.d/dnsmasq restart 2>/dev/null || true
+    /etc/init.d/odhcpd restart 2>/dev/null || true
+    /etc/init.d/firewall reload 2>/dev/null || true
+
+    # Post-reload bringup check
+    [ "$CFG_RNDIS" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"
+    [ "$CFG_ECM" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"
+    [ "$CFG_NCM" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"
 }
 
 # ============================================================================
@@ -283,7 +313,7 @@ setup_gadget() {
     
     # Prepare system
     if ! lsmod | grep -q "^libcomposite "; then
-        modprobe libcomposite || error "Failed to load libcomposite module"
+        modprobe libcomposite 2>/dev/null || true
     fi
     
     if ! mountpoint -q /sys/kernel/config; then
@@ -369,21 +399,6 @@ setup_gadget() {
     log "Enabling UDC: $udc"
     sysfs_write UDC "$udc"
     
-    # Wait for ACM device if enabled
-    if [ "$CFG_ACM" = "1" ]; then
-        log "Waiting for ttyGS0 device..."
-        local i=0
-        while [ $i -lt 10 ]; do
-            [ -c /dev/ttyGS0 ] && break
-            sleep 1
-            i=$((i + 1))
-        done
-        
-        if [ ! -c /dev/ttyGS0 ]; then
-            log "Warning: /dev/ttyGS0 not found after 10s"
-        fi
-    fi
-    
     # Configure network
     setup_network
     
@@ -410,7 +425,10 @@ teardown_gadget() {
     for ifname in functions/*/ifname; do
         if [ -f "$ifname" ]; then
             local iface="$(cat "$ifname")"
-            uci -q del_list "network.@device[0].ports=$iface" 2>/dev/null || true
+            [ -n "$iface" ] || continue
+            for dev_sec in $(uci -q show network | grep -E '\.name=.br-lan.' | cut -d. -f2) "@device[0]"; do
+                uci -q del_list "network.${dev_sec}.ports=$iface" 2>/dev/null || true
+            done
         fi
     done
     uci commit network

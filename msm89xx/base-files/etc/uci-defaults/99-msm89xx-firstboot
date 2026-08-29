@@ -8,23 +8,35 @@
 # Configure ModemManager WAN interface
 ###############################################################################
 
-uci set network.modem=interface
-uci set network.modem.proto='modemmanager'
-uci set network.modem.device='qcom-soc'
-uci set network.modem.auth='none'
-uci set network.modem.apn='internet'
-uci set network.modem.allowedmode='4g|3g'
-uci set network.modem.preferredmode='4g'
-uci set network.modem.ifname='wwan0'
+uci -q batch << 'EOF'
+set network.modem=interface
+set network.modem.proto='modemmanager'
+set network.modem.device='qcom-soc'
+set network.modem.auth='none'
+set network.modem.apn='jionet'
+set network.modem.allowedmode='4g'
+set network.modem.preferredmode='none'
+set network.modem.ifname='wwan0'
+EOF
 
-uci del_list firewall.@zone[1].network='modem'
+uci -q del_list firewall.@zone[1].network='modem' 2>/dev/null || true
 uci add_list firewall.@zone[1].network='modem'
+
+###############################################################################
+# Apply device-specific No-Sleep patch on HMU05 if present
+###############################################################################
+
+if [ -x /usr/sbin/hmu05-patch-modem ]; then
+    /usr/sbin/hmu05-patch-modem /lib/firmware
+fi
 
 ###############################################################################
 # MSM8916 devices do not expose an eth0 interface.
 ###############################################################################
 
-uci -q del_list network.@device[0].ports='eth0'
+uci -q del_list network.@device[0].ports='eth0' 2>/dev/null || true
+uci -q del_list network.@device[0].ports='usb0' 2>/dev/null || true
+uci add_list network.@device[0].ports='usb0'
 
 sed -i \
     's/"device": "eth0"/"device": "br-lan"/g' \
@@ -49,25 +61,35 @@ sed -i \
     2>/dev/null || true
 
 ###############################################################################
-
-###############################################################################
-# Enable Wi-Fi by default
+# Configure LAN IP Subnet (192.168.8.1 to prevent home Wi-Fi 192.168.1.x conflict)
 ###############################################################################
 
-if [ ! -f /etc/config/wireless ]; then
-    /sbin/wifi config 2>/dev/null || true
-fi
-
-if [ -f /etc/config/wireless ]; then
-    for radio in $(uci -q show wireless | grep -o 'wireless\.radio[0-9]\+' | sort -u); do
-        uci -q set ${radio}.disabled='0'
-    done
-    for iface in $(uci -q show wireless | grep -o 'wireless\.default_radio[0-9]\+' | sort -u); do
-        uci -q set ${iface}.disabled='0'
-    done
-fi
+uci -q batch << 'EOF'
+set network.lan.ipaddr='192.168.8.1'
+set network.lan.netmask='255.255.255.0'
+EOF
 
 ###############################################################################
+# Configure USB Gadget (CDC NCM Ethernet)
+###############################################################################
+
+uci -q batch << 'EOF'
+set usbgadget.usb=device
+set usbgadget.usb.enabled='1'
+set usbgadget.usb.gadget_name='g1'
+set usbgadget.usb.vendor_id='0x1d6b'
+set usbgadget.usb.product_id='0x0104'
+set usbgadget.usb.device_version='0x0100'
+set usbgadget.usb.manufacturer='Linux'
+set usbgadget.usb.product='USB Gadget'
+set usbgadget.ncm=function
+set usbgadget.ncm.enabled='1'
+set usbgadget.ncm.description='CDC NCM ethernet (Best Performance)'
+set usbgadget.acm=function
+set usbgadget.acm.enabled='1'
+set usbgadget.acm.description='Serial console'
+set usbgadget.acm.shell='1'
+EOF
 
 uci commit
 

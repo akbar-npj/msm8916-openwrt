@@ -121,8 +121,15 @@ modem_healthy()
 
         command -v mmcli >/dev/null 2>&1 || return 1
 
-        mmcli -L 2>/dev/null | grep -q '/Modem/' || return 1
+        local m_idx="$(mmcli -L 2>/dev/null | grep -m1 -o '/Modem/[0-9]\+' | cut -d/ -f3)"
+        [ -n "$m_idx" ] || return 1
 
+        # If modem is disabled (firstboot/SIM reset), auto-enable it so cellular connects automatically
+        local m_state="$(mmcli -m "$m_idx" 2>/dev/null | grep -i 'state:' | head -n1 | awk '{print $NF}')"
+        if [ "$m_state" = "disabled" ]; then
+                logger -t modem-auto-enable "Modem $m_idx is in disabled state; automatically enabling..."
+                mmcli -m "$m_idx" -e >/dev/null 2>&1 || true
+        fi
 
         return 0
 }

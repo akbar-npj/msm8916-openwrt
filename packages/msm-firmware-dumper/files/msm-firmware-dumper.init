@@ -8,29 +8,32 @@ PROG="/usr/bin/msm-firmware-dumper"
 FLAG="/lib/firmware/DUMPED"
 
 start() {
+    [ -f "$FLAG" ] && return 0
+
 	local timeout=30
 	while [ $timeout -gt 0 ]; do
-		if mount | grep -q "overlayfs:/overlay"; then
-			logger -t "$NAME" "Overlay mounted, proceeding"
+		if [ -d /overlay/upper ] || grep -q -E ' (overlay|/overlay) ' /proc/mounts || [ -w /lib/firmware ]; then
+			logger -t "$NAME" "Writable rootfs/overlay detected, proceeding"
 			break
 		fi
 		sleep 1
 		timeout=$((timeout - 1))
 	done
 	
-	if [ $timeout -eq 0 ]; then
-		logger -t "$NAME" "ERROR: Overlay not mounted after ${timeout}s"
-		return 1
-	fi
-
-    [ -f "$FLAG" ] && return 0
-	
 	logger -t "$NAME" "Starting firmware dump"
 	
 	if FLAG="$FLAG" $PROG; then
-		logger -t "$NAME" "Firmware dump successful, rebooting"
-		sleep 1
-		reboot
+		logger -t "$NAME" "Firmware dump successful"
+		sync
+		for rproc in /sys/class/remoteproc/remoteproc*; do
+			[ -d "$rproc" ] && echo start > "$rproc/state" 2>/dev/null || true
+		done
+		/etc/init.d/rmtfs restart 2>/dev/null || true
+		if ! uci -q get wireless.radio0.path >/dev/null; then
+			rm -f /etc/config/wireless
+			/sbin/wifi config 2>/dev/null || true
+		fi
+		/sbin/wifi reload 2>/dev/null || true
 	else
 		logger -t "$NAME" "Firmware dump FAILED"
 		return 1

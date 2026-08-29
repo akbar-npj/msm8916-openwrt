@@ -4,8 +4,8 @@
 # standard LED names used by the modem/wifi monitors.
 
 if [ -d /sys/class/leds/red:power ] &&
-   [ -d /sys/class/leds/green:wan ] &&
-   [ -d /sys/class/leds/blue:wlan ]; then
+   ( [ -d /sys/class/leds/green:wlan ] || [ -d /sys/class/leds/green:wan ] ) &&
+   ( [ -d /sys/class/leds/blue:wan ] || [ -d /sys/class/leds/blue:wlan ] ); then
 
     [ -x /etc/init.d/modem-led-monitor ] &&
         /etc/init.d/modem-led-monitor enable
