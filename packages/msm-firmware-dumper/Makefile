@@ -13,9 +13,12 @@ include $(INCLUDE_DIR)/package.mk
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
+	$(CP) ./src/* $(PKG_BUILD_DIR)/ 2>/dev/null || true
 endef
 
 define Build/Compile
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) \
+		-o $(PKG_BUILD_DIR)/hmu05-patch-modem $(PKG_BUILD_DIR)/hmu05-patch-modem.c
 endef
 
 define Package/$(PKG_NAME)
@@ -26,12 +29,14 @@ define Package/$(PKG_NAME)
 endef
 
 define Package/$(PKG_NAME)/description
-	Dumps Qualcomm firmware partitions into /lib/firmware on first boot.
+	Dumps Qualcomm firmware partitions into /lib/firmware on first boot and applies board-specific firmware fixes.
 endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/msm-firmware-dumper.sh $(1)/usr/bin/msm-firmware-dumper
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hmu05-patch-modem $(1)/usr/sbin/hmu05-patch-modem
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/msm-firmware-dumper.init $(1)/etc/init.d/msm-firmware-dumper
 endef

@@ -332,7 +332,27 @@ ensure_prepared() {
 
     if [ "$prepared" = "$version" ]; then
 
-        ok "OpenWrt tree already prepared."
+        ok "OpenWrt tree already prepared. Syncing BSP..."
+
+        docker_exec sh -c "
+            rm -rf $CONTAINER_OPENWRT_DIR/target/linux/msm89xx && \
+            cp -a $CONTAINER_REPO_DIR/msm89xx $CONTAINER_OPENWRT_DIR/target/linux/ && \
+            rm -f $CONTAINER_OPENWRT_DIR/target/linux/msm89xx/patches/809-mac80211-enable-wcn36xx.patch && \
+            rm -rf $CONTAINER_OPENWRT_DIR/package/msm8916 && \
+            cp -a $CONTAINER_REPO_DIR/packages $CONTAINER_OPENWRT_DIR/package/msm8916 && \
+            for pkg in $CONTAINER_REPO_DIR/packages/*; do \
+                if [ -d \"\$pkg/patches\" ]; then \
+                    pname=\$(basename \"\$pkg\"); \
+                    if [ -d \"$CONTAINER_OPENWRT_DIR/package/system/\$pname\" ]; then \
+                        mkdir -p \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches\" && \
+                        cp -a \"\$pkg/patches/.\" \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches/\"; \
+                    fi; \
+                fi; \
+            done && \
+            if [ -f $CONTAINER_OPENWRT_DIR/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh ]; then \
+                sed -i 's/proto_notify_error \"\${interface}\" MM_INIT_EPS_BEARER_SET_FAILED/return 0/' $CONTAINER_OPENWRT_DIR/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh 2>/dev/null || true; \
+            fi
+        "
 
         return
     fi
