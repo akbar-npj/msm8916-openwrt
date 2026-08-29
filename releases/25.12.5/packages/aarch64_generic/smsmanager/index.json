@@ -1,7 +1,0 @@
-{
-  "version": 2,
-  "architecture": "aarch64_generic",
-  "packages": {
-    "luci-app-sms-manager": "1.0.9-r20260225"
-  }
-}
