@@ -92,9 +92,9 @@ Generated firmware images will be placed in `openwrt/bin/targets/msm89xx/msm8916
 3. Flash the kernel and rootfs partitions using `edl` (e.g. [bkerler/edl](https://github.com/bkerler/edl)) or `qdl`:
    ```bash
    # Using edl tool:
-   edl wl boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img --loader=prog_emmc_firehose_8916.mbn
-   edl wl rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img --loader=prog_emmc_firehose_8916.mbn
-   edl reset --loader=prog_emmc_firehose_8916.mbn
+   edl w boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
+   edl w rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
+   edl reset
 
    # Or using qdl:
    qdl --storage emmc prog_emmc_firehose_8916.mbn rawprogram_unsparse.xml patch0.xml
