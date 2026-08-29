@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenWrt MSM8916 Package Repository</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #24292f; background: #f6f8fa; }
+        .container { background: #ffffff; border: 1px solid #d0d7de; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        h1 { color: #0969da; border-bottom: 1px solid #d0d7de; padding-bottom: 10px; }
+        pre { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; }
+        code { background: #afb8c133; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+        .btn { display: inline-block; background: #2da44e; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; margin-top: 10px; }
+        .btn:hover { background: #2c974b; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📦 OpenWrt MSM8916 APK Package Repository</h1>
+    <p>Official package and kernel module (<code>kmod-*</code>) repository feed for Qualcomm Snapdragon 410 (MSM8916) OpenWrt devices.</p>
+
+    <h2>⚙️ How to Enable on Your Device</h2>
+    <p>Connect to your router via SSH or Web LuCI terminal and add this repository to <code>/etc/apk/repositories.d/customfeeds.list</code>:</p>
+    <pre>echo "https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb" &gt; /etc/apk/repositories.d/customfeeds.list
+echo "https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb" &gt;&gt; /etc/apk/repositories.d/customfeeds.list
+echo "https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/luci/packages.adb" &gt;&gt; /etc/apk/repositories.d/customfeeds.list
+echo "https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb" &gt;&gt; /etc/apk/repositories.d/customfeeds.list
+
+apk update</pre>
+
+    <h2>📥 Installing Packages</h2>
+    <p>Install any driver or application directly:</p>
+    <pre>apk add kmod-usb-net-rtl8152
+apk add luci-app-wireguard</pre>
+
+    <p><a href="https://github.com/akbar-npj/msm8916-openwrt" class="btn">View Source on GitHub</a></p>
+</div>
+</body>
+</html>
