@@ -60,6 +60,13 @@ sed -i \
     /etc/apk/repositories.d/distfeeds.list \
     2>/dev/null || true
 
+cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/luci/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
+EOF
+
 ###############################################################################
 # Configure LAN IP Subnet (192.168.8.1 to prevent home Wi-Fi 192.168.1.x conflict)
 ###############################################################################

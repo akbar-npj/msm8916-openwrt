@@ -134,6 +134,36 @@ ssh root@192.168.8.1 "sysupgrade -v /tmp/sysupgrade.bin"
 
 ---
 
+## 📦 Official Package & Kernel Driver Repository
+
+This repository hosts a live APK feed on GitHub Pages with all pre-compiled Qualcomm MSM8916 kernel modules (`kmod-*`) and applications:
+
+### Repository Feeds URL:
+- **Landing Page**: [https://akbar-npj.github.io/msm8916-openwrt/](https://akbar-npj.github.io/msm8916-openwrt/)
+
+### Enable Feeds on Device:
+```bash
+cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/luci/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
+EOF
+
+apk update
+```
+
+### Install Extra Drivers & Packages:
+```bash
+# Install USB Ethernet driver
+apk add kmod-usb-net-rtl8152
+
+# Install WireGuard VPN
+apk add luci-app-wireguard
+```
+
+---
+
 ## 📜 License
 
 This project is licensed under the **GNU General Public License v2.0** (GPL-2.0).
