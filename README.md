@@ -82,17 +82,22 @@ Generated firmware images will be placed in `openwrt/bin/targets/msm89xx/msm8916
 
 ## ⚡ Installation & Flashing
 
-### First-Time Flashing (Fastboot)
+### First-Time Flashing (Qualcomm EDL 9008 Mode)
 
-1. Put the USB modem into **Fastboot Mode** (hold boot button while plugging in or execute `adb reboot bootloader`).
-2. Flash the kernel and rootfs partitions:
+1. Put the USB modem into **EDL Mode** (short the hardware EDL test points while plugging into USB, or execute `reboot-edl` / `adb reboot edl`).
+2. Verify device is detected in EDL mode:
    ```bash
-   fastboot flash boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
-   fastboot flash rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
-   # If 'rootfs' partition is named 'system':
-   # fastboot flash system openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
+   lsusb | grep 05c6:9008
+   ```
+3. Flash the kernel and rootfs partitions using `edl` (e.g. [bkerler/edl](https://github.com/bkerler/edl)) or `qdl`:
+   ```bash
+   # Using edl tool:
+   edl wl boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img --loader=prog_emmc_firehose_8916.mbn
+   edl wl rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img --loader=prog_emmc_firehose_8916.mbn
+   edl reset --loader=prog_emmc_firehose_8916.mbn
 
-   fastboot reboot
+   # Or using qdl:
+   qdl --storage emmc prog_emmc_firehose_8916.mbn rawprogram_unsparse.xml patch0.xml
    ```
 
 ### Subsequent Upgrades (Sysupgrade)
