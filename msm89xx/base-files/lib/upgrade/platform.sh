@@ -12,25 +12,30 @@ log_upgrade() {
 
 find_mmc_part() {
     local label="$1"
-    if [ -e "/dev/disk/by-partlabel/$label" ]; then
-        readlink -f "/dev/disk/by-partlabel/$label"
-    elif [ -e "/dev/disk/by-name/$label" ]; then
-        readlink -f "/dev/disk/by-name/$label"
-    else
-        for dev in /dev/mmcblk[0-9]p[0-9]*; do
-            [ -b "$dev" ] || continue
-            local pname="$(cat "/sys/class/block/$(basename "$dev")/uevent" 2>/dev/null | grep PARTNAME | cut -d= -f2)"
-            if [ "$pname" = "$label" ]; then
-                echo "$dev"
-                return
-            fi
-        done
-        case "$label" in
-            boot) [ -b /dev/mmcblk0p13 ] && echo "/dev/mmcblk0p13" ;;
-            rootfs|system) [ -b /dev/mmcblk0p14 ] && echo "/dev/mmcblk0p14" ;;
-            rootfs_data) [ -b /dev/mmcblk0p15 ] && echo "/dev/mmcblk0p15" ;;
-        esac
+    local dev=""
+
+    for dev in /dev/mmcblk[0-9]p[0-9]*; do
+        [ -b "$dev" ] || continue
+        local pname="$(cat "/sys/class/block/$(basename "$dev")/uevent" 2>/dev/null | grep PARTNAME | cut -d= -f2)"
+        if [ "$pname" = "$label" ]; then
+            echo "$dev"
+            return 0
+        fi
+    done
+
+    if [ -L "/dev/disk/by-partlabel/$label" ]; then
+        dev="$(readlink -f "/dev/disk/by-partlabel/$label" 2>/dev/null)"
+        [ -b "$dev" ] && { echo "$dev"; return 0; }
     fi
+
+    case "$label" in
+        boot)
+            [ -b /dev/mmcblk0p13 ] && echo "/dev/mmcblk0p13" ;;
+        rootfs|system)
+            [ -b /dev/mmcblk0p14 ] && echo "/dev/mmcblk0p14" ;;
+        rootfs_data)
+            [ -b /dev/mmcblk0p15 ] && echo "/dev/mmcblk0p15" ;;
+    esac
 }
 
 platform_check_image() {
@@ -46,11 +51,9 @@ platform_check_image() {
 }
 
 platform_pre_upgrade() {
-    log_upgrade "Gracefully stopping modem and network services before stage2..."
+    log_upgrade "Stopping modem services before stage2..."
     /etc/init.d/modemmanager stop 2>/dev/null || true
     /etc/init.d/rmtfs stop 2>/dev/null || true
-    /etc/init.d/network stop 2>/dev/null || true
-    sleep 1
 }
 
 platform_copy_config() {
@@ -84,6 +87,12 @@ platform_do_upgrade() {
         return 1
     }
 
+    local kernel_member=$(tar tf "$tar_file" 2>/dev/null | grep -m 1 -E "(^|/)${board_dir}/kernel$")
+    local root_member=$(tar tf "$tar_file" 2>/dev/null | grep -m 1 -E "(^|/)${board_dir}/root$")
+
+    [ -z "$kernel_member" ] && { log_upgrade "ERROR: 'kernel' not found in '$tar_file'"; return 1; }
+    [ -z "$root_member" ] && { log_upgrade "ERROR: 'root' not found in '$tar_file'"; return 1; }
+
     boot_part=$(find_mmc_part "boot")
     rootfs_part=$(find_mmc_part "rootfs")
     [ -z "$rootfs_part" ] && rootfs_part=$(find_mmc_part "system")
@@ -94,15 +103,15 @@ platform_do_upgrade() {
     [ -z "$boot_part" ] && { log_upgrade "ERROR: 'boot' partition not found"; return 1; }
     [ -z "$rootfs_part" ] && { log_upgrade "ERROR: 'rootfs' partition not found"; return 1; }
 
-    log_upgrade "Writing kernel image to $boot_part..."
-    if ! tar -xOf "$tar_file" "${board_dir}/kernel" "./${board_dir}/kernel" 2>/dev/null | dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null; then
+    log_upgrade "Writing kernel image ($kernel_member) to $boot_part..."
+    if ! tar -xOf "$tar_file" "$kernel_member" 2>/dev/null | dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null; then
         log_upgrade "ERROR: Failed to write kernel to $boot_part"
         return 1
     fi
     log_upgrade "Kernel written successfully"
 
-    log_upgrade "Writing rootfs image to $rootfs_part..."
-    if ! tar -xOf "$tar_file" "${board_dir}/root" "./${board_dir}/root" 2>/dev/null | dd of="$rootfs_part" bs=4096 conv=fsync 2>/dev/null; then
+    log_upgrade "Writing rootfs image ($root_member) to $rootfs_part..."
+    if ! tar -xOf "$tar_file" "$root_member" 2>/dev/null | dd of="$rootfs_part" bs=4096 conv=fsync 2>/dev/null; then
         log_upgrade "ERROR: Failed to write rootfs to $rootfs_part"
         return 1
     fi
