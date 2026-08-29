@@ -7,7 +7,7 @@
     "dropbear": "2025.89-r3",
     "fstools": "2026.05.23~16718b6e-r1",
     "fwtool": "2025.10.03~04cd252e-r1",
-    "kernel": "6.12.94~9ea93f6eddb93eee3c9efdf19267ad6d-r1",
+    "kernel": "6.12.94~048c6cd55e0a3380fd731ca151a93f12-r1",
     "kmod-ath": "6.12.94.6.18.26-r1",
     "kmod-bam-dmux": "6.12.94-r1",
     "kmod-bluetooth": "6.12.94-r1",
