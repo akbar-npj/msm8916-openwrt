@@ -36,8 +36,8 @@ define Device/yiming-uz801v3
 	SUPPORTED_DEVICES := yiming,uz801-v3
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
-		block-mount f2fs-tools \
-		msm-firmware-dumper
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl
 endef
 TARGET_DEVICES += yiming-uz801v3
 
@@ -48,8 +48,8 @@ define Device/generic-uf02
 	SUPPORTED_DEVICES := uf02,250605v0s
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
-		block-mount f2fs-tools \
-		msm-firmware-dumper
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl
 endef
 TARGET_DEVICES += generic-uf02
 
@@ -61,7 +61,7 @@ define Device/generic-ufi001b
 	SUPPORTED_DEVICES := ufi001b,250605v0s
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
-		block-mount f2fs-tools \
+		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl
 endef
 TARGET_DEVICES += generic-ufi001b
@@ -74,7 +74,7 @@ define Device/generic-hmu05
 	SUPPORTED_DEVICES := hmu05,250605v0s
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
-		block-mount f2fs-tools \
+		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl
 endef
 TARGET_DEVICES += generic-hmu05
