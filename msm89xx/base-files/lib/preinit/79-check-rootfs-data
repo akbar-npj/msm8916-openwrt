@@ -14,7 +14,20 @@ preinit_check_rootfs_data() {
         fi
 
         #
-        # Check ext2/ext3/ext4 magic.
+        # Detect an existing ext filesystem using TWO independent methods:
+        #
+        #   1. Direct ext magic check with od
+        #   2. blkid filesystem type detection
+        #
+        # If EITHER method identifies ext2/ext3/ext4, NEVER format the
+        # partition. Instead, run e2fsck.
+        #
+
+        ext_magic=0
+        ext_blkid=0
+
+        #
+        # Method 1: direct ext filesystem magic check.
         #
         # ext magic        = 0xEF53
         # Superblock       = 1024 bytes
@@ -22,9 +35,31 @@ preinit_check_rootfs_data() {
         # Absolute offset  = 1080
         #
         if dd if="$ROOTFS_DATA" bs=1 skip=1080 count=2 2>/dev/null |
-                od -An -tx1 | grep -q "53 ef"; then
+                od -An -tx1 2>/dev/null | grep -q "53 ef"; then
+                ext_magic=1
+        fi
 
-                echo "rootfs_data: ext filesystem detected" > /dev/kmsg
+        #
+        # Method 2: blkid filesystem type detection.
+        #
+        blkid_type="$(blkid -o value -s TYPE "$ROOTFS_DATA" 2>/dev/null)"
+
+        case "$blkid_type" in
+                ext2|ext3|ext4)
+                        ext_blkid=1
+                        ;;
+        esac
+
+        #
+        # SAFETY RULE:
+        #
+        # If EITHER detector says this is an ext filesystem,
+        # treat the partition as an existing filesystem.
+        #
+        if [ "$ext_magic" -eq 1 ] || [ "$ext_blkid" -eq 1 ]; then
+
+                echo "rootfs_data: existing ext filesystem detected" > /dev/kmsg
+                echo "rootfs_data: od_magic=$ext_magic blkid_type=${blkid_type:-unknown}" > /dev/kmsg
                 echo "rootfs_data: running e2fsck -p" > /dev/kmsg
 
                 #
@@ -67,9 +102,9 @@ preinit_check_rootfs_data() {
         fi
 
         #
-        # No ext filesystem exists.
+        # Neither detector found an ext filesystem.
         #
-        echo "rootfs_data: no ext filesystem detected" > /dev/kmsg
+        echo "rootfs_data: no ext filesystem detected by od or blkid" > /dev/kmsg
         echo "rootfs_data: creating new ext4 filesystem" > /dev/kmsg
 
         #
