@@ -1,7 +1,6 @@
-diff -u -N -r a/arch/arm64/boot/dts/qcom/msm8916.dtsi b/arch/arm64/boot/dts/qcom/msm8916.dtsi
---- a/arch/arm64/boot/dts/qcom/msm8916.dtsi	2026-08-25 04:26:12.131994092 +0545
-+++ b/arch/arm64/boot/dts/qcom/msm8916.dtsi	2026-08-25 04:26:12.134480797 +0545
-@@ -453,6 +453,24 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8916.dtsi
+@@ -453,6 +453,19 @@
  			reg = <0x004ab000 0x4>;
  		};
  
@@ -12,11 +11,6 @@ diff -u -N -r a/arch/arm64/boot/dts/qcom/msm8916.dtsi b/arch/arm64/boot/dts/qcom
 +			#address-cells = <1>;
 +			#size-cells = <1>;
 +
-+			restart_reason@65c {
-+				compatible = "qcom,msm-imem-restart_reason";
-+				reg = <0x65c 4>;
-+			};
-+
 +			emergency_download_mode@fe0 {
 +				compatible = "qcom,msm-imem-emergency_download_mode";
 +				reg = <0xfe0 12>;
@@ -26,29 +20,67 @@ diff -u -N -r a/arch/arm64/boot/dts/qcom/msm8916.dtsi b/arch/arm64/boot/dts/qcom
  		qfprom: qfprom@5c000 {
  			compatible = "qcom,msm8916-qfprom", "qcom,qfprom";
  			reg = <0x0005c000 0x1000>;
-diff -u -N -r a/drivers/firmware/qcom/qcom_scm.c b/drivers/firmware/qcom/qcom_scm.c
---- a/drivers/firmware/qcom/qcom_scm.c	2026-08-25 04:26:02.650204754 +0545
-+++ b/drivers/firmware/qcom/qcom_scm.c	2026-08-25 04:26:12.134377582 +0545
-@@ -558,6 +558,15 @@
+--- a/drivers/firmware/qcom/qcom_scm.c
++++ b/drivers/firmware/qcom/qcom_scm.c
+@@ -558,6 +558,55 @@
  		dev_err(__scm->dev, "failed to set download mode: %d\n", ret);
  }
  
++/*
++ * qcom_scm_set_edload_mode - Set TCSR_BOOT_MISC_DETECT for Emergency Download.
++ *
++ * Writes SCM_EDLOAD_MODE (0x01) directly to bit[0] of the TCSR boot-misc
++ * register (0x193D100), matching lk2nd's scm_dload_mode(EMERGENCY_DLOAD).
++ *
++ * The QCOM_DLOAD_FULLDUMP path must NOT be used for EDL: Linux encodes it
++ * into bits[5:4] (value 0x10), whereas MSM8916 PBL checks bit[0] (value 0x01).
++ */
 +int qcom_scm_set_edload_mode(void)
 +{
-+	if (__scm && __scm->dload_mode_addr)
-+		qcom_scm_set_download_mode(QCOM_DLOAD_FULLDUMP);
++	if (!__scm || !__scm->dload_mode_addr)
++		return -ENODEV;
 +
-+	return 0;
++	/* Raw write: SCM_EDLOAD_MODE = 0x01 to TCSR_BOOT_MISC_DETECT */
++	return qcom_scm_io_writel(__scm->dload_mode_addr, 0x01);
 +}
 +EXPORT_SYMBOL_GPL(qcom_scm_set_edload_mode);
++
++/*
++ * qcom_scm_halt_pmic_arbiter - Disable the SPMI PMIC arbiter before PS_HOLD.
++ *
++ * Equivalent to lk2nd's scm_halt_pmic_arbiter():
++ *   scm_call2_atomic(SCM_SVC_PWR=0x9, SCM_IO_DISABLE_PMIC_ARBITER=0x1, ...)
++ * Retries with CMD=0x2 (SCM_IO_DISABLE_PMIC_ARBITER1) if CMD=0x1 fails.
++ */
++void qcom_scm_halt_pmic_arbiter(void)
++{
++	struct qcom_scm_desc desc = {
++		.svc   = 0x09,	/* SCM_SVC_PWR */
++		.cmd   = 0x01,	/* SCM_IO_DISABLE_PMIC_ARBITER */
++		.owner = ARM_SMCCC_OWNER_SIP,
++	};
++	int ret;
++
++	if (!__scm)
++		return;
++
++	ret = qcom_scm_call_atomic(__scm->dev, &desc, NULL);
++	if (ret) {
++		desc.cmd = 0x02;	/* SCM_IO_DISABLE_PMIC_ARBITER1 */
++		ret = qcom_scm_call_atomic(__scm->dev, &desc, NULL);
++		if (ret)
++			dev_err_ratelimited(__scm->dev,
++				"halt_pmic_arbiter failed: %d\n", ret);
++	}
++}
++EXPORT_SYMBOL_GPL(qcom_scm_halt_pmic_arbiter);
 +
  /**
   * qcom_scm_pas_init_image() - Initialize peripheral authentication service
   *			       state machine for a given peripheral, using the
-diff -u -N -r a/drivers/power/reset/msm-poweroff.c b/drivers/power/reset/msm-poweroff.c
---- a/drivers/power/reset/msm-poweroff.c	2026-08-25 04:26:11.446923896 +0545
-+++ b/drivers/power/reset/msm-poweroff.c	2026-08-25 04:26:12.134418168 +0545
-@@ -8,15 +8,54 @@
+--- a/drivers/power/reset/msm-poweroff.c
++++ b/drivers/power/reset/msm-poweroff.c
+@@ -8,15 +8,76 @@
  #include <linux/kernel.h>
  #include <linux/io.h>
  #include <linux/of.h>
@@ -59,9 +91,8 @@ diff -u -N -r a/drivers/power/reset/msm-poweroff.c b/drivers/power/reset/msm-pow
  #include <linux/pm.h>
 +#include <linux/string.h>
 +#include <linux/firmware/qcom/qcom_scm.h>
-+#include <asm/cacheflush.h>
 +
-+extern int pm8916_pon_configure_warm_reset(void);
++#include "msm-poweroff.h"
  
  static void __iomem *msm_ps_hold;
 +static void __iomem *msm_imem_base;
@@ -70,18 +101,33 @@ diff -u -N -r a/drivers/power/reset/msm-poweroff.c b/drivers/power/reset/msm-pow
 +#define MSM_IMEM_EDL_MAGIC2 0xC67E4350
 +#define MSM_IMEM_EDL_MAGIC3 0x77777777
 +
-+#define IMEM_RESTART_REASON_OFFSET 0x65C
 +#define IMEM_EDL_COOKIES_OFFSET    0xFE0
++
++/*
++ * Function pointer registered by qcom-pon.c at probe time.
++ * Called during EDL reset to configure PM8916 PON PS_HOLD for warm reset,
++ * matching lk2nd's pmic_reset_configure(PON_PSHOLD_WARM_RESET).
++ * Using a function pointer avoids a direct inter-.o extern reference
++ * which is forbidden in the kernel's -shared -Bsymbolic vmlinux link.
++ */
++static int (*msm_pon_configure_warm_reset_fn)(void);
++
++/*
++ * msm_poweroff_register_pon_fn - called by qcom-pon at probe to register
++ * the PM8916 warm-reset callback used during EDL reboot.
++ */
++void msm_poweroff_register_pon_fn(int (*fn)(void))
++{
++	msm_pon_configure_warm_reset_fn = fn;
++}
++EXPORT_SYMBOL_GPL(msm_poweroff_register_pon_fn);
 +
 +static void msm_write_emergency_dload_magic(void)
 +{
 +	if (!msm_imem_base)
 +		return;
 +
-+	/* 1. Write Restart Reason to 0x0860065C */
-+	writel(0x00000001, msm_imem_base + IMEM_RESTART_REASON_OFFSET);
-+
-+	/* 2. Write 3 Magic Cookies to 0x08600FE0 */
++	/* Write 3 EDL magic cookies to 0x08600FE0 (matches lk2nd exactly) */
 +	writel(MSM_IMEM_EDL_MAGIC1, msm_imem_base + IMEM_EDL_COOKIES_OFFSET + 0x00);
 +	writel(MSM_IMEM_EDL_MAGIC2, msm_imem_base + IMEM_EDL_COOKIES_OFFSET + 0x04);
 +	writel(MSM_IMEM_EDL_MAGIC3, msm_imem_base + IMEM_EDL_COOKIES_OFFSET + 0x08);
@@ -91,19 +137,27 @@ diff -u -N -r a/drivers/power/reset/msm-poweroff.c b/drivers/power/reset/msm-pow
  static int do_msm_poweroff(struct sys_off_data *data)
  {
 +	if (data->cmd && (!strcmp(data->cmd, "edl") || !strcmp(data->cmd, "dload"))) {
-+		pr_emerg("MSM8916: Arming Qualcomm EDL / DLOAD Mode across Warm Reset\n");
++		pr_emerg("MSM8916: EDL warm reset sequence (lk2nd-equivalent)\n");
 +
++		/*
++		 * Reproduce the lk2nd EMERGENCY_DLOAD sequence:
++		 *   1. Write IMEM EDL cookies (dsb equivalent: mb())
++		 *   2. Set TCSR_BOOT_MISC_DETECT bit[0] = SCM_EDLOAD_MODE=0x01
++		 *   3. Configure PM8916 PON PS_HOLD for warm reset
++		 *   4. Halt PMIC arbiter (SCM SVC=0x9, CMD=0x1)
++		 * No restart-reason write, no cache flush, no delay.
++		 */
 +		msm_write_emergency_dload_magic();
 +		qcom_scm_set_edload_mode();
-+		pm8916_pon_configure_warm_reset();
-+		flush_cache_all();
-+		mdelay(50);
++		if (msm_pon_configure_warm_reset_fn)
++			msm_pon_configure_warm_reset_fn();
++		qcom_scm_halt_pmic_arbiter();
 +	}
 +
  	writel(0, msm_ps_hold);
  	mdelay(10000);
  
-@@ -25,12 +64,22 @@
+@@ -25,12 +86,22 @@
  
  static int msm_restart_probe(struct platform_device *pdev)
  {
@@ -127,15 +181,42 @@ diff -u -N -r a/drivers/power/reset/msm-poweroff.c b/drivers/power/reset/msm-pow
  
  	devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_POWER_OFF,
  				      SYS_OFF_PRIO_DEFAULT, do_msm_poweroff,
-diff -u -N -r a/drivers/power/reset/qcom-pon.c b/drivers/power/reset/qcom-pon.c
---- a/drivers/power/reset/qcom-pon.c	2026-08-25 04:26:06.148180805 +0545
-+++ b/drivers/power/reset/qcom-pon.c	2026-08-25 04:26:12.134407834 +0545
-@@ -27,6 +27,95 @@
+--- a/drivers/power/reset/msm-poweroff.h
++++ b/drivers/power/reset/msm-poweroff.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/* msm-poweroff.h - shared interface between msm-poweroff and qcom-pon */
++
++#ifndef __MSM_POWEROFF_H
++#define __MSM_POWEROFF_H
++
++/**
++ * msm_poweroff_register_pon_fn - Register the PM8916 PON warm-reset callback.
++ * @fn: Function to call during EDL reboot to configure PON PS_HOLD warm reset.
++ *
++ * Called by qcom-pon.c at probe time. msm-poweroff.c invokes it during
++ * the EDL warm-reset sequence, matching lk2nd's pmic_reset_configure().
++ */
++void msm_poweroff_register_pon_fn(int (*fn)(void));
++
++#endif /* __MSM_POWEROFF_H */
+--- a/drivers/power/reset/qcom-pon.c
++++ b/drivers/power/reset/qcom-pon.c
+@@ -12,6 +12,8 @@
+ #include <linux/reboot-mode.h>
+ #include <linux/regmap.h>
+ 
++#include "msm-poweroff.h"
++
+ #define PON_SOFT_RB_SPARE		0x8f
+ 
+ #define GEN1_REASON_SHIFT		2
+@@ -27,6 +29,91 @@
  	long reason_shift;
  };
  
 +#define QPNP_PON_REVISION2_OFF		0x01
-+#define QPNP_PON_WD_RST_S2_CTL2		0x57
++#define QPNP_PON_WD_RST_S2_CTL2	0x57
 +#define QPNP_PON_PS_HOLD_RST_CTL	0x5A
 +#define QPNP_PON_PS_HOLD_RST_CTL2	0x5B
 +#define QPNP_PON_RESET_EN		BIT(7)
@@ -143,9 +224,7 @@ diff -u -N -r a/drivers/power/reset/qcom-pon.c b/drivers/power/reset/qcom-pon.c
 +#define PON_POWER_OFF_WARM_RESET	0x01
 +#define QPNP_PON_WD_EN			BIT(7)
 +
-+int pm8916_pon_configure_warm_reset(void);
-+
-+int pm8916_pon_configure_warm_reset(void)
++static int pm8916_pon_configure_warm_reset(void)
 +{
 +	struct device_node *np;
 +	struct platform_device *pdev;
@@ -177,63 +256,71 @@ diff -u -N -r a/drivers/power/reset/qcom-pon.c b/drivers/power/reset/qcom-pon.c
 +		return ret;
 +	}
 +
++	/*
++	 * lk2nd pm8x41_reset_configure() sequence:
++	 *   PON_PS_HOLD_RESET_CTL2 = 0x0     (disable, addr 0x85B)
++	 *   udelay(300)
++	 *   PON_PS_HOLD_RESET_CTL  = 0x01    (warm reset, addr 0x85A)
++	 *   PON_PS_HOLD_RESET_CTL2 = BIT(7)  (re-enable)
++	 * For rev0 PMICs, CTL holds both enable and mode bits.
++	 */
 +	rst_en_reg = (rev2 == 0) ?
 +		     (pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL) :
 +		     (pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL2);
 +
-+	ret = regmap_update_bits(pon->regmap,
-+				 rst_en_reg,
-+				 QPNP_PON_RESET_EN,
-+				 0);
++	ret = regmap_update_bits(pon->regmap, rst_en_reg, QPNP_PON_RESET_EN, 0);
 +	if (ret) {
 +		put_device(&pdev->dev);
 +		return ret;
 +	}
 +
-+	udelay(500);
-+
-+	ret = regmap_update_bits(
-+		pon->regmap,
-+		pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL,
-+		QPNP_PON_POWER_OFF_MASK,
-+		PON_POWER_OFF_WARM_RESET);
-+	if (ret) {
-+		put_device(&pdev->dev);
-+		return ret;
-+	}
++	udelay(300);
 +
 +	ret = regmap_update_bits(pon->regmap,
-+				 rst_en_reg,
-+				 QPNP_PON_RESET_EN,
-+				 QPNP_PON_RESET_EN);
++			pon->baseaddr + QPNP_PON_PS_HOLD_RST_CTL,
++			QPNP_PON_POWER_OFF_MASK, PON_POWER_OFF_WARM_RESET);
 +	if (ret) {
 +		put_device(&pdev->dev);
 +		return ret;
 +	}
 +
-+	ret = regmap_update_bits(
-+		pon->regmap,
-+		pon->baseaddr + QPNP_PON_WD_RST_S2_CTL2,
-+		QPNP_PON_WD_EN,
-+		0);
++	ret = regmap_update_bits(pon->regmap, rst_en_reg,
++				 QPNP_PON_RESET_EN, QPNP_PON_RESET_EN);
++	if (ret) {
++		put_device(&pdev->dev);
++		return ret;
++	}
++
++	/* Clear PON watchdog (lk2nd: pm8x41_clear_pmic_watchdog -> REG_WRITE(0x857,0)) */
++	ret = regmap_update_bits(pon->regmap,
++			pon->baseaddr + QPNP_PON_WD_RST_S2_CTL2,
++			QPNP_PON_WD_EN, 0);
 +
 +	put_device(&pdev->dev);
 +	return ret;
 +}
-+EXPORT_SYMBOL_GPL(pm8916_pon_configure_warm_reset);
-+
 +
  static int pm8916_reboot_mode_write(struct reboot_mode_driver *reboot,
  				    unsigned int magic)
  {
-diff -u -N -r a/include/linux/firmware/qcom/qcom_scm.h b/include/linux/firmware/qcom/qcom_scm.h
---- a/include/linux/firmware/qcom/qcom_scm.h	2026-08-25 04:26:00.886947143 +0545
-+++ b/include/linux/firmware/qcom/qcom_scm.h	2026-08-25 04:26:12.134089021 +0545
-@@ -61,6 +61,8 @@
+@@ -82,6 +169,9 @@
+ 
+ 	platform_set_drvdata(pdev, pon);
+ 
++	/* Register warm-reset callback with msm-poweroff for EDL reboot */
++	msm_poweroff_register_pon_fn(pm8916_pon_configure_warm_reset);
++
+ 	return devm_of_platform_populate(&pdev->dev);
+ }
+ 
+--- a/include/linux/firmware/qcom/qcom_scm.h
++++ b/include/linux/firmware/qcom/qcom_scm.h
+@@ -61,6 +61,9 @@
  
  bool qcom_scm_is_available(void);
  
 +int qcom_scm_set_edload_mode(void);
++void qcom_scm_halt_pmic_arbiter(void);
 +
  int qcom_scm_set_cold_boot_addr(void *entry);
  int qcom_scm_set_warm_boot_addr(void *entry);
