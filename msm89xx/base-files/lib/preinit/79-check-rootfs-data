@@ -1,0 +1,96 @@
+#!/bin/sh
+
+ROOTFS_DATA="/dev/mmcblk0p15"
+
+preinit_check_rootfs_data() {
+        [ -b "$ROOTFS_DATA" ] || return 0
+
+        #
+        # This hook must run before mount_root.
+        #
+        if grep -q " $ROOTFS_DATA " /proc/mounts 2>/dev/null; then
+                echo "rootfs_data: WARNING: already mounted, skipping fs check" > /dev/kmsg
+                return 0
+        fi
+
+        #
+        # Check ext2/ext3/ext4 magic.
+        #
+        # ext magic        = 0xEF53
+        # Superblock       = 1024 bytes
+        # s_magic offset   = 0x38
+        # Absolute offset  = 1080
+        #
+        if dd if="$ROOTFS_DATA" bs=1 skip=1080 count=2 2>/dev/null |
+                od -An -tx1 | grep -q "53 ef"; then
+
+                echo "rootfs_data: ext filesystem detected" > /dev/kmsg
+                echo "rootfs_data: running e2fsck -p" > /dev/kmsg
+
+                #
+                # Automatically perform safe repairs.
+                #
+                e2fsck -p "$ROOTFS_DATA" >/dev/kmsg 2>&1
+                fsck_result=$?
+
+                case "$fsck_result" in
+                        0)
+                                echo "rootfs_data: filesystem clean" > /dev/kmsg
+                                return 0
+                                ;;
+
+                        1)
+                                echo "rootfs_data: filesystem errors repaired" > /dev/kmsg
+                                return 0
+                                ;;
+
+                        2)
+                                echo "rootfs_data: filesystem repaired, reboot recommended" > /dev/kmsg
+                                echo "rootfs_data: allowing persistent overlay mount" > /dev/kmsg
+                                return 0
+                                ;;
+
+                        *)
+                                echo "rootfs_data: ERROR: e2fsck failed, code=$fsck_result" > /dev/kmsg
+                                echo "rootfs_data: refusing to format existing filesystem" > /dev/kmsg
+                                echo "rootfs_data: using RAM overlay" > /dev/kmsg
+
+                                #
+                                # Prevent mount_root from attempting to
+                                # mount the damaged persistent filesystem.
+                                #
+                                pi_mount_skip_next=true
+
+                                return 0
+                                ;;
+                esac
+        fi
+
+        #
+        # No ext filesystem exists.
+        #
+        echo "rootfs_data: no ext filesystem detected" > /dev/kmsg
+        echo "rootfs_data: creating new ext4 filesystem" > /dev/kmsg
+
+        #
+        # Create a normal journaled ext4 filesystem.
+        #
+        if mkfs.ext4 -q -F -L rootfs_data \
+                "$ROOTFS_DATA" >/dev/kmsg 2>&1; then
+
+                sync
+                echo "rootfs_data: ext4 format completed" > /dev/kmsg
+                return 0
+        fi
+
+        #
+        # Formatting failed.
+        #
+        echo "rootfs_data: ERROR: ext4 format failed" > /dev/kmsg
+        echo "rootfs_data: using RAM overlay" > /dev/kmsg
+
+        pi_mount_skip_next=true
+        return 0
+}
+
+boot_hook_add preinit_main preinit_check_rootfs_data
