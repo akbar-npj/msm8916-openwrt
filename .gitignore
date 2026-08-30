@@ -20,4 +20,7 @@ __pycache__/
 pr_description.md
 
 #Book Keeping Directory
-GitIgnore
+GitIgnore/
+ghidra_proj/
+ghidra_scripts/
+scratch/
