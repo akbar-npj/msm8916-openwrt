@@ -601,14 +601,16 @@ Commands
     shell
         Open a shell inside the builder container.
 
-    build <board>
-        Build firmware.
+    build <board> [board ...]
+        Build firmware for one or more boards.
+        Use "all" to build firmware for all supported boards.
 
     saveconfig <board>
         Save the current OpenWrt .config back to the board diffconfig.
 
-    rebuild <board>
-        Clean and rebuild firmware.
+    rebuild <board> [board ...]
+        Clean and rebuild firmware for one or more boards.
+        Use "all" to rebuild firmware for all supported boards.
 
     menuconfig <board>
         Run menuconfig.
