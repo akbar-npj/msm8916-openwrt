@@ -21,7 +21,6 @@ TMP_DIFFCONFIG=""
 ###############################################################################
 # Directories
 ###############################################################################
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 REPO_DIR="$SCRIPT_DIR"
@@ -29,6 +28,8 @@ REPO_DIR="$SCRIPT_DIR"
 OPENWRT_DIR="$REPO_DIR/openwrt"
 
 SCRIPTS_DIR="$REPO_DIR/scripts"
+
+DIFFCONFIG_DIR="$REPO_DIR/diffconfigs"
 
 OPENWRT_VERSION_SCRIPT="$SCRIPTS_DIR/openwrt-version.sh"
 OPENWRT_PREPARE_SCRIPT="$SCRIPTS_DIR/openwrt-prepare.sh"
@@ -383,9 +384,11 @@ update_feeds() {
 
 list_boards() {
 
-    for cfg in "$REPO_DIR"/diffconfig_*; do
+    local cfg
+
+    for cfg in "$DIFFCONFIG_DIR"/*; do
         [ -f "$cfg" ] || continue
-        echo "  ${cfg##*/diffconfig_}"
+        echo "  ${cfg##*/}"
     done
 }
 
@@ -396,9 +399,7 @@ check_board() {
     [ -n "$BOARD" ] ||
         die "No board specified."
 
-    DIFFCONFIG_NAME="diffconfig_${BOARD}"
-
-    if [ ! -f "$REPO_DIR/$DIFFCONFIG_NAME" ]; then
+    if [ ! -f "$DIFFCONFIG_DIR/$BOARD" ]; then
 
         echo
         echo "Available boards:"
@@ -418,11 +419,13 @@ check_board() {
 
 prepare_config() {
 
-    msg "Preparing configuration..."
+    local board="$1"
+
+    msg "Preparing configuration for $board..."
 
     docker_exec sh -c "
         cd $CONTAINER_OPENWRT_DIR &&
-        cp $CONTAINER_REPO_DIR/$DIFFCONFIG_NAME .config
+        cp $CONTAINER_REPO_DIR/diffconfigs/$board .config
     "
 
     run_openwrt_make "make defconfig V=sc"
@@ -436,8 +439,8 @@ save_diffconfig() {
     ensure_prepared
 
     [ -n "$TMP_DIFFCONFIG" ] || {
-
-    TMP_DIFFCONFIG="$(mktemp)"
+        TMP_DIFFCONFIG="$(mktemp)"
+    }
 
     if ! docker_exec bash -lc "
         cd $CONTAINER_OPENWRT_DIR &&
@@ -448,14 +451,12 @@ save_diffconfig() {
         TMP_DIFFCONFIG=""
 
         die "Failed to generate diffconfig."
-
     fi
-}
 
+    if cmp -s "$TMP_DIFFCONFIG" "$DIFFCONFIG_DIR/$BOARD"; then
 
-    if cmp -s "$TMP_DIFFCONFIG" "$SCRIPT_DIR/$DIFFCONFIG_NAME"; then
+        ok "$BOARD is already up to date."
 
-        ok "$DIFFCONFIG_NAME is already up to date."
         rm -f "$TMP_DIFFCONFIG"
         TMP_DIFFCONFIG=""
 
@@ -466,18 +467,18 @@ save_diffconfig() {
     warn "Configuration changes detected."
     echo
 
-    read -rp "Overwrite $DIFFCONFIG_NAME? [y/N] " reply
+    read -rp "Overwrite diffconfigs/$BOARD? [y/N] " reply
 
     case "${reply,,}" in
 
         y|yes)
 
             mv "$TMP_DIFFCONFIG" \
-               "$SCRIPT_DIR/$DIFFCONFIG_NAME"
+               "$DIFFCONFIG_DIR/$BOARD"
 
-               TMP_DIFFCONFIG=""
+            TMP_DIFFCONFIG=""
 
-            ok "Updated $DIFFCONFIG_NAME."
+            ok "Updated diffconfigs/$BOARD."
             ;;
 
         *)
@@ -492,22 +493,25 @@ save_diffconfig() {
     TMP_DIFFCONFIG=""
 }
 
+
+
 build_target() {
 
-    local clean="${1:-0}"
+    local board="$1"
+    local clean="${2:-0}"
 
-    ###########################################################################
-    # Always synchronize repository sources before building.
-    #
-    # This refreshes:
-    #
-    #   msm89xx/
-    #   packages/
-    #   package patches
-    #   openwrt-overlay/
-    #   package feeds
-    #
-    ###########################################################################
+###############################################################################
+# Always synchronize repository sources before building.
+#
+# This refreshes:
+#
+#   msm89xx/
+#   packages/
+#   package patches
+#   openwrt-overlay/
+#   package feeds
+#
+###############################################################################
 
     local version
 
@@ -517,7 +521,7 @@ build_target() {
 
     prepare_tree "$version"
 
-    prepare_config
+    prepare_config "$board"
 
     if [ "$clean" -eq 1 ]; then
 
@@ -702,11 +706,47 @@ shell)
 
 build)
 
-    BOARD="${2:-}"
+    shift
 
-    check_board
+    [ "$#" -gt 0 ] ||
+        die "No boards specified."
 
-    timed build_target
+    # Expand "all" to every board in diffconfigs/
+    if [ "$1" = "all" ]; then
+
+        [ "$#" -eq 1 ] ||
+            die "'all' cannot be combined with individual boards."
+
+        set --
+
+        for cfg in "$DIFFCONFIG_DIR"/*; do
+            [ -f "$cfg" ] || continue
+            set -- "$@" "${cfg##*/}"
+        done
+
+        [ "$#" -gt 0 ] ||
+            die "No board configurations found in $DIFFCONFIG_DIR"
+
+    fi
+
+    # Validate ALL boards before starting any build.
+    for BOARD in "$@"; do
+        check_board
+    done
+
+    # All boards are valid, so start building.
+    for BOARD in "$@"; do
+
+        echo
+        echo "======================================================"
+        echo " Building: $BOARD"
+        echo "======================================================"
+        echo
+
+        timed build_target "$BOARD"
+
+    done
+
     ;;
 
 ###############################################################################
@@ -715,11 +755,47 @@ build)
 
 rebuild)
 
-    BOARD="${2:-}"
+    shift
 
-    check_board
+    [ "$#" -gt 0 ] ||
+        die "No boards specified."
 
-    timed build_target 1
+    # Expand "all" to every board in diffconfigs/
+    if [ "$1" = "all" ]; then
+
+        [ "$#" -eq 1 ] ||
+            die "'all' cannot be combined with individual boards."
+
+        set --
+
+        for cfg in "$DIFFCONFIG_DIR"/*; do
+            [ -f "$cfg" ] || continue
+            set -- "$@" "${cfg##*/}"
+        done
+
+        [ "$#" -gt 0 ] ||
+            die "No board configurations found in $DIFFCONFIG_DIR"
+
+    fi
+
+    # Validate ALL boards before starting any rebuild.
+    for BOARD in "$@"; do
+        check_board
+    done
+
+    # All boards are valid, so start rebuilding.
+    for BOARD in "$@"; do
+
+        echo
+        echo "======================================================"
+        echo " Rebuilding: $BOARD"
+        echo "======================================================"
+        echo
+
+        timed build_target "$BOARD" 1
+
+    done
+
     ;;
 
 ###############################################################################
