@@ -485,12 +485,20 @@ sysupgrade -n -v /tmp/openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.
 cd msm89xx/image
 ./flash.sh hmu05
 
-# 4. Host-driven Fastboot flashing (while device is in Fastboot mode):
+# 4. Host-driven Fastboot or EDL flashing (while device is in Fastboot/EDL mode):
+For Fastboot Mode
+
 fastboot flash boot openwrt-msm89xx-msm8916-generic-hmu05-boot.img
 fastboot flash rootfs openwrt-msm89xx-msm8916-generic-hmu05-rootfs-squashfs.img
 fastboot reboot
-```
 
+------------------
+		
+For EDL Mode		     
+```
+edl w boot openwrt-msm89xx-msm8916-generic-hmu05-boot.img
+edl w flash rootfs openwrt-msm89xx-msm8916-generic-hmu05-rootfs-squashfs.img
+edl reset
 ---
 
 ## 8. Summary & Repository References
