@@ -1,0 +1,31 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Cleanly flush caches and remount rootfs/overlay read-only during system halt/reboot
+
+STOP=98
+
+boot() {
+	:
+}
+
+start() {
+	:
+}
+
+stop() {
+	sync
+	echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+	if grep -q " /overlay " /proc/mounts 2>/dev/null; then
+		mount -o noatime,remount,ro /overlay 2>/dev/null || true
+	fi
+	mount -o remount,ro / 2>/dev/null || true
+	if [ -w /proc/sysrq-trigger ]; then
+		echo s > /proc/sysrq-trigger 2>/dev/null || true
+		echo u > /proc/sysrq-trigger 2>/dev/null || true
+	fi
+}
+
+shutdown() {
+	stop
+}
