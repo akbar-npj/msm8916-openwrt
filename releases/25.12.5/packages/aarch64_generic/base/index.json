@@ -75,7 +75,7 @@
     "procd-seccomp": "2026.03.13~58eb263d-r1",
     "procd-ujail": "2026.03.13~58eb263d-r1",
     "qrtr-utils": "0~5923eea9-r2",
-    "reboot-edl": "1",
+    "reboot-edl": "2",
     "resize2fs": "1.47.3-r1",
     "resolveip": "2",
     "rmtfs": "1.0-r1",
