@@ -1,6 +1,6 @@
 --- a/arch/arm64/boot/dts/qcom/msm8916-yiming-uz801v3.dts
 +++ b/arch/arm64/boot/dts/qcom/msm8916-yiming-uz801v3.dts
-@@ -16,7 +16,9 @@
+@@ -16,8 +16,10 @@
  &led_b {
  	gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
 +	function = LED_FUNCTION_WLAN;

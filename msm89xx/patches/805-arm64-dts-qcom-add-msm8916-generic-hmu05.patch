@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,220 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
