@@ -19,6 +19,14 @@ PKG_BUILD_DEPENDS:=libudev-zero qrtr
 
 include $(INCLUDE_DIR)/package.mk
 
+TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
+TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib
+
+MAKE_FLAGS += \
+	CC="$(TARGET_CC)" \
+	CFLAGS="$(TARGET_CFLAGS)" \
+	LDFLAGS="$(TARGET_LDFLAGS)"
+
 define Package/rmtfs
 	SECTION:=utils
 	CATEGORY:=Utilities
