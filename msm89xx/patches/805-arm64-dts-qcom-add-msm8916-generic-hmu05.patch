@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,221 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -13,6 +13,22 @@
 +/ {
 +    model = "HMU05 4G Modem Stick";
 +    compatible = "hmu05,250605v0s", "qcom,msm8916";
++};
++
++/*
++ * Persistent kernel logging for debugging.
++ *
++ * This region is shared with the UFI001B memory layout and has been
++ * verified as System RAM on these MSM8916 devices.
++ */
++&reserved_memory {
++    ramoops@8db00000 {
++        compatible = "ramoops";
++        reg = <0x0 0x8db00000 0x0 0x00100000>;
++        record-size = <0x00040000>;
++        console-size = <0x00040000>;
++        pmsg-size = <0x00040000>;
++    };
 +};
 +
 +/*

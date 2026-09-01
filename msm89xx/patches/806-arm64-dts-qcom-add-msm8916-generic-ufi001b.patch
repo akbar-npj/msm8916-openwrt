@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi001b.dts
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,133 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -13,6 +13,22 @@
 +/ {
 +	model = "UFI001B 4G Modem Stick";
 +	compatible = "ufi001b,250605v0s", "qcom,msm8916";
++};
++
++/*
++ * Persistent kernel logging for debugging.
++ *
++ * This region is immediately below the existing reserved memory at
++ * 0x8dc00000 and has been verified as System RAM on the UFI001B.
++ */
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++	};
 +};
 +
 +/*

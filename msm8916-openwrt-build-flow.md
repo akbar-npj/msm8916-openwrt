@@ -280,8 +280,17 @@ For the current project:
 
 ```text
 msm89xx/patches/
-├── 810-arm64-dts-qcom-msm8916-label-reserved-memory.patch
-└── 811-arm64-dts-qcom-msm8916-ufi001b-add-ramoops.patch
+├── 801-arm64-dts-qcom-add-devices-makefile.patch
+├── 802-arm64-dts-qcom-msm8916-label-reserved-memory.patch
+├── 803-arm64-dts-qcom-swap-leds-uz801.patch
+├── 804-arm64-dts-qcom-add-msm8916-generic-uf02.patch
+├── 805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch
+├── 806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
+├── 808-bam-dmux-stats.patch
+├── 809-mac80211-enable-wcn36xx.patch
+├── 813-msm8916-reboot-to-edl-support.patch
+├── 815-qcom-sysmon-ignore-wcnss-modem-ssr.patch
+└── 999-tsens-propagate-eprobe-defer.patch
 ```
 
 After preparation they appear automatically under:
@@ -300,17 +309,15 @@ The current patch set includes:
 
 ```text
 801-arm64-dts-qcom-add-devices-makefile.patch
+802-arm64-dts-qcom-msm8916-label-reserved-memory.patch
 803-arm64-dts-qcom-swap-leds-uz801.patch
-804-arm64-dts-qcom-add-msm8916-generic-uf2.patch
+804-arm64-dts-qcom-add-msm8916-generic-uf02.patch
 805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch
-806-arm64-dts-qcom-add-devices-makefile.patch
-807-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
+806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
 808-bam-dmux-stats.patch
 809-mac80211-enable-wcn36xx.patch
-810-arm64-dts-qcom-msm8916-label-reserved-memory.patch
-811-arm64-dts-qcom-msm8916-ufi001b-add-ramoops.patch
-812-arm64-dts-qcom-msm8916-hmu05-add-ramoops.patch
 813-msm8916-reboot-to-edl-support.patch
+815-qcom-sysmon-ignore-wcnss-modem-ssr.patch
 999-tsens-propagate-eprobe-defer.patch
 ```
 
@@ -589,10 +596,10 @@ Board-specific hardware changes therefore belong in the corresponding DTS or in 
 
 ## 20. Universal vs Board-Specific Debugging
 
-### Patch 810
+### Patch 802
 
 ```text
-810-arm64-dts-qcom-msm8916-label-reserved-memory.patch
+802-arm64-dts-qcom-msm8916-label-reserved-memory.patch
 ```
 
 changes:
@@ -611,13 +618,14 @@ This provides a label that board DTS files can reference.
 
 This infrastructure is intended to be MSM8916-wide.
 
-### Patch 811
+### Board Ramoops Integration (805 & 806)
 
-```text
-811-arm64-dts-qcom-msm8916-ufi001b-add-ramoops.patch
-```
+In earlier iterations, ramoops logging nodes were added as separate incremental patches (811 for UFI001B, 812 for HMU05). These have been consolidated directly into the respective board DTS patches:
 
-adds:
+- `805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`
+- `806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch`
+
+Both boards allocate the verified 1MB System RAM region:
 
 ```dts
 &reserved_memory {
@@ -631,37 +639,7 @@ adds:
 };
 ```
 
-This is currently **UFI001B-specific**.
-
-The address:
-
-```text
-0x8db00000
-```
-
-was selected only after verifying the UFI001B runtime memory map.
-
-The region:
-
-```text
-0x8db00000 - 0x8dbfffff
-```
-
-is System RAM, immediately below the reserved region beginning at:
-
-```text
-0x8dc00000
-```
-
-Therefore this address must not be assumed safe for another MSM8916 board without verifying its memory map.
-
-### Patch 812
-
-```text
-812-arm64-dts-qcom-msm8916-hmu05-add-ramoops.patch
-```
-
-Adds corresponding `ramoops@8db00000` node for the **HMU05** board DTS.
+The region `0x8db00000 - 0x8dbfffff` is System RAM immediately below the modem reserved region at `0x8dc00000`.
 
 ### Patch 813
 
@@ -890,8 +868,8 @@ The last two are generated/build artifacts and should not normally be treated as
 The BSP now contains:
 
 ```text
-810-arm64-dts-qcom-msm8916-label-reserved-memory.patch
-811-arm64-dts-qcom-msm8916-ufi001b-add-ramoops.patch
+802-arm64-dts-qcom-msm8916-label-reserved-memory.patch
+806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
 ```
 
 Preparation was tested with:

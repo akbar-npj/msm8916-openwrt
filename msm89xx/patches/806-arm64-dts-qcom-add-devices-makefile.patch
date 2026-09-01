@@ -1,8 +1,0 @@
---- a/arch/arm64/boot/dts/qcom/Makefile
-+++ b/arch/arm64/boot/dts/qcom/Makefile
-@@ -53,3 +53,5 @@
- dtb-$(CONFIG_ARCH_QCOM) += msm8916-samsung-j5.dtb
- dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-uf02.dtb
-+dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-hmu05.dtb
-+dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-ufi001b.dtb
- dtb-$(CONFIG_ARCH_QCOM) += msm8916-samsung-j5x.dtb
