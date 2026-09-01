@@ -7,10 +7,15 @@
     "dropbear": "2025.89-r3",
     "fstools": "2026.05.23~16718b6e-r1",
     "fwtool": "2025.10.03~04cd252e-r1",
-    "kernel": "6.12.94~048c6cd55e0a3380fd731ca151a93f12-r1",
+    "kernel": "6.12.94~0adfb909edf505950c878bce615ff91d-r1",
+    "kmod-6lowpan": "6.12.94-r1",
     "kmod-ath": "6.12.94.6.18.26-r1",
     "kmod-bam-dmux": "6.12.94-r1",
+    "kmod-bluetooth": "6.12.94-r1",
+    "kmod-bluetooth-6lowpan": "6.12.94-r1",
     "kmod-bonding": "6.12.94-r1",
+    "kmod-btmtk": "6.12.94-r1",
+    "kmod-btusb": "6.12.94-r1",
     "kmod-cfg80211": "6.12.94.6.18.26-r1",
     "kmod-crypto-acompress": "6.12.94-r1",
     "kmod-crypto-aead": "6.12.94-r1",
@@ -47,8 +52,8 @@
     "kmod-fs-f2fs": "6.12.94-r1",
     "kmod-fs-vfat": "6.12.94-r1",
     "kmod-gre": "6.12.94-r1",
+    "kmod-hci-uart": "6.12.94-r1",
     "kmod-hid": "6.12.94-r1",
-    "kmod-hid-generic": "6.12.94-r1",
     "kmod-input-core": "6.12.94-r1",
     "kmod-input-evdev": "6.12.94-r1",
     "kmod-ipt-core": "6.12.94-r1",
@@ -121,7 +126,6 @@
     "libpthread": "1.2.5-r5",
     "librt": "1.2.5-r5",
     "libstdcpp": "14.3.0-r5",
-    "mtd": "27",
-    "uqmi": "2025.07.30~7914da43-r2"
+    "mtd": "27"
   }
 }
