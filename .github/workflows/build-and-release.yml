@@ -2,8 +2,6 @@ name: Build OpenWrt MSM8916 & Release
 
 on:
   push:
-    branches:
-      - "test/github-actions"
     tags:
       - "v*"
   workflow_dispatch:
