@@ -3,7 +3,8 @@
 
 PART_NAME=firmware
 REQUIRE_IMAGE_METADATA=1
-RAMFS_COPY_DATA="/lib/functions.sh /lib/upgrade/common.sh /lib/upgrade/fwtool.sh /lib/upgrade/luci-add-conffiles.sh /lib/upgrade/platform.sh /lib/upgrade/tar.sh /dev/disk"
+RAMFS_COPY_BIN="mkfs.ext4"
+RAMFS_COPY_DATA="/etc/mke2fs.conf"
 
 log_upgrade() {
     echo "sysupgrade: $*"
@@ -13,33 +14,53 @@ log_upgrade() {
 find_mmc_part() {
     local label="$1"
     local dev=""
+    local aliases=""
+
+    case "$label" in
+        boot|BOOT)
+            aliases="boot BOOT"
+            ;;
+        rootfs|system|SYSTEM)
+            aliases="rootfs system SYSTEM"
+            ;;
+        rootfs_data|userdata|USERDATA)
+            aliases="rootfs_data userdata USERDATA"
+            ;;
+        *)
+            aliases="$label"
+            ;;
+    esac
 
     for dev in /dev/mmcblk[0-9]p[0-9]*; do
         [ -b "$dev" ] || continue
         local pname="$(cat "/sys/class/block/$(basename "$dev")/uevent" 2>/dev/null | grep PARTNAME | cut -d= -f2)"
 
-        if [ "$pname" = "$label" ]; then
-            echo "$dev"
-            return 0
+        for a in $aliases; do
+            if [ "$pname" = "$a" ]; then
+                echo "$dev"
+                return 0
+            fi
+        done
+    done
+
+    for a in $aliases; do
+        if [ -L "/dev/disk/by-partlabel/$a" ]; then
+            dev="$(readlink -f "/dev/disk/by-partlabel/$a" 2>/dev/null)"
+            [ -b "$dev" ] && {
+                echo "$dev"
+                return 0
+            }
         fi
     done
 
-    if [ -L "/dev/disk/by-partlabel/$label" ]; then
-        dev="$(readlink -f "/dev/disk/by-partlabel/$label" 2>/dev/null)"
-        [ -b "$dev" ] && {
-            echo "$dev"
-            return 0
-        }
-    fi
-
     case "$label" in
-        boot)
+        boot|BOOT)
             [ -b /dev/mmcblk0p13 ] && echo "/dev/mmcblk0p13"
             ;;
-        rootfs|system)
+        rootfs|system|SYSTEM)
             [ -b /dev/mmcblk0p14 ] && echo "/dev/mmcblk0p14"
             ;;
-        rootfs_data)
+        rootfs_data|userdata|USERDATA)
             [ -b /dev/mmcblk0p15 ] && echo "/dev/mmcblk0p15"
             ;;
     esac
@@ -74,14 +95,17 @@ platform_copy_config() {
     }
 
     mkdir -p /tmp/overlay
+    umount /tmp/overlay 2>/dev/null || true
 
-    if mount -t ext4 -o rw,noatime "$data_part" /tmp/overlay 2>/dev/null; then
+    if mount -t ext4 -o rw,noatime "$data_part" /tmp/overlay 2>/dev/null || \
+       mount -o rw,noatime "$data_part" /tmp/overlay 2>/dev/null; then
         mkdir -p /tmp/overlay/upper /tmp/overlay/work
 
         if [ -f "$UPGRADE_BACKUP" ]; then
             log_upgrade "Restoring preserved configuration to $data_part"
 
-            tar -xzf "$UPGRADE_BACKUP" -C /tmp/overlay/upper 2>/dev/null || \
+            tar -C /tmp/overlay/upper -xzf "$UPGRADE_BACKUP" 2>/dev/null || \
+                tar -xzf "$UPGRADE_BACKUP" -C /tmp/overlay/upper 2>/dev/null || \
                 log_upgrade "WARNING: Failed to extract configuration backup"
         fi
 
@@ -124,11 +148,7 @@ platform_do_upgrade() {
     }
 
     boot_part=$(find_mmc_part "boot")
-
     rootfs_part=$(find_mmc_part "rootfs")
-    [ -z "$rootfs_part" ] && \
-        rootfs_part=$(find_mmc_part "system")
-
     data_part=$(find_mmc_part "rootfs_data")
 
     log_upgrade "Board: $board_dir | Boot: ${boot_part:-NOT FOUND} | Rootfs: ${rootfs_part:-NOT FOUND} | Data: ${data_part:-NOT FOUND}"
@@ -145,23 +165,29 @@ platform_do_upgrade() {
 
     log_upgrade "Writing kernel image ($kernel_member) to $boot_part..."
 
-    if ! tar -xOf "$tar_file" "$kernel_member" 2>/dev/null | \
+    set -o pipefail
+    if ! tar -O -xf "$tar_file" "$kernel_member" 2>/dev/null | \
         dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null; then
 
         log_upgrade "ERROR: Failed to write kernel to $boot_part"
+        set +o pipefail
         return 1
     fi
+    set +o pipefail
 
     log_upgrade "Kernel written successfully"
 
     log_upgrade "Writing rootfs image ($root_member) to $rootfs_part..."
 
-    if ! tar -xOf "$tar_file" "$root_member" 2>/dev/null | \
+    set -o pipefail
+    if ! tar -O -xf "$tar_file" "$root_member" 2>/dev/null | \
         dd of="$rootfs_part" bs=4096 conv=fsync 2>/dev/null; then
 
         log_upgrade "ERROR: Failed to write rootfs to $rootfs_part"
+        set +o pipefail
         return 1
     fi
+    set +o pipefail
 
     log_upgrade "Rootfs written successfully"
 
