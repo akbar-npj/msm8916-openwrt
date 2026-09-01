@@ -15,6 +15,7 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Miguel Fuertes <hkfuertes@gmail.com>
 
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_DEPENDS:=libudev-zero qrtr
 
 include $(INCLUDE_DIR)/package.mk
 

@@ -19,6 +19,7 @@ PKG_CPE_ID:=cpe:/a:apple:cups
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_DEPENDS:=zlib libpng libjpeg-turbo libusb-1.0
 
 include $(INCLUDE_DIR)/package.mk
 

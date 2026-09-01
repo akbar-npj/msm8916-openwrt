@@ -38,9 +38,13 @@ start_service() {
 
 	# Run in foreground so procd can supervise:
 	# -P: POSIX shared memory backend
-	# -r: allow read-only mode fallback if storage is not writable
 	# -s: enable shared memory regions as needed
-	procd_set_param command "$PROG" -P -r -s
+	#
+	# NOTE: Do NOT use -r (read-only mode). The modem firmware runs a
+	# periodic EFS sync timer every 900 seconds (15 minutes). If rmtfs
+	# rejects the write, the modem panics with a fatal SSR crash. Stock
+	# Android's rmt_storage always runs with full read-write access.
+	procd_set_param command "$PROG" -P -s
 
 	# Auto-restart on crash: (threshold_ms timeout_s retries)
 	procd_set_param respawn 3600 5 5
@@ -56,6 +60,13 @@ start_service() {
 }
 
 stop_service() {
-	# procd will send SIGTERM; this is a gentle extra safeguard
+	# Sync EFS partitions before stopping rmtfs to prevent NV data
+	# corruption. This mirrors Android's init.qcom.efs.sync.sh behavior.
+	sync
+	for part in modemst1 modemst2 fsg fsc; do
+		[ -b "/dev/disk/by-partlabel/$part" ] && \
+			dd if="/dev/disk/by-partlabel/$part" of=/dev/null bs=512 count=1 2>/dev/null || true
+	done
+	# procd will send SIGTERM to the daemon
 	killall rmtfs 2>/dev/null || true
 }
