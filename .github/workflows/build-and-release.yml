@@ -1,0 +1,105 @@
+name: Build OpenWrt MSM8916 & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (e.g. v25.12.5-r1, leave empty to use current version)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build All Boards, Kmods & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free Disk Space on Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
+          sudo apt-get clean
+
+      - name: Determine Release Tag & Version
+        id: vars
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v25.12.5-r1"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          VERSION=$(cat version 2>/dev/null || echo "25.12.5")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building for Tag: ${TAG}, OpenWrt Version: ${VERSION}"
+
+      - name: Build Docker Builder Image & Prepare OpenWrt Tree
+        run: |
+          ./build.sh prepare
+
+      - name: Compile All Firmware Images (hmu05, ufi001b, uz801, uf02)
+        run: |
+          ./build.sh build all
+
+      - name: Compile Extra Packages (CUPS Print Server & Drivers)
+        run: |
+          docker compose -f devenv/docker-compose.yml exec -T builder bash -c "
+            cd /repo/openwrt
+            make package/msm8916/cups/compile package/index V=s
+          "
+
+      - name: Package Offline Kmod Bundle & Compute Checksums
+        run: |
+          cd openwrt/bin/targets/msm89xx/msm8916
+          tar -czvf kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz packages/
+          sha256sum openwrt-msm89xx-msm8916-generic-hmu05-* \
+                    openwrt-msm89xx-msm8916-generic-ufi001b-* \
+                    openwrt-msm89xx-msm8916-yiming-uz801v3-* \
+                    openwrt-msm89xx-msm8916-generic-uf02-* \
+                    kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
+          cat sha256sums
+
+      - name: Prepare GitHub Pages Feed Repository
+        run: |
+          mkdir -p /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/targets/msm89xx/msm8916
+          mkdir -p /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages
+          cp -a openwrt/bin/targets/msm89xx/msm8916/packages /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/targets/msm89xx/msm8916/
+          cp -a openwrt/bin/packages/aarch64_generic /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages/
+
+      - name: Deploy Package Feeds to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: /tmp/gh-pages-site
+          keep_files: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: "OpenWrt ${{ steps.vars.outputs.version }} (Pre-Release) for Qualcomm MSM8916"
+          body_path: FLASHING_AND_RELEASE_GUIDE.md
+          draft: false
+          prerelease: true
+          files: |
+            openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-boot.img
+            openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-system.img
+            openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin
+            openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-firmware.zip
+            openwrt/bin/targets/msm89xx/msm8916/kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz
+            openwrt/bin/targets/msm89xx/msm8916/sha256sums
