@@ -1,4 +1,4 @@
-# Qualcomm MSM8916: Complete Reboot-to-EDL & System Safety Implementation Guide
+# Qualcomm MSM8916: Complete Reboot Modes, EDL, Fastboot & System Updates Implementation Guide
 
 **Author:** OpenWrt MSM8916 Porting & Stability Team  
 **Target:** Qualcomm MSM8916 / Snapdragon 410 (HMU05, UFI001B, UFI003, UZ801, Generic MSM8916)  
@@ -10,20 +10,21 @@
 
 ## 1. Executive Summary & Architecture Overview
 
-This document is the definitive technical reference for enabling **Reboot to EDL (`05c6:9008` Qualcomm HS-USB QDLoader)** and **Reboot to DLOAD (`05c6:9006` Mass Storage / Dump Mode)** on Qualcomm MSM8916 devices running clean OpenWrt Linux 6.12.
+This document is the definitive technical reference for enabling all hardware reboot modes—**EDL (`05c6:9008`)**, **DLOAD (`05c6:9006`)**, **Fastboot (`18d1:d00d` / `05c6:9025`)**, **Recovery**, and **Safe Normal Updates (Sysupgrade)**—on Qualcomm MSM8916 devices running clean OpenWrt Linux 6.12.
 
-The implementation solves three interconnected engineering challenges:
-1. **Hardware Warm-Reset Magic:** Discovering and executing the exact low-level register writes, IMEM cookies, PMIC PON configuration, and SPMI arbiter halt required for the Qualcomm BootROM (PBL) to enter 9008 mode across a warm reset.
-2. **Kernel Reset Subsystem Integration:** Integrating a priority 130 restart handler in `drivers/power/reset/msm-poweroff.c` hooked to `LINUX_REBOOT_CMD_RESTART2` via device tree and SCM drivers.
-3. **Safe Userspace Teardown & Filesystem Protection:** Orchestrating a clean userspace shutdown flow (`reboot-edl` / `reboot-mode`) and normal reboot unmount service (`umount-overlay`) so that `/overlay` (`/dev/mmcblk0p15` EXT4) is cleanly remounted read-only (`MS_RDONLY`) before power is cut, completely eliminating journal corruption and `e2fsck` repairs on next boot.
+The implementation solves four critical engineering challenges:
+1. **Hardware Warm-Reset Magic (PBL EDL & SBL1 DLOAD):** Writing the exact low-level register writes, IMEM cookies (`0x322A4F99`, `0xC67E4350`, `0x77777777` at `0x08600FE0`), PM8916 PON PS_HOLD warm-reset configuration, and SPMI arbiter halt required for the Qualcomm BootROM (PBL) to enter 9008 mode across a warm reset.
+2. **Bootloader & Fastboot Mode Handling:** Routing `reboot bootloader` / `reboot fastboot` and `reboot recovery` through Qualcomm PON reboot-mode registers (`PON_SOFT_RB_SPARE`) so `aboot` / `lk2nd` halts in Fastboot mode for USB partition flashing.
+3. **Safe Userspace Teardown & Filesystem Protection:** Orchestrating a clean userspace shutdown flow (`reboot-mode` / `reboot-edl`) so that network interfaces are closed, background services are stopped, and `/overlay` (`/dev/mmcblk0p15` EXT4) is cleanly remounted read-only (`MS_RDONLY`) before power is cut.
+4. **Normal Reboot & Sysupgrade Integrity:** Ensuring standard `/sbin/reboot`, CLI sysupgrade (`sysupgrade -v image.bin`), and LuCI web interface upgrades cleanly unmount the persistent overlay, eliminating EXT4 journal recovery and `e2fsck` repair warnings on every subsequent boot.
 
 ```
 ====================================================================================================
-                        COMPLETE QUALCOMM MSM8916 REBOOT-TO-EDL PIPELINE
+                        COMPLETE QUALCOMM MSM8916 REBOOT MODES & UPDATE PIPELINE
 ====================================================================================================
 
 +--------------------------------------------------------------------------------------------------+
-| USERSPACE: Safe Teardown Orchestrator (/sbin/reboot-edl -> /sbin/reboot-mode)                   |
+| USERSPACE: Safe Teardown Orchestrator (/sbin/reboot-mode -> reboot-edl / fastboot / sysupgrade)  |
 | 1. Quiesce network & modem interfaces (ifdown -a, stop BAM-DMUX/RMTFS)                          |
 | 2. Stop system services (/etc/init.d/rcS K shutdown)                                             |
 | 3. Terminate running daemons (SIGTERM -> 1s sleep -> SIGKILL)                                    |
@@ -31,45 +32,72 @@ The implementation solves three interconnected engineering challenges:
 | 5. Remount storage read-only (mount -o noatime,remount,ro /overlay; mount -o remount,ro /)      |
 | 6. Unmount all file systems (umount -a -r)                                                       |
 | 7. Trigger emergency kernel sync & remount-ro (SysRq-s, SysRq-u)                                 |
-| 8. Execute low-level dispatcher: /sbin/reboot-mode-raw "edl"                                     |
+| 8. Execute low-level dispatcher: /sbin/reboot-mode-raw "<mode>"                                  |
 +--------------------------------------------------------------------------------------------------+
                                                  │
-                                                 │ syscall(SYS_reboot, ..., RESTART2, "edl")
+                                                 │ syscall(SYS_reboot, ..., RESTART2, mode)
                                                  v
 +--------------------------------------------------------------------------------------------------+
-| LINUX KERNEL 6.12: Priority 130 Restart Handler (msm-poweroff.c + qcom-pon.c + qcom_scm.c)       |
-| 1. Intercept "edl" / "dload" command string in do_msm_poweroff()                                |
-| 2. Write 3 EDL Cookies to IMEM (0x08600FE0):                                                     |
-|    - [0x08600FE0] = 0x322A4F99 (MSM_IMEM_EDL_MAGIC1)                                            |
-|    - [0x08600FE4] = 0xC67E4350 (MSM_IMEM_EDL_MAGIC2)                                            |
-|    - [0x08600FE8] = 0x77777777 (MSM_IMEM_EDL_MAGIC3)                                            |
-| 3. Set TCSR_BOOT_MISC_DETECT bit[0] = 0x01 via qcom_scm_io_writel(0x0193D100, 0x01)             |
-| 4. Configure PM8916 PON PS_HOLD for WARM RESET (pm8916_pon_configure_warm_reset()):             |
-|    - Reg 0x85B (PS_HOLD_RST_CTL2) = 0x0 (disable) -> udelay(300)                                |
-|    - Reg 0x85A (PS_HOLD_RST_CTL)  = 0x01 (PON_POWER_OFF_WARM_RESET)                             |
-|    - Reg 0x85B (PS_HOLD_RST_CTL2) = BIT(7) (re-enable)                                          |
-|    - Reg 0x857 (WD_RST_S2_CTL2)   = 0x0 (clear PMIC watchdog)                                   |
-| 5. Halt SPMI PMIC Arbiter via TrustZone SMC: SCM SVC=0x9, CMD=0x1                                |
-| 6. Pull PS_HOLD low: writel(0, msm_ps_hold) (0x004AB000 = 0x0)                                   |
+| LINUX KERNEL 6.12 RESET SUBSYSTEM                                                                 |
+|                                                                                                  |
+| [MODE: edl]                                                                                      |
+|   1. Write 3 EDL Cookies to IMEM (0x08600FE0): 0x322A4F99, 0xC67E4350, 0x77777777                |
+|   2. Set TCSR_BOOT_MISC_DETECT bit[0] = 0x01 via qcom_scm_io_writel(0x0193D100, 0x01)            |
+|   3. PM8916 PON PS_HOLD Warm Reset (Reg 0x85A = 0x01, Reg 0x85B = BIT(7), Reg 0x857 = 0x0)       |
+|   4. Halt SPMI PMIC Arbiter (SCM SVC=0x9, CMD=0x1) -> Drop PS_HOLD (0x004AB000 = 0x0)            |
+|                                                                                                  |
+| [MODE: dload]                                                                                    |
+|   1. Set TCSR_BOOT_MISC_DETECT bit[4] = 0x10 (QCOM_DLOAD_FULLDUMP)                               |
+|   2. PM8916 PON Warm Reset -> Drop PS_HOLD                                                       |
+|                                                                                                  |
+| [MODE: bootloader / fastboot / recovery]                                                         |
+|   1. Write magic to PM8916 PON_SOFT_RB_SPARE (0x88F): 0x01 (bootloader), 0x02 (recovery)         |
+|   2. Standard Warm Reset -> Drop PS_HOLD                                                         |
+|                                                                                                  |
+| [MODE: normal reboot / sysupgrade]                                                               |
+|   1. Base-files umount-overlay (STOP=98) remounts /overlay RO and runs SysRq-u                   |
+|   2. SBL1 -> aboot/lk2nd -> Boots OpenWrt Linux kernel normally                                  |
 +--------------------------------------------------------------------------------------------------+
                                                  │
                                                  │ Hardware Reset with SRAM Retention
                                                  v
 +--------------------------------------------------------------------------------------------------+
-| QUALCOMM HARDWARE BOOT CHAIN                                                                     |
-| 1. PM8916 PMIC asserts reset line while keeping SoC SRAM / IMEM power rails powered              |
-| 2. Primary Boot Loader (PBL BootROM) executes from internal ROM                                 |
-| 3. PBL reads IMEM 0x08600FE0 -> Matches 3 EDL Magic Cookies                                      |
-| 4. PBL reads TCSR 0x0193D100 bit[0] == 1 -> Enters Emergency Download Mode                     |
-| 5. Enumerates on USB bus as: ID 05c6:9008 Qualcomm HS-USB QDLoader 9008                         |
+| QUALCOMM HARDWARE BOOT CHAIN EXECUTION                                                           |
+|                                                                                                  |
+| ├─▶ [PBL BootROM]: Checks IMEM 0x08600FE0 & TCSR 0x0193D100                                      |
+| │     └─▶ If EDL Cookies Match: Halts in Qualcomm HS-USB QDLoader 9008 Mode (05c6:9008)          |
+| │                                                                                                |
+| ├─▶ [SBL1 Bootloader]: Checks TCSR DLOAD bit & PON Spare                                         |
+| │     └─▶ If DLOAD Bit Set: Halts in Qualcomm HS-USB Diagnostics / Mass Storage (05c6:9006)      |
+| │                                                                                                |
+| ├─▶ [aboot / lk2nd Bootloader]: Checks PON_SOFT_RB_SPARE (0x88F)                                 |
+| │     ├─▶ If Mode == 0x01: Halts in Android Fastboot Mode (18d1:d00d / 05c6:9025)                |
+| │     ├─▶ If Mode == 0x02: Boots Android Recovery Kernel / Ramdisk                               |
+| │     └─▶ Default (0x00): Boots OpenWrt SquashFS + Persistent EXT4 Overlay                       |
 +--------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Reverse Engineering & Hardware Ground Truth
+## 2. Supported Reboot Modes & Update Operations
 
-### 2.1 The Three Magic Cookies in IMEM
+The system now provides clean, safe commands for every standard and recovery operational mode:
+
+| Command | Target Hardware Mode | USB ID | Target Handler | Primary Use Case |
+| :--- | :--- | :--- | :--- | :--- |
+| **`reboot-edl`** / `reboot edl` | **Qualcomm 9008 EDL** | `05c6:9008` | PBL BootROM | Unbrick, raw eMMC flashing (`flash.sh`, `edl`, `qdl`), GPT rewrite |
+| **`reboot-dload`** / `reboot dload` | **Qualcomm 9006 DLOAD** | `05c6:9006` | SBL1 Bootloader | RAM dump, raw mass storage direct disk access |
+| **`reboot-bootloader`** / `reboot bootloader` | **Fastboot Mode** | `18d1:d00d` / `05c6:9025` | `aboot` / `lk2nd` | Fastboot flashing (`fastboot flash boot ...`), kernel updates |
+| **`reboot-fastboot`** / `reboot fastboot` | **Fastboot Mode** | `18d1:d00d` / `05c6:9025` | `aboot` / `lk2nd` | Alias for fastboot bootloader mode |
+| **`reboot-recovery`** / `reboot recovery` | **Recovery Mode** | Android Recovery | `aboot` / `lk2nd` | Boots alternate recovery partition or recovery ramdisk |
+| **`reboot`** / `/sbin/reboot` | **Normal Reboot** | Composite Gadget (`1d6b:0104`) | SBL1 -> aboot -> OpenWrt | Standard system reboot with clean `/overlay` remount |
+| **`sysupgrade <image.bin>`** | **System Upgrade** | Composite Gadget (`1d6b:0104`) | `/lib/upgrade/stage2` | Full firmware upgrade while preserving `/dev/mmcblk0p15` config |
+
+---
+
+## 3. Deep Dive: Reverse Engineering & Mode Mechanisms
+
+### 3.1 Mode 1: Qualcomm PBL Emergency Download (EDL / 9008)
 Reverse engineering of the stock Qualcomm Android kernel (`android-vmlinux`) and Little Kernel (`lk2nd` source) revealed that the MSM8916 BootROM does **not** check the generic ASCII cookie `0x65646c00` ("edl\0") at `0x0860065c`. 
 
 Instead, the MSM8916 PBL expects **three 32-bit magic cookies** at IMEM offset `0xFE0` (physical address `0x08600FE0`):
@@ -80,33 +108,81 @@ Instead, the MSM8916 PBL expects **three 32-bit magic cookies** at IMEM offset `
 | `0x08600FE4` | `+0xFE4` | `0xC67E4350` | `MSM_IMEM_EDL_MAGIC2` |
 | `0x08600FE8` | `+0xFE8` | `0x77777777` | `MSM_IMEM_EDL_MAGIC3` |
 
-### 2.2 TCSR Boot Misc Register (`0x0193D100`)
-The Qualcomm PBL checks bit 0 of `TCSR_BOOT_MISC_DETECT` (physical address `0x0193D100`):
-* **EDL Mode (`05c6:9008`):** Bit 0 set (`0x01`, `SCM_EDLOAD_MODE`).
-* **DLOAD / Dump Mode (`05c6:9006`):** Bit 4 set (`0x10`, `QCOM_DLOAD_FULLDUMP`).
-* *Crucial Fix:* Upstream Linux QCOM SCM driver hardcodes `0x10` for full dumps, which causes SBL1 crash dump mode rather than PBL EDL. Writing raw `0x01` to `0x0193D100` is required for true PBL 9008 mode.
-
-### 2.3 PM8916 PMIC PON PS_HOLD Warm Reset Sequence
-For IMEM contents to survive the reboot, the PM8916 PMIC must perform a **Warm Reset** rather than a Hard Power-Off:
-1. Disable reset detection: Reg `0x85B` (`QPNP_PON_PS_HOLD_RST_CTL2`) = `0x0`.
-2. Wait 300 µs: `udelay(300)`.
-3. Set Warm Reset mode: Reg `0x85A` (`QPNP_PON_PS_HOLD_RST_CTL`) = `0x01` (`PON_POWER_OFF_WARM_RESET`).
-4. Re-enable reset detection: Reg `0x85B` (`QPNP_PON_PS_HOLD_RST_CTL2`) = `BIT(7)` (`QPNP_PON_RESET_EN`).
-5. Clear PMIC watchdog: Reg `0x857` (`QPNP_PON_WD_RST_S2_CTL2`) = `0x0`.
-
-### 2.4 PMIC Arbiter Halt (TrustZone SMC)
-Before dropping `PS_HOLD`, the SPMI PMIC bus arbiter must be quiesced via an ARM SMC call to the Secure World (TrustZone):
-* `SCM_SVC_PWR` (`0x09`), `SCM_IO_DISABLE_PMIC_ARBITER` (`0x01`)
-* Retries with CMD `0x02` (`SCM_IO_DISABLE_PMIC_ARBITER1`) if CMD `0x01` is rejected.
+#### Hardware Execution Requirements:
+1. **TCSR Boot Misc Register (`0x0193D100`):** PBL inspects bit 0. Value `0x01` (`SCM_EDLOAD_MODE`) must be written directly to `0x0193D100`.
+2. **PM8916 PMIC PON PS_HOLD Warm Reset:** The PM8916 PMIC must perform a Warm Reset to maintain SRAM power rails across reset:
+   - Reg `0x85B` (`QPNP_PON_PS_HOLD_RST_CTL2`) = `0x0` (disable).
+   - `udelay(300)`.
+   - Reg `0x85A` (`QPNP_PON_PS_HOLD_RST_CTL`) = `0x01` (`PON_POWER_OFF_WARM_RESET`).
+   - Reg `0x85B` (`QPNP_PON_PS_HOLD_RST_CTL2`) = `BIT(7)` (`QPNP_PON_RESET_EN`).
+   - Reg `0x857` (`QPNP_PON_WD_RST_S2_CTL2`) = `0x0` (clear watchdog).
+3. **PMIC Arbiter Halt (TrustZone SMC):** Halt SPMI arbiter via `SCM_SVC_PWR` (`0x09`), `SCM_IO_DISABLE_PMIC_ARBITER` (`0x01`).
+4. **PS_HOLD Drop:** Drive `msm_ps_hold` (`0x004AB000`) to 0.
 
 ---
 
-## 3. Kernel Patches Applied (`msm89xx/patches/`)
+### 3.2 Mode 2: Fastboot Mode (`bootloader` / `fastboot`)
+Fastboot mode on MSM8916 is handled by the Little Kernel / Android Bootloader (`aboot` / `lk2nd`):
+1. When `reboot bootloader` or `reboot fastboot` is called, the Linux `reboot-mode` framework in `drivers/power/reset/qcom-pon.c` intercepts the command string.
+2. `pm8916_reboot_mode_write()` writes the bootloader magic identifier into the PM8916 Power-On (PON) soft-reset spare register:
+   - **`PON_SOFT_RB_SPARE` (SPMI Register `0x88F`):** `0x01` (Fastboot mode).
+3. The system performs a standard warm reset.
+4. During boot, SBL1 reads `0x88F`, preserves the reason, and jumps to `aboot`.
+5. `aboot` inspects the restart reason: seeing `0x01`, it skips the Linux boot countdown and halts in **Fastboot USB mode** (`ID 18d1:d00d` or `05c6:9025`).
+6. Users can now flash partitions using standard host tooling:
+   ```bash
+   fastboot flash boot openwrt-msm89xx-msm8916-generic-hmu05-boot.img
+   fastboot reboot
+   ```
 
-The kernel modifications are packaged in [`msm89xx/patches/813-msm8916-reboot-to-edl-support.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/813-msm8916-reboot-to-edl-support.patch).
+---
 
-### 3.1 Device Tree Node (`arch/arm64/boot/dts/qcom/msm8916.dtsi`)
-Exposes IMEM memory range to the kernel:
+### 3.3 Mode 3: Recovery Mode (`recovery`)
+Similar to Fastboot mode:
+1. `reboot recovery` causes `drivers/power/reset/qcom-pon.c` to write `0x02` to `PON_SOFT_RB_SPARE` (`0x88F`).
+2. SBL1 hands off to `aboot`, which loads and boots the kernel from the `recovery` eMMC partition instead of `boot`.
+
+---
+
+### 3.4 Mode 4: Normal Updates & Sysupgrade Flow
+
+OpenWrt supports two robust upgrade paths for MSM8916 devices:
+
+#### Vector A: Standard In-Place Sysupgrade (`sysupgrade` CLI & LuCI Web UI)
+The sysupgrade workflow operates as follows:
+1. User provides sysupgrade tar/bin image via LuCI web GUI or CLI:
+   ```bash
+   sysupgrade -v /tmp/openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.bin
+   ```
+2. **Stage 1 (Backup):** OpenWrt archives network, wireless, and system configuration files into `/tmp/sysupgrade.tgz`.
+3. **Stage 2 (Ramdisk Pivot & Storage Flash):**
+   - The system executes [`/lib/upgrade/stage2`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt/package/base-files/files/lib/upgrade/stage2).
+   - Switches root filesystem to RAM (`tmpfs`), detaches all loop/overlay mounts, and mounts `/overlay` as **read-only (`MS_RDONLY`)**.
+   - [`/lib/upgrade/platform.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/lib/upgrade/platform.sh) identifies the target eMMC partitions (`boot` on `p12`/`p13`, `rootfs` on `p14`).
+   - Writes the new Android boot image (kernel + initramfs) to `boot` partition and SquashFS rootfs to `rootfs` partition.
+   - Restores configuration into the persistent EXT4 `/dev/mmcblk0p15` (`rootfs_data`).
+4. **Stage 3 (Clean Reboot):** Triggers `/sbin/reboot`. The base-files `umount-overlay` ensures `/overlay` is cleanly flushed before restart.
+
+#### Vector B: Host-Driven Flashing via EDL or Fastboot
+When upgrading across major partition layout changes or unbricking:
+1. Put device into EDL mode: `reboot-edl`.
+2. Flash raw eMMC partitions using [`msm89xx/image/flash.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/image/flash.sh):
+   ```bash
+   ./flash.sh hmu05
+   ```
+3. Or put device into Fastboot mode (`reboot-bootloader`) and flash individual partitions:
+   ```bash
+   fastboot flash boot openwrt-msm89xx-msm8916-generic-hmu05-boot.img
+   fastboot flash rootfs openwrt-msm89xx-msm8916-generic-hmu05-rootfs-squashfs.img
+   ```
+
+---
+
+## 4. Kernel Patches & Subsystem Integration
+
+All kernel-level reboot and EDL support is consolidated in [`msm89xx/patches/813-msm8916-reboot-to-edl-support.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/813-msm8916-reboot-to-edl-support.patch).
+
+### 4.1 Device Tree Node (`arch/arm64/boot/dts/qcom/msm8916.dtsi`)
 ```dts
 qcom,msm-imem@8600000 {
 	compatible = "qcom,msm-imem", "syscon", "simple-mfd";
@@ -122,7 +198,7 @@ qcom,msm-imem@8600000 {
 };
 ```
 
-### 3.2 SCM Functions (`drivers/firmware/qcom/qcom_scm.c`)
+### 4.2 SCM Functions (`drivers/firmware/qcom/qcom_scm.c`)
 ```c
 int qcom_scm_set_edload_mode(void)
 {
@@ -158,7 +234,7 @@ void qcom_scm_halt_pmic_arbiter(void)
 EXPORT_SYMBOL_GPL(qcom_scm_halt_pmic_arbiter);
 ```
 
-### 3.3 Poweroff Restart Handler (`drivers/power/reset/msm-poweroff.c`)
+### 4.3 Poweroff Restart Handler (`drivers/power/reset/msm-poweroff.c`)
 ```c
 static void msm_write_emergency_dload_magic(void)
 {
@@ -192,32 +268,52 @@ static int do_msm_poweroff(struct sys_off_data *data)
 
 ---
 
-## 4. Userspace Architecture & Safe Shutdown Orchestration
+## 5. Userspace Architecture & Safe Shutdown Orchestration
 
-### 4.1 The Unclean Reboot Problem
-When a userspace binary calls `syscall(SYS_reboot, ..., LINUX_REBOOT_CMD_RESTART2, "edl")` directly:
-1. `procd` init system is not notified; services and daemons remain running.
-2. Peripheral drivers (e.g. WiFi `wcn36xx`, Modem `rmtfs`) continue transmitting DMA transactions.
-3. `/overlay` (`/dev/mmcblk0p15` EXT4) is mounted read-write.
-4. The kernel pulls `PS_HOLD` low in under 2 milliseconds, resetting the SoC with uncommitted EXT4 journal transactions.
-5. On next boot, `79-check-rootfs-data` runs `e2fsck -p`, recovers the journal, and reports `rootfs_data: filesystem errors repaired`.
+### 5.1 Two-Tier Architecture in `packages/reboot-edl/`
 
-### 4.2 The Two-Tier Userspace Solution (`packages/reboot-edl/`)
-
-We replaced the naive C binary with a clean two-tier architecture:
-1. **Low-Level Syscall Helper (`packages/reboot-edl/src/reboot-mode-raw.c`):**
+1. **Low-Level Syscall Helper ([`packages/reboot-edl/src/reboot-mode-raw.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/src/reboot-mode-raw.c)):**
    Compiled to `/sbin/reboot-mode-raw`. Strictly dispatches `reboot(LINUX_REBOOT_CMD_RESTART2, cmd)`.
-2. **Safe Orchestrator (`packages/reboot-edl/files/reboot-mode.sh`):**
+2. **Safe Orchestrator ([`packages/reboot-edl/files/reboot-mode.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/files/reboot-mode.sh)):**
    Installed to `/sbin/reboot-mode` and symlinked to `/sbin/reboot-edl`, `/sbin/reboot-dload`, `/sbin/reboot-bootloader`, `/sbin/reboot-fastboot`, `/sbin/reboot-recovery`.
 
-#### The 8-Step Teardown Script Flow:
+#### Teardown Script Flow:
 ```sh
 #!/bin/sh
-# /sbin/reboot-mode - Graceful teardown before hardware reboot
+# /sbin/reboot-mode - Safe shutdown and reboot-to-mode utility
 
-MODE="${1:-edl}"
+set -e
 
-# 1. Graceful network interface shutdown
+PROG="$(basename "$0")"
+FORCE=0
+MODE=""
+
+# Determine default mode based on symlink
+case "$PROG" in
+	*edl*|*9008*)   MODE="edl" ;;
+	*dload*|*9006*) MODE="dload" ;;
+	*bootloader*)  MODE="bootloader" ;;
+	*fastboot*)    MODE="fastboot" ;;
+	*recovery*)    MODE="recovery" ;;
+	*)             MODE="edl" ;;
+esac
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-f|--force) FORCE=1 ;;
+		*) MODE="$1" ;;
+	esac
+	shift
+done
+
+[ -z "$MODE" ] && MODE="edl"
+
+if [ "$FORCE" -eq 1 ]; then
+	sync
+	exec /sbin/reboot-mode-raw "$MODE"
+fi
+
+# 1. Bring down network & modem interfaces
 if command -v ifdown >/dev/null 2>&1; then
 	ifdown -a 2>/dev/null || true
 fi
@@ -230,7 +326,6 @@ fi
 # 3. Terminate remaining daemons
 killall5 -15 2>/dev/null || true
 sync; sleep 1
-
 killall5 -9 2>/dev/null || true
 sync; sleep 1
 
@@ -251,23 +346,15 @@ if [ -w /proc/sysrq-trigger ]; then
 	echo u > /proc/sysrq-trigger 2>/dev/null || true
 fi
 
-# 7. Dispatch low-level reboot
+# 7. Dispatch hardware reboot
 exec /sbin/reboot-mode-raw "$MODE"
 ```
 
 ---
 
-## 5. Normal Reboot Clean Unmount Fix (`msm89xx/base-files/`)
+### 5.2 Normal Reboot Clean Umount Hook (`msm89xx/base-files/`)
 
-### 5.1 Root Cause in Standard OpenWrt
-During standard `/sbin/reboot`:
-1. `procd` runs `/etc/init.d/rcS K shutdown`, which executes `K90umount` (`umount -a -d -r`).
-2. Because `procd` and active daemons hold open files on `/overlay`, `umount` fails with `EBUSY`.
-3. In `STATE_HALT`, `procd` kills all processes but **never retries remounting read-only** before calling `reboot(RB_AUTOBOOT)`.
-4. The EXT4 clean unmount flag (`EXT4_VALID_FS`) is never written to disk.
-
-### 5.2 Resolution: `umount-overlay` Service (`STOP=98`)
-Created [`msm89xx/base-files/etc/init.d/umount-overlay`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/umount-overlay):
+Created [`msm89xx/base-files/etc/init.d/umount-overlay`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/umount-overlay) (`STOP=98`):
 ```sh
 #!/bin/sh /etc/rc.common
 # Cleanly flush caches and remount rootfs/overlay read-only during system halt/reboot
@@ -291,7 +378,7 @@ shutdown() {
 	stop
 }
 ```
-Enabled on first boot via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
+Enabled automatically on first boot via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
 
 ---
 
@@ -299,7 +386,7 @@ Enabled on first boot via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-first
 
 ### 6.1 Test 1: Standard Reboot Comparison
 
-#### Before Fix:
+#### Before Fix (Old Implementation):
 ```
 [    6.690689] rootfs_data: running e2fsck -p
 [    6.900334] rootfs_data: recovering journal
@@ -362,7 +449,51 @@ Enabled on first boot via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-first
 
 ---
 
-## 7. Repository File Map & References
+## 7. Complete Operations & Recovery Cheatsheet
+
+### Fast Reference Commands
+
+#### Reboot into Specific Hardware Modes from OpenWrt:
+```bash
+# Emergency Download Mode (PBL 9008)
+reboot-edl
+
+# Mass Storage / Memory Dump Mode (SBL1 9006)
+reboot-dload
+
+# Fastboot Mode (aboot / lk2nd 18d1:d00d)
+reboot-bootloader
+# or:
+reboot-fastboot
+
+# Android Recovery Mode
+reboot-recovery
+
+# Normal Safe Reboot
+reboot
+```
+
+#### Flashing & Firmware Update Commands:
+```bash
+# 1. In-place OpenWrt firmware upgrade (preserving persistent config):
+sysupgrade -v /tmp/openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.bin
+
+# 2. In-place OpenWrt clean upgrade (wipe persistent config):
+sysupgrade -n -v /tmp/openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.bin
+
+# 3. Host-driven EDL full firmware flashing (while device is in EDL mode):
+cd msm89xx/image
+./flash.sh hmu05
+
+# 4. Host-driven Fastboot flashing (while device is in Fastboot mode):
+fastboot flash boot openwrt-msm89xx-msm8916-generic-hmu05-boot.img
+fastboot flash rootfs openwrt-msm89xx-msm8916-generic-hmu05-rootfs-squashfs.img
+fastboot reboot
+```
+
+---
+
+## 8. Summary & Repository References
 
 | File | Purpose |
 | :--- | :--- |
