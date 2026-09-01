@@ -361,7 +361,7 @@ update_feeds() {
 
         for feed in packages luci routing telephony video; do
 
-            if [ ! -d "feeds/$feed" ]; then
+            if [ ! -d "feeds/$feed" ] || [ ! -f "feeds/$feed.index" ]; then
 
                 info "Updating feed: $feed"
 
@@ -371,13 +371,13 @@ update_feeds() {
 
             else
 
-                info "Feed '$feed' already present."
+                info "Feed '$feed' already present with index."
 
             fi
 
         done
 
-        if [ "$needs_install" -eq 1 ]; then
+        if [ "$needs_install" -eq 1 ] || [ ! -f "feeds/packages.index" ]; then
 
             info "Installing package feeds..."
 
