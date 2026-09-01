@@ -172,3 +172,35 @@ git push origin v25.12.5-rc1 --force
 ```
 
 GitHub Actions will immediately pick up the tag update, compile all 4 boards, update the GitHub Pages feed, and overwrite the release assets with the newly compiled build.
+
+---
+
+## 7. Caching & Build Acceleration (actions/cache@v4)
+
+To prevent recompiling host utilities, toolchains, and re-downloading upstream source packages from scratch on every run, the workflow leverages GitHub Actions caching:
+
+### Cached Directories:
+1. **`openwrt/dl` (~1.5 GB)**: Upstream tarballs and package repositories.
+2. **`openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl` (~2 GB)**: Compiled GCC 14 + musl cross-toolchain binaries.
+3. **`openwrt/staging_dir/host` (~1 GB)**: Host build tools (cmake, meson, ninja, mkbootimg, etc.).
+
+### Cache Configuration:
+```yaml
+- name: Cache OpenWrt Downloads & Toolchain
+  uses: actions/cache@v4
+  with:
+    path: |
+      openwrt/dl
+      openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+      openwrt/staging_dir/host
+    key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-${{ github.run_id }}
+    restore-keys: |
+      openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-
+      openwrt-cache-${{ steps.vars.outputs.version }}-
+      openwrt-cache-
+```
+
+### Performance Impact:
+- **First Build (Cold Cache)**: ~75 minutes.
+- **Successive Builds (Warm Cache)**: **~12–15 minutes** (5x speedup).
+

@@ -47,6 +47,19 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building for Tag: ${TAG}, OpenWrt Version: ${VERSION}"
 
+      - name: Cache OpenWrt Downloads & Toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+            openwrt/staging_dir/host
+          key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-${{ github.run_id }}
+          restore-keys: |
+            openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-
+            openwrt-cache-${{ steps.vars.outputs.version }}-
+            openwrt-cache-
+
       - name: Build Docker Builder Image & Prepare OpenWrt Tree
         run: |
           ./build.sh prepare
