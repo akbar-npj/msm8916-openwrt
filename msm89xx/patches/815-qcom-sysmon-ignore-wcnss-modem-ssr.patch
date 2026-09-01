@@ -1,6 +1,6 @@
 --- a/drivers/remoteproc/qcom_sysmon.c
 +++ b/drivers/remoteproc/qcom_sysmon.c
-@@ -591,6 +591,14 @@ static int sysmon_notify(struct notifier
+@@ -588,6 +588,14 @@ static int sysmon_notify(struct notifier
  	struct qcom_sysmon *sysmon = container_of(nb, struct qcom_sysmon, nb);
  	struct sysmon_event *sysmon_event = data;
  
