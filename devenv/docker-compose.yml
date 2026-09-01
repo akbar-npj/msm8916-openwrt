@@ -1,5 +1,6 @@
 services:
   builder:
+    image: devenv-builder
     build:
       context: ..
       dockerfile: devenv/Dockerfile

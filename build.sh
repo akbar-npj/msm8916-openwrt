@@ -109,6 +109,8 @@ check_requirements() {
 
 docker_compose() {
 
+    HOST_UID="${HOST_UID:-$(id -u)}" \
+    HOST_GID="${HOST_GID:-$(id -g)}" \
     docker compose \
         -f "$COMPOSE_FILE" \
         "$@"

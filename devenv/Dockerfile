@@ -22,7 +22,9 @@ ARG GID=1000
 RUN if ! getent group ${GID} >/dev/null; then \
         groupadd -g ${GID} builder; \
     fi && \
-    useradd -m -u ${UID} -g ${GID} -G sudo builder && \
+    if ! getent passwd ${UID} >/dev/null; then \
+        useradd -m -u ${UID} -g ${GID} -G sudo builder; \
+    fi && \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 USER builder
