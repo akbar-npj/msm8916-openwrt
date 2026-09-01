@@ -18,5 +18,6 @@ apt-get update && apt-get install -y --no-install-recommends \
     nano sudo \
     perl perl-modules \
     python3-dev python3-setuptools python3-cryptography \
+    golang-go \
     wget \
     && rm -rf /var/lib/apt/lists/*
