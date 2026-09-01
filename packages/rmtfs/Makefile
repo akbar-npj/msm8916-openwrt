@@ -20,7 +20,7 @@ PKG_BUILD_DEPENDS:=libudev-zero qrtr
 include $(INCLUDE_DIR)/package.mk
 
 TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
-TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib
+TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib -lqrtr -ludev -lpthread
 
 MAKE_FLAGS += \
 	CC="$(TARGET_CC)" \
