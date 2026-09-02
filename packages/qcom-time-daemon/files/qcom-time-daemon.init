@@ -9,6 +9,14 @@ USE_PROCD=1
 PROG=/usr/sbin/qcom-time-daemon
 
 start_service() {
+	local board=""
+	[ -f /tmp/sysinfo/board_name ] && board="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
+	[ -z "$board" ] && [ -f /proc/device-tree/compatible ] && board="$(cat /proc/device-tree/compatible 2>/dev/null)"
+	case "$board" in
+		*hmu05*|*HMU05*) ;;
+		*) return 0 ;;
+	esac
+
 	procd_open_instance
 	procd_set_param command "$PROG" -i 60
 	procd_set_param respawn 3600 5 0

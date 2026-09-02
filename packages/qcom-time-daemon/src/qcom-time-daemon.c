@@ -41,8 +41,8 @@ static bool verbose = false;
 static int sync_interval = DEFAULT_SYNC_INTERVAL_SEC;
 
 static uint32_t modem_node = 0;
-static uint32_t modem_port = 11;
-static bool modem_connected = true;
+static uint32_t modem_port = 0;
+static bool modem_connected = false;
 static uint16_t next_txn_id = 1;
 
 static void sig_handler(int sig)
@@ -361,9 +361,6 @@ int main(int argc, char *argv[])
 		       errno, strerror(errno));
 	}
 
-	/* Send initial registration and time sync to modem */
-	send_qmi_reg_ind(sock, modem_node, modem_port);
-	perform_time_sync(sock, true);
 	last_sync = time(NULL);
 
 	pfd.fd = sock;
