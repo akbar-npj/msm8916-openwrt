@@ -1,0 +1,169 @@
+# MCC_MNC	Operator_Name	APN	IP_Type	Mode	MBN_Path
+# ----------------------------------------------------------------------------------------------------------------------
+# Nepal (MCC 429)
+42901	Nepal Telecom (NTC / Namaste)	ntnet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42902	Ncell (Axiata)	web	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42904	Smart Telecom	smart	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# India (MCC 404 / 405)
+405840	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405854	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405855	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405856	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405857	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405858	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405859	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405860	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405861	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405862	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405863	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405864	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405865	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405866	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405867	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405868	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405869	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405870	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405871	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405872	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405873	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+405874	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+
+40410	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40431	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40440	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40445	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40449	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40470	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40490	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40492	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40493	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40494	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40495	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40496	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40497	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+40498	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+405051	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+405052	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+405053	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+405054	Bharti Airtel	airtelgprs.com	ipv4v6	4g	generic/apac/airtel/commerci/mcfg_sw.mbn
+
+40404	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40411	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40413	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40415	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40420	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40422	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40424	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40443	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40446	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40484	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40486	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40488	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40566	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40567	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+405750	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+405751	Vodafone Idea (Vi)	portalnmms	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+40434	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40438	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40451	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40453	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40455	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40457	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40458	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40459	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40462	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40464	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40471	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40472	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40473	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40474	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40475	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40476	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40477	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40480	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+40481	BSNL Mobile	bsnlnet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# China (MCC 460)
+46000	China Mobile	cmnet	ipv4v6	4g	generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn
+46002	China Mobile	cmnet	ipv4v6	4g	generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn
+46007	China Mobile	cmnet	ipv4v6	4g	generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn
+46008	China Mobile	cmnet	ipv4v6	4g	generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn
+46001	China Unicom	3gnet	ipv4v6	4g	generic/china/cu/csfb/ss/commerci/mcfg_sw.mbn
+46006	China Unicom	3gnet	ipv4v6	4g	generic/china/cu/csfb/ss/commerci/mcfg_sw.mbn
+46009	China Unicom	3gnet	ipv4v6	4g	generic/china/cu/csfb/ss/commerci/mcfg_sw.mbn
+46003	China Telecom	ctnet	ipv4v6	4g	generic/china/ct/srlte/ss/commerci/mcfg_sw.mbn
+46005	China Telecom	ctnet	ipv4v6	4g	generic/china/ct/srlte/ss/commerci/mcfg_sw.mbn
+46011	China Telecom	ctnet	ipv4v6	4g	generic/china/ct/srlte/ss/commerci/mcfg_sw.mbn
+
+# United States (MCC 310 / 311)
+310410	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+310280	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+310150	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+310030	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+310070	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+310560	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+310680	AT&T	broadband	ipv4v6	4g	generic/na/att/volte/mcfg_sw.mbn
+
+311480	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311270	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311280	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311481	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311482	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311483	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311484	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311485	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311486	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311487	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311488	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+311489	Verizon	vzwinternet	ipv4v6	4g	generic/na/verizon/hvolte/mcfg_sw.mbn
+
+310260	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310160	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310200	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310210	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310220	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310230	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310240	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310250	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310270	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310310	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310660	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+310800	T-Mobile	fast.t-mobile.com	ipv4v6	4g	generic/na/tmo/volte_co/mcfg_sw.mbn
+
+# United Kingdom (MCC 234)
+23430	EE	everywhere	ipv4v6	4g	generic/eu/ee/commerci/mcfg_sw.mbn
+23433	EE	everywhere	ipv4v6	4g	generic/eu/ee/commerci/mcfg_sw.mbn
+23415	Vodafone UK	wap.vodafone.co.uk	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+23410	O2 UK	mobile.o2.co.uk	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+23420	Three UK	three.co.uk	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# Germany (MCC 262)
+26201	Telekom	internet.telekom	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+26202	Vodafone DE	web.vodafone.de	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+26203	O2 DE	internet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# United Arab Emirates (MCC 424)
+42402	Etisalat	etisalat.ae	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42403	du	du	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# Singapore (MCC 525)
+52501	Singtel	e-ideas	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+52503	M1	sunsurf	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+52505	StarHub	shdata	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# Malaysia (MCC 502)
+50212	Maxis	unet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+50216	Digi	diginet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+50219	Celcom	celcom4g	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# Bangladesh (MCC 470)
+47001	Grameenphone	gpinternet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+47002	Robi	internet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+47003	Banglalink	blweb	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# Pakistan (MCC 410)
+41001	Jazz	jazzconnect.mobilinkworld.com	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+41004	Zong	zonginternet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+41006	Telenor PK	internet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn

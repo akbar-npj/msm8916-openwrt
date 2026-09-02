@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qcom-carrier-autocfg
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=OpenWrt Community
 PKG_LICENSE:=GPL-2.0-only
@@ -23,6 +23,10 @@ define Package/qcom-carrier-autocfg/description
   and dynamic connection manager for Qualcomm MSM8916 Snapdragon modem devices.
 endef
 
+define Package/qcom-carrier-autocfg/conffiles
+/etc/qcom-carrier-autocfg/custom-apns.tsv
+endef
+
 define Build/Compile
 endef
 
@@ -31,6 +35,10 @@ define Package/qcom-carrier-autocfg/install
 	$(INSTALL_BIN) ./files/qcom-carrier-autocfg.sh $(1)/usr/sbin/qcom-carrier-autocfg
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qcom-carrier-autocfg.init $(1)/etc/init.d/qcom-carrier-autocfg
+	$(INSTALL_DIR) $(1)/etc/qcom-carrier-autocfg
+	$(INSTALL_DATA) ./files/custom-apns.tsv $(1)/etc/qcom-carrier-autocfg/custom-apns.tsv
+	$(INSTALL_DIR) $(1)/usr/share/qcom-carrier-autocfg
+	$(INSTALL_DATA) ./files/apns.tsv $(1)/usr/share/qcom-carrier-autocfg/apns.tsv
 	$(INSTALL_DIR) $(1)/usr/share/qcom-carrier-autocfg/mcfg
 	$(CP) ./files/mcfg/* $(1)/usr/share/qcom-carrier-autocfg/mcfg/
 endef

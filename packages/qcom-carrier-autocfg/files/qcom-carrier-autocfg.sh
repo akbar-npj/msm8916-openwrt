@@ -14,6 +14,10 @@ log() {
 	echo "[$TAG] $*"
 }
 
+# Database paths for Hybrid APN Architecture
+CUSTOM_APN_DB="/etc/qcom-carrier-autocfg/custom-apns.tsv"
+SYSTEM_APN_DB="/usr/share/qcom-carrier-autocfg/apns.tsv"
+
 # Lookup optimal APN and settings based on MCC-MNC and Operator Name
 lookup_carrier_profile() {
 	local op_code="$1"
@@ -28,101 +32,85 @@ lookup_carrier_profile() {
 	CARRIER_MODE="4g"
 	CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
 
-	case "$op_code" in
-		# Reliance Jio (India) - MCC 405, MNC 840..874
-		4058[4-7][0-9]|405861|405840|405854|405855|405856|405857|405858|405859|405860|405862|405863|405864|405865|405866|405867|405868|405869|405870|405871|405872|405873|405874)
-			CARRIER_NAME="Reliance Jio"
-			CARRIER_APN="jionet"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MODE="4g"
-			CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
-			;;
-		# Bharti Airtel (India) - MCC 404/405
-		404[0-9][0-9]|405[0-9][0-9])
-			if echo "$op_name" | grep -qi "airtel"; then
-				CARRIER_NAME="Airtel"
-				CARRIER_APN="airtelgprs.com"
-				CARRIER_IPTYPE="ipv4v6"
-				CARRIER_MODE="4g"
-				CARRIER_MBN="generic/apac/airtel/commerci/mcfg_sw.mbn"
-			elif echo "$op_name" | grep -qi -E "vi|vodafone|idea"; then
-				CARRIER_NAME="Vodafone Idea"
-				CARRIER_APN="portalnmms"
-				CARRIER_IPTYPE="ipv4v6"
-				CARRIER_MODE="4g"
-				CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
-			elif echo "$op_name" | grep -qi -E "bsnl|cellone"; then
-				CARRIER_NAME="BSNL"
-				CARRIER_APN="bsnlnet"
-				CARRIER_IPTYPE="ipv4"
-				CARRIER_MODE="4g"
-				CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
-			elif echo "$op_name" | grep -qi "jio"; then
-				CARRIER_NAME="Reliance Jio"
-				CARRIER_APN="jionet"
-				CARRIER_IPTYPE="ipv4v6"
-				CARRIER_MODE="4g"
-				CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
-			fi
-			;;
-		# China Mobile (CMCC)
-		46000|46002|46007|46008)
-			CARRIER_NAME="China Mobile"
-			CARRIER_APN="cmnet"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MBN="generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn"
-			;;
-		# China Unicom (CU)
-		46001|46006|46009)
-			CARRIER_NAME="China Unicom"
-			CARRIER_APN="3gnet"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MBN="generic/china/cu/csfb/ss/commerci/mcfg_sw.mbn"
-			;;
-		# China Telecom (CT)
-		46003|46005|46011)
-			CARRIER_NAME="China Telecom"
-			CARRIER_APN="ctnet"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MBN="generic/china/ct/srlte/ss/commerci/mcfg_sw.mbn"
-			;;
-		# AT&T (USA)
-		310410|310280|310150|310030|310070|310560|310680)
-			CARRIER_NAME="AT&T"
-			CARRIER_APN="broadband"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MBN="generic/na/att/volte/mcfg_sw.mbn"
-			;;
-		# Verizon (USA)
-		311480|311270|311280|311481|311482|311483|311484|311485|311486|311487|311488|311489)
-			CARRIER_NAME="Verizon"
-			CARRIER_APN="vzwinternet"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MBN="generic/na/verizon/hvolte/mcfg_sw.mbn"
-			;;
-		# T-Mobile (USA)
-		310260|310160|310200|310210|310220|310230|310240|310250|310270|310310|310660|310800)
-			CARRIER_NAME="T-Mobile"
-			CARRIER_APN="fast.t-mobile.com"
-			CARRIER_IPTYPE="ipv4v6"
-			CARRIER_MBN="generic/na/tmo/volte_co/mcfg_sw.mbn"
-			;;
-		*)
-			if echo "$op_name" | grep -qi "jio"; then
-				CARRIER_NAME="Reliance Jio"
-				CARRIER_APN="jionet"
-				CARRIER_IPTYPE="ipv4v6"
-				CARRIER_MODE="4g"
-				CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
-			elif echo "$op_name" | grep -qi "airtel"; then
-				CARRIER_NAME="Airtel"
-				CARRIER_APN="airtelgprs.com"
-				CARRIER_IPTYPE="ipv4v6"
-				CARRIER_MODE="4g"
-				CARRIER_MBN="generic/apac/airtel/commerci/mcfg_sw.mbn"
-			fi
-			;;
-	esac
+	local match=""
+
+	# Priority 1: User Custom Database in /etc (persists across upgrades)
+	if [ -f "$CUSTOM_APN_DB" ] && [ -n "$op_code" ]; then
+		match=$(awk -F'\t' -v code="$op_code" '$1 ~ "^"code"$" { print $2"|"$3"|"$4"|"$5"|"$6; exit }' "$CUSTOM_APN_DB" 2>/dev/null)
+		if [ -n "$match" ]; then
+			log "Matched user custom APN override in $CUSTOM_APN_DB for MCC-MNC $op_code"
+		fi
+	fi
+
+	# Priority 2: Built-in Global APN Database in /usr/share (TSV lookup)
+	if [ -z "$match" ] && [ -f "$SYSTEM_APN_DB" ] && [ -n "$op_code" ]; then
+		match=$(awk -F'\t' -v code="$op_code" '$1 ~ "^"code"$" { print $2"|"$3"|"$4"|"$5"|"$6; exit }' "$SYSTEM_APN_DB" 2>/dev/null)
+		if [ -n "$match" ]; then
+			log "Matched carrier in global APN database for MCC-MNC $op_code"
+		fi
+	fi
+
+	# Extract fields if matched from database
+	if [ -n "$match" ]; then
+		local f_name f_apn f_ip f_mode f_mbn
+		f_name=$(echo "$match" | cut -d'|' -f1)
+		f_apn=$(echo "$match" | cut -d'|' -f2)
+		f_ip=$(echo "$match" | cut -d'|' -f3)
+		f_mode=$(echo "$match" | cut -d'|' -f4)
+		f_mbn=$(echo "$match" | cut -d'|' -f5)
+
+		[ -n "$f_name" ] && CARRIER_NAME="$f_name"
+		[ -n "$f_apn" ] && CARRIER_APN="$f_apn"
+		[ -n "$f_ip" ] && CARRIER_IPTYPE="$f_ip"
+		[ -n "$f_mode" ] && CARRIER_MODE="$f_mode"
+		[ -n "$f_mbn" ] && CARRIER_MBN="$f_mbn"
+		return 0
+	fi
+
+	# Priority 3: Operator Name Pattern Match fallback
+	if echo "$op_name" | grep -qi -E "ntc|namaste|nepal telecom"; then
+		CARRIER_NAME="Nepal Telecom (NTC)"
+		CARRIER_APN="ntnet"
+		CARRIER_IPTYPE="ipv4v6"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
+	elif echo "$op_name" | grep -qi -E "ncell"; then
+		CARRIER_NAME="Ncell"
+		CARRIER_APN="web"
+		CARRIER_IPTYPE="ipv4v6"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
+	elif echo "$op_name" | grep -qi -E "smart.*cell|smart.*telecom"; then
+		CARRIER_NAME="Smart Telecom"
+		CARRIER_APN="smart"
+		CARRIER_IPTYPE="ipv4v6"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
+	elif echo "$op_name" | grep -qi "jio"; then
+		CARRIER_NAME="Reliance Jio"
+		CARRIER_APN="jionet"
+		CARRIER_IPTYPE="ipv4v6"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
+	elif echo "$op_name" | grep -qi "airtel"; then
+		CARRIER_NAME="Airtel"
+		CARRIER_APN="airtelgprs.com"
+		CARRIER_IPTYPE="ipv4v6"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/apac/airtel/commerci/mcfg_sw.mbn"
+	elif echo "$op_name" | grep -qi -E "vi|vodafone|idea"; then
+		CARRIER_NAME="Vodafone Idea"
+		CARRIER_APN="portalnmms"
+		CARRIER_IPTYPE="ipv4v6"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
+	elif echo "$op_name" | grep -qi -E "bsnl|cellone"; then
+		CARRIER_NAME="BSNL"
+		CARRIER_APN="bsnlnet"
+		CARRIER_IPTYPE="ipv4"
+		CARRIER_MODE="4g"
+		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
+	fi
 }
 
 provision_carrier_mbn() {

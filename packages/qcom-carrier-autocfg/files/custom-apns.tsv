@@ -1,0 +1,14 @@
+# /etc/qcom-carrier-autocfg/custom-apns.tsv
+# User Custom APN Override Database
+# This file takes priority over /usr/share/qcom-carrier-autocfg/apns.tsv
+# and is preserved across OpenWrt sysupgrades.
+#
+# Format (Tab-Separated Values):
+# MCC_MNC	Operator_Name	APN	IP_Type	Mode	MBN_Path
+#
+# Examples:
+# 42901	Nepal Telecom	ntnet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+# 42902	Ncell	web	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+# 405861	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
+#
+# Add your custom carrier entries below:
