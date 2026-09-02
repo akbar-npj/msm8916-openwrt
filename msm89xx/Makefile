@@ -26,7 +26,7 @@ DEFAULT_PACKAGES += partx-utils e2fsprogs mkf2fs
 DEFAULT_PACKAGES += kmod-usb-chipidea kmod-usb-gadget-eth
 DEFAULT_PACKAGES += kmod-wcn36xx kmod-qcom-rproc-wcnss kmod-qcom-rproc
 DEFAULT_PACKAGES += kmod-rpmsg-wwan-ctrl kmod-bam-dmux kmod-qcom-rproc-modem
-DEFAULT_PACKAGES += rmtfs
+DEFAULT_PACKAGES += rmtfs qcom-carrier-autocfg qcom-time-daemon
 
 KERNELNAME:=Image
 
