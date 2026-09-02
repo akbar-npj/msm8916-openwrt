@@ -31,6 +31,8 @@ define Package/qcom-carrier-autocfg/install
 	$(INSTALL_BIN) ./files/qcom-carrier-autocfg.sh $(1)/usr/sbin/qcom-carrier-autocfg
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qcom-carrier-autocfg.init $(1)/etc/init.d/qcom-carrier-autocfg
+	$(INSTALL_DIR) $(1)/usr/share/qcom-carrier-autocfg/mcfg
+	$(CP) ./files/mcfg/* $(1)/usr/share/qcom-carrier-autocfg/mcfg/
 endef
 
 $(eval $(call BuildPackage,qcom-carrier-autocfg))

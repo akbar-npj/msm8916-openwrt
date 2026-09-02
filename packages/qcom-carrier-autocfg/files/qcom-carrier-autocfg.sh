@@ -26,6 +26,7 @@ lookup_carrier_profile() {
 	CARRIER_IPTYPE="ipv4v6"
 	CARRIER_AUTH="none"
 	CARRIER_MODE="4g"
+	CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
 
 	case "$op_code" in
 		# Reliance Jio (India) - MCC 405, MNC 840..874
@@ -34,6 +35,7 @@ lookup_carrier_profile() {
 			CARRIER_APN="jionet"
 			CARRIER_IPTYPE="ipv4v6"
 			CARRIER_MODE="4g"
+			CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
 			;;
 		# Bharti Airtel (India) - MCC 404/405
 		404[0-9][0-9]|405[0-9][0-9])
@@ -42,21 +44,25 @@ lookup_carrier_profile() {
 				CARRIER_APN="airtelgprs.com"
 				CARRIER_IPTYPE="ipv4v6"
 				CARRIER_MODE="4g"
+				CARRIER_MBN="generic/apac/airtel/commerci/mcfg_sw.mbn"
 			elif echo "$op_name" | grep -qi -E "vi|vodafone|idea"; then
 				CARRIER_NAME="Vodafone Idea"
 				CARRIER_APN="portalnmms"
 				CARRIER_IPTYPE="ipv4v6"
 				CARRIER_MODE="4g"
+				CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
 			elif echo "$op_name" | grep -qi -E "bsnl|cellone"; then
 				CARRIER_NAME="BSNL"
 				CARRIER_APN="bsnlnet"
 				CARRIER_IPTYPE="ipv4"
 				CARRIER_MODE="4g"
+				CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
 			elif echo "$op_name" | grep -qi "jio"; then
 				CARRIER_NAME="Reliance Jio"
 				CARRIER_APN="jionet"
 				CARRIER_IPTYPE="ipv4v6"
 				CARRIER_MODE="4g"
+				CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
 			fi
 			;;
 		# China Mobile (CMCC)
@@ -64,36 +70,42 @@ lookup_carrier_profile() {
 			CARRIER_NAME="China Mobile"
 			CARRIER_APN="cmnet"
 			CARRIER_IPTYPE="ipv4v6"
+			CARRIER_MBN="generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn"
 			;;
 		# China Unicom (CU)
 		46001|46006|46009)
 			CARRIER_NAME="China Unicom"
 			CARRIER_APN="3gnet"
 			CARRIER_IPTYPE="ipv4v6"
+			CARRIER_MBN="generic/china/cu/csfb/ss/commerci/mcfg_sw.mbn"
 			;;
 		# China Telecom (CT)
 		46003|46005|46011)
 			CARRIER_NAME="China Telecom"
 			CARRIER_APN="ctnet"
 			CARRIER_IPTYPE="ipv4v6"
+			CARRIER_MBN="generic/china/ct/srlte/ss/commerci/mcfg_sw.mbn"
 			;;
 		# AT&T (USA)
 		310410|310280|310150|310030|310070|310560|310680)
 			CARRIER_NAME="AT&T"
 			CARRIER_APN="broadband"
 			CARRIER_IPTYPE="ipv4v6"
+			CARRIER_MBN="generic/na/att/volte/mcfg_sw.mbn"
 			;;
 		# Verizon (USA)
 		311480|311270|311280|311481|311482|311483|311484|311485|311486|311487|311488|311489)
 			CARRIER_NAME="Verizon"
 			CARRIER_APN="vzwinternet"
 			CARRIER_IPTYPE="ipv4v6"
+			CARRIER_MBN="generic/na/verizon/hvolte/mcfg_sw.mbn"
 			;;
 		# T-Mobile (USA)
 		310260|310160|310200|310210|310220|310230|310240|310250|310270|310310|310660|310800)
 			CARRIER_NAME="T-Mobile"
 			CARRIER_APN="fast.t-mobile.com"
 			CARRIER_IPTYPE="ipv4v6"
+			CARRIER_MBN="generic/na/tmo/volte_co/mcfg_sw.mbn"
 			;;
 		*)
 			if echo "$op_name" | grep -qi "jio"; then
@@ -101,14 +113,31 @@ lookup_carrier_profile() {
 				CARRIER_APN="jionet"
 				CARRIER_IPTYPE="ipv4v6"
 				CARRIER_MODE="4g"
+				CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
 			elif echo "$op_name" | grep -qi "airtel"; then
 				CARRIER_NAME="Airtel"
 				CARRIER_APN="airtelgprs.com"
 				CARRIER_IPTYPE="ipv4v6"
 				CARRIER_MODE="4g"
+				CARRIER_MBN="generic/apac/airtel/commerci/mcfg_sw.mbn"
 			fi
 			;;
 	esac
+}
+
+provision_carrier_mbn() {
+	local mbn_rel="$1"
+	local mcfg_base="/usr/share/qcom-carrier-autocfg/mcfg"
+
+	if [ -f "$mcfg_base/$mbn_rel" ]; then
+		if [ ! -f /lib/firmware/MCFG_SW.MBN ] || ! cmp -s "$mcfg_base/$mbn_rel" /lib/firmware/MCFG_SW.MBN 2>/dev/null; then
+			log "Deploying Carrier MBN '$mbn_rel' into /lib/firmware..."
+			cp -af "$mcfg_base/$mbn_rel" /lib/firmware/MCFG_SW.MBN
+			cp -af "$mcfg_base/$mbn_rel" /lib/firmware/mcfg_sw.mbn
+			sync
+			log "Carrier MBN deployed successfully."
+		fi
+	fi
 }
 
 provision_network() {
@@ -174,8 +203,9 @@ while true; do
 					
 					lookup_carrier_profile "$OP_CODE" "$OP_NAME" "$IMSI"
 					log "Identified Carrier: $CARRIER_NAME"
-					log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE'"
+					log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
 					
+					provision_carrier_mbn "$CARRIER_MBN"
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE"
 					connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
 					

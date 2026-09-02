@@ -119,6 +119,14 @@ for p in "$MNT/modem/image/wlan/prima/WCNSS_qcom_cfg.ini" "$MNT/modem/IMAGE/WLAN
   fi
 done
 
+# Copy carrier configuration tree if present
+for pr_dir in "$MNT/modem/image/modem_pr" "$MNT/modem/IMAGE/MODEM_PR" "$MNT/modem/modem_pr"; do
+  if [ -d "$pr_dir" ]; then
+    cp -af "$pr_dir" "$FW/" && log "copied modem_pr carrier configuration tree"
+    break
+  fi
+done
+
 # MCFG handling:
 for mcfg_try in "$MNT/modem/$MCFG_REL/mcfg_sw.mbn" "$MNT/modem/image/modem_pr/mcfg/configs/mcfg_sw/generic/common/row/gen_3gpp/mcfg_sw.mbn"; do
   if [ -f "$mcfg_try" ]; then
@@ -129,6 +137,7 @@ done
 
 # Honoring any user copied MCFG to /lib/firmware
 [ -f "$FW/mcfg_sw.mbn" ] && ln -sf "$FW/mcfg_sw.mbn" "$FW/MCFG_SW.MBN" 2>/dev/null || true
+[ -f "$FW/MCFG_SW.MBN" ] && ln -sf "$FW/MCFG_SW.MBN" "$FW/mcfg_sw.mbn" 2>/dev/null || true
 
 # Apply device-specific No-Sleep patch on Generic HMU05
 if [ -x /usr/sbin/hmu05-patch-modem ]; then
