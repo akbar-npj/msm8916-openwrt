@@ -127,16 +127,33 @@ lookup_carrier_profile() {
 
 provision_carrier_mbn() {
 	local mbn_rel="$1"
-	local mcfg_base="/usr/share/qcom-carrier-autocfg/mcfg"
+	local mcfg_src=""
 
-	if [ -f "$mcfg_base/$mbn_rel" ]; then
-		if [ ! -f /lib/firmware/MCFG_SW.MBN ] || ! cmp -s "$mcfg_base/$mbn_rel" /lib/firmware/MCFG_SW.MBN 2>/dev/null; then
-			log "Deploying Carrier MBN '$mbn_rel' into /lib/firmware..."
-			cp -af "$mcfg_base/$mbn_rel" /lib/firmware/MCFG_SW.MBN
-			cp -af "$mcfg_base/$mbn_rel" /lib/firmware/mcfg_sw.mbn
+	# Priority 1: Check if device has its own native carrier tree in /lib/firmware/modem_pr
+	if [ -f "/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/$mbn_rel" ]; then
+		mcfg_src="/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/$mbn_rel"
+		log "Found device-native Carrier MBN at: $mcfg_src"
+	elif [ -f "/lib/firmware/modem_pr/$mbn_rel" ]; then
+		mcfg_src="/lib/firmware/modem_pr/$mbn_rel"
+		log "Found device-native Carrier MBN at: $mcfg_src"
+	# Priority 2: Fall back to bundled global carrier database
+	elif [ -f "/usr/share/qcom-carrier-autocfg/mcfg/$mbn_rel" ]; then
+		mcfg_src="/usr/share/qcom-carrier-autocfg/mcfg/$mbn_rel"
+		log "Using bundled Carrier MBN at: $mcfg_src"
+	fi
+
+	if [ -n "$mcfg_src" ]; then
+		if [ ! -f /lib/firmware/MCFG_SW.MBN ] || ! cmp -s "$mcfg_src" /lib/firmware/MCFG_SW.MBN 2>/dev/null; then
+			log "Deploying Carrier MBN '$mbn_rel' into /lib/firmware/MCFG_SW.MBN..."
+			cp -af "$mcfg_src" /lib/firmware/MCFG_SW.MBN
+			cp -af "$mcfg_src" /lib/firmware/mcfg_sw.mbn
 			sync
 			log "Carrier MBN deployed successfully."
+		else
+			log "Active Carrier MBN already matches $mbn_rel."
 		fi
+	else
+		log "No specific Carrier MBN found for $mbn_rel; preserving existing firmware config."
 	fi
 }
 

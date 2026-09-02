@@ -14,7 +14,7 @@ define Package/qcom-carrier-autocfg
   CATEGORY:=Network
   SUBMENU:=WWAN
   TITLE:=Qualcomm MSM8916 SIM Carrier Auto-Provisioning Engine
-  DEPENDS:=+modemmanager +libqmi-utils
+  DEPENDS:=+modemmanager +libqmi
   PKGARCH:=all
 endef
 
