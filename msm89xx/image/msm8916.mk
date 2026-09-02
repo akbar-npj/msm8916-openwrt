@@ -37,7 +37,7 @@ define Device/yiming-uz801v3
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
-		msm-firmware-dumper reboot-edl modem-watchdog
+		msm-firmware-dumper reboot-edl modem-watchdog qcom-carrier-autocfg
 endef
 TARGET_DEVICES += yiming-uz801v3
 
@@ -49,7 +49,7 @@ define Device/generic-uf02
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
-		msm-firmware-dumper reboot-edl modem-watchdog
+		msm-firmware-dumper reboot-edl modem-watchdog qcom-carrier-autocfg
 endef
 TARGET_DEVICES += generic-uf02
 
@@ -62,7 +62,7 @@ define Device/generic-ufi001b
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
-		msm-firmware-dumper reboot-edl modem-watchdog
+		msm-firmware-dumper reboot-edl modem-watchdog qcom-carrier-autocfg
 endef
 TARGET_DEVICES += generic-ufi001b
 
@@ -75,7 +75,7 @@ define Device/generic-hmu05
 	FILESYSTEMS := squashfs
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
-		msm-firmware-dumper reboot-edl modem-watchdog
+		msm-firmware-dumper reboot-edl modem-watchdog qcom-carrier-autocfg
 endef
 TARGET_DEVICES += generic-hmu05
 
