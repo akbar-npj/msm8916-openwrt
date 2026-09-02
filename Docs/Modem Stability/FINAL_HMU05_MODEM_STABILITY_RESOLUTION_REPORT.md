@@ -88,11 +88,16 @@ In Qualcomm Hexagon firmware `MPSS.DPM.1.0.C7` (`modem.b16`), LTE Layer 1 Sleep 
   - **Clean Startup:** Waits for `QRTR_TYPE_NEW_SERVER` discovery before dispatching messages, eliminating connection reset warnings.
   - **Hardware Scoping:** Included strictly in `Device/generic-hmu05` in `msm8916.mk`, with a runtime board check in `/etc/init.d/qcom-time-daemon`.
 
-### Pillar 4: Carrier Auto-Provisioning Engine
+### Pillar 4: Hybrid Global & Custom APN Auto-Provisioning Engine
 * **Package:** `packages/qcom-carrier-autocfg/`
 * **Mechanism:**
-  - Automatically queries the SIM card's IMSI / MCC-MNC (e.g. `405861` for Reliance Jio).
-  - Configures the optimal carrier APN (`jionet`), IP type (`ipv4v6`), and matching carrier MCFG MBN profile without manual intervention.
+  - **Tier 1 (User Custom Overrides):** Checks `/etc/qcom-carrier-autocfg/custom-apns.tsv`. Protected across sysupgrades via `conffiles`, allowing users to define or override any carrier profile without recompiling firmware.
+  - **Tier 2 (Global TSV Database):** Queries `/usr/share/qcom-carrier-autocfg/apns.tsv` via fast `awk` matching against SIM MCC-MNC.
+    - **Nepal Coverage:** Nepal Telecom (NTC/Namaste `42901` -> `ntnet`), Ncell Axiata (`42902` -> `web`), Smart Telecom (`42904` -> `smart`).
+    - **Global Coverage:** India (Jio, Airtel, Vi, BSNL), USA (AT&T, Verizon, T-Mobile), China (CMCC, CU, CT), UK/Europe (EE, Vodafone, O2, Three, Telekom), UAE, and SE Asia.
+  - **Tier 3 (Fuzzy Operator Matching):** Pattern-matches carrier names in SIM properties as a fallback.
+  - **Tier 4 (Universal Default):** Falls back to universal `internet` (`ipv4v6`).
+  - Automatically pushes matched APN to UCI (`/etc/config/network`) and commands ModemManager (`mmcli --simple-connect`) to initiate the data bearer.
 
 ---
 
@@ -118,6 +123,24 @@ The solution was flashed and evaluated on a physical HMU05 dongle over USB CDC-N
 | **DNS Resolution (`google.com`)** | Instant IPv4 & IPv6 | < 100 ms | **PASS** |
 | **Kernel `dmesg` Errors** | **0 fatal errors, 0 crashes, 0 exceptions** | 0 | **PASS** |
 | **First-Boot Internet** | **Automatic without manual reboot** | Automatic | **PASS** |
+
+### 5.1 Experimental Proof: Why the Hardware-Locked No-Sleep Patch is Strictly Mandatory
+
+To rigorously verify whether the No-Sleep binary patch was strictly necessary alongside `qcom-time-daemon`, a controlled empirical test was conducted on live hardware:
+1. **Test Setup:**
+   - Firmware built without `hmu05-patch-modem`.
+   - Extracted `modem.b16` was verified to be 100% untouched stock Qualcomm baseband (`ab795bf097be054880da5e8992e372701afa1b6be1cd2226002d3108c9338c60`).
+   - `qcom-time-daemon` and `qcom-carrier-autocfg` were running actively.
+2. **Result (Crash at $t = 931.6\text{s}$):**
+   At exactly 15.5 minutes, the modem DSP crashed and triggered a full board watchdog reset. The kernel persistent RAM oops log (`/sys/fs/pstore/console-ramoops-0`) captured:
+   ```text
+   [  931.633672] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+   [  931.633880] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+   [  931.641808] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+   [  931.649933] remoteproc remoteproc0: recovering 4080000.remoteproc
+   ```
+3. **Conclusion:**
+   `qcom-time-daemon` handles ATS/SCLK host synchronization, but **only the hardware-locked No-Sleep patch (`hmu05-patch-modem`) prevents the internal Hexagon DRX state machine from collapsing into the fatal `lte_ml1_sleepmgr_stm.c:4054` assertion**. Both components are mutually complementary and strictly required for continuous long-term stability on HMU05.
 
 ---
 
