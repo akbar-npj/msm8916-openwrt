@@ -99,14 +99,30 @@ while true; do
 			fi
 			LAST_RX_BYTES="$CUR_RX_BYTES"
 
-			if [ "$STALL_COUNT" -lt "$MAX_STALLS" ]; then
-				# STAGE 1: Soft Bearer Cycle
-				log "Stage 1 Recovery: Cycling cellular bearer interface '$INTERFACE'..."
+			if [ "$STALL_COUNT" -eq 1 ]; then
+				# STAGE 1: Soft Bearer Re-connection
+				log "Stage 1 Recovery: Cycling cellular bearer and re-connecting modem..."
 				ifdown "$INTERFACE" 2>/dev/null || true
-				sleep 3
+				mmcli -m any --simple-disconnect 2>/dev/null || true
+				sleep 2
 				ifup "$INTERFACE" 2>/dev/null || true
+				sleep 5
+				mmcli -m any --simple-connect="apn=jionet,ip-type=ipv4v6" 2>/dev/null || true
 				FAIL_COUNT=0
-				sleep 20
+				sleep 15
+			elif [ "$STALL_COUNT" -lt "$MAX_STALLS" ]; then
+				# STAGE 1.5: Radio Power Cycle (Forces Carrier Clock & SFN Re-sync)
+				log "Stage 1.5 Recovery: Radio power cycle to re-synchronize carrier timing..."
+				ifdown "$INTERFACE" 2>/dev/null || true
+				qmicli -d /dev/wwan0qmi0 --dms-set-operating-mode=low-power 2>/dev/null || true
+				sleep 2
+				qmicli -d /dev/wwan0qmi0 --dms-set-operating-mode=online 2>/dev/null || true
+				sleep 6
+				ifup "$INTERFACE" 2>/dev/null || true
+				sleep 4
+				mmcli -m any --simple-connect="apn=jionet,ip-type=ipv4v6" 2>/dev/null || true
+				FAIL_COUNT=0
+				sleep 15
 			else
 				# STAGE 2: Subsystem Remoteproc Clean Restart
 				log "Stage 2 Recovery: Performing clean modem remoteproc reset..."
@@ -119,9 +135,11 @@ while true; do
 				echo start > /sys/class/remoteproc/remoteproc0/state 2>/dev/null || true
 				sleep 6
 				ifup "$INTERFACE" 2>/dev/null || true
+				sleep 4
+				mmcli -m any --simple-connect="apn=jionet,ip-type=ipv4v6" 2>/dev/null || true
 				FAIL_COUNT=0
 				STALL_COUNT=0
-				sleep 30
+				sleep 20
 			fi
 		fi
 	fi
