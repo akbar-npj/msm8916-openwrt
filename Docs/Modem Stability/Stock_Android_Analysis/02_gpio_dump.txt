@@ -1,0 +1,96 @@
+=== GPIO DEBUG DUMP ===
+GPIOs 577-608, platform/qcom,smp2pgpio-ssr-smp2p-4-out.19, master-kernel:
+
+GPIOs 609-640, platform/qcom,smp2pgpio-ssr-smp2p-4-in.18, slave-kernel:
+
+GPIOs 641-672, platform/qcom,smp2pgpio-ssr-smp2p-1-out.13, master-kernel:
+
+GPIOs 673-704, platform/qcom,smp2pgpio-ssr-smp2p-1-in.12, slave-kernel:
+
+GPIOs 705-736, platform/qcom,smp2pgpio-smp2p-4-out.16, smp2p:
+
+GPIOs 737-768, platform/qcom,smp2pgpio-smp2p-4-in.14, smp2p:
+
+GPIOs 769-800, platform/qcom,smp2pgpio-smp2p-1-out.10, smp2p:
+
+GPIOs 801-832, platform/qcom,smp2pgpio-smp2p-1-in.8, smp2p:
+
+GPIOs 833-864, platform/qcom,smp2pgpio-smp2p-7-out.6, smp2p:
+
+GPIOs 865-896, platform/qcom,smp2pgpio-smp2p-7-in.4, smp2p:
+
+GPIOs 897-900, spmi/qpnp-pin-de70cc00, pm8916-gpio:
+
+GPIOs 901-901, spmi/qpnp-pin-de70ca00, pm8916-mpp:
+
+GPIOs 902-1023, platform/1000000.pinctrl, msm_tlmm_v4_gpio:
+ gpio-914 (esim3_en            ) out lo
+ gpio-916 (esim2_en            ) out lo
+ gpio-938 (bat1                ) out lo
+ gpio-939 (key_freset          ) in  lo
+ gpio-940 (exvus               ) out lo
+ gpio-973 (4g_1                ) out lo
+ gpio-974 (4g_type             ) out lo
+ gpio-975 (wifistatus          ) out hi
+ gpio-1008 (ftest               ) out lo
+ gpio-1012 (USB_ID_GPIO         ) in  hi
+ gpio-1016 (sim_hotplug         ) out lo
+ gpio-1018 (disp_dc             ) in  hi
+ gpio-1019 (disp_rst_n          ) in  hi
+ gpio-1021 (esim1_en            ) out hi
+
+=== EXPORTED GPIOS ===
+--w------- root     root         4096 1970-01-01 12:49 export
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip577 -> ../../devices/soc.0/qcom,smp2pgpio-ssr-smp2p-4-out.19/gpio/gpiochip577
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip609 -> ../../devices/soc.0/qcom,smp2pgpio-ssr-smp2p-4-in.18/gpio/gpiochip609
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip641 -> ../../devices/soc.0/qcom,smp2pgpio-ssr-smp2p-1-out.13/gpio/gpiochip641
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip673 -> ../../devices/soc.0/qcom,smp2pgpio-ssr-smp2p-1-in.12/gpio/gpiochip673
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip705 -> ../../devices/soc.0/qcom,smp2pgpio-smp2p-4-out.16/gpio/gpiochip705
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip737 -> ../../devices/soc.0/qcom,smp2pgpio-smp2p-4-in.14/gpio/gpiochip737
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip769 -> ../../devices/soc.0/qcom,smp2pgpio-smp2p-1-out.10/gpio/gpiochip769
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip801 -> ../../devices/soc.0/qcom,smp2pgpio-smp2p-1-in.8/gpio/gpiochip801
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip833 -> ../../devices/soc.0/qcom,smp2pgpio-smp2p-7-out.6/gpio/gpiochip833
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip865 -> ../../devices/soc.0/qcom,smp2pgpio-smp2p-7-in.4/gpio/gpiochip865
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip897 -> ../../devices/soc.0/qpnp-pin-de70cc00/gpio/gpiochip897
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip901 -> ../../devices/soc.0/qpnp-pin-de70ca00/gpio/gpiochip901
+lrwxrwxrwx root     root              1970-01-01 12:49 gpiochip902 -> ../../devices/soc.0/1000000.pinctrl/gpio/gpiochip902
+--w------- root     root         4096 1970-01-01 12:49 unexport
+--- gpiochip577 ---
+direction: 
+value: 
+--- gpiochip609 ---
+direction: 
+value: 
+--- gpiochip641 ---
+direction: 
+value: 
+--- gpiochip673 ---
+direction: 
+value: 
+--- gpiochip705 ---
+direction: 
+value: 
+--- gpiochip737 ---
+direction: 
+value: 
+--- gpiochip769 ---
+direction: 
+value: 
+--- gpiochip801 ---
+direction: 
+value: 
+--- gpiochip833 ---
+direction: 
+value: 
+--- gpiochip865 ---
+direction: 
+value: 
+--- gpiochip897 ---
+direction: 
+value: 
+--- gpiochip901 ---
+direction: 
+value: 
+--- gpiochip902 ---
+direction: 
+value: 

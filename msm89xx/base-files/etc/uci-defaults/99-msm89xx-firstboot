@@ -30,6 +30,8 @@ if [ -x /usr/sbin/hmu05-patch-modem ]; then
     /usr/sbin/hmu05-patch-modem /lib/firmware
 fi
 
+# Device specific initialization
+
 ###############################################################################
 # MSM8916 devices do not expose an eth0 interface.
 ###############################################################################

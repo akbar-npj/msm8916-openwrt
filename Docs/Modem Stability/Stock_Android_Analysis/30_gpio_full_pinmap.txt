@@ -1,0 +1,82 @@
+=== 3. FULL GPIO PINMAPPING ===
+GPIOs 577-608, platform/qcom,smp2pgpio-ssr-smp2p-4-out.19, master-kernel:
+
+GPIOs 609-640, platform/qcom,smp2pgpio-ssr-smp2p-4-in.18, slave-kernel:
+
+GPIOs 641-672, platform/qcom,smp2pgpio-ssr-smp2p-1-out.13, master-kernel:
+
+GPIOs 673-704, platform/qcom,smp2pgpio-ssr-smp2p-1-in.12, slave-kernel:
+
+GPIOs 705-736, platform/qcom,smp2pgpio-smp2p-4-out.16, smp2p:
+
+GPIOs 737-768, platform/qcom,smp2pgpio-smp2p-4-in.14, smp2p:
+
+GPIOs 769-800, platform/qcom,smp2pgpio-smp2p-1-out.10, smp2p:
+
+GPIOs 801-832, platform/qcom,smp2pgpio-smp2p-1-in.8, smp2p:
+
+GPIOs 833-864, platform/qcom,smp2pgpio-smp2p-7-out.6, smp2p:
+
+GPIOs 865-896, platform/qcom,smp2pgpio-smp2p-7-in.4, smp2p:
+
+GPIOs 897-900, spmi/qpnp-pin-de70cc00, pm8916-gpio:
+
+GPIOs 901-901, spmi/qpnp-pin-de70ca00, pm8916-mpp:
+
+GPIOs 902-1023, platform/1000000.pinctrl, msm_tlmm_v4_gpio:
+ gpio-914 (esim3_en            ) out lo
+ gpio-916 (esim2_en            ) out lo
+ gpio-938 (bat1                ) out lo
+ gpio-939 (key_freset          ) in  lo
+ gpio-940 (exvus               ) out lo
+ gpio-973 (4g_1                ) out lo
+ gpio-974 (4g_type             ) out lo
+ gpio-975 (wifistatus          ) out hi
+ gpio-1008 (ftest               ) out lo
+ gpio-1012 (USB_ID_GPIO         ) in  hi
+ gpio-1016 (sim_hotplug         ) out lo
+ gpio-1018 (disp_dc             ) in  hi
+ gpio-1019 (disp_rst_n          ) in  hi
+ gpio-1021 (esim1_en            ) out hi
+
+=== PINCTRL AND TLMM REGISTERS ===
+Pinmux settings per pin
+Format: pin (name): mux_owner gpio_owner hog?
+pin 0 (gp-0): 78af000.uart (GPIO UNCLAIMED) function blsp1_uart1_active-func group blsp1_uart1_active
+pin 1 (gp-1): 78af000.uart (GPIO UNCLAIMED) function blsp1_uart1_active-func group blsp1_uart1_active
+pin 2 (gp-2): 78af000.uart (GPIO UNCLAIMED) function blsp1_uart1_active-func group blsp1_uart1_active
+pin 3 (gp-3): 78af000.uart (GPIO UNCLAIMED) function blsp1_uart1_active-func group blsp1_uart1_active
+pin 4 (gp-4): 78b0000.serial (GPIO UNCLAIMED) function uart-console-func group uart-console
+pin 5 (gp-5): 78b0000.serial (GPIO UNCLAIMED) function uart-console-func group uart-console
+pin 6 (gp-6): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 7 (gp-7): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 8 (gp-8): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 9 (gp-9): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 10 (gp-10): 78b9000.spi (GPIO UNCLAIMED) function spi0-cs0-suspend-func group spi0-cs0-suspend
+pin 11 (gp-11): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 12 (gp-12): gpio_leds.63 gp:914 function tlmm_gpio_leds-func group tlmm_gpio_leds
+pin 13 (gp-13): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 14 (gp-14): gpio_leds.63 gp:916 function tlmm_gpio_leds-func group tlmm_gpio_leds
+pin 15 (gp-15): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 16 (gp-16): 78b9000.spi (GPIO UNCLAIMED) function spi0-suspend-func group spi0-suspend
+pin 17 (gp-17): 78b9000.spi (GPIO UNCLAIMED) function spi0-suspend-func group spi0-suspend
+pin 18 (gp-18): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 19 (gp-19): 78b9000.spi (GPIO UNCLAIMED) function spi0-suspend-func group spi0-suspend
+pin 20 (gp-20): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 21 (gp-21): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 22 (gp-22): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 23 (gp-23): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 24 (gp-24): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 25 (gp-25): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 26 (gp-26): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 27 (gp-27): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 28 (gp-28): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 29 (gp-29): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 30 (gp-30): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 31 (gp-31): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 32 (gp-32): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 33 (gp-33): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 34 (gp-34): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 35 (gp-35): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+pin 36 (gp-36): (MUX UNCLAIMED) gp:938
+pin 37 (gp-37): gpio_keys.62 gp:939 function tlmm_gpio_key-func group tlmm_gpio_key

@@ -1,0 +1,12 @@
+=== KERNEL & UPTIME ===
+Linux localhost 3.10.28 #1 SMP PREEMPT Thu Aug 28 15:04:41 CST 2025 armv7l GNU/Linux
+up time: 00:02:32, idle time: 00:08:33, sleep time: 00:00:00
+
+=== OS BUILD PROPERTIES ===
+msm8916_32_512-userdebug 4.4.4 KTU84P eng.edwin.20250828 test-keys
+4.4.4
+UFI
+msm8916
+msm8916
+msm
+HIMI_U01_MODEM_V1.0

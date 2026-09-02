@@ -1,0 +1,45 @@
+=== STANDARD AT IDENTIFICATION COMMANDS ON /dev/smd11 ===
+--- Query: ATI ---
+ATI
+Manufacturer: QUALCOMM INCORPORATED
+Model: 4094
+Revision: HIMI_U01_MODEM_V1.0  1  [Sep 09 2015 10:00:00]
+IMEI: 864293052253917
++GCAP: +CGSM
+
+OK
+--- Query: AT+CGMM ---
+AT+CGMM
+4094
+--- Query: AT+CGMR ---
+AT+CGMR
+HIMI_U01_MODEM_V1.0  1  [Sep 09 2015 10:00:00]
+--- Query: AT+CIMI ---
+AT+CIMI
+405861183291040
+
+OK
+--- Query: AT+CPIN? ---
+AT+CPIN?
++CPIN: READY
+
+OK
+--- Query: AT+COPS? ---
+AT+COPS?
++COPS: 0,0,"JIO 4G Jio",7
+
+OK
+--- Query: AT+CSQ ---
+AT+CSQ
++CSQ: 28,99
+
+OK
+--- Query: AT$QCPWRDN ---
+AT$QCPWRDN
+OK
+--- Query: AT$QCRMCALL? ---
+AT$QCRMCALL?
+OK
+--- Query: AT+QNETDEVSTATUS ---
+AT+QNETDEVSTATUS
+ERROR

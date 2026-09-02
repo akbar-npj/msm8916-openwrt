@@ -1,0 +1,475 @@
+=== ALL BINARIES IN /system/xbin/ ===
+lrwxrwxrwx root     root              2026-08-14 15:04 [ -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 [[ -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 acpid -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 add-shell -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 addgroup -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 adduser -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 adjtimex -> /system/bin/busybox
+-rwxr-xr-x root     shell        9508 2025-08-28 12:40 antradio_app
+lrwxrwxrwx root     root              2026-08-14 15:04 arp -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 arping -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ash -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 awk -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 base64 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 basename -> /system/bin/busybox
+-rwxr-xr-x root     root       927691 2026-08-16 03:27 bash
+lrwxrwxrwx root     root              2026-08-14 15:04 beep -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 blkid -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 blockdev -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 bootchartd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 brctl -> /system/bin/busybox
+-rwxr-xr-x root     shell        5432 2025-08-28 12:40 bttest
+lrwxrwxrwx root     root              2026-08-14 15:04 bunzip2 -> /system/bin/busybox
+-rwxr-xr-x root     root       759060 2026-08-16 03:27 busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 bzcat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 bzip2 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cal -> /system/bin/busybox
+-rwxr-xr-x root     root        54848 2026-08-16 03:27 capsh
+lrwxrwxrwx root     root              2026-08-14 15:04 cat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 catv -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 chat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 chattr -> /system/bin/busybox
+-rwxr-xr-x root     root        98612 2020-03-08 17:49 chgpasswd
+lrwxrwxrwx root     root              2026-08-14 15:04 chgrp -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 chmod -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 chown -> /system/bin/busybox
+-rwxr-xr-x root     root        94516 2020-03-08 17:47 chpasswd
+lrwxrwxrwx root     root              2026-08-14 15:04 chpst -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 chroot -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 chrt -> /system/bin/busybox
+-rwxr-xr-x root     root        97404 2020-03-08 17:47 chsh
+lrwxrwxrwx root     root              2026-08-14 15:04 chvt -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cksum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 clear -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cmp -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 comm -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 conspy -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cp -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cpio -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 crond -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 crontab -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cryptpw -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 cttyhack -> /system/bin/busybox
+-rwxr-xr-x root     root      2586976 2026-08-16 03:27 curl
+lrwxrwxrwx root     root              2026-08-14 15:04 cut -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 date -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dc -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 deallocvt -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 delgroup -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 deluser -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 depmod -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 devmem -> /system/bin/busybox
+-rwxr-xr-x root     shell       59816 2025-08-28 12:40 dexdump
+lrwxrwxrwx root     root              2026-08-14 15:04 df -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dhcprelay -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 diff -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dirname -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dmesg -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dnsd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dnsdomainname -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dos2unix -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 du -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dumpkmap -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 dumpleases -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 echo -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ed -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 egrep -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 eject -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 env -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 envdir -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 envuidgid -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ether-wake -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 expand -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 expr -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fakeidentd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 fallocate -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 false -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fatattr -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fbset -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fbsplash -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fdflush -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fdformat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fdisk -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fgconsole -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fgrep -> /system/bin/busybox
+-rwxr-xr-x root     root       239176 2020-03-05 22:36 file
+lrwxrwxrwx root     root              2026-08-14 15:04 find -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 findfs -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 flock -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fold -> /system/bin/busybox
+-rwxr-xr-x root     root        73656 2026-08-16 03:27 free
+lrwxrwxrwx root     root              2026-08-14 15:04 freeramdisk -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fsck -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fsck.minix -> /system/bin/busybox
+-rwxr-xr-x root     root       977056 2026-08-16 03:27 fstrim
+lrwxrwxrwx root     root              2026-08-14 15:04 fsync -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ftpd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ftpget -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ftpput -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 fuser -> /system/bin/busybox
+-rwxr-xr-x root     root      4658240 2026-08-16 03:27 gdb
+-rwxr-xr-x root     root      3753512 2026-08-16 03:27 gdbserver
+-rwxr-xr-x root     root        38404 2026-08-16 03:27 getcap
+lrwxrwxrwx root     root              2026-08-14 15:04 getopt -> /system/bin/busybox
+-rwxr-xr-x root     root        30024 2026-08-16 03:27 getpcaps
+lrwxrwxrwx root     root              2026-08-14 15:04 getty -> /system/bin/busybox
+-rwxr-xr-x root     root      2032284 2026-08-16 03:27 git
+-rwxr-xr-x root     root       115100 2020-03-08 17:48 gpasswd
+lrwxrwxrwx root     root              2026-08-14 15:04 grep -> /system/bin/busybox
+-rwxr-xr-x root     root       106956 2020-03-08 17:51 groupadd
+-rwxr-xr-x root     root       102772 2020-03-08 15:04 groupdel
+-rwxr-xr-x root     root       111020 2020-03-08 17:43 groupmod
+-rwxr-xr-x root     root        42072 2020-03-08 15:07 groups
+-rwxr-xr-x root     root        90212 2020-03-08 17:46 grpconv
+-rwxr-xr-x root     root        90212 2020-03-08 17:46 grpunconv
+lrwxrwxrwx root     root              2026-08-14 15:04 gunzip -> /system/bin/busybox
+-rwxr-xr-x root     root       120868 2026-08-16 03:27 gzip
+lrwxrwxrwx root     root              2026-08-14 15:04 halt -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 hd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 hdparm -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 head -> /system/bin/busybox
+-rwxr-xr-x root     root       211184 2026-08-16 03:27 hexcurse
+lrwxrwxrwx root     root              2026-08-14 15:04 hexdump -> /system/bin/busybox
+-rwxr-xr-x root     root       210920 2026-08-16 03:27 hexedit
+lrwxrwxrwx root     root              2026-08-14 15:04 hostid -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 hostname -> /system/bin/busybox
+-rwxr-xr-x root     root       294552 2026-08-16 03:27 htop
+lrwxrwxrwx root     root              2026-08-14 15:04 httpd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 hush -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 hwclock -> /system/bin/busybox
+-rwxr-xr-x root     root        37976 2020-03-08 15:06 id
+lrwxrwxrwx root     root              2026-08-14 15:04 ifconfig -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ifdown -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ifenslave -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ifplugd -> /system/bin/busybox
+-rwxr-xr-x root     root       473528 2026-08-16 03:27 iftop
+lrwxrwxrwx root     root              2026-08-14 15:04 ifup -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 inetd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 init -> /system/bin/busybox
+-rwxr-xr-x root     root       120076 2026-08-16 03:27 inotifywait
+-rwxr-xr-x root     root       115972 2026-08-16 03:27 inotifywatch
+lrwxrwxrwx root     root              2026-08-14 15:04 insmod -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 install -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ionice -> /system/bin/busybox
+-rwxr-xr-x root     root        90571 2026-08-16 03:27 iostat
+lrwxrwxrwx root     root              2026-08-14 15:04 ip -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ipaddr -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ipcalc -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ipcrm -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ipcs -> /system/bin/busybox
+-rwxr-xr-x root     root       278596 2026-08-16 03:27 iperf
+-rwxr-xr-x root     root      1515248 2026-08-16 03:27 iperf3
+lrwxrwxrwx root     root              2026-08-14 15:04 iplink -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 iproute -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 iprule -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 iptunnel -> /system/bin/busybox
+-rwxr-xr-x root     root       244188 2026-08-16 03:27 iw
+lrwxrwxrwx root     root              2026-08-14 15:04 kbd_mode -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 kill -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 killall -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 killall5 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 klogd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 last -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 less -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 linux32 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 linux64 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 linuxrc -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ln -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 loadfont -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 loadkmap -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 lock -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 logger -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 login -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 logname -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 logread -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 losetup -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lpd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lpq -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lpr -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ls -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lsattr -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lsmod -> /system/bin/busybox
+-rwxr-xr-x root     root       329632 2026-08-16 03:27 lsof
+lrwxrwxrwx root     root              2026-08-14 15:04 lspci -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lsusb -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lzcat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lzma -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lzop -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 lzopcat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 makedevs -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 makemime -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 man -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 md5sum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mdev -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mesg -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 microcom -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkdir -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkdosfs -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mke2fs -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkfifo -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkfs.ext2 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkfs.minix -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkfs.vfat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mknod -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkpasswd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mkswap -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 mktemp -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 modinfo -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 modprobe -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 more -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 01:37 mount -> /system/bin/toolbox
+-rwxr-xr-x root     root       227680 2026-08-16 03:27 mount.exfat-fuse
+lrwxrwxrwx root     root              2026-08-14 15:04 mountpoint -> /system/bin/busybox
+-rwxr-xr-x root     root        90579 2026-08-16 03:27 mpstat
+lrwxrwxrwx root     root              2026-08-14 15:04 mt -> /system/bin/busybox
+-rwxr-xr-x root     root       252009 2026-08-16 03:27 mtr
+lrwxrwxrwx root     root              2026-08-14 15:04 mv -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 nameif -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 nanddump -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 nandwrite -> /system/bin/busybox
+-rwxr-xr-x root     root      1206168 2026-08-16 23:31 nano
+lrwxrwxrwx root     root              2026-08-14 15:04 nbd-client -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 nc -> /system/bin/busybox
+-rwxr-xr-x root     root       248008 2026-08-16 03:27 ncdu
+-rwxr-xr-x root     root        79228 2026-08-16 03:27 netcat
+-rwxr-xr-x root     root       925988 2026-08-16 03:27 nethogs
+lrwxrwxrwx root     root              2026-08-17 00:43 netmsg -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 netstat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 nice -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 nl -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 nmeter -> /system/bin/busybox
+-rwxr-xr-x root     root       538044 2026-08-16 03:27 nohup
+-rwxr-xr-x root     root        37844 2020-03-08 15:07 nologin
+lrwxrwxrwx root     root              2026-08-14 15:04 nslookup -> /system/bin/busybox
+-rwxr-xr-x root     root       386968 2026-08-16 03:27 ntfs-3g
+lrwxrwxrwx root     root              2026-08-14 15:04 ntpd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 od -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 openvt -> /system/bin/busybox
+-rwxr-xr-x root     root       111116 2020-03-08 17:51 passwd
+lrwxrwxrwx root     root              2026-08-14 15:04 patch -> /system/bin/busybox
+-rwxr-xr-x root     root       134416 2026-08-16 03:27 pgrep
+lrwxrwxrwx root     root              2026-08-14 15:04 pidof -> /system/bin/busybox
+-rwxr-xr-x root     root       127435 2026-08-16 03:27 pidstat
+-rwxr-xr-x root     root       193972 2026-08-16 03:27 pigz
+lrwxrwxrwx root     root              2026-08-14 15:04 ping -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ping6 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 pipe_progress -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 pivot_root -> /system/bin/busybox
+-rwxr-xr-x root     root       342872 2026-08-16 03:27 pixz
+-rwxr-xr-x root     root       134416 2026-08-16 03:27 pkill
+-rwxr-xr-x root     root        99680 2026-08-16 03:27 pmap
+lrwxrwxrwx root     root              2026-08-14 15:04 popmaildir -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 poweroff -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 powertop -> /system/bin/busybox
+-rwxr-xr-x root     shell       25932 2025-08-28 12:40 pppoe
+lrwxrwxrwx root     root              2026-08-14 15:04 printenv -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 printf -> /system/bin/busybox
+-rwxr-xr-x root     root       193948 2026-08-16 03:27 ps
+lrwxrwxrwx root     root              2026-08-14 15:04 pscan -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 pstree -> /system/bin/busybox
+-rwxr-xr-x root     root        86116 2020-03-08 17:46 pwconv
+lrwxrwxrwx root     root              2026-08-14 15:04 pwd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 pwdx -> /system/bin/busybox
+-rwxr-xr-x root     root        86116 2020-03-08 17:46 pwunconv
+lrwxrwxrwx root     root              2026-08-14 15:04 raidautorun -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rdate -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rdev -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 readahead -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 readlink -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 readprofile -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 realpath -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 01:39 reboot -> /system/bin/reboot
+lrwxrwxrwx root     root              2026-08-14 15:04 reformime -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 remove-shell -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 renice -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 reset -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 resize -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rev -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rm -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rmdir -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rmmod -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 route -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rpm -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rpm2cpio -> /system/bin/busybox
+-rwxr-xr-x root     root      1151916 2017-11-20 13:17 rsync
+lrwxrwxrwx root     root              2026-08-14 15:04 rtcwake -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 run-parts -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 runlevel -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 runsv -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 runsvdir -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 rx -> /system/bin/busybox
+-rwxr-xr-x root     root       275515 2026-08-16 03:27 sadf
+-rwxr-xr-x root     root       127763 2026-08-16 03:27 sar
+-rwxr-xr-x root     root      1491140 2026-08-16 03:27 scp
+lrwxrwxrwx root     root              2026-08-14 15:04 script -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 scriptreplay -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sed -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sendmail -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 seq -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setarch -> /system/bin/busybox
+-rwxr-xr-x root     root        34284 2026-08-16 03:27 setcap
+lrwxrwxrwx root     root              2026-08-14 15:04 setconsole -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setfont -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setkeycodes -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setlogcons -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setserial -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setsid -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 setuidgid -> /system/bin/busybox
+-rwxr-xr-x root     root      1519908 2026-08-16 03:27 sftp
+-rwxr-xr-x root     root      1487060 2026-08-16 03:27 sftp-server
+lrwxrwxrwx root     root              2026-08-14 15:04 sh -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sha1sum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sha256sum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sha3sum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sha512sum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 showkey -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 shuf -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 slattach -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sleep -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 smemcap -> /system/bin/busybox
+-rwxr-xr-x root     root       885248 2026-08-16 03:27 socat
+lrwxrwxrwx root     root              2026-08-14 15:04 softlimit -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sort -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 split -> /system/bin/busybox
+-rwxr-xr-x root     root      2056676 2026-08-16 03:27 ssh
+-rwxr-xr-x root     root      1094072 2026-08-16 03:27 ssh-add
+-rwxr-xr-x root     root      1102280 2026-08-16 03:27 ssh-agent
+-rwxr-xr-x root     root      1777948 2026-08-16 03:27 ssh-keygen
+-rwxr-xr-x root     root      1192392 2026-08-16 03:27 ssh-keyscan
+-rwxr-xr-x root     root      2101972 2026-08-16 03:27 sshd
+lrwxrwxrwx root     root              2026-08-14 15:04 start-stop-daemon -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 stat -> /system/bin/busybox
+-rwxr-xr-x root     root       571124 2026-08-16 03:27 strace
+lrwxrwxrwx root     root              2026-08-14 15:04 strings -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 stty -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 su -> /system/bin/busybox
+-rwxr-xr-x root     root       120780 2020-03-08 17:41 su2
+lrwxrwxrwx root     root              2026-08-14 15:04 sulogin -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sum -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sv -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 svlogd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 swapoff -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 swapon -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 switch_root -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sync -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 sysctl -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 syslogd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tac -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tail -> /system/bin/busybox
+-rwxr-xr-x root     root       457916 2026-08-16 03:27 tar
+lrwxrwxrwx root     root              2026-08-14 15:04 taskset -> /system/bin/busybox
+-rwxr-xr-x root     root      1123132 2026-08-16 03:27 tcpdump
+lrwxrwxrwx root     root              2026-08-14 15:04 tcpsvd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tee -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 telnet -> /system/bin/busybox
+-rwxr-xr-x root     root          448 2026-08-14 22:03 telnet_login
+lrwxrwxrwx root     root              2026-08-14 15:04 telnetd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 test -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tftp -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tftpd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 time -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 timeout -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 top -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 touch -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tr -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 traceroute -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 traceroute6 -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 true -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 truncate -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tty -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ttysize -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 tunctl -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 tune2fs -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ubiattach -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ubidetach -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ubimkvol -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ubirmvol -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ubirsvol -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 ubiupdatevol -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 udhcpc -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 udhcpc6 -> /system/xbin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 udhcpd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 udpsvd -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 umount -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 uname -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 unexpand -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 uniq -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 unix2dos -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 unlink -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 unlzma -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 unlzop -> /system/bin/busybox
+-rwxr-xr-x root     root       193972 2026-08-16 03:27 unpigz
+lrwxrwxrwx root     root              2026-08-14 15:04 unxz -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 unzip -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 uptime -> /system/bin/busybox
+-rwxr-xr-x root     root       135916 2020-03-08 17:51 useradd
+-rwxr-xr-x root     root       119192 2020-03-08 15:04 userdel
+-rwxr-xr-x root     root       148136 2020-03-08 17:45 usermod
+lrwxrwxrwx root     root              2026-08-14 15:04 users -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 usleep -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 uudecode -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 uuencode -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 vconfig -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 vi -> /system/bin/busybox
+-rwxr-xr-x root     root      1988544 2026-08-16 03:27 vim
+lrwxrwxrwx root     root              2026-08-14 15:04 vlock -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 volname -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 wall -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 watch -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 watchdog -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 wc -> /system/bin/busybox
+-rwxr-xr-x root     root       103899 2026-08-16 03:27 wg
+lrwxrwxrwx root     root              2026-08-14 15:04 wget -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 which -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 who -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 whoami -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 whois -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 xargs -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-17 00:43 xxd -> /system/xbin/busybox
+-rwxr-xr-x root     root       165304 2026-08-16 03:27 xz
+lrwxrwxrwx root     root              2026-08-14 15:04 xzcat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 yes -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 zcat -> /system/bin/busybox
+lrwxrwxrwx root     root              2026-08-14 15:04 zcip -> /system/bin/busybox
+-rwxr-xr-x root     root       214332 2026-08-16 03:27 zramctl
+
+=== DIAGNOSTIC AND TEST UTILITIES IN /system/bin/ ===
+-rwxr-xr-x root     shell       66852 2025-08-28 12:40 camera_test
+-rwxr-xr-x root     shell        9464 2025-08-28 12:40 diag_callback_client
+-rwxr-xr-x root     shell       13696 2025-08-28 12:40 diag_dci_sample
+-rwxr-xr-x root     shell        5464 2025-08-28 12:40 diag_klog
+-rwxr-xr-x root     shell       18440 2025-08-28 12:40 diag_mdlog
+-rwxr-xr-x root     shell       13900 2025-08-28 12:40 diag_qshrink4_daemon
+-rwxr-xr-x root     shell       18040 2025-08-28 12:40 diag_socket_log
+-rwxr-xr-x root     shell        9824 2025-08-28 12:40 diag_uart_log
+-rwxr-xr-x root     shell       42336 2025-08-28 12:40 dumpstate
+-rwxr-xr-x root     shell        9500 2025-08-28 12:40 dumpsys
+-rwxr-xr-x root     shell        9676 2025-08-28 12:40 gptest
+-rwxr-xr-x root     shell      129080 2025-08-28 12:40 hci_qcomm_init
+-rwxr-xr-x root     shell      103856 2025-08-28 12:40 isdbtmmtest
+-rwxr-xr-x root     shell      105852 2025-08-28 12:40 keymaster_test
+lrwxr-xr-x root     shell             2025-08-28 12:40 log -> toolbox
+-rwxr-xr-x root     shell       13648 2025-08-28 12:40 logcat
+-rwxr-xr-x root     shell       13672 2025-08-28 12:40 logwrapper
+-rwxr-xr-x root     shell       13612 2025-08-28 12:40 mm-qjpeg-dec-test
+-rwxr-xr-x root     shell       13612 2025-08-28 12:40 mm-qjpeg-enc-test
+-rwxr-xr-x root     shell       17764 2025-08-28 12:40 mm-qomx-idec-test
+-rwxr-xr-x root     shell       21860 2025-08-28 12:40 mm-qomx-ienc-test
+-rwxr-xr-x root     shell       46464 2025-08-28 12:40 mm-vdec-omx-test
+-rwxr-xr-x root     shell       34156 2025-08-28 12:40 mm-venc-omx-test720p
+-rwxr-xr-x root     shell       17656 2025-08-28 12:40 mm-video-driver-test
+-rwxr-xr-x root     shell       13560 2025-08-28 12:40 mm-video-encdrv-test
+-rwxr-xr-x root     shell       62988 2025-08-28 12:40 msm-vidc-test
+-rwxr-xr-x root     shell       79272 2025-08-28 12:40 oatdump
+-rwxr-xr-x root     shell       17876 2025-08-28 12:40 qcom-system-daemon
+-rwxr-xr-x root     shell      166452 2025-08-28 12:40 qmiproxy
+-rwxr-xr-x root     shell        5412 2025-08-28 12:40 qrngtest
+-rwxr-xr-x root     shell        9516 2025-08-28 12:40 qseecom_security_test
+-rwxr-xr-x root     shell        9852 2025-08-28 12:40 regdbdump
+-rwxr-xr-x root     shell       15444 2025-08-28 12:40 rmnetcli
+-rwxr-xr-x root     shell        5356 2025-08-28 12:40 schedtest
+lrwxr-xr-x root     shell             2025-08-28 12:40 smd -> toolbox
+-rwxr-xr-x root     shell       17756 2025-08-28 12:40 subsystem_ramdump
+-rwxr-xr-x root     shell        9564 2025-08-28 12:40 test_diag

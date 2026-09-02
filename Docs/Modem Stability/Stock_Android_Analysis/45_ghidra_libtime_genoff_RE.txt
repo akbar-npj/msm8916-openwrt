@@ -1,0 +1,1382 @@
+================================================================
+GHIDRA RE: libtime_genoff.so — Time Genoff QMI Client
+Binary: libtime_genoff.so (ARM 32-bit LE, 9300 bytes)
+Analysis Date: 2026-09-02
+================================================================
+
+PURPOSE: Reconstruct the exact QMI message formats sent to
+         QMI Service 22 so OpenWrt can replicate them.
+
+KEY TARGETS:
+  - time_genoff_operation(): formats QMI_TIME_GENOFF_SET_REQ (0x0020)
+  - tod_update_ind_cb(): handles QMI_TIME_REG_IND_REQ (0x0025) responses
+  - genoff_boot_tod_init(): one-time boot anchor to /dev/rtc0
+
+=== SECTION 1: ALL SYMBOLS ===
+
+  __cxa_finalize                                               @ 0xEXTERNAL:00000001  [Function]
+  __cxa_atexit                                                 @ 0xEXTERNAL:00000002  [Function]
+  __aeabi_uldivmod                                             @ 0xEXTERNAL:00000003  [Function]
+  __android_log_print                                          @ 0xEXTERNAL:00000004  [Function]
+  socket                                                       @ 0xEXTERNAL:00000005  [Function]
+  setsockopt                                                   @ 0xEXTERNAL:00000006  [Function]
+  strlcpy                                                      @ 0xEXTERNAL:00000007  [Function]
+  connect                                                      @ 0xEXTERNAL:00000008  [Function]
+  send                                                         @ 0xEXTERNAL:00000009  [Function]
+  recv                                                         @ 0xEXTERNAL:0000000a  [Function]
+  close                                                        @ 0xEXTERNAL:0000000b  [Function]
+  gmtime_r                                                     @ 0xEXTERNAL:0000000c  [Function]
+  mktime                                                       @ 0xEXTERNAL:0000000d  [Function]
+  __stack_chk_fail                                             @ 0xEXTERNAL:0000000e  [Function]
+  __aeabi_unwind_cpp_pr0                                       @ 0xEXTERNAL:0000000f  [Function]
+  _edata                                                       @ 0x00003004  [Label]
+  __bss_start                                                  @ 0x00003004  [Label]
+  _end                                                         @ 0x00003004  [Label]
+  Elf32_Phdr_ARRAY_00010034                                    @ 0x00010034  [Label]
+  s_/system/bin/linker_00010134                                @ 0x00010134  [Label]
+  __DT_SYMTAB                                                  @ 0x00010148  [Label]
+  __DT_STRTAB                                                  @ 0x000102a8  [Label]
+  __DT_HASH                                                    @ 0x000103e8  [Label]
+  __DT_REL                                                     @ 0x0001048c  [Label]
+  __DT_JMPREL                                                  @ 0x000104a4  [Label]
+  LAB_00010514                                                 @ 0x00010514  [Label]
+  DAT_00010524                                                 @ 0x00010524  [Label]
+  __cxa_finalize                                               @ 0x00010528  [Function]
+  __cxa_atexit                                                 @ 0x00010534  [Function]
+  __android_log_print                                          @ 0x00010540  [Function]
+  socket                                                       @ 0x0001054c  [Function]
+  setsockopt                                                   @ 0x00010558  [Function]
+  strlcpy                                                      @ 0x00010564  [Function]
+  connect                                                      @ 0x00010570  [Function]
+  send                                                         @ 0x0001057c  [Function]
+  recv                                                         @ 0x00010588  [Function]
+  close                                                        @ 0x00010594  [Function]
+  __aeabi_uldivmod                                             @ 0x000105a0  [Function]
+  gmtime_r                                                     @ 0x000105ac  [Function]
+  mktime                                                       @ 0x000105b8  [Function]
+  __stack_chk_fail                                             @ 0x000105c4  [Function]
+  _FINI_0                                                      @ 0x000105d0  [Function]
+  DAT_000105ec                                                 @ 0x000105ec  [Label]
+  FUN_000105f0                                                 @ 0x000105f0  [Function]
+  DAT_00010628                                                 @ 0x00010628  [Label]
+  time_genoff_operation                                        @ 0x0001062c  [Function]
+  LAB_00010652                                                 @ 0x00010652  [Label]
+  LAB_00010684                                                 @ 0x00010684  [Label]
+  LAB_0001069c                                                 @ 0x0001069c  [Label]
+  LAB_000106ac                                                 @ 0x000106ac  [Label]
+  LAB_000106ca                                                 @ 0x000106ca  [Label]
+  LAB_000106e6                                                 @ 0x000106e6  [Label]
+  LAB_000106ec                                                 @ 0x000106ec  [Label]
+  LAB_00010752                                                 @ 0x00010752  [Label]
+  LAB_0001077e                                                 @ 0x0001077e  [Label]
+  LAB_0001078e                                                 @ 0x0001078e  [Label]
+  LAB_0001079e                                                 @ 0x0001079e  [Label]
+  LAB_000107ae                                                 @ 0x000107ae  [Label]
+  LAB_000107be                                                 @ 0x000107be  [Label]
+  LAB_000107de                                                 @ 0x000107de  [Label]
+  LAB_000107f8                                                 @ 0x000107f8  [Label]
+  LAB_00010830                                                 @ 0x00010830  [Label]
+  LAB_00010836                                                 @ 0x00010836  [Label]
+  LAB_00010842                                                 @ 0x00010842  [Label]
+  LAB_00010846                                                 @ 0x00010846  [Label]
+  LAB_00010858                                                 @ 0x00010858  [Label]
+  LAB_00010872                                                 @ 0x00010872  [Label]
+  LAB_00010884                                                 @ 0x00010884  [Label]
+  LAB_0001088a                                                 @ 0x0001088a  [Label]
+  LAB_0001089e                                                 @ 0x0001089e  [Label]
+  LAB_000108ae                                                 @ 0x000108ae  [Label]
+  LAB_000108b4                                                 @ 0x000108b4  [Label]
+  LAB_00010928                                                 @ 0x00010928  [Label]
+  LAB_0001092c                                                 @ 0x0001092c  [Label]
+  LAB_000109a6                                                 @ 0x000109a6  [Label]
+  LAB_000109ae                                                 @ 0x000109ae  [Label]
+  LAB_000109bc                                                 @ 0x000109bc  [Label]
+  LAB_000109c0                                                 @ 0x000109c0  [Label]
+  LAB_000109c6                                                 @ 0x000109c6  [Label]
+  LAB_000109ca                                                 @ 0x000109ca  [Label]
+  LAB_000109d6                                                 @ 0x000109d6  [Label]
+  DAT_000109dc                                                 @ 0x000109dc  [Label]
+  DAT_000109e0                                                 @ 0x000109e0  [Label]
+  DAT_000109e4                                                 @ 0x000109e4  [Label]
+  DAT_000109e8                                                 @ 0x000109e8  [Label]
+  DAT_000109ec                                                 @ 0x000109ec  [Label]
+  DAT_000109f0                                                 @ 0x000109f0  [Label]
+  DAT_000109f4                                                 @ 0x000109f4  [Label]
+  DAT_000109f8                                                 @ 0x000109f8  [Label]
+  DAT_000109fc                                                 @ 0x000109fc  [Label]
+  DAT_00010a00                                                 @ 0x00010a00  [Label]
+  DAT_00010a04                                                 @ 0x00010a04  [Label]
+  DAT_00010a08                                                 @ 0x00010a08  [Label]
+  DAT_00010a0c                                                 @ 0x00010a0c  [Label]
+  DAT_00010a10                                                 @ 0x00010a10  [Label]
+  DAT_00010a14                                                 @ 0x00010a14  [Label]
+  DAT_00010a18                                                 @ 0x00010a18  [Label]
+  DAT_00010a1c                                                 @ 0x00010a1c  [Label]
+  DAT_00010a20                                                 @ 0x00010a20  [Label]
+  DAT_00010a24                                                 @ 0x00010a24  [Label]
+  DAT_00010a28                                                 @ 0x00010a28  [Label]
+  DAT_00010a2c                                                 @ 0x00010a2c  [Label]
+  DAT_00010a30                                                 @ 0x00010a30  [Label]
+  DAT_00010a34                                                 @ 0x00010a34  [Label]
+  DAT_00010a38                                                 @ 0x00010a38  [Label]
+  DAT_00010a3c                                                 @ 0x00010a3c  [Label]
+  DAT_00010a40                                                 @ 0x00010a40  [Label]
+  DAT_00010a44                                                 @ 0x00010a44  [Label]
+  DAT_00010a48                                                 @ 0x00010a48  [Label]
+  DAT_00010a4c                                                 @ 0x00010a4c  [Label]
+  DAT_00010a50                                                 @ 0x00010a50  [Label]
+  DAT_00010a54                                                 @ 0x00010a54  [Label]
+  DAT_00010a58                                                 @ 0x00010a58  [Label]
+  DAT_00010a5c                                                 @ 0x00010a5c  [Label]
+  DAT_00010a60                                                 @ 0x00010a60  [Label]
+  DAT_00010a64                                                 @ 0x00010a64  [Label]
+  DAT_00010a68                                                 @ 0x00010a68  [Label]
+  DAT_00010a6c                                                 @ 0x00010a6c  [Label]
+  DAT_00010a70                                                 @ 0x00010a70  [Label]
+  DAT_00010a74                                                 @ 0x00010a74  [Label]
+  DAT_00010a78                                                 @ 0x00010a78  [Label]
+  DAT_00010a7c                                                 @ 0x00010a7c  [Label]
+  DAT_00010a80                                                 @ 0x00010a80  [Label]
+  DAT_00010a84                                                 @ 0x00010a84  [Label]
+  DAT_00010a88                                                 @ 0x00010a88  [Label]
+  DAT_00010a8c                                                 @ 0x00010a8c  [Label]
+  DAT_00010a90                                                 @ 0x00010a90  [Label]
+  DAT_00010a94                                                 @ 0x00010a94  [Label]
+  DAT_00010a98                                                 @ 0x00010a98  [Label]
+  DAT_00010a9c                                                 @ 0x00010a9c  [Label]
+  DAT_00010aa0                                                 @ 0x00010aa0  [Label]
+  DAT_00010aa4                                                 @ 0x00010aa4  [Label]
+  time_control_operations                                      @ 0x00010aa8  [Function]
+  LAB_00010ade                                                 @ 0x00010ade  [Label]
+  LAB_00010b44                                                 @ 0x00010b44  [Label]
+  LAB_00010b70                                                 @ 0x00010b70  [Label]
+  LAB_00010b80                                                 @ 0x00010b80  [Label]
+  LAB_00010ba6                                                 @ 0x00010ba6  [Label]
+  LAB_00010bb6                                                 @ 0x00010bb6  [Label]
+  LAB_00010bcc                                                 @ 0x00010bcc  [Label]
+  LAB_00010c2e                                                 @ 0x00010c2e  [Label]
+  LAB_00010c48                                                 @ 0x00010c48  [Label]
+  LAB_00010c56                                                 @ 0x00010c56  [Label]
+  LAB_00010c60                                                 @ 0x00010c60  [Label]
+  LAB_00010c64                                                 @ 0x00010c64  [Label]
+  LAB_00010c70                                                 @ 0x00010c70  [Label]
+  DAT_00010c78                                                 @ 0x00010c78  [Label]
+  DAT_00010c7c                                                 @ 0x00010c7c  [Label]
+  DAT_00010c80                                                 @ 0x00010c80  [Label]
+  DAT_00010c84                                                 @ 0x00010c84  [Label]
+  DAT_00010c88                                                 @ 0x00010c88  [Label]
+  DAT_00010c8c                                                 @ 0x00010c8c  [Label]
+  DAT_00010c90                                                 @ 0x00010c90  [Label]
+  DAT_00010c94                                                 @ 0x00010c94  [Label]
+  DAT_00010c98                                                 @ 0x00010c98  [Label]
+  DAT_00010c9c                                                 @ 0x00010c9c  [Label]
+  DAT_00010ca0                                                 @ 0x00010ca0  [Label]
+  DAT_00010ca4                                                 @ 0x00010ca4  [Label]
+  DAT_00010ca8                                                 @ 0x00010ca8  [Label]
+  DAT_00010cac                                                 @ 0x00010cac  [Label]
+  DAT_00010cb0                                                 @ 0x00010cb0  [Label]
+  DAT_00010cb4                                                 @ 0x00010cb4  [Label]
+  DAT_00010cb8                                                 @ 0x00010cb8  [Label]
+  DAT_00010cbc                                                 @ 0x00010cbc  [Label]
+  DAT_00010cc0                                                 @ 0x00010cc0  [Label]
+  DAT_00010cc4                                                 @ 0x00010cc4  [Label]
+  DAT_00010cc8                                                 @ 0x00010cc8  [Label]
+  DAT_00010ccc                                                 @ 0x00010ccc  [Label]
+  DAT_00010cd0                                                 @ 0x00010cd0  [Label]
+  DAT_00010cd4                                                 @ 0x00010cd4  [Label]
+  DAT_00010cd8                                                 @ 0x00010cd8  [Label]
+  DAT_00010cdc                                                 @ 0x00010cdc  [Label]
+  DAT_00010ce0                                                 @ 0x00010ce0  [Label]
+  s_time_control_operations_00010cf8                           @ 0x00010cf8  [Label]
+  s_QC-time-services_00010d10                                  @ 0x00010d10  [Label]
+  s_Lib:%s:_Invalid_input_to_library_00010d21                  @ 0x00010d21  [Label]
+  s_Lib:%s:_pargs->base_=_%d_00010d43                          @ 0x00010d43  [Label]
+  s_Lib:%s:_pargs->operation_=_%d_00010d5d                     @ 0x00010d5d  [Label]
+  s_Lib:%s:_Invalid_input_arguments_00010d7c                   @ 0x00010d7c  [Label]
+  s_Lib:%s:_pargs->ts_val_=_%llu_00010d9d                      @ 0x00010d9d  [Label]
+  s_Lib:%s:_Unable_to_create_socket_00010dbb                   @ 0x00010dbb  [Label]
+  s_#time_genoff_00010ddc                                      @ 0x00010ddc  [Label]
+  s_Lib:%s:_Connection_failed_!!_00010de9                      @ 0x00010de9  [Label]
+  s_Lib:%s:_Send_to_server_failed_!!_00010e07                  @ 0x00010e07  [Label]
+  s_Lib:%s:_Unable_to_recv_data_00010e29                       @ 0x00010e29  [Label]
+  s_Lib:_Time_Get_for_Base_=_%d_fail_00010e46                  @ 0x00010e46  [Label]
+  s_Lib:%s:_Invalid_time_%llu_00010e6a                         @ 0x00010e6a  [Label]
+  s_Lib:%s:Invalid_time_unit_%d_00010e84                       @ 0x00010e84  [Label]
+  s_Lib:%s:_Send_to_server_passed!!_00010ea0                   @ 0x00010ea0  [Label]
+  s_Receive_Passed_==_base_=_%d,_uni_00010ec2                  @ 0x00010ec2  [Label]
+  s_Lib:%s:_Invalid_operation_specif_00010f2b                  @ 0x00010f2b  [Label]
+  s_Lib:%s:_send_to_server_failed_!!_00010f50                  @ 0x00010f50  [Label]
+  s_Disable_Passed_==_base_=_%d,_uni_00010f72                  @ 0x00010f72  [Label]
+  s_Enable_Passed_==_base_=_%d,_unit_00010fb7                  @ 0x00010fb7  [Label]
+  s_time_genoff_operation_00010ffb                             @ 0x00010ffb  [Label]
+  __DT_FINI_ARRAY                                              @ 0x00012ecc  [Label]
+  _DYNAMIC                                                     @ 0x00012ed0  [Label]
+  PTR___stack_chk_guard_00012fb8                               @ 0x00012fb8  [Label]
+  __DT_PLTGOT                                                  @ 0x00012fbc  [Label]
+  PTR_00012fc4                                                 @ 0x00012fc4  [Label]
+  PTR___cxa_finalize_00012fc8                                  @ 0x00012fc8  [Label]
+  PTR___cxa_atexit_00012fcc                                    @ 0x00012fcc  [Label]
+  PTR___android_log_print_00012fd0                             @ 0x00012fd0  [Label]
+  PTR_socket_00012fd4                                          @ 0x00012fd4  [Label]
+  PTR_setsockopt_00012fd8                                      @ 0x00012fd8  [Label]
+  PTR_strlcpy_00012fdc                                         @ 0x00012fdc  [Label]
+  PTR_connect_00012fe0                                         @ 0x00012fe0  [Label]
+  PTR_send_00012fe4                                            @ 0x00012fe4  [Label]
+  PTR_recv_00012fe8                                            @ 0x00012fe8  [Label]
+  PTR_close_00012fec                                           @ 0x00012fec  [Label]
+  PTR___aeabi_uldivmod_00012ff0                                @ 0x00012ff0  [Label]
+  PTR_gmtime_r_00012ff4                                        @ 0x00012ff4  [Label]
+  PTR_mktime_00012ff8                                          @ 0x00012ff8  [Label]
+  PTR___stack_chk_fail_00012ffc                                @ 0x00012ffc  [Label]
+  DAT_00013000                                                 @ 0x00013000  [Label]
+  __cxa_finalize                                               @ 0x00014000  [Function]
+  __cxa_atexit                                                 @ 0x00014004  [Function]
+  __aeabi_uldivmod                                             @ 0x00014008  [Function]
+  __android_log_print                                          @ 0x0001400c  [Function]
+  socket                                                       @ 0x00014010  [Function]
+  setsockopt                                                   @ 0x00014014  [Function]
+  strlcpy                                                      @ 0x00014018  [Function]
+  connect                                                      @ 0x0001401c  [Function]
+  send                                                         @ 0x00014020  [Function]
+  recv                                                         @ 0x00014024  [Function]
+  close                                                        @ 0x00014028  [Function]
+  gmtime_r                                                     @ 0x0001402c  [Function]
+  mktime                                                       @ 0x00014030  [Function]
+  __stack_chk_fail                                             @ 0x00014034  [Function]
+  __stack_chk_guard                                            @ 0x00014038  [Label]
+  __aeabi_unwind_cpp_pr0                                       @ 0x0001403c  [Function]
+  DAT_.ARM.attributes__00000000                                @ 0x.ARM.attributes::00000000  [Label]
+  ElfComment[0]                                                @ 0x.comment::00000000  [Label]
+  ElfComment[1]                                                @ 0x.comment::00000001  [Label]
+  GnuDebugLink_20_.gnu_debuglink__00000000                     @ 0x.gnu_debuglink::00000000  [Label]
+  DAT_.note.gnu.gold-version__00000000                         @ 0x.note.gnu.gold-version::00000000  [Label]
+  DAT_.shstrtab__00000000                                      @ 0x.shstrtab::00000000  [Label]
+  Elf32_Shdr_ARRAY__elfSectionHeaders__00000000                @ 0x_elfSectionHeaders::00000000  [Label]
+
+=== SECTION 2: COMPLETE DECOMPILATION (ALL FUNCTIONS) ===
+
+Total functions: 33
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __cxa_finalize                           @ 0x00010528  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: _FINI_0, 
+║ Calls: __cxa_finalize, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void __cxa_finalize(void)
+
+{
+  (*(code *)PTR___cxa_finalize_00012fc8)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __cxa_atexit                             @ 0x00010534  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: FUN_000105f0, 
+║ Calls: __cxa_atexit, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void __cxa_atexit(void)
+
+{
+  (*(code *)PTR___cxa_atexit_00012fcc)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __android_log_print                      @ 0x00010540  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: __android_log_print, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void __android_log_print(void)
+
+{
+  (*(code *)PTR___android_log_print_00012fd0)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: socket                                   @ 0x0001054c  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: socket, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int socket(int __domain,int __type,int __protocol)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_socket_00012fd4)(__domain);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: setsockopt                               @ 0x00010558  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: setsockopt, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setsockopt(int __fd,int __level,int __optname,void *__optval,socklen_t __optlen)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_setsockopt_00012fd8)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: strlcpy                                  @ 0x00010564  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: strlcpy, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void strlcpy(void)
+
+{
+  (*(code *)PTR_strlcpy_00012fdc)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: connect                                  @ 0x00010570  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: connect, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int connect(int __fd,sockaddr *__addr,socklen_t __len)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_connect_00012fe0)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: send                                     @ 0x0001057c  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: send, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t send(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_send_00012fe4)(__fd);
+  return sVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: recv                                     @ 0x00010588  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: recv, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t recv(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_recv_00012fe8)(__fd);
+  return sVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: close                                    @ 0x00010594  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: close, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int close(int __fd)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_close_00012fec)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_uldivmod                         @ 0x000105a0  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, 
+║ Calls: __aeabi_uldivmod, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void __aeabi_uldivmod(void)
+
+{
+  (*(code *)PTR___aeabi_uldivmod_00012ff0)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: gmtime_r                                 @ 0x000105ac  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, 
+║ Calls: gmtime_r, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+tm * gmtime_r(time_t *__timer,tm *__tp)
+
+{
+  tm *ptVar1;
+  
+  ptVar1 = (tm *)(*(code *)PTR_gmtime_r_00012ff4)(__timer);
+  return ptVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: mktime                                   @ 0x000105b8  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, 
+║ Calls: mktime, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+time_t mktime(tm *__tp)
+
+{
+  time_t tVar1;
+  
+  tVar1 = (*(code *)PTR_mktime_00012ff8)(__tp);
+  return tVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __stack_chk_fail                         @ 0x000105c4  (12 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: time_genoff_operation, time_control_operations, 
+║ Calls: __stack_chk_fail, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void __stack_chk_fail(void)
+
+{
+  (*(code *)PTR___stack_chk_fail_00012ffc)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: _FINI_0                                  @ 0x000105d0  (28 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: (none — likely exported)
+║ Calls: __cxa_finalize, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void _FINI_0(void)
+
+{
+  __cxa_finalize(DAT_000105ec + 0x105e4);
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_000105f0                             @ 0x000105f0  (56 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: (none — likely exported)
+║ Calls: __cxa_atexit, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_000105f0(undefined4 param_1)
+
+{
+  undefined4 uVar1;
+  
+  uVar1 = __cxa_atexit(param_1,0,DAT_00010628 + 0x10614);
+  return uVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: time_genoff_operation                    @ 0x0001062c  (944 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: (none — likely exported)
+║ Calls: gmtime_r, __android_log_print, connect, close, strlcpy, __aeabi_uldivmod, setsockopt, __stack_chk_fail, recv, mktime, socket, send, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void time_genoff_operation(uint *param_1)
+
+{
+  longlong lVar1;
+  ssize_t sVar2;
+  tm *ptVar3;
+  tm *ptVar4;
+  time_t tVar6;
+  undefined4 uVar7;
+  int iVar8;
+  uint uVar9;
+  time_t *ptVar10;
+  int iVar11;
+  int iVar12;
+  undefined4 *puVar13;
+  int *piVar14;
+  int iVar15;
+  int *piVar16;
+  uint uVar17;
+  undefined4 local_e8;
+  undefined4 local_e4;
+  uint local_e0;
+  uint local_dc;
+  uint local_d8;
+  undefined8 local_d0;
+  int local_c8;
+  tm tStack_c0;
+  sockaddr local_94 [7];
+  int local_24;
+  int *piVar5;
+  
+  piVar16 = *(int **)(DAT_000109dc + 0x10634 + DAT_000109e0);
+  local_24 = *piVar16;
+  if (param_1 == (uint *)0x0) {
+    iVar8 = DAT_000109e4 + 0x1064e;
+    iVar11 = DAT_000109e8 + 0x10650;
+    iVar12 = DAT_000109ec + 0x10652;
+LAB_000106e6:
+    __android_log_print(6,iVar8,iVar11,iVar12);
+  }
+  else {
+    if (param_1[3] != 1) {
+      iVar11 = DAT_000109f0 + 0x10664;
+      iVar8 = DAT_000109f4 + 0x10666;
+      __android_log_print(3,iVar11,DAT_000109f8 + 0x1066c,iVar8,*param_1);
+      __android_log_print(3,iVar11,DAT_000109fc + 0x10682,iVar8,param_1[3]);
+    }
+    if ((((0xe < *param_1) || (2 < param_1[2] - 1)) || (4 < param_1[3])) ||
+       (puVar13 = (undefined4 *)param_1[1], puVar13 == (undefined4 *)0x0)) {
+      iVar8 = DAT_00010a00 + 0x106a8;
+      iVar11 = DAT_00010a04 + 0x106aa;
+      iVar12 = DAT_00010a08 + 0x106ac;
+      goto LAB_000106e6;
+    }
+    if (param_1[3] != 1) {
+      __android_log_print(3,DAT_00010a14 + 0x106c8,DAT_00010a0c + 0x106c0,DAT_00010a10 + 0x106c6,
+                          *puVar13,puVar13[1]);
+    }
+    iVar8 = socket(1,1,0);
+    if (iVar8 < 0) {
+      iVar8 = DAT_00010a18 + 0x106e4;
+      iVar11 = DAT_00010a1c + 0x106e6;
+      iVar12 = DAT_00010a20 + 0x106e8;
+      goto LAB_000106e6;
+    }
+    local_e8 = 10;
+    local_e4 = 0;
+    setsockopt(iVar8,1,0x14,&local_e8,8);
+    uVar17 = 8;
+    setsockopt(iVar8,1,0x15,&local_e8,8);
+    local_94[0].sa_family = 1;
+    strlcpy(local_94[0].sa_data,DAT_00010a24 + 0x10726,0x6c);
+    local_94[0].sa_data[0] = '\0';
+    iVar11 = connect(iVar8,local_94,0xe);
+    if (iVar11 == -1) {
+      iVar11 = DAT_00010a28 + 0x1074e;
+      iVar12 = DAT_00010a2c + 0x10750;
+      uVar9 = DAT_00010a30 + 0x10752;
+      goto LAB_000109bc;
+    }
+    uVar9 = param_1[3];
+    if (uVar9 == 1) {
+      local_e0 = *param_1;
+      local_c8 = -1;
+      local_d0 = 0;
+      local_dc = uVar9;
+      local_d8 = uVar9;
+      sVar2 = send(iVar8,&local_e0,0x20,0);
+      if (sVar2 < 0) {
+LAB_0001077e:
+        iVar11 = DAT_00010a34 + 0x1078a;
+        iVar12 = DAT_00010a38 + 0x1078c;
+        uVar9 = DAT_00010a3c + 0x1078e;
+      }
+      else {
+        sVar2 = recv(iVar8,&local_e0,0x20,0);
+        if (-1 < sVar2) {
+          if (local_c8 != 0) {
+            iVar11 = DAT_00010a4c + 0x107bc;
+            iVar12 = DAT_00010a50 + 0x107be;
+            uVar9 = local_e0;
+            goto LAB_000109bc;
+          }
+          close(iVar8);
+          uVar9 = param_1[2];
+          if (uVar9 == 2) {
+            local_d0 = __aeabi_uldivmod((time_t)local_d0,local_d0._4_4_,1000,0);
+            *(longlong *)param_1[1] = local_d0;
+          }
+          else if (uVar9 == 3) {
+            local_d0 = __aeabi_uldivmod((time_t)local_d0,local_d0._4_4_,1000,0);
+            ptVar3 = gmtime_r((time_t *)&local_d0,&tStack_c0);
+            if (ptVar3 == (tm *)0x0) {
+              __android_log_print(6,DAT_00010a5c + 0x1082c,DAT_00010a54 + 0x10824,
+                                  DAT_00010a58 + 0x1082a,(time_t)local_d0,local_d0._4_4_);
+              goto LAB_000109c0;
+            }
+            ptVar4 = ptVar3;
+            piVar14 = (int *)param_1[1];
+            do {
+              piVar5 = &ptVar4->tm_min;
+              *piVar14 = ptVar4->tm_sec;
+              ptVar4 = (tm *)piVar5;
+              piVar14 = piVar14 + 1;
+            } while ((tm *)piVar5 != ptVar3 + 1);
+          }
+          else {
+            if (uVar9 != 1) {
+              iVar11 = DAT_00010a60 + 0x10850;
+              iVar12 = DAT_00010a64 + 0x10854;
+              iVar15 = DAT_00010a68 + 0x10858;
+              goto LAB_000108ae;
+            }
+            ptVar10 = (time_t *)param_1[1];
+            *ptVar10 = (time_t)local_d0;
+            ptVar10[1] = local_d0._4_4_;
+          }
+          goto LAB_00010842;
+        }
+LAB_0001079e:
+        iVar11 = DAT_00010a40 + 0x107aa;
+        iVar12 = DAT_00010a44 + 0x107ac;
+        uVar9 = DAT_00010a48 + 0x107ae;
+      }
+LAB_000109bc:
+      __android_log_print(6,iVar11,iVar12,uVar9,uVar17);
+    }
+    else {
+      if (uVar9 != 0) {
+        if (uVar9 != 2) {
+          iVar11 = DAT_00010a9c + 0x109ba;
+          iVar12 = DAT_00010aa0 + 0x109bc;
+          uVar9 = DAT_00010aa4 + 0x109be;
+          goto LAB_000109bc;
+        }
+        local_e0 = *param_1;
+        local_c8 = -1;
+        local_d0 = 0;
+        local_dc = 1;
+        local_d8 = uVar9;
+        sVar2 = send(iVar8,&local_e0,0x20,0);
+        if (sVar2 < 0) goto LAB_0001077e;
+        iVar11 = DAT_00010a8c + 0x10966;
+        __android_log_print(3,iVar11,DAT_00010a90 + 0x1096a,DAT_00010a94 + 0x1096e);
+        sVar2 = recv(iVar8,&local_e0,0x20,0);
+        if (sVar2 < 0) goto LAB_0001079e;
+        __android_log_print(6,iVar11,DAT_00010a98 + 0x10996,local_e0,local_dc,local_d8,local_c8);
+        ptVar10 = (time_t *)param_1[1];
+        *ptVar10 = (time_t)local_d0;
+        ptVar10[1] = local_d0._4_4_;
+LAB_000109a6:
+        close(iVar8);
+LAB_00010842:
+        uVar7 = 0;
+        goto LAB_000109ca;
+      }
+      uVar9 = param_1[2];
+      if (uVar9 == 2) {
+        lVar1 = (ulonglong)*(uint *)param_1[1] * 1000;
+        uVar7 = (undefined4)lVar1;
+        iVar11 = ((uint *)param_1[1])[1] * 1000 + (int)((ulonglong)lVar1 >> 0x20);
+LAB_00010884:
+        local_d0 = CONCAT44(iVar11,uVar7);
+LAB_000108b4:
+        local_e0 = *param_1;
+        local_dc = 1;
+        local_c8 = -1;
+        local_d8 = 0;
+        sVar2 = send(iVar8,&local_e0,0x20,0);
+        if (sVar2 < 0) goto LAB_0001077e;
+        iVar11 = DAT_00010a78 + 0x108e4;
+        __android_log_print(3,iVar11,DAT_00010a7c + 0x108e8,DAT_00010a80 + 0x108ec);
+        sVar2 = recv(iVar8,&local_e0,0x20,0);
+        if (sVar2 < 0) goto LAB_0001079e;
+        uVar17 = local_dc;
+        __android_log_print(6,iVar11,DAT_00010a84 + 0x10912,local_e0,local_dc,local_d8,local_c8);
+        if (local_c8 != 0) {
+          iVar12 = DAT_00010a88 + 0x1092a;
+          uVar9 = local_e0;
+          goto LAB_000109bc;
+        }
+        goto LAB_000109a6;
+      }
+      if (uVar9 == 3) {
+        tVar6 = mktime((tm *)param_1[1]);
+        local_d0 = (longlong)tVar6 * 1000;
+        goto LAB_000108b4;
+      }
+      if (uVar9 == 1) {
+        uVar7 = *(undefined4 *)param_1[1];
+        iVar11 = ((undefined4 *)param_1[1])[1];
+        goto LAB_00010884;
+      }
+      iVar11 = DAT_00010a6c + 0x108ac;
+      iVar12 = DAT_00010a70 + 0x108ae;
+      iVar15 = DAT_00010a74 + 0x108b0;
+LAB_000108ae:
+      __android_log_print(6,iVar11,iVar12,iVar15,uVar9);
+    }
+LAB_000109c0:
+    close(iVar8);
+  }
+  uVar7 = 0xffffffea;
+LAB_000109ca:
+  if (local_24 == *piVar16) {
+    return;
+  }
+                    /* WARNING: Subroutine does not return */
+  __stack_chk_fail(uVar7);
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: time_control_operations                  @ 0x00010aa8  (462 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: (none — likely exported)
+║ Calls: __android_log_print, connect, close, strlcpy, setsockopt, __stack_chk_fail, recv, socket, send, 
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+void time_control_operations(undefined4 *param_1)
+
+{
+  int __fd;
+  int iVar1;
+  ssize_t sVar2;
+  undefined4 uVar3;
+  undefined4 *puVar4;
+  int iVar5;
+  int iVar6;
+  int *piVar7;
+  undefined4 local_c0;
+  undefined4 local_bc;
+  undefined4 local_b8;
+  undefined4 local_b4;
+  int local_b0;
+  undefined4 local_a8;
+  undefined4 uStack_a4;
+  undefined4 local_a0;
+  sockaddr local_94 [7];
+  int local_24;
+  
+  piVar7 = *(int **)(DAT_00010c78 + 0x10ab0 + DAT_00010c7c);
+  local_24 = *piVar7;
+  __fd = socket(1,1,0);
+  if (__fd < 0) {
+    __android_log_print(6,DAT_00010c80 + 0x10ad6,DAT_00010c84 + 0x10ad8,DAT_00010c88 + 0x10ada);
+  }
+  else {
+    local_c0 = 10;
+    local_bc = 0;
+    setsockopt(__fd,1,0x14,&local_c0,8);
+    setsockopt(__fd,1,0x15,&local_c0,8);
+    local_94[0].sa_family = 1;
+    strlcpy(local_94[0].sa_data,DAT_00010c8c + 0x10b18,0x6c);
+    local_94[0].sa_data[0] = '\0';
+    iVar1 = connect(__fd,local_94,0xe);
+    if (iVar1 == -1) {
+      iVar1 = DAT_00010c90 + 0x10b40;
+      iVar5 = DAT_00010c94 + 0x10b42;
+      iVar6 = DAT_00010c98 + 0x10b44;
+    }
+    else {
+      iVar1 = param_1[3];
+      if (iVar1 == 3) {
+        local_b8 = *param_1;
+        local_a0 = 0xffffffff;
+        local_b4 = 1;
+        local_b0 = iVar1;
+        sVar2 = send(__fd,&local_b8,0x20,0);
+        if (sVar2 < 0) {
+LAB_00010b70:
+          iVar1 = DAT_00010c9c + 0x10b7c;
+          iVar5 = DAT_00010ca0 + 0x10b7e;
+          iVar6 = DAT_00010ca4 + 0x10b80;
+        }
+        else {
+          iVar1 = DAT_00010ca8 + 0x10b8c;
+          __android_log_print(3,iVar1,DAT_00010cac + 0x10b90,DAT_00010cb0 + 0x10b94);
+          sVar2 = recv(__fd,&local_b8,0x20,0);
+          if (-1 < sVar2) {
+            iVar5 = DAT_00010cc0 + 0x10bca;
+LAB_00010c2e:
+            __android_log_print(6,iVar1,iVar5,local_b8,local_b4,local_b0,local_a0);
+            puVar4 = (undefined4 *)param_1[1];
+            *puVar4 = local_a8;
+            puVar4[1] = uStack_a4;
+            close(__fd);
+            uVar3 = 0;
+            goto LAB_00010c64;
+          }
+LAB_00010ba6:
+          iVar1 = DAT_00010cb4 + 0x10bb2;
+          iVar5 = DAT_00010cb8 + 0x10bb4;
+          iVar6 = DAT_00010cbc + 0x10bb6;
+        }
+      }
+      else {
+        if (iVar1 == 4) {
+          local_b8 = *param_1;
+          local_a0 = 0xffffffff;
+          local_b4 = 1;
+          local_b0 = iVar1;
+          sVar2 = send(__fd,&local_b8,0x20,0);
+          if (-1 < sVar2) {
+            iVar1 = DAT_00010cc4 + 0x10c00;
+            __android_log_print(3,iVar1,DAT_00010cc8 + 0x10c04,DAT_00010ccc + 0x10c08);
+            sVar2 = recv(__fd,&local_b8,0x20,0);
+            if (-1 < sVar2) {
+              iVar5 = DAT_00010cd0 + 0x10c28;
+              goto LAB_00010c2e;
+            }
+            goto LAB_00010ba6;
+          }
+          goto LAB_00010b70;
+        }
+        iVar1 = DAT_00010cd4 + 0x10c54;
+        iVar5 = DAT_00010cd8 + 0x10c56;
+        iVar6 = DAT_00010cdc + 0x10c58;
+      }
+    }
+    __android_log_print(6,iVar1,iVar5,iVar6);
+    close(__fd);
+  }
+  uVar3 = 0xffffffea;
+LAB_00010c64:
+  if (local_24 != *piVar7) {
+                    /* WARNING: Subroutine does not return */
+    __stack_chk_fail(uVar3);
+  }
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __cxa_finalize                           @ 0x00014000  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: __cxa_finalize, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __cxa_finalize(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __cxa_atexit                             @ 0x00014004  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: __cxa_atexit, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __cxa_atexit(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_uldivmod                         @ 0x00014008  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: __aeabi_uldivmod, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_uldivmod(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __android_log_print                      @ 0x0001400c  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: __android_log_print, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __android_log_print(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: socket                                   @ 0x00014010  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: socket, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int socket(int __domain,int __type,int __protocol)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: setsockopt                               @ 0x00014014  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: setsockopt, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setsockopt(int __fd,int __level,int __optname,void *__optval,socklen_t __optlen)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: strlcpy                                  @ 0x00014018  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: strlcpy, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void strlcpy(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: connect                                  @ 0x0001401c  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: connect, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int connect(int __fd,sockaddr *__addr,socklen_t __len)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: send                                     @ 0x00014020  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: send, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t send(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: recv                                     @ 0x00014024  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: recv, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t recv(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: close                                    @ 0x00014028  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: close, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int close(int __fd)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: gmtime_r                                 @ 0x0001402c  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: gmtime_r, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+tm * gmtime_r(time_t *__timer,tm *__tp)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: mktime                                   @ 0x00014030  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: mktime, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+time_t mktime(tm *__tp)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __stack_chk_fail                         @ 0x00014034  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: __stack_chk_fail, 
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __stack_chk_fail(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_unwind_cpp_pr0                   @ 0x0001403c  (1 bytes)
+╠══════════════════════════════════════════════════════════════
+║ Called by: (none — likely exported)
+║ Calls: (none — leaf function)
+╠══════════════════════════════════════════════════════════════
+║ DECOMPILED C:
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_unwind_cpp_pr0(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+
+=== SECTION 3: COMPLETE HEX DUMP OF BINARY ===
+
+(Useful for spotting hardcoded byte sequences in QMI messages)
+
+000000: 7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00   |.ELF............|
+000010: 03 00 28 00 01 00 00 00 00 00 00 00 34 00 00 00   |..(.........4...|
+000020: 34 21 00 00 00 00 00 05 34 00 20 00 08 00 28 00   |4!......4. ...(.|
+000030: 14 00 13 00 06 00 00 00 34 00 00 00 34 00 00 00   |........4...4...|
+000040: 34 00 00 00 00 01 00 00 00 01 00 00 04 00 00 00   |4...............|
+000050: 04 00 00 00 03 00 00 00 34 01 00 00 34 01 00 00   |........4...4...|
+000060: 34 01 00 00 13 00 00 00 13 00 00 00 04 00 00 00   |4...............|
+000070: 01 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00   |................|
+000080: 00 00 00 00 11 10 00 00 11 10 00 00 05 00 00 00   |................|
+000090: 00 10 00 00 01 00 00 00 cc 1e 00 00 cc 2e 00 00   |................|
+0000a0: cc 2e 00 00 38 01 00 00 38 01 00 00 06 00 00 00   |....8...8.......|
+0000b0: 00 10 00 00 02 00 00 00 d0 1e 00 00 d0 2e 00 00   |................|
+0000c0: d0 2e 00 00 e8 00 00 00 e8 00 00 00 06 00 00 00   |................|
+0000d0: 04 00 00 00 51 e5 74 64 00 00 00 00 00 00 00 00   |....Q.td........|
+0000e0: 00 00 00 00 00 00 00 00 00 00 00 00 06 00 00 00   |................|
+0000f0: 00 00 00 00 01 00 00 70 e0 0c 00 00 e0 0c 00 00   |.......p........|
+000100: e0 0c 00 00 18 00 00 00 18 00 00 00 04 00 00 00   |................|
+000110: 04 00 00 00 52 e5 74 64 cc 1e 00 00 cc 2e 00 00   |....R.td........|
+000120: cc 2e 00 00 34 01 00 00 34 01 00 00 06 00 00 00   |....4...4.......|
+000130: 04 00 00 00 2f 73 79 73 74 65 6d 2f 62 69 6e 2f   |..../system/bin/|
+000140: 6c 69 6e 6b 65 72 00   |linker.|
+
+=== SECTION 4: ALL STRINGS ===
+
+  0x00010134: "/system/bin/linker"
+  0x000102a9: u8"__cxa_finalize"
+  0x000102b8: u8"__cxa_atexit"
+  0x000102c5: u8"__aeabi_uldivmod"
+  0x000102d6: u8"time_genoff_operation"
+  0x000102ec: u8"__android_log_print"
+  0x00010300: u8"socket"
+  0x00010307: u8"setsockopt"
+  0x00010312: u8"strlcpy"
+  0x0001031a: u8"connect"
+  0x00010322: u8"send"
+  0x00010327: u8"recv"
+  0x0001032c: u8"close"
+  0x00010332: u8"gmtime_r"
+  0x0001033b: u8"mktime"
+  0x00010342: u8"__stack_chk_fail"
+  0x00010353: u8"__stack_chk_guard"
+  0x00010365: u8"__aeabi_unwind_cpp_pr0"
+  0x0001037c: u8"time_control_operations"
+  0x00010394: u8"_edata"
+  0x0001039b: u8"__bss_start"
+  0x000103a7: u8"_end"
+  0x000103ac: u8"libc.so"
+  0x000103b4: u8"libcutils.so"
+  0x000103c1: u8"libstdc++.so"
+  0x000103ce: u8"libm.so"
+  0x000103d6: u8"libtime_genoff.so"
+  0x00010cf8: "time_control_operations"
+  0x00010d10: "QC-time-services"
+  0x00010d21: "Lib:%s: Invalid input to library\n"
+  0x00010d43: "Lib:%s: pargs->base = %d\n"
+  0x00010d5d: "Lib:%s: pargs->operation = %d\n"
+  0x00010d7c: "Lib:%s: Invalid input arguments\n"
+  0x00010d9d: "Lib:%s: pargs->ts_val = %llu\n"
+  0x00010dbb: "Lib:%s: Unable to create socket\n"
+  0x00010ddc: "#time_genoff"
+  0x00010de9: "Lib:%s: Connection failed !!\n"
+  0x00010e07: "Lib:%s: Send to server failed !!\n"
+  0x00010e29: "Lib:%s: Unable to recv data\n"
+  0x00010e46: "Lib: Time Get for Base = %d failed\n"
+  0x00010e6a: "Lib:%s: Invalid time %llu"
+  0x00010e84: "Lib:%s:Invalid time unit %d"
+  0x00010ea0: "Lib:%s: Send to server  passed!!\n"
+  0x00010ec2: "Receive Passed == base = %d, unit = %d, operation = %d, result = %d\n"
+  0x00010f07: "Lib: Time Set for Base = %d failed\n"
+  0x00010f2b: "Lib:%s: Invalid operation specified\n"
+  0x00010f50: "Lib:%s: send to server failed !!\n"
+  0x00010f72: "Disable Passed == base = %d, unit = %d, operation = %d, result = %d\n"
+  0x00010fb7: "Enable Passed == base = %d, unit = %d, operation = %d, result = %d\n"
+  0x00010ffb: "time_genoff_operation"
+  0x.comment::00000000: u8""
+  0x.comment::00000001: u8"GCC: (GNU) 4.7"
+  0x.shstrtab::00000001: u8".shstrtab"
+  0x.shstrtab::0000000b: u8".interp"
+  0x.shstrtab::00000013: u8".dynsym"
+  0x.shstrtab::0000001b: u8".dynstr"
+  0x.shstrtab::00000023: u8".hash"
+  0x.shstrtab::00000029: u8".rel.dyn"
+  0x.shstrtab::00000032: u8".rel.plt"
+  0x.shstrtab::0000003b: u8".text"
+  0x.shstrtab::00000041: u8".ARM.exidx"
+  0x.shstrtab::0000004c: u8".rodata"
+  0x.shstrtab::00000054: u8".fini_array"
+  0x.shstrtab::00000060: u8".dynamic"
+  0x.shstrtab::00000069: u8".got"
+  0x.shstrtab::0000006e: u8".data"
+  0x.shstrtab::00000074: u8".comment"
+  0x.shstrtab::0000007d: u8".note.gnu.gold-version"
+  0x.shstrtab::00000094: u8".ARM.attributes"
+  0x.shstrtab::000000a4: u8".gnu_debuglink"
+
+=== SECTION 5: QMI MESSAGE ID CONSTANTS ===
+
+Message/Service ID 0x20 (32):
+  @ 0x00010760 in time_genoff_operation         : str r1,[sp,#0x20]
+  @ 0x00010772 in time_genoff_operation         : movs r2,#0x20
+  @ 0x0001078e in time_genoff_operation         : movs r2,#0x20
+  @ 0x000108c6 in time_genoff_operation         : movs r2,#0x20
+  @ 0x000108cc in time_genoff_operation         : str r6,[sp,#0x20]
+  @ 0x000108ee in time_genoff_operation         : movs r2,#0x20
+  @ 0x00010904 in time_genoff_operation         : ldr r0,[sp,#0x20]
+  @ 0x00010936 in time_genoff_operation         : str r1,[sp,#0x20]
+  @ 0x00010948 in time_genoff_operation         : movs r2,#0x20
+  @ 0x00010970 in time_genoff_operation         : movs r2,#0x20
+  @ 0x00010986 in time_genoff_operation         : ldr r1,[sp,#0x20]
+  @ 0x00010b5e in time_control_operations       : movs r2,#0x20
+  @ 0x00010b64 in time_control_operations       : str.w r8,[sp,#0x20]
+  @ 0x00010b96 in time_control_operations       : movs r2,#0x20
+  @ 0x00010bba in time_control_operations       : ldr r0,[sp,#0x20]
+  @ 0x00010bde in time_control_operations       : movs r2,#0x20
+  @ 0x00010be8 in time_control_operations       : str.w r8,[sp,#0x20]
+  @ 0x00010c0a in time_control_operations       : movs r2,#0x20
+  @ 0x00010c1c in time_control_operations       : ldr r1,[sp,#0x20]
+Message/Service ID 0x25 (37):
+Message/Service ID 0x16 (22):
+Message/Service ID 0x16 (22):
+Message/Service ID 0x26 (38):
+Message/Service ID 0x27 (39):

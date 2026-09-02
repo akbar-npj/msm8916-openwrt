@@ -1,0 +1,25 @@
+=== 1. WATCHDOG DEVICES ===
+No /dev/watchdog found
+
+=== WATCHDOG IN DMESG / SYSFS ===
+<6>[    0.060760] msm_watchdog b017000.qcom,wdt: MSM Watchdog Initialized
+/sys/bus/platform/devices/b017000.qcom,wdt
+/sys/bus/platform/drivers/msm_watchdog
+/sys/bus/platform/drivers/msm_watchdog/b017000.qcom,wdt
+/sys/devices/soc.0/b017000.qcom,wdt
+
+=== WATCHDOG FEEDER PROCESSES ===
+root      187   1     1436   144   c012eb18 00011340 S /sbin/healthd
+root      1286  2     0      0     bf1418fc 00000000 S VosWDThread
+healthd cmdline: /sbin/healthd
+lrwx------ root     root              2026-09-02 05:16 0 -> /dev/null
+lrwx------ root     root              2026-09-02 05:16 1 -> /dev/null
+l-wx------ root     root              2026-09-02 05:16 10 -> /dev/cpuctl/apps/bg_non_interactive/tasks
+lrwx------ root     root              2026-09-02 05:16 2 -> /dev/null
+lrwx------ root     root              2026-09-02 05:16 3 -> anon_inode:[timerfd]
+lrwx------ root     root              2026-09-02 05:16 4 -> socket:[8215]
+lrwx------ root     root              2026-09-02 05:16 5 -> /dev/binder
+l-wx------ root     root              2026-09-02 05:16 6 -> /dev/__kmsg__ (deleted)
+lrwx------ root     root              2026-09-02 05:16 7 -> anon_inode:[eventpoll]
+lr-x------ root     root              2026-09-02 05:16 8 -> /dev/__properties__
+l-wx------ root     root              2026-09-02 05:16 9 -> /dev/cpuctl/apps/tasks

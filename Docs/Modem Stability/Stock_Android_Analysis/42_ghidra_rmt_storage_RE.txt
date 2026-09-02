@@ -1,0 +1,3501 @@
+================================================================
+GHIDRA RE: rmt_storage — EFS2 NV Sync Daemon
+Binary: /system/bin/rmt_storage (ARM 32-bit LE, 23504 bytes)
+Analysis Date: 2026-09-02
+================================================================
+
+PURPOSE: Understand the 900-second NV writeback protocol so
+         OpenWrt rmtfs can be configured identically.
+
+=== SECTION 1: SYMBOLS ===
+
+  __libc_init                                        @ 0xEXTERNAL:00000001  [Function]
+  __cxa_atexit                                       @ 0xEXTERNAL:00000002  [Function]
+  __aeabi_unwind_cpp_pr0                             @ 0xEXTERNAL:00000003  [Function]
+  pthread_mutex_destroy                              @ 0xEXTERNAL:00000004  [Function]
+  pthread_cond_destroy                               @ 0xEXTERNAL:00000005  [Function]
+  __android_log_print                                @ 0xEXTERNAL:00000006  [Function]
+  free                                               @ 0xEXTERNAL:00000007  [Function]
+  malloc                                             @ 0xEXTERNAL:00000008  [Function]
+  strcmp                                             @ 0xEXTERNAL:00000009  [Function]
+  mmap                                               @ 0xEXTERNAL:0000000a  [Function]
+  __errno                                            @ 0xEXTERNAL:0000000b  [Function]
+  qmi_csi_send_resp                                  @ 0xEXTERNAL:0000000c  [Function]
+  pthread_mutex_lock                                 @ 0xEXTERNAL:0000000d  [Function]
+  write                                              @ 0xEXTERNAL:0000000e  [Function]
+  pthread_mutex_unlock                               @ 0xEXTERNAL:0000000f  [Function]
+  pthread_cond_signal                                @ 0xEXTERNAL:00000010  [Function]
+  close                                              @ 0xEXTERNAL:00000011  [Function]
+  snprintf                                           @ 0xEXTERNAL:00000012  [Function]
+  strlen                                             @ 0xEXTERNAL:00000013  [Function]
+  lseek                                              @ 0xEXTERNAL:00000014  [Function]
+  read                                               @ 0xEXTERNAL:00000015  [Function]
+  strerror                                           @ 0xEXTERNAL:00000016  [Function]
+  pthread_cond_wait                                  @ 0xEXTERNAL:00000017  [Function]
+  memset                                             @ 0xEXTERNAL:00000018  [Function]
+  strncmp                                            @ 0xEXTERNAL:00000019  [Function]
+  strlcpy                                            @ 0xEXTERNAL:0000001a  [Function]
+  pthread_create                                     @ 0xEXTERNAL:0000001b  [Function]
+  open                                               @ 0xEXTERNAL:0000001c  [Function]
+  strcpy                                             @ 0xEXTERNAL:0000001d  [Function]
+  ioctl                                              @ 0xEXTERNAL:0000001e  [Function]
+  __strcpy_chk                                       @ 0xEXTERNAL:0000001f  [Function]
+  pthread_mutex_init                                 @ 0xEXTERNAL:00000020  [Function]
+  pthread_cond_init                                  @ 0xEXTERNAL:00000021  [Function]
+  __stack_chk_fail                                   @ 0xEXTERNAL:00000022  [Function]
+  lseek64                                            @ 0xEXTERNAL:00000023  [Function]
+  property_get                                       @ 0xEXTERNAL:00000024  [Function]
+  property_set                                       @ 0xEXTERNAL:00000025  [Function]
+  ioprio_set                                         @ 0xEXTERNAL:00000026  [Function]
+  chdir                                              @ 0xEXTERNAL:00000027  [Function]
+  opendir                                            @ 0xEXTERNAL:00000028  [Function]
+  strstr                                             @ 0xEXTERNAL:00000029  [Function]
+  fopen                                              @ 0xEXTERNAL:0000002a  [Function]
+  fgets                                              @ 0xEXTERNAL:0000002b  [Function]
+  ferror                                             @ 0xEXTERNAL:0000002c  [Function]
+  __strrchr_chk                                      @ 0xEXTERNAL:0000002d  [Function]
+  strcasecmp                                         @ 0xEXTERNAL:0000002e  [Function]
+  fclose                                             @ 0xEXTERNAL:0000002f  [Function]
+  readdir                                            @ 0xEXTERNAL:00000030  [Function]
+  closedir                                           @ 0xEXTERNAL:00000031  [Function]
+  exit                                               @ 0xEXTERNAL:00000032  [Function]
+  prctl                                              @ 0xEXTERNAL:00000033  [Function]
+  setgid                                             @ 0xEXTERNAL:00000034  [Function]
+  setuid                                             @ 0xEXTERNAL:00000035  [Function]
+  capset                                             @ 0xEXTERNAL:00000036  [Function]
+  qmi_csi_register                                   @ 0xEXTERNAL:00000037  [Function]
+  memcpy                                             @ 0xEXTERNAL:00000038  [Function]
+  select                                             @ 0xEXTERNAL:00000039  [Function]
+  qmi_csi_handle_event                               @ 0xEXTERNAL:0000003a  [Function]
+  getcwd                                             @ 0xEXTERNAL:0000003b  [Function]
+  strtoul                                            @ 0xEXTERNAL:0000003c  [Function]
+  __aeabi_unwind_cpp_pr1                             @ 0xEXTERNAL:0000003d  [Function]
+  _edata                                             @ 0x00006648  [Label]
+  __bss_start                                        @ 0x00006648  [Label]
+  _end                                               @ 0x00006da4  [Label]
+  DAT_0000ffff                                       @ 0x0000ffff  [Label]
+  Elf32_Phdr_ARRAY_00010034                          @ 0x00010034  [Label]
+  s_/system/bin/linker_00010134                      @ 0x00010134  [Label]
+  __DT_SYMTAB                                        @ 0x00010148  [Label]
+  __DT_STRTAB                                        @ 0x00010588  [Label]
+  __DT_HASH                                          @ 0x000108cc  [Label]
+  __DT_REL                                           @ 0x00010af0  [Label]
+  __DT_JMPREL                                        @ 0x00010bf0  [Label]
+  LAB_00010dc8                                       @ 0x00010dc8  [Label]
+  DAT_00010dd8                                       @ 0x00010dd8  [Label]
+  __libc_init                                        @ 0x00010ddc  [Function]
+  __cxa_atexit                                       @ 0x00010de8  [Function]
+  pthread_mutex_destroy                              @ 0x00010df4  [Function]
+  pthread_cond_destroy                               @ 0x00010e00  [Function]
+  __android_log_print                                @ 0x00010e0c  [Function]
+  strcmp                                             @ 0x00010e30  [Function]
+  mmap                                               @ 0x00010e3c  [Function]
+  __errno                                            @ 0x00010e48  [Function]
+  qmi_csi_send_resp                                  @ 0x00010e54  [Function]
+  pthread_mutex_lock                                 @ 0x00010e60  [Function]
+  write                                              @ 0x00010e6c  [Function]
+  pthread_mutex_unlock                               @ 0x00010e78  [Function]
+  pthread_cond_signal                                @ 0x00010e84  [Function]
+  close                                              @ 0x00010e90  [Function]
+  snprintf                                           @ 0x00010e9c  [Function]
+  strlen                                             @ 0x00010ea8  [Function]
+  lseek                                              @ 0x00010eb4  [Function]
+  read                                               @ 0x00010ec0  [Function]
+  strerror                                           @ 0x00010ecc  [Function]
+  pthread_cond_wait                                  @ 0x00010ed8  [Function]
+  memset                                             @ 0x00010ee4  [Function]
+  strncmp                                            @ 0x00010ef0  [Function]
+  strlcpy                                            @ 0x00010efc  [Function]
+  pthread_create                                     @ 0x00010f08  [Function]
+  open                                               @ 0x00010f14  [Function]
+  strcpy                                             @ 0x00010f20  [Function]
+  ioctl                                              @ 0x00010f2c  [Function]
+  __strcpy_chk                                       @ 0x00010f38  [Function]
+  pthread_mutex_init                                 @ 0x00010f44  [Function]
+  pthread_cond_init                                  @ 0x00010f50  [Function]
+  __stack_chk_fail                                   @ 0x00010f5c  [Function]
+  entry                                              @ 0x000110a0  [Function]
+  LAB_00011104                                       @ 0x00011104  [Label]
+  DAT_00011108                                       @ 0x00011108  [Label]
+  DAT_0001110c                                       @ 0x0001110c  [Label]
+  DAT_00011110                                       @ 0x00011110  [Label]
+  DAT_00011114                                       @ 0x00011114  [Label]
+  FUN_00011118                                       @ 0x00011118  [Function]
+  DAT_00011150                                       @ 0x00011150  [Label]
+  FUN_00011170                                       @ 0x00011170  [Function]
+  FUN_0001128c                                       @ 0x0001128c  [Function]
+  LAB_00011296                                       @ 0x00011296  [Label]
+  LAB_000112be                                       @ 0x000112be  [Label]
+  LAB_000112c0                                       @ 0x000112c0  [Label]
+  DAT_000112c4                                       @ 0x000112c4  [Label]
+  DAT_000112c8                                       @ 0x000112c8  [Label]
+  DAT_000112cc                                       @ 0x000112cc  [Label]
+  DAT_000112d0                                       @ 0x000112d0  [Label]
+  FUN_000112d4                                       @ 0x000112d4  [Function]
+  FUN_000112d4+1                                     @ 0x000112d5  [Label]
+  LAB_000112fe                                       @ 0x000112fe  [Label]
+  LAB_00011312                                       @ 0x00011312  [Label]
+  LAB_0001133e                                       @ 0x0001133e  [Label]
+  LAB_0001134e                                       @ 0x0001134e  [Label]
+  LAB_000113c8                                       @ 0x000113c8  [Label]
+  LAB_000113e2                                       @ 0x000113e2  [Label]
+  LAB_000113f4                                       @ 0x000113f4  [Label]
+  LAB_000113fe                                       @ 0x000113fe  [Label]
+  LAB_0001142e                                       @ 0x0001142e  [Label]
+  LAB_00011442                                       @ 0x00011442  [Label]
+  LAB_0001147c                                       @ 0x0001147c  [Label]
+  LAB_0001148a                                       @ 0x0001148a  [Label]
+  LAB_0001148e                                       @ 0x0001148e  [Label]
+  DAT_00011494                                       @ 0x00011494  [Label]
+  DAT_00011498                                       @ 0x00011498  [Label]
+  DAT_0001149c                                       @ 0x0001149c  [Label]
+  DAT_000114a0                                       @ 0x000114a0  [Label]
+  DAT_000114a4                                       @ 0x000114a4  [Label]
+  DAT_000114a8                                       @ 0x000114a8  [Label]
+  DAT_000114ac                                       @ 0x000114ac  [Label]
+  DAT_000114b0                                       @ 0x000114b0  [Label]
+  DAT_000114b4                                       @ 0x000114b4  [Label]
+  DAT_000114b8                                       @ 0x000114b8  [Label]
+  DAT_000114bc                                       @ 0x000114bc  [Label]
+  DAT_000114c0                                       @ 0x000114c0  [Label]
+  DAT_000114c4                                       @ 0x000114c4  [Label]
+  DAT_000114c8                                       @ 0x000114c8  [Label]
+  DAT_000114cc                                       @ 0x000114cc  [Label]
+  DAT_000114d0                                       @ 0x000114d0  [Label]
+  DAT_000114d4                                       @ 0x000114d4  [Label]
+  DAT_000114d8                                       @ 0x000114d8  [Label]
+  DAT_000114dc                                       @ 0x000114dc  [Label]
+  DAT_000114e0                                       @ 0x000114e0  [Label]
+  DAT_000114e4                                       @ 0x000114e4  [Label]
+  DAT_000114e8                                       @ 0x000114e8  [Label]
+  DAT_000114ec                                       @ 0x000114ec  [Label]
+  DAT_000114f0                                       @ 0x000114f0  [Label]
+  DAT_000114f4                                       @ 0x000114f4  [Label]
+  DAT_000114f8                                       @ 0x000114f8  [Label]
+  DAT_000114fc                                       @ 0x000114fc  [Label]
+  DAT_00011500                                       @ 0x00011500  [Label]
+  DAT_00011504                                       @ 0x00011504  [Label]
+  FUN_00011508                                       @ 0x00011508  [Function]
+  FUN_00011508+1                                     @ 0x00011509  [Label]
+  LAB_0001152c                                       @ 0x0001152c  [Label]
+  LAB_0001154c                                       @ 0x0001154c  [Label]
+  LAB_00011574                                       @ 0x00011574  [Label]
+  LAB_00011582                                       @ 0x00011582  [Label]
+  LAB_000115c6                                       @ 0x000115c6  [Label]
+  LAB_000115e8                                       @ 0x000115e8  [Label]
+  LAB_000115f8                                       @ 0x000115f8  [Label]
+  LAB_0001161a                                       @ 0x0001161a  [Label]
+  LAB_00011674                                       @ 0x00011674  [Label]
+  LAB_00011686                                       @ 0x00011686  [Label]
+  LAB_000116b2                                       @ 0x000116b2  [Label]
+  LAB_000116c6                                       @ 0x000116c6  [Label]
+  LAB_00011708                                       @ 0x00011708  [Label]
+  LAB_00011716                                       @ 0x00011716  [Label]
+  LAB_0001171a                                       @ 0x0001171a  [Label]
+  DAT_00011720                                       @ 0x00011720  [Label]
+  DAT_00011724                                       @ 0x00011724  [Label]
+  DAT_00011728                                       @ 0x00011728  [Label]
+  DAT_0001172c                                       @ 0x0001172c  [Label]
+  DAT_00011730                                       @ 0x00011730  [Label]
+  DAT_00011734                                       @ 0x00011734  [Label]
+  DAT_00011738                                       @ 0x00011738  [Label]
+  DAT_0001173c                                       @ 0x0001173c  [Label]
+  DAT_00011740                                       @ 0x00011740  [Label]
+  DAT_00011744                                       @ 0x00011744  [Label]
+  DAT_00011748                                       @ 0x00011748  [Label]
+  DAT_0001174c                                       @ 0x0001174c  [Label]
+  DAT_00011750                                       @ 0x00011750  [Label]
+  DAT_00011754                                       @ 0x00011754  [Label]
+  DAT_00011758                                       @ 0x00011758  [Label]
+  DAT_0001175c                                       @ 0x0001175c  [Label]
+  DAT_00011760                                       @ 0x00011760  [Label]
+  DAT_00011764                                       @ 0x00011764  [Label]
+  DAT_00011768                                       @ 0x00011768  [Label]
+  DAT_0001176c                                       @ 0x0001176c  [Label]
+  DAT_00011770                                       @ 0x00011770  [Label]
+  DAT_00011774                                       @ 0x00011774  [Label]
+  DAT_00011778                                       @ 0x00011778  [Label]
+  DAT_0001177c                                       @ 0x0001177c  [Label]
+  DAT_00011780                                       @ 0x00011780  [Label]
+  DAT_00011784                                       @ 0x00011784  [Label]
+  DAT_00011788                                       @ 0x00011788  [Label]
+  DAT_0001178c                                       @ 0x0001178c  [Label]
+  DAT_00011790                                       @ 0x00011790  [Label]
+  FUN_00011794                                       @ 0x00011794  [Function]
+  FUN_00011794+1                                     @ 0x00011795  [Label]
+  LAB_000117b6                                       @ 0x000117b6  [Label]
+  LAB_000117d4                                       @ 0x000117d4  [Label]
+  LAB_000117fc                                       @ 0x000117fc  [Label]
+  LAB_0001180a                                       @ 0x0001180a  [Label]
+  LAB_0001182e                                       @ 0x0001182e  [Label]
+  LAB_0001185e                                       @ 0x0001185e  [Label]
+  LAB_00011872                                       @ 0x00011872  [Label]
+  LAB_000118ac                                       @ 0x000118ac  [Label]
+  LAB_000118ba                                       @ 0x000118ba  [Label]
+  LAB_000118be                                       @ 0x000118be  [Label]
+  DAT_000118c4                                       @ 0x000118c4  [Label]
+  DAT_000118c8                                       @ 0x000118c8  [Label]
+  DAT_000118cc                                       @ 0x000118cc  [Label]
+  DAT_000118d0                                       @ 0x000118d0  [Label]
+  DAT_000118d4                                       @ 0x000118d4  [Label]
+  DAT_000118d8                                       @ 0x000118d8  [Label]
+  DAT_000118dc                                       @ 0x000118dc  [Label]
+  DAT_000118e0                                       @ 0x000118e0  [Label]
+  DAT_000118e4                                       @ 0x000118e4  [Label]
+  DAT_000118e8                                       @ 0x000118e8  [Label]
+  DAT_000118ec                                       @ 0x000118ec  [Label]
+  DAT_000118f0                                       @ 0x000118f0  [Label]
+  DAT_000118f4                                       @ 0x000118f4  [Label]
+  DAT_000118f8                                       @ 0x000118f8  [Label]
+  DAT_000118fc                                       @ 0x000118fc  [Label]
+  DAT_00011900                                       @ 0x00011900  [Label]
+  DAT_00011904                                       @ 0x00011904  [Label]
+  DAT_00011908                                       @ 0x00011908  [Label]
+  DAT_0001190c                                       @ 0x0001190c  [Label]
+  FUN_00011910                                       @ 0x00011910  [Function]
+  FUN_00011910+1                                     @ 0x00011911  [Label]
+  LAB_00011944                                       @ 0x00011944  [Label]
+  LAB_00011956                                       @ 0x00011956  [Label]
+  LAB_000119b2                                       @ 0x000119b2  [Label]
+  LAB_000119f0                                       @ 0x000119f0  [Label]
+  LAB_00011a00                                       @ 0x00011a00  [Label]
+  LAB_00011a12                                       @ 0x00011a12  [Label]
+  LAB_00011a4e                                       @ 0x00011a4e  [Label]
+  LAB_00011a5a                                       @ 0x00011a5a  [Label]
+  LAB_00011a5c                                       @ 0x00011a5c  [Label]
+  LAB_00011a7a                                       @ 0x00011a7a  [Label]
+  LAB_00011a80                                       @ 0x00011a80  [Label]
+  LAB_00011ac0                                       @ 0x00011ac0  [Label]
+  LAB_00011acc                                       @ 0x00011acc  [Label]
+  LAB_00011ad2                                       @ 0x00011ad2  [Label]
+  LAB_00011afc                                       @ 0x00011afc  [Label]
+  LAB_00011b0e                                       @ 0x00011b0e  [Label]
+  LAB_00011b12                                       @ 0x00011b12  [Label]
+  LAB_00011b30                                       @ 0x00011b30  [Label]
+  LAB_00011b3a                                       @ 0x00011b3a  [Label]
+  LAB_00011b3c                                       @ 0x00011b3c  [Label]
+  LAB_00011b48                                       @ 0x00011b48  [Label]
+  LAB_00011b4c                                       @ 0x00011b4c  [Label]
+  LAB_00011b54                                       @ 0x00011b54  [Label]
+  LAB_00011b78                                       @ 0x00011b78  [Label]
+  LAB_00011baa                                       @ 0x00011baa  [Label]
+  LAB_00011bbe                                       @ 0x00011bbe  [Label]
+  LAB_00011bfe                                       @ 0x00011bfe  [Label]
+  LAB_00011c0c                                       @ 0x00011c0c  [Label]
+  LAB_00011c80                                       @ 0x00011c80  [Label]
+  LAB_00011ca6                                       @ 0x00011ca6  [Label]
+  LAB_00011cce                                       @ 0x00011cce  [Label]
+  LAB_00011cde                                       @ 0x00011cde  [Label]
+  LAB_00011d10                                       @ 0x00011d10  [Label]
+  LAB_00011d22                                       @ 0x00011d22  [Label]
+  LAB_00011d50                                       @ 0x00011d50  [Label]
+  LAB_00011d5e                                       @ 0x00011d5e  [Label]
+  DAT_00011d68                                       @ 0x00011d68  [Label]
+  DAT_00011d6c                                       @ 0x00011d6c  [Label]
+  DAT_00011d70                                       @ 0x00011d70  [Label]
+  DAT_00011d74                                       @ 0x00011d74  [Label]
+  DAT_00011d78                                       @ 0x00011d78  [Label]
+  DAT_00011d7c                                       @ 0x00011d7c  [Label]
+  DAT_00011d80                                       @ 0x00011d80  [Label]
+  DAT_00011d84                                       @ 0x00011d84  [Label]
+  DAT_00011d88                                       @ 0x00011d88  [Label]
+  DAT_00011d8c                                       @ 0x00011d8c  [Label]
+  DAT_00011d90                                       @ 0x00011d90  [Label]
+  DAT_00011d94                                       @ 0x00011d94  [Label]
+  DAT_00011d98                                       @ 0x00011d98  [Label]
+  DAT_00011d9c                                       @ 0x00011d9c  [Label]
+  DAT_00011da0                                       @ 0x00011da0  [Label]
+  DAT_00011da4                                       @ 0x00011da4  [Label]
+  DAT_00011da8                                       @ 0x00011da8  [Label]
+  DAT_00011dac                                       @ 0x00011dac  [Label]
+  DAT_00011db0                                       @ 0x00011db0  [Label]
+  DAT_00011db4                                       @ 0x00011db4  [Label]
+  DAT_00011db8                                       @ 0x00011db8  [Label]
+  DAT_00011dbc                                       @ 0x00011dbc  [Label]
+  DAT_00011dc0                                       @ 0x00011dc0  [Label]
+  DAT_00011dc4                                       @ 0x00011dc4  [Label]
+  DAT_00011dc8                                       @ 0x00011dc8  [Label]
+  DAT_00011dcc                                       @ 0x00011dcc  [Label]
+  DAT_00011dd0                                       @ 0x00011dd0  [Label]
+  DAT_00011dd4                                       @ 0x00011dd4  [Label]
+  DAT_00011dd8                                       @ 0x00011dd8  [Label]
+  DAT_00011ddc                                       @ 0x00011ddc  [Label]
+  DAT_00011de0                                       @ 0x00011de0  [Label]
+  DAT_00011de4                                       @ 0x00011de4  [Label]
+  DAT_00011de8                                       @ 0x00011de8  [Label]
+  DAT_00011dec                                       @ 0x00011dec  [Label]
+  DAT_00011df0                                       @ 0x00011df0  [Label]
+  DAT_00011df4                                       @ 0x00011df4  [Label]
+  DAT_00011df8                                       @ 0x00011df8  [Label]
+  DAT_00011dfc                                       @ 0x00011dfc  [Label]
+  DAT_00011e00                                       @ 0x00011e00  [Label]
+  DAT_00011e04                                       @ 0x00011e04  [Label]
+  DAT_00011e08                                       @ 0x00011e08  [Label]
+  DAT_00011e0c                                       @ 0x00011e0c  [Label]
+  DAT_00011e10                                       @ 0x00011e10  [Label]
+  DAT_00011e14                                       @ 0x00011e14  [Label]
+  DAT_00011e18                                       @ 0x00011e18  [Label]
+  DAT_00011e1c                                       @ 0x00011e1c  [Label]
+  DAT_00011e20                                       @ 0x00011e20  [Label]
+  DAT_00011e24                                       @ 0x00011e24  [Label]
+  DAT_00011e28                                       @ 0x00011e28  [Label]
+  DAT_00011e2c                                       @ 0x00011e2c  [Label]
+  DAT_00011e30                                       @ 0x00011e30  [Label]
+  DAT_00011e34                                       @ 0x00011e34  [Label]
+  DAT_00011e38                                       @ 0x00011e38  [Label]
+  DAT_00011e3c                                       @ 0x00011e3c  [Label]
+  DAT_00011e40                                       @ 0x00011e40  [Label]
+  DAT_00011e44                                       @ 0x00011e44  [Label]
+  DAT_00011e48                                       @ 0x00011e48  [Label]
+  DAT_00011e4c                                       @ 0x00011e4c  [Label]
+  DAT_00011e50                                       @ 0x00011e50  [Label]
+  DAT_00011e54                                       @ 0x00011e54  [Label]
+  DAT_00011e58                                       @ 0x00011e58  [Label]
+  DAT_00011e5c                                       @ 0x00011e5c  [Label]
+  DAT_00011e60                                       @ 0x00011e60  [Label]
+  DAT_00011e64                                       @ 0x00011e64  [Label]
+  DAT_00011e68                                       @ 0x00011e68  [Label]
+  FUN_00011e6c                                       @ 0x00011e6c  [Function]
+  FUN_00011e6c+1                                     @ 0x00011e6d  [Label]
+  LAB_00011ea8                                       @ 0x00011ea8  [Label]
+  LAB_00011ee8                                       @ 0x00011ee8  [Label]
+  LAB_00011f00                                       @ 0x00011f00  [Label]
+  LAB_00011f1c                                       @ 0x00011f1c  [Label]
+  LAB_00011f32                                       @ 0x00011f32  [Label]
+  LAB_00011f40                                       @ 0x00011f40  [Label]
+  LAB_00011f62                                       @ 0x00011f62  [Label]
+  LAB_00011f6c                                       @ 0x00011f6c  [Label]
+  LAB_00011f70                                       @ 0x00011f70  [Label]
+  LAB_00011f8c                                       @ 0x00011f8c  [Label]
+  LAB_00011fd6                                       @ 0x00011fd6  [Label]
+  LAB_00011fe4                                       @ 0x00011fe4  [Label]
+  LAB_00011fea                                       @ 0x00011fea  [Label]
+  LAB_00011ff2                                       @ 0x00011ff2  [Label]
+  LAB_00012014                                       @ 0x00012014  [Label]
+  LAB_00012022                                       @ 0x00012022  [Label]
+  LAB_00012030                                       @ 0x00012030  [Label]
+  LAB_00012038                                       @ 0x00012038  [Label]
+  LAB_00012088                                       @ 0x00012088  [Label]
+  LAB_0001208e                                       @ 0x0001208e  [Label]
+  LAB_000120d8                                       @ 0x000120d8  [Label]
+  LAB_000120ec                                       @ 0x000120ec  [Label]
+  LAB_0001212c                                       @ 0x0001212c  [Label]
+  LAB_0001213a                                       @ 0x0001213a  [Label]
+  LAB_0001213e                                       @ 0x0001213e  [Label]
+  DAT_0001214c                                       @ 0x0001214c  [Label]
+  DAT_00012150                                       @ 0x00012150  [Label]
+  DAT_00012154                                       @ 0x00012154  [Label]
+  DAT_00012158                                       @ 0x00012158  [Label]
+  DAT_0001215c                                       @ 0x0001215c  [Label]
+  DAT_00012160                                       @ 0x00012160  [Label]
+  DAT_00012164                                       @ 0x00012164  [Label]
+  DAT_00012168                                       @ 0x00012168  [Label]
+  DAT_0001216c                                       @ 0x0001216c  [Label]
+  DAT_00012170                                       @ 0x00012170  [Label]
+  DAT_00012174                                       @ 0x00012174  [Label]
+  DAT_00012178                                       @ 0x00012178  [Label]
+  DAT_0001217c                                       @ 0x0001217c  [Label]
+  DAT_00012180                                       @ 0x00012180  [Label]
+  DAT_00012184                                       @ 0x00012184  [Label]
+  DAT_00012188                                       @ 0x00012188  [Label]
+  DAT_0001218c                                       @ 0x0001218c  [Label]
+  DAT_00012190                                       @ 0x00012190  [Label]
+  DAT_00012194                                       @ 0x00012194  [Label]
+  DAT_00012198                                       @ 0x00012198  [Label]
+  DAT_0001219c                                       @ 0x0001219c  [Label]
+  DAT_000121a0                                       @ 0x000121a0  [Label]
+  DAT_000121a4                                       @ 0x000121a4  [Label]
+  DAT_000121a8                                       @ 0x000121a8  [Label]
+  DAT_000121ac                                       @ 0x000121ac  [Label]
+  DAT_000121b0                                       @ 0x000121b0  [Label]
+  DAT_000121b4                                       @ 0x000121b4  [Label]
+  DAT_000121b8                                       @ 0x000121b8  [Label]
+  DAT_000121bc                                       @ 0x000121bc  [Label]
+  DAT_000121c0                                       @ 0x000121c0  [Label]
+  DAT_000121c4                                       @ 0x000121c4  [Label]
+  DAT_000121c8                                       @ 0x000121c8  [Label]
+  DAT_000121cc                                       @ 0x000121cc  [Label]
+  DAT_000121d0                                       @ 0x000121d0  [Label]
+  DAT_000121d4                                       @ 0x000121d4  [Label]
+  DAT_000121d8                                       @ 0x000121d8  [Label]
+  DAT_000121dc                                       @ 0x000121dc  [Label]
+  DAT_000121e0                                       @ 0x000121e0  [Label]
+  LAB_000121e4                                       @ 0x000121e4  [Label]
+  LAB_0001221a                                       @ 0x0001221a  [Label]
+  LAB_00012232                                       @ 0x00012232  [Label]
+  LAB_0001223e                                       @ 0x0001223e  [Label]
+  LAB_00012242                                       @ 0x00012242  [Label]
+  DAT_00012248                                       @ 0x00012248  [Label]
+  DAT_0001224c                                       @ 0x0001224c  [Label]
+  DAT_00012250                                       @ 0x00012250  [Label]
+  DAT_00012319                                       @ 0x00012319  [Label]
+  LAB_00012ea0                                       @ 0x00012ea0  [Label]
+  LAB_00012ea4                                       @ 0x00012ea4  [Label]
+  DAT_00012eac                                       @ 0x00012eac  [Label]
+  DAT_00012ec0                                       @ 0x00012ec0  [Label]
+  DAT_00012ed8                                       @ 0x00012ed8  [Label]
+  DAT_00012f38                                       @ 0x00012f38  [Label]
+  DAT_00012f60                                       @ 0x00012f60  [Label]
+  DAT_00012f7e                                       @ 0x00012f7e  [Label]
+  DAT_00012f8e                                       @ 0x00012f8e  [Label]
+  s_rmt_storage_rw_iovec_cb_00012fcc+1               @ 0x00012fcd  [Label]
+  s_rmt_storage_alloc_buff_cb_00012fe5               @ 0x00012fe5  [Label]
+  s_rmt_storage_get_client_00013019                  @ 0x00013019  [Label]
+  s_rmt_storage_00013030                             @ 0x00013030  [Label]
+  s_%s:_No_client_found_for_hndl=%d_000130fe         @ 0x000130fe  [Label]
+  s_%s:_Invalid_rmt_storage_client_0001311f          @ 0x0001311f  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__0001313f        @ 0x0001313f  [Label]
+  s_***Alloc_request_received:_Size:_00013188        @ 0x00013188  [Label]
+  s_/boot/modem_fs1_000131ac                         @ 0x000131ac  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__000131bc        @ 0x000131bc  [Label]
+  s_***Mmap_on_0x%lx_failed_(%d)_000131fe            @ 0x000131fe  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__0001321b        @ 0x0001321b  [Label]
+  s_***Send_response:_res=%d_err=%d_00013260         @ 0x00013260  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__00013280        @ 0x00013280  [Label]
+  s_***qmi_csi_send_resp_returned_er_000132cc        @ 0x000132cc  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__000132f3        @ 0x000132f3  [Label]
+  s_***R/W_request_received_00013330                 @ 0x00013330  [Label]
+  s_/boot/modem_fs2_00013348                         @ 0x00013348  [Label]
+  s_/boot/modem_fsg_00013358                         @ 0x00013358  [Label]
+  s_/boot/modem_fsc_00013368                         @ 0x00013368  [Label]
+  s_Shared_mem_address_set_to_0x%016_00013378        @ 0x00013378  [Label]
+  s_wakelock_acquired:_%d,_error_no:_0001339b        @ 0x0001339b  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__000133c0        @ 0x000133c0  [Label]
+  s_***Close_request_received_000133ff               @ 0x000133ff  [Label]
+  s_Write_00013419                                   @ 0x00013419  [Label]
+  s_written_00013424                                 @ 0x00013424  [Label]
+  DAT_0001342c                                       @ 0x0001342c  [Label]
+  s_%s:_%s:_clnt_h=%p_Worker_thread_s_00013431       @ 0x00013431  [Label]
+  s_***Worker_thread_started_0001345a                @ 0x0001345a  [Label]
+  s_rmt_storage_%ld_00013473                         @ 0x00013473  [Label]
+  s_wake_lock_name:_%s,_name_creatio_00013483        @ 0x00013483  [Label]
+  s_%s:_%s:_clnt_h=%p_No_shared_memo_000134b2        @ 0x000134b2  [Label]
+  s_***No_shared_memory_found_000134dc               @ 0x000134dc  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__000134f6        @ 0x000134f6  [Label]
+  s_***%s_failed_errno_=_%d_error_st_00013545        @ 0x00013545  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__0001356f        @ 0x0001356f  [Label]
+  s_***Bytes_%s_=_%d_000135a5                        @ 0x000135a5  [Label]
+  s_%s:_%s:_clnt_h=%p_About_to_block_000135b6        @ 0x000135b6  [Label]
+  s_***About_to_block_rmt_storage_cl_00013624        @ 0x00013624  [Label]
+  s_%s:_%s:_clnt_h=%p_About_to_block_00013682        @ 0x00013682  [Label]
+  s_***About_to_block_rmt_storage_cl_000136cc        @ 0x000136cc  [Label]
+  s_%s:_%s:_clnt_h=%p_Unblock_worker_00013706        @ 0x00013706  [Label]
+  s_***Unblock_worker_thread_(th_id:_0001373c        @ 0x0001373c  [Label]
+  s_%s:_%s:_clnt_h=%p_Worker_thread_e_00013762       @ 0x00013762  [Label]
+  s_***Worker_thread_exiting_0001378b                @ 0x0001378b  [Label]
+  s_%s:_Invalid_rmt_storage_client_f_000137a4        @ 0x000137a4  [Label]
+  s_%s:_Unable_to_open_%s_000137cb                   @ 0x000137cb  [Label]
+  s_%s:_%s:_clnt_h=%p_Unable_to_crea_000137e2        @ 0x000137e2  [Label]
+  s_***Unable_to_create_a_pthread_00013810           @ 0x00013810  [Label]
+  s_%s:_%s:_clnt_h=%p:_req_h=%p_msg__0001382e        @ 0x0001382e  [Label]
+  s_***Client_found_00013863                         @ 0x00013863  [Label]
+  s_/dev/himidevice_00013873                         @ 0x00013873  [Label]
+  s_himitest12345868_00013883                        @ 0x00013883  [Label]
+  s_Send_response:_res=%d_err=%s_00013894            @ 0x00013894  [Label]
+  s_Send_response:_res=%d_sn=%s_000138b1             @ 0x000138b1  [Label]
+  s_%s:_Maximum_number_of_clients_re_000138cd        @ 0x000138cd  [Label]
+  s_rmt_storage_client_thread_00013e8d               @ 0x00013e8d  [Label]
+  s_rmt_storage_close_cb_00013ec1                    @ 0x00013ec1  [Label]
+  s_rmt_storage_init_client_00013ed6                 @ 0x00013ed6  [Label]
+  s_rmt_storage_open_cb_00013f05                     @ 0x00013f05  [Label]
+  DAT_00013f1c                                       @ 0x00013f1c  [Label]
+  DAT_00015d08                                       @ 0x00015d08  [Label]
+  DAT_00015d10                                       @ 0x00015d10  [Label]
+  DAT_00015d58                                       @ 0x00015d58  [Label]
+  __DT_PREINIT_ARRAY                                 @ 0x00015dc4  [Label]
+  __DT_INIT_ARRAY                                    @ 0x00015dcc  [Label]
+  __DT_FINI_ARRAY                                    @ 0x00015dd4  [Label]
+  _DYNAMIC                                           @ 0x00015ddc  [Label]
+  PTR___DT_PREINIT_ARRAY_00015eec                    @ 0x00015eec  [Label]
+  PTR___DT_INIT_ARRAY_00015ef0                       @ 0x00015ef0  [Label]
+  PTR___DT_FINI_ARRAY_00015ef4                       @ 0x00015ef4  [Label]
+  PTR_DAT_00015ef8                                   @ 0x00015ef8  [Label]
+  PTR_DAT_00015efc                                   @ 0x00015efc  [Label]
+  PTR___stack_chk_guard_00015f00                     @ 0x00015f00  [Label]
+  __DT_PLTGOT                                        @ 0x00015f08  [Label]
+  PTR_00015f10                                       @ 0x00015f10  [Label]
+  PTR___libc_init_00015f14                           @ 0x00015f14  [Label]
+  PTR___cxa_atexit_00015f18                          @ 0x00015f18  [Label]
+  PTR_pthread_mutex_destroy_00015f1c                 @ 0x00015f1c  [Label]
+  PTR_pthread_cond_destroy_00015f20                  @ 0x00015f20  [Label]
+  PTR___android_log_print_00015f24                   @ 0x00015f24  [Label]
+  PTR_strcmp_00015f30                                @ 0x00015f30  [Label]
+  PTR_mmap_00015f34                                  @ 0x00015f34  [Label]
+  PTR___errno_00015f38                               @ 0x00015f38  [Label]
+  PTR_qmi_csi_send_resp_00015f3c                     @ 0x00015f3c  [Label]
+  PTR_pthread_mutex_lock_00015f40                    @ 0x00015f40  [Label]
+  PTR_write_00015f44                                 @ 0x00015f44  [Label]
+  PTR_pthread_mutex_unlock_00015f48                  @ 0x00015f48  [Label]
+  PTR_pthread_cond_signal_00015f4c                   @ 0x00015f4c  [Label]
+  PTR_close_00015f50                                 @ 0x00015f50  [Label]
+  PTR_snprintf_00015f54                              @ 0x00015f54  [Label]
+  PTR_strlen_00015f58                                @ 0x00015f58  [Label]
+  PTR_lseek_00015f5c                                 @ 0x00015f5c  [Label]
+  PTR_read_00015f60                                  @ 0x00015f60  [Label]
+  PTR_strerror_00015f64                              @ 0x00015f64  [Label]
+  PTR_pthread_cond_wait_00015f68                     @ 0x00015f68  [Label]
+  PTR_memset_00015f6c                                @ 0x00015f6c  [Label]
+  PTR_strncmp_00015f70                               @ 0x00015f70  [Label]
+  PTR_strlcpy_00015f74                               @ 0x00015f74  [Label]
+  PTR_pthread_create_00015f78                        @ 0x00015f78  [Label]
+  PTR_open_00015f7c                                  @ 0x00015f7c  [Label]
+  PTR_strcpy_00015f80                                @ 0x00015f80  [Label]
+  PTR_ioctl_00015f84                                 @ 0x00015f84  [Label]
+  PTR___strcpy_chk_00015f88                          @ 0x00015f88  [Label]
+  PTR_pthread_mutex_init_00015f8c                    @ 0x00015f8c  [Label]
+  PTR_pthread_cond_init_00015f90                     @ 0x00015f90  [Label]
+  PTR___stack_chk_fail_00015f94                      @ 0x00015f94  [Label]
+  PTR_DAT_00016000                                   @ 0x00016000  [Label]
+  s_/boot/modem_fs1_00016089                         @ 0x00016089  [Label]
+  DAT_000160cc                                       @ 0x000160cc  [Label]
+  s_/boot/modem_fs2_00016151                         @ 0x00016151  [Label]
+  DAT_00016648                                       @ 0x00016648  [Label]
+  DAT_0001664c                                       @ 0x0001664c  [Label]
+  DAT_00016650                                       @ 0x00016650  [Label]
+  DAT_00016664                                       @ 0x00016664  [Label]
+  DAT_000166dc                                       @ 0x000166dc  [Label]
+  DAT_00016704                                       @ 0x00016704  [Label]
+  DAT_00016708                                       @ 0x00016708  [Label]
+  DAT_0001670c                                       @ 0x0001670c  [Label]
+  DAT_00016710                                       @ 0x00016710  [Label]
+  DAT_00016714                                       @ 0x00016714  [Label]
+  DAT_00016718                                       @ 0x00016718  [Label]
+  DAT_0001671c                                       @ 0x0001671c  [Label]
+  DAT_00016788                                       @ 0x00016788  [Label]
+  DAT_00016794                                       @ 0x00016794  [Label]
+  DAT_00016d80                                       @ 0x00016d80  [Label]
+  DAT_00016d84                                       @ 0x00016d84  [Label]
+  DAT_00016d88                                       @ 0x00016d88  [Label]
+  DAT_00016d90                                       @ 0x00016d90  [Label]
+  DAT_00016d94                                       @ 0x00016d94  [Label]
+  DAT_00016d98                                       @ 0x00016d98  [Label]
+  DAT_00016d9c                                       @ 0x00016d9c  [Label]
+  DAT_00016da0                                       @ 0x00016da0  [Label]
+  __libc_init                                        @ 0x00017000  [Function]
+  __cxa_atexit                                       @ 0x00017004  [Function]
+  __aeabi_unwind_cpp_pr0                             @ 0x00017008  [Function]
+  common_qmi_idl_type_table_object_v01               @ 0x0001700c  [Label]
+  pthread_mutex_destroy                              @ 0x00017010  [Function]
+  pthread_cond_destroy                               @ 0x00017014  [Function]
+  __android_log_print                                @ 0x00017018  [Function]
+  free                                               @ 0x0001701c  [Function]
+  malloc                                             @ 0x00017020  [Function]
+  strcmp                                             @ 0x00017024  [Function]
+  mmap                                               @ 0x00017028  [Function]
+  __errno                                            @ 0x0001702c  [Function]
+  qmi_csi_send_resp                                  @ 0x00017030  [Function]
+  pthread_mutex_lock                                 @ 0x00017034  [Function]
+  write                                              @ 0x00017038  [Function]
+  pthread_mutex_unlock                               @ 0x0001703c  [Function]
+  pthread_cond_signal                                @ 0x00017040  [Function]
+  close                                              @ 0x00017044  [Function]
+  snprintf                                           @ 0x00017048  [Function]
+  strlen                                             @ 0x0001704c  [Function]
+  lseek                                              @ 0x00017050  [Function]
+  read                                               @ 0x00017054  [Function]
+  strerror                                           @ 0x00017058  [Function]
+  pthread_cond_wait                                  @ 0x0001705c  [Function]
+  memset                                             @ 0x00017060  [Function]
+  strncmp                                            @ 0x00017064  [Function]
+  strlcpy                                            @ 0x00017068  [Function]
+  pthread_create                                     @ 0x0001706c  [Function]
+  open                                               @ 0x00017070  [Function]
+  strcpy                                             @ 0x00017074  [Function]
+  ioctl                                              @ 0x00017078  [Function]
+  __strcpy_chk                                       @ 0x0001707c  [Function]
+  __stack_chk_guard                                  @ 0x00017080  [Label]
+  pthread_mutex_init                                 @ 0x00017084  [Function]
+  pthread_cond_init                                  @ 0x00017088  [Function]
+  __stack_chk_fail                                   @ 0x0001708c  [Function]
+  lseek64                                            @ 0x00017090  [Function]
+  property_get                                       @ 0x00017094  [Function]
+  property_set                                       @ 0x00017098  [Function]
+  ioprio_set                                         @ 0x0001709c  [Function]
+  chdir                                              @ 0x000170a0  [Function]
+  opendir                                            @ 0x000170a4  [Function]
+  strstr                                             @ 0x000170a8  [Function]
+  fopen                                              @ 0x000170ac  [Function]
+  fgets                                              @ 0x000170b0  [Function]
+  ferror                                             @ 0x000170b4  [Function]
+  __strrchr_chk                                      @ 0x000170b8  [Function]
+  strcasecmp                                         @ 0x000170bc  [Function]
+  fclose                                             @ 0x000170c0  [Function]
+  readdir                                            @ 0x000170c4  [Function]
+  closedir                                           @ 0x000170c8  [Function]
+  exit                                               @ 0x000170cc  [Function]
+  prctl                                              @ 0x000170d0  [Function]
+  setgid                                             @ 0x000170d4  [Function]
+  setuid                                             @ 0x000170d8  [Function]
+  capset                                             @ 0x000170dc  [Function]
+  qmi_csi_register                                   @ 0x000170e0  [Function]
+  __isthreaded                                       @ 0x000170e4  [Label]
+  memcpy                                             @ 0x000170e8  [Function]
+  select                                             @ 0x000170ec  [Function]
+  qmi_csi_handle_event                               @ 0x000170f0  [Function]
+  getcwd                                             @ 0x000170f4  [Function]
+  strtoul                                            @ 0x000170f8  [Function]
+  __aeabi_unwind_cpp_pr1                             @ 0x000170fc  [Function]
+  DAT_.ARM.attributes__00000000                      @ 0x.ARM.attributes::00000000  [Label]
+  ElfComment[0]                                      @ 0x.comment::00000000  [Label]
+  ElfComment[1]                                      @ 0x.comment::00000001  [Label]
+  GnuDebugLink_12_.gnu_debuglink__00000000           @ 0x.gnu_debuglink::00000000  [Label]
+  DAT_.note.gnu.gold-version__00000000               @ 0x.note.gnu.gold-version::00000000  [Label]
+  DAT_.shstrtab__00000000                            @ 0x.shstrtab::00000000  [Label]
+  Elf32_Shdr_ARRAY__elfSectionHeaders__00000000      @ 0x_elfSectionHeaders::00000000  [Label]
+
+=== SECTION 2: ALL FUNCTIONS DECOMPILED ===
+
+Total functions: 101
+
+════════════════════════════════════════
+FUNCTION: __libc_init @ 0x00010ddc  (12 bytes)
+════════════════════════════════════════
+
+void __libc_init(void)
+
+{
+  (*(code *)PTR___libc_init_00015f14)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __cxa_atexit @ 0x00010de8  (12 bytes)
+════════════════════════════════════════
+
+void __cxa_atexit(void)
+
+{
+  (*(code *)PTR___cxa_atexit_00015f18)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_destroy @ 0x00010df4  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_destroy(pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_destroy_00015f1c)(__mutex);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_destroy @ 0x00010e00  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_destroy(pthread_cond_t *__cond)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_destroy_00015f20)(__cond);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __android_log_print @ 0x00010e0c  (12 bytes)
+════════════════════════════════════════
+
+void __android_log_print(void)
+
+{
+  (*(code *)PTR___android_log_print_00015f24)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strcmp @ 0x00010e30  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strcmp(char *__s1,char *__s2)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_strcmp_00015f30)(__s1);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: mmap @ 0x00010e3c  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * mmap(void *__addr,size_t __len,int __prot,int __flags,int __fd,__off_t __offset)
+
+{
+  void *pvVar1;
+  
+  pvVar1 = (void *)(*(code *)PTR_mmap_00015f34)(__addr);
+  return pvVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __errno @ 0x00010e48  (12 bytes)
+════════════════════════════════════════
+
+void __errno(void)
+
+{
+  (*(code *)PTR___errno_00015f38)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: qmi_csi_send_resp @ 0x00010e54  (12 bytes)
+════════════════════════════════════════
+
+void qmi_csi_send_resp(void)
+
+{
+  (*(code *)PTR_qmi_csi_send_resp_00015f3c)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_lock @ 0x00010e60  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_lock(pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_lock_00015f40)(__mutex);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: write @ 0x00010e6c  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t write(int __fd,void *__buf,size_t __n)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_write_00015f44)(__fd);
+  return sVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_unlock @ 0x00010e78  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_unlock(pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_unlock_00015f48)(__mutex);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_signal @ 0x00010e84  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_signal(pthread_cond_t *__cond)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_signal_00015f4c)(__cond);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: close @ 0x00010e90  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int close(int __fd)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_close_00015f50)(__fd);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: snprintf @ 0x00010e9c  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int snprintf(char *__s,size_t __maxlen,char *__format,...)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_snprintf_00015f54)(__s);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strlen @ 0x00010ea8  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+size_t strlen(char *__s)
+
+{
+  size_t sVar1;
+  
+  sVar1 = (*(code *)PTR_strlen_00015f58)(__s);
+  return sVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: lseek @ 0x00010eb4  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+__off_t lseek(int __fd,__off_t __offset,int __whence)
+
+{
+  __off_t _Var1;
+  
+  _Var1 = (*(code *)PTR_lseek_00015f5c)(__fd);
+  return _Var1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: read @ 0x00010ec0  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t read(int __fd,void *__buf,size_t __nbytes)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_read_00015f60)(__fd);
+  return sVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strerror @ 0x00010ecc  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * strerror(int __errnum)
+
+{
+  char *pcVar1;
+  
+  pcVar1 = (char *)(*(code *)PTR_strerror_00015f64)(__errnum);
+  return pcVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_wait @ 0x00010ed8  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_wait(pthread_cond_t *__cond,pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_wait_00015f68)(__cond);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: memset @ 0x00010ee4  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * memset(void *__s,int __c,size_t __n)
+
+{
+  void *pvVar1;
+  
+  pvVar1 = (void *)(*(code *)PTR_memset_00015f6c)(__s);
+  return pvVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strncmp @ 0x00010ef0  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strncmp(char *__s1,char *__s2,size_t __n)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_strncmp_00015f70)(__s1);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strlcpy @ 0x00010efc  (12 bytes)
+════════════════════════════════════════
+
+void strlcpy(void)
+
+{
+  (*(code *)PTR_strlcpy_00015f74)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_create @ 0x00010f08  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_create(pthread_t *__newthread,pthread_attr_t *__attr,__start_routine *__start_routine,
+                  void *__arg)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_create_00015f78)(__newthread);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: open @ 0x00010f14  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int open(char *__file,int __oflag,...)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_open_00015f7c)(__file);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strcpy @ 0x00010f20  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * strcpy(char *__dest,char *__src)
+
+{
+  char *pcVar1;
+  
+  pcVar1 = (char *)(*(code *)PTR_strcpy_00015f80)(__dest);
+  return pcVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: ioctl @ 0x00010f2c  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int ioctl(int __fd,ulong __request,...)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_ioctl_00015f84)(__fd);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __strcpy_chk @ 0x00010f38  (12 bytes)
+════════════════════════════════════════
+
+void __strcpy_chk(void)
+
+{
+  (*(code *)PTR___strcpy_chk_00015f88)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_init @ 0x00010f44  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_init(pthread_mutex_t *__mutex,pthread_mutexattr_t *__mutexattr)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_init_00015f8c)(__mutex);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_init @ 0x00010f50  (12 bytes)
+════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_init(pthread_cond_t *__cond,pthread_condattr_t *__cond_attr)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_init_00015f90)(__cond);
+  return iVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __stack_chk_fail @ 0x00010f5c  (12 bytes)
+════════════════════════════════════════
+
+void __stack_chk_fail(void)
+
+{
+  (*(code *)PTR___stack_chk_fail_00015f94)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: entry @ 0x000110a0  (104 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void processEntry entry(void)
+
+{
+  int iVar1;
+  undefined4 local_18;
+  undefined4 local_14;
+  undefined4 local_10;
+  
+  iVar1 = iRam00011104 + 0x110b8;
+  local_18 = *(undefined4 *)(iVar1 + DAT_00011108);
+  local_14 = *(undefined4 *)(iVar1 + DAT_0001110c);
+  local_10 = *(undefined4 *)(iVar1 + DAT_00011110);
+  __libc_init(&stack0x00000000,0,*(undefined4 *)(iVar1 + DAT_00011114),&local_18);
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00011118 @ 0x00011118  (56 bytes)
+════════════════════════════════════════
+
+undefined4 FUN_00011118(undefined4 param_1)
+
+{
+  undefined4 uVar1;
+  
+  uVar1 = __cxa_atexit(param_1,0,DAT_00011150 + 0x1113c);
+  return uVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00011170 @ 0x00011170  (30 bytes)
+════════════════════════════════════════
+
+void FUN_00011170(int param_1)
+
+{
+  *(undefined4 *)(param_1 + 4) = 0;
+  pthread_mutex_destroy((pthread_mutex_t *)(param_1 + 0xc));
+  (*(code *)(&UNK_00012eb0 + DAT_00012eac))(param_1 + 0x10);
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_0001128c @ 0x0001128c  (54 bytes)
+════════════════════════════════════════
+
+undefined8 FUN_0001128c(int param_1,undefined4 param_2,undefined4 param_3)
+
+{
+  int iVar1;
+  
+  iVar1 = 0;
+  do {
+    if (*(int *)(iVar1 * 0xb8 + DAT_000112c4 + 0x11298) == param_1) {
+      iVar1 = DAT_000112c4 + 0x11298 + iVar1 * 0xb8;
+      goto LAB_000112c0;
+    }
+    iVar1 = iVar1 + 1;
+  } while (iVar1 != 10);
+  __android_log_print(4,DAT_000112c8 + 0x112b0,DAT_000112cc + 0x112b4,DAT_000112d0 + 0x112b8,param_1
+                      ,param_2,param_3);
+  iVar1 = 0;
+LAB_000112c0:
+  return CONCAT44(param_1,iVar1);
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_000112d4 @ 0x000112d4  (448 bytes)
+════════════════════════════════════════
+
+undefined4
+FUN_000112d4(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 *param_4)
+
+{
+  int iVar1;
+  void *pvVar2;
+  undefined4 *puVar3;
+  int iVar4;
+  undefined4 uVar5;
+  int iVar6;
+  int *piVar7;
+  undefined4 local_40;
+  int local_3c;
+  undefined1 local_38;
+  int local_30;
+  int local_2c;
+  
+  iVar1 = FUN_0001128c(*param_4);
+  local_40 = 0;
+  iVar6 = DAT_00011498 + 0x112f2;
+  local_3c = 0;
+  if ((iVar1 == 0) || (*(int *)(iVar1 + 4) != DAT_00011494)) {
+    __android_log_print(4,DAT_0001149c + 0x1130a,DAT_000114a0 + 0x1130c,DAT_000114a4 + 0x1130e);
+LAB_000113f4:
+    local_40 = 1;
+    local_3c = 3;
+    if (iVar1 != 0) goto LAB_000113fe;
+  }
+  else {
+    if (*(int *)(iVar1 + 0x90) == 0) {
+      __android_log_print(4,DAT_000114b4 + 0x11348,DAT_000114b8 + 0x1134c,param_4[1]);
+    }
+    else {
+      __android_log_print(4,DAT_000114a8 + 0x11334,DAT_000114b0 + 0x1133a,DAT_000114ac + 0x11338,
+                          iVar1 + 0x18,*(undefined4 *)(*(int *)(iVar1 + 0x90) + 4),param_2,param_3,
+                          param_4[1]);
+    }
+    iVar4 = strcmp((char *)(iVar1 + 0x18),(char *)(DAT_000114bc + 0x1135a));
+    if (iVar4 == 0) {
+      piVar7 = (int *)(DAT_000114c0 + 0x1136a);
+      iVar4 = *(int *)(DAT_000114c4 + 0x1136c);
+      if (*piVar7 == 0) {
+        pvVar2 = mmap((void *)0x0,param_4[1],3,1,**(int **)(iVar6 + DAT_000114c8),0);
+        *piVar7 = (int)pvVar2;
+        if (pvVar2 == (void *)0xffffffff) {
+          if (*(int *)(iVar1 + 0x90) == 0) {
+            puVar3 = (undefined4 *)__errno();
+            __android_log_print(4,DAT_000114d8 + 0x113d4,DAT_000114dc + 0x113d6,iVar4,*puVar3);
+          }
+          else {
+            uVar5 = *(undefined4 *)(*(int *)(iVar1 + 0x90) + 4);
+            puVar3 = (undefined4 *)__errno();
+            __android_log_print(4,DAT_000114cc + 0x113ac,DAT_000114d0 + 0x113ae,
+                                DAT_000114d4 + 0x113b0,(char *)(iVar1 + 0x18),uVar5,param_2,param_3,
+                                iVar4,*puVar3);
+          }
+          goto LAB_000113f4;
+        }
+      }
+      local_2c = iVar4 >> 0x1f;
+      local_38 = 1;
+      local_30 = iVar4;
+    }
+LAB_000113fe:
+    if (*(int *)(iVar1 + 0x90) != 0) {
+      iVar6 = iVar1 + 0x18;
+      __android_log_print(4,DAT_000114e0 + 0x1141e,DAT_000114e4 + 0x11422,DAT_000114e8 + 0x1142a,
+                          iVar6,*(undefined4 *)(*(int *)(iVar1 + 0x90) + 4),param_2,param_3,local_40
+                          ,local_3c);
+      goto LAB_00011442;
+    }
+  }
+  iVar6 = local_3c;
+  __android_log_print(4,DAT_000114ec + 0x1143a,DAT_000114f0 + 0x1143e,local_40,local_3c);
+LAB_00011442:
+  iVar4 = qmi_csi_send_resp(param_2,param_3,&local_40,0x18);
+  uVar5 = 0;
+  if (iVar4 != 0) {
+    if ((iVar1 == 0) || (*(int *)(iVar1 + 0x90) == 0)) {
+      __android_log_print(4,DAT_00011500 + 0x11486,DAT_00011504 + 0x11488,iVar4,iVar6);
+    }
+    else {
+      __android_log_print(4,DAT_000114f8 + 0x1146e,DAT_000114fc + 0x11476,DAT_000114f4 + 0x1146a,
+                          iVar1 + 0x18,*(undefined4 *)(*(int *)(iVar1 + 0x90) + 4),param_2,param_3,
+                          iVar4);
+    }
+    uVar5 = 3;
+  }
+  return uVar5;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00011508 @ 0x00011508  (536 bytes)
+════════════════════════════════════════
+
+undefined4
+FUN_00011508(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 *param_4)
+
+{
+  int iVar1;
+  undefined4 *puVar2;
+  ssize_t sVar3;
+  undefined4 uVar4;
+  int iVar5;
+  uint uVar6;
+  pthread_mutex_t *__mutex;
+  int iVar7;
+  int iVar8;
+  char *__s1;
+  undefined4 local_28;
+  int local_24;
+  
+  local_28 = 0;
+  local_24 = 0;
+  iVar1 = FUN_0001128c(*param_4);
+  if ((iVar1 == 0) || (*(int *)(iVar1 + 4) != DAT_00011720)) {
+    iVar8 = DAT_00011724 + 0x11538;
+    iVar7 = DAT_00011728 + 0x1153c;
+    __android_log_print(4,iVar8,DAT_0001172c + 0x11540,iVar7);
+    if ((iVar1 == 0) || (*(int *)(iVar1 + 0x90) == 0)) {
+      __android_log_print(4,DAT_00011778 + 0x116c0,DAT_0001177c + 0x116c4,local_28,local_24);
+      iVar5 = local_24;
+    }
+    else {
+      iVar5 = iVar1 + 0x18;
+      __android_log_print(4,iVar8,DAT_00011774 + 0x116a8,iVar7,iVar5,
+                          *(undefined4 *)(*(int *)(iVar1 + 0x90) + 4),param_2,param_3,local_28,
+                          local_24);
+    }
+    local_28 = 1;
+    local_24 = 3;
+    iVar7 = qmi_csi_send_resp(param_2,param_3,&local_28,8);
+    uVar4 = 0;
+    if (iVar7 != 0) {
+      if ((iVar1 == 0) || (*(int *)(iVar1 + 0x90) == 0)) {
+        __android_log_print(4,DAT_0001178c + 0x11712,DAT_00011790 + 0x11714,iVar7,iVar5);
+      }
+      else {
+        __android_log_print(4,DAT_00011784 + 0x116fc,DAT_00011780 + 0x116f6,DAT_00011788 + 0x11704,
+                            iVar1 + 0x18,*(undefined4 *)(*(int *)(iVar1 + 0x90) + 4),param_2,param_3
+                            ,iVar7);
+      }
+      uVar4 = 3;
+    }
+  }
+  else {
+    if (*(int *)(iVar1 + 0x90) == 0) {
+      __android_log_print(4,DAT_0001173c + 0x1157e,DAT_00011740 + 0x11580);
+    }
+    else {
+      __android_log_print(4,DAT_00011734 + 0x11568,DAT_00011730 + 0x11564,DAT_00011738 + 0x11570,
+                          iVar1 + 0x18,*(undefined4 *)(*(int *)(iVar1 + 0x90) + 4),param_2,param_3);
+    }
+    pthread_mutex_lock((pthread_mutex_t *)(iVar1 + 0xc));
+    if (*(int *)(iVar1 + 0x84) == 0) {
+      __s1 = (char *)(iVar1 + 0x18);
+      iVar7 = strcmp(__s1,(char *)(DAT_00011744 + 0x1159e));
+      if ((((iVar7 == 0) || (iVar7 = strcmp(__s1,(char *)(DAT_00011748 + 0x115aa)), iVar7 == 0)) ||
+          (iVar7 = strcmp(__s1,(char *)(DAT_0001174c + 0x115b6)), iVar7 == 0)) ||
+         (iVar7 = strcmp(__s1,(char *)(DAT_00011750 + 0x115c2)), iVar7 == 0)) {
+        iVar7 = DAT_00011760;
+        puVar2 = (undefined4 *)(DAT_00011758 + 0x115d2);
+        iVar8 = DAT_0001175c + 0x115d6;
+        *(undefined4 *)(iVar1 + 0x80) = *(undefined4 *)(DAT_00011754 + 0x115ce);
+        *(undefined4 *)(iVar1 + 0x84) = *puVar2;
+        __android_log_print(4,iVar7 + 0x115de,iVar8);
+      }
+    }
+    *(undefined4 *)(iVar1 + 0x74) = param_4[1];
+    *(undefined4 *)(iVar1 + 0x78) = param_4[2];
+    for (uVar6 = 0; uVar6 < (uint)param_4[2]; uVar6 = uVar6 + 1) {
+      iVar8 = uVar6 * 0xc + 0x38;
+      iVar7 = iVar1 + iVar8;
+      *(undefined4 *)(iVar1 + iVar8) = param_4[uVar6 * 3 + 3];
+      *(undefined4 *)(iVar7 + 4) = param_4[uVar6 * 3 + 4];
+      *(undefined4 *)(iVar7 + 8) = param_4[uVar6 * 3 + 5];
+    }
+    *(undefined4 *)(iVar1 + 0x8c) = param_2;
+    iVar7 = DAT_00011764;
+    *(undefined4 *)(iVar1 + 0x88) = param_3;
+    if (*(int *)(iVar7 + 0x1162e) != 0) {
+      __mutex = (pthread_mutex_t *)(DAT_00011768 + 0x11636);
+      pthread_mutex_lock(__mutex);
+      sVar3 = write(*(int *)(iVar7 + 0x1162e),(void *)(iVar1 + 0x94),*(size_t *)(iVar1 + 0xb4));
+      pthread_mutex_unlock(__mutex);
+      iVar7 = *(int *)(iVar1 + 0xb4);
+      puVar2 = (undefined4 *)__errno();
+      __android_log_print(4,DAT_0001176c + 0x11668,DAT_00011770 + 0x1166a,sVar3 == iVar7,*puVar2);
+    }
+    pthread_cond_signal((pthread_cond_t *)(iVar1 + 0x10));
+    pthread_mutex_unlock((pthread_mutex_t *)(iVar1 + 0xc));
+    uVar4 = 0;
+  }
+  return uVar4;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00011794 @ 0x00011794  (304 bytes)
+════════════════════════════════════════
+
+undefined4
+FUN_00011794(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 *param_4)
+
+{
+  int *piVar1;
+  int iVar2;
+  undefined4 uVar3;
+  int *piVar4;
+  undefined4 local_20;
+  int *local_1c;
+  
+  local_20 = 0;
+  local_1c = (int *)0x0;
+  piVar1 = (int *)FUN_0001128c(*param_4);
+  if ((piVar1 == (int *)0x0) || (piVar1[1] != DAT_000118c4)) {
+    __android_log_print(4,DAT_000118c8 + 0x117c2,DAT_000118cc + 0x117c4,DAT_000118d0 + 0x117c6);
+    local_20 = 1;
+    local_1c = (int *)0x3;
+    if (piVar1 != (int *)0x0) goto LAB_0001182e;
+  }
+  else {
+    if (piVar1[0x24] == 0) {
+      __android_log_print(4,DAT_000118e0 + 0x11806,DAT_000118e4 + 0x11808);
+    }
+    else {
+      __android_log_print(4,DAT_000118d4 + 0x117ee,DAT_000118dc + 0x117f8,DAT_000118d8 + 0x117f2,
+                          piVar1 + 6,*(undefined4 *)(piVar1[0x24] + 4),param_2,param_3);
+    }
+    pthread_mutex_lock((pthread_mutex_t *)(piVar1 + 3));
+    piVar1[5] = 1;
+    close(*piVar1);
+    pthread_cond_signal((pthread_cond_t *)(piVar1 + 4));
+    pthread_mutex_unlock((pthread_mutex_t *)(piVar1 + 3));
+LAB_0001182e:
+    if (piVar1[0x24] != 0) {
+      piVar4 = piVar1 + 6;
+      __android_log_print(4,DAT_000118e8 + 0x11852,DAT_000118ec + 0x11856,DAT_000118f0 + 0x1185a,
+                          piVar4,*(undefined4 *)(piVar1[0x24] + 4),param_2,param_3,local_20,local_1c
+                         );
+      goto LAB_00011872;
+    }
+  }
+  piVar4 = local_1c;
+  __android_log_print(4,DAT_000118f4 + 0x1186c,DAT_000118f8 + 0x11870,local_20,local_1c);
+LAB_00011872:
+  iVar2 = qmi_csi_send_resp(param_2,param_3,&local_20,8);
+  uVar3 = 0;
+  if (iVar2 != 0) {
+    if ((piVar1 == (int *)0x0) || (piVar1[0x24] == 0)) {
+      __android_log_print(4,DAT_00011908 + 0x118b6,DAT_0001190c + 0x118b8,iVar2,piVar4);
+    }
+    else {
+      __android_log_print(4,DAT_00011904 + 0x118a8,DAT_000118fc + 0x1189e,DAT_00011900 + 0x118a4,
+                          piVar1 + 6,*(undefined4 *)(piVar1[0x24] + 4),param_2,param_3,iVar2);
+    }
+    uVar3 = 3;
+  }
+  return uVar3;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00011910 @ 0x00011910  (1110 bytes)
+════════════════════════════════════════
+
+undefined4 FUN_00011910(int *param_1)
+
+{
+  int *piVar1;
+  size_t sVar2;
+  int iVar3;
+  char *pcVar4;
+  uint *puVar5;
+  int iVar6;
+  undefined4 *puVar7;
+  pthread_mutex_t *__mutex;
+  void *__buf;
+  int iVar8;
+  undefined4 uVar9;
+  int iVar10;
+  int iVar11;
+  int *piVar12;
+  int *__s;
+  pthread_mutex_t *__mutex_00;
+  int iVar13;
+  pthread_mutex_t *__mutex_01;
+  int iVar14;
+  undefined4 uVar15;
+  uint uVar16;
+  pthread_mutex_t *__mutex_02;
+  int *piVar17;
+  uint local_30;
+  int *local_2c;
+  
+  if ((param_1 == (int *)0x0) || (param_1[0x24] == 0)) {
+    __android_log_print(4,DAT_00011d74 + 0x11952,DAT_00011d78 + 0x11954);
+  }
+  else {
+    __android_log_print(4,DAT_00011d68 + 0x11938,DAT_00011d6c + 0x1193c,DAT_00011d70 + 72000,
+                        param_1 + 6,*(undefined4 *)(param_1[0x24] + 4));
+  }
+  __s = param_1 + 0x25;
+  piVar1 = (int *)snprintf((char *)__s,0x20,(char *)(DAT_00011d7c + 0x11966),param_1[2]);
+  __mutex_02 = (pthread_mutex_t *)(param_1 + 3);
+  piVar17 = piVar1;
+  __android_log_print(4,DAT_00011d80 + 0x11978,DAT_00011d84 + 0x1197e,__s,piVar1);
+  sVar2 = strlen((char *)__s);
+  param_1[0x2d] = sVar2;
+  pthread_mutex_lock(__mutex_02);
+  __mutex_00 = (pthread_mutex_t *)(DAT_00011d88 + 0x119a4);
+  iVar10 = DAT_00011d90 + 0x119a8;
+  iVar8 = DAT_00011d94 + 0x119aa;
+  __mutex = (pthread_mutex_t *)(DAT_00011d8c + 0x119a8);
+  do {
+    iVar6 = DAT_00011dac;
+    iVar14 = param_1[0x23];
+    iVar13 = param_1[0x22];
+    if (param_1[5] != 0) {
+LAB_00011d22:
+      pthread_mutex_unlock(__mutex_02);
+      FUN_00011170(param_1);
+      if (param_1[0x24] == 0) {
+        __android_log_print(4,DAT_00011e64 + 0x11d5a,DAT_00011e68 + 0x11d5c);
+      }
+      else {
+        __android_log_print(4,DAT_00011e5c + 0x11d48,DAT_00011e58 + 0x11d44,DAT_00011e60 + 0x11d4c,
+                            param_1 + 6,*(undefined4 *)(param_1[0x24] + 4));
+      }
+      return 0;
+    }
+    if ((param_1[0x1e] != 0) && (param_1[0x21] == 0)) {
+      if (param_1[0x24] == 0) {
+        __android_log_print(4,DAT_00011da4 + 0x119fa,DAT_00011da8 + 0x119fc,0,piVar17);
+      }
+      else {
+        __android_log_print(4,DAT_00011d98 + 0x119e6,DAT_00011d9c + 0x119ea,DAT_00011da0 + 0x119ec,
+                            param_1 + 6,*(undefined4 *)(param_1[0x24] + 4));
+      }
+      goto LAB_00011d22;
+    }
+    pthread_mutex_lock(__mutex_00);
+    for (uVar16 = 0; uVar16 < (uint)param_1[0x1e]; uVar16 = uVar16 + 1) {
+      lseek(*param_1,param_1[uVar16 * 3 + 0xe] << 9,0);
+      __buf = (void *)(param_1[0x21] + (param_1[uVar16 * 3 + 0xf] - param_1[0x20]));
+      if (param_1[0x1d] == 1) {
+        piVar1 = (int *)write(*param_1,__buf,param_1[uVar16 * 3 + 0x10] << 9);
+      }
+      else if (param_1[0x1d] == 0) {
+        piVar1 = (int *)read(*param_1,__buf,param_1[uVar16 * 3 + 0x10] << 9);
+      }
+      iVar3 = param_1[0x24];
+      iVar11 = param_1[0x1d];
+      if ((int)piVar1 < 0) {
+        if (iVar3 == 0) {
+          if (iVar11 == 1) {
+            iVar6 = DAT_00011dc4 + 0x11acc;
+          }
+          else {
+            iVar6 = DAT_00011dc8 + 0x11ad4;
+          }
+          puVar5 = (uint *)__errno();
+          piVar17 = (int *)*puVar5;
+          piVar12 = (int *)__errno();
+          pcVar4 = strerror(*piVar12);
+          __android_log_print(4,DAT_00011dcc + 0x11af2,DAT_00011dd0 + 0x11af4,iVar6,piVar17,pcVar4);
+        }
+        else {
+          piVar17 = param_1 + 6;
+          uVar15 = *(undefined4 *)(iVar3 + 4);
+          if (iVar11 == 1) {
+            iVar6 = DAT_00011db0 + 0x11a7a;
+          }
+          else {
+            iVar6 = DAT_00011db4 + 0x11a82;
+          }
+          puVar7 = (undefined4 *)__errno();
+          uVar9 = *puVar7;
+          piVar12 = (int *)__errno();
+          pcVar4 = strerror(*piVar12);
+          __android_log_print(4,DAT_00011dbc + 0x11aac,DAT_00011db8 + 0x11aa2,DAT_00011dc0 + 0x11ab2
+                              ,piVar17,uVar15,iVar14,iVar13,iVar6,uVar9,pcVar4);
+        }
+        break;
+      }
+      if (iVar3 == 0) {
+        iVar3 = iVar6 + 0x11a12;
+        if (iVar11 == 1) {
+          iVar3 = DAT_00011de8 + 0x11b3a;
+        }
+        piVar17 = piVar1;
+        __android_log_print(4,iVar10,iVar8,iVar3,piVar1);
+      }
+      else {
+        piVar17 = param_1 + 6;
+        if (iVar11 == 1) {
+          iVar11 = DAT_00011dd4 + 0x11b0e;
+        }
+        else {
+          iVar11 = DAT_00011dd8 + 0x11b14;
+        }
+        __android_log_print(4,DAT_00011de0 + 0x11b24,DAT_00011de4 + 0x11b2c,DAT_00011ddc + 0x11b20,
+                            piVar17,*(undefined4 *)(iVar3 + 4),iVar14,iVar13,iVar11,piVar1);
+      }
+    }
+    pthread_mutex_unlock(__mutex);
+    if (param_1[0x1e] != 0) {
+      uVar16 = (uint)piVar1 & (int)piVar1 >> 0x1f;
+      param_1[0x1f] = uVar16;
+      local_2c = (int *)0x0;
+      if (uVar16 != 0) {
+        local_2c = (int *)0x3;
+      }
+      local_30 = (uint)(uVar16 != 0);
+      if (param_1[0x24] == 0) {
+        piVar17 = local_2c;
+        __android_log_print(4,DAT_00011df8 + 0x11bb8,DAT_00011dfc + 0x11bbc,local_30,local_2c);
+      }
+      else {
+        piVar17 = param_1 + 6;
+        __android_log_print(4,DAT_00011dec + 0x11b96,DAT_00011df0 + 0x11b9c,DAT_00011df4 + 0x11ba6,
+                            piVar17,*(undefined4 *)(param_1[0x24] + 4),iVar14,iVar13,local_30,
+                            local_2c);
+      }
+      iVar6 = qmi_csi_send_resp(param_1[0x23],param_1[0x22],&local_30,8);
+      if (iVar6 != 0) {
+        if (param_1[0x24] == 0) {
+          __android_log_print(4,DAT_00011e0c + 0x11c08,DAT_00011e10 + 0x11c0a,iVar6,piVar17);
+        }
+        else {
+          piVar17 = param_1 + 6;
+          __android_log_print(4,DAT_00011e00 + 0x11bee,DAT_00011e08 + 0x11bfa,DAT_00011e04 + 0x11bf6
+                              ,piVar17,*(undefined4 *)(param_1[0x24] + 4),iVar14,iVar13,iVar6);
+        }
+      }
+      iVar6 = DAT_00011e14;
+      param_1[0x1e] = 0;
+      if (*(int *)(iVar6 + 0x11c18) < 1) {
+        if (param_1[0x24] == 0) {
+          __android_log_print(4,DAT_00011e3c + 0x11cd8,DAT_00011e40 + 0x11cdc,param_1[2],piVar17);
+        }
+        else {
+          piVar17 = param_1 + 6;
+          __android_log_print(4,DAT_00011e30 + 0x11cc0,DAT_00011e38 + 0x11cca,DAT_00011e34 + 0x11cc4
+                              ,piVar17,*(undefined4 *)(param_1[0x24] + 4),param_1[2]);
+        }
+      }
+      else {
+        __mutex_01 = (pthread_mutex_t *)(DAT_00011e18 + 0x11c24);
+        pthread_mutex_lock(__mutex_01);
+        piVar1 = (int *)write(*(int *)(iVar6 + 0x11c18),__s,param_1[0x2d]);
+        pthread_mutex_unlock(__mutex_01);
+        iVar6 = param_1[2];
+        piVar12 = (int *)param_1[0x2d];
+        if (param_1[0x24] == 0) {
+          piVar17 = (int *)(uint)(piVar1 == piVar12);
+          puVar7 = (undefined4 *)__errno();
+          __android_log_print(4,DAT_00011e28 + 0x11c96,DAT_00011e2c + 0x11c98,iVar6,piVar17,*puVar7)
+          ;
+        }
+        else {
+          uVar15 = *(undefined4 *)(param_1[0x24] + 4);
+          puVar7 = (undefined4 *)__errno();
+          piVar17 = param_1 + 6;
+          __android_log_print(4,DAT_00011e1c + 0x11c64,DAT_00011e24 + 0x11c7c,DAT_00011e20 + 0x11c74
+                              ,piVar17,uVar15,iVar6,piVar1 == piVar12,*puVar7);
+        }
+      }
+    }
+    pthread_cond_wait((pthread_cond_t *)(param_1 + 4),__mutex_02);
+    if (param_1[0x24] == 0) {
+      __android_log_print(4,DAT_00011e50 + 0x11d1a,DAT_00011e54 + 0x11d1e,param_1[2],piVar17);
+    }
+    else {
+      piVar17 = param_1 + 6;
+      __android_log_print(4,DAT_00011e4c + 0x11d0c,DAT_00011e44 + 0x11d00,DAT_00011e48 + 0x11d08,
+                          piVar17,*(undefined4 *)(param_1[0x24] + 4),param_1[2]);
+    }
+  } while( true );
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00011e6c @ 0x00011e6c  (834 bytes)
+════════════════════════════════════════
+
+void FUN_00011e6c(int param_1,undefined4 param_2,undefined4 param_3,char *param_4)
+
+{
+  int iVar1;
+  int iVar2;
+  int iVar3;
+  undefined4 uVar4;
+  int iVar5;
+  int *piVar6;
+  int iVar7;
+  int *__arg;
+  int iVar8;
+  int *piVar9;
+  undefined1 auStack_7c [32];
+  undefined4 local_5c;
+  int *local_58;
+  undefined1 local_54;
+  int local_50;
+  char acStack_4c [32];
+  int local_2c;
+  
+  piVar6 = *(int **)(DAT_00012150 + 0x11e7e + DAT_00012154);
+  iVar5 = 0;
+  local_2c = *piVar6;
+  iVar8 = 0;
+  memset(&local_5c,0,0x30);
+  iVar3 = DAT_0001214c;
+  iVar7 = DAT_00012158 + 0x11eaa;
+  do {
+    iVar1 = DAT_0001214c;
+    if ((*(int *)(iVar7 + iVar5 + 4) == iVar3) && (0 < *(int *)(iVar5 + iVar7))) {
+      iVar2 = strcmp((char *)(iVar7 + iVar8 * 0xb8 + 0x18),param_4);
+      if (iVar2 == 0) {
+        __arg = (int *)(iVar7 + iVar8 * 0xb8);
+        __arg[0x24] = param_1;
+        goto LAB_00012232;
+      }
+    }
+    iVar2 = DAT_0001214c;
+    iVar5 = iVar5 + 0xb8;
+    iVar8 = iVar8 + 1;
+  } while (iVar5 != 0x730);
+  iVar3 = 0;
+  iVar5 = DAT_0001215c + 0x11f02;
+  do {
+    iVar7 = iVar3 * 0xb8;
+    __arg = (int *)(iVar5 + iVar7);
+    if (__arg[1] != iVar1) {
+      iVar3 = 0;
+      __arg[1] = DAT_0001214c;
+      __arg[5] = 0;
+      pthread_mutex_init((pthread_mutex_t *)(iVar5 + iVar7 + 0xc),(pthread_mutexattr_t *)0x0);
+      pthread_cond_init((pthread_cond_t *)(iVar5 + iVar7 + 0x10),(pthread_condattr_t *)0x0);
+      if (__arg[1] != iVar2) goto LAB_00011f1c;
+      __arg[0x24] = param_1;
+      if (param_4 == (char *)0x0) goto LAB_00011f6c;
+      iVar5 = DAT_0001216c + 0x11f42;
+      goto LAB_00011f40;
+    }
+    iVar3 = iVar3 + 1;
+  } while (iVar3 != 10);
+  __arg = (int *)0x0;
+  __android_log_print(4,DAT_00012248 + 0x1222a,DAT_0001224c + 0x1222c,DAT_00012250 + 0x1222e);
+LAB_00011f1c:
+  __android_log_print(4,DAT_00012160 + 0x11f28,DAT_00012164 + 0x11f2c,DAT_00012168 + 0x11f2e,param_4
+                     );
+  goto LAB_00012030;
+  while (iVar3 = iVar3 + 1, iVar3 != 8) {
+LAB_00011f40:
+    iVar7 = strncmp((char *)(iVar5 + iVar3 * 200 + 0x81),param_4,0x20);
+    if (iVar7 == 0) {
+      iVar3 = *(int *)(iVar5 + iVar3 * 200 + 0xc4);
+      goto LAB_00011f70;
+    }
+  }
+LAB_00011f6c:
+  iVar3 = -1;
+LAB_00011f70:
+  *__arg = iVar3;
+  if (iVar3 < 0) {
+    __android_log_print(4,DAT_00012170 + 0x11f82,DAT_00012174 + 0x11f86,DAT_00012178 + 0x11f88,
+                        param_4);
+  }
+  else {
+    strlcpy(__arg + 6,param_4,0x20);
+    iVar3 = DAT_0001217c;
+    __arg[0x21] = 0;
+    iVar3 = pthread_create((pthread_t *)(__arg + 2),(pthread_attr_t *)0x0,
+                           (__start_routine *)(iVar3 + 0x11faa),__arg);
+    if (iVar3 == 0) {
+LAB_00012232:
+      if (__arg[0x24] == 0) {
+        __android_log_print(4,DAT_000121a0 + 0x1201e,DAT_000121a4 + 0x12020);
+      }
+      else {
+        __android_log_print(4,DAT_00012194 + 0x12006,DAT_00012198 + 0x1200a,DAT_0001219c + 0x1200e,
+                            __arg + 6,*(undefined4 *)(__arg[0x24] + 4),param_2,param_3);
+      }
+      local_50 = *__arg;
+      local_54 = 1;
+      goto LAB_00012038;
+    }
+    if (__arg[0x24] == 0) {
+      __android_log_print(4,DAT_0001218c + 0x11fe0,DAT_00012190 + 0x11fe2);
+    }
+    else {
+      __android_log_print(4,DAT_00012180 + 0x11fca,DAT_00012184 + 0x11fce,DAT_00012188 + 0x11fd2,
+                          __arg + 6,*(undefined4 *)(__arg[0x24] + 4));
+    }
+    close(*__arg);
+  }
+  FUN_00011170(__arg);
+LAB_00012030:
+  local_5c = 1;
+  local_58 = (int *)0x3;
+LAB_00012038:
+  iVar3 = open((char *)(DAT_000121a8 + 0x12042),2);
+  strcpy(acStack_4c,(char *)(DAT_000121ac + 0x1204a));
+  if (-1 < iVar3) {
+    iVar5 = ioctl(iVar3,0x7701,auStack_7c);
+    if (iVar5 == 0) {
+      memset(acStack_4c,0,0x20);
+      __strcpy_chk(acStack_4c,auStack_7c,0x20);
+      __android_log_print(6,DAT_000121b0 + 0x12082,DAT_000121b4 + 0x12084,local_5c,acStack_4c);
+    }
+    close(iVar3);
+  }
+  iVar3 = DAT_000121b8 + 0x1209a;
+  __android_log_print(6,iVar3,DAT_000121bc + 0x1209e,local_5c,acStack_4c);
+  if ((__arg == (int *)0x0) || (__arg[0x24] == 0)) {
+    piVar9 = local_58;
+    __android_log_print(4,DAT_000121c8 + 0x120e6,DAT_000121cc + 0x120ea,local_5c,local_58);
+  }
+  else {
+    piVar9 = __arg + 6;
+    __android_log_print(4,iVar3,DAT_000121c0 + 0x120cc,DAT_000121c4 + 0x120d4,piVar9,
+                        *(undefined4 *)(__arg[0x24] + 4),param_2,param_3,local_5c,local_58);
+  }
+  iVar3 = qmi_csi_send_resp(param_2,param_3,&local_5c,0x30);
+  uVar4 = 0;
+  if (iVar3 != 0) {
+    if ((__arg == (int *)0x0) || (__arg[0x24] == 0)) {
+      __android_log_print(4,DAT_000121dc + 0x12136,DAT_000121e0 + 0x12138,iVar3,piVar9);
+    }
+    else {
+      __android_log_print(4,DAT_000121d0 + 0x1211e,DAT_000121d8 + 0x12128,DAT_000121d4 + 0x12124,
+                          __arg + 6,*(undefined4 *)(__arg[0x24] + 4),param_2,param_3,iVar3);
+    }
+    uVar4 = 3;
+  }
+  if (local_2c != *piVar6) {
+                    /* WARNING: Subroutine does not return */
+    __stack_chk_fail(uVar4);
+  }
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __libc_init @ 0x00017000  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __libc_init(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __cxa_atexit @ 0x00017004  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __cxa_atexit(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __aeabi_unwind_cpp_pr0 @ 0x00017008  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_unwind_cpp_pr0(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_destroy @ 0x00017010  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_destroy(pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_destroy @ 0x00017014  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_destroy(pthread_cond_t *__cond)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __android_log_print @ 0x00017018  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __android_log_print(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: free @ 0x0001701c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void free(void *__ptr)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: malloc @ 0x00017020  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * malloc(size_t __size)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strcmp @ 0x00017024  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strcmp(char *__s1,char *__s2)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: mmap @ 0x00017028  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * mmap(void *__addr,size_t __len,int __prot,int __flags,int __fd,__off_t __offset)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __errno @ 0x0001702c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __errno(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: qmi_csi_send_resp @ 0x00017030  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_csi_send_resp(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_lock @ 0x00017034  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_lock(pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: write @ 0x00017038  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t write(int __fd,void *__buf,size_t __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_unlock @ 0x0001703c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_unlock(pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_signal @ 0x00017040  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_signal(pthread_cond_t *__cond)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: close @ 0x00017044  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int close(int __fd)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: snprintf @ 0x00017048  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int snprintf(char *__s,size_t __maxlen,char *__format,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strlen @ 0x0001704c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+size_t strlen(char *__s)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: lseek @ 0x00017050  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+__off_t lseek(int __fd,__off_t __offset,int __whence)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: read @ 0x00017054  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t read(int __fd,void *__buf,size_t __nbytes)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strerror @ 0x00017058  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * strerror(int __errnum)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_wait @ 0x0001705c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_wait(pthread_cond_t *__cond,pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: memset @ 0x00017060  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * memset(void *__s,int __c,size_t __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strncmp @ 0x00017064  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strncmp(char *__s1,char *__s2,size_t __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strlcpy @ 0x00017068  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void strlcpy(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_create @ 0x0001706c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_create(pthread_t *__newthread,pthread_attr_t *__attr,__start_routine *__start_routine,
+                  void *__arg)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: open @ 0x00017070  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int open(char *__file,int __oflag,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strcpy @ 0x00017074  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * strcpy(char *__dest,char *__src)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: ioctl @ 0x00017078  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int ioctl(int __fd,ulong __request,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __strcpy_chk @ 0x0001707c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __strcpy_chk(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_mutex_init @ 0x00017084  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_init(pthread_mutex_t *__mutex,pthread_mutexattr_t *__mutexattr)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pthread_cond_init @ 0x00017088  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_init(pthread_cond_t *__cond,pthread_condattr_t *__cond_attr)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __stack_chk_fail @ 0x0001708c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __stack_chk_fail(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: lseek64 @ 0x00017090  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+__off64_t lseek64(int __fd,__off64_t __offset,int __whence)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: property_get @ 0x00017094  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void property_get(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: property_set @ 0x00017098  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void property_set(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: ioprio_set @ 0x0001709c  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void ioprio_set(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: chdir @ 0x000170a0  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int chdir(char *__path)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: opendir @ 0x000170a4  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+DIR * opendir(char *__name)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strstr @ 0x000170a8  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * strstr(char *__haystack,char *__needle)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: fopen @ 0x000170ac  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+FILE * fopen(char *__filename,char *__modes)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: fgets @ 0x000170b0  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * fgets(char *__s,int __n,FILE *__stream)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: ferror @ 0x000170b4  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int ferror(FILE *__stream)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __strrchr_chk @ 0x000170b8  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __strrchr_chk(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strcasecmp @ 0x000170bc  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strcasecmp(char *__s1,char *__s2)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: fclose @ 0x000170c0  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int fclose(FILE *__stream)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: readdir @ 0x000170c4  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+dirent * readdir(DIR *__dirp)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: closedir @ 0x000170c8  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int closedir(DIR *__dirp)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: exit @ 0x000170cc  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void exit(int __status)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: prctl @ 0x000170d0  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int prctl(int __option,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: setgid @ 0x000170d4  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setgid(__gid_t __gid)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: setuid @ 0x000170d8  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setuid(__uid_t __uid)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: capset @ 0x000170dc  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void capset(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: qmi_csi_register @ 0x000170e0  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_csi_register(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: memcpy @ 0x000170e8  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * memcpy(void *__dest,void *__src,size_t __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: select @ 0x000170ec  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int select(int __nfds,fd_set *__readfds,fd_set *__writefds,fd_set *__exceptfds,timeval *__timeout)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: qmi_csi_handle_event @ 0x000170f0  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_csi_handle_event(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: getcwd @ 0x000170f4  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+char * getcwd(char *__buf,size_t __size)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: strtoul @ 0x000170f8  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ulong strtoul(char *__nptr,char **__endptr,int __base)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __aeabi_unwind_cpp_pr1 @ 0x000170fc  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_unwind_cpp_pr1(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+
+=== SECTION 3: PATTERN SEARCH ===
+
+Constant 0x1 (1):
+  0x1 at 000112a0 in FUN_0001128c
+  0x1 at 00011386 in FUN_000112d4
+  0x1 at 00011392 in FUN_000112d4
+  0x1 at 000113e4 in FUN_000112d4
+  0x1 at 000113f4 in FUN_000112d4
+  0x1 at 000115fc in FUN_00011508
+  0x1 at 000116ce in FUN_00011508
+  0x1 at 000117c8 in FUN_00011794
+  0x1 at 00011816 in FUN_00011794
+  0x1 at 00011a3e in FUN_00011910
+  0x1 at 00011a68 in FUN_00011910
+  0x1 at 00011ac0 in FUN_00011910
+  0x1 at 00011afe in FUN_00011910
+  0x1 at 00011b30 in FUN_00011910
+  0x1 at 00011b48 in FUN_00011910
+  0x1 at 00011b70 in FUN_00011910
+  0x1 at 00011eea in FUN_00011e6c
+  0x1 at 00011f14 in FUN_00011e6c
+  0x1 at 00011f62 in FUN_00011e6c
+  0x1 at 00012026 in FUN_00011e6c
+  0x1 at 00012030 in FUN_00011e6c
+Constant 0x384 (900):
+Constant 0x384 (900):
+Constant 0x1000 (4096):
+Constant 0x6000 (24576):
+Constant 0xffff0000 (4294901760):
+
+=== SECTION 4: STRINGS ===
+
+  0x00010134: ""/system/bin/linker""
+  0x00010589: "u8"__libc_init""
+  0x00010595: "u8"__cxa_atexit""
+  0x000105a2: "u8"__aeabi_unwind_cpp_pr0""
+  0x000105b9: "u8"common_qmi_idl_type_table_object_v01""
+  0x000105de: "u8"pthread_mutex_destroy""
+  0x000105f4: "u8"pthread_cond_destroy""
+  0x00010609: "u8"__android_log_print""
+  0x0001061d: "u8"free""
+  0x00010622: "u8"malloc""
+  0x00010629: "u8"strcmp""
+  0x00010630: "u8"mmap""
+  0x00010635: "u8"__errno""
+  0x0001063d: "u8"qmi_csi_send_resp""
+  0x0001064f: "u8"pthread_mutex_lock""
+  0x00010662: "u8"write""
+  0x00010668: "u8"pthread_mutex_unlock""
+  0x0001067d: "u8"pthread_cond_signal""
+  0x00010691: "u8"close""
+  0x00010697: "u8"snprintf""
+  0x000106a0: "u8"strlen""
+  0x000106a7: "u8"lseek""
+  0x000106ad: "u8"read""
+  0x000106b2: "u8"strerror""
+  0x000106bb: "u8"pthread_cond_wait""
+  0x000106cd: "u8"memset""
+  0x000106d4: "u8"strncmp""
+  0x000106dc: "u8"strlcpy""
+  0x000106e4: "u8"pthread_create""
+  0x000106f3: "u8"open""
+  0x000106f8: "u8"strcpy""
+  0x000106ff: "u8"ioctl""
+  0x00010705: "u8"__strcpy_chk""
+  0x00010712: "u8"__stack_chk_guard""
+  0x00010724: "u8"pthread_mutex_init""
+  0x00010737: "u8"pthread_cond_init""
+  0x00010749: "u8"__stack_chk_fail""
+  0x0001075a: "u8"lseek64""
+  0x00010762: "u8"property_get""
+  0x0001076f: "u8"property_set""
+  0x0001077c: "u8"ioprio_set""
+  0x00010787: "u8"chdir""
+  0x0001078d: "u8"opendir""
+  0x00010795: "u8"strstr""
+  0x0001079c: "u8"fopen""
+  0x000107a2: "u8"fgets""
+  0x000107a8: "u8"ferror""
+  0x000107af: "u8"__strrchr_chk""
+  0x000107bd: "u8"strcasecmp""
+  0x000107c8: "u8"fclose""
+  0x000107cf: "u8"readdir""
+  0x000107d7: "u8"closedir""
+  0x000107e0: "u8"exit""
+  0x000107e5: "u8"prctl""
+  0x000107eb: "u8"setgid""
+  0x000107f2: "u8"setuid""
+  0x000107f9: "u8"capset""
+  0x00010800: "u8"qmi_csi_register""
+  0x00010811: "u8"__isthreaded""
+  0x0001081e: "u8"memcpy""
+  0x00010825: "u8"select""
+  0x0001082c: "u8"qmi_csi_handle_event""
+  0x00010841: "u8"getcwd""
+  0x00010848: "u8"strtoul""
+  0x00010850: "u8"__aeabi_unwind_cpp_pr1""
+  0x00010867: "u8"_edata""
+  0x0001086e: "u8"__bss_start""
+  0x0001087a: "u8"_end""
+  0x0001087f: "u8"libqmi_csi.so""
+  0x0001088d: "u8"libqmi_common_so.so""
+  0x000108a1: "u8"libcutils.so""
+  0x000108ae: "u8"libc.so""
+  0x000108b6: "u8"libstdc++.so""
+  0x000108c3: "u8"libm.so""
+  0x00012ecc: ""Android""
+  0x00012fcc: "" rmt_storage_rw_iovec_cb""
+  0x00012fe5: ""rmt_storage_alloc_buff_cb""
+  0x00012fff: ""rmt_storage_disconnect_cb""
+  0x00013019: ""rmt_storage_get_client""
+  0x00013030: ""rmt_storage""
+  0x0001303c: ""%s: clnt_h=0x%p conn_h=0x%p\n""
+  0x00013059: ""%s: clnt_h=%p conn_h=%p\n""
+  0x00013072: ""%s: Invalid client\n""
+  0x00013086: ""%s: No function defined to handle request for message ID: %d\n""
+  0x000130c4: ""%s: Message ID: %d greater than maximum known message ID\n""
+  0x000130fe: ""%s: No client found for hndl=%d\n""
+  0x0001311f: ""%s: Invalid rmt_storage client\n""
+  0x0001313f: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Alloc request received: Size: %d\n""
+  0x00013188: ""***Alloc request received: Size: %d""
+  0x000131ac: ""/boot/modem_fs1""
+  0x000131bc: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Mmap on 0x%lx failed (%d)\n""
+  0x000131fe: ""***Mmap on 0x%lx failed (%d)""
+  0x0001321b: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Send response: res=%d err=%d\n""
+  0x00013260: ""***Send response: res=%d err=%d""
+  0x00013280: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: qmi_csi_send_resp returned error %d\n""
+  0x000132cc: ""***qmi_csi_send_resp returned error %d""
+  0x000132f3: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: R/W request received\n""
+  0x00013330: ""***R/W request received""
+  0x00013348: ""/boot/modem_fs2""
+  0x00013358: ""/boot/modem_fsg""
+  0x00013368: ""/boot/modem_fsc""
+  0x00013378: ""Shared mem address set to 0x%016X\n""
+  0x0001339b: ""wakelock acquired: %d, error no: %d\n""
+  0x000133c0: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Close request received\n""
+  0x000133ff: ""***Close request received""
+  0x00013419: ""Write""
+  0x00013424: ""written""
+  0x00013431: ""%s: %s: clnt_h=%p Worker thread started\n""
+  0x0001345a: ""***Worker thread started""
+  0x00013473: ""rmt_storage_%ld""
+  0x00013483: ""wake lock name: %s, name creation success: %d\n""
+  0x000134b2: ""%s: %s: clnt_h=%p No shared memory found\n""
+  0x000134dc: ""***No shared memory found""
+  0x000134f6: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: %s failed errno = %d error_string = %s\n""
+  0x00013545: ""***%s failed errno = %d error_string = %s""
+  0x0001356f: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Bytes %s = %d\n""
+  0x000135a5: ""***Bytes %s = %d""
+  0x000135b6: ""%s: %s: clnt_h=%p About to block rmt_storage client thread (th_id: %ld) wakelock released: %d, error no: %d\n\n""
+  0x00013624: ""***About to block rmt_storage client thread (th_id: %ld) wakelock released: %d, error no: %d\n""
+  0x00013682: ""%s: %s: clnt_h=%p About to block rmt_storage client thread (th_id: %ld)\n\n""
+  0x000136cc: ""***About to block rmt_storage client thread (th_id: %ld)\n""
+  0x00013706: ""%s: %s: clnt_h=%p Unblock worker thread (th_id: %ld)\n""
+  0x0001373c: ""***Unblock worker thread (th_id: %ld)""
+  0x00013762: ""%s: %s: clnt_h=%p Worker thread exiting\n""
+  0x0001378b: ""***Worker thread exiting""
+  0x000137a4: ""%s: Invalid rmt_storage client for %s\n""
+  0x000137cb: ""%s: Unable to open %s\n""
+  0x000137e2: ""%s: %s: clnt_h=%p Unable to create a pthread\n""
+  0x00013810: ""***Unable to create a pthread""
+  0x0001382e: ""%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Client found\n""
+  0x00013863: ""***Client found""
+  0x00013873: ""/dev/himidevice""
+  0x00013883: ""himitest12345868""
+  0x00013894: ""Send response: res=%d err=%s""
+  0x000138b1: ""Send response: res=%d sn=%s""
+  0x000138cd: ""%s: Maximum number of clients reached\n""
+  0x000138f4: ""Error seeking 0x%llx bytes in partition. ret=0x%llx errno=%d\n""
+  0x00013932: ""Error reading 0x%x bytes < 0x%x\n""
+  0x00013953: ""Invalid boot rec\n""
+  0x00013965: ""undefined""
+  0x0001396f: ""ro.baseband""
+  0x0001398f: ""Remote storage service is not supported on %s target\n""
+  0x000139c5: ""ctl.stop""
+  0x000139ce: ""Error setting io priority to CLASS_RT (%d)\n""
+  0x000139fa: ""/sys/power/wake_lock""
+  0x00013a0f: ""Unable to open %s file: return val: %d, error no: %d\n""
+  0x00013a45: ""No wakelock support and so not using them.\n""
+  0x00013a71: ""/sys/power/wake_unlock""
+  0x00013a88: ""Unable to get cwd\n""
+  0x00013a9b: ""/sys/class/uio""
+  0x00013aaa: ""Unable to change dir\n""
+  0x00013ac0: ""Unable to open %s\n""
+  0x00013adc: ""/sys/class/uio/uio%d/name""
+  0x00013af8: ""Unable to open file %s\n""
+  0x00013b10: ""fgets failed with %d for %s\n""
+  0x00013b33: ""version""
+  0x00013b3b: ""/sys/class/uio/uio%d/version""
+  0x00013b5c: ""/sys/class/uio/uio%d/maps/map0""
+  0x00013b80: ""/sys/class/uio/uio%d/maps/map0/addr""
+  0x00013ba4: ""Failed in getting the physical address for shared mem\n""
+  0x00013be6: ""Unable to open /dev/uio%d\n""
+  0x00013c01: ""/dev/block/mmcblk0""
+  0x00013c1a: ""Error (%d) parsing MBR partitions\n""
+  0x00013c3d: ""/dev/block/platform/msm_sdcc.%d/by-name/%s""
+  0x00013c68: ""/dev/block/bootdevice/by-name/%s""
+  0x00013c89: ""failed to open partition %s err %d\n""
+  0x00013cad: ""/dev/block/bootdevice/by-name""
+  0x00013ccb: ""Unable to open /dev/block/bootdevice/by-name\n""
+  0x00013cf9: ""files present within /dev/block/bootdevice/by-name:\n""
+  0x00013d32: ""Registering %s: 0x%x %s\n""
+  0x00013d4b: ""%d GPT partitions found\n""
+  0x00013d64: ""%d MBR partitions found\n""
+  0x00013d7d: ""set keepcaps failed! errno=%d ( %s )""
+  0x00013da2: ""Drop capability for cap=%lu failed errno=%d ( %s )""
+  0x00013dd5: ""Error changing gid (%d)\n""
+  0x00013dee: ""Error changing uid (%d)\n""
+  0x00013e07: ""capset failed: errno=%d ( %s ), ret = %d\n""
+  0x00013e31: ""Unable to register service!\n""
+  0x00013e4e: ""Matching UIO shared mem device not found for %s\n""
+  0x00013e7f: ""No EBR found\n""
+  0x00013e8d: ""rmt_storage_client_thread""
+  0x00013ea7: ""rmt_storage_handle_req_cb""
+  0x00013ec1: ""rmt_storage_close_cb""
+  0x00013ed6: ""rmt_storage_init_client""
+  0x00013eee: ""rmt_storage_connect_cb""
+  0x00013f05: ""rmt_storage_open_cb""
+  0x00016008: ""Jmodemst1""
+  0x00016089: ""/boot/modem_fs1""
+  0x000160d0: ""Kmodemst2""
+  0x00016151: ""/boot/modem_fs2""
+  0x00016219: ""/boot/modem_fsg""
+  0x000162e1: ""/q6_fs1_parti_id_0x59""
+  0x000163a9: ""/q6_fs2_parti_id_0x5A""
+  0x00016471: ""/q6_fsg_parti_id_0x5B""
+  0x00016601: ""/boot/modem_fsc""
+  0x.comment::00000000: "u8"""
+  0x.comment::00000001: "u8"GCC: (GNU) 4.7""
+  0x.shstrtab::00000001: "u8".shstrtab""
+  0x.shstrtab::0000000b: "u8".interp""
+  0x.shstrtab::00000013: "u8".dynsym""
+  0x.shstrtab::0000001b: "u8".dynstr""
+  0x.shstrtab::00000023: "u8".hash""
+  0x.shstrtab::00000029: "u8".rel.dyn""
+  0x.shstrtab::00000032: "u8".rel.plt""
+  0x.shstrtab::0000003b: "u8".text""
+  0x.shstrtab::00000041: "u8".note.android.ident""
+  0x.shstrtab::00000055: "u8".ARM.exidx""
+  0x.shstrtab::00000060: "u8".rodata""
+  0x.shstrtab::00000068: "u8".ARM.extab""
+  0x.shstrtab::00000073: "u8".data.rel.ro.local""
+  0x.shstrtab::00000086: "u8".preinit_array""
+  0x.shstrtab::00000095: "u8".init_array""
+  0x.shstrtab::000000a1: "u8".fini_array""
+  0x.shstrtab::000000ad: "u8".dynamic""
+  0x.shstrtab::000000b6: "u8".got""
+  0x.shstrtab::000000bb: "u8".data""
+  0x.shstrtab::000000c1: "u8".bss""
+  0x.shstrtab::000000c6: "u8".comment""
+  0x.shstrtab::000000cf: "u8".note.gnu.gold-version""
+  0x.shstrtab::000000e6: "u8".ARM.attributes""
+  0x.shstrtab::000000f6: "u8".gnu_debuglink""
+
+=== SECTION 5: CALL GRAPH ===
+
+__libc_init:
+  calls: __libc_init, 
+  called_by: entry, 
+
+__cxa_atexit:
+  calls: __cxa_atexit, 
+  called_by: FUN_00011118, 
+
+pthread_mutex_destroy:
+  calls: pthread_mutex_destroy, 
+  called_by: FUN_00011170, 
+
+pthread_cond_destroy:
+  calls: pthread_cond_destroy, 
+  called_by: (none)
+
+__android_log_print:
+  calls: __android_log_print, 
+  called_by: FUN_00011910, FUN_00011508, FUN_000112d4, FUN_00011794, FUN_00011e6c, FUN_0001128c, 
+
+strcmp:
+  calls: strcmp, 
+  called_by: FUN_00011508, FUN_000112d4, FUN_00011e6c, 
+
+mmap:
+  calls: mmap, 
+  called_by: FUN_000112d4, 
+
+__errno:
+  calls: __errno, 
+  called_by: FUN_00011910, FUN_00011508, FUN_000112d4, 
+
+qmi_csi_send_resp:
+  calls: qmi_csi_send_resp, 
+  called_by: FUN_00011910, FUN_00011508, FUN_000112d4, FUN_00011794, FUN_00011e6c, 
+
+pthread_mutex_lock:
+  calls: pthread_mutex_lock, 
+  called_by: FUN_00011910, FUN_00011508, FUN_00011794, 
+
+write:
+  calls: write, 
+  called_by: FUN_00011910, FUN_00011508, 
+
+pthread_mutex_unlock:
+  calls: pthread_mutex_unlock, 
+  called_by: FUN_00011910, FUN_00011508, FUN_00011794, 
+
+pthread_cond_signal:
+  calls: pthread_cond_signal, 
+  called_by: FUN_00011508, FUN_00011794, 
+
+close:
+  calls: close, 
+  called_by: FUN_00011794, FUN_00011e6c, 
+
+snprintf:
+  calls: snprintf, 
+  called_by: FUN_00011910, 
+
+strlen:
+  calls: strlen, 
+  called_by: FUN_00011910, 
+
+lseek:
+  calls: lseek, 
+  called_by: FUN_00011910, 
+
+read:
+  calls: read, 
+  called_by: FUN_00011910, 
+
+strerror:
+  calls: strerror, 
+  called_by: FUN_00011910, 
+
+pthread_cond_wait:
+  calls: pthread_cond_wait, 
+  called_by: FUN_00011910, 
+
+memset:
+  calls: memset, 
+  called_by: FUN_00011e6c, 
+
+strncmp:
+  calls: strncmp, 
+  called_by: FUN_00011e6c, 
+
+strlcpy:
+  calls: strlcpy, 
+  called_by: FUN_00011e6c, 
+
+pthread_create:
+  calls: pthread_create, 
+  called_by: FUN_00011e6c, 
+
+open:
+  calls: open, 
+  called_by: FUN_00011e6c, 
+
+strcpy:
+  calls: strcpy, 
+  called_by: FUN_00011e6c, 
+
+ioctl:
+  calls: ioctl, 
+  called_by: FUN_00011e6c, 
+
+__strcpy_chk:
+  calls: __strcpy_chk, 
+  called_by: FUN_00011e6c, 
+
+pthread_mutex_init:
+  calls: pthread_mutex_init, 
+  called_by: FUN_00011e6c, 
+
+pthread_cond_init:
+  calls: pthread_cond_init, 
+  called_by: FUN_00011e6c, 
+
+__stack_chk_fail:
+  calls: __stack_chk_fail, 
+  called_by: FUN_00011e6c, 
+
+entry:
+  calls: __libc_init, 
+  called_by: (none)
+
+FUN_00011118:
+  calls: __cxa_atexit, 
+  called_by: (none)
+
+FUN_00011170:
+  calls: pthread_mutex_destroy, 
+  called_by: FUN_00011910, FUN_00011e6c, 
+
+FUN_0001128c:
+  calls: __android_log_print, 
+  called_by: FUN_00011508, FUN_000112d4, FUN_00011794, 
+
+FUN_000112d4:
+  calls: qmi_csi_send_resp, mmap, __android_log_print, __errno, FUN_0001128c, strcmp, 
+  called_by: (none)
+
+FUN_00011508:
+  calls: pthread_cond_signal, qmi_csi_send_resp, __android_log_print, __errno, FUN_0001128c, pthread_mutex_lock, write, strcmp, pthread_mutex_unlock, 
+  called_by: (none)
+
+FUN_00011794:
+  calls: pthread_cond_signal, qmi_csi_send_resp, close, __android_log_print, FUN_0001128c, pthread_mutex_lock, pthread_mutex_unlock, 
+  called_by: (none)
+
+FUN_00011910:
+  calls: snprintf, qmi_csi_send_resp, FUN_00011170, __errno, strlen, pthread_mutex_lock, strerror, pthread_mutex_unlock, pthread_cond_wait, __android_log_print, write, read, lseek, 
+  called_by: (none)
+
+FUN_00011e6c:
+  calls: memset, strlcpy, open, qmi_csi_send_resp, close, FUN_00011170, strcpy, ioctl, strcmp, __strcpy_chk, pthread_mutex_init, pthread_cond_init, __android_log_print, strncmp, __stack_chk_fail, pthread_create, 
+  called_by: (none)
+
+__libc_init:
+  calls: (none)
+  called_by: __libc_init, 
+
+__cxa_atexit:
+  calls: (none)
+  called_by: __cxa_atexit, 
+
+__aeabi_unwind_cpp_pr0:
+  calls: (none)
+  called_by: (none)
+
+pthread_mutex_destroy:
+  calls: (none)
+  called_by: pthread_mutex_destroy, 
+
+pthread_cond_destroy:
+  calls: (none)
+  called_by: pthread_cond_destroy, 
+
+__android_log_print:
+  calls: (none)
+  called_by: __android_log_print, 
+
+free:
+  calls: (none)
+  called_by: (none)
+
+malloc:
+  calls: (none)
+  called_by: (none)
+
+strcmp:
+  calls: (none)
+  called_by: strcmp, 
+
+mmap:
+  calls: (none)
+  called_by: mmap, 
+
+__errno:
+  calls: (none)
+  called_by: __errno, 
+
+qmi_csi_send_resp:
+  calls: (none)
+  called_by: qmi_csi_send_resp, 
+
+pthread_mutex_lock:
+  calls: (none)
+  called_by: pthread_mutex_lock, 
+
+write:
+  calls: (none)
+  called_by: write, 
+
+pthread_mutex_unlock:
+  calls: (none)
+  called_by: pthread_mutex_unlock, 
+
+pthread_cond_signal:
+  calls: (none)
+  called_by: pthread_cond_signal, 
+
+close:
+  calls: (none)
+  called_by: close, 
+
+snprintf:
+  calls: (none)
+  called_by: snprintf, 
+
+strlen:
+  calls: (none)
+  called_by: strlen, 
+
+lseek:
+  calls: (none)
+  called_by: lseek, 
+
+read:
+  calls: (none)
+  called_by: read, 
+
+strerror:
+  calls: (none)
+  called_by: strerror, 
+
+pthread_cond_wait:
+  calls: (none)
+  called_by: pthread_cond_wait, 
+
+memset:
+  calls: (none)
+  called_by: memset, 
+
+strncmp:
+  calls: (none)
+  called_by: strncmp, 
+
+strlcpy:
+  calls: (none)
+  called_by: strlcpy, 
+
+pthread_create:
+  calls: (none)
+  called_by: pthread_create, 
+
+open:
+  calls: (none)
+  called_by: open, 
+
+strcpy:
+  calls: (none)
+  called_by: strcpy, 
+
+ioctl:
+  calls: (none)
+  called_by: ioctl, 
+
+__strcpy_chk:
+  calls: (none)
+  called_by: __strcpy_chk, 
+
+pthread_mutex_init:
+  calls: (none)
+  called_by: pthread_mutex_init, 
+
+pthread_cond_init:
+  calls: (none)
+  called_by: pthread_cond_init, 
+
+__stack_chk_fail:
+  calls: (none)
+  called_by: __stack_chk_fail, 
+
+lseek64:
+  calls: (none)
+  called_by: (none)
+
+property_get:
+  calls: (none)
+  called_by: (none)
+
+property_set:
+  calls: (none)
+  called_by: (none)
+
+ioprio_set:
+  calls: (none)
+  called_by: (none)
+
+chdir:
+  calls: (none)
+  called_by: (none)
+
+opendir:
+  calls: (none)
+  called_by: (none)
+
+strstr:
+  calls: (none)
+  called_by: (none)
+
+fopen:
+  calls: (none)
+  called_by: (none)
+
+fgets:
+  calls: (none)
+  called_by: (none)
+
+ferror:
+  calls: (none)
+  called_by: (none)
+
+__strrchr_chk:
+  calls: (none)
+  called_by: (none)
+
+strcasecmp:
+  calls: (none)
+  called_by: (none)
+
+fclose:
+  calls: (none)
+  called_by: (none)
+
+readdir:
+  calls: (none)
+  called_by: (none)
+
+closedir:
+  calls: (none)
+  called_by: (none)
+
+exit:
+  calls: (none)
+  called_by: (none)
+
+prctl:
+  calls: (none)
+  called_by: (none)
+
+setgid:
+  calls: (none)
+  called_by: (none)
+
+setuid:
+  calls: (none)
+  called_by: (none)
+
+capset:
+  calls: (none)
+  called_by: (none)
+
+qmi_csi_register:
+  calls: (none)
+  called_by: (none)
+
+memcpy:
+  calls: (none)
+  called_by: (none)
+
+select:
+  calls: (none)
+  called_by: (none)
+
+qmi_csi_handle_event:
+  calls: (none)
+  called_by: (none)
+
+getcwd:
+  calls: (none)
+  called_by: (none)
+
+strtoul:
+  calls: (none)
+  called_by: (none)
+
+__aeabi_unwind_cpp_pr1:
+  calls: (none)
+  called_by: (none)
+

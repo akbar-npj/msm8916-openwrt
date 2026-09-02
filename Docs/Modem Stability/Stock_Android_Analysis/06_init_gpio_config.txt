@@ -1,0 +1,28 @@
+=== INIT.TARGET.RC GPIO & POWER CONFIG ===
+/init.target.rc:   chmod 777 /sys/class/leds/4g_type/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/4g_1/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/4g_2/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/4g_3/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/esim1_en/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/esim2_en/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/esim3_en/brightness
+/init.target.rc:   chmod 777 /sys/class/leds/sim_hotplug/brightness
+
+=== ETC SCRIPTS ===
+-rw-r--r-- root     root         1918 2025-08-28 12:36 hcidump.sh
+-rw-r--r-- root     root         3222 2025-08-28 12:36 hsic.control.bt.sh
+-rw-r--r-- root     root         2767 2025-08-28 12:36 init.ath3k.bt.sh
+-rw-r--r-- root     root         1773 2025-08-28 12:36 init.crda.sh
+-rw-r--r-- root     root         4987 2025-08-28 12:36 init.qcom.audio.sh
+-rw-r--r-- root     root         9932 2025-08-28 12:36 init.qcom.bt.sh
+-rw-r--r-- root     root         3651 2025-08-28 12:36 init.qcom.coex.sh
+-rw-r--r-- root     root         1725 2025-08-28 12:36 init.qcom.efs.sync.sh
+-rw-r--r-- root     root         3083 2025-08-28 12:36 init.qcom.fm.sh
+-rw-rw-rw- root     root         4023 2025-08-28 12:36 init.qcom.modem_links.sh
+-rw-r--r-- root     root        55487 2026-08-17 01:14 init.qcom.post_boot.sh
+-rw-r--r-- root     root         2767 2026-08-14 21:32 init.qcom.sdio.sh
+-rw-r--r-- root     root         3746 2025-08-28 12:36 init.qcom.uicc.sh
+-rw-r--r-- root     root        19064 2025-08-28 12:36 init.qcom.wifi.sh
+-rw-r--r-- root     root         1946 2025-08-28 12:36 init.qcom.zram.sh
+-rw-r--r-- root     root         2242 2025-08-28 12:36 init.qti.video.sh
+-rw-r--r-- root     root         3740 2025-08-28 12:36 qca6234-service.sh

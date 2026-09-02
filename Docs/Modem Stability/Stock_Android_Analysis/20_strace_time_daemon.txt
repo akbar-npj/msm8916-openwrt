@@ -1,0 +1,8 @@
+=== STRACE ON TIME_DAEMON (10 SECONDS) ===
+strace: Process 242 attached with 6 threads
+[pid   354] 23:46:48 accept(18,  <unfinished ...>
+[pid   242] 23:46:48 futex(0xb71d70c8, FUTEX_WAIT_PRIVATE, 0, NULL <unfinished ...>
+[pid   353] 23:46:48 futex(0xb6f1400c, FUTEX_WAIT_PRIVATE, 0, NULL <unfinished ...>
+[pid   351] 23:46:48 poll([{fd=16, events=POLLIN}, {fd=15, events=POLLIN}, {fd=14, events=POLLIN}], 3, -1 <unfinished ...>
+[pid   349] 23:46:48 read(13,  <unfinished ...>
+[pid   348] 23:46:48 poll([{fd=10, events=POLLIN}, {fd=8, events=POLLIN}, {fd=7, events=POLLIN}], 3, -1

@@ -1,0 +1,77 @@
+=== CURRENT LIVE HEALTH AND UPTIME ===
+up time: 05:28:59, idle time: 21:41:43, sleep time: 00:00:00
+19739.07 78103.39
+
+=== TRACING RILD FOR 5 SECONDS ===
+strace: Process 197 attached with 16 threads
+[pid  1404] 04:47:52.061570 futex(0xb8861a48, FUTEX_WAIT_PRIVATE, 4294967292, NULL <unfinished ...>
+[pid   649] 04:47:52.065122 recvfrom(39,  <unfinished ...>
+[pid   645] 04:47:52.066538 _newselect(38, [37], NULL, NULL, NULL <unfinished ...>
+[pid   644] 04:47:52.069635 futex(0xb63088b8, FUTEX_WAIT_PRIVATE, 4294967278, NULL <unfinished ...>
+[pid   641] 04:47:52.071292 futex(0xb62d9018, FUTEX_WAIT_PRIVATE, 4294967288, NULL <unfinished ...>
+[pid   640] 04:47:52.073476 _newselect(36, [34 35], NULL, NULL, NULL <unfinished ...>
+[pid   555] 04:47:52.075345 _newselect(30, [28 29], NULL, NULL, NULL <unfinished ...>
+[pid   630] 04:47:52.076076 accept(31,  <unfinished ...>
+[pid   390] 04:47:52.076432 futex(0xb8853ee4, FUTEX_WAIT_PRIVATE, 0, NULL <unfinished ...>
+[pid   393] 04:47:52.076778 _newselect(26, [25], NULL, NULL, NULL <unfinished ...>
+[pid   386] 04:47:52.077290 ioctl(22, _IOC(_IOC_READ|_IOC_WRITE, 0x62, 0x1, 0x18) <unfinished ...>
+[pid   389] 04:47:52.078251 ioctl(22, _IOC(_IOC_READ|_IOC_WRITE, 0x62, 0x1, 0x18) <unfinished ...>
+[pid   381] 04:47:52.080282 _newselect(18, [17], NULL, NULL, NULL <unfinished ...>
+[pid   379] 04:47:52.081307 read(12,  <unfinished ...>
+[pid   374] 04:47:52.082189 _newselect(41, [7 9 40], NULL, NULL, NULL <unfinished ...>
+[pid   197] 04:47:52.082970 nanosleep({tv_sec=16757483, tv_nsec=356463882},  <unfinished ...>
+[pid   640] 04:47:54.392898 <... _newselect resumed> ) = 1 (in [34]) <2.317319>
+[pid   640] 04:47:54.393368 recvfrom(34, "3\0\0\0\16\0\0\0", 8, 0, NULL, NULL) = 8 <0.000040>
+[pid   640] 04:47:54.394087 recvfrom(34, "\0\0\0\0\16\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1\0\0\0$\200\0\0\4\24\3\1\0\4\0\30\1\0\1", 43, 0, NULL, NULL) = 43 <0.000038>
+[pid   640] 04:47:54.394707 write(18, " ", 1) = 1 <0.000076>
+[pid   640] 04:47:54.395280 _newselect(36, [34 35], NULL, NULL, NULL <unfinished ...>
+[pid   381] 04:47:54.396383 <... _newselect resumed> ) = 1 (in [17]) <2.315106>
+[pid   381] 04:47:54.397277 read(17, " ", 16) = 1 <0.000391>
+[pid   381] 04:47:54.398435 read(17, 0xb60a2d8c, 16) = -1 EAGAIN (Resource temporarily unavailable) <0.000314>
+[pid   381] 04:47:54.399406 write(20, "qcril", 5) = 5 <0.000540>
+[pid   381] 04:47:54.401203 fcntl64(-1, F_SETFL, O_RDONLY|O_NONBLOCK) = -1 EBADF (Bad file descriptor) <0.000265>
+[pid   381] 04:47:54.404733 clock_gettime(CLOCK_MONOTONIC,  <unfinished ...>
+[pid   555] 04:47:54.405559 <... _newselect resumed> ) = 1 (in [28]) <2.329468>
+[pid   555] 04:47:54.407705 recvfrom(28, "8\0\0\0\f\0\0\0", 8, 0, NULL, NULL) = 8 <0.000247>
+[pid   555] 04:47:54.408629 recvfrom(28, "\0\0\0\0\f\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\3\0\0\0\1\200\0\0\4\36\32\215\0\t\0\20\6\0d\0\0d\0\0", 48, 0, NULL, NULL) = 48 <0.000209>
+[pid   555] 04:47:54.410827 write(18, " ", 1) = 1 <0.000039>
+[pid   555] 04:47:54.411512 _newselect(30, [28 29], NULL, NULL, NULL <unfinished ...>
+[pid   381] 04:47:54.412017 <... clock_gettime resumed> {tv_sec=19741, tv_nsec=442281790}) = 0 <0.006796>
+[pid   381] 04:47:54.412560 write(11, " ", 1) = 1 <0.000468>
+[pid   374] 04:47:54.414233 <... _newselect resumed> ) = 1 (in [7]) <2.331284>
+[pid   381] 04:47:54.414543 write(20, "radio-interface", 15 <unfinished ...>
+[pid   374] 04:47:54.415136 clock_gettime(CLOCK_MONOTONIC,  <unfinished ...>
+[pid   381] 04:47:54.415382 <... write resumed> ) = 15 <0.000272>
+[pid   374] 04:47:54.415909 <... clock_gettime resumed> {tv_sec=19741, tv_nsec=452406321}) = 0 <0.000591>
+[pid   381] 04:47:54.416207 write(40, "\0\0\1\230", 4 <unfinished ...>
+[pid   374] 04:47:54.416515 futex(0xb6e6457c, FUTEX_WAIT_PRIVATE, 24985602, NULL <unfinished ...>
+[pid   381] 04:47:54.417158 <... write resumed> ) = 4 <0.000661>
+[pid   381] 04:47:54.417943 write(40, "\1\0\0\0\362\3\0\0\t\0\0\0\1\0\0\0\0\0\0\0\377\377\377\377\0\0\0\0\1\0\0\0\6\0\0\0I\0P\0V\0004\0V\0006\0\0\0\0\0\6\0\0\0r\0m\0n\0e\0t\0000\0\0\0\0\0:\0\0\0001\0000\0.\0008\0003\0.\0002\0003\0003\0.\0001\0000\0/\0003\0000\0 \0002\0004\0000\0009\0:\0004\0000\0007\0001\0:\0"..., 408) = 408 <0.004072>
+[pid   381] 04:47:54.422546 fcntl64(-1, F_SETFL, O_RDONLY|O_NONBLOCK) = -1 EBADF (Bad file descriptor) <0.000045>
+[pid   381] 04:47:54.423186 clock_gettime(CLOCK_MONOTONIC, {tv_sec=19741, tv_nsec=460371373}) = 0 <0.000032>
+[pid   381] 04:47:54.423620 write(11, " ", 1) = 1 <0.000084>
+[pid   381] 04:47:54.425137 futex(0xb6e6457c, FUTEX_WAKE_PRIVATE, 1) = 1 <0.000065>
+[pid   381] 04:47:54.425900 sigprocmask(SIG_BLOCK, [], [USR2]) = 0 <0.000035>
+[pid   381] 04:47:54.426448 sigprocmask(SIG_BLOCK, [], [USR2]) = 0 <0.000035>
+[pid   381] 04:47:54.426994 write(21, "qcril", 5) = 5 <0.000053>
+[pid   381] 04:47:54.427498 _newselect(18, [17], NULL, NULL, NULL) = 1 (in [17]) <0.000037>
+[pid   381] 04:47:54.428154 read(17, " ", 16) = 1 <0.000058>
+[pid   381] 04:47:54.428606 read(17, 0xb60a2d8c, 16) = -1 EAGAIN (Resource temporarily unavailable) <0.000037>
+[pid   381] 04:47:54.429041 write(20, "qcril", 5) = 5 <0.000045>
+[pid   381] 04:47:54.429477 write(21, "qcril", 5) = 5 <0.000041>
+[pid   381] 04:47:54.429900 _newselect(18, [17], NULL, NULL, NULL <unfinished ...>
+[pid   374] 04:47:54.430366 <... futex resumed> ) = 0 <0.013240>
+[pid   374] 04:47:54.430647 futex(0xb6e6457c, FUTEX_WAKE_PRIVATE, 1) = 0 <0.000046>
+[pid   374] 04:47:54.431154 writev(14, [{iov_base="\6", iov_len=1}, {iov_base="RILQ\0", iov_len=5}, {iov_base="(0/197): RIL[0][main] qmi_ril_check_android_unsol_resp_dispatchable: invalid android_unsol_resp id 11036\0", iov_len=105}], 3) = 111 <0.000055>
+[pid   374] 04:47:54.432095 writev(14, [{iov_base="\6", iov_len=1}, {iov_base="RILQ\0", iov_len=5}, {iov_base="(0/197): RIL[0][main] qmi_ril_add_unsol_resp_to_pending_list: invalid android_unsol_resp id 11036\0", iov_len=98}], 3) = 104 <0.000043>
+[pid   374] 04:47:54.432982 read(7, "  ", 16) = 2 <0.000049>
+[pid   374] 04:47:54.433534 read(7, 0xb62a2cb4, 16) = -1 EAGAIN (Resource temporarily unavailable) <0.000035>
+[pid   374] 04:47:54.433984 clock_gettime(CLOCK_MONOTONIC, {tv_sec=19741, tv_nsec=471158717}) = 0 <0.000031>
+[pid   374] 04:47:54.434388 _newselect(41, [7 9 40], NULL, NULL, {tv_sec=0, tv_usec=989213}) = 0 (Timeout) <0.990302>
+[pid   374] 04:47:55.425555 clock_gettime(CLOCK_MONOTONIC, {tv_sec=19742, tv_nsec=462760331}) = 0 <0.000038>
+[pid   374] 04:47:55.426004 write(21, "radio-interface", 15) = 15 <0.000044>
+[pid   374] 04:47:55.426435 clock_gettime(CLOCK_MONOTONIC, {tv_sec=19742, tv_nsec=463593248}) = 0 <0.000031>
+[pid   374] 04:47:55.426810 _newselect(41, [7 9 40], NULL, NULL, NULL
+=== TRACING HEALTHD FOR 5 SECONDS ===
+strace: Process 187 attached
+04:47:57.065693 epoll_wait(7, 

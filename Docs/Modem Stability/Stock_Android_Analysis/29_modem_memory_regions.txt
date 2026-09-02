@@ -1,0 +1,138 @@
+=== 2. EXTRACTING MPSS_MEM / MODEM REGIONS FROM DMESG ===
+<5>[    0.000000] Linux version 3.10.28 (HiMI@HiMI) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Thu Aug 28 15:04:41 CST 2025
+<4>[    0.000000] CPU: ARMv7 Processor [410fd030] revision 0 (ARMv7), cr=10c5387d
+<4>[    0.000000] CPU: PIPT / VIPT nonaliasing data cache, VIPT aliasing instruction cache
+<6>[    0.000000] cma: Found external_image__region@0, memory base 0x86000000, size 8 MiB, limit 0xffffffff
+<6>[    0.000000] cma: Found modem_adsp_region@0, memory base 0x86800000, size 85 MiB, limit 0xffffffff
+<6>[    0.000000] cma: Found pheripheral_region@0, memory base 0x8bd00000, size 6 MiB, limit 0xffffffff
+<6>[    0.000000] cma: Found venus_qseecom_region@0, memory base 0x00000000, size 6 MiB, limit 0x90000000
+<6>[    0.000000] cma: Found audio_region@0, memory base 0x00000000, size 3 MiB, limit 0xffffffff
+<6>[    0.000000] cma: CMA: reserved 8 MiB at 0x86000000 for external_image_mem
+<6>[    0.000000] cma: CMA: reserved 85 MiB at 0x86800000 for modem_adsp_mem
+<6>[    0.000000] cma: CMA: reserved 6 MiB at 0x8bd00000 for peripheral_mem
+<6>[    0.000000] cma: CMA: reserved 8 MiB at 0x8f800000 for venus_qseecom_mem
+<6>[    0.000000] cma: CMA: reserved 4 MiB at 0x9fc00000 for audio_mem
+<6>[    0.000000] cma: CMA: reserved 8 MiB at 0x9f400000 for default region
+<6>[    0.000000] Preemptible hierarchical RCU implementation.
+<6>[    0.000000] 	RCU dyntick-idle grace-period acceleration is enabled.
+<6>[    0.000000] sched_clock: 56 bits at 19MHz, resolution 52ns, wraps every 3579139424256ns
+<6>[    0.000000] sched_clock: 32 bits at 19MHz, resolution 52ns, wraps every 223696213963ns
+<6>[    0.002215] Configuring XPU violations to be fatal errors
+<6>[    0.022577] DMA: preallocated 256 KiB pool for atomic coherent allocations
+<3>[    0.063764] spmi_pmic_arb 200f000.qcom,spmi: PMIC Arb Version-2 0x20010000
+<6>[    0.067300] cma: Assigned CMA region at 0 to 1de0000.qcom,venus device
+<6>[    0.067703] cma: Assigned CMA region at 0 to 4080000.qcom,mss device
+<6>[    0.067962] cma: Assigned CMA region at 0 to a21b000.qcom,pronto device
+<6>[    0.077682]  accessory_chip=0, hw_plat_subtype=0, pmic_model=65547, pmic_die_revision=131072
+<3>[    0.078286] smd_channel_probe_worker: allocation table not initialized
+<3>[    0.078383] smd_channel_probe_worker: allocation table not initialized
+<6>[    0.094470] cpr_parse_pvs_version_fuse: apc_corner: [row: 0]: 0x4826008000d00705, pvs_version = 0
+<6>[    0.097627] msm-thermal qcom,msm-thermal.56: probe_vdd_mx:Failed reading node=/soc/qcom,msm-thermal, key=qcom,mx-restriction-temp. KTM continues
+<6>[    0.097895] msm_thermal:vdd_restriction_reg_init Defer vdd rstr freq init.
+<6>[    0.112836] clock-a7 b011050.qcom,clock-a7: Speed bin: 0 PVS Version: 1
+<6>[    0.137023] cma: Assigned CMA region at 0 to 1b.qcom,ion-heap device
+<6>[    0.137151] cma: Assigned CMA region at 0 to 1c.qcom,ion-heap device
+<6>[    0.137282] cma: Assigned CMA region at 0 to 17.qcom,ion-heap device
+<6>[    0.137405] cma: Assigned CMA region at 0 to 1a.qcom,ion-heap device
+<6>[    0.137563] ION heap system created
+<6>[    0.137646] ION heap kmalloc created
+<6>[    0.137667] ION heap qsecom created at 0x8f800000 with size 600000
+<6>[    0.137682] ION heap audio created at 0x9fc00000 with size 314000
+<6>[    0.137696] ION heap pil_1 created at 0x8bd00000 with size 600000
+<6>[    0.137710] ION heap pil_2 created at 0x86800000 with size 5500000
+<6>[    0.156724] Bluetooth: HCI device and connection manager initialized
+<6>[    0.451117] fuse init (API version 7.22)
+<6>[    0.453668] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 249)
+<3>[    0.462743] mdss_fb_alloc_fbmem: no fb memory allocator function defined
+<3>[    0.473928] subsys-pil-tz a21b000.qcom,pronto: [wcnss]: Error getting proxy unvoting gpio
+<6>[    0.473987] platform a21b000.qcom,pronto: Driver subsys-pil-tz requests probe deferral
+<3>[    0.475086] pil-q6v5-mss 4080000.qcom,mss: [modem]: Error getting proxy unvoting gpio
+<6>[    0.475214] platform 4080000.qcom,mss: Driver pil-q6v5-mss requests probe deferral
+<3>[    0.512010] AXI: msm_bus_cl_get_pdata(): client has to provide missing entry for successful registration
+<4>[    0.533752] QSEECOM: qseecom_probe: qsee-ce-hw-instance=0x0QSEECOM: qseecom_probe: secure app region addr=0x86000000 size=0x300000
+<6>[    0.545511] PPP generic driver version 2.4.2
+<6>[    0.545621] PPP BSD Compression module registered
+<6>[    0.545628] PPP Deflate Compression module registered
+<6>[    0.579464] MSM-CPP cpp_init_hardware:921 CPP HW Version: 0x40010000
+<4>[    0.649223] ->action():   (null)
+<6>[    0.650451] PMIC@SID0: PM8916 v2.0 options: 2, 2, 0, 0
+<3>[    0.652263] devfreq qcom,cpubw.29: Couldn't update frequency transition information.
+<6>[    0.672039] Mirror/redirect action on
+<6>[    0.672055]     Actions configured
+<6>[    0.672121] nf_conntrack version 0.5.0 (6276 buckets, 25104 max)
+<6>[    0.672931] NF_TPROXY: Transparent proxy support initialized, version 4.1.0
+<6>[    0.678481] Bluetooth: BNEP (Ethernet Emulation) ver 1.3
+<6>[    0.678508] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
+<6>[    0.765556] mmcblk0rpmb: mmc0:0001 H4G2a partition 3 4.00 MiB
+<5>[    0.817990] Registering SWP/SWPB emulation handler
+<6>[    0.952569] android_usb gadget: Mass Storage Function, version: 2009/09/11
+<6>[    0.981006] SELinux:  Permission attach_queue in class tun_socket not defined in policy.
+<6>[    0.981020] SELinux: the above unknown classes and permissions will be denied
+<7>[    0.981043] SELinux:  Completing initialization.
+<7>[    0.981193] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+<7>[    0.987302] SELinux: initialized (dev devpts, type devpts), uses transition SIDs
+<7>[    0.987405] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+<11>[    5.294192] init: /init.qcom.rc: 488: user option requires a user id
+<7>[    5.685827] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+<7>[    5.688041] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+<7>[    5.688284] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+<7>[    5.693970] SELinux: initialized (dev functionfs, type functionfs), not configured for labeling
+<4>[    5.791870] EXT4-fs (mmcblk0p28): Ignoring removed nomblk_io_submit option
+<11>[    5.999520] init: cannot expand '${persist.sys.mba_boot_timeout}' while writing to '/sys/module/pil_msa/parameters/pbl_mba_boot_timeout_ms'
+<11>[    5.999551] init: cannot expand '${persist.sys.modem_auth_timeout}' while writing to '/sys/module/pil_msa/parameters/modem_auth_timeout_ms'
+<11>[    5.999569] init: property 'persist.sys.pil_proxy_timeout' doesn't exist while expanding '${persist.sys.pil_proxy_timeout}'
+<11>[    5.999582] init: cannot expand '${persist.sys.pil_proxy_timeout}' while writing to '/sys/module/peripheral_loader/parameters/proxy_timeout_ms'
+<6>[    6.002955] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x86800000 to 0x8ba00000
+<6>[    6.048943] pil: MBA boot done
+<6>[    6.677921] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+<6>[    6.783192] pil-q6v5-mss 4080000.qcom,mss: modem: Power/Clock ready interrupt received
+<6>[    6.783226] pil-q6v5-mss 4080000.qcom,mss: Subsystem error monitoring/handling services are up
+<6>[    6.790801] binder: 187:187 transaction failed 29189, size 0-0
+<6>[    7.305449] MSM-CPP cpp_init_hardware:921 CPP HW Version: 0x40010000
+<6>[    7.345944] MSM-CPP cpp_load_fw:1076 MC Bootloader Version: 0x312e3176
+<6>[    7.352094] MSM-CPP cpp_load_fw:1089 CPP FW Version: 0x10040005
+<7>[    8.059377] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+<6>[    8.261917] wcnss_pm_qos_update_request: update request 100<6>[    8.262410] wcnss_notif_cb: wcnss notification event: 2
+<6>[    8.266347] subsys-pil-tz a21b000.qcom,pronto: wcnss: loading from 0x8bd00000 to 0x8c2ff000
+<6>[    8.266657] wcnss_notif_cb: wcnss notification event: 6
+<6>[    8.419838] subsys-pil-tz a21b000.qcom,pronto: wcnss: Brought out of reset
+<6>[    8.794093] subsys-pil-tz a21b000.qcom,pronto: wcnss: Power/Clock ready interrupt received
+<6>[    8.794376] wcnss_notif_cb: wcnss notification event: 7
+<6>[    8.802009] subsys-pil-tz a21b000.qcom,pronto: Subsystem error monitoring/handling services are up
+<6>[    8.802239] wcnss_notif_cb: wcnss notification event: 3
+<6>[    8.934232] wcnss: version 01050102
+<6>[    8.935011] wcnss: build version CNSS-PR-1-4-2-c4-00084
+<11>[   15.235151] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.ip
+<11>[   15.235433] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.netmask
+<11>[   15.235681] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.dhcp.type
+<11>[   15.235856] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.ipstart
+<11>[   15.236025] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.ipend
+<11>[   15.236227] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.iptimer
+<11>[   15.236387] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.eth.type
+<14>[   17.469437] Boot completed init: sys_prop: permission denied uid:1013  name:service.bootanim.exit
+<3>[   17.794260] wlan: [892:E :VOS] INFO: NV version = 2 is loaded, driver supports NV version = 3
+<6>[   17.994841] wlan: WCNSS WLAN version 1.5.1.2
+<6>[   17.994855] wlan: WCNSS software version CNSS-PR-1-4-2-c4-00084
+<6>[   17.994866] wlan: WCNSS hardware version WCN v2.0 RadioPhy vUnknown with 19.2MHz XO
+<3>[   17.994925] wlan: [892:E :CTL] 		MCC, P2P, DOT11AC, SLM_SESSIONIZATION, DOT11AC_OPMODE, SAP32STA, TDLS, P2P_GO_NOA_DECOUPLE_INIT_SCAN, WLANACTIVE_OFFLOAD, WOW, WLAN_ROAM_SCAN_OFFLOAD, , , , FW_IN_TX_PATH, CH_SWITCH_V1, HT40_OBSS_SCAN, 
+<3>[   17.996840] wlan: [1289:E :CTL] 		MCC, P2P, SLM_SESSIONIZATION, DOT11AC_OPMODE, SAP32STA, TDLS, P2P_GO_NOA_DECOUPLE_INIT_SCAN, WLANACTIVE_OFFLOAD, BEACON_OFFLOAD, SCAN_OFFLOAD, BCN_MISS_OFFLOAD, STA_POWERSAVE, , BCN_FILTER, RTT, RATECTRL, WOW, WLAN_ROAM_SCAN_OFFLOAD, , , , , , , FW_IN_TX_PATH, EXTENDED_NSOFFLOAD_SLOT, CH_SWITCH_V1, HT40_OBSS_SCAN, , , , 
+<3>[   19.008431] wlan: [0:E :TL ] WLAN TL:Station was not previously registered on WLANTL_STAPktPending
+<6>[   21.348891] rndis_function_bind_config: rndis_function_bind_config MAC: 02:53:01:01:39:31
+<6>[   32.971707] sshd (1656): undefined instruction: pc=000d0f08
+<6>[   32.971802] sshd (1656): undefined instruction: pc=000d0ef0
+<6>[   32.971867] sshd (1656): undefined instruction: pc=000d0ef8
+<6>[   32.971902] sshd (1656): undefined instruction: pc=000d0f00
+<6>[  117.594668] rndis_function_bind_config: rndis_function_bind_config MAC: 02:53:01:01:39:31
+<6>[ 1717.478524] sshd (3177): undefined instruction: pc=000d0f08
+<6>[ 1717.478570] sshd (3177): undefined instruction: pc=000d0ef0
+<6>[ 1717.478599] sshd (3177): undefined instruction: pc=000d0ef8
+<6>[ 1717.478627] sshd (3177): undefined instruction: pc=000d0f00
+
+=== MEMORY MAPPINGS FROM /proc/iomem ===
+01b04000-01b040ff : 1b04000.qcom,cpp
+01b08000-01b080ff : 1b08000.qcom,csid
+01b08400-01b084ff : 1b08400.qcom,csid
+01b0a000-01b0a4ff : 1b0a000.qcom,ispif
+01b0ac00-01b0adff : 1b0ac00.qcom,csiphy
+01b0b000-01b0b1ff : 1b0b000.qcom,csiphy
+01b0c000-01b0cfff : 1b0c000.qcom,cci

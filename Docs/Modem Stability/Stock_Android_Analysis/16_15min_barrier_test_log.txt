@@ -1,0 +1,131 @@
+=== SYSTEM UPTIME ===
+up time: 00:15:21, idle time: 00:58:48, sleep time: 00:00:00
+921.01 3528.55
+
+=== NETWORK CONNECTIVITY & IP ===
+rmnet0: ip 10.83.233.10 mask 255.255.255.252 flags [up running]
+PING 1.1.1.1 (1.1.1.1) 56(84) bytes of data.
+64 bytes from 1.1.1.1: icmp_seq=1 ttl=56 time=36.5 ms
+64 bytes from 1.1.1.1: icmp_seq=2 ttl=56 time=36.1 ms
+64 bytes from 1.1.1.1: icmp_seq=3 ttl=56 time=82.5 ms
+
+--- 1.1.1.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 36.161/51.762/82.595/21.803 ms
+
+=== DMESG LAST 40 LINES (CHECK FOR CRASHES) ===
+<6>[   37.388008] bridge1: port 2(rndis0) entered forwarding state
+<6>[   48.699929] core_set_dolby_manufacturer_id: manufacturer_id :0
+<11>[   78.935958] init: untracked pid 1316 exited
+<6>[  117.447554] bridge1: port 2(rndis0) entered disabled state
+<6>[  117.448259] device rndis0 left promiscuous mode
+<6>[  117.448294] bridge1: port 2(rndis0) entered disabled state
+<5>[  117.465525] type=1400 audit(1788304850.391:7): avc:  denied  { module_request } for  pid=2098 comm="brctl" kmod="netdev-rndis0" scontext=u:r:netd:s0 tcontext=u:r:kernel:s0 tclass=system
+<5>[  117.465967] type=1400 audit(1788304850.391:8): avc:  denied  { sys_module } for  pid=2098 comm="brctl" capability=16  scontext=u:r:netd:s0 tcontext=u:r:netd:s0 tclass=capability
+<11>[  117.592340] init: untracked pid 2089 exited
+<6>[  117.594601] read descriptors
+<6>[  117.594623] read strings
+<6>[  117.594668] rndis_function_bind_config: rndis_function_bind_config MAC: 02:53:01:01:39:31
+<4>[  117.594754] android_usb gadget: using random self ethernet address
+<4>[  117.594782] android_usb gadget: using random host ethernet address
+<6>[  117.596858] rndis0: MAC 5e:88:ba:ac:45:2a
+<6>[  117.596877] rndis0: HOST MAC ca:ac:e4:17:10:17
+<6>[  117.597085] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_CONNECT_EVENT received
+<6>[  117.600195] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_SUSPEND_EVENT received
+<6>[  117.600274] android_work: android_work: did not send uevent (1 1   (null))
+<6>[  117.704450] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_RESUME_EVENT received
+<6>[  117.704719] android_work: android_work: sent uevent USB_STATE=DISCONNECTED
+<6>[  117.815106] android_work: android_work: sent uevent USB_STATE=CONNECTED
+<6>[  117.818584] android_work: android_work: sent uevent USB_STATE=DISCONNECTED
+<6>[  117.868275] IPv6: ADDRCONF(NETDEV_UP): rndis0: link is not ready
+<6>[  117.898804] device rndis0 entered promiscuous mode
+<6>[  117.898994] bridge1: port 2(rndis0) entered forwarding state
+<6>[  117.899164] bridge1: port 2(rndis0) entered forwarding state
+<6>[  117.939083] android_work: android_work: sent uevent USB_STATE=CONNECTED
+<6>[  117.945699] android_usb gadget: high-speed config #1: 86000c8.android_usb
+<6>[  117.947760] IPv6: ADDRCONF(NETDEV_CHANGE): rndis0: link becomes ready
+<6>[  118.008209] android_work: android_work: sent uevent USB_STATE=CONFIGURED
+<6>[  132.908002] bridge1: port 2(rndis0) entered forwarding state
+<4>[  134.369355] htb: prio qdisc 10: is non-work-conserving?
+<3>[   32.354631] diag: unable to alloc USB req on legacy ch, err: -19
+<7>[  137.659895] diag: USB disconnected
+<7>[  137.662476] diag: USB connected
+<3>[  137.662497] diag: unable to alloc USB req on legacy ch, err: -19
+<7>[  137.662864] diag: USB disconnected
+<7>[  137.664004] diag: USB connected
+<11>[  229.302077] init: untracked pid 2295 exited
+
+=== BAM-DMUX LIVE DEBUG STATS ===
+skb read cnt:    27085
+skb write cnt:   18788
+skb copy cnt:    0
+skb copy bytes:  0
+sps tx failures: 0
+sps tx stalls:   0
+rx queue len:    32
+a2 ack out cnt:  71
+a2 ack in cnt:   65
+a2 pwr cntl in:  71
+ch00  local open=Y  remote open=Y
+ch01  local open=Y  remote open=Y
+ch02  local open=Y  remote open=Y
+ch03  local open=Y  remote open=Y
+ch04  local open=Y  remote open=Y
+ch05  local open=Y  remote open=Y
+ch06  local open=Y  remote open=Y
+ch07  local open=Y  remote open=Y
+ch08  local open=N  remote open=Y
+ch09  local open=N  remote open=N
+ch10  local open=N  remote open=Y
+ch11  local open=N  remote open=Y
+ch12  local open=N  remote open=Y
+ch13  local open=N  remote open=Y
+ch14  local open=N  remote open=Y
+ch15  local open=N  remote open=Y
+ch16  local open=N  remote open=N
+ch17  local open=N  remote open=N
+ch18  local open=N  remote open=N
+ch19  local open=N  remote open=N
+ch20  local open=N  remote open=N
+
+=== RADIO LOGCAT LAST 40 LINES ===
+D/GsmDCT  ( 1016): overall state is CONNECTED
+D/GsmDCT  ( 1016): startDataStallAlarm: tag=16398 delay=60s
+D/GsmDCT  ( 1016): setActivity =NONE
+E/RILQ    (  197): (0/197): RIL[0][main] qmi_ril_check_android_unsol_resp_dispatchable: invalid android_unsol_resp id 11036
+E/RILQ    (  197): (0/197): RIL[0][main] qmi_ril_add_unsol_resp_to_pending_list: invalid android_unsol_resp id 11036
+D/RILJ    ( 1016): responseDataCallList ver=9 num=1
+D/RILJ    ( 1016): [UNSL]< UNSOL_DATA_CALL_LIST_CHANGED [DataCallResponse: {version=9 status=0 retry=-1 cid=0 active=1 type=IPV4V6' ifname='rmnet0' addresses=[10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64] dnses=[49.45.0.1,2405:0200:0800:0000:0000:0000:0000:0001] gateways=[10.83.233.9,fe80:0000:0000:0000:55bb:b445:f475:4c7f]}]
+D/Dcc     ( 1016): onDataStateChanged: dcsList=[DataCallResponse: {version=9 status=0 retry=-1 cid=0 active=1 type=IPV4V6' ifname='rmnet0' addresses=[10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64] dnses=[49.45.0.1,2405:0200:0800:0000:0000:0000:0000:0001] gateways=[10.83.233.9,fe80:0000:0000:0000:55bb:b445:f475:4c7f]}] mDcListActiveByCid={0={GsmDC-1: State=DcActiveState mApnSetting=[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0 RefCount=2 mCid=0 mCreateTime=1788304776453 mLastastFailTime=-1 mLastFailCause=NONE mTag=2 mRetryManager=RetryManager: { forever=false maxRetry=10 curMaxRetry=10 retry=0 config={default_randomization=2000,5000,10000,20000,40000,80000:5000,160000:5000,320000:5000,640000:5000,1280000:5000,1800000:5000} retryArray={5000:2000 10000:2000 20000:2000 40000:2000 80000:5000 160000:5000 320000:5000 640000:5000 1280000:5000 1800000:5000 }} mLinkProperties={InterfaceName: rmnet0 LinkAddresses: [10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64,]  Routes: [0.0.0.0/0 -> 10.83.233.9,::/0 -> fe80::55bb:b445:f475:4c7f,] DnsAddresses: [49.45.0.1,2405:200:800::1,] Domains: nullMTU: 0} mLinkCapabilities={} mApnContexts=[{mApnType=default mState=CONNECTED mWaitingDataProfiles={[[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0]} mWaitingApnsPermanentFailureCountDown=1 mDataProfile={[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0} mReason=connected mDataEnabled=true mDependencyMet=true}, {mApnType=hipri mState=CONNECTED mWaitingDataProfiles={[[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0]} mWaitingApnsPermanentFailureCountDown=1 mDataProfile={[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0} mReason=dataEnabled mDataEnabled=true mDependencyMet=true}]}}
+D/Dcc     ( 1016): onDataStateChanged: dcsToRetry=[]
+D/Dcc     ( 1016): onDataStateChanged: Found ConnId=0 newState=DataCallResponse: {version=9 status=0 retry=-1 cid=0 active=1 type=IPV4V6' ifname='rmnet0' addresses=[10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64] dnses=[49.45.0.1,2405:0200:0800:0000:0000:0000:0000:0001] gateways=[10.83.233.9,fe80:0000:0000:0000:55bb:b445:f475:4c7f]}
+D/DataCallResponse( 1016): addr/pl=10.83.233.10/30
+D/DataCallResponse( 1016): addr/pl=2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64
+D/Dcc     ( 1016): onDataStateChanged: no change
+D/Dcc     ( 1016): onDataStateChanged: Data Activity updated to DORMANT. stopNetStatePoll
+D/Dcc     ( 1016): onDataStateChanged: dcsToRetry=[] apnsToCleanup=[]
+D/Dcc     ( 1016): onDataStateChanged: X
+D/GsmDCT  ( 1016): handleMessage msg={ when=0 what=270378 arg2=-1 obj=DORMANT target=com.android.internal.telephony.dataconnection.DcTracker }
+D/GsmDCT  ( 1016): stopNetStatPoll
+D/GsmDCT  ( 1016): stopDataStallAlarm: current tag=16398 mDataStallAlarmIntent=PendingIntent{4196ec08: android.os.BinderProxy@41986690}
+D/GsmDCT  ( 1016): setActivity =DORMANT
+E/RILQ    (  197): (0/197): RIL[0][main] qmi_ril_check_android_unsol_resp_dispatchable: invalid android_unsol_resp id 11036
+E/RILQ    (  197): (0/197): RIL[0][main] qmi_ril_add_unsol_resp_to_pending_list: invalid android_unsol_resp id 11036
+D/RILJ    ( 1016): responseDataCallList ver=9 num=1
+D/RILJ    ( 1016): [UNSL]< UNSOL_DATA_CALL_LIST_CHANGED [DataCallResponse: {version=9 status=0 retry=-1 cid=0 active=2 type=IPV4V6' ifname='rmnet0' addresses=[10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64] dnses=[49.45.0.1,2405:0200:0800:0000:0000:0000:0000:0001] gateways=[10.83.233.9,fe80:0000:0000:0000:55bb:b445:f475:4c7f]}]
+D/Dcc     ( 1016): onDataStateChanged: dcsList=[DataCallResponse: {version=9 status=0 retry=-1 cid=0 active=2 type=IPV4V6' ifname='rmnet0' addresses=[10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64] dnses=[49.45.0.1,2405:0200:0800:0000:0000:0000:0000:0001] gateways=[10.83.233.9,fe80:0000:0000:0000:55bb:b445:f475:4c7f]}] mDcListActiveByCid={0={GsmDC-1: State=DcActiveState mApnSetting=[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0 RefCount=2 mCid=0 mCreateTime=1788304776453 mLastastFailTime=-1 mLastFailCause=NONE mTag=2 mRetryManager=RetryManager: { forever=false maxRetry=10 curMaxRetry=10 retry=0 config={default_randomization=2000,5000,10000,20000,40000,80000:5000,160000:5000,320000:5000,640000:5000,1280000:5000,1800000:5000} retryArray={5000:2000 10000:2000 20000:2000 40000:2000 80000:5000 160000:5000 320000:5000 640000:5000 1280000:5000 1800000:5000 }} mLinkProperties={InterfaceName: rmnet0 LinkAddresses: [10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64,]  Routes: [0.0.0.0/0 -> 10.83.233.9,::/0 -> fe80::55bb:b445:f475:4c7f,] DnsAddresses: [49.45.0.1,2405:200:800::1,] Domains: nullMTU: 0} mLinkCapabilities={} mApnContexts=[{mApnType=default mState=CONNECTED mWaitingDataProfiles={[[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0]} mWaitingApnsPermanentFailureCountDown=1 mDataProfile={[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0} mReason=connected mDataEnabled=true mDependencyMet=true}, {mApnType=hipri mState=CONNECTED mWaitingDataProfiles={[[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0]} mWaitingApnsPermanentFailureCountDown=1 mDataProfile={[ApnSettingV2] Jio 4G, 2681, 405861, jionet, null, null, null, null, null, -1, default | supl, IPV4V6, IPV4V6, true, 0} mReason=dataEnabled mDataEnabled=true mDependencyMet=true}]}}
+D/Dcc     ( 1016): onDataStateChanged: dcsToRetry=[]
+D/Dcc     ( 1016): onDataStateChanged: Found ConnId=0 newState=DataCallResponse: {version=9 status=0 retry=-1 cid=0 active=2 type=IPV4V6' ifname='rmnet0' addresses=[10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64] dnses=[49.45.0.1,2405:0200:0800:0000:0000:0000:0000:0001] gateways=[10.83.233.9,fe80:0000:0000:0000:55bb:b445:f475:4c7f]}
+D/DataCallResponse( 1016): addr/pl=10.83.233.10/30
+D/DataCallResponse( 1016): addr/pl=2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64
+D/Dcc     ( 1016): onDataStateChanged: no change
+D/Dcc     ( 1016): onDataStateChanged: Data Activity updated to NONE. isAnyDataCallActive = true isAnyDataCallDormant = false
+D/Dcc     ( 1016): onDataStateChanged: dcsToRetry=[] apnsToCleanup=[]
+D/Dcc     ( 1016): onDataStateChanged: X
+D/GsmDCT  ( 1016): handleMessage msg={ when=0 what=270378 arg1=1 arg2=-1 obj=NONE target=com.android.internal.telephony.dataconnection.DcTracker }
+D/GsmDCT  ( 1016): overall state is CONNECTED
+D/GsmDCT  ( 1016): startNetStatPoll
+D/GsmDCT  ( 1016): getRecoveryAction: 0
+D/GsmDCT  ( 1016): overall state is CONNECTED
+D/GsmDCT  ( 1016): startDataStallAlarm: tag=16400 delay=60s
+D/GsmDCT  ( 1016): setActivity =NONE

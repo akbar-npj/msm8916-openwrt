@@ -1,0 +1,3375 @@
+================================================================
+STRINGS + SYMBOL ANALYSIS: ALL EXTRACTED BINARIES
+Date: Wed Sep  2 11:33:08 +0545 2026
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: libqmi_client_qmux.so  (42232 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          41312 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         23
+  Section header string table index: 22
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_finalize
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 000043c5    28 FUNC    GLOBAL DEFAULT    8 qmi_format_diag_[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND msg_sprintf
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND getpid
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strrchr_chk
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND getgroups
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND getegid
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND getgrgid
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncmp
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND unlink
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND bind
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND chmod
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND connect
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND sleep
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_trylock
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    38: 00004e15  3148 FUNC    GLOBAL DEFAULT    8 qmi_qmux_if_rx_msg
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND select
+    42: 000038cd  1060 FUNC    GLOBAL DEFAULT    8 linux_qmi_qmux_i[...]
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND Diag_LSM_Init
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND pipe
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    48: 00003cf1   436 FUNC    GLOBAL DEFAULT    8 linux_qmi_qmux_i[...]
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    50: 00003ea5  1048 FUNC    GLOBAL DEFAULT    8 linux_qmi_qmux_i[...]
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_join
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    56: 000042bd   144 FUNC    GLOBAL DEFAULT    8 qmi_linux_wait_f[...]
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND gettimeofday
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_tim[...]
+    59: 0000434d    76 FUNC    GLOBAL DEFAULT    8 qmi_linux_get_co[...]
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncasecmp
+    61: 00004399    44 FUNC    GLOBAL DEFAULT    8 qmi_linux_get_na[...]
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND vsnprintf
+    63: 000043e1   576 FUNC    GLOBAL DEFAULT    8 qmi_linux_get_co[...]
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdiag.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdsutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmiservices.so]
+ 0x00000001 (NEEDED)                     Shared library: [libidl.so]
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+qmi_format_diag_log_msg
+qmi_log_adb_level
+socket
+sleep
+pthread_mutex_trylock
+pthread_mutex_lock
+pthread_mutex_unlock
+qmi_qmux_if_rx_msg
+linux_qmi_qmux_if_client_init
+linux_qmi_qmux_if_client_tx_msg
+linux_qmi_qmux_if_client_release
+qmi_platform_qxdm_init
+qmi_linux_wait_for_sig_with_timeout
+gettimeofday
+pthread_cond_timedwait
+qmi_linux_get_conn_id_by_name
+qmi_linux_get_name_by_conn_id
+qmi_linux_get_conn_id_by_name_ex
+qmi_linux_get_internal_use_port
+qmi_platform_log_raw_qmi_msg
+qmi_qmux_if_send_if_msg_to_qmux
+qmi_util_alloc_and_addref_txn
+qmi_util_release_txn
+qmi_util_find_and_addref_txn
+qmi_qmux_if_alloc_service_client
+qmi_qmux_if_release_service_client
+qmi_qmux_if_set_data_format
+qmi_qmux_if_reg_pwr_save_mode
+qmi_qmux_if_config_pwr_save_settings
+qmi_qmux_if_set_pwr_state
+qmi_qmux_if_get_pwr_state
+qmi_qmux_if_is_conn_active
+qmi_qmux_if_send_qmi_msg
+qmi_qmux_if_pwr_up_init_ex
+qmi_qmux_if_pwr_up_init
+qmi_qmux_if_pwr_down_release
+qmi_qmux_if_open_connection
+qmi_qmux_if_qmi_proxy_send_to_qmux
+qmi_qmux_if_get_version_list
+qmi_qmux_if_reg_srvc_avail
+qmi_qmux_if_send_raw_qmi_cntl_msg
+qmi_util_service_delete_txn
+qmi_util_release_txn_no_lock
+qmi_util_addref_txn_no_lock
+qmi_util_read_std_tlv
+qmi_util_write_std_tlv
+qmi_util_get_std_result_code
+libqmiservices.so
+libqmi_client_qmux.so
+linux_qmi_qmux_if_client_get_client_id [%d]: bad param
+QC-QMI
+linux_qmi_qmux_if_client_get_client_id [%d]: recv failed. [%d:%s]
+linux_qmi_qmux_if_client_get_client_id [%d]: qmux_client_id=%x
+/dev/socket/qmux_radio/qmux_client_socket
+/dev/socket/qmux_radio/qmux_connect_socket
+qmi_client [%d]: unable to open client socket, rc = %d
+linux_qmi_qmux_if_client_get_proc_name: failed to open proc_entry=%s, errno=[%d:%s]
+linux_qmi_qmux_if_client_get_proc_name: read failed errno=[%d:%s]
+linux_qmi_qmux_if_client_get_proc_name: pid=%d, proc_name=%s
+linux_qmi_qmux_if_client_get_socket_paths: failed to obtain proc name for pid=%d
+linux_qmi_qmux_if_client_get_socket_paths: getgroups() failed
+linux_qmi_qmux_if_client_get_socket_paths: getgroups() failed errno=[%d:%s]
+linux_qmi_qmux_if_client_get_socket_paths: num_grps=%d
+linux_qmi_qmux_if_client_get_proc_group_name: getgrname() failed errno[%d:%s]
+linux_qmi_qmux_if_client_get_socket_paths: failed to obtain proc group name for pid=%d
+linux_qmi_qmux_if_client_get_proc_group_name: gid=%d, grp_name=%s
+using socket paths bind=%s, connect=%s
+qmi_client [%d]: unable to bind to client socket, rc = %d errno[%d:%s]
+qmi_client [%d]: unable to chmod bind_sock_path=%s, errno=[%d:%s]
+qmi_client [%d]: unable to connect to server, errno=[%d:%s], attempt=%d
+qmi_client [%d]: successfully connected to server, attempt=%d
+qmi_client [%d]: unable to connect to server after %d tries... giving up
+linux_qmi_qmux_if_send_reset_msg: invalid parameters
+linux_qmi_qmux_if_reinit_qmux_conn: failed to acquire mutex ret=%d
+linux_qmi_qmux_if_reinit_qmux_conn: unable to locate client=0x%x
+linux_qmi_qmux_if_reinit_qmux_conn: unable to connect to qmux
+qmi_client [%d] fd=%x: failed to obtain qmux_client_id
+qmi_client [%d] assigning new client_id=%x, fd=%x
+linux_qmi_qmux_if_send_reset_msg: QMUX connection reinit failed
+linux_qmi_qmux_if_reset_conn: sending OOS message [%d] %x
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__cxa_finalize
+__cxa_atexit
+qmi_format_diag_log_msg
+msg_sprintf
+__errno
+strerror
+__android_log_print
+__stack_chk_fail
+__stack_chk_guard
+qmi_log_adb_level
+__aeabi_unwind_cpp_pr0
+memset
+getpid
+socket
+snprintf
+__strrchr_chk
+strlcpy
+getgroups
+malloc
+getegid
+getgrgid
+strlen
+__strlen_chk
+strncmp
+unlink
+connect
+pthread_mutex_trylock
+pthread_mutex_lock
+pthread_mutex_unlock
+qmi_qmux_if_rx_msg
+__aeabi_unwind_cpp_pr1
+memcpy
+select
+linux_qmi_qmux_if_client_init
+Diag_LSM_Init
+property_get
+pthread_create
+linux_qmi_qmux_if_client_tx_msg
+linux_qmi_qmux_if_client_release
+pthread_join
+qmi_platform_qxdm_init
+__aeabi_idiv
+__aeabi_idivmod
+qmi_linux_wait_for_sig_with_timeout
+gettimeofday
+pthread_cond_timedwait
+qmi_linux_get_conn_id_by_name
+strncasecmp
+qmi_linux_get_name_by_conn_id
+vsnprintf
+qmi_linux_get_conn_id_by_name_ex
+ds_get_target
+ds_atoi
+ds_get_epid
+ds_get_target_str
+qmi_linux_get_internal_use_port
+qmi_platform_log_raw_qmi_msg
+pthread_cond_destroy
+pthread_mutex_destroy
+qmi_qmux_if_send_if_msg_to_qmux
+qmi_util_alloc_and_addref_txn
+qmi_util_release_txn
+pthread_cond_signal
+qmi_util_find_and_addref_txn
+qmi_qmux_if_alloc_service_client
+qmi_qmux_if_release_service_client
+qmi_qmux_if_set_data_format
+qmi_qmux_if_reg_pwr_save_mode
+qmi_qmux_if_config_pwr_save_settings
+qmi_qmux_if_set_pwr_state
+qmi_qmux_if_get_pwr_state
+qmi_qmux_if_is_conn_active
+qmi_qmux_if_send_qmi_msg
+qmi_qmux_if_pwr_up_init_ex
+pthread_mutex_init
+qmi_qmux_if_pwr_up_init
+qmi_qmux_if_pwr_down_release
+qmi_qmux_if_open_connection
+qmi_qmux_if_qmi_proxy_send_to_qmux
+qmi_qmux_if_get_version_list
+qmi_qmux_if_reg_srvc_avail
+qmi_qmux_if_send_raw_qmi_cntl_msg
+qmi_util_service_delete_txn
+qmi_util_release_txn_no_lock
+qmi_util_addref_txn_no_lock
+qmi_util_read_std_tlv
+qmi_util_write_std_tlv
+qmi_util_get_std_result_code
+_edata
+__bss_start
+libcutils.so
+libdiag.so
+libdsutils.so
+libqmiservices.so
+libidl.so
+liblog.so
+libc.so
+libstdc++.so
+libm.so
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: libqmiservices.so  (88652 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          87812 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         21
+  Section header string table index: 20
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_finalize
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     5: 000058d5    28 FUNC    GLOBAL DEFAULT    8 voice_get_servic[...]
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     8: 000058f1    28 FUNC    GLOBAL DEFAULT    8 wds_get_service_[...]
+    11: 0000590d    28 FUNC    GLOBAL DEFAULT    8 wda_get_service_[...]
+    13: 00005929    28 FUNC    GLOBAL DEFAULT    8 wms_get_service_[...]
+    15: 00005945    28 FUNC    GLOBAL DEFAULT    8 dms_get_service_[...]
+    18: 00005961    28 FUNC    GLOBAL DEFAULT    8 nas_get_service_[...]
+    20: 0000597d    28 FUNC    GLOBAL DEFAULT    8 uim_get_service_[...]
+    22: 00005999    28 FUNC    GLOBAL DEFAULT    8 uim_remote_get_s[...]
+    24: 000059b5    28 FUNC    GLOBAL DEFAULT    8 cat_get_service_[...]
+    26: 000059d1    28 FUNC    GLOBAL DEFAULT    8 pbm_get_service_[...]
+    28: 000059ed    28 FUNC    GLOBAL DEFAULT    8 svs_get_service_[...]
+    30: 00005a09    28 FUNC    GLOBAL DEFAULT    8 sar_get_service_[...]
+    32: 00005a25    28 FUNC    GLOBAL DEFAULT    8 ctl_get_service_[...]
+    34: 00005a41    28 FUNC    GLOBAL DEFAULT    8 ims_qmi_get_serv[...]
+    36: 00005a5d    28 FUNC    GLOBAL DEFAULT    8 qcmap_get_servic[...]
+    38: 00005a79    28 FUNC    GLOBAL DEFAULT    8 csvt_get_service[...]
+    40: 00005a95    28 FUNC    GLOBAL DEFAULT    8 imsvt_get_servic[...]
+    42: 00005ab1    28 FUNC    GLOBAL DEFAULT    8 imsp_get_service[...]
+    44: 00005acd    28 FUNC    GLOBAL DEFAULT    8 cxm_get_service_[...]
+    46: 00005ae9    28 FUNC    GLOBAL DEFAULT    8 imss_get_service[...]
+    48: 00005b05    28 FUNC    GLOBAL DEFAULT    8 rfrpe_get_servic[...]
+    50: 00005b21    28 FUNC    GLOBAL DEFAULT    8 imsa_get_service[...]
+    52: 00005b3d    28 FUNC    GLOBAL DEFAULT    8 imsrtp_get_servi[...]
+    54: 00005b59    28 FUNC    GLOBAL DEFAULT    8 imsdcm_get_servi[...]
+    56: 00005b75    28 FUNC    GLOBAL DEFAULT    8 dsd_get_service_[...]
+    58: 00005b91    28 FUNC    GLOBAL DEFAULT    8 dpm_get_service_[...]
+    60: 00005bad    28 FUNC    GLOBAL DEFAULT    8 pdc_get_service_[...]
+    62: 00005bc9    28 FUNC    GLOBAL DEFAULT    8 atp_get_service_[...]
+    64: 00005be5    28 FUNC    GLOBAL DEFAULT    8 dfs_get_service_[...]
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libidl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+common_qmi_idl_type_table_object_v01
+voice_service_common_qmi_idl_type_table_object_v02
+voice_qmi_idl_service_object_v02
+wds_qmi_idl_service_object_v01
+data_common_qmi_idl_type_table_object_v01
+wda_qmi_idl_service_object_v01
+wms_qmi_idl_service_object_v01
+dms_qmi_idl_service_object_v01
+network_access_service_common_qmi_idl_type_table_object_v01
+nas_qmi_idl_service_object_v01
+uim_qmi_idl_service_object_v01
+uim_remote_qmi_idl_service_object_v01
+cat_qmi_idl_service_object_v02
+pbm_qmi_idl_service_object_v01
+svs_qmi_idl_service_object_v01
+sar_qmi_idl_service_object_v01
+ctl_qmi_idl_service_object_v01
+ims_qmi_get_service_object_internal_v01
+ims_qmi_qmi_idl_service_object_v01
+qcmap_qmi_idl_service_object_v01
+csvt_qmi_idl_service_object_v01
+imsvt_qmi_idl_service_object_v01
+imsp_qmi_idl_service_object_v01
+cxm_qmi_idl_service_object_v01
+imss_qmi_idl_service_object_v01
+rfrpe_qmi_idl_service_object_v01
+imsa_qmi_idl_service_object_v01
+imsrtp_qmi_idl_service_object_v01
+imsdcm_qmi_idl_service_object_v01
+dsd_qmi_idl_service_object_v01
+dpm_qmi_idl_service_object_v01
+pdc_qmi_idl_service_object_v01
+atp_qmi_idl_service_object_v01
+dfs_qmi_idl_service_object_v01
+libqmiservices.so
+libqmiservices.so
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__cxa_finalize
+__cxa_atexit
+common_qmi_idl_type_table_object_v01
+voice_service_common_qmi_idl_type_table_object_v02
+voice_get_service_object_internal_v02
+__aeabi_unwind_cpp_pr0
+voice_qmi_idl_service_object_v02
+wds_get_service_object_internal_v01
+wds_qmi_idl_service_object_v01
+data_common_qmi_idl_type_table_object_v01
+wda_get_service_object_internal_v01
+wda_qmi_idl_service_object_v01
+wms_get_service_object_internal_v01
+wms_qmi_idl_service_object_v01
+dms_get_service_object_internal_v01
+dms_qmi_idl_service_object_v01
+network_access_service_common_qmi_idl_type_table_object_v01
+nas_get_service_object_internal_v01
+nas_qmi_idl_service_object_v01
+uim_get_service_object_internal_v01
+uim_qmi_idl_service_object_v01
+uim_remote_get_service_object_internal_v01
+uim_remote_qmi_idl_service_object_v01
+cat_get_service_object_internal_v02
+cat_qmi_idl_service_object_v02
+pbm_get_service_object_internal_v01
+pbm_qmi_idl_service_object_v01
+svs_get_service_object_internal_v01
+svs_qmi_idl_service_object_v01
+sar_get_service_object_internal_v01
+sar_qmi_idl_service_object_v01
+ctl_get_service_object_internal_v01
+ctl_qmi_idl_service_object_v01
+ims_qmi_get_service_object_internal_v01
+ims_qmi_qmi_idl_service_object_v01
+qcmap_get_service_object_internal_v01
+qcmap_qmi_idl_service_object_v01
+csvt_get_service_object_internal_v01
+csvt_qmi_idl_service_object_v01
+imsvt_get_service_object_internal_v01
+imsvt_qmi_idl_service_object_v01
+imsp_get_service_object_internal_v01
+imsp_qmi_idl_service_object_v01
+cxm_get_service_object_internal_v01
+cxm_qmi_idl_service_object_v01
+imss_get_service_object_internal_v01
+imss_qmi_idl_service_object_v01
+rfrpe_get_service_object_internal_v01
+rfrpe_qmi_idl_service_object_v01
+imsa_get_service_object_internal_v01
+imsa_qmi_idl_service_object_v01
+imsrtp_get_service_object_internal_v01
+imsrtp_qmi_idl_service_object_v01
+imsdcm_get_service_object_internal_v01
+imsdcm_qmi_idl_service_object_v01
+dsd_get_service_object_internal_v01
+dsd_qmi_idl_service_object_v01
+dpm_get_service_object_internal_v01
+dpm_qmi_idl_service_object_v01
+pdc_get_service_object_internal_v01
+pdc_qmi_idl_service_object_v01
+atp_get_service_object_internal_v01
+atp_qmi_idl_service_object_v01
+dfs_get_service_object_internal_v01
+dfs_qmi_idl_service_object_v01
+_edata
+__bss_start
+libidl.so
+libc.so
+libstdc++.so
+libm.so
+libqmiservices.so
+GCC: (GNU) 4.7
+gold 1.11
+ARM v7
+libqmiservices.so
+.shstrtab
+.interp
+.dynsym
+.dynstr
+.rel.dyn
+.rel.plt
+.rodata
+.ARM.exidx
+.data.rel.ro.local
+.fini_array
+.dynamic
+.comment
+.note.gnu.gold-version
+.ARM.attributes
+.gnu_debuglink
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: libril-qc-qmi-1.so  (5032528 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          5031568 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         24
+  Section header string table index: 23
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_finalize
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    12: 00069c09  3548 FUNC    GLOBAL DEFAULT    8 qmi_ril_is_featu[...]
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_self
+    16: 00094871   168 FUNC    GLOBAL DEFAULT    8 qmi_ril_get_thre[...]
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcat
+    19: 0007b7cd    16 FUNC    GLOBAL DEFAULT    8 qmi_ril_get_proc[...]
+    20: 0009212d    50 FUNC    GLOBAL DEFAULT    8 qcril_format_log_msg
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND msg_sprintf
+    22: 000921ed   452 FUNC    GLOBAL DEFAULT    8 qcril_log_msg_to_adb
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    31: 000bd55d   480 FUNC    GLOBAL DEFAULT    8 qcril_qmi_voice_[...]
+    32: 0011c14d    80 FUNC    GLOBAL DEFAULT    8 qcril_qmi_voice_[...]
+    33: 0005c929  2048 FUNC    GLOBAL DEFAULT    8 qcril_am_set_cal[...]
+    34: 00286c19   116 FUNC    GLOBAL DEFAULT    8 qcril_qmi_imsa_g[...]
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android7Stri[...]
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android11Aud[...]
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    41: 00070405  3252 FUNC    GLOBAL DEFAULT    8 qcril_hook_unsol[...]
+    42: 0005b875  2268 FUNC    GLOBAL DEFAULT    8 _Z33qcril_am_is_[...]
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android11Aud[...]
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZNK7android7Str[...]
+    45: 0005c819   252 FUNC    GLOBAL DEFAULT    8 qcril_am_pre_init
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutexatt[...]
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutexatt[...]
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutexatt[...]
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncmp
+    51: 000864e5    60 FUNC    GLOBAL DEFAULT    8 qmi_ril_retrieve[...]
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android12Pro[...]
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZN7android12Pro[...]
+    54: 0005e3e1    48 FUNC    WEAK   DEFAULT    8 _ZN7android2spIN[...]
+    55: 0005c915    20 FUNC    GLOBAL DEFAULT    8 qcril_am_post_cleanup
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_destroy
+    57: 000944f1   456 FUNC    GLOBAL DEFAULT    8 qcril_multiple_r[...]
+    58: 0005d129    72 FUNC    GLOBAL DEFAULT    8 qcril_am_state_reset
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    60: 0005d171  4012 FUNC    GLOBAL DEFAULT    8 qcril_am_handle_event
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    62: 0005e11d   708 FUNC    GLOBAL DEFAULT    8 qcril_am_set_vsid
+    63: 0005e3e1    48 FUNC    WEAK   DEFAULT    8 _ZN7android2spIN[...]
+    64: 00000000     0 FUNC    GLOBAL DEFAULT  UND _ZNK7android7Ref[...]
+    65: 0005e429    80 FUNC    GLOBAL DEFAULT    8 _ZN26qcril_qmi_i[...]
+    66: 00060d71    84 FUNC    WEAK   DEFAULT    8 _ZN25qcril_qmi_s[...]
+    68: 0005e429    80 FUNC    GLOBAL DEFAULT    8 _ZN26qcril_qmi_i[...]
+    69: 0005e479   960 FUNC    GLOBAL DEFAULT    8 _ZN26qcril_qmi_i[...]
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libdsutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libril.so]
+ 0x00000001 (NEEDED)                     Shared library: [librilutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libril-qcril-hook-oem.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_cci.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdiag.so]
+ 0x00000001 (NEEDED)                     Shared library: [libhardware_legacy.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmiservices.so]
+ 0x00000001 (NEEDED)                     Shared library: [libidl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libtime_genoff.so]
+ 0x00000001 (NEEDED)                     Shared library: [libsqlite.so]
+ 0x00000001 (NEEDED)                     Shared library: [libmedia.so]
+ 0x00000001 (NEEDED)                     Shared library: [libbinder.so]
+ 0x00000001 (NEEDED)                     Shared library: [libmdmdetect.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdsi_netctrl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqdp.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+pthread_mutex_lock
+pthread_mutex_unlock
+qmi_ril_is_feature_supported
+qmi_ril_get_thread_name
+qmi_ril_get_process_instance_id
+log_lock_mutex
+qcril_qmi_voice_is_ims_call
+qcril_qmi_voice_has_specific_call
+qcril_qmi_imsa_get_srv_status
+qmi_ril_retrieve_number_of_rilds
+_ZN26qcril_qmi_ims_socket_agentC2Ev
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentEC2EPKc
+_ZTV26qcril_qmi_ims_socket_agent
+_ZN26qcril_qmi_ims_socket_agentC1Ev
+_ZN26qcril_qmi_ims_socket_agent11thread_funcEv
+_ZN26qcril_qmi_ims_socket_agent20init_socket_listenfdEv
+_ZN26qcril_qmi_ims_socket_agent19recv_thread_handlerEv
+_ZN26qcril_qmi_ims_socket_agent12send_messageEPv13_Ims__MsgType11_Ims__MsgId11_Ims__ErrorPKvi
+qcril_qmi_ims_free_and_convert_ril_token_to_ims_token
+qcril_qmi_ims_pack_msg_tag
+qcril_qmi_ims_pack_msg
+qcril_qmi_print_hex
+_ZN26qcril_qmi_ims_socket_agent16get_message_sizeEv
+_ZN26qcril_qmi_ims_socket_agent24process_incoming_messageEv
+qcril_qmi_ims_unpack_msg_tag
+qcril_qmi_ims_parse_packed_msg
+qcril_qmi_ims_convert_ims_token_to_ril_token
+qcril_qmi_voice_process_for_ims_dial
+qcril_qmi_ims__msg_tag__free_unpacked
+socket
+qcril_qmi_voice_ims_send_unsol_radio_state_change_helper
+qcril_qmi_ims_socket_init
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE12get_instanceEv
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE4initEv
+qcril_qmi_ims_socket_send
+qcril_qmi_ims_socket_send_empty_payload_unsol_resp
+_ZTV25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentEC1EPKc
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE8instanceE
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE13create_threadEv
+_ZZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE4initEvE12xx_msg_const_0
+_ZZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE4initEvE12xx_msg_const_2
+_ZZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE4initEvE12xx_msg_const_4
+qmi_ril_set_thread_name
+_ZZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE13create_threadEvE12xx_msg_const_0
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE19thread_func_wrapperEPv
+_ZZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE13create_threadEvE12xx_msg_const_2
+_ZZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE13create_threadEvE12xx_msg_const_4
+qmi_ril_oem_hook_overview
+oem_lock_mutex
+_ZN26qcril_qmi_oem_socket_agent8instanceE
+_ZN26qcril_qmi_oem_socket_agentC2Ev
+_ZN30qcril_qmi_generic_socket_agentC2Ei
+_ZTV26qcril_qmi_oem_socket_agent
+_ZN26qcril_qmi_oem_socket_agentC1Ev
+_ZN26qcril_qmi_oem_socket_agent20get_oem_socket_agentEv
+_ZN26qcril_qmi_oem_socket_agent18send_message_unsolE13_Oem__MsgTypePKvi
+_ZN26qcril_qmi_oem_socket_agent12send_messageEi13_Oem__MsgTypei9RIL_ErrnoPKvi
+_ZN26qcril_qmi_oem_socket_agent24process_incoming_messageEv
+qcril_qmi_oem_convert_oem_token_to_ril_token
+qmi_ril_get_req_details_from_oem_req
+qmi_ril_parse_oem_req_tunnelled_message
+qcril_qmi_oem_socket_init
+_ZN30qcril_qmi_generic_socket_agent19start_socket_serverEPc
+qcril_qmi_oem_socket_send_unsol
+qcril_qmi_oem_socket_send
+qcril_qmi_oem_free_and_convert_ril_token_to_oem_token
+qmi_ril_oem_hook_get_request_id
+qmi_ril_oem_hook_qmi_idl_tunneling_get_service_object
+qmi_idl_get_message_c_struct_len
+qmi_idl_message_decode
+qmi_ril_parse_oem_hook_header
+_ZN30qcril_qmi_generic_socket_agentD2Ev
+_ZTV30qcril_qmi_generic_socket_agent
+_ZN30qcril_qmi_generic_socket_agentC1Ei
+_ZN30qcril_qmi_generic_socket_agentD1Ev
+_ZN30qcril_qmi_generic_socket_agentD0Ev
+_ZN30qcril_qmi_generic_socket_agent20init_socket_listenfdEv
+_ZN30qcril_qmi_generic_socket_agent18create_recv_threadEPc
+_ZN30qcril_qmi_generic_socket_agent11recv_threadEPv
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__cxa_finalize
+__cxa_atexit
+__aeabi_unwind_cpp_pr0
+_ZN7android7String85setToERKS0_
+_ZN7android7String86appendERKS0_
+_ZN7android7String8C1ERKS0_
+_ZN7android7String86appendEPKc
+am_state
+pthread_mutex_lock
+__aeabi_unwind_cpp_pr1
+pthread_mutex_unlock
+qmi_ril_is_feature_supported
+property_get
+pthread_self
+qmi_ril_get_thread_name
+strlcpy
+strlcat
+qmi_ril_get_process_instance_id
+qcril_format_log_msg
+msg_sprintf
+qcril_log_msg_to_adb
+__stack_chk_fail
+__stack_chk_guard
+diag_init_complete
+qcril_log_adb_on
+log_lock_mutex
+thread_name
+log_fmt
+log_buf
+qcril_qmi_voice_is_ims_call
+qcril_qmi_voice_has_specific_call
+qcril_am_set_call_audio_driver
+qcril_qmi_imsa_get_srv_status
+_ZN7android7String8C1Ev
+snprintf
+_ZN7android7String8C1EPKc
+_ZN7android7String8D1Ev
+_ZN7android11AudioSystem13setParametersEiRKNS_7String8E
+strlen
+qcril_hook_unsol_response
+_Z33qcril_am_is_same_audio_call_statemm
+_ZN7android11AudioSystem13getParametersEiRKNS_7String8E
+_ZNK7android7String84findEPKcj
+qcril_am_pre_init
+pthread_mutexattr_init
+pthread_mutexattr_settype
+pthread_mutex_init
+pthread_mutexattr_destroy
+strncmp
+qmi_ril_retrieve_number_of_rilds
+_ZN7android12ProcessState4selfEv
+_ZN7android12ProcessState15startThreadPoolEv
+_ZN7android2spINS_12ProcessStateEED1Ev
+qcril_am_post_cleanup
+pthread_mutex_destroy
+qcril_multiple_rild_ipc_send_func
+qcril_am_state_reset
+memset
+qcril_am_handle_event
+memcpy
+qcril_am_set_vsid
+_ZN7android2spINS_12ProcessStateEED2Ev
+_ZNK7android7RefBase9decStrongEPKv
+_ZN26qcril_qmi_ims_socket_agentC2Ev
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentEC2EPKc
+_ZTV26qcril_qmi_ims_socket_agent
+_ZN26qcril_qmi_ims_socket_agentC1Ev
+_ZN26qcril_qmi_ims_socket_agent11thread_funcEv
+_ZN26qcril_qmi_ims_socket_agent20init_socket_listenfdEv
+_ZN26qcril_qmi_ims_socket_agent19recv_thread_handlerEv
+_ZN26qcril_qmi_ims_socket_agent12send_messageEPv13_Ims__MsgType11_Ims__MsgId11_Ims__ErrorPKvi
+qcril_qmi_ims_free_and_convert_ril_token_to_ims_token
+qcril_qmi_ims_pack_msg_tag
+qcril_qmi_ims_pack_msg
+qcril_qmi_print_hex
+_ZN26qcril_qmi_ims_socket_agent16get_message_sizeEv
+_ZN26qcril_qmi_ims_socket_agent24process_incoming_messageEv
+qcril_qmi_ims_unpack_msg_tag
+qcril_qmi_ims_parse_packed_msg
+hlos_csvt_request_handler
+qcril_qmi_ims_convert_ims_token_to_ril_token
+qcril_qmi_voice_process_for_ims_dial
+qcril_event_queue
+qcril_qmi_ims__msg_tag__free_unpacked
+socket
+strncpy
+unlink
+listen
+accept
+qcril_qmi_voice_ims_send_unsol_radio_state_change_helper
+qcril_qmi_ims_socket_init
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE12get_instanceEv
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE4initEv
+qcril_qmi_ims_socket_send
+qcril_reqlist_free
+qcril_qmi_ims_socket_send_empty_payload_unsol_resp
+_ZTV25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentE
+_ZN25qcril_qmi_singleton_agentI26qcril_qmi_ims_socket_agentEC1EPKc
+_ZdlPv
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: libtime_genoff.so  (9300 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          8500 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         20
+  Section header string table index: 19
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_finalize
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_uldivmod
+     4: 0000062d  1148 FUNC    GLOBAL DEFAULT    8 time_genoff_operation
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND setsockopt
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND connect
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND gmtime_r
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND mktime
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    18: 00000aa9   568 FUNC    GLOBAL DEFAULT    8 time_control_ope[...]
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+time_genoff_operation
+socket
+gmtime_r
+mktime
+time_control_operations
+libtime_genoff.so
+time_control_operations
+QC-time-services
+Lib:%s: Invalid input to library
+Lib:%s: Invalid input arguments
+Lib:%s: Unable to create socket
+#time_genoff
+Lib: Time Get for Base = %d failed
+Lib:%s: Invalid time %llu
+Lib:%s:Invalid time unit %d
+Lib: Time Set for Base = %d failed
+Lib:%s: Invalid operation specified
+time_genoff_operation
+libtime_genoff.so
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__cxa_finalize
+__cxa_atexit
+__aeabi_uldivmod
+time_genoff_operation
+__android_log_print
+socket
+setsockopt
+strlcpy
+connect
+gmtime_r
+mktime
+__stack_chk_fail
+__stack_chk_guard
+__aeabi_unwind_cpp_pr0
+time_control_operations
+_edata
+__bss_start
+libc.so
+libcutils.so
+libstdc++.so
+libm.so
+libtime_genoff.so
+KyDzD{DI
+zD9F+F
+KyDzD{D
+KyDzD{D
+KyDzD{D4
+KyDzD{D
+KyDzD{D
+ rIrJsKyDzD{D
+DgKzDAF{D
+DKKzDAF{D
+ ;J;KyDzD{D
+sKtJ{D-
+ mJmKyDzD{D
+ VJWKyDzD{D
+ JJKKyDzD{Dj
+DIKzDIF{D
+ CJCKyDzD{DO
+D3KzDAF{D
+ "J#KyDzD{D
+time_control_operations
+QC-time-services
+Lib:%s: Invalid input to library
+Lib:%s: pargs->base = %d
+Lib:%s: pargs->operation = %d
+Lib:%s: Invalid input arguments
+Lib:%s: pargs->ts_val = %llu
+Lib:%s: Unable to create socket
+#time_genoff
+Lib:%s: Connection failed !!
+Lib:%s: Send to server failed !!
+Lib:%s: Unable to recv data
+Lib: Time Get for Base = %d failed
+Lib:%s: Invalid time %llu
+Lib:%s:Invalid time unit %d
+Lib:%s: Send to server  passed!!
+Receive Passed == base = %d, unit = %d, operation = %d, result = %d
+Lib: Time Set for Base = %d failed
+Lib:%s: Invalid operation specified
+Lib:%s: send to server failed !!
+Disable Passed == base = %d, unit = %d, operation = %d, result = %d
+Enable Passed == base = %d, unit = %d, operation = %d, result = %d
+time_genoff_operation
+GCC: (GNU) 4.7
+gold 1.11
+ARM v7
+libtime_genoff.so
+.shstrtab
+.interp
+.dynsym
+.dynstr
+.rel.dyn
+.rel.plt
+.ARM.exidx
+.rodata
+.fini_array
+.dynamic
+.comment
+.note.gnu.gold-version
+.ARM.attributes
+.gnu_debuglink
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: mpdecision  (43448 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x1678
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          42408 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         26
+  Section header string table index: 25
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND getcwd
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND chdir
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND opendir
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND strstr
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND sscanf
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND readdir
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND closedir
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND lseek
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND strnlen
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND poll
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcpy
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND uevent_open_socket
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND uevent_kernel_mu[...]
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND usleep
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtod
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtol
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND syscall
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND getpid
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND setpriority
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND getopt_long_only
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND exit
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_join
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND android_atomic_a[...]
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND atrace_setup
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND fwrite
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND rewind
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtok
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND fgets
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND timer_settime
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcat
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND calloc
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND __memcpy_chk
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND timer_create
+    63: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+    64: 00000000     0 FUNC    GLOBAL DEFAULT  UND timer_delete
+    65: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncmp
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+pthread_mutex_lock
+pthread_mutex_unlock
+poll
+uevent_open_socket
+usleep
+strtod
+timer_settime
+timer_create
+timer_delete
+socket
+uc$*vnvp&
+Error pm-qos file descriptor invalid
+Error opening socket for hotplug uevent.
+Error in hotplug CPU[%d] poll.
+/sys/devices/system/cpu/cpu0/rq-stats/def_timer_ms
+Error waiting for timer
+Ignore sample. As all cores are locked for perf
+Invalid run queue depth :%f
+Runqueue depth :%f time :%f (deferred)
+Runqueue depth :%f load_up :%d load_dw :%d time :%f online :%d
+Error locking maximum cores
+Error locking minimum cores
+OPTION ENABLED: Control sleep modes
+--poll_ms --decision_ms --no_sleep --avg_comp --debug
+Decision parameters: poll_ms: %d decision_ms: %d
+/sys/devices/system/cpu/cpu0/rq-stats/run_queue_poll_ms
+/sys/devices/system/cpu/cpu0/rq-stats/run_queue_avg
+/sys/devices/system/cpu/cpu0/rq-stats/cpu_normalized_load
+Unable to open deferrable timer file
+/sys/devices/system/cpu/cpu0/rq-stats/hotplug_disable
+poll_ms
+no_sleep
+system.ksm_sleeptime
+Failed to arm poll timer
+Failed to set timer
+Invalid inputs for cpu min options
+Invalid inputs for cpu max options
+Invalid number of cpus are online for frequency request
+perf_lock_acq: client_pid=%d, client_tid=%d, inupt handle=%d, duration=%d ms, num_args=%d, %s
+perf_lock_acq: output handle=%d
+Failed to create timer
+perf_lock_rel: input handle=%d
+Failed to delete timer
+/sys/class/graphics/fb0/mdp/power/runtime_status
+/dev/socket/mpctl
+PERFLOCK Failed to connect to socket: errno=%d (%s)
+PERFLOCK Failed to send mpctl: errno=%d (%s)
+PERFLOCK Socket not ready to be read: errno=%d (%s)
+PERFLOCK File descriptor is not set
+PERFLOCK Unknown socket error
+ksm_param_sleeptime
+Failed to create timer for client poll
+PERFLOCK mpctl server %s: accept failed, errno=%d (%s)
+PERFLOCK mpctl server: failed to receive message, errno=%d (%s)
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__aeabi_unwind_cpp_pr0
+memset
+getcwd
+opendir
+__android_log_print
+strstr
+sscanf
+readdir
+closedir
+__stack_chk_fail
+__stack_chk_guard
+__errno
+pthread_mutex_lock
+pthread_mutex_unlock
+snprintf
+strnlen
+strcpy
+uevent_open_socket
+uevent_kernel_multicast_recv
+__aeabi_unwind_cpp_pr1
+__aeabi_idiv
+usleep
+strtod
+strtol
+syscall
+strerror
+getpid
+setpriority
+getopt_long_only
+optarg
+pthread_create
+pthread_join
+__strlen_chk
+android_atomic_acquire_load
+atrace_setup
+atrace_is_ready
+property_get
+fwrite
+rewind
+strtok
+strlen
+timer_settime
+__aeabi_idivmod
+atrace_marker_fd
+atrace_enabled_tags
+strlcat
+calloc
+__memcpy_chk
+timer_create
+timer_delete
+strncmp
+gettid
+socket
+unlink
+listen
+lrand48
+connect
+select
+strlcpy
+__snprintf_chk
+fclose
+strtok_r
+access
+sysconf
+accept
+_edata
+__bss_start
+libcutils.so
+libutils.so
+libdl.so
+libc.so
+libstdc++.so
+libm.so
+ $J;FyDzD
+8FYFjF
+J#FyDzD
+ #JyDzD
+!6J{D-
+$0F2O+h
+,I"F#FyD
+!F(L|D
+M#h&F}D	
+OJZ!#FzD
+ 2JyDzD
+ +JyDzD
+)H)IxD@
+ 'J'KyD
+!!J{D0
+ 7J3FyDzD
+ 0J+FyDzD
+ *I+F*JyDzD
+yDzD+F
+TLTK|DTM
+X}D)h8h
+ QJyDzD
+ BJyDzD
+IFJF(h
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: netmgrd  (236088 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x8298
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          235008 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         27
+  Section header string table index: 26
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_format_log_msg
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND msg_sprintf
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND fprintf
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND abort
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND stm2_get_state
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND stm2_instance_pr[...]
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_free
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_cmdq_deinit
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND fputs
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_cmdq_enq
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_cmdq_join_thread
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND stm2_instance_ac[...]
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_cmdq_init
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_nl_recv_msg
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_nl_release_msg
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_nl_encode[...]
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_nl_send_msg
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_nl_decode[...]
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_system_call
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND ioctl
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_set
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND inet_ntop
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND ifc_reset_connections
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND ifc_del_address
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND setsockopt
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND bind
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_get_num_bits_[...]
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_util_conv[...]
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_util_get_[...]
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_util_conv[...]
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_system_call2
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND usleep
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtoul
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_atoi
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcmp
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND inet_pton
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND sendto
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcpy
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_util_conv[...]
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_util_get_[...]
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND netmgr_util_get_[...]
+    63: 00000000     0 FUNC    GLOBAL DEFAULT  UND perror
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libdsutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libconfigdb.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdiag.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libnetutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [librmnetctl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libnetmgr.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmiservices.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_cci.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_common_so.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_client_qmux.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+socket
+ioctl
+netmgr_util_convert_ip_addr_to_str
+netmgr_util_convert_qmi_ipsec_key_to_str
+usleep
+netmgr_util_convert_qmi_ip_addr_to_str
+qmi_cci_qmux_xport_unregister
+qmi_client_init_instance
+qmi_client_send_msg_sync
+qmi_cci_qmux_xport_register
+sleep
+qmi_wds_srvc_release_client
+qmi_qos_srvc_release_client
+qmi_qos_srvc_init_client
+qmi_qos_set_client_ip_pref
+qmi_qos_set_event_report_state
+qmi_release
+pthread_mutex_lock
+pthread_mutex_unlock
+qmi_qos_get_primary_granted_qos_info
+qmi_qos_get_secondary_granted_qos_info
+qmi_wds_srvc_init_client
+qmi_wds_bind_mux_data_port
+qmi_wds_set_client_ip_pref
+qmi_wds_rev_ip_transport_conn_ind_registration
+qmi_wds_set_event_report
+qmi_set_port_data_format
+qmi_wds_get_curr_call_info
+qmi_wds_query_profile
+qmi_wds_rev_ip_transport_config_complete
+qmi_wds_get_ipsec_static_sa_config
+qmi_wds_initiate_esp_rekey
+qmi_init
+qmi_dev_connection_init
+qmi_linux_get_conn_id_by_name
+qmi_client_notifier_init
+qmi_client_get_service_instance
+gettimeofday
+pthread_cond_timedwait
+qmi_client_init
+qmi_client_release
+libqmi.so
+libqmiservices.so
+libqmi_cci.so
+libqmi_common_so.so
+libqmi_client_qmux.so
+NETMGR_QMI_MSG_CMD
+NETMGR_MODEM_IS_EV
+NETMGR_MODEM_OOS_EV
+Invalid command type received.
+invalid buffer allocated
+ifioctl_get: socket failed:
+ifioctl_get: SIOCGIFFLAGS ioctl failed:
+invalid set llp mode value specified
+ifioctl_set: socket failed:
+ifioctl_set: ioctl llp failed:
+ifioctl_set: ioctl qosmode failed:
+ifioctl: socket failed:
+ifioctl: open port failed:
+%s(): socket failed:
+%s(): Calling extended IOCTL %04X on [%s]
+%s(): Extended IOCTL failed
+iptables -I OUTPUT 1 -o %s -p udp --dport 1900 -j DROP -m comment --comment "Drop SSDP on WWAN"
+reset socket connections for 
+error on socket():
+error on ioctl():
+netmgr_kif_get_xfrm_state_encap_str: invalid input
+natt: socket failed:
+netmgr_kif_get_xfrm_policy_sel_str: invalid input
+netmgr_kif_get_xfrm_policy_sel_str: failed to convert iface addr to string
+netmgr_kif_get_xfrm_state_encryption_str: invalid input
+netmgr_kif_get_xfrm_state_encryption_str: failed to convert crypto algo=%d to string
+netmgr_kif_get_xfrm_state_encryption_str: failed to convert crypto key to string
+netmgr_kif_get_xfrm_state_authentication_str: invalid input
+netmgr_kif_get_xfrm_state_authentication_str: failed to convert hash algo=%d to string
+netmgr_kif_get_xfrm_state_authentication_str: failed to convert hash key to string
+ifioctl_set: SIOCSIFFLAGS ioctl failed:
+%s(): Can't add invalid route. One or more IPs are empty
+netmgr_kif_open_cnf called with invalid link %d
+ifioctl_set: ioctl flow failed:
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__aeabi_unwind_cpp_pr0
+ds_format_log_msg
+msg_sprintf
+fprintf
+stm2_get_state
+stm2_instance_process_input
+ds_free
+__stack_chk_fail
+__stack_chk_guard
+function_debug
+ds_cmdq_deinit
+malloc
+memset
+ds_cmdq_enq
+ds_cmdq_join_thread
+stm2_instance_activate
+ds_cmdq_init
+netmgr_nl_recv_msg
+netmgr_nl_release_msg
+netmgr_nl_encode_netmgr_event
+netmgr_nl_send_msg
+netmgr_nl_decode_nlmsg
+strlcpy
+__strlen_chk
+ds_system_call
+socket
+__errno
+strerror
+snprintf
+property_set
+inet_ntop
+ifc_reset_connections
+ifc_del_address
+setsockopt
+ds_get_num_bits_set_count
+netmgr_util_convert_ip_addr_to_str
+netmgr_util_get_ipsec_algo_str
+netmgr_util_convert_qmi_ipsec_key_to_str
+__aeabi_unwind_cpp_pr1
+ds_system_call2
+memcpy
+strlen
+usleep
+property_get
+strtoul
+ds_atoi
+memcmp
+inet_pton
+sendto
+strcpy
+netmgr_util_convert_qmi_ip_addr_to_str
+netmgr_util_get_ipsec_proto_str
+netmgr_util_get_ipsec_mode_str
+perror
+strlcat
+netmgr_nl_listener_init
+dpm_get_service_object_internal_v01
+qmi_cci_qmux_xport_unregister
+qmi_client_init_instance
+qmi_client_send_msg_sync
+qmi_cci_qmux_xport_register
+Diag_LSM_DeInit
+capget
+getuid
+getgid
+strncmp
+strcmp
+ds_get_target
+ds_get_target_str
+strncasecmp
+strtol
+Diag_LSM_Init
+netmgr_daemonize
+bsd_signal
+ds_change_user_cap
+netmgr_util_circ_list_destroy
+qmi_wds_srvc_release_client
+qmi_qos_srvc_release_client
+qmi_qos_srvc_init_client
+qmi_qos_set_client_ip_pref
+qmi_qos_set_event_report_state
+qmi_release
+pthread_mutex_lock
+ds_malloc
+netmgr_util_enq_circ_list
+pthread_mutex_unlock
+qmi_qos_get_primary_granted_qos_info
+qmi_qos_get_secondary_granted_qos_info
+qmi_wds_srvc_init_client
+qmi_wds_bind_mux_data_port
+qmi_wds_set_client_ip_pref
+qmi_wds_rev_ip_transport_conn_ind_registration
+qmi_wds_set_event_report
+qmi_set_port_data_format
+netmgr_util_circ_list_init
+qmi_wds_get_curr_call_info
+qmi_wds_query_profile
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: qmiproxy  (166452 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x3f48
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          165372 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         27
+  Section header string table index: 26
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND gettimeofday
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_tim[...]
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND vsnprintf
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_self
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND msg_sprintf
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_send_[...]
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_set
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_send_[...]
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_release
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtoul
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_kill
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND bsd_signal
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_linux_wait_f[...]
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_signal
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_equal
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND select
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND calloc
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_join
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_destroy
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_destroy
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_init
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_idl_get_mess[...]
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_idl_get_max_[...]
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_messa[...]
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_messa[...]
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_linux_get_co[...]
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_init
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND Diag_LSM_Init
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcasecmp
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND dms_get_service_[...]
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND nas_get_service_[...]
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND wms_get_service_[...]
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND voice_get_servic[...]
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND pbm_get_service_[...]
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND sar_get_service_[...]
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND ims_qmi_get_serv[...]
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND imsp_get_service[...]
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdiag.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdsutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmiservices.so]
+ 0x00000001 (NEEDED)                     Shared library: [libidl.so]
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_client_qmux.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqcci_legacy.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+pthread_mutex_lock
+pthread_mutex_unlock
+gettimeofday
+pthread_cond_timedwait
+qmi_client_send_msg_sync
+qmi_client_send_msg_async
+qmi_client_release
+qmi_linux_wait_for_sig_with_timeout
+qmi_idl_get_message_c_struct_len
+qmi_idl_get_max_message_len
+qmi_client_message_encode
+qmi_client_message_decode
+qmi_linux_get_conn_id_by_name
+qmi_client_init
+ims_qmi_get_service_object_internal_v01
+qmi_util_write_std_tlv
+qmi_util_read_std_tlv
+qmi_init
+qmi_service_get_qmux_if_handle
+qmi_qmux_if_send_if_msg_to_qmux
+socket
+libqmiservices.so
+libqmi.so
+libqmi_client_qmux.so
+qmi_proxy_force_lpm
+qmi_proxy_get_cache_svlte_operating_mode
+qmi_proxy_read_modem_cfg
+qmi_proxy_force_online
+qmi_proxy_create_qmux_socket
+qmi_proxy_queue_new
+qmi_proxy_release_internal_qmi_handle
+qmi_proxy_client_release
+qmi_proxy_read_std_txn_hdr
+qmi_proxy_read_svlte_cfg
+qmi_proxy_nas_resp_proc_nas_get_sys_info_sglte
+qmi_proxy_init_new_qmux_client
+qmi_proxy_get_cache_service_ready_state
+qmi_proxy_sync_cap_and_oprt_mode
+qmi_proxy_is_sglte_plmn
+qmi_proxy_complete_txn
+qmi_proxy_nas_resp_proc_nas_get_rf_band_info
+qmi_proxy_force_srv_restriction
+qmi_proxy_dms_err_resp_hdlr
+qmi_proxy_ctl_send_qmi_response
+qmi_proxy_client_find_and_addref
+qmi_proxy_nas_err_resp_hdlr
+qmi_proxy_get_cache_sglte_operating_mode
+qmi_proxy_save_sglte_user_mode_pref
+qmi_proxy_save_svlte_cfg
+qmi_proxy_use_default_sglte_plmn_list
+qmi_proxy_nas_srvc_unsol_ind_cb
+trans_ps_to_g_timer_started_leave
+qmi_proxy_dms_set_evt_rpt_async_cb
+qmi_proxy_srvc_send_qmi_response
+qmi_proxy_force_sglte_sys_sel_pref_and_oprt_mode
+qmi_proxy_srvc_unsol_ind_cb
+qmi_proxy_force_srv_domain_pref
+QC-QMI
+qmi_proxy: %s
+[%d] %s: Fail to add reference, Client Rec to be deleted (Client ID %d, QMI %s(%d)
+[%d] %s: Fail to add reference, Client Rec not found (Client ID %d, QMI %s(%d)
+[%d] %s: QMI Proxy Client handle not found for QMI %s(%d)
+[%d] %s: QMI Proxy Client %d handle not found for QMI %s(%d)
+[%d] %s: QPI: handle not found for QMI %s(%d) on %s(%d)
+[%d] %s: Client List for QMI %s(%d)
+[%d] %s:    [%d] QMI %s(%d), Client ID %d, Conn ID %d, FD %d
+Fail to write std srvc msg hdr, invalid parameter
+Fail to write std txn hdr, invalid parameter
+[%d] %s: QPI: %s(%d) not registered for QMI NAS
+[%d] %s: %s: Invalid parameters passed: %8.8x %8.8x
+[%d] %s: %s ....... QMI %s(%d), user data %d
+[%d] %s: Fail to add reference, Txn Rec not found (Txn Key 0x%x, QMI %s(%d)
+[%d] %s: Fail to add reference, Txn Rec to be deleted (Txn Key 0x%x, QMI %s(%d)
+[%d] %s: Invalid user data %d to update SGLTE mode pref
+[%d] %s: Invalid user data %d to update SVLTE mode pref
+[%d] %s: Local modem CDMA srv status %d
+[%d] %s: Local modem HDR srv status %d
+[%d] %s: Local modem GSM srv status %d
+[%d] %s: Local modem WCDMA srv status %d
+[%d] %s: Local modem LTE srv status %d
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__aeabi_unwind_cpp_pr0
+pthread_mutex_lock
+pthread_mutex_unlock
+memset
+__android_log_print
+__aeabi_idiv
+__aeabi_idivmod
+gettimeofday
+pthread_cond_timedwait
+vsnprintf
+__aeabi_unwind_cpp_pr1
+pthread_self
+msg_sprintf
+__stack_chk_fail
+__stack_chk_guard
+qmi_client_send_msg_sync
+snprintf
+property_set
+memcpy
+qmi_client_send_msg_async
+qmi_client_release
+strlcpy
+property_get
+__strlen_chk
+strtoul
+__errno
+pthread_kill
+bsd_signal
+pthread_create
+qmi_linux_wait_for_sig_with_timeout
+pthread_cond_signal
+pthread_equal
+select
+calloc
+pthread_join
+pthread_cond_destroy
+pthread_mutex_destroy
+pthread_mutex_init
+pthread_cond_init
+malloc
+qmi_idl_get_message_c_struct_len
+qmi_idl_get_max_message_len
+qmi_client_message_encode
+qmi_client_message_decode
+qmi_linux_get_conn_id_by_name
+qmi_client_init
+Diag_LSM_Init
+strcasecmp
+dms_get_service_object_internal_v01
+nas_get_service_object_internal_v01
+wms_get_service_object_internal_v01
+voice_get_service_object_internal_v02
+pbm_get_service_object_internal_v01
+sar_get_service_object_internal_v01
+ims_qmi_get_service_object_internal_v01
+imsp_get_service_object_internal_v01
+strchr
+strlen
+qmi_util_write_std_tlv
+qmi_util_read_std_tlv
+qmi_init
+qmi_service_get_qmux_if_handle
+qmi_qmux_if_send_if_msg_to_qmux
+pthread_attr_init
+pthread_attr_setdetachstate
+pthread_attr_destroy
+socket
+unlink
+listen
+accept
+_edata
+__bss_start
+libcutils.so
+libdiag.so
+libdsutils.so
+libqmiservices.so
+libidl.so
+liblog.so
+libqmi.so
+libqmi_client_qmux.so
+libqcci_legacy.so
+libc.so
+libstdc++.so
+libm.so
+HxDpG	HxDpG	HxDpG
+HxDpG7k
+pG@KAJ{D-
+FDHxDP
+F4HxDP
+F HxDP
+FKGJ{DGI-
+'K(J{D-
+3!Ph2F
+ J!IzD
+(K)J)I{D0
+F5HxDP
+(I(JyD
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: qmuxd  (84592 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x2550
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          83552 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         26
+  Section header string table index: 25
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00006969    28 FUNC    GLOBAL DEFAULT    8 qmi_format_diag_[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND msg_sprintf
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_change_user_cap
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND bsd_signal
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND Diag_LSM_Init
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_get_target
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND ds_get_target_str
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcmp
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncasecmp
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND usleep
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND pipe2
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND unlink
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND __memcpy_chk
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND bind
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND chmod
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND listen
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND select
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND accept
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND stat
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND asprintf
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND poll
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND sleep
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND getpid
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND connect
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND ioctl
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    57: 00006861   144 FUNC    GLOBAL DEFAULT    8 qmi_linux_wait_f[...]
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND gettimeofday
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_tim[...]
+    60: 000068f1    76 FUNC    GLOBAL DEFAULT    8 qmi_linux_get_co[...]
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND vsnprintf
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    63: 00006985   576 FUNC    GLOBAL DEFAULT    8 qmi_linux_get_co[...]
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdiag.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libconfigdb.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdsutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+qmi_format_diag_log_msg
+qmi_log_adb_level
+pthread_mutex_lock
+usleep
+pthread_mutex_unlock
+socket
+qmi_platform_qxdm_init
+poll
+sleep
+ioctl
+qmi_linux_wait_for_sig_with_timeout
+gettimeofday
+pthread_cond_timedwait
+qmi_linux_get_conn_id_by_name
+qmi_linux_get_conn_id_by_name_ex
+qmi_util_read_std_tlv
+qmi_util_alloc_and_addref_txn
+qmi_util_release_txn
+qmi_util_write_std_tlv
+qmi_util_find_and_addref_txn
+qmi_util_get_std_result_code
+qmi_util_service_delete_txn
+libqmi.so
+linux_qmi_qmux_if_configure_port_timeout: mode=%d, smd_timeout=%s, hsic_timeout=%s
+QC-QMI
+/sys/devices/virtual/smdpkt/smdcntl0/open_timeout
+linux_qmi_qmux_if_configure_port_timeout: failed to open SMD timeout config=%s errno [%d:%s]
+linux_qmi_qmux_if_configure_port_timeout: failed to write SMD config=%s rc=%d, errno [%d:%s]
+/sys/devices/virtual/hsicctl/hsicctl0/modem_wait
+linux_qmi_qmux_if_configure_port_timeout: failed to open HSIC timeout config=%s errno [%d:%s]
+linux_qmi_qmux_if_configure_port_timeout: failed to write HSIC config=%s rc=%d, errno [%d:%s]
+linux_qmi_qmux_if_submit_cleanup_req: invalid fd
+linux_qmi_qmux_if_submit_cleanup_req: cleanup pipe not initialized
+linux_qmi_qmux_if_submit_cleanup_req: write failed
+linux_qmi_qmux_if_submit_cleanup_req: sumitted cleanup req for fd=%d
+QMI RX thread on conn_id=%d state=%s
+qmuxd: RX on fd=%d, total msg size=%d from qmux client %x invalid, discarding...
+MAIN_THREAD_MODEM_TX
+qmuxd: changing to user radio and acquiring CAP_BLOCK_SUSPEND
+persist.data.qmi.adb_logmask
+qmuxd:  qmi proxy daemon expected %d
+qmuxd: linux_qmi_read_sysfs_config: couldn't open file %s
+qmuxd: linux_qmi_read_sysfs_config: couldn't open %s
+qmuxd: linux_qmi_read_sysfs_config: no more data control ports found in cfg file
+qmuxd: linux_qmi_read_sysfs_config: successfully configured qmi connection ids
+qmuxd: linux_qmi_read_sysfs_config: data control port %s found in cfg file
+qmuxd: linux_qmi_read_sysfs_config: qmi conn id %d will not be used 
+/data/data_test/qmi_config.xml
+qmuxd:  bypassing opening pipe to qmi proxy daemon as qmi proxy not supported %d
+qmuxd:  successfully opened qmi conn id %d, [%s]
+qmuxd:  successfully opened qmi conn id %d , [%s]
+qmuxd: bad param to linux_qmi_qmux_if_get_listener_socket
+qmuxd: unable to open listener socket, rc=%d, errno=[%d:%s]
+qmuxd: unable to bind to listener socket, rc=%d, errno=[%d:%s]
+qmuxd: unable to listen with listener socket, rc=%d, errno=[%d:%s]
+qmuxd: invalid listener_fd recvd for sock_path=%s
+qmuxd: unable to accept on invalid listener socket
+qmuxd: unable to accept on listener socket, rc=%d, errno=[%d:%s]
+qmuxd: unable to stat client socket file "%s", rc = %d
+qmuxd: client socket file not a socket file, rc = %d
+/dev/socket/qmux_radio/qmux_connect_socket
+/dev/socket/qmux_audio/qmux_connect_socket
+/dev/socket/qmux_bluetooth/qmux_connect_socket
+/dev/socket/qmux_gps/qmux_connect_socket
+vendor/qcom/proprietary/qmi/qmuxd/../platform/linux_qmi_qmux_if_server.c
+linux_qmi_qmux_io_wake_unlock: Err in writing wakelock=%s, error [%d:%s]
+linux_qmi_qmux_io_rx_msg: NULL wl_name
+RX_THREAD_WAIT_POLL
+Got error from poll() call = %d, errno=%d, %s
+RX_THREAD_WAKELOCK_ACQUIRE
+linux_qmi_qmux_io_wake_lock: Err in writing wakelock=%s, error [%d:%s]
+QMI platform I/O... MODEM RESET detected on conn_id=%d
+Got invalid number of bytes from read = %d, errno=%d
+QMI platform I/O... read error cleared after MODEM RESET on conn_id=%d
+RX_THREAD_WAKELOCK_RELEASE
+linux_qmi_qmux_io_open_conn_proxy: bad param
+linux_qmi_qmux_io_open_conn_proxy: opening socket=%s
+qmi_proxy_client %x: unable to open client socket, rc = %d err [%d:%s]
+/dev/socket/qmux_radio/proxy_qmux_client_socket
+qmi_proxy_client %x: unable to bind to client socket, socket = %s err[%d:%s]
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+qmi_format_diag_log_msg
+msg_sprintf
+__android_log_print
+__errno
+strerror
+__stack_chk_fail
+__stack_chk_guard
+qmi_log_adb_level
+__aeabi_unwind_cpp_pr0
+ds_change_user_cap
+bsd_signal
+Diag_LSM_Init
+ds_get_target
+ds_get_target_str
+memset
+property_get
+strcmp
+pthread_mutex_init
+strncasecmp
+strlcpy
+pthread_mutex_lock
+usleep
+pthread_mutex_unlock
+socket
+unlink
+strlen
+__memcpy_chk
+listen
+memcpy
+select
+accept
+qmi_platform_qxdm_init
+asprintf
+getpid
+snprintf
+__strlen_chk
+connect
+pthread_create
+__aeabi_idiv
+__aeabi_idivmod
+qmi_linux_wait_for_sig_with_timeout
+gettimeofday
+pthread_cond_timedwait
+qmi_linux_get_conn_id_by_name
+vsnprintf
+__aeabi_unwind_cpp_pr1
+qmi_linux_get_conn_id_by_name_ex
+strncmp
+ds_atoi
+ds_get_epid
+configdb_init
+configdb_get_parameter
+qmi_util_read_std_tlv
+qmi_util_alloc_and_addref_txn
+qmi_util_release_txn
+qmi_util_write_std_tlv
+qmi_util_find_and_addref_txn
+qmi_util_get_std_result_code
+malloc
+pthread_mutexattr_init
+pthread_mutexattr_settype
+pthread_mutexattr_destroy
+qmi_util_service_delete_txn
+_edata
+__bss_start
+liblog.so
+libdiag.so
+libcutils.so
+libqmi.so
+libconfigdb.so
+libdsutils.so
+libc.so
+libstdc++.so
+libm.so
+ dJyDzD,
+ RJyDzD
+ @JyDzD+
+ .JyDzD
+XCH!h%F
+ :JyDzDU
+9K{DXhC
+ 0JyDzD6
+ %JyDzD
+XzD#F0h7F
+2H"FxD
+9L9J|DzD
+D/H#F*X
+AF F2FD
+ @JyDzD
+ 5JyDzD
+# F:FyD
+ lJyDzD
+ ^JyDzD
+RH2FRIxDRKyDP
+zD|D<#
+!\"~D0F
+,+1FxDzD
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: qseecomd  (9640 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x704
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          8680 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         24
+  Section header string table index: 23
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND dlopen
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND dlsym
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND getppid
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND prctl
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND setgid
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND setuid
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND capset
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND fork
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND exit
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND wait
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND QSEECom_start_app
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND pause
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND QSEECom_shutdown_app
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND printf
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libQSEEComAPI.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdrmfs.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+time services
+libdrmtime.so
+atime_start
+atime_close
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__android_log_print
+dlopen
+__aeabi_unwind_cpp_pr0
+getppid
+memset
+setgid
+setuid
+capset
+QSEECom_start_app
+QSEECom_shutdown_app
+printf
+_edata
+__bss_start
+libc.so
+libcutils.so
+libutils.so
+liblog.so
+libdl.so
+libQSEEComAPI.so
+libdrmfs.so
+libstdc++.so
+libm.so
+FUN+FUJ
+G:J1FzD
+ 2JyDzD
+G'J1FzD
+|DbJ!FzD
+ GJyDzD
+ CJyDzD
+ ;JyDzD
+ 8JyDzD
+ 4JyDzD
+ 1J}DzD)F
+ )J}DzD)F
+I"FxDyD
+Android
+QSEECOMD: 
+Listener: index = %d, hierarchy = %d
+Init dlopen(%s, RTLD_NOW) succeeds
+Init::Init dlsym(g_FSHandle %s) succeeds
+Init %s ret = %d
+%s: init (Listener ID = %d)
+Init dlsym(g_FSHandle, %s) fail
+file_init handle failed
+%s: Started (Listener ID = %d)
+Init dlopen(%s, RLTD_NOW) is failed....
+Total listener services to start = %d
+qseecom listener services process entry PPID = %d
+ERROR: RPMB_INIT failed, shall not start listener services
+ERROR: SSD_INIT failed, shall not start listener services
+SEC_UI_INIT failed, shall not start secure ui listener
+setgid error
+setuid error
+qseecomd permission reset failed, not starting services
+Failed to create qseecom daemon!! 
+Parent qseecom daemon process paused!! 
+qseecom listener service threads starting!!! 
+/firmware/image
+keymaste
+Loading keymaster app failied
+QSEECOM DAEMON RUNNING 
+qseecom listener services process exiting!!! 
+Shutdown app failed with ret = %d
+%s: Shutdown app failed with ret = %d
+RPMB system services
+librpmb.so
+rpmb_start
+rpmb_close
+rpmb_init_service
+SSD system services
+libssd.so
+ssd_start
+ssd_close
+ssd_init_service
+secure UI services
+libsecureui.so
+secure_ui_start
+secure_ui_close
+secure_ui_init
+time services
+libdrmtime.so
+atime_start
+atime_close
+file system services
+libdrmfs.so
+fs_start
+fs_close
+GCC: (GNU) 4.7
+gold 1.11
+ARM v7
+qseecomd
+.shstrtab
+.interp
+.dynsym
+.dynstr
+.rel.dyn
+.rel.plt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: rfs_access  (18564 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x1168
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          17524 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         26
+  Section header string table index: 25
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND munmap
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND calloc
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND getcwd
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND chdir
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND opendir
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND strstr
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcmp
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND fopen
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND __fgets_chk
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND ferror
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcasecmp
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND fclose
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND fgets
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND readdir
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND closedir
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND mmap
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtoul
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcat
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND strchr
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND stat
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND lseek
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND exit
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_send_resp
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_xport_start
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_register
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND select
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_handle_event
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_init
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_destroy
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_destroy
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_wait
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_signal
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_bro[...]
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutexatt[...]
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutexatt[...]
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutexatt[...]
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_attr_init
+    63: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_attr_set[...]
+    64: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_csi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_common_so.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+mmap
+qmi_csi_send_resp
+qmi_csi_xport_start
+qmi_csi_register
+qmi_csi_handle_event
+common_qmi_idl_type_table_object_v01
+pthread_mutex_lock
+pthread_mutex_unlock
+libqmi_csi.so
+libqmi_common_so.so
+/sys/class/uio
+/sys/class/uio/uio%d/name
+/sys/class/uio/uio%d/version
+/sys/class/uio/uio%d/maps/map0
+/sys/class/uio/uio%d/maps/map0/addr
+/dev/uio%d
+Unable to open /dev/uio%d
+ mmap() failed
+Matching UIO shared mem device not found for %s
+Invalid calling parameter, flags: %d
+Invalid client
+Error in rfsa_qmi_server_cb %d
+qmi_csi_send_resp returned error: %d
+Error in qmi_csi_register, qmi_rc=%d
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__aeabi_unwind_cpp_pr0
+munmap
+__android_log_print
+calloc
+getcwd
+opendir
+strstr
+strcmp
+snprintf
+strlen
+__fgets_chk
+ferror
+strcasecmp
+fclose
+readdir
+closedir
+strtoul
+__stack_chk_fail
+__stack_chk_guard
+__isthreaded
+strlcpy
+strlcat
+strchr
+__errno
+memset
+__aeabi_unwind_cpp_pr1
+malloc
+memcpy
+qmi_csi_send_resp
+qmi_csi_xport_start
+qmi_csi_register
+select
+qmi_csi_handle_event
+qcsi_ipc_router_ops
+common_qmi_idl_type_table_object_v01
+pthread_mutex_init
+pthread_cond_init
+pthread_mutex_destroy
+pthread_cond_destroy
+pthread_mutex_lock
+pthread_cond_wait
+pthread_mutex_unlock
+pthread_cond_signal
+pthread_cond_broadcast
+pthread_mutexattr_init
+pthread_mutexattr_settype
+pthread_mutexattr_destroy
+pthread_attr_init
+pthread_attr_setdetachstate
+pthread_create
+pthread_attr_destroy
+pthread_join
+pthread_kill
+_edata
+__bss_start
+libqmi_csi.so
+libqmi_common_so.so
+libcutils.so
+libc.so
+libstdc++.so
+libm.so
+J+FyDFFzD
+ yDNFzD
+JyDzDF
+!~D(FzD3h
+JyDzD+F
+~DzD3h
+yDVFzD
+J(F{DzD
+J+FyDzD
+qN~DPF
+ _JyDzD
+]M2!]J.
+}DzD+h
+ VJyD+hzD
+ GJyDzD
+ >JSFyDzD
+IP"0FyD
+J;FyDzD
+5K6J{D-
+YKZJ{D-
+'I(JyDzD
+RKSJ{D-
+iAF3hE
+ 4JsFyDzD
+,I-JyDzD
+ I JCFyDzD
+QKRJ{D-
+iAF3hE
+>I>JyDzD
+ 4JyDzD
+ I JCFyDzD
+M	N}D~D
+jKkJ{D-
+ gJyDzD
+ SJ#FyDzD
+A"KIyD
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: rild  (9556 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0xc54
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          8556 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         25
+  Section header string table index: 24
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND prctl
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND setuid
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND capset
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_bu[...]
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND umask
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcmp
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND fprintf
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND exit
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncmp
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strncat_chk
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND RIL_setRilSocketName
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND strstr
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND sleep
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket_local_client
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND strpbrk
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND dlopen
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND dlerror
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND RIL_startEventLoop
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND dlsym
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtok
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND RIL_register
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    40: 00000c00     0 FUNC    GLOBAL DEFAULT  UND RIL_onRequestComplete
+    41: 00000c0c     0 FUNC    GLOBAL DEFAULT  UND RIL_onUnsolicite[...]
+    42: 00000c18     0 FUNC    GLOBAL DEFAULT  UND RIL_requestTimed[...]
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND clock_gettime
+    44: 00001293    42 FUNC    GLOBAL DEFAULT    8 record_stream_new
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND calloc
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    47: 000012bd    20 FUNC    GLOBAL DEFAULT    8 record_stream_free
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+    49: 000012d1   144 FUNC    GLOBAL DEFAULT    8 record_stream_ge[...]
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND memmove
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libril.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+RIL_setRilSocketName
+sleep
+socket_local_client
+RIL_requestTimedCallback
+clock_gettime
+/dev/socket
+could not connect to %s socket: %s
+could not connect to %s socket (giving up): %s
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+setuid
+capset
+__aeabi_unwind_cpp_pr0
+__android_log_buf_print
+strcmp
+fprintf
+strncmp
+__strncat_chk
+RIL_setRilSocketName
+property_get
+memset
+__errno
+strerror
+strstr
+snprintf
+__strlen_chk
+socket_local_client
+strpbrk
+dlopen
+dlerror
+RIL_startEventLoop
+strtok
+RIL_register
+__stack_chk_guard
+__aeabi_unwind_cpp_pr1
+RIL_onRequestComplete
+RIL_onUnsolicitedResponse
+RIL_requestTimedCallback
+clock_gettime
+record_stream_new
+calloc
+malloc
+record_stream_free
+record_stream_get_next
+memmove
+_edata
+__bss_start
+liblog.so
+libcutils.so
+libril.so
+libdl.so
+libc.so
+libstdc++.so
+libm.so
+K !8FzD{D
+IxDyD1
+|O !|JCF
+oIHFyD
+DcJdOxDdMYFzD
+"p{DVJ
+`TH!F*F.`xD
+'DI~DDJEKyDphzDDM{D
+` a Feap
+`!ibi hR
+Android
+/system/lib/libreference-ril.so
+**RIL Daemon Started**
+**RILd param count=%d**
+Usage: %s -l <ril impl library> [-- <args for impl library>]
+Max Number of rild's supported is: %d
+rild.libpath
+/proc/cmdline
+could not open /proc/cmdline:%s
+could not read /proc/cmdline:%s
+android.qemud=
+pipe:%s
+qemud:gsm
+/dev/qemu_pipe
+/dev/socket
+could not connect to %s socket: %s
+/dev/%s
+dlopen failed: %s
+RIL_Init
+RIL_Init not defined or exported in %s
+rild.libargs
+RIL_Init argc = %d clientId = %s
+could not connect to %s socket (giving up): %s
+android.ril=
+overriding with %s %s
+GCC: (GNU) 4.7
+gold 1.11
+ARM v7
+.shstrtab
+.interp
+.dynsym
+.dynstr
+.rel.dyn
+.rel.plt
+.note.android.ident
+.ARM.exidx
+.ARM.extab
+.rodata
+.preinit_array
+.init_array
+.fini_array
+.dynamic
+.comment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: rmt_storage  (23504 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x10a0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          22464 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         26
+  Section header string table index: 25
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_destroy
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_destroy
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcmp
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND mmap
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_send_resp
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_signal
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND lseek
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_wait
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncmp
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcpy
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND ioctl
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strcpy_chk
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_init
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND lseek64
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_set
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND ioprio_set
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND chdir
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND opendir
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND strstr
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND fopen
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND fgets
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND ferror
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strrchr_chk
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcasecmp
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND fclose
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND readdir
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND closedir
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND exit
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND prctl
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND setgid
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND setuid
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND capset
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_register
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND select
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_csi_handle_event
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND getcwd
+    63: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtoul
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_csi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_common_so.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+common_qmi_idl_type_table_object_v01
+mmap
+qmi_csi_send_resp
+pthread_mutex_lock
+pthread_mutex_unlock
+ioctl
+qmi_csi_register
+qmi_csi_handle_event
+libqmi_csi.so
+libqmi_common_so.so
+%s: Invalid client
+%s: Invalid rmt_storage client
+/boot/modem_fs1
+%s: %s: clnt_h=%p: req_h=%p msg_id=%d: Mmap on 0x%lx failed (%d)
+***Mmap on 0x%lx failed (%d)
+%s: %s: clnt_h=%p: req_h=%p msg_id=%d: qmi_csi_send_resp returned error %d
+***qmi_csi_send_resp returned error %d
+/boot/modem_fs2
+/boot/modem_fsg
+/boot/modem_fsc
+wakelock acquired: %d, error no: %d
+wake lock name: %s, name creation success: %d
+%s: %s: clnt_h=%p About to block rmt_storage client thread (th_id: %ld) wakelock released: %d, error no: %d
+***About to block rmt_storage client thread (th_id: %ld) wakelock released: %d, error no: %d
+%s: %s: clnt_h=%p About to block rmt_storage client thread (th_id: %ld)
+***About to block rmt_storage client thread (th_id: %ld)
+%s: %s: clnt_h=%p Unblock worker thread (th_id: %ld)
+***Unblock worker thread (th_id: %ld)
+%s: Invalid rmt_storage client for %s
+Invalid boot rec
+/sys/power/wake_lock
+No wakelock support and so not using them.
+/sys/power/wake_unlock
+/sys/class/uio
+/sys/class/uio/uio%d/name
+rmtfs
+/sys/class/uio/uio%d/version
+/sys/class/uio/uio%d/maps/map0
+/sys/class/uio/uio%d/maps/map0/addr
+/dev/uio%d
+Unable to open /dev/uio%d
+/dev/block/mmcblk0
+/dev/block/platform/msm_sdcc.%d/by-name/%s
+/dev/block/bootdevice/by-name/%s
+/dev/block/bootdevice/by-name
+Unable to open /dev/block/bootdevice/by-name
+files present within /dev/block/bootdevice/by-name:
+Matching UIO shared mem device not found for %s
+Jmodemst1
+/boot/modem_fs1
+Kmodemst2
+/boot/modem_fs2
+/boot/modem_fsg
+/boot/modem_fsc
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__aeabi_unwind_cpp_pr0
+common_qmi_idl_type_table_object_v01
+pthread_mutex_destroy
+pthread_cond_destroy
+__android_log_print
+malloc
+strcmp
+__errno
+qmi_csi_send_resp
+pthread_mutex_lock
+pthread_mutex_unlock
+pthread_cond_signal
+snprintf
+strlen
+strerror
+pthread_cond_wait
+memset
+strncmp
+strlcpy
+pthread_create
+strcpy
+__strcpy_chk
+__stack_chk_guard
+pthread_mutex_init
+pthread_cond_init
+__stack_chk_fail
+lseek64
+property_get
+property_set
+ioprio_set
+opendir
+strstr
+ferror
+__strrchr_chk
+strcasecmp
+fclose
+readdir
+closedir
+setgid
+setuid
+capset
+qmi_csi_register
+__isthreaded
+memcpy
+select
+qmi_csi_handle_event
+getcwd
+strtoul
+__aeabi_unwind_cpp_pr1
+_edata
+__bss_start
+libqmi_csi.so
+libqmi_common_so.so
+libcutils.so
+libc.so
+libstdc++.so
+libm.so
+JD`{D(`zD
+KyDzD{D
+KyDzD{D
+KyDzD{D
+ gJgKyDzD{D
+ zh_I_K
+yD_J{DzD
+ ]JyD{hzD
+	ZIHFyD
+JIJJKKyDzD{D
+BICJyDzD
+2I3J3KyD
+Jh$K%I
+{D$JyD
+  JyDzD
+DAFzD;F
+HhuJuIvKzD
+ qJyDzD
+kI@FyD
+iI@FyD
+gI@FyD
+eI@FyD
+cIcHyDcJxD
+MM}D(F
+BICJyDzD
+yD/JzD
+$IzD$K
+  JyDzD
+ DJDKyDzD{D
+yD;J{D
+ 8JyDzD
+'I(J(KyD
+yD#JzD
+,$yDzD
+fI;FfJyDzD
+{DQIyD
+HhGJGIHKzD
+ DJyDzD
+ ~J~KyD
+	!F "HF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: thermal-engine  (222776 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x255c
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          221736 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         26
+  Section header string table index: 25
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND puts
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND getopt_long
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND getpid
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND setpriority
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND pause
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_bro[...]
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncasecmp
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_wait
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcmp
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND qsort
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND fopen
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND fgets
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND ferror
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND fclose
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtok_r
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncmp
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND strerror
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND connect
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND getcwd
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND chdir
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND opendir
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND readdir
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND closedir
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND sysconf
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND strstr
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND fnmatch
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND poll
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND lseek
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND scandir
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND sscanf
+    63: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    64: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_init
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libthermalioctl.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_cci.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_common_so.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+pthread_mutex_lock
+pthread_mutex_unlock
+socket
+poll
+usleep
+thermal_ioctl_init
+thermal_ioctl_release
+uevent_open_socket
+thermal_ioctl_defined
+thermal_ioctl_set_frequency
+strtod
+qmi_client_send_msg_sync
+qmi_client_release
+qmi_client_notifier_init
+qmi_client_get_service_instance
+qmi_client_init
+qmi_client_register_error_cb
+common_qmi_idl_type_table_object_v01
+qmi_client_message_decode
+clock_gettime
+timer_settime
+timer_create
+ioctl
+pthread_cond_timedwait
+libthermalioctl.so
+libqmi_cci.so
+libqmi_common_so.so
+%s: Invalid thresholds and thresholds_clr request
+%s: Invalid thresholds request
+%s: Invalid thresholds_clr request
+%s: Invalid thresholds and thrsholds_clr rquest
+Invalid disable request from client %d
+Invalid sampling request from client %d
+Invalid thresholds request from client
+Invalid thresholds_clr request from client
+Invalid actions data request from client
+socket error - %s
+Socket fd %d added to index %d
+Exceeded max local sockets request
+Error in uevent poll.
+%s: Invalid input
+poll_interval
+BCL poll interval failed to set %d
+%s: Invalid args.
+%s: Invalid clnt.
+%s: Invalid sensor.
+%s: Invalid sensor %s.
+%s: Invalid argument
+%s: Invalid threshold for level 2
+%s: Invalid threshold for level 1
+%s: Invalid dev.
+%s: Invalid dev %s.
+%s: dev_op invalid.
+%s: Invalid number for freqs
+modem
+%s: Error writing to QMI clients
+Invalid shutdown delay value %d
+Error opening socket for hotplug uevent.
+Error in hotplug CPU poll.
+Current brightness read invalid, value %d
+gpufreq_request() Invalid GPU ID %d
+Invalid request for CPU 0
+%s: Invalid args
+Invalid args.
+Invalid input for section %s
+time_constant %d
+time_constant %d
+time_constant
+%s: Invalid argument.
+qmi: qmi_client_notifier_init failed.
+%s: QMI send_msg_sync to %s failed with error %d
+%s:Modem:%d
+%s: Invalid device %s
+%s: %s req level(%d) is recorded and waiting for completing QMI registration
+%s: Requested level(%d) is recorded and waiting for completing QMI registration
+Modem mitigation failed with %d for level %d
+ACTION: MODEM - Modem mitigation succeeded for level %d.
+ACTION: FUSION - Fusion modem mitigation succeeded for level %d.
+qmi: tmd_get_service_object failed.
+qmi: qmi_client_release modem clnt failed.
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__aeabi_unwind_cpp_pr1
+memcpy
+__android_log_print
+getopt_long
+optarg
+optind
+__aeabi_unwind_cpp_pr0
+getpid
+setpriority
+property_get
+__stack_chk_fail
+__stack_chk_guard
+pthread_mutex_lock
+pthread_cond_broadcast
+pthread_mutex_unlock
+snprintf
+__aeabi_idiv
+__aeabi_idivmod
+memset
+strncasecmp
+pthread_cond_wait
+strlcpy
+strcmp
+malloc
+pthread_create
+__errno
+strlen
+ferror
+fclose
+__isthreaded
+strtok_r
+strncmp
+socket
+strerror
+connect
+getcwd
+opendir
+readdir
+closedir
+sysconf
+strstr
+fnmatch
+__strlen_chk
+scandir
+sscanf
+pthread_mutex_init
+pthread_cond_init
+pthread_join
+fflush
+usleep
+fprintf
+pthread_cond_destroy
+pthread_mutex_destroy
+strcpy
+thermal_ioctl_init
+thermal_ioctl_release
+reboot
+strtol
+uevent_open_socket
+uevent_kernel_multicast_recv
+thermal_ioctl_defined
+thermal_ioctl_set_frequency
+printf
+strlcat
+__srget
+ungetc
+strtod
+putchar
+qmi_client_send_msg_sync
+qmi_client_release
+qmi_client_notifier_init
+qmi_client_get_service_instance
+qmi_client_init
+qmi_client_register_error_cb
+system
+common_qmi_idl_type_table_object_v01
+qmi_client_message_decode
+__aeabi_uidivmod
+clock_gettime
+timer_settime
+timer_create
+strnlen
+unlink
+listen
+select
+accept
+pthread_cond_timedwait
+_edata
+__bss_start
+libcutils.so
+libthermalioctl.so
+libqmi_cci.so
+libqmi_common_so.so
+libc.so
+libstdc++.so
+libm.so
+	*oooo
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BINARY: time_daemon  (17756 bytes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- ELF HEADER ---
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0xe40
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          16756 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         25
+  Section header string table index: 24
+--- DYNAMIC SYMBOLS (exported functions) ---
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND open
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND ioctl
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND mktime
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_exit
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND unlink
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND bind
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND listen
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND accept
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_join
+    18: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND read
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_uldivmod
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_notif[...]
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_get_s[...]
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND sleep
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND gettimeofday
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_tim[...]
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_init
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_send_[...]
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_release
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_messa[...]
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_signal
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND write
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND gmtime
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcmp
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_wait
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND setgid
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND setuid
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND exit
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND bsd_signal
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND settimeofday
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_kill
+--- DYNAMIC IMPORTS (libraries needed) ---
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_cci.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_common_so.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+--- STRINGS (modem/QMI/time/watchdog related) ---
+ioctl
+mktime
+socket
+qmi_client_notifier_init
+qmi_client_get_service_list
+sleep
+gettimeofday
+pthread_mutex_lock
+pthread_cond_timedwait
+pthread_mutex_unlock
+qmi_client_init
+qmi_client_send_msg_sync
+qmi_client_release
+qmi_client_message_decode
+gmtime
+settimeofday
+common_qmi_idl_type_table_object_v01
+libqmi_cci.so
+libqmi_common_so.so
+genoff_persistent_update
+genoff_boot_tod_init
+genoff_post_init
+rtc_get
+genoff_handler
+genoff_modem_qmi_init
+genoff_get
+ats_rtc_init
+genoff_opr
+genoff_set
+tod_update_ind_cb
+genoff_send_modem
+time_persistent_memory_opr
+genoff_pre_init
+ats_bases_init
+/dev/rtc0
+QC-time-services
+Daemon:%s: Unable to open RTC device
+Daemon:%s: Unable to read from RTC device
+Daemon:%s: Time read from RTC -- MM/DD/YY HH:MM:SS%d/%d/%d %d:%d:%d
+Daemon:Invalid RTC seconds = %ld
+Daemon: genoff get for %d
+Daemon:Value read from RTC seconds = %lld
+Daemon:Final Time = %llu
+Daemon:%s:Genoff memory not allocated
+Daemon: Unable to create socket:time_genoff
+#time_genoff
+Daemon: Unable to bind socket:time_genoff
+Daemon: Unable to listen on socket:time_genoff
+Daemon: Time-services: All initializations done
+Daemon: Time-services: Waiting to acceptconnection
+Daemon: Unable to accept connection:time_genoff
+Daemon: Connection accepted:time_genoff
+Daemon: Cannot create pthread:time_genoff
+/data/time
+Daemon:%s:Genoff Read operation 
+Daemon:%s: Initiallizing QMI 
+Daemon:%s: time_get_service_object_v01 failed
+Daemon:%s: qmi_client_get_service_list returned %dnum_services %d
+Daemon:%s:retry count exceeds limitQMI init failed continuing withoutserver
+Daemon:%s: qmi_client_get_service_list returned %dnum_service %d num_entries %d
+Daemon:%s: RTC read failed
+Daemon:%s: Got Update from modem msg_id %lu
+Daemon:%s: TOD update message decode error
+Daemon:%s: Ignore time update from MODEM,for base = %d
+Daemon:%s: ptime_genoff is NULL
+Daemon:%s: Writing genoff = %llu to memory
+Daemon:%s:Genoff write operation 
+Daemon:%s:Genoff not initialized
+Daemon:new time %lld 
+Daemon: delta %lld genoff %lld 
+Updating the TOD offset
+Daemon:%s:Invalid time unit %d
+debug.time_services.enable
+Daemon: Invalid base received
+Daemon:Update to modem bit set
+Daemon:%s: Sending data to MODEM !
+Daemon: Base = %d, Value being sent to MODEM = %llu
+Daemon:Unable to send data to MODEM
+Daemon:%s: Invalid option
+Daemon:%s:Time received %llu
+--- ALL STRINGS (min length 6) ---
+/system/bin/linker
+__libc_init
+__cxa_atexit
+__android_log_print
+mktime
+__aeabi_unwind_cpp_pr0
+socket
+pthread_exit
+strlcpy
+unlink
+listen
+accept
+pthread_create
+pthread_join
+__stack_chk_fail
+__stack_chk_guard
+snprintf
+__aeabi_idivmod
+__aeabi_uldivmod
+qmi_client_notifier_init
+qmi_client_get_service_list
+gettimeofday
+pthread_mutex_lock
+pthread_cond_timedwait
+pthread_mutex_unlock
+qmi_client_init
+memset
+qmi_client_send_msg_sync
+qmi_client_release
+qmi_client_message_decode
+pthread_cond_signal
+gmtime
+property_get
+strcmp
+__errno
+pthread_cond_wait
+__aeabi_idiv
+setgid
+setuid
+bsd_signal
+pthread_mutex_init
+settimeofday
+pthread_kill
+common_qmi_idl_type_table_object_v01
+_edata
+__bss_start
+libc.so
+libcutils.so
+libqmi_cci.so
+libqmi_common_so.so
+libstdc++.so
+libm.so
+ *J+KyDzD{D
+ %J&KyDzD{D#
+ 6JyD#hzD
+ 0J1KyDzD{D
+,M}D(h
+#}D(J)FzD
+KyDzD{D
+"+h/F;
+ EJyDzD
+ AIl"%
+ 7JyDzD
+ 3JyDzD
+ 1JyD1MzD1N
+1O}D~D
+ (JyDzD
+ %JyDzD
+  JyDzD
+;K<J{D-
+ 6J6KyDzD{D
+zD/M{D
+ )FzD;F
+ )F;FzD
+KyDzD{D
+$IFzDCF
+ IFCFzD
+ IFzDCF
+ "J#KyDzD{D
+ 3KyDzD{D
+ $J%KyDzD{D0
+KyDzD{D
+>K?J{D
+#6J6K!FzD{D
+4J5Kx!
+ !FzD{D
+KyDzD{D
+KyDzD{D
+ 3J3KyDzD{DU
+D,J9FzD
+"F+F0F
+$#"F+F
+KyDzD{D
+ >I?J?KyDzD{D5
+z~)hhh
+ &I&J'KyDzD{D
+KyDzD{D
+IzD,`yD
+JyDzDV
+zDAF{D
+
+Complete.

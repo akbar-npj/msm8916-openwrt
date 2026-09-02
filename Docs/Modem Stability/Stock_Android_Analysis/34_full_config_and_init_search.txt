@@ -1,0 +1,38 @@
+=== 1. CHECK INOTIFYWAIT AVAILABILITY ===
+/system/xbin/inotifywait
+
+=== 2. LIST ALL MODEM & RIL CONFIG FILES ===
+-rw-rw-rw- root     root         4023 2025-08-28 12:36 init.qcom.modem_links.sh
+-rw-r--r-- root     root        16384 2025-08-28 12:37 qcril.db
+-rw------- bluetooth bluetooth        9 1970-01-01 05:30 .bt_nv.bin
+-rw-r--r-- root     root        29816 2025-08-28 12:36 WCNSS_qcom_wlan_nv.bin
+drwx------ root     root              1970-01-01 05:30 lost+found
+
+=== 3. SEARCH WATCHDOG AND MODEM IN ALL INIT.RC SCRIPTS ===
+/init.qcom.rc:399:service rmt_storage /system/bin/rmt_storage
+/init.qcom.rc:405:    start rmt_storage
+/init.qcom.rc:499:service qmuxd /system/bin/qmuxd
+/init.qcom.rc:505:service netmgrd /system/bin/netmgrd
+/init.qcom.rc:519:on property:ro.use_data_netmgrd=false
+/init.qcom.rc:521:    stop netmgrd
+/init.qcom.rc:757:service ril-daemon1 /system/bin/rild -c 1
+/init.qcom.rc:759:    socket rild1 stream 660 root radio
+/init.qcom.rc:760:    socket rild-debug1 stream 660 radio system
+/init.qcom.rc:765:service ril-daemon2 /system/bin/rild -c 2
+/init.qcom.rc:767:    socket rild2 stream 660 root radio
+/init.qcom.rc:768:    socket rild-debug2 stream 660 radio system
+/init.rc:488:service ril-daemon /system/bin/rild
+/init.rc:490:    socket rild stream 660 root radio
+/init.rc:491:    socket rild-debug stream 660 radio system
+/init.target.rc:153:service time_daemon /system/bin/time_daemon
+/system/etc/event-log-tags:31:2802 watchdog (Service|3)
+/system/etc/event-log-tags:32:2803 watchdog_proc_pss (Process|3),(Pid|1|5),(Pss|1|2)
+/system/etc/event-log-tags:33:2804 watchdog_soft_reset (Process|3),(Pid|1|5),(MaxPss|1|2),(Pss|1|2),(Skip|3)
+/system/etc/event-log-tags:34:2805 watchdog_hard_reset (Process|3),(Pid|1|5),(MaxPss|1|2),(Pss|1|2)
+/system/etc/event-log-tags:35:2806 watchdog_pss_stats (EmptyPss|1|2),(EmptyCount|1|1),(BackgroundPss|1|2),(BackgroundCount|1|1),(ServicePss|1|2),(ServiceCount|1|1),(VisiblePss|1|2),(VisibleCount|1|1),(ForegroundPss|1|2),(ForegroundCount|1|1),(NoPssCount|1|1)
+/system/etc/event-log-tags:36:2807 watchdog_proc_stats (DeathsInOne|1|1),(DeathsInTwo|1|1),(DeathsInThree|1|1),(DeathsInFour|1|1),(DeathsInFive|1|1)
+/system/etc/event-log-tags:37:2808 watchdog_scheduled_reboot (Now|2|1),(Interval|1|3),(StartTime|1|3),(Window|1|3),(Skip|3)
+/system/etc/event-log-tags:38:2809 watchdog_meminfo (MemFree|1|2),(Buffers|1|2),(Cached|1|2),(Active|1|2),(Inactive|1|2),(AnonPages|1|2),(Mapped|1|2),(Slab|1|2),(SReclaimable|1|2),(SUnreclaim|1|2),(PageTables|1|2)
+/system/etc/event-log-tags:39:2810 watchdog_vmstat (runtime|2|3),(pgfree|1|1),(pgactivate|1|1),(pgdeactivate|1|1),(pgfault|1|1),(pgmajfault|1|1)
+/system/etc/event-log-tags:40:2811 watchdog_requested_reboot (NoWait|1|1),(ScheduleInterval|1|3),(RecheckInterval|1|3),(StartTime|1|3),(Window|1|3),(MinScreenOff|1|3),(MinNextAlarm|1|3)
+/system/etc/security/cacerts/cb156124.0:35:NL/+I5c30jn6PQ0GC7TbO6Orb1wdtn7os4I07QZcJA==

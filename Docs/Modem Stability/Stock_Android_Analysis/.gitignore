@@ -1,0 +1,11 @@
+vendor_libs/
+binaries/
+libs/
+hw_libs/
+aboot/aboot.mbn
+dtb/*.img
+dtb/*.bin
+dtb/*.dtb
+*.tar
+proc_device_tree/
+dts/

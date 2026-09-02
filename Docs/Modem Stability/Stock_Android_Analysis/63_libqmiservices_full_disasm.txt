@@ -1,0 +1,513 @@
+================================================================
+DISASSEMBLY OF /home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem Stability/Stock_Android_Analysis/binaries/libqmiservices.so
+================================================================
+
+
+/home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem Stability/Stock_Android_Analysis/binaries/libqmiservices.so:     file format elf32-littlearm
+
+
+Disassembly of section .plt:
+
+0000584c <__cxa_finalize@plt-0x14>:
+    584c:	e52de004 	push	{lr}		@ (str lr, [sp, #-4]!)
+    5850:	e59fe004 	ldr	lr, [pc, #4]	@ 585c <__cxa_finalize@plt-0x4>
+    5854:	e08fe00e 	add	lr, pc, lr
+    5858:	e5bef008 	ldr	pc, [lr, #8]!
+    585c:	00010790 	muleq	r1, r0, r7
+
+00005860 <__cxa_finalize@plt>:
+    5860:	e28fc600 	add	ip, pc, #0, 12
+    5864:	e28cca10 	add	ip, ip, #16, 20	@ 0x10000
+    5868:	e5bcf790 	ldr	pc, [ip, #1936]!	@ 0x790
+
+0000586c <__cxa_atexit@plt>:
+    586c:	e28fc600 	add	ip, pc, #0, 12
+    5870:	e28cca10 	add	ip, ip, #16, 20	@ 0x10000
+    5874:	e5bcf788 	ldr	pc, [ip, #1928]!	@ 0x788
+
+Disassembly of section .text:
+
+00005878 <voice_get_service_object_internal_v02-0x5c>:
+    5878:	e92d4800 	push	{fp, lr}
+    587c:	e28db004 	add	fp, sp, #4
+    5880:	e59f300c 	ldr	r3, [pc, #12]	@ 5894 <__cxa_atexit@plt+0x28>
+    5884:	e08f3003 	add	r3, pc, r3
+    5888:	e1a00003 	mov	r0, r3
+    588c:	ebfffff3 	bl	5860 <__cxa_finalize@plt>
+    5890:	e8bd8800 	pop	{fp, pc}
+    5894:	00010774 	andeq	r0, r1, r4, ror r7
+    5898:	e92d4800 	push	{fp, lr}
+    589c:	e28db004 	add	fp, sp, #4
+    58a0:	e24dd008 	sub	sp, sp, #8
+    58a4:	e50b0008 	str	r0, [fp, #-8]
+    58a8:	e51b0008 	ldr	r0, [fp, #-8]
+    58ac:	e3a01000 	mov	r1, #0
+    58b0:	e59f3018 	ldr	r3, [pc, #24]	@ 58d0 <__cxa_atexit@plt+0x64>
+    58b4:	e08f3003 	add	r3, pc, r3
+    58b8:	e1a02003 	mov	r2, r3
+    58bc:	ebffffea 	bl	586c <__cxa_atexit@plt>
+    58c0:	e1a03000 	mov	r3, r0
+    58c4:	e1a00003 	mov	r0, r3
+    58c8:	e24bd004 	sub	sp, fp, #4
+    58cc:	e8bd8800 	pop	{fp, pc}
+    58d0:	00010744 	andeq	r0, r1, r4, asr #14
+
+000058d4 <voice_get_service_object_internal_v02>:
+    58d4:	2802      	cmp	r0, #2
+    58d6:	d001      	beq.n	58dc <voice_get_service_object_internal_v02+0x8>
+    58d8:	2000      	movs	r0, #0
+    58da:	4770      	bx	lr
+    58dc:	292c      	cmp	r1, #44	@ 0x2c
+    58de:	d1fb      	bne.n	58d8 <voice_get_service_object_internal_v02+0x4>
+    58e0:	2a06      	cmp	r2, #6
+    58e2:	d1f9      	bne.n	58d8 <voice_get_service_object_internal_v02+0x4>
+    58e4:	4801      	ldr	r0, [pc, #4]	@ (58ec <voice_get_service_object_internal_v02+0x18>)
+    58e6:	4478      	add	r0, pc
+    58e8:	4770      	bx	lr
+    58ea:	bf00      	nop
+    58ec:	072e      	lsls	r6, r5, #28
+    58ee:	0001      	movs	r1, r0
+
+000058f0 <wds_get_service_object_internal_v01>:
+    58f0:	2801      	cmp	r0, #1
+    58f2:	d001      	beq.n	58f8 <wds_get_service_object_internal_v01+0x8>
+    58f4:	2000      	movs	r0, #0
+    58f6:	4770      	bx	lr
+    58f8:	2941      	cmp	r1, #65	@ 0x41
+    58fa:	d1fb      	bne.n	58f4 <wds_get_service_object_internal_v01+0x4>
+    58fc:	2a06      	cmp	r2, #6
+    58fe:	d1f9      	bne.n	58f4 <wds_get_service_object_internal_v01+0x4>
+    5900:	4801      	ldr	r0, [pc, #4]	@ (5908 <wds_get_service_object_internal_v01+0x18>)
+    5902:	4478      	add	r0, pc
+    5904:	4770      	bx	lr
+    5906:	bf00      	nop
+    5908:	0742      	lsls	r2, r0, #29
+    590a:	0001      	movs	r1, r0
+
+0000590c <wda_get_service_object_internal_v01>:
+    590c:	2801      	cmp	r0, #1
+    590e:	d001      	beq.n	5914 <wda_get_service_object_internal_v01+0x8>
+    5910:	2000      	movs	r0, #0
+    5912:	4770      	bx	lr
+    5914:	290f      	cmp	r1, #15
+    5916:	d1fb      	bne.n	5910 <wda_get_service_object_internal_v01+0x4>
+    5918:	2a06      	cmp	r2, #6
+    591a:	d1f9      	bne.n	5910 <wda_get_service_object_internal_v01+0x4>
+    591c:	4801      	ldr	r0, [pc, #4]	@ (5924 <wda_get_service_object_internal_v01+0x18>)
+    591e:	4478      	add	r0, pc
+    5920:	4770      	bx	lr
+    5922:	bf00      	nop
+    5924:	0762      	lsls	r2, r4, #29
+    5926:	0001      	movs	r1, r0
+
+00005928 <wms_get_service_object_internal_v01>:
+    5928:	2801      	cmp	r0, #1
+    592a:	d001      	beq.n	5930 <wms_get_service_object_internal_v01+0x8>
+    592c:	2000      	movs	r0, #0
+    592e:	4770      	bx	lr
+    5930:	2917      	cmp	r1, #23
+    5932:	d1fb      	bne.n	592c <wms_get_service_object_internal_v01+0x4>
+    5934:	2a06      	cmp	r2, #6
+    5936:	d1f9      	bne.n	592c <wms_get_service_object_internal_v01+0x4>
+    5938:	4801      	ldr	r0, [pc, #4]	@ (5940 <wms_get_service_object_internal_v01+0x18>)
+    593a:	4478      	add	r0, pc
+    593c:	4770      	bx	lr
+    593e:	bf00      	nop
+    5940:	0782      	lsls	r2, r0, #30
+    5942:	0001      	movs	r1, r0
+
+00005944 <dms_get_service_object_internal_v01>:
+    5944:	2801      	cmp	r0, #1
+    5946:	d001      	beq.n	594c <dms_get_service_object_internal_v01+0x8>
+    5948:	2000      	movs	r0, #0
+    594a:	4770      	bx	lr
+    594c:	2924      	cmp	r1, #36	@ 0x24
+    594e:	d1fb      	bne.n	5948 <dms_get_service_object_internal_v01+0x4>
+    5950:	2a06      	cmp	r2, #6
+    5952:	d1f9      	bne.n	5948 <dms_get_service_object_internal_v01+0x4>
+    5954:	4801      	ldr	r0, [pc, #4]	@ (595c <dms_get_service_object_internal_v01+0x18>)
+    5956:	4478      	add	r0, pc
+    5958:	4770      	bx	lr
+    595a:	bf00      	nop
+    595c:	079e      	lsls	r6, r3, #30
+    595e:	0001      	movs	r1, r0
+
+00005960 <nas_get_service_object_internal_v01>:
+    5960:	2801      	cmp	r0, #1
+    5962:	d001      	beq.n	5968 <nas_get_service_object_internal_v01+0x8>
+    5964:	2000      	movs	r0, #0
+    5966:	4770      	bx	lr
+    5968:	2972      	cmp	r1, #114	@ 0x72
+    596a:	d1fb      	bne.n	5964 <nas_get_service_object_internal_v01+0x4>
+    596c:	2a06      	cmp	r2, #6
+    596e:	d1f9      	bne.n	5964 <nas_get_service_object_internal_v01+0x4>
+    5970:	4801      	ldr	r0, [pc, #4]	@ (5978 <nas_get_service_object_internal_v01+0x18>)
+    5972:	4478      	add	r0, pc
+    5974:	4770      	bx	lr
+    5976:	bf00      	nop
+    5978:	07ca      	lsls	r2, r1, #31
+    597a:	0001      	movs	r1, r0
+
+0000597c <uim_get_service_object_internal_v01>:
+    597c:	2801      	cmp	r0, #1
+    597e:	d001      	beq.n	5984 <uim_get_service_object_internal_v01+0x8>
+    5980:	2000      	movs	r0, #0
+    5982:	4770      	bx	lr
+    5984:	2925      	cmp	r1, #37	@ 0x25
+    5986:	d1fb      	bne.n	5980 <uim_get_service_object_internal_v01+0x4>
+    5988:	2a06      	cmp	r2, #6
+    598a:	d1f9      	bne.n	5980 <uim_get_service_object_internal_v01+0x4>
+    598c:	4801      	ldr	r0, [pc, #4]	@ (5994 <uim_get_service_object_internal_v01+0x18>)
+    598e:	4478      	add	r0, pc
+    5990:	4770      	bx	lr
+    5992:	bf00      	nop
+    5994:	07de      	lsls	r6, r3, #31
+    5996:	0001      	movs	r1, r0
+
+00005998 <uim_remote_get_service_object_internal_v01>:
+    5998:	2801      	cmp	r0, #1
+    599a:	d001      	beq.n	59a0 <uim_remote_get_service_object_internal_v01+0x8>
+    599c:	2000      	movs	r0, #0
+    599e:	4770      	bx	lr
+    59a0:	2902      	cmp	r1, #2
+    59a2:	d1fb      	bne.n	599c <uim_remote_get_service_object_internal_v01+0x4>
+    59a4:	2a06      	cmp	r2, #6
+    59a6:	d1f9      	bne.n	599c <uim_remote_get_service_object_internal_v01+0x4>
+    59a8:	4801      	ldr	r0, [pc, #4]	@ (59b0 <uim_remote_get_service_object_internal_v01+0x18>)
+    59aa:	4478      	add	r0, pc
+    59ac:	4770      	bx	lr
+    59ae:	bf00      	nop
+    59b0:	0802      	lsrs	r2, r0, #32
+    59b2:	0001      	movs	r1, r0
+
+000059b4 <cat_get_service_object_internal_v02>:
+    59b4:	2802      	cmp	r0, #2
+    59b6:	d001      	beq.n	59bc <cat_get_service_object_internal_v02+0x8>
+    59b8:	2000      	movs	r0, #0
+    59ba:	4770      	bx	lr
+    59bc:	2917      	cmp	r1, #23
+    59be:	d1fb      	bne.n	59b8 <cat_get_service_object_internal_v02+0x4>
+    59c0:	2a06      	cmp	r2, #6
+    59c2:	d1f9      	bne.n	59b8 <cat_get_service_object_internal_v02+0x4>
+    59c4:	4801      	ldr	r0, [pc, #4]	@ (59cc <cat_get_service_object_internal_v02+0x18>)
+    59c6:	4478      	add	r0, pc
+    59c8:	4770      	bx	lr
+    59ca:	bf00      	nop
+    59cc:	081e      	lsrs	r6, r3, #32
+    59ce:	0001      	movs	r1, r0
+
+000059d0 <pbm_get_service_object_internal_v01>:
+    59d0:	2801      	cmp	r0, #1
+    59d2:	d001      	beq.n	59d8 <pbm_get_service_object_internal_v01+0x8>
+    59d4:	2000      	movs	r0, #0
+    59d6:	4770      	bx	lr
+    59d8:	290e      	cmp	r1, #14
+    59da:	d1fb      	bne.n	59d4 <pbm_get_service_object_internal_v01+0x4>
+    59dc:	2a05      	cmp	r2, #5
+    59de:	d1f9      	bne.n	59d4 <pbm_get_service_object_internal_v01+0x4>
+    59e0:	4801      	ldr	r0, [pc, #4]	@ (59e8 <pbm_get_service_object_internal_v01+0x18>)
+    59e2:	4478      	add	r0, pc
+    59e4:	4770      	bx	lr
+    59e6:	bf00      	nop
+    59e8:	0832      	lsrs	r2, r6, #32
+    59ea:	0001      	movs	r1, r0
+
+000059ec <svs_get_service_object_internal_v01>:
+    59ec:	2801      	cmp	r0, #1
+    59ee:	d001      	beq.n	59f4 <svs_get_service_object_internal_v01+0x8>
+    59f0:	2000      	movs	r0, #0
+    59f2:	4770      	bx	lr
+    59f4:	2901      	cmp	r1, #1
+    59f6:	d1fb      	bne.n	59f0 <svs_get_service_object_internal_v01+0x4>
+    59f8:	2a02      	cmp	r2, #2
+    59fa:	d1f9      	bne.n	59f0 <svs_get_service_object_internal_v01+0x4>
+    59fc:	4801      	ldr	r0, [pc, #4]	@ (5a04 <svs_get_service_object_internal_v01+0x18>)
+    59fe:	4478      	add	r0, pc
+    5a00:	4770      	bx	lr
+    5a02:	bf00      	nop
+    5a04:	eda6 0000 	stc	0, cr0, [r6]
+
+00005a08 <sar_get_service_object_internal_v01>:
+    5a08:	2801      	cmp	r0, #1
+    5a0a:	d001      	beq.n	5a10 <sar_get_service_object_internal_v01+0x8>
+    5a0c:	2000      	movs	r0, #0
+    5a0e:	4770      	bx	lr
+    5a10:	2903      	cmp	r1, #3
+    5a12:	d1fb      	bne.n	5a0c <sar_get_service_object_internal_v01+0x4>
+    5a14:	2a06      	cmp	r2, #6
+    5a16:	d1f9      	bne.n	5a0c <sar_get_service_object_internal_v01+0x4>
+    5a18:	4801      	ldr	r0, [pc, #4]	@ (5a20 <sar_get_service_object_internal_v01+0x18>)
+    5a1a:	4478      	add	r0, pc
+    5a1c:	4770      	bx	lr
+    5a1e:	bf00      	nop
+    5a20:	083a      	lsrs	r2, r7, #32
+    5a22:	0001      	movs	r1, r0
+
+00005a24 <ctl_get_service_object_internal_v01>:
+    5a24:	2801      	cmp	r0, #1
+    5a26:	d001      	beq.n	5a2c <ctl_get_service_object_internal_v01+0x8>
+    5a28:	2000      	movs	r0, #0
+    5a2a:	4770      	bx	lr
+    5a2c:	290b      	cmp	r1, #11
+    5a2e:	d1fb      	bne.n	5a28 <ctl_get_service_object_internal_v01+0x4>
+    5a30:	2a06      	cmp	r2, #6
+    5a32:	d1f9      	bne.n	5a28 <ctl_get_service_object_internal_v01+0x4>
+    5a34:	4801      	ldr	r0, [pc, #4]	@ (5a3c <ctl_get_service_object_internal_v01+0x18>)
+    5a36:	4478      	add	r0, pc
+    5a38:	4770      	bx	lr
+    5a3a:	bf00      	nop
+    5a3c:	085e      	lsrs	r6, r3, #1
+    5a3e:	0001      	movs	r1, r0
+
+00005a40 <ims_qmi_get_service_object_internal_v01>:
+    5a40:	2801      	cmp	r0, #1
+    5a42:	d001      	beq.n	5a48 <ims_qmi_get_service_object_internal_v01+0x8>
+    5a44:	2000      	movs	r0, #0
+    5a46:	4770      	bx	lr
+    5a48:	2901      	cmp	r1, #1
+    5a4a:	d1fb      	bne.n	5a44 <ims_qmi_get_service_object_internal_v01+0x4>
+    5a4c:	2a02      	cmp	r2, #2
+    5a4e:	d1f9      	bne.n	5a44 <ims_qmi_get_service_object_internal_v01+0x4>
+    5a50:	4801      	ldr	r0, [pc, #4]	@ (5a58 <ims_qmi_get_service_object_internal_v01+0x18>)
+    5a52:	4478      	add	r0, pc
+    5a54:	4770      	bx	lr
+    5a56:	bf00      	nop
+    5a58:	efca 0000 	vaddl.s8	q8, d10, d0
+
+00005a5c <qcmap_get_service_object_internal_v01>:
+    5a5c:	2801      	cmp	r0, #1
+    5a5e:	d001      	beq.n	5a64 <qcmap_get_service_object_internal_v01+0x8>
+    5a60:	2000      	movs	r0, #0
+    5a62:	4770      	bx	lr
+    5a64:	2906      	cmp	r1, #6
+    5a66:	d1fb      	bne.n	5a60 <qcmap_get_service_object_internal_v01+0x4>
+    5a68:	2a06      	cmp	r2, #6
+    5a6a:	d1f9      	bne.n	5a60 <qcmap_get_service_object_internal_v01+0x4>
+    5a6c:	4801      	ldr	r0, [pc, #4]	@ (5a74 <qcmap_get_service_object_internal_v01+0x18>)
+    5a6e:	4478      	add	r0, pc
+    5a70:	4770      	bx	lr
+    5a72:	bf00      	nop
+    5a74:	0866      	lsrs	r6, r4, #1
+    5a76:	0001      	movs	r1, r0
+
+00005a78 <csvt_get_service_object_internal_v01>:
+    5a78:	2801      	cmp	r0, #1
+    5a7a:	d001      	beq.n	5a80 <csvt_get_service_object_internal_v01+0x8>
+    5a7c:	2000      	movs	r0, #0
+    5a7e:	4770      	bx	lr
+    5a80:	2906      	cmp	r1, #6
+    5a82:	d1fb      	bne.n	5a7c <csvt_get_service_object_internal_v01+0x4>
+    5a84:	2a06      	cmp	r2, #6
+    5a86:	d1f9      	bne.n	5a7c <csvt_get_service_object_internal_v01+0x4>
+    5a88:	4801      	ldr	r0, [pc, #4]	@ (5a90 <csvt_get_service_object_internal_v01+0x18>)
+    5a8a:	4478      	add	r0, pc
+    5a8c:	4770      	bx	lr
+    5a8e:	bf00      	nop
+    5a90:	087a      	lsrs	r2, r7, #1
+    5a92:	0001      	movs	r1, r0
+
+00005a94 <imsvt_get_service_object_internal_v01>:
+    5a94:	2801      	cmp	r0, #1
+    5a96:	d001      	beq.n	5a9c <imsvt_get_service_object_internal_v01+0x8>
+    5a98:	2000      	movs	r0, #0
+    5a9a:	4770      	bx	lr
+    5a9c:	2902      	cmp	r1, #2
+    5a9e:	d1fb      	bne.n	5a98 <imsvt_get_service_object_internal_v01+0x4>
+    5aa0:	2a05      	cmp	r2, #5
+    5aa2:	d1f9      	bne.n	5a98 <imsvt_get_service_object_internal_v01+0x4>
+    5aa4:	4801      	ldr	r0, [pc, #4]	@ (5aac <imsvt_get_service_object_internal_v01+0x18>)
+    5aa6:	4478      	add	r0, pc
+    5aa8:	4770      	bx	lr
+    5aaa:	bf00      	nop
+    5aac:	0896      	lsrs	r6, r2, #2
+    5aae:	0001      	movs	r1, r0
+
+00005ab0 <imsp_get_service_object_internal_v01>:
+    5ab0:	2801      	cmp	r0, #1
+    5ab2:	d001      	beq.n	5ab8 <imsp_get_service_object_internal_v01+0x8>
+    5ab4:	2000      	movs	r0, #0
+    5ab6:	4770      	bx	lr
+    5ab8:	2901      	cmp	r1, #1
+    5aba:	d1fb      	bne.n	5ab4 <imsp_get_service_object_internal_v01+0x4>
+    5abc:	2a05      	cmp	r2, #5
+    5abe:	d1f9      	bne.n	5ab4 <imsp_get_service_object_internal_v01+0x4>
+    5ac0:	4801      	ldr	r0, [pc, #4]	@ (5ac8 <imsp_get_service_object_internal_v01+0x18>)
+    5ac2:	4478      	add	r0, pc
+    5ac4:	4770      	bx	lr
+    5ac6:	bf00      	nop
+    5ac8:	f61a 0000 			@ <UNDEFINED> instruction: 0xf61a0000
+
+00005acc <cxm_get_service_object_internal_v01>:
+    5acc:	2801      	cmp	r0, #1
+    5ace:	d001      	beq.n	5ad4 <cxm_get_service_object_internal_v01+0x8>
+    5ad0:	2000      	movs	r0, #0
+    5ad2:	4770      	bx	lr
+    5ad4:	2900      	cmp	r1, #0
+    5ad6:	d1fb      	bne.n	5ad0 <cxm_get_service_object_internal_v01+0x4>
+    5ad8:	2a02      	cmp	r2, #2
+    5ada:	d1f9      	bne.n	5ad0 <cxm_get_service_object_internal_v01+0x4>
+    5adc:	4801      	ldr	r0, [pc, #4]	@ (5ae4 <cxm_get_service_object_internal_v01+0x18>)
+    5ade:	4478      	add	r0, pc
+    5ae0:	4770      	bx	lr
+    5ae2:	bf00      	nop
+    5ae4:	f68e 0000 			@ <UNDEFINED> instruction: 0xf68e0000
+
+00005ae8 <imss_get_service_object_internal_v01>:
+    5ae8:	2801      	cmp	r0, #1
+    5aea:	d001      	beq.n	5af0 <imss_get_service_object_internal_v01+0x8>
+    5aec:	2000      	movs	r0, #0
+    5aee:	4770      	bx	lr
+    5af0:	2917      	cmp	r1, #23
+    5af2:	d1fb      	bne.n	5aec <imss_get_service_object_internal_v01+0x4>
+    5af4:	2a06      	cmp	r2, #6
+    5af6:	d1f9      	bne.n	5aec <imss_get_service_object_internal_v01+0x4>
+    5af8:	4801      	ldr	r0, [pc, #4]	@ (5b00 <imss_get_service_object_internal_v01+0x18>)
+    5afa:	4478      	add	r0, pc
+    5afc:	4770      	bx	lr
+    5afe:	bf00      	nop
+    5b00:	0892      	lsrs	r2, r2, #2
+    5b02:	0001      	movs	r1, r0
+
+00005b04 <rfrpe_get_service_object_internal_v01>:
+    5b04:	2801      	cmp	r0, #1
+    5b06:	d001      	beq.n	5b0c <rfrpe_get_service_object_internal_v01+0x8>
+    5b08:	2000      	movs	r0, #0
+    5b0a:	4770      	bx	lr
+    5b0c:	2900      	cmp	r1, #0
+    5b0e:	d1fb      	bne.n	5b08 <rfrpe_get_service_object_internal_v01+0x4>
+    5b10:	2a05      	cmp	r2, #5
+    5b12:	d1f9      	bne.n	5b08 <rfrpe_get_service_object_internal_v01+0x4>
+    5b14:	4801      	ldr	r0, [pc, #4]	@ (5b1c <rfrpe_get_service_object_internal_v01+0x18>)
+    5b16:	4478      	add	r0, pc
+    5b18:	4770      	bx	lr
+    5b1a:	bf00      	nop
+    5b1c:	08ae      	lsrs	r6, r5, #2
+    5b1e:	0001      	movs	r1, r0
+
+00005b20 <imsa_get_service_object_internal_v01>:
+    5b20:	2801      	cmp	r0, #1
+    5b22:	d001      	beq.n	5b28 <imsa_get_service_object_internal_v01+0x8>
+    5b24:	2000      	movs	r0, #0
+    5b26:	4770      	bx	lr
+    5b28:	2908      	cmp	r1, #8
+    5b2a:	d1fb      	bne.n	5b24 <imsa_get_service_object_internal_v01+0x4>
+    5b2c:	2a06      	cmp	r2, #6
+    5b2e:	d1f9      	bne.n	5b24 <imsa_get_service_object_internal_v01+0x4>
+    5b30:	4801      	ldr	r0, [pc, #4]	@ (5b38 <imsa_get_service_object_internal_v01+0x18>)
+    5b32:	4478      	add	r0, pc
+    5b34:	4770      	bx	lr
+    5b36:	bf00      	nop
+    5b38:	08c2      	lsrs	r2, r0, #3
+    5b3a:	0001      	movs	r1, r0
+
+00005b3c <imsrtp_get_service_object_internal_v01>:
+    5b3c:	2801      	cmp	r0, #1
+    5b3e:	d001      	beq.n	5b44 <imsrtp_get_service_object_internal_v01+0x8>
+    5b40:	2000      	movs	r0, #0
+    5b42:	4770      	bx	lr
+    5b44:	2914      	cmp	r1, #20
+    5b46:	d1fb      	bne.n	5b40 <imsrtp_get_service_object_internal_v01+0x4>
+    5b48:	2a06      	cmp	r2, #6
+    5b4a:	d1f9      	bne.n	5b40 <imsrtp_get_service_object_internal_v01+0x4>
+    5b4c:	4801      	ldr	r0, [pc, #4]	@ (5b54 <imsrtp_get_service_object_internal_v01+0x18>)
+    5b4e:	4478      	add	r0, pc
+    5b50:	4770      	bx	lr
+    5b52:	bf00      	nop
+    5b54:	08de      	lsrs	r6, r3, #3
+    5b56:	0001      	movs	r1, r0
+
+00005b58 <imsdcm_get_service_object_internal_v01>:
+    5b58:	2801      	cmp	r0, #1
+    5b5a:	d001      	beq.n	5b60 <imsdcm_get_service_object_internal_v01+0x8>
+    5b5c:	2000      	movs	r0, #0
+    5b5e:	4770      	bx	lr
+    5b60:	2903      	cmp	r1, #3
+    5b62:	d1fb      	bne.n	5b5c <imsdcm_get_service_object_internal_v01+0x4>
+    5b64:	2a06      	cmp	r2, #6
+    5b66:	d1f9      	bne.n	5b5c <imsdcm_get_service_object_internal_v01+0x4>
+    5b68:	4801      	ldr	r0, [pc, #4]	@ (5b70 <imsdcm_get_service_object_internal_v01+0x18>)
+    5b6a:	4478      	add	r0, pc
+    5b6c:	4770      	bx	lr
+    5b6e:	bf00      	nop
+    5b70:	08fa      	lsrs	r2, r7, #3
+    5b72:	0001      	movs	r1, r0
+
+00005b74 <dsd_get_service_object_internal_v01>:
+    5b74:	2801      	cmp	r0, #1
+    5b76:	d001      	beq.n	5b7c <dsd_get_service_object_internal_v01+0x8>
+    5b78:	2000      	movs	r0, #0
+    5b7a:	4770      	bx	lr
+    5b7c:	2907      	cmp	r1, #7
+    5b7e:	d1fb      	bne.n	5b78 <dsd_get_service_object_internal_v01+0x4>
+    5b80:	2a06      	cmp	r2, #6
+    5b82:	d1f9      	bne.n	5b78 <dsd_get_service_object_internal_v01+0x4>
+    5b84:	4801      	ldr	r0, [pc, #4]	@ (5b8c <dsd_get_service_object_internal_v01+0x18>)
+    5b86:	4478      	add	r0, pc
+    5b88:	4770      	bx	lr
+    5b8a:	bf00      	nop
+    5b8c:	091e      	lsrs	r6, r3, #4
+    5b8e:	0001      	movs	r1, r0
+
+00005b90 <dpm_get_service_object_internal_v01>:
+    5b90:	2801      	cmp	r0, #1
+    5b92:	d001      	beq.n	5b98 <dpm_get_service_object_internal_v01+0x8>
+    5b94:	2000      	movs	r0, #0
+    5b96:	4770      	bx	lr
+    5b98:	2900      	cmp	r1, #0
+    5b9a:	d1fb      	bne.n	5b94 <dpm_get_service_object_internal_v01+0x4>
+    5b9c:	2a06      	cmp	r2, #6
+    5b9e:	d1f9      	bne.n	5b94 <dpm_get_service_object_internal_v01+0x4>
+    5ba0:	4801      	ldr	r0, [pc, #4]	@ (5ba8 <dpm_get_service_object_internal_v01+0x18>)
+    5ba2:	4478      	add	r0, pc
+    5ba4:	4770      	bx	lr
+    5ba6:	bf00      	nop
+    5ba8:	093e      	lsrs	r6, r7, #4
+    5baa:	0001      	movs	r1, r0
+
+00005bac <pdc_get_service_object_internal_v01>:
+    5bac:	2801      	cmp	r0, #1
+    5bae:	d001      	beq.n	5bb4 <pdc_get_service_object_internal_v01+0x8>
+    5bb0:	2000      	movs	r0, #0
+    5bb2:	4770      	bx	lr
+    5bb4:	2906      	cmp	r1, #6
+    5bb6:	d1fb      	bne.n	5bb0 <pdc_get_service_object_internal_v01+0x4>
+    5bb8:	2a06      	cmp	r2, #6
+    5bba:	d1f9      	bne.n	5bb0 <pdc_get_service_object_internal_v01+0x4>
+    5bbc:	4801      	ldr	r0, [pc, #4]	@ (5bc4 <pdc_get_service_object_internal_v01+0x18>)
+    5bbe:	4478      	add	r0, pc
+    5bc0:	4770      	bx	lr
+    5bc2:	bf00      	nop
+    5bc4:	095e      	lsrs	r6, r3, #5
+    5bc6:	0001      	movs	r1, r0
+
+00005bc8 <atp_get_service_object_internal_v01>:
+    5bc8:	2801      	cmp	r0, #1
+    5bca:	d001      	beq.n	5bd0 <atp_get_service_object_internal_v01+0x8>
+    5bcc:	2000      	movs	r0, #0
+    5bce:	4770      	bx	lr
+    5bd0:	2900      	cmp	r1, #0
+    5bd2:	d1fb      	bne.n	5bcc <atp_get_service_object_internal_v01+0x4>
+    5bd4:	2a06      	cmp	r2, #6
+    5bd6:	d1f9      	bne.n	5bcc <atp_get_service_object_internal_v01+0x4>
+    5bd8:	4801      	ldr	r0, [pc, #4]	@ (5be0 <atp_get_service_object_internal_v01+0x18>)
+    5bda:	4478      	add	r0, pc
+    5bdc:	4770      	bx	lr
+    5bde:	bf00      	nop
+    5be0:	0972      	lsrs	r2, r6, #5
+    5be2:	0001      	movs	r1, r0
+
+00005be4 <dfs_get_service_object_internal_v01>:
+    5be4:	2801      	cmp	r0, #1
+    5be6:	d001      	beq.n	5bec <dfs_get_service_object_internal_v01+0x8>
+    5be8:	2000      	movs	r0, #0
+    5bea:	4770      	bx	lr
+    5bec:	2902      	cmp	r1, #2
+    5bee:	d1fb      	bne.n	5be8 <dfs_get_service_object_internal_v01+0x4>
+    5bf0:	2a06      	cmp	r2, #6
+    5bf2:	d1f9      	bne.n	5be8 <dfs_get_service_object_internal_v01+0x4>
+    5bf4:	4801      	ldr	r0, [pc, #4]	@ (5bfc <dfs_get_service_object_internal_v01+0x18>)
+    5bf6:	4478      	add	r0, pc
+    5bf8:	4770      	bx	lr
+    5bfa:	bf00      	nop
+    5bfc:	098e      	lsrs	r6, r1, #6
+    5bfe:	0001      	movs	r1, r0

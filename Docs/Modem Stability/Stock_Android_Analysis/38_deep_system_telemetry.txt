@@ -1,0 +1,205 @@
+========================================================
+=== 1. ALL REGULATORS (VOLTAGES, STATE, CONSTRAINTS) ===
+========================================================
+regulator-dummy (/sys/class/regulator/regulator.0): state=, uV=, min_uV=, max_uV=, mode=
+mem_acc_corner (/sys/class/regulator/regulator.1): state=, uV=2, min_uV=1, max_uV=3, mode=
+8916_l3_corner_ao (/sys/class/regulator/regulator.10): state=enabled, uV=5, min_uV=1, max_uV=7, mode=idle
+8916_l3_corner_so (/sys/class/regulator/regulator.11): state=disabled, uV=1, min_uV=1, max_uV=7, mode=idle
+8916_l4 (/sys/class/regulator/regulator.12): state=disabled, uV=2050000, min_uV=2050000, max_uV=2050000, mode=idle
+8916_l5 (/sys/class/regulator/regulator.13): state=enabled, uV=1800000, min_uV=1800000, max_uV=1800000, mode=normal
+8916_l6 (/sys/class/regulator/regulator.14): state=enabled, uV=1800000, min_uV=1800000, max_uV=1800000, mode=normal
+8916_l7 (/sys/class/regulator/regulator.15): state=enabled, uV=1800000, min_uV=1800000, max_uV=1800000, mode=normal
+8916_l7_ao (/sys/class/regulator/regulator.16): state=disabled, uV=1800000, min_uV=1800000, max_uV=1800000, mode=idle
+8916_l7_so (/sys/class/regulator/regulator.17): state=disabled, uV=1800000, min_uV=1800000, max_uV=1800000, mode=idle
+8916_l8 (/sys/class/regulator/regulator.18): state=disabled, uV=2850000, min_uV=2850000, max_uV=2900000, mode=idle
+8916_l9 (/sys/class/regulator/regulator.19): state=disabled, uV=3300000, min_uV=3300000, max_uV=3300000, mode=idle
+8916_s1_corner (/sys/class/regulator/regulator.2): state=enabled, uV=5, min_uV=1, max_uV=7, mode=idle
+8916_l10 (/sys/class/regulator/regulator.20): state=disabled, uV=2700000, min_uV=2700000, max_uV=2800000, mode=idle
+8916_l11 (/sys/class/regulator/regulator.21): state=disabled, uV=1800000, min_uV=1800000, max_uV=2950000, mode=idle
+8916_l12 (/sys/class/regulator/regulator.22): state=disabled, uV=1800000, min_uV=1800000, max_uV=2950000, mode=idle
+8916_l13 (/sys/class/regulator/regulator.23): state=enabled, uV=3075000, min_uV=3075000, max_uV=3075000, mode=normal
+8916_l14 (/sys/class/regulator/regulator.24): state=disabled, uV=1800000, min_uV=1800000, max_uV=3300000, mode=idle
+8916_l15 (/sys/class/regulator/regulator.25): state=disabled, uV=1800000, min_uV=1800000, max_uV=3300000, mode=idle
+8916_l16 (/sys/class/regulator/regulator.26): state=disabled, uV=1800000, min_uV=1800000, max_uV=3300000, mode=idle
+8916_l17 (/sys/class/regulator/regulator.27): state=enabled, uV=2850000, min_uV=2850000, max_uV=2850000, mode=normal
+8916_l18 (/sys/class/regulator/regulator.28): state=disabled, uV=2700000, min_uV=2700000, max_uV=2700000, mode=idle
+8916_s2 (/sys/class/regulator/regulator.29): state=enabled, uV=1050000, min_uV=1050000, max_uV=1350000, mode=
+8916_s1_corner_ao (/sys/class/regulator/regulator.3): state=disabled, uV=1, min_uV=1, max_uV=7, mode=idle
+apc_corner (/sys/class/regulator/regulator.30): state=enabled, uV=4, min_uV=1, max_uV=9, mode=
+gdsc_venus (/sys/class/regulator/regulator.31): state=disabled, uV=, min_uV=, max_uV=, mode=normal
+gdsc_mdss (/sys/class/regulator/regulator.32): state=enabled, uV=, min_uV=, max_uV=, mode=normal
+gdsc_jpeg (/sys/class/regulator/regulator.33): state=disabled, uV=, min_uV=, max_uV=, mode=normal
+gdsc_vfe (/sys/class/regulator/regulator.34): state=disabled, uV=, min_uV=, max_uV=, mode=normal
+gdsc_oxili_gx (/sys/class/regulator/regulator.35): state=disabled, uV=, min_uV=, max_uV=, mode=normal
+8916_s1_floor_corner (/sys/class/regulator/regulator.4): state=disabled, uV=1, min_uV=1, max_uV=7, mode=idle
+8916_s3 (/sys/class/regulator/regulator.5): state=disabled, uV=1200000, min_uV=1200000, max_uV=1300000, mode=idle
+8916_s4 (/sys/class/regulator/regulator.6): state=enabled, uV=1800000, min_uV=1800000, max_uV=2100000, mode=normal
+8916_l1 (/sys/class/regulator/regulator.7): state=disabled, uV=1225000, min_uV=1225000, max_uV=1225000, mode=idle
+8916_l2 (/sys/class/regulator/regulator.8): state=disabled, uV=1200000, min_uV=1200000, max_uV=1200000, mode=idle
+8916_l3 (/sys/class/regulator/regulator.9): state=disabled, uV=500000, min_uV=500000, max_uV=1287500, mode=idle
+
+========================================================
+=== 2. USB GADGET & RUNTIME PM / AUTOSUSPEND ===
+========================================================
+--- USB PM Node: /sys/devices/soc.0/78d9000.usb/power_supply/usb ---
+
+========================================================
+=== 3. WAKEUP SOURCES & ACTIVE WAKELOCKS ===
+========================================================
+name		active_count	event_count	wakeup_count	expire_count	active_since	total_time	max_time	last_change	prevent_suspend_time
+qcom_sap_wakelock	0		0		0		0		0		0		0		18022		0
+qcom_rx_wakelock	0		0		0		0		0		0		0		18022		0
+wlan        	1		1		0		0		0		269		269		18022		0
+rmt_storage_-1213581936	2		2		0		0		0		269		138		228016		0
+PowerManagerService.WakeLocks	1028		1028		0		0		0		82926		70459		20467077		0
+event1-808  	0		0		0		0		0		0		0		14467		0
+event0-808  	0		0		0		0		0		0		0		14425		0
+event2-808  	0		0		0		0		0		0		0		14416		0
+event3-808  	1		1		0		0		0		0		0		15440		0
+KeyEvents   	691		691		0		0		0		143		110		20476458		0
+PowerManagerService.Display	1		1		0		0		20474061		20474061		20474061		12933		0
+ipc0000001e_thermal-engine	3		3		0		0		0		0		0		228018		0
+ipc0000001d_thermal-engine	0		0		0		0		0		0		0		8915		0
+ipc0000001c_thermal-engine	3		3		0		0		0		0		0		228018		0
+ipc0000001b_thermal-engine	0		0		0		0		0		0		0		8910		0
+ipc0000001a_thermal-engine	3		3		0		0		0		0		0		228018		0
+ipc00000019_thermal-engine	3		3		0		0		0		0		0		228018		0
+ipc00000017_thermal-engine	0		0		0		0		0		0		0		8902		0
+ipc00000018_thermal-engine	3		3		0		0		0		0		0		8911		0
+qcril       	6471		6471		0		0		0		7074		785		20486049		0
+wcnss_IPCRTR	3		3		0		0		0		0		0		8882		0
+wcnss       	1		1		0		0		0		540		540		8774		0
+qmuxd_port_wl_7	16		16		0		0		0		1		0		12877		0
+qmuxd_port_wl_6	16		16		0		0		0		1		0		12871		0
+qmuxd_port_wl_5	16		16		0		0		0		1		0		12865		0
+qmuxd_port_wl_4	16		16		0		0		0		1		0		12859		0
+qmuxd_port_wl_3	16		16		0		0		0		1		0		12854		0
+qmuxd_port_wl_2	16		16		0		0		0		1		0		12849		0
+qmuxd_port_wl_1	16		16		0		0		0		1		0		12844		0
+binder      	2		2		0		0		0		7		7		14359		0
+[timerfd]   	68		68		0		0		0		236		10		20406768		0
+NETLINK     	407		407		0		0		0		51		22		19400680		0
+eventpoll   	477		477		0		0		0		1		0		20406768		0
+qmuxd_port_wl_0	10127		10127		0		0		0		1380		5		20486048		0
+ipc00000010_rild	0		0		0		0		0		0		0		7458		0
+radio-interface	831		883		0		0		0		845582		5955		20481443		0
+qcril_pre_client_init	1		1		0		0		0		1059		1059		8498		0
+ipc0000000f_time_daemon	9		9		0		0		0		0		0		228018		0
+ipc0000000e_time_daemon	6		9		0		0		0		4		3		80343		0
+ipc0000000d_time_daemon	0		0		0		0		0		0		0		7205		0
+ipc0000000c_time_daemon	9		9		0		0		0		0		0		228018		0
+ipc0000000b_time_daemon	0		0		0		0		0		0		0		7204		0
+wcd-spmi-de70e000	1		1		0		0		0		7997		7997		15440		0
+rmt_storage_-1213581088	3		3		0		0		0		241		227		109143		0
+ipc0000000a_rmt_storage	17		18		0		0		0		6		5		228018		0
+ipc00000009_rmt_storage	11		11		0		0		0		0		0		227885		0
+ipc00000008_rfs_access	18		19		0		0		0		2		1		228018		0
+ipc00000007_rfs_access	0		0		0		0		0		0		0		6931		0
+ipc00000006_thermal-engine	0		0		0		0		0		0		0		6892		0
+modem_IPCRTR	39		42		0		0		0		1		0		228018		0
+gpio_keys.62	0		0		0		0		0		0		0		927		0
+bam_dmux_wakelock	675		675		0		0		0		1594438		11525		20482474		0
+battery     	3		4		0		0		0		25		13		963		0
+ssr(modem)  	0		0		0		0		0		0		0		658		0
+pil-modem   	1		1		0		0		0		780		780		6755		0
+ssr(wcnss)  	0		0		0		0		0		0		0		655		0
+pil-wcnss   	1		1		0		0		0		583		583		8821		0
+ipc00000002_kworker/0:1	22		22		0		0		0		3		1		228018		0
+ipc00000001_kworker/0:1	0		0		0		0		0		0		0		653		0
+qpnp-power-on-de70c800	0		0		0		0		0		0		0		621		0
+alarm       	1042		1045		0		0		0		1263		8		20467039		0
+mmc0_detect 	1		1		0		1		0		496		496		1310		0
+qpnp-vadc-de70d000	0		0		0		0		0		0		0		557		0
+qpnp-linear-charger-de70d600	0		0		0		0		0		0		0		555		0
+qpnp-rtc-de70ce00	0		0		0		0		0		0		0		528		0
+msm_hsusb_host	0		0		0		0		0		0		0		524		0
+usb         	4		8		0		0		0		1		0		951		0
+78d9000.usb 	0		0		0		0		0		0		0		523		0
+msm_otg     	1		1		0		0		20486471		20486471		20486471		523		0
+smd_pkt_loopback	0		0		0		0		0		0		0		490		0
+apr_apps2   	0		0		0		0		0		0		0		490		0
+smdcntl8    	0		0		0		0		0		0		0		490		0
+smdcnt_rev8 	0		0		0		0		0		0		0		490		0
+smdcnt_rev7 	0		0		0		0		0		0		0		490		0
+smdcnt_rev6 	0		0		0		0		0		0		0		490		0
+smdcnt_rev5 	0		0		0		0		0		0		0		490		0
+smdcnt_rev4 	0		0		0		0		0		0		0		490		0
+smdcnt_rev3 	0		0		0		0		0		0		0		490		0
+smdcnt_rev2 	0		0		0		0		0		0		0		490		0
+smdcnt_rev1 	0		0		0		0		0		0		0		490		0
+smdcnt_rev0 	0		0		0		0		0		0		0		490		0
+smd22       	0		0		0		0		0		0		0		490		0
+smdcntl11   	0		0		0		0		0		0		0		489		0
+smdcntl10   	0		0		0		0		0		0		0		489		0
+smdcntl9    	0		0		0		0		0		0		0		489		0
+smdcntl7    	16		25		0		0		0		1		0		12877		0
+smdcntl6    	16		23		0		0		0		1		0		12871		0
+smdcntl5    	16		20		0		0		0		1		0		12865		0
+smdcntl4    	16		21		0		0		0		1		0		12859		0
+smdcntl3    	16		21		0		0		0		1		0		12854		0
+smdcntl2    	16		25		0		0		0		1		0		12849		0
+smdcntl1    	16		26		0		0		0		1		0		12844		0
+smdcntl0    	7108		12590		0		0		0		1834		14		20486048		0
+DIAG_WS     	0		0		0		0		0		0		0		488		0
+SMDTTY_READ_IN_SUSPEND	0		0		0		0		0		0		0		485		0
+msm_serial_hs_dma	2		2		0		0		0		8		4		5948		0
+msm_serial_hs_rx	1		8		0		1		0		497		497		6440		0
+ssr(venus)  	0		0		0		0		0		0		0		445		0
+pil-venus   	0		0		0		0		0		0		0		445		0
+alarmtimer  	0		0		0		0		0		0		0		206		0
+smsm_snapshot	2294		2294		0		0		0		551		5		20482474		0
+autosleep   	1		1		0		0		0		0		0		14361		0
+--- Active Wakelocks in /sys/power/ ---
+PowerManagerService.Display
+KeyEvents PowerManagerService.WakeLocks qcril qcril_pre_client_init qmuxd_port_wl_0 qmuxd_port_wl_1 qmuxd_port_wl_2 qmuxd_port_wl_3 qmuxd_port_wl_4 qmuxd_port_wl_5 qmuxd_port_wl_6 qmuxd_port_wl_7 radio-interface rmt_storage_-1213581088 rmt_storage_-1213581936
+
+========================================================
+=== 4. CLOCKS & RPM POWER STATS ===
+========================================================
+RPM Mode:xosd
+	 count:0
+time in last mode(msec):0
+time since last mode(sec):20488
+actual last sleep(msec):0
+client votes: 0x00000000
+
+RPM Mode:vmin
+	 count:0
+time in last mode(msec):0
+time since last mode(sec):20488
+actual last sleep(msec):0
+client votes: 0x00000000
+
+APSS
+	shutdown_req:0x5B79611A9F
+	wakeup_ind:0x5B7956281F
+	bringup_req:0x5B79680CDF
+	bringup_ack:0x5B79682814
+	last_sleep_transition_duration:0x1754
+	last_wake_transition_duration:0x1927
+	wakeup_reason:0x0
+	numshutdowns:0x7c66e
+	active_cores:0x1
+		core0
+MPSS
+	shutdown_req:0x5B97168FE7
+	wakeup_ind:0x5B976A1963
+	bringup_req:0x5B976A1A1D
+	bringup_ack:0x5B976A1A65
+	last_sleep_transition_duration:0x2fd4
+	last_wake_transition_duration:0x4f6e
+	wakeup_reason:0x1
+	numshutdowns:0x678e
+	active_cores:0x1
+		core0
+PRONTO
+	shutdown_req:0x16C4E761
+	wakeup_ind:0xD42FD4A
+	bringup_req:0x176AE819
+	bringup_ack:0x176B0962
+	last_sleep_transition_duration:0x14aa
+	last_wake_transition_duration:0x1c93
+	wakeup_reason:0x0
+	numshutdowns:0xc
+	active_cores:0x1
+		core0

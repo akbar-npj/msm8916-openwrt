@@ -1,0 +1,61 @@
+=== ALL LED / GPIO NODES IN /sys/class/leds/ ===
+lrwxrwxrwx root     root              1970-01-01 12:49 4g_1 -> ../../devices/soc.0/gpio_leds.63/leds/4g_1
+lrwxrwxrwx root     root              1970-01-01 12:49 4g_type -> ../../devices/soc.0/gpio_leds.63/leds/4g_type
+lrwxrwxrwx root     root              1970-01-01 12:49 bat1 -> ../../devices/soc.0/gpio_leds.63/leds/bat1
+lrwxrwxrwx root     root              1970-01-01 12:49 esim1_en -> ../../devices/soc.0/gpio_leds.63/leds/esim1_en
+lrwxrwxrwx root     root              1970-01-01 12:49 esim2_en -> ../../devices/soc.0/gpio_leds.63/leds/esim2_en
+lrwxrwxrwx root     root              1970-01-01 12:49 esim3_en -> ../../devices/soc.0/gpio_leds.63/leds/esim3_en
+lrwxrwxrwx root     root              1970-01-01 12:49 ftest -> ../../devices/soc.0/gpio_leds.63/leds/ftest
+lrwxrwxrwx root     root              1970-01-01 12:49 lcd-backlight -> ../../devices/soc.0/1a00000.qcom,mdss_mdp/qcom,mdss_fb_primary.118/leds/lcd-backlight
+lrwxrwxrwx root     root              1970-01-01 12:49 lcdwled-backlight -> ../../devices/soc.0/leds-qpnp-de70da00/leds/lcdwled-backlight
+lrwxrwxrwx root     root              1970-01-01 12:49 mmc0:: -> ../../devices/soc.0/7824900.sdhci/leds/mmc0::
+lrwxrwxrwx root     root              1970-01-01 12:49 sim_hotplug -> ../../devices/soc.0/gpio_leds.63/leds/sim_hotplug
+lrwxrwxrwx root     root              1970-01-01 12:49 wifistatus -> ../../devices/soc.0/gpio_leds.63/leds/wifistatus
+--- LED: 4g_1 ---
+brightness: 1
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: 4g_type ---
+brightness: 0
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: bat1 ---
+brightness: 0
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: esim1_en ---
+brightness: 255
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: esim2_en ---
+brightness: 0
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: esim3_en ---
+brightness: 0
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: ftest ---
+brightness: 0
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: lcd-backlight ---
+brightness: 102
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: lcdwled-backlight ---
+brightness: 15
+max_brightness: 40
+trigger: none [bkl-trigger] usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: mmc0:: ---
+brightness: 0
+max_brightness: 255
+trigger: none bkl-trigger usb-online [mmc0] battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: sim_hotplug ---
+brightness: 0
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 
+--- LED: wifistatus ---
+brightness: 1
+max_brightness: 255
+trigger: [none] bkl-trigger usb-online mmc0 battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid 

@@ -1,0 +1,270 @@
+=== /d/bam_dmux ===
+-r--r--r-- root     root            0 1970-01-01 05:30 stats
+-r--r--r-- root     root            0 1970-01-01 05:30 tbl
+-r--r--r-- root     root            0 1970-01-01 05:30 ul_pkt_cnt
+--- File: stats ---
+skb read cnt:    21341
+skb write cnt:   15520
+skb copy cnt:    0
+skb copy bytes:  0
+sps tx failures: 0
+sps tx stalls:   0
+rx queue len:    0
+a2 ack out cnt:  50
+a2 ack in cnt:   44
+a2 pwr cntl in:  50
+--- File: tbl ---
+ch00  local open=Y  remote open=Y
+ch01  local open=Y  remote open=Y
+ch02  local open=Y  remote open=Y
+ch03  local open=Y  remote open=Y
+ch04  local open=Y  remote open=Y
+ch05  local open=Y  remote open=Y
+ch06  local open=Y  remote open=Y
+ch07  local open=Y  remote open=Y
+ch08  local open=N  remote open=Y
+ch09  local open=N  remote open=N
+ch10  local open=N  remote open=Y
+ch11  local open=N  remote open=Y
+ch12  local open=N  remote open=Y
+ch13  local open=N  remote open=Y
+ch14  local open=N  remote open=Y
+ch15  local open=N  remote open=Y
+ch16  local open=N  remote open=N
+ch17  local open=N  remote open=N
+ch18  local open=N  remote open=N
+ch19  local open=N  remote open=N
+ch20  local open=N  remote open=N
+--- File: ul_pkt_cnt ---
+Number of UL packets in flight: 0
+
+=== /d/smd ===
+-r--r--r-- root     root            0 1970-01-01 05:30 ch
+-r--r--r-- root     root            0 1970-01-01 05:30 int_stats
+-r--r--r-- root     root            0 1970-01-01 05:30 int_stats_reset
+-r--r--r-- root     root            0 1970-01-01 05:30 version
+--- File: ch ---
+Primary allocation table:
+ID|CHANNEL NAME       |T|PROC |STATE  |FIFO SZ|RDPTR  |WRPTR  |FLAGS   |DATAPEN
+-------------------------------------------------------------------------------
+ 4|rpm_requests       |P|APPS |OPENED |0x00400|0x0014C|0x0014C|DCCiwRsB|0x00000
+  |                   | |RPM  |OPENED |0x00400|0x00298|0x00298|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 5|rpm_requests       |P|MDMSW|OPENED |0x00400|0x000EC|0x000EC|DCCiwrsB|0x00000
+  |                   | |RPM  |OPENED |0x00400|0x00388|0x00388|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 6|rpm_requests       |P|WCNSS|OPENED |0x00400|0x00040|0x00040|DCCiwrsB|0x00000
+  |                   | |RPM  |OPENED |0x00400|0x00168|0x00168|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 7|rpm_requests       |P|TZ   |OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+  |                   | |RPM  |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+-------------------------------------------------------------------------------
+
+
+APPS <-> MDMSW Primary allocation table:
+ID|CHANNEL NAME       |T|PROC |STATE  |FIFO SZ|RDPTR  |WRPTR  |FLAGS   |DATAPEN
+-------------------------------------------------------------------------------
+ 0|DS                 |S|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|CLOSING|0x02000|0x00000|0x00000|dCciwrsb|0x00000
+-------------------------------------------------------------------------------
+ 1|IPCRTR             |P|APPS |OPENED |0x02000|0x0072C|0x0072C|DCCiwRsB|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x00CA0|0x00CA0|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 2|SSM_RTR_MODEM_APPS |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+ 3|sys_mon            |P|APPS |OPENED |0x00400|0x00057|0x00057|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0008C|0x0008C|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 4|DIAG_2_CMD         |P|APPS |OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+-------------------------------------------------------------------------------
+ 5|DIAG_2             |P|APPS |OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+-------------------------------------------------------------------------------
+ 6|DIAG_CNTL          |P|APPS |OPENED |0x02000|0x00083|0x00083|DCCiwrsb|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x019E3|0x019E3|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 7|DIAG_CMD           |P|APPS |OPENED |0x02000|0x00265|0x00265|DCCiwrsb|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x00278|0x00278|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 8|DIAG               |P|APPS |OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+-------------------------------------------------------------------------------
+ 9|apr_audio_svc      |P|APPS |OPENED |0x02000|0x0038C|0x0038C|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x02000|0x000A8|0x000A8|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+10|apr_apps2          |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+11|DATA1              |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|dCciwrSb|0x00000
+-------------------------------------------------------------------------------
+12|DATA2              |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|dCciwrSb|0x00000
+-------------------------------------------------------------------------------
+13|DATA3              |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|dCciwrSb|0x00000
+-------------------------------------------------------------------------------
+14|DATA4              |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|dCciwrSb|0x00000
+-------------------------------------------------------------------------------
+15|DATA11             |S|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|dCciwrSb|0x00000
+-------------------------------------------------------------------------------
+16|DATA40             |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x02000|0x00000|0x00000|dcciwrSb|0x00000
+-------------------------------------------------------------------------------
+17|DATA5_CNTL         |P|APPS |OPENED |0x00400|0x003B3|0x003B3|DCCiwRsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0034A|0x0034A|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+18|DATA6_CNTL         |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+19|DATA7_CNTL         |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+20|DATA8_CNTL         |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+21|DATA9_CNTL         |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+22|DATA12_CNTL        |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+23|DATA13_CNTL        |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+24|DATA14_CNTL        |P|APPS |OPENED |0x00400|0x00223|0x00223|DCCiwrsB|0x00000
+  |                   | |MDMSW|OPENED |0x00400|0x0029B|0x0029B|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+25|DATA15_CNTL        |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+26|DATA16_CNTL        |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+27|DATA40_CNTL        |P|APPS |CLOSED |0x02000|0x01248|0x01248|dcciwrsb|0x00000
+  |                   | |MDMSW|CLOSING|0x02000|0x00ECA|0x00ECA|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+28|DATA23_CNTL        |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+29|DATA24_CNTL        |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+30|DATA25_CNTL        |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+31|DATA26_CNTL        |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |MDMSW|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+
+
+APPS <-> WCNSS Primary allocation table:
+ID|CHANNEL NAME       |T|PROC |STATE  |FIFO SZ|RDPTR  |WRPTR  |FLAGS   |DATAPEN
+-------------------------------------------------------------------------------
+ 1|IPCRTR             |P|APPS |OPENED |0x02000|0x00120|0x00120|DCCiwrsB|0x00000
+  |                   | |WCNSS|OPENED |0x02000|0x000D8|0x000D8|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 2|sys_mon            |P|APPS |OPENED |0x00400|0x00000|0x00000|DCCiwrsB|0x00000
+  |                   | |WCNSS|OPENED |0x00400|0x00000|0x00000|DCCiwrsb|0x00000
+-------------------------------------------------------------------------------
+ 3|APPS_RIVA_CTRL     |P|APPS |OPENED |0x02000|0x00062|0x00062|DCCiwrsb|0x00000
+  |                   | |WCNSS|OPENED |0x02000|0x00D24|0x00D24|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 4|APPS_RIVA_DATA     |P|APPS |OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+  |                   | |WCNSS|OPENED |0x02000|0x00000|0x00000|DCCiwrsb|0x00000
+-------------------------------------------------------------------------------
+ 5|WCNSS_CTRL         |P|APPS |OPENED |0x02000|0x01B88|0x01B88|DCCiwrsB|0x00000
+  |                   | |WCNSS|OPENED |0x02000|0x00176|0x00176|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 6|WLAN_CTRL          |P|APPS |OPENED |0x02000|0x008AB|0x008AB|DCCiwRsB|0x00000
+  |                   | |WCNSS|OPENED |0x02000|0x005F6|0x005F6|DCCiwrsB|0x00000
+-------------------------------------------------------------------------------
+ 7|APPS_RIVA_BT_CMD   |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |WCNSS|OPENING|0x02000|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+ 8|APPS_RIVA_BT_ACL   |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |WCNSS|OPENING|0x02000|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+ 9|APPS_RIVA_ANT_CMD  |P|APPS |CLOSED |0x00400|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |WCNSS|OPENING|0x00400|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+10|APPS_RIVA_ANT_DATA |P|APPS |CLOSED |0x00800|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |WCNSS|OPENING|0x00800|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+11|APPS_FM            |P|APPS |CLOSED |0x02000|0x00000|0x00000|dcciwrsb|0x00000
+  |                   | |WCNSS|OPENING|0x02000|0x00000|0x00000|DCCiwrSb|0x00000
+-------------------------------------------------------------------------------
+--- File: int_stats ---
+   Subsystem    | Interrupt ID |    In     |    Out    |
+modem       smd |           57 |      2189 |      2439 |
+modem      smsm |           58 |        94 |        94 |
+wcnss       smd |          174 |        84 |        76 |
+wcnss      smsm |          176 |         0 |         0 |
+rpm         smd |          200 |      8116 |      8313 |
+rpm        smsm |            0 |         0 |         0 |
+--- File: int_stats_reset ---
+Resetting interrupt stats.
+--- File: version ---
+entry 0: 0.0
+entry 1: 0.0
+entry 2: 0.0
+entry 3: 0.0
+entry 4: 0.0
+entry 5: 0.0
+entry 6: 0.0
+entry 7: 0.0
+entry 8: 0.0
+entry 9: 2.0
+entry 10: 0.0
+entry 11: 2.0
+entry 12: 0.0
+entry 13: 0.0
+entry 14: 2.0
+entry 15: 0.0
+entry 16: 0.0
+entry 17: 0.0
+entry 18: 0.0
+entry 19: 0.0
+entry 20: 0.0
+entry 21: 0.0
+entry 22: 0.0
+entry 23: 0.0
+entry 24: 0.0
+entry 25: 0.0
+entry 26: 0.0
+entry 27: 0.0
+entry 28: 0.0
+entry 29: 0.0
+entry 30: 0.0
+entry 31: 0.0
+
+=== /d/smsm ===
+-r--r--r-- root     root            0 1970-01-01 05:30 intr_mask
+-r--r--r-- root     root            0 1970-01-01 05:30 smsm_test
+-r--r--r-- root     root            0 1970-01-01 05:30 state
+--- File: intr_mask ---
+entry 0:   host 0: 0x00000000   host 1: 0x01804842   host 2: 0x00000000   host 3: 0x00000640   host 4: 0x00000000
+entry 1:   host 0: 0x0000084b   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+entry 2:   host 0: 0x00000000   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+entry 3:   host 0: 0x00000000   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+entry 4:   host 0: 0x00000000   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+entry 5:   host 0: 0x00000000   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+entry 6:   host 0: 0x00000000   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+entry 7:   host 0: 0x00000000   host 1: 0x00000000   host 2: 0x00000000   host 3: 0x00000000   host 4: 0x00000000
+--- File: smsm_test ---
+Test 1 - PASS
+Test 2 - PASS
+Test 3 - PASS
+--- File: state ---
+entry 0: 0x00001229
+entry 1: 0x08009009
+entry 2: 0x00000000
+entry 3: 0x08001001
+entry 4: 0x00000000
+entry 5: 0x00000000
+entry 6: 0x00000000
+entry 7: 0x00000000

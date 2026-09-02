@@ -127,6 +127,17 @@ static int is_hmu05_board(void) {
         }
     }
 
+    f = fopen("/proc/device-tree/compatible", "r");
+    if (f) {
+        size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+        fclose(f);
+        if (n > 0) {
+            buf[n] = '\0';
+            if (strstr(buf, "hmu05") || strstr(buf, "HMU05"))
+                return 1;
+        }
+    }
+
     return 0;
 }
 

@@ -1,0 +1,129 @@
+================================================================
+REVERSE ENGINEERING REPORT: /home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem Stability/Stock_Android_Analysis/binaries/qmiproxy
+================================================================
+
+### 1. DYNAMIC DEPENDENCIES
+```
+
+Dynamic section at offset 0x25d74 contains 35 entries:
+  Tag        Type                         Name/Value
+ 0x00000003 (PLTGOT)                     0x26ec8
+ 0x00000002 (PLTRELSZ)                   600 (bytes)
+ 0x00000017 (JMPREL)                     0x3958
+ 0x00000014 (PLTREL)                     REL
+ 0x00000011 (REL)                        0xef8
+ 0x00000012 (RELSZ)                      10848 (bytes)
+ 0x00000013 (RELENT)                     8 (bytes)
+ 0x6ffffffa (RELCOUNT)                   1355
+ 0x00000015 (DEBUG)                      0x0
+ 0x00000006 (SYMTAB)                     0x148
+ 0x0000000b (SYMENT)                     16 (bytes)
+ 0x00000005 (STRTAB)                     0x678
+ 0x0000000a (STRSZ)                      1566 (bytes)
+ 0x00000004 (HASH)                       0xc98
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdiag.so]
+ 0x00000001 (NEEDED)                     Shared library: [libdsutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmiservices.so]
+ 0x00000001 (NEEDED)                     Shared library: [libidl.so]
+ 0x00000001 (NEEDED)                     Shared library: [liblog.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqmi_client_qmux.so]
+ 0x00000001 (NEEDED)                     Shared library: [libqcci_legacy.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+ 0x00000020 (PREINIT_ARRAY)              0x26bdc
+ 0x00000021 (PREINIT_ARRAYSZ)            8 (bytes)
+ 0x00000019 (INIT_ARRAY)                 0x26be4
+ 0x0000001b (INIT_ARRAYSZ)               8 (bytes)
+ 0x0000001a (FINI_ARRAY)                 0x26bec
+ 0x0000001c (FINI_ARRAYSZ)               8 (bytes)
+ 0x0000001e (FLAGS)                      BIND_NOW
+ 0x6ffffffb (FLAGS_1)                    Flags: NOW
+ 0x00000000 (NULL)                       0x0
+```
+
+### 2. SYMBOL TABLE (EXTRACTED FUNCTIONS & GLOBALS)
+```
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_lock
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_unlock
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND free
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idiv
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_idivmod
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND gettimeofday
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_tim[...]
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND vsnprintf
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_self
+    16: 00000000     0 FUNC    GLOBAL DEFAULT  UND msg_sprintf
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    18: 00000000     0 OBJECT  GLOBAL DEFAULT  UND __stack_chk_guard
+    19: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    20: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_send_[...]
+    21: 00000000     0 FUNC    GLOBAL DEFAULT  UND snprintf
+    22: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_set
+    23: 00000000     0 FUNC    GLOBAL DEFAULT  UND memcpy
+    24: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_send_[...]
+    25: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_release
+    26: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+    27: 00000000     0 FUNC    GLOBAL DEFAULT  UND property_get
+    28: 00000000     0 FUNC    GLOBAL DEFAULT  UND __strlen_chk
+    29: 00000000     0 FUNC    GLOBAL DEFAULT  UND strtoul
+    30: 00000000     0 FUNC    GLOBAL DEFAULT  UND __errno
+    31: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_kill
+    32: 00000000     0 FUNC    GLOBAL DEFAULT  UND bsd_signal
+    33: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_create
+    34: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_linux_wait_f[...]
+    35: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_signal
+    36: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_equal
+    37: 00000000     0 FUNC    GLOBAL DEFAULT  UND select
+    38: 00000000     0 FUNC    GLOBAL DEFAULT  UND calloc
+    39: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_join
+    40: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_destroy
+    41: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_destroy
+    42: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_mutex_init
+    43: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_cond_init
+    44: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc
+    45: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_idl_get_mess[...]
+    46: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_idl_get_max_[...]
+    47: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_messa[...]
+    48: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_messa[...]
+    49: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_linux_get_co[...]
+    50: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_client_init
+    51: 00000000     0 FUNC    GLOBAL DEFAULT  UND Diag_LSM_Init
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND strcasecmp
+    53: 00000000     0 FUNC    GLOBAL DEFAULT  UND atoi
+    54: 00000000     0 FUNC    GLOBAL DEFAULT  UND dms_get_service_[...]
+    55: 00000000     0 FUNC    GLOBAL DEFAULT  UND nas_get_service_[...]
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND wms_get_service_[...]
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND voice_get_servic[...]
+    58: 00000000     0 FUNC    GLOBAL DEFAULT  UND pbm_get_service_[...]
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND sar_get_service_[...]
+    60: 00000000     0 FUNC    GLOBAL DEFAULT  UND ims_qmi_get_serv[...]
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND imsp_get_service[...]
+    62: 00000000     0 FUNC    GLOBAL DEFAULT  UND strchr
+    63: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlen
+    64: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_util_write_s[...]
+    65: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_util_read_std_tlv
+    66: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_init
+    67: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_service_get_[...]
+    68: 00000000     0 FUNC    GLOBAL DEFAULT  UND qmi_qmux_if_send[...]
+    69: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+    70: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_attr_init
+    71: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_attr_set[...]
+    72: 00000000     0 FUNC    GLOBAL DEFAULT  UND pthread_attr_destroy
+    73: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+    74: 00000000     0 FUNC    GLOBAL DEFAULT  UND unlink
+    75: 00000000     0 FUNC    GLOBAL DEFAULT  UND bind
+    76: 00000000     0 FUNC    GLOBAL DEFAULT  UND listen
+    77: 00000000     0 FUNC    GLOBAL DEFAULT  UND accept
+    78: 00000000     0 FUNC    GLOBAL DEFAULT  UND stat
+    79: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+```
+

@@ -1,0 +1,52 @@
+=== SMD PORTS FOR AT COMMANDS ===
+crw------- root     root     244,   1 1970-01-01 12:49 smd1
+crw-rw---- radio    radio    244,  11 1970-01-01 12:49 smd11
+crw-rw---- bluetooth net_bt_stack 244,   2 1970-01-01 12:49 smd2
+crw------- root     root     244,  21 1970-01-01 12:49 smd21
+crw------- root     root     242,  11 1970-01-01 12:49 smd22
+crw-rw---- bluetooth net_bt_stack 244,   3 1970-01-01 12:49 smd3
+crw------- root     root     244,  36 1970-01-01 12:49 smd36
+crw-rw---- system   system   244,   4 1970-01-01 12:49 smd4
+crw-rw---- system   system   244,   5 1970-01-01 12:49 smd5
+crw-rw---- system   system   244,   6 1970-01-01 12:49 smd6
+crw-rw---- bluetooth bluetooth 244,   7 1970-01-01 12:49 smd7
+crw------- root     root     244,   8 1970-01-01 12:49 smd8
+crw------- root     root     242,  23 1970-01-01 12:49 smd_pkt_loopback
+crw-r----- radio    radio    242,  12 1970-01-01 12:49 smdcnt_rev0
+crw-r----- radio    radio    242,  13 1970-01-01 12:49 smdcnt_rev1
+crw-r----- radio    radio    242,  14 1970-01-01 12:49 smdcnt_rev2
+crw-r----- radio    radio    242,  15 1970-01-01 12:49 smdcnt_rev3
+crw-r----- radio    radio    242,  16 1970-01-01 12:49 smdcnt_rev4
+crw-r----- radio    radio    242,  17 1970-01-01 12:49 smdcnt_rev5
+crw-r----- radio    radio    242,  18 1970-01-01 12:49 smdcnt_rev6
+crw-r----- radio    radio    242,  19 1970-01-01 12:49 smdcnt_rev7
+crw-r----- radio    radio    242,  20 1970-01-01 12:49 smdcnt_rev8
+crw-r----- radio    radio    242,   0 1970-01-01 12:49 smdcntl0
+crw-r----- radio    radio    242,   1 1970-01-01 12:49 smdcntl1
+crw------- root     root     242,   9 1970-01-01 12:49 smdcntl10
+crw------- root     root     242,  10 1970-01-01 12:49 smdcntl11
+crw-r----- radio    radio    242,   2 1970-01-01 12:49 smdcntl2
+crw-r----- radio    radio    242,   3 1970-01-01 12:49 smdcntl3
+crw-r----- radio    radio    242,   4 1970-01-01 12:49 smdcntl4
+crw-r----- radio    radio    242,   5 1970-01-01 12:49 smdcntl5
+crw-r----- radio    radio    242,   6 1970-01-01 12:49 smdcntl6
+crw-r----- radio    radio    242,   7 1970-01-01 12:49 smdcntl7
+crw------- root     root     242,  21 1970-01-01 12:49 smdcntl8
+crw------- root     root     242,   8 1970-01-01 12:49 smdcntl9
+crw------- root     root     245,   0 2026-08-19 07:15 ttyHSL0
+
+=== TESTING AT ON /dev/smd11 ===
+AT
+OK
+AT+QCFG="usbnet"
+ERROR
+
+=== TESTING AT ON /dev/smd7 / /dev/smd8 ===
+AT
+OK
+AT+QCFG="usbnet"
+ERROR
+AT
+OK
+AT+QCFG="usbnet"
+ERROR

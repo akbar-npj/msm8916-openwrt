@@ -1,0 +1,468 @@
+=== NETWORK INTERFACES (NETCFG & IFCONFIG) ===
+lo       UP                                   127.0.0.1/8   0x00000049 00:00:00:00:00:00
+sit0     DOWN                                   0.0.0.0/0   0x00000080 00:00:00:00:00:00
+ifb1     DOWN                                   0.0.0.0/0   0x00000082 46:15:69:0c:18:ce
+ifb0     DOWN                                   0.0.0.0/0   0x00000082 9a:8d:ae:06:b6:3f
+wlan0    UP                                     0.0.0.0/0   0x00001043 00:90:4a:13:a0:72
+dummy0   DOWN                                   0.0.0.0/0   0x00000082 86:fb:46:f2:1b:8e
+rev_rmnet1 DOWN                                   0.0.0.0/0   0x00001002 7e:2f:3f:15:1c:48
+rev_rmnet0 DOWN                                   0.0.0.0/0   0x00001002 56:df:4a:a2:d4:d2
+rev_rmnet3 DOWN                                   0.0.0.0/0   0x00001002 86:f1:6c:85:46:78
+rev_rmnet2 DOWN                                   0.0.0.0/0   0x00001002 86:cc:01:4e:cf:47
+rmnet7   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet6   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet5   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet4   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet3   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet2   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet1   DOWN                                   0.0.0.0/0   0x00000000 00:00:00:00:00:00
+rmnet0   UP                                10.83.233.10/30  0x00000041 00:00:00:00:00:00
+rndis0   UP                                     0.0.0.0/0   0x00001043 5e:88:ba:ac:45:2a
+bridge1  UP                               192.168.100.1/24  0x00001343 00:90:4a:13:a0:72
+
+=== IP ROUTE ===
+default via 10.83.233.9 dev rmnet0 
+10.83.233.8/30 dev rmnet0  proto kernel  scope link  src 10.83.233.10 
+10.83.233.9 dev rmnet0  scope link 
+20.47.89.121 via 10.83.233.9 dev rmnet0 
+20.157.85.5 via 10.83.233.9 dev rmnet0 
+49.45.0.1 via 10.83.233.9 dev rmnet0 
+49.45.0.1 via 10.83.233.9 dev rmnet0  src 10.83.233.10 
+192.168.100.0/24 dev bridge1  proto kernel  scope link  src 192.168.100.1 
+
+=== BAM-DMUX SYSFS & POWER STATE ===
+/sys/bus/platform/devices/bam_dmux_ch_10.2
+/sys/bus/platform/devices/bam_dmux_ch_11.2
+/sys/bus/platform/devices/bam_dmux_ch_12.2
+/sys/bus/platform/devices/bam_dmux_ch_13.2
+/sys/bus/platform/devices/bam_dmux_ch_14.2
+/sys/bus/platform/devices/bam_dmux_ch_15.2
+/sys/bus/platform/devices/4044000.qcom,bam_dmux
+/sys/bus/platform/devices/bam_dmux_ch_0.2
+/sys/bus/platform/devices/bam_dmux_ch_1.2
+/sys/bus/platform/devices/bam_dmux_ch_2.2
+/sys/bus/platform/devices/bam_dmux_ch_3.2
+/sys/bus/platform/devices/bam_dmux_ch_4.2
+/sys/bus/platform/devices/bam_dmux_ch_5.2
+/sys/bus/platform/devices/bam_dmux_ch_6.2
+/sys/bus/platform/devices/bam_dmux_ch_7.2
+/sys/bus/platform/devices/bam_dmux_ch_8.2
+/sys/bus/platform/drivers/BAM_RMNT/4044000.qcom,bam_dmux
+/sys/bus/platform/drivers/bam_dmux_ch_12
+/sys/bus/platform/drivers/bam_dmux_ch_12/bam_dmux_ch_12.2
+/sys/bus/platform/drivers/bam_dmux_ch_13
+/sys/bus/platform/drivers/bam_dmux_ch_13/bam_dmux_ch_13.2
+/sys/bus/platform/drivers/bam_dmux_ch_14
+/sys/bus/platform/drivers/bam_dmux_ch_14/bam_dmux_ch_14.2
+/sys/bus/platform/drivers/bam_dmux_ch_15
+/sys/bus/platform/drivers/bam_dmux_ch_15/bam_dmux_ch_15.2
+/sys/bus/platform/drivers/bam_dmux_ch_16
+/sys/bus/platform/drivers/bam_dmux_ch_17
+/sys/bus/platform/drivers/bam_dmux_ch_18
+/sys/bus/platform/drivers/bam_dmux_ch_19
+/sys/bus/platform/drivers/bam_dmux_ch_20
+/sys/bus/platform/drivers/bam_dmux_ch_0
+/sys/bus/platform/drivers/bam_dmux_ch_0/bam_dmux_ch_0.2
+/sys/bus/platform/drivers/bam_dmux_ch_1
+/sys/bus/platform/drivers/bam_dmux_ch_1/bam_dmux_ch_1.2
+/sys/bus/platform/drivers/bam_dmux_ch_2
+/sys/bus/platform/drivers/bam_dmux_ch_2/bam_dmux_ch_2.2
+/sys/bus/platform/drivers/bam_dmux_ch_3
+/sys/bus/platform/drivers/bam_dmux_ch_3/bam_dmux_ch_3.2
+/sys/bus/platform/drivers/bam_dmux_ch_4
+/sys/bus/platform/drivers/bam_dmux_ch_4/bam_dmux_ch_4.2
+/sys/bus/platform/drivers/bam_dmux_ch_5
+/sys/bus/platform/drivers/bam_dmux_ch_5/bam_dmux_ch_5.2
+/sys/bus/platform/drivers/bam_dmux_ch_6
+/sys/bus/platform/drivers/bam_dmux_ch_6/bam_dmux_ch_6.2
+/sys/bus/platform/drivers/bam_dmux_ch_7
+/sys/bus/platform/drivers/bam_dmux_ch_7/bam_dmux_ch_7.2
+/sys/bus/platform/drivers/bam_dmux_ch_8
+/sys/bus/platform/drivers/bam_dmux_ch_8/bam_dmux_ch_8.2
+/sys/devices/soc.0/4044000.qcom,bam_dmux
+/sys/devices/platform/bam_dmux_ch_10.2
+/sys/devices/platform/bam_dmux_ch_11.2
+/sys/devices/platform/bam_dmux_ch_12.2
+/sys/devices/platform/bam_dmux_ch_13.2
+/sys/devices/platform/bam_dmux_ch_14.2
+/sys/devices/platform/bam_dmux_ch_15.2
+/sys/devices/platform/bam_dmux_ch_0.2
+/sys/devices/platform/bam_dmux_ch_1.2
+/sys/devices/platform/bam_dmux_ch_2.2
+/sys/devices/platform/bam_dmux_ch_3.2
+/sys/devices/platform/bam_dmux_ch_4.2
+/sys/devices/platform/bam_dmux_ch_5.2
+/sys/devices/platform/bam_dmux_ch_6.2
+/sys/devices/platform/bam_dmux_ch_7.2
+/sys/devices/platform/bam_dmux_ch_8.2
+/sys/kernel/debug/bam_dmux
+/sys/kernel/debug/ipc_logging/bam_dmux
+/sys/module/bam_dmux
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_10.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_11.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_12.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_13.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_14.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_15.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/4044000.qcom,bam_dmux ---
+-rw-r--r-- root     root         4096 1970-01-01 12:49 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 1970-01-01 12:49 control
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_active_time
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_status
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_0.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_1.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_2.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_3.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_4.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_5.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_6.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_7.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/devices/bam_dmux_ch_8.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/BAM_RMNT/4044000.qcom,bam_dmux ---
+-rw-r--r-- root     root         4096 1970-01-01 12:49 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 1970-01-01 12:49 control
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_active_time
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_status
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_12/bam_dmux_ch_12.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_13/bam_dmux_ch_13.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_14/bam_dmux_ch_14.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_15/bam_dmux_ch_15.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_0/bam_dmux_ch_0.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_1/bam_dmux_ch_1.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_2/bam_dmux_ch_2.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_3/bam_dmux_ch_3.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_4/bam_dmux_ch_4.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_5/bam_dmux_ch_5.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_6/bam_dmux_ch_6.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_7/bam_dmux_ch_7.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/bus/platform/drivers/bam_dmux_ch_8/bam_dmux_ch_8.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/soc.0/4044000.qcom,bam_dmux ---
+-rw-r--r-- root     root         4096 1970-01-01 12:49 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 1970-01-01 12:49 control
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_active_time
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_status
+-r--r--r-- root     root         4096 1970-01-01 12:49 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_10.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_11.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_12.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_13.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_14.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_15.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_0.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_1.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_2.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_3.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_4.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_5.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_6.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_7.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto
+--- Power state for /sys/devices/platform/bam_dmux_ch_8.2 ---
+-rw-r--r-- root     root         4096 2026-09-02 04:51 autosuspend_delay_ms
+-rw-r--r-- root     root         4096 2026-09-02 04:51 control
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_active_time
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_status
+-r--r--r-- root     root         4096 2026-09-02 04:51 runtime_suspended_time
+unsupported
+auto

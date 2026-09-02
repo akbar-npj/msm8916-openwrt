@@ -1,0 +1,221 @@
+=== RMNETCLI HELP & STATUS ===
+LIBRARY Help option SpecifiedRmNet API Usage:
+
+rmnetcli help                            Displays this help
+
+rmnetcli assocnetdev <dev_name>          Registers the RmNet
+					 data driver on a particular
+					 device.dev_name cannot
+					 be larger than 15
+					 characters. Returns
+					 the status code.
+
+rmnetcli unassocnetdev <dev_name>        Unregisters the
+					 RmNet data driver on a particular
+					 device. dev_name cannot
+					 be larger than 15
+					 characters. Returns
+					 the status code.
+
+rmnetcli getnetdevassoc <dev_name>       Get if the RmNet
+					 data driver is registered on
+					 a particular device.
+					 dev_name cannot be
+					 larger than 15
+					 characters. Returns 1
+					 if is registered and
+					 0 if it is not
+					 registered
+
+rmnetcli setledf <egress_flags>          Sets the egress data
+		 <agg_size>              format for a particular link.
+		 <agg_count>             dev_name cannot be larger
+		 <dev_name>              than 15 characters.
+					 Returns the status code
+
+rmnetcli getledf <dev_name>              Gets the egress data
+					 format for a particular link.
+					 dev_name cannot be larger
+					 than 15. Returns the 4
+					 byte unsigned integer
+					 egress_flags
+
+rmnetcli setlidf <ingress_flags>         Sets the ingress
+		 <tail_spacing>          data format for a particular
+		 <dev_name>              link. ingress_flags is 4
+					 byte unsigned integer.
+					 tail_spacing is a one.
+					 byte unsigned integer.
+					 dev_name cannot be
+					 larger than 15.
+					 characters. Returns
+					 the status code
+
+rmnetcli getlidf <dev_name>              Gets the ingress
+					 data format for a particular
+					 link. dev_name cannot be
+					 larger than 15. Returns
+					 the 4 byte unsigned
+					 integer ingress_flags
+
+rmnetcli setlepc <logical_ep_id>         Sets the logical
+		 <rmnet_mode>            endpoint configuration for
+		 <dev_name>              a particular link.
+		 <egress_dev_name>       logical_ep_id are 32bit
+					 integers from -1 to 31.
+					 rmnet_mode is a 1 byte
+					 unsigned integer of
+					 value none, vnd or
+					 bridged. dev_name
+					 and egress_dev_name
+					 cannot be larger
+					 than 15 tcharacters
+					 Returns the status code
+
+rmnetcli unsetlepc <logical_ep_id>       Un-sets the logical
+		  <dev_name>              endpoint configuration for
+					 a particular link.
+					 integers from -1 to 31.
+					 dev_name cannot be larger
+					 than 15 tcharacters
+					 Returns the status code
+
+rmnetcli getlepc <logical_ep_id>         Sets the logical
+		 <dev_name>              enpoint configuration for a
+					 particular link.
+					 logical_ep_id are 32bit
+					 integers from -1 to 31.
+					 Returns the rmnet_mode
+					 and egress_dev_name.
+					 rmnet_mode is a 1
+					 byte unsigned integer
+					 of value none, vnd or
+					 bridged. dev_name and
+					 egress_dev_name cannot be
+					 larger than 15 
+					 characters. Returns the
+					 status code
+
+rmnetcli newvnd <dev_id>                 Creates a new
+					 virtual network device node.
+					 dev_id is an int
+					 less than 32. Returns
+					 the status code
+
+rmnetcli newvndprefix <dev_id> <name_prefix>   Creates
+					 virtual network device node.
+					 dev_id is an int
+					 less than 32. Prefix
+					 must be less than
+					 15 chars. Returns
+					 the status code
+
+rmnetcli getvndname <dev_id>              Get name of
+					 network device node from id
+
+rmnetcli freevnd <dev_id>              Removes virtual
+					 network device node. dev_name
+					 cannot be larger than 15.
+					 Returns the status code
+
+rmnetcli addvnctcflow <dev_id>            Add a modem flow
+		 <mdm_flow_hndl>         handle - tc flow handle
+		 <tc_flow_hndl>          mapping for a virtual network
+		 device node
+
+rmnetcli delvnctcflow <dev_id>            Delete a modem flow
+		 <mdm_flow_hndl>         handle - tc flow handle
+		 <tc_flow_hndl>          mapping for a virtual network
+		 device node
+
+
+=== DUMPSYS TELEPHONY.REGISTRY ===
+last known state:
+  mCallState=0
+  mCallIncomingNumber=
+  mServiceState=0 0 home JIO 4G JIO 4G 405861  LTE LTE CSS not supported -1 -1 RoamInd=-1 DefRoamInd=-1 EmergOnly=false
+  mSignalStrength=SignalStrength: 99 0 -120 -160 -120 -1 -1 24 -89 -8 212 2147483647 2147483647 gsm|lte
+  mMessageWaiting=false
+  mCallForwarding=false
+  mDataActivity=0
+  mDataConnectionState=2
+  mDataConnectionPossible=true
+  mDataConnectionReason=dataEnabled
+  mDataConnectionApn=
+  mDataConnectionLinkProperties={InterfaceName: rmnet0 LinkAddresses: [10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64,]  Routes: [0.0.0.0/0 -> 10.83.233.9,::/0 -> fe80::55bb:b445:f475:4c7f,] DnsAddresses: [49.45.0.1,2405:200:800::1,] Domains: nullMTU: 1500}
+  mDataConnectionLinkCapabilities={}
+  mCellLocation=Bundle[mParcelledData.dataSize=76]
+  mCellInfo=null
+registrations: count=10
+  android 0x1c1
+  android 0x20
+  com.android.systemui 0x140
+  com.android.systemui 0x1e1
+  com.android.phone 0xc
+  <unknown> 0x1
+  android 0x1
+  com.android.mms 0x20
+  com.android.cellbroadcastreceiver 0x1
+  com.qualcomm.fastdormancy 0xc0
+
+=== DUMPSYS CONNECTIVITY ===
+
+NetworkStateTracker for MOBILE:
+  Active network: mobile
+  NetworkInfo: type: mobile[LTE], state: CONNECTED/CONNECTED, reason: linkPropertiesChanged, extra: jionet, roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {InterfaceName: rmnet0 LinkAddresses: [10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64,]  Routes: [0.0.0.0/0 -> 10.83.233.9,::/0 -> fe80::55bb:b445:f475:4c7f,] DnsAddresses: [49.45.0.1,2405:200:800::1,] Domains: nullMTU: 0}
+  Mobile data state, sub0: CONNECTED
+  Data enabled sub0: user=true, policy, sub0= true
+  
+  
+NetworkStateTracker for WIFI:
+  NetworkInfo: type: wifi[], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: false, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  android.net.wifi.WifiStateTracker@41aab130
+  
+NetworkStateTracker for MOBILE_MMS:
+  NetworkInfo: type: mobile_mms[LTE], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  Mobile data state, sub0: DISCONNECTED
+  Data enabled sub0: user=true, policy, sub0= true
+  
+  
+NetworkStateTracker for MOBILE_SUPL:
+  NetworkInfo: type: mobile_supl[LTE], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  Mobile data state, sub0: DISCONNECTED
+  Data enabled sub0: user=true, policy, sub0= true
+  
+  
+NetworkStateTracker for MOBILE_DUN:
+  NetworkInfo: type: mobile_dun[LTE], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  Mobile data state, sub0: DISCONNECTED
+  Data enabled sub0: user=true, policy, sub0= true
+  
+  
+NetworkStateTracker for MOBILE_HIPRI:
+  Active network: mobile_hipri
+  NetworkInfo: type: mobile_hipri[LTE], state: CONNECTED/CONNECTED, reason: dataEnabled, extra: jionet, roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {InterfaceName: rmnet0 LinkAddresses: [10.83.233.10/30,2409:4071:4d97:eb52:dbc1:1c33:4f86:6d16/64,]  Routes: [0.0.0.0/0 -> 10.83.233.9,::/0 -> fe80::55bb:b445:f475:4c7f,] DnsAddresses: [49.45.0.1,2405:200:800::1,] Domains: nullMTU: 1500}
+  Mobile data state, sub0: CONNECTED
+  Data enabled sub0: user=true, policy, sub0= true
+  
+  
+NetworkStateTracker for ETHERNET:
+  NetworkInfo: type: ETHERNET[], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: false, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  android.net.EthernetDataTracker@41ac0c88
+  
+NetworkStateTracker for MOBILE_FOTA:
+  NetworkInfo: type: mobile_fota[LTE], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  Mobile data state, sub0: DISCONNECTED
+  Data enabled sub0: user=true, policy, sub0= true
+  
+  
+NetworkStateTracker for MOBILE_IMS:
+  NetworkInfo: type: mobile_ims[LTE], state: UNKNOWN/IDLE, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: true, isConnectedToProvisioningNetwork: false, subscription: 0
+  {LinkAddresses: []  Routes: [] DnsAddresses: [] Domains: nullMTU: 0}
+  Mobile data state, sub0: DISCONNECTED
+  Data enabled sub0: user=true, policy, sub0= true

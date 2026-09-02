@@ -1,0 +1,15 @@
+=== TCPDUMP ON RMNET0 (5 PACKETS) ===
+tcpdump: listening on rmnet0, link-type LINUX_SLL (Linux cooked), capture size 262144 bytes
+23:51:54.172441 Out ethertype IPv4 (0x0800), length 100: (tos 0x0, ttl 64, id 28693, offset 0, flags [DF], proto ICMP (1), length 84)
+    10.83.233.10 > 1.1.1.1: ICMP echo request, id 2, seq 1, length 64
+23:51:54.355582  In ethertype IPv4 (0x0800), length 100: (tos 0x28, ttl 56, id 27449, offset 0, flags [none], proto ICMP (1), length 84)
+    1.1.1.1 > 10.83.233.10: ICMP echo reply, id 2, seq 1, length 64
+23:51:55.173583 Out ethertype IPv4 (0x0800), length 100: (tos 0x0, ttl 64, id 28694, offset 0, flags [DF], proto ICMP (1), length 84)
+    10.83.233.10 > 1.1.1.1: ICMP echo request, id 2, seq 2, length 64
+23:51:55.257940  In ethertype IPv4 (0x0800), length 100: (tos 0x28, ttl 56, id 51247, offset 0, flags [none], proto ICMP (1), length 84)
+    1.1.1.1 > 10.83.233.10: ICMP echo reply, id 2, seq 2, length 64
+23:52:24.348041 Out ethertype IPv4 (0x0800), length 78: (tos 0x0, ttl 64, id 49647, offset 0, flags [DF], proto UDP (17), length 62)
+    10.83.233.10.51616 > 49.45.0.1.53: [udp sum ok] 28525+ AAAA? api.beacondb.net. (34)
+5 packets captured
+5 packets received by filter
+0 packets dropped by kernel

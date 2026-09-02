@@ -1,0 +1,9 @@
+=== RMNET LINK INGRESS/EGRESS FORMAT ON RMNET0 ===
+LIBRARY ERROR: Return type is invalid
+LIBRARY ERROR: Return type is invalid
+LIBRARY ERROR: Return type is invalid
+
+=== RMNET LINK INGRESS/EGRESS FORMAT ON RMNET_DATA0 ===
+LIBRARY ERROR: Return type is invalid
+LIBRARY ERROR: Return type is invalid
+LIBRARY ERROR: Return type is invalid

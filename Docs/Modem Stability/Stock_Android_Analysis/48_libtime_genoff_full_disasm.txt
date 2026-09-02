@@ -1,0 +1,1221 @@
+================================================================
+FULL DISASSEMBLY: libtime_genoff.so (9300 bytes)
+QMI Service 22 Time Client Library
+================================================================
+
+=== ELF HEADERS ===
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           ARM
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          8500 (bytes into file)
+  Flags:                             0x5000000, Version5 EABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         8
+  Size of section headers:           40 (bytes)
+  Number of section headers:         20
+  Section header string table index: 19
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        00000134 000134 000013 00   A  0   0  1
+  [ 2] .dynsym           DYNSYM          00000148 000148 000160 10   A  3   1  4
+  [ 3] .dynstr           STRTAB          000002a8 0002a8 000140 00   A  0   0  1
+  [ 4] .hash             HASH            000003e8 0003e8 0000a4 04   A  2   0  4
+  [ 5] .rel.dyn          REL             0000048c 00048c 000018 08   A  2   0  4
+  [ 6] .rel.plt          REL             000004a4 0004a4 000070 08   A  2   7  4
+  [ 7] .plt              PROGBITS        00000514 000514 0000bc 00  AX  0   0  4
+  [ 8] .text             PROGBITS        000005d0 0005d0 000710 00  AX  0   0  4
+  [ 9] .ARM.exidx        ARM_EXIDX       00000ce0 000ce0 000018 08  AL  8   0  4
+  [10] .rodata           PROGBITS        00000cf8 000cf8 000319 00   A  0   0  1
+  [11] .fini_array       FINI_ARRAY      00002ecc 001ecc 000004 00  WA  0   0  4
+  [12] .dynamic          DYNAMIC         00002ed0 001ed0 0000e8 08  WA  3   0  4
+  [13] .got              PROGBITS        00002fb8 001fb8 000048 00  WA  0   0  4
+  [14] .data             PROGBITS        00003000 002000 000004 00  WA  0   0  4
+  [15] .comment          PROGBITS        00000000 002004 000010 01  MS  0   0  1
+  [16] .note.gnu.go[...] NOTE            00000000 002014 00001c 00      0   0  4
+  [17] .ARM.attributes   ARM_ATTRIBUTES  00000000 002030 000036 00      0   0  1
+  [18] .gnu_debuglink    PROGBITS        00000000 002066 000018 00      0   0  1
+  [19] .shstrtab         STRTAB          00000000 00207e 0000b3 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  D (mbind), y (purecode), p (processor specific)
+
+There are no section groups in this file.
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  PHDR           0x000034 0x00000034 0x00000034 0x00100 0x00100 R   0x4
+  INTERP         0x000134 0x00000134 0x00000134 0x00013 0x00013 R   0x1
+      [Requesting program interpreter: /system/bin/linker]
+  LOAD           0x000000 0x00000000 0x00000000 0x01011 0x01011 R E 0x1000
+  LOAD           0x001ecc 0x00002ecc 0x00002ecc 0x00138 0x00138 RW  0x1000
+  DYNAMIC        0x001ed0 0x00002ed0 0x00002ed0 0x000e8 0x000e8 RW  0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0
+  ARM_EXIDX      0x000ce0 0x00000ce0 0x00000ce0 0x00018 0x00018 R   0x4
+  GNU_RELRO      0x001ecc 0x00002ecc 0x00002ecc 0x00134 0x00134 RW  0x4
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     
+   01     .interp 
+   02     .interp .dynsym .dynstr .hash .rel.dyn .rel.plt .plt .text .ARM.exidx .rodata 
+   03     .fini_array .dynamic .got .data 
+   04     .dynamic 
+   05     
+   06     .ARM.exidx 
+   07     .fini_array .dynamic .got 
+
+Dynamic section at offset 0x1ed0 contains 24 entries:
+  Tag        Type                         Name/Value
+ 0x00000003 (PLTGOT)                     0x2fbc
+ 0x00000002 (PLTRELSZ)                   112 (bytes)
+ 0x00000017 (JMPREL)                     0x4a4
+ 0x00000014 (PLTREL)                     REL
+ 0x00000011 (REL)                        0x48c
+ 0x00000012 (RELSZ)                      24 (bytes)
+ 0x00000013 (RELENT)                     8 (bytes)
+ 0x6ffffffa (RELCOUNT)                   2
+ 0x00000006 (SYMTAB)                     0x148
+ 0x0000000b (SYMENT)                     16 (bytes)
+ 0x00000005 (STRTAB)                     0x2a8
+ 0x0000000a (STRSZ)                      320 (bytes)
+ 0x00000004 (HASH)                       0x3e8
+ 0x00000001 (NEEDED)                     Shared library: [libc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libcutils.so]
+ 0x00000001 (NEEDED)                     Shared library: [libstdc++.so]
+ 0x00000001 (NEEDED)                     Shared library: [libm.so]
+ 0x0000000e (SONAME)                     Library soname: [libtime_genoff.so]
+ 0x0000001a (FINI_ARRAY)                 0x2ecc
+ 0x0000001c (FINI_ARRAYSZ)               4 (bytes)
+ 0x00000010 (SYMBOLIC)                   0x0
+ 0x0000001e (FLAGS)                      SYMBOLIC BIND_NOW
+ 0x6ffffffb (FLAGS_1)                    Flags: NOW
+ 0x00000000 (NULL)                       0x0
+
+Relocation section '.rel.dyn' at offset 0x48c contains 3 entries:
+ Offset     Info    Type            Sym.Value  Sym. Name
+00002ecc  00000017 R_ARM_RELATIVE   
+00003000  00000017 R_ARM_RELATIVE   
+00002fb8  00001015 R_ARM_GLOB_DAT    00000000   __stack_chk_guard
+
+Relocation section '.rel.plt' at offset 0x4a4 contains 14 entries:
+ Offset     Info    Type            Sym.Value  Sym. Name
+00002fc8  00000116 R_ARM_JUMP_SLOT   00000000   __cxa_finalize
+00002fcc  00000216 R_ARM_JUMP_SLOT   00000000   __cxa_atexit
+00002fd0  00000516 R_ARM_JUMP_SLOT   00000000   __android_log_print
+00002fd4  00000616 R_ARM_JUMP_SLOT   00000000   socket
+00002fd8  00000716 R_ARM_JUMP_SLOT   00000000   setsockopt
+00002fdc  00000816 R_ARM_JUMP_SLOT   00000000   strlcpy
+00002fe0  00000916 R_ARM_JUMP_SLOT   00000000   connect
+00002fe4  00000a16 R_ARM_JUMP_SLOT   00000000   send
+00002fe8  00000b16 R_ARM_JUMP_SLOT   00000000   recv
+00002fec  00000c16 R_ARM_JUMP_SLOT   00000000   close
+00002ff0  00000316 R_ARM_JUMP_SLOT   00000000   __aeabi_uldivmod
+00002ff4  00000d16 R_ARM_JUMP_SLOT   00000000   gmtime_r
+00002ff8  00000e16 R_ARM_JUMP_SLOT   00000000   mktime
+00002ffc  00000f16 R_ARM_JUMP_SLOT   00000000   __stack_chk_fail
+
+Unwind section '.ARM.exidx' at offset 0xce0 contains 3 entries:
+
+0x62c: 0x8036adb0
+  Compact model index: 0
+  0x36      vsp = vsp + 220
+  0xad      pop {r4, r5, r6, r7, r8, r9, r14}
+  0xb0      finish
+
+0xaa8: 0x802cadb0
+  Compact model index: 0
+  0x2c      vsp = vsp + 180
+  0xad      pop {r4, r5, r6, r7, r8, r9, r14}
+  0xb0      finish
+
+0xce0: 0x1 [cantunwind]
+
+
+Symbol table '.dynsym' contains 22 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_finalize
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __cxa_atexit
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_uldivmod
+     4: 0000062d  1148 FUNC    GLOBAL DEFAULT    8 time_genoff_operation
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND __android_log_print
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND socket
+     7: 00000000     0 FUNC    GLOBAL DEFAULT  UND setsockopt
+     8: 00000000     0 FUNC    GLOBAL DEFAULT  UND strlcpy
+     9: 00000000     0 FUNC    GLOBAL DEFAULT  UND connect
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND send
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND recv
+    12: 00000000     0 FUNC    GLOBAL DEFAULT  UND close
+    13: 00000000     0 FUNC    GLOBAL DEFAULT  UND gmtime_r
+    14: 00000000     0 FUNC    GLOBAL DEFAULT  UND mktime
+    15: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+    16: 00000000     0 OBJECT  GLOBAL DEFAULT  UND __stack_chk_guard
+    17: 00000000     0 FUNC    GLOBAL DEFAULT  UND __aeabi_unwind_c[...]
+    18: 00000aa9   568 FUNC    GLOBAL DEFAULT    8 time_control_ope[...]
+    19: 00003004     0 NOTYPE  GLOBAL DEFAULT  ABS _edata
+    20: 00003004     0 NOTYPE  GLOBAL DEFAULT  ABS __bss_start
+    21: 00003004     0 NOTYPE  GLOBAL DEFAULT  ABS _end
+
+Histogram for bucket list length (total of 17 buckets):
+ Length  Number     % of total  Coverage
+      0  5          ( 29.4%)
+      1  7          ( 41.2%)     33.3%
+      2  2          ( 11.8%)     52.4%
+      3  2          ( 11.8%)     81.0%
+      4  1          (  5.9%)    100.0%
+
+No version information found in this file.
+
+Global Offset Table '.got' contains 18 entries:
+ Index:  Address      Reloc        Sym. Name + Addend/Value
+     0: 00002fb8 R_ARM_GLOB_DAT    __stack_chk_guard + 0
+     1: 00002fbc                   0
+     2: 00002fc0                   0
+     3: 00002fc4                   0
+     4: 00002fc8 R_ARM_JUMP_SLOT   __cxa_finalize + 514
+     5: 00002fcc R_ARM_JUMP_SLOT   __cxa_atexit + 514
+     6: 00002fd0 R_ARM_JUMP_SLOT   __android_log_print + 514
+     7: 00002fd4 R_ARM_JUMP_SLOT   socket + 514
+     8: 00002fd8 R_ARM_JUMP_SLOT   setsockopt + 514
+     9: 00002fdc R_ARM_JUMP_SLOT   strlcpy + 514
+    10: 00002fe0 R_ARM_JUMP_SLOT   connect + 514
+    11: 00002fe4 R_ARM_JUMP_SLOT   send + 514
+    12: 00002fe8 R_ARM_JUMP_SLOT   recv + 514
+    13: 00002fec R_ARM_JUMP_SLOT   close + 514
+    14: 00002ff0 R_ARM_JUMP_SLOT   __aeabi_uldivmod + 514
+    15: 00002ff4 R_ARM_JUMP_SLOT   gmtime_r + 514
+    16: 00002ff8 R_ARM_JUMP_SLOT   mktime + 514
+    17: 00002ffc R_ARM_JUMP_SLOT   __stack_chk_fail + 514
+
+Displaying notes found in: .note.gnu.gold-version
+  Owner                Data size 	Description
+  GNU                  0x00000009	NT_GNU_GOLD_VERSION (gold version)
+    Version: gold 1.11
+Attribute Section: aeabi
+File Attributes
+  Tag_CPU_name: "ARM v7"
+  Tag_CPU_arch: v7
+  Tag_CPU_arch_profile: Application
+  Tag_ARM_ISA_use: Yes
+  Tag_THUMB_ISA_use: Thumb-2
+  Tag_FP_arch: VFPv3
+  Tag_Advanced_SIMD_arch: NEONv1
+  Tag_ABI_PCS_wchar_t: 4
+  Tag_ABI_FP_denormal: Needed
+  Tag_ABI_FP_exceptions: Needed
+  Tag_ABI_FP_number_model: IEEE 754
+  Tag_ABI_align_needed: 8-byte
+  Tag_ABI_enum_size: int
+  Tag_ABI_HardFP_use: Deprecated
+  Tag_ABI_optimization_goals: Aggressive Debug
+  Tag_CPU_unaligned_access: v6
+
+=== FULL DISASSEMBLY ===
+
+/home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem Stability/Stock_Android_Analysis/binaries/libtime_genoff.so:     file format elf32-littlearm
+
+
+Disassembly of section .plt:
+
+00000514 <__cxa_finalize@plt-0x14>:
+ 514:	e52de004 	push	{lr}		@ (str lr, [sp, #-4]!)
+ 518:	e59fe004 	ldr	lr, [pc, #4]	@ 524 <__cxa_finalize@plt-0x4>
+ 51c:	e08fe00e 	add	lr, pc, lr
+ 520:	e5bef008 	ldr	pc, [lr, #8]!
+ 524:	00002a98 	muleq	r0, r8, sl
+
+00000528 <__cxa_finalize@plt>:
+ 528:	e28fc600 	add	ip, pc, #0, 12
+ 52c:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 530:	e5bcfa98 	ldr	pc, [ip, #2712]!	@ 0xa98
+
+00000534 <__cxa_atexit@plt>:
+ 534:	e28fc600 	add	ip, pc, #0, 12
+ 538:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 53c:	e5bcfa90 	ldr	pc, [ip, #2704]!	@ 0xa90
+
+00000540 <__android_log_print@plt>:
+ 540:	e28fc600 	add	ip, pc, #0, 12
+ 544:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 548:	e5bcfa88 	ldr	pc, [ip, #2696]!	@ 0xa88
+
+0000054c <socket@plt>:
+ 54c:	e28fc600 	add	ip, pc, #0, 12
+ 550:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 554:	e5bcfa80 	ldr	pc, [ip, #2688]!	@ 0xa80
+
+00000558 <setsockopt@plt>:
+ 558:	e28fc600 	add	ip, pc, #0, 12
+ 55c:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 560:	e5bcfa78 	ldr	pc, [ip, #2680]!	@ 0xa78
+
+00000564 <strlcpy@plt>:
+ 564:	e28fc600 	add	ip, pc, #0, 12
+ 568:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 56c:	e5bcfa70 	ldr	pc, [ip, #2672]!	@ 0xa70
+
+00000570 <connect@plt>:
+ 570:	e28fc600 	add	ip, pc, #0, 12
+ 574:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 578:	e5bcfa68 	ldr	pc, [ip, #2664]!	@ 0xa68
+
+0000057c <send@plt>:
+ 57c:	e28fc600 	add	ip, pc, #0, 12
+ 580:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 584:	e5bcfa60 	ldr	pc, [ip, #2656]!	@ 0xa60
+
+00000588 <recv@plt>:
+ 588:	e28fc600 	add	ip, pc, #0, 12
+ 58c:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 590:	e5bcfa58 	ldr	pc, [ip, #2648]!	@ 0xa58
+
+00000594 <close@plt>:
+ 594:	e28fc600 	add	ip, pc, #0, 12
+ 598:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 59c:	e5bcfa50 	ldr	pc, [ip, #2640]!	@ 0xa50
+
+000005a0 <__aeabi_uldivmod@plt>:
+ 5a0:	e28fc600 	add	ip, pc, #0, 12
+ 5a4:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 5a8:	e5bcfa48 	ldr	pc, [ip, #2632]!	@ 0xa48
+
+000005ac <gmtime_r@plt>:
+ 5ac:	e28fc600 	add	ip, pc, #0, 12
+ 5b0:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 5b4:	e5bcfa40 	ldr	pc, [ip, #2624]!	@ 0xa40
+
+000005b8 <mktime@plt>:
+ 5b8:	e28fc600 	add	ip, pc, #0, 12
+ 5bc:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 5c0:	e5bcfa38 	ldr	pc, [ip, #2616]!	@ 0xa38
+
+000005c4 <__stack_chk_fail@plt>:
+ 5c4:	e28fc600 	add	ip, pc, #0, 12
+ 5c8:	e28cca02 	add	ip, ip, #8192	@ 0x2000
+ 5cc:	e5bcfa30 	ldr	pc, [ip, #2608]!	@ 0xa30
+
+Disassembly of section .text:
+
+000005d0 <time_genoff_operation-0x5c>:
+ 5d0:	e92d4800 	push	{fp, lr}
+ 5d4:	e28db004 	add	fp, sp, #4
+ 5d8:	e59f300c 	ldr	r3, [pc, #12]	@ 5ec <__stack_chk_fail@plt+0x28>
+ 5dc:	e08f3003 	add	r3, pc, r3
+ 5e0:	e1a00003 	mov	r0, r3
+ 5e4:	ebffffcf 	bl	528 <__cxa_finalize@plt>
+ 5e8:	e8bd8800 	pop	{fp, pc}
+ 5ec:	00002a1c 	andeq	r2, r0, ip, lsl sl
+ 5f0:	e92d4800 	push	{fp, lr}
+ 5f4:	e28db004 	add	fp, sp, #4
+ 5f8:	e24dd008 	sub	sp, sp, #8
+ 5fc:	e50b0008 	str	r0, [fp, #-8]
+ 600:	e51b0008 	ldr	r0, [fp, #-8]
+ 604:	e3a01000 	mov	r1, #0
+ 608:	e59f3018 	ldr	r3, [pc, #24]	@ 628 <__stack_chk_fail@plt+0x64>
+ 60c:	e08f3003 	add	r3, pc, r3
+ 610:	e1a02003 	mov	r2, r3
+ 614:	ebffffc6 	bl	534 <__cxa_atexit@plt>
+ 618:	e1a03000 	mov	r3, r0
+ 61c:	e1a00003 	mov	r0, r3
+ 620:	e24bd004 	sub	sp, fp, #4
+ 624:	e8bd8800 	pop	{fp, pc}
+ 628:	000029ec 	andeq	r2, r0, ip, ror #19
+
+0000062c <time_genoff_operation>:
+ 62c:	4beb      	ldr	r3, [pc, #940]	@ (9dc <time_genoff_operation+0x3b0>)
+ 62e:	4aec      	ldr	r2, [pc, #944]	@ (9e0 <time_genoff_operation+0x3b4>)
+ 630:	447b      	add	r3, pc
+ 632:	e92d 43f0 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, lr}
+ 636:	b0b7      	sub	sp, #220	@ 0xdc
+ 638:	589c      	ldr	r4, [r3, r2]
+ 63a:	4606      	mov	r6, r0
+ 63c:	6823      	ldr	r3, [r4, #0]
+ 63e:	9335      	str	r3, [sp, #212]	@ 0xd4
+ 640:	b938      	cbnz	r0, 652 <time_genoff_operation+0x26>
+ 642:	49e8      	ldr	r1, [pc, #928]	@ (9e4 <time_genoff_operation+0x3b8>)
+ 644:	2006      	movs	r0, #6
+ 646:	4ae8      	ldr	r2, [pc, #928]	@ (9e8 <time_genoff_operation+0x3bc>)
+ 648:	4be8      	ldr	r3, [pc, #928]	@ (9ec <time_genoff_operation+0x3c0>)
+ 64a:	4479      	add	r1, pc
+ 64c:	447a      	add	r2, pc
+ 64e:	447b      	add	r3, pc
+ 650:	e049      	b.n	6e6 <time_genoff_operation+0xba>
+ 652:	68c0      	ldr	r0, [r0, #12]
+ 654:	2801      	cmp	r0, #1
+ 656:	d015      	beq.n	684 <time_genoff_operation+0x58>
+ 658:	4fe5      	ldr	r7, [pc, #916]	@ (9f0 <time_genoff_operation+0x3c4>)
+ 65a:	2003      	movs	r0, #3
+ 65c:	4de5      	ldr	r5, [pc, #916]	@ (9f4 <time_genoff_operation+0x3c8>)
+ 65e:	6831      	ldr	r1, [r6, #0]
+ 660:	447f      	add	r7, pc
+ 662:	447d      	add	r5, pc
+ 664:	4ae4      	ldr	r2, [pc, #912]	@ (9f8 <time_genoff_operation+0x3cc>)
+ 666:	9100      	str	r1, [sp, #0]
+ 668:	447a      	add	r2, pc
+ 66a:	4639      	mov	r1, r7
+ 66c:	462b      	mov	r3, r5
+ 66e:	f7ff ef68 	blx	540 <__android_log_print@plt>
+ 672:	68f2      	ldr	r2, [r6, #12]
+ 674:	2003      	movs	r0, #3
+ 676:	4639      	mov	r1, r7
+ 678:	462b      	mov	r3, r5
+ 67a:	9200      	str	r2, [sp, #0]
+ 67c:	4adf      	ldr	r2, [pc, #892]	@ (9fc <time_genoff_operation+0x3d0>)
+ 67e:	447a      	add	r2, pc
+ 680:	f7ff ef5e 	blx	540 <__android_log_print@plt>
+ 684:	6833      	ldr	r3, [r6, #0]
+ 686:	2b0e      	cmp	r3, #14
+ 688:	d808      	bhi.n	69c <time_genoff_operation+0x70>
+ 68a:	68b0      	ldr	r0, [r6, #8]
+ 68c:	1e41      	subs	r1, r0, #1
+ 68e:	2902      	cmp	r1, #2
+ 690:	d804      	bhi.n	69c <time_genoff_operation+0x70>
+ 692:	68f2      	ldr	r2, [r6, #12]
+ 694:	2a04      	cmp	r2, #4
+ 696:	d801      	bhi.n	69c <time_genoff_operation+0x70>
+ 698:	6873      	ldr	r3, [r6, #4]
+ 69a:	b93b      	cbnz	r3, 6ac <time_genoff_operation+0x80>
+ 69c:	49d8      	ldr	r1, [pc, #864]	@ (a00 <time_genoff_operation+0x3d4>)
+ 69e:	2006      	movs	r0, #6
+ 6a0:	4ad8      	ldr	r2, [pc, #864]	@ (a04 <time_genoff_operation+0x3d8>)
+ 6a2:	4bd9      	ldr	r3, [pc, #868]	@ (a08 <time_genoff_operation+0x3dc>)
+ 6a4:	4479      	add	r1, pc
+ 6a6:	447a      	add	r2, pc
+ 6a8:	447b      	add	r3, pc
+ 6aa:	e01c      	b.n	6e6 <time_genoff_operation+0xba>
+ 6ac:	2a01      	cmp	r2, #1
+ 6ae:	d00c      	beq.n	6ca <time_genoff_operation+0x9e>
+ 6b0:	e9d3 0100 	ldrd	r0, r1, [r3]
+ 6b4:	4ad5      	ldr	r2, [pc, #852]	@ (a0c <time_genoff_operation+0x3e0>)
+ 6b6:	4bd6      	ldr	r3, [pc, #856]	@ (a10 <time_genoff_operation+0x3e4>)
+ 6b8:	e9cd 0100 	strd	r0, r1, [sp]
+ 6bc:	447a      	add	r2, pc
+ 6be:	49d5      	ldr	r1, [pc, #852]	@ (a14 <time_genoff_operation+0x3e8>)
+ 6c0:	2003      	movs	r0, #3
+ 6c2:	447b      	add	r3, pc
+ 6c4:	4479      	add	r1, pc
+ 6c6:	f7ff ef3c 	blx	540 <__android_log_print@plt>
+ 6ca:	2001      	movs	r0, #1
+ 6cc:	2200      	movs	r2, #0
+ 6ce:	4601      	mov	r1, r0
+ 6d0:	f7ff ef3c 	blx	54c <socket@plt>
+ 6d4:	1e05      	subs	r5, r0, #0
+ 6d6:	da09      	bge.n	6ec <time_genoff_operation+0xc0>
+ 6d8:	49cf      	ldr	r1, [pc, #828]	@ (a18 <time_genoff_operation+0x3ec>)
+ 6da:	2006      	movs	r0, #6
+ 6dc:	4acf      	ldr	r2, [pc, #828]	@ (a1c <time_genoff_operation+0x3f0>)
+ 6de:	4bd0      	ldr	r3, [pc, #832]	@ (a20 <time_genoff_operation+0x3f4>)
+ 6e0:	4479      	add	r1, pc
+ 6e2:	447a      	add	r2, pc
+ 6e4:	447b      	add	r3, pc
+ 6e6:	f7ff ef2c 	blx	540 <__android_log_print@plt>
+ 6ea:	e16c      	b.n	9c6 <time_genoff_operation+0x39a>
+ 6ec:	f04f 0808 	mov.w	r8, #8
+ 6f0:	2101      	movs	r1, #1
+ 6f2:	2214      	movs	r2, #20
+ 6f4:	f8cd 8000 	str.w	r8, [sp]
+ 6f8:	ab04      	add	r3, sp, #16
+ 6fa:	270a      	movs	r7, #10
+ 6fc:	9704      	str	r7, [sp, #16]
+ 6fe:	2700      	movs	r7, #0
+ 700:	9705      	str	r7, [sp, #20]
+ 702:	f7ff ef2a 	blx	558 <setsockopt@plt>
+ 706:	2101      	movs	r1, #1
+ 708:	2215      	movs	r2, #21
+ 70a:	ab04      	add	r3, sp, #16
+ 70c:	f8cd 8000 	str.w	r8, [sp]
+ 710:	4628      	mov	r0, r5
+ 712:	f10d 08d8 	add.w	r8, sp, #216	@ 0xd8
+ 716:	f7ff ef20 	blx	558 <setsockopt@plt>
+ 71a:	49c2      	ldr	r1, [pc, #776]	@ (a24 <time_genoff_operation+0x3f8>)
+ 71c:	226c      	movs	r2, #108	@ 0x6c
+ 71e:	f04f 0901 	mov.w	r9, #1
+ 722:	4479      	add	r1, pc
+ 724:	f828 9d74 	strh.w	r9, [r8, #-116]!
+ 728:	f108 0002 	add.w	r0, r8, #2
+ 72c:	f7ff ef1a 	blx	564 <strlcpy@plt>
+ 730:	220e      	movs	r2, #14
+ 732:	4628      	mov	r0, r5
+ 734:	4641      	mov	r1, r8
+ 736:	f88d 7066 	strb.w	r7, [sp, #102]	@ 0x66
+ 73a:	f7ff ef1a 	blx	570 <connect@plt>
+ 73e:	3001      	adds	r0, #1
+ 740:	d107      	bne.n	752 <time_genoff_operation+0x126>
+ 742:	49b9      	ldr	r1, [pc, #740]	@ (a28 <time_genoff_operation+0x3fc>)
+ 744:	2006      	movs	r0, #6
+ 746:	4ab9      	ldr	r2, [pc, #740]	@ (a2c <time_genoff_operation+0x400>)
+ 748:	4bb9      	ldr	r3, [pc, #740]	@ (a30 <time_genoff_operation+0x404>)
+ 74a:	4479      	add	r1, pc
+ 74c:	447a      	add	r2, pc
+ 74e:	447b      	add	r3, pc
+ 750:	e134      	b.n	9bc <time_genoff_operation+0x390>
+ 752:	68f1      	ldr	r1, [r6, #12]
+ 754:	2901      	cmp	r1, #1
+ 756:	d17f      	bne.n	858 <time_genoff_operation+0x22c>
+ 758:	6832      	ldr	r2, [r6, #0]
+ 75a:	2300      	movs	r3, #0
+ 75c:	9107      	str	r1, [sp, #28]
+ 75e:	4628      	mov	r0, r5
+ 760:	9108      	str	r1, [sp, #32]
+ 762:	f04f 31ff 	mov.w	r1, #4294967295	@ 0xffffffff
+ 766:	9206      	str	r2, [sp, #24]
+ 768:	2200      	movs	r2, #0
+ 76a:	910c      	str	r1, [sp, #48]	@ 0x30
+ 76c:	a906      	add	r1, sp, #24
+ 76e:	e9cd 230a 	strd	r2, r3, [sp, #40]	@ 0x28
+ 772:	2220      	movs	r2, #32
+ 774:	463b      	mov	r3, r7
+ 776:	f7ff ef02 	blx	57c <send@plt>
+ 77a:	2800      	cmp	r0, #0
+ 77c:	da07      	bge.n	78e <time_genoff_operation+0x162>
+ 77e:	49ad      	ldr	r1, [pc, #692]	@ (a34 <time_genoff_operation+0x408>)
+ 780:	2006      	movs	r0, #6
+ 782:	4aad      	ldr	r2, [pc, #692]	@ (a38 <time_genoff_operation+0x40c>)
+ 784:	4bad      	ldr	r3, [pc, #692]	@ (a3c <time_genoff_operation+0x410>)
+ 786:	4479      	add	r1, pc
+ 788:	447a      	add	r2, pc
+ 78a:	447b      	add	r3, pc
+ 78c:	e116      	b.n	9bc <time_genoff_operation+0x390>
+ 78e:	2220      	movs	r2, #32
+ 790:	4628      	mov	r0, r5
+ 792:	a906      	add	r1, sp, #24
+ 794:	463b      	mov	r3, r7
+ 796:	f7ff eef8 	blx	588 <recv@plt>
+ 79a:	2800      	cmp	r0, #0
+ 79c:	da07      	bge.n	7ae <time_genoff_operation+0x182>
+ 79e:	49a8      	ldr	r1, [pc, #672]	@ (a40 <time_genoff_operation+0x414>)
+ 7a0:	2006      	movs	r0, #6
+ 7a2:	4aa8      	ldr	r2, [pc, #672]	@ (a44 <time_genoff_operation+0x418>)
+ 7a4:	4ba8      	ldr	r3, [pc, #672]	@ (a48 <time_genoff_operation+0x41c>)
+ 7a6:	4479      	add	r1, pc
+ 7a8:	447a      	add	r2, pc
+ 7aa:	447b      	add	r3, pc
+ 7ac:	e106      	b.n	9bc <time_genoff_operation+0x390>
+ 7ae:	9f0c      	ldr	r7, [sp, #48]	@ 0x30
+ 7b0:	b12f      	cbz	r7, 7be <time_genoff_operation+0x192>
+ 7b2:	49a6      	ldr	r1, [pc, #664]	@ (a4c <time_genoff_operation+0x420>)
+ 7b4:	2006      	movs	r0, #6
+ 7b6:	4aa6      	ldr	r2, [pc, #664]	@ (a50 <time_genoff_operation+0x424>)
+ 7b8:	4479      	add	r1, pc
+ 7ba:	447a      	add	r2, pc
+ 7bc:	e0b4      	b.n	928 <time_genoff_operation+0x2fc>
+ 7be:	4628      	mov	r0, r5
+ 7c0:	f7ff eee8 	blx	594 <close@plt>
+ 7c4:	68b0      	ldr	r0, [r6, #8]
+ 7c6:	2802      	cmp	r0, #2
+ 7c8:	d009      	beq.n	7de <time_genoff_operation+0x1b2>
+ 7ca:	2803      	cmp	r0, #3
+ 7cc:	d014      	beq.n	7f8 <time_genoff_operation+0x1cc>
+ 7ce:	2801      	cmp	r0, #1
+ 7d0:	d139      	bne.n	846 <time_genoff_operation+0x21a>
+ 7d2:	6871      	ldr	r1, [r6, #4]
+ 7d4:	e9dd 230a 	ldrd	r2, r3, [sp, #40]	@ 0x28
+ 7d8:	e9c1 2300 	strd	r2, r3, [r1]
+ 7dc:	e031      	b.n	842 <time_genoff_operation+0x216>
+ 7de:	e9dd 010a 	ldrd	r0, r1, [sp, #40]	@ 0x28
+ 7e2:	f44f 727a 	mov.w	r2, #1000	@ 0x3e8
+ 7e6:	2300      	movs	r3, #0
+ 7e8:	f7ff eeda 	blx	5a0 <__aeabi_uldivmod@plt>
+ 7ec:	6872      	ldr	r2, [r6, #4]
+ 7ee:	900a      	str	r0, [sp, #40]	@ 0x28
+ 7f0:	910b      	str	r1, [sp, #44]	@ 0x2c
+ 7f2:	e882 0003 	stmia.w	r2, {r0, r1}
+ 7f6:	e024      	b.n	842 <time_genoff_operation+0x216>
+ 7f8:	e9dd 010a 	ldrd	r0, r1, [sp, #40]	@ 0x28
+ 7fc:	f44f 727a 	mov.w	r2, #1000	@ 0x3e8
+ 800:	2300      	movs	r3, #0
+ 802:	f7ff eece 	blx	5a0 <__aeabi_uldivmod@plt>
+ 806:	e9cd 010a 	strd	r0, r1, [sp, #40]	@ 0x28
+ 80a:	a80a      	add	r0, sp, #40	@ 0x28
+ 80c:	a90e      	add	r1, sp, #56	@ 0x38
+ 80e:	f7ff eece 	blx	5ac <gmtime_r@plt>
+ 812:	b968      	cbnz	r0, 830 <time_genoff_operation+0x204>
+ 814:	e9dd 010a 	ldrd	r0, r1, [sp, #40]	@ 0x28
+ 818:	4a8e      	ldr	r2, [pc, #568]	@ (a54 <time_genoff_operation+0x428>)
+ 81a:	4b8f      	ldr	r3, [pc, #572]	@ (a58 <time_genoff_operation+0x42c>)
+ 81c:	e9cd 0100 	strd	r0, r1, [sp]
+ 820:	447a      	add	r2, pc
+ 822:	498e      	ldr	r1, [pc, #568]	@ (a5c <time_genoff_operation+0x430>)
+ 824:	2006      	movs	r0, #6
+ 826:	447b      	add	r3, pc
+ 828:	4479      	add	r1, pc
+ 82a:	f7ff ee8a 	blx	540 <__android_log_print@plt>
+ 82e:	e0c7      	b.n	9c0 <time_genoff_operation+0x394>
+ 830:	6873      	ldr	r3, [r6, #4]
+ 832:	f100 0c2c 	add.w	ip, r0, #44	@ 0x2c
+ 836:	f850 eb04 	ldr.w	lr, [r0], #4
+ 83a:	4560      	cmp	r0, ip
+ 83c:	f843 eb04 	str.w	lr, [r3], #4
+ 840:	d1f9      	bne.n	836 <time_genoff_operation+0x20a>
+ 842:	2000      	movs	r0, #0
+ 844:	e0c1      	b.n	9ca <time_genoff_operation+0x39e>
+ 846:	4986      	ldr	r1, [pc, #536]	@ (a60 <time_genoff_operation+0x434>)
+ 848:	4a86      	ldr	r2, [pc, #536]	@ (a64 <time_genoff_operation+0x438>)
+ 84a:	4b87      	ldr	r3, [pc, #540]	@ (a68 <time_genoff_operation+0x43c>)
+ 84c:	4479      	add	r1, pc
+ 84e:	9000      	str	r0, [sp, #0]
+ 850:	447a      	add	r2, pc
+ 852:	2006      	movs	r0, #6
+ 854:	447b      	add	r3, pc
+ 856:	e02a      	b.n	8ae <time_genoff_operation+0x282>
+ 858:	2900      	cmp	r1, #0
+ 85a:	d167      	bne.n	92c <time_genoff_operation+0x300>
+ 85c:	68b3      	ldr	r3, [r6, #8]
+ 85e:	2b02      	cmp	r3, #2
+ 860:	d007      	beq.n	872 <time_genoff_operation+0x246>
+ 862:	2b03      	cmp	r3, #3
+ 864:	d011      	beq.n	88a <time_genoff_operation+0x25e>
+ 866:	2b01      	cmp	r3, #1
+ 868:	d119      	bne.n	89e <time_genoff_operation+0x272>
+ 86a:	6871      	ldr	r1, [r6, #4]
+ 86c:	e9d1 2300 	ldrd	r2, r3, [r1]
+ 870:	e008      	b.n	884 <time_genoff_operation+0x258>
+ 872:	6872      	ldr	r2, [r6, #4]
+ 874:	f44f 7e7a 	mov.w	lr, #1000	@ 0x3e8
+ 878:	6813      	ldr	r3, [r2, #0]
+ 87a:	6850      	ldr	r0, [r2, #4]
+ 87c:	fba3 230e 	umull	r2, r3, r3, lr
+ 880:	fb0e 3300 	mla	r3, lr, r0, r3
+ 884:	e9cd 230a 	strd	r2, r3, [sp, #40]	@ 0x28
+ 888:	e014      	b.n	8b4 <time_genoff_operation+0x288>
+ 88a:	6870      	ldr	r0, [r6, #4]
+ 88c:	f7ff ee94 	blx	5b8 <mktime@plt>
+ 890:	f44f 7c7a 	mov.w	ip, #1000	@ 0x3e8
+ 894:	fb80 010c 	smull	r0, r1, r0, ip
+ 898:	e9cd 010a 	strd	r0, r1, [sp, #40]	@ 0x28
+ 89c:	e00a      	b.n	8b4 <time_genoff_operation+0x288>
+ 89e:	9300      	str	r3, [sp, #0]
+ 8a0:	2006      	movs	r0, #6
+ 8a2:	4972      	ldr	r1, [pc, #456]	@ (a6c <time_genoff_operation+0x440>)
+ 8a4:	4a72      	ldr	r2, [pc, #456]	@ (a70 <time_genoff_operation+0x444>)
+ 8a6:	4b73      	ldr	r3, [pc, #460]	@ (a74 <time_genoff_operation+0x448>)
+ 8a8:	4479      	add	r1, pc
+ 8aa:	447a      	add	r2, pc
+ 8ac:	447b      	add	r3, pc
+ 8ae:	f7ff ee48 	blx	540 <__android_log_print@plt>
+ 8b2:	e085      	b.n	9c0 <time_genoff_operation+0x394>
+ 8b4:	6836      	ldr	r6, [r6, #0]
+ 8b6:	2101      	movs	r1, #1
+ 8b8:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
+ 8bc:	9107      	str	r1, [sp, #28]
+ 8be:	920c      	str	r2, [sp, #48]	@ 0x30
+ 8c0:	4628      	mov	r0, r5
+ 8c2:	9606      	str	r6, [sp, #24]
+ 8c4:	2600      	movs	r6, #0
+ 8c6:	2220      	movs	r2, #32
+ 8c8:	a906      	add	r1, sp, #24
+ 8ca:	4633      	mov	r3, r6
+ 8cc:	9608      	str	r6, [sp, #32]
+ 8ce:	f7ff ee56 	blx	57c <send@plt>
+ 8d2:	42b0      	cmp	r0, r6
+ 8d4:	f6ff af53 	blt.w	77e <time_genoff_operation+0x152>
+ 8d8:	f8df 819c 	ldr.w	r8, [pc, #412]	@ a78 <time_genoff_operation+0x44c>
+ 8dc:	2003      	movs	r0, #3
+ 8de:	4a67      	ldr	r2, [pc, #412]	@ (a7c <time_genoff_operation+0x450>)
+ 8e0:	44f8      	add	r8, pc
+ 8e2:	4b67      	ldr	r3, [pc, #412]	@ (a80 <time_genoff_operation+0x454>)
+ 8e4:	447a      	add	r2, pc
+ 8e6:	4641      	mov	r1, r8
+ 8e8:	447b      	add	r3, pc
+ 8ea:	f7ff ee2a 	blx	540 <__android_log_print@plt>
+ 8ee:	2220      	movs	r2, #32
+ 8f0:	4628      	mov	r0, r5
+ 8f2:	a906      	add	r1, sp, #24
+ 8f4:	4633      	mov	r3, r6
+ 8f6:	f7ff ee48 	blx	588 <recv@plt>
+ 8fa:	42b0      	cmp	r0, r6
+ 8fc:	f6ff af4f 	blt.w	79e <time_genoff_operation+0x172>
+ 900:	9f07      	ldr	r7, [sp, #28]
+ 902:	4641      	mov	r1, r8
+ 904:	9808      	ldr	r0, [sp, #32]
+ 906:	9b0c      	ldr	r3, [sp, #48]	@ 0x30
+ 908:	4a5e      	ldr	r2, [pc, #376]	@ (a84 <time_genoff_operation+0x458>)
+ 90a:	9700      	str	r7, [sp, #0]
+ 90c:	9001      	str	r0, [sp, #4]
+ 90e:	447a      	add	r2, pc
+ 910:	9302      	str	r3, [sp, #8]
+ 912:	2006      	movs	r0, #6
+ 914:	9b06      	ldr	r3, [sp, #24]
+ 916:	f7ff ee14 	blx	540 <__android_log_print@plt>
+ 91a:	9f0c      	ldr	r7, [sp, #48]	@ 0x30
+ 91c:	2f00      	cmp	r7, #0
+ 91e:	d042      	beq.n	9a6 <time_genoff_operation+0x37a>
+ 920:	4a59      	ldr	r2, [pc, #356]	@ (a88 <time_genoff_operation+0x45c>)
+ 922:	2006      	movs	r0, #6
+ 924:	4641      	mov	r1, r8
+ 926:	447a      	add	r2, pc
+ 928:	9b06      	ldr	r3, [sp, #24]
+ 92a:	e047      	b.n	9bc <time_genoff_operation+0x390>
+ 92c:	2902      	cmp	r1, #2
+ 92e:	d13e      	bne.n	9ae <time_genoff_operation+0x382>
+ 930:	6832      	ldr	r2, [r6, #0]
+ 932:	f04f 33ff 	mov.w	r3, #4294967295	@ 0xffffffff
+ 936:	9108      	str	r1, [sp, #32]
+ 938:	4628      	mov	r0, r5
+ 93a:	930c      	str	r3, [sp, #48]	@ 0x30
+ 93c:	a906      	add	r1, sp, #24
+ 93e:	2300      	movs	r3, #0
+ 940:	9206      	str	r2, [sp, #24]
+ 942:	2200      	movs	r2, #0
+ 944:	e9cd 230a 	strd	r2, r3, [sp, #40]	@ 0x28
+ 948:	2220      	movs	r2, #32
+ 94a:	463b      	mov	r3, r7
+ 94c:	f8cd 901c 	str.w	r9, [sp, #28]
+ 950:	f7ff ee14 	blx	57c <send@plt>
+ 954:	2800      	cmp	r0, #0
+ 956:	f6ff af12 	blt.w	77e <time_genoff_operation+0x152>
+ 95a:	f8df 8130 	ldr.w	r8, [pc, #304]	@ a8c <time_genoff_operation+0x460>
+ 95e:	2003      	movs	r0, #3
+ 960:	4a4b      	ldr	r2, [pc, #300]	@ (a90 <time_genoff_operation+0x464>)
+ 962:	44f8      	add	r8, pc
+ 964:	4b4b      	ldr	r3, [pc, #300]	@ (a94 <time_genoff_operation+0x468>)
+ 966:	447a      	add	r2, pc
+ 968:	4641      	mov	r1, r8
+ 96a:	447b      	add	r3, pc
+ 96c:	f7ff ede8 	blx	540 <__android_log_print@plt>
+ 970:	2220      	movs	r2, #32
+ 972:	4628      	mov	r0, r5
+ 974:	a906      	add	r1, sp, #24
+ 976:	463b      	mov	r3, r7
+ 978:	f7ff ee06 	blx	588 <recv@plt>
+ 97c:	2800      	cmp	r0, #0
+ 97e:	f6ff af0e 	blt.w	79e <time_genoff_operation+0x172>
+ 982:	9a0c      	ldr	r2, [sp, #48]	@ 0x30
+ 984:	9807      	ldr	r0, [sp, #28]
+ 986:	9908      	ldr	r1, [sp, #32]
+ 988:	9202      	str	r2, [sp, #8]
+ 98a:	4a43      	ldr	r2, [pc, #268]	@ (a98 <time_genoff_operation+0x46c>)
+ 98c:	9000      	str	r0, [sp, #0]
+ 98e:	2006      	movs	r0, #6
+ 990:	9101      	str	r1, [sp, #4]
+ 992:	447a      	add	r2, pc
+ 994:	9b06      	ldr	r3, [sp, #24]
+ 996:	4641      	mov	r1, r8
+ 998:	f7ff edd2 	blx	540 <__android_log_print@plt>
+ 99c:	6870      	ldr	r0, [r6, #4]
+ 99e:	e9dd 230a 	ldrd	r2, r3, [sp, #40]	@ 0x28
+ 9a2:	e9c0 2300 	strd	r2, r3, [r0]
+ 9a6:	4628      	mov	r0, r5
+ 9a8:	f7ff edf4 	blx	594 <close@plt>
+ 9ac:	e749      	b.n	842 <time_genoff_operation+0x216>
+ 9ae:	493b      	ldr	r1, [pc, #236]	@ (a9c <time_genoff_operation+0x470>)
+ 9b0:	2006      	movs	r0, #6
+ 9b2:	4a3b      	ldr	r2, [pc, #236]	@ (aa0 <time_genoff_operation+0x474>)
+ 9b4:	4b3b      	ldr	r3, [pc, #236]	@ (aa4 <time_genoff_operation+0x478>)
+ 9b6:	4479      	add	r1, pc
+ 9b8:	447a      	add	r2, pc
+ 9ba:	447b      	add	r3, pc
+ 9bc:	f7ff edc0 	blx	540 <__android_log_print@plt>
+ 9c0:	4628      	mov	r0, r5
+ 9c2:	f7ff ede8 	blx	594 <close@plt>
+ 9c6:	f06f 0015 	mvn.w	r0, #21
+ 9ca:	9935      	ldr	r1, [sp, #212]	@ 0xd4
+ 9cc:	6823      	ldr	r3, [r4, #0]
+ 9ce:	4299      	cmp	r1, r3
+ 9d0:	d001      	beq.n	9d6 <time_genoff_operation+0x3aa>
+ 9d2:	f7ff edf8 	blx	5c4 <__stack_chk_fail@plt>
+ 9d6:	b037      	add	sp, #220	@ 0xdc
+ 9d8:	e8bd 83f0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, pc}
+ 9dc:	2988      	cmp	r1, #136	@ 0x88
+ 9de:	0000      	movs	r0, r0
+ 9e0:	fffc ffff 			@ <UNDEFINED> instruction: 0xfffcffff
+ 9e4:	06c2      	lsls	r2, r0, #27
+ 9e6:	0000      	movs	r0, r0
+ 9e8:	06d1      	lsls	r1, r2, #27
+ 9ea:	0000      	movs	r0, r0
+ 9ec:	09a9      	lsrs	r1, r5, #6
+ 9ee:	0000      	movs	r0, r0
+ 9f0:	06ac      	lsls	r4, r5, #26
+ 9f2:	0000      	movs	r0, r0
+ 9f4:	0995      	lsrs	r5, r2, #6
+ 9f6:	0000      	movs	r0, r0
+ 9f8:	06d7      	lsls	r7, r2, #27
+ 9fa:	0000      	movs	r0, r0
+ 9fc:	06db      	lsls	r3, r3, #27
+ 9fe:	0000      	movs	r0, r0
+ a00:	0668      	lsls	r0, r5, #25
+ a02:	0000      	movs	r0, r0
+ a04:	06d2      	lsls	r2, r2, #27
+ a06:	0000      	movs	r0, r0
+ a08:	094f      	lsrs	r7, r1, #5
+ a0a:	0000      	movs	r0, r0
+ a0c:	06dd      	lsls	r5, r3, #27
+ a0e:	0000      	movs	r0, r0
+ a10:	0935      	lsrs	r5, r6, #4
+ a12:	0000      	movs	r0, r0
+ a14:	0648      	lsls	r0, r1, #25
+ a16:	0000      	movs	r0, r0
+ a18:	062c      	lsls	r4, r5, #24
+ a1a:	0000      	movs	r0, r0
+ a1c:	06d5      	lsls	r5, r2, #27
+ a1e:	0000      	movs	r0, r0
+ a20:	0913      	lsrs	r3, r2, #4
+ a22:	0000      	movs	r0, r0
+ a24:	06b6      	lsls	r6, r6, #26
+ a26:	0000      	movs	r0, r0
+ a28:	05c2      	lsls	r2, r0, #23
+ a2a:	0000      	movs	r0, r0
+ a2c:	0699      	lsls	r1, r3, #26
+ a2e:	0000      	movs	r0, r0
+ a30:	08a9      	lsrs	r1, r5, #2
+ a32:	0000      	movs	r0, r0
+ a34:	0586      	lsls	r6, r0, #22
+ a36:	0000      	movs	r0, r0
+ a38:	067b      	lsls	r3, r7, #25
+ a3a:	0000      	movs	r0, r0
+ a3c:	086d      	lsrs	r5, r5, #1
+ a3e:	0000      	movs	r0, r0
+ a40:	0566      	lsls	r6, r4, #21
+ a42:	0000      	movs	r0, r0
+ a44:	067d      	lsls	r5, r7, #25
+ a46:	0000      	movs	r0, r0
+ a48:	084d      	lsrs	r5, r1, #1
+ a4a:	0000      	movs	r0, r0
+ a4c:	0554      	lsls	r4, r2, #21
+ a4e:	0000      	movs	r0, r0
+ a50:	0688      	lsls	r0, r1, #26
+ a52:	0000      	movs	r0, r0
+ a54:	0646      	lsls	r6, r0, #25
+ a56:	0000      	movs	r0, r0
+ a58:	07d1      	lsls	r1, r2, #31
+ a5a:	0000      	movs	r0, r0
+ a5c:	04e4      	lsls	r4, r4, #19
+ a5e:	0000      	movs	r0, r0
+ a60:	04c0      	lsls	r0, r0, #19
+ a62:	0000      	movs	r0, r0
+ a64:	0630      	lsls	r0, r6, #24
+ a66:	0000      	movs	r0, r0
+ a68:	07a3      	lsls	r3, r4, #30
+ a6a:	0000      	movs	r0, r0
+ a6c:	0464      	lsls	r4, r4, #17
+ a6e:	0000      	movs	r0, r0
+ a70:	05d6      	lsls	r6, r2, #23
+ a72:	0000      	movs	r0, r0
+ a74:	074b      	lsls	r3, r1, #29
+ a76:	0000      	movs	r0, r0
+ a78:	042c      	lsls	r4, r5, #16
+ a7a:	0000      	movs	r0, r0
+ a7c:	05b8      	lsls	r0, r7, #22
+ a7e:	0000      	movs	r0, r0
+ a80:	070f      	lsls	r7, r1, #28
+ a82:	0000      	movs	r0, r0
+ a84:	05b0      	lsls	r0, r6, #22
+ a86:	0000      	movs	r0, r0
+ a88:	05dd      	lsls	r5, r3, #23
+ a8a:	0000      	movs	r0, r0
+ a8c:	03aa      	lsls	r2, r5, #14
+ a8e:	0000      	movs	r0, r0
+ a90:	0536      	lsls	r6, r6, #20
+ a92:	0000      	movs	r0, r0
+ a94:	068d      	lsls	r5, r1, #26
+ a96:	0000      	movs	r0, r0
+ a98:	052c      	lsls	r4, r5, #20
+ a9a:	0000      	movs	r0, r0
+ a9c:	0356      	lsls	r6, r2, #13
+ a9e:	0000      	movs	r0, r0
+ aa0:	056f      	lsls	r7, r5, #21
+ aa2:	0000      	movs	r0, r0
+ aa4:	063d      	lsls	r5, r7, #24
+	...
+
+00000aa8 <time_control_operations>:
+ aa8:	4b73      	ldr	r3, [pc, #460]	@ (c78 <time_control_operations+0x1d0>)
+ aaa:	4a74      	ldr	r2, [pc, #464]	@ (c7c <time_control_operations+0x1d4>)
+ aac:	447b      	add	r3, pc
+ aae:	e92d 43f0 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, lr}
+ ab2:	4606      	mov	r6, r0
+ ab4:	589f      	ldr	r7, [r3, r2]
+ ab6:	2001      	movs	r0, #1
+ ab8:	b0ad      	sub	sp, #180	@ 0xb4
+ aba:	2200      	movs	r2, #0
+ abc:	4601      	mov	r1, r0
+ abe:	683b      	ldr	r3, [r7, #0]
+ ac0:	932b      	str	r3, [sp, #172]	@ 0xac
+ ac2:	f7ff ed44 	blx	54c <socket@plt>
+ ac6:	1e04      	subs	r4, r0, #0
+ ac8:	da09      	bge.n	ade <time_control_operations+0x36>
+ aca:	496d      	ldr	r1, [pc, #436]	@ (c80 <time_control_operations+0x1d8>)
+ acc:	2006      	movs	r0, #6
+ ace:	4a6d      	ldr	r2, [pc, #436]	@ (c84 <time_control_operations+0x1dc>)
+ ad0:	4b6d      	ldr	r3, [pc, #436]	@ (c88 <time_control_operations+0x1e0>)
+ ad2:	4479      	add	r1, pc
+ ad4:	447a      	add	r2, pc
+ ad6:	447b      	add	r3, pc
+ ad8:	f7ff ed32 	blx	540 <__android_log_print@plt>
+ adc:	e0c0      	b.n	c60 <time_control_operations+0x1b8>
+ ade:	210a      	movs	r1, #10
+ ae0:	f04f 0808 	mov.w	r8, #8
+ ae4:	2214      	movs	r2, #20
+ ae6:	9104      	str	r1, [sp, #16]
+ ae8:	f8cd 8000 	str.w	r8, [sp]
+ aec:	2101      	movs	r1, #1
+ aee:	ab04      	add	r3, sp, #16
+ af0:	2500      	movs	r5, #0
+ af2:	9505      	str	r5, [sp, #20]
+ af4:	f7ff ed30 	blx	558 <setsockopt@plt>
+ af8:	2101      	movs	r1, #1
+ afa:	2215      	movs	r2, #21
+ afc:	ab04      	add	r3, sp, #16
+ afe:	f8cd 8000 	str.w	r8, [sp]
+ b02:	4620      	mov	r0, r4
+ b04:	f10d 08b0 	add.w	r8, sp, #176	@ 0xb0
+ b08:	f7ff ed26 	blx	558 <setsockopt@plt>
+ b0c:	495f      	ldr	r1, [pc, #380]	@ (c8c <time_control_operations+0x1e4>)
+ b0e:	226c      	movs	r2, #108	@ 0x6c
+ b10:	f04f 0901 	mov.w	r9, #1
+ b14:	4479      	add	r1, pc
+ b16:	f828 9d74 	strh.w	r9, [r8, #-116]!
+ b1a:	f108 0002 	add.w	r0, r8, #2
+ b1e:	f7ff ed22 	blx	564 <strlcpy@plt>
+ b22:	220e      	movs	r2, #14
+ b24:	4620      	mov	r0, r4
+ b26:	4641      	mov	r1, r8
+ b28:	f88d 503e 	strb.w	r5, [sp, #62]	@ 0x3e
+ b2c:	f7ff ed20 	blx	570 <connect@plt>
+ b30:	3001      	adds	r0, #1
+ b32:	d107      	bne.n	b44 <time_control_operations+0x9c>
+ b34:	4956      	ldr	r1, [pc, #344]	@ (c90 <time_control_operations+0x1e8>)
+ b36:	2006      	movs	r0, #6
+ b38:	4a56      	ldr	r2, [pc, #344]	@ (c94 <time_control_operations+0x1ec>)
+ b3a:	4b57      	ldr	r3, [pc, #348]	@ (c98 <time_control_operations+0x1f0>)
+ b3c:	4479      	add	r1, pc
+ b3e:	447a      	add	r2, pc
+ b40:	447b      	add	r3, pc
+ b42:	e088      	b.n	c56 <time_control_operations+0x1ae>
+ b44:	f8d6 800c 	ldr.w	r8, [r6, #12]
+ b48:	f1b8 0f03 	cmp.w	r8, #3
+ b4c:	d13e      	bne.n	bcc <time_control_operations+0x124>
+ b4e:	6832      	ldr	r2, [r6, #0]
+ b50:	f04f 33ff 	mov.w	r3, #4294967295	@ 0xffffffff
+ b54:	4620      	mov	r0, r4
+ b56:	930c      	str	r3, [sp, #48]	@ 0x30
+ b58:	a906      	add	r1, sp, #24
+ b5a:	462b      	mov	r3, r5
+ b5c:	9206      	str	r2, [sp, #24]
+ b5e:	2220      	movs	r2, #32
+ b60:	f8cd 901c 	str.w	r9, [sp, #28]
+ b64:	f8cd 8020 	str.w	r8, [sp, #32]
+ b68:	f7ff ed08 	blx	57c <send@plt>
+ b6c:	2800      	cmp	r0, #0
+ b6e:	da07      	bge.n	b80 <time_control_operations+0xd8>
+ b70:	494a      	ldr	r1, [pc, #296]	@ (c9c <time_control_operations+0x1f4>)
+ b72:	2006      	movs	r0, #6
+ b74:	4a4a      	ldr	r2, [pc, #296]	@ (ca0 <time_control_operations+0x1f8>)
+ b76:	4b4b      	ldr	r3, [pc, #300]	@ (ca4 <time_control_operations+0x1fc>)
+ b78:	4479      	add	r1, pc
+ b7a:	447a      	add	r2, pc
+ b7c:	447b      	add	r3, pc
+ b7e:	e06a      	b.n	c56 <time_control_operations+0x1ae>
+ b80:	f8df 9124 	ldr.w	r9, [pc, #292]	@ ca8 <time_control_operations+0x200>
+ b84:	4640      	mov	r0, r8
+ b86:	4a49      	ldr	r2, [pc, #292]	@ (cac <time_control_operations+0x204>)
+ b88:	44f9      	add	r9, pc
+ b8a:	4b49      	ldr	r3, [pc, #292]	@ (cb0 <time_control_operations+0x208>)
+ b8c:	447a      	add	r2, pc
+ b8e:	4649      	mov	r1, r9
+ b90:	447b      	add	r3, pc
+ b92:	f7ff ecd6 	blx	540 <__android_log_print@plt>
+ b96:	2220      	movs	r2, #32
+ b98:	4620      	mov	r0, r4
+ b9a:	a906      	add	r1, sp, #24
+ b9c:	462b      	mov	r3, r5
+ b9e:	f7ff ecf4 	blx	588 <recv@plt>
+ ba2:	2800      	cmp	r0, #0
+ ba4:	da07      	bge.n	bb6 <time_control_operations+0x10e>
+ ba6:	4943      	ldr	r1, [pc, #268]	@ (cb4 <time_control_operations+0x20c>)
+ ba8:	2006      	movs	r0, #6
+ baa:	4a43      	ldr	r2, [pc, #268]	@ (cb8 <time_control_operations+0x210>)
+ bac:	4b43      	ldr	r3, [pc, #268]	@ (cbc <time_control_operations+0x214>)
+ bae:	4479      	add	r1, pc
+ bb0:	447a      	add	r2, pc
+ bb2:	447b      	add	r3, pc
+ bb4:	e04f      	b.n	c56 <time_control_operations+0x1ae>
+ bb6:	9a0c      	ldr	r2, [sp, #48]	@ 0x30
+ bb8:	9907      	ldr	r1, [sp, #28]
+ bba:	9808      	ldr	r0, [sp, #32]
+ bbc:	9202      	str	r2, [sp, #8]
+ bbe:	4a40      	ldr	r2, [pc, #256]	@ (cc0 <time_control_operations+0x218>)
+ bc0:	9100      	str	r1, [sp, #0]
+ bc2:	4649      	mov	r1, r9
+ bc4:	9001      	str	r0, [sp, #4]
+ bc6:	447a      	add	r2, pc
+ bc8:	2006      	movs	r0, #6
+ bca:	e030      	b.n	c2e <time_control_operations+0x186>
+ bcc:	f1b8 0f04 	cmp.w	r8, #4
+ bd0:	d13a      	bne.n	c48 <time_control_operations+0x1a0>
+ bd2:	6830      	ldr	r0, [r6, #0]
+ bd4:	f04f 32ff 	mov.w	r2, #4294967295	@ 0xffffffff
+ bd8:	a906      	add	r1, sp, #24
+ bda:	920c      	str	r2, [sp, #48]	@ 0x30
+ bdc:	462b      	mov	r3, r5
+ bde:	2220      	movs	r2, #32
+ be0:	9006      	str	r0, [sp, #24]
+ be2:	4620      	mov	r0, r4
+ be4:	f8cd 901c 	str.w	r9, [sp, #28]
+ be8:	f8cd 8020 	str.w	r8, [sp, #32]
+ bec:	f7ff ecc6 	blx	57c <send@plt>
+ bf0:	2800      	cmp	r0, #0
+ bf2:	dbbd      	blt.n	b70 <time_control_operations+0xc8>
+ bf4:	f8df 80cc 	ldr.w	r8, [pc, #204]	@ cc4 <time_control_operations+0x21c>
+ bf8:	2003      	movs	r0, #3
+ bfa:	4a33      	ldr	r2, [pc, #204]	@ (cc8 <time_control_operations+0x220>)
+ bfc:	44f8      	add	r8, pc
+ bfe:	4b33      	ldr	r3, [pc, #204]	@ (ccc <time_control_operations+0x224>)
+ c00:	447a      	add	r2, pc
+ c02:	4641      	mov	r1, r8
+ c04:	447b      	add	r3, pc
+ c06:	f7ff ec9c 	blx	540 <__android_log_print@plt>
+ c0a:	2220      	movs	r2, #32
+ c0c:	4620      	mov	r0, r4
+ c0e:	a906      	add	r1, sp, #24
+ c10:	462b      	mov	r3, r5
+ c12:	f7ff ecba 	blx	588 <recv@plt>
+ c16:	2800      	cmp	r0, #0
+ c18:	dbc5      	blt.n	ba6 <time_control_operations+0xfe>
+ c1a:	980c      	ldr	r0, [sp, #48]	@ 0x30
+ c1c:	9908      	ldr	r1, [sp, #32]
+ c1e:	4a2c      	ldr	r2, [pc, #176]	@ (cd0 <time_control_operations+0x228>)
+ c20:	9b07      	ldr	r3, [sp, #28]
+ c22:	9002      	str	r0, [sp, #8]
+ c24:	447a      	add	r2, pc
+ c26:	2006      	movs	r0, #6
+ c28:	9101      	str	r1, [sp, #4]
+ c2a:	4641      	mov	r1, r8
+ c2c:	9300      	str	r3, [sp, #0]
+ c2e:	9b06      	ldr	r3, [sp, #24]
+ c30:	f7ff ec86 	blx	540 <__android_log_print@plt>
+ c34:	6871      	ldr	r1, [r6, #4]
+ c36:	e9dd 230a 	ldrd	r2, r3, [sp, #40]	@ 0x28
+ c3a:	4620      	mov	r0, r4
+ c3c:	e9c1 2300 	strd	r2, r3, [r1]
+ c40:	f7ff eca8 	blx	594 <close@plt>
+ c44:	4628      	mov	r0, r5
+ c46:	e00d      	b.n	c64 <time_control_operations+0x1bc>
+ c48:	4922      	ldr	r1, [pc, #136]	@ (cd4 <time_control_operations+0x22c>)
+ c4a:	2006      	movs	r0, #6
+ c4c:	4a22      	ldr	r2, [pc, #136]	@ (cd8 <time_control_operations+0x230>)
+ c4e:	4b23      	ldr	r3, [pc, #140]	@ (cdc <time_control_operations+0x234>)
+ c50:	4479      	add	r1, pc
+ c52:	447a      	add	r2, pc
+ c54:	447b      	add	r3, pc
+ c56:	f7ff ec74 	blx	540 <__android_log_print@plt>
+ c5a:	4620      	mov	r0, r4
+ c5c:	f7ff ec9a 	blx	594 <close@plt>
+ c60:	f06f 0015 	mvn.w	r0, #21
+ c64:	992b      	ldr	r1, [sp, #172]	@ 0xac
+ c66:	683b      	ldr	r3, [r7, #0]
+ c68:	4299      	cmp	r1, r3
+ c6a:	d001      	beq.n	c70 <time_control_operations+0x1c8>
+ c6c:	f7ff ecaa 	blx	5c4 <__stack_chk_fail@plt>
+ c70:	b02d      	add	sp, #180	@ 0xb4
+ c72:	e8bd 83f0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, pc}
+ c76:	bf00      	nop
+ c78:	250c      	movs	r5, #12
+ c7a:	0000      	movs	r0, r0
+ c7c:	fffc ffff 			@ <UNDEFINED> instruction: 0xfffcffff
+ c80:	023a      	lsls	r2, r7, #8
+ c82:	0000      	movs	r0, r0
+ c84:	02e3      	lsls	r3, r4, #11
+ c86:	0000      	movs	r0, r0
+ c88:	021e      	lsls	r6, r3, #8
+ c8a:	0000      	movs	r0, r0
+ c8c:	02c4      	lsls	r4, r0, #11
+ c8e:	0000      	movs	r0, r0
+ c90:	01d0      	lsls	r0, r2, #7
+ c92:	0000      	movs	r0, r0
+ c94:	02a7      	lsls	r7, r4, #10
+ c96:	0000      	movs	r0, r0
+ c98:	01b4      	lsls	r4, r6, #6
+ c9a:	0000      	movs	r0, r0
+ c9c:	0194      	lsls	r4, r2, #6
+ c9e:	0000      	movs	r0, r0
+ ca0:	03d2      	lsls	r2, r2, #15
+ ca2:	0000      	movs	r0, r0
+ ca4:	0178      	lsls	r0, r7, #5
+ ca6:	0000      	movs	r0, r0
+ ca8:	0184      	lsls	r4, r0, #6
+ caa:	0000      	movs	r0, r0
+ cac:	0310      	lsls	r0, r2, #12
+ cae:	0000      	movs	r0, r0
+ cb0:	0164      	lsls	r4, r4, #5
+ cb2:	0000      	movs	r0, r0
+ cb4:	015e      	lsls	r6, r3, #5
+ cb6:	0000      	movs	r0, r0
+ cb8:	0275      	lsls	r5, r6, #9
+ cba:	0000      	movs	r0, r0
+ cbc:	0142      	lsls	r2, r0, #5
+ cbe:	0000      	movs	r0, r0
+ cc0:	03a8      	lsls	r0, r5, #14
+ cc2:	0000      	movs	r0, r0
+ cc4:	0110      	lsls	r0, r2, #4
+ cc6:	0000      	movs	r0, r0
+ cc8:	029c      	lsls	r4, r3, #10
+ cca:	0000      	movs	r0, r0
+ ccc:	00f0      	lsls	r0, r6, #3
+ cce:	0000      	movs	r0, r0
+ cd0:	038f      	lsls	r7, r1, #14
+ cd2:	0000      	movs	r0, r0
+ cd4:	00bc      	lsls	r4, r7, #2
+ cd6:	0000      	movs	r0, r0
+ cd8:	02d5      	lsls	r5, r2, #11
+ cda:	0000      	movs	r0, r0
+ cdc:	00a0      	lsls	r0, r4, #2
+	...
+
+=== ALL STRINGS ===
+    134 /system/bin/linker
+    2a9 __cxa_finalize
+    2b8 __cxa_atexit
+    2c5 __aeabi_uldivmod
+    2d6 time_genoff_operation
+    2ec __android_log_print
+    300 socket
+    307 setsockopt
+    312 strlcpy
+    31a connect
+    322 send
+    327 recv
+    32c close
+    332 gmtime_r
+    33b mktime
+    342 __stack_chk_fail
+    353 __stack_chk_guard
+    365 __aeabi_unwind_cpp_pr0
+    37c time_control_operations
+    394 _edata
+    39b __bss_start
+    3a7 _end
+    3ac libc.so
+    3b4 libcutils.so
+    3c1 libstdc++.so
+    3ce libm.so
+    3d6 libtime_genoff.so
+    62f J{D-
+    63b F#h5
+    649 KyDzD{DI
+    668 zD9F+F
+    675  9F+F
+    6a3 KyDzD{D
+    6c1  {DyD
+    6df KyDzD{D
+    71b Il"O
+    721 	yD(
+    731 "(FAF
+    749 KyDzD{D4
+    771 # ";F
+    785 KyDzD{D
+    78e  "(F
+    7a5 KyDzD{D
+    7b7 JyDzD
+    825  {DyD
+    853  {D*
+    8a1  rIrJsKyDzD{D
+    8e1 DgKzDAF{D
+    8ee  "(F
+    923  AFzD
+    947 # ";F
+    963 DKKzDAF{D
+    970  "(F
+    9b1  ;J;KyDzD{D
+    aa8 sKtJ{D-
+    abd F;h+
+    acd  mJmKyDzD{D
+    b0c _Il"O
+    b13 	yD(
+    b23 " FAF
+    b37  VJWKyDzD{D
+    b73  JJKKyDzD{Dj
+    b84 @FIJ
+    b89 DIKzDIF{D
+    b96  " F
+    ba9  CJCKyDzD{DO
+    bdc +F "
+    bfd D3KzDAF{D
+    c0a  " F
+    c4b  "J#KyDzD{D
+    cf8 time_control_operations
+    d10 QC-time-services
+    d21 Lib:%s: Invalid input to library
+    d43 Lib:%s: pargs->base = %d
+    d5d Lib:%s: pargs->operation = %d
+    d7c Lib:%s: Invalid input arguments
+    d9d Lib:%s: pargs->ts_val = %llu
+    dbb Lib:%s: Unable to create socket
+    ddc #time_genoff
+    de9 Lib:%s: Connection failed !!
+    e07 Lib:%s: Send to server failed !!
+    e29 Lib:%s: Unable to recv data
+    e46 Lib: Time Get for Base = %d failed
+    e6a Lib:%s: Invalid time %llu
+    e84 Lib:%s:Invalid time unit %d
+    ea0 Lib:%s: Send to server  passed!!
+    ec2 Receive Passed == base = %d, unit = %d, operation = %d, result = %d
+    f07 Lib: Time Set for Base = %d failed
+    f2b Lib:%s: Invalid operation specified
+    f50 Lib:%s: send to server failed !!
+    f72 Disable Passed == base = %d, unit = %d, operation = %d, result = %d
+    fb7 Enable Passed == base = %d, unit = %d, operation = %d, result = %d
+    ffb time_genoff_operation
+   2005 GCC: (GNU) 4.7
+   2024 gold 1.11
+   2035 aeabi
+   2041 ARM v7
+   2066 libtime_genoff.so
+   207f .shstrtab
+   2089 .interp
+   2091 .dynsym
+   2099 .dynstr
+   20a1 .hash
+   20a7 .rel.dyn
+   20b0 .rel.plt
+   20b9 .text
+   20bf .ARM.exidx
+   20ca .rodata
+   20d2 .fini_array
+   20de .dynamic
+   20e7 .got
+   20ec .data
+   20f2 .comment
+   20fb .note.gnu.gold-version
+   2112 .ARM.attributes
+   2122 .gnu_debuglink
+
+=== RELOCATION TABLE ===
+
+/home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem Stability/Stock_Android_Analysis/binaries/libtime_genoff.so:     file format elf32-littlearm
+
+DYNAMIC RELOCATION RECORDS
+OFFSET   TYPE              VALUE
+00002ecc R_ARM_RELATIVE    *ABS*
+00003000 R_ARM_RELATIVE    *ABS*
+00002fb8 R_ARM_GLOB_DAT    __stack_chk_guard
+00002fc8 R_ARM_JUMP_SLOT   __cxa_finalize
+00002fcc R_ARM_JUMP_SLOT   __cxa_atexit
+00002fd0 R_ARM_JUMP_SLOT   __android_log_print
+00002fd4 R_ARM_JUMP_SLOT   socket
+00002fd8 R_ARM_JUMP_SLOT   setsockopt
+00002fdc R_ARM_JUMP_SLOT   strlcpy
+00002fe0 R_ARM_JUMP_SLOT   connect
+00002fe4 R_ARM_JUMP_SLOT   send
+00002fe8 R_ARM_JUMP_SLOT   recv
+00002fec R_ARM_JUMP_SLOT   close
+00002ff0 R_ARM_JUMP_SLOT   __aeabi_uldivmod
+00002ff4 R_ARM_JUMP_SLOT   gmtime_r
+00002ff8 R_ARM_JUMP_SLOT   mktime
+00002ffc R_ARM_JUMP_SLOT   __stack_chk_fail
+
+

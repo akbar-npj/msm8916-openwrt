@@ -1,0 +1,3633 @@
+================================================================
+GHIDRA RE: time_daemon — QMI Service 22 / ATS Clock Sync
+Binary: /system/bin/time_daemon (ARM 32-bit LE, 17756 bytes)
+Analysis Date: 2026-09-02
+================================================================
+
+=== SECTION 1: ALL SYMBOLS & EXPORTS ===
+
+  [__libc_init                             ] @ 0xEXTERNAL:00000001  type=Function  src=IMPORTED
+  [__cxa_atexit                            ] @ 0xEXTERNAL:00000002  type=Function  src=IMPORTED
+  [open                                    ] @ 0xEXTERNAL:00000003  type=Function  src=IMPORTED
+  [__android_log_print                     ] @ 0xEXTERNAL:00000004  type=Function  src=IMPORTED
+  [ioctl                                   ] @ 0xEXTERNAL:00000005  type=Function  src=IMPORTED
+  [mktime                                  ] @ 0xEXTERNAL:00000006  type=Function  src=IMPORTED
+  [close                                   ] @ 0xEXTERNAL:00000007  type=Function  src=IMPORTED
+  [__aeabi_unwind_cpp_pr0                  ] @ 0xEXTERNAL:00000008  type=Function  src=IMPORTED
+  [socket                                  ] @ 0xEXTERNAL:00000009  type=Function  src=IMPORTED
+  [pthread_exit                            ] @ 0xEXTERNAL:0000000a  type=Function  src=IMPORTED
+  [strlcpy                                 ] @ 0xEXTERNAL:0000000b  type=Function  src=IMPORTED
+  [unlink                                  ] @ 0xEXTERNAL:0000000c  type=Function  src=IMPORTED
+  [bind                                    ] @ 0xEXTERNAL:0000000d  type=Function  src=IMPORTED
+  [listen                                  ] @ 0xEXTERNAL:0000000e  type=Function  src=IMPORTED
+  [accept                                  ] @ 0xEXTERNAL:0000000f  type=Function  src=IMPORTED
+  [pthread_create                          ] @ 0xEXTERNAL:00000010  type=Function  src=IMPORTED
+  [pthread_join                            ] @ 0xEXTERNAL:00000011  type=Function  src=IMPORTED
+  [__stack_chk_fail                        ] @ 0xEXTERNAL:00000012  type=Function  src=IMPORTED
+  [snprintf                                ] @ 0xEXTERNAL:00000013  type=Function  src=IMPORTED
+  [read                                    ] @ 0xEXTERNAL:00000014  type=Function  src=IMPORTED
+  [__aeabi_idivmod                         ] @ 0xEXTERNAL:00000015  type=Function  src=IMPORTED
+  [__aeabi_uldivmod                        ] @ 0xEXTERNAL:00000016  type=Function  src=IMPORTED
+  [qmi_client_notifier_init                ] @ 0xEXTERNAL:00000017  type=Function  src=IMPORTED
+  [qmi_client_get_service_list             ] @ 0xEXTERNAL:00000018  type=Function  src=IMPORTED
+  [sleep                                   ] @ 0xEXTERNAL:00000019  type=Function  src=IMPORTED
+  [gettimeofday                            ] @ 0xEXTERNAL:0000001a  type=Function  src=IMPORTED
+  [pthread_mutex_lock                      ] @ 0xEXTERNAL:0000001b  type=Function  src=IMPORTED
+  [pthread_cond_timedwait                  ] @ 0xEXTERNAL:0000001c  type=Function  src=IMPORTED
+  [pthread_mutex_unlock                    ] @ 0xEXTERNAL:0000001d  type=Function  src=IMPORTED
+  [qmi_client_init                         ] @ 0xEXTERNAL:0000001e  type=Function  src=IMPORTED
+  [memset                                  ] @ 0xEXTERNAL:0000001f  type=Function  src=IMPORTED
+  [qmi_client_send_msg_sync                ] @ 0xEXTERNAL:00000020  type=Function  src=IMPORTED
+  [qmi_client_release                      ] @ 0xEXTERNAL:00000021  type=Function  src=IMPORTED
+  [qmi_client_message_decode               ] @ 0xEXTERNAL:00000022  type=Function  src=IMPORTED
+  [pthread_cond_signal                     ] @ 0xEXTERNAL:00000023  type=Function  src=IMPORTED
+  [write                                   ] @ 0xEXTERNAL:00000024  type=Function  src=IMPORTED
+  [gmtime                                  ] @ 0xEXTERNAL:00000025  type=Function  src=IMPORTED
+  [property_get                            ] @ 0xEXTERNAL:00000026  type=Function  src=IMPORTED
+  [strcmp                                  ] @ 0xEXTERNAL:00000027  type=Function  src=IMPORTED
+  [recv                                    ] @ 0xEXTERNAL:00000028  type=Function  src=IMPORTED
+  [send                                    ] @ 0xEXTERNAL:00000029  type=Function  src=IMPORTED
+  [__errno                                 ] @ 0xEXTERNAL:0000002a  type=Function  src=IMPORTED
+  [pthread_cond_wait                       ] @ 0xEXTERNAL:0000002b  type=Function  src=IMPORTED
+  [__aeabi_idiv                            ] @ 0xEXTERNAL:0000002c  type=Function  src=IMPORTED
+  [setgid                                  ] @ 0xEXTERNAL:0000002d  type=Function  src=IMPORTED
+  [setuid                                  ] @ 0xEXTERNAL:0000002e  type=Function  src=IMPORTED
+  [exit                                    ] @ 0xEXTERNAL:0000002f  type=Function  src=IMPORTED
+  [bsd_signal                              ] @ 0xEXTERNAL:00000030  type=Function  src=IMPORTED
+  [pthread_mutex_init                      ] @ 0xEXTERNAL:00000031  type=Function  src=IMPORTED
+  [settimeofday                            ] @ 0xEXTERNAL:00000032  type=Function  src=IMPORTED
+  [pthread_kill                            ] @ 0xEXTERNAL:00000033  type=Function  src=IMPORTED
+  [_edata                                  ] @ 0x00005008  type=Label  src=IMPORTED
+  [__bss_start                             ] @ 0x00005008  type=Label  src=IMPORTED
+  [_end                                    ] @ 0x000058d0  type=Label  src=IMPORTED
+  [DAT_0000ffff                            ] @ 0x0000ffff  type=Label  src=DEFAULT
+  [Elf32_Phdr_ARRAY_00010034               ] @ 0x00010034  type=Label  src=DEFAULT
+  [s_/system/bin/linker_00010134           ] @ 0x00010134  type=Label  src=DEFAULT
+  [__DT_SYMTAB                             ] @ 0x00010148  type=Label  src=IMPORTED
+  [__DT_STRTAB                             ] @ 0x000104d8  type=Label  src=IMPORTED
+  [__DT_HASH                               ] @ 0x000107f8  type=Label  src=IMPORTED
+  [__DT_REL                                ] @ 0x00010978  type=Label  src=IMPORTED
+  [__DT_JMPREL                             ] @ 0x00010a40  type=Label  src=IMPORTED
+  [LAB_00010bd0                            ] @ 0x00010bd0  type=Label  src=DEFAULT
+  [DAT_00010be0                            ] @ 0x00010be0  type=Label  src=DEFAULT
+  [__libc_init                             ] @ 0x00010be4  type=Function  src=DEFAULT
+  [__cxa_atexit                            ] @ 0x00010bf0  type=Function  src=DEFAULT
+  [open                                    ] @ 0x00010bfc  type=Function  src=DEFAULT
+  [__android_log_print                     ] @ 0x00010c08  type=Function  src=DEFAULT
+  [ioctl                                   ] @ 0x00010c14  type=Function  src=DEFAULT
+  [mktime                                  ] @ 0x00010c20  type=Function  src=DEFAULT
+  [close                                   ] @ 0x00010c2c  type=Function  src=DEFAULT
+  [socket                                  ] @ 0x00010c38  type=Function  src=DEFAULT
+  [pthread_exit                            ] @ 0x00010c44  type=Function  src=DEFAULT
+  [strlcpy                                 ] @ 0x00010c50  type=Function  src=DEFAULT
+  [unlink                                  ] @ 0x00010c5c  type=Function  src=DEFAULT
+  [bind                                    ] @ 0x00010c68  type=Function  src=DEFAULT
+  [listen                                  ] @ 0x00010c74  type=Function  src=DEFAULT
+  [accept                                  ] @ 0x00010c80  type=Function  src=DEFAULT
+  [pthread_create                          ] @ 0x00010c8c  type=Function  src=DEFAULT
+  [pthread_join                            ] @ 0x00010c98  type=Function  src=DEFAULT
+  [__stack_chk_fail                        ] @ 0x00010ca4  type=Function  src=DEFAULT
+  [snprintf                                ] @ 0x00010cb0  type=Function  src=DEFAULT
+  [read                                    ] @ 0x00010cbc  type=Function  src=DEFAULT
+  [qmi_client_notifier_init                ] @ 0x00010cc8  type=Function  src=DEFAULT
+  [qmi_client_get_service_list             ] @ 0x00010cd4  type=Function  src=DEFAULT
+  [sleep                                   ] @ 0x00010ce0  type=Function  src=DEFAULT
+  [gettimeofday                            ] @ 0x00010cec  type=Function  src=DEFAULT
+  [__aeabi_idivmod                         ] @ 0x00010cf8  type=Function  src=DEFAULT
+  [pthread_mutex_lock                      ] @ 0x00010d04  type=Function  src=DEFAULT
+  [pthread_cond_timedwait                  ] @ 0x00010d10  type=Function  src=DEFAULT
+  [pthread_mutex_unlock                    ] @ 0x00010d1c  type=Function  src=DEFAULT
+  [qmi_client_init                         ] @ 0x00010d28  type=Function  src=DEFAULT
+  [memset                                  ] @ 0x00010d34  type=Function  src=DEFAULT
+  [__aeabi_uldivmod                        ] @ 0x00010d40  type=Function  src=DEFAULT
+  [qmi_client_send_msg_sync                ] @ 0x00010d4c  type=Function  src=DEFAULT
+  [qmi_client_release                      ] @ 0x00010d58  type=Function  src=DEFAULT
+  [qmi_client_message_decode               ] @ 0x00010d64  type=Function  src=DEFAULT
+  [pthread_cond_signal                     ] @ 0x00010d70  type=Function  src=DEFAULT
+  [write                                   ] @ 0x00010d7c  type=Function  src=DEFAULT
+  [gmtime                                  ] @ 0x00010d88  type=Function  src=DEFAULT
+  [property_get                            ] @ 0x00010d94  type=Function  src=DEFAULT
+  [strcmp                                  ] @ 0x00010da0  type=Function  src=DEFAULT
+  [recv                                    ] @ 0x00010dac  type=Function  src=DEFAULT
+  [send                                    ] @ 0x00010db8  type=Function  src=DEFAULT
+  [__errno                                 ] @ 0x00010dc4  type=Function  src=DEFAULT
+  [pthread_cond_wait                       ] @ 0x00010dd0  type=Function  src=DEFAULT
+  [setgid                                  ] @ 0x00010ddc  type=Function  src=DEFAULT
+  [setuid                                  ] @ 0x00010de8  type=Function  src=DEFAULT
+  [exit                                    ] @ 0x00010df4  type=Function  src=DEFAULT
+  [bsd_signal                              ] @ 0x00010e00  type=Function  src=DEFAULT
+  [pthread_mutex_init                      ] @ 0x00010e0c  type=Function  src=DEFAULT
+  [__aeabi_idiv                            ] @ 0x00010e18  type=Function  src=DEFAULT
+  [settimeofday                            ] @ 0x00010e24  type=Function  src=DEFAULT
+  [pthread_kill                            ] @ 0x00010e30  type=Function  src=DEFAULT
+  [entry                                   ] @ 0x00010e40  type=Function  src=IMPORTED
+  [LAB_00010ea4                            ] @ 0x00010ea4  type=Label  src=DEFAULT
+  [DAT_00010ea8                            ] @ 0x00010ea8  type=Label  src=DEFAULT
+  [DAT_00010eac                            ] @ 0x00010eac  type=Label  src=DEFAULT
+  [DAT_00010eb0                            ] @ 0x00010eb0  type=Label  src=DEFAULT
+  [DAT_00010eb4                            ] @ 0x00010eb4  type=Label  src=DEFAULT
+  [FUN_00010eb8                            ] @ 0x00010eb8  type=Function  src=DEFAULT
+  [DAT_00010ef0                            ] @ 0x00010ef0  type=Label  src=DEFAULT
+  [FUN_00010ef4                            ] @ 0x00010ef4  type=Function  src=DEFAULT
+  [LAB_00010f1c                            ] @ 0x00010f1c  type=Label  src=DEFAULT
+  [LAB_00010f38                            ] @ 0x00010f38  type=Label  src=DEFAULT
+  [LAB_00010f6a                            ] @ 0x00010f6a  type=Label  src=DEFAULT
+  [LAB_00010f80                            ] @ 0x00010f80  type=Label  src=DEFAULT
+  [LAB_00010f86                            ] @ 0x00010f86  type=Label  src=DEFAULT
+  [LAB_00010f9c                            ] @ 0x00010f9c  type=Label  src=DEFAULT
+  [LAB_00010fa2                            ] @ 0x00010fa2  type=Label  src=DEFAULT
+  [LAB_00010fa6                            ] @ 0x00010fa6  type=Label  src=DEFAULT
+  [DAT_00010fac                            ] @ 0x00010fac  type=Label  src=DEFAULT
+  [DAT_00010fb0                            ] @ 0x00010fb0  type=Label  src=DEFAULT
+  [DAT_00010fb4                            ] @ 0x00010fb4  type=Label  src=DEFAULT
+  [DAT_00010fb8                            ] @ 0x00010fb8  type=Label  src=DEFAULT
+  [DAT_00010fbc                            ] @ 0x00010fbc  type=Label  src=DEFAULT
+  [DAT_00010fc0                            ] @ 0x00010fc0  type=Label  src=DEFAULT
+  [DAT_00010fc4                            ] @ 0x00010fc4  type=Label  src=DEFAULT
+  [DAT_00010fc8                            ] @ 0x00010fc8  type=Label  src=DEFAULT
+  [DAT_00010fcc                            ] @ 0x00010fcc  type=Label  src=DEFAULT
+  [DAT_00010fd0                            ] @ 0x00010fd0  type=Label  src=DEFAULT
+  [DAT_00010fd4                            ] @ 0x00010fd4  type=Label  src=DEFAULT
+  [DAT_00010fd8                            ] @ 0x00010fd8  type=Label  src=DEFAULT
+  [DAT_00010fdc                            ] @ 0x00010fdc  type=Label  src=DEFAULT
+  [DAT_00010fe0                            ] @ 0x00010fe0  type=Label  src=DEFAULT
+  [FUN_00010fe4                            ] @ 0x00010fe4  type=Function  src=DEFAULT
+  [LAB_00011008                            ] @ 0x00011008  type=Label  src=DEFAULT
+  [LAB_00011030                            ] @ 0x00011030  type=Label  src=DEFAULT
+  [LAB_0001106e                            ] @ 0x0001106e  type=Label  src=DEFAULT
+  [LAB_000110a4                            ] @ 0x000110a4  type=Label  src=DEFAULT
+  [LAB_000110b0                            ] @ 0x000110b0  type=Label  src=DEFAULT
+  [LAB_000110b4                            ] @ 0x000110b4  type=Label  src=DEFAULT
+  [LAB_000110c6                            ] @ 0x000110c6  type=Label  src=DEFAULT
+  [LAB_000110ca                            ] @ 0x000110ca  type=Label  src=DEFAULT
+  [DAT_000110d0                            ] @ 0x000110d0  type=Label  src=DEFAULT
+  [DAT_000110d4                            ] @ 0x000110d4  type=Label  src=DEFAULT
+  [DAT_000110d8                            ] @ 0x000110d8  type=Label  src=DEFAULT
+  [DAT_000110dc                            ] @ 0x000110dc  type=Label  src=DEFAULT
+  [DAT_000110e0                            ] @ 0x000110e0  type=Label  src=DEFAULT
+  [DAT_000110e4                            ] @ 0x000110e4  type=Label  src=DEFAULT
+  [DAT_000110e8                            ] @ 0x000110e8  type=Label  src=DEFAULT
+  [DAT_000110ec                            ] @ 0x000110ec  type=Label  src=DEFAULT
+  [DAT_000110f0                            ] @ 0x000110f0  type=Label  src=DEFAULT
+  [DAT_000110f4                            ] @ 0x000110f4  type=Label  src=DEFAULT
+  [DAT_000110f8                            ] @ 0x000110f8  type=Label  src=DEFAULT
+  [DAT_000110fc                            ] @ 0x000110fc  type=Label  src=DEFAULT
+  [DAT_00011100                            ] @ 0x00011100  type=Label  src=DEFAULT
+  [DAT_00011104                            ] @ 0x00011104  type=Label  src=DEFAULT
+  [DAT_00011108                            ] @ 0x00011108  type=Label  src=DEFAULT
+  [DAT_0001110c                            ] @ 0x0001110c  type=Label  src=DEFAULT
+  [DAT_00011110                            ] @ 0x00011110  type=Label  src=DEFAULT
+  [LAB_00011114+1                          ] @ 0x00011115  type=Label  src=DEFAULT
+  [LAB_00011148                            ] @ 0x00011148  type=Label  src=DEFAULT
+  [LAB_00011184                            ] @ 0x00011184  type=Label  src=DEFAULT
+  [LAB_0001119a                            ] @ 0x0001119a  type=Label  src=DEFAULT
+  [LAB_000111a0                            ] @ 0x000111a0  type=Label  src=DEFAULT
+  [LAB_000111ba                            ] @ 0x000111ba  type=Label  src=DEFAULT
+  [LAB_000111c8                            ] @ 0x000111c8  type=Label  src=DEFAULT
+  [LAB_000111e8                            ] @ 0x000111e8  type=Label  src=DEFAULT
+  [LAB_000111fe                            ] @ 0x000111fe  type=Label  src=DEFAULT
+  [LAB_0001121e                            ] @ 0x0001121e  type=Label  src=DEFAULT
+  [LAB_00011228                            ] @ 0x00011228  type=Label  src=DEFAULT
+  [DAT_00011244                            ] @ 0x00011244  type=Label  src=DEFAULT
+  [DAT_00011248                            ] @ 0x00011248  type=Label  src=DEFAULT
+  [DAT_0001124c                            ] @ 0x0001124c  type=Label  src=DEFAULT
+  [DAT_00011250                            ] @ 0x00011250  type=Label  src=DEFAULT
+  [DAT_00011254                            ] @ 0x00011254  type=Label  src=DEFAULT
+  [DAT_00011258                            ] @ 0x00011258  type=Label  src=DEFAULT
+  [DAT_0001125c                            ] @ 0x0001125c  type=Label  src=DEFAULT
+  [DAT_00011260                            ] @ 0x00011260  type=Label  src=DEFAULT
+  [DAT_00011264                            ] @ 0x00011264  type=Label  src=DEFAULT
+  [DAT_00011268                            ] @ 0x00011268  type=Label  src=DEFAULT
+  [DAT_0001126c                            ] @ 0x0001126c  type=Label  src=DEFAULT
+  [DAT_00011270                            ] @ 0x00011270  type=Label  src=DEFAULT
+  [DAT_00011274                            ] @ 0x00011274  type=Label  src=DEFAULT
+  [DAT_00011278                            ] @ 0x00011278  type=Label  src=DEFAULT
+  [DAT_0001127c                            ] @ 0x0001127c  type=Label  src=DEFAULT
+  [DAT_00011280                            ] @ 0x00011280  type=Label  src=DEFAULT
+  [DAT_00011284                            ] @ 0x00011284  type=Label  src=DEFAULT
+  [DAT_00011288                            ] @ 0x00011288  type=Label  src=DEFAULT
+  [DAT_0001128c                            ] @ 0x0001128c  type=Label  src=DEFAULT
+  [DAT_00011290                            ] @ 0x00011290  type=Label  src=DEFAULT
+  [DAT_00011294                            ] @ 0x00011294  type=Label  src=DEFAULT
+  [DAT_00011298                            ] @ 0x00011298  type=Label  src=DEFAULT
+  [FUN_0001129c                            ] @ 0x0001129c  type=Function  src=DEFAULT
+  [LAB_000112d2                            ] @ 0x000112d2  type=Label  src=DEFAULT
+  [LAB_0001132e                            ] @ 0x0001132e  type=Label  src=DEFAULT
+  [LAB_00011350                            ] @ 0x00011350  type=Label  src=DEFAULT
+  [LAB_00011358                            ] @ 0x00011358  type=Label  src=DEFAULT
+  [LAB_00011372                            ] @ 0x00011372  type=Label  src=DEFAULT
+  [LAB_00011378                            ] @ 0x00011378  type=Label  src=DEFAULT
+  [LAB_00011386                            ] @ 0x00011386  type=Label  src=DEFAULT
+  [DAT_0001138c                            ] @ 0x0001138c  type=Label  src=DEFAULT
+  [DAT_00011390                            ] @ 0x00011390  type=Label  src=DEFAULT
+  [DAT_00011394                            ] @ 0x00011394  type=Label  src=DEFAULT
+  [DAT_00011398                            ] @ 0x00011398  type=Label  src=DEFAULT
+  [DAT_0001139c                            ] @ 0x0001139c  type=Label  src=DEFAULT
+  [DAT_000113a0                            ] @ 0x000113a0  type=Label  src=DEFAULT
+  [DAT_000113a4                            ] @ 0x000113a4  type=Label  src=DEFAULT
+  [DAT_000113a8                            ] @ 0x000113a8  type=Label  src=DEFAULT
+  [DAT_000113ac                            ] @ 0x000113ac  type=Label  src=DEFAULT
+  [DAT_000113b0                            ] @ 0x000113b0  type=Label  src=DEFAULT
+  [DAT_000113b4                            ] @ 0x000113b4  type=Label  src=DEFAULT
+  [DAT_000113b8                            ] @ 0x000113b8  type=Label  src=DEFAULT
+  [DAT_000113bc                            ] @ 0x000113bc  type=Label  src=DEFAULT
+  [DAT_000113c0                            ] @ 0x000113c0  type=Label  src=DEFAULT
+  [DAT_000113c4                            ] @ 0x000113c4  type=Label  src=DEFAULT
+  [DAT_000113c8                            ] @ 0x000113c8  type=Label  src=DEFAULT
+  [FUN_000113d0                            ] @ 0x000113d0  type=Function  src=DEFAULT
+  [LAB_00011414                            ] @ 0x00011414  type=Label  src=DEFAULT
+  [LAB_00011424                            ] @ 0x00011424  type=Label  src=DEFAULT
+  [LAB_00011460                            ] @ 0x00011460  type=Label  src=DEFAULT
+  [LAB_00011492                            ] @ 0x00011492  type=Label  src=DEFAULT
+  [LAB_000114a0                            ] @ 0x000114a0  type=Label  src=DEFAULT
+  [LAB_000114b4                            ] @ 0x000114b4  type=Label  src=DEFAULT
+  [LAB_000114ba                            ] @ 0x000114ba  type=Label  src=DEFAULT
+  [LAB_000114c2                            ] @ 0x000114c2  type=Label  src=DEFAULT
+  [LAB_000114f0                            ] @ 0x000114f0  type=Label  src=DEFAULT
+  [LAB_00011526                            ] @ 0x00011526  type=Label  src=DEFAULT
+  [LAB_00011564                            ] @ 0x00011564  type=Label  src=DEFAULT
+  [LAB_0001156c                            ] @ 0x0001156c  type=Label  src=DEFAULT
+  [LAB_000115cc                            ] @ 0x000115cc  type=Label  src=DEFAULT
+  [LAB_000115ec                            ] @ 0x000115ec  type=Label  src=DEFAULT
+  [LAB_000115f2                            ] @ 0x000115f2  type=Label  src=DEFAULT
+  [LAB_000115f6                            ] @ 0x000115f6  type=Label  src=DEFAULT
+  [DAT_00011600                            ] @ 0x00011600  type=Label  src=DEFAULT
+  [DAT_00011604                            ] @ 0x00011604  type=Label  src=DEFAULT
+  [DAT_00011608                            ] @ 0x00011608  type=Label  src=DEFAULT
+  [DAT_0001160c                            ] @ 0x0001160c  type=Label  src=DEFAULT
+  [DAT_00011610                            ] @ 0x00011610  type=Label  src=DEFAULT
+  [DAT_00011614                            ] @ 0x00011614  type=Label  src=DEFAULT
+  [DAT_00011618                            ] @ 0x00011618  type=Label  src=DEFAULT
+  [DAT_0001161c                            ] @ 0x0001161c  type=Label  src=DEFAULT
+  [DAT_00011620                            ] @ 0x00011620  type=Label  src=DEFAULT
+  [DAT_00011624                            ] @ 0x00011624  type=Label  src=DEFAULT
+  [DAT_00011628                            ] @ 0x00011628  type=Label  src=DEFAULT
+  [DAT_0001162c                            ] @ 0x0001162c  type=Label  src=DEFAULT
+  [DAT_00011630                            ] @ 0x00011630  type=Label  src=DEFAULT
+  [DAT_00011634                            ] @ 0x00011634  type=Label  src=DEFAULT
+  [DAT_00011638                            ] @ 0x00011638  type=Label  src=DEFAULT
+  [DAT_0001163c                            ] @ 0x0001163c  type=Label  src=DEFAULT
+  [DAT_00011640                            ] @ 0x00011640  type=Label  src=DEFAULT
+  [DAT_00011644                            ] @ 0x00011644  type=Label  src=DEFAULT
+  [DAT_00011648                            ] @ 0x00011648  type=Label  src=DEFAULT
+  [DAT_0001164c                            ] @ 0x0001164c  type=Label  src=DEFAULT
+  [DAT_00011650                            ] @ 0x00011650  type=Label  src=DEFAULT
+  [DAT_00011654                            ] @ 0x00011654  type=Label  src=DEFAULT
+  [DAT_00011658                            ] @ 0x00011658  type=Label  src=DEFAULT
+  [DAT_0001165c                            ] @ 0x0001165c  type=Label  src=DEFAULT
+  [DAT_00011660                            ] @ 0x00011660  type=Label  src=DEFAULT
+  [DAT_00011664                            ] @ 0x00011664  type=Label  src=DEFAULT
+  [DAT_00011668                            ] @ 0x00011668  type=Label  src=DEFAULT
+  [FUN_00011670                            ] @ 0x00011670  type=Function  src=DEFAULT
+  [FUN_00011670+1                          ] @ 0x00011671  type=Label  src=DEFAULT
+  [LAB_0001169e                            ] @ 0x0001169e  type=Label  src=DEFAULT
+  [LAB_000116dc                            ] @ 0x000116dc  type=Label  src=DEFAULT
+  [LAB_0001170e                            ] @ 0x0001170e  type=Label  src=DEFAULT
+  [LAB_0001171c                            ] @ 0x0001171c  type=Label  src=DEFAULT
+  [LAB_00011730                            ] @ 0x00011730  type=Label  src=DEFAULT
+  [LAB_0001173e                            ] @ 0x0001173e  type=Label  src=DEFAULT
+  [LAB_00011744                            ] @ 0x00011744  type=Label  src=DEFAULT
+  [DAT_0001174c                            ] @ 0x0001174c  type=Label  src=DEFAULT
+  [DAT_00011750                            ] @ 0x00011750  type=Label  src=DEFAULT
+  [DAT_00011754                            ] @ 0x00011754  type=Label  src=DEFAULT
+  [DAT_00011758                            ] @ 0x00011758  type=Label  src=DEFAULT
+  [DAT_0001175c                            ] @ 0x0001175c  type=Label  src=DEFAULT
+  [DAT_00011760                            ] @ 0x00011760  type=Label  src=DEFAULT
+  [DAT_00011764                            ] @ 0x00011764  type=Label  src=DEFAULT
+  [DAT_00011768                            ] @ 0x00011768  type=Label  src=DEFAULT
+  [DAT_0001176c                            ] @ 0x0001176c  type=Label  src=DEFAULT
+  [DAT_00011770                            ] @ 0x00011770  type=Label  src=DEFAULT
+  [DAT_00011774                            ] @ 0x00011774  type=Label  src=DEFAULT
+  [DAT_00011778                            ] @ 0x00011778  type=Label  src=DEFAULT
+  [DAT_0001177c                            ] @ 0x0001177c  type=Label  src=DEFAULT
+  [DAT_00011780                            ] @ 0x00011780  type=Label  src=DEFAULT
+  [DAT_00011784                            ] @ 0x00011784  type=Label  src=DEFAULT
+  [DAT_00011788                            ] @ 0x00011788  type=Label  src=DEFAULT
+  [DAT_0001178c                            ] @ 0x0001178c  type=Label  src=DEFAULT
+  [DAT_00011790                            ] @ 0x00011790  type=Label  src=DEFAULT
+  [DAT_00011794                            ] @ 0x00011794  type=Label  src=DEFAULT
+  [FUN_00011798                            ] @ 0x00011798  type=Function  src=DEFAULT
+  [LAB_0001183a                            ] @ 0x0001183a  type=Label  src=DEFAULT
+  [LAB_00011862                            ] @ 0x00011862  type=Label  src=DEFAULT
+  [LAB_0001186a                            ] @ 0x0001186a  type=Label  src=DEFAULT
+  [LAB_0001187c                            ] @ 0x0001187c  type=Label  src=DEFAULT
+  [LAB_00011888                            ] @ 0x00011888  type=Label  src=DEFAULT
+  [DAT_0001188c                            ] @ 0x0001188c  type=Label  src=DEFAULT
+  [DAT_00011890                            ] @ 0x00011890  type=Label  src=DEFAULT
+  [DAT_00011894                            ] @ 0x00011894  type=Label  src=DEFAULT
+  [DAT_00011898                            ] @ 0x00011898  type=Label  src=DEFAULT
+  [DAT_0001189c                            ] @ 0x0001189c  type=Label  src=DEFAULT
+  [DAT_000118a0                            ] @ 0x000118a0  type=Label  src=DEFAULT
+  [DAT_000118a4                            ] @ 0x000118a4  type=Label  src=DEFAULT
+  [DAT_000118a8                            ] @ 0x000118a8  type=Label  src=DEFAULT
+  [DAT_000118ac                            ] @ 0x000118ac  type=Label  src=DEFAULT
+  [DAT_000118b0                            ] @ 0x000118b0  type=Label  src=DEFAULT
+  [DAT_000118b4                            ] @ 0x000118b4  type=Label  src=DEFAULT
+  [DAT_000118b8                            ] @ 0x000118b8  type=Label  src=DEFAULT
+  [DAT_000118bc                            ] @ 0x000118bc  type=Label  src=DEFAULT
+  [DAT_000118c0                            ] @ 0x000118c0  type=Label  src=DEFAULT
+  [DAT_000118c4                            ] @ 0x000118c4  type=Label  src=DEFAULT
+  [DAT_000118c8                            ] @ 0x000118c8  type=Label  src=DEFAULT
+  [DAT_000118cc                            ] @ 0x000118cc  type=Label  src=DEFAULT
+  [DAT_000118d0                            ] @ 0x000118d0  type=Label  src=DEFAULT
+  [DAT_000118d4                            ] @ 0x000118d4  type=Label  src=DEFAULT
+  [DAT_000118d8                            ] @ 0x000118d8  type=Label  src=DEFAULT
+  [FUN_000118dc                            ] @ 0x000118dc  type=Function  src=DEFAULT
+  [LAB_0001190a                            ] @ 0x0001190a  type=Label  src=DEFAULT
+  [LAB_000119a0                            ] @ 0x000119a0  type=Label  src=DEFAULT
+  [LAB_000119a4                            ] @ 0x000119a4  type=Label  src=DEFAULT
+  [LAB_000119a8                            ] @ 0x000119a8  type=Label  src=DEFAULT
+  [LAB_000119b6                            ] @ 0x000119b6  type=Label  src=DEFAULT
+  [LAB_000119ba                            ] @ 0x000119ba  type=Label  src=DEFAULT
+  [LAB_000119be                            ] @ 0x000119be  type=Label  src=DEFAULT
+  [DAT_000119c4                            ] @ 0x000119c4  type=Label  src=DEFAULT
+  [DAT_000119c8                            ] @ 0x000119c8  type=Label  src=DEFAULT
+  [DAT_000119cc                            ] @ 0x000119cc  type=Label  src=DEFAULT
+  [DAT_000119d0                            ] @ 0x000119d0  type=Label  src=DEFAULT
+  [DAT_000119d4                            ] @ 0x000119d4  type=Label  src=DEFAULT
+  [DAT_000119d8                            ] @ 0x000119d8  type=Label  src=DEFAULT
+  [DAT_000119dc                            ] @ 0x000119dc  type=Label  src=DEFAULT
+  [DAT_000119e0                            ] @ 0x000119e0  type=Label  src=DEFAULT
+  [DAT_000119e4                            ] @ 0x000119e4  type=Label  src=DEFAULT
+  [DAT_000119e8                            ] @ 0x000119e8  type=Label  src=DEFAULT
+  [DAT_000119ec                            ] @ 0x000119ec  type=Label  src=DEFAULT
+  [DAT_000119f0                            ] @ 0x000119f0  type=Label  src=DEFAULT
+  [DAT_000119f4                            ] @ 0x000119f4  type=Label  src=DEFAULT
+  [FUN_000119f8                            ] @ 0x000119f8  type=Function  src=DEFAULT
+  [LAB_00011a2a                            ] @ 0x00011a2a  type=Label  src=DEFAULT
+  [LAB_00011a46                            ] @ 0x00011a46  type=Label  src=DEFAULT
+  [LAB_00011a64                            ] @ 0x00011a64  type=Label  src=DEFAULT
+  [LAB_00011a84                            ] @ 0x00011a84  type=Label  src=DEFAULT
+  [LAB_00011a96                            ] @ 0x00011a96  type=Label  src=DEFAULT
+  [LAB_00011aa8                            ] @ 0x00011aa8  type=Label  src=DEFAULT
+  [LAB_00011aae                            ] @ 0x00011aae  type=Label  src=DEFAULT
+  [LAB_00011ab2                            ] @ 0x00011ab2  type=Label  src=DEFAULT
+  [LAB_00011ace                            ] @ 0x00011ace  type=Label  src=DEFAULT
+  [LAB_00011af2                            ] @ 0x00011af2  type=Label  src=DEFAULT
+  [LAB_00011b02                            ] @ 0x00011b02  type=Label  src=DEFAULT
+  [LAB_00011b08                            ] @ 0x00011b08  type=Label  src=DEFAULT
+  [LAB_00011b54                            ] @ 0x00011b54  type=Label  src=DEFAULT
+  [LAB_00011b58                            ] @ 0x00011b58  type=Label  src=DEFAULT
+  [LAB_00011b6a                            ] @ 0x00011b6a  type=Label  src=DEFAULT
+  [LAB_00011b6e                            ] @ 0x00011b6e  type=Label  src=DEFAULT
+  [DAT_00011b74                            ] @ 0x00011b74  type=Label  src=DEFAULT
+  [DAT_00011b78                            ] @ 0x00011b78  type=Label  src=DEFAULT
+  [DAT_00011b7c                            ] @ 0x00011b7c  type=Label  src=DEFAULT
+  [DAT_00011b80                            ] @ 0x00011b80  type=Label  src=DEFAULT
+  [DAT_00011b84                            ] @ 0x00011b84  type=Label  src=DEFAULT
+  [DAT_00011b88                            ] @ 0x00011b88  type=Label  src=DEFAULT
+  [DAT_00011b8c                            ] @ 0x00011b8c  type=Label  src=DEFAULT
+  [DAT_00011b90                            ] @ 0x00011b90  type=Label  src=DEFAULT
+  [DAT_00011b94                            ] @ 0x00011b94  type=Label  src=DEFAULT
+  [DAT_00011b98                            ] @ 0x00011b98  type=Label  src=DEFAULT
+  [DAT_00011b9c                            ] @ 0x00011b9c  type=Label  src=DEFAULT
+  [DAT_00011ba0                            ] @ 0x00011ba0  type=Label  src=DEFAULT
+  [DAT_00011ba4                            ] @ 0x00011ba4  type=Label  src=DEFAULT
+  [DAT_00011ba8                            ] @ 0x00011ba8  type=Label  src=DEFAULT
+  [DAT_00011bac                            ] @ 0x00011bac  type=Label  src=DEFAULT
+  [DAT_00011bb0                            ] @ 0x00011bb0  type=Label  src=DEFAULT
+  [LAB_00011bb8+1                          ] @ 0x00011bb9  type=Label  src=DEFAULT
+  [LAB_00011c22                            ] @ 0x00011c22  type=Label  src=DEFAULT
+  [LAB_00011c44                            ] @ 0x00011c44  type=Label  src=DEFAULT
+  [LAB_00011c46                            ] @ 0x00011c46  type=Label  src=DEFAULT
+  [LAB_00011c6a                            ] @ 0x00011c6a  type=Label  src=DEFAULT
+  [LAB_00011cba                            ] @ 0x00011cba  type=Label  src=DEFAULT
+  [LAB_00011d16                            ] @ 0x00011d16  type=Label  src=DEFAULT
+  [LAB_00011d3e                            ] @ 0x00011d3e  type=Label  src=DEFAULT
+  [LAB_00011da0                            ] @ 0x00011da0  type=Label  src=DEFAULT
+  [LAB_00011dac                            ] @ 0x00011dac  type=Label  src=DEFAULT
+  [LAB_00011db6                            ] @ 0x00011db6  type=Label  src=DEFAULT
+  [LAB_00011db8                            ] @ 0x00011db8  type=Label  src=DEFAULT
+  [switchD                                 ] @ 0x00011dd8  type=Label  src=ANALYSIS
+  [switchdataD_00011ddc                    ] @ 0x00011ddc  type=Label  src=ANALYSIS
+  [caseD_1                                 ] @ 0x00011de6  type=Label  src=ANALYSIS
+  [caseD_0                                 ] @ 0x00011e0a  type=Label  src=ANALYSIS
+  [LAB_00011e2e                            ] @ 0x00011e2e  type=Label  src=DEFAULT
+  [LAB_00011eec                            ] @ 0x00011eec  type=Label  src=DEFAULT
+  [LAB_00011f00                            ] @ 0x00011f00  type=Label  src=DEFAULT
+  [LAB_00011f18                            ] @ 0x00011f18  type=Label  src=DEFAULT
+  [caseD_2                                 ] @ 0x00011f1e  type=Label  src=ANALYSIS
+  [caseD_3                                 ] @ 0x00011f40  type=Label  src=ANALYSIS
+  [caseD_4                                 ] @ 0x00011f62  type=Label  src=ANALYSIS
+  [default                                 ] @ 0x00011f84  type=Label  src=ANALYSIS
+  [LAB_00011f92                            ] @ 0x00011f92  type=Label  src=DEFAULT
+  [LAB_00011f96                            ] @ 0x00011f96  type=Label  src=DEFAULT
+  [LAB_00011fac                            ] @ 0x00011fac  type=Label  src=DEFAULT
+  [DAT_00011fc8                            ] @ 0x00011fc8  type=Label  src=DEFAULT
+  [DAT_00011fcc                            ] @ 0x00011fcc  type=Label  src=DEFAULT
+  [DAT_00011fd0                            ] @ 0x00011fd0  type=Label  src=DEFAULT
+  [DAT_00011fd4                            ] @ 0x00011fd4  type=Label  src=DEFAULT
+  [DAT_00011fd8                            ] @ 0x00011fd8  type=Label  src=DEFAULT
+  [DAT_00011fdc                            ] @ 0x00011fdc  type=Label  src=DEFAULT
+  [DAT_00011fe0                            ] @ 0x00011fe0  type=Label  src=DEFAULT
+  [DAT_00011fe4                            ] @ 0x00011fe4  type=Label  src=DEFAULT
+  [DAT_00011fe8                            ] @ 0x00011fe8  type=Label  src=DEFAULT
+  [DAT_00011fec                            ] @ 0x00011fec  type=Label  src=DEFAULT
+  [DAT_00011ff0                            ] @ 0x00011ff0  type=Label  src=DEFAULT
+  [DAT_00011ff4                            ] @ 0x00011ff4  type=Label  src=DEFAULT
+  [DAT_00011ff8                            ] @ 0x00011ff8  type=Label  src=DEFAULT
+  [DAT_00011ffc                            ] @ 0x00011ffc  type=Label  src=DEFAULT
+  [DAT_00012000                            ] @ 0x00012000  type=Label  src=DEFAULT
+  [DAT_00012004                            ] @ 0x00012004  type=Label  src=DEFAULT
+  [DAT_00012008                            ] @ 0x00012008  type=Label  src=DEFAULT
+  [DAT_0001200c                            ] @ 0x0001200c  type=Label  src=DEFAULT
+  [DAT_00012010                            ] @ 0x00012010  type=Label  src=DEFAULT
+  [DAT_00012014                            ] @ 0x00012014  type=Label  src=DEFAULT
+  [DAT_00012018                            ] @ 0x00012018  type=Label  src=DEFAULT
+  [DAT_0001201c                            ] @ 0x0001201c  type=Label  src=DEFAULT
+  [DAT_00012020                            ] @ 0x00012020  type=Label  src=DEFAULT
+  [DAT_00012024                            ] @ 0x00012024  type=Label  src=DEFAULT
+  [DAT_00012028                            ] @ 0x00012028  type=Label  src=DEFAULT
+  [DAT_0001202c                            ] @ 0x0001202c  type=Label  src=DEFAULT
+  [DAT_00012030                            ] @ 0x00012030  type=Label  src=DEFAULT
+  [DAT_00012034                            ] @ 0x00012034  type=Label  src=DEFAULT
+  [DAT_00012038                            ] @ 0x00012038  type=Label  src=DEFAULT
+  [DAT_0001203c                            ] @ 0x0001203c  type=Label  src=DEFAULT
+  [DAT_00012040                            ] @ 0x00012040  type=Label  src=DEFAULT
+  [DAT_00012044                            ] @ 0x00012044  type=Label  src=DEFAULT
+  [DAT_00012048                            ] @ 0x00012048  type=Label  src=DEFAULT
+  [DAT_0001204c                            ] @ 0x0001204c  type=Label  src=DEFAULT
+  [DAT_00012050                            ] @ 0x00012050  type=Label  src=DEFAULT
+  [DAT_00012054                            ] @ 0x00012054  type=Label  src=DEFAULT
+  [DAT_00012058                            ] @ 0x00012058  type=Label  src=DEFAULT
+  [DAT_0001205c                            ] @ 0x0001205c  type=Label  src=DEFAULT
+  [DAT_00012060                            ] @ 0x00012060  type=Label  src=DEFAULT
+  [DAT_00012064                            ] @ 0x00012064  type=Label  src=DEFAULT
+  [DAT_00012068                            ] @ 0x00012068  type=Label  src=DEFAULT
+  [DAT_0001206c                            ] @ 0x0001206c  type=Label  src=DEFAULT
+  [DAT_00012070                            ] @ 0x00012070  type=Label  src=DEFAULT
+  [DAT_00012074                            ] @ 0x00012074  type=Label  src=DEFAULT
+  [DAT_00012078                            ] @ 0x00012078  type=Label  src=DEFAULT
+  [DAT_0001207c                            ] @ 0x0001207c  type=Label  src=DEFAULT
+  [DAT_00012080                            ] @ 0x00012080  type=Label  src=DEFAULT
+  [DAT_00012084                            ] @ 0x00012084  type=Label  src=DEFAULT
+  [DAT_00012088                            ] @ 0x00012088  type=Label  src=DEFAULT
+  [DAT_0001208c                            ] @ 0x0001208c  type=Label  src=DEFAULT
+  [DAT_00012090                            ] @ 0x00012090  type=Label  src=DEFAULT
+  [DAT_00012094                            ] @ 0x00012094  type=Label  src=DEFAULT
+  [DAT_00012098                            ] @ 0x00012098  type=Label  src=DEFAULT
+  [DAT_0001209c                            ] @ 0x0001209c  type=Label  src=DEFAULT
+  [DAT_000120a0                            ] @ 0x000120a0  type=Label  src=DEFAULT
+  [DAT_000120a4                            ] @ 0x000120a4  type=Label  src=DEFAULT
+  [DAT_000120a8                            ] @ 0x000120a8  type=Label  src=DEFAULT
+  [DAT_000120ac                            ] @ 0x000120ac  type=Label  src=DEFAULT
+  [DAT_000120b0                            ] @ 0x000120b0  type=Label  src=DEFAULT
+  [DAT_000120b4                            ] @ 0x000120b4  type=Label  src=DEFAULT
+  [DAT_000120b8                            ] @ 0x000120b8  type=Label  src=DEFAULT
+  [DAT_000120bc                            ] @ 0x000120bc  type=Label  src=DEFAULT
+  [DAT_000120c0                            ] @ 0x000120c0  type=Label  src=DEFAULT
+  [DAT_000120c4                            ] @ 0x000120c4  type=Label  src=DEFAULT
+  [DAT_000120c8                            ] @ 0x000120c8  type=Label  src=DEFAULT
+  [FUN_000120d0                            ] @ 0x000120d0  type=Function  src=DEFAULT
+  [FUN_000120d0+1                          ] @ 0x000120d1  type=Label  src=DEFAULT
+  [LAB_000120f6                            ] @ 0x000120f6  type=Label  src=DEFAULT
+  [LAB_00012112                            ] @ 0x00012112  type=Label  src=DEFAULT
+  [LAB_000121ba                            ] @ 0x000121ba  type=Label  src=DEFAULT
+  [LAB_000121e0                            ] @ 0x000121e0  type=Label  src=DEFAULT
+  [LAB_000121f0                            ] @ 0x000121f0  type=Label  src=DEFAULT
+  [LAB_00012202                            ] @ 0x00012202  type=Label  src=DEFAULT
+  [DAT_00012220                            ] @ 0x00012220  type=Label  src=DEFAULT
+  [DAT_00012224                            ] @ 0x00012224  type=Label  src=DEFAULT
+  [DAT_00012228                            ] @ 0x00012228  type=Label  src=DEFAULT
+  [DAT_0001222c                            ] @ 0x0001222c  type=Label  src=DEFAULT
+  [DAT_00012230                            ] @ 0x00012230  type=Label  src=DEFAULT
+  [DAT_00012234                            ] @ 0x00012234  type=Label  src=DEFAULT
+  [DAT_00012238                            ] @ 0x00012238  type=Label  src=DEFAULT
+  [DAT_0001223c                            ] @ 0x0001223c  type=Label  src=DEFAULT
+  [DAT_00012240                            ] @ 0x00012240  type=Label  src=DEFAULT
+  [DAT_00012244                            ] @ 0x00012244  type=Label  src=DEFAULT
+  [DAT_00012248                            ] @ 0x00012248  type=Label  src=DEFAULT
+  [DAT_0001224c                            ] @ 0x0001224c  type=Label  src=DEFAULT
+  [DAT_00012250                            ] @ 0x00012250  type=Label  src=DEFAULT
+  [DAT_00012254                            ] @ 0x00012254  type=Label  src=DEFAULT
+  [DAT_00012258                            ] @ 0x00012258  type=Label  src=DEFAULT
+  [DAT_0001225c                            ] @ 0x0001225c  type=Label  src=DEFAULT
+  [DAT_00012260                            ] @ 0x00012260  type=Label  src=DEFAULT
+  [DAT_00012264                            ] @ 0x00012264  type=Label  src=DEFAULT
+  [DAT_00012268                            ] @ 0x00012268  type=Label  src=DEFAULT
+  [DAT_0001226c                            ] @ 0x0001226c  type=Label  src=DEFAULT
+  [DAT_00012270                            ] @ 0x00012270  type=Label  src=DEFAULT
+  [LAB_00012278+1                          ] @ 0x00012279  type=Label  src=DEFAULT
+  [LAB_000122b2                            ] @ 0x000122b2  type=Label  src=DEFAULT
+  [LAB_000122d6                            ] @ 0x000122d6  type=Label  src=DEFAULT
+  [LAB_000122e2                            ] @ 0x000122e2  type=Label  src=DEFAULT
+  [LAB_00012346                            ] @ 0x00012346  type=Label  src=DEFAULT
+  [LAB_0001236a                            ] @ 0x0001236a  type=Label  src=DEFAULT
+  [LAB_000123a4                            ] @ 0x000123a4  type=Label  src=DEFAULT
+  [LAB_000123aa                            ] @ 0x000123aa  type=Label  src=DEFAULT
+  [LAB_000123da                            ] @ 0x000123da  type=Label  src=DEFAULT
+  [LAB_000123f6                            ] @ 0x000123f6  type=Label  src=DEFAULT
+  [LAB_0001240a                            ] @ 0x0001240a  type=Label  src=DEFAULT
+  [LAB_000124b4                            ] @ 0x000124b4  type=Label  src=DEFAULT
+  [LAB_000124ba                            ] @ 0x000124ba  type=Label  src=DEFAULT
+  [LAB_000124da                            ] @ 0x000124da  type=Label  src=DEFAULT
+  [LAB_000124e6                            ] @ 0x000124e6  type=Label  src=DEFAULT
+  [LAB_000124f0                            ] @ 0x000124f0  type=Label  src=DEFAULT
+  [LAB_000125a4                            ] @ 0x000125a4  type=Label  src=DEFAULT
+  [LAB_000125e0                            ] @ 0x000125e0  type=Label  src=DEFAULT
+  [DAT_000125e8                            ] @ 0x000125e8  type=Label  src=DEFAULT
+  [DAT_000125ec                            ] @ 0x000125ec  type=Label  src=DEFAULT
+  [DAT_000125f0                            ] @ 0x000125f0  type=Label  src=DEFAULT
+  [DAT_000125f4                            ] @ 0x000125f4  type=Label  src=DEFAULT
+  [DAT_000125f8                            ] @ 0x000125f8  type=Label  src=DEFAULT
+  [DAT_000125fc                            ] @ 0x000125fc  type=Label  src=DEFAULT
+  [DAT_00012600                            ] @ 0x00012600  type=Label  src=DEFAULT
+  [DAT_00012604                            ] @ 0x00012604  type=Label  src=DEFAULT
+  [DAT_00012608                            ] @ 0x00012608  type=Label  src=DEFAULT
+  [DAT_0001260c                            ] @ 0x0001260c  type=Label  src=DEFAULT
+  [DAT_00012610                            ] @ 0x00012610  type=Label  src=DEFAULT
+  [DAT_00012614                            ] @ 0x00012614  type=Label  src=DEFAULT
+  [DAT_00012618                            ] @ 0x00012618  type=Label  src=DEFAULT
+  [DAT_0001261c                            ] @ 0x0001261c  type=Label  src=DEFAULT
+  [DAT_00012620                            ] @ 0x00012620  type=Label  src=DEFAULT
+  [DAT_00012624                            ] @ 0x00012624  type=Label  src=DEFAULT
+  [DAT_00012628                            ] @ 0x00012628  type=Label  src=DEFAULT
+  [DAT_0001262c                            ] @ 0x0001262c  type=Label  src=DEFAULT
+  [DAT_00012630                            ] @ 0x00012630  type=Label  src=DEFAULT
+  [DAT_00012634                            ] @ 0x00012634  type=Label  src=DEFAULT
+  [DAT_00012638                            ] @ 0x00012638  type=Label  src=DEFAULT
+  [DAT_0001263c                            ] @ 0x0001263c  type=Label  src=DEFAULT
+  [DAT_00012640                            ] @ 0x00012640  type=Label  src=DEFAULT
+  [DAT_00012644                            ] @ 0x00012644  type=Label  src=DEFAULT
+  [DAT_00012648                            ] @ 0x00012648  type=Label  src=DEFAULT
+  [DAT_0001264c                            ] @ 0x0001264c  type=Label  src=DEFAULT
+  [DAT_00012650                            ] @ 0x00012650  type=Label  src=DEFAULT
+  [DAT_00012654                            ] @ 0x00012654  type=Label  src=DEFAULT
+  [DAT_00012658                            ] @ 0x00012658  type=Label  src=DEFAULT
+  [DAT_0001265c                            ] @ 0x0001265c  type=Label  src=DEFAULT
+  [DAT_00012660                            ] @ 0x00012660  type=Label  src=DEFAULT
+  [DAT_00012664                            ] @ 0x00012664  type=Label  src=DEFAULT
+  [DAT_00012668                            ] @ 0x00012668  type=Label  src=DEFAULT
+  [DAT_0001266c                            ] @ 0x0001266c  type=Label  src=DEFAULT
+  [DAT_00012670                            ] @ 0x00012670  type=Label  src=DEFAULT
+  [DAT_00012674                            ] @ 0x00012674  type=Label  src=DEFAULT
+  [DAT_00012678                            ] @ 0x00012678  type=Label  src=DEFAULT
+  [DAT_0001267c                            ] @ 0x0001267c  type=Label  src=DEFAULT
+  [DAT_00012680                            ] @ 0x00012680  type=Label  src=DEFAULT
+  [DAT_00012684                            ] @ 0x00012684  type=Label  src=DEFAULT
+  [DAT_00012688                            ] @ 0x00012688  type=Label  src=DEFAULT
+  [DAT_0001268c                            ] @ 0x0001268c  type=Label  src=DEFAULT
+  [DAT_00012690                            ] @ 0x00012690  type=Label  src=DEFAULT
+  [DAT_00012694                            ] @ 0x00012694  type=Label  src=DEFAULT
+  [DAT_00012698                            ] @ 0x00012698  type=Label  src=DEFAULT
+  [DAT_0001269c                            ] @ 0x0001269c  type=Label  src=DEFAULT
+  [DAT_000126a0                            ] @ 0x000126a0  type=Label  src=DEFAULT
+  [DAT_000126a4                            ] @ 0x000126a4  type=Label  src=DEFAULT
+  [DAT_000126a8                            ] @ 0x000126a8  type=Label  src=DEFAULT
+  [DAT_000126ac                            ] @ 0x000126ac  type=Label  src=DEFAULT
+  [DAT_000126b0                            ] @ 0x000126b0  type=Label  src=DEFAULT
+  [DAT_000126b4                            ] @ 0x000126b4  type=Label  src=DEFAULT
+  [LAB_000126b8                            ] @ 0x000126b8  type=Label  src=DEFAULT
+  [LAB_000126c6                            ] @ 0x000126c6  type=Label  src=DEFAULT
+  [LAB_000126da                            ] @ 0x000126da  type=Label  src=DEFAULT
+  [LAB_000126fa                            ] @ 0x000126fa  type=Label  src=DEFAULT
+  [LAB_00012726                            ] @ 0x00012726  type=Label  src=DEFAULT
+  [LAB_00012742                            ] @ 0x00012742  type=Label  src=DEFAULT
+  [LAB_00012746                            ] @ 0x00012746  type=Label  src=DEFAULT
+  [LAB_00012762                            ] @ 0x00012762  type=Label  src=DEFAULT
+  [LAB_0001276e                            ] @ 0x0001276e  type=Label  src=DEFAULT
+  [LAB_00012778                            ] @ 0x00012778  type=Label  src=DEFAULT
+  [LAB_0001277c                            ] @ 0x0001277c  type=Label  src=DEFAULT
+  [DAT_00012784                            ] @ 0x00012784  type=Label  src=DEFAULT
+  [DAT_00012788                            ] @ 0x00012788  type=Label  src=DEFAULT
+  [DAT_0001278c                            ] @ 0x0001278c  type=Label  src=DEFAULT
+  [DAT_00012790                            ] @ 0x00012790  type=Label  src=DEFAULT
+  [DAT_00012794                            ] @ 0x00012794  type=Label  src=DEFAULT
+  [DAT_00012798                            ] @ 0x00012798  type=Label  src=DEFAULT
+  [DAT_0001279c                            ] @ 0x0001279c  type=Label  src=DEFAULT
+  [DAT_000127a0                            ] @ 0x000127a0  type=Label  src=DEFAULT
+  [DAT_000127a4                            ] @ 0x000127a4  type=Label  src=DEFAULT
+  [DAT_000127a8                            ] @ 0x000127a8  type=Label  src=DEFAULT
+  [DAT_000127ac                            ] @ 0x000127ac  type=Label  src=DEFAULT
+  [DAT_000127b0                            ] @ 0x000127b0  type=Label  src=DEFAULT
+  [DAT_000127b4                            ] @ 0x000127b4  type=Label  src=DEFAULT
+  [DAT_000127b8                            ] @ 0x000127b8  type=Label  src=DEFAULT
+  [DAT_000127bc                            ] @ 0x000127bc  type=Label  src=DEFAULT
+  [FUN_000127c0                            ] @ 0x000127c0  type=Function  src=DEFAULT
+  [LAB_000127c4                            ] @ 0x000127c4  type=Label  src=DEFAULT
+  [LAB_000127c8                            ] @ 0x000127c8  type=Label  src=DEFAULT
+  [DAT_000127d8                            ] @ 0x000127d8  type=Label  src=DEFAULT
+  [DAT_000127dc                            ] @ 0x000127dc  type=Label  src=DEFAULT
+  [DAT_000127f4                            ] @ 0x000127f4  type=Label  src=DEFAULT
+  [s_enable_00012864                       ] @ 0x00012864  type=Label  src=DEFAULT
+  [s_le_00012864+4                         ] @ 0x00012868  type=Label  src=DEFAULT
+  [s__00012864+6                           ] @ 0x0001286a  type=Label  src=DEFAULT
+  [s_genoff_persistent_update_000128c0     ] @ 0x000128c0  type=Label  src=DEFAULT
+  [s_genoff_boot_tod_init_000128d9         ] @ 0x000128d9  type=Label  src=DEFAULT
+  [s_genoff_post_init_000128ee             ] @ 0x000128ee  type=Label  src=DEFAULT
+  [s_rtc_get_000128ff                      ] @ 0x000128ff  type=Label  src=DEFAULT
+  [DAT_00012908                            ] @ 0x00012908  type=Label  src=DEFAULT
+  [s_genoff_handler_00012944               ] @ 0x00012944  type=Label  src=DEFAULT
+  [s_genoff_modem_qmi_init_00012953        ] @ 0x00012953  type=Label  src=DEFAULT
+  [s_genoff_get_00012969                   ] @ 0x00012969  type=Label  src=DEFAULT
+  [s_ats_rtc_init_00012974                 ] @ 0x00012974  type=Label  src=DEFAULT
+  [s_genoff_opr_00012981                   ] @ 0x00012981  type=Label  src=DEFAULT
+  [DAT_0001298c                            ] @ 0x0001298c  type=Label  src=DEFAULT
+  [DAT_000129c8                            ] @ 0x000129c8  type=Label  src=DEFAULT
+  [s_genoff_set_00012a04                   ] @ 0x00012a04  type=Label  src=DEFAULT
+  [s_tod_update_ind_cb_00012a0f            ] @ 0x00012a0f  type=Label  src=DEFAULT
+  [DAT_00012a24                            ] @ 0x00012a24  type=Label  src=DEFAULT
+  [s_read_offset_00012a60                  ] @ 0x00012a60  type=Label  src=DEFAULT
+  [s_genoff_send_modem_00012a6c            ] @ 0x00012a6c  type=Label  src=DEFAULT
+  [s_time_persistent_memory_opr_00012a7e   ] @ 0x00012a7e  type=Label  src=DEFAULT
+  [DAT_00012a9c                            ] @ 0x00012a9c  type=Label  src=DEFAULT
+  [s_genoff_pre_init_00012ad8              ] @ 0x00012ad8  type=Label  src=DEFAULT
+  [s_ats_bases_init_00012ae8               ] @ 0x00012ae8  type=Label  src=DEFAULT
+  [s_/dev/rtc0_00012af7                    ] @ 0x00012af7  type=Label  src=DEFAULT
+  [s_QC-time-services_00012b01             ] @ 0x00012b01  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Unable_to_open_RTC_de_00012b12] @ 0x00012b12  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Unable_to_read_from_R_00012b38] @ 0x00012b38  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Time_read_from_RTC_--_00012b63] @ 0x00012b63  type=Label  src=DEFAULT
+  [s_Daemon:Invalid_RTC_seconds_=_%ld_00012ba8] @ 0x00012ba8  type=Label  src=DEFAULT
+  [s_Daemon:_genoff_get_for_%d_00012bca    ] @ 0x00012bca  type=Label  src=DEFAULT
+  [s_Daemon:%s:Bases_not_initialized_00012be5] @ 0x00012be5  type=Label  src=DEFAULT
+  [s_Daemon:Value_read_from_RTC_secon_00012c06] @ 0x00012c06  type=Label  src=DEFAULT
+  [s_Daemon:Value_read_from_generic_o_00012c31] @ 0x00012c31  type=Label  src=DEFAULT
+  [s_Daemon:Final_Time_=_%llu_00012c5f     ] @ 0x00012c5f  type=Label  src=DEFAULT
+  [s_Daemon:%s:Genoff_memory_not_allo_00012c79] @ 0x00012c79  type=Label  src=DEFAULT
+  [s_Daemon:_Unable_to_create_socket:_00012ca0] @ 0x00012ca0  type=Label  src=DEFAULT
+  [s_#time_genoff_00012ccd                 ] @ 0x00012ccd  type=Label  src=DEFAULT
+  [s_Daemon:_Unable_to_bind_socket:ti_00012cda] @ 0x00012cda  type=Label  src=DEFAULT
+  [s_Daemon:_Unable_to_listen_on_sock_00012d05] @ 0x00012d05  type=Label  src=DEFAULT
+  [s_Daemon:_Time-services:_All_initi_00012d35] @ 0x00012d35  type=Label  src=DEFAULT
+  [s_Daemon:_Time-services:_Waiting_t_00012d66] @ 0x00012d66  type=Label  src=DEFAULT
+  [s_Daemon:_Unable_to_accept_connect_00012d9a] @ 0x00012d9a  type=Label  src=DEFAULT
+  [s_Daemon:_Connection_accepted:time_00012dcb] @ 0x00012dcb  type=Label  src=DEFAULT
+  [s_Daemon:_Cannot_create_pthread:ti_00012df4] @ 0x00012df4  type=Label  src=DEFAULT
+  [s_Daemon:%s:Init_func_failed_00012e1f   ] @ 0x00012e1f  type=Label  src=DEFAULT
+  [s_%s/%s_00012e3b                        ] @ 0x00012e3b  type=Label  src=DEFAULT
+  [s_/data/time_00012e41                   ] @ 0x00012e41  type=Label  src=DEFAULT
+  [s_Daemon:Opening_File:_%s_00012e4c      ] @ 0x00012e4c  type=Label  src=DEFAULT
+  [s_Daemon:%s:Genoff_Read_operation_00012e65] @ 0x00012e65  type=Label  src=DEFAULT
+  [s_Daemon:Unable_to_open_filefor_re_00012e87] @ 0x00012e87  type=Label  src=DEFAULT
+  [s_Daemon:%s:Error_reading_fromfile_00012eab] @ 0x00012eab  type=Label  src=DEFAULT
+  [s_Daemon:%s:Error_in_accessing_sto_00012ecd] @ 0x00012ecd  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Initiallizing_QMI_00012ef3 ] @ 0x00012ef3  type=Label  src=DEFAULT
+  [s_Daemon:%s:_time_get_service_obje_00012f12] @ 0x00012f12  type=Label  src=DEFAULT
+  [s_Daemon:%s:_qmi_client_get_servic_00012f41] @ 0x00012f41  type=Label  src=DEFAULT
+  [s_Daemon:%s:retry_count_exceeds_li_00012f84] @ 0x00012f84  type=Label  src=DEFAULT
+  [s_Daemon:%s:_qmi_client_get_servic_00012fd1] @ 0x00012fd1  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Client_init_failed_%d_00013022] @ 0x00013022  type=Label  src=DEFAULT
+  [s_Daemon:%s:_RTC_read_failed_00013044   ] @ 0x00013044  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Initial_transaction_s_00013060] @ 0x00013060  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Initial_transaction_f_0001308c] @ 0x0001308c  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Got_Update_from_modem_000130b3] @ 0x000130b3  type=Label  src=DEFAULT
+  [s_Daemon:%s:_TOD_update_message_de_000130df] @ 0x000130df  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Ignore_time_update_fr_0001310b] @ 0x0001310b  type=Label  src=DEFAULT
+  [s_Daemon:%s:_ptime_genoff_is_NULL_00013143] @ 0x00013143  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Writing_genoff_=_%llu_00013164] @ 0x00013164  type=Label  src=DEFAULT
+  [s_Daemon:%s:Genoff_write_operation_00013190] @ 0x00013190  type=Label  src=DEFAULT
+  [s_Daemon:Unable_to_open_file,creat_000131b3] @ 0x000131b3  type=Label  src=DEFAULT
+  [s_Daemon:Unable_to_createfile,_exi_000131dd] @ 0x000131dd  type=Label  src=DEFAULT
+  [s_Daemon:%s:or_in_accessing_storag_00013203] @ 0x00013203  type=Label  src=DEFAULT
+  [s_Daemon:%s:Genoff_not_initialized_00013226] @ 0x00013226  type=Label  src=DEFAULT
+  [s_Daemon:new_time_%lld_00013248         ] @ 0x00013248  type=Label  src=DEFAULT
+  [s_Daemon:_delta_%lld_genoff_%lld_0001325f] @ 0x0001325f  type=Label  src=DEFAULT
+  [s_Updating_the_TOD_offset_00013280      ] @ 0x00013280  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Base_=_%d,_val_=_%llu_00013299] @ 0x00013299  type=Label  src=DEFAULT
+  [s_Daemon:%s:Invalid_time_unit_%d_000132ca] @ 0x000132ca  type=Label  src=DEFAULT
+  [s_offset_is:_%d_for_base:_%d_000132e9   ] @ 0x000132e9  type=Label  src=DEFAULT
+  [s_debug.time_services.enable_00013304   ] @ 0x00013304  type=Label  src=DEFAULT
+  [DAT_0001331f                            ] @ 0x0001331f  type=Label  src=DEFAULT
+  [s_false_00013324                        ] @ 0x00013324  type=Label  src=DEFAULT
+  [s_Daemon:Unable_to_recv_data_from_c_0001332a] @ 0x0001332a  type=Label  src=DEFAULT
+  [s_Daemon:_Invalid_base_received_00013352] @ 0x00013352  type=Label  src=DEFAULT
+  [s_Daemon:Send_to_client_failed_%d_00013371] @ 0x00013371  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Update_is_not_allowed_00013392] @ 0x00013392  type=Label  src=DEFAULT
+  [s_Daemon:Received_base_=_%d,_unit_=_000133c3] @ 0x000133c3  type=Label  src=DEFAULT
+  [s_Daemon:_Operation_on_this_base_i_00013406] @ 0x00013406  type=Label  src=DEFAULT
+  [s_Daemon:Update_to_modem_bit_set_00013437] @ 0x00013437  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Sending_data_to_MODEM_00013457] @ 0x00013457  type=Label  src=DEFAULT
+  [s_Daemon:_Base_=_%d,_Value_being_s_0001347b] @ 0x0001347b  type=Label  src=DEFAULT
+  [s_Daemon:_message_send_failed._Err_000134b0] @ 0x000134b0  type=Label  src=DEFAULT
+  [s_Daemon:Unable_to_send_data_to_MO_000134dc] @ 0x000134dc  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Invalid_option_00013501    ] @ 0x00013501  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Sending_read_request_f_0001351c] @ 0x0001351c  type=Label  src=DEFAULT
+  [s_Daemon:%s:Time_received_%llu_0001354b ] @ 0x0001354b  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Error_in_reading_full_00013569] @ 0x00013569  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Offset_update_failed_000135ae] @ 0x000135ae  type=Label  src=DEFAULT
+  [s_Daemon:%s:_offset_%d_updated_000135cf ] @ 0x000135cf  type=Label  src=DEFAULT
+  [s_Error_changing_gid:%d_000135ed        ] @ 0x000135ed  type=Label  src=DEFAULT
+  [s_Time-services_exiting_00013604        ] @ 0x00013604  type=Label  src=DEFAULT
+  [s_Error_changing_uid:%d_0001361b        ] @ 0x0001361b  type=Label  src=DEFAULT
+  [s_Daemon:%s::Base_=_%d_00013632         ] @ 0x00013632  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Time_read_from_RTC_--_00013648] @ 0x00013648  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Genoff_post_init_oper_00013689] @ 0x00013689  type=Label  src=DEFAULT
+  [s_Daemon:%s:_RTC_initilization_fai_000136b7] @ 0x000136b7  type=Label  src=DEFAULT
+  [s_Daemon:%s:_ATS_RTC_initialized_000136dc] @ 0x000136dc  type=Label  src=DEFAULT
+  [s_ats_%d_000136fc                       ] @ 0x000136fc  type=Label  src=DEFAULT
+  [s_Daemon:_Storage_Name:_%s_00013703     ] @ 0x00013703  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Post_init_failed_for_b_0001371e] @ 0x0001371e  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Init_failed_for_base_=_00013749] @ 0x00013749  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Other_bases_initilize_0001376f] @ 0x0001376f  type=Label  src=DEFAULT
+  [s_Daemon:_Unable_to_initialize_bas_000137a7] @ 0x000137a7  type=Label  src=DEFAULT
+  [s_Daemon:_Pthread_mutex_init_faile_000137d4] @ 0x000137d4  type=Label  src=DEFAULT
+  [s_/dev/alarm_000137f7                   ] @ 0x000137f7  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Unable_to_open_alarm_d_00013802] @ 0x00013802  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Updating_system_time_t_0001382a] @ 0x0001382a  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Unable_to_set_clock_t_00013860] @ 0x00013860  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Setting_system_time_t_00013893] @ 0x00013893  type=Label  src=DEFAULT
+  [s_Daemon:%s:_Unable_to_set_TOD_at_b_000138ca] @ 0x000138ca  type=Label  src=DEFAULT
+  [s_Daemon:_Unable_to_set_TOD_at_boo_000138f3] @ 0x000138f3  type=Label  src=DEFAULT
+  [s_Daemon:_QMI_init_failed,_QMI_cal_00013919] @ 0x00013919  type=Label  src=DEFAULT
+  [s_Daemon:_Cannot_create_thread:_re_00013946] @ 0x00013946  type=Label  src=DEFAULT
+  [s_Daemon:_Cannot_create_thread:con_00013971] @ 0x00013971  type=Label  src=DEFAULT
+  [s_Daemon:_Connection_thread_joined_0001399e] @ 0x0001399e  type=Label  src=DEFAULT
+  [s_genoff_check_offset_000139e6          ] @ 0x000139e6  type=Label  src=DEFAULT
+  [s_genoff_init_config_000139fa           ] @ 0x000139fa  type=Label  src=DEFAULT
+  [DAT_00013a0e                            ] @ 0x00013a0e  type=Label  src=DEFAULT
+  [DAT_00013a5c                            ] @ 0x00013a5c  type=Label  src=DEFAULT
+  [DAT_00013ab8                            ] @ 0x00013ab8  type=Label  src=DEFAULT
+  [DAT_00014d40                            ] @ 0x00014d40  type=Label  src=DEFAULT
+  [DAT_00014d70                            ] @ 0x00014d70  type=Label  src=DEFAULT
+  [DAT_00014d88                            ] @ 0x00014d88  type=Label  src=DEFAULT
+  [__DT_PREINIT_ARRAY                      ] @ 0x00014df0  type=Label  src=IMPORTED
+  [__DT_INIT_ARRAY                         ] @ 0x00014df8  type=Label  src=IMPORTED
+  [__DT_FINI_ARRAY                         ] @ 0x00014e00  type=Label  src=IMPORTED
+  [_DYNAMIC                                ] @ 0x00014e08  type=Label  src=IMPORTED
+  [PTR___DT_PREINIT_ARRAY_00014f18         ] @ 0x00014f18  type=Label  src=DEFAULT
+  [PTR___DT_INIT_ARRAY_00014f1c            ] @ 0x00014f1c  type=Label  src=DEFAULT
+  [PTR___DT_FINI_ARRAY_00014f20            ] @ 0x00014f20  type=Label  src=DEFAULT
+  [PTR_LAB_00012278+1_00014f24             ] @ 0x00014f24  type=Label  src=DEFAULT
+  [PTR___stack_chk_guard_00014f28          ] @ 0x00014f28  type=Label  src=DEFAULT
+  [__DT_PLTGOT                             ] @ 0x00014f2c  type=Label  src=IMPORTED
+  [PTR_00014f34                            ] @ 0x00014f34  type=Label  src=DEFAULT
+  [PTR___libc_init_00014f38                ] @ 0x00014f38  type=Label  src=DEFAULT
+  [PTR___cxa_atexit_00014f3c               ] @ 0x00014f3c  type=Label  src=DEFAULT
+  [PTR_open_00014f40                       ] @ 0x00014f40  type=Label  src=DEFAULT
+  [PTR___android_log_print_00014f44        ] @ 0x00014f44  type=Label  src=DEFAULT
+  [PTR_ioctl_00014f48                      ] @ 0x00014f48  type=Label  src=DEFAULT
+  [PTR_mktime_00014f4c                     ] @ 0x00014f4c  type=Label  src=DEFAULT
+  [PTR_close_00014f50                      ] @ 0x00014f50  type=Label  src=DEFAULT
+  [PTR_socket_00014f54                     ] @ 0x00014f54  type=Label  src=DEFAULT
+  [PTR_pthread_exit_00014f58               ] @ 0x00014f58  type=Label  src=DEFAULT
+  [PTR_strlcpy_00014f5c                    ] @ 0x00014f5c  type=Label  src=DEFAULT
+  [PTR_unlink_00014f60                     ] @ 0x00014f60  type=Label  src=DEFAULT
+  [PTR_bind_00014f64                       ] @ 0x00014f64  type=Label  src=DEFAULT
+  [PTR_listen_00014f68                     ] @ 0x00014f68  type=Label  src=DEFAULT
+  [PTR_accept_00014f6c                     ] @ 0x00014f6c  type=Label  src=DEFAULT
+  [PTR_pthread_create_00014f70             ] @ 0x00014f70  type=Label  src=DEFAULT
+  [PTR_pthread_join_00014f74               ] @ 0x00014f74  type=Label  src=DEFAULT
+  [PTR___stack_chk_fail_00014f78           ] @ 0x00014f78  type=Label  src=DEFAULT
+  [PTR_snprintf_00014f7c                   ] @ 0x00014f7c  type=Label  src=DEFAULT
+  [PTR_read_00014f80                       ] @ 0x00014f80  type=Label  src=DEFAULT
+  [PTR_qmi_client_notifier_init_00014f84   ] @ 0x00014f84  type=Label  src=DEFAULT
+  [PTR_qmi_client_get_service_list_00014f88] @ 0x00014f88  type=Label  src=DEFAULT
+  [PTR_sleep_00014f8c                      ] @ 0x00014f8c  type=Label  src=DEFAULT
+  [PTR_gettimeofday_00014f90               ] @ 0x00014f90  type=Label  src=DEFAULT
+  [PTR___aeabi_idivmod_00014f94            ] @ 0x00014f94  type=Label  src=DEFAULT
+  [PTR_pthread_mutex_lock_00014f98         ] @ 0x00014f98  type=Label  src=DEFAULT
+  [PTR_pthread_cond_timedwait_00014f9c     ] @ 0x00014f9c  type=Label  src=DEFAULT
+  [PTR_pthread_mutex_unlock_00014fa0       ] @ 0x00014fa0  type=Label  src=DEFAULT
+  [PTR_qmi_client_init_00014fa4            ] @ 0x00014fa4  type=Label  src=DEFAULT
+  [PTR_memset_00014fa8                     ] @ 0x00014fa8  type=Label  src=DEFAULT
+  [PTR___aeabi_uldivmod_00014fac           ] @ 0x00014fac  type=Label  src=DEFAULT
+  [PTR_qmi_client_send_msg_sync_00014fb0   ] @ 0x00014fb0  type=Label  src=DEFAULT
+  [PTR_qmi_client_release_00014fb4         ] @ 0x00014fb4  type=Label  src=DEFAULT
+  [PTR_qmi_client_message_decode_00014fb8  ] @ 0x00014fb8  type=Label  src=DEFAULT
+  [PTR_pthread_cond_signal_00014fbc        ] @ 0x00014fbc  type=Label  src=DEFAULT
+  [PTR_write_00014fc0                      ] @ 0x00014fc0  type=Label  src=DEFAULT
+  [PTR_gmtime_00014fc4                     ] @ 0x00014fc4  type=Label  src=DEFAULT
+  [PTR_property_get_00014fc8               ] @ 0x00014fc8  type=Label  src=DEFAULT
+  [PTR_strcmp_00014fcc                     ] @ 0x00014fcc  type=Label  src=DEFAULT
+  [PTR_recv_00014fd0                       ] @ 0x00014fd0  type=Label  src=DEFAULT
+  [PTR_send_00014fd4                       ] @ 0x00014fd4  type=Label  src=DEFAULT
+  [PTR___errno_00014fd8                    ] @ 0x00014fd8  type=Label  src=DEFAULT
+  [PTR_pthread_cond_wait_00014fdc          ] @ 0x00014fdc  type=Label  src=DEFAULT
+  [PTR_setgid_00014fe0                     ] @ 0x00014fe0  type=Label  src=DEFAULT
+  [PTR_setuid_00014fe4                     ] @ 0x00014fe4  type=Label  src=DEFAULT
+  [PTR_exit_00014fe8                       ] @ 0x00014fe8  type=Label  src=DEFAULT
+  [PTR_bsd_signal_00014fec                 ] @ 0x00014fec  type=Label  src=DEFAULT
+  [PTR_pthread_mutex_init_00014ff0         ] @ 0x00014ff0  type=Label  src=DEFAULT
+  [PTR___aeabi_idiv_00014ff4               ] @ 0x00014ff4  type=Label  src=DEFAULT
+  [PTR_settimeofday_00014ff8               ] @ 0x00014ff8  type=Label  src=DEFAULT
+  [PTR_pthread_kill_00014ffc               ] @ 0x00014ffc  type=Label  src=DEFAULT
+  [PTR_DAT_00015000                        ] @ 0x00015000  type=Label  src=DEFAULT
+  [DAT_00015008                            ] @ 0x00015008  type=Label  src=DEFAULT
+  [DAT_0001500c                            ] @ 0x0001500c  type=Label  src=DEFAULT
+  [DAT_00015010                            ] @ 0x00015010  type=Label  src=DEFAULT
+  [DAT_00015014                            ] @ 0x00015014  type=Label  src=DEFAULT
+  [DAT_00015018                            ] @ 0x00015018  type=Label  src=DEFAULT
+  [DAT_0001501c                            ] @ 0x0001501c  type=Label  src=DEFAULT
+  [DAT_00015020                            ] @ 0x00015020  type=Label  src=DEFAULT
+  [DAT_00015024                            ] @ 0x00015024  type=Label  src=DEFAULT
+  [DAT_00015030                            ] @ 0x00015030  type=Label  src=DEFAULT
+  [DAT_000150a0                            ] @ 0x000150a0  type=Label  src=DEFAULT
+  [DAT_000150a4                            ] @ 0x000150a4  type=Label  src=DEFAULT
+  [DAT_000150a8                            ] @ 0x000150a8  type=Label  src=DEFAULT
+  [DAT_000150ac                            ] @ 0x000150ac  type=Label  src=DEFAULT
+  [DAT_000150b0                            ] @ 0x000150b0  type=Label  src=DEFAULT
+  [DAT_000150b4                            ] @ 0x000150b4  type=Label  src=DEFAULT
+  [DAT_000150b8                            ] @ 0x000150b8  type=Label  src=DEFAULT
+  [DAT_000150c0                            ] @ 0x000150c0  type=Label  src=DEFAULT
+  [DAT_000150c1                            ] @ 0x000150c1  type=Label  src=DEFAULT
+  [DAT_00015128                            ] @ 0x00015128  type=Label  src=DEFAULT
+  [DAT_0001512c                            ] @ 0x0001512c  type=Label  src=DEFAULT
+  [DAT_00015880                            ] @ 0x00015880  type=Label  src=DEFAULT
+  [DAT_00015884                            ] @ 0x00015884  type=Label  src=DEFAULT
+  [DAT_00015888                            ] @ 0x00015888  type=Label  src=DEFAULT
+  [DAT_0001588c                            ] @ 0x0001588c  type=Label  src=DEFAULT
+  [DAT_00015890                            ] @ 0x00015890  type=Label  src=DEFAULT
+  [DAT_00015894                            ] @ 0x00015894  type=Label  src=DEFAULT
+  [DAT_00015898                            ] @ 0x00015898  type=Label  src=DEFAULT
+  [DAT_000158a8                            ] @ 0x000158a8  type=Label  src=DEFAULT
+  [DAT_000158ac                            ] @ 0x000158ac  type=Label  src=DEFAULT
+  [DAT_000158b0                            ] @ 0x000158b0  type=Label  src=DEFAULT
+  [DAT_000158b8                            ] @ 0x000158b8  type=Label  src=DEFAULT
+  [DAT_000158bc                            ] @ 0x000158bc  type=Label  src=DEFAULT
+  [DAT_000158c0                            ] @ 0x000158c0  type=Label  src=DEFAULT
+  [DAT_000158c4                            ] @ 0x000158c4  type=Label  src=DEFAULT
+  [DAT_000158c8                            ] @ 0x000158c8  type=Label  src=DEFAULT
+  [DAT_000158cc                            ] @ 0x000158cc  type=Label  src=DEFAULT
+  [__libc_init                             ] @ 0x00016000  type=Function  src=DEFAULT
+  [__cxa_atexit                            ] @ 0x00016004  type=Function  src=DEFAULT
+  [open                                    ] @ 0x00016008  type=Function  src=DEFAULT
+  [__android_log_print                     ] @ 0x0001600c  type=Function  src=DEFAULT
+  [ioctl                                   ] @ 0x00016010  type=Function  src=DEFAULT
+  [mktime                                  ] @ 0x00016014  type=Function  src=DEFAULT
+  [close                                   ] @ 0x00016018  type=Function  src=DEFAULT
+  [__aeabi_unwind_cpp_pr0                  ] @ 0x0001601c  type=Function  src=DEFAULT
+  [socket                                  ] @ 0x00016020  type=Function  src=DEFAULT
+  [pthread_exit                            ] @ 0x00016024  type=Function  src=DEFAULT
+  [strlcpy                                 ] @ 0x00016028  type=Function  src=DEFAULT
+  [unlink                                  ] @ 0x0001602c  type=Function  src=DEFAULT
+  [bind                                    ] @ 0x00016030  type=Function  src=DEFAULT
+  [listen                                  ] @ 0x00016034  type=Function  src=DEFAULT
+  [accept                                  ] @ 0x00016038  type=Function  src=DEFAULT
+  [pthread_create                          ] @ 0x0001603c  type=Function  src=DEFAULT
+  [pthread_join                            ] @ 0x00016040  type=Function  src=DEFAULT
+  [__stack_chk_fail                        ] @ 0x00016044  type=Function  src=DEFAULT
+  [__stack_chk_guard                       ] @ 0x00016048  type=Label  src=IMPORTED
+  [snprintf                                ] @ 0x0001604c  type=Function  src=DEFAULT
+  [read                                    ] @ 0x00016050  type=Function  src=DEFAULT
+  [__aeabi_idivmod                         ] @ 0x00016054  type=Function  src=DEFAULT
+  [__aeabi_uldivmod                        ] @ 0x00016058  type=Function  src=DEFAULT
+  [qmi_client_notifier_init                ] @ 0x0001605c  type=Function  src=DEFAULT
+  [qmi_client_get_service_list             ] @ 0x00016060  type=Function  src=DEFAULT
+  [sleep                                   ] @ 0x00016064  type=Function  src=DEFAULT
+  [gettimeofday                            ] @ 0x00016068  type=Function  src=DEFAULT
+  [pthread_mutex_lock                      ] @ 0x0001606c  type=Function  src=DEFAULT
+  [pthread_cond_timedwait                  ] @ 0x00016070  type=Function  src=DEFAULT
+  [pthread_mutex_unlock                    ] @ 0x00016074  type=Function  src=DEFAULT
+  [qmi_client_init                         ] @ 0x00016078  type=Function  src=DEFAULT
+  [memset                                  ] @ 0x0001607c  type=Function  src=DEFAULT
+  [qmi_client_send_msg_sync                ] @ 0x00016080  type=Function  src=DEFAULT
+  [qmi_client_release                      ] @ 0x00016084  type=Function  src=DEFAULT
+  [qmi_client_message_decode               ] @ 0x00016088  type=Function  src=DEFAULT
+  [pthread_cond_signal                     ] @ 0x0001608c  type=Function  src=DEFAULT
+  [write                                   ] @ 0x00016090  type=Function  src=DEFAULT
+  [gmtime                                  ] @ 0x00016094  type=Function  src=DEFAULT
+  [property_get                            ] @ 0x00016098  type=Function  src=DEFAULT
+  [strcmp                                  ] @ 0x0001609c  type=Function  src=DEFAULT
+  [recv                                    ] @ 0x000160a0  type=Function  src=DEFAULT
+  [send                                    ] @ 0x000160a4  type=Function  src=DEFAULT
+  [__errno                                 ] @ 0x000160a8  type=Function  src=DEFAULT
+  [pthread_cond_wait                       ] @ 0x000160ac  type=Function  src=DEFAULT
+  [__aeabi_idiv                            ] @ 0x000160b0  type=Function  src=DEFAULT
+  [setgid                                  ] @ 0x000160b4  type=Function  src=DEFAULT
+  [setuid                                  ] @ 0x000160b8  type=Function  src=DEFAULT
+  [exit                                    ] @ 0x000160bc  type=Function  src=DEFAULT
+  [bsd_signal                              ] @ 0x000160c0  type=Function  src=DEFAULT
+  [pthread_mutex_init                      ] @ 0x000160c4  type=Function  src=DEFAULT
+  [settimeofday                            ] @ 0x000160c8  type=Function  src=DEFAULT
+  [pthread_kill                            ] @ 0x000160cc  type=Function  src=DEFAULT
+  [common_qmi_idl_type_table_object_v01    ] @ 0x000160d0  type=Label  src=IMPORTED
+  [DAT_.ARM.attributes__00000000           ] @ 0x.ARM.attributes::00000000  type=Label  src=DEFAULT
+  [ElfComment[0]                           ] @ 0x.comment::00000000  type=Label  src=IMPORTED
+  [ElfComment[1]                           ] @ 0x.comment::00000001  type=Label  src=IMPORTED
+  [GnuDebugLink_12_.gnu_debuglink__00000000] @ 0x.gnu_debuglink::00000000  type=Label  src=DEFAULT
+  [DAT_.note.gnu.gold-version__00000000    ] @ 0x.note.gnu.gold-version::00000000  type=Label  src=DEFAULT
+  [DAT_.shstrtab__00000000                 ] @ 0x.shstrtab::00000000  type=Label  src=DEFAULT
+  [Elf32_Shdr_ARRAY__elfSectionHeaders__00000000] @ 0x_elfSectionHeaders::00000000  type=Label  src=DEFAULT
+
+=== SECTION 2: FULL FUNCTION DECOMPILATION (ALL FUNCTIONS) ===
+
+Total functions found: 113
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __libc_init                              @ 0x00010be4
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void __libc_init(void)
+
+{
+  (*(code *)PTR___libc_init_00014f38)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __cxa_atexit                             @ 0x00010bf0
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __cxa_atexit(void)
+
+{
+  (*(code *)PTR___cxa_atexit_00014f3c)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: open                                     @ 0x00010bfc
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int open(char *__file,int __oflag,...)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_open_00014f40)(__file);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __android_log_print                      @ 0x00010c08
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __android_log_print(void)
+
+{
+  (*(code *)PTR___android_log_print_00014f44)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: ioctl                                    @ 0x00010c14
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int ioctl(int __fd,ulong __request,...)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_ioctl_00014f48)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: mktime                                   @ 0x00010c20
+║ Size: 12 bytes  |  Params: 1  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+time_t mktime(tm *__tp)
+
+{
+  time_t tVar1;
+  
+  tVar1 = (*(code *)PTR_mktime_00014f4c)(__tp);
+  return tVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: close                                    @ 0x00010c2c
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int close(int __fd)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_close_00014f50)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: socket                                   @ 0x00010c38
+║ Size: 12 bytes  |  Params: 3  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int socket(int __domain,int __type,int __protocol)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_socket_00014f54)(__domain);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_exit                             @ 0x00010c44
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void pthread_exit(void *__retval)
+
+{
+  (*(code *)PTR_pthread_exit_00014f58)(__retval);
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: strlcpy                                  @ 0x00010c50
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void strlcpy(void)
+
+{
+  (*(code *)PTR_strlcpy_00014f5c)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: unlink                                   @ 0x00010c5c
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int unlink(char *__name)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_unlink_00014f60)(__name);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: bind                                     @ 0x00010c68
+║ Size: 12 bytes  |  Params: 3  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int bind(int __fd,sockaddr *__addr,socklen_t __len)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_bind_00014f64)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: listen                                   @ 0x00010c74
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int listen(int __fd,int __n)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_listen_00014f68)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: accept                                   @ 0x00010c80
+║ Size: 12 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int accept(int __fd,sockaddr *__addr,socklen_t *__addr_len)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_accept_00014f6c)(__fd);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_create                           @ 0x00010c8c
+║ Size: 12 bytes  |  Params: 4  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_create(pthread_t *__newthread,pthread_attr_t *__attr,__start_routine *__start_routine,
+                  void *__arg)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_create_00014f70)(__newthread);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_join                             @ 0x00010c98
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_join(pthread_t __th,void **__thread_return)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_join_00014f74)(__th);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __stack_chk_fail                         @ 0x00010ca4
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __stack_chk_fail(void)
+
+{
+  (*(code *)PTR___stack_chk_fail_00014f78)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: snprintf                                 @ 0x00010cb0
+║ Size: 12 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int snprintf(char *__s,size_t __maxlen,char *__format,...)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_snprintf_00014f7c)(__s);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: read                                     @ 0x00010cbc
+║ Size: 12 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t read(int __fd,void *__buf,size_t __nbytes)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_read_00014f80)(__fd);
+  return sVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_notifier_init                 @ 0x00010cc8
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void qmi_client_notifier_init(void)
+
+{
+  (*(code *)PTR_qmi_client_notifier_init_00014f84)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_get_service_list              @ 0x00010cd4
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void qmi_client_get_service_list(void)
+
+{
+  (*(code *)PTR_qmi_client_get_service_list_00014f88)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: sleep                                    @ 0x00010ce0
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+uint sleep(uint __seconds)
+
+{
+  uint uVar1;
+  
+  uVar1 = (*(code *)PTR_sleep_00014f8c)(__seconds);
+  return uVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: gettimeofday                             @ 0x00010cec
+║ Size: 12 bytes  |  Params: 2  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int gettimeofday(timeval *__tv,__timezone_ptr_t __tz)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_gettimeofday_00014f90)(__tv);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_idivmod                          @ 0x00010cf8
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __aeabi_idivmod(void)
+
+{
+  (*(code *)PTR___aeabi_idivmod_00014f94)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_mutex_lock                       @ 0x00010d04
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_lock(pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_lock_00014f98)(__mutex);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_cond_timedwait                   @ 0x00010d10
+║ Size: 12 bytes  |  Params: 3  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_timedwait(pthread_cond_t *__cond,pthread_mutex_t *__mutex,timespec *__abstime)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_timedwait_00014f9c)(__cond);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_mutex_unlock                     @ 0x00010d1c
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_unlock(pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_unlock_00014fa0)(__mutex);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_init                          @ 0x00010d28
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void qmi_client_init(void)
+
+{
+  (*(code *)PTR_qmi_client_init_00014fa4)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: memset                                   @ 0x00010d34
+║ Size: 12 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * memset(void *__s,int __c,size_t __n)
+
+{
+  void *pvVar1;
+  
+  pvVar1 = (void *)(*(code *)PTR_memset_00014fa8)(__s);
+  return pvVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_uldivmod                         @ 0x00010d40
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __aeabi_uldivmod(void)
+
+{
+  (*(code *)PTR___aeabi_uldivmod_00014fac)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_send_msg_sync                 @ 0x00010d4c
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void qmi_client_send_msg_sync(void)
+
+{
+  (*(code *)PTR_qmi_client_send_msg_sync_00014fb0)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_release                       @ 0x00010d58
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void qmi_client_release(void)
+
+{
+  (*(code *)PTR_qmi_client_release_00014fb4)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_message_decode                @ 0x00010d64
+║ Size: 12 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+void qmi_client_message_decode(void)
+
+{
+  (*(code *)PTR_qmi_client_message_decode_00014fb8)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_cond_signal                      @ 0x00010d70
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_signal(pthread_cond_t *__cond)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_signal_00014fbc)(__cond);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: write                                    @ 0x00010d7c
+║ Size: 12 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t write(int __fd,void *__buf,size_t __n)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_write_00014fc0)(__fd);
+  return sVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: gmtime                                   @ 0x00010d88
+║ Size: 12 bytes  |  Params: 1  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+tm * gmtime(time_t *__timer)
+
+{
+  tm *ptVar1;
+  
+  ptVar1 = (tm *)(*(code *)PTR_gmtime_00014fc4)(__timer);
+  return ptVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: property_get                             @ 0x00010d94
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void property_get(void)
+
+{
+  (*(code *)PTR_property_get_00014fc8)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: strcmp                                   @ 0x00010da0
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strcmp(char *__s1,char *__s2)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_strcmp_00014fcc)(__s1);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: recv                                     @ 0x00010dac
+║ Size: 12 bytes  |  Params: 4  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t recv(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_recv_00014fd0)(__fd);
+  return sVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: send                                     @ 0x00010db8
+║ Size: 12 bytes  |  Params: 4  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t send(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+  ssize_t sVar1;
+  
+  sVar1 = (*(code *)PTR_send_00014fd4)(__fd);
+  return sVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __errno                                  @ 0x00010dc4
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __errno(void)
+
+{
+  (*(code *)PTR___errno_00014fd8)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_cond_wait                        @ 0x00010dd0
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_wait(pthread_cond_t *__cond,pthread_mutex_t *__mutex)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_cond_wait_00014fdc)(__cond);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: setgid                                   @ 0x00010ddc
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setgid(__gid_t __gid)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_setgid_00014fe0)(__gid);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: setuid                                   @ 0x00010de8
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setuid(__uid_t __uid)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_setuid_00014fe4)(__uid);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: exit                                     @ 0x00010df4
+║ Size: 12 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void exit(int __status)
+
+{
+  (*(code *)PTR_exit_00014fe8)(__status);
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: bsd_signal                               @ 0x00010e00
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+__sighandler_t bsd_signal(int __sig,__sighandler_t __handler)
+
+{
+  __sighandler_t p_Var1;
+  
+  p_Var1 = (__sighandler_t)(*(code *)PTR_bsd_signal_00014fec)(__sig);
+  return p_Var1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_mutex_init                       @ 0x00010e0c
+║ Size: 12 bytes  |  Params: 2  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_init(pthread_mutex_t *__mutex,pthread_mutexattr_t *__mutexattr)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_mutex_init_00014ff0)(__mutex);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_idiv                             @ 0x00010e18
+║ Size: 12 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void __aeabi_idiv(void)
+
+{
+  (*(code *)PTR___aeabi_idiv_00014ff4)();
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: settimeofday                             @ 0x00010e24
+║ Size: 12 bytes  |  Params: 2  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int settimeofday(timeval *__tv,timezone *__tz)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_settimeofday_00014ff8)(__tv);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_kill                             @ 0x00010e30
+║ Size: 12 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_kill(pthread_t __threadid,int __signo)
+
+{
+  int iVar1;
+  
+  iVar1 = (*(code *)PTR_pthread_kill_00014ffc)(__threadid);
+  return iVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: entry                                    @ 0x00010e40
+║ Size: 104 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void processEntry entry(void)
+
+{
+  int iVar1;
+  undefined4 local_18;
+  undefined4 local_14;
+  undefined4 local_10;
+  
+  iVar1 = iRam00010ea4 + 0x10e58;
+  local_18 = *(undefined4 *)(iVar1 + DAT_00010ea8);
+  local_14 = *(undefined4 *)(iVar1 + DAT_00010eac);
+  local_10 = *(undefined4 *)(iVar1 + DAT_00010eb0);
+  __libc_init(&stack0x00000000,0,*(undefined4 *)(iVar1 + DAT_00010eb4),&local_18);
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_00010eb8                             @ 0x00010eb8
+║ Size: 56 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_00010eb8(undefined4 param_1)
+
+{
+  undefined4 uVar1;
+  
+  uVar1 = __cxa_atexit(param_1,0,DAT_00010ef0 + 0x10edc);
+  return uVar1;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_00010ef4                             @ 0x00010ef4
+║ Size: 182 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_00010ef4(longlong *param_1)
+
+{
+  int __fd;
+  int iVar1;
+  time_t tVar2;
+  int iVar3;
+  int iVar4;
+  tm local_3c;
+  
+  __fd = open((char *)(DAT_00010fb0 + 0x10f02),0);
+  if (__fd < 0) {
+    __android_log_print(6,DAT_00010fb4 + 0x10f14,DAT_00010fb8 + 0x10f16,DAT_00010fbc + 0x10f18);
+  }
+  else {
+    iVar1 = ioctl(__fd,DAT_00010fac,&local_3c);
+    if (iVar1 < 0) {
+      iVar3 = DAT_00010fc0 + 0x10f34;
+      iVar4 = DAT_00010fc4 + 0x10f36;
+      iVar1 = DAT_00010fc8 + 0x10f38;
+    }
+    else {
+      if (*(int *)(DAT_00010fcc + 0x10f3e) == 0) {
+        __android_log_print(3,DAT_00010fd0 + 0x10f60,DAT_00010fd4 + 0x10f64,DAT_00010fd8 + 0x10f68,
+                            local_3c.tm_mon,local_3c.tm_mday,local_3c.tm_year,local_3c.tm_hour,
+                            local_3c.tm_min,local_3c.tm_sec);
+      }
+      tVar2 = mktime(&local_3c);
+      iVar1 = tVar2 + local_3c.tm_gmtoff;
+      if (-1 < iVar1) {
+        *param_1 = (longlong)iVar1 * 1000;
+        close(__fd);
+        return 0;
+      }
+      iVar3 = DAT_00010fdc + 0x10f80;
+      iVar4 = DAT_00010fe0 + 0x10f82;
+    }
+    __android_log_print(6,iVar3,iVar4,iVar1);
+    close(__fd);
+  }
+  return 0xffffffea;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_00010fe4                             @ 0x00010fe4
+║ Size: 234 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_00010fe4(uint *param_1,undefined4 param_2)
+
+{
+  int iVar1;
+  uint uVar2;
+  undefined4 *puVar3;
+  uint uVar4;
+  undefined4 uVar5;
+  int *piVar6;
+  uint *puVar7;
+  uint *puVar8;
+  uint local_18;
+  int iStack_14;
+  
+  local_18 = 0;
+  iStack_14 = 0;
+  puVar8 = param_1;
+  if (*(int *)(DAT_000110d0 + 0x10ff6) == 0) {
+    __android_log_print(3,DAT_000110d4 + 0x11002,DAT_000110d8 + 0x11006,*param_1,param_1,param_2);
+  }
+  if (*param_1 < 0xf) {
+    puVar7 = (uint *)(*param_1 * 0x90 + DAT_000110dc + 0x11016);
+    if ((char)puVar7[2] == '\0') {
+      __android_log_print(6,DAT_000110e0 + 0x11028,DAT_000110e4 + 0x1102a,DAT_000110e8 + 0x1102c,
+                          puVar8,param_2);
+    }
+    else {
+      iVar1 = FUN_00010ef4(&local_18);
+      if (iVar1 == 0) {
+        if (*(int *)(DAT_000110ec + 0x11040) == 0) {
+          iVar1 = DAT_000110f0 + 0x11052;
+          __android_log_print(3,iVar1,DAT_000110f4 + 0x11058,iStack_14,local_18,iStack_14);
+          __android_log_print(3,iVar1,DAT_000110f8 + 0x11068);
+        }
+        iVar1 = DAT_000110fc;
+        uVar2 = *puVar7;
+        uVar4 = puVar7[1];
+        piVar6 = (int *)param_1[1];
+        *piVar6 = local_18 + uVar2;
+        piVar6[1] = iStack_14 + uVar4 + CARRY4(local_18,uVar2);
+        if (*(int *)(iVar1 + 0x11088) == 0) {
+          uVar5 = ((undefined4 *)param_1[1])[1];
+          __android_log_print(3,DAT_00011100 + 0x11098,DAT_00011104 + 0x110a0,uVar5,
+                              *(undefined4 *)param_1[1],uVar5);
+        }
+        return 0;
+      }
+    }
+    puVar3 = (undefined4 *)param_1[1];
+    *puVar3 = 0;
+    puVar3[1] = 0;
+  }
+  else {
+    __android_log_print(6,DAT_00011108 + 0x110c0,DAT_0001110c + 0x110c2,DAT_00011110 + 0x110c4,
+                        puVar8,param_2);
+  }
+  return 0xffffffea;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_0001129c                             @ 0x0001129c
+║ Size: 240 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void FUN_0001129c(undefined4 *param_1)
+
+{
+  int iVar1;
+  int *piVar2;
+  int iVar3;
+  undefined4 uVar4;
+  int __fd;
+  ssize_t sVar5;
+  char acStack_94 [120];
+  int local_1c;
+  
+  piVar2 = *(int **)(DAT_0001138c + 0x112a4 + DAT_00011390);
+  local_1c = *piVar2;
+  if (((code *)param_1[4] != (code *)0x0) && (iVar3 = (*(code *)param_1[4])(), iVar3 != 0)) {
+    __android_log_print(6,DAT_00011394 + 0x112c6,DAT_00011398 + 0x112c8,DAT_0001139c + 0x112ca);
+    uVar4 = 0xffffffea;
+    goto LAB_00011378;
+  }
+  iVar1 = DAT_000113ac;
+  iVar3 = DAT_000113a8;
+  if (*(char *)(param_1 + 8) == '\x01') {
+    snprintf(acStack_94,0x78,(char *)(DAT_000113a0 + 0x112ea),DAT_000113a4 + 0x112ee,
+             (int)param_1 + 0x21);
+    iVar3 = iVar3 + 0x112f8;
+    __android_log_print(3,iVar3,DAT_000113b0 + 0x11302,acStack_94);
+    __android_log_print(3,iVar3,DAT_000113b4 + 0x11310,iVar1 + 0x11304);
+    __fd = open(acStack_94,0);
+    if (__fd < 0) {
+      __android_log_print(3,iVar3,DAT_000113b8 + 0x1132a);
+    }
+    else {
+      sVar5 = read(__fd,param_1,8);
+      if (-1 < sVar5) {
+        close(__fd);
+        goto LAB_00011372;
+      }
+      __android_log_print(3,iVar3,DAT_000113bc + 0x11346,iVar1 + 0x11304);
+      close(__fd);
+    }
+    __android_log_print(3,DAT_000113c0 + 0x11364,DAT_000113c4 + 0x11366,DAT_000113c8 + 0x11368);
+    *param_1 = 0;
+    param_1[1] = 0;
+  }
+LAB_00011372:
+  *(undefined1 *)(param_1 + 2) = 1;
+  uVar4 = 0;
+LAB_00011378:
+  if (local_1c != *piVar2) {
+                    /* WARNING: Subroutine does not return */
+    __stack_chk_fail(uVar4);
+  }
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_000113d0                             @ 0x000113d0
+║ Size: 556 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_000113d0(void)
+
+{
+  longlong lVar1;
+  int iVar2;
+  int iVar3;
+  int iVar4;
+  int extraout_r1;
+  int iVar5;
+  undefined4 *puVar6;
+  int iVar7;
+  int iVar8;
+  int iVar9;
+  undefined4 uVar10;
+  undefined4 local_128;
+  undefined4 local_124;
+  undefined4 local_120;
+  undefined4 uStack_11c;
+  undefined1 auStack_118 [4];
+  int local_114;
+  timeval local_110;
+  timeval local_108;
+  longlong local_100;
+  int local_f8 [2];
+  undefined1 auStack_f0 [8];
+  timespec local_e8 [25];
+  
+  iVar9 = DAT_00011610 + 0x113e6;
+  local_120 = 0;
+  uStack_11c = 0;
+  iVar8 = DAT_00011614 + 0x113ec;
+  local_128 = 1;
+  __android_log_print(3,iVar9,DAT_00011618 + 0x113f4,iVar8);
+  iVar2 = FUN_000127c0(1,1,2);
+  iVar5 = DAT_00011624;
+  if (iVar2 == 0) {
+    iVar5 = DAT_0001161c + 0x11414;
+LAB_00011564:
+    __android_log_print(6,iVar9,iVar5,iVar8);
+  }
+  else {
+    iVar7 = 6;
+    qmi_client_notifier_init(iVar2,local_f8,DAT_00011620 + 0x11420);
+    while( true ) {
+      iVar3 = qmi_client_get_service_list(iVar2,0,0,&local_124);
+      iVar4 = iVar3;
+      uVar10 = local_124;
+      __android_log_print(6,iVar9,iVar5 + 0x11426,iVar8,iVar3,local_124);
+      if (iVar3 == 0) break;
+      iVar7 = iVar7 + -1;
+      if (iVar7 == 0) {
+        __android_log_print(6,iVar9,DAT_00011628 + 0x11458,iVar8,iVar4,uVar10);
+        puVar6 = (undefined4 *)(DAT_0001162c + 0x11460);
+        goto LAB_000115ec;
+      }
+      sleep(1);
+      local_f8[1] = 0;
+      gettimeofday(&local_108,(__timezone_ptr_t)0x0);
+      local_e8[0].tv_sec = local_108.tv_sec + 1;
+      local_e8[0].tv_nsec = local_108.tv_usec * 1000;
+      if (local_e8[0].tv_nsec - DAT_00011608 != 0 && DAT_00011608 <= local_e8[0].tv_nsec) {
+        local_e8[0].tv_sec = local_108.tv_sec + 2;
+        __aeabi_idivmod(local_e8[0].tv_nsec,DAT_0001160c);
+        local_e8[0].tv_nsec = extraout_r1;
+      }
+      pthread_mutex_lock((pthread_mutex_t *)(auStack_f0 + 4));
+      do {
+        if (local_f8[0] != 0) goto LAB_000114ba;
+        iVar4 = pthread_cond_timedwait
+                          ((pthread_cond_t *)auStack_f0,(pthread_mutex_t *)(auStack_f0 + 4),local_e8
+                          );
+      } while (iVar4 != 0x6e);
+      local_f8[1] = 1;
+LAB_000114ba:
+      pthread_mutex_unlock((pthread_mutex_t *)(auStack_f0 + 4));
+    }
+    iVar5 = qmi_client_get_service_list(iVar2,local_e8,&local_128,&local_124);
+    if (iVar5 == 0) {
+      puVar6 = (undefined4 *)(DAT_0001163c + 0x11500);
+      iVar5 = qmi_client_init(local_e8,iVar2,DAT_00011640 + 0x1150a,0,DAT_00011638 + 0x114fe,puVar6)
+      ;
+      if (iVar5 == 0) {
+        memset(&local_108,0,0x10);
+        gettimeofday(&local_110,(__timezone_ptr_t)0x0);
+        lVar1 = __aeabi_uldivmod(local_110.tv_usec,local_110.tv_usec >> 0x1f,1000,0);
+        iVar5 = FUN_00010ef4(&local_120);
+        if (iVar5 != 0) {
+          iVar5 = DAT_0001164c + 0x11566;
+          goto LAB_00011564;
+        }
+        local_100 = ((longlong)local_110.tv_sec * 1000 - CONCAT44(uStack_11c,local_120)) +
+                    CONCAT44(DAT_00011604,DAT_00011600) + lVar1;
+        local_108.tv_sec = 2;
+        iVar5 = qmi_client_send_msg_sync(*puVar6,0x20,&local_108,0x10,auStack_118,8,5000);
+        if ((iVar5 == 0) && (local_114 == 0)) {
+          __android_log_print(3,iVar9,DAT_00011650 + 0x115be,iVar8);
+          *(undefined1 *)(DAT_00011654 + 0x115c8) = 1;
+          return 0;
+        }
+        __android_log_print(6,DAT_00011658 + 0x115d8,DAT_0001165c + 0x115da,DAT_00011660 + 0x115dc);
+        qmi_client_release(*(undefined4 *)(DAT_00011664 + 0x115e4));
+        puVar6 = (undefined4 *)(DAT_00011668 + 0x115ee);
+      }
+      else {
+        __android_log_print(6,iVar9,DAT_00011644 + 0x1151c,iVar8,iVar5);
+        puVar6 = (undefined4 *)(DAT_00011648 + 0x11526);
+      }
+    }
+    else {
+      __android_log_print(6,iVar9,DAT_00011630 + 0x114e8,iVar8,iVar5,local_124,local_128);
+      puVar6 = (undefined4 *)(DAT_00011634 + 0x114f0);
+    }
+LAB_000115ec:
+    qmi_client_release(*puVar6);
+  }
+  return 0xffffffea;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_00011670                             @ 0x00011670
+║ Size: 218 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void FUN_00011670(undefined4 param_1,int param_2,undefined4 param_3,undefined4 param_4)
+
+{
+  int iVar1;
+  int iVar2;
+  int iVar3;
+  uint *puVar4;
+  uint local_28 [4];
+  
+  __android_log_print(6,DAT_0001174c + 0x1168c,DAT_00011750 + 0x1168e,DAT_00011754 + 0x11690,param_2
+                     );
+  iVar2 = DAT_00011758;
+  if ((1 < param_2 - 0x2dU) && (param_2 != 0x29)) {
+    return;
+  }
+  puVar4 = (uint *)(DAT_00011758 + 0x116a4);
+  pthread_mutex_lock((pthread_mutex_t *)(DAT_00011758 + 0x116ac));
+  pthread_mutex_lock((pthread_mutex_t *)(DAT_0001175c + 0x116b0));
+  iVar1 = qmi_client_message_decode(param_1,2,param_2,param_3,param_4,local_28,0x10);
+  iVar3 = DAT_00011780;
+  if (iVar1 == 0) {
+    if (local_28[0] < 0xf) {
+      iVar1 = *(int *)(local_28[0] * 0x90 + DAT_0001176c + 0x116f6);
+      if (*(int *)(DAT_00011770 + 0x116f2 + iVar1 * 4) == 0) {
+        __android_log_print(6,DAT_00011774 + 0x11702,DAT_00011778 + 0x11706,DAT_0001177c + 0x1170a,
+                            iVar1);
+      }
+      else {
+        *puVar4 = local_28[0];
+        *(undefined4 *)(iVar2 + 0x116a8) = 1;
+        pthread_cond_signal((pthread_cond_t *)(iVar3 + 0x11718));
+      }
+      goto LAB_0001171c;
+    }
+    iVar2 = DAT_0001178c + 0x1173c;
+    iVar3 = DAT_00011790 + 0x1173e;
+    iVar1 = DAT_00011794 + 0x11740;
+  }
+  else {
+    iVar2 = DAT_00011760 + 0x116d8;
+    iVar3 = DAT_00011764 + 0x116da;
+    iVar1 = DAT_00011768 + 0x116dc;
+  }
+  __android_log_print(6,iVar2,iVar3,iVar1);
+LAB_0001171c:
+  pthread_mutex_unlock((pthread_mutex_t *)(DAT_00011784 + 0x11722));
+  pthread_mutex_unlock((pthread_mutex_t *)(DAT_00011788 + 0x11732));
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_00011798                             @ 0x00011798
+║ Size: 244 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void FUN_00011798(undefined4 *param_1)
+
+{
+  int __fd;
+  ssize_t sVar1;
+  int *piVar2;
+  int iVar3;
+  char acStack_94 [120];
+  int local_1c;
+  
+  piVar2 = *(int **)(DAT_00011894 + 0x117a0 + DAT_00011898);
+  local_1c = *piVar2;
+  if (*(char *)(param_1 + 8) != '\x01') goto LAB_0001187c;
+  iVar3 = DAT_0001189c + 0x117c4;
+  __android_log_print(3,iVar3,DAT_000118a0 + 0x117d0,DAT_000118a4 + 0x117d2,*param_1,param_1[1]);
+  snprintf(acStack_94,0x78,(char *)(DAT_000118a8 + 0x117e0),DAT_000118ac + 0x117e2,
+           (int)param_1 + 0x21);
+  __android_log_print(3,iVar3,DAT_000118b0 + 0x117f0,acStack_94);
+  __android_log_print(3,iVar3,DAT_000118b4 + 0x11800,DAT_000118b8 + 0x11802);
+  __fd = open(acStack_94,DAT_0001188c);
+  if (__fd < 0) {
+    __android_log_print(3,iVar3,DAT_000118bc + 0x1181a);
+    __fd = open(acStack_94,DAT_00011890,0x1a4);
+    if (-1 < __fd) goto LAB_0001183a;
+    __android_log_print(3,iVar3,DAT_000118c0 + 0x11836);
+  }
+  else {
+LAB_0001183a:
+    sVar1 = write(__fd,param_1,8);
+    if (-1 < sVar1) {
+      close(__fd);
+      goto LAB_0001187c;
+    }
+    __android_log_print(6,DAT_000118c4 + 0x11854,DAT_000118c8 + 0x11856,DAT_000118cc + 0x11858);
+    close(__fd);
+  }
+  __android_log_print(3,DAT_000118d0 + 0x11876,DAT_000118d4 + 0x11878,DAT_000118d8 + 0x1187a);
+LAB_0001187c:
+  if (local_1c != *piVar2) {
+                    /* WARNING: Subroutine does not return */
+    __stack_chk_fail();
+  }
+  return;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_000118dc                             @ 0x000118dc
+║ Size: 232 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_000118dc(uint *param_1)
+
+{
+  int *piVar1;
+  uint uVar2;
+  int iVar3;
+  undefined4 extraout_r1;
+  undefined4 extraout_r1_00;
+  int iVar4;
+  int iVar5;
+  int iVar6;
+  int iVar7;
+  int *piVar8;
+  int iVar9;
+  int iVar10;
+  int iVar11;
+  int iVar12;
+  uint local_28;
+  int iStack_24;
+  
+  iVar3 = DAT_000119c4;
+  if (*param_1 < 0xf) {
+    piVar8 = (int *)(*param_1 * 0x90 + DAT_000119c4 + 0x118f4);
+    if ((char)piVar8[2] != '\0') {
+      iVar4 = FUN_00010ef4(&local_28);
+      if (iVar4 != 0) {
+        return 0xffffffea;
+      }
+      iVar9 = DAT_000119d4 + 0x11926;
+      __android_log_print(3,iVar9,DAT_000119d8 + 0x1192c,iStack_24,local_28,iStack_24);
+      uVar2 = *(uint *)param_1[1];
+      iVar6 = uVar2 - local_28;
+      iVar7 = (((uint *)param_1[1])[1] - iStack_24) - (uint)(uVar2 < local_28);
+      __android_log_print(3,iVar9,DAT_000119dc + 0x1193e);
+      iVar4 = DAT_000119e0;
+      *piVar8 = iVar6;
+      piVar8[1] = iVar7;
+      iVar5 = iVar6;
+      iVar10 = iVar7;
+      iVar11 = iVar6;
+      iVar12 = iVar7;
+      __android_log_print(3,iVar9,iVar4 + 0x1195a);
+      FUN_00011798(piVar8,extraout_r1,iVar6,iVar7,iVar5,iVar10,iVar11,iVar12);
+      if (*(int *)(DAT_000119e4 + 0x11978 + piVar8[3] * 4) == 0) {
+        return 0;
+      }
+      if (piVar8[3] != 1) {
+        __android_log_print(3,iVar9,DAT_000119e8 + 0x1198a);
+        iVar4 = piVar8[1];
+        piVar1 = (int *)(iVar3 + 0x11984);
+        *piVar1 = *piVar8;
+        *(int *)(iVar3 + 0x11988) = iVar4;
+        FUN_00011798(piVar1,extraout_r1_00,iVar6,iVar7,iVar5,iVar10,iVar11,iVar12);
+      }
+      return 0;
+    }
+    iVar3 = DAT_000119c8 + 0x11906;
+    iVar4 = DAT_000119cc + 0x11908;
+    iVar5 = DAT_000119d0 + 0x1190a;
+  }
+  else {
+    iVar3 = DAT_000119ec + 0x119b4;
+    iVar4 = DAT_000119f0 + 0x119b6;
+    iVar5 = DAT_000119f4 + 0x119b8;
+  }
+  __android_log_print(6,iVar3,iVar4,iVar5);
+  return 0xffffffea;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_000119f8                             @ 0x000119f8
+║ Size: 380 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined4 FUN_000119f8(uint *param_1)
+
+{
+  longlong lVar1;
+  undefined4 uVar2;
+  tm *ptVar3;
+  int iVar4;
+  uint uVar5;
+  int iVar6;
+  int iVar7;
+  uint *puVar8;
+  undefined4 *puVar9;
+  undefined8 *puVar10;
+  undefined8 uVar11;
+  time_t local_28;
+  int local_24;
+  uint local_20;
+  time_t *local_1c;
+  undefined4 local_18;
+  uint local_14;
+  
+  if (*(int *)(DAT_00011b74 + 0x11a00) == 0) {
+    __android_log_print(3,DAT_00011b80 + 0x11a28,DAT_00011b7c + 0x11a1e,DAT_00011b78 + 0x11a10,
+                        *param_1);
+  }
+  local_14 = param_1[3];
+  if (local_14 == 1) {
+    uVar5 = param_1[2];
+    if (uVar5 == 2) {
+      uVar2 = FUN_00010fe4(param_1);
+      puVar10 = (undefined8 *)param_1[1];
+      uVar11 = __aeabi_uldivmod(*(undefined4 *)puVar10,*(undefined4 *)((int)puVar10 + 4),1000,0);
+      *puVar10 = uVar11;
+      return uVar2;
+    }
+    if (uVar5 == 3) {
+      local_20 = *param_1;
+      local_18 = 2;
+      local_1c = &local_28;
+      uVar2 = FUN_00010fe4(&local_20);
+      ptVar3 = gmtime(&local_28);
+      param_1[1] = (uint)ptVar3;
+      return uVar2;
+    }
+    if (uVar5 == 1) {
+      uVar2 = FUN_00010fe4(param_1);
+      return uVar2;
+    }
+    iVar4 = DAT_00011b84 + 0x11a92;
+    iVar6 = DAT_00011b88 + 0x11a94;
+    iVar7 = DAT_00011b8c + 0x11a96;
+LAB_00011b02:
+    __android_log_print(6,iVar4,iVar6,iVar7,uVar5);
+    return 0xffffffea;
+  }
+  if (local_14 != 0) {
+    if (local_14 != 2) {
+      return 0;
+    }
+    if (0xe < *param_1) {
+      __android_log_print(6,DAT_00011ba8 + 0x11b64,DAT_00011bac + 0x11b66,DAT_00011bb0 + 0x11b68);
+      return 0xffffffea;
+    }
+    iVar4 = *param_1 * 0x90;
+    puVar8 = (uint *)param_1[1];
+    *puVar8 = (uint)(*(int *)(DAT_00011b9c + 0x11b20 + iVar4 + 4) != 0 ||
+                    *(int *)(DAT_00011b9c + 0x11b20 + iVar4) != 0);
+    puVar8[1] = 0;
+    puVar9 = (undefined4 *)param_1[1];
+    __android_log_print(3,DAT_00011ba4 + 0x11b50,DAT_00011ba0 + 0x11b42,puVar9,*puVar9,puVar9[1],
+                        *param_1);
+    return 0;
+  }
+  uVar5 = param_1[2];
+  if (uVar5 == 2) {
+    lVar1 = (ulonglong)*(uint *)param_1[1] * 1000;
+    local_28 = (time_t)lVar1;
+    local_24 = ((uint *)param_1[1])[1] * 1000 + (int)((ulonglong)lVar1 >> 0x20);
+    param_1[1] = (uint)&local_28;
+  }
+  else {
+    if (uVar5 == 3) {
+      local_28 = mktime((tm *)param_1[1]);
+      local_20 = *param_1;
+      local_1c = &local_28;
+      local_24 = local_28 >> 0x1f;
+      local_18 = 2;
+      uVar2 = FUN_000119f8(&local_20);
+      return uVar2;
+    }
+    if (uVar5 != 1) {
+      iVar4 = DAT_00011b90 + 0x11b00;
+      iVar6 = DAT_00011b94 + 0x11b02;
+      iVar7 = DAT_00011b98 + 0x11b04;
+      goto LAB_00011b02;
+    }
+  }
+  uVar2 = FUN_000118dc(param_1);
+  return uVar2;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_000120d0                             @ 0x000120d0
+║ Size: 332 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+void FUN_000120d0(void)
+
+{
+  int iVar1;
+  int iVar2;
+  int iVar3;
+  int iVar4;
+  int iVar5;
+  int iVar6;
+  pthread_mutex_t *ppVar7;
+  void *__s;
+  int iVar8;
+  int iVar9;
+  undefined4 *puVar10;
+  int iVar11;
+  int iVar12;
+  pthread_mutex_t *__mutex;
+  int iVar13;
+  undefined4 local_3c;
+  undefined4 local_38;
+  int local_34;
+  undefined4 local_30;
+  int local_2c;
+  
+  iVar1 = DAT_00012228;
+  puVar10 = (undefined4 *)(DAT_0001222c + 0x120ea);
+  iVar11 = DAT_00012230 + 0x120ee;
+  iVar12 = DAT_00012234 + 0x120f0;
+  __mutex = (pthread_mutex_t *)(DAT_00012228 + 0x120ec);
+  iVar5 = DAT_00012238 + 0x120f6;
+  do {
+    while( true ) {
+      iVar2 = DAT_0001223c;
+      ppVar7 = (pthread_mutex_t *)(DAT_0001223c + 0x12104);
+      pthread_mutex_lock(ppVar7);
+      if (*(int *)(iVar2 + 0x12100) == 0) {
+        pthread_cond_wait((pthread_cond_t *)(DAT_00012240 + 74000),ppVar7);
+      }
+      iVar2 = DAT_0001224c;
+      iVar9 = DAT_00012244 + 0x1211e;
+      iVar8 = DAT_00012248 + 0x12120;
+      __s = (void *)(DAT_0001224c + 0x1212c);
+      __android_log_print(3,iVar9,iVar5,iVar8,*puVar10);
+      memset(__s,0,0x18);
+      local_3c = *puVar10;
+      iVar3 = qmi_client_send_msg_sync
+                        (*(undefined4 *)(DAT_00012250 + 0x1214a),0x21,&local_3c,4,__s,0x18,1000);
+      if ((iVar3 != 0) || (iVar13 = *(int *)(iVar2 + 0x12130), iVar13 != 0)) break;
+      iVar4 = *(uint *)(iVar2 + 0x1213c) + DAT_00012220;
+      iVar6 = *(int *)(iVar2 + 0x12140) +
+              DAT_00012224 + (uint)CARRY4(*(uint *)(iVar2 + 0x1213c),DAT_00012220);
+      *(int *)(iVar2 + 0x1213c) = iVar4;
+      *(int *)(iVar2 + 0x12140) = iVar6;
+      __android_log_print(3,iVar9,DAT_00012254 + 0x12190,iVar8,iVar4,iVar6);
+      pthread_mutex_lock((pthread_mutex_t *)(DAT_00012258 + 0x12198));
+      local_38 = *(undefined4 *)(iVar2 + 0x12134);
+      local_30 = 1;
+      local_34 = iVar2 + 0x1213c;
+      local_2c = iVar13;
+      iVar3 = FUN_000119f8(&local_38);
+      if (iVar3 == 0) {
+        __android_log_print(6,iVar9,DAT_00012268 + 0x121fe,iVar8,*(undefined4 *)(iVar2 + 0x12134),
+                            iVar6);
+      }
+      else {
+        __android_log_print(6,iVar9,DAT_00012264 + 0x121ec,iVar8,iVar4,iVar6);
+      }
+      iVar2 = DAT_0001226c;
+      ppVar7 = (pthread_mutex_t *)(DAT_00012270 + 0x1220e);
+      *(undefined4 *)(DAT_0001226c + 0x12210) = 0;
+      pthread_mutex_unlock(ppVar7);
+      pthread_mutex_unlock((pthread_mutex_t *)(iVar2 + 0x12214));
+    }
+    __android_log_print(6,iVar11,DAT_00012260 + 0x121d0,iVar12,iVar3,
+                        *(undefined4 *)(DAT_0001225c + 0x121ca));
+    pthread_mutex_unlock(__mutex);
+    *(undefined4 *)(iVar1 + 0x120e8) = 0;
+  } while( true );
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: FUN_000127c0                             @ 0x000127c0
+║ Size: 22 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+undefined * FUN_000127c0(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 1)) && (param_3 == 2)) {
+    return &UNK_000127d6 + DAT_000127d8;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __libc_init                              @ 0x00016000
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __libc_init(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __cxa_atexit                             @ 0x00016004
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __cxa_atexit(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: open                                     @ 0x00016008
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int open(char *__file,int __oflag,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __android_log_print                      @ 0x0001600c
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __android_log_print(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: ioctl                                    @ 0x00016010
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int ioctl(int __fd,ulong __request,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: mktime                                   @ 0x00016014
+║ Size: 1 bytes  |  Params: 1  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+time_t mktime(tm *__tp)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: close                                    @ 0x00016018
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int close(int __fd)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_unwind_cpp_pr0                   @ 0x0001601c
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_unwind_cpp_pr0(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: socket                                   @ 0x00016020
+║ Size: 1 bytes  |  Params: 3  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int socket(int __domain,int __type,int __protocol)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_exit                             @ 0x00016024
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void pthread_exit(void *__retval)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: strlcpy                                  @ 0x00016028
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void strlcpy(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: unlink                                   @ 0x0001602c
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int unlink(char *__name)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: bind                                     @ 0x00016030
+║ Size: 1 bytes  |  Params: 3  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int bind(int __fd,sockaddr *__addr,socklen_t __len)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: listen                                   @ 0x00016034
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int listen(int __fd,int __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: accept                                   @ 0x00016038
+║ Size: 1 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int accept(int __fd,sockaddr *__addr,socklen_t *__addr_len)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_create                           @ 0x0001603c
+║ Size: 1 bytes  |  Params: 4  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_create(pthread_t *__newthread,pthread_attr_t *__attr,__start_routine *__start_routine,
+                  void *__arg)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_join                             @ 0x00016040
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_join(pthread_t __th,void **__thread_return)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __stack_chk_fail                         @ 0x00016044
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __stack_chk_fail(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: snprintf                                 @ 0x0001604c
+║ Size: 1 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int snprintf(char *__s,size_t __maxlen,char *__format,...)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: read                                     @ 0x00016050
+║ Size: 1 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t read(int __fd,void *__buf,size_t __nbytes)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_idivmod                          @ 0x00016054
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_idivmod(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_uldivmod                         @ 0x00016058
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_uldivmod(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_notifier_init                 @ 0x0001605c
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_client_notifier_init(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_get_service_list              @ 0x00016060
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_client_get_service_list(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: sleep                                    @ 0x00016064
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+uint sleep(uint __seconds)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: gettimeofday                             @ 0x00016068
+║ Size: 1 bytes  |  Params: 2  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int gettimeofday(timeval *__tv,__timezone_ptr_t __tz)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_mutex_lock                       @ 0x0001606c
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_lock(pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_cond_timedwait                   @ 0x00016070
+║ Size: 1 bytes  |  Params: 3  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_timedwait(pthread_cond_t *__cond,pthread_mutex_t *__mutex,timespec *__abstime)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_mutex_unlock                     @ 0x00016074
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_unlock(pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_init                          @ 0x00016078
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_client_init(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: memset                                   @ 0x0001607c
+║ Size: 1 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void * memset(void *__s,int __c,size_t __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_send_msg_sync                 @ 0x00016080
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_client_send_msg_sync(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_release                       @ 0x00016084
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_client_release(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: qmi_client_message_decode                @ 0x00016088
+║ Size: 1 bytes  |  Params: 0  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void qmi_client_message_decode(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_cond_signal                      @ 0x0001608c
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_signal(pthread_cond_t *__cond)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: write                                    @ 0x00016090
+║ Size: 1 bytes  |  Params: 3  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t write(int __fd,void *__buf,size_t __n)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: gmtime                                   @ 0x00016094
+║ Size: 1 bytes  |  Params: 1  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+tm * gmtime(time_t *__timer)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: property_get                             @ 0x00016098
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void property_get(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: strcmp                                   @ 0x0001609c
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int strcmp(char *__s1,char *__s2)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: recv                                     @ 0x000160a0
+║ Size: 1 bytes  |  Params: 4  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t recv(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: send                                     @ 0x000160a4
+║ Size: 1 bytes  |  Params: 4  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+ssize_t send(int __fd,void *__buf,size_t __n,int __flags)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __errno                                  @ 0x000160a8
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __errno(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_cond_wait                        @ 0x000160ac
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_cond_wait(pthread_cond_t *__cond,pthread_mutex_t *__mutex)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: __aeabi_idiv                             @ 0x000160b0
+║ Size: 1 bytes  |  Params: 0  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_idiv(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: setgid                                   @ 0x000160b4
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setgid(__gid_t __gid)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: setuid                                   @ 0x000160b8
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int setuid(__uid_t __uid)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: exit                                     @ 0x000160bc
+║ Size: 1 bytes  |  Params: 1  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+void exit(int __status)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: bsd_signal                               @ 0x000160c0
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+__sighandler_t bsd_signal(int __sig,__sighandler_t __handler)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_mutex_init                       @ 0x000160c4
+║ Size: 1 bytes  |  Params: 2  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_mutex_init(pthread_mutex_t *__mutex,pthread_mutexattr_t *__mutexattr)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: settimeofday                             @ 0x000160c8
+║ Size: 1 bytes  |  Params: 2  |  Priority: HIGH
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int settimeofday(timeval *__tv,timezone *__tz)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+╔══════════════════════════════════════════════════════════════
+║ FUNCTION: pthread_kill                             @ 0x000160cc
+║ Size: 1 bytes  |  Params: 2  |  Priority: normal
+╚══════════════════════════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Unknown calling convention -- yet parameter storage is locked */
+
+int pthread_kill(pthread_t __threadid,int __signo)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+
+=== SECTION 3: HARDCODED CONSTANTS SEARCH ===
+
+
+Searching for constant 0x16 (22) in instruction operands:
+
+Searching for constant 0x20 (32) in instruction operands:
+  Found 0x20 at 00010f4a in FUN_00010ef4: ldr r1,[sp,#0x20]
+  Found 0x20 at 000112d2 in FUN_0001129c: ldrb.w r2,[r4,#0x20]
+  Found 0x20 at 00011570 in FUN_000113d0: add r2,sp,#0x20
+  Found 0x20 at 0001159c in FUN_000113d0: movs r1,#0x20
+  Found 0x20 at 00011674 in FUN_00011670: sub sp,#0x20
+  Found 0x20 at 00011744 in FUN_00011670: add sp,#0x20
+  Found 0x20 at 000117a6 in FUN_00011798: ldrb.w r1,[r5,#0x20]
+  Found 0x20 at 00011a66 in FUN_000119f8: add r0,sp,#0x20
+  Found 0x20 at 00011a6e in FUN_000119f8: str r6,[sp,#0x20]
+  Found 0x20 at 00011adc in FUN_000119f8: str r1,[sp,#0x20]
+  Found 0x20 at 00011ae4 in FUN_000119f8: add r0,sp,#0x20
+  Found 0x20 at 000121a4 in FUN_000120d0: add r0,sp,#0x20
+  Found 0x20 at 000121aa in FUN_000120d0: str r2,[sp,#0x20]
+
+Searching for constant 0x25 (37) in instruction operands:
+
+Searching for constant 0x16 (22) in instruction operands:
+
+Searching for constant 0x384 (900) in instruction operands:
+
+Searching for constant 0x384 (900) in instruction operands:
+
+=== SECTION 4: FUNCTION CALL GRAPH ===
+
+__libc_init -> [__libc_init, ]
+__cxa_atexit -> [__cxa_atexit, ]
+open -> [open, ]
+__android_log_print -> [__android_log_print, ]
+ioctl -> [ioctl, ]
+mktime -> [mktime, ]
+close -> [close, ]
+socket -> [socket, ]
+pthread_exit -> [pthread_exit, ]
+strlcpy -> [strlcpy, ]
+unlink -> [unlink, ]
+bind -> [bind, ]
+listen -> [listen, ]
+accept -> [accept, ]
+pthread_create -> [pthread_create, ]
+pthread_join -> [pthread_join, ]
+__stack_chk_fail -> [__stack_chk_fail, ]
+snprintf -> [snprintf, ]
+read -> [read, ]
+qmi_client_notifier_init -> [qmi_client_notifier_init, ]
+qmi_client_get_service_list -> [qmi_client_get_service_list, ]
+sleep -> [sleep, ]
+gettimeofday -> [gettimeofday, ]
+__aeabi_idivmod -> [__aeabi_idivmod, ]
+pthread_mutex_lock -> [pthread_mutex_lock, ]
+pthread_cond_timedwait -> [pthread_cond_timedwait, ]
+pthread_mutex_unlock -> [pthread_mutex_unlock, ]
+qmi_client_init -> [qmi_client_init, ]
+memset -> [memset, ]
+__aeabi_uldivmod -> [__aeabi_uldivmod, ]
+qmi_client_send_msg_sync -> [qmi_client_send_msg_sync, ]
+qmi_client_release -> [qmi_client_release, ]
+qmi_client_message_decode -> [qmi_client_message_decode, ]
+pthread_cond_signal -> [pthread_cond_signal, ]
+write -> [write, ]
+gmtime -> [gmtime, ]
+property_get -> [property_get, ]
+strcmp -> [strcmp, ]
+recv -> [recv, ]
+send -> [send, ]
+__errno -> [__errno, ]
+pthread_cond_wait -> [pthread_cond_wait, ]
+setgid -> [setgid, ]
+setuid -> [setuid, ]
+exit -> [exit, ]
+bsd_signal -> [bsd_signal, ]
+pthread_mutex_init -> [pthread_mutex_init, ]
+__aeabi_idiv -> [__aeabi_idiv, ]
+settimeofday -> [settimeofday, ]
+pthread_kill -> [pthread_kill, ]
+entry -> [__libc_init, ]
+FUN_00010eb8 -> [__cxa_atexit, ]
+FUN_00010ef4 -> [open, __android_log_print, close, ioctl, mktime, ]
+FUN_00010fe4 -> [__android_log_print, FUN_00010ef4, ]
+FUN_0001129c -> [snprintf, __stack_chk_fail, __android_log_print, open, close, read, ]
+FUN_000113d0 -> [qmi_client_notifier_init, pthread_mutex_unlock, pthread_cond_timedwait, sleep, qmi_client_get_service_list, gettimeofday, FUN_000127c0, __android_log_print, __aeabi_idivmod, qmi_client_init, memset, qmi_client_release, __aeabi_uldivmod, qmi_client_send_msg_sync, pthread_mutex_lock, FUN_00010ef4, ]
+FUN_00011670 -> [pthread_mutex_unlock, qmi_client_message_decode, __android_log_print, pthread_cond_signal, pthread_mutex_lock, ]
+FUN_00011798 -> [snprintf, write, __stack_chk_fail, __android_log_print, open, close, ]
+FUN_000118dc -> [FUN_00011798, __android_log_print, FUN_00010ef4, ]
+FUN_000119f8 -> [FUN_00010fe4, gmtime, __android_log_print, __aeabi_uldivmod, FUN_000118dc, FUN_000119f8, mktime, ]
+FUN_000120d0 -> [pthread_mutex_unlock, __android_log_print, memset, pthread_cond_wait, qmi_client_send_msg_sync, pthread_mutex_lock, FUN_000119f8, ]
+
+=== SECTION 5: ALL STRINGS IN BINARY ===
+
+  0x00010134: ""/system/bin/linker""
+  0x000104d9: "u8"__libc_init""
+  0x000104e5: "u8"__cxa_atexit""
+  0x000104f2: "u8"open""
+  0x000104f7: "u8"__android_log_print""
+  0x0001050b: "u8"ioctl""
+  0x00010511: "u8"mktime""
+  0x00010518: "u8"close""
+  0x0001051e: "u8"__aeabi_unwind_cpp_pr0""
+  0x00010535: "u8"socket""
+  0x0001053c: "u8"pthread_exit""
+  0x00010549: "u8"strlcpy""
+  0x00010551: "u8"unlink""
+  0x00010558: "u8"bind""
+  0x0001055d: "u8"listen""
+  0x00010564: "u8"accept""
+  0x0001056b: "u8"pthread_create""
+  0x0001057a: "u8"pthread_join""
+  0x00010587: "u8"__stack_chk_fail""
+  0x00010598: "u8"__stack_chk_guard""
+  0x000105aa: "u8"snprintf""
+  0x000105b3: "u8"read""
+  0x000105b8: "u8"__aeabi_idivmod""
+  0x000105c8: "u8"__aeabi_uldivmod""
+  0x000105d9: "u8"qmi_client_notifier_init""
+  0x000105f2: "u8"qmi_client_get_service_list""
+  0x0001060e: "u8"sleep""
+  0x00010614: "u8"gettimeofday""
+  0x00010621: "u8"pthread_mutex_lock""
+  0x00010634: "u8"pthread_cond_timedwait""
+  0x0001064b: "u8"pthread_mutex_unlock""
+  0x00010660: "u8"qmi_client_init""
+  0x00010670: "u8"memset""
+  0x00010677: "u8"qmi_client_send_msg_sync""
+  0x00010690: "u8"qmi_client_release""
+  0x000106a3: "u8"qmi_client_message_decode""
+  0x000106bd: "u8"pthread_cond_signal""
+  0x000106d1: "u8"write""
+  0x000106d7: "u8"gmtime""
+  0x000106de: "u8"property_get""
+  0x000106eb: "u8"strcmp""
+  0x000106f2: "u8"recv""
+  0x000106f7: "u8"send""
+  0x000106fc: "u8"__errno""
+  0x00010704: "u8"pthread_cond_wait""
+  0x00010716: "u8"__aeabi_idiv""
+  0x00010723: "u8"setgid""
+  0x0001072a: "u8"setuid""
+  0x00010731: "u8"exit""
+  0x00010736: "u8"bsd_signal""
+  0x00010741: "u8"pthread_mutex_init""
+  0x00010754: "u8"settimeofday""
+  0x00010761: "u8"pthread_kill""
+  0x0001076e: "u8"common_qmi_idl_type_table_object_v01""
+  0x00010793: "u8"_edata""
+  0x0001079a: "u8"__bss_start""
+  0x000107a6: "u8"_end""
+  0x000107ab: "u8"libc.so""
+  0x000107b3: "u8"libcutils.so""
+  0x000107c0: "u8"libqmi_cci.so""
+  0x000107ce: "u8"libqmi_common_so.so""
+  0x000107e2: "u8"libstdc++.so""
+  0x000107ef: "u8"libm.so""
+  0x000127e8: ""Android""
+  0x00012864: ""enable""
+  0x000128c0: ""genoff_persistent_update""
+  0x000128d9: ""genoff_boot_tod_init""
+  0x000128ee: ""genoff_post_init""
+  0x000128ff: ""rtc_get""
+  0x00012944: ""genoff_handler""
+  0x00012953: ""genoff_modem_qmi_init""
+  0x00012969: ""genoff_get""
+  0x00012974: ""ats_rtc_init""
+  0x00012981: ""genoff_opr""
+  0x00012a04: ""genoff_set""
+  0x00012a0f: ""tod_update_ind_cb""
+  0x00012a60: ""read_offset""
+  0x00012a6c: ""genoff_send_modem""
+  0x00012a7e: ""time_persistent_memory_opr""
+  0x00012ad8: ""genoff_pre_init""
+  0x00012ae8: ""ats_bases_init""
+  0x00012af7: ""/dev/rtc0""
+  0x00012b01: ""QC-time-services""
+  0x00012b12: ""Daemon:%s: Unable to open RTC device\n""
+  0x00012b38: ""Daemon:%s: Unable to read from RTC device\n""
+  0x00012b63: ""Daemon:%s: Time read from RTC -- MM/DD/YY HH:MM:SS%d/%d/%d %d:%d:%d\n""
+  0x00012ba8: ""Daemon:Invalid RTC seconds = %ld\n""
+  0x00012bca: ""Daemon: genoff get for %d\n""
+  0x00012be5: ""Daemon:%s:Bases not initialized\n""
+  0x00012c06: ""Daemon:Value read from RTC seconds = %lld\n""
+  0x00012c31: ""Daemon:Value read from generic offset = %lld\n""
+  0x00012c5f: ""Daemon:Final Time = %llu\n""
+  0x00012c79: ""Daemon:%s:Genoff memory not allocated\n""
+  0x00012ca0: ""Daemon: Unable to create socket:time_genoff\n""
+  0x00012ccd: ""#time_genoff""
+  0x00012cda: ""Daemon: Unable to bind socket:time_genoff\n""
+  0x00012d05: ""Daemon: Unable to listen on socket:time_genoff\n""
+  0x00012d35: ""Daemon: Time-services: All initializations done\n""
+  0x00012d66: ""Daemon: Time-services: Waiting to acceptconnection\n""
+  0x00012d9a: ""Daemon: Unable to accept connection:time_genoff\n""
+  0x00012dcb: ""Daemon: Connection accepted:time_genoff\n""
+  0x00012df4: ""Daemon: Cannot create pthread:time_genoff\n""
+  0x00012e1f: ""Daemon:%s:Init func failed\n""
+  0x00012e3b: ""%s/%s""
+  0x00012e41: ""/data/time""
+  0x00012e4c: ""Daemon:Opening File: %s\n""
+  0x00012e65: ""Daemon:%s:Genoff Read operation \n""
+  0x00012e87: ""Daemon:Unable to open filefor read\n""
+  0x00012eab: ""Daemon:%s:Error reading fromfile\n""
+  0x00012ecd: ""Daemon:%s:Error in accessing storage\n""
+  0x00012ef3: ""Daemon:%s: Initiallizing QMI \n""
+  0x00012f12: ""Daemon:%s: time_get_service_object_v01 failed\n""
+  0x00012f41: ""Daemon:%s: qmi_client_get_service_list returned %dnum_services %d\n""
+  0x00012f84: ""Daemon:%s:retry count exceeds limitQMI init failed continuing withoutserver\n""
+  0x00012fd1: ""Daemon:%s: qmi_client_get_service_list returned %dnum_service %d num_entries %d\n""
+  0x00013022: ""Daemon:%s: Client init failed %d\n""
+  0x00013044: ""Daemon:%s: RTC read failed\n""
+  0x00013060: ""Daemon:%s: Initial transaction successfull\n""
+  0x0001308c: ""Daemon:%s: Initial transaction failed\n""
+  0x000130b3: ""Daemon:%s: Got Update from modem msg_id %lu""
+  0x000130df: ""Daemon:%s: TOD update message decode error\n""
+  0x0001310b: ""Daemon:%s: Ignore time update from MODEM,for base = %d\n""
+  0x00013143: ""Daemon:%s: ptime_genoff is NULL\n""
+  0x00013164: ""Daemon:%s: Writing genoff = %llu to memory\n""
+  0x00013190: ""Daemon:%s:Genoff write operation \n""
+  0x000131b3: ""Daemon:Unable to open file,creating file\n""
+  0x000131dd: ""Daemon:Unable to createfile, exiting\n""
+  0x00013203: ""Daemon:%s:or in accessing storage\n""
+  0x00013226: ""Daemon:%s:Genoff not initialized\n""
+  0x00013248: ""Daemon:new time %lld \n""
+  0x0001325f: ""Daemon: delta %lld genoff %lld \n""
+  0x00013280: ""Updating the TOD offset\n""
+  0x00013299: ""Daemon:%s: Base = %d, val = %llu, operation = %d""
+  0x000132ca: ""Daemon:%s:Invalid time unit %d""
+  0x000132e9: ""offset is: %d for base: %d""
+  0x00013304: ""debug.time_services.enable""
+  0x00013324: ""false""
+  0x0001332a: ""Daemon:Unable to recv data from client\n""
+  0x00013352: ""Daemon: Invalid base received\n""
+  0x00013371: ""Daemon:Send to client failed %d\n""
+  0x00013392: ""Daemon:%s: Update is not allowed for offset[%d]\n""
+  0x000133c3: ""Daemon:Received base = %d, unit = %d, operation = %d,value = %llu\n""
+  0x00013406: ""Daemon: Operation on this base is not supported\n""
+  0x00013437: ""Daemon:Update to modem bit set\n""
+  0x00013457: ""Daemon:%s: Sending data to MODEM !\n""
+  0x0001347b: ""Daemon: Base = %d, Value being sent to MODEM = %llu\n""
+  0x000134b0: ""Daemon: message send failed. Error Code %d\n""
+  0x000134dc: ""Daemon:Unable to send data to MODEM\n""
+  0x00013501: ""Daemon:%s: Invalid option\n""
+  0x0001351c: ""Daemon:%s: Sending read request for offset %d\n""
+  0x0001354b: ""Daemon:%s:Time received %llu\n""
+  0x00013569: ""Daemon:%s: Error in reading full time ignoring update rc=%d resp=%d ""
+  0x000135ae: ""Daemon:%s: Offset update failed\n""
+  0x000135cf: ""Daemon:%s: offset %d updated\n""
+  0x000135ed: ""Error changing gid:%d\n""
+  0x00013604: ""Time-services exiting\n""
+  0x0001361b: ""Error changing uid:%d\n""
+  0x00013632: ""Daemon:%s::Base = %d\n""
+  0x00013648: ""Daemon:%s: Time read from RTC -- year = %d, month = %d,day = %d\n""
+  0x00013689: ""Daemon:%s: Genoff post_init operation failed\n""
+  0x000136b7: ""Daemon:%s: RTC initilization failed\n""
+  0x000136dc: ""Daemon:%s: ATS_RTC initialized\n""
+  0x000136fc: ""ats_%d""
+  0x00013703: ""Daemon: Storage Name: %s \n""
+  0x0001371e: ""Daemon:%s: Post init failed for base = %d\n""
+  0x00013749: ""Daemon:%s: Init failed for base = %d\n""
+  0x0001376f: ""Daemon:%s: Other bases initilized, exiting genoff_init\n""
+  0x000137a7: ""Daemon: Unable to initialize bases, exiting\n""
+  0x000137d4: ""Daemon: Pthread mutex init failed\n""
+  0x000137f7: ""/dev/alarm""
+  0x00013802: ""Daemon:%s: Unable to open alarm device\n""
+  0x0001382a: ""Daemon:%s: Updating system time to sec=%ld, usec=%ld\n""
+  0x00013860: ""Daemon:%s: Unable to set clock to sec=%ldusec=%ld\n""
+  0x00013893: ""Daemon:%s: Setting system time to sec =%ld, nsec =%ld\n""
+  0x000138ca: ""Daemon:%s: Unable to set TOD at boot up\n""
+  0x000138f3: ""Daemon: Unable to set TOD at boot up\n""
+  0x00013919: ""Daemon: QMI init failed, QMI calls inactive\n""
+  0x00013946: ""Daemon: Cannot create thread: read thread\n""
+  0x00013971: ""Daemon: Cannot create thread:connection_mgr\n""
+  0x0001399e: ""Daemon: Connection thread joined closing QMI connectionand exiting ...\n""
+  0x000139e6: ""genoff_check_offset""
+  0x000139fa: ""genoff_init_config""
+  0x.comment::00000000: "u8"""
+  0x.comment::00000001: "u8"GCC: (GNU) 4.7""
+  0x.shstrtab::00000001: "u8".shstrtab""
+  0x.shstrtab::0000000b: "u8".interp""
+  0x.shstrtab::00000013: "u8".dynsym""
+  0x.shstrtab::0000001b: "u8".dynstr""
+  0x.shstrtab::00000023: "u8".hash""
+  0x.shstrtab::00000029: "u8".rel.dyn""
+  0x.shstrtab::00000032: "u8".rel.plt""
+  0x.shstrtab::0000003b: "u8".text""
+  0x.shstrtab::00000041: "u8".note.android.ident""
+  0x.shstrtab::00000055: "u8".ARM.exidx""
+  0x.shstrtab::00000060: "u8".rodata""
+  0x.shstrtab::00000068: "u8".data.rel.ro.local""
+  0x.shstrtab::0000007b: "u8".preinit_array""
+  0x.shstrtab::0000008a: "u8".init_array""
+  0x.shstrtab::00000096: "u8".fini_array""
+  0x.shstrtab::000000a2: "u8".dynamic""
+  0x.shstrtab::000000ab: "u8".got""
+  0x.shstrtab::000000b0: "u8".data""
+  0x.shstrtab::000000b6: "u8".bss""
+  0x.shstrtab::000000bb: "u8".comment""
+  0x.shstrtab::000000c4: "u8".note.gnu.gold-version""
+  0x.shstrtab::000000db: "u8".ARM.attributes""
+  0x.shstrtab::000000eb: "u8".gnu_debuglink""

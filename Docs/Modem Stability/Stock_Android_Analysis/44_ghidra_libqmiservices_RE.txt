@@ -1,0 +1,1260 @@
+================================================================
+GHIDRA RE: libqmiservices.so — QMI IDL Service Objects
+Binary: libqmiservices.so (ARM 32-bit LE, 88652 bytes)
+Analysis Date: 2026-09-02
+================================================================
+
+PURPOSE: Extract QMI message IDs, TLV layouts, and service
+         object structures needed to implement QMI Service 22
+
+         (time_service_get_service_object_v01) in OpenWrt.
+
+=== SECTION 1: EXPORTED SYMBOLS ===
+
+  __cxa_finalize                                                         @ 0xEXTERNAL:00000001  [Function/IMPORTED]
+  __cxa_atexit                                                           @ 0xEXTERNAL:00000002  [Function/IMPORTED]
+  __aeabi_unwind_cpp_pr0                                                 @ 0xEXTERNAL:00000003  [Function/IMPORTED]
+  Elf32_Phdr_ARRAY_00010034                                              @ 0x00010034  [Label/DEFAULT]
+  s_/system/bin/linker_00010134                                          @ 0x00010134  [Label/DEFAULT]
+  __DT_SYMTAB                                                            @ 0x00010148  [Label/IMPORTED]
+  __DT_STRTAB                                                            @ 0x00010598  [Label/IMPORTED]
+  __DT_HASH                                                              @ 0x00010eac  [Label/IMPORTED]
+  __DT_REL                                                               @ 0x000110d4  [Label/IMPORTED]
+  __DT_JMPREL                                                            @ 0x0001583c  [Label/IMPORTED]
+  LAB_0001584c                                                           @ 0x0001584c  [Label/DEFAULT]
+  DAT_0001585c                                                           @ 0x0001585c  [Label/DEFAULT]
+  __cxa_finalize                                                         @ 0x00015860  [Function/DEFAULT]
+  __cxa_atexit                                                           @ 0x0001586c  [Function/DEFAULT]
+  _FINI_0                                                                @ 0x00015878  [Function/IMPORTED]
+  DAT_00015894                                                           @ 0x00015894  [Label/DEFAULT]
+  FUN_00015898                                                           @ 0x00015898  [Function/DEFAULT]
+  DAT_000158d0                                                           @ 0x000158d0  [Label/DEFAULT]
+  voice_get_service_object_internal_v02                                  @ 0x000158d4  [Function/IMPORTED]
+  LAB_000158d8                                                           @ 0x000158d8  [Label/DEFAULT]
+  LAB_000158dc                                                           @ 0x000158dc  [Label/DEFAULT]
+  DAT_000158ec                                                           @ 0x000158ec  [Label/DEFAULT]
+  wds_get_service_object_internal_v01                                    @ 0x000158f0  [Function/IMPORTED]
+  LAB_000158f4                                                           @ 0x000158f4  [Label/DEFAULT]
+  LAB_000158f8                                                           @ 0x000158f8  [Label/DEFAULT]
+  DAT_00015908                                                           @ 0x00015908  [Label/DEFAULT]
+  wda_get_service_object_internal_v01                                    @ 0x0001590c  [Function/IMPORTED]
+  LAB_00015910                                                           @ 0x00015910  [Label/DEFAULT]
+  LAB_00015914                                                           @ 0x00015914  [Label/DEFAULT]
+  DAT_00015924                                                           @ 0x00015924  [Label/DEFAULT]
+  wms_get_service_object_internal_v01                                    @ 0x00015928  [Function/IMPORTED]
+  LAB_0001592c                                                           @ 0x0001592c  [Label/DEFAULT]
+  LAB_00015930                                                           @ 0x00015930  [Label/DEFAULT]
+  DAT_00015940                                                           @ 0x00015940  [Label/DEFAULT]
+  dms_get_service_object_internal_v01                                    @ 0x00015944  [Function/IMPORTED]
+  LAB_00015948                                                           @ 0x00015948  [Label/DEFAULT]
+  LAB_0001594c                                                           @ 0x0001594c  [Label/DEFAULT]
+  DAT_0001595c                                                           @ 0x0001595c  [Label/DEFAULT]
+  nas_get_service_object_internal_v01                                    @ 0x00015960  [Function/IMPORTED]
+  LAB_00015964                                                           @ 0x00015964  [Label/DEFAULT]
+  LAB_00015968                                                           @ 0x00015968  [Label/DEFAULT]
+  DAT_00015978                                                           @ 0x00015978  [Label/DEFAULT]
+  uim_get_service_object_internal_v01                                    @ 0x0001597c  [Function/IMPORTED]
+  LAB_00015980                                                           @ 0x00015980  [Label/DEFAULT]
+  LAB_00015984                                                           @ 0x00015984  [Label/DEFAULT]
+  DAT_00015994                                                           @ 0x00015994  [Label/DEFAULT]
+  uim_remote_get_service_object_internal_v01                             @ 0x00015998  [Function/IMPORTED]
+  LAB_0001599c                                                           @ 0x0001599c  [Label/DEFAULT]
+  LAB_000159a0                                                           @ 0x000159a0  [Label/DEFAULT]
+  DAT_000159b0                                                           @ 0x000159b0  [Label/DEFAULT]
+  cat_get_service_object_internal_v02                                    @ 0x000159b4  [Function/IMPORTED]
+  LAB_000159b8                                                           @ 0x000159b8  [Label/DEFAULT]
+  LAB_000159bc                                                           @ 0x000159bc  [Label/DEFAULT]
+  DAT_000159cc                                                           @ 0x000159cc  [Label/DEFAULT]
+  pbm_get_service_object_internal_v01                                    @ 0x000159d0  [Function/IMPORTED]
+  LAB_000159d4                                                           @ 0x000159d4  [Label/DEFAULT]
+  LAB_000159d8                                                           @ 0x000159d8  [Label/DEFAULT]
+  DAT_000159e8                                                           @ 0x000159e8  [Label/DEFAULT]
+  svs_get_service_object_internal_v01                                    @ 0x000159ec  [Function/IMPORTED]
+  LAB_000159f0                                                           @ 0x000159f0  [Label/DEFAULT]
+  LAB_000159f4                                                           @ 0x000159f4  [Label/DEFAULT]
+  DAT_00015a04                                                           @ 0x00015a04  [Label/DEFAULT]
+  sar_get_service_object_internal_v01                                    @ 0x00015a08  [Function/IMPORTED]
+  LAB_00015a0c                                                           @ 0x00015a0c  [Label/DEFAULT]
+  LAB_00015a10                                                           @ 0x00015a10  [Label/DEFAULT]
+  DAT_00015a20                                                           @ 0x00015a20  [Label/DEFAULT]
+  ctl_get_service_object_internal_v01                                    @ 0x00015a24  [Function/IMPORTED]
+  LAB_00015a28                                                           @ 0x00015a28  [Label/DEFAULT]
+  LAB_00015a2c                                                           @ 0x00015a2c  [Label/DEFAULT]
+  DAT_00015a3c                                                           @ 0x00015a3c  [Label/DEFAULT]
+  ims_qmi_get_service_object_internal_v01                                @ 0x00015a40  [Function/IMPORTED]
+  LAB_00015a44                                                           @ 0x00015a44  [Label/DEFAULT]
+  LAB_00015a48                                                           @ 0x00015a48  [Label/DEFAULT]
+  DAT_00015a58                                                           @ 0x00015a58  [Label/DEFAULT]
+  qcmap_get_service_object_internal_v01                                  @ 0x00015a5c  [Function/IMPORTED]
+  LAB_00015a60                                                           @ 0x00015a60  [Label/DEFAULT]
+  LAB_00015a64                                                           @ 0x00015a64  [Label/DEFAULT]
+  DAT_00015a74                                                           @ 0x00015a74  [Label/DEFAULT]
+  csvt_get_service_object_internal_v01                                   @ 0x00015a78  [Function/IMPORTED]
+  LAB_00015a7c                                                           @ 0x00015a7c  [Label/DEFAULT]
+  LAB_00015a80                                                           @ 0x00015a80  [Label/DEFAULT]
+  DAT_00015a90                                                           @ 0x00015a90  [Label/DEFAULT]
+  imsvt_get_service_object_internal_v01                                  @ 0x00015a94  [Function/IMPORTED]
+  LAB_00015a98                                                           @ 0x00015a98  [Label/DEFAULT]
+  LAB_00015a9c                                                           @ 0x00015a9c  [Label/DEFAULT]
+  DAT_00015aac                                                           @ 0x00015aac  [Label/DEFAULT]
+  imsp_get_service_object_internal_v01                                   @ 0x00015ab0  [Function/IMPORTED]
+  LAB_00015ab4                                                           @ 0x00015ab4  [Label/DEFAULT]
+  LAB_00015ab8                                                           @ 0x00015ab8  [Label/DEFAULT]
+  DAT_00015ac8                                                           @ 0x00015ac8  [Label/DEFAULT]
+  cxm_get_service_object_internal_v01                                    @ 0x00015acc  [Function/IMPORTED]
+  LAB_00015ad0                                                           @ 0x00015ad0  [Label/DEFAULT]
+  LAB_00015ad4                                                           @ 0x00015ad4  [Label/DEFAULT]
+  DAT_00015ae4                                                           @ 0x00015ae4  [Label/DEFAULT]
+  imss_get_service_object_internal_v01                                   @ 0x00015ae8  [Function/IMPORTED]
+  LAB_00015aec                                                           @ 0x00015aec  [Label/DEFAULT]
+  LAB_00015af0                                                           @ 0x00015af0  [Label/DEFAULT]
+  DAT_00015b00                                                           @ 0x00015b00  [Label/DEFAULT]
+  rfrpe_get_service_object_internal_v01                                  @ 0x00015b04  [Function/IMPORTED]
+  LAB_00015b08                                                           @ 0x00015b08  [Label/DEFAULT]
+  LAB_00015b0c                                                           @ 0x00015b0c  [Label/DEFAULT]
+  DAT_00015b1c                                                           @ 0x00015b1c  [Label/DEFAULT]
+  imsa_get_service_object_internal_v01                                   @ 0x00015b20  [Function/IMPORTED]
+  LAB_00015b24                                                           @ 0x00015b24  [Label/DEFAULT]
+  LAB_00015b28                                                           @ 0x00015b28  [Label/DEFAULT]
+  DAT_00015b38                                                           @ 0x00015b38  [Label/DEFAULT]
+  imsrtp_get_service_object_internal_v01                                 @ 0x00015b3c  [Function/IMPORTED]
+  LAB_00015b40                                                           @ 0x00015b40  [Label/DEFAULT]
+  LAB_00015b44                                                           @ 0x00015b44  [Label/DEFAULT]
+  DAT_00015b54                                                           @ 0x00015b54  [Label/DEFAULT]
+  imsdcm_get_service_object_internal_v01                                 @ 0x00015b58  [Function/IMPORTED]
+  LAB_00015b5c                                                           @ 0x00015b5c  [Label/DEFAULT]
+  LAB_00015b60                                                           @ 0x00015b60  [Label/DEFAULT]
+  DAT_00015b70                                                           @ 0x00015b70  [Label/DEFAULT]
+  dsd_get_service_object_internal_v01                                    @ 0x00015b74  [Function/IMPORTED]
+  LAB_00015b78                                                           @ 0x00015b78  [Label/DEFAULT]
+  LAB_00015b7c                                                           @ 0x00015b7c  [Label/DEFAULT]
+  DAT_00015b8c                                                           @ 0x00015b8c  [Label/DEFAULT]
+  dpm_get_service_object_internal_v01                                    @ 0x00015b90  [Function/IMPORTED]
+  LAB_00015b94                                                           @ 0x00015b94  [Label/DEFAULT]
+  LAB_00015b98                                                           @ 0x00015b98  [Label/DEFAULT]
+  DAT_00015ba8                                                           @ 0x00015ba8  [Label/DEFAULT]
+  pdc_get_service_object_internal_v01                                    @ 0x00015bac  [Function/IMPORTED]
+  LAB_00015bb0                                                           @ 0x00015bb0  [Label/DEFAULT]
+  LAB_00015bb4                                                           @ 0x00015bb4  [Label/DEFAULT]
+  DAT_00015bc4                                                           @ 0x00015bc4  [Label/DEFAULT]
+  atp_get_service_object_internal_v01                                    @ 0x00015bc8  [Function/IMPORTED]
+  LAB_00015bcc                                                           @ 0x00015bcc  [Label/DEFAULT]
+  LAB_00015bd0                                                           @ 0x00015bd0  [Label/DEFAULT]
+  DAT_00015be0                                                           @ 0x00015be0  [Label/DEFAULT]
+  dfs_get_service_object_internal_v01                                    @ 0x00015be4  [Function/IMPORTED]
+  LAB_00015be8                                                           @ 0x00015be8  [Label/DEFAULT]
+  LAB_00015bec                                                           @ 0x00015bec  [Label/DEFAULT]
+  DAT_00015bfc                                                           @ 0x00015bfc  [Label/DEFAULT]
+  DAT_00015c00                                                           @ 0x00015c00  [Label/DEFAULT]
+  _edata                                                                 @ 0x000165c4  [Label/IMPORTED]
+  __bss_start                                                            @ 0x000165c4  [Label/IMPORTED]
+  _end                                                                   @ 0x000165c4  [Label/IMPORTED]
+  DAT_0001f5c8                                                           @ 0x0001f5c8  [Label/DEFAULT]
+  common_qmi_idl_type_table_object_v01                                   @ 0x00021518  [Label/IMPORTED]
+  voice_service_common_qmi_idl_type_table_object_v02                     @ 0x00021558  [Label/IMPORTED]
+  DAT_00021578                                                           @ 0x00021578  [Label/DEFAULT]
+  DAT_000218e0                                                           @ 0x000218e0  [Label/DEFAULT]
+  DAT_00021b20                                                           @ 0x00021b20  [Label/DEFAULT]
+  DAT_00021b38                                                           @ 0x00021b38  [Label/DEFAULT]
+  DAT_00022280                                                           @ 0x00022280  [Label/DEFAULT]
+  DAT_000224b0                                                           @ 0x000224b0  [Label/DEFAULT]
+  DAT_000224c8                                                           @ 0x000224c8  [Label/DEFAULT]
+  DAT_000224e0                                                           @ 0x000224e0  [Label/DEFAULT]
+  DAT_000224e8                                                           @ 0x000224e8  [Label/DEFAULT]
+  DAT_000225b8                                                           @ 0x000225b8  [Label/DEFAULT]
+  DAT_000226b8                                                           @ 0x000226b8  [Label/DEFAULT]
+  DAT_00022a10                                                           @ 0x00022a10  [Label/DEFAULT]
+  DAT_00022a28                                                           @ 0x00022a28  [Label/DEFAULT]
+  DAT_00022a40                                                           @ 0x00022a40  [Label/DEFAULT]
+  DAT_00022da8                                                           @ 0x00022da8  [Label/DEFAULT]
+  network_access_service_common_qmi_idl_type_table_object_v01            @ 0x00022e68  [Label/IMPORTED]
+  DAT_00022e80                                                           @ 0x00022e80  [Label/DEFAULT]
+  DAT_00023350                                                           @ 0x00023350  [Label/DEFAULT]
+  DAT_00023368                                                           @ 0x00023368  [Label/DEFAULT]
+  DAT_000239f0                                                           @ 0x000239f0  [Label/DEFAULT]
+  DAT_00023d08                                                           @ 0x00023d08  [Label/DEFAULT]
+  DAT_00023d20                                                           @ 0x00023d20  [Label/DEFAULT]
+  DAT_00023e90                                                           @ 0x00023e90  [Label/DEFAULT]
+  DAT_00023ea8                                                           @ 0x00023ea8  [Label/DEFAULT]
+  DAT_00023eb8                                                           @ 0x00023eb8  [Label/DEFAULT]
+  DAT_00023f18                                                           @ 0x00023f18  [Label/DEFAULT]
+  DAT_00024270                                                           @ 0x00024270  [Label/DEFAULT]
+  DAT_000243a0                                                           @ 0x000243a0  [Label/DEFAULT]
+  DAT_000243b8                                                           @ 0x000243b8  [Label/DEFAULT]
+  DAT_000243d0                                                           @ 0x000243d0  [Label/DEFAULT]
+  DAT_000245a0                                                           @ 0x000245a0  [Label/DEFAULT]
+  DAT_00024780                                                           @ 0x00024780  [Label/DEFAULT]
+  DAT_00024790                                                           @ 0x00024790  [Label/DEFAULT]
+  svs_qmi_idl_service_object_v01                                         @ 0x000247a8  [Label/IMPORTED]
+  DAT_000247d8                                                           @ 0x000247d8  [Label/DEFAULT]
+  DAT_00024808                                                           @ 0x00024808  [Label/DEFAULT]
+  DAT_00024820                                                           @ 0x00024820  [Label/DEFAULT]
+  DAT_00024858                                                           @ 0x00024858  [Label/DEFAULT]
+  DAT_00024870                                                           @ 0x00024870  [Label/DEFAULT]
+  DAT_00024998                                                           @ 0x00024998  [Label/DEFAULT]
+  DAT_000249b0                                                           @ 0x000249b0  [Label/DEFAULT]
+  DAT_000249f8                                                           @ 0x000249f8  [Label/DEFAULT]
+  ims_qmi_qmi_idl_service_object_v01                                     @ 0x00024a20  [Label/IMPORTED]
+  DAT_00024a50                                                           @ 0x00024a50  [Label/DEFAULT]
+  DAT_00024c98                                                           @ 0x00024c98  [Label/DEFAULT]
+  DAT_00024cb0                                                           @ 0x00024cb0  [Label/DEFAULT]
+  DAT_00024d00                                                           @ 0x00024d00  [Label/DEFAULT]
+  DAT_00024d18                                                           @ 0x00024d18  [Label/DEFAULT]
+  DAT_00024d38                                                           @ 0x00024d38  [Label/DEFAULT]
+  DAT_00024e60                                                           @ 0x00024e60  [Label/DEFAULT]
+  DAT_00024ec0                                                           @ 0x00024ec0  [Label/DEFAULT]
+  DAT_00024ed8                                                           @ 0x00024ed8  [Label/DEFAULT]
+  DAT_00024fe0                                                           @ 0x00024fe0  [Label/DEFAULT]
+  imsp_qmi_idl_service_object_v01                                        @ 0x000250e0  [Label/IMPORTED]
+  DAT_00025110                                                           @ 0x00025110  [Label/DEFAULT]
+  DAT_00025158                                                           @ 0x00025158  [Label/DEFAULT]
+  cxm_qmi_idl_service_object_v01                                         @ 0x00025170  [Label/IMPORTED]
+  DAT_000251a0                                                           @ 0x000251a0  [Label/DEFAULT]
+  DAT_00025200                                                           @ 0x00025200  [Label/DEFAULT]
+  DAT_00025218                                                           @ 0x00025218  [Label/DEFAULT]
+  DAT_00025250                                                           @ 0x00025250  [Label/DEFAULT]
+  DAT_00025268                                                           @ 0x00025268  [Label/DEFAULT]
+  DAT_00025528                                                           @ 0x00025528  [Label/DEFAULT]
+  DAT_00025540                                                           @ 0x00025540  [Label/DEFAULT]
+  DAT_00025558                                                           @ 0x00025558  [Label/DEFAULT]
+  DAT_00025588                                                           @ 0x00025588  [Label/DEFAULT]
+  DAT_000255d0                                                           @ 0x000255d0  [Label/DEFAULT]
+  DAT_000255d8                                                           @ 0x000255d8  [Label/DEFAULT]
+  DAT_000255f0                                                           @ 0x000255f0  [Label/DEFAULT]
+  DAT_00025860                                                           @ 0x00025860  [Label/DEFAULT]
+  DAT_00025908                                                           @ 0x00025908  [Label/DEFAULT]
+  DAT_00025920                                                           @ 0x00025920  [Label/DEFAULT]
+  DAT_000259b0                                                           @ 0x000259b0  [Label/DEFAULT]
+  DAT_000259c8                                                           @ 0x000259c8  [Label/DEFAULT]
+  DAT_000259e0                                                           @ 0x000259e0  [Label/DEFAULT]
+  DAT_00025af8                                                           @ 0x00025af8  [Label/DEFAULT]
+  DAT_00025b20                                                           @ 0x00025b20  [Label/DEFAULT]
+  DAT_00025b38                                                           @ 0x00025b38  [Label/DEFAULT]
+  DAT_00025b50                                                           @ 0x00025b50  [Label/DEFAULT]
+  DAT_00025b70                                                           @ 0x00025b70  [Label/DEFAULT]
+  data_common_qmi_idl_type_table_object_v01                              @ 0x00025ba0  [Label/IMPORTED]
+  DAT_00025bb8                                                           @ 0x00025bb8  [Label/DEFAULT]
+  DAT_00025bd0                                                           @ 0x00025bd0  [Label/DEFAULT]
+  DAT_00025be8                                                           @ 0x00025be8  [Label/DEFAULT]
+  DAT_00025d00                                                           @ 0x00025d00  [Label/DEFAULT]
+  DAT_00025d58                                                           @ 0x00025d58  [Label/DEFAULT]
+  DAT_00025d78                                                           @ 0x00025d78  [Label/DEFAULT]
+  DAT_00025d90                                                           @ 0x00025d90  [Label/DEFAULT]
+  DAT_00025e00                                                           @ 0x00025e00  [Label/DEFAULT]
+  DAT_00025ee8                                                           @ 0x00025ee8  [Label/DEFAULT]
+  __DT_FINI_ARRAY                                                        @ 0x00025f00  [Label/IMPORTED]
+  _DYNAMIC                                                               @ 0x00025f04  [Label/IMPORTED]
+  __DT_PLTGOT                                                            @ 0x00025fec  [Label/IMPORTED]
+  PTR_00025ff4                                                           @ 0x00025ff4  [Label/DEFAULT]
+  PTR___cxa_finalize_00025ff8                                            @ 0x00025ff8  [Label/DEFAULT]
+  PTR___cxa_atexit_00025ffc                                              @ 0x00025ffc  [Label/DEFAULT]
+  PTR_LOOP_00026000                                                      @ 0x00026000  [Label/DEFAULT]
+  PTR_DAT_0002600c                                                       @ 0x0002600c  [Label/DEFAULT]
+  voice_qmi_idl_service_object_v02                                       @ 0x00026018  [Label/IMPORTED]
+  wds_qmi_idl_service_object_v01                                         @ 0x00026048  [Label/IMPORTED]
+  PTR_DAT_00026078                                                       @ 0x00026078  [Label/DEFAULT]
+  wda_qmi_idl_service_object_v01                                         @ 0x00026084  [Label/IMPORTED]
+  PTR_DAT_000260b4                                                       @ 0x000260b4  [Label/DEFAULT]
+  wms_qmi_idl_service_object_v01                                         @ 0x000260c0  [Label/IMPORTED]
+  PTR_DAT_000260f0                                                       @ 0x000260f0  [Label/DEFAULT]
+  dms_qmi_idl_service_object_v01                                         @ 0x000260f8  [Label/IMPORTED]
+  PTR_DAT_00026128                                                       @ 0x00026128  [Label/DEFAULT]
+  PTR_DAT_00026134                                                       @ 0x00026134  [Label/DEFAULT]
+  nas_qmi_idl_service_object_v01                                         @ 0x00026140  [Label/IMPORTED]
+  uim_qmi_idl_service_object_v01                                         @ 0x00026170  [Label/IMPORTED]
+  PTR_DAT_000261a0                                                       @ 0x000261a0  [Label/DEFAULT]
+  PTR_DAT_000261a8                                                       @ 0x000261a8  [Label/DEFAULT]
+  uim_remote_qmi_idl_service_object_v01                                  @ 0x000261b0  [Label/IMPORTED]
+  PTR_DAT_000261e0                                                       @ 0x000261e0  [Label/DEFAULT]
+  cat_qmi_idl_service_object_v02                                         @ 0x000261e8  [Label/IMPORTED]
+  pbm_qmi_idl_service_object_v01                                         @ 0x00026218  [Label/IMPORTED]
+  PTR_DAT_00026248                                                       @ 0x00026248  [Label/DEFAULT]
+  PTR_DAT_00026250                                                       @ 0x00026250  [Label/DEFAULT]
+  sar_qmi_idl_service_object_v01                                         @ 0x00026258  [Label/IMPORTED]
+  PTR_DAT_00026288                                                       @ 0x00026288  [Label/DEFAULT]
+  PTR_DAT_00026290                                                       @ 0x00026290  [Label/DEFAULT]
+  ctl_qmi_idl_service_object_v01                                         @ 0x00026298  [Label/IMPORTED]
+  PTR_DAT_000262c8                                                       @ 0x000262c8  [Label/DEFAULT]
+  PTR_DAT_000262d0                                                       @ 0x000262d0  [Label/DEFAULT]
+  qcmap_qmi_idl_service_object_v01                                       @ 0x000262d8  [Label/IMPORTED]
+  csvt_qmi_idl_service_object_v01                                        @ 0x00026308  [Label/IMPORTED]
+  PTR_DAT_00026338                                                       @ 0x00026338  [Label/DEFAULT]
+  imsvt_qmi_idl_service_object_v01                                       @ 0x00026340  [Label/IMPORTED]
+  PTR_DAT_00026370                                                       @ 0x00026370  [Label/DEFAULT]
+  PTR_DAT_00026378                                                       @ 0x00026378  [Label/DEFAULT]
+  PTR_DAT_00026380                                                       @ 0x00026380  [Label/DEFAULT]
+  PTR_DAT_00026388                                                       @ 0x00026388  [Label/DEFAULT]
+  imss_qmi_idl_service_object_v01                                        @ 0x00026390  [Label/IMPORTED]
+  PTR_DAT_000263c0                                                       @ 0x000263c0  [Label/DEFAULT]
+  rfrpe_qmi_idl_service_object_v01                                       @ 0x000263c8  [Label/IMPORTED]
+  imsa_qmi_idl_service_object_v01                                        @ 0x000263f8  [Label/IMPORTED]
+  PTR_DAT_00026428                                                       @ 0x00026428  [Label/DEFAULT]
+  imsrtp_qmi_idl_service_object_v01                                      @ 0x00026430  [Label/IMPORTED]
+  PTR_DAT_00026460                                                       @ 0x00026460  [Label/DEFAULT]
+  imsdcm_qmi_idl_service_object_v01                                      @ 0x00026468  [Label/IMPORTED]
+  PTR_DAT_00026498                                                       @ 0x00026498  [Label/DEFAULT]
+  PTR_DAT_000264a0                                                       @ 0x000264a0  [Label/DEFAULT]
+  dsd_qmi_idl_service_object_v01                                         @ 0x000264a8  [Label/IMPORTED]
+  PTR_DAT_000264d8                                                       @ 0x000264d8  [Label/DEFAULT]
+  dpm_qmi_idl_service_object_v01                                         @ 0x000264e4  [Label/IMPORTED]
+  PTR_DAT_00026518                                                       @ 0x00026518  [Label/DEFAULT]
+  pdc_qmi_idl_service_object_v01                                         @ 0x00026520  [Label/IMPORTED]
+  atp_qmi_idl_service_object_v01                                         @ 0x00026550  [Label/IMPORTED]
+  PTR_DAT_00026580                                                       @ 0x00026580  [Label/DEFAULT]
+  dfs_qmi_idl_service_object_v01                                         @ 0x00026588  [Label/IMPORTED]
+  PTR_DAT_000265b8                                                       @ 0x000265b8  [Label/DEFAULT]
+  __cxa_finalize                                                         @ 0x00027000  [Function/DEFAULT]
+  __cxa_atexit                                                           @ 0x00027004  [Function/DEFAULT]
+  __aeabi_unwind_cpp_pr0                                                 @ 0x00027008  [Function/DEFAULT]
+  DAT_.ARM.attributes__00000000                                          @ 0x.ARM.attributes::00000000  [Label/DEFAULT]
+  ElfComment[0]                                                          @ 0x.comment::00000000  [Label/IMPORTED]
+  ElfComment[1]                                                          @ 0x.comment::00000001  [Label/IMPORTED]
+  GnuDebugLink_20_.gnu_debuglink__00000000                               @ 0x.gnu_debuglink::00000000  [Label/DEFAULT]
+  DAT_.note.gnu.gold-version__00000000                                   @ 0x.note.gnu.gold-version::00000000  [Label/DEFAULT]
+  DAT_.shstrtab__00000000                                                @ 0x.shstrtab::00000000  [Label/DEFAULT]
+  Elf32_Shdr_ARRAY__elfSectionHeaders__00000000                          @ 0x_elfSectionHeaders::00000000  [Label/DEFAULT]
+
+=== SECTION 2: SERVICE OBJECT FUNCTIONS DECOMPILED ===
+
+Total functions: 36
+════════════════════════════════════════
+FUNCTION: __cxa_finalize @ 0x00015860  (12 bytes)
+════════════════════════════════════════
+
+void __cxa_finalize(void)
+
+{
+  (*(code *)PTR___cxa_finalize_00025ff8)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __cxa_atexit @ 0x0001586c  (12 bytes)
+════════════════════════════════════════
+
+void __cxa_atexit(void)
+
+{
+  (*(code *)PTR___cxa_atexit_00025ffc)();
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: _FINI_0 @ 0x00015878  (28 bytes)
+════════════════════════════════════════
+
+void _FINI_0(void)
+
+{
+  __cxa_finalize(DAT_00015894 + 0x1588c);
+  return;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: FUN_00015898 @ 0x00015898  (56 bytes)
+════════════════════════════════════════
+
+undefined4 FUN_00015898(undefined4 param_1)
+
+{
+  undefined4 uVar1;
+  
+  uVar1 = __cxa_atexit(param_1,0,DAT_000158d0 + 0x158bc);
+  return uVar1;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: voice_get_service_object_internal_v02 @ 0x000158d4  (22 bytes)
+════════════════════════════════════════
+
+undefined * voice_get_service_object_internal_v02(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 2) && (param_2 == 0x2c)) && (param_3 == 6)) {
+    return &UNK_000158ea + DAT_000158ec;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: wds_get_service_object_internal_v01 @ 0x000158f0  (22 bytes)
+════════════════════════════════════════
+
+undefined * wds_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x41)) && (param_3 == 6)) {
+    return &UNK_00015906 + DAT_00015908;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: wda_get_service_object_internal_v01 @ 0x0001590c  (22 bytes)
+════════════════════════════════════════
+
+undefined * wda_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0xf)) && (param_3 == 6)) {
+    return &UNK_00015922 + DAT_00015924;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: wms_get_service_object_internal_v01 @ 0x00015928  (22 bytes)
+════════════════════════════════════════
+
+undefined * wms_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x17)) && (param_3 == 6)) {
+    return &UNK_0001593e + DAT_00015940;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: dms_get_service_object_internal_v01 @ 0x00015944  (22 bytes)
+════════════════════════════════════════
+
+undefined * dms_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x24)) && (param_3 == 6)) {
+    return &UNK_0001595a + DAT_0001595c;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: nas_get_service_object_internal_v01 @ 0x00015960  (22 bytes)
+════════════════════════════════════════
+
+undefined * nas_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x72)) && (param_3 == 6)) {
+    return &UNK_00015976 + DAT_00015978;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: uim_get_service_object_internal_v01 @ 0x0001597c  (22 bytes)
+════════════════════════════════════════
+
+undefined * uim_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x25)) && (param_3 == 6)) {
+    return &UNK_00015992 + DAT_00015994;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: uim_remote_get_service_object_internal_v01 @ 0x00015998  (22 bytes)
+════════════════════════════════════════
+
+undefined * uim_remote_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 2)) && (param_3 == 6)) {
+    return &UNK_000159ae + DAT_000159b0;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: cat_get_service_object_internal_v02 @ 0x000159b4  (22 bytes)
+════════════════════════════════════════
+
+undefined * cat_get_service_object_internal_v02(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 2) && (param_2 == 0x17)) && (param_3 == 6)) {
+    return &UNK_000159ca + DAT_000159cc;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pbm_get_service_object_internal_v01 @ 0x000159d0  (22 bytes)
+════════════════════════════════════════
+
+undefined * pbm_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0xe)) && (param_3 == 5)) {
+    return &UNK_000159e6 + DAT_000159e8;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: svs_get_service_object_internal_v01 @ 0x000159ec  (22 bytes)
+════════════════════════════════════════
+
+undefined * svs_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 1)) && (param_3 == 2)) {
+    return &UNK_00015a02 + DAT_00015a04;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: sar_get_service_object_internal_v01 @ 0x00015a08  (22 bytes)
+════════════════════════════════════════
+
+undefined * sar_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 3)) && (param_3 == 6)) {
+    return &UNK_00015a1e + DAT_00015a20;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: ctl_get_service_object_internal_v01 @ 0x00015a24  (22 bytes)
+════════════════════════════════════════
+
+undefined * ctl_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0xb)) && (param_3 == 6)) {
+    return &UNK_00015a3a + DAT_00015a3c;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: ims_qmi_get_service_object_internal_v01 @ 0x00015a40  (22 bytes)
+════════════════════════════════════════
+
+undefined * ims_qmi_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 1)) && (param_3 == 2)) {
+    return &UNK_00015a56 + DAT_00015a58;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: qcmap_get_service_object_internal_v01 @ 0x00015a5c  (22 bytes)
+════════════════════════════════════════
+
+undefined * qcmap_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 6)) && (param_3 == 6)) {
+    return &UNK_00015a72 + DAT_00015a74;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: csvt_get_service_object_internal_v01 @ 0x00015a78  (22 bytes)
+════════════════════════════════════════
+
+undefined * csvt_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 6)) && (param_3 == 6)) {
+    return &UNK_00015a8e + DAT_00015a90;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: imsvt_get_service_object_internal_v01 @ 0x00015a94  (22 bytes)
+════════════════════════════════════════
+
+undefined * imsvt_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 2)) && (param_3 == 5)) {
+    return &UNK_00015aaa + DAT_00015aac;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: imsp_get_service_object_internal_v01 @ 0x00015ab0  (22 bytes)
+════════════════════════════════════════
+
+undefined * imsp_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 1)) && (param_3 == 5)) {
+    return &UNK_00015ac6 + DAT_00015ac8;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: cxm_get_service_object_internal_v01 @ 0x00015acc  (22 bytes)
+════════════════════════════════════════
+
+undefined * cxm_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0)) && (param_3 == 2)) {
+    return &UNK_00015ae2 + DAT_00015ae4;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: imss_get_service_object_internal_v01 @ 0x00015ae8  (22 bytes)
+════════════════════════════════════════
+
+undefined * imss_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x17)) && (param_3 == 6)) {
+    return &UNK_00015afe + DAT_00015b00;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: rfrpe_get_service_object_internal_v01 @ 0x00015b04  (22 bytes)
+════════════════════════════════════════
+
+undefined * rfrpe_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0)) && (param_3 == 5)) {
+    return &UNK_00015b1a + DAT_00015b1c;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: imsa_get_service_object_internal_v01 @ 0x00015b20  (22 bytes)
+════════════════════════════════════════
+
+undefined * imsa_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 8)) && (param_3 == 6)) {
+    return &UNK_00015b36 + DAT_00015b38;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: imsrtp_get_service_object_internal_v01 @ 0x00015b3c  (22 bytes)
+════════════════════════════════════════
+
+undefined * imsrtp_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0x14)) && (param_3 == 6)) {
+    return &UNK_00015b52 + DAT_00015b54;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: imsdcm_get_service_object_internal_v01 @ 0x00015b58  (22 bytes)
+════════════════════════════════════════
+
+undefined * imsdcm_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 3)) && (param_3 == 6)) {
+    return &UNK_00015b6e + DAT_00015b70;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: dsd_get_service_object_internal_v01 @ 0x00015b74  (22 bytes)
+════════════════════════════════════════
+
+undefined * dsd_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 7)) && (param_3 == 6)) {
+    return &UNK_00015b8a + DAT_00015b8c;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: dpm_get_service_object_internal_v01 @ 0x00015b90  (22 bytes)
+════════════════════════════════════════
+
+undefined * dpm_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0)) && (param_3 == 6)) {
+    return &UNK_00015ba6 + DAT_00015ba8;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: pdc_get_service_object_internal_v01 @ 0x00015bac  (22 bytes)
+════════════════════════════════════════
+
+undefined * pdc_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 6)) && (param_3 == 6)) {
+    return &UNK_00015bc2 + DAT_00015bc4;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: atp_get_service_object_internal_v01 @ 0x00015bc8  (22 bytes)
+════════════════════════════════════════
+
+undefined * atp_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 0)) && (param_3 == 6)) {
+    return &UNK_00015bde + DAT_00015be0;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: dfs_get_service_object_internal_v01 @ 0x00015be4  (22 bytes)
+════════════════════════════════════════
+
+undefined * dfs_get_service_object_internal_v01(int param_1,int param_2,int param_3)
+
+{
+  if (((param_1 == 1) && (param_2 == 2)) && (param_3 == 6)) {
+    return &UNK_00015bfa + DAT_00015bfc;
+  }
+  return (undefined *)0x0;
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __cxa_finalize @ 0x00027000  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __cxa_finalize(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __cxa_atexit @ 0x00027004  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __cxa_atexit(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+════════════════════════════════════════
+FUNCTION: __aeabi_unwind_cpp_pr0 @ 0x00027008  (1 bytes)
+════════════════════════════════════════
+
+/* WARNING: Control flow encountered bad instruction data */
+
+void __aeabi_unwind_cpp_pr0(void)
+
+{
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}
+
+
+
+
+=== SECTION 3: ALL DEFINED DATA (IDL TABLES, SERVICE OBJECTS) ===
+
+  DATA @ 0x00010000: type=Elf32_Ehdr  value=
+  DATA @ 0x00010034: type=Elf32_Phdr[8]  value=
+  STRING @ 0x00010134: "/system/bin/linker"
+  DATA @ 0x00010148: type=Elf32_Sym[69]  value=
+  STRING @ 0x00010599: u8"__cxa_finalize"
+  STRING @ 0x000105a8: u8"__cxa_atexit"
+  STRING @ 0x000105b5: u8"common_qmi_idl_type_table_object_v01"
+  STRING @ 0x000105da: u8"voice_service_common_qmi_idl_type_table_object_v02"
+  STRING @ 0x0001060d: u8"voice_get_service_object_internal_v02"
+  STRING @ 0x00010633: u8"__aeabi_unwind_cpp_pr0"
+  STRING @ 0x0001064a: u8"voice_qmi_idl_service_object_v02"
+  STRING @ 0x0001066b: u8"wds_get_service_object_internal_v01"
+  STRING @ 0x0001068f: u8"wds_qmi_idl_service_object_v01"
+  STRING @ 0x000106ae: u8"data_common_qmi_idl_type_table_object_v01"
+  STRING @ 0x000106d8: u8"wda_get_service_object_internal_v01"
+  STRING @ 0x000106fc: u8"wda_qmi_idl_service_object_v01"
+  STRING @ 0x0001071b: u8"wms_get_service_object_internal_v01"
+  STRING @ 0x0001073f: u8"wms_qmi_idl_service_object_v01"
+  STRING @ 0x0001075e: u8"dms_get_service_object_internal_v01"
+  STRING @ 0x00010782: u8"dms_qmi_idl_service_object_v01"
+  STRING @ 0x000107a1: u8"network_access_service_common_qmi_idl_type_table_object_v01"
+  STRING @ 0x000107dd: u8"nas_get_service_object_internal_v01"
+  STRING @ 0x00010801: u8"nas_qmi_idl_service_object_v01"
+  STRING @ 0x00010820: u8"uim_get_service_object_internal_v01"
+  STRING @ 0x00010844: u8"uim_qmi_idl_service_object_v01"
+  STRING @ 0x00010863: u8"uim_remote_get_service_object_internal_v01"
+  STRING @ 0x0001088e: u8"uim_remote_qmi_idl_service_object_v01"
+  STRING @ 0x000108b4: u8"cat_get_service_object_internal_v02"
+  STRING @ 0x000108d8: u8"cat_qmi_idl_service_object_v02"
+  STRING @ 0x000108f7: u8"pbm_get_service_object_internal_v01"
+  STRING @ 0x0001091b: u8"pbm_qmi_idl_service_object_v01"
+  STRING @ 0x0001093a: u8"svs_get_service_object_internal_v01"
+  STRING @ 0x0001095e: u8"svs_qmi_idl_service_object_v01"
+  STRING @ 0x0001097d: u8"sar_get_service_object_internal_v01"
+  STRING @ 0x000109a1: u8"sar_qmi_idl_service_object_v01"
+  STRING @ 0x000109c0: u8"ctl_get_service_object_internal_v01"
+  STRING @ 0x000109e4: u8"ctl_qmi_idl_service_object_v01"
+  STRING @ 0x00010a03: u8"ims_qmi_get_service_object_internal_v01"
+  STRING @ 0x00010a2b: u8"ims_qmi_qmi_idl_service_object_v01"
+  STRING @ 0x00010a4e: u8"qcmap_get_service_object_internal_v01"
+  STRING @ 0x00010a74: u8"qcmap_qmi_idl_service_object_v01"
+  STRING @ 0x00010a95: u8"csvt_get_service_object_internal_v01"
+  STRING @ 0x00010aba: u8"csvt_qmi_idl_service_object_v01"
+  STRING @ 0x00010ada: u8"imsvt_get_service_object_internal_v01"
+  STRING @ 0x00010b00: u8"imsvt_qmi_idl_service_object_v01"
+  STRING @ 0x00010b21: u8"imsp_get_service_object_internal_v01"
+  STRING @ 0x00010b46: u8"imsp_qmi_idl_service_object_v01"
+  STRING @ 0x00010b66: u8"cxm_get_service_object_internal_v01"
+  STRING @ 0x00010b8a: u8"cxm_qmi_idl_service_object_v01"
+  STRING @ 0x00010ba9: u8"imss_get_service_object_internal_v01"
+  STRING @ 0x00010bce: u8"imss_qmi_idl_service_object_v01"
+  STRING @ 0x00010bee: u8"rfrpe_get_service_object_internal_v01"
+  STRING @ 0x00010c14: u8"rfrpe_qmi_idl_service_object_v01"
+  STRING @ 0x00010c35: u8"imsa_get_service_object_internal_v01"
+  STRING @ 0x00010c5a: u8"imsa_qmi_idl_service_object_v01"
+  STRING @ 0x00010c7a: u8"imsrtp_get_service_object_internal_v01"
+  STRING @ 0x00010ca1: u8"imsrtp_qmi_idl_service_object_v01"
+  STRING @ 0x00010cc3: u8"imsdcm_get_service_object_internal_v01"
+  STRING @ 0x00010cea: u8"imsdcm_qmi_idl_service_object_v01"
+  STRING @ 0x00010d0c: u8"dsd_get_service_object_internal_v01"
+  STRING @ 0x00010d30: u8"dsd_qmi_idl_service_object_v01"
+  STRING @ 0x00010d4f: u8"dpm_get_service_object_internal_v01"
+  STRING @ 0x00010d73: u8"dpm_qmi_idl_service_object_v01"
+  STRING @ 0x00010d92: u8"pdc_get_service_object_internal_v01"
+  STRING @ 0x00010db6: u8"pdc_qmi_idl_service_object_v01"
+  STRING @ 0x00010dd5: u8"atp_get_service_object_internal_v01"
+  STRING @ 0x00010df9: u8"atp_qmi_idl_service_object_v01"
+  STRING @ 0x00010e18: u8"dfs_get_service_object_internal_v01"
+  STRING @ 0x00010e3c: u8"dfs_qmi_idl_service_object_v01"
+  STRING @ 0x00010e5b: u8"_edata"
+  STRING @ 0x00010e62: u8"__bss_start"
+  STRING @ 0x00010e6e: u8"_end"
+  STRING @ 0x00010e73: u8"libidl.so"
+  STRING @ 0x00010e7d: u8"libc.so"
+  STRING @ 0x00010e85: u8"libstdc++.so"
+  STRING @ 0x00010e92: u8"libm.so"
+  STRING @ 0x00010e9a: u8"libqmiservices.so"
+  DATA @ 0x00010eac: type=dword  value=43h
+  DATA @ 0x00010eb0: type=dword  value=45h
+  DATA @ 0x00010eb4: type=dword[67]  value=
+  DATA @ 0x00010fc0: type=dword[69]  value=
+  DATA @ 0x000110d4: type=Elf32_Rel[2285]  value=
+  DATA @ 0x0001583c: type=Elf32_Rel[2]  value=
+  DATA @ 0x0001585c: type=undefined4  value=00010790h
+  DATA @ 0x00015894: type=undefined4  value=00010774h
+  DATA @ 0x000158d0: type=undefined4  value=00010744h
+  DATA @ 0x000158ec: type=undefined4  value=0001072Eh
+  DATA @ 0x00015908: type=undefined4  value=00010742h
+  DATA @ 0x00015924: type=undefined4  value=00010762h
+  DATA @ 0x00015940: type=undefined4  value=00010782h
+  DATA @ 0x0001595c: type=undefined4  value=0001079Eh
+  DATA @ 0x00015978: type=undefined4  value=000107CAh
+  DATA @ 0x00015994: type=undefined4  value=000107DEh
+  DATA @ 0x000159b0: type=undefined4  value=00010802h
+  DATA @ 0x000159cc: type=undefined4  value=0001081Eh
+  DATA @ 0x000159e8: type=undefined4  value=00010832h
+  DATA @ 0x00015a04: type=undefined4  value=0000EDA6h
+  DATA @ 0x00015a20: type=undefined4  value=0001083Ah
+  DATA @ 0x00015a3c: type=undefined4  value=0001085Eh
+  DATA @ 0x00015a58: type=undefined4  value=0000EFCAh
+  DATA @ 0x00015a74: type=undefined4  value=00010866h
+  DATA @ 0x00015a90: type=undefined4  value=0001087Ah
+  DATA @ 0x00015aac: type=undefined4  value=00010896h
+  DATA @ 0x00015ac8: type=undefined4  value=0000F61Ah
+  DATA @ 0x00015ae4: type=undefined4  value=0000F68Eh
+  DATA @ 0x00015b00: type=undefined4  value=00010892h
+  DATA @ 0x00015b1c: type=undefined4  value=000108AEh
+  DATA @ 0x00015b38: type=undefined4  value=000108C2h
+  DATA @ 0x00015b54: type=undefined4  value=000108DEh
+  DATA @ 0x00015b70: type=undefined4  value=000108FAh
+  DATA @ 0x00015b8c: type=undefined4  value=0001091Eh
+  DATA @ 0x00015ba8: type=undefined4  value=0001093Eh
+  DATA @ 0x00015bc4: type=undefined4  value=0001095Eh
+  DATA @ 0x00015be0: type=undefined4  value=00010972h
+  DATA @ 0x00015bfc: type=undefined4  value=0001098Eh
+  DATA @ 0x00021518: type=undefined1[24]  value=
+  DATA @ 0x00021558: type=undefined1[24]  value=
+  DATA @ 0x00021b28: type=undefined *  value=000218e0
+  DATA @ 0x00021b2c: type=undefined *  value=00021578
+  DATA @ 0x00021b30: type=undefined *  value=0002600c
+  DATA @ 0x000224b8: type=undefined *  value=00022280
+  DATA @ 0x000224bc: type=undefined *  value=00021b38
+  DATA @ 0x000224c0: type=undefined *  value=00026078
+  DATA @ 0x000224d0: type=undefined *  value=000224e0
+  DATA @ 0x000224d4: type=undefined *  value=000224e8
+  DATA @ 0x000224d8: type=undefined *  value=000260b4
+  DATA @ 0x00022a18: type=undefined *  value=000225b8
+  DATA @ 0x00022a1c: type=undefined *  value=000226b8
+  DATA @ 0x00022a20: type=undefined *  value=000260f0
+  DATA @ 0x00022a30: type=undefined *  value=00022da8
+  DATA @ 0x00022a34: type=undefined *  value=00022a40
+  DATA @ 0x00022a38: type=undefined *  value=00026128
+  DATA @ 0x00022e68: type=undefined1[24]  value=
+  DATA @ 0x00023358: type=undefined *  value=00022e80
+  DATA @ 0x0002335c: type=undefined *  value=00023368
+  DATA @ 0x00023360: type=undefined *  value=00026134
+  DATA @ 0x00023d10: type=undefined *  value=00023d20
+  DATA @ 0x00023d14: type=undefined *  value=000239f0
+  DATA @ 0x00023d18: type=undefined *  value=000261a0
+  DATA @ 0x00023e98: type=undefined *  value=00023ea8
+  DATA @ 0x00023e9c: type=undefined *  value=00023eb8
+  DATA @ 0x00023ea0: type=undefined *  value=000261a8
+  DATA @ 0x000243a8: type=undefined *  value=00023f18
+  DATA @ 0x000243ac: type=undefined *  value=00024270
+  DATA @ 0x000243b0: type=undefined *  value=000261e0
+  DATA @ 0x000243c0: type=undefined *  value=000243d0
+  DATA @ 0x000243c4: type=undefined *  value=000245a0
+  DATA @ 0x000243c8: type=undefined *  value=00026248
+  DATA @ 0x0002479c: type=undefined *  value=00024780
+  DATA @ 0x000247a0: type=undefined *  value=00026250
+  DATA @ 0x000247a8: type=undefined1[48]  value=
+  DATA @ 0x00024814: type=undefined *  value=000247d8
+  DATA @ 0x00024818: type=undefined *  value=00026288
+  DATA @ 0x00024860: type=undefined *  value=00024820
+  DATA @ 0x00024864: type=undefined *  value=00024870
+  DATA @ 0x00024868: type=undefined *  value=00026290
+  DATA @ 0x000249a0: type=undefined *  value=000249f8
+  DATA @ 0x000249a4: type=undefined *  value=000249b0
+  DATA @ 0x000249a8: type=undefined *  value=000262c8
+  DATA @ 0x00024a20: type=undefined1[48]  value=
+  DATA @ 0x00024ca0: type=undefined *  value=00024cb0
+  DATA @ 0x00024ca4: type=undefined *  value=00024a50
+  DATA @ 0x00024ca8: type=undefined *  value=000262d0
+  DATA @ 0x00024d08: type=undefined *  value=00024d18
+  DATA @ 0x00024d0c: type=undefined *  value=00024d38
+  DATA @ 0x00024d10: type=undefined *  value=00026338
+  DATA @ 0x00024ec8: type=undefined *  value=00024e60
+  DATA @ 0x00024ecc: type=undefined *  value=00024ed8
+  DATA @ 0x00024ed0: type=undefined *  value=00026370
+  DATA @ 0x000250e0: type=undefined1[48]  value=
+  DATA @ 0x00025160: type=undefined *  value=00025110
+  DATA @ 0x00025164: type=undefined *  value=00024fe0
+  DATA @ 0x00025168: type=undefined *  value=00026378
+  DATA @ 0x00025170: type=undefined1[48]  value=
+  DATA @ 0x00025208: type=undefined *  value=00025218
+  DATA @ 0x0002520c: type=undefined *  value=000251a0
+  DATA @ 0x00025210: type=undefined *  value=00026380
+  DATA @ 0x00025530: type=undefined *  value=00025250
+  DATA @ 0x00025534: type=undefined *  value=00025268
+  DATA @ 0x00025538: type=undefined *  value=00026388
+  DATA @ 0x0002554c: type=undefined *  value=00025558
+  DATA @ 0x00025550: type=undefined *  value=000263c0
+  DATA @ 0x000255e0: type=undefined *  value=000255d0
+  DATA @ 0x000255e4: type=undefined *  value=00025588
+  DATA @ 0x000255e8: type=undefined *  value=00026428
+  DATA @ 0x00025910: type=undefined *  value=00025860
+  DATA @ 0x00025914: type=undefined *  value=000255f0
+  DATA @ 0x00025918: type=undefined *  value=00026460
+  DATA @ 0x000259d0: type=undefined *  value=000259b0
+  DATA @ 0x000259d4: type=undefined *  value=00025920
+  DATA @ 0x000259d8: type=undefined *  value=00026498
+  DATA @ 0x00025b28: type=undefined *  value=00025af8
+  DATA @ 0x00025b2c: type=undefined *  value=000259e0
+  DATA @ 0x00025b30: type=undefined *  value=000264a0
+  DATA @ 0x00025b40: type=undefined *  value=00025b70
+  DATA @ 0x00025b44: type=undefined *  value=00025b50
+  DATA @ 0x00025b48: type=undefined *  value=000264d8
+  DATA @ 0x00025ba0: type=undefined1[24]  value=
+  DATA @ 0x00025bc0: type=undefined *  value=00025bd0
+  DATA @ 0x00025bc4: type=undefined *  value=00025be8
+  DATA @ 0x00025bc8: type=undefined *  value=00026518
+  DATA @ 0x00025d80: type=undefined *  value=00025d58
+  DATA @ 0x00025d84: type=undefined *  value=00025d00
+  DATA @ 0x00025d88: type=undefined *  value=00026580
+  DATA @ 0x00025ef0: type=undefined *  value=00025d90
+  DATA @ 0x00025ef4: type=undefined *  value=00025e00
+  DATA @ 0x00025ef8: type=undefined *  value=000265b8
+  DATA @ 0x00025f00: type=pointer  value=00015878
+  DATA @ 0x00025f04: type=Elf32_Dyn_ARM[24]  value=
+  DATA @ 0x00025fec: type=pointer  value=00000000
+  DATA @ 0x00025ff0: type=pointer  value=00000000
+  DATA @ 0x00025ff4: type=pointer  value=00000000
+  DATA @ 0x00025ff8: type=pointer  value=00027000
+  DATA @ 0x00025ffc: type=pointer  value=00027004
+  DATA @ 0x00026000: type=undefined *  value=00026000
+  DATA @ 0x00026004: type=undefined *  value=00021518
+  DATA @ 0x00026008: type=undefined *  value=00021558
+  DATA @ 0x0002600c: type=undefined *  value=00021b20
+  DATA @ 0x00026010: type=undefined *  value=00021518
+  DATA @ 0x00026014: type=undefined *  value=00021558
+  DATA @ 0x00026018: type=undefined1[48]  value=
+  DATA @ 0x00026048: type=undefined1[48]  value=
+  DATA @ 0x00026078: type=undefined *  value=000224b0
+  DATA @ 0x0002607c: type=undefined *  value=00021518
+  DATA @ 0x00026080: type=undefined *  value=00025ba0
+  DATA @ 0x00026084: type=undefined1[48]  value=
+  DATA @ 0x000260b4: type=undefined *  value=000224c8
+  DATA @ 0x000260b8: type=undefined *  value=00021518
+  DATA @ 0x000260bc: type=undefined *  value=00025ba0
+  DATA @ 0x000260c0: type=undefined1[48]  value=
+  DATA @ 0x000260f0: type=undefined *  value=00022a10
+  DATA @ 0x000260f4: type=undefined *  value=00021518
+  DATA @ 0x000260f8: type=undefined1[48]  value=
+  DATA @ 0x00026128: type=undefined *  value=00022a28
+  DATA @ 0x0002612c: type=undefined *  value=00021518
+  DATA @ 0x00026130: type=undefined *  value=00022e68
+  DATA @ 0x00026134: type=undefined *  value=00023350
+  DATA @ 0x00026138: type=undefined *  value=00021518
+  DATA @ 0x0002613c: type=undefined *  value=00022e68
+  DATA @ 0x00026140: type=undefined1[48]  value=
+  DATA @ 0x00026170: type=undefined1[48]  value=
+  DATA @ 0x000261a0: type=undefined *  value=00023d08
+  DATA @ 0x000261a4: type=undefined *  value=00021518
+  DATA @ 0x000261a8: type=undefined *  value=00023e90
+  DATA @ 0x000261ac: type=undefined *  value=00021518
+  DATA @ 0x000261b0: type=undefined1[48]  value=
+  DATA @ 0x000261e0: type=undefined *  value=000243a0
+  DATA @ 0x000261e4: type=undefined *  value=00021518
+  DATA @ 0x000261e8: type=undefined1[48]  value=
+  DATA @ 0x00026218: type=undefined1[48]  value=
+  DATA @ 0x00026248: type=undefined *  value=000243b8
+  DATA @ 0x0002624c: type=undefined *  value=00021518
+  DATA @ 0x00026250: type=undefined *  value=00024790
+  DATA @ 0x00026254: type=undefined *  value=00021518
+  DATA @ 0x00026258: type=undefined1[48]  value=
+  DATA @ 0x00026288: type=undefined *  value=00024808
+  DATA @ 0x0002628c: type=undefined *  value=00021518
+  DATA @ 0x00026290: type=undefined *  value=00024858
+  DATA @ 0x00026294: type=undefined *  value=00021518
+  DATA @ 0x00026298: type=undefined1[48]  value=
+  DATA @ 0x000262c8: type=undefined *  value=00024998
+  DATA @ 0x000262cc: type=undefined *  value=00021518
+  DATA @ 0x000262d0: type=undefined *  value=00024c98
+  DATA @ 0x000262d4: type=undefined *  value=00021518
+  DATA @ 0x000262d8: type=undefined1[48]  value=
+  DATA @ 0x00026308: type=undefined1[48]  value=
+  DATA @ 0x00026338: type=undefined *  value=00024d00
+  DATA @ 0x0002633c: type=undefined *  value=00021518
+  DATA @ 0x00026340: type=undefined1[48]  value=
+  DATA @ 0x00026370: type=undefined *  value=00024ec0
+  DATA @ 0x00026374: type=undefined *  value=00021518
+  DATA @ 0x00026378: type=undefined *  value=00025158
+  DATA @ 0x0002637c: type=undefined *  value=00021518
+  DATA @ 0x00026380: type=undefined *  value=00025200
+  DATA @ 0x00026384: type=undefined *  value=00021518
+  DATA @ 0x00026388: type=undefined *  value=00025528
+  DATA @ 0x0002638c: type=undefined *  value=00021518
+  DATA @ 0x00026390: type=undefined1[48]  value=
+  DATA @ 0x000263c0: type=undefined *  value=00025540
+  DATA @ 0x000263c4: type=undefined *  value=00021518
+  DATA @ 0x000263c8: type=undefined1[48]  value=
+  DATA @ 0x000263f8: type=undefined1[48]  value=
+  DATA @ 0x00026428: type=undefined *  value=000255d8
+  DATA @ 0x0002642c: type=undefined *  value=00021518
+  DATA @ 0x00026430: type=undefined1[48]  value=
+  DATA @ 0x00026460: type=undefined *  value=00025908
+  DATA @ 0x00026464: type=undefined *  value=00021518
+  DATA @ 0x00026468: type=undefined1[48]  value=
+  DATA @ 0x00026498: type=undefined *  value=000259c8
+  DATA @ 0x0002649c: type=undefined *  value=00021518
+  DATA @ 0x000264a0: type=undefined *  value=00025b20
+  DATA @ 0x000264a4: type=undefined *  value=00021518
+  DATA @ 0x000264a8: type=undefined1[48]  value=
+  DATA @ 0x000264d8: type=undefined *  value=00025b38
+  DATA @ 0x000264dc: type=undefined *  value=00021518
+  DATA @ 0x000264e0: type=undefined *  value=00025ba0
+  DATA @ 0x000264e4: type=undefined1[48]  value=
+  DATA @ 0x00026518: type=undefined *  value=00025bb8
+  DATA @ 0x0002651c: type=undefined *  value=00021518
+  DATA @ 0x00026520: type=undefined1[48]  value=
+  DATA @ 0x00026550: type=undefined1[48]  value=
+  DATA @ 0x00026580: type=undefined *  value=00025d78
+  DATA @ 0x00026584: type=undefined *  value=00021518
+  DATA @ 0x00026588: type=undefined1[48]  value=
+  DATA @ 0x000265b8: type=undefined *  value=00025ee8
+  DATA @ 0x000265bc: type=undefined *  value=00021518
+  DATA @ 0x000265c0: type=undefined *  value=00025ba0
+  STRING @ 0x.comment::00000000: u8""
+  STRING @ 0x.comment::00000001: u8"GCC: (GNU) 4.7"
+  DATA @ 0x.gnu_debuglink::00000000: type=GnuDebugLink_20  value=
+  STRING @ 0x.shstrtab::00000001: u8".shstrtab"
+  STRING @ 0x.shstrtab::0000000b: u8".interp"
+  STRING @ 0x.shstrtab::00000013: u8".dynsym"
+  STRING @ 0x.shstrtab::0000001b: u8".dynstr"
+  STRING @ 0x.shstrtab::00000023: u8".hash"
+  STRING @ 0x.shstrtab::00000029: u8".rel.dyn"
+  STRING @ 0x.shstrtab::00000032: u8".rel.plt"
+  STRING @ 0x.shstrtab::0000003b: u8".text"
+  STRING @ 0x.shstrtab::00000041: u8".rodata"
+  STRING @ 0x.shstrtab::00000049: u8".ARM.exidx"
+  STRING @ 0x.shstrtab::00000054: u8".data.rel.ro.local"
+  STRING @ 0x.shstrtab::00000067: u8".fini_array"
+  STRING @ 0x.shstrtab::00000073: u8".dynamic"
+  STRING @ 0x.shstrtab::0000007c: u8".got"
+  STRING @ 0x.shstrtab::00000081: u8".data"
+  STRING @ 0x.shstrtab::00000087: u8".comment"
+  STRING @ 0x.shstrtab::00000090: u8".note.gnu.gold-version"
+  STRING @ 0x.shstrtab::000000a7: u8".ARM.attributes"
+  STRING @ 0x.shstrtab::000000b7: u8".gnu_debuglink"
+  DATA @ 0x_elfSectionHeaders::00000000: type=Elf32_Shdr[21]  value=
+Total defined data items: 330
+
+=== SECTION 4: RAW .DATA SECTION HEX (first 512 bytes) ===
+
+0x14000: 17 00 00 00 04 4a 01 00 17 00 00 00 0c 4a 01 00 
+0x14010: 17 00 00 00 14 4a 01 00 17 00 00 00 1c 4a 01 00 
+0x14020: 17 00 00 00 38 4a 01 00 17 00 00 00 3c 4a 01 00 
+0x14030: 17 00 00 00 40 4a 01 00 17 00 00 00 44 4a 01 00 
+0x14040: 17 00 00 00 54 4a 01 00 17 00 00 00 5c 4a 01 00 
+0x14050: 17 00 00 00 64 4a 01 00 17 00 00 00 6c 4a 01 00 
+0x14060: 17 00 00 00 74 4a 01 00 17 00 00 00 7c 4a 01 00 
+0x14070: 17 00 00 00 84 4a 01 00 17 00 00 00 8c 4a 01 00 
+0x14080: 17 00 00 00 94 4a 01 00 17 00 00 00 9c 4a 01 00 
+0x14090: 17 00 00 00 a4 4a 01 00 17 00 00 00 ac 4a 01 00 
+0x140a0: 17 00 00 00 b4 4a 01 00 17 00 00 00 bc 4a 01 00 
+0x140b0: 17 00 00 00 c4 4a 01 00 17 00 00 00 cc 4a 01 00 
+0x140c0: 17 00 00 00 d4 4a 01 00 17 00 00 00 dc 4a 01 00 
+0x140d0: 17 00 00 00 e4 4a 01 00 17 00 00 00 ec 4a 01 00 
+0x140e0: 17 00 00 00 f4 4a 01 00 17 00 00 00 fc 4a 01 00 
+0x140f0: 17 00 00 00 04 4b 01 00 17 00 00 00 0c 4b 01 00 
+0x14100: 17 00 00 00 14 4b 01 00 17 00 00 00 1c 4b 01 00 
+0x14110: 17 00 00 00 24 4b 01 00 17 00 00 00 2c 4b 01 00 
+0x14120: 17 00 00 00 34 4b 01 00 17 00 00 00 3c 4b 01 00 
+0x14130: 17 00 00 00 44 4b 01 00 17 00 00 00 4c 4b 01 00 
+0x14140: 17 00 00 00 54 4b 01 00 17 00 00 00 5c 4b 01 00 
+0x14150: 17 00 00 00 64 4b 01 00 17 00 00 00 6c 4b 01 00 
+0x14160: 17 00 00 00 74 4b 01 00 17 00 00 00 7c 4b 01 00 
+0x14170: 17 00 00 00 84 4b 01 00 17 00 00 00 8c 4b 01 00 
+0x14180: 17 00 00 00 94 4b 01 00 17 00 00 00 9c 4b 01 00 
+0x14190: 17 00 00 00 a4 4b 01 00 17 00 00 00 ac 4b 01 00 
+0x141a0: 17 00 00 00 b4 4b 01 00 17 00 00 00 bc 4b 01 00 
+0x141b0: 17 00 00 00 c4 4b 01 00 17 00 00 00 cc 4b 01 00 
+0x141c0: 17 00 00 00 d4 4b 01 00 17 00 00 00 dc 4b 01 00 
+0x141d0: 17 00 00 00 e4 4b 01 00 17 00 00 00 ec 4b 01 00 
+0x141e0: 17 00 00 00 f4 4b 01 00 17 00 00 00 fc 4b 01 00 
+0x141f0: 17 00 00 00 04 4c 01 00 17 00 00 00 0c 4c 01 00 
+
+=== SECTION 5: QMI SERVICE 22 CONSTANTS ===
+
+Searching for 0x16 (dec 22 = QMI TIME service ID)...
+Const 0x16 (22):
+Const 0x16 (22):
+Const 0x20 (32):
+Const 0x25 (37):
+  Found at 00015984 in uim_get_service_object_internal_v01: cmp r1,#0x25
+Const 0x20 (32):
+Const 0x25 (37):
+  Found at 00015984 in uim_get_service_object_internal_v01: cmp r1,#0x25
+
+=== SECTION 6: MEMORY SEGMENTS ===
+
+  Block: segment_2.1          start=0x00010000  size=308  r=true w=false x=false
+  Block: .interp              start=0x00010134  size=19  r=true w=false x=false
+  Block: .dynsym              start=0x00010148  size=1104  r=true w=false x=false
+  Block: .dynstr              start=0x00010598  size=2324  r=true w=false x=false
+  Block: .hash                start=0x00010eac  size=552  r=true w=false x=false
+  Block: .rel.dyn             start=0x000110d4  size=18280  r=true w=false x=false
+  Block: .rel.plt             start=0x0001583c  size=16  r=true w=false x=false
+  Block: .plt                 start=0x0001584c  size=44  r=true w=false x=true
+  Block: .text                start=0x00015878  size=904  r=true w=false x=true
+  Block: .rodata              start=0x00015c00  size=39365  r=true w=false x=false
+  Block: .ARM.exidx           start=0x0001f5c8  size=16  r=true w=false x=false
+  Block: .data.rel.ro.local   start=0x00021518  size=18920  r=true w=false x=false
+  Block: .fini_array          start=0x00025f00  size=4  r=true w=false x=false
+  Block: .dynamic             start=0x00025f04  size=232  r=true w=false x=false
+  Block: .got                 start=0x00025fec  size=20  r=true w=false x=false
+  Block: .data                start=0x00026000  size=1476  r=true w=true x=false
+  Block: EXTERNAL             start=0x00027000  size=12  r=true w=true x=false
+  Block: .ARM.attributes      start=0x.ARM.attributes::00000000  size=54  r=false w=false x=false
+  Block: .comment             start=0x.comment::00000000  size=16  r=false w=false x=false
+  Block: .gnu_debuglink       start=0x.gnu_debuglink::00000000  size=24  r=false w=false x=false
+  Block: .note.gnu.gold-version start=0x.note.gnu.gold-version::00000000  size=28  r=false w=false x=false
+  Block: .shstrtab            start=0x.shstrtab::00000000  size=198  r=false w=false x=false
+  Block: _elfSectionHeaders   start=0x_elfSectionHeaders::00000000  size=840  r=false w=false x=false

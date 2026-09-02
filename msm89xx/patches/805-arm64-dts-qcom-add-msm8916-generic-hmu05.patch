@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,211 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -86,28 +86,19 @@
 +&led_g {
 +    function = LED_FUNCTION_WLAN;
 +    gpios = <&tlmm 71 GPIO_ACTIVE_HIGH>;
-+    default-state = "off";
++    default-state = "on";
 +};
 +
 +&led_r {
 +    function = LED_FUNCTION_POWER;
 +    gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
-+
-+    /*
-+     * Red is intentionally ON during early boot.
-+     *
-+     * Later userspace/modem monitoring will take control:
-+     *
-+     *   modem connected    -> OFF
-+     *   modem disconnected -> ON
-+     */
-+    default-state = "on";
++    default-state = "off";
 +};
 +
 +&led_b {
 +    function = LED_FUNCTION_WAN;
 +    gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
-+    default-state = "off";
++    default-state = "on";
 +};
 +
 +/*

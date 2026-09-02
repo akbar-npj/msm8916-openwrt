@@ -1,0 +1,9 @@
+=== STRACE ON NETMGRD (10 SECONDS) ===
+strace: Process 293 attached with 7 threads
+[pid   823] 23:49:34 _newselect(15, [14], NULL, NULL, NULL <unfinished ...>
+[pid   822] 23:49:34 _newselect(14, [13], NULL, NULL, NULL <unfinished ...>
+[pid   821] 23:49:34 _newselect(13, [12], NULL, NULL, NULL <unfinished ...>
+[pid   337] 23:49:34 read(3,  <unfinished ...>
+[pid   807] 23:49:34 _newselect(11, [8 10], NULL, NULL, NULL <unfinished ...>
+[pid   690] 23:49:34 futex(0xb6f83520, FUTEX_WAIT_PRIVATE, 4294966956, NULL <unfinished ...>
+[pid   293] 23:49:34 futex(0xb8177e70, FUTEX_WAIT_PRIVATE, 0, NULL

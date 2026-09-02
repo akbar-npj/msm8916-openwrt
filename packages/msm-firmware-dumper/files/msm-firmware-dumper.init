@@ -25,10 +25,11 @@ start() {
 	if FLAG="$FLAG" $PROG; then
 		logger -t "$NAME" "Firmware dump successful"
 		sync
+		/etc/init.d/rmtfs restart 2>/dev/null || true
+		sleep 1
 		for rproc in /sys/class/remoteproc/remoteproc*; do
 			[ -d "$rproc" ] && echo start > "$rproc/state" 2>/dev/null || true
 		done
-		/etc/init.d/rmtfs restart 2>/dev/null || true
 		if ! uci -q get wireless.radio0.path >/dev/null; then
 			rm -f /etc/config/wireless
 			/sbin/wifi config 2>/dev/null || true

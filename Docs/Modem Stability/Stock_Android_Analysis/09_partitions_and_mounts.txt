@@ -1,0 +1,86 @@
+=== PARTITION MAPPINGS ===
+lrwxrwxrwx root     root              1970-01-01 12:49 DDR -> /dev/block/mmcblk0p19
+lrwxrwxrwx root     root              1970-01-01 12:49 aboot -> /dev/block/mmcblk0p4
+lrwxrwxrwx root     root              1970-01-01 12:49 abootbak -> /dev/block/mmcblk0p5
+lrwxrwxrwx root     root              1970-01-01 12:49 boot -> /dev/block/mmcblk0p22
+lrwxrwxrwx root     root              1970-01-01 12:49 cache -> /dev/block/mmcblk0p25
+lrwxrwxrwx root     root              1970-01-01 12:49 config -> /dev/block/mmcblk0p26
+lrwxrwxrwx root     root              1970-01-01 12:49 fsc -> /dev/block/mmcblk0p16
+lrwxrwxrwx root     root              1970-01-01 12:49 fsg -> /dev/block/mmcblk0p20
+lrwxrwxrwx root     root              1970-01-01 12:49 hyp -> /dev/block/mmcblk0p10
+lrwxrwxrwx root     root              1970-01-01 12:49 hypbak -> /dev/block/mmcblk0p11
+lrwxrwxrwx root     root              1970-01-01 12:49 misc -> /dev/block/mmcblk0p15
+lrwxrwxrwx root     root              1970-01-01 12:49 modem -> /dev/block/mmcblk0p1
+lrwxrwxrwx root     root              1970-01-01 12:49 modemst1 -> /dev/block/mmcblk0p13
+lrwxrwxrwx root     root              1970-01-01 12:49 modemst2 -> /dev/block/mmcblk0p14
+lrwxrwxrwx root     root              1970-01-01 12:49 pad -> /dev/block/mmcblk0p12
+lrwxrwxrwx root     root              1970-01-01 12:49 persist -> /dev/block/mmcblk0p24
+lrwxrwxrwx root     root              1970-01-01 12:49 recovery -> /dev/block/mmcblk0p27
+lrwxrwxrwx root     root              1970-01-01 12:49 rpm -> /dev/block/mmcblk0p6
+lrwxrwxrwx root     root              1970-01-01 12:49 rpmbak -> /dev/block/mmcblk0p7
+lrwxrwxrwx root     root              1970-01-01 12:49 sbl1 -> /dev/block/mmcblk0p2
+lrwxrwxrwx root     root              1970-01-01 12:49 sbl1bak -> /dev/block/mmcblk0p3
+lrwxrwxrwx root     root              1970-01-01 12:49 sec -> /dev/block/mmcblk0p21
+lrwxrwxrwx root     root              1970-01-01 12:49 splash -> /dev/block/mmcblk0p18
+lrwxrwxrwx root     root              1970-01-01 12:49 ssd -> /dev/block/mmcblk0p17
+lrwxrwxrwx root     root              1970-01-01 12:49 system -> /dev/block/mmcblk0p23
+lrwxrwxrwx root     root              1970-01-01 12:49 tz -> /dev/block/mmcblk0p8
+lrwxrwxrwx root     root              1970-01-01 12:49 tzbak -> /dev/block/mmcblk0p9
+lrwxrwxrwx root     root              1970-01-01 12:49 userdata -> /dev/block/mmcblk0p28
+
+=== PROC PARTITIONS ===
+major minor  #blocks  name
+
+ 253        0     196608 zram0
+ 179        0    3817472 mmcblk0
+ 179        1      65536 mmcblk0p1
+ 179        2        512 mmcblk0p2
+ 179        3        512 mmcblk0p3
+ 179        4       1024 mmcblk0p4
+ 179        5       1024 mmcblk0p5
+ 179        6        512 mmcblk0p6
+ 179        7        512 mmcblk0p7
+ 179        8        512 mmcblk0p8
+ 179        9        512 mmcblk0p9
+ 179       10        512 mmcblk0p10
+ 179       11        512 mmcblk0p11
+ 179       12       1024 mmcblk0p12
+ 179       13       1536 mmcblk0p13
+ 179       14       1536 mmcblk0p14
+ 179       15       1024 mmcblk0p15
+ 179       16          1 mmcblk0p16
+ 179       17          8 mmcblk0p17
+ 179       18      10240 mmcblk0p18
+ 179       19         32 mmcblk0p19
+ 179       20       1536 mmcblk0p20
+ 179       21         16 mmcblk0p21
+ 179       22      16384 mmcblk0p22
+ 179       23     819200 mmcblk0p23
+ 179       24      32768 mmcblk0p24
+ 179       25     262144 mmcblk0p25
+ 179       26        512 mmcblk0p26
+ 179       27      16384 mmcblk0p27
+ 179       28    2310127 mmcblk0p28
+ 179       32       4096 mmcblk0rpmb
+
+=== MOUNTED FILESYSTEMS ===
+rootfs / rootfs ro,relatime 0 0
+tmpfs /dev tmpfs rw,seclabel,nosuid,relatime,mode=755 0 0
+devpts /dev/pts devpts rw,seclabel,relatime,mode=600 0 0
+proc /proc proc rw,relatime 0 0
+sysfs /sys sysfs rw,seclabel,relatime 0 0
+selinuxfs /sys/fs/selinux selinuxfs rw,relatime 0 0
+debugfs /sys/kernel/debug debugfs rw,relatime 0 0
+none /acct cgroup rw,relatime,cpuacct 0 0
+none /sys/fs/cgroup tmpfs rw,seclabel,relatime,mode=750,gid=1000 0 0
+tmpfs /mnt/asec tmpfs rw,seclabel,relatime,mode=755,gid=1000 0 0
+tmpfs /mnt/obb tmpfs rw,seclabel,relatime,mode=755,gid=1000 0 0
+none /dev/cpuctl cgroup rw,relatime,cpu 0 0
+adb /dev/usb-ffs/adb functionfs rw,relatime 0 0
+/dev/block/bootdevice/by-name/system /system ext4 ro,seclabel,relatime,discard,data=ordered 0 0
+/dev/block/bootdevice/by-name/userdata /data ext4 rw,seclabel,nosuid,nodev,relatime,discard,noauto_da_alloc,data=ordered 0 0
+/dev/block/bootdevice/by-name/cache /cache ext4 rw,seclabel,nosuid,nodev,relatime,data=ordered 0 0
+/dev/block/bootdevice/by-name/persist /persist ext4 rw,seclabel,nosuid,nodev,relatime,data=ordered 0 0
+/dev/block/bootdevice/by-name/modem /firmware vfat ro,relatime,uid=1000,gid=1000,fmask=0337,dmask=0227,codepage=437,iocharset=iso8859-1,shortname=lower,errors=remount-ro 0 0
+/dev/fuse /mnt/shell/emulated fuse rw,nosuid,nodev,relatime,user_id=1023,group_id=1023,default_permissions,allow_other 0 0
+/dev/fuse /storage/emulated/legacy fuse rw,nosuid,nodev,relatime,user_id=1023,group_id=1023,default_permissions,allow_other 0 0
