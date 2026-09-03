@@ -1,0 +1,13 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916-pm8916.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8916-pm8916.dtsi
+@@ -144,8 +144,8 @@
+ 		};
+ 
+ 		pm8916_l13: l13 {
+-			regulator-min-microvolt = <3075000>;
+-			regulator-max-microvolt = <3075000>;
++			regulator-min-microvolt = <3050000>;
++			regulator-max-microvolt = <3300000>;
+ 		};
+ 
+ 		l14 {};
