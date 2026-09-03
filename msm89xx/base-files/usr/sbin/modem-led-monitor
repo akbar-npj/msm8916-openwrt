@@ -298,9 +298,9 @@ while true; do
 
 
         #
-        # Two-Pronged Keepalive & Safe Self-Healing Watchdog
+        # Two-Pronged Keepalive & Safe Self-Healing Watchdog (HMU05 only)
         #
-        if [ "$STATE" = "healthy" ]; then
+        if [ "$STATE" = "healthy" ] && [ "$IS_HMU05" = "1" ]; then
                 run_watchdog_cycle
         fi
 

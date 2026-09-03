@@ -176,6 +176,12 @@ provision_carrier_bands() {
 	local m_path="$1"
 	local mode="$2"
 
+	# HMU05-only guard: prevent affecting other board targets
+	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+		*hmu05*) ;;
+		*) return 0 ;;
+	esac
+
 	if [ "$mode" = "4g" ] && [ -n "$m_path" ]; then
 		local sup_bands cur_bands lte_bands=""
 		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}' | tr -d ' \r\n')
