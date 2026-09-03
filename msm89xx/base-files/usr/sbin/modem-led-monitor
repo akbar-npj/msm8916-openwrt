@@ -217,6 +217,46 @@ safe_reconnect_modem() {
 }
 
 
+run_watchdog_cycle() {
+        local iface_status="$(ubus call network.interface.modem status 2>/dev/null)"
+        local iface_up="$(echo "$iface_status" | jsonfilter -e '@.up' 2>/dev/null)"
+
+        if [ "$iface_up" = "true" ]; then
+                KEEPALIVE_TIMER=$((KEEPALIVE_TIMER + CHECK_INTERVAL))
+
+                # Check 3GPP packet service state
+                local m_idx="$(mmcli -L 2>/dev/null | grep -m1 -o '/Modem/[0-9]\+' | cut -d/ -f3)"
+                local ps_state=""
+                if [ -n "$m_idx" ]; then
+                        ps_state="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.packet-service-state/ {print $2}' | tr -d ' \r\n')"
+                fi
+
+                if [ "$ps_state" = "detached" ]; then
+                        FAIL_COUNT=$((FAIL_COUNT + 1))
+                        if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
+                                safe_reconnect_modem "packet service detached"
+                        fi
+                elif [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
+                        KEEPALIVE_TIMER=0
+                        # Send lightweight 1-packet heartbeat to keep cell tower in RRC_CONNECTED
+                        if ping -c 1 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                                FAIL_COUNT=0
+                        else
+                                FAIL_COUNT=$((FAIL_COUNT + 1))
+                                logger -t modem-keepalive "Keepalive ping failed ($FAIL_COUNT/$MAX_FAILS)"
+                                if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
+                                        safe_reconnect_modem "ping heartbeat stalled"
+                                fi
+                        fi
+                fi
+        else
+                # Interface is not up (e.g. user ran ifdown modem); reset state
+                KEEPALIVE_TIMER=0
+                FAIL_COUNT=0
+        fi
+}
+
+
 while true; do
 
         if modem_healthy; then
@@ -252,42 +292,7 @@ while true; do
         # Two-Pronged Keepalive & Safe Self-Healing Watchdog
         #
         if [ "$STATE" = "healthy" ]; then
-                local iface_status="$(ubus call network.interface.modem status 2>/dev/null)"
-                local iface_up="$(echo "$iface_status" | jsonfilter -e '@.up' 2>/dev/null)"
-
-                if [ "$iface_up" = "true" ]; then
-                        KEEPALIVE_TIMER=$((KEEPALIVE_TIMER + CHECK_INTERVAL))
-
-                        # Check 3GPP packet service state
-                        local m_idx="$(mmcli -L 2>/dev/null | grep -m1 -o '/Modem/[0-9]\+' | cut -d/ -f3)"
-                        local ps_state=""
-                        if [ -n "$m_idx" ]; then
-                                ps_state="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.packet-service-state/ {print $2}' | tr -d ' \r\n')"
-                        fi
-
-                        if [ "$ps_state" = "detached" ]; then
-                                FAIL_COUNT=$((FAIL_COUNT + 1))
-                                if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
-                                        safe_reconnect_modem "packet service detached"
-                                fi
-                        elif [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
-                                KEEPALIVE_TIMER=0
-                                # Send lightweight 1-packet heartbeat to keep cell tower in RRC_CONNECTED
-                                if ping -c 1 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
-                                        FAIL_COUNT=0
-                                else
-                                        FAIL_COUNT=$((FAIL_COUNT + 1))
-                                        logger -t modem-keepalive "Keepalive ping failed ($FAIL_COUNT/$MAX_FAILS)"
-                                        if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
-                                                safe_reconnect_modem "ping heartbeat stalled"
-                                        fi
-                                fi
-                        fi
-                else
-                        # Interface is not up (e.g. user ran ifdown modem); reset state
-                        KEEPALIVE_TIMER=0
-                        FAIL_COUNT=0
-                fi
+                run_watchdog_cycle
         fi
 
 
