@@ -183,6 +183,7 @@ set_red 1
 
 
 LAST=""
+LAST_RX=0
 
 # Keepalive and Safe Recovery Architecture parameters
 KEEPALIVE_INTERVAL=45
@@ -244,6 +245,16 @@ run_watchdog_cycle() {
         local iface_up="$(echo "$iface_status" | jsonfilter -e '@.up' 2>/dev/null)"
 
         if [ "$iface_up" = "true" ]; then
+                # If traffic is actively being received on wwan0, link is healthy; reset watchdog
+                local rx_now="$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)"
+                if [ "$rx_now" != "$LAST_RX" ] && [ "$LAST_RX" != "0" ]; then
+                        LAST_RX="$rx_now"
+                        FAIL_COUNT=0
+                        KEEPALIVE_TIMER=0
+                        return 0
+                fi
+                LAST_RX="$rx_now"
+
                 KEEPALIVE_TIMER=$((KEEPALIVE_TIMER + CHECK_INTERVAL))
 
                 # Check 3GPP packet service state
@@ -258,14 +269,14 @@ run_watchdog_cycle() {
                         if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
                                 safe_reconnect_modem "packet service detached"
                         fi
-                elif [ "$FAIL_COUNT" -gt 0 ] || [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
+                elif [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
                         KEEPALIVE_TIMER=0
-                        # Send lightweight 1-packet heartbeat to keep cell tower in RRC_CONNECTED
-                        if ping -c 1 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                        # Send lightweight heartbeat with generous 5s timeout on idle link
+                        if ping -c 1 -W 5 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 5 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
                                 FAIL_COUNT=0
                         else
                                 FAIL_COUNT=$((FAIL_COUNT + 1))
-                                logger -t modem-keepalive "Keepalive ping failed ($FAIL_COUNT/$MAX_FAILS)"
+                                logger -t modem-keepalive "Idle keepalive ping failed ($FAIL_COUNT/$MAX_FAILS)"
                                 if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
                                         safe_reconnect_modem "ping heartbeat stalled"
                                 fi
@@ -275,6 +286,7 @@ run_watchdog_cycle() {
                 # Interface is not up (e.g. user ran ifdown modem); reset state
                 KEEPALIVE_TIMER=0
                 FAIL_COUNT=0
+                LAST_RX=0
         fi
 }
 
