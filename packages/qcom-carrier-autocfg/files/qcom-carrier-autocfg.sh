@@ -172,6 +172,30 @@ provision_network() {
 	fi
 }
 
+provision_carrier_bands() {
+	local m_path="$1"
+	local mode="$2"
+
+	if [ "$mode" = "4g" ] && [ -n "$m_path" ]; then
+		local sup_bands cur_bands lte_bands=""
+		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}' | tr -d ' \r\n')
+		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}' | tr -d ' \r\n')
+
+		for b in $(echo "$sup_bands" | tr ', ' '\n'); do
+			case "$b" in
+				eutran-*)
+					lte_bands="${lte_bands:+${lte_bands}|}$b"
+					;;
+			esac
+		done
+
+		if [ -n "$lte_bands" ] && echo "$cur_bands" | grep -qi -E 'utran|geran'; then
+			log "Restricting modem bands to LTE-only ($lte_bands) to eliminate 2G/3G IRAT measurement gap crashes..."
+			mmcli -m "$m_path" --set-current-bands="$lte_bands" 2>/dev/null || true
+		fi
+	fi
+}
+
 connect_bearer() {
 	local apn="$1"
 	local iptype="$2"
@@ -212,6 +236,7 @@ while true; do
 					
 					provision_carrier_mbn "$CARRIER_MBN"
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE"
+					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE"
 					connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
 					
 					LAST_OPERATOR_CODE="$OP_CODE"

@@ -145,6 +145,15 @@ modem_healthy()
                 mmcli -m "$m_idx" -e >/dev/null 2>&1 || true
         fi
 
+        # On HMU05, lock band mask to LTE-only to eliminate 2G/3G IRAT gap RF tune crashes
+        if [ "$IS_HMU05" = "1" ]; then
+                local cur_bands="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')"
+                if echo "$cur_bands" | grep -qi -E 'utran|geran'; then
+                        logger -t modem-band-lock "Locking HMU05 bands to LTE-only to eliminate 2G/3G IRAT measurement gap crashes..."
+                        mmcli -m "$m_idx" --set-current-bands="eutran-1|eutran-3|eutran-5|eutran-8" >/dev/null 2>&1 || true
+                fi
+        fi
+
         return 0
 }
 
