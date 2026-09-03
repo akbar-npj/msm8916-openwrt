@@ -22,6 +22,7 @@ The patches are categorized by their functional domain:
 | [`815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) | Remoteproc / Modem | `drivers/remoteproc/qcom_sysmon.c` | Skips forwarding Modem Subsystem Restart (SSR) notifications to WCNSS, preventing WCNSS firmware faults on modem stop/restart. |
 | [`816-qcom-smsm-validate-mbox-before-request.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch) | IPC / SMSM Driver | `drivers/soc/qcom/smsm.c` | Skips requesting mailbox for local host and verifies existence of valid phandle in `mboxes` property before calling `mbox_request_channel`, eliminating boot error spam and propagating `-EPROBE_DEFER`. |
 | [`817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Wi-Fi / wcn36xx | `drivers/net/wireless/ath/wcn36xx/main.c` | Restricts HAL multicast list filtering commands to associated station interfaces with valid BSS index, preventing firmware rejection error (`err=16`) when bridged or in AP mode. |
+| [`818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch) | Device Tree / Power | `arch/arm64/boot/dts/qcom/msm8916-pm8916.dtsi` | Expands PM8916 L13 voltage range to 3.05V–3.3V allowing USB HS PHY regulator voltage configuration without trigger of `voltage operation not allowed` error. |
 | [`999-tsens-propagate-eprobe-defer.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/999-tsens-propagate-eprobe-defer.patch) | Thermal Driver | `drivers/thermal/qcom/tsens-v0_1.c` | Properly propagates `-EPROBE_DEFER` from `tsens_calibrate_nvmem` so TSENS probes successfully when QFPROM arrives asynchronously. |
 
 ---
@@ -231,6 +232,35 @@ The patches are categorized by their functional domain:
           wcn36xx_smd_set_mc_list(wcn, vif, fp);
   }
   ```
+
+---
+
+### 818: PM8916 L13 Voltage Range Adjustment for USB HS PHY
+- **File**: [`818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch)
+- **Target**: `arch/arm64/boot/dts/qcom/msm8916-pm8916.dtsi`
+- **Purpose**:
+  In `drivers/phy/qualcomm/phy-qcom-usb-hs.c`, the USB HS PHY driver powers on its 3.3V analog supply by requesting a voltage triplet:
+  ```c
+  ret = regulator_set_voltage_triplet(uphy->v3p3, 3050000, 3300000, 3300000);
+  ```
+  On MSM8916, `v3p3-supply` is wired to PM8916 LDO `l13`. In `msm8916-pm8916.dtsi`, `pm8916_l13` was configured with fixed constraints:
+  ```dts
+  pm8916_l13: l13 {
+      regulator-min-microvolt = <3075000>;
+      regulator-max-microvolt = <3075000>;
+  };
+  ```
+  Because `min_uV == max_uV`, Linux regulator core treats the rail as fixed-voltage and does not set `REGULATOR_CHANGE_VOLTAGE` in `valid_ops_mask`. When the USB HS PHY driver called `regulator_set_voltage_triplet()`, the regulator core rejected the request with:
+  `l13: voltage operation not allowed`
+  and aborted `phy_power_on()`.
+  This patch expands the `pm8916_l13` constraints to `<3050000>` min and `<3300000>` max:
+  ```dts
+  pm8916_l13: l13 {
+      regulator-min-microvolt = <3050000>;
+      regulator-max-microvolt = <3300000>;
+  };
+  ```
+  This permits voltage adjustments within the physical PLDO range (1.75V–3.3375V), allowing `regulator_set_voltage_triplet()` to succeed without error.
 
 ---
 

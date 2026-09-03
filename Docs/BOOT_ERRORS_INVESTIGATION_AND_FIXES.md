@@ -238,7 +238,88 @@ The user log snippet included several lines tagged as `daemon.err`, `daemon.info
 
 ---
 
-## 7. Summary of Changes
+---
+
+## 7. Issue 5: `remoteproc remoteproc1/0: request_firmware failed: -2` / `Boot failed: -2`
+
+### 7.1 Symptoms
+```text
+[Jun 29, 2026, 12:59:22 PM UTC] kern.err: [    9.469784] remoteproc remoteproc1: request_firmware failed: -2
+[Jun 29, 2026, 12:59:23 PM UTC] kern.err: [   11.875673] remoteproc remoteproc0: request_firmware failed: -2
+[Jun 29, 2026, 12:59:23 PM UTC] kern.err: [   11.883776] remoteproc remoteproc0: Boot failed: -2
+```
+
+### 7.2 Root Cause Analysis
+1. Qualcomm coprocessor firmwares for MSM8916 (Modem: `mba.mbn` / `modem.mdt`; WCNSS: `wcnss.mdt`) are proprietary Qualcomm binaries not distributable directly inside upstream OpenWrt squashfs images.
+2. Instead, OpenWrt packages [`msm-firmware-dumper`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/msm-firmware-dumper) to automatically mount the device's factory eMMC modem partition (`/dev/mmcblk0p6`) on the very first boot, extract the firmware files into `/lib/firmware/`, and create `/lib/firmware/DUMPED`.
+3. The firmware dumper service [`/etc/init.d/msm-firmware-dumper`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/msm-firmware-dumper/files/msm-firmware-dumper.init) executes at runlevel `START=95` (approx boot second 31).
+4. However, during kernel module loading and service startup on the **first boot immediately after clean flashing**:
+   - `remoteproc1` (WCNSS) probes at second 9.4 with `auto_boot = true`.
+   - `remoteproc0` (Modem) is started at second 11.8 when `/etc/init.d/rmtfs` (START=15) launches and calls `rproc_start()`.
+   - At seconds 9.4 and 11.8 on firstboot, the firmware files do not exist yet in `/lib/firmware`.
+   - Consequently, `request_firmware()` returns `-2` (`-ENOENT`), logging the warning.
+5. At second 31, `msm-firmware-dumper` mounts the partition, extracts all firmware files, and loops through `/sys/class/remoteproc/remoteproc*/state` issuing `start`. Both processors power up and initialize successfully.
+6. **Subsequent Boot Behavior**: On all subsequent reboots, the firmware files are already present in `/overlay/upper/lib/firmware/`. As empirically verified on the running hardware, `remoteproc1` boots `wcnss.mdt` at second 13.7 and `remoteproc0` boots `mba.mbn` at second 17.6 with **zero errors**.
+
+---
+
+## 8. Issue 6: `l13: voltage operation not allowed`
+
+### 8.1 Symptoms
+```text
+[Jun 29, 2026, 12:59:45 PM UTC] kern.err: [   34.255959] l13: voltage operation not allowed
+```
+
+### 8.2 Root Cause Analysis
+1. In `drivers/phy/qualcomm/phy-qcom-usb-hs.c`, the Qualcomm USB 2.0 High-Speed PHY driver configures its analog 3.3V power rail during `qcom_usb_hs_phy_power_on()`:
+   ```c
+   ret = regulator_set_voltage_triplet(uphy->v3p3, 3050000, 3300000, 3300000);
+   if (ret)
+       goto err_3p3;
+   ```
+2. The supply `v3p3` is linked via device tree (`msm8916-pm8916.dtsi`) to PMIC regulator `pm8916_l13`:
+   ```dts
+   &usb_hs_phy {
+       v1p8-supply = <&pm8916_l7>;
+       v3p3-supply = <&pm8916_l13>;
+   };
+   ```
+3. In standard upstream `msm8916-pm8916.dtsi`, the LDO constraint was declared with identical minimum and maximum voltages:
+   ```dts
+   pm8916_l13: l13 {
+       regulator-min-microvolt = <3075000>;
+       regulator-max-microvolt = <3075000>;
+   };
+   ```
+4. In Linux kernel regulator core ([`drivers/regulator/of_regulator.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/regulator/of_regulator.c#L106)), the `REGULATOR_CHANGE_VOLTAGE` capability is only enabled if the min and max constraints differ:
+   ```c
+   /* Voltage change possible? */
+   if (constraints->min_uV != constraints->max_uV)
+       constraints->valid_ops_mask |= REGULATOR_CHANGE_VOLTAGE;
+   ```
+5. When `usb-gadget` initializes and binds the UDC (`ci_hdrc.0`), the PHY driver executes `regulator_set_voltage_triplet()`. Because `min_uV == max_uV`, the regulator core checks `regulator_ops_is_valid(rdev, REGULATOR_CHANGE_VOLTAGE)` in [`drivers/regulator/core.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/regulator/core.c#L430) and rejects the call:
+   ```c
+   rdev_err(rdev, "voltage operation not allowed\n");
+   return -EPERM;
+   ```
+6. This caused the PHY `power_on` routine to fail and jump to `err_3p3`, leaving the PHY unreset and running on bootloader defaults.
+
+### 8.3 Solution & Implementation
+Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch):
+- Expands the device tree constraints for `pm8916_l13` to reflect the USB HS PHY driver's required triplet:
+  ```dts
+  pm8916_l13: l13 {
+  -    regulator-min-microvolt = <3075000>;
+  -    regulator-max-microvolt = <3075000>;
+  +    regulator-min-microvolt = <3050000>;
+  +    regulator-max-microvolt = <3300000>;
+  };
+  ```
+- This enables `REGULATOR_CHANGE_VOLTAGE`, satisfies `regulator_set_voltage_triplet()`, completely prevents the `voltage operation not allowed` error, and allows the USB HS PHY to power on and calibrate cleanly.
+
+---
+
+## 9. Summary of Changes
 
 | Component | Target File | Nature of Fix |
 | :--- | :--- | :--- |
@@ -248,5 +329,7 @@ The user log snippet included several lines tagged as `daemon.err`, `daemon.info
 | **QRTR Daemons** | [`packages/qrtr/files/qrtrns.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/qrtr/files/qrtrns.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
 | **RMTFS Daemon** | [`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
 | **Wi-Fi WCN36xx** | [`msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Kernel patch: only send `WCN36XX_HAL_8023_MULTICAST_LIST_REQ` on associated STA interfaces. |
-| **Documentation** | [`Docs/Patches/README.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Patches/README.md) | Cataloged new patches 816 and 817. |
-| **Documentation** | [`Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md) | Comprehensive engineering report and root-cause analysis. |
+| **PMIC / USB HS PHY** | [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch) | Kernel patch: widen L13 voltage range to 3.05V–3.3V so `regulator_set_voltage_triplet` succeeds. |
+| **Documentation** | [`Docs/Patches/README.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Patches/README.md) | Cataloged new patches 816, 817, and 818. |
+| **Documentation** | [`Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md) | Comprehensive engineering report, root-cause analysis, and live hardware verification. |
+
