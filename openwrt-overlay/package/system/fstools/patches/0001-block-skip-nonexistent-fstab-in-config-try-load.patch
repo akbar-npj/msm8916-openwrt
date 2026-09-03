@@ -1,0 +1,13 @@
+--- a/block.c
++++ b/block.c
+@@ -420,6 +420,9 @@ static struct uci_package * config_try_l
+ 	char *err;
+ 	struct uci_package *pkg;
+ 
++	if (access(path, R_OK))
++		return NULL;
++
+ 	uci_set_confdir(ctx, dir);
+ 	ULOG_INFO("attempting to load %s/%s\n", dir, file);
+ 
+ 	if (uci_load(ctx, file, &pkg)) {
