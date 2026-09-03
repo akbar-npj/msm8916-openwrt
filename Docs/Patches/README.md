@@ -20,6 +20,8 @@ The patches are categorized by their functional domain:
 | [`809-mac80211-enable-wcn36xx.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/809-mac80211-enable-wcn36xx.patch) | OpenWrt Source | `package/kernel/mac80211/ath.mk` | OpenWrt package recipe patch enabling Qualcomm Atheros `wcn36xx` and `ath10k-sdio` kernel modules on `msm89xx`. |
 | [`813-msm8916-reboot-to-edl-support.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/813-msm8916-reboot-to-edl-support.patch) | Power & Reset | `drivers/firmware/qcom/qcom_scm.c`<br>`drivers/power/reset/msm-poweroff.c`<br>`drivers/power/reset/msm-poweroff.h`<br>`drivers/power/reset/qcom-pon.c`<br>`include/linux/firmware/qcom/qcom_scm.h` | Kernel driver support for Emergency Download (EDL / 9008) mode warm-reset matching lk2nd bootloader sequence. |
 | [`815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) | Remoteproc / Modem | `drivers/remoteproc/qcom_sysmon.c` | Skips forwarding Modem Subsystem Restart (SSR) notifications to WCNSS, preventing WCNSS firmware faults on modem stop/restart. |
+| [`816-qcom-smsm-validate-mbox-before-request.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch) | IPC / SMSM Driver | `drivers/soc/qcom/smsm.c` | Skips requesting mailbox for local host and verifies existence of valid phandle in `mboxes` property before calling `mbox_request_channel`, eliminating boot error spam and propagating `-EPROBE_DEFER`. |
+| [`817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Wi-Fi / wcn36xx | `drivers/net/wireless/ath/wcn36xx/main.c` | Restricts HAL multicast list filtering commands to associated station interfaces with valid BSS index, preventing firmware rejection error (`err=16`) when bridged or in AP mode. |
 | [`999-tsens-propagate-eprobe-defer.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/999-tsens-propagate-eprobe-defer.patch) | Thermal Driver | `drivers/thermal/qcom/tsens-v0_1.c` | Properly propagates `-EPROBE_DEFER` from `tsens_calibrate_nvmem` so TSENS probes successfully when QFPROM arrives asynchronously. |
 
 ---
@@ -183,6 +185,51 @@ The patches are categorized by their functional domain:
   ```c
   if (!strcmp(sysmon->name, "wcnss") && !strcmp(sysmon_event->subsys_name, "modem"))
       return NOTIFY_DONE;
+  ```
+
+---
+
+### 816: Qualcomm SMSM Validate Mailbox DT Presence Before Request
+- **File**: [`816-qcom-smsm-validate-mbox-before-request.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch)
+- **Target**: `drivers/soc/qcom/smsm.c`
+- **Purpose**:
+  In Linux 6.12, `mbox_request_channel()` inside `drivers/mailbox/mailbox.c` prints an error (`dev_err: can't parse "mboxes" property`) whenever `fwnode_property_get_reference_args()` fails.
+  On MSM8916, the device tree defines `mboxes = <0>, <&apcs 13>, <0>, <&apcs 19>;` where host 0 is APPS (`local-host`) and host 2 is AUDIO (`<0>` placeholder).
+  The SMSM driver previously looped across all hosts and unconditionally called `mbox_request_channel()`, even for the local host and empty entries, generating repeated kernel errors at boot:
+  `qcom-smsm smsm: mbox_request_channel: can't parse "mboxes" property`.
+  This patch:
+  1. Skips requesting a mailbox channel for `smsm->local_host` (APPS never needs IPC to itself).
+  2. Uses `of_parse_phandle_with_args()` to check for a valid phandle before requesting the channel.
+  3. Propagates `-EPROBE_DEFER` cleanly if the mailbox controller is still probing.
+  ```c
+  if (host_id == smsm->local_host)
+      return -EINVAL;
+
+  ret = of_parse_phandle_with_args(smsm->dev->of_node, "mboxes", "#mbox-cells", host_id, &args);
+  if (ret)
+      return ret;
+  ```
+
+---
+
+### 817: WCN36xx Restrict Multicast Filtering to Associated Stations
+- **File**: [`817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch)
+- **Target**: `drivers/net/wireless/ath/wcn36xx/main.c`
+- **Purpose**:
+  In `wcn36xx_configure_filter()`, the hardware multicast filter command `WCN36XX_HAL_8023_MULTICAST_LIST_REQ` is only supported by Qualcomm firmware when operating as an associated station.
+  However, when an interface entered `FIF_ALLMULTI` (which OpenWrt does automatically upon bridging `wlan0` into `br-lan` or configuring AP mode), the driver sent `wcn36xx_smd_set_mc_list()` without verifying that the interface was in station mode and associated (`tmp->sta_assoc`).
+  The firmware rejected the unassociated/AP command with error code 16, producing:
+  `wcn36xx: ERROR HAL_8023_MULTICAST_LIST rsp failed err=16`.
+  This patch ensures `wcn36xx_smd_set_mc_list()` is only dispatched when the interface is an associated station with a valid BSS index:
+  ```c
+  /* FW handles MC filtering only when connected as STA */
+  if (NL80211_IFTYPE_STATION == vif->type && tmp->sta_assoc &&
+      tmp->bss_index != WCN36XX_HAL_BSS_INVALID_IDX) {
+      if (*total & FIF_ALLMULTI)
+          wcn36xx_smd_set_mc_list(wcn, vif, NULL);
+      else
+          wcn36xx_smd_set_mc_list(wcn, vif, fp);
+  }
   ```
 
 ---
