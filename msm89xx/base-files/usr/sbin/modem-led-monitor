@@ -236,7 +236,7 @@ run_watchdog_cycle() {
                         if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
                                 safe_reconnect_modem "packet service detached"
                         fi
-                elif [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
+                elif [ "$FAIL_COUNT" -gt 0 ] || [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
                         KEEPALIVE_TIMER=0
                         # Send lightweight 1-packet heartbeat to keep cell tower in RRC_CONNECTED
                         if ping -c 1 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
