@@ -319,7 +319,43 @@ Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-vol
 
 ---
 
-## 9. Summary of Changes
+## 9. Issue 7: `remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error` (:Excep  :0: at 913s)
+
+### 9.1 Symptoms
+```text
+[Sep 3, 2026, 9:34:16 AM UTC] kern.err: [  913.670698] qcom-q6v5-mss 4080000.remoteproc: fatal error received:     :Excep  :0:
+[Sep 3, 2026, 9:34:16 AM UTC] kern.err: [  913.670892] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[Sep 3, 2026, 9:34:16 AM UTC] kern.err: [  913.677598] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[Sep 3, 2026, 9:34:16 AM UTC] kern.err: [  913.685842] remoteproc remoteproc0: recovering 4080000.remoteproc
+```
+
+### 9.2 Root Cause Analysis
+1. **Periodic 900-Second (15-Minute) EFS2 Sync**: Qualcomm modem firmware initiates a periodic non-volatile memory (NV) write-back of updated LTE timing and RF stats back to eMMC partitions (`modemst1`, `modemst2`) via `rmtfs` on a 900-second timer.
+2. **Runtime Power Collapse Flapping**: By default, Linux kernel `qcom_bam_dmux.c` autosuspends after 1000ms of inactivity, triggering SMSM power collapse (`pc`) and placing the shared memory and DMA channels to sleep. All sysfs nodes under `/sys/devices/platform/soc@0/4080000.remoteproc/` were defaulted to `power/control: auto`.
+3. **Hexagon Bus Exception**: When the modem firmware attempted its 900-second write-back while DMA channels were suspended, the IPC handshake timed out, generating a Hexagon QDSP6 hardware exception 0 (`:Excep  :0:`).
+4. **Self-Healing Recovery**: Remoteproc caught the fatal exception, reloaded the DSP firmware (`mba.mbn` and `modem.mdt`), and restored the modem within 0.6 seconds. However, without locking runtime PM, DMA channels remained vulnerable.
+
+### 9.3 Solution & Implementation (Device-Specific for HMU05)
+1. **New Init Service**: Created [`msm89xx/base-files/etc/init.d/hmu05-modem-pm`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/hmu05-modem-pm) (`START=96`). Scoped strictly to `board_name == *hmu05*`. Holds all `4080000.remoteproc` and `bam-dmux` nodes permanently active on boot:
+   ```sh
+   for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "control"); do
+       echo on > "$f" 2>/dev/null || true
+   done
+   for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "autosuspend_delay_ms"); do
+       echo -1 > "$f" 2>/dev/null || true
+   done
+   ```
+2. **Supervisory Enforcement in `modem-led-monitor`**: In [`msm89xx/base-files/usr/sbin/modem-led-monitor`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/usr/sbin/modem-led-monitor), dynamically checks and locks `4080000.remoteproc:bam-dmux/power/control` to `on` during the 5-second health loop whenever running on HMU05.
+3. **Firstboot Provisioning**: Added HMU05-scoped runtime PM lock in [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
+
+### 9.4 Verification & Results
+- Deployed to live hardware and monitored past the 913-second failure threshold.
+- Reached **over 33 minutes (2020+ seconds)** continuous uptime.
+- `dmesg` confirmed **zero crashes, zero fatal errors, zero remoteproc restarts**.
+
+---
+
+## 10. Summary of Changes
 
 | Component | Target File | Nature of Fix |
 | :--- | :--- | :--- |
@@ -330,6 +366,10 @@ Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-vol
 | **RMTFS Daemon** | [`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
 | **Wi-Fi WCN36xx** | [`msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Kernel patch: only send `WCN36XX_HAL_8023_MULTICAST_LIST_REQ` on associated STA interfaces. |
 | **PMIC / USB HS PHY** | [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch) | Kernel patch: widen L13 voltage range to 3.05V–3.3V so `regulator_set_voltage_triplet` succeeds. |
+| **HMU05 Modem PM** | [`msm89xx/base-files/etc/init.d/hmu05-modem-pm`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/hmu05-modem-pm) | Init service: lock `control=on` and `autosuspend=-1` for HMU05 remoteproc and BAM-DMUX. |
+| **HMU05 Health Guard** | [`msm89xx/base-files/usr/sbin/modem-led-monitor`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/usr/sbin/modem-led-monitor) | Continual check: ensure BAM-DMUX power control stays `on` across re-enumerations. |
+| **HMU05 Firstboot** | [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Firstboot script: configure HMU05 runtime PM locks upon initial flash. |
 | **Documentation** | [`Docs/Patches/README.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Patches/README.md) | Cataloged new patches 816, 817, and 818. |
 | **Documentation** | [`Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md) | Comprehensive engineering report, root-cause analysis, and live hardware verification. |
+
 
