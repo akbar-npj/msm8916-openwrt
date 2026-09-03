@@ -145,12 +145,25 @@ modem_healthy()
                 mmcli -m "$m_idx" -e >/dev/null 2>&1 || true
         fi
 
-        # On HMU05, lock band mask to LTE-only to eliminate 2G/3G IRAT gap RF tune crashes
+        # On HMU05, lock band mask to LTE-only ONLY if network is Jio (pure LTE-only network without 2G/3G)
+        # Other networks (Airtel, BSNL, Vi, Ncell, NTC, etc.) have active 2G/3G and must keep full bands
         if [ "$IS_HMU05" = "1" ]; then
-                local cur_bands="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')"
-                if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
-                        logger -t modem-band-lock "Locking HMU05 bands to LTE-only to eliminate 2G/3G IRAT measurement gap crashes..."
-                        mmcli -m "$m_idx" --set-current-bands="eutran-1|eutran-3|eutran-5|eutran-8" >/dev/null 2>&1 || true
+                local op_code="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.operator-code/ {print $2}' | tr -d ' \r\n')"
+                local op_name="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.operator-name/ {print $2}' | tr -d ' \r\n')"
+                local is_jio=0
+                case "$op_code" in
+                        4058[4-7][0-9]) is_jio=1 ;;
+                esac
+                case "$op_name" in
+                        *[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
+                esac
+
+                if [ "$is_jio" = "1" ]; then
+                        local cur_bands="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')"
+                        if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
+                                logger -t modem-band-lock "HMU05 (Jio): Locking bands to LTE-only to eliminate 2G/3G IRAT measurement gap crashes..."
+                                mmcli -m "$m_idx" --set-current-bands="eutran-1|eutran-3|eutran-5|eutran-8" >/dev/null 2>&1 || true
+                        fi
                 fi
         fi
 

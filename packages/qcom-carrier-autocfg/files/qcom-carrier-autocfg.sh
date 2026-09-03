@@ -175,6 +175,9 @@ provision_network() {
 provision_carrier_bands() {
 	local m_path="$1"
 	local mode="$2"
+	local carrier="$3"
+	local op_code="$4"
+	local op_name="$5"
 
 	# HMU05-only guard: prevent affecting other board targets
 	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
@@ -182,7 +185,20 @@ provision_carrier_bands() {
 		*) return 0 ;;
 	esac
 
-	if [ "$mode" = "4g" ] && [ -n "$m_path" ]; then
+	# Band restriction applies ONLY to Jio (pure 4G LTE-only network without 2G/3G)
+	# Other carriers (Airtel, BSNL, Vi, Ncell, NTC, etc.) provide 2G/3G and require full bands
+	local is_jio=0
+	case "$carrier" in
+		*[Jj]io*) is_jio=1 ;;
+	esac
+	case "$op_code" in
+		4058[4-7][0-9]) is_jio=1 ;;
+	esac
+	case "$op_name" in
+		*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
+	esac
+
+	if [ "$is_jio" = "1" ] && [ "$mode" = "4g" ] && [ -n "$m_path" ]; then
 		local sup_bands cur_bands lte_bands=""
 		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}' | tr -d ' \r\n')
 		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}' | tr -d ' \r\n')
@@ -196,8 +212,22 @@ provision_carrier_bands() {
 		done
 
 		if [ -n "$lte_bands" ] && echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
-			log "Restricting modem bands to LTE-only ($lte_bands) to eliminate 2G/3G IRAT measurement gap crashes..."
+			log "HMU05 (Jio): Restricting modem bands to LTE-only ($lte_bands) to eliminate 2G/3G IRAT measurement gap crashes..."
 			mmcli -m "$m_path" --set-current-bands="$lte_bands" 2>/dev/null || true
+		fi
+	elif [ "$is_jio" = "0" ] && [ -n "$m_path" ]; then
+		# Non-Jio carrier (Airtel, BSNL, Vi, Ncell, NTC, etc.): Restore all supported bands if previously restricted
+		local sup_bands cur_bands all_bands=""
+		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}' | tr -d ' \r\n')
+		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}' | tr -d ' \r\n')
+
+		for b in $(echo "$sup_bands" | tr ', ' '\n'); do
+			all_bands="${all_bands:+${all_bands}|}$b"
+		done
+
+		if [ -n "$all_bands" ] && ! echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
+			log "HMU05 (Non-Jio Carrier '$carrier'): Restoring full multi-mode bands ($all_bands) for 2G/3G/4G support..."
+			mmcli -m "$m_path" --set-current-bands="$all_bands" 2>/dev/null || true
 		fi
 	fi
 }
@@ -242,7 +272,7 @@ while true; do
 					
 					provision_carrier_mbn "$CARRIER_MBN"
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE"
-					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE"
+					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME"
 					connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
 					
 					LAST_OPERATOR_CODE="$OP_CODE"
