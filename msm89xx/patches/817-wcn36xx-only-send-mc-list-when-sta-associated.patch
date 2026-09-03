@@ -1,0 +1,18 @@
+--- a/drivers/net/wireless/ath/wcn36xx/main.c
++++ b/drivers/net/wireless/ath/wcn36xx/main.c
+@@ -447,6 +447,9 @@ static void wcn36xx_configure_filter(struct ieee80211_hw *hw,
+ 		/* FW handles MC filtering only when connected as STA */
+-		if (*total & FIF_ALLMULTI)
+-			wcn36xx_smd_set_mc_list(wcn, vif, NULL);
+-		else if (NL80211_IFTYPE_STATION == vif->type && tmp->sta_assoc)
+-			wcn36xx_smd_set_mc_list(wcn, vif, fp);
++		if (NL80211_IFTYPE_STATION == vif->type && tmp->sta_assoc &&
++		    tmp->bss_index != WCN36XX_HAL_BSS_INVALID_IDX) {
++			if (*total & FIF_ALLMULTI)
++				wcn36xx_smd_set_mc_list(wcn, vif, NULL);
++			else
++				wcn36xx_smd_set_mc_list(wcn, vif, fp);
++		}
+ 	}
+ 
+ 	mutex_unlock(&wcn->conf_mutex);
