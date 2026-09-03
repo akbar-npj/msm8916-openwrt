@@ -24,8 +24,7 @@ populate_disk_labels() {
 
 load_qrtr_modules() {
 	# Optional: ensure QRTR bus is up before the modem starts talking to rmtfs
-	modprobe qrtr 2>/dev/null || true
-	modprobe qrtr-tun 2>/dev/null || true
+	[ -d /sys/module/qrtr ] || modprobe qrtr 2>/dev/null || true
 }
 
 start_service() {

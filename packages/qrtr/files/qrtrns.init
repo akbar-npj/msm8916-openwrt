@@ -9,8 +9,7 @@ PROG=/usr/bin/qrtr-ns
 OOM_ADJ=-17
 
 load_modules() {
-	modprobe qrtr 2>/dev/null || true
-	modprobe qrtr-tun 2>/dev/null || true
+	[ -d /sys/module/qrtr ] || modprobe qrtr 2>/dev/null || true
 }
 
 start_service() {
