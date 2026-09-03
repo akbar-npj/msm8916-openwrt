@@ -1,11 +1,6 @@
-#!/bin/sh
-# MSM8916 eMMC sysupgrade dispatcher
-# Uses /bin/bash for robust pipeline execution, with POSIX ash fallback
-
-PART_NAME=firmware
-REQUIRE_IMAGE_METADATA=1
-RAMFS_COPY_BIN="/bin/bash /usr/sbin/mkfs.ext4 /sbin/mkfs.ext4 /usr/sbin/e2fsck /sbin/e2fsck /usr/sbin/fsck.ext4 /sbin/fsck.ext4 /bin/tar /usr/bin/tar /bin/dd /bin/sync /bin/grep /bin/sed /bin/cut /bin/readlink /usr/bin/readlink /bin/basename /bin/mount /bin/umount"
-RAMFS_COPY_DATA="/lib/upgrade/platform.bash /etc/mke2fs.conf /etc/fstab"
+#!/bin/bash
+# MSM8916 eMMC sysupgrade implementation (Bash)
+set -o pipefail
 
 log_upgrade() {
     echo "sysupgrade: $*"
@@ -13,11 +8,6 @@ log_upgrade() {
 }
 
 find_mmc_part() {
-    if [ -x /bin/bash ] && [ -f /lib/upgrade/platform.bash ]; then
-        /bin/bash /lib/upgrade/platform.bash find_part "$@"
-        return $?
-    fi
-
     local label="$1"
     local dev=""
     local aliases=""
@@ -37,6 +27,7 @@ find_mmc_part() {
             ;;
     esac
 
+    # 1. Look up by uevent PARTNAME attribute
     for dev in /dev/mmcblk[0-9]p[0-9]*; do
         [ -b "$dev" ] || continue
         local bname="${dev##*/}"
@@ -53,6 +44,7 @@ find_mmc_part() {
         done
     done
 
+    # 2. Check /dev/disk/by-partlabel symlinks
     for a in $aliases; do
         if [ -L "/dev/disk/by-partlabel/$a" ]; then
             dev="$(readlink -f "/dev/disk/by-partlabel/$a" 2>/dev/null)"
@@ -63,6 +55,7 @@ find_mmc_part() {
         fi
     done
 
+    # 3. Check /dev/block/by-name symlinks
     for a in $aliases; do
         if [ -L "/dev/block/by-name/$a" ]; then
             dev="$(readlink -f "/dev/block/by-name/$a" 2>/dev/null)"
@@ -73,6 +66,7 @@ find_mmc_part() {
         fi
     done
 
+    # 4. Fallback to standard MSM8916 partition assignments
     case "$label" in
         boot|BOOT)
             [ -b /dev/mmcblk0p13 ] && { echo "/dev/mmcblk0p13"; return 0; }
@@ -88,13 +82,10 @@ find_mmc_part() {
     return 1
 }
 
-platform_check_image() {
-    if [ -x /bin/bash ] && [ -f /lib/upgrade/platform.bash ]; then
-        /bin/bash /lib/upgrade/platform.bash check_image "$@"
-        return $?
-    fi
-
+check_image() {
     local fw_image="$1"
+
+    # If image path is not accessible at validation time, let fwtool metadata decide
     [ -f "$fw_image" ] || return 0
 
     local members
@@ -123,27 +114,24 @@ platform_check_image() {
     return 0
 }
 
-platform_pre_upgrade() {
-    if [ -x /bin/bash ] && [ -f /lib/upgrade/platform.bash ]; then
-        /bin/bash /lib/upgrade/platform.bash pre_upgrade "$@"
-        return $?
-    fi
-
+pre_upgrade() {
     log_upgrade "Preparing system for upgrade: stopping services and reclaiming memory..."
+
+    # Reclaim file system buffer and slab caches to maximize available RAM
     echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+    # Stop LED monitors to prevent hardware access loops
     /etc/init.d/wifi-led-monitor stop 2>/dev/null || true
     /etc/init.d/modem-led-monitor stop 2>/dev/null || true
+
+    # Stop modem services cleanly
     /etc/init.d/modemmanager stop 2>/dev/null || true
     /etc/init.d/rmtfs stop 2>/dev/null || true
+
     sync
 }
 
-platform_copy_config() {
-    if [ -x /bin/bash ] && [ -f /lib/upgrade/platform.bash ]; then
-        /bin/bash /lib/upgrade/platform.bash copy_config "$@"
-        return $?
-    fi
-
+copy_config() {
     local data_part
     data_part=$(find_mmc_part "rootfs_data")
 
@@ -155,6 +143,7 @@ platform_copy_config() {
     mkdir -p /tmp/overlay
     umount /tmp/overlay 2>/dev/null || true
 
+    # Check and clean filesystem before mounting if fsck tools are present
     if command -v fsck.ext4 >/dev/null 2>&1; then
         fsck.ext4 -p "$data_part" 2>/dev/null || true
     elif command -v e2fsck >/dev/null 2>&1; then
@@ -180,12 +169,7 @@ platform_copy_config() {
     fi
 }
 
-platform_do_upgrade() {
-    if [ -x /bin/bash ] && [ -f /lib/upgrade/platform.bash ]; then
-        /bin/bash /lib/upgrade/platform.bash do_upgrade "$@"
-        return $?
-    fi
-
+do_upgrade() {
     local tar_file="$1"
     local boot_part rootfs_part data_part
     local board_dir
@@ -240,38 +224,82 @@ platform_do_upgrade() {
     }
 
     log_upgrade "Writing kernel image ($kernel_member) to $boot_part..."
-    local dd_status=0
-    tar -O -xf "$tar_file" "$kernel_member" 2>/dev/null | \
-        dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null || dd_status=$?
 
-    if [ "$dd_status" -ne 0 ]; then
-        log_upgrade "ERROR: Failed to write kernel to $boot_part (dd status: $dd_status)"
+    # Write kernel using pipeline and check dd exit code via PIPESTATUS in bash
+    tar -O -xf "$tar_file" "$kernel_member" 2>/dev/null | \
+        dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null
+    local -a pipe_kernel=("${PIPESTATUS[@]}")
+    local dd_kernel="${pipe_kernel[1]}"
+
+    if [ "$dd_kernel" -ne 0 ]; then
+        log_upgrade "ERROR: Failed to write kernel to $boot_part (dd status: $dd_kernel)"
         return 1
     fi
+
     log_upgrade "Kernel written successfully"
 
     log_upgrade "Writing rootfs image ($root_member) to $rootfs_part..."
-    dd_status=0
-    tar -O -xf "$tar_file" "$root_member" 2>/dev/null | \
-        dd of="$rootfs_part" bs=4096 conv=fsync 2>/dev/null || dd_status=$?
 
-    if [ "$dd_status" -ne 0 ]; then
-        log_upgrade "ERROR: Failed to write rootfs to $rootfs_part (dd status: $dd_status)"
+    # Write rootfs using pipeline and check dd exit code via PIPESTATUS in bash
+    tar -O -xf "$tar_file" "$root_member" 2>/dev/null | \
+        dd of="$rootfs_part" bs=4096 conv=fsync 2>/dev/null
+    local -a pipe_rootfs=("${PIPESTATUS[@]}")
+    local dd_rootfs="${pipe_rootfs[1]}"
+
+    if [ "$dd_rootfs" -ne 0 ]; then
+        log_upgrade "ERROR: Failed to write rootfs to $rootfs_part (dd status: $dd_rootfs)"
         return 1
     fi
+
     log_upgrade "Rootfs written successfully"
 
+    # Handle rootfs_data partition (format if clean upgrade without preserved config)
     if [ -z "$UPGRADE_BACKUP" ]; then
         if [ -n "$data_part" ] && [ -b "$data_part" ]; then
-            log_upgrade "Clean upgrade: formatting rootfs_data on $data_part"
-            mkfs.ext4 -q -F -L rootfs_data "$data_part" || log_upgrade "WARNING: mkfs failed"
+            log_upgrade "Clean upgrade: formatting rootfs_data as ext4 on $data_part"
+
+            if ! mkfs.ext4 -q -F -L rootfs_data "$data_part"; then
+                log_upgrade "WARNING: mkfs.ext4 failed on $data_part"
+            else
+                log_upgrade "rootfs_data formatted successfully"
+            fi
+
             sync
+        else
+            log_upgrade "WARNING: No rootfs_data partition found, skipping format"
         fi
     else
         log_upgrade "Upgrade with configuration preservation complete"
     fi
 
     sync
+
     log_upgrade "Upgrade completed successfully. System will now reboot."
     return 0
 }
+
+# Main command dispatcher for platform.bash
+cmd="$1"
+shift
+
+case "$cmd" in
+    check_image)
+        check_image "$@"
+        ;;
+    pre_upgrade)
+        pre_upgrade "$@"
+        ;;
+    do_upgrade)
+        do_upgrade "$@"
+        ;;
+    copy_config)
+        copy_config "$@"
+        ;;
+    find_part)
+        find_mmc_part "$@"
+        ;;
+    *)
+        echo "Unknown action: $cmd" >&2
+        exit 1
+        ;;
+esac
