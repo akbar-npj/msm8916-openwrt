@@ -189,7 +189,7 @@ provision_carrier_bands() {
 			esac
 		done
 
-		if [ -n "$lte_bands" ] && echo "$cur_bands" | grep -qi -E 'utran|geran'; then
+		if [ -n "$lte_bands" ] && echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
 			log "Restricting modem bands to LTE-only ($lte_bands) to eliminate 2G/3G IRAT measurement gap crashes..."
 			mmcli -m "$m_path" --set-current-bands="$lte_bands" 2>/dev/null || true
 		fi
