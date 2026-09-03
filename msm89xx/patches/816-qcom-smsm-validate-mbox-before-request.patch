@@ -1,0 +1,29 @@
+--- a/drivers/soc/qcom/smsm.c
++++ b/drivers/soc/qcom/smsm.c
+@@ -378,6 +378,16 @@ static int smsm_parse_mbox(struct qcom_smsm *smsm, unsigned int host_id)
+ 	struct smsm_host *host = &smsm->hosts[host_id];
++	struct of_phandle_args args;
+ 	int ret = 0;
+ 
++	if (host_id == smsm->local_host)
++		return -EINVAL;
++
++	ret = of_parse_phandle_with_args(smsm->dev->of_node, "mboxes", "#mbox-cells", host_id, &args);
++	if (ret)
++		return ret;
++
++	of_node_put(args.np);
++
+ 	host->mbox_chan = mbox_request_channel(&smsm->mbox_client, host_id);
+ 	if (IS_ERR(host->mbox_chan)) {
+ 		ret = PTR_ERR(host->mbox_chan);
+@@ -566,6 +576,9 @@ static int qcom_smsm_probe(struct platform_device *pdev)
+ 		if (!ret)
+ 			continue;
+ 
++		if (ret == -EPROBE_DEFER)
++			goto out_put;
++
+ 		ret = smsm_parse_ipc(smsm, id);
+ 		if (ret < 0)
+ 			goto out_put;
