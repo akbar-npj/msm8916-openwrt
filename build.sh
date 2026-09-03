@@ -224,6 +224,7 @@ timed() {
 
     ok "Finished in $((end-start)) seconds."
 }
+
 ###############################################################################
 # OpenWrt tree helpers
 ###############################################################################
@@ -322,6 +323,51 @@ prepare_tree() {
     ok "OpenWrt tree prepared."
 }
 
+###############################################################################
+# BSP sync helpers
+###############################################################################
+
+sync_bsp() {
+
+    ok "Syncing BSP into prepared OpenWrt tree..."
+
+    # Reinstall the msm89xx target (without the misplaced mac80211 patch).
+    docker_exec sh -c "
+        rm -rf $CONTAINER_OPENWRT_DIR/target/linux/msm89xx && \
+        cp -a $CONTAINER_REPO_DIR/msm89xx $CONTAINER_OPENWRT_DIR/target/linux/ && \
+        rm -f $CONTAINER_OPENWRT_DIR/target/linux/msm89xx/patches/809-mac80211-enable-wcn36xx.patch
+    "
+
+    # Reinstall project packages.
+    docker_exec sh -c "
+        rm -rf $CONTAINER_OPENWRT_DIR/package/msm8916 && \
+        cp -a $CONTAINER_REPO_DIR/packages $CONTAINER_OPENWRT_DIR/package/msm8916
+    "
+
+    # Install package patches into the upstream OpenWrt package tree.
+    docker_exec sh -c "
+        for pkg in $CONTAINER_REPO_DIR/packages/*; do \
+            [ -d \"\$pkg/patches\" ] || continue; \
+            pname=\$(basename \"\$pkg\"); \
+            if [ -d \"$CONTAINER_OPENWRT_DIR/package/system/\$pname\" ]; then \
+                mkdir -p \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches\" && \
+                cp -a \"\$pkg/patches/.\" \
+                      \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches/\"; \
+            fi; \
+        done
+    "
+
+    # Apply ModemManager compatibility fix if the file is present.
+    docker_exec sh -c "
+        mm_proto=$CONTAINER_OPENWRT_DIR/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh
+        if [ -f \"\$mm_proto\" ]; then
+            sed -i \
+                's/proto_notify_error \"\${interface}\" MM_INIT_EPS_BEARER_SET_FAILED/return 0/' \
+                \"\$mm_proto\" 2>/dev/null || true
+        fi
+    "
+}
+
 ensure_prepared() {
 
     local version
@@ -335,27 +381,9 @@ ensure_prepared() {
 
     if [ "$prepared" = "$version" ]; then
 
-        ok "OpenWrt tree already prepared. Syncing BSP..."
+        ok "OpenWrt tree already prepared for $version."
 
-        docker_exec sh -c "
-            rm -rf $CONTAINER_OPENWRT_DIR/target/linux/msm89xx && \
-            cp -a $CONTAINER_REPO_DIR/msm89xx $CONTAINER_OPENWRT_DIR/target/linux/ && \
-            rm -f $CONTAINER_OPENWRT_DIR/target/linux/msm89xx/patches/809-mac80211-enable-wcn36xx.patch && \
-            rm -rf $CONTAINER_OPENWRT_DIR/package/msm8916 && \
-            cp -a $CONTAINER_REPO_DIR/packages $CONTAINER_OPENWRT_DIR/package/msm8916 && \
-            for pkg in $CONTAINER_REPO_DIR/packages/*; do \
-                if [ -d \"\$pkg/patches\" ]; then \
-                    pname=\$(basename \"\$pkg\"); \
-                    if [ -d \"$CONTAINER_OPENWRT_DIR/package/system/\$pname\" ]; then \
-                        mkdir -p \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches\" && \
-                        cp -a \"\$pkg/patches/.\" \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches/\"; \
-                    fi; \
-                fi; \
-            done && \
-            if [ -f $CONTAINER_OPENWRT_DIR/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh ]; then \
-                sed -i 's/proto_notify_error \"\${interface}\" MM_INIT_EPS_BEARER_SET_FAILED/return 0/' $CONTAINER_OPENWRT_DIR/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh 2>/dev/null || true; \
-            fi
-        "
+        sync_bsp
 
         return
     fi
@@ -505,23 +533,13 @@ build_target() {
 ###############################################################################
 # Always synchronize repository sources before building.
 #
-# This refreshes:
-#
-#   msm89xx/
-#   packages/
-#   package patches
-#   openwrt-overlay/
-#   package feeds
+# ensure_prepared handles the fast path: if the tree is already prepared for
+# the current version, it runs a quick BSP sync (msm89xx/, packages/,
+# package patches, compatibility fixes) without a full re-prepare.
 #
 ###############################################################################
 
-    local version
-
-    version="$("$OPENWRT_VERSION_SCRIPT" --current)"
-
-    ensure_openwrt
-
-    prepare_tree "$version"
+    ensure_prepared
 
     prepare_config "$board"
 
@@ -538,7 +556,7 @@ run_menuconfig() {
 
     ensure_prepared
 
-    prepare_config
+    prepare_config "$BOARD"
 
     docker_exec sh -c "
         cd $CONTAINER_OPENWRT_DIR && \
@@ -546,13 +564,9 @@ run_menuconfig() {
     "
 
     echo
-    warn "Save the updated diffconfig with:"
-    echo
-    echo
-    echo "To save this configuration permanently, run:"
+    warn "To save this configuration permanently, run:"
     echo
     echo "    ./build.sh saveconfig $BOARD"
-    echo
     echo
 }
 
@@ -569,6 +583,63 @@ force_prepare() {
 
     prepare_tree "$version"
 }
+
+###############################################################################
+# Build helpers (shared by build / rebuild)
+###############################################################################
+
+run_builds() {
+
+    # $1 = clean flag (0 = incremental, 1 = clean rebuild)
+    # $2... = board names (or "all")
+    local clean="$1"
+    local verb
+    shift
+
+    verb="$([ "$clean" -eq 1 ] && echo "Rebuilding" || echo "Building")"
+
+    [ "$#" -gt 0 ] ||
+        die "No boards specified."
+
+    # Expand "all" to every board in diffconfigs/.
+    if [ "$1" = "all" ]; then
+
+        [ "$#" -eq 1 ] ||
+            die "'all' cannot be combined with individual boards."
+
+        local boards=()
+
+        for cfg in "$DIFFCONFIG_DIR"/*; do
+            [ -f "$cfg" ] || continue
+            boards+=("${cfg##*/}")
+        done
+
+        [ "${#boards[@]}" -gt 0 ] ||
+            die "No board configurations found in $DIFFCONFIG_DIR"
+
+        set -- "${boards[@]}"
+    fi
+
+    # Validate ALL boards before starting any build.
+    # BOARD is a global used by check_board and build_target.
+    for BOARD in "$@"; do
+        check_board
+    done
+
+    # All boards are valid — start building.
+    for BOARD in "$@"; do
+
+        echo
+        echo "======================================================"
+        echo " $verb: $BOARD"
+        echo "======================================================"
+        echo
+
+        timed build_target "$BOARD" "$clean"
+
+    done
+}
+
 ###############################################################################
 # Usage
 ###############################################################################
@@ -711,46 +782,7 @@ shell)
 build)
 
     shift
-
-    [ "$#" -gt 0 ] ||
-        die "No boards specified."
-
-    # Expand "all" to every board in diffconfigs/
-    if [ "$1" = "all" ]; then
-
-        [ "$#" -eq 1 ] ||
-            die "'all' cannot be combined with individual boards."
-
-        set --
-
-        for cfg in "$DIFFCONFIG_DIR"/*; do
-            [ -f "$cfg" ] || continue
-            set -- "$@" "${cfg##*/}"
-        done
-
-        [ "$#" -gt 0 ] ||
-            die "No board configurations found in $DIFFCONFIG_DIR"
-
-    fi
-
-    # Validate ALL boards before starting any build.
-    for BOARD in "$@"; do
-        check_board
-    done
-
-    # All boards are valid, so start building.
-    for BOARD in "$@"; do
-
-        echo
-        echo "======================================================"
-        echo " Building: $BOARD"
-        echo "======================================================"
-        echo
-
-        timed build_target "$BOARD"
-
-    done
-
+    run_builds 0 "$@"
     ;;
 
 ###############################################################################
@@ -760,46 +792,7 @@ build)
 rebuild)
 
     shift
-
-    [ "$#" -gt 0 ] ||
-        die "No boards specified."
-
-    # Expand "all" to every board in diffconfigs/
-    if [ "$1" = "all" ]; then
-
-        [ "$#" -eq 1 ] ||
-            die "'all' cannot be combined with individual boards."
-
-        set --
-
-        for cfg in "$DIFFCONFIG_DIR"/*; do
-            [ -f "$cfg" ] || continue
-            set -- "$@" "${cfg##*/}"
-        done
-
-        [ "$#" -gt 0 ] ||
-            die "No board configurations found in $DIFFCONFIG_DIR"
-
-    fi
-
-    # Validate ALL boards before starting any rebuild.
-    for BOARD in "$@"; do
-        check_board
-    done
-
-    # All boards are valid, so start rebuilding.
-    for BOARD in "$@"; do
-
-        echo
-        echo "======================================================"
-        echo " Rebuilding: $BOARD"
-        echo "======================================================"
-        echo
-
-        timed build_target "$BOARD" 1
-
-    done
-
+    run_builds 1 "$@"
     ;;
 
 ###############################################################################

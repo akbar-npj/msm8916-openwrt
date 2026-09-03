@@ -89,13 +89,13 @@ write_version() {
 
     local version="$1"
 
-grep -q '^OPENWRT_VERSION=' "$ENV_FILE" ||
-    die "OPENWRT_VERSION not found in $ENV_FILE"
+    grep -q '^OPENWRT_VERSION=' "$ENV_FILE" ||
+        die "OPENWRT_VERSION not found in $ENV_FILE"
 
-sed -i \
-    "s/^OPENWRT_VERSION=.*/OPENWRT_VERSION=${version}/" \
-    "$ENV_FILE"
-    }
+    sed -i \
+        "s/^OPENWRT_VERSION=.*/OPENWRT_VERSION=${version}/" \
+        "$ENV_FILE"
+}
 
 ###############################################################################
 # Usage

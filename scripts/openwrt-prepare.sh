@@ -51,6 +51,66 @@ OVERLAY_DIR="$REPO_DIR/openwrt-overlay"
 OPENWRT_MAC80211_PATCH="$TARGET_DIR/patches/809-mac80211-enable-wcn36xx.patch"
 
 ###############################################################################
+# Console helpers
+###############################################################################
+
+info() {
+
+    echo "==> $*"
+}
+
+die() {
+
+    echo "Error: $*" >&2
+    exit 1
+}
+
+###############################################################################
+# Usage
+###############################################################################
+
+usage() {
+
+cat <<EOF
+
+OpenWrt Preparation Tool
+
+Usage:
+
+    ./scripts/openwrt-prepare.sh [options] [openwrt-directory]
+
+Options
+
+    --version <version>
+
+        Record the prepared OpenWrt version in .builder-state.
+
+    --refresh-feeds
+
+        Force update/install of all package feeds.
+        Note: build.sh does not pass this flag; it is intended for
+        direct invocation when a full feed refresh is needed.
+
+Examples
+
+    ./scripts/openwrt-prepare.sh
+
+    ./scripts/openwrt-prepare.sh openwrt
+
+    ./scripts/openwrt-prepare.sh --version v25.12.5 openwrt
+
+    ./scripts/openwrt-prepare.sh --refresh-feeds
+
+If no directory is specified:
+
+    $REPO_DIR/openwrt
+
+is used.
+
+EOF
+}
+
+###############################################################################
 # Arguments
 ###############################################################################
 
@@ -93,64 +153,6 @@ done
 : "${OPENWRT_DIR:=$REPO_DIR/openwrt}"
 
 STATE_FILE="$OPENWRT_DIR/.builder-state"
-
-###############################################################################
-# Console helpers
-###############################################################################
-
-info() {
-
-    echo "==> $*"
-}
-
-die() {
-
-    echo "Error: $*" >&2
-    exit 1
-}
-
-###############################################################################
-# Usage
-###############################################################################
-
-usage() {
-
-cat <<EOF
-
-OpenWrt Preparation Tool
-
-Usage:
-
-    ./scripts/openwrt-prepare.sh [options] [openwrt-directory]
-
-Options
-
-    --version <version>
-
-        Record the prepared OpenWrt version in .builder-state.
-
-    --refresh-feeds
-
-        Force update/install of all package feeds.
-
-Examples
-
-    ./scripts/openwrt-prepare.sh
-
-    ./scripts/openwrt-prepare.sh openwrt
-
-    ./scripts/openwrt-prepare.sh --version v25.12.5 openwrt
-
-    ./scripts/openwrt-prepare.sh --refresh-feeds
-
-If no directory is specified:
-
-    $REPO_DIR/openwrt
-
-is used.
-
-EOF
-}
 
 ###############################################################################
 # Validation
