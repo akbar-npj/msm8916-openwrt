@@ -51,66 +51,90 @@ During real-world testing on MSM8916 devices, users observed that sysupgrade fro
 - On Qualcomm MSM8916, `rmtfs` provides shared memory block access to the Modem DSP (Q6 / MSS).
 - Abruptly killing `rmtfs` while modem DMA transfers were active could cause the modem processor to trigger Qualcomm Subsystem Restart (SSR) or bus lockups, hanging the SoC before flashing could complete.
 
+### Root Cause 6: BusyBox `ash` Shell Quirks & Pipeline Failure Under `pipefail`
+- OpenWrt's default `/bin/sh` shell is BusyBox `ash`. When executing shell pipelines in `ash`:
+  - `ash` does not support bash array syntax (e.g., `arr=("a" "b")` triggers a fatal parse-time error `ash: syntax error: unexpected "(" (expecting "}")`).
+  - `ash` lacks `${PIPESTATUS[@]}` for individual command exit-code inspection in pipelines.
+  - When `set -o pipefail` is used in `ash`, trailing tar archive padding or appended `fwtool` metadata causes `tar` to exit non-zero, triggering false-positive upgrade aborts even when `dd` wrote 100% of the partition blocks.
+  - Sourcing a script containing any bash-specific syntax in `ash` causes `include /lib/upgrade` to abort entirely during stage2.
+
 ---
 
-## 3. Platform Fixes Applied in `platform.sh`
+## 3. Platform Architecture & Bash Execution Engine
 
-The file `/msm89xx/base-files/lib/upgrade/platform.sh` was completely revised to address every failure vector:
+To achieve deterministic reliability while maintaining 100% compatibility with OpenWrt's standard initialization framework, the upgrade system was split into a **two-tier architecture**:
 
 ```
 +-------------------------------------------------------------------------------+
-|                      platform.sh Architectural Fixes                          |
+|                    Two-Tier Sysupgrade Architecture                           |
 +-------------------------------------------------------------------------------+
-| 1. Memory Reclaim: Drop buffer/slab caches before stage2 via drop_caches=3    |
-| 2. Stage 2 Tooling: Complete RAMFS_COPY_BIN with full absolute paths & tools  |
-| 3. Resilient Tar Extraction: Checked dd exit status without pipefail traps   |
-| 4. Multi-Strategy Partition Discovery: uevent + by-partlabel + by-name        |
-| 5. EXT4 Health & Recovery: Automated e2fsck/fsck.ext4 before overlay mounting |
-| 6. Graceful Service Teardown: Stop LED monitors and modem services cleanly    |
+|                                                                               |
+|  OpenWrt Init / Stage 2 (BusyBox ash)                                         |
+|      |                                                                        |
+|      v                                                                        |
+|  /lib/upgrade/platform.sh (POSIX ash interface)                              |
+|      - Sourced by OpenWrt's 'include /lib/upgrade' (only scans *.sh)          |
+|      - Defines RAMFS_COPY_BIN (includes /bin/bash and all essential tools)    |
+|      - Defines RAMFS_COPY_DATA (includes /lib/upgrade/platform.bash)         |
+|      - Thin dispatchers: check if /bin/bash exists, then delegate execution   |
+|      |                                                                        |
+|      v                                                                        |
+|  /lib/upgrade/platform.bash (Pure Bash 5.x Engine)                            |
+|      - Native 'set -o pipefail' and '${PIPESTATUS[@]}' exit-code tracking    |
+|      - Verifies dd write completion independently of tar trailer behavior    |
+|      - Robust eMMC partition discovery (uevent, by-partlabel, by-name)        |
+|      - Pre-upgrade ext4 filesystem check (e2fsck -p) before overlay restore   |
+|      - Memory reclaim & safe modem/RMTFS service teardown                     |
+|                                                                               |
 +-------------------------------------------------------------------------------+
 ```
 
-### Key Enhancements in Code:
+### Key Architectural Components:
 
-1. **Memory Optimization in `platform_pre_upgrade()`**:
-   ```sh
-   platform_pre_upgrade() {
-       log_upgrade "Preparing system for upgrade: stopping services and reclaiming memory..."
-       echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-       /etc/init.d/wifi-led-monitor stop 2>/dev/null || true
-       /etc/init.d/modem-led-monitor stop 2>/dev/null || true
-       /etc/init.d/modemmanager stop 2>/dev/null || true
-       /etc/init.d/rmtfs stop 2>/dev/null || true
-       sync
-   }
-   ```
+#### 1. POSIX Dispatcher (`/lib/upgrade/platform.sh`):
+Sourced cleanly by BusyBox `ash` without parse errors. Installs `/bin/bash` into the Stage 2 ramfs and delegates execution:
 
-2. **Resilient Flashing Pipeline in `platform_do_upgrade()`**:
-   ```sh
-   local dd_status=0
-   tar -O -xf "$tar_file" "$kernel_member" 2>/dev/null | \
-       dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null || dd_status=$?
+```sh
+RAMFS_COPY_BIN="/bin/bash /usr/sbin/mkfs.ext4 /sbin/mkfs.ext4 /usr/sbin/e2fsck /sbin/e2fsck /usr/sbin/fsck.ext4 /sbin/fsck.ext4 /bin/tar /usr/bin/tar /bin/dd /bin/sync /bin/grep /bin/sed /bin/cut /bin/readlink /usr/bin/readlink /bin/basename /bin/mount /bin/umount"
+RAMFS_COPY_DATA="/lib/upgrade/platform.bash /etc/mke2fs.conf /etc/fstab"
 
-   if [ "$dd_status" -ne 0 ]; then
-       log_upgrade "ERROR: Failed to write kernel to $boot_part (dd status: $dd_status)"
-       return 1
-   fi
-   ```
+platform_do_upgrade() {
+    if [ -x /bin/bash ] && [ -f /lib/upgrade/platform.bash ]; then
+        /bin/bash /lib/upgrade/platform.bash do_upgrade "$@"
+        return $?
+    fi
+    # Built-in ash fallback logic...
+}
+```
 
-3. **Stage 2 Dependency Completeness**:
-   ```sh
-   RAMFS_COPY_BIN="/usr/sbin/mkfs.ext4 /sbin/mkfs.ext4 /usr/sbin/e2fsck /sbin/e2fsck /usr/sbin/fsck.ext4 /sbin/fsck.ext4 /bin/tar /usr/bin/tar /bin/dd /bin/sync /bin/grep /bin/sed /bin/cut /bin/readlink /usr/bin/readlink /bin/basename /bin/mount /bin/umount"
-   RAMFS_COPY_DATA="/etc/mke2fs.conf /etc/fstab"
-   ```
+#### 2. Robust Bash Execution Engine (`/lib/upgrade/platform.bash`):
+Runs under full `/bin/bash` with native pipefail and `${PIPESTATUS[@]}`:
 
-4. **Multi-Strategy Partition Resolver (`find_mmc_part`)**:
-   - Searches `/sys/class/block/*/uevent` for exact `PARTNAME=...` matches.
-   - Searches `/dev/disk/by-partlabel/` symlinks.
-   - Searches `/dev/block/by-name/` symlinks.
-   - Falls back safely to standard MSM8916 GPT nodes (`p13` boot, `p14` system/rootfs, `p15` userdata/rootfs_data).
+```bash
+#!/bin/bash
+set -o pipefail
 
-5. **EXT4 Filesystem Repair Prior to Overlay Restoration**:
-   - Runs `fsck.ext4 -p` / `e2fsck -p` on the `rootfs_data` partition before mounting in `platform_copy_config()`.
+# Kernel image extraction & write with PIPESTATUS verification
+tar -O -xf "$tar_file" "$kernel_member" 2>/dev/null | \
+    dd of="$boot_part" bs=4096 conv=fsync 2>/dev/null
+pipe_kernel=("${PIPESTATUS[@]}")
+dd_kernel="${pipe_kernel[1]}"
+
+if [ "$dd_kernel" -ne 0 ]; then
+    log_upgrade "ERROR: Failed to write kernel to $boot_part (dd status: $dd_kernel)"
+    return 1
+fi
+log_upgrade "Kernel written successfully"
+```
+
+#### 3. Stage 2 Dependency Completeness:
+By packing `/bin/bash` along with all required filesystem tools into `RAMFS_COPY_BIN`, Stage 2 has access to full dynamic libraries (`libc.so`, `libncursesw.so`, `libgcc_s.so`), preventing missing-utility failures during overlay restoration.
+
+#### 4. Safe Configuration Restoration (`copy_config`):
+Runs `e2fsck -p "$data_part"` prior to mounting to recover any unclean journal entries, then extracts `$UPGRADE_BACKUP` cleanly into `/tmp/overlay/upper`.
+
+#### 5. Graceful Modem Teardown (`pre_upgrade`):
+Reclaims RAM (`echo 3 > /proc/sys/vm/drop_caches`) and stops `modemmanager` and `rmtfs` cleanly before the Stage 2 ramfs pivot to prevent modem subsystem crashes.
 
 ---
 
