@@ -27,6 +27,12 @@ MSS_NAME="4080000.remoteproc"
 
 CHECK_INTERVAL=5
 
+. /lib/functions.sh 2>/dev/null || true
+case "$(board_name 2>/dev/null)" in
+        *hmu05*) IS_HMU05=1 ;;
+        *) IS_HMU05=0 ;;
+esac
+
 
 set_red()
 {
@@ -90,6 +96,14 @@ modem_healthy()
         [ -r "$rproc/state" ] || return 1
 
         [ "$(cat "$rproc/state" 2>/dev/null)" = "running" ] || return 1
+
+        # On HMU05, ensure BAM-DMUX runtime power management remains active (no autosuspend)
+        if [ "$IS_HMU05" = "1" ]; then
+                local bctrl="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
+                if [ -f "$bctrl" ] && [ "$(cat "$bctrl" 2>/dev/null)" != "on" ]; then
+                        echo on > "$bctrl" 2>/dev/null || true
+                fi
+        fi
 
 
         #

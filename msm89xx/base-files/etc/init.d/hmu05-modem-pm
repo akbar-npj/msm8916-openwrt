@@ -1,0 +1,25 @@
+#!/bin/sh /etc/rc.common
+
+START=96
+USE_PROCD=0
+
+start() {
+	. /lib/functions.sh
+	local board="$(board_name)"
+	case "$board" in
+		*hmu05*)
+			;;
+		*)
+			return 0
+			;;
+	esac
+
+	logger -t hmu05-modem-pm "Applying HMU05 modem runtime power management locks..."
+	for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "control" 2>/dev/null); do
+		echo on > "$f" 2>/dev/null || true
+	done
+	for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "autosuspend_delay_ms" 2>/dev/null); do
+		echo -1 > "$f" 2>/dev/null || true
+	done
+	logger -t hmu05-modem-pm "HMU05 modem runtime PM locked to active"
+}
