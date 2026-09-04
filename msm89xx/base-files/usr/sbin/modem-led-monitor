@@ -105,16 +105,28 @@ init_modem_hardware()
                 local is_jio=0
                 case "$op_code" in
                         4058[4-7][0-9]) is_jio=1 ;;
-                esac
-                case "$op_name" in
-                        *[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
+                        404*|405*) is_jio=0 ;;
+                        *)
+                                case "$op_name" in
+                                        *[Jj]io*|*[Rr]eliance*) is_jio=1 ;;
+                                esac
+                                ;;
                 esac
 
                 if [ "$is_jio" = "1" ]; then
                         local cur_bands="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')"
                         if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
-                                logger -t modem-band-lock "HMU05 (Jio): Locking bands to LTE-only to eliminate 2G/3G IRAT measurement gap crashes..."
-                                mmcli -m "$m_idx" --set-current-bands="eutran-1|eutran-3|eutran-5|eutran-8" >/dev/null 2>&1 || true
+                                local sup_bands="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}')"
+                                local lte_bands=""
+                                for b in $(echo "$sup_bands" | tr -s ', ' '\n'); do
+                                        case "$b" in
+                                                eutran-*) lte_bands="${lte_bands:+${lte_bands}|}$b" ;;
+                                        esac
+                                done
+                                if [ -n "$lte_bands" ]; then
+                                        logger -t modem-band-lock "HMU05 (Jio): Locking bands to LTE-only ($lte_bands) to eliminate 2G/3G IRAT measurement gap crashes..."
+                                        mmcli -m "$m_idx" --set-current-bands="$lte_bands" >/dev/null 2>&1 || true
+                                fi
                         fi
                 fi
         fi
