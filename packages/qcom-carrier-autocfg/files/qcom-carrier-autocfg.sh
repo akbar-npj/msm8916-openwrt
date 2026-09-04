@@ -149,20 +149,38 @@ provision_network() {
 	local apn="$1"
 	local iptype="$2"
 	local mode="$3"
+	local is_jio="${4:-0}"
 
-	local cur_apn cur_iptype cur_proto
+	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred
 	cur_apn=$(uci -q get network.modem.apn || echo "")
 	cur_iptype=$(uci -q get network.modem.iptype || echo "")
 	cur_proto=$(uci -q get network.modem.proto || echo "")
+	cur_allowed=$(uci -q get network.modem.allowedmode || echo "")
+	cur_preferred=$(uci -q get network.modem.preferredmode || echo "")
 
-	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ]; then
-		log "Configuring /etc/config/network: APN='$apn', IP-Type='$iptype', Mode='$mode'..."
+	local target_allowed target_preferred
+	if [ "$is_jio" = "1" ]; then
+		target_allowed="4g"
+		target_preferred=""
+	else
+		# Non-Jio carriers: 4G preferred with 3G/2G fallback
+		target_allowed="3g, 4g"
+		target_preferred="4g"
+	fi
+
+	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ]; then
+		log "Configuring /etc/config/network: APN='$apn', IP-Type='$iptype', Allowed='$target_allowed', Preferred='${target_preferred:-none}'..."
 		uci set network.modem=interface
 		uci set network.modem.proto='modemmanager'
 		uci set network.modem.device='qcom-soc'
 		uci set network.modem.apn="$apn"
 		uci set network.modem.iptype="$iptype"
-		uci set network.modem.allowedmode="$mode"
+		uci set network.modem.allowedmode="$target_allowed"
+		if [ -n "$target_preferred" ]; then
+			uci set network.modem.preferredmode="$target_preferred"
+		else
+			uci -q delete network.modem.preferredmode
+		fi
 		uci set network.modem.defaultroute='1'
 		uci set network.modem.metric='10'
 		uci commit network
@@ -178,6 +196,7 @@ provision_carrier_bands() {
 	local carrier="$3"
 	local op_code="$4"
 	local op_name="$5"
+	local is_jio="${6:-0}"
 
 	# HMU05-only guard: prevent affecting other board targets
 	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
@@ -185,25 +204,12 @@ provision_carrier_bands() {
 		*) return 0 ;;
 	esac
 
-	# Band restriction applies ONLY to Jio (pure 4G LTE-only network without 2G/3G)
-	# Other carriers (Airtel, BSNL, Vi, Ncell, NTC, etc.) provide 2G/3G and require full bands
-	local is_jio=0
-	case "$carrier" in
-		*[Jj]io*) is_jio=1 ;;
-	esac
-	case "$op_code" in
-		4058[4-7][0-9]) is_jio=1 ;;
-	esac
-	case "$op_name" in
-		*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
-	esac
-
-	if [ "$is_jio" = "1" ] && [ "$mode" = "4g" ] && [ -n "$m_path" ]; then
+	if [ "$is_jio" = "1" ] && [ -n "$m_path" ]; then
 		local sup_bands cur_bands lte_bands=""
-		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}' | tr -d ' \r\n')
-		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}' | tr -d ' \r\n')
+		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}')
+		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')
 
-		for b in $(echo "$sup_bands" | tr ', ' '\n'); do
+		for b in $(echo "$sup_bands" | tr -s ', ' '\n'); do
 			case "$b" in
 				eutran-*)
 					lte_bands="${lte_bands:+${lte_bands}|}$b"
@@ -218,10 +224,11 @@ provision_carrier_bands() {
 	elif [ "$is_jio" = "0" ] && [ -n "$m_path" ]; then
 		# Non-Jio carrier (Airtel, BSNL, Vi, Ncell, NTC, etc.): Restore all supported bands if previously restricted
 		local sup_bands cur_bands all_bands=""
-		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}' | tr -d ' \r\n')
-		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}' | tr -d ' \r\n')
+		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}')
+		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')
 
-		for b in $(echo "$sup_bands" | tr ', ' '\n'); do
+		for b in $(echo "$sup_bands" | tr -s ', ' '\n'); do
+			[ -n "$b" ] || continue
 			all_bands="${all_bands:+${all_bands}|}$b"
 		done
 
@@ -270,9 +277,20 @@ while true; do
 					log "Identified Carrier: $CARRIER_NAME"
 					log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
 					
+					local is_jio=0
+					case "$CARRIER_NAME" in
+						*[Jj]io*) is_jio=1 ;;
+					esac
+					case "$OP_CODE" in
+						4058[4-7][0-9]) is_jio=1 ;;
+					esac
+					case "$OP_NAME" in
+						*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
+					esac
+
 					provision_carrier_mbn "$CARRIER_MBN"
-					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE"
-					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME"
+					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
+					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
 					connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
 					
 					LAST_OPERATOR_CODE="$OP_CODE"
