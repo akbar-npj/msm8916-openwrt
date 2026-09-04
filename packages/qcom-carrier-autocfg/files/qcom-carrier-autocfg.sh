@@ -359,20 +359,24 @@ check_and_flush_radio_cache() {
 			need_flush=1
 		fi
 
-		# 5. Radio Band configuration check
-		local cur_bands
-		cur_bands=$(echo "$modem_kv" | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')
-		if [ "$is_jio" = "1" ]; then
-			if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
-				log "Radio band mismatch: Jio requires LTE-only, but radio cache contains 2G/3G bands"
-				need_flush=1
-			fi
-		else
-			if [ -n "$cur_bands" ] && ! echo "$cur_bands" | grep -qi -E '\<utran'; then
-				log "Radio band mismatch: '$carrier_name' requires 3G/4G multi-mode, but radio cache is locked to LTE-only"
-				need_flush=1
-			fi
-		fi
+		# 5. Radio Band configuration check (HMU05-only: older modem OS 1.0 IRAT workaround)
+		case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+			*hmu05*)
+				local cur_bands
+				cur_bands=$(echo "$modem_kv" | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')
+				if [ "$is_jio" = "1" ]; then
+					if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
+						log "HMU05: Radio band mismatch: Jio requires LTE-only, but radio cache contains 2G/3G bands"
+						need_flush=1
+					fi
+				else
+					if [ -n "$cur_bands" ] && ! echo "$cur_bands" | grep -qi -E '\<utran'; then
+						log "HMU05: Radio band mismatch: '$carrier_name' requires 3G/4G multi-mode, but radio cache is locked to LTE-only"
+						need_flush=1
+					fi
+				fi
+				;;
+		esac
 
 		# 6. Radio Mode check
 		local cur_modes
