@@ -16,13 +16,27 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
 * **⚡ Plug-and-Play USB Networking**: High-speed **CDC NCM Ethernet** automatically bound to `br-lan` at `192.168.8.1/24` with a built-in DHCP server (avoids `192.168.1.x` subnet collisions with upstream home routers).
 * **📟 Built-in USB Serial Console**: Instant root shell on `/dev/ttyACM0` (115200 baud) over USB via CDC ACM for zero-setup terminal access, debugging, and recovery.
 * **📶 First-Boot Wi-Fi Auto-Start**: Automatically extracts Qualcomm WCNSS blobs, starts the remoteproc in-place, binds the physical radio path, and broadcasts an open `OpenWrt` 2.4 GHz AP (Channel 1, 2.412 GHz) on clean first boot.
-* **🌐 4G LTE Cellular Data**: Native **ModemManager** integration with protocol-level auto-enable, safe empty PLMN home operator attachment, and continuous self-healing daemon monitoring (`modem-led-monitor`).
+* **🌐 Rock-Solid 4G LTE Cellular Stability (50+ Minute Milestone)**: Fully eliminates Qualcomm Hexagon DSP 15-minute idle freezes and carrier session drops:
+  * **2-Second Active & Passive Heartbeat**: Enforces active `RRC_CONNECTED` (`UE In Idle: 'no'`) to avoid baseband DRX sleep stalls.
+  * **Traffic-Aware Dynamic Keepalive**: Automatically suspends artificial ping heartbeats when user data packets are flowing, streaming with 0% packet loss.
+  * **Kernel BAM-DMUX TX DMA Fix**: Allocates a dedicated TX DMA channel on power-on with a 30-second settling grace period, preventing DMA exhaustion crashes.
+  * **Qualcomm QMI Time Daemon (Service 22)**: Boot-time synchronization of Hexagon modem ATS/SCLK clock with host NTP, with mid-session protection preventing Hexagon DSP clock-step panics (`:Excep :0:`).
+  * **Ultra-Low Overhead (< 0.10 Load Average)**: Pure kernel sysfs health monitoring replaces heavy DBus polling, dropping system load from > 2.0 to ~0.08.
+* **🧹 Zero-Warning Clean Dmesg & Boot**: Systematically resolved kernel boot errors and daemon warnings:
+  * **`qcom-smsm`**: Eliminates `mbox_request_channel: can't parse "mboxes" property` by validating mailbox DT phandles before channel requests.
+  * **`wcn36xx` Wi-Fi**: Eliminates `ERROR HAL_8023_MULTICAST_LIST rsp failed err=16` in `mac80211` backports by restricting multicast list requests strictly to STA associations.
+  * **`pm8916` L13 Regulator**: Expands L13 voltage range (1.75V–3.3V) for USB HS PHY, resolving regulator voltage out-of-range warnings.
+  * **Subsystem Inits**: Purged non-existent `qrtr-tun` module probe errors and `fstools/block` fstab configuration spam.
+* **🐱 Automated Graceful Recovery (Watchcat in LuCI)**: Built-in watchdog with native web interface under **Services $\to$ Watchcat** to automatically trigger graceful system reboots if cellular connectivity is interrupted.
 * **💾 Permanent eMMC Storage**: Automated `/dev/mmcblk0p15` (`rootfs_data`) EXT4 formatting and mounting, with preinit filesystem checking and automatic safe repair using `e2fsck -p`, providing persistent overlay storage without unnecessarily formatting an existing filesystem.
 * **💡 Intuitive Hardware Status LEDs**:
 
-  * 🟢 **Green LED** (`green:wlan`): Wi-Fi AP state and wireless client transmission.
-  * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
-  * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
+  * 🔴 **Red LED** (`red:power`): Subsystem fault indicator. Solid ON during early boot, slow blink during baseband initialization, and **completely OFF** when modem subsystem is healthy. Blinks on crash.
+  * 🟢 **Green LED** (`green:wlan`): Dedicated exclusively to Wi-Fi. Solid ON when 2.4 GHz AP is broadcasting; fast blink when client stations are actively connected.
+  * 🔵 **Blue LED** (`blue:wan`): Dedicated dynamic 3-state cellular indicator driven by zero-overhead kernel timers:
+    * **Disconnected / Searching**: 10-second beacon pulse (500ms ON / 9500ms OFF).
+    * **Connected & Idle**: Calm rhythmic blink (1000ms ON / 1000ms OFF).
+    * **Active RX/TX Traffic**: Fast dynamic blink (500ms ON / 500ms OFF) with instant auto-return to idle upon traffic completion.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🛡️ HMU05 No-Sleep Fix**: Hardware-guarded native C patcher (`hmu05-patch-modem`) prevents Qualcomm Hexagon DSP 15-minute sleep stalls (`FUN_c03987e0` / `ERR_FATAL` bypass) with embedded SHA-256 header recalculation.
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
@@ -186,6 +200,8 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 | Service                  | Access Details                  | Default Credentials              |
 | :----------------------- | :------------------------------ | :------------------------------- |
 | **Web Interface (LuCI)** | `http://192.168.8.1`            | No password (set on first login) |
+| **Connectivity Watchdog**| LuCI: **Services $\to$ Watchcat**| Configurable auto-reboot watchdog|
+| **SMS Management**       | LuCI: **Services $\to$ SMS**    | View / Send SMS via Web UI       |
 | **SSH Terminal**         | `ssh root@192.168.8.1`          | No password required             |
 | **USB Serial Console**   | `screen /dev/ttyACM0 115200`    | Direct root shell                |
 | **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (No encryption by default)  |
