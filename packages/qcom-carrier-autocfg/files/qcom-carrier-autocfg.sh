@@ -394,47 +394,49 @@ while true; do
 						*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
 					esac
 
+					mbn_updated=0
+					if provision_carrier_mbn "$CARRIER_MBN"; then
+						mbn_updated=1
+					fi
+
+					check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE"
+					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
+					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
+
+					LAST_OPERATOR_CODE="$OP_CODE"
+					LAST_IMSI="$IMSI"
+
 					if [ "$INITIAL_BOOT_PROVISION" = "1" ]; then
 						# Device booted up with this SIM (e.g. swapped when powered off)
-						log "========================================================"
-						log "BOOT-TIME SIM DETECTED (Device booted with this SIM)"
-						log "Operator Code: $OP_CODE | Operator Name: $OP_NAME | IMSI: $IMSI"
-						log "Identified Carrier: $CARRIER_NAME"
-						log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
-
-						check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE"
-						provision_carrier_mbn "$CARRIER_MBN"
-						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
-						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
-						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
-
-						LAST_OPERATOR_CODE="$OP_CODE"
-						LAST_IMSI="$IMSI"
 						INITIAL_BOOT_PROVISION=0
-						log "Boot-time carrier provisioning completed successfully. No reboot required."
-						log "========================================================"
+						if [ "$mbn_updated" = "1" ]; then
+							log "Carrier MBN radio firmware updated for '$CARRIER_NAME'. Scheduling automatic reboot in 3 seconds to initialize Hexagon DSP..."
+							log "========================================================"
+							sync
+							sleep 3
+							reboot
+							exit 0
+						else
+							connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
+							log "Boot-time carrier provisioning completed successfully. No reboot required."
+							log "========================================================"
+						fi
 					elif [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ]; then
 						# Physical SIM was swapped while system was running (HOT-SWAP)
-						log "========================================================"
-						log "HOT-SWAP DETECTED! SIM was changed while device was running."
-						log "New Operator: $OP_CODE ($OP_NAME) | IMSI: $IMSI"
-						log "Identified Carrier: $CARRIER_NAME"
-						log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
-
-						check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE"
-						provision_carrier_mbn "$CARRIER_MBN"
-						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
-						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
-
-						LAST_OPERATOR_CODE="$OP_CODE"
-						LAST_IMSI="$IMSI"
-
-						log "Restarting device in 3 seconds to re-initialize Hexagon modem DSP cleanly for new SIM..."
-						log "========================================================"
-						sync
-						sleep 3
-						reboot
-						exit 0
+						if [ "$mbn_updated" = "1" ]; then
+							log "HOT-SWAP: Carrier MBN changed for '$CARRIER_NAME'. Hexagon modem DSP requires a reboot to load new MBN into baseband RAM."
+							log "Restarting device in 3 seconds..."
+							log "========================================================"
+							sync
+							sleep 3
+							reboot
+							exit 0
+						else
+							log "HOT-SWAP: Carrier MBN unchanged ($CARRIER_MBN). Live APN and baseband caches flushed."
+							connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
+							log "Hot-swap handled live without reboot. Connection restored."
+							log "========================================================"
+						fi
 					else
 						# SIM is unchanged, but APN cache mismatch was detected and needs flush
 						log "========================================================"
