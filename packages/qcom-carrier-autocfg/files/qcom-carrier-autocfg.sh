@@ -167,11 +167,20 @@ provision_network() {
 		target_preferred=""
 	else
 		# Non-Jio carriers: 4G preferred with 3G/2G fallback
-		target_allowed="3g, 4g"
+		target_allowed="3g|4g"
 		target_preferred="4g"
 	fi
 
-	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ] || [ "$(uci -q get network.modem.init_epsbearer || echo '')" != "default" ]; then
+	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred cur_eps cur_dns
+	cur_apn=$(uci -q get network.modem.apn || echo "")
+	cur_iptype=$(uci -q get network.modem.iptype || echo "")
+	cur_proto=$(uci -q get network.modem.proto || echo "")
+	cur_allowed=$(uci -q get network.modem.allowedmode || echo "")
+	cur_preferred=$(uci -q get network.modem.preferredmode || echo "")
+	cur_eps=$(uci -q get network.modem.init_epsbearer || echo "")
+	cur_dns=$(uci -q get network.modem.dns || echo "")
+
+	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ] || [ "$cur_eps" != "default" ] || [ -z "$cur_dns" ]; then
 		log "Configuring /etc/config/network: APN='$apn', IP-Type='$iptype', Allowed='$target_allowed', Preferred='${target_preferred:-none}'..."
 		uci set network.modem=interface
 		uci set network.modem.proto='modemmanager'
@@ -179,6 +188,8 @@ provision_network() {
 		uci set network.modem.apn="$apn"
 		uci set network.modem.iptype="$iptype"
 		uci set network.modem.init_epsbearer='default'
+		uci set network.modem.peerdns='1'
+		uci set network.modem.dns='8.8.8.8 1.1.1.1'
 		uci set network.modem.allowedmode="$target_allowed"
 		if [ -n "$target_preferred" ]; then
 			uci set network.modem.preferredmode="$target_preferred"
@@ -297,20 +308,32 @@ flush_bearer_cache() {
 	fi
 }
 
+STORED_IMSI_FILE="/etc/qcom-carrier-autocfg/last_provisioned_imsi"
+
 check_and_flush_apn_cache() {
 	local m_path="$1"
 	local target_apn="$2"
 	local target_iptype="$3"
+	local current_imsi="$4"
+
+	local stored_imsi
+	stored_imsi=$(cat "$STORED_IMSI_FILE" 2>/dev/null || echo "")
 
 	local cached_uci_apn
 	cached_uci_apn=$(uci -q get network.modem.apn || echo "")
 
 	local cached_eps_apn=""
 	if [ -n "$m_path" ]; then
-		cached_eps_apn=$(mmcli -m "$m_path" --3gpp-get-initial-eps-bearer-settings 2>/dev/null | awk -F': ' '/apn/ {print $2}' | tr -d " '\r\n")
+		cached_eps_apn=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.eps.initial-bearer.settings.apn/ {print $2}' | tr -d " '\r\n")
 	fi
 
 	local need_flush=0
+
+	# SIM change check: if current SIM IMSI differs from last successfully provisioned IMSI
+	if [ -n "$current_imsi" ] && [ "$stored_imsi" != "$current_imsi" ]; then
+		log "SIM swap detected (stored IMSI='${stored_imsi:-none}', current IMSI='$current_imsi'). Forcing baseband and bearer cache flush..."
+		need_flush=1
+	fi
 
 	if [ -n "$cached_uci_apn" ] && [ "$cached_uci_apn" != "$target_apn" ]; then
 		log "APN mismatch detected in network cache: cached='$cached_uci_apn', SIM requires='$target_apn'"
@@ -323,7 +346,7 @@ check_and_flush_apn_cache() {
 	fi
 
 	if [ "$need_flush" = "1" ]; then
-		log "Flushing APN cache and resetting baseband radio session for new APN '$target_apn'..."
+		log "Flushing APN cache and resetting baseband radio session for APN '$target_apn'..."
 		flush_bearer_cache "$m_path" "$target_apn" "$target_iptype"
 		reset_baseband_cache "$m_path"
 		return 0
@@ -336,11 +359,17 @@ check_and_flush_apn_cache() {
 connect_bearer() {
 	local apn="$1"
 	local iptype="$2"
+	local imsi="$3"
 
 	log "Requesting ModemManager bearer connection for APN '$apn' ($iptype)..."
 	mmcli -m any --simple-connect="apn=${apn},ip-type=${iptype}" 2>/dev/null || true
 	sleep 2
 	ifup modem 2>/dev/null || true
+
+	if [ -n "$imsi" ]; then
+		mkdir -p /etc/qcom-carrier-autocfg 2>/dev/null || true
+		echo "$imsi" > "$STORED_IMSI_FILE" 2>/dev/null || true
+	fi
 }
 
 log "Started MSM8916 SIM Carrier Auto-Provisioning Engine"
@@ -366,23 +395,12 @@ while true; do
 			IMSI=$(echo "$SIM_KV" | awk -F': ' '/sim.properties.imsi/ {print $2}' | tr -d ' \r\n')
 
 			if [ -n "$OP_CODE" ] && [ "$OP_CODE" != "--" ]; then
-				lookup_carrier_profile "$OP_CODE" "$OP_NAME" "$IMSI"
-
+				stored_imsi=$(cat "$STORED_IMSI_FILE" 2>/dev/null || echo "")
 				cached_uci_apn=$(uci -q get network.modem.apn || echo "")
-				cached_eps_apn=""
-				if [ -n "$MODEM_PATH" ]; then
-					cached_eps_apn=$(mmcli -m "$MODEM_PATH" --3gpp-get-initial-eps-bearer-settings 2>/dev/null | awk -F': ' '/apn/ {print $2}' | tr -d " '\r\n")
-				fi
 
-				apn_mismatch=0
-				if [ -n "$cached_uci_apn" ] && [ "$cached_uci_apn" != "$CARRIER_APN" ]; then
-					apn_mismatch=1
-				fi
-				if [ -n "$cached_eps_apn" ] && [ "$cached_eps_apn" != "--" ] && [ -n "$cached_eps_apn" ] && [ "$cached_eps_apn" != "$CARRIER_APN" ]; then
-					apn_mismatch=1
-				fi
+				if [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ] || [ "$stored_imsi" != "$IMSI" ] || [ "$INITIAL_BOOT_PROVISION" = "1" ]; then
+					lookup_carrier_profile "$OP_CODE" "$OP_NAME" "$IMSI"
 
-				if [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ] || [ "$apn_mismatch" = "1" ]; then
 					is_jio=0
 					case "$CARRIER_NAME" in
 						*[Jj]io*) is_jio=1 ;;
@@ -399,7 +417,7 @@ while true; do
 						mbn_updated=1
 					fi
 
-					check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE"
+					check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
 					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
 
@@ -417,11 +435,11 @@ while true; do
 							reboot
 							exit 0
 						else
-							connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
+							connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
 							log "Boot-time carrier provisioning completed successfully. No reboot required."
 							log "========================================================"
 						fi
-					elif [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ]; then
+					elif [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ] || [ "$stored_imsi" != "$IMSI" ]; then
 						# Physical SIM was swapped while system was running (HOT-SWAP)
 						if [ "$mbn_updated" = "1" ]; then
 							log "HOT-SWAP: Carrier MBN changed for '$CARRIER_NAME'. Hexagon modem DSP requires a reboot to load new MBN into baseband RAM."
@@ -433,7 +451,7 @@ while true; do
 							exit 0
 						else
 							log "HOT-SWAP: Carrier MBN unchanged ($CARRIER_MBN). Live APN and baseband caches flushed."
-							connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
+							connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
 							log "Hot-swap handled live without reboot. Connection restored."
 							log "========================================================"
 						fi
@@ -441,10 +459,10 @@ while true; do
 						# SIM is unchanged, but APN cache mismatch was detected and needs flush
 						log "========================================================"
 						log "APN CACHE MISMATCH DETECTED FOR CURRENT SIM ($CARRIER_NAME)"
-						check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE"
+						check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
 						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
 						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
-						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
+						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
 						log "APN cache refreshed and connection restored."
 						log "========================================================"
 					fi
