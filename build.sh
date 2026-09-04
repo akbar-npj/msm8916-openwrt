@@ -357,6 +357,13 @@ sync_bsp() {
         done
     "
 
+    # Sync openwrt-overlay into the OpenWrt tree if present.
+    docker_exec sh -c "
+        if [ -d \"$CONTAINER_REPO_DIR/openwrt-overlay\" ]; then
+            cp -a \"$CONTAINER_REPO_DIR/openwrt-overlay/.\" \"$CONTAINER_OPENWRT_DIR/\"
+        fi
+    "
+
     # Apply ModemManager compatibility fix if the file is present.
     docker_exec sh -c "
         mm_proto=$CONTAINER_OPENWRT_DIR/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh
