@@ -310,11 +310,14 @@ flush_bearer_cache() {
 
 STORED_IMSI_FILE="/etc/qcom-carrier-autocfg/last_provisioned_imsi"
 
-check_and_flush_apn_cache() {
+check_and_flush_radio_cache() {
 	local m_path="$1"
 	local target_apn="$2"
 	local target_iptype="$3"
 	local current_imsi="$4"
+	local target_op_code="$5"
+	local carrier_name="$6"
+	local is_jio="${7:-0}"
 
 	local stored_imsi
 	stored_imsi=$(cat "$STORED_IMSI_FILE" 2>/dev/null || echo "")
@@ -322,36 +325,92 @@ check_and_flush_apn_cache() {
 	local cached_uci_apn
 	cached_uci_apn=$(uci -q get network.modem.apn || echo "")
 
-	local cached_eps_apn=""
-	if [ -n "$m_path" ]; then
-		cached_eps_apn=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.eps.initial-bearer.settings.apn/ {print $2}' | tr -d " '\r\n")
-	fi
-
 	local need_flush=0
 
-	# SIM change check: if current SIM IMSI differs from last successfully provisioned IMSI
+	# 1. SIM identity check: Stored IMSI differs from current SIM
 	if [ -n "$current_imsi" ] && [ "$stored_imsi" != "$current_imsi" ]; then
-		log "SIM swap detected (stored IMSI='${stored_imsi:-none}', current IMSI='$current_imsi'). Forcing baseband and bearer cache flush..."
+		log "SIM swap detected (stored IMSI='${stored_imsi:-none}', current IMSI='$current_imsi'). Radio cache flush required."
 		need_flush=1
 	fi
 
+	# 2. Network config APN check
 	if [ -n "$cached_uci_apn" ] && [ "$cached_uci_apn" != "$target_apn" ]; then
 		log "APN mismatch detected in network cache: cached='$cached_uci_apn', SIM requires='$target_apn'"
 		need_flush=1
 	fi
 
-	if [ -n "$cached_eps_apn" ] && [ "$cached_eps_apn" != "--" ] && [ "$cached_eps_apn" != "$target_apn" ]; then
-		log "APN mismatch detected in modem initial EPS bearer cache: cached='$cached_eps_apn', SIM requires='$target_apn'"
-		need_flush=1
+	if [ -n "$m_path" ]; then
+		local modem_kv
+		modem_kv=$(mmcli -m "$m_path" -K 2>/dev/null)
+
+		# 3. Baseband Operator ID check: If modem stack still holds another operator's session
+		local cached_modem_op
+		cached_modem_op=$(echo "$modem_kv" | awk -F': ' '/modem.3gpp.operator-code/ {print $2}' | tr -d ' \r\n')
+		if [ -n "$cached_modem_op" ] && [ "$cached_modem_op" != "--" ] && [ -n "$target_op_code" ] && [ "$cached_modem_op" != "$target_op_code" ]; then
+			log "Operator mismatch in modem radio cache: modem is on '$cached_modem_op', SIM wants '$target_op_code'"
+			need_flush=1
+		fi
+
+		# 4. Initial EPS Bearer APN check
+		local cached_eps_apn
+		cached_eps_apn=$(echo "$modem_kv" | awk -F': ' '/modem.3gpp.eps.initial-bearer.settings.apn/ {print $2}' | tr -d " '\r\n")
+		if [ -n "$cached_eps_apn" ] && [ "$cached_eps_apn" != "--" ] && [ "$cached_eps_apn" != "$target_apn" ]; then
+			log "Initial EPS bearer APN mismatch: radio cache has '$cached_eps_apn', SIM requires '$target_apn'"
+			need_flush=1
+		fi
+
+		# 5. Radio Band configuration check
+		local cur_bands
+		cur_bands=$(echo "$modem_kv" | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')
+		if [ "$is_jio" = "1" ]; then
+			if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
+				log "Radio band mismatch: Jio requires LTE-only, but radio cache contains 2G/3G bands"
+				need_flush=1
+			fi
+		else
+			if [ -n "$cur_bands" ] && ! echo "$cur_bands" | grep -qi -E '\<utran'; then
+				log "Radio band mismatch: '$carrier_name' requires 3G/4G multi-mode, but radio cache is locked to LTE-only"
+				need_flush=1
+			fi
+		fi
+
+		# 6. Radio Mode check
+		local cur_modes
+		cur_modes=$(echo "$modem_kv" | awk -F': ' '/modem.generic.current-modes/ {print $2}')
+		if [ "$is_jio" = "0" ] && [ -n "$cur_modes" ]; then
+			if ! echo "$cur_modes" | grep -qi '3g'; then
+				log "Radio mode mismatch: '$carrier_name' requires 3G fallback, but radio cache lacks 3G"
+				need_flush=1
+			fi
+		fi
+
+		# 7. Existing Bearer APN check: Check if any active bearer has a conflicting APN
+		local bearer_count b_idx b_path b_apn
+		bearer_count=$(echo "$modem_kv" | awk -F': ' '/modem.generic.bearers.length/ {print $2}' | tr -d ' \r\n')
+		if [ -n "$bearer_count" ] && [ "$bearer_count" -gt 0 ] 2>/dev/null; then
+			b_idx=1
+			while [ "$b_idx" -le "$bearer_count" ]; do
+				b_path=$(echo "$modem_kv" | awk -F': ' "/modem.generic.bearers.value\\[$b_idx\\]/ {print \$2}" | tr -d ' \r\n')
+				if [ -n "$b_path" ]; then
+					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '/bearer.properties.apn/ {print $2}' | tr -d " '\r\n")
+					if [ -n "$b_apn" ] && [ "$b_apn" != "$target_apn" ]; then
+						log "Bearer APN mismatch in bearer $b_path: cached='$b_apn', SIM requires='$target_apn'"
+						need_flush=1
+						break
+					fi
+				fi
+				b_idx=$((b_idx + 1))
+			done
+		fi
 	fi
 
 	if [ "$need_flush" = "1" ]; then
-		log "Flushing APN cache and resetting baseband radio session for APN '$target_apn'..."
+		log "Radio cache mismatch confirmed. Flushing all bearer and baseband radio caches for '$carrier_name' (APN: $target_apn)..."
 		flush_bearer_cache "$m_path" "$target_apn" "$target_iptype"
 		reset_baseband_cache "$m_path"
 		return 0
 	else
-		log "Cached APN matches SIM requirements ('$target_apn'). No cache flush needed."
+		log "Radio cache fully matches SIM requirements for '$carrier_name'. No cache flush needed."
 		return 1
 	fi
 }
@@ -417,7 +476,7 @@ while true; do
 						mbn_updated=1
 					fi
 
-					check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
+					check_and_flush_radio_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI" "$OP_CODE" "$CARRIER_NAME" "$is_jio"
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
 					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
 
@@ -458,12 +517,12 @@ while true; do
 					else
 						# SIM is unchanged, but APN cache mismatch was detected and needs flush
 						log "========================================================"
-						log "APN CACHE MISMATCH DETECTED FOR CURRENT SIM ($CARRIER_NAME)"
-						check_and_flush_apn_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
+						log "RADIO CACHE MISMATCH DETECTED FOR CURRENT SIM ($CARRIER_NAME)"
+						check_and_flush_radio_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI" "$OP_CODE" "$CARRIER_NAME" "$is_jio"
 						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
 						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
 						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
-						log "APN cache refreshed and connection restored."
+						log "Radio cache refreshed and connection restored."
 						log "========================================================"
 					fi
 				fi
