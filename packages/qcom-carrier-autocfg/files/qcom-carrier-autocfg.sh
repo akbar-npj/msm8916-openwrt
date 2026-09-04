@@ -172,22 +172,31 @@ provision_network() {
 	fi
 
 	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred cur_eps cur_dns
+	local target_eps="default"
+	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+		*hmu05*) target_eps="none" ;;
+	esac
+
 	cur_apn=$(uci -q get network.modem.apn || echo "")
 	cur_iptype=$(uci -q get network.modem.iptype || echo "")
 	cur_proto=$(uci -q get network.modem.proto || echo "")
 	cur_allowed=$(uci -q get network.modem.allowedmode || echo "")
 	cur_preferred=$(uci -q get network.modem.preferredmode || echo "")
-	cur_eps=$(uci -q get network.modem.init_epsbearer || echo "")
+	cur_eps=$(uci -q get network.modem.init_epsbearer || echo "none")
 	cur_dns=$(uci -q get network.modem.dns || echo "")
 
-	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ] || [ "$cur_eps" != "default" ] || [ -z "$cur_dns" ]; then
+	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ] || [ "$cur_eps" != "$target_eps" ] || [ -z "$cur_dns" ]; then
 		log "Configuring /etc/config/network: APN='$apn', IP-Type='$iptype', Allowed='$target_allowed', Preferred='${target_preferred:-none}'..."
 		uci set network.modem=interface
 		uci set network.modem.proto='modemmanager'
 		uci set network.modem.device='qcom-soc'
 		uci set network.modem.apn="$apn"
 		uci set network.modem.iptype="$iptype"
-		uci set network.modem.init_epsbearer='default'
+		if [ "$target_eps" = "none" ]; then
+			uci -q delete network.modem.init_epsbearer
+		else
+			uci set network.modem.init_epsbearer="$target_eps"
+		fi
 		uci set network.modem.peerdns='1'
 		uci set network.modem.dns='8.8.8.8 1.1.1.1'
 		uci set network.modem.allowedmode="$target_allowed"
@@ -265,6 +274,7 @@ reset_baseband_cache() {
 			timeout 2 sh -c "printf 'AT+CFUN=0\r\n' > $at_port" 2>/dev/null || true
 			sleep 1
 			timeout 2 sh -c "printf 'AT+CFUN=1\r\n' > $at_port" 2>/dev/null || true
+			timeout 2 sh -c "printf 'AT+COPS=0\r\n' > $at_port" 2>/dev/null || true
 			break
 		fi
 	done
