@@ -279,6 +279,10 @@ connect_bearer() {
 
 log "Started MSM8916 SIM Carrier Auto-Provisioning Engine"
 
+INITIAL_BOOT_PROVISION=1
+LAST_OPERATOR_CODE=""
+LAST_IMSI=""
+
 # Main event loop: monitor SIM state
 while true; do
 	# Check if ModemManager is running and detected a modem
@@ -297,48 +301,71 @@ while true; do
 
 			if [ -n "$OP_CODE" ] && [ "$OP_CODE" != "--" ]; then
 				if [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ]; then
-					log "========================================================"
-					log "SIM CARD DETECTED / CHANGED!"
-					log "Operator Code: $OP_CODE | Operator Name: $OP_NAME | IMSI: $IMSI"
-					
-					lookup_carrier_profile "$OP_CODE" "$OP_NAME" "$IMSI"
-					log "Identified Carrier: $CARRIER_NAME"
-					log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
-					
-					local is_jio=0
-					case "$CARRIER_NAME" in
-						*[Jj]io*) is_jio=1 ;;
-					esac
-					case "$OP_CODE" in
-						4058[4-7][0-9]) is_jio=1 ;;
-					esac
-					case "$OP_NAME" in
-						*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
-					esac
+					if [ "$INITIAL_BOOT_PROVISION" = "1" ]; then
+						# Device booted up with this SIM (e.g. swapped when powered off)
+						log "========================================================"
+						log "BOOT-TIME SIM DETECTED (Device booted with this SIM)"
+						log "Operator Code: $OP_CODE | Operator Name: $OP_NAME | IMSI: $IMSI"
+						
+						lookup_carrier_profile "$OP_CODE" "$OP_NAME" "$IMSI"
+						log "Identified Carrier: $CARRIER_NAME"
+						log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
+						
+						is_jio=0
+						case "$CARRIER_NAME" in
+							*[Jj]io*) is_jio=1 ;;
+						esac
+						case "$OP_CODE" in
+							4058[4-7][0-9]) is_jio=1 ;;
+						esac
+						case "$OP_NAME" in
+							*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
+						esac
 
-					local mbn_updated=0
-					if provision_carrier_mbn "$CARRIER_MBN"; then
-						mbn_updated=1
-					fi
+						provision_carrier_mbn "$CARRIER_MBN"
+						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
+						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
+						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
 
-					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
-					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
-					
-					LAST_OPERATOR_CODE="$OP_CODE"
-					LAST_IMSI="$IMSI"
+						LAST_OPERATOR_CODE="$OP_CODE"
+						LAST_IMSI="$IMSI"
+						INITIAL_BOOT_PROVISION=0
+						log "Boot-time carrier provisioning completed successfully. No reboot required."
+						log "========================================================"
+					else
+						# Physical SIM was swapped while system was running (HOT-SWAP)
+						log "========================================================"
+						log "HOT-SWAP DETECTED! SIM was changed while device was running."
+						log "New Operator: $OP_CODE ($OP_NAME) | IMSI: $IMSI"
 
-					if [ "$mbn_updated" = "1" ]; then
-						log "Carrier MBN radio firmware updated for '$CARRIER_NAME'. Scheduling automatic baseband reboot in 3 seconds to initialize Hexagon DSP..."
+						lookup_carrier_profile "$OP_CODE" "$OP_NAME" "$IMSI"
+						log "Identified Carrier: $CARRIER_NAME"
+						log "Optimal Settings: APN='$CARRIER_APN', IP-Type='$CARRIER_IPTYPE', Mode='$CARRIER_MODE', MBN='$CARRIER_MBN'"
+
+						is_jio=0
+						case "$CARRIER_NAME" in
+							*[Jj]io*) is_jio=1 ;;
+						esac
+						case "$OP_CODE" in
+							4058[4-7][0-9]) is_jio=1 ;;
+						esac
+						case "$OP_NAME" in
+							*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
+						esac
+
+						provision_carrier_mbn "$CARRIER_MBN"
+						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
+						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
+
+						LAST_OPERATOR_CODE="$OP_CODE"
+						LAST_IMSI="$IMSI"
+
+						log "Restarting device in 3 seconds to re-initialize Hexagon modem DSP cleanly for new SIM..."
 						log "========================================================"
 						sync
 						sleep 3
 						reboot
 						exit 0
-					else
-						reset_baseband_cache "$MODEM_PATH"
-						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
-						log "Carrier auto-provisioning completed successfully."
-						log "========================================================"
 					fi
 				fi
 			fi
