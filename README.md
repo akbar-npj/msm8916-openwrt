@@ -16,7 +16,7 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
 * **⚡ Plug-and-Play USB Networking**: High-speed **CDC NCM Ethernet** automatically bound to `br-lan` at `192.168.8.1/24` with a built-in DHCP server (avoids `192.168.1.x` subnet collisions with upstream home routers).
 * **📟 Built-in USB Serial Console**: Instant root shell on `/dev/ttyACM0` (115200 baud) over USB via CDC ACM for zero-setup terminal access, debugging, and recovery.
 * **📶 First-Boot Wi-Fi Auto-Start**: Automatically extracts Qualcomm WCNSS blobs, starts the remoteproc in-place, binds the physical radio path, and broadcasts an open `OpenWrt` 2.4 GHz AP (Channel 1, 2.412 GHz) on clean first boot.
-* **🌐 Rock-Solid 4G LTE Cellular Stability (50+ Minute Milestone)**: Fully eliminates Qualcomm Hexagon DSP 15-minute idle freezes and carrier session drops:
+* **🌐 Rock-Solid 4G LTE Cellular Stability on HMU02-V5 (50+ Minute Milestone)**: Fully eliminates Qualcomm Hexagon DSP 15-minute idle freezes and carrier session drops:
   * **2-Second Active & Passive Heartbeat**: Enforces active `RRC_CONNECTED` (`UE In Idle: 'no'`) to avoid baseband DRX sleep stalls.
   * **Traffic-Aware Dynamic Keepalive**: Automatically suspends artificial ping heartbeats when user data packets are flowing, streaming with 0% packet loss.
   * **Kernel BAM-DMUX TX DMA Fix**: Allocates a dedicated TX DMA channel on power-on with a 30-second settling grace period, preventing DMA exhaustion crashes.
