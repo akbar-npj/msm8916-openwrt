@@ -137,11 +137,14 @@ provision_carrier_mbn() {
 			cp -af "$mcfg_src" /lib/firmware/mcfg_sw.mbn
 			sync
 			log "Carrier MBN deployed successfully."
+			return 0
 		else
 			log "Active Carrier MBN already matches $mbn_rel."
+			return 1
 		fi
 	else
 		log "No specific Carrier MBN found for $mbn_rel; preserving existing firmware config."
+		return 1
 	fi
 }
 
@@ -239,6 +242,31 @@ provision_carrier_bands() {
 	fi
 }
 
+reset_baseband_cache() {
+	local m_path="$1"
+	log "Flushing baseband radio cache and re-reading SIM..."
+
+	# Send AT+CFUN=0 (radio off / flush cell cache) then AT+CFUN=1 (radio on / re-read SIM)
+	for at_port in /dev/wwan0at0 /dev/wwan0at1; do
+		if [ -c "$at_port" ]; then
+			log "Sending AT+CFUN radio reset via $at_port..."
+			printf "AT+CFUN=0\r\n" > "$at_port" 2>/dev/null || true
+			sleep 1
+			printf "AT+CFUN=1\r\n" > "$at_port" 2>/dev/null || true
+			break
+		fi
+	done
+
+	# Cycle ModemManager power state to ensure registration states are refreshed
+	if [ -n "$m_path" ]; then
+		mmcli -m "$m_path" --set-power-state-low 2>/dev/null || true
+		sleep 1
+		mmcli -m "$m_path" --set-power-state-on 2>/dev/null || true
+		sleep 1
+		mmcli -m "$m_path" -e 2>/dev/null || true
+	fi
+}
+
 connect_bearer() {
 	local apn="$1"
 	local iptype="$2"
@@ -288,15 +316,30 @@ while true; do
 						*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
 					esac
 
-					provision_carrier_mbn "$CARRIER_MBN"
+					local mbn_updated=0
+					if provision_carrier_mbn "$CARRIER_MBN"; then
+						mbn_updated=1
+					fi
+
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
 					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
-					connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
 					
 					LAST_OPERATOR_CODE="$OP_CODE"
 					LAST_IMSI="$IMSI"
-					log "Carrier auto-provisioning completed successfully."
-					log "========================================================"
+
+					if [ "$mbn_updated" = "1" ]; then
+						log "Carrier MBN radio firmware updated for '$CARRIER_NAME'. Scheduling automatic baseband reboot in 3 seconds to initialize Hexagon DSP..."
+						log "========================================================"
+						sync
+						sleep 3
+						reboot
+						exit 0
+					else
+						reset_baseband_cache "$MODEM_PATH"
+						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE"
+						log "Carrier auto-provisioning completed successfully."
+						log "========================================================"
+					fi
 				fi
 			fi
 		fi
