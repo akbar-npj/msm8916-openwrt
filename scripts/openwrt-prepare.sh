@@ -34,21 +34,13 @@ PACKAGES_DIR="$REPO_DIR/packages"
 OVERLAY_DIR="$REPO_DIR/openwrt-overlay"
 
 ###############################################################################
-# Special OpenWrt-tree patch
+# OpenWrt source-tree patches
 #
-# 809 modifies:
-#
-#   package/kernel/mac80211/ath.mk
-#
-# It is stored together with the BSP patches for repository organization,
-# but it must NOT be left in:
-#
-#   target/linux/msm89xx/patches/
-#
-# because that directory is used for patches against the Linux kernel source.
+# Patches applied directly to the OpenWrt root source tree (e.g. package
+# definitions like mac80211/ath.mk), distinct from Linux kernel patches.
 ###############################################################################
 
-OPENWRT_MAC80211_PATCH="$TARGET_DIR/patches/809-mac80211-enable-wcn36xx.patch"
+OPENWRT_PATCHES_DIR="$REPO_DIR/openwrt-patches"
 
 ###############################################################################
 # Console helpers
@@ -172,12 +164,8 @@ check_requirements() {
     [ -d "$PACKAGES_DIR" ] ||
         die "Missing: packages/"
 
-    if [ ! -f "$OPENWRT_MAC80211_PATCH" ]; then
-
-        die "Missing OpenWrt mac80211 patch:
-$OPENWRT_MAC80211_PATCH"
-
-    fi
+    [ -d "$OPENWRT_PATCHES_DIR" ] ||
+        die "Missing: openwrt-patches/"
 }
 
 ###############################################################################
@@ -195,16 +183,6 @@ install_target() {
     cp -a \
         "$TARGET_DIR" \
         "$OPENWRT_DIR/target/linux/"
-
-    ###########################################################################
-    # 809 is NOT a Linux kernel patch.
-    #
-    # It modifies OpenWrt's package/kernel/mac80211/ath.mk, so it must not
-    # remain in target/linux/msm89xx/patches/.
-    ###########################################################################
-
-    rm -f \
-        "$OPENWRT_DIR/target/linux/msm89xx/patches/809-mac80211-enable-wcn36xx.patch"
 }
 
 install_packages() {
@@ -280,52 +258,53 @@ install_package_patches() {
 
 apply_openwrt_patches() {
 
-    local patch_file
+    [ -d "$OPENWRT_PATCHES_DIR" ] || return 0
 
-    patch_file="$OPENWRT_MAC80211_PATCH"
-
-    [ -f "$patch_file" ] || {
-        die "Missing OpenWrt patch: $patch_file"
-    }
-
-    info "Applying OpenWrt patch: $(basename "$patch_file")..."
+    info "Applying OpenWrt source patches..."
 
     (
         cd "$OPENWRT_DIR"
 
-        #######################################################################
-        # First check whether the patch can be applied normally.
-        #######################################################################
+        for patch_file in "$OPENWRT_PATCHES_DIR"/*.patch; do
 
-        if patch -p1 --dry-run < "$patch_file" >/dev/null 2>&1; then
+            [ -f "$patch_file" ] || continue
 
-            patch -p1 < "$patch_file"
+            info "Applying OpenWrt patch: $(basename "$patch_file")..."
 
-            return
+            ###################################################################
+            # First check whether the patch can be applied normally.
+            ###################################################################
 
-        fi
+            if patch -p1 --dry-run < "$patch_file" >/dev/null 2>&1; then
 
-        #######################################################################
-        # If normal application fails, check whether it is already applied.
-        #######################################################################
+                patch -p1 < "$patch_file"
 
-        if patch -p1 -R --dry-run < "$patch_file" >/dev/null 2>&1; then
+                continue
 
-            info "OpenWrt patch already applied: $(basename "$patch_file")"
+            fi
 
-            return
+            ###################################################################
+            # If normal application fails, check whether it is already applied.
+            ###################################################################
 
-        fi
+            if patch -p1 -R --dry-run < "$patch_file" >/dev/null 2>&1; then
 
-        #######################################################################
-        # Neither forward nor reverse application works.
-        #######################################################################
+                info "OpenWrt patch already applied: $(basename "$patch_file")"
 
-        die "Cannot apply OpenWrt patch:
+                continue
+
+            fi
+
+            ###################################################################
+            # Neither forward nor reverse application works.
+            ###################################################################
+
+            die "Cannot apply OpenWrt patch:
 $patch_file
 
 The patch is neither applicable nor already applied."
 
+        done
     )
 }
 

@@ -17,7 +17,7 @@ The patches are categorized by their functional domain:
 | [`805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch) | Device Tree Board | `arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts` | Adds complete board DTS for the HMU05 4G modem stick (SIM/eSIM GPIO hogs, ramoops logging at `0x8db00000`, LEDs, reset button). |
 | [`806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch) | Device Tree Board | `arch/arm64/boot/dts/qcom/msm8916-generic-ufi001b.dts` | Adds complete board DTS for the UFI001B 4G modem stick (SIM enable/selector GPIO hogs, ramoops logging at `0x8db00000`, LEDs, reset button). |
 | [`808-bam-dmux-stats.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/808-bam-dmux-stats.patch) | Network Driver | `drivers/net/bam_dmux.c` | Adds accurate TX/RX packet & byte statistics to BAM-DMUX network interfaces and frees TX skbs and clears channel bitmaps during power-off. |
-| [`809-mac80211-enable-wcn36xx.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/809-mac80211-enable-wcn36xx.patch) | OpenWrt Source | `package/kernel/mac80211/ath.mk` | OpenWrt package recipe patch enabling Qualcomm Atheros `wcn36xx` and `ath10k-sdio` kernel modules on `msm89xx`. |
+| [`809-mac80211-enable-wcn36xx.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt-patches/809-mac80211-enable-wcn36xx.patch) | OpenWrt Source | `package/kernel/mac80211/ath.mk` | OpenWrt package recipe patch enabling Qualcomm Atheros `wcn36xx` and `ath10k-sdio` kernel modules on `msm89xx`. |
 | [`813-msm8916-reboot-to-edl-support.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/813-msm8916-reboot-to-edl-support.patch) | Power & Reset | `drivers/firmware/qcom/qcom_scm.c`<br>`drivers/power/reset/msm-poweroff.c`<br>`drivers/power/reset/msm-poweroff.h`<br>`drivers/power/reset/qcom-pon.c`<br>`include/linux/firmware/qcom/qcom_scm.h` | Kernel driver support for Emergency Download (EDL / 9008) mode warm-reset matching lk2nd bootloader sequence. |
 | [`815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) | Remoteproc / Modem | `drivers/remoteproc/qcom_sysmon.c` | Skips forwarding Modem Subsystem Restart (SSR) notifications to WCNSS, preventing WCNSS firmware faults on modem stop/restart. |
 | [`816-qcom-smsm-validate-mbox-before-request.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch) | IPC / SMSM Driver | `drivers/soc/qcom/smsm.c` | Skips requesting mailbox for local host and verifies existence of valid phandle in `mboxes` property before calling `mbox_request_channel`, eliminating boot error spam and propagating `-EPROBE_DEFER`. |
@@ -147,14 +147,14 @@ The patches are categorized by their functional domain:
 ---
 
 ### 809: OpenWrt mac80211 Package Driver Support
-- **File**: [`809-mac80211-enable-wcn36xx.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/809-mac80211-enable-wcn36xx.patch)
+- **File**: [`809-mac80211-enable-wcn36xx.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt-patches/809-mac80211-enable-wcn36xx.patch)
 - **Target**: `package/kernel/mac80211/ath.mk` (OpenWrt source-tree patch)
 - **Purpose**:
   Enables compilation and packaging of `kmod-wcn36xx` (the Qualcomm WCN3660/3680 integrated Wi-Fi driver) and `kmod-ath10k-sdio` within OpenWrt's mac80211 package infrastructure.
   - Adds `@TARGET_msm89xx` dependency to `kmod-ath`.
   - Defines `KernelPackage/wcn36xx` with autoload and probe support.
   - Adds `WCN36XX_DEBUGFS` support.
-- **Handling Note**: This patch modifies OpenWrt package source (`ath.mk`) rather than the Linux kernel. The preparation scripts (`scripts/openwrt-prepare.sh` and `build.sh`) apply this patch to OpenWrt and prune it from the kernel patch queue so the kernel build tool does not attempt to apply it to `linux-6.12/`.
+- **Handling Note**: This patch modifies OpenWrt package source (`ath.mk`) rather than the Linux kernel. It resides in `openwrt-patches/` and is applied directly to the OpenWrt source tree by `scripts/openwrt-prepare.sh` and `build.sh`, keeping `msm89xx/patches/` dedicated purely to Linux kernel patches.
 
 ---
 

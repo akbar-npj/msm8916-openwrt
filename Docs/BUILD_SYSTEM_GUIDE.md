@@ -53,6 +53,7 @@ To maintain clean separation between upstream OpenWrt and custom Qualcomm hardwa
 | **Linux Target / BSP** | `msm89xx/` | `openwrt/target/linux/msm89xx/` |
 | **Project Packages** | `packages/` | `openwrt/package/msm8916/` |
 | **Package Patches** | `packages/<pkg>/patches/*.patch` | `openwrt/package/system/<pkg>/patches/` |
+| **OpenWrt Tree Patches** | `openwrt-patches/*.patch` | `openwrt/` (applied via `patch -p1`) |
 | **Filesystem Overlay** | `openwrt-overlay/` | `openwrt/` (merged into rootfs) |
 | **Board Configurations** | `diffconfigs/<board>` | `openwrt/.config` (expanded via `make defconfig`) |
 | **OpenWrt Version** | `devenv/.env` (`OPENWRT_VERSION`) | Checked out in `openwrt/` |
