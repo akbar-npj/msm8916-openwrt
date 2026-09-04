@@ -47,6 +47,7 @@
     "openssh-sftp-server": "10.3_p1-r1",
     "qmi-utils": "1.36.0-r1",
     "rrdtool1": "1.0.50-r7",
+    "watchcat": "1-r22",
     "zerotier": "1.16.0-r1"
   }
 }
