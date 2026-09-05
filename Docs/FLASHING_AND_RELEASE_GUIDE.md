@@ -11,8 +11,11 @@ This guide documents the complete end-to-end workflow used for **building target
 4. [Setting Up & Deploying Online Feeds (GitHub Pages)](#4-setting-up--deploying-online-feeds-github-pages)
 5. [Packaging & Publishing GitHub Releases](#5-packaging--publishing-github-releases)
 6. [Flashing Firmware to Device](#6-flashing-firmware-to-device)
-   - [Method A: First-Time Flash via Qualcomm EDL (9008)](#method-a-first-time-flash-via-qualcomm-edl-9008)
-   - [Method B: Upgrading Running Device (Sysupgrade)](#method-b-upgrading-running-device-sysupgrade)
+   - [Scenario A: Migrating from Stock Android to OpenWrt (Mandatory First-Time Flash Script)](#scenario-a-migrating-from-stock-android-to-openwrt-mandatory-first-time-flash-script)
+   - [Scenario B: Flashing / Upgrading a Device Already Running OpenWrt](#scenario-b-flashing--upgrading-a-device-already-running-openwrt)
+     - [Option 1: Fast Direct Flash via Qualcomm EDL (9008)](#option-1-fast-direct-flash-via-qualcomm-edl-9008)
+     - [Option 2: Non-Destructive Sysupgrade (SSH Command Line)](#option-2-non-destructive-sysupgrade-ssh-command-line)
+     - [Option 3: Non-Destructive Sysupgrade (LuCI Web GUI)](#option-3-non-destructive-sysupgrade-luci-web-gui)
 7. [Device Configuration & Testing Package Installation](#7-device-configuration--testing-package-installation)
 
 ---
@@ -168,16 +171,71 @@ gh release upload -R akbar-npj/msm8916-openwrt v25.12.5-r1 \
 
 ## 6. Flashing Firmware to Device
 
-### Method A: First-Time Flash via Qualcomm EDL (9008)
+### Scenario A: Migrating from Stock Android to OpenWrt (Mandatory First-Time Flash Script)
 
-1. Put the USB modem into **Emergency Download (EDL)** mode:
-   - Short the board's hardware EDL test pads while inserting into USB port, **OR**
-   - Run `reboot-edl` / `adb reboot edl` from terminal.
-2. Confirm the device is in EDL mode:
+> [!CAUTION]
+> **Do NOT directly flash individual `boot` and `rootfs` partitions when migrating from stock Android.**
+> Stock Android devices have a completely different partition table (GPT) layout, different bootloader/firmware partitions, and critical radio/calibration data (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) that must be preserved. Directly flashing OpenWrt partitions over stock Android will cause bootloops, soft bricks, or permanent loss of IMEI, MAC addresses, and RF calibration.
+
+To migrate from stock Android to OpenWrt safely, **you MUST use the automated flash script** generated during compilation in `openwrt/bin/targets/msm89xx/msm8916/`:
+- `openwrt-msm89xx-msm8916-<board>-flash.sh`
+
+#### What the Script Automatically Handles:
+1. **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory.
+2. **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely.
+3. **Firmware Extraction & Flashing**: Extracts `aboot.mbn`, `hyp.mbn`, `rpm.mbn`, `sbl1.mbn`, and `tz.mbn` from the board's `*-firmware.zip` and flashes them to the newly repartitioned layout.
+4. **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and safely erases `rootfs_data`.
+5. **Partition Restoration**: Restores all previously backed-up calibration and radio partitions back to the device.
+6. **Automatic Reboot**: Reboots the device straight into OpenWrt (`edl reset`).
+
+#### Step-by-Step Migration Instructions:
+
+1. **Enter Qualcomm Emergency Download (EDL) Mode (9008)**:
+   - **Method 1 (Hardware Test Points)**: Short the board's hardware EDL test pad / button to ground while inserting the USB dongle into your computer.
+   - **Method 2 (via ADB on Stock Android)**: If ADB is enabled in stock firmware, run:
+     ```bash
+     adb reboot edl
+     ```
+2. **Verify EDL Connection**:
+   Ensure the host recognizes the Qualcomm 9008 USB device:
    ```bash
    lsusb | grep 05c6:9008
    ```
-3. Flash the `boot` and `rootfs` partitions using the `edl` tool:
+   *Expected output: `Bus XXX Device YYY: ID 05c6:9008 Qualcomm, Inc. Gobi Wireless Modem (QDL mode)`*
+
+3. **Run the Automated Flash Script**:
+   Navigate to the build target directory and execute the script corresponding to your target board:
+   ```bash
+   cd openwrt/bin/targets/msm89xx/msm8916
+
+   # Make script executable
+   chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
+
+   # Run the flasher
+   ./openwrt-msm89xx-msm8916-<board>-flash.sh
+   ```
+   *(Replace `<board>` with your target device board name: `generic-hmu05`, `generic-ufi001b`, `yiming-uz801v3`, or `generic-uf02`)*
+
+4. **Confirm the Prompts**:
+   The script will verify the required `.img` and `.zip` files, prompt you to continue (`y`), execute the backup, flash all partitions, restore the radio data, and reset the device into OpenWrt.
+
+---
+
+### Scenario B: Flashing / Upgrading a Device Already Running OpenWrt
+
+If your device is **already running OpenWrt**, the OpenWrt GPT layout and bootloader/firmware partitions are already configured. You can use direct EDL flashing or standard Sysupgrade:
+
+#### Option 1: Fast Direct Flash via Qualcomm EDL (9008)
+When the device is already partitioned for OpenWrt, you can flash updated kernel/boot and rootfs images directly:
+
+1. Put the device into EDL mode:
+   - Run `reboot-edl` from SSH terminal on the device, **OR**
+   - Short the board's EDL test pad while plugging into USB.
+2. Verify EDL mode:
+   ```bash
+   lsusb | grep 05c6:9008
+   ```
+3. Flash the `boot` and `rootfs` partitions using `edl`:
    ```bash
    # Flash boot (kernel + dtb) partition
    edl w boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
@@ -189,25 +247,22 @@ gh release upload -R akbar-npj/msm8916-openwrt v25.12.5-r1 \
    edl reset
    ```
 
----
+#### Option 2: Non-Destructive Sysupgrade (SSH Command Line)
+Upgrade live over Wi-Fi or USB ethernet while preserving configurations and network settings:
 
-### Method B: Upgrading Running Device (Sysupgrade)
-
-For a device already running OpenWrt, you can upgrade non-destructively while preserving network settings:
-
-#### Option 1: Via SSH Command Line
 ```bash
 # Transfer sysupgrade image to device
 scp openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-sysupgrade.bin root@192.168.8.1:/tmp/sysupgrade.bin
 
-# Perform upgrade
+# Perform sysupgrade
 ssh root@192.168.8.1 "sysupgrade -v /tmp/sysupgrade.bin"
 ```
 
-#### Option 2: Via LuCI Web GUI
+#### Option 3: Non-Destructive Sysupgrade (LuCI Web GUI)
 1. Open [http://192.168.8.1](http://192.168.8.1) in your browser.
 2. Navigate to **System -> Backup / Flash Firmware -> Flash image...**.
 3. Upload `openwrt-msm89xx-msm8916-<board>-squashfs-sysupgrade.bin` and click **Continue**.
+4. Review the verification screen and click **Flash**. The device will write the new firmware and reboot cleanly.
 
 ---
 
