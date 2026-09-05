@@ -139,11 +139,6 @@ done
 [ -f "$FW/mcfg_sw.mbn" ] && ln -sf "$FW/mcfg_sw.mbn" "$FW/MCFG_SW.MBN" 2>/dev/null || true
 [ -f "$FW/MCFG_SW.MBN" ] && ln -sf "$FW/MCFG_SW.MBN" "$FW/mcfg_sw.mbn" 2>/dev/null || true
 
-# Apply device-specific No-Sleep patch on Generic HMU05
-if [ -x /usr/sbin/hmu05-patch-modem ]; then
-  /usr/sbin/hmu05-patch-modem "$FW" && log "HMU05 modem patch check completed"
-fi
-
 sync
 
 # Unmount and cleanup
