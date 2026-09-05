@@ -425,17 +425,24 @@ connect_bearer() {
 	local iptype="$2"
 	local imsi="$3"
 
-	# Ensure Android-equivalent QMI Time ATS_USER sync is confirmed before LTE attach
+	# Hard prerequisite: wait for verified Android-equivalent QMI Time ATS_USER sync
 	local wait_t=0
-	while [ "$wait_t" -lt 10 ]; do
+	local synced=0
+	while [ "$wait_t" -lt 15 ]; do
 		if [ -f /var/run/qcom-time-synced ]; then
-			log "[QMI-TIME-DEBUG] Modem ATS_USER time sync verified before LTE attach."
+			log "[QMI-TIME] Modem ATS_USER time sync verified before LTE attach."
+			synced=1
 			break
 		fi
-		log "[QMI-TIME-DEBUG] Waiting for qcom-time-daemon ATS_USER sync handshake ($wait_t/10s)..."
+		log "[QMI-TIME] Waiting for qcom-time-daemon ATS_USER sync handshake ($wait_t/15s)..."
 		sleep 1
 		wait_t=$((wait_t + 1))
 	done
+
+	if [ "$synced" != "1" ]; then
+		log "[QMI-TIME-ERROR] Mandatory /var/run/qcom-time-synced marker absent after 15s! Refusing to attach LTE bearer without verified ATS_USER sync."
+		return 1
+	fi
 
 	log "Requesting ModemManager bearer connection for APN '$apn' ($iptype)..."
 	mmcli -m any --simple-connect="apn=${apn},ip-type=${iptype}" 2>/dev/null || true
