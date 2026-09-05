@@ -16,27 +16,13 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
 * **⚡ Plug-and-Play USB Networking**: High-speed **CDC NCM Ethernet** automatically bound to `br-lan` at `192.168.8.1/24` with a built-in DHCP server (avoids `192.168.1.x` subnet collisions with upstream home routers).
 * **📟 Built-in USB Serial Console**: Instant root shell on `/dev/ttyACM0` (115200 baud) over USB via CDC ACM for zero-setup terminal access, debugging, and recovery.
 * **📶 First-Boot Wi-Fi Auto-Start**: Automatically extracts Qualcomm WCNSS blobs, starts the remoteproc in-place, binds the physical radio path, and broadcasts an open `OpenWrt` 2.4 GHz AP (Channel 1, 2.412 GHz) on clean first boot.
-* **🌐 Rock-Solid 4G LTE Cellular Stability on HMU02-V5 (50+ Minute Milestone)**: Fully eliminates Qualcomm Hexagon DSP 15-minute idle freezes and carrier session drops:
-  * **2-Second Active & Passive Heartbeat**: Enforces active `RRC_CONNECTED` (`UE In Idle: 'no'`) to avoid baseband DRX sleep stalls.
-  * **Traffic-Aware Dynamic Keepalive**: Automatically suspends artificial ping heartbeats when user data packets are flowing, streaming with 0% packet loss.
-  * **Kernel BAM-DMUX TX DMA Fix**: Allocates a dedicated TX DMA channel on power-on with a 30-second settling grace period, preventing DMA exhaustion crashes.
-  * **Qualcomm QMI Time Daemon (Service 22)**: Boot-time synchronization of Hexagon modem ATS/SCLK clock with host NTP, with mid-session protection preventing Hexagon DSP clock-step panics (`:Excep :0:`).
-  * **Ultra-Low Overhead (< 0.10 Load Average)**: Pure kernel sysfs health monitoring replaces heavy DBus polling, dropping system load from > 2.0 to ~0.08.
-* **🧹 Zero-Warning Clean Dmesg & Boot**: Systematically resolved kernel boot errors and daemon warnings:
-  * **`qcom-smsm`**: Eliminates `mbox_request_channel: can't parse "mboxes" property` by validating mailbox DT phandles before channel requests.
-  * **`wcn36xx` Wi-Fi**: Eliminates `ERROR HAL_8023_MULTICAST_LIST rsp failed err=16` in `mac80211` backports by restricting multicast list requests strictly to STA associations.
-  * **`pm8916` L13 Regulator**: Expands L13 voltage range (1.75V–3.3V) for USB HS PHY, resolving regulator voltage out-of-range warnings.
-  * **Subsystem Inits**: Purged non-existent `qrtr-tun` module probe errors and `fstools/block` fstab configuration spam.
-* **🐱 Automated Graceful Recovery (Watchcat in LuCI)**: Built-in watchdog with native web interface under **Services $\to$ Watchcat** to automatically trigger graceful system reboots if cellular connectivity is interrupted.
+* **🌐 4G LTE Cellular Data & Carrier Auto-Provisioning**: Native **ModemManager** integration with automatic SIM carrier detection (`qcom-carrier-autocfg`), dynamic APN and Qualcomm Carrier MBN deployment, safe empty PLMN home operator attachment, and continuous self-healing daemon monitoring (`modem-led-monitor`).
 * **💾 Permanent eMMC Storage**: Automated `/dev/mmcblk0p15` (`rootfs_data`) EXT4 formatting and mounting, with preinit filesystem checking and automatic safe repair using `e2fsck -p`, providing persistent overlay storage without unnecessarily formatting an existing filesystem.
 * **💡 Intuitive Hardware Status LEDs**:
 
-  * 🔴 **Red LED** (`red:power`): Subsystem fault indicator. Solid ON during early boot, slow blink during baseband initialization, and **completely OFF** when modem subsystem is healthy. Blinks on crash.
-  * 🟢 **Green LED** (`green:wlan`): Dedicated exclusively to Wi-Fi. Solid ON when 2.4 GHz AP is broadcasting; fast blink when client stations are actively connected.
-  * 🔵 **Blue LED** (`blue:wan`): Dedicated dynamic 3-state cellular indicator driven by zero-overhead kernel timers:
-    * **Disconnected / Searching**: 10-second beacon pulse (500ms ON / 9500ms OFF).
-    * **Connected & Idle**: Calm rhythmic blink (1000ms ON / 1000ms OFF).
-    * **Active RX/TX Traffic**: Fast dynamic blink (500ms ON / 500ms OFF) with instant auto-return to idle upon traffic completion.
+  * 🟢 **Green LED** (`green:wlan`): Wi-Fi AP state and wireless client transmission.
+  * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
+  * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🛡️ HMU05 No-Sleep Fix**: Hardware-guarded native C patcher (`hmu05-patch-modem`) prevents Qualcomm Hexagon DSP 15-minute sleep stalls (`FUN_c03987e0` / `ERR_FATAL` bypass) with embedded SHA-256 header recalculation.
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
@@ -112,35 +98,66 @@ The OpenWrt-specific `reboot-edl` command is useful when the device is already r
 
 ---
 
-## ⚡ Installation & Flashing
+## ⚡ Flashing Firmware to Device
 
-### First-Time Flashing (Qualcomm EDL 9008 Mode)
+### 1. Putting the Device into Qualcomm EDL Mode (`05c6:9008`)
 
-1. Put the USB modem into **EDL Mode** using either:
+Put the USB modem into **Qualcomm Emergency Download (EDL) Mode** using any of the following methods:
+* Short the hardware **EDL test points** while plugging the stick into a USB port.
+* From Android shell (where ADB is available): `adb reboot edl`
+* From OpenWrt shell: `reboot-edl`
 
-   * the hardware EDL test points while plugging into USB,
-   * OpenWrt's `reboot-edl` command, or
-   * `adb reboot edl` where ADB is available.
-
-2. Verify the device is detected in EDL mode:
+Verify that the host detects the device in Qualcomm EDL mode:
 
 ```bash
 lsusb | grep 05c6:9008
+# Expected: 05c6:9008 Qualcomm HS-USB QDLoader 9008
 ```
 
-3. Flash the kernel and rootfs partitions using `edl` or `qdl`:
+---
+
+### Scenario A: Migrating from Stock Android to OpenWrt (Mandatory First-Time Flash Script)
+
+> [!CAUTION]
+> **Do NOT directly flash individual boot and rootfs partitions when migrating from stock Android.**
+> Stock Android devices have a completely different partition table (GPT) layout, different bootloader/firmware partitions, and critical radio/calibration data (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) that must be preserved. Directly flashing OpenWrt partitions over stock Android will cause bootloops, soft bricks, or permanent loss of IMEI, MAC addresses, and RF calibration.
+
+To migrate from stock Android to OpenWrt safely, you **MUST** use the automated flash script generated during compilation in `openwrt/bin/targets/msm89xx/msm8916/`:
 
 ```bash
-# Using edl:
+cd openwrt/bin/targets/msm89xx/msm8916/
+chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
+./openwrt-msm89xx-msm8916-<board>-flash.sh
+```
+
+#### What the Script Automatically Handles:
+
+* **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory.
+* **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely.
+* **Firmware Extraction & Flashing**: Extracts `aboot.mbn`, `hyp.mbn`, `rpm.mbn`, `sbl1.mbn`, and `tz.mbn` from the board's `*-firmware.zip` and flashes them to the newly repartitioned layout.
+* **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and safely erases `rootfs_data`.
+* **Partition Restoration**: Restores all previously backed-up calibration and radio partitions back to the device.
+* **Automatic Reboot**: Reboots the device straight into OpenWrt (`edl reset`).
+
+---
+
+### Scenario B: Updating or Re-Flashing an Existing OpenWrt Device
+
+If your device is already running OpenWrt and has already been repartitioned to the OpenWrt GPT layout:
+
+* **Recommended (Sysupgrade)**: Use the standard sysupgrade path to preserve configuration (see [Sysupgrade](#-sysupgrade)).
+* **Clean Re-flash via EDL**: If you need a clean re-flash via EDL without modifying the existing OpenWrt partition table:
+
+```bash
+# Flash kernel boot and rootfs partitions
 edl w boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
 edl w rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
+
+# Optional: erase persistent overlay to start completely clean
+edl e rootfs_data
+
+# Reboot the device
 edl reset
-```
-
-Or with `qdl`:
-
-```bash
-qdl --storage emmc prog_emmc_firehose_8916.mbn rawprogram_unsparse.xml patch0.xml
 ```
 
 ---
@@ -207,6 +224,63 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 | **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (No encryption by default)  |
 | **EDL Recovery**         | `reboot-edl`                    | Qualcomm USB `05c6:9008`         |
 | **Fastboot Recovery**    | `reboot-fastboot`               | `fastboot devices`               |
+
+---
+
+## 📶 SIM Detection, Carrier Auto-Provisioning & Reboot Behavior
+
+When you plug in the modem stick with a SIM card inserted (or after swapping to a different cellular carrier), the stick will **automatically reboot once** after approximately 10–15 seconds of uptime.
+
+> [!NOTE]
+> **This one-time reboot is intentional, expected behavior—not a crash, panic, or bootloop.**
+
+### Why Does the Stick Reboot?
+
+1. **Qualcomm Carrier MBN (`mcfg_sw.mbn`) Architecture**:
+   Qualcomm Snapdragon 410 (MSM8916) modem baseband firmware runs a universal cellular binary (`MPSS.DPM.1.0`). Network-specific parameters—such as LTE Radio Resource Control (RRC) band priority matrices, Discontinuous Reception (DRX) paging timers, IMS/VoLTE profiles, and Evolved Packet Core (EPC) attach parameters—are packaged into signed Qualcomm **Carrier MBN files** (`mcfg_sw.mbn`).
+2. **Boot-Time Modem Firmware Initialization**:
+   The Qualcomm Hexagon QDSP6 v5 modem processor (`remoteproc0`) reads and loads `/lib/firmware/MCFG_SW.MBN` into baseband memory only during its low-level bootloader initialization phase. Mainline Linux kernel `remoteproc` does not support hot-reloading carrier MBN profiles into the running Hexagon DSP without restarting the subsystem.
+3. **Automated Provisioning (`qcom-carrier-autocfg`)**:
+   Upon detecting the SIM card's IMSI and MCC-MNC operator code via ModemManager, the background `carrier-autocfg` daemon matches the carrier profile against its APN and MBN database:
+   * If the currently deployed `/lib/firmware/MCFG_SW.MBN` does not match the optimal MBN profile for the detected carrier (e.g., on clean first boot or when switching between carriers such as Reliance Jio, Airtel, or ROW default), the daemon installs the matching `mcfg_sw.mbn` into `/lib/firmware/MCFG_SW.MBN`.
+   * It then safely syncs filesystems to eMMC and triggers an **automatic, one-time system reboot** (with a 3-second grace countdown) to allow the Hexagon DSP to initialize with the new carrier baseband configuration.
+
+### What Happens After the Reboot (Steady State)?
+
+* **No Further Reboots**: On the subsequent boot, `carrier-autocfg` inspects the SIM and compares the active `/lib/firmware/MCFG_SW.MBN` against the detected carrier profile. Because the file already matches (`cmp -s`), **no reboot occurs**.
+* **Automatic Data Attachment**: The daemon automatically configures `/etc/config/network` with the carrier's APN and IP stack (IPv4/IPv6), verifies clock synchronization with the Qualcomm QMI Time Daemon (`qcom-time-daemon`), and commands ModemManager to connect the 4G LTE bearer. The blue WAN LED lights up to indicate active cellular internet.
+
+### SIM Hot-Swapping Behavior
+
+* **Same Carrier / Same MBN Family**: If you insert a different SIM that uses the same carrier profile (or compatible ROW profile), `carrier-autocfg` flushes the baseband radio cache and network bearer dynamically—restoring data connectivity **without rebooting**.
+* **Different Carrier Family**: If you swap to a SIM that requires a different carrier MBN (e.g., swapping between Reliance Jio and Airtel/ROW), the device will perform a one-time reboot to reload the new baseband profile into the Hexagon DSP.
+
+### Monitoring Auto-Provisioning in Real Time
+
+You can observe carrier detection, profile matching, and MBN provisioning live via SSH or USB serial console (`/dev/ttyACM0`):
+
+```bash
+logread -f -e carrier-autocfg
+```
+
+**Example Log Output on Initial SIM Detection:**
+
+```text
+[carrier-autocfg] Started MSM8916 SIM Carrier Auto-Provisioning Engine
+[carrier-autocfg] Matched carrier in global APN database for MCC-MNC 405861
+[carrier-autocfg] Deploying Carrier MBN 'generic/apac/reliance/commerci/mcfg_sw.mbn' into /lib/firmware/MCFG_SW.MBN...
+[carrier-autocfg] Carrier MBN radio firmware updated for 'Reliance Jio'. Scheduling automatic reboot in 3 seconds to initialize Hexagon DSP...
+```
+
+**Example Log Output After Reboot (Steady State):**
+
+```text
+[carrier-autocfg] Matched carrier in global APN database for MCC-MNC 405861
+[carrier-autocfg] Active Carrier MBN already matches generic/apac/reliance/commerci/mcfg_sw.mbn.
+[carrier-autocfg] Boot-time carrier provisioning completed successfully. No reboot required.
+[carrier-autocfg] [QMI-TIME] Modem ATS_USER time sync verified before LTE attach.
+[carrier-autocfg] Requesting ModemManager bearer connection for APN 'jionet' (ipv4v6)...
+```
 
 ---
 
