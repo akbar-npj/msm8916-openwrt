@@ -1,6 +1,6 @@
---- a/drivers/net/wwan/qcom_bam_dmux.c
-+++ b/drivers/net/wwan/qcom_bam_dmux.c
-@@ -317,7 +317,7 @@ static int bam_dmux_tx_prepare_skb(struc
+--- a/drivers/net/wwan/qcom_bam_dmux.c	2026-09-04 18:50:46.076185843 +0545
++++ b/drivers/net/wwan/qcom_bam_dmux.c	2026-09-04 18:50:46.178022664 +0545
+@@ -307,7 +307,7 @@ static int bam_dmux_tx_prepare_skb(struc
  				   struct sk_buff *skb)
  {
  	unsigned int head = needed_room(skb_headroom(skb), BAM_DMUX_HDR_SIZE);
@@ -9,7 +9,7 @@
  	unsigned int tail = needed_room(skb_tailroom(skb), pad);
  	struct bam_dmux_hdr *hdr;
  	int ret;
-@@ -366,6 +366,8 @@ static netdev_tx_t bam_dmux_netdev_start
+@@ -359,6 +359,8 @@ static netdev_tx_t bam_dmux_netdev_start
  		if (!atomic_long_fetch_or(BIT(skb_dma - dmux->tx_skbs),
  					  &dmux->tx_deferred_skb))
  			queue_pm_work(&dmux->tx_wakeup_work);
@@ -18,7 +18,7 @@
  		return NETDEV_TX_OK;
  	}
  
-@@ -373,6 +375,8 @@ static netdev_tx_t bam_dmux_netdev_start
+@@ -366,6 +368,8 @@ static netdev_tx_t bam_dmux_netdev_start
  		goto drop;
  
  	dma_async_issue_pending(dmux->tx);
@@ -27,7 +27,7 @@
  	return NETDEV_TX_OK;
  
  drop:
-@@ -543,6 +547,9 @@ static void bam_dmux_cmd_data(struct bam
+@@ -536,6 +540,9 @@ static void bam_dmux_cmd_data(struct bam
  		break;
  	}
  
@@ -37,7 +37,23 @@
  	netif_receive_skb(skb);
  }
  
-@@ -678,6 +685,10 @@ static void bam_dmux_power_off(struct ba
+@@ -630,6 +637,15 @@ static bool bam_dmux_power_on(struct bam
+ 	}
+ 	dmaengine_slave_config(dmux->rx, &dma_rx_conf);
+ 
++	if (!dmux->tx) {
++		dmux->tx = dma_request_chan(dev, "tx");
++		if (IS_ERR(dmux->tx)) {
++			dev_err(dev, "Failed to request TX DMA channel: %pe\n", dmux->tx);
++			dmux->tx = NULL;
++			return false;
++		}
++	}
++
+ 	for (i = 0; i < BAM_DMUX_NUM_SKB; i++) {
+ 		if (!bam_dmux_skb_dma_queue_rx(&dmux->rx_skbs[i], GFP_KERNEL))
+ 			return false;
+@@ -671,6 +687,10 @@ static void bam_dmux_power_off(struct ba
  	}
  
  	bam_dmux_free_skbs(dmux->rx_skbs, DMA_FROM_DEVICE);
@@ -48,7 +64,9 @@
  }
  
  static irqreturn_t bam_dmux_pc_irq(int irq, void *data)
-@@ -702,10 +713,13 @@ static irqreturn_t bam_dmux_pc_irq(int i
+@@ -681,13 +701,16 @@ static irqreturn_t bam_dmux_pc_irq(int i
+ 	dev_dbg(dmux->dev, "pc: %u\n", new_state);
+ 
  	if (new_state) {
 -		if (bam_dmux_power_on(dmux))
 +		if (bam_dmux_power_on(dmux)) {
@@ -65,4 +83,3 @@
  	}
  
  	dmux->pc_state = new_state;
-

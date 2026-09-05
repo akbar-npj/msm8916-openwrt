@@ -222,14 +222,11 @@ static int perform_time_sync(int sock, bool force_set)
 
 	/*
 	 * Stock Android time_daemon sets ATS_USER (base 2) offset once at init.
-	 * Constantly overwriting the offset during active LTE sessions forces
-	 * LTE Layer 1 SFN resync which drops packet data calls.
-	 * Only update if forced or if the clock stepped by > 5 seconds.
+	 * Overwriting the offset during active LTE sessions forces LTE Layer 1
+	 * SFN resynchronization which crashes the Hexagon baseband.
+	 * Only allow initial boot sync once.
 	 */
-	int64_t diff = (int64_t)genoff_ms - (int64_t)last_synced_genoff;
-	if (diff < 0) diff = -diff;
-
-	if (force_set || diff > 5000) {
+	if (force_set && last_synced_genoff == 0) {
 		ret = send_qmi_time_set(sock, modem_node, modem_port, ATS_USER, genoff_ms);
 		if (ret == 0)
 			last_synced_genoff = genoff_ms;

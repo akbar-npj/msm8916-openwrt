@@ -287,7 +287,6 @@ msm89xx/patches/
 ├── 805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch
 ├── 806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
 ├── 808-bam-dmux-stats.patch
-├── 809-mac80211-enable-wcn36xx.patch
 ├── 813-msm8916-reboot-to-edl-support.patch
 ├── 815-qcom-sysmon-ignore-wcnss-modem-ssr.patch
 └── 999-tsens-propagate-eprobe-defer.patch
@@ -315,23 +314,21 @@ The current patch set includes:
 805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch
 806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
 808-bam-dmux-stats.patch
-809-mac80211-enable-wcn36xx.patch
 813-msm8916-reboot-to-edl-support.patch
 815-qcom-sysmon-ignore-wcnss-modem-ssr.patch
 999-tsens-propagate-eprobe-defer.patch
 ```
 
-### Special case: 809
+### OpenWrt Tree Patches: openwrt-patches/
 
-`809-mac80211-enable-wcn36xx.patch` is stored with the BSP patches for organization, but it is an **OpenWrt source-tree patch**, not a Linux kernel patch.
-
-`openwrt-prepare.sh` removes it from:
+`809-mac80211-enable-wcn36xx.patch` is an **OpenWrt source-tree patch** (modifying `package/kernel/mac80211/ath.mk`), not a Linux kernel patch. It is stored in:
 
 ```text
-target/linux/msm89xx/patches/
+openwrt-patches/
+└── 809-mac80211-enable-wcn36xx.patch
 ```
 
-and applies it separately to the OpenWrt source.
+and applied directly to the OpenWrt source by `scripts/openwrt-prepare.sh` and `build.sh`.
 
 Therefore:
 
@@ -340,7 +337,7 @@ Linux kernel patches
     └── target/linux/msm89xx/patches/
 
 OpenWrt source-tree patches
-    └── applied separately by openwrt-prepare.sh
+    └── openwrt-patches/
 ```
 
 ---

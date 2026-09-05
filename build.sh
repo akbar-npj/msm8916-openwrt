@@ -118,7 +118,7 @@ docker_compose() {
 
 docker_exec() {
     ensure_builder
-    docker_compose exec builder "$@"
+    docker_compose exec builder sh -c 'umask 022 && exec "$@"' sh "$@"
 }
 
 run_openwrt_make() {
@@ -331,11 +331,10 @@ sync_bsp() {
 
     ok "Syncing BSP into prepared OpenWrt tree..."
 
-    # Reinstall the msm89xx target (without the misplaced mac80211 patch).
+    # Reinstall the msm89xx target.
     docker_exec sh -c "
         rm -rf $CONTAINER_OPENWRT_DIR/target/linux/msm89xx && \
-        cp -a $CONTAINER_REPO_DIR/msm89xx $CONTAINER_OPENWRT_DIR/target/linux/ && \
-        rm -f $CONTAINER_OPENWRT_DIR/target/linux/msm89xx/patches/809-mac80211-enable-wcn36xx.patch
+        cp -a $CONTAINER_REPO_DIR/msm89xx $CONTAINER_OPENWRT_DIR/target/linux/
     "
 
     # Reinstall project packages.
@@ -355,6 +354,25 @@ sync_bsp() {
                       \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches/\"; \
             fi; \
         done
+    "
+
+    # Sync openwrt-overlay into the OpenWrt tree if present.
+    docker_exec sh -c "
+        if [ -d \"$CONTAINER_REPO_DIR/openwrt-overlay\" ]; then
+            cp -a \"$CONTAINER_REPO_DIR/openwrt-overlay/.\" \"$CONTAINER_OPENWRT_DIR/\"
+        fi
+    "
+
+    # Apply OpenWrt source-tree patches if present.
+    docker_exec sh -c "
+        if [ -d \"$CONTAINER_REPO_DIR/openwrt-patches\" ]; then
+            for p in \"$CONTAINER_REPO_DIR/openwrt-patches\"/*.patch; do
+                [ -f \"\$p\" ] || continue
+                if patch -p1 -d \"$CONTAINER_OPENWRT_DIR\" --dry-run < \"\$p\" >/dev/null 2>&1; then
+                    patch -p1 -d \"$CONTAINER_OPENWRT_DIR\" < \"\$p\"
+                fi
+            done
+        fi
     "
 
     # Apply ModemManager compatibility fix if the file is present.
