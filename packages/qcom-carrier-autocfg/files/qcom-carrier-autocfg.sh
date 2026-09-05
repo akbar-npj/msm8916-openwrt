@@ -397,7 +397,7 @@ check_and_flush_radio_cache() {
 			while [ "$b_idx" -le "$bearer_count" ]; do
 				b_path=$(echo "$modem_kv" | awk -F': ' "/modem.generic.bearers.value\\[$b_idx\\]/ {print \$2}" | tr -d ' \r\n')
 				if [ -n "$b_path" ]; then
-					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '/bearer.properties.apn/ {print $2}' | tr -d " '\r\n")
+					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '$1 == "bearer.properties.apn" {print $2}' | tr -d " '\r\n-")
 					if [ -n "$b_apn" ] && [ "$b_apn" != "$target_apn" ]; then
 						log "Bearer APN mismatch in bearer $b_path: cached='$b_apn', SIM requires='$target_apn'"
 						need_flush=1
@@ -410,9 +410,13 @@ check_and_flush_radio_cache() {
 	fi
 
 	if [ "$need_flush" = "1" ]; then
-		log "Radio cache mismatch confirmed. Flushing all bearer and baseband radio caches for '$carrier_name' (APN: $target_apn)..."
+		log "Radio cache mismatch confirmed. Flushing bearer cache for '$carrier_name' (APN: $target_apn)..."
 		flush_bearer_cache "$m_path" "$target_apn" "$target_iptype"
-		reset_baseband_cache "$m_path"
+		local m_state
+		m_state=$(mmcli -m "$m_path" -K 2>/dev/null | awk -F': ' '$1 == "modem.generic.state" {print $2}' | tr -d ' \r\n')
+		if [ "$m_state" != "connected" ]; then
+			reset_baseband_cache "$m_path"
+		fi
 		return 0
 	else
 		log "Radio cache fully matches SIM requirements for '$carrier_name'. No cache flush needed."

@@ -1,5 +1,5 @@
---- a/drivers/net/wwan/qcom_bam_dmux.c
-+++ b/drivers/net/wwan/qcom_bam_dmux.c
+--- a/drivers/net/wwan/qcom_bam_dmux.c	2026-06-19 11:42:39.000000000 +0000
++++ b/drivers/net/wwan/qcom_bam_dmux.c	2026-09-05 22:20:13.858661225 +0000
 @@ -14,6 +14,7 @@
  #include <linux/mod_devicetable.h>
  #include <linux/module.h>
@@ -8,7 +8,7 @@
  #include <linux/platform_device.h>
  #include <linux/pm_runtime.h>
  #include <linux/soc/qcom/smem_state.h>
-@@ -200,6 +201,10 @@ static bool bam_dmux_skb_dma_submit_tx(
+@@ -200,6 +201,10 @@
  	desc->callback = bam_dmux_tx_callback;
  	desc->callback_param = skb_dma;
  	desc->cookie = dmaengine_submit(desc);
@@ -19,7 +19,7 @@
  	return true;
  }
  
-@@ -307,7 +312,7 @@ static int bam_dmux_tx_prepare_skb(stru
+@@ -307,7 +312,7 @@
  				   struct sk_buff *skb)
  {
  	unsigned int head = needed_room(skb_headroom(skb), BAM_DMUX_HDR_SIZE);
@@ -28,21 +28,29 @@
  	unsigned int tail = needed_room(skb_tailroom(skb), pad);
  	struct bam_dmux_hdr *hdr;
  	int ret;
-@@ -359,6 +364,8 @@ static netdev_tx_t bam_dmux_netdev_star
+@@ -337,6 +342,7 @@
+ 	struct bam_dmux_netdev *bndev = netdev_priv(netdev);
+ 	struct bam_dmux *dmux = bndev->dmux;
+ 	struct bam_dmux_skb_dma *skb_dma;
++	unsigned int len = skb->len;
+ 	int active, ret;
+ 
+ 	skb_dma = bam_dmux_tx_queue(dmux, skb);
+@@ -359,6 +365,8 @@
  		if (!atomic_long_fetch_or(BIT(skb_dma - dmux->tx_skbs),
  					  &dmux->tx_deferred_skb))
  			queue_pm_work(&dmux->tx_wakeup_work);
 +		DEV_STATS_INC(netdev, tx_packets);
-+		DEV_STATS_ADD(netdev, tx_bytes, skb->len);
++		DEV_STATS_ADD(netdev, tx_bytes, len);
  		return NETDEV_TX_OK;
  	}
  
-@@ -366,9 +373,12 @@ static netdev_tx_t bam_dmux_netdev_star
+@@ -366,9 +374,12 @@
  		goto drop;
  
  	dma_async_issue_pending(dmux->tx);
 +	DEV_STATS_INC(netdev, tx_packets);
-+	DEV_STATS_ADD(netdev, tx_bytes, skb->len);
++	DEV_STATS_ADD(netdev, tx_bytes, len);
  	return NETDEV_TX_OK;
  
  drop:
@@ -50,7 +58,7 @@
  	bam_dmux_tx_done(skb_dma);
  	dev_kfree_skb_any(skb);
  	return NETDEV_TX_OK;
-@@ -536,6 +546,8 @@ static void bam_dmux_cmd_data(struct bam
+@@ -536,6 +547,8 @@
  		break;
  	}
  
@@ -59,7 +67,7 @@
  	netif_receive_skb(skb);
  }
  
-@@ -620,6 +632,10 @@ static bool bam_dmux_power_on(struct bam
+@@ -620,6 +633,10 @@
  		.direction = DMA_DEV_TO_MEM,
  		.src_maxburst = BAM_DMUX_BUFFER_SIZE,
  	};
@@ -70,7 +78,7 @@
  	int i;
  
  	dmux->rx = dma_request_chan(dev, "rx");
-@@ -630,6 +646,16 @@ static bool bam_dmux_power_on(struct bam
+@@ -630,6 +647,16 @@
  	}
  	dmaengine_slave_config(dmux->rx, &dma_rx_conf);
  
@@ -87,7 +95,7 @@
  	for (i = 0; i < BAM_DMUX_NUM_SKB; i++) {
  		if (!bam_dmux_skb_dma_queue_rx(&dmux->rx_skbs[i], GFP_KERNEL))
  			return false;
-@@ -671,6 +697,10 @@ static void bam_dmux_power_off(struct ba
+@@ -671,6 +698,10 @@
  	}
  
  	bam_dmux_free_skbs(dmux->rx_skbs, DMA_FROM_DEVICE);
@@ -98,7 +106,7 @@
  }
  
  static irqreturn_t bam_dmux_pc_irq(int irq, void *data)
-@@ -681,13 +711,17 @@ static irqreturn_t bam_dmux_pc_irq(int i
+@@ -681,13 +712,17 @@
  	dev_dbg(dmux->dev, "pc: %u\n", new_state);
  
  	if (new_state) {
@@ -118,7 +126,7 @@
  	}
  
  	dmux->pc_state = new_state;
-@@ -761,6 +795,13 @@ static int __maybe_unused bam_dmux_runti
+@@ -761,6 +796,13 @@
  		bam_dmux_runtime_suspend(dev);
  		return -ENXIO;
  	}
@@ -132,7 +140,7 @@
  
  	return 0;
  }
-@@ -819,6 +860,12 @@ static int bam_dmux_probe(struct platfor
+@@ -819,6 +861,12 @@
  	pm_runtime_set_autosuspend_delay(dev, BAM_DMUX_AUTOSUSPEND_DELAY);
  	pm_runtime_use_autosuspend(dev);
  	pm_runtime_enable(dev);

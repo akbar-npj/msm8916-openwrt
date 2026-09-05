@@ -210,19 +210,31 @@ set_blue_led beacon
 LAST=""
 
 # Keepalive and Safe Recovery Architecture parameters
-KEEPALIVE_INTERVAL=2
+KEEPALIVE_INTERVAL=60
 KEEPALIVE_TIMER=0
 LAST_RX_PKTS=0
 LAST_TX_PKTS=0
 FAIL_COUNT=0
-MAX_FAILS=5
-COOLDOWN_SECS=60
+MAX_FAILS=15
+COOLDOWN_SECS=300
 LAST_RECOVERY=0
 LOCKFILE="/var/run/modem-recovery.lock"
 
 safe_reconnect_modem() {
         local reason="$1"
         local now="$(date +%s)"
+
+        # If modem is still attached to cellular packet service, do not tear down bearer on transient ping drop
+        local m_idx="${MODEM_INDEX:-0}"
+        local ps_state=""
+        if [ -n "$m_idx" ]; then
+                ps_state="$(mmcli -m "$m_idx" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.packet-service-state/ {print $2}' | tr -d ' \r\n')"
+        fi
+        if [ "$ps_state" = "attached" ] && [ "$reason" = "ping heartbeat stalled" ]; then
+                logger -t modem-recovery "Modem is attached to 3GPP; transient ping drop ignored to avoid tearing down active LTE bearer."
+                FAIL_COUNT=0
+                return 0
+        fi
 
         if [ $((now - LAST_RECOVERY)) -lt "$COOLDOWN_SECS" ]; then
                 logger -t modem-recovery "Recovery skipped: within cooldown period ($((now - LAST_RECOVERY))s < ${COOLDOWN_SECS}s)"
@@ -306,8 +318,8 @@ run_watchdog_cycle() {
 
                 if [ "$FAIL_COUNT" -gt 0 ] || [ "$KEEPALIVE_TIMER" -ge "$KEEPALIVE_INTERVAL" ]; then
                         KEEPALIVE_TIMER=0
-                        # Send lightweight 1-packet heartbeat (1s timeout) to maintain active RRC_CONNECTED
-                        if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                        # Send lightweight 1-packet heartbeat (3s timeout for cellular latency)
+                        if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
                                 if [ "$FAIL_COUNT" -gt 0 ]; then
                                         logger -t modem-keepalive "Modem connectivity restored after $FAIL_COUNT failed probe(s)."
                                 fi
