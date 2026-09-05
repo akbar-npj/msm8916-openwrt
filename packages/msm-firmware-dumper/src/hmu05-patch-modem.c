@@ -184,21 +184,26 @@ int main(int argc, char *argv[]) {
     }
     fclose(f);
 
-    /* Check if already patched at 0x001117e0 (00 c4 00 78) */
-    static const uint8_t patch_sleepmgr[8] = { 0x00, 0xc4, 0x00, 0x78, 0x00, 0xc0, 0x9f, 0x52 };
-    static const uint8_t patch_errfatal[4] = { 0x00, 0xc0, 0x9f, 0x52 };
+    /* Check if patched at 0x001117e0 (00 c4 00 78).
+     * In pure software mode, no binary patches are applied.
+     * If patched firmware is present from prior runs, restore stock Hexagon opcodes.
+     */
+    static const uint8_t stock_sleepmgr[8] = { 0x08, 0xc0, 0x9d, 0xa0, 0x0c, 0xc0, 0x9f, 0xa0 };
+    static const uint8_t stock_errfatal[4] = { 0x08, 0xc0, 0x9d, 0xa0 };
+    static const uint8_t patch_sleepmgr[4] = { 0x00, 0xc4, 0x00, 0x78 };
 
-    if (memcmp(&b16_data[0x001117e0], patch_sleepmgr, 4) == 0) {
-        /* Already patched */
+    if (memcmp(&b16_data[0x001117e0], patch_sleepmgr, 4) != 0) {
+        /* Firmware is already stock / unpatched */
         free(b16_data);
+        printf("HMU05 modem firmware is unpatched stock. Pure software mode active.\n");
         return 0;
     }
 
-    /* Apply patches in b16 */
-    memcpy(&b16_data[0x001117e0], patch_sleepmgr, 8);
-    memcpy(&b16_data[0x005f2150], patch_errfatal, 4);
+    printf("Restoring stock unpatched modem firmware for HMU05...\n");
+    memcpy(&b16_data[0x001117e0], stock_sleepmgr, 8);
+    memcpy(&b16_data[0x005f2150], stock_errfatal, 4);
 
-    /* Write back modem.b16 */
+    /* Write back stock modem.b16 */
     f = fopen(b16_path, "wb");
     if (!f) { free(b16_data); return 1; }
     if (fwrite(b16_data, 1, b16_size, f) != b16_size) {
@@ -208,7 +213,7 @@ int main(int argc, char *argv[]) {
     }
     fclose(f);
 
-    /* Compute SHA-256 of patched modem.b16 */
+    /* Compute SHA-256 of restored stock modem.b16 */
     sha256_ctx ctx;
     sha256_init(&ctx);
     sha256_update(&ctx, b16_data, b16_size);
@@ -239,6 +244,6 @@ int main(int argc, char *argv[]) {
         fclose(f);
     }
 
-    printf("Applied No-Sleep patch to HMU05 modem firmware\n");
+    printf("HMU05 modem firmware restored to 100%% stock (unpatched).\n");
     return 0;
 }
