@@ -83,3 +83,16 @@
  	}
  
  	dmux->pc_state = new_state;
+@@ -819,6 +842,12 @@ static int bam_dmux_probe(struct platfor
+ 	pm_runtime_set_autosuspend_delay(dev, BAM_DMUX_AUTOSUSPEND_DELAY);
+ 	pm_runtime_use_autosuspend(dev);
+ 	pm_runtime_enable(dev);
++	/*
++	 * HMU05 / MSM8916: Prevent runtime autosuspend before modem data channels
++	 * ever open. Moves BAM-DMUX "always active / no autosuspend" directly to
++	 * driver probe time.
++	 */
++	pm_runtime_forbid(dev);
+ 
+ 	ret = devm_request_threaded_irq(dev, pc_ack_irq, NULL, bam_dmux_pc_ack_irq,
+ 					IRQF_ONESHOT, NULL, dmux);
