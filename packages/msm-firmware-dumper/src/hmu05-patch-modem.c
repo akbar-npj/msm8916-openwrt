@@ -1,7 +1,7 @@
 /*
  * Device-specific No-Sleep modem firmware patcher for Generic HMU05
  *
- * Disables LTE ML1 sleep manager and ERR_FATAL in modem.b16 and updates
+ * Disables LTE ML1 sleep manager in modem.b16 and updates
  * the SHA-256 digest in modem.mdt and modem.b01.
  */
 
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
     b16_size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    if (b16_size < 0x005f2154) {
+    if (b16_size < 0x001117e8) {
         fclose(f);
         return 0;
     }
@@ -186,7 +186,6 @@ int main(int argc, char *argv[]) {
 
     /* Check if already patched at 0x001117e0 (00 c4 00 78) */
     static const uint8_t patch_sleepmgr[8] = { 0x00, 0xc4, 0x00, 0x78, 0x00, 0xc0, 0x9f, 0x52 };
-    static const uint8_t patch_errfatal[4] = { 0x00, 0xc0, 0x9f, 0x52 };
 
     if (memcmp(&b16_data[0x001117e0], patch_sleepmgr, 4) == 0) {
         /* Already patched */
@@ -194,9 +193,8 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    /* Apply patches in b16 */
+    /* Apply patch in b16: disable 900s DRX sleep timer in lte_ml1_sleepmgr_cfg */
     memcpy(&b16_data[0x001117e0], patch_sleepmgr, 8);
-    memcpy(&b16_data[0x005f2150], patch_errfatal, 4);
 
     /* Write back modem.b16 */
     f = fopen(b16_path, "wb");
