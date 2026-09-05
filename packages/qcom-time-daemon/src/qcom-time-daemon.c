@@ -248,9 +248,9 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 
 /*
  * Android-Equivalent Handshake State Machine:
- * Step 1: Register for indications (0x0025). On failure, ABORT immediately.
- * Step 2: Synchronously set ATS_USER (0x0020) with 5s timeout & explicit success check.
- * Step 3: Only on verified baseband acceptance, create marker and set STATE_SYNCHRONIZED.
+ * Stock Android MSM8916 time_daemon implementation (reverse-engineered FUN_000113d0):
+ * Synchronously sets ATS_USER (0x0020) with 5-second timeout and explicit success check.
+ * (Baseband rejects 0x0025 with QMI_ERR_ENCODING on MSM8916; stock Android only uses 0x0020).
  */
 static int run_handshake_state_machine(int sock)
 {
@@ -259,33 +259,10 @@ static int run_handshake_state_machine(int sock)
 	if (!modem_connected || modem_port == 0)
 		return -1;
 
-	/* Step 1: Register Indications (0x0025) */
-	current_state = STATE_REGISTERING_IND;
-	syslog(LOG_INFO, "[QMI-TIME] (State 1/2) Registering for modem time indications (0x0025)...");
-
-	struct time_reg_ind_req reg_req;
-	struct time_reg_ind_resp reg_resp;
-	memset(&reg_req, 0, sizeof(reg_req));
-	memset(&reg_resp, 0, sizeof(reg_resp));
-	reg_req.register_indications = 1;
-
-	ret = qmi_send_sync_transaction(sock, modem_node, modem_port,
-					QMI_TIME_REG_IND_REQ, &reg_req, time_reg_ind_req_ei,
-					&reg_resp, time_reg_ind_resp_ei, QMI_SYNC_TIMEOUT_MS);
-	if (ret < 0 || reg_resp.result.result != QMI_RESULT_SUCCESS_V01 || reg_resp.result.error != QMI_ERR_NONE_V01) {
-		syslog(LOG_ERR, "[QMI-TIME] Registration for indications FAILED (ret=%d, res=%u, err=%u). ABORTING handshake!",
-		       ret, reg_resp.result.result, reg_resp.result.error);
-		current_state = STATE_FAILED;
-		unlink(SYNC_MARKER_FILE);
-		return -1;
-	}
-
-	syslog(LOG_INFO, "[QMI-TIME] Indication registration ACKed by modem (result=SUCCESS).");
-
-	/* Step 2: Set ATS_USER Synchronously (0x0020) */
+	/* Synchronously Set ATS_USER (0x0020) */
 	current_state = STATE_SYNCING_ATS_USER;
 	int64_t genoff = calculate_android_generic_offset();
-	syslog(LOG_INFO, "[QMI-TIME] (State 2/2) Synchronously setting ATS_USER (base=2, offset=%lld ms)...",
+	syslog(LOG_INFO, "[QMI-TIME] Synchronously setting ATS_USER (base=2, offset=%lld ms)...",
 	       (long long)genoff);
 
 	struct time_genoff_set_req set_req;
@@ -293,7 +270,6 @@ static int run_handshake_state_machine(int sock)
 	memset(&set_req, 0, sizeof(set_req));
 	memset(&set_resp, 0, sizeof(set_resp));
 	set_req.base = ATS_USER;
-	set_req.unit = TIME_UNIT_MSEC;
 	set_req.offset = (uint64_t)genoff;
 
 	ret = qmi_send_sync_transaction(sock, modem_node, modem_port,

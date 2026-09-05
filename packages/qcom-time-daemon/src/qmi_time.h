@@ -58,17 +58,16 @@ enum time_genoff_opr {
 
 /*
  * QMI_TIME_GENOFF_SET_REQ (0x0020)
- * Request: TLV 0x01 (16 bytes)
+ * Request: TLV 0x01 (4 bytes: base) + TLV 0x02 (8 bytes: offset)
  */
 struct time_genoff_set_req {
-	uint32_t base;		/* enum time_genoff_base (e.g. ATS_TOD or ATS_USER) */
-	uint32_t unit;		/* enum time_unit (TIME_UNIT_MSEC = 0) */
-	uint64_t offset;	/* Milliseconds since Unix epoch (Jan 1 1970 00:00:00 UTC) */
+	uint32_t base;		/* enum time_genoff_base (TLV 0x01) */
+	uint64_t offset;	/* Milliseconds since Jan 6 1980 (GPS epoch) (TLV 0x02) */
 };
 
 /*
  * QMI_TIME_GENOFF_SET_RESP (0x0020)
- * Response: TLV 0x02 (4 bytes)
+ * Response: TLV 0x02 (4 bytes: result)
  */
 struct time_genoff_set_resp {
 	struct qmi_response_type_v01 result;
@@ -76,48 +75,28 @@ struct time_genoff_set_resp {
 
 /*
  * QMI_TIME_GENOFF_GET_REQ (0x0021)
- * Request: TLV 0x01 (4 bytes)
+ * Request: TLV 0x01 (4 bytes: base)
  */
 struct time_genoff_get_req {
-	uint32_t base;		/* enum time_genoff_base */
+	uint32_t base;		/* enum time_genoff_base (TLV 0x01) */
 };
 
 /*
  * QMI_TIME_GENOFF_GET_RESP (0x0021)
- * Response: TLV 0x02 (4 bytes) + TLV 0x10 (16 bytes)
+ * Response: TLV 0x02 (result) + TLV 0x03 (base) + TLV 0x04 (offset)
  */
 struct time_genoff_get_resp {
 	struct qmi_response_type_v01 result;
-	bool offset_valid;
 	uint32_t base;
-	uint32_t unit;
-	uint32_t operation;
 	uint64_t offset;
 };
 
 /*
- * QMI_TIME_REG_IND_REQ (0x0025)
- * Request: TLV 0x01 (1 byte)
- */
-struct time_reg_ind_req {
-	uint8_t register_indications;	/* 1 to enable, 0 to disable */
-};
-
-/*
- * QMI_TIME_REG_IND_RESP (0x0025)
- */
-struct time_reg_ind_resp {
-	struct qmi_response_type_v01 result;
-};
-
-/*
- * QMI_TIME_TOD_IND (0x0029)
- * Indication: TLV 0x10 (16 bytes)
+ * QMI_TIME_UPDATE_IND (0x0026 - 0x002F)
+ * Indication: TLV 0x01 (4 bytes: base) + TLV 0x02 (8 bytes: offset)
  */
 struct time_tod_ind {
 	uint32_t base;
-	uint32_t unit;
-	uint32_t operation;
 	uint64_t offset;
 };
 

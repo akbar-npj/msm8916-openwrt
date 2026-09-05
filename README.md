@@ -16,7 +16,7 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
 * **⚡ Plug-and-Play USB Networking**: High-speed **CDC NCM Ethernet** automatically bound to `br-lan` at `192.168.8.1/24` with a built-in DHCP server (avoids `192.168.1.x` subnet collisions with upstream home routers).
 * **📟 Built-in USB Serial Console**: Instant root shell on `/dev/ttyACM0` (115200 baud) over USB via CDC ACM for zero-setup terminal access, debugging, and recovery.
 * **📶 First-Boot Wi-Fi Auto-Start**: Automatically extracts Qualcomm WCNSS blobs, starts the remoteproc in-place, binds the physical radio path, and broadcasts an open `OpenWrt` 2.4 GHz AP (Channel 1, 2.412 GHz) on clean first boot.
-* **🌐 4G LTE Cellular Data**: Native **ModemManager** integration with protocol-level auto-enable, safe empty PLMN home operator attachment, and continuous self-healing daemon monitoring (`modem-led-monitor`).
+* **🌐 4G LTE Cellular Data & Carrier Auto-Provisioning**: Native **ModemManager** integration with automatic SIM carrier detection (`qcom-carrier-autocfg`), dynamic APN and Qualcomm Carrier MBN deployment, safe empty PLMN home operator attachment, and continuous self-healing daemon monitoring (`modem-led-monitor`).
 * **💾 Permanent eMMC Storage**: Automated `/dev/mmcblk0p15` (`rootfs_data`) EXT4 formatting and mounting, with preinit filesystem checking and automatic safe repair using `e2fsck -p`, providing persistent overlay storage without unnecessarily formatting an existing filesystem.
 * **💡 Intuitive Hardware Status LEDs**:
 
@@ -191,6 +191,63 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 | **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (No encryption by default)  |
 | **EDL Recovery**         | `reboot-edl`                    | Qualcomm USB `05c6:9008`         |
 | **Fastboot Recovery**    | `reboot-fastboot`               | `fastboot devices`               |
+
+---
+
+## 📶 SIM Detection, Carrier Auto-Provisioning & Reboot Behavior
+
+When you plug in the modem stick with a SIM card inserted (or after swapping to a different cellular carrier), the stick will **automatically reboot once** after approximately 10–15 seconds of uptime.
+
+> [!NOTE]
+> **This one-time reboot is intentional, expected behavior—not a crash, panic, or bootloop.**
+
+### Why Does the Stick Reboot?
+
+1. **Qualcomm Carrier MBN (`mcfg_sw.mbn`) Architecture**:
+   Qualcomm Snapdragon 410 (MSM8916) modem baseband firmware runs a universal cellular binary (`MPSS.DPM.1.0`). Network-specific parameters—such as LTE Radio Resource Control (RRC) band priority matrices, Discontinuous Reception (DRX) paging timers, IMS/VoLTE profiles, and Evolved Packet Core (EPC) attach parameters—are packaged into signed Qualcomm **Carrier MBN files** (`mcfg_sw.mbn`).
+2. **Boot-Time Modem Firmware Initialization**:
+   The Qualcomm Hexagon QDSP6 v5 modem processor (`remoteproc0`) reads and loads `/lib/firmware/MCFG_SW.MBN` into baseband memory only during its low-level bootloader initialization phase. Mainline Linux kernel `remoteproc` does not support hot-reloading carrier MBN profiles into the running Hexagon DSP without restarting the subsystem.
+3. **Automated Provisioning (`qcom-carrier-autocfg`)**:
+   Upon detecting the SIM card's IMSI and MCC-MNC operator code via ModemManager, the background `carrier-autocfg` daemon matches the carrier profile against its APN and MBN database:
+   * If the currently deployed `/lib/firmware/MCFG_SW.MBN` does not match the optimal MBN profile for the detected carrier (e.g., on clean first boot or when switching between carriers such as Reliance Jio, Airtel, or ROW default), the daemon installs the matching `mcfg_sw.mbn` into `/lib/firmware/MCFG_SW.MBN`.
+   * It then safely syncs filesystems to eMMC and triggers an **automatic, one-time system reboot** (with a 3-second grace countdown) to allow the Hexagon DSP to initialize with the new carrier baseband configuration.
+
+### What Happens After the Reboot (Steady State)?
+
+* **No Further Reboots**: On the subsequent boot, `carrier-autocfg` inspects the SIM and compares the active `/lib/firmware/MCFG_SW.MBN` against the detected carrier profile. Because the file already matches (`cmp -s`), **no reboot occurs**.
+* **Automatic Data Attachment**: The daemon automatically configures `/etc/config/network` with the carrier's APN and IP stack (IPv4/IPv6), verifies clock synchronization with the Qualcomm QMI Time Daemon (`qcom-time-daemon`), and commands ModemManager to connect the 4G LTE bearer. The blue WAN LED lights up to indicate active cellular internet.
+
+### SIM Hot-Swapping Behavior
+
+* **Same Carrier / Same MBN Family**: If you insert a different SIM that uses the same carrier profile (or compatible ROW profile), `carrier-autocfg` flushes the baseband radio cache and network bearer dynamically—restoring data connectivity **without rebooting**.
+* **Different Carrier Family**: If you swap to a SIM that requires a different carrier MBN (e.g., swapping between Reliance Jio and Airtel/ROW), the device will perform a one-time reboot to reload the new baseband profile into the Hexagon DSP.
+
+### Monitoring Auto-Provisioning in Real Time
+
+You can observe carrier detection, profile matching, and MBN provisioning live via SSH or USB serial console (`/dev/ttyACM0`):
+
+```bash
+logread -f -e carrier-autocfg
+```
+
+**Example Log Output on Initial SIM Detection:**
+
+```text
+[carrier-autocfg] Started MSM8916 SIM Carrier Auto-Provisioning Engine
+[carrier-autocfg] Matched carrier in global APN database for MCC-MNC 405861
+[carrier-autocfg] Deploying Carrier MBN 'generic/apac/reliance/commerci/mcfg_sw.mbn' into /lib/firmware/MCFG_SW.MBN...
+[carrier-autocfg] Carrier MBN radio firmware updated for 'Reliance Jio'. Scheduling automatic reboot in 3 seconds to initialize Hexagon DSP...
+```
+
+**Example Log Output After Reboot (Steady State):**
+
+```text
+[carrier-autocfg] Matched carrier in global APN database for MCC-MNC 405861
+[carrier-autocfg] Active Carrier MBN already matches generic/apac/reliance/commerci/mcfg_sw.mbn.
+[carrier-autocfg] Boot-time carrier provisioning completed successfully. No reboot required.
+[carrier-autocfg] [QMI-TIME] Modem ATS_USER time sync verified before LTE attach.
+[carrier-autocfg] Requesting ModemManager bearer connection for APN 'jionet' (ipv4v6)...
+```
 
 ---
 
