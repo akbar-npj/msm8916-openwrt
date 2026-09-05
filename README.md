@@ -98,35 +98,66 @@ The OpenWrt-specific `reboot-edl` command is useful when the device is already r
 
 ---
 
-## ⚡ Installation & Flashing
+## ⚡ Flashing Firmware to Device
 
-### First-Time Flashing (Qualcomm EDL 9008 Mode)
+### 1. Putting the Device into Qualcomm EDL Mode (`05c6:9008`)
 
-1. Put the USB modem into **EDL Mode** using either:
+Put the USB modem into **Qualcomm Emergency Download (EDL) Mode** using any of the following methods:
+* Short the hardware **EDL test points** while plugging the stick into a USB port.
+* From Android shell (where ADB is available): `adb reboot edl`
+* From OpenWrt shell: `reboot-edl`
 
-   * the hardware EDL test points while plugging into USB,
-   * OpenWrt's `reboot-edl` command, or
-   * `adb reboot edl` where ADB is available.
-
-2. Verify the device is detected in EDL mode:
+Verify that the host detects the device in Qualcomm EDL mode:
 
 ```bash
 lsusb | grep 05c6:9008
+# Expected: 05c6:9008 Qualcomm HS-USB QDLoader 9008
 ```
 
-3. Flash the kernel and rootfs partitions using `edl` or `qdl`:
+---
+
+### Scenario A: Migrating from Stock Android to OpenWrt (Mandatory First-Time Flash Script)
+
+> [!CAUTION]
+> **Do NOT directly flash individual boot and rootfs partitions when migrating from stock Android.**
+> Stock Android devices have a completely different partition table (GPT) layout, different bootloader/firmware partitions, and critical radio/calibration data (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) that must be preserved. Directly flashing OpenWrt partitions over stock Android will cause bootloops, soft bricks, or permanent loss of IMEI, MAC addresses, and RF calibration.
+
+To migrate from stock Android to OpenWrt safely, you **MUST** use the automated flash script generated during compilation in `openwrt/bin/targets/msm89xx/msm8916/`:
 
 ```bash
-# Using edl:
+cd openwrt/bin/targets/msm89xx/msm8916/
+chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
+./openwrt-msm89xx-msm8916-<board>-flash.sh
+```
+
+#### What the Script Automatically Handles:
+
+* **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory.
+* **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely.
+* **Firmware Extraction & Flashing**: Extracts `aboot.mbn`, `hyp.mbn`, `rpm.mbn`, `sbl1.mbn`, and `tz.mbn` from the board's `*-firmware.zip` and flashes them to the newly repartitioned layout.
+* **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and safely erases `rootfs_data`.
+* **Partition Restoration**: Restores all previously backed-up calibration and radio partitions back to the device.
+* **Automatic Reboot**: Reboots the device straight into OpenWrt (`edl reset`).
+
+---
+
+### Scenario B: Updating or Re-Flashing an Existing OpenWrt Device
+
+If your device is already running OpenWrt and has already been repartitioned to the OpenWrt GPT layout:
+
+* **Recommended (Sysupgrade)**: Use the standard sysupgrade path to preserve configuration (see [Sysupgrade](#-sysupgrade)).
+* **Clean Re-flash via EDL**: If you need a clean re-flash via EDL without modifying the existing OpenWrt partition table:
+
+```bash
+# Flash kernel boot and rootfs partitions
 edl w boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
 edl w rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
+
+# Optional: erase persistent overlay to start completely clean
+edl e rootfs_data
+
+# Reboot the device
 edl reset
-```
-
-Or with `qdl`:
-
-```bash
-qdl --storage emmc prog_emmc_firehose_8916.mbn rawprogram_unsparse.xml patch0.xml
 ```
 
 ---
@@ -186,6 +217,8 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 | Service                  | Access Details                  | Default Credentials              |
 | :----------------------- | :------------------------------ | :------------------------------- |
 | **Web Interface (LuCI)** | `http://192.168.8.1`            | No password (set on first login) |
+| **Connectivity Watchdog**| LuCI: **Services $\to$ Watchcat**| Configurable auto-reboot watchdog|
+| **SMS Management**       | LuCI: **Services $\to$ SMS**    | View / Send SMS via Web UI       |
 | **SSH Terminal**         | `ssh root@192.168.8.1`          | No password required             |
 | **USB Serial Console**   | `screen /dev/ttyACM0 115200`    | Direct root shell                |
 | **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (No encryption by default)  |
