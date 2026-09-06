@@ -86,10 +86,7 @@ while true; do
             ping -c 1 -W 2 -I wwan0 "$KEEPALIVE_TARGET" >/dev/null 2>&1 || true
             RX_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
             if [ "$RX_POST" -gt "$RX_PRE" ]; then
-                # Only log periodically to avoid spamming syslog (once every 60s)
-                if [ $((NOW % 60)) -lt "$CHECK_INTERVAL" ]; then
-                    logger -t modem-keepalive "Keepalive verified: RX incremented ($RX_PRE -> $RX_POST) via $KEEPALIVE_TARGET"
-                fi
+                logger -t modem-keepalive "Keepalive verified: RX incremented ($RX_PRE -> $RX_POST) via $KEEPALIVE_TARGET"
             else
                 logger -t modem-keepalive "Keepalive warning: probe sent to $KEEPALIVE_TARGET but RX counter did not increment (RX=$RX_PRE)"
             fi
