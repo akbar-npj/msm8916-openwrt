@@ -17,9 +17,9 @@ start() {
 			;;
 	esac
 
-	logger -t hmu05-modem-pm "HMU05 runtime PM: locking control=on and disabling autosuspend (stock Android parity)"
+	logger -t hmu05-modem-pm "HMU05 runtime PM: enabling 30s cellular autosuspend (proven stability config)"
 	local bctrl="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
 	local bdelay="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/autosuspend_delay_ms"
-	[ -f "$bctrl" ] && echo on > "$bctrl" 2>/dev/null || true
-	[ -f "$bdelay" ] && echo -1 > "$bdelay" 2>/dev/null || true
+	[ -f "$bctrl" ] && echo auto > "$bctrl" 2>/dev/null || true
+	[ -f "$bdelay" ] && echo 30000 > "$bdelay" 2>/dev/null || true
 }
