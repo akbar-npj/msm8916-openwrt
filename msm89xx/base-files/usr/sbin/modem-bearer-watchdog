@@ -24,6 +24,10 @@ LAST_RX=0
 STALL_COUNT=0
 LAST_KEEPALIVE=0
 LAST_RECOVERY=0
+RECOVERY_ATTEMPTS=0
+MAX_RECOVERY_ATTEMPTS=1
+EXTENDED_COOLDOWN_SECS=300
+RECOVERY_FAILED=0
 
 logger -t modem-stall-watchdog "Started modem bearer stall watchdog and carrier keepalive service (interval=${KEEPALIVE_INTERVAL}s)"
 
@@ -133,7 +137,7 @@ while true; do
                 fi
             fi
 
-            # Check cooldown period
+            # Check cooldown period and attempt limit
             NOW=$(date +%s)
             if [ $((NOW - LAST_RECOVERY)) -lt "$COOLDOWN_SECS" ]; then
                 logger -t modem-stall-watchdog "Recovery skipped: within cooldown period ($((NOW - LAST_RECOVERY))s < ${COOLDOWN_SECS}s)"
@@ -141,18 +145,37 @@ while true; do
                 continue
             fi
 
-            # Execute recovery under shared lock
-            (
-                flock -x 200
+            if [ "$RECOVERY_FAILED" = "1" ]; then
+                # Recovery already attempted and failed; enforce extended cooldown (300s)
+                if [ $((NOW - LAST_RECOVERY)) -lt "$EXTENDED_COOLDOWN_SECS" ]; then
+                    logger -t modem-stall-watchdog "Recovery halted (persistent zero RX): within extended cooldown ($((NOW - LAST_RECOVERY))s < ${EXTENDED_COOLDOWN_SECS}s)"
+                    sleep "$CHECK_INTERVAL"
+                    continue
+                else
+                    # Reset failure flag after extended cooldown to permit one fresh attempt
+                    RECOVERY_FAILED=0
+                    RECOVERY_ATTEMPTS=0
+                fi
+            fi
 
-                # Log comprehensive telemetry
+            # Execute recovery under shared lock (preserve variables in main shell)
+            exec 200>"$LOCKFILE"
+            flock -x 200
+
+                # 1. Capture comprehensive NAS serving-cell, system, and signal telemetry
                 WDS_DORMANCY=$(qmicli -p -d /dev/wwan0qmi0 --wds-get-dormancy-status 2>/dev/null | awk -F"'" '/Dormancy Status:/ {print $2}')
-                BEARER_ID=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.bearers/ {print $2}' | tr -d ' \r\n')
                 CELL_ID=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info 2>/dev/null | awk -F"'" '/Global Cell ID:/ {print $2}')
-                logger -t modem-stall-watchdog "User-plane stall confirmed (${STALL_COUNT}s). Telemetry: WDS dormancy='${WDS_DORMANCY:-unknown}', Bearer='${BEARER_ID:-none}', Cell ID='${CELL_ID:-unknown}', TX=$CUR_TX, RX=$CUR_RX"
+                PHYS_CELL=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info 2>/dev/null | awk -F"'" '/Physical Cell ID:/ {print $2}' | head -n 1)
+                EARFCN=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info 2>/dev/null | awk -F"'" '/Absolute RF Channel Number:/ {print $2}')
+                SIG_RSRP=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info 2>/dev/null | awk -F"'" '/RSRP:/ {print $2}')
+                SIG_SNR=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info 2>/dev/null | awk -F"'" '/SNR:/ {print $2}')
+                PREF_PATH=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-system-info 2>/dev/null | awk -F"'" '/Preferred data path:/ {print $2}' | head -n 1)
+                BEARER_ID=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.bearers/ {print $2}' | tr -d ' \r\n')
 
-                # Stage 1: Attempt wds-go-active
-                logger -t modem-stall-watchdog "Stage 1 recovery: executing 'qmicli -d /dev/wwan0qmi0 --wds-go-active'..."
+                logger -t modem-stall-watchdog "User-plane stall confirmed (${STALL_COUNT}s). Telemetry: WDS dormancy='${WDS_DORMANCY:-unknown}', Cell ID='${CELL_ID:-unknown}', PhysCell='${PHYS_CELL:-unknown}', EARFCN='${EARFCN:-unknown}', RSRP='${SIG_RSRP:-unknown}', SNR='${SIG_SNR:-unknown}', PrefDataPath='${PREF_PATH:-unknown}', Bearer='${BEARER_ID:-none}', TX=$CUR_TX, RX=$CUR_RX"
+
+                # 2. Stage 1: Call wds-go-active once
+                logger -t modem-stall-watchdog "Stage 1 recovery: executing 'qmicli -p -d /dev/wwan0qmi0 --wds-go-active'..."
                 GO_ACTIVE_RES=$(qmicli -p -d /dev/wwan0qmi0 --wds-go-active 2>&1)
                 GO_ACTIVE_RC=$?
                 logger -t modem-stall-watchdog "Result of wds-go-active: rc=$GO_ACTIVE_RC, output='${GO_ACTIVE_RES}'"
@@ -175,10 +198,15 @@ while true; do
 
                 if [ "$WAKE_RECOVERED" -eq 1 ]; then
                     logger -t modem-stall-watchdog "Stage 1 SUCCESS: RX traffic successfully recovered via wds-go-active. No network teardown required."
+                    STALL_COUNT=0
+                    RECOVERY_ATTEMPTS=0
+                    RECOVERY_FAILED=0
                 else
-                    # Stage 2: Serialized ifdown -> short delay -> ifup
-                    logger -t modem-stall-watchdog "Stage 1 insufficient (RX did not recover). Escalating to Stage 2: serialized ifdown modem -> short delay -> ifup modem..."
-                    ifdown modem
+                    # 3. Stage 2: Emulate Android's data-call deactivation
+                    logger -t modem-stall-watchdog "Stage 1 insufficient (RX remained frozen). Escalating to Stage 2: emulating clean data-call deactivation..."
+
+                    # 3a. Disconnect netifd first to take control and stop auto-restart loop
+                    ubus call network.interface.modem down
 
                     # Wait for netifd teardown
                     i=0
@@ -191,10 +219,26 @@ while true; do
                         i=$((i + 1))
                     done
 
-                    # Short settling gap
-                    sleep 3
+                    # 3b. Stop the specific WDS data bearer(s) in ModemManager
+                    INIT_BEARER=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.eps.initial-bearer/ {print $2}' | tr -d ' \r\n')
+                    for b in $(mmcli -m any --output-keyvalue 2>/dev/null | grep -o '/org/freedesktop/ModemManager1/Bearer/[0-9]*'); do
+                        if [ -n "$INIT_BEARER" ] && [ "$b" = "$INIT_BEARER" ]; then
+                            continue
+                        fi
+                        logger -t modem-stall-watchdog "Disconnecting specific WDS bearer: $b"
+                        mmcli -b "$b" --disconnect 2>/dev/null || true
+                        # 3c. Delete the old ModemManager bearer object
+                        logger -t modem-stall-watchdog "Deleting obsolete ModemManager bearer: $b"
+                        mmcli -m any --delete-bearer="$b" 2>/dev/null || true
+                    done
 
-                    ifup modem
+                    # 3d. Wait for the old IP/context to disappear
+                    ip -4 addr flush dev wwan0 2>/dev/null || true
+                    sleep 2
+
+                    # 3e. Create exactly one new bearer via netifd
+                    logger -t modem-stall-watchdog "Creating exactly one new bearer via netifd ifup..."
+                    ubus call network.interface.modem up
 
                     # Wait for netifd bringup
                     i=0
@@ -206,9 +250,63 @@ while true; do
                         i=$((i + 1))
                     done
 
-                    logger -t modem-stall-watchdog "Stage 2 completed: serialized ifdown/ifup finished."
+                    # 3f. Verify RX traffic before declaring recovery
+                    NEW_BEARER=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.bearers/ {print $2}' | tr -d ' \r\n')
+                    NEW_IP=$(ip -4 addr show dev wwan0 2>/dev/null | awk '/inet / {print $2}')
+                    logger -t modem-stall-watchdog "New bearer created: Bearer='${NEW_BEARER:-none}', IP='${NEW_IP:-none}'. Verifying RX traffic..."
+
+                    RX_RESTORED=0
+                    i=0
+                    while [ "$i" -lt 10 ]; do
+                        sleep 1
+                        RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                        if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                            RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                            if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
+                                RX_RESTORED=1
+                                break
+                            fi
+                        fi
+                        i=$((i + 1))
+                    done
+
+                    if [ "$RX_RESTORED" -eq 1 ]; then
+                        logger -t modem-stall-watchdog "Stage 2 SUCCESS: RX traffic successfully restored on new bearer ($NEW_BEARER)."
+                        RECOVERY_ATTEMPTS=0
+                        RECOVERY_FAILED=0
+                        STALL_COUNT=0
+                    else
+                        RECOVERY_ATTEMPTS=$((RECOVERY_ATTEMPTS + 1))
+                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: New bearer $NEW_BEARER established but RX remains 0 (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
+                        if [ "$RECOVERY_ATTEMPTS" -ge "$MAX_RECOVERY_ATTEMPTS" ]; then
+                            RECOVERY_FAILED=1
+                            logger -t modem-stall-watchdog "HALTING further recovery attempts to prevent bearer churn. Preserving diagnostic telemetry."
+                            {
+                                echo "=== MODEM STALL DIAGNOSTIC CAPTURE ==="
+                                echo "Timestamp: $(date)"
+                                echo "Uptime: $(uptime)"
+                                echo "--- REMOTECPROC STATE ---"
+                                cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state
+                                echo "--- NAS SYSTEM INFO ---"
+                                qmicli -p -d /dev/wwan0qmi0 --nas-get-system-info
+                                echo "--- NAS SERVING SYSTEM ---"
+                                qmicli -p -d /dev/wwan0qmi0 --nas-get-serving-system
+                                echo "--- NAS CELL LOCATION ---"
+                                qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info
+                                echo "--- NAS SIGNAL INFO ---"
+                                qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info
+                                echo "--- WDS PACKET SERVICE STATUS ---"
+                                qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-service-status
+                                echo "--- WDS PACKET STATISTICS ---"
+                                qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-statistics
+                                echo "--- MODEMMANAGER STATUS ---"
+                                mmcli -m any
+                            } > /tmp/modem_stall_diagnostics.log 2>&1
+                            logger -t modem-stall-watchdog "Diagnostic snapshot saved to /tmp/modem_stall_diagnostics.log."
+                        fi
+                    fi
                 fi
-            ) 200>"$LOCKFILE"
+            flock -u 200
 
             LAST_RECOVERY=$(date +%s)
             LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
