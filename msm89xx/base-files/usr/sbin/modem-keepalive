@@ -1,0 +1,164 @@
+#!/bin/sh
+#
+# Qualcomm MSM8916 Pure-Software Cellular Keepalive & Non-Destructive Recovery Service
+#
+# Provides traffic-aware user-plane keepalive probes and non-destructive serialized
+# bearer recovery to prevent carrier eNodeB DRB de-scheduling on 100% stock baseband firmware.
+#
+# Copyright (c) 2026 OpenWrt MSM8916 Project
+# SPDX-License-Identifier: BSD-3-Clause
+#
+
+. /lib/functions.sh
+
+CONFIG="modem-keepalive"
+ENABLED=1
+INTERFACE="modem"
+TARGET="1.1.1.1"
+INTERVAL=2
+TRAFFIC_THRESH=1
+FAIL_THRESH=3
+RECOVERY_COOLDOWN=180
+LOG_TELEMETRY=0
+
+load_config() {
+	config_load "$CONFIG" 2>/dev/null || return 0
+	config_get_bool ENABLED general enabled 1
+	config_get INTERFACE general interface "modem"
+	config_get TARGET general target "1.1.1.1"
+	config_get INTERVAL general interval 2
+	config_get TRAFFIC_THRESH general traffic_threshold 1
+	config_get FAIL_THRESH general fail_threshold 3
+	config_get RECOVERY_COOLDOWN general recovery_cooldown 180
+	config_get_bool LOG_TELEMETRY general log_telemetry 0
+}
+
+load_config
+
+[ "$ENABLED" -eq 1 ] || {
+	logger -t modem-keepalive "Service disabled via /etc/config/$CONFIG; exiting."
+	exit 0
+}
+
+DEV="wwan0"
+LAST_RX=0
+LAST_TX=0
+CONSECUTIVE_FAILS=0
+LAST_RECOVERY=0
+
+get_monotonic_sec() {
+	cut -d. -f1 /proc/uptime 2>/dev/null || date +%s
+}
+
+is_interface_up() {
+	local status="$(ubus call network.interface."$INTERFACE" status 2>/dev/null)"
+	[ "$(echo "$status" | jsonfilter -e '@.up' 2>/dev/null)" = "true" ]
+}
+
+wait_for_interface_down() {
+	local timeout=15
+	local i=0
+	while [ "$i" -lt "$timeout" ]; do
+		local status="$(ubus call network.interface."$INTERFACE" status 2>/dev/null)"
+		local up="$(echo "$status" | jsonfilter -e '@.up' 2>/dev/null)"
+		local pending="$(echo "$status" | jsonfilter -e '@.pending' 2>/dev/null)"
+		[ "$up" = "false" ] && [ "$pending" = "false" ] && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
+wait_for_interface_up() {
+	local timeout=20
+	local i=0
+	while [ "$i" -lt "$timeout" ]; do
+		local status="$(ubus call network.interface."$INTERFACE" status 2>/dev/null)"
+		local up="$(echo "$status" | jsonfilter -e '@.up' 2>/dev/null)"
+		[ "$up" = "true" ] && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
+attempt_recovery() {
+	local now="$(get_monotonic_sec)"
+	local elapsed_since_recovery=$((now - LAST_RECOVERY))
+
+	if [ "$LAST_RECOVERY" -gt 0 ] && [ "$elapsed_since_recovery" -lt "$RECOVERY_COOLDOWN" ]; then
+		logger -t modem-keepalive "Recovery in cooldown (${elapsed_since_recovery}s / ${RECOVERY_COOLDOWN}s); skipping action."
+		return 0
+	fi
+
+	LAST_RECOVERY="$now"
+	logger -t modem-keepalive "Cellular stall detected (${CONSECUTIVE_FAILS} failed probes); Stage 1: trying non-destructive WDS wakeup..."
+
+	# Stage 1: Try QMI WDS Go Active (non-destructive)
+	if [ -e "/dev/wwan0qmi0" ]; then
+		qmicli -p -d /dev/wwan0qmi0 --wds-go-active >/dev/null 2>&1
+		sleep 3
+		if ping -c 1 -W 1 -I "$DEV" "$TARGET" >/dev/null 2>&1; then
+			logger -t modem-keepalive "Stage 1 SUCCESS: WDS wakeup revived cellular data plane."
+			CONSECUTIVE_FAILS=0
+			return 0
+		fi
+	fi
+
+	# Stage 2: Synchronized netifd reconnection (preserves radio power & avoids SSR)
+	logger -t modem-keepalive "Stage 2: WDS wakeup ineffective; initiating serialized netifd bearer reconnection..."
+	ifdown "$INTERFACE"
+	wait_for_interface_down
+	sleep 2
+	ifup "$INTERFACE"
+	wait_for_interface_up
+
+	CONSECUTIVE_FAILS=0
+	logger -t modem-keepalive "Serialized reconnection completed; entering ${RECOVERY_COOLDOWN}s cooldown."
+}
+
+logger -t modem-keepalive "Qualcomm pure-software keepalive monitor active (interval=${INTERVAL}s, target=${TARGET})."
+
+while true; do
+	if ! is_interface_up; then
+		CONSECUTIVE_FAILS=0
+		sleep "$INTERVAL"
+		continue
+	fi
+
+	[ -d "/sys/class/net/$DEV" ] || {
+		sleep "$INTERVAL"
+		continue
+	}
+
+	CUR_RX="$(cat /sys/class/net/"$DEV"/statistics/rx_packets 2>/dev/null || echo 0)"
+	CUR_TX="$(cat /sys/class/net/"$DEV"/statistics/tx_packets 2>/dev/null || echo 0)"
+
+	DELTA_RX=$((CUR_RX - LAST_RX))
+	DELTA_TX=$((CUR_TX - LAST_TX))
+
+	LAST_RX="$CUR_RX"
+	LAST_TX="$CUR_TX"
+
+	# Traffic-aware passive monitoring: if user traffic arrived, skip probe
+	if [ "$DELTA_RX" -ge "$TRAFFIC_THRESH" ]; then
+		CONSECUTIVE_FAILS=0
+		[ "$LOG_TELEMETRY" -eq 1 ] && logger -t modem-keepalive "Traffic active: rx=${CUR_RX}(+${DELTA_RX}) tx=${CUR_TX}(+${DELTA_TX}); probe skipped."
+		sleep "$INTERVAL"
+		continue
+	fi
+
+	# Active probe pulse during idle gaps (< 5s silence)
+	if ping -c 1 -W 1 -I "$DEV" "$TARGET" >/dev/null 2>&1; then
+		CONSECUTIVE_FAILS=0
+		[ "$LOG_TELEMETRY" -eq 1 ] && logger -t modem-keepalive "Keepalive pulse OK: rx=${CUR_RX} tx=${CUR_TX}."
+	else
+		CONSECUTIVE_FAILS=$((CONSECUTIVE_FAILS + 1))
+		logger -t modem-keepalive "Keepalive probe lost (${CONSECUTIVE_FAILS}/${FAIL_THRESH})."
+		if [ "$CONSECUTIVE_FAILS" -ge "$FAIL_THRESH" ]; then
+			attempt_recovery
+		fi
+	fi
+
+	sleep "$INTERVAL"
+done
