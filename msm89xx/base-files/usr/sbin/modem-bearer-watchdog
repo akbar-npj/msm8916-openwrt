@@ -67,10 +67,18 @@ while true; do
         logger -t modem-stall-watchdog "Unbalanced traffic detected: TX+$DELTA_TX, RX+$DELTA_RX (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
         
         if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
-            logger -t modem-stall-watchdog "User-plane stall confirmed (${STALL_COUNT}s). Triggering serialized bearer recovery..."
+            # Verify if Internet connectivity is actually dead before taking action
+            if ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
+                logger -t modem-stall-watchdog "Connectivity probe succeeded despite counter imbalance; resetting stall counter."
+                STALL_COUNT=0
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+
+            logger -t modem-stall-watchdog "User-plane stall confirmed (${STALL_COUNT}s). Triggering coordinated radio recovery..."
             (
                 flock -x 200
-                logger -t modem-stall-watchdog "Executing soft bearer reconnect..."
+                logger -t modem-stall-watchdog "Executing coordinated ModemManager radio recovery..."
                 ubus call network.interface.modem down
                 
                 # Wait for netifd teardown
@@ -85,12 +93,30 @@ while true; do
                 done
                 
                 sleep 2
+                mmcli -m any --disable >/dev/null 2>&1 || true
+                sleep 2
+                mmcli -m any --enable >/dev/null 2>&1 || true
+                sleep 3
                 ubus call network.interface.modem up
-                logger -t modem-stall-watchdog "Soft bearer reconnect dispatched cleanly."
+                
+                # Wait for netifd bringup
+                i=0
+                while [ "$i" -lt 20 ]; do
+                    st=$(ubus call network.interface.modem status 2>/dev/null)
+                    u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
+                    [ "$u" = "true" ] && break
+                    sleep 1
+                    i=$((i + 1))
+                done
+
+                logger -t modem-stall-watchdog "Coordinated radio recovery completed."
             ) 200>"$LOCKFILE"
             
+            # Re-read counters post-recovery
+            LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
+            LAST_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
             STALL_COUNT=0
-            sleep 10
+            sleep 15
         fi
     else
         # Normal traffic flow or idle; reset stall counter
