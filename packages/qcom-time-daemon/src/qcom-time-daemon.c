@@ -38,6 +38,7 @@
 #include "qmi_time.h"
 
 #define DEFAULT_POLL_INTERVAL_SEC	60
+#define DEFAULT_REFRESH_INTERVAL_SEC	300
 #define HANDSHAKE_RETRY_INTERVAL_SEC	5
 #define QMI_SYNC_TIMEOUT_MS		5000
 #define SYNC_MARKER_FILE		"/var/run/qcom-time-synced"
@@ -62,17 +63,24 @@ static volatile sig_atomic_t running = 1;
 static bool verbose = false;
 static bool enable_periodic_get = false;
 static int poll_interval = DEFAULT_POLL_INTERVAL_SEC;
-static int single_refresh_sec = 0;
-static bool single_refresh_triggered = false;
-static time_t initial_sync_time = 0;
+static int refresh_interval = DEFAULT_REFRESH_INTERVAL_SEC;
 
 static uint32_t modem_node = 0;
 static uint32_t modem_port = 0;
 static bool modem_connected = false;
 static enum time_daemon_state current_state = STATE_DISCOVERING;
 static uint16_t next_txn_id = 1;
-static time_t last_handshake_attempt = 0;
+static uint64_t last_handshake_attempt = 0;
+static uint64_t last_user_refresh = 0;
+static uint64_t last_keepalive = 0;
 static int consecutive_get_fails = 0;
+
+static uint64_t get_monotonic_sec(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)ts.tv_sec;
+}
 
 static void sig_handler(int sig)
 {
@@ -318,8 +326,8 @@ static int run_handshake_state_machine(int sock)
 	int ret = send_ats_user_transaction(sock, false);
 	if (ret == 0) {
 		current_state = STATE_SYNCHRONIZED;
-		initial_sync_time = time(NULL);
-		single_refresh_triggered = false;
+		last_user_refresh = get_monotonic_sec();
+		last_keepalive = get_monotonic_sec();
 		consecutive_get_fails = 0;
 	}
 	return ret;
@@ -435,8 +443,6 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 					       sq->sq_node, sq->sq_port,
 					       ind.base, qmi_time_base_name(ind.base),
 					       (unsigned long long)ind.offset);
-					if (enable_periodic_get)
-						validate_periodic_time_get(sock);
 				} else {
 					syslog(LOG_WARNING, "[QMI-TIME] Failed to decode indication 0x%04x (%s) from node=%u port=%u: ret=%d",
 					       msg_id, qmi_time_msg_name(msg_id), sq->sq_node, sq->sq_port, ret);
@@ -454,12 +460,11 @@ int main(int argc, char *argv[])
 {
 	struct pollfd pfd;
 	char buf[4096];
-	time_t last_keepalive = 0;
 	int opt;
 	int sock;
 	int ret;
 
-	while ((opt = getopt(argc, argv, "vps:i:")) != -1) {
+	while ((opt = getopt(argc, argv, "vpr:i:")) != -1) {
 		switch (opt) {
 		case 'v':
 			verbose = true;
@@ -467,8 +472,8 @@ int main(int argc, char *argv[])
 		case 'p':
 			enable_periodic_get = true;
 			break;
-		case 's':
-			single_refresh_sec = atoi(optarg);
+		case 'r':
+			refresh_interval = atoi(optarg);
 			break;
 		case 'i':
 			poll_interval = atoi(optarg);
@@ -476,17 +481,17 @@ int main(int argc, char *argv[])
 				poll_interval = 5;
 			break;
 		default:
-			fprintf(stderr, "Usage: %s [-v] [-p] [-s <refresh_sec>] [-i <interval_sec>]\n", argv[0]);
+			fprintf(stderr, "Usage: %s [-v] [-p] [-r <refresh_sec>] [-i <interval_sec>]\n", argv[0]);
 			return 1;
 		}
 	}
 
 	openlog("qcom-time-daemon", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
 	syslog(LOG_NOTICE, "[QMI-TIME] Starting Qualcomm QMI Time Synchronization Daemon (Android Protocol Reconstructed)");
-	syslog(LOG_NOTICE, "[QMI-TIME] Pure software modem stability mode active. Periodic ATS_TOD query: %s (interval=%ds)",
+	syslog(LOG_NOTICE, "[QMI-TIME] Pure software modem stability mode active. Periodic ATS_USER refresh: %s (interval=%ds)",
+	       refresh_interval > 0 ? "ENABLED" : "DISABLED", refresh_interval);
+	syslog(LOG_NOTICE, "[QMI-TIME] Periodic ATS_TOD query: %s (interval=%ds)",
 	       enable_periodic_get ? "ENABLED" : "DISABLED", poll_interval);
-	if (single_refresh_sec > 0)
-		syslog(LOG_NOTICE, "[QMI-TIME] Controlled diagnostic experiment: Single ATS_USER refresh scheduled at t=+%ds", single_refresh_sec);
 
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
@@ -509,11 +514,12 @@ int main(int argc, char *argv[])
 
 	pfd.fd = sock;
 	pfd.events = POLLIN;
-	last_keepalive = time(NULL);
-	last_handshake_attempt = time(NULL);
+	last_keepalive = get_monotonic_sec();
+	last_handshake_attempt = get_monotonic_sec();
+	last_user_refresh = get_monotonic_sec();
 
 	while (running) {
-		time_t now = time(NULL);
+		uint64_t now = get_monotonic_sec();
 
 		/*
 		 * Timer-based retry for failed or pending initial handshake:
@@ -528,31 +534,29 @@ int main(int argc, char *argv[])
 		}
 
 		/*
-		 * Controlled Diagnostic Experiment:
-		 * Single scheduled refresh of ATS_USER (0x0020) at specified seconds after initial sync.
+		 * Periodic ATS_USER (0x0020) Refresh:
+		 * Continuously resets modem baseband SCLK crystal drift accumulator and calibration watchdog.
+		 * Prevents baseband lte_ml1_common_timer.c:390 / lte_ml1_sleepmgr_stm.c:4054 crash at t=903.6s
+		 * on 100% pristine untouched stock modem firmware.
 		 */
-		if (single_refresh_sec > 0 && !single_refresh_triggered &&
-		    modem_connected && current_state == STATE_SYNCHRONIZED && initial_sync_time > 0 &&
-		    (now - initial_sync_time >= single_refresh_sec)) {
-			single_refresh_triggered = true;
-			syslog(LOG_NOTICE, "=================================================================");
-			syslog(LOG_NOTICE, "[QMI-TIME] CONTROLLED EXPERIMENT: Triggering scheduled single ATS_USER refresh at t=+%lds",
-			       (long)(now - initial_sync_time));
-			syslog(LOG_NOTICE, "=================================================================");
+		if (refresh_interval > 0 && modem_connected && current_state == STATE_SYNCHRONIZED &&
+		    (now - last_user_refresh >= (uint64_t)refresh_interval)) {
+			last_user_refresh = now;
+			syslog(LOG_NOTICE, "[QMI-TIME] Periodic ATS_USER refresh (interval=%ds): re-anchoring baseband SCLK offset...",
+			       refresh_interval);
 			ret = send_ats_user_transaction(sock, true);
 			if (ret != 0) {
-				syslog(LOG_ERR, "[QMI-TIME] Scheduled single ATS_USER refresh failed: %d", ret);
+				syslog(LOG_WARNING, "[QMI-TIME] Periodic ATS_USER refresh failed: %d (will retry next interval)", ret);
 			}
 		}
 
 		/*
 		 * In STATE_SYNCHRONIZED:
 		 * Periodic ATS_TOD GET (0x0021) query is DISABLED by default.
-		 * Retains only the one-time synchronous ATS_USER 0x0020 handshake.
 		 * Can be explicitly enabled with '-p' flag for diagnostic testing.
 		 */
 		if (enable_periodic_get && modem_connected && current_state == STATE_SYNCHRONIZED &&
-		    (now - last_keepalive >= poll_interval)) {
+		    (now - last_keepalive >= (uint64_t)poll_interval)) {
 			validate_periodic_time_get(sock);
 			last_keepalive = now;
 		}
