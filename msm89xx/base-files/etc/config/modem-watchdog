@@ -1,0 +1,10 @@
+config watchdog 'general'
+	option enabled '1'
+	option stall_timeout '30'
+	option check_interval '5'
+	option cooldown_seconds '60'
+
+config keepalive 'keepalive'
+	option enabled '1'
+	option interval '45'
+	option target '1.1.1.1'
