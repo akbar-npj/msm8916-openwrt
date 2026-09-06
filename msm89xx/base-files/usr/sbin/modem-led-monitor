@@ -136,13 +136,7 @@ modem_healthy()
         [ -r "$rproc/state" ] || { MODEM_INITIALIZED=0; return 1; }
         [ "$(cat "$rproc/state" 2>/dev/null)" = "running" ] || { MODEM_INITIALIZED=0; return 1; }
 
-        # On HMU05, ensure BAM-DMUX runtime power management remains active (no autosuspend)
-        if [ "$IS_HMU05" = "1" ]; then
-                local bctrl="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
-                if [ -f "$bctrl" ] && [ "$(cat "$bctrl" 2>/dev/null)" != "on" ]; then
-                        echo on > "$bctrl" 2>/dev/null || true
-                fi
-        fi
+
 
         #
         # 2. WWAN and QMI subsystems must exist in kernel.
@@ -246,31 +240,33 @@ safe_reconnect_modem() {
                 return 0
         fi
 
-        touch "$LOCKFILE"
-        logger -t modem-recovery "Triggering safe synchronized modem reconnection (reason: $reason)..."
+        (
+                flock -x 200
+                logger -t modem-recovery "Triggering safe synchronized modem reconnection (reason: $reason)..."
 
-        # 1. Asynchronously request netifd teardown
-        ifdown modem
+                # 1. Asynchronously request netifd teardown
+                ifdown modem
 
-        # 2. Synchronously wait for netifd to complete teardown
-        local i=0
-        while [ "$i" -lt 15 ]; do
-                local status="$(ubus call network.interface.modem status 2>/dev/null)"
-                local is_up="$(echo "$status" | jsonfilter -e '@.up' 2>/dev/null)"
-                local is_pending="$(echo "$status" | jsonfilter -e '@.pending' 2>/dev/null)"
-                if [ "$is_up" = "false" ] && [ "$is_pending" = "false" ]; then
-                        break
-                fi
-                sleep 1
-                i=$((i + 1))
-        done
+                # 2. Synchronously wait for netifd to complete teardown
+                local i=0
+                while [ "$i" -lt 15 ]; do
+                        local status="$(ubus call network.interface.modem status 2>/dev/null)"
+                        local is_up="$(echo "$status" | jsonfilter -e '@.up' 2>/dev/null)"
+                        local is_pending="$(echo "$status" | jsonfilter -e '@.pending' 2>/dev/null)"
+                        if [ "$is_up" = "false" ] && [ "$is_pending" = "false" ]; then
+                                break
+                        fi
+                        sleep 1
+                        i=$((i + 1))
+                done
 
-        # 3. Settling gap to allow QMI and ModemManager to clear session
-        sleep 2
+                # 3. Settling gap to allow QMI and ModemManager to clear session
+                sleep 2
 
-        # 4. Bring up interface cleanly
-        ifup modem
-        logger -t modem-recovery "Modem ifup dispatched cleanly after synchronized teardown."
+                # 4. Bring up interface cleanly
+                ifup modem
+                logger -t modem-recovery "Modem ifup dispatched cleanly after synchronized teardown."
+        ) 200>/var/lock/modem-bearer.lock
 
         rm -f "$LOCKFILE"
         LAST_RECOVERY="$(date +%s)"
@@ -279,6 +275,13 @@ safe_reconnect_modem() {
 
 
 run_watchdog_cycle() {
+        if [ -f /tmp/disable_modem_watchdog ]; then
+                FAIL_COUNT=0
+                KEEPALIVE_TIMER=0
+                set_blue_led "idle"
+                return 0
+        fi
+
         local iface_status="$(ubus call network.interface.modem status 2>/dev/null)"
         local iface_up="$(echo "$iface_status" | jsonfilter -e '@.up' 2>/dev/null)"
         local iface_uptime="$(echo "$iface_status" | jsonfilter -e '@.uptime' 2>/dev/null)"

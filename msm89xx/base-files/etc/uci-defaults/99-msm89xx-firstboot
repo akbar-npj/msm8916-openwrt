@@ -22,17 +22,7 @@ EOF
 uci -q del_list firewall.@zone[1].network='modem' 2>/dev/null || true
 uci add_list firewall.@zone[1].network='modem'
 
-# HMU05 runtime PM lock to prevent 15-minute (:Excep :0:) modem crashes
-case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-    *hmu05*)
-        for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "control" 2>/dev/null); do
-            echo on > "$f" 2>/dev/null || true
-        done
-        for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "autosuspend_delay_ms" 2>/dev/null); do
-            echo -1 > "$f" 2>/dev/null || true
-        done
-        ;;
-esac
+
 
 # Device specific initialization
 

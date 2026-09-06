@@ -17,16 +17,38 @@
 #define QMI_TIME_SERVICE_VERSION	1
 #define QMI_TIME_SERVICE_INSTANCE	1
 
-/* QMI TIME Message IDs */
-#define QMI_TIME_GENOFF_SET_REQ		0x0020
-#define QMI_TIME_GENOFF_GET_REQ		0x0021
-#define QMI_TIME_SET_LEAP_SEC_REQ	0x0022
-#define QMI_TIME_GET_LEAP_SEC_REQ	0x0023
-#define QMI_TIME_TURN_OFF_IND_REQ	0x0024
-#define QMI_TIME_REG_IND_REQ		0x0025
-#define QMI_TIME_TOD_IND		0x0029
-#define QMI_TIME_USER_IND		0x002d
-#define QMI_TIME_SECURE_IND		0x002e
+/* QMI TIME Message IDs (Qualcomm time_service_v01.h) */
+#define QMI_TIME_GENOFF_SET_REQ			0x0020
+#define QMI_TIME_GENOFF_SET_RESP		0x0020
+#define QMI_TIME_GENOFF_GET_REQ			0x0021
+#define QMI_TIME_GENOFF_GET_RESP		0x0021
+#define QMI_TIME_TURN_OFF_IND_REQ		0x0022
+#define QMI_TIME_TURN_OFF_IND_RESP		0x0022
+#define QMI_TIME_TURN_ON_IND_REQ		0x0023
+#define QMI_TIME_TURN_ON_IND_RESP		0x0023
+#define QMI_TIME_LEAP_SEC_SET_REQ		0x0024
+#define QMI_TIME_LEAP_SEC_SET_RESP		0x0024
+#define QMI_TIME_LEAP_SEC_GET_REQ		0x0025
+#define QMI_TIME_LEAP_SEC_GET_RESP		0x0025
+
+/* QMI TIME Indications (0x0026 - 0x0031) */
+#define QMI_TIME_ATS_RTC_UPDATE_IND		0x0026
+#define QMI_TIME_ATS_TOD_UPDATE_IND		0x0027
+#define QMI_TIME_ATS_USER_UPDATE_IND		0x0028
+#define QMI_TIME_ATS_SECURE_UPDATE_IND		0x0029
+#define QMI_TIME_ATS_DRM_UPDATE_IND		0x002A
+#define QMI_TIME_ATS_USER_UTC_UPDATE_IND	0x002B
+#define QMI_TIME_ATS_USER_TZ_DL_UPDATE_IND	0x002C
+#define QMI_TIME_ATS_GPS_UPDATE_IND		0x002D
+#define QMI_TIME_ATS_1X_UPDATE_IND		0x002E
+#define QMI_TIME_ATS_HDR_UPDATE_IND		0x002F
+#define QMI_TIME_ATS_WCDMA_UPDATE_IND		0x0030
+#define QMI_TIME_ATS_BREW_UPDATE_IND		0x0031
+
+/* Backward compatibility aliases */
+#define QMI_TIME_TOD_IND			QMI_TIME_ATS_SECURE_UPDATE_IND
+#define QMI_TIME_USER_IND			QMI_TIME_ATS_USER_UPDATE_IND
+#define QMI_TIME_SECURE_IND			QMI_TIME_ATS_SECURE_UPDATE_IND
 
 /* ATS Time Bases */
 enum time_genoff_base {
@@ -109,5 +131,8 @@ extern struct qmi_elem_info time_genoff_get_resp_ei[];
 extern struct qmi_elem_info time_reg_ind_req_ei[];
 extern struct qmi_elem_info time_reg_ind_resp_ei[];
 extern struct qmi_elem_info time_tod_ind_ei[];
+
+const char *qmi_time_msg_name(uint16_t msg_id);
+const char *qmi_time_base_name(uint32_t base);
 
 #endif /* _QMI_TIME_H_ */

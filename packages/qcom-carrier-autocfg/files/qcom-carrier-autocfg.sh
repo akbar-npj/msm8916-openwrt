@@ -256,21 +256,14 @@ provision_carrier_bands() {
 
 reset_baseband_cache() {
 	local m_path="$1"
-	log "Flushing baseband radio cache and re-reading SIM..."
+	log "Flushing baseband radio cache requested for modem '$m_path'..."
 
-	# Send AT+CFUN=0 (radio off / flush cell cache) then AT+CFUN=1 (radio on / re-read SIM)
-	for at_port in /dev/wwan0at0 /dev/wwan0at1; do
-		if [ -c "$at_port" ]; then
-			log "Sending AT+CFUN radio reset via $at_port..."
-			timeout 2 sh -c "printf 'AT+CFUN=0\r\n' > $at_port" 2>/dev/null || true
-			sleep 1
-			timeout 2 sh -c "printf 'AT+CFUN=1\r\n' > $at_port" 2>/dev/null || true
-			timeout 2 sh -c "printf 'AT+COPS=0\r\n' > $at_port" 2>/dev/null || true
-			break
-		fi
-	done
+	# Under pure-software modem operation with pristine stock firmware,
+	# raw AT+CFUN=0/1 triggers a fatal baseband assertion (lte_ml1_common_dump.c:213).
+	# For pure-software stability, raw AT+CFUN is strictly prohibited.
+	log "Pure-software modem profile: raw AT+CFUN=0/1 is disabled to prevent baseband crash."
 
-	# Cycle ModemManager power state via QMI DMS to ensure registration states are refreshed
+	# Cycle ModemManager power state via QMI DMS to ensure registration states are refreshed cleanly
 	if [ -n "$m_path" ]; then
 		mmcli -m "$m_path" --set-power-state-low 2>/dev/null || true
 		sleep 1
@@ -448,10 +441,11 @@ connect_bearer() {
 		return 1
 	fi
 
-	log "Requesting ModemManager bearer connection for APN '$apn' ($iptype)..."
-	mmcli -m any --simple-connect="apn=${apn},ip-type=${iptype}" 2>/dev/null || true
-	sleep 2
-	ifup modem 2>/dev/null || true
+	(
+		flock -x 200
+		log "Triggering netifd interface bring-up for modem (APN: '$apn', IP-Type: '$iptype')..."
+		ifup modem 2>/dev/null || true
+	) 200>/var/lock/modem-bearer.lock
 
 	if [ -n "$imsi" ]; then
 		mkdir -p /etc/qcom-carrier-autocfg 2>/dev/null || true

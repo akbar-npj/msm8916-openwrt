@@ -121,8 +121,7 @@
  	} else {
  		bam_dmux_power_off(dmux);
  		bam_dmux_pc_ack(dmux);
-+		if (!of_machine_is_compatible("qcom,msm8916-generic-hmu05"))
-+			pm_runtime_set_suspended(dmux->dev);
++		pm_runtime_set_suspended(dmux->dev);
  	}
  
  	dmux->pc_state = new_state;
@@ -140,16 +139,12 @@
  
  	return 0;
  }
-@@ -819,6 +861,12 @@
- 	pm_runtime_set_autosuspend_delay(dev, BAM_DMUX_AUTOSUSPEND_DELAY);
+@@ -819,6 +860,11 @@
+-	pm_runtime_set_autosuspend_delay(dev, BAM_DMUX_AUTOSUSPEND_DELAY);
++	{
++		u32 delay = 30000;
++		of_property_read_u32(dev->of_node, "autosuspend-delay-ms", &delay);
++		pm_runtime_set_autosuspend_delay(dev, delay);
++	}
  	pm_runtime_use_autosuspend(dev);
  	pm_runtime_enable(dev);
-+	/*
-+	 * Scope BAM-DMUX "always active / no autosuspend" strictly to HMU05
-+	 * at driver probe time to prevent baseband DMA sleep stalls.
-+	 */
-+	if (of_machine_is_compatible("qcom,msm8916-generic-hmu05"))
-+		pm_runtime_forbid(dev);
- 
- 	ret = devm_request_threaded_irq(dev, pc_ack_irq, NULL, bam_dmux_pc_ack_irq,
- 					IRQF_ONESHOT, NULL, dmux);

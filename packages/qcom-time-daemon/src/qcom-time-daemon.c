@@ -60,7 +60,11 @@ struct qmi_header {
 
 static volatile sig_atomic_t running = 1;
 static bool verbose = false;
+static bool enable_periodic_get = false;
 static int poll_interval = DEFAULT_POLL_INTERVAL_SEC;
+static int single_refresh_sec = 0;
+static bool single_refresh_triggered = false;
+static time_t initial_sync_time = 0;
 
 static uint32_t modem_node = 0;
 static uint32_t modem_port = 0;
@@ -165,15 +169,13 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 		return -EINVAL;
 	}
 
-	if (verbose) {
-		syslog(LOG_DEBUG, "[QMI-TIME-DEBUG] Tx QMI Req: msg_id=0x%04x txn=%u to %u:%u (len=%zd)",
-		       req_msg_id, txn_id, node, port, enc_len);
-	}
+	syslog(LOG_NOTICE, "[QMI-TIME] TX 0x%04x to QRTR node=%u port=%u txn=%u (len=%zd)",
+	       req_msg_id, node, port, txn_id, enc_len);
 
 	ret = qrtr_sendto(sock, node, port, tx_buf, enc_len);
 	if (ret < 0) {
-		syslog(LOG_ERR, "[QMI-TIME-DEBUG] qrtr_sendto error for 0x%04x: %d (%s)",
-		       req_msg_id, errno, strerror(errno));
+		syslog(LOG_ERR, "[QMI-TIME] qrtr_sendto error for 0x%04x to QRTR node=%u port=%u: %d (%s)",
+		       req_msg_id, node, port, errno, strerror(errno));
 		return -errno;
 	}
 
@@ -188,8 +190,8 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 		int elapsed_ms = (now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000;
 		int remaining_ms = timeout_ms - elapsed_ms;
 		if (remaining_ms <= 0) {
-			syslog(LOG_ERR, "[QMI-TIME-DEBUG] Timeout (%d ms) waiting for response to 0x%04x (txn=%u)",
-			       timeout_ms, req_msg_id, txn_id);
+			syslog(LOG_ERR, "[QMI-TIME] Timeout (%d ms) waiting for response to 0x%04x (txn=%u, QRTR node=%u port=%u)",
+			       timeout_ms, req_msg_id, txn_id, node, port);
 			return -ETIMEDOUT;
 		}
 
@@ -197,7 +199,8 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 		if (ret <= 0) {
 			if (ret < 0 && errno == EINTR)
 				continue;
-			syslog(LOG_ERR, "[QMI-TIME-DEBUG] Poll error/timeout for 0x%04x: %d", req_msg_id, ret);
+			syslog(LOG_ERR, "[QMI-TIME] Poll error/timeout for 0x%04x (txn=%u, QRTR node=%u port=%u): %d",
+			       req_msg_id, txn_id, node, port, ret);
 			return -ETIMEDOUT;
 		}
 
@@ -225,13 +228,12 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 				ret = qmi_decode_message(resp_struct, &decoded_txn, &rx_pkt,
 							 QMI_RESPONSE, req_msg_id, resp_ei);
 				if (ret < 0) {
-					syslog(LOG_ERR, "[QMI-TIME-DEBUG] Failed to decode QMI response 0x%04x: %d", req_msg_id, ret);
+					syslog(LOG_ERR, "[QMI-TIME] Failed to decode QMI response 0x%04x from QRTR node=%u port=%u txn=%u: %d",
+					       req_msg_id, sq.sq_node, sq.sq_port, txn_id, ret);
 					return ret;
 				}
-				if (verbose) {
-					syslog(LOG_DEBUG, "[QMI-TIME-DEBUG] Rx QMI Resp: msg_id=0x%04x txn=%u matched successfully",
-					       req_msg_id, txn_id);
-				}
+				syslog(LOG_NOTICE, "[QMI-TIME] RX 0x%04x response from QRTR node=%u port=%u txn=%u decoded successfully",
+				       req_msg_id, sq.sq_node, sq.sq_port, txn_id);
 				return 0;
 			}
 		}
@@ -247,23 +249,20 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 }
 
 /*
- * Android-Equivalent Handshake State Machine:
- * Stock Android MSM8916 time_daemon implementation (reverse-engineered FUN_000113d0):
+ * Android-Equivalent Handshake & Refresh Transaction Engine:
  * Synchronously sets ATS_USER (0x0020) with 5-second timeout and explicit success check.
- * (Baseband rejects 0x0025 with QMI_ERR_ENCODING on MSM8916; stock Android only uses 0x0020).
+ * Handles both initial boot-time handshake and controlled experimental refreshes.
  */
-static int run_handshake_state_machine(int sock)
+static int send_ats_user_transaction(int sock, bool is_refresh)
 {
 	int ret;
 
 	if (!modem_connected || modem_port == 0)
 		return -1;
 
-	/* Synchronously Set ATS_USER (0x0020) */
-	current_state = STATE_SYNCING_ATS_USER;
 	int64_t genoff = calculate_android_generic_offset();
-	syslog(LOG_INFO, "[QMI-TIME] Synchronously setting ATS_USER (base=2, offset=%lld ms)...",
-	       (long long)genoff);
+	syslog(LOG_INFO, "[QMI-TIME] %s: Synchronously setting ATS_USER (base=2, offset=%lld ms)...",
+	       is_refresh ? "REFRESH" : "INITIAL", (long long)genoff);
 
 	struct time_genoff_set_req set_req;
 	struct time_genoff_set_resp set_resp;
@@ -276,43 +275,60 @@ static int run_handshake_state_machine(int sock)
 					QMI_TIME_GENOFF_SET_REQ, &set_req, time_genoff_set_req_ei,
 					&set_resp, time_genoff_set_resp_ei, QMI_SYNC_TIMEOUT_MS);
 	if (ret < 0) {
-		syslog(LOG_ERR, "[QMI-TIME] ATS_USER synchronization transaction failed: %d (%s). ABORTING!",
-		       ret, strerror(-ret));
-		current_state = STATE_FAILED;
-		unlink(SYNC_MARKER_FILE);
+		syslog(LOG_ERR, "[QMI-TIME] %s: ATS_USER synchronization transaction failed: %d (%s)",
+		       is_refresh ? "REFRESH" : "INITIAL", ret, strerror(-ret));
+		if (!is_refresh) {
+			current_state = STATE_FAILED;
+			unlink(SYNC_MARKER_FILE);
+		}
 		return -1;
 	}
 
 	if (set_resp.result.result != QMI_RESULT_SUCCESS_V01 || set_resp.result.error != QMI_ERR_NONE_V01) {
-		syslog(LOG_ERR, "[QMI-TIME] Modem rejected ATS_USER sync! result=%u error=%u. ABORTING!",
-		       set_resp.result.result, set_resp.result.error);
-		current_state = STATE_FAILED;
-		unlink(SYNC_MARKER_FILE);
+		syslog(LOG_ERR, "[QMI-TIME] %s: Modem rejected ATS_USER sync! result=%u error=%u",
+		       is_refresh ? "REFRESH" : "INITIAL", set_resp.result.result, set_resp.result.error);
+		if (!is_refresh) {
+			current_state = STATE_FAILED;
+			unlink(SYNC_MARKER_FILE);
+		}
 		return -1;
 	}
 
-	/* Handshake Successful: Transition to STATE_SYNCHRONIZED */
-	current_state = STATE_SYNCHRONIZED;
-	consecutive_get_fails = 0;
 	syslog(LOG_NOTICE, "=================================================================");
-	syslog(LOG_NOTICE, "[QMI-TIME] MODEM TIME SYNCHRONIZATION TRANSACTION VERIFIED!");
+	syslog(LOG_NOTICE, "[QMI-TIME] %s ATS_USER TRANSACTION VERIFIED!",
+	       is_refresh ? "REFRESH" : "INITIAL");
 	syslog(LOG_NOTICE, "[QMI-TIME] Modem baseband confirmed ATS_USER (offset=%lld ms)", (long long)genoff);
-	syslog(LOG_NOTICE, "[QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.");
+	if (!is_refresh)
+		syslog(LOG_NOTICE, "[QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.");
 	syslog(LOG_NOTICE, "=================================================================");
 
 	int fd = open(SYNC_MARKER_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd >= 0) {
-		dprintf(fd, "offset_ms=%lld\nsynced_at=%ld\nstate=SYNCHRONIZED\n",
-			(long long)genoff, time(NULL));
+		dprintf(fd, "offset_ms=%lld\nsynced_at=%ld\nstate=SYNCHRONIZED\nis_refresh=%d\n",
+			(long long)genoff, time(NULL), is_refresh ? 1 : 0);
 		close(fd);
 	}
 
 	return 0;
 }
 
+static int run_handshake_state_machine(int sock)
+{
+	current_state = STATE_SYNCING_ATS_USER;
+	int ret = send_ats_user_transaction(sock, false);
+	if (ret == 0) {
+		current_state = STATE_SYNCHRONIZED;
+		initial_sync_time = time(NULL);
+		single_refresh_triggered = false;
+		consecutive_get_fails = 0;
+	}
+	return ret;
+}
+
 /*
  * Validates periodic ATS_TOD query response from baseband.
  * If the baseband fails to respond or returns an error, tracks failure and invalidates sync.
+ * Logs TX, RX, result/error, and QRTR source node/port unconditionally.
  */
 static int validate_periodic_time_get(int sock)
 {
@@ -325,21 +341,28 @@ static int validate_periodic_time_get(int sock)
 	memset(&resp, 0, sizeof(resp));
 	req.base = ATS_TOD;
 
+	syslog(LOG_NOTICE, "[QMI-TIME] Periodic TX 0x0021 (QMI_TIME_GENOFF_GET_REQ) -> QRTR node=%u port=%u (base=%u)",
+	       modem_node, modem_port, req.base);
+
 	int ret = qmi_send_sync_transaction(sock, modem_node, modem_port,
 					    QMI_TIME_GENOFF_GET_REQ, &req, time_genoff_get_req_ei,
 					    &resp, time_genoff_get_resp_ei, 3000);
-	if (ret == 0 && resp.result.result == QMI_RESULT_SUCCESS_V01) {
-		if (verbose) {
-			syslog(LOG_INFO, "[QMI-TIME] Periodic ATS_TOD query verified: base=%u offset=%llu ms",
-			       resp.base, (unsigned long long)resp.offset);
+	if (ret == 0) {
+		syslog(LOG_NOTICE, "[QMI-TIME] Periodic RX 0x0021 response <- QRTR node=%u port=%u: QMI result=%u error=%u, base=%u offset=%llu ms",
+		       modem_node, modem_port, resp.result.result, resp.result.error,
+		       resp.base, (unsigned long long)resp.offset);
+		if (resp.result.result == QMI_RESULT_SUCCESS_V01 && resp.result.error == QMI_ERR_NONE_V01) {
+			consecutive_get_fails = 0;
+			return 0;
 		}
-		consecutive_get_fails = 0;
-		return 0;
+	} else {
+		syslog(LOG_ERR, "[QMI-TIME] Periodic RX 0x0021 failed/timeout <- QRTR node=%u port=%u: ret=%d (%s)",
+		       modem_node, modem_port, ret, strerror(-ret));
 	}
 
 	consecutive_get_fails++;
-	syslog(LOG_WARNING, "[QMI-TIME] Periodic ATS_TOD query failed (%d/3): ret=%d, res=%u",
-	       consecutive_get_fails, ret, resp.result.result);
+	syslog(LOG_WARNING, "[QMI-TIME] Periodic ATS_TOD query failed (%d/3): ret=%d, QMI result=%u error=%u",
+	       consecutive_get_fails, ret, resp.result.result, resp.result.error);
 
 	if (consecutive_get_fails >= 3) {
 		syslog(LOG_ERR, "[QMI-TIME] Baseband time query failed 3 times! Revoking sync state.");
@@ -400,18 +423,28 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 		}
 
 		if (qmi_type == QMI_INDICATION) {
-			if (msg_id == QMI_TIME_TOD_IND || msg_id == QMI_TIME_USER_IND) {
+			if (msg_id >= QMI_TIME_ATS_RTC_UPDATE_IND && msg_id <= QMI_TIME_ATS_BREW_UPDATE_IND) {
 				struct time_tod_ind ind;
 				unsigned int txn;
 				ret = qmi_decode_message(&ind, &txn, &pkt,
 							 QMI_INDICATION, msg_id,
 							 time_tod_ind_ei);
 				if (ret >= 0) {
-					syslog(LOG_INFO, "[QMI-TIME] Network time indication received from tower: base=%u offset=%llu ms",
-					       ind.base, (unsigned long long)ind.offset);
-					/* Stock Android behavior: Query baseband for updated time via 0x0021 */
-					validate_periodic_time_get(sock);
+					syslog(LOG_NOTICE, "[QMI-TIME] Indication 0x%04x (%s) received from QRTR node=%u port=%u: base=%u (%s), offset=%llu ms",
+					       msg_id, qmi_time_msg_name(msg_id),
+					       sq->sq_node, sq->sq_port,
+					       ind.base, qmi_time_base_name(ind.base),
+					       (unsigned long long)ind.offset);
+					if (enable_periodic_get)
+						validate_periodic_time_get(sock);
+				} else {
+					syslog(LOG_WARNING, "[QMI-TIME] Failed to decode indication 0x%04x (%s) from node=%u port=%u: ret=%d",
+					       msg_id, qmi_time_msg_name(msg_id), sq->sq_node, sq->sq_port, ret);
 				}
+			} else {
+				syslog(LOG_NOTICE, "[QMI-TIME] Other QMI indication received: msg_id=0x%04x (%s) len=%u from node=%u port=%u",
+				       msg_id, qmi_time_msg_name(msg_id), le16toh(hdr->msg_len),
+				       sq->sq_node, sq->sq_port);
 			}
 		}
 	}
@@ -426,10 +459,16 @@ int main(int argc, char *argv[])
 	int sock;
 	int ret;
 
-	while ((opt = getopt(argc, argv, "vi:")) != -1) {
+	while ((opt = getopt(argc, argv, "vps:i:")) != -1) {
 		switch (opt) {
 		case 'v':
 			verbose = true;
+			break;
+		case 'p':
+			enable_periodic_get = true;
+			break;
+		case 's':
+			single_refresh_sec = atoi(optarg);
 			break;
 		case 'i':
 			poll_interval = atoi(optarg);
@@ -437,14 +476,17 @@ int main(int argc, char *argv[])
 				poll_interval = 5;
 			break;
 		default:
-			fprintf(stderr, "Usage: %s [-v] [-i <interval_sec>]\n", argv[0]);
+			fprintf(stderr, "Usage: %s [-v] [-p] [-s <refresh_sec>] [-i <interval_sec>]\n", argv[0]);
 			return 1;
 		}
 	}
 
 	openlog("qcom-time-daemon", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
 	syslog(LOG_NOTICE, "[QMI-TIME] Starting Qualcomm QMI Time Synchronization Daemon (Android Protocol Reconstructed)");
-	syslog(LOG_NOTICE, "[QMI-TIME] Pure software modem stability mode active. Poll Interval=%ds", poll_interval);
+	syslog(LOG_NOTICE, "[QMI-TIME] Pure software modem stability mode active. Periodic ATS_TOD query: %s (interval=%ds)",
+	       enable_periodic_get ? "ENABLED" : "DISABLED", poll_interval);
+	if (single_refresh_sec > 0)
+		syslog(LOG_NOTICE, "[QMI-TIME] Controlled diagnostic experiment: Single ATS_USER refresh scheduled at t=+%ds", single_refresh_sec);
 
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
@@ -486,11 +528,31 @@ int main(int argc, char *argv[])
 		}
 
 		/*
-		 * In STATE_SYNCHRONIZED:
-		 * Periodically validate ATS_TOD get request to maintain baseband communication
-		 * without repeatedly rewriting the ATS_USER time base (avoiding SFN resync).
+		 * Controlled Diagnostic Experiment:
+		 * Single scheduled refresh of ATS_USER (0x0020) at specified seconds after initial sync.
 		 */
-		if (modem_connected && current_state == STATE_SYNCHRONIZED && (now - last_keepalive >= poll_interval)) {
+		if (single_refresh_sec > 0 && !single_refresh_triggered &&
+		    modem_connected && current_state == STATE_SYNCHRONIZED && initial_sync_time > 0 &&
+		    (now - initial_sync_time >= single_refresh_sec)) {
+			single_refresh_triggered = true;
+			syslog(LOG_NOTICE, "=================================================================");
+			syslog(LOG_NOTICE, "[QMI-TIME] CONTROLLED EXPERIMENT: Triggering scheduled single ATS_USER refresh at t=+%lds",
+			       (long)(now - initial_sync_time));
+			syslog(LOG_NOTICE, "=================================================================");
+			ret = send_ats_user_transaction(sock, true);
+			if (ret != 0) {
+				syslog(LOG_ERR, "[QMI-TIME] Scheduled single ATS_USER refresh failed: %d", ret);
+			}
+		}
+
+		/*
+		 * In STATE_SYNCHRONIZED:
+		 * Periodic ATS_TOD GET (0x0021) query is DISABLED by default.
+		 * Retains only the one-time synchronous ATS_USER 0x0020 handshake.
+		 * Can be explicitly enabled with '-p' flag for diagnostic testing.
+		 */
+		if (enable_periodic_get && modem_connected && current_state == STATE_SYNCHRONIZED &&
+		    (now - last_keepalive >= poll_interval)) {
 			validate_periodic_time_get(sock);
 			last_keepalive = now;
 		}
