@@ -73,6 +73,7 @@ static uint16_t next_txn_id = 1;
 static uint64_t last_handshake_attempt = 0;
 static uint64_t last_user_refresh = 0;
 static uint64_t last_keepalive = 0;
+static uint64_t last_lookup_attempt = 0;
 static int consecutive_get_fails = 0;
 
 static uint64_t get_monotonic_sec(void)
@@ -411,6 +412,8 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			modem_port = 0;
 			current_state = STATE_DISCOVERING;
 			unlink(SYNC_MARKER_FILE);
+			last_lookup_attempt = 0;
+			qrtr_new_lookup(sock, QMI_TIME_SERVICE_ID, 0, 0);
 		}
 	} else if (pkt.type == QRTR_TYPE_DATA) {
 		/* Validate packet source node and port */
@@ -520,6 +523,15 @@ int main(int argc, char *argv[])
 
 	while (running) {
 		uint64_t now = get_monotonic_sec();
+
+		/*
+		 * Periodic QRTR service re-lookup while in STATE_DISCOVERING:
+		 * Ensures modem service 22 rediscovery after any unannounced SSR or QRTR restart.
+		 */
+		if (current_state == STATE_DISCOVERING && (now - last_lookup_attempt >= 5)) {
+			last_lookup_attempt = now;
+			qrtr_new_lookup(sock, QMI_TIME_SERVICE_ID, 0, 0);
+		}
 
 		/*
 		 * Timer-based retry for failed or pending initial handshake:
