@@ -2,7 +2,7 @@
 # Modem Bearer Stall Watchdog & Carrier Keepalive
 #
 # Resolves carrier-side user-plane stalls (traffic-channel-dormant) safely:
-# 1. Configurable low-rate keepalive (30-60s) with confirmed RX counter increments.
+# 1. Configurable low-rate keepalive (10s default) with confirmed RX counter increments.
 # 2. Stage 1 non-disruptive wakeup: qmicli --wds-go-active with RX verification.
 # 3. Stage 2 serialized netifd fallback: ifdown modem -> sleep 3 -> ifup modem.
 # 4. Zero mmcli --disable/enable, zero --set-power-state-low, zero AT+CFUN (eliminates SSR risk).
@@ -16,7 +16,7 @@ STALL_TIMEOUT=30
 CHECK_INTERVAL=5
 COOLDOWN_SECS=60
 KEEPALIVE_ENABLED=1
-KEEPALIVE_INTERVAL=45
+KEEPALIVE_INTERVAL=10
 KEEPALIVE_TARGET="1.1.1.1"
 
 LAST_TX=0
@@ -25,7 +25,7 @@ STALL_COUNT=0
 LAST_KEEPALIVE=0
 LAST_RECOVERY=0
 
-logger -t modem-stall-watchdog "Started modem bearer stall watchdog and carrier keepalive service"
+logger -t modem-stall-watchdog "Started modem bearer stall watchdog and carrier keepalive service (interval=${KEEPALIVE_INTERVAL}s)"
 
 while true; do
     # Dynamically load UCI configuration
@@ -40,7 +40,7 @@ while true; do
     CHECK_INTERVAL=$(uci -q get modem-watchdog.general.check_interval || echo 5)
     COOLDOWN_SECS=$(uci -q get modem-watchdog.general.cooldown_seconds || echo 60)
     KEEPALIVE_ENABLED=$(uci -q get modem-watchdog.keepalive.enabled || echo 1)
-    KEEPALIVE_INTERVAL=$(uci -q get modem-watchdog.keepalive.interval || echo 45)
+    KEEPALIVE_INTERVAL=$(uci -q get modem-watchdog.keepalive.interval || echo 10)
     KEEPALIVE_TARGET=$(uci -q get modem-watchdog.keepalive.target || echo "1.1.1.1")
 
     # 1. Check if modem remoteproc is running
@@ -86,9 +86,12 @@ while true; do
             ping -c 1 -W 2 -I wwan0 "$KEEPALIVE_TARGET" >/dev/null 2>&1 || true
             RX_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
             if [ "$RX_POST" -gt "$RX_PRE" ]; then
-                logger -t modem-keepalive "Keepalive probe verified: RX incremented ($RX_PRE -> $RX_POST) via $KEEPALIVE_TARGET"
+                # Only log periodically to avoid spamming syslog (once every 60s)
+                if [ $((NOW % 60)) -lt "$CHECK_INTERVAL" ]; then
+                    logger -t modem-keepalive "Keepalive verified: RX incremented ($RX_PRE -> $RX_POST) via $KEEPALIVE_TARGET"
+                fi
             else
-                logger -t modem-keepalive "Keepalive probe warning: probe sent to $KEEPALIVE_TARGET but RX counter did not increment (RX=$RX_PRE)"
+                logger -t modem-keepalive "Keepalive warning: probe sent to $KEEPALIVE_TARGET but RX counter did not increment (RX=$RX_PRE)"
             fi
         fi
     fi
@@ -111,8 +114,12 @@ while true; do
     LAST_TX="$CUR_TX"
     LAST_RX="$CUR_RX"
 
-    # Stall condition: TX incrementing, RX completely frozen
-    if [ "$DELTA_TX" -gt 0 ] && [ "$DELTA_RX" -eq 0 ]; then
+    # Stall accumulation logic:
+    if [ "$DELTA_RX" -gt 0 ]; then
+        # Actual incoming packets received: link healthy, reset stall counter
+        STALL_COUNT=0
+    elif [ "$DELTA_TX" -gt 0 ]; then
+        # Outgoing packets sent, but zero incoming packets received: accumulate stall duration
         STALL_COUNT=$((STALL_COUNT + CHECK_INTERVAL))
         logger -t modem-stall-watchdog "Unbalanced traffic detected: TX+$DELTA_TX, RX+$DELTA_RX (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
 
@@ -212,9 +219,6 @@ while true; do
             STALL_COUNT=0
             sleep 5
         fi
-    else
-        # Normal traffic flow or idle; reset stall counter
-        STALL_COUNT=0
     fi
 
     sleep "$CHECK_INTERVAL"

@@ -6,5 +6,5 @@ config watchdog 'general'
 
 config keepalive 'keepalive'
 	option enabled '1'
-	option interval '45'
+	option interval '10'
 	option target '1.1.1.1'
