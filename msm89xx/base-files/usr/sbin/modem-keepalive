@@ -82,19 +82,52 @@ wait_for_interface_up() {
 	return 1
 }
 
+BEARER_RECOVERY_ATTEMPTED=0
+
 attempt_recovery() {
 	local now="$(get_monotonic_sec)"
 	local elapsed_since_recovery=$((now - LAST_RECOVERY))
 
 	if [ "$LAST_RECOVERY" -gt 0 ] && [ "$elapsed_since_recovery" -lt "$RECOVERY_COOLDOWN" ]; then
+		# If bearer recovery already failed (still losing probes within cooldown),
+		# escalate to remoteproc SSR — the only way to recover from RF synthesizer freeze
+		if [ "$BEARER_RECOVERY_ATTEMPTED" -ge 1 ] && [ "$CONSECUTIVE_FAILS" -ge "$((FAIL_THRESH * 2))" ]; then
+			logger -t modem-keepalive "Bearer reconnection did not restore RX (${CONSECUTIVE_FAILS} consecutive failures); escalating to remoteproc SSR..."
+			LAST_RECOVERY="$now"
+			BEARER_RECOVERY_ATTEMPTED=0
+
+			# Take down netifd interface first
+			ifdown "$INTERFACE"
+			wait_for_interface_down
+			sleep 1
+
+			# Trigger modem subsystem restart via remoteproc
+			if [ -f /sys/class/remoteproc/remoteproc0/state ]; then
+				echo stop > /sys/class/remoteproc/remoteproc0/state 2>/dev/null
+				sleep 2
+				echo start > /sys/class/remoteproc/remoteproc0/state 2>/dev/null
+				logger -t modem-keepalive "Remoteproc SSR triggered; waiting for modem to come back..."
+				sleep 10
+			fi
+
+			# Bring netifd back up
+			ifup "$INTERFACE"
+			wait_for_interface_up
+
+			CONSECUTIVE_FAILS=0
+			logger -t modem-keepalive "Remoteproc SSR recovery completed; entering ${RECOVERY_COOLDOWN}s cooldown."
+			return 0
+		fi
+
 		logger -t modem-keepalive "Recovery in cooldown (${elapsed_since_recovery}s / ${RECOVERY_COOLDOWN}s); skipping action."
 		return 0
 	fi
 
 	LAST_RECOVERY="$now"
+	BEARER_RECOVERY_ATTEMPTED=$((BEARER_RECOVERY_ATTEMPTED + 1))
 	logger -t modem-keepalive "Cellular stall detected (${CONSECUTIVE_FAILS} failed probes); initiating serialized netifd bearer reconnection..."
 
-	# Synchronized netifd reconnection (preserves radio power & avoids SSR)
+	# Stage 1: Synchronized netifd reconnection (fast, preserves radio power)
 	ifdown "$INTERFACE"
 	wait_for_interface_down
 	sleep 2
