@@ -92,21 +92,9 @@ attempt_recovery() {
 	fi
 
 	LAST_RECOVERY="$now"
-	logger -t modem-keepalive "Cellular stall detected (${CONSECUTIVE_FAILS} failed probes); Stage 1: trying non-destructive WDS wakeup..."
+	logger -t modem-keepalive "Cellular stall detected (${CONSECUTIVE_FAILS} failed probes); initiating serialized netifd bearer reconnection..."
 
-	# Stage 1: Try QMI WDS Go Active (non-destructive)
-	if [ -e "/dev/wwan0qmi0" ]; then
-		qmicli -p -d /dev/wwan0qmi0 --wds-go-active >/dev/null 2>&1
-		sleep 3
-		if ping -c 1 -W 1 -I "$DEV" "$TARGET" >/dev/null 2>&1; then
-			logger -t modem-keepalive "Stage 1 SUCCESS: WDS wakeup revived cellular data plane."
-			CONSECUTIVE_FAILS=0
-			return 0
-		fi
-	fi
-
-	# Stage 2: Synchronized netifd reconnection (preserves radio power & avoids SSR)
-	logger -t modem-keepalive "Stage 2: WDS wakeup ineffective; initiating serialized netifd bearer reconnection..."
+	# Synchronized netifd reconnection (preserves radio power & avoids SSR)
 	ifdown "$INTERFACE"
 	wait_for_interface_down
 	sleep 2
