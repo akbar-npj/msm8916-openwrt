@@ -1,0 +1,129 @@
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-uf896.dts
+@@ -0,0 +1,121 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "UF896 4G LTE Router";
++	compatible = "uf896,v1.1", "qcom,msm8916";
++};
++
++/*
++ * Reset / WPS button.
++ *
++ * Android:
++ *   GPIO35 = wifi_restore
++ */
++&button_restart {
++	gpios = <&tlmm 35 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++	/*
++	 * gpio107 (Android: volume_up) has no confirmed function on a
++	 * router and is left unexposed as a gpio-key for now; it is
++	 * only pin-configured here to match stock's input/pull-up state.
++	 */
++	pins = "gpio35", "gpio107";
++	bias-pull-up;
++};
++
++/*
++ * Primary tri-color status LED.
++ *
++ * Android:
++ *   GPIO8  = red
++ *   GPIO9  = green
++ *   GPIO10 = blue
++ */
++&led_r {
++	function = LED_FUNCTION_STATUS;
++	gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>;
++};
++
++&led_g {
++	function = LED_FUNCTION_STATUS;
++	gpios = <&tlmm 9 GPIO_ACTIVE_HIGH>;
++};
++
++&led_b {
++	function = LED_FUNCTION_STATUS;
++	gpios = <&tlmm 10 GPIO_ACTIVE_HIGH>;
++};
++
++&gpio_leds_default {
++	pins = "gpio8", "gpio9", "gpio10",
++	       "gpio77", "gpio78", "gpio81", "gpio82", "gpio83", "gpio84";
++};
++
++/*
++ * Secondary status LEDs.
++ *
++ * This board has more indicator LEDs than the shared msm8916-ufi.dtsi
++ * skeleton exposes (led_r/led_g/led_b only), so the rest are declared
++ * here directly. GPIO numbers and names below are exactly as read from
++ * stock Android's /sys/kernel/debug/gpio on the physical UF896 v1.1.
++ */
++/ {
++	leds-extra {
++		compatible = "gpio-leds";
++
++		led-charger-blue {
++			function = LED_FUNCTION_CHARGING;
++			color = <LED_COLOR_ID_BLUE>;
++			gpios = <&tlmm 77 GPIO_ACTIVE_HIGH>;
++		};
++
++		led-charger-red {
++			function = LED_FUNCTION_CHARGING;
++			color = <LED_COLOR_ID_RED>;
++			gpios = <&tlmm 78 GPIO_ACTIVE_HIGH>;
++		};
++
++		led-network-blue {
++			function = LED_FUNCTION_WAN;
++			color = <LED_COLOR_ID_BLUE>;
++			gpios = <&tlmm 81 GPIO_ACTIVE_HIGH>;
++		};
++
++		led-network-red {
++			function = LED_FUNCTION_WAN;
++			color = <LED_COLOR_ID_RED>;
++			gpios = <&tlmm 82 GPIO_ACTIVE_HIGH>;
++		};
++
++		led-wifi-green {
++			function = LED_FUNCTION_WLAN;
++			color = <LED_COLOR_ID_GREEN>;
++			gpios = <&tlmm 83 GPIO_ACTIVE_HIGH>;
++		};
++
++		led-data-link-blue {
++			function = LED_FUNCTION_LAN;
++			color = <LED_COLOR_ID_BLUE>;
++			gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
++		};
++	};
++};
++
++/*
++ * SIM selection on this board is NOT done via AP-side GPIO like
++ * hmu05/ufi001b/uf02 (no sim_en/sim_sel GPIO is requested by stock
++ * Android anywhere in this device's boot). Instead, stock Android's
++ * /system/etc/sim1.sh and sim2.sh switch SIM slots with an AT command
++ * sent to the modem itself over /dev/smd11:
++ *
++ *   sim1.sh: AT+SIMSEL=0,1,1,1
++ *   sim2.sh: AT+SIMSEL=1,0,1,1
++ *
++ * There is nothing to wire up here in the DTS for that; it needs a
++ * userspace helper (e.g. an /etc/init.d script or ModemManager hook)
++ * that writes the equivalent AT command to the modem's AT port.
++ */
