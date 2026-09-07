@@ -7,9 +7,6 @@
 
 set -euo pipefail
 
-# Must match TOT_SECTORS in generate_squashfs_gpt.sh
-TOT_SECTORS=7569408
-
 # Temp files - cleaned up on exit
 firmware_tmp=""
 gpt_tmp=""
@@ -34,7 +31,17 @@ gpt_path=$(find_image "." "*-squashfs-gpt_both0.bin") || exit 1
 boot_path=$(find_image "." "*-squashfs-boot.img")     || exit 1
 rootfs_path=$(find_image "." "*-squashfs-system.img") || exit 1
 
-echo "[+] GPT:    $(basename "$gpt_path")"
+# The eMMC size differs between devices, so read the total sector count out
+# of the GPT itself rather than hardcoding it: the primary header at LBA 1
+# stores the backup header LBA (TOT_SECTORS - 1) at byte offset 32.
+alt_lba=$(od -An -tu8 -j 544 -N 8 "$gpt_path" | tr -d '[:space:]')
+if ! [[ "${alt_lba:-0}" =~ ^[0-9]+$ ]] || [[ "$alt_lba" -lt 67 ]]; then
+    echo "[-] Error: cannot read backup header LBA from $(basename "$gpt_path")" >&2
+    exit 1
+fi
+TOT_SECTORS=$((alt_lba + 1))
+
+echo "[+] GPT:    $(basename "$gpt_path") (${TOT_SECTORS} sectors)"
 echo "[+] Boot:   $(basename "$boot_path")"
 echo "[+] Rootfs: $(basename "$rootfs_path")"
 

@@ -1,10 +1,18 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# Generate GPT image for MSM8916 eMMC (7569408 x 512B sectors).
+# Generate GPT image for MSM8916 eMMC.
+#
+# The eMMC size differs between devices, so the total sector count is taken
+# from the TOT_SECTORS environment variable (set per device via
+# GPT_TOT_SECTORS in msm8916.mk); it defaults to the 4 GB part fitted to the
+# hmu05 / uf02 / ufi001b / uz801 sticks.
+#
 # To read TOT_SECTORS from a live device:
 #   HEX=$(edl printgpt 2>&1 | sed -n 's/.*sectors:\(0x[0-9A-Fa-f]\+\).*/\1/p' | tail -n1)
 #   TOT_SECTORS=$((HEX))
+# or, from a booted OpenWrt on the device:
+#   cat /sys/block/mmcblk0/size
 
 set -e
 
@@ -14,7 +22,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 IMG="${TMPDIR}/gpt.img"
 
 # Total size in 512B sectors
-TOT_SECTORS=7569408
+TOT_SECTORS=${TOT_SECTORS:-7569408}
 
 # GPT boundaries
 FIRST_LBA=34
