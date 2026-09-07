@@ -64,7 +64,7 @@ jobs:
         run: |
           ./build.sh prepare
 
-      - name: Compile All Firmware Images (hmu05, ufi001b, uz801, uf02)
+      - name: Compile All Firmware Images (hmu05, ufi001b, uz801, uf02, uf896)
         run: |
           ./build.sh build all
 
@@ -84,6 +84,7 @@ jobs:
                     openwrt-msm89xx-msm8916-generic-ufi001b-* \
                     openwrt-msm89xx-msm8916-yiming-uz801v3-* \
                     openwrt-msm89xx-msm8916-generic-uf02-* \
+                    openwrt-msm89xx-msm8916-generic-uf896-* \
                     kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
           cat sha256sums
 

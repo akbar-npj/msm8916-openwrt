@@ -206,6 +206,15 @@ ensure_builder() {
     if ! docker_compose ps --status running --services | grep -qx builder; then
         die "Docker builder service failed to start. Check: docker compose logs builder"
     fi
+
+    # Named volumes (build_dir/staging_dir/tmp/dl) are created root-owned by
+    # Docker on first use; fix ownership so the non-root builder user can
+    # write to them. Idempotent and cheap, safe to run on every invocation.
+    docker_compose exec --user root -T builder \
+        chown -R "${HOST_UID:-$(id -u)}:${HOST_GID:-$(id -g)}" \
+            /repo/openwrt/build_dir /repo/openwrt/staging_dir \
+            /repo/openwrt/dl /repo/openwrt/tmp /home/builder/.owrt-tmp \
+        >/dev/null 2>&1 || true
 }
 
 ###############################################################################
@@ -350,7 +359,7 @@ sync_bsp() {
             pname=\$(basename \"\$pkg\"); \
             if [ -d \"$CONTAINER_OPENWRT_DIR/package/system/\$pname\" ]; then \
                 mkdir -p \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches\" && \
-                cp -a \"\$pkg/patches/.\" \
+                cp -a --no-preserve=mode,ownership,timestamps \"\$pkg/patches/.\" \
                       \"$CONTAINER_OPENWRT_DIR/package/system/\$pname/patches/\"; \
             fi; \
         done
@@ -359,7 +368,7 @@ sync_bsp() {
     # Sync openwrt-overlay into the OpenWrt tree if present.
     docker_exec sh -c "
         if [ -d \"$CONTAINER_REPO_DIR/openwrt-overlay\" ]; then
-            cp -a \"$CONTAINER_REPO_DIR/openwrt-overlay/.\" \"$CONTAINER_OPENWRT_DIR/\"
+            cp -a --no-preserve=mode,ownership,timestamps \"$CONTAINER_REPO_DIR/openwrt-overlay/.\" \"$CONTAINER_OPENWRT_DIR/\"
         fi
     "
 

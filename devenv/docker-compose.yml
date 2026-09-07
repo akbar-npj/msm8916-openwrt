@@ -21,5 +21,22 @@ services:
 
     volumes:
       - ..:/repo
+      # build_dir/staging_dir/tmp/dl are heavy-churn, fully regenerable build
+      # scratch space. On macOS, Docker's virtiofs bind-mount of the host
+      # directory intermittently rejects file creation/rename/chown under
+      # this kind of parallel write load (spurious EPERM/ENOENT). Routing
+      # them through native Docker volumes instead of the virtiofs bind
+      # mount avoids that class of failure. None of this needs to be
+      # visible/editable from the host.
+      - openwrt-build-dir:/repo/openwrt/build_dir
+      - openwrt-staging-dir:/repo/openwrt/staging_dir
+      - openwrt-tmp:/repo/openwrt/tmp
+      - openwrt-dl:/repo/openwrt/dl
 
     command: ["/bin/bash"]
+
+volumes:
+  openwrt-build-dir:
+  openwrt-staging-dir:
+  openwrt-tmp:
+  openwrt-dl:
