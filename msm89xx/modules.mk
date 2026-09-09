@@ -78,7 +78,7 @@ $(eval $(call KernelPackage,rpmsg-wwan-ctrl))
 define KernelPackage/bam-dmux
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Qualcomm BAM-DMUX WWAN network driver
-  DEPENDS:=@TARGET_msm89xx +kmod-wwan
+  DEPENDS:=@TARGET_msm89xx +kmod-wwan +kmod-qcom-rproc
   KCONFIG:=CONFIG_QCOM_BAM_DMUX
   FILES:=$(LINUX_DIR)/drivers/net/wwan/qcom_bam_dmux.ko
   AUTOLOAD:=$(call AutoProbe,qcom_bam_dmux)
