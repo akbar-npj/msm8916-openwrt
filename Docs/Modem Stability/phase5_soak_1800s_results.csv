@@ -1,0 +1,9 @@
+timestamp,elapsed_s,uptime_s,ping_ok,ping_rtt_ms,net_rx_pkt,net_tx_pkt,net_rx_bytes,net_tx_bytes,rx_callbacks,cmd_data,rx_submitted,rx_submit_failed,rx_queued_buffers,rx_slots_mapped,rx_slots_free,rx_slots_submitted,rx_duplicate_submissions,rx_negative_queue_count,rx_active_submitters,rx_active_callbacks,rx_tearing_down,pc_state,pc_ack_state,pc_vote_tx_count,pc_unvote_tx_count,pc_ack_irq_count,pc_timeout_count,pm_suspend_attempts,pm_suspend_completions,pm_resume_attempts,runtime_status,pm_usage_count,error_status
+1788957840,0.0,1140.2,1,0.0,222,248,19529,23208,237,222,2989,0,0,0,32,0,0,0,0,0,1,0,0,82,82,164,0,82,81,82,suspended,0,NONE
+1788957848,8.2,1148.3,1,0.0,222,250,19529,23392,237,222,3021,0,0,0,32,0,0,0,0,0,1,0,0,83,83,166,0,83,82,83,suspended,0,NONE
+1788957856,16.3,1156.5,1,0.0,222,253,19529,23680,237,222,3053,0,32,32,0,32,0,0,0,0,0,1,1,84,83,167,0,83,82,84,active,0,NONE
+1788957864,24.5,1164.8,1,0.0,222,255,19529,23864,237,222,3085,0,0,0,32,0,0,0,0,0,1,0,0,85,85,170,0,85,84,85,suspended,0,NONE
+1788957873,32.8,1173.0,1,0.0,222,257,19529,24048,237,222,3117,0,0,0,32,0,0,0,0,0,1,0,0,86,86,172,0,86,85,86,suspended,0,NONE
+1788957881,41.0,1181.2,1,0.0,222,260,19529,24316,237,222,3181,0,32,32,0,32,0,0,0,0,0,1,1,88,87,175,0,87,86,88,active,0,NONE
+1788957889,49.2,1189.4,1,0.0,222,263,19529,24584,237,222,3213,0,0,0,32,0,0,0,0,0,1,0,0,89,89,178,0,89,88,89,suspended,0,NONE
+1788957897,57.4,1198.0,1,0.0,222,265,19529,24768,237,222,3245,0,0,0,32,0,0,0,0,0,1,0,0,90,90,180,0,90,89,90,suspended,0,NONE

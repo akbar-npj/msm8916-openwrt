@@ -1,0 +1,914 @@
+[*] Starting 1,800s Clean-Boot Multi-Tier Soak Harness at Tue Sep  8 23:07:59 2026...
+[*] Connecting to router at 192.168.8.1...
+[+] Router reachable. Current uptime: 17:22:59 up 26 min,  load average: 0.10, 0.09, 0.08
+[*] Initiating clean cold reboot to start 1,800s soak test from t=0 baseline...
+[+] Router rebooted successfully! Initial uptime: 17:23:23 up 0 min,  load average: 0.63, 0.15, 0.05
+[*] Verifying qcom-time-daemon and keepalive processes...
+  Processes:
+2451 root       964 S    /usr/sbin/qcom-time-daemon -r 0 -v
+ 3354 root      1544 S    {modem-keepalive} /bin/sh /usr/sbin/modem-keepalive
+ 5324 root      1336 S    ash -c ps w | grep -E 'qcom-time-daemon|modem-keepalive'
+ 5329 root      1336 S    grep -E qcom-time-daemon|modem-keepalive
+--- Boot Syslog Transactions ---
+Tue Sep  8 17:23:10 2026 daemon.notice qcom-time-daemon[2451]: [QMI-TIME] TX 0x0020 to QRTR node=0 port=11 txn=3 (len=25)
+Tue Sep  8 17:23:10 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] INITIAL: Synchronously setting ATS_USER (base=2, offset=1472919223769 ms)...
+Tue Sep  8 17:23:10 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] TX 0x0020 to QRTR node=0 port=11 txn=3 (len=25)
+Tue Sep  8 17:23:10 2026 daemon.notice qcom-time-daemon[2451]: [QMI-TIME] RX 0x0020 response from QRTR node=0 port=11 txn=3 decoded successfully
+Tue Sep  8 17:23:10 2026 daemon.notice qcom-time-daemon[2451]: [QMI-TIME] INITIAL ATS_USER TRANSACTION VERIFIED!
+Tue Sep  8 17:23:10 2026 daemon.notice qcom-time-daemon[2451]: [QMI-TIME] Modem baseband confirmed ATS_USER (offset=1472919223769 ms)
+Tue Sep  8 17:23:10 2026 daemon.notice qcom-time-daemon[2451]: [QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.
+Tue Sep  8 17:23:10 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] RX 0x0020 response from QRTR node=0 port=11 txn=3 decoded successfully
+Tue Sep  8 17:23:10 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] INITIAL ATS_USER TRANSACTION VERIFIED!
+Tue Sep  8 17:23:10 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] Modem baseband confirmed ATS_USER (offset=1472919223769 ms)
+Tue Sep  8 17:23:10 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.
+Tue Sep  8 17:23:23 2026 daemon.debug qcom-time-daemon[2451]: [QMI-TIME-DEBUG] Async Rx QMI: type=4 txn=2 msg_id=0x0027 len=18
+Tue Sep  8 17:23:23 2026 daemon.notice qcom-time-daemon[2451]: [QMI-TIME] Indication 0x0027 (ATS_TOD_UPDATE_IND) received from QRTR node=0 port=11: base=1 (ATS_TOD), offset=1472923395481 ms
+Tue Sep  8 17:23:23 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME-DEBUG] Async Rx QMI: type=4 txn=2 msg_id=0x0027 len=18
+Tue Sep  8 17:23:23 2026 daemon.err qcom-time-daemon[2451]: qcom-time-daemon[2451]: [QMI-TIME] Indication 0x0027 (ATS_TOD_UPDATE_IND) received from QRTR node=0 port=11: base=1 (ATS_TOD), offset=1472923395481 ms
+--------------------------------
+[*] Waiting for bearer establishment and initial ping (up to 180s)...
+  [Wait 0/90] Ping: FAIL, Modem: connected, Uptime: 35.5s
+[+] Cellular data UP at iteration 1 (Baseband Uptime: 40.8s)!
+[*] Starting 1,800-second soak test capture at Tue Sep  8 23:08:45 2026...
+Elapsed    | Uptime   | Ping  | wwan0 RX   | WDS RX   | Callbacks  | BAM IRQ  | Queued | SubFail | PM State | Crash
+---------------------------------------------------------------------------------------------------------
+   0s (0m00s) |     41s | OK    | 17 (+0)    | 16 (+0)  | 32 (+0)    | 65 (+0)  | 32     | 0       | active   | CLEAN
+   5s (0m05s) |     46s | OK    | 28 (+11)   | 23 (+7)  | 43 (+11)   | 84 (+19) | 32     | 0       | active   | CLEAN
+  10s (0m10s) |     52s | OK    | 32 (+4)    | 27 (+4)  | 47 (+4)    | 92 (+8)  | 32     | 0       | active   | CLEAN
+  15s (0m15s) |     57s | OK    | 35 (+3)    | 30 (+3)  | 50 (+3)    | 98 (+6)  | 32     | 0       | active   | CLEAN
+  21s (0m21s) |     62s | OK    | 40 (+5)    | 35 (+5)  | 55 (+5)    | 108 (+10) | 32     | 0       | active   | CLEAN
+  26s (0m26s) |     68s | OK    | 43 (+3)    | 38 (+3)  | 58 (+3)    | 114 (+6) | 32     | 0       | active   | CLEAN
+  31s (0m31s) |     73s | OK    | 47 (+4)    | 42 (+4)  | 62 (+4)    | 122 (+8) | 32     | 0       | active   | CLEAN
+  37s (0m37s) |     78s | OK    | 56 (+9)    | 50 (+8)  | 71 (+9)    | 140 (+18) | 32     | 0       | active   | CLEAN
+  42s (0m42s) |     84s | OK    | 59 (+3)    | 53 (+3)  | 74 (+3)    | 146 (+6) | 32     | 0       | active   | CLEAN
+  47s (0m47s) |     89s | OK    | 64 (+5)    | 58 (+5)  | 79 (+5)    | 156 (+10) | 32     | 0       | active   | CLEAN
+  53s (0m53s) |     94s | OK    | 67 (+3)    | 61 (+3)  | 82 (+3)    | 162 (+6) | 32     | 0       | active   | CLEAN
+  58s (0m58s) |    100s | OK    | 71 (+4)    | 65 (+4)  | 86 (+4)    | 170 (+8) | 32     | 0       | active   | CLEAN
+  63s (1m03s) |    105s | OK    | 75 (+4)    | 69 (+4)  | 90 (+4)    | 178 (+8) | 32     | 0       | active   | CLEAN
+  69s (1m09s) |    110s | OK    | 83 (+8)    | 76 (+7)  | 98 (+8)    | 194 (+16) | 32     | 0       | active   | CLEAN
+  74s (1m14s) |    116s | OK    | 86 (+3)    | 79 (+3)  | 101 (+3)   | 200 (+6) | 32     | 0       | active   | CLEAN
+  79s (1m19s) |    121s | OK    | 91 (+5)    | 84 (+5)  | 106 (+5)   | 210 (+10) | 32     | 0       | active   | CLEAN
+  85s (1m25s) |    126s | OK    | 94 (+3)    | 87 (+3)  | 109 (+3)   | 216 (+6) | 32     | 0       | active   | CLEAN
+  90s (1m30s) |    132s | OK    | 98 (+4)    | 91 (+4)  | 113 (+4)   | 224 (+8) | 32     | 0       | active   | CLEAN
+  95s (1m35s) |    137s | OK    | 102 (+4)   | 95 (+4)  | 117 (+4)   | 232 (+8) | 32     | 0       | active   | CLEAN
+ 101s (1m41s) |    142s | OK    | 110 (+8)   | 102 (+7) | 125 (+8)   | 248 (+16) | 32     | 0       | active   | CLEAN
+ 106s (1m46s) |    148s | OK    | 113 (+3)   | 105 (+3) | 128 (+3)   | 254 (+6) | 32     | 0       | active   | CLEAN
+ 111s (1m51s) |    153s | OK    | 118 (+5)   | 110 (+5) | 133 (+5)   | 264 (+10) | 32     | 0       | active   | CLEAN
+ 117s (1m57s) |    158s | OK    | 122 (+4)   | 114 (+4) | 137 (+4)   | 272 (+8) | 32     | 0       | active   | CLEAN
+ 122s (2m02s) |    164s | OK    | 125 (+3)   | 117 (+3) | 140 (+3)   | 278 (+6) | 32     | 0       | active   | CLEAN
+ 127s (2m07s) |    169s | OK    | 130 (+5)   | 122 (+5) | 145 (+5)   | 288 (+10) | 32     | 0       | active   | CLEAN
+ 133s (2m13s) |    174s | OK    | 136 (+6)   | 127 (+5) | 151 (+6)   | 300 (+12) | 32     | 0       | active   | CLEAN
+ 138s (2m18s) |    180s | OK    | 141 (+5)   | 132 (+5) | 156 (+5)   | 310 (+10) | 32     | 0       | active   | CLEAN
+ 143s (2m23s) |    185s | OK    | 145 (+4)   | 136 (+4) | 160 (+4)   | 318 (+8) | 32     | 0       | active   | CLEAN
+ 149s (2m29s) |    190s | OK    | 149 (+4)   | 140 (+4) | 164 (+4)   | 326 (+8) | 32     | 0       | active   | CLEAN
+ 154s (2m34s) |    195s | OK    | 152 (+3)   | 143 (+3) | 167 (+3)   | 332 (+6) | 32     | 0       | active   | CLEAN
+ 159s (2m39s) |    201s | OK    | 157 (+5)   | 148 (+5) | 172 (+5)   | 342 (+10) | 32     | 0       | active   | CLEAN
+ 164s (2m44s) |    206s | OK    | 163 (+6)   | 153 (+5) | 178 (+6)   | 354 (+12) | 32     | 0       | active   | CLEAN
+ 170s (2m50s) |    211s | OK    | 168 (+5)   | 158 (+5) | 183 (+5)   | 364 (+10) | 32     | 0       | active   | CLEAN
+ 175s (2m55s) |    217s | OK    | 172 (+4)   | 162 (+4) | 187 (+4)   | 372 (+8) | 32     | 0       | active   | CLEAN
+ 180s (3m00s) |    222s | OK    | 176 (+4)   | 166 (+4) | 191 (+4)   | 380 (+8) | 32     | 0       | active   | CLEAN
+ 186s (3m06s) |    227s | OK    | 180 (+4)   | 170 (+4) | 195 (+4)   | 388 (+8) | 32     | 0       | active   | CLEAN
+ 191s (3m11s) |    233s | OK    | 184 (+4)   | 174 (+4) | 199 (+4)   | 396 (+8) | 32     | 0       | active   | CLEAN
+ 196s (3m16s) |    238s | OK    | 190 (+6)   | 179 (+5) | 205 (+6)   | 407 (+11) | 32     | 0       | active   | CLEAN
+ 202s (3m22s) |    243s | OK    | 196 (+6)   | 185 (+6) | 211 (+6)   | 419 (+12) | 32     | 0       | active   | CLEAN
+ 207s (3m27s) |    249s | OK    | 199 (+3)   | 188 (+3) | 214 (+3)   | 425 (+6) | 32     | 0       | active   | CLEAN
+ 212s (3m32s) |    254s | OK    | 203 (+4)   | 192 (+4) | 218 (+4)   | 433 (+8) | 32     | 0       | active   | CLEAN
+ 218s (3m38s) |    259s | OK    | 207 (+4)   | 197 (+5) | 222 (+4)   | 442 (+9) | 32     | 0       | active   | CLEAN
+ 223s (3m43s) |    265s | OK    | 211 (+4)   | 200 (+3) | 226 (+4)   | 449 (+7) | 32     | 0       | active   | CLEAN
+ 228s (3m48s) |    270s | OK    | 217 (+6)   | 205 (+5) | 232 (+6)   | 461 (+12) | 32     | 0       | active   | CLEAN
+ 234s (3m54s) |    275s | OK    | 223 (+6)   | 211 (+6) | 238 (+6)   | 473 (+12) | 32     | 0       | active   | CLEAN
+ 239s (3m59s) |    281s | OK    | 227 (+4)   | 215 (+4) | 242 (+4)   | 481 (+8) | 32     | 0       | active   | CLEAN
+ 244s (4m04s) |    286s | OK    | 230 (+3)   | 218 (+3) | 245 (+3)   | 489 (+8) | 32     | 0       | active   | CLEAN
+ 251s (4m11s) |    292s | OK    | 234 (+4)   | 222 (+4) | 249 (+4)   | 497 (+8) | 32     | 0       | active   | CLEAN
+ 256s (4m16s) |    298s | OK    | 237 (+3)   | 225 (+3) | 252 (+3)   | 503 (+6) | 32     | 0       | active   | CLEAN
+ 261s (4m21s) |    303s | OK    | 241 (+4)   | 229 (+4) | 256 (+4)   | 511 (+8) | 32     | 0       | active   | CLEAN
+ 267s (4m27s) |    308s | OK    | 249 (+8)   | 236 (+7) | 264 (+8)   | 527 (+16) | 32     | 0       | active   | CLEAN
+ 272s (4m32s) |    314s | OK    | 253 (+4)   | 240 (+4) | 268 (+4)   | 535 (+8) | 32     | 0       | active   | CLEAN
+ 277s (4m37s) |    319s | OK    | 256 (+3)   | 243 (+3) | 271 (+3)   | 542 (+7) | 32     | 0       | active   | CLEAN
+ 283s (4m43s) |    324s | OK    | 261 (+5)   | 248 (+5) | 276 (+5)   | 551 (+9) | 32     | 0       | active   | CLEAN
+ 288s (4m48s) |    330s | OK    | 265 (+4)   | 252 (+4) | 280 (+4)   | 559 (+8) | 32     | 0       | active   | CLEAN
+ 293s (4m53s) |    335s | OK    | 268 (+3)   | 256 (+4) | 283 (+3)   | 566 (+7) | 32     | 0       | active   | CLEAN
+ 299s (4m59s) |    340s | OK    | 277 (+9)   | 263 (+7) | 292 (+9)   | 582 (+16) | 32     | 0       | active   | CLEAN
+ 304s (5m04s) |    346s | OK    | 280 (+3)   | 266 (+3) | 295 (+3)   | 588 (+6) | 32     | 0       | active   | CLEAN
+ 309s (5m09s) |    351s | OK    | 285 (+5)   | 271 (+5) | 300 (+5)   | 598 (+10) | 32     | 0       | active   | CLEAN
+ 315s (5m15s) |    356s | OK    | 288 (+3)   | 274 (+3) | 303 (+3)   | 604 (+6) | 32     | 0       | active   | CLEAN
+ 320s (5m20s) |    361s | OK    | 292 (+4)   | 278 (+4) | 307 (+4)   | 612 (+8) | 32     | 0       | active   | CLEAN
+ 325s (5m25s) |    367s | OK    | 296 (+4)   | 282 (+4) | 311 (+4)   | 620 (+8) | 32     | 0       | active   | CLEAN
+ 331s (5m31s) |    372s | OK    | 304 (+8)   | 289 (+7) | 319 (+8)   | 636 (+16) | 32     | 0       | active   | CLEAN
+ 336s (5m36s) |    378s | OK    | 307 (+3)   | 292 (+3) | 322 (+3)   | 642 (+6) | 32     | 0       | active   | CLEAN
+ 341s (5m41s) |    383s | OK    | 312 (+5)   | 297 (+5) | 327 (+5)   | 652 (+10) | 32     | 0       | active   | CLEAN
+ 347s (5m47s) |    388s | OK    | 315 (+3)   | 300 (+3) | 330 (+3)   | 658 (+6) | 32     | 0       | active   | CLEAN
+ 352s (5m52s) |    394s | OK    | 319 (+4)   | 304 (+4) | 334 (+4)   | 666 (+8) | 32     | 0       | active   | CLEAN
+ 357s (5m57s) |    399s | OK    | 324 (+5)   | 309 (+5) | 339 (+5)   | 676 (+10) | 32     | 0       | active   | CLEAN
+ 363s (6m03s) |    404s | OK    | 331 (+7)   | 315 (+6) | 346 (+7)   | 689 (+13) | 32     | 0       | active   | CLEAN
+ 368s (6m08s) |    409s | OK    | 335 (+4)   | 319 (+4) | 350 (+4)   | 697 (+8) | 32     | 0       | active   | CLEAN
+ 373s (6m13s) |    415s | OK    | 339 (+4)   | 323 (+4) | 354 (+4)   | 705 (+8) | 32     | 0       | active   | CLEAN
+ 378s (6m18s) |    420s | OK    | 343 (+4)   | 327 (+4) | 358 (+4)   | 713 (+8) | 32     | 0       | active   | CLEAN
+ 384s (6m24s) |    425s | OK    | 346 (+3)   | 330 (+3) | 361 (+3)   | 719 (+6) | 32     | 0       | active   | CLEAN
+ 389s (6m29s) |    431s | OK    | 351 (+5)   | 335 (+5) | 366 (+5)   | 729 (+10) | 32     | 0       | active   | CLEAN
+ 394s (6m34s) |    436s | OK    | 354 (+3)   | 338 (+3) | 369 (+3)   | 735 (+6) | 32     | 0       | active   | CLEAN
+ 400s (6m40s) |    441s | OK    | 358 (+4)   | 342 (+4) | 373 (+4)   | 743 (+8) | 32     | 0       | active   | CLEAN
+ 405s (6m45s) |    447s | OK    | 362 (+4)   | 346 (+4) | 377 (+4)   | 751 (+8) | 32     | 0       | active   | CLEAN
+ 410s (6m50s) |    452s | OK    | 366 (+4)   | 350 (+4) | 381 (+4)   | 759 (+8) | 32     | 0       | active   | CLEAN
+ 416s (6m56s) |    457s | OK    | 369 (+3)   | 353 (+3) | 384 (+3)   | 765 (+6) | 32     | 0       | active   | CLEAN
+ 421s (7m01s) |    463s | OK    | 374 (+5)   | 358 (+5) | 389 (+5)   | 775 (+10) | 32     | 0       | active   | CLEAN
+ 426s (7m06s) |    468s | OK    | 377 (+3)   | 361 (+3) | 392 (+3)   | 781 (+6) | 32     | 0       | active   | CLEAN
+ 432s (7m12s) |    473s | OK    | 385 (+8)   | 368 (+7) | 400 (+8)   | 797 (+16) | 32     | 0       | active   | CLEAN
+ 437s (7m17s) |    479s | OK    | 389 (+4)   | 372 (+4) | 404 (+4)   | 805 (+8) | 32     | 0       | active   | CLEAN
+ 442s (7m22s) |    484s | OK    | 393 (+4)   | 376 (+4) | 408 (+4)   | 813 (+8) | 32     | 0       | active   | CLEAN
+ 448s (7m28s) |    489s | OK    | 398 (+5)   | 381 (+5) | 413 (+5)   | 823 (+10) | 32     | 0       | active   | CLEAN
+ 453s (7m33s) |    495s | OK    | 401 (+3)   | 384 (+3) | 416 (+3)   | 829 (+6) | 32     | 0       | active   | CLEAN
+ 458s (7m38s) |    500s | OK    | 405 (+4)   | 388 (+4) | 420 (+4)   | 837 (+8) | 32     | 0       | active   | CLEAN
+ 464s (7m44s) |    505s | OK    | 409 (+4)   | 392 (+4) | 424 (+4)   | 845 (+8) | 32     | 0       | active   | CLEAN
+ 469s (7m49s) |    510s | OK    | 413 (+4)   | 396 (+4) | 428 (+4)   | 853 (+8) | 32     | 0       | active   | CLEAN
+ 474s (7m54s) |    516s | OK    | 415 (+2)   | 398 (+2) | 430 (+2)   | 858 (+5) | 32     | 0       | active   | CLEAN
+ 480s (8m00s) |    521s | OK    | 419 (+4)   | 402 (+4) | 434 (+4)   | 866 (+8) | 32     | 0       | active   | CLEAN
+ 485s (8m05s) |    526s | OK    | 423 (+4)   | 406 (+4) | 438 (+4)   | 874 (+8) | 32     | 0       | active   | CLEAN
+ 490s (8m10s) |    532s | OK    | 426 (+3)   | 409 (+3) | 441 (+3)   | 880 (+6) | 32     | 0       | active   | CLEAN
+ 496s (8m16s) |    537s | OK    | 435 (+9)   | 417 (+8) | 450 (+9)   | 898 (+18) | 32     | 0       | active   | CLEAN
+ 501s (8m21s) |    542s | OK    | 438 (+3)   | 420 (+3) | 453 (+3)   | 904 (+6) | 32     | 0       | active   | CLEAN
+ 506s (8m26s) |    548s | OK    | 442 (+4)   | 424 (+4) | 457 (+4)   | 912 (+8) | 32     | 0       | active   | CLEAN
+ 511s (8m31s) |    553s | OK    | 446 (+4)   | 428 (+4) | 461 (+4)   | 920 (+8) | 32     | 0       | active   | CLEAN
+ 517s (8m37s) |    558s | OK    | 450 (+4)   | 432 (+4) | 465 (+4)   | 928 (+8) | 32     | 0       | active   | CLEAN
+ 522s (8m42s) |    564s | OK    | 453 (+3)   | 436 (+4) | 468 (+3)   | 935 (+7) | 32     | 0       | active   | CLEAN
+ 527s (8m47s) |    569s | OK    | 458 (+5)   | 440 (+4) | 473 (+5)   | 944 (+9) | 32     | 0       | active   | CLEAN
+ 533s (8m53s) |    574s | OK    | 462 (+4)   | 444 (+4) | 477 (+4)   | 952 (+8) | 32     | 0       | active   | CLEAN
+ 538s (8m58s) |    580s | OK    | 465 (+3)   | 447 (+3) | 480 (+3)   | 958 (+6) | 32     | 0       | active   | CLEAN
+ 543s (9m03s) |    585s | OK    | 470 (+5)   | 452 (+5) | 485 (+5)   | 968 (+10) | 32     | 0       | active   | CLEAN
+ 549s (9m09s) |    590s | OK    | 473 (+3)   | 455 (+3) | 488 (+3)   | 974 (+6) | 32     | 0       | active   | CLEAN
+ 554s (9m14s) |    596s | OK    | 477 (+4)   | 459 (+4) | 492 (+4)   | 982 (+8) | 32     | 0       | active   | CLEAN
+ 559s (9m19s) |    601s | OK    | 483 (+6)   | 464 (+5) | 498 (+6)   | 994 (+12) | 32     | 0       | active   | CLEAN
+ 565s (9m25s) |    606s | OK    | 489 (+6)   | 470 (+6) | 504 (+6)   | 1006 (+12) | 32     | 0       | active   | CLEAN
+ 570s (9m30s) |    612s | OK    | 492 (+3)   | 473 (+3) | 507 (+3)   | 1012 (+6) | 32     | 0       | active   | CLEAN
+ 575s (9m35s) |    617s | OK    | 497 (+5)   | 478 (+5) | 512 (+5)   | 1022 (+10) | 32     | 0       | active   | CLEAN
+ 581s (9m41s) |    622s | OK    | 500 (+3)   | 481 (+3) | 515 (+3)   | 1028 (+6) | 32     | 0       | active   | CLEAN
+ 586s (9m46s) |    628s | OK    | 504 (+4)   | 485 (+4) | 519 (+4)   | 1036 (+8) | 32     | 0       | active   | CLEAN
+ 591s (9m51s) |    633s | OK    | 508 (+4)   | 489 (+4) | 523 (+4)   | 1044 (+8) | 32     | 0       | active   | CLEAN
+ 597s (9m57s) |    638s | OK    | 512 (+4)   | 493 (+4) | 527 (+4)   | 1052 (+8) | 32     | 0       | active   | CLEAN
+ 602s (10m02s) |    644s | OK    | 516 (+4)   | 497 (+4) | 531 (+4)   | 1060 (+8) | 32     | 0       | active   | CLEAN
+ 607s (10m07s) |    649s | OK    | 520 (+4)   | 501 (+4) | 535 (+4)   | 1068 (+8) | 32     | 0       | active   | CLEAN
+ 613s (10m13s) |    654s | OK    | 523 (+3)   | 505 (+4) | 538 (+3)   | 1075 (+7) | 32     | 0       | active   | CLEAN
+ 618s (10m18s) |    659s | OK    | 528 (+5)   | 509 (+4) | 543 (+5)   | 1084 (+9) | 32     | 0       | active   | CLEAN
+ 623s (10m23s) |    665s | OK    | 534 (+6)   | 514 (+5) | 549 (+6)   | 1096 (+12) | 32     | 0       | active   | CLEAN
+ 628s (10m28s) |    670s | OK    | 539 (+5)   | 519 (+5) | 554 (+5)   | 1106 (+10) | 32     | 0       | active   | CLEAN
+ 634s (10m34s) |    675s | OK    | 544 (+5)   | 524 (+5) | 559 (+5)   | 1116 (+10) | 32     | 0       | active   | CLEAN
+ 639s (10m39s) |    681s | OK    | 547 (+3)   | 527 (+3) | 562 (+3)   | 1122 (+6) | 32     | 0       | active   | CLEAN
+ 644s (10m44s) |    686s | OK    | 551 (+4)   | 531 (+4) | 566 (+4)   | 1130 (+8) | 32     | 0       | active   | CLEAN
+ 650s (10m50s) |    691s | OK    | 555 (+4)   | 535 (+4) | 570 (+4)   | 1138 (+8) | 32     | 0       | active   | CLEAN
+ 655s (10m55s) |    697s | OK    | 559 (+4)   | 539 (+4) | 574 (+4)   | 1146 (+8) | 32     | 0       | active   | CLEAN
+ 660s (11m00s) |    702s | OK    | 562 (+3)   | 542 (+3) | 577 (+3)   | 1152 (+6) | 32     | 0       | active   | CLEAN
+ 666s (11m06s) |    707s | OK    | 567 (+5)   | 547 (+5) | 582 (+5)   | 1162 (+10) | 32     | 0       | active   | CLEAN
+ 671s (11m11s) |    713s | OK    | 570 (+3)   | 550 (+3) | 585 (+3)   | 1168 (+6) | 32     | 0       | active   | CLEAN
+ 676s (11m16s) |    718s | OK    | 574 (+4)   | 554 (+4) | 589 (+4)   | 1176 (+8) | 32     | 0       | active   | CLEAN
+ 682s (11m22s) |    723s | OK    | 578 (+4)   | 558 (+4) | 593 (+4)   | 1184 (+8) | 32     | 0       | active   | CLEAN
+ 687s (11m27s) |    729s | OK    | 583 (+5)   | 562 (+4) | 598 (+5)   | 1194 (+10) | 32     | 0       | active   | CLEAN
+ 692s (11m32s) |    734s | OK    | 588 (+5)   | 568 (+6) | 604 (+6)   | 1205 (+11) | 32     | 0       | active   | CLEAN
+ 698s (11m38s) |    739s | OK    | 594 (+6)   | 573 (+5) | 609 (+5)   | 1216 (+11) | 32     | 0       | active   | CLEAN
+ 703s (11m43s) |    745s | OK    | 598 (+4)   | 577 (+4) | 613 (+4)   | 1224 (+8) | 32     | 0       | active   | CLEAN
+ 708s (11m48s) |    750s | OK    | 601 (+3)   | 580 (+3) | 616 (+3)   | 1230 (+6) | 32     | 0       | active   | CLEAN
+ 714s (11m54s) |    755s | OK    | 606 (+5)   | 585 (+5) | 621 (+5)   | 1240 (+10) | 32     | 0       | active   | CLEAN
+ 719s (11m59s) |    761s | OK    | 609 (+3)   | 588 (+3) | 624 (+3)   | 1246 (+6) | 32     | 0       | active   | CLEAN
+ 724s (12m04s) |    766s | OK    | 613 (+4)   | 592 (+4) | 628 (+4)   | 1254 (+8) | 32     | 0       | active   | CLEAN
+ 730s (12m10s) |    771s | OK    | 617 (+4)   | 596 (+4) | 632 (+4)   | 1262 (+8) | 32     | 0       | active   | CLEAN
+ 735s (12m15s) |    776s | OK    | 621 (+4)   | 600 (+4) | 636 (+4)   | 1270 (+8) | 32     | 0       | active   | CLEAN
+ 740s (12m20s) |    782s | OK    | 624 (+3)   | 603 (+3) | 639 (+3)   | 1276 (+6) | 32     | 0       | active   | CLEAN
+ 746s (12m26s) |    787s | OK    | 629 (+5)   | 608 (+5) | 644 (+5)   | 1286 (+10) | 32     | 0       | active   | CLEAN
+ 751s (12m31s) |    793s | OK    | 632 (+3)   | 611 (+3) | 647 (+3)   | 1292 (+6) | 32     | 0       | active   | CLEAN
+ 756s (12m36s) |    798s | OK    | 640 (+8)   | 618 (+7) | 655 (+8)   | 1308 (+16) | 32     | 0       | active   | CLEAN
+ 762s (12m42s) |    803s | OK    | 644 (+4)   | 622 (+4) | 659 (+4)   | 1316 (+8) | 32     | 0       | active   | CLEAN
+ 767s (12m47s) |    809s | OK    | 648 (+4)   | 626 (+4) | 663 (+4)   | 1324 (+8) | 32     | 0       | active   | CLEAN
+ 772s (12m52s) |    814s | OK    | 652 (+4)   | 630 (+4) | 667 (+4)   | 1332 (+8) | 32     | 0       | active   | CLEAN
+ 778s (12m58s) |    819s | OK    | 656 (+4)   | 634 (+4) | 671 (+4)   | 1340 (+8) | 32     | 0       | active   | CLEAN
+ 783s (13m03s) |    825s | OK    | 660 (+4)   | 638 (+4) | 675 (+4)   | 1348 (+8) | 32     | 0       | active   | CLEAN
+ 788s (13m08s) |    830s | OK    | 664 (+4)   | 642 (+4) | 679 (+4)   | 1356 (+8) | 32     | 0       | active   | CLEAN
+ 794s (13m14s) |    835s | OK    | 668 (+4)   | 646 (+4) | 683 (+4)   | 1364 (+8) | 32     | 0       | active   | CLEAN
+ 799s (13m19s) |    841s | OK    | 671 (+3)   | 649 (+3) | 686 (+3)   | 1370 (+6) | 32     | 0       | active   | CLEAN
+ 804s (13m24s) |    846s | OK    | 676 (+5)   | 654 (+5) | 691 (+5)   | 1380 (+10) | 32     | 0       | active   | CLEAN
+ 810s (13m30s) |    851s | OK    | 679 (+3)   | 657 (+3) | 694 (+3)   | 1386 (+6) | 32     | 0       | active   | CLEAN
+ 815s (13m35s) |    857s | OK    | 683 (+4)   | 661 (+4) | 698 (+4)   | 1394 (+8) | 32     | 0       | active   | CLEAN
+ 820s (13m40s) |    862s | OK    | 687 (+4)   | 665 (+4) | 702 (+4)   | 1402 (+8) | 32     | 0       | active   | CLEAN
+ 826s (13m46s) |    867s | OK    | 691 (+4)   | 669 (+4) | 706 (+4)   | 1410 (+8) | 32     | 0       | active   | CLEAN
+ 831s (13m51s) |    873s | OK    | 694 (+3)   | 672 (+3) | 709 (+3)   | 1416 (+6) | 32     | 0       | active   | CLEAN
+ 837s (13m57s) |    878s | OK    | 699 (+5)   | 677 (+5) | 714 (+5)   | 1426 (+10) | 32     | 0       | active   | CLEAN
+ 842s (14m02s) |    884s | OK    | 702 (+3)   | 680 (+3) | 717 (+3)   | 1432 (+6) | 32     | 0       | active   | CLEAN
+ 847s (14m07s) |    889s | OK    | 706 (+4)   | 684 (+4) | 721 (+4)   | 1440 (+8) | 32     | 0       | active   | CLEAN
+ 853s (14m13s) |    894s | OK    | 711 (+5)   | 689 (+5) | 726 (+5)   | 1450 (+10) | 32     | 0       | active   | CLEAN
+ 858s (14m18s) |    900s | OK    | 714 (+3)   | 692 (+3) | 729 (+3)   | 1456 (+6) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE: Uptime reached 904.9s (15-Minute Boundary reached)!
+================================================================================
+
+ 863s (14m23s) |    905s | OK    | 718 (+4)   | 696 (+4) | 733 (+4)   | 1464 (+8) | 32     | 0       | active   | CLEAN
+ 869s (14m29s) |    910s | OK    | 722 (+4)   | 700 (+4) | 737 (+4)   | 1472 (+8) | 32     | 0       | active   | CLEAN
+ 874s (14m34s) |    916s | FAIL  | 723 (+1)   | 701 (+1) | 738 (+1)   | 1479 (+7) | 32     | 0       | active   | CLEAN
+ 882s (14m42s) |    924s | FAIL  | 723 (+0)   | 701 (+0) | 738 (+0)   | 1487 (+8) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE CONQUERED: Uptime reached 932.3s (> 930s)! 15-min crash/freeze completely eliminated!
+[***] Historical crashes at 912.2s - 931.6s SURPASSED with zero errors!
+================================================================================
+
+ 891s (14m51s) |    932s | FAIL  | 723 (+0)   | 701 (+0) | 738 (+0)   | 1496 (+9) | 32     | 0       | active   | CLEAN
+ 899s (14m59s) |    941s | FAIL  | 724 (+1)   | 701 (+0) | 739 (+1)   | 1504 (+8) | 32     | 0       | active   | CLEAN
+ 907s (15m07s) |    949s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1509 (+5) | 32     | 0       | active   | CLEAN
+ 916s (15m16s) |    957s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1516 (+7) | 32     | 0       | active   | CLEAN
+ 924s (15m24s) |    965s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1522 (+6) | 32     | 0       | active   | CLEAN
+ 932s (15m32s) |    974s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1528 (+6) | 32     | 0       | active   | CLEAN
+ 940s (15m40s) |    982s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1534 (+6) | 32     | 0       | active   | CLEAN
+ 949s (15m49s) |    990s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1541 (+7) | 32     | 0       | active   | CLEAN
+ 957s (15m57s) |    999s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1547 (+6) | 32     | 0       | active   | CLEAN
+ 965s (16m05s) |   1007s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1553 (+6) | 32     | 0       | active   | CLEAN
+ 974s (16m14s) |   1015s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1559 (+6) | 32     | 0       | active   | CLEAN
+ 982s (16m22s) |   1024s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1566 (+7) | 32     | 0       | active   | CLEAN
+ 990s (16m30s) |   1032s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1572 (+6) | 32     | 0       | active   | CLEAN
+ 999s (16m39s) |   1041s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1578 (+6) | 32     | 0       | active   | CLEAN
+1007s (16m47s) |   1049s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1584 (+6) | 32     | 0       | active   | CLEAN
+1016s (16m56s) |   1057s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1590 (+6) | 32     | 0       | active   | CLEAN
+1024s (17m04s) |   1066s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1597 (+7) | 32     | 0       | active   | CLEAN
+1032s (17m12s) |   1074s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1606 (+9) | 32     | 0       | active   | CLEAN
+1041s (17m21s) |   1082s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1620 (+14) | 32     | 0       | active   | CLEAN
+1049s (17m29s) |   1091s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1627 (+7) | 32     | 0       | active   | CLEAN
+1057s (17m37s) |   1099s | FAIL  | 724 (+0)   | 701 (+0) | 739 (+0)   | 1634 (+7) | 32     | 0       | active   | CLEAN
+[*] Starting 1,800s Clean-Boot Multi-Tier Soak Harness at Wed Sep  9 00:34:01 2026...
+[*] Connecting to router at 192.168.8.1...
+[+] Router reachable. Current uptime: 18:49:01 up 21 min,  load average: 0.21, 0.17, 0.12
+[*] Initiating clean cold reboot to start 1,800s soak test from t=0 baseline...
+[+] Router rebooted successfully! Initial uptime: 18:49:25 up 0 min,  load average: 1.00, 0.25, 0.08
+[*] Verifying qcom-time-daemon and keepalive processes...
+  Processes:
+2455 root       964 S    /usr/sbin/qcom-time-daemon -r 0 -v
+ 3316 root      1524 S    {modem-keepalive} /bin/sh /usr/sbin/modem-keepalive
+ 5282 root      1336 S    ash -c ps w | grep -E 'qcom-time-daemon|modem-keepalive'
+ 5284 root      1336 S    grep -E qcom-time-daemon|modem-keepalive
+--- Boot Syslog Transactions ---
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] Android generic offset: (ap=1788893352682 - gps_epoch=315964800000) - rtc=9328000 = 1472919224682 ms
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] INITIAL: Synchronously setting ATS_USER (base=2, offset=1472919224682 ms)...
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] TX 0x0020 to QRTR node=0 port=11 txn=3 (len=25)
+Tue Sep  8 18:49:12 2026 daemon.notice qcom-time-daemon[2455]: [QMI-TIME] RX 0x0020 response from QRTR node=0 port=11 txn=3 decoded successfully
+Tue Sep  8 18:49:12 2026 daemon.notice qcom-time-daemon[2455]: [QMI-TIME] INITIAL ATS_USER TRANSACTION VERIFIED!
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] RX 0x0020 response from QRTR node=0 port=11 txn=3 decoded successfully
+Tue Sep  8 18:49:12 2026 daemon.notice qcom-time-daemon[2455]: [QMI-TIME] Modem baseband confirmed ATS_USER (offset=1472919224682 ms)
+Tue Sep  8 18:49:12 2026 daemon.notice qcom-time-daemon[2455]: [QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] INITIAL ATS_USER TRANSACTION VERIFIED!
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] Modem baseband confirmed ATS_USER (offset=1472919224682 ms)
+Tue Sep  8 18:49:12 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.
+Tue Sep  8 18:49:25 2026 daemon.debug qcom-time-daemon[2455]: [QMI-TIME-DEBUG] Async Rx QMI: type=4 txn=2 msg_id=0x0027 len=18
+Tue Sep  8 18:49:25 2026 daemon.notice qcom-time-daemon[2455]: [QMI-TIME] Indication 0x0027 (ATS_TOD_UPDATE_IND) received from QRTR node=0 port=11: base=1 (ATS_TOD), offset=1472928557388 ms
+Tue Sep  8 18:49:25 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME-DEBUG] Async Rx QMI: type=4 txn=2 msg_id=0x0027 len=18
+Tue Sep  8 18:49:25 2026 daemon.err qcom-time-daemon[2455]: qcom-time-daemon[2455]: [QMI-TIME] Indication 0x0027 (ATS_TOD_UPDATE_IND) received from QRTR node=0 port=11: base=1 (ATS_TOD), offset=1472928557388 ms
+--------------------------------
+[*] Waiting for bearer establishment and initial ping (up to 180s)...
+  [Wait 0/90] Ping: FAIL, Modem: connected, Uptime: 35.4s
+[+] Cellular data UP at iteration 2 (Baseband Uptime: 43.0s)!
+[*] Starting 1,800-second soak test capture at Wed Sep  9 00:34:49 2026...
+Elapsed    | Uptime   | Ping  | wwan0 RX   | WDS RX   | Callbacks  | BAM IRQ  | Queued | SubFail | PM State | Crash
+---------------------------------------------------------------------------------------------------------
+   0s (0m00s) |     43s | OK    | 19 (+0)    | 14 (+0)  | 34 (+0)    | 62 (+0)  | 32     | 0       | active   | CLEAN
+   2s (0m02s) |     46s | OK    | 22 (+3)    | 17 (+3)  | 37 (+3)    | 68 (+6)  | 32     | 0       | active   | CLEAN
+   4s (0m04s) |     48s | OK    | 24 (+2)    | 19 (+2)  | 39 (+2)    | 72 (+4)  | 32     | 0       | active   | CLEAN
+   6s (0m06s) |     50s | OK    | 25 (+1)    | 20 (+1)  | 40 (+1)    | 74 (+2)  | 32     | 0       | active   | CLEAN
+   9s (0m09s) |     53s | OK    | 27 (+2)    | 22 (+2)  | 42 (+2)    | 78 (+4)  | 32     | 0       | active   | CLEAN
+  11s (0m11s) |     55s | OK    | 28 (+1)    | 23 (+1)  | 43 (+1)    | 80 (+2)  | 32     | 0       | active   | CLEAN
+  13s (0m13s) |     57s | OK    | 29 (+1)    | 24 (+1)  | 44 (+1)    | 82 (+2)  | 32     | 0       | active   | CLEAN
+  16s (0m16s) |     59s | OK    | 30 (+1)    | 25 (+1)  | 45 (+1)    | 84 (+2)  | 32     | 0       | active   | CLEAN
+  18s (0m18s) |     62s | OK    | 31 (+1)    | 26 (+1)  | 46 (+1)    | 86 (+2)  | 32     | 0       | active   | CLEAN
+  20s (0m20s) |     64s | OK    | 32 (+1)    | 27 (+1)  | 47 (+1)    | 88 (+2)  | 32     | 0       | active   | CLEAN
+  22s (0m22s) |     66s | OK    | 34 (+2)    | 29 (+2)  | 49 (+2)    | 92 (+4)  | 32     | 0       | active   | CLEAN
+  25s (0m25s) |     69s | OK    | 35 (+1)    | 30 (+1)  | 50 (+1)    | 94 (+2)  | 32     | 0       | active   | CLEAN
+  27s (0m27s) |     71s | OK    | 36 (+1)    | 31 (+1)  | 51 (+1)    | 96 (+2)  | 32     | 0       | active   | CLEAN
+  29s (0m29s) |     73s | OK    | 37 (+1)    | 32 (+1)  | 52 (+1)    | 98 (+2)  | 32     | 0       | active   | CLEAN
+  32s (0m32s) |     76s | OK    | 40 (+3)    | 34 (+2)  | 55 (+3)    | 104 (+6) | 32     | 0       | active   | CLEAN
+  34s (0m34s) |     78s | OK    | 43 (+3)    | 37 (+3)  | 58 (+3)    | 110 (+6) | 32     | 0       | active   | CLEAN
+  37s (0m37s) |     80s | OK    | 45 (+2)    | 39 (+2)  | 60 (+2)    | 114 (+4) | 32     | 0       | active   | CLEAN
+  39s (0m39s) |     83s | OK    | 47 (+2)    | 41 (+2)  | 62 (+2)    | 118 (+4) | 32     | 0       | active   | CLEAN
+  41s (0m41s) |     85s | OK    | 48 (+1)    | 42 (+1)  | 63 (+1)    | 120 (+2) | 32     | 0       | active   | CLEAN
+  43s (0m43s) |     87s | OK    | 49 (+1)    | 43 (+1)  | 64 (+1)    | 122 (+2) | 32     | 0       | active   | CLEAN
+  46s (0m46s) |     90s | OK    | 50 (+1)    | 44 (+1)  | 65 (+1)    | 124 (+2) | 32     | 0       | active   | CLEAN
+  48s (0m48s) |     92s | OK    | 51 (+1)    | 45 (+1)  | 66 (+1)    | 126 (+2) | 32     | 0       | active   | CLEAN
+  50s (0m50s) |     94s | OK    | 52 (+1)    | 46 (+1)  | 67 (+1)    | 128 (+2) | 32     | 0       | active   | CLEAN
+  53s (0m53s) |     96s | OK    | 53 (+1)    | 48 (+2)  | 69 (+2)    | 131 (+3) | 32     | 0       | active   | CLEAN
+  55s (0m55s) |     99s | OK    | 56 (+3)    | 50 (+2)  | 71 (+2)    | 136 (+5) | 32     | 0       | active   | CLEAN
+  57s (0m57s) |    101s | OK    | 57 (+1)    | 51 (+1)  | 72 (+1)    | 138 (+2) | 32     | 0       | active   | CLEAN
+  60s (1m00s) |    103s | OK    | 58 (+1)    | 52 (+1)  | 73 (+1)    | 140 (+2) | 32     | 0       | active   | CLEAN
+  62s (1m02s) |    106s | OK    | 59 (+1)    | 53 (+1)  | 74 (+1)    | 142 (+2) | 32     | 0       | active   | CLEAN
+  64s (1m04s) |    108s | OK    | 62 (+3)    | 55 (+2)  | 77 (+3)    | 148 (+6) | 32     | 0       | active   | CLEAN
+  67s (1m07s) |    111s | OK    | 65 (+3)    | 58 (+3)  | 80 (+3)    | 154 (+6) | 32     | 0       | active   | CLEAN
+  69s (1m09s) |    113s | OK    | 67 (+2)    | 60 (+2)  | 82 (+2)    | 158 (+4) | 32     | 0       | active   | CLEAN
+  71s (1m11s) |    115s | OK    | 68 (+1)    | 61 (+1)  | 83 (+1)    | 160 (+2) | 32     | 0       | active   | CLEAN
+  74s (1m14s) |    118s | OK    | 69 (+1)    | 62 (+1)  | 84 (+1)    | 162 (+2) | 32     | 0       | active   | CLEAN
+  76s (1m16s) |    120s | OK    | 70 (+1)    | 63 (+1)  | 85 (+1)    | 164 (+2) | 32     | 0       | active   | CLEAN
+  78s (1m18s) |    122s | OK    | 71 (+1)    | 64 (+1)  | 86 (+1)    | 166 (+2) | 32     | 0       | active   | CLEAN
+  81s (1m21s) |    124s | OK    | 72 (+1)    | 65 (+1)  | 87 (+1)    | 168 (+2) | 32     | 0       | active   | CLEAN
+  83s (1m23s) |    127s | OK    | 73 (+1)    | 66 (+1)  | 88 (+1)    | 170 (+2) | 32     | 0       | active   | CLEAN
+  85s (1m25s) |    129s | OK    | 75 (+2)    | 68 (+2)  | 90 (+2)    | 174 (+4) | 32     | 0       | active   | CLEAN
+  88s (1m28s) |    131s | OK    | 76 (+1)    | 69 (+1)  | 91 (+1)    | 176 (+2) | 32     | 0       | active   | CLEAN
+  90s (1m30s) |    134s | OK    | 77 (+1)    | 70 (+1)  | 92 (+1)    | 178 (+2) | 32     | 0       | active   | CLEAN
+  92s (1m32s) |    136s | OK    | 78 (+1)    | 71 (+1)  | 93 (+1)    | 180 (+2) | 32     | 0       | active   | CLEAN
+  95s (1m35s) |    138s | OK    | 79 (+1)    | 72 (+1)  | 94 (+1)    | 182 (+2) | 32     | 0       | active   | CLEAN
+  97s (1m37s) |    141s | OK    | 82 (+3)    | 74 (+2)  | 97 (+3)    | 188 (+6) | 32     | 0       | active   | CLEAN
+  99s (1m39s) |    143s | OK    | 86 (+4)    | 78 (+4)  | 101 (+4)   | 196 (+8) | 32     | 0       | active   | CLEAN
+ 102s (1m42s) |    145s | OK    | 88 (+2)    | 80 (+2)  | 103 (+2)   | 200 (+4) | 32     | 0       | active   | CLEAN
+ 104s (1m44s) |    148s | OK    | 89 (+1)    | 81 (+1)  | 104 (+1)   | 202 (+2) | 32     | 0       | active   | CLEAN
+ 106s (1m46s) |    150s | OK    | 90 (+1)    | 82 (+1)  | 105 (+1)   | 204 (+2) | 32     | 0       | active   | CLEAN
+ 109s (1m49s) |    152s | OK    | 91 (+1)    | 83 (+1)  | 106 (+1)   | 206 (+2) | 32     | 0       | active   | CLEAN
+ 111s (1m51s) |    155s | OK    | 92 (+1)    | 84 (+1)  | 107 (+1)   | 208 (+2) | 32     | 0       | active   | CLEAN
+ 113s (1m53s) |    157s | OK    | 93 (+1)    | 85 (+1)  | 108 (+1)   | 210 (+2) | 32     | 0       | active   | CLEAN
+ 115s (1m55s) |    159s | OK    | 95 (+2)    | 87 (+2)  | 110 (+2)   | 214 (+4) | 32     | 0       | active   | CLEAN
+ 118s (1m58s) |    162s | OK    | 97 (+2)    | 89 (+2)  | 112 (+2)   | 218 (+4) | 32     | 0       | active   | CLEAN
+ 120s (2m00s) |    164s | OK    | 98 (+1)    | 90 (+1)  | 113 (+1)   | 220 (+2) | 32     | 0       | active   | CLEAN
+ 122s (2m02s) |    166s | OK    | 99 (+1)    | 91 (+1)  | 114 (+1)   | 222 (+2) | 32     | 0       | active   | CLEAN
+ 125s (2m05s) |    168s | OK    | 100 (+1)   | 92 (+1)  | 115 (+1)   | 224 (+2) | 32     | 0       | active   | CLEAN
+ 127s (2m07s) |    171s | OK    | 101 (+1)   | 93 (+1)  | 116 (+1)   | 226 (+2) | 32     | 0       | active   | CLEAN
+ 129s (2m09s) |    173s | OK    | 104 (+3)   | 95 (+2)  | 119 (+3)   | 232 (+6) | 32     | 0       | active   | CLEAN
+ 132s (2m12s) |    175s | OK    | 107 (+3)   | 98 (+3)  | 122 (+3)   | 238 (+6) | 32     | 0       | active   | CLEAN
+ 134s (2m14s) |    178s | OK    | 109 (+2)   | 100 (+2) | 124 (+2)   | 242 (+4) | 32     | 0       | active   | CLEAN
+ 136s (2m16s) |    180s | OK    | 111 (+2)   | 102 (+2) | 126 (+2)   | 246 (+4) | 32     | 0       | active   | CLEAN
+ 138s (2m18s) |    182s | OK    | 112 (+1)   | 103 (+1) | 127 (+1)   | 248 (+2) | 32     | 0       | active   | CLEAN
+ 141s (2m21s) |    184s | OK    | 113 (+1)   | 104 (+1) | 128 (+1)   | 250 (+2) | 32     | 0       | active   | CLEAN
+ 143s (2m23s) |    187s | OK    | 114 (+1)   | 105 (+1) | 129 (+1)   | 252 (+2) | 32     | 0       | active   | CLEAN
+ 145s (2m25s) |    189s | OK    | 116 (+2)   | 107 (+2) | 131 (+2)   | 256 (+4) | 32     | 0       | active   | CLEAN
+ 148s (2m28s) |    191s | OK    | 117 (+1)   | 108 (+1) | 132 (+1)   | 258 (+2) | 32     | 0       | active   | CLEAN
+ 150s (2m30s) |    194s | OK    | 118 (+1)   | 109 (+1) | 133 (+1)   | 260 (+2) | 32     | 0       | active   | CLEAN
+ 152s (2m32s) |    196s | OK    | 119 (+1)   | 110 (+1) | 134 (+1)   | 262 (+2) | 32     | 0       | active   | CLEAN
+ 154s (2m34s) |    198s | OK    | 121 (+2)   | 112 (+2) | 136 (+2)   | 266 (+4) | 32     | 0       | active   | CLEAN
+ 157s (2m37s) |    200s | OK    | 122 (+1)   | 113 (+1) | 137 (+1)   | 268 (+2) | 32     | 0       | active   | CLEAN
+ 159s (2m39s) |    203s | OK    | 123 (+1)   | 114 (+1) | 138 (+1)   | 270 (+2) | 32     | 0       | active   | CLEAN
+ 161s (2m41s) |    205s | OK    | 125 (+2)   | 116 (+2) | 140 (+2)   | 274 (+4) | 32     | 0       | active   | CLEAN
+ 164s (2m44s) |    207s | OK    | 129 (+4)   | 119 (+3) | 144 (+4)   | 282 (+8) | 32     | 0       | active   | CLEAN
+ 166s (2m46s) |    210s | OK    | 131 (+2)   | 121 (+2) | 146 (+2)   | 286 (+4) | 32     | 0       | active   | CLEAN
+ 168s (2m48s) |    212s | OK    | 132 (+1)   | 122 (+1) | 147 (+1)   | 288 (+2) | 32     | 0       | active   | CLEAN
+ 170s (2m50s) |    214s | OK    | 133 (+1)   | 123 (+1) | 148 (+1)   | 290 (+2) | 32     | 0       | active   | CLEAN
+ 173s (2m53s) |    217s | OK    | 135 (+2)   | 125 (+2) | 150 (+2)   | 294 (+4) | 32     | 0       | active   | CLEAN
+ 175s (2m55s) |    219s | OK    | 136 (+1)   | 126 (+1) | 151 (+1)   | 296 (+2) | 32     | 0       | active   | CLEAN
+ 177s (2m57s) |    221s | OK    | 138 (+2)   | 128 (+2) | 153 (+2)   | 300 (+4) | 32     | 0       | active   | CLEAN
+ 180s (3m00s) |    223s | OK    | 139 (+1)   | 129 (+1) | 154 (+1)   | 302 (+2) | 32     | 0       | active   | CLEAN
+ 182s (3m02s) |    226s | OK    | 140 (+1)   | 130 (+1) | 155 (+1)   | 304 (+2) | 32     | 0       | active   | CLEAN
+ 184s (3m04s) |    228s | OK    | 141 (+1)   | 131 (+1) | 156 (+1)   | 306 (+2) | 32     | 0       | active   | CLEAN
+ 187s (3m07s) |    230s | OK    | 142 (+1)   | 132 (+1) | 157 (+1)   | 308 (+2) | 32     | 0       | active   | CLEAN
+ 189s (3m09s) |    233s | OK    | 144 (+2)   | 134 (+2) | 159 (+2)   | 312 (+4) | 32     | 0       | active   | CLEAN
+ 191s (3m11s) |    235s | OK    | 145 (+1)   | 135 (+1) | 160 (+1)   | 314 (+2) | 32     | 0       | active   | CLEAN
+ 194s (3m14s) |    237s | OK    | 147 (+2)   | 137 (+2) | 162 (+2)   | 318 (+4) | 32     | 0       | active   | CLEAN
+ 196s (3m16s) |    240s | OK    | 151 (+4)   | 140 (+3) | 166 (+4)   | 326 (+8) | 32     | 0       | active   | CLEAN
+ 198s (3m18s) |    242s | OK    | 153 (+2)   | 142 (+2) | 168 (+2)   | 330 (+4) | 32     | 0       | active   | CLEAN
+ 200s (3m20s) |    244s | OK    | 154 (+1)   | 143 (+1) | 169 (+1)   | 332 (+2) | 32     | 0       | active   | CLEAN
+ 203s (3m23s) |    247s | OK    | 155 (+1)   | 144 (+1) | 170 (+1)   | 334 (+2) | 32     | 0       | active   | CLEAN
+ 205s (3m25s) |    249s | OK    | 157 (+2)   | 146 (+2) | 172 (+2)   | 338 (+4) | 32     | 0       | active   | CLEAN
+ 207s (3m27s) |    251s | OK    | 159 (+2)   | 148 (+2) | 174 (+2)   | 342 (+4) | 32     | 0       | active   | CLEAN
+ 210s (3m30s) |    254s | OK    | 160 (+1)   | 149 (+1) | 175 (+1)   | 344 (+2) | 32     | 0       | active   | CLEAN
+ 212s (3m32s) |    256s | OK    | 161 (+1)   | 150 (+1) | 176 (+1)   | 346 (+2) | 32     | 0       | active   | CLEAN
+ 214s (3m34s) |    258s | OK    | 162 (+1)   | 151 (+1) | 177 (+1)   | 348 (+2) | 32     | 0       | active   | CLEAN
+ 217s (3m37s) |    260s | OK    | 163 (+1)   | 152 (+1) | 178 (+1)   | 350 (+2) | 32     | 0       | active   | CLEAN
+ 219s (3m39s) |    263s | OK    | 164 (+1)   | 153 (+1) | 179 (+1)   | 352 (+2) | 32     | 0       | active   | CLEAN
+ 221s (3m41s) |    265s | OK    | 165 (+1)   | 155 (+2) | 180 (+1)   | 355 (+3) | 32     | 0       | active   | CLEAN
+ 224s (3m44s) |    267s | OK    | 168 (+3)   | 157 (+2) | 183 (+3)   | 360 (+5) | 32     | 0       | active   | CLEAN
+ 226s (3m46s) |    270s | OK    | 169 (+1)   | 158 (+1) | 184 (+1)   | 362 (+2) | 32     | 0       | active   | CLEAN
+ 228s (3m48s) |    272s | OK    | 172 (+3)   | 160 (+2) | 187 (+3)   | 368 (+6) | 32     | 0       | active   | CLEAN
+ 231s (3m51s) |    274s | OK    | 174 (+2)   | 162 (+2) | 189 (+2)   | 373 (+5) | 32     | 0       | active   | CLEAN
+ 233s (3m53s) |    277s | OK    | 176 (+2)   | 164 (+2) | 191 (+2)   | 376 (+3) | 32     | 0       | active   | CLEAN
+ 235s (3m55s) |    279s | OK    | 177 (+1)   | 165 (+1) | 192 (+1)   | 378 (+2) | 32     | 0       | active   | CLEAN
+ 238s (3m58s) |    281s | OK    | 178 (+1)   | 166 (+1) | 193 (+1)   | 380 (+2) | 32     | 0       | active   | CLEAN
+ 240s (4m00s) |    284s | OK    | 180 (+2)   | 168 (+2) | 195 (+2)   | 384 (+4) | 32     | 0       | active   | CLEAN
+ 242s (4m02s) |    286s | OK    | 181 (+1)   | 169 (+1) | 196 (+1)   | 386 (+2) | 32     | 0       | active   | CLEAN
+ 244s (4m04s) |    288s | OK    | 182 (+1)   | 170 (+1) | 197 (+1)   | 388 (+2) | 32     | 0       | active   | CLEAN
+ 247s (4m07s) |    290s | OK    | 183 (+1)   | 171 (+1) | 198 (+1)   | 390 (+2) | 32     | 0       | active   | CLEAN
+ 249s (4m09s) |    293s | OK    | 184 (+1)   | 172 (+1) | 199 (+1)   | 392 (+2) | 32     | 0       | active   | CLEAN
+ 251s (4m11s) |    295s | OK    | 185 (+1)   | 173 (+1) | 200 (+1)   | 394 (+2) | 32     | 0       | active   | CLEAN
+ 254s (4m14s) |    297s | OK    | 187 (+2)   | 175 (+2) | 202 (+2)   | 398 (+4) | 32     | 0       | active   | CLEAN
+ 256s (4m16s) |    300s | OK    | 189 (+2)   | 177 (+2) | 204 (+2)   | 402 (+4) | 32     | 0       | active   | CLEAN
+ 258s (4m18s) |    302s | OK    | 190 (+1)   | 178 (+1) | 205 (+1)   | 404 (+2) | 32     | 0       | active   | CLEAN
+ 261s (4m21s) |    304s | OK    | 191 (+1)   | 179 (+1) | 206 (+1)   | 406 (+2) | 32     | 0       | active   | CLEAN
+ 263s (4m23s) |    307s | OK    | 192 (+1)   | 180 (+1) | 207 (+1)   | 408 (+2) | 32     | 0       | active   | CLEAN
+ 265s (4m25s) |    309s | OK    | 193 (+1)   | 181 (+1) | 208 (+1)   | 410 (+2) | 32     | 0       | active   | CLEAN
+ 268s (4m28s) |    311s | OK    | 194 (+1)   | 182 (+1) | 209 (+1)   | 412 (+2) | 32     | 0       | active   | CLEAN
+ 270s (4m30s) |    314s | OK    | 196 (+2)   | 184 (+2) | 211 (+2)   | 416 (+4) | 32     | 0       | active   | CLEAN
+ 272s (4m32s) |    316s | OK    | 198 (+2)   | 186 (+2) | 213 (+2)   | 420 (+4) | 32     | 0       | active   | CLEAN
+ 275s (4m35s) |    318s | OK    | 199 (+1)   | 187 (+1) | 214 (+1)   | 422 (+2) | 32     | 0       | active   | CLEAN
+ 277s (4m37s) |    321s | OK    | 200 (+1)   | 188 (+1) | 215 (+1)   | 424 (+2) | 32     | 0       | active   | CLEAN
+ 279s (4m39s) |    323s | OK    | 201 (+1)   | 189 (+1) | 216 (+1)   | 426 (+2) | 32     | 0       | active   | CLEAN
+ 281s (4m41s) |    325s | OK    | 202 (+1)   | 190 (+1) | 217 (+1)   | 428 (+2) | 32     | 0       | active   | CLEAN
+ 284s (4m44s) |    327s | OK    | 203 (+1)   | 191 (+1) | 218 (+1)   | 430 (+2) | 32     | 0       | active   | CLEAN
+ 286s (4m46s) |    330s | OK    | 205 (+2)   | 193 (+2) | 220 (+2)   | 434 (+4) | 32     | 0       | active   | CLEAN
+ 288s (4m48s) |    332s | OK    | 206 (+1)   | 194 (+1) | 221 (+1)   | 436 (+2) | 32     | 0       | active   | CLEAN
+ 291s (4m51s) |    334s | OK    | 208 (+2)   | 196 (+2) | 223 (+2)   | 440 (+4) | 32     | 0       | active   | CLEAN
+ 293s (4m53s) |    337s | OK    | 211 (+3)   | 198 (+2) | 226 (+3)   | 446 (+6) | 32     | 0       | active   | CLEAN
+ 295s (4m55s) |    339s | OK    | 214 (+3)   | 201 (+3) | 229 (+3)   | 452 (+6) | 32     | 0       | active   | CLEAN
+ 297s (4m57s) |    341s | OK    | 215 (+1)   | 202 (+1) | 230 (+1)   | 454 (+2) | 32     | 0       | active   | CLEAN
+ 300s (5m00s) |    344s | OK    | 217 (+2)   | 204 (+2) | 232 (+2)   | 458 (+4) | 32     | 0       | active   | CLEAN
+ 302s (5m02s) |    346s | OK    | 218 (+1)   | 205 (+1) | 233 (+1)   | 460 (+2) | 32     | 0       | active   | CLEAN
+ 304s (5m04s) |    348s | OK    | 219 (+1)   | 206 (+1) | 234 (+1)   | 462 (+2) | 32     | 0       | active   | CLEAN
+ 307s (5m07s) |    350s | OK    | 221 (+2)   | 208 (+2) | 236 (+2)   | 466 (+4) | 32     | 0       | active   | CLEAN
+ 309s (5m09s) |    353s | OK    | 222 (+1)   | 209 (+1) | 237 (+1)   | 468 (+2) | 32     | 0       | active   | CLEAN
+ 311s (5m11s) |    355s | OK    | 223 (+1)   | 210 (+1) | 238 (+1)   | 470 (+2) | 32     | 0       | active   | CLEAN
+ 314s (5m14s) |    357s | OK    | 224 (+1)   | 211 (+1) | 239 (+1)   | 472 (+2) | 32     | 0       | active   | CLEAN
+ 316s (5m16s) |    360s | OK    | 226 (+2)   | 213 (+2) | 241 (+2)   | 476 (+4) | 32     | 0       | active   | CLEAN
+ 318s (5m18s) |    362s | OK    | 227 (+1)   | 214 (+1) | 242 (+1)   | 478 (+2) | 32     | 0       | active   | CLEAN
+ 321s (5m21s) |    364s | OK    | 228 (+1)   | 215 (+1) | 243 (+1)   | 480 (+2) | 32     | 0       | active   | CLEAN
+ 323s (5m23s) |    367s | OK    | 229 (+1)   | 217 (+2) | 245 (+2)   | 483 (+3) | 32     | 0       | active   | CLEAN
+ 325s (5m25s) |    369s | OK    | 231 (+2)   | 218 (+1) | 246 (+1)   | 486 (+3) | 32     | 0       | active   | CLEAN
+ 328s (5m28s) |    371s | OK    | 232 (+1)   | 219 (+1) | 247 (+1)   | 488 (+2) | 32     | 0       | active   | CLEAN
+ 330s (5m30s) |    374s | OK    | 233 (+1)   | 220 (+1) | 248 (+1)   | 490 (+2) | 32     | 0       | active   | CLEAN
+ 332s (5m32s) |    376s | OK    | 235 (+2)   | 222 (+2) | 250 (+2)   | 494 (+4) | 32     | 0       | active   | CLEAN
+ 334s (5m34s) |    378s | OK    | 236 (+1)   | 223 (+1) | 251 (+1)   | 496 (+2) | 32     | 0       | active   | CLEAN
+ 337s (5m37s) |    381s | OK    | 237 (+1)   | 224 (+1) | 252 (+1)   | 498 (+2) | 32     | 0       | active   | CLEAN
+ 339s (5m39s) |    383s | OK    | 238 (+1)   | 225 (+1) | 253 (+1)   | 500 (+2) | 32     | 0       | active   | CLEAN
+ 341s (5m41s) |    385s | OK    | 240 (+2)   | 227 (+2) | 255 (+2)   | 504 (+4) | 32     | 0       | active   | CLEAN
+ 344s (5m44s) |    388s | OK    | 241 (+1)   | 228 (+1) | 256 (+1)   | 506 (+2) | 32     | 0       | active   | CLEAN
+ 346s (5m46s) |    390s | OK    | 243 (+2)   | 230 (+2) | 258 (+2)   | 510 (+4) | 32     | 0       | active   | CLEAN
+ 348s (5m48s) |    392s | OK    | 244 (+1)   | 231 (+1) | 259 (+1)   | 512 (+2) | 32     | 0       | active   | CLEAN
+ 351s (5m51s) |    394s | OK    | 245 (+1)   | 232 (+1) | 260 (+1)   | 514 (+2) | 32     | 0       | active   | CLEAN
+ 353s (5m53s) |    397s | OK    | 246 (+1)   | 233 (+1) | 261 (+1)   | 516 (+2) | 32     | 0       | active   | CLEAN
+ 355s (5m55s) |    399s | OK    | 247 (+1)   | 234 (+1) | 262 (+1)   | 518 (+2) | 32     | 0       | active   | CLEAN
+ 358s (5m58s) |    401s | OK    | 249 (+2)   | 236 (+2) | 264 (+2)   | 522 (+4) | 32     | 0       | active   | CLEAN
+ 360s (6m00s) |    404s | OK    | 251 (+2)   | 237 (+1) | 266 (+2)   | 526 (+4) | 32     | 0       | active   | CLEAN
+ 362s (6m02s) |    406s | OK    | 256 (+5)   | 242 (+5) | 271 (+5)   | 536 (+10) | 32     | 0       | active   | CLEAN
+ 365s (6m05s) |    408s | OK    | 257 (+1)   | 243 (+1) | 272 (+1)   | 538 (+2) | 32     | 0       | active   | CLEAN
+ 367s (6m07s) |    411s | OK    | 258 (+1)   | 244 (+1) | 273 (+1)   | 540 (+2) | 32     | 0       | active   | CLEAN
+ 369s (6m09s) |    413s | OK    | 259 (+1)   | 245 (+1) | 274 (+1)   | 542 (+2) | 32     | 0       | active   | CLEAN
+ 371s (6m11s) |    415s | OK    | 260 (+1)   | 246 (+1) | 275 (+1)   | 544 (+2) | 32     | 0       | active   | CLEAN
+ 374s (6m14s) |    417s | OK    | 261 (+1)   | 247 (+1) | 276 (+1)   | 546 (+2) | 32     | 0       | active   | CLEAN
+ 376s (6m16s) |    420s | OK    | 263 (+2)   | 249 (+2) | 278 (+2)   | 550 (+4) | 32     | 0       | active   | CLEAN
+ 378s (6m18s) |    422s | OK    | 265 (+2)   | 251 (+2) | 280 (+2)   | 554 (+4) | 32     | 0       | active   | CLEAN
+ 381s (6m21s) |    424s | OK    | 266 (+1)   | 252 (+1) | 281 (+1)   | 556 (+2) | 32     | 0       | active   | CLEAN
+ 383s (6m23s) |    427s | OK    | 267 (+1)   | 253 (+1) | 282 (+1)   | 558 (+2) | 32     | 0       | active   | CLEAN
+ 385s (6m25s) |    429s | OK    | 268 (+1)   | 254 (+1) | 283 (+1)   | 560 (+2) | 32     | 0       | active   | CLEAN
+ 388s (6m28s) |    431s | OK    | 269 (+1)   | 255 (+1) | 284 (+1)   | 562 (+2) | 32     | 0       | active   | CLEAN
+ 390s (6m30s) |    434s | OK    | 270 (+1)   | 256 (+1) | 285 (+1)   | 564 (+2) | 32     | 0       | active   | CLEAN
+ 392s (6m32s) |    436s | OK    | 272 (+2)   | 258 (+2) | 287 (+2)   | 568 (+4) | 32     | 0       | active   | CLEAN
+ 394s (6m34s) |    438s | OK    | 273 (+1)   | 259 (+1) | 288 (+1)   | 570 (+2) | 32     | 0       | active   | CLEAN
+ 397s (6m37s) |    440s | OK    | 274 (+1)   | 260 (+1) | 289 (+1)   | 572 (+2) | 32     | 0       | active   | CLEAN
+ 399s (6m39s) |    443s | OK    | 275 (+1)   | 261 (+1) | 290 (+1)   | 574 (+2) | 32     | 0       | active   | CLEAN
+ 401s (6m41s) |    445s | OK    | 276 (+1)   | 262 (+1) | 291 (+1)   | 576 (+2) | 32     | 0       | active   | CLEAN
+ 404s (6m44s) |    448s | OK    | 277 (+1)   | 263 (+1) | 292 (+1)   | 578 (+2) | 32     | 0       | active   | CLEAN
+ 406s (6m46s) |    450s | OK    | 278 (+1)   | 264 (+1) | 293 (+1)   | 580 (+2) | 32     | 0       | active   | CLEAN
+ 408s (6m48s) |    452s | OK    | 280 (+2)   | 266 (+2) | 295 (+2)   | 584 (+4) | 32     | 0       | active   | CLEAN
+ 411s (6m51s) |    454s | OK    | 281 (+1)   | 267 (+1) | 296 (+1)   | 586 (+2) | 32     | 0       | active   | CLEAN
+ 413s (6m53s) |    457s | OK    | 282 (+1)   | 268 (+1) | 297 (+1)   | 588 (+2) | 32     | 0       | active   | CLEAN
+ 415s (6m55s) |    459s | OK    | 283 (+1)   | 269 (+1) | 298 (+1)   | 590 (+2) | 32     | 0       | active   | CLEAN
+ 418s (6m58s) |    461s | OK    | 284 (+1)   | 270 (+1) | 299 (+1)   | 592 (+2) | 32     | 0       | active   | CLEAN
+ 420s (7m00s) |    464s | OK    | 285 (+1)   | 271 (+1) | 300 (+1)   | 594 (+2) | 32     | 0       | active   | CLEAN
+ 422s (7m02s) |    466s | OK    | 286 (+1)   | 272 (+1) | 301 (+1)   | 596 (+2) | 32     | 0       | active   | CLEAN
+ 424s (7m04s) |    468s | OK    | 288 (+2)   | 274 (+2) | 303 (+2)   | 600 (+4) | 32     | 0       | active   | CLEAN
+ 427s (7m07s) |    471s | OK    | 292 (+4)   | 277 (+3) | 307 (+4)   | 608 (+8) | 32     | 0       | active   | CLEAN
+ 429s (7m09s) |    473s | OK    | 294 (+2)   | 279 (+2) | 309 (+2)   | 612 (+4) | 32     | 0       | active   | CLEAN
+ 431s (7m11s) |    475s | OK    | 295 (+1)   | 280 (+1) | 310 (+1)   | 614 (+2) | 32     | 0       | active   | CLEAN
+ 434s (7m14s) |    477s | OK    | 296 (+1)   | 281 (+1) | 311 (+1)   | 616 (+2) | 32     | 0       | active   | CLEAN
+ 436s (7m16s) |    480s | OK    | 297 (+1)   | 282 (+1) | 312 (+1)   | 618 (+2) | 32     | 0       | active   | CLEAN
+ 438s (7m18s) |    482s | OK    | 299 (+2)   | 284 (+2) | 314 (+2)   | 622 (+4) | 32     | 0       | active   | CLEAN
+ 441s (7m21s) |    484s | OK    | 300 (+1)   | 285 (+1) | 315 (+1)   | 624 (+2) | 32     | 0       | active   | CLEAN
+ 443s (7m23s) |    487s | OK    | 302 (+2)   | 287 (+2) | 317 (+2)   | 628 (+4) | 32     | 0       | active   | CLEAN
+ 445s (7m25s) |    489s | OK    | 303 (+1)   | 288 (+1) | 318 (+1)   | 630 (+2) | 32     | 0       | active   | CLEAN
+ 447s (7m27s) |    491s | OK    | 304 (+1)   | 289 (+1) | 319 (+1)   | 632 (+2) | 32     | 0       | active   | CLEAN
+ 450s (7m30s) |    494s | OK    | 305 (+1)   | 290 (+1) | 320 (+1)   | 634 (+2) | 32     | 0       | active   | CLEAN
+ 452s (7m32s) |    496s | OK    | 306 (+1)   | 291 (+1) | 321 (+1)   | 636 (+2) | 32     | 0       | active   | CLEAN
+ 454s (7m34s) |    498s | OK    | 308 (+2)   | 293 (+2) | 323 (+2)   | 640 (+4) | 32     | 0       | active   | CLEAN
+ 457s (7m37s) |    500s | OK    | 309 (+1)   | 294 (+1) | 324 (+1)   | 642 (+2) | 32     | 0       | active   | CLEAN
+ 459s (7m39s) |    503s | OK    | 311 (+2)   | 296 (+2) | 326 (+2)   | 646 (+4) | 32     | 0       | active   | CLEAN
+ 461s (7m41s) |    505s | OK    | 312 (+1)   | 297 (+1) | 327 (+1)   | 648 (+2) | 32     | 0       | active   | CLEAN
+ 464s (7m44s) |    507s | OK    | 313 (+1)   | 298 (+1) | 328 (+1)   | 650 (+2) | 32     | 0       | active   | CLEAN
+ 466s (7m46s) |    510s | OK    | 314 (+1)   | 299 (+1) | 329 (+1)   | 652 (+2) | 32     | 0       | active   | CLEAN
+ 468s (7m48s) |    512s | OK    | 315 (+1)   | 300 (+1) | 330 (+1)   | 654 (+2) | 32     | 0       | active   | CLEAN
+ 471s (7m51s) |    514s | OK    | 317 (+2)   | 302 (+2) | 332 (+2)   | 658 (+4) | 32     | 0       | active   | CLEAN
+ 473s (7m53s) |    517s | OK    | 318 (+1)   | 303 (+1) | 333 (+1)   | 660 (+2) | 32     | 0       | active   | CLEAN
+ 475s (7m55s) |    519s | OK    | 319 (+1)   | 304 (+1) | 334 (+1)   | 663 (+3) | 32     | 0       | active   | CLEAN
+ 478s (7m58s) |    521s | OK    | 321 (+2)   | 306 (+2) | 336 (+2)   | 666 (+3) | 32     | 0       | active   | CLEAN
+ 480s (8m00s) |    524s | OK    | 322 (+1)   | 307 (+1) | 337 (+1)   | 668 (+2) | 32     | 0       | active   | CLEAN
+ 482s (8m02s) |    526s | OK    | 323 (+1)   | 308 (+1) | 338 (+1)   | 670 (+2) | 32     | 0       | active   | CLEAN
+ 485s (8m05s) |    528s | OK    | 325 (+2)   | 310 (+2) | 340 (+2)   | 674 (+4) | 32     | 0       | active   | CLEAN
+ 487s (8m07s) |    531s | OK    | 326 (+1)   | 311 (+1) | 341 (+1)   | 676 (+2) | 32     | 0       | active   | CLEAN
+ 489s (8m09s) |    533s | OK    | 328 (+2)   | 313 (+2) | 343 (+2)   | 680 (+4) | 32     | 0       | active   | CLEAN
+ 492s (8m12s) |    535s | OK    | 330 (+2)   | 315 (+2) | 345 (+2)   | 684 (+4) | 32     | 0       | active   | CLEAN
+ 494s (8m14s) |    538s | OK    | 333 (+3)   | 317 (+2) | 348 (+3)   | 690 (+6) | 32     | 0       | active   | CLEAN
+ 496s (8m16s) |    540s | OK    | 335 (+2)   | 319 (+2) | 350 (+2)   | 694 (+4) | 32     | 0       | active   | CLEAN
+ 499s (8m19s) |    542s | OK    | 336 (+1)   | 320 (+1) | 351 (+1)   | 696 (+2) | 32     | 0       | active   | CLEAN
+ 501s (8m21s) |    545s | OK    | 338 (+2)   | 322 (+2) | 353 (+2)   | 700 (+4) | 32     | 0       | active   | CLEAN
+ 503s (8m23s) |    547s | OK    | 339 (+1)   | 323 (+1) | 354 (+1)   | 702 (+2) | 32     | 0       | active   | CLEAN
+ 505s (8m25s) |    549s | OK    | 340 (+1)   | 324 (+1) | 355 (+1)   | 704 (+2) | 32     | 0       | active   | CLEAN
+ 508s (8m28s) |    552s | OK    | 341 (+1)   | 325 (+1) | 356 (+1)   | 706 (+2) | 32     | 0       | active   | CLEAN
+ 510s (8m30s) |    554s | OK    | 343 (+2)   | 327 (+2) | 358 (+2)   | 710 (+4) | 32     | 0       | active   | CLEAN
+ 512s (8m32s) |    556s | OK    | 344 (+1)   | 328 (+1) | 359 (+1)   | 712 (+2) | 32     | 0       | active   | CLEAN
+ 515s (8m35s) |    558s | OK    | 345 (+1)   | 329 (+1) | 360 (+1)   | 714 (+2) | 32     | 0       | active   | CLEAN
+ 517s (8m37s) |    561s | OK    | 347 (+2)   | 331 (+2) | 362 (+2)   | 718 (+4) | 32     | 0       | active   | CLEAN
+ 519s (8m39s) |    563s | OK    | 348 (+1)   | 332 (+1) | 363 (+1)   | 720 (+2) | 32     | 0       | active   | CLEAN
+ 521s (8m41s) |    565s | OK    | 349 (+1)   | 333 (+1) | 364 (+1)   | 722 (+2) | 32     | 0       | active   | CLEAN
+ 524s (8m44s) |    568s | OK    | 350 (+1)   | 334 (+1) | 365 (+1)   | 724 (+2) | 32     | 0       | active   | CLEAN
+ 526s (8m46s) |    570s | OK    | 351 (+1)   | 335 (+1) | 366 (+1)   | 726 (+2) | 32     | 0       | active   | CLEAN
+ 528s (8m48s) |    572s | OK    | 353 (+2)   | 337 (+2) | 368 (+2)   | 730 (+4) | 32     | 0       | active   | CLEAN
+ 531s (8m51s) |    574s | OK    | 355 (+2)   | 339 (+2) | 370 (+2)   | 734 (+4) | 32     | 0       | active   | CLEAN
+ 533s (8m53s) |    577s | OK    | 356 (+1)   | 340 (+1) | 371 (+1)   | 736 (+2) | 32     | 0       | active   | CLEAN
+ 535s (8m55s) |    579s | OK    | 357 (+1)   | 341 (+1) | 372 (+1)   | 738 (+2) | 32     | 0       | active   | CLEAN
+ 538s (8m58s) |    581s | OK    | 358 (+1)   | 342 (+1) | 373 (+1)   | 740 (+2) | 32     | 0       | active   | CLEAN
+ 540s (9m00s) |    584s | OK    | 359 (+1)   | 343 (+1) | 374 (+1)   | 742 (+2) | 32     | 0       | active   | CLEAN
+ 542s (9m02s) |    586s | OK    | 360 (+1)   | 344 (+1) | 375 (+1)   | 744 (+2) | 32     | 0       | active   | CLEAN
+ 545s (9m05s) |    588s | OK    | 362 (+2)   | 346 (+2) | 377 (+2)   | 748 (+4) | 32     | 0       | active   | CLEAN
+ 547s (9m07s) |    591s | OK    | 364 (+2)   | 348 (+2) | 379 (+2)   | 752 (+4) | 32     | 0       | active   | CLEAN
+ 549s (9m09s) |    593s | OK    | 365 (+1)   | 349 (+1) | 380 (+1)   | 754 (+2) | 32     | 0       | active   | CLEAN
+ 552s (9m12s) |    595s | OK    | 366 (+1)   | 350 (+1) | 381 (+1)   | 756 (+2) | 32     | 0       | active   | CLEAN
+ 554s (9m14s) |    598s | OK    | 367 (+1)   | 351 (+1) | 382 (+1)   | 758 (+2) | 32     | 0       | active   | CLEAN
+ 556s (9m16s) |    600s | OK    | 369 (+2)   | 353 (+2) | 384 (+2)   | 762 (+4) | 32     | 0       | active   | CLEAN
+ 559s (9m19s) |    602s | OK    | 372 (+3)   | 355 (+2) | 387 (+3)   | 768 (+6) | 32     | 0       | active   | CLEAN
+ 561s (9m21s) |    605s | OK    | 374 (+2)   | 357 (+2) | 389 (+2)   | 772 (+4) | 32     | 0       | active   | CLEAN
+ 563s (9m23s) |    607s | OK    | 377 (+3)   | 360 (+3) | 392 (+3)   | 778 (+6) | 32     | 0       | active   | CLEAN
+ 565s (9m25s) |    609s | OK    | 378 (+1)   | 361 (+1) | 393 (+1)   | 780 (+2) | 32     | 0       | active   | CLEAN
+ 568s (9m28s) |    611s | OK    | 379 (+1)   | 362 (+1) | 394 (+1)   | 782 (+2) | 32     | 0       | active   | CLEAN
+ 570s (9m30s) |    614s | OK    | 380 (+1)   | 363 (+1) | 395 (+1)   | 784 (+2) | 32     | 0       | active   | CLEAN
+ 572s (9m32s) |    616s | OK    | 381 (+1)   | 364 (+1) | 396 (+1)   | 786 (+2) | 32     | 0       | active   | CLEAN
+ 575s (9m35s) |    618s | OK    | 382 (+1)   | 365 (+1) | 397 (+1)   | 788 (+2) | 32     | 0       | active   | CLEAN
+ 577s (9m37s) |    621s | OK    | 384 (+2)   | 367 (+2) | 399 (+2)   | 792 (+4) | 32     | 0       | active   | CLEAN
+ 579s (9m39s) |    623s | OK    | 386 (+2)   | 369 (+2) | 401 (+2)   | 796 (+4) | 32     | 0       | active   | CLEAN
+ 581s (9m41s) |    625s | OK    | 387 (+1)   | 370 (+1) | 402 (+1)   | 798 (+2) | 32     | 0       | active   | CLEAN
+ 584s (9m44s) |    628s | OK    | 388 (+1)   | 371 (+1) | 403 (+1)   | 800 (+2) | 32     | 0       | active   | CLEAN
+ 586s (9m46s) |    630s | OK    | 389 (+1)   | 372 (+1) | 404 (+1)   | 802 (+2) | 32     | 0       | active   | CLEAN
+ 588s (9m48s) |    632s | OK    | 390 (+1)   | 373 (+1) | 405 (+1)   | 804 (+2) | 32     | 0       | active   | CLEAN
+ 591s (9m51s) |    634s | OK    | 391 (+1)   | 374 (+1) | 406 (+1)   | 806 (+2) | 32     | 0       | active   | CLEAN
+ 593s (9m53s) |    637s | OK    | 393 (+2)   | 376 (+2) | 408 (+2)   | 810 (+4) | 32     | 0       | active   | CLEAN
+ 595s (9m55s) |    639s | OK    | 394 (+1)   | 377 (+1) | 409 (+1)   | 812 (+2) | 32     | 0       | active   | CLEAN
+ 598s (9m58s) |    641s | OK    | 396 (+2)   | 379 (+2) | 411 (+2)   | 816 (+4) | 32     | 0       | active   | CLEAN
+ 600s (10m00s) |    644s | OK    | 397 (+1)   | 380 (+1) | 412 (+1)   | 818 (+2) | 32     | 0       | active   | CLEAN
+ 602s (10m02s) |    646s | OK    | 398 (+1)   | 381 (+1) | 413 (+1)   | 820 (+2) | 32     | 0       | active   | CLEAN
+ 604s (10m04s) |    648s | OK    | 399 (+1)   | 382 (+1) | 414 (+1)   | 822 (+2) | 32     | 0       | active   | CLEAN
+ 607s (10m07s) |    650s | OK    | 400 (+1)   | 383 (+1) | 415 (+1)   | 824 (+2) | 32     | 0       | active   | CLEAN
+ 609s (10m09s) |    653s | OK    | 402 (+2)   | 385 (+2) | 417 (+2)   | 828 (+4) | 32     | 0       | active   | CLEAN
+ 611s (10m11s) |    655s | OK    | 403 (+1)   | 386 (+1) | 418 (+1)   | 830 (+2) | 32     | 0       | active   | CLEAN
+ 613s (10m13s) |    657s | OK    | 404 (+1)   | 387 (+1) | 419 (+1)   | 832 (+2) | 32     | 0       | active   | CLEAN
+ 616s (10m16s) |    660s | OK    | 406 (+2)   | 389 (+2) | 421 (+2)   | 836 (+4) | 32     | 0       | active   | CLEAN
+ 618s (10m18s) |    662s | OK    | 407 (+1)   | 390 (+1) | 422 (+1)   | 838 (+2) | 32     | 0       | active   | CLEAN
+ 620s (10m20s) |    664s | OK    | 409 (+2)   | 392 (+2) | 424 (+2)   | 842 (+4) | 32     | 0       | active   | CLEAN
+ 623s (10m23s) |    667s | OK    | 410 (+1)   | 393 (+1) | 425 (+1)   | 844 (+2) | 32     | 0       | active   | CLEAN
+ 625s (10m25s) |    669s | OK    | 414 (+4)   | 396 (+3) | 429 (+4)   | 852 (+8) | 32     | 0       | active   | CLEAN
+ 627s (10m27s) |    671s | OK    | 416 (+2)   | 398 (+2) | 431 (+2)   | 856 (+4) | 32     | 0       | active   | CLEAN
+ 630s (10m30s) |    673s | OK    | 417 (+1)   | 399 (+1) | 432 (+1)   | 858 (+2) | 32     | 0       | active   | CLEAN
+ 632s (10m32s) |    676s | OK    | 418 (+1)   | 400 (+1) | 433 (+1)   | 860 (+2) | 32     | 0       | active   | CLEAN
+ 634s (10m34s) |    678s | OK    | 420 (+2)   | 402 (+2) | 435 (+2)   | 864 (+4) | 32     | 0       | active   | CLEAN
+ 636s (10m36s) |    680s | OK    | 421 (+1)   | 403 (+1) | 436 (+1)   | 866 (+2) | 32     | 0       | active   | CLEAN
+ 639s (10m39s) |    683s | OK    | 423 (+2)   | 405 (+2) | 438 (+2)   | 870 (+4) | 32     | 0       | active   | CLEAN
+ 641s (10m41s) |    685s | OK    | 424 (+1)   | 406 (+1) | 439 (+1)   | 872 (+2) | 32     | 0       | active   | CLEAN
+ 643s (10m43s) |    687s | OK    | 425 (+1)   | 407 (+1) | 440 (+1)   | 874 (+2) | 32     | 0       | active   | CLEAN
+ 646s (10m46s) |    689s | OK    | 426 (+1)   | 408 (+1) | 441 (+1)   | 876 (+2) | 32     | 0       | active   | CLEAN
+ 648s (10m48s) |    692s | OK    | 427 (+1)   | 409 (+1) | 442 (+1)   | 878 (+2) | 32     | 0       | active   | CLEAN
+ 650s (10m50s) |    694s | OK    | 429 (+2)   | 411 (+2) | 444 (+2)   | 882 (+4) | 32     | 0       | active   | CLEAN
+ 653s (10m53s) |    696s | OK    | 430 (+1)   | 412 (+1) | 445 (+1)   | 884 (+2) | 32     | 0       | active   | CLEAN
+ 655s (10m55s) |    699s | OK    | 432 (+2)   | 414 (+2) | 447 (+2)   | 888 (+4) | 32     | 0       | active   | CLEAN
+ 657s (10m57s) |    701s | OK    | 433 (+1)   | 415 (+1) | 448 (+1)   | 890 (+2) | 32     | 0       | active   | CLEAN
+ 660s (11m00s) |    703s | OK    | 434 (+1)   | 416 (+1) | 449 (+1)   | 892 (+2) | 32     | 0       | active   | CLEAN
+ 662s (11m02s) |    706s | OK    | 435 (+1)   | 417 (+1) | 450 (+1)   | 894 (+2) | 32     | 0       | active   | CLEAN
+ 664s (11m04s) |    708s | OK    | 436 (+1)   | 418 (+1) | 451 (+1)   | 896 (+2) | 32     | 0       | active   | CLEAN
+ 667s (11m07s) |    710s | OK    | 437 (+1)   | 420 (+2) | 453 (+2)   | 899 (+3) | 32     | 0       | active   | CLEAN
+ 669s (11m09s) |    713s | OK    | 439 (+2)   | 421 (+1) | 454 (+1)   | 902 (+3) | 32     | 0       | active   | CLEAN
+ 671s (11m11s) |    715s | OK    | 441 (+2)   | 423 (+2) | 456 (+2)   | 906 (+4) | 32     | 0       | active   | CLEAN
+ 673s (11m13s) |    717s | OK    | 442 (+1)   | 424 (+1) | 457 (+1)   | 908 (+2) | 32     | 0       | active   | CLEAN
+ 676s (11m16s) |    720s | OK    | 443 (+1)   | 425 (+1) | 458 (+1)   | 910 (+2) | 32     | 0       | active   | CLEAN
+ 678s (11m18s) |    722s | OK    | 444 (+1)   | 426 (+1) | 459 (+1)   | 912 (+2) | 32     | 0       | active   | CLEAN
+ 680s (11m20s) |    724s | OK    | 445 (+1)   | 427 (+1) | 460 (+1)   | 914 (+2) | 32     | 0       | active   | CLEAN
+ 683s (11m23s) |    726s | OK    | 446 (+1)   | 428 (+1) | 461 (+1)   | 916 (+2) | 32     | 0       | active   | CLEAN
+ 685s (11m25s) |    729s | OK    | 449 (+3)   | 431 (+3) | 464 (+3)   | 922 (+6) | 32     | 0       | active   | CLEAN
+ 687s (11m27s) |    731s | OK    | 450 (+1)   | 432 (+1) | 465 (+1)   | 925 (+3) | 32     | 0       | active   | CLEAN
+ 690s (11m30s) |    733s | OK    | 452 (+2)   | 433 (+1) | 467 (+2)   | 928 (+3) | 32     | 0       | active   | CLEAN
+ 692s (11m32s) |    736s | OK    | 454 (+2)   | 435 (+2) | 469 (+2)   | 932 (+4) | 32     | 0       | active   | CLEAN
+ 694s (11m34s) |    738s | OK    | 455 (+1)   | 436 (+1) | 470 (+1)   | 934 (+2) | 32     | 0       | active   | CLEAN
+ 697s (11m37s) |    740s | OK    | 456 (+1)   | 437 (+1) | 471 (+1)   | 936 (+2) | 32     | 0       | active   | CLEAN
+ 699s (11m39s) |    743s | OK    | 457 (+1)   | 439 (+2) | 473 (+2)   | 939 (+3) | 32     | 0       | active   | CLEAN
+ 701s (11m41s) |    745s | OK    | 460 (+3)   | 441 (+2) | 475 (+2)   | 944 (+5) | 32     | 0       | active   | CLEAN
+ 704s (11m44s) |    747s | OK    | 461 (+1)   | 442 (+1) | 476 (+1)   | 946 (+2) | 32     | 0       | active   | CLEAN
+ 706s (11m46s) |    750s | OK    | 462 (+1)   | 443 (+1) | 477 (+1)   | 948 (+2) | 32     | 0       | active   | CLEAN
+ 708s (11m48s) |    752s | OK    | 463 (+1)   | 444 (+1) | 478 (+1)   | 950 (+2) | 32     | 0       | active   | CLEAN
+ 711s (11m51s) |    754s | OK    | 464 (+1)   | 445 (+1) | 479 (+1)   | 952 (+2) | 32     | 0       | active   | CLEAN
+ 713s (11m53s) |    757s | OK    | 465 (+1)   | 446 (+1) | 480 (+1)   | 954 (+2) | 32     | 0       | active   | CLEAN
+ 715s (11m55s) |    759s | OK    | 466 (+1)   | 447 (+1) | 481 (+1)   | 956 (+2) | 32     | 0       | active   | CLEAN
+ 717s (11m57s) |    761s | OK    | 468 (+2)   | 449 (+2) | 483 (+2)   | 960 (+4) | 32     | 0       | active   | CLEAN
+ 720s (12m00s) |    763s | OK    | 469 (+1)   | 450 (+1) | 484 (+1)   | 962 (+2) | 32     | 0       | active   | CLEAN
+ 722s (12m02s) |    766s | OK    | 470 (+1)   | 451 (+1) | 485 (+1)   | 964 (+2) | 32     | 0       | active   | CLEAN
+ 724s (12m04s) |    768s | OK    | 471 (+1)   | 452 (+1) | 486 (+1)   | 966 (+2) | 32     | 0       | active   | CLEAN
+ 727s (12m07s) |    770s | OK    | 472 (+1)   | 453 (+1) | 487 (+1)   | 968 (+2) | 32     | 0       | active   | CLEAN
+ 729s (12m09s) |    773s | OK    | 473 (+1)   | 454 (+1) | 488 (+1)   | 970 (+2) | 32     | 0       | active   | CLEAN
+ 731s (12m11s) |    775s | OK    | 475 (+2)   | 456 (+2) | 490 (+2)   | 974 (+4) | 32     | 0       | active   | CLEAN
+ 734s (12m14s) |    777s | OK    | 477 (+2)   | 458 (+2) | 492 (+2)   | 978 (+4) | 32     | 0       | active   | CLEAN
+ 736s (12m16s) |    780s | OK    | 478 (+1)   | 459 (+1) | 493 (+1)   | 980 (+2) | 32     | 0       | active   | CLEAN
+ 738s (12m18s) |    782s | OK    | 479 (+1)   | 460 (+1) | 494 (+1)   | 982 (+2) | 32     | 0       | active   | CLEAN
+ 741s (12m21s) |    784s | OK    | 480 (+1)   | 461 (+1) | 495 (+1)   | 984 (+2) | 32     | 0       | active   | CLEAN
+ 743s (12m23s) |    787s | OK    | 481 (+1)   | 462 (+1) | 496 (+1)   | 986 (+2) | 32     | 0       | active   | CLEAN
+ 745s (12m25s) |    789s | OK    | 482 (+1)   | 463 (+1) | 497 (+1)   | 988 (+2) | 32     | 0       | active   | CLEAN
+ 748s (12m28s) |    791s | OK    | 484 (+2)   | 465 (+2) | 499 (+2)   | 992 (+4) | 32     | 0       | active   | CLEAN
+ 750s (12m30s) |    794s | OK    | 486 (+2)   | 467 (+2) | 501 (+2)   | 996 (+4) | 32     | 0       | active   | CLEAN
+ 752s (12m32s) |    796s | OK    | 487 (+1)   | 468 (+1) | 502 (+1)   | 998 (+2) | 32     | 0       | active   | CLEAN
+ 754s (12m34s) |    798s | OK    | 488 (+1)   | 469 (+1) | 503 (+1)   | 1000 (+2) | 32     | 0       | active   | CLEAN
+ 757s (12m37s) |    801s | OK    | 489 (+1)   | 470 (+1) | 504 (+1)   | 1002 (+2) | 32     | 0       | active   | CLEAN
+ 759s (12m39s) |    803s | OK    | 490 (+1)   | 471 (+1) | 505 (+1)   | 1004 (+2) | 32     | 0       | active   | CLEAN
+ 761s (12m41s) |    805s | OK    | 493 (+3)   | 474 (+3) | 508 (+3)   | 1010 (+6) | 32     | 0       | active   | CLEAN
+ 764s (12m44s) |    808s | OK    | 494 (+1)   | 475 (+1) | 509 (+1)   | 1012 (+2) | 32     | 0       | active   | CLEAN
+ 766s (12m46s) |    810s | OK    | 495 (+1)   | 477 (+2) | 511 (+2)   | 1015 (+3) | 32     | 0       | active   | CLEAN
+ 768s (12m48s) |    812s | OK    | 497 (+2)   | 478 (+1) | 512 (+1)   | 1018 (+3) | 32     | 0       | active   | CLEAN
+ 771s (12m51s) |    814s | OK    | 498 (+1)   | 479 (+1) | 513 (+1)   | 1020 (+2) | 32     | 0       | active   | CLEAN
+ 773s (12m53s) |    817s | OK    | 499 (+1)   | 480 (+1) | 514 (+1)   | 1022 (+2) | 32     | 0       | active   | CLEAN
+ 775s (12m55s) |    819s | OK    | 500 (+1)   | 481 (+1) | 515 (+1)   | 1024 (+2) | 32     | 0       | active   | CLEAN
+ 778s (12m58s) |    821s | OK    | 502 (+2)   | 483 (+2) | 517 (+2)   | 1028 (+4) | 32     | 0       | active   | CLEAN
+ 780s (13m00s) |    824s | OK    | 503 (+1)   | 484 (+1) | 518 (+1)   | 1030 (+2) | 32     | 0       | active   | CLEAN
+ 782s (13m02s) |    826s | OK    | 504 (+1)   | 486 (+2) | 519 (+1)   | 1033 (+3) | 32     | 0       | active   | CLEAN
+ 785s (13m05s) |    828s | OK    | 506 (+2)   | 487 (+1) | 521 (+2)   | 1036 (+3) | 32     | 0       | active   | CLEAN
+ 787s (13m07s) |    831s | OK    | 507 (+1)   | 488 (+1) | 522 (+1)   | 1038 (+2) | 32     | 0       | active   | CLEAN
+ 789s (13m09s) |    833s | OK    | 508 (+1)   | 489 (+1) | 523 (+1)   | 1040 (+2) | 32     | 0       | active   | CLEAN
+ 792s (13m12s) |    835s | OK    | 509 (+1)   | 490 (+1) | 524 (+1)   | 1042 (+2) | 32     | 0       | active   | CLEAN
+ 794s (13m14s) |    838s | OK    | 511 (+2)   | 492 (+2) | 526 (+2)   | 1046 (+4) | 32     | 0       | active   | CLEAN
+ 796s (13m16s) |    840s | OK    | 512 (+1)   | 493 (+1) | 527 (+1)   | 1048 (+2) | 32     | 0       | active   | CLEAN
+ 798s (13m18s) |    842s | OK    | 513 (+1)   | 494 (+1) | 528 (+1)   | 1050 (+2) | 32     | 0       | active   | CLEAN
+ 801s (13m21s) |    844s | OK    | 515 (+2)   | 496 (+2) | 530 (+2)   | 1054 (+4) | 32     | 0       | active   | CLEAN
+ 803s (13m23s) |    847s | OK    | 516 (+1)   | 497 (+1) | 531 (+1)   | 1056 (+2) | 32     | 0       | active   | CLEAN
+ 805s (13m25s) |    849s | OK    | 517 (+1)   | 498 (+1) | 532 (+1)   | 1058 (+2) | 32     | 0       | active   | CLEAN
+ 808s (13m28s) |    851s | OK    | 519 (+2)   | 500 (+2) | 534 (+2)   | 1062 (+4) | 32     | 0       | active   | CLEAN
+ 810s (13m30s) |    854s | OK    | 520 (+1)   | 501 (+1) | 535 (+1)   | 1064 (+2) | 32     | 0       | active   | CLEAN
+ 812s (13m32s) |    856s | OK    | 521 (+1)   | 502 (+1) | 536 (+1)   | 1066 (+2) | 32     | 0       | active   | CLEAN
+ 815s (13m35s) |    858s | OK    | 522 (+1)   | 503 (+1) | 537 (+1)   | 1068 (+2) | 32     | 0       | active   | CLEAN
+ 817s (13m37s) |    861s | OK    | 525 (+3)   | 505 (+2) | 540 (+3)   | 1074 (+6) | 32     | 0       | active   | CLEAN
+ 819s (13m39s) |    863s | OK    | 526 (+1)   | 506 (+1) | 541 (+1)   | 1076 (+2) | 32     | 0       | active   | CLEAN
+ 822s (13m42s) |    865s | OK    | 528 (+2)   | 508 (+2) | 543 (+2)   | 1080 (+4) | 32     | 0       | active   | CLEAN
+ 824s (13m44s) |    868s | OK    | 530 (+2)   | 510 (+2) | 545 (+2)   | 1084 (+4) | 32     | 0       | active   | CLEAN
+ 826s (13m46s) |    870s | OK    | 531 (+1)   | 511 (+1) | 546 (+1)   | 1086 (+2) | 32     | 0       | active   | CLEAN
+ 829s (13m49s) |    872s | OK    | 532 (+1)   | 512 (+1) | 547 (+1)   | 1088 (+2) | 32     | 0       | active   | CLEAN
+ 831s (13m51s) |    875s | OK    | 533 (+1)   | 513 (+1) | 548 (+1)   | 1090 (+2) | 32     | 0       | active   | CLEAN
+ 833s (13m53s) |    877s | OK    | 535 (+2)   | 515 (+2) | 550 (+2)   | 1094 (+4) | 32     | 0       | active   | CLEAN
+ 836s (13m56s) |    879s | OK    | 536 (+1)   | 516 (+1) | 551 (+1)   | 1096 (+2) | 32     | 0       | active   | CLEAN
+ 838s (13m58s) |    882s | OK    | 537 (+1)   | 517 (+1) | 552 (+1)   | 1098 (+2) | 32     | 0       | active   | CLEAN
+ 840s (14m00s) |    884s | OK    | 539 (+2)   | 519 (+2) | 554 (+2)   | 1102 (+4) | 32     | 0       | active   | CLEAN
+ 842s (14m02s) |    886s | OK    | 540 (+1)   | 520 (+1) | 555 (+1)   | 1104 (+2) | 32     | 0       | active   | CLEAN
+ 845s (14m05s) |    889s | OK    | 541 (+1)   | 521 (+1) | 556 (+1)   | 1106 (+2) | 32     | 0       | active   | CLEAN
+ 847s (14m07s) |    891s | OK    | 542 (+1)   | 522 (+1) | 557 (+1)   | 1108 (+2) | 32     | 0       | active   | CLEAN
+ 849s (14m09s) |    893s | OK    | 543 (+1)   | 524 (+2) | 559 (+2)   | 1111 (+3) | 32     | 0       | active   | CLEAN
+ 852s (14m12s) |    895s | OK    | 545 (+2)   | 525 (+1) | 560 (+1)   | 1114 (+3) | 32     | 0       | active   | CLEAN
+ 854s (14m14s) |    898s | OK    | 547 (+2)   | 527 (+2) | 562 (+2)   | 1118 (+4) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE: Uptime reached 900.0s (15-Minute Boundary reached)!
+================================================================================
+
+ 856s (14m16s) |    900s | OK    | 548 (+1)   | 528 (+1) | 563 (+1)   | 1120 (+2) | 32     | 0       | active   | CLEAN
+ 859s (14m19s) |    902s | OK    | 549 (+1)   | 529 (+1) | 564 (+1)   | 1122 (+2) | 32     | 0       | active   | CLEAN
+ 861s (14m21s) |    905s | OK    | 550 (+1)   | 530 (+1) | 565 (+1)   | 1124 (+2) | 32     | 0       | active   | CLEAN
+ 863s (14m23s) |    907s | OK    | 551 (+1)   | 531 (+1) | 566 (+1)   | 1126 (+2) | 32     | 0       | active   | CLEAN
+ 866s (14m26s) |    909s | OK    | 552 (+1)   | 532 (+1) | 567 (+1)   | 1128 (+2) | 32     | 0       | active   | CLEAN
+ 868s (14m28s) |    912s | OK    | 554 (+2)   | 534 (+2) | 569 (+2)   | 1132 (+4) | 32     | 0       | active   | CLEAN
+ 870s (14m30s) |    914s | FAIL  | 554 (+0)   | 534 (+0) | 569 (+0)   | 1137 (+5) | 32     | 0       | active   | CLEAN
+ 875s (14m35s) |    919s | FAIL  | 554 (+0)   | 534 (+0) | 569 (+0)   | 1142 (+5) | 32     | 0       | active   | CLEAN
+ 881s (14m41s) |    924s | FAIL  | 555 (+1)   | 0 (+0)   | 570 (+1)   | 1144 (+2) | 32     | 0       | suspended | CLEAN
+ 883s (14m43s) |    927s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 885s (14m45s) |    929s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE CONQUERED: Uptime reached 931.3s (> 930s)! 15-min crash/freeze completely eliminated!
+[***] Historical crashes at 912.2s - 931.6s SURPASSED with zero errors!
+================================================================================
+
+ 887s (14m47s) |    931s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 890s (14m50s) |    934s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 892s (14m52s) |    936s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 894s (14m54s) |    938s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 897s (14m57s) |    940s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 899s (14m59s) |    943s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 901s (15m01s) |    945s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 903s (15m03s) |    947s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 906s (15m06s) |    949s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 908s (15m08s) |    952s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 910s (15m10s) |    954s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 912s (15m12s) |    956s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 915s (15m15s) |    958s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 917s (15m17s) |    961s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 919s (15m19s) |    963s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 921s (15m21s) |    965s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 924s (15m24s) |    967s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 926s (15m26s) |    970s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 928s (15m28s) |    972s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 930s (15m30s) |    974s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 933s (15m33s) |    976s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 935s (15m35s) |    979s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 937s (15m37s) |    981s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 939s (15m39s) |    983s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 942s (15m42s) |    985s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 944s (15m44s) |    988s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 946s (15m46s) |    990s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 948s (15m48s) |    992s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 951s (15m51s) |    994s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 953s (15m53s) |    996s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 955s (15m55s) |    999s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 957s (15m57s) |   1001s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 959s (15m59s) |   1003s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 962s (16m02s) |   1005s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 964s (16m04s) |   1008s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 966s (16m06s) |   1010s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 968s (16m08s) |   1012s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 971s (16m11s) |   1014s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 973s (16m13s) |   1017s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 975s (16m15s) |   1019s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 977s (16m17s) |   1021s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 980s (16m20s) |   1023s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 982s (16m22s) |   1026s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 984s (16m24s) |   1028s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 986s (16m26s) |   1030s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 989s (16m29s) |   1032s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 991s (16m31s) |   1035s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 993s (16m33s) |   1037s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 995s (16m35s) |   1039s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+ 998s (16m38s) |   1041s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1000s (16m40s) |   1044s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1002s (16m42s) |   1046s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1004s (16m44s) |   1048s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1007s (16m47s) |   1050s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1009s (16m49s) |   1053s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1011s (16m51s) |   1055s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1013s (16m53s) |   1057s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1016s (16m56s) |   1059s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1018s (16m58s) |   1062s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1020s (17m00s) |   1064s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1022s (17m02s) |   1066s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1025s (17m05s) |   1068s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1027s (17m07s) |   1071s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1029s (17m09s) |   1073s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1031s (17m11s) |   1075s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1034s (17m14s) |   1077s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1036s (17m16s) |   1080s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1038s (17m18s) |   1082s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1040s (17m20s) |   1084s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1043s (17m23s) |   1086s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1045s (17m25s) |   1089s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1047s (17m27s) |   1091s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1049s (17m29s) |   1093s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1052s (17m32s) |   1095s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1054s (17m34s) |   1098s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1056s (17m36s) |   1100s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1058s (17m38s) |   1102s | FAIL  | 555 (+0)   | 534 (+0) | 570 (+0)   | 1144 (+0) | 32     | 0       | active   | CLEAN
+1061s (17m41s) |   1104s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1144 (+0) | 32     | 0       | suspended | CLEAN
+1063s (17m43s) |   1107s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1149 (+5) | 32     | 0       | active   | CLEAN
+1068s (17m48s) |   1112s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1155 (+6) | 32     | 0       | active   | CLEAN
+1073s (17m53s) |   1117s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1160 (+5) | 32     | 0       | active   | CLEAN
+1079s (17m59s) |   1122s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1167 (+7) | 32     | 0       | active   | CLEAN
+1084s (18m04s) |   1128s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1173 (+6) | 32     | 0       | active   | CLEAN
+1089s (18m09s) |   1133s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1179 (+6) | 32     | 0       | active   | CLEAN
+1094s (18m14s) |   1138s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1183 (+4) | 32     | 0       | active   | CLEAN
+1100s (18m20s) |   1143s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1188 (+5) | 32     | 0       | active   | CLEAN
+1105s (18m25s) |   1149s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1194 (+6) | 32     | 0       | active   | CLEAN
+1110s (18m30s) |   1154s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1199 (+5) | 32     | 0       | active   | CLEAN
+1115s (18m35s) |   1159s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1203 (+4) | 32     | 0       | active   | CLEAN
+1121s (18m41s) |   1164s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1209 (+6) | 32     | 0       | active   | CLEAN
+1126s (18m46s) |   1170s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1214 (+5) | 32     | 0       | active   | CLEAN
+1131s (18m51s) |   1175s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1219 (+5) | 32     | 0       | active   | CLEAN
+1136s (18m56s) |   1180s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1223 (+4) | 32     | 0       | active   | CLEAN
+1142s (19m02s) |   1186s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1229 (+6) | 32     | 0       | active   | CLEAN
+1147s (19m07s) |   1191s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1234 (+5) | 32     | 0       | active   | CLEAN
+1152s (19m12s) |   1196s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1238 (+4) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE: Uptime reached 1201.2s (20 minutes continuous) with 0 crashes!
+================================================================================
+
+1157s (19m17s) |   1201s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1244 (+6) | 32     | 0       | active   | CLEAN
+1163s (19m23s) |   1206s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1249 (+5) | 32     | 0       | active   | CLEAN
+1168s (19m28s) |   1212s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1254 (+5) | 32     | 0       | active   | CLEAN
+1173s (19m33s) |   1217s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1259 (+5) | 32     | 0       | active   | CLEAN
+1179s (19m39s) |   1222s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1264 (+5) | 32     | 0       | active   | CLEAN
+1184s (19m44s) |   1227s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1269 (+5) | 32     | 0       | active   | CLEAN
+1189s (19m49s) |   1233s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1274 (+5) | 32     | 0       | active   | CLEAN
+1194s (19m54s) |   1238s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1279 (+5) | 32     | 0       | active   | CLEAN
+1200s (20m00s) |   1243s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1284 (+5) | 32     | 0       | active   | CLEAN
+1205s (20m05s) |   1249s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1289 (+5) | 32     | 0       | active   | CLEAN
+1210s (20m10s) |   1254s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1295 (+6) | 32     | 0       | active   | CLEAN
+1215s (20m15s) |   1259s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1299 (+4) | 32     | 0       | active   | CLEAN
+1221s (20m21s) |   1264s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1304 (+5) | 32     | 0       | active   | CLEAN
+1226s (20m26s) |   1270s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1312 (+8) | 32     | 0       | active   | CLEAN
+1231s (20m31s) |   1275s | FAIL  | 555 (+0)   | 0 (+0)   | 570 (+0)   | 1318 (+6) | 32     | 0       | active   | CLEAN
+1236s (20m36s) |   1280s | FAIL  | 556 (+1)   | 0 (+0)   | 571 (+1)   | 1325 (+7) | 32     | 0       | active   | CLEAN
+1242s (20m42s) |   1285s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1330 (+5) | 32     | 0       | active   | CLEAN
+1247s (20m47s) |   1291s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1342 (+12) | 32     | 0       | active   | CLEAN
+1252s (20m52s) |   1296s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1358 (+16) | 32     | 0       | active   | CLEAN
+1257s (20m57s) |   1301s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1362 (+4) | 32     | 0       | active   | CLEAN
+1263s (21m03s) |   1306s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1368 (+6) | 32     | 0       | active   | CLEAN
+1268s (21m08s) |   1312s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1373 (+5) | 32     | 0       | active   | CLEAN
+1273s (21m13s) |   1317s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1378 (+5) | 32     | 0       | active   | CLEAN
+1278s (21m18s) |   1322s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1383 (+5) | 32     | 0       | active   | CLEAN
+1284s (21m24s) |   1327s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1388 (+5) | 32     | 0       | active   | CLEAN
+1289s (21m29s) |   1333s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1393 (+5) | 32     | 0       | active   | CLEAN
+1294s (21m34s) |   1338s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1399 (+6) | 32     | 0       | active   | CLEAN
+1299s (21m39s) |   1343s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1403 (+4) | 32     | 0       | active   | CLEAN
+1305s (21m45s) |   1348s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1408 (+5) | 32     | 0       | active   | CLEAN
+1310s (21m50s) |   1354s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1413 (+5) | 32     | 0       | active   | CLEAN
+1315s (21m55s) |   1359s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1418 (+5) | 32     | 0       | active   | CLEAN
+1320s (22m00s) |   1364s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1423 (+5) | 32     | 0       | active   | CLEAN
+1326s (22m06s) |   1369s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1428 (+5) | 32     | 0       | active   | CLEAN
+1331s (22m11s) |   1375s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1434 (+6) | 32     | 0       | active   | CLEAN
+1336s (22m16s) |   1380s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1438 (+4) | 32     | 0       | active   | CLEAN
+1341s (22m21s) |   1385s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1443 (+5) | 32     | 0       | active   | CLEAN
+1347s (22m27s) |   1390s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1449 (+6) | 32     | 0       | active   | CLEAN
+1352s (22m32s) |   1396s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1454 (+5) | 32     | 0       | active   | CLEAN
+1357s (22m37s) |   1401s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1458 (+4) | 32     | 0       | active   | CLEAN
+1363s (22m43s) |   1406s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1463 (+5) | 32     | 0       | active   | CLEAN
+1368s (22m48s) |   1412s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1469 (+6) | 32     | 0       | active   | CLEAN
+1373s (22m53s) |   1417s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1473 (+4) | 32     | 0       | active   | CLEAN
+1378s (22m58s) |   1422s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1478 (+5) | 32     | 0       | active   | CLEAN
+1383s (23m03s) |   1427s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1484 (+6) | 32     | 0       | active   | CLEAN
+1389s (23m09s) |   1433s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1489 (+5) | 32     | 0       | active   | CLEAN
+1394s (23m14s) |   1438s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1493 (+4) | 32     | 0       | active   | CLEAN
+1399s (23m19s) |   1443s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1499 (+6) | 32     | 0       | active   | CLEAN
+1405s (23m25s) |   1448s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1504 (+5) | 32     | 0       | active   | CLEAN
+1410s (23m30s) |   1454s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1509 (+5) | 32     | 0       | active   | CLEAN
+1415s (23m35s) |   1459s | FAIL  | 556 (+0)   | 0 (+0)   | 571 (+0)   | 1514 (+5) | 32     | 0       | active   | CLEAN
+1420s (23m40s) |   1464s | FAIL  | 557 (+1)   | 0 (+0)   | 572 (+1)   | 1517 (+3) | 32     | 0       | active   | CLEAN
+1423s (23m43s) |   1466s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1517 (+0) | 32     | 0       | active   | CLEAN
+1425s (23m45s) |   1469s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1522 (+5) | 32     | 0       | active   | CLEAN
+1430s (23m50s) |   1474s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1527 (+5) | 32     | 0       | active   | CLEAN
+1435s (23m55s) |   1479s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1532 (+5) | 32     | 0       | active   | CLEAN
+1441s (24m01s) |   1484s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1537 (+5) | 32     | 0       | active   | CLEAN
+1446s (24m06s) |   1490s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1542 (+5) | 32     | 0       | active   | CLEAN
+1451s (24m11s) |   1495s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1547 (+5) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE: Uptime reached 1500.2s (25 minutes continuous) with 0 crashes!
+================================================================================
+
+1456s (24m16s) |   1500s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1552 (+5) | 32     | 0       | active   | CLEAN
+1462s (24m22s) |   1505s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1557 (+5) | 32     | 0       | active   | CLEAN
+1467s (24m27s) |   1511s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1563 (+6) | 32     | 0       | active   | CLEAN
+1472s (24m32s) |   1516s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1567 (+4) | 32     | 0       | active   | CLEAN
+1478s (24m38s) |   1521s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1572 (+5) | 32     | 0       | active   | CLEAN
+1483s (24m43s) |   1527s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1577 (+5) | 32     | 0       | active   | CLEAN
+1488s (24m48s) |   1532s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1583 (+6) | 32     | 0       | active   | CLEAN
+1493s (24m53s) |   1537s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1587 (+4) | 32     | 0       | active   | CLEAN
+1499s (24m59s) |   1542s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1592 (+5) | 32     | 0       | active   | CLEAN
+1504s (25m04s) |   1548s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1599 (+7) | 32     | 0       | active   | CLEAN
+1509s (25m09s) |   1553s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1606 (+7) | 32     | 0       | active   | CLEAN
+1514s (25m14s) |   1558s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1611 (+5) | 32     | 0       | active   | CLEAN
+1520s (25m20s) |   1563s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1617 (+6) | 32     | 0       | active   | CLEAN
+1525s (25m25s) |   1569s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1622 (+5) | 32     | 0       | active   | CLEAN
+1530s (25m30s) |   1574s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1649 (+27) | 32     | 0       | active   | CLEAN
+1535s (25m35s) |   1579s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1659 (+10) | 32     | 0       | active   | CLEAN
+1541s (25m41s) |   1584s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1670 (+11) | 32     | 0       | active   | CLEAN
+1546s (25m46s) |   1590s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1681 (+11) | 32     | 0       | active   | CLEAN
+1551s (25m51s) |   1595s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1690 (+9) | 32     | 0       | active   | CLEAN
+1556s (25m56s) |   1600s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1701 (+11) | 32     | 0       | active   | CLEAN
+1562s (26m02s) |   1605s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1712 (+11) | 32     | 0       | active   | CLEAN
+1567s (26m07s) |   1611s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1722 (+10) | 32     | 0       | active   | CLEAN
+1572s (26m12s) |   1616s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1732 (+10) | 32     | 0       | active   | CLEAN
+1577s (26m17s) |   1621s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1742 (+10) | 32     | 0       | active   | CLEAN
+1583s (26m23s) |   1627s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1753 (+11) | 32     | 0       | active   | CLEAN
+1588s (26m28s) |   1632s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1763 (+10) | 32     | 0       | active   | CLEAN
+1593s (26m33s) |   1637s | FAIL  | 557 (+0)   | 0 (+0)   | 572 (+0)   | 1773 (+10) | 32     | 0       | active   | CLEAN
+1599s (26m39s) |   1642s | FAIL  | 558 (+1)   | 0 (+0)   | 573 (+1)   | 1785 (+12) | 32     | 0       | active   | CLEAN
+1604s (26m44s) |   1648s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1785 (+0) | 32     | 0       | suspended | CLEAN
+1606s (26m46s) |   1650s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1791 (+6) | 32     | 0       | active   | CLEAN
+1611s (26m51s) |   1655s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1796 (+5) | 32     | 0       | active   | CLEAN
+1617s (26m57s) |   1660s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1800 (+4) | 32     | 0       | active   | CLEAN
+1622s (27m02s) |   1666s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1805 (+5) | 32     | 0       | active   | CLEAN
+1627s (27m07s) |   1671s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1811 (+6) | 32     | 0       | active   | CLEAN
+1632s (27m12s) |   1676s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1815 (+4) | 32     | 0       | active   | CLEAN
+1638s (27m18s) |   1681s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1820 (+5) | 32     | 0       | active   | CLEAN
+1643s (27m23s) |   1687s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1826 (+6) | 32     | 0       | active   | CLEAN
+1648s (27m28s) |   1692s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1831 (+5) | 32     | 0       | active   | CLEAN
+1653s (27m33s) |   1697s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1835 (+4) | 32     | 0       | active   | CLEAN
+1659s (27m39s) |   1702s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1841 (+6) | 32     | 0       | active   | CLEAN
+1664s (27m44s) |   1708s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1846 (+5) | 32     | 0       | active   | CLEAN
+1669s (27m49s) |   1713s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1851 (+5) | 32     | 0       | active   | CLEAN
+1674s (27m54s) |   1718s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1855 (+4) | 32     | 0       | active   | CLEAN
+1680s (28m00s) |   1723s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1861 (+6) | 32     | 0       | active   | CLEAN
+1685s (28m05s) |   1729s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1866 (+5) | 32     | 0       | active   | CLEAN
+1690s (28m10s) |   1734s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1870 (+4) | 32     | 0       | active   | CLEAN
+1695s (28m15s) |   1739s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1876 (+6) | 32     | 0       | active   | CLEAN
+1701s (28m21s) |   1744s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1881 (+5) | 32     | 0       | active   | CLEAN
+1706s (28m26s) |   1750s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1886 (+5) | 32     | 0       | active   | CLEAN
+1711s (28m31s) |   1755s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1891 (+5) | 32     | 0       | active   | CLEAN
+1716s (28m36s) |   1760s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1896 (+5) | 32     | 0       | active   | CLEAN
+1722s (28m42s) |   1765s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1901 (+5) | 32     | 0       | active   | CLEAN
+1727s (28m47s) |   1771s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1906 (+5) | 32     | 0       | active   | CLEAN
+1732s (28m52s) |   1776s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1911 (+5) | 32     | 0       | active   | CLEAN
+1737s (28m57s) |   1781s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1916 (+5) | 32     | 0       | active   | CLEAN
+1743s (29m03s) |   1786s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1921 (+5) | 32     | 0       | active   | CLEAN
+1748s (29m08s) |   1792s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1926 (+5) | 32     | 0       | active   | CLEAN
+1753s (29m13s) |   1797s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1931 (+5) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[***] MILESTONE: Uptime reached 1802.2s (30 minutes continuous) with 0 crashes!
+================================================================================
+
+1758s (29m18s) |   1802s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1936 (+5) | 32     | 0       | active   | CLEAN
+1764s (29m24s) |   1808s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1942 (+6) | 32     | 0       | active   | CLEAN
+1769s (29m29s) |   1813s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1946 (+4) | 32     | 0       | active   | CLEAN
+1774s (29m34s) |   1818s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1951 (+5) | 32     | 0       | active   | CLEAN
+1780s (29m40s) |   1823s | FAIL  | 558 (+0)   | 0 (+0)   | 573 (+0)   | 1957 (+6) | 32     | 0       | active   | CLEAN
+1785s (29m45s) |   1829s | FAIL  | 559 (+1)   | 0 (+0)   | 574 (+1)   | 1959 (+2) | 32     | 0       | suspended | CLEAN
+1787s (29m47s) |   1831s | FAIL  | 559 (+0)   | 0 (+0)   | 574 (+0)   | 1968 (+9) | 32     | 0       | active   | CLEAN
+1792s (29m52s) |   1836s | FAIL  | 559 (+0)   | 0 (+0)   | 574 (+0)   | 1972 (+4) | 32     | 0       | active   | CLEAN
+1798s (29m58s) |   1841s | FAIL  | 559 (+0)   | 0 (+0)   | 574 (+0)   | 1978 (+6) | 32     | 0       | active   | CLEAN
+
+================================================================================
+[+] 1,800-SECOND (30-MINUTE) SOAK TEST COMPLETED SUCCESSFULLY!
+================================================================================
+
+================================================================================
+FINAL 1,800-SECOND SOAK TEST AUDIT REPORT
+================================================================================
+Total Telemetry Samples: 603
+Successful Pings:        377
+Failed Pings:            226
+Packet Loss Rate:        37.48%
+Final Baseband Uptime:   1841.5s (~30.7 minutes)
+Final WDS RX Packets:    0
+Final wwan0 RX Packets:  559
+Final BAM Callbacks:     574
+Remoteproc SSRs/Crashes: NONE
+CSV Telemetry File:      /home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem Stability/soak_1800s_results.csv
+================================================================================

@@ -1,2 +1,0 @@
-# Watchcat configuration disabled by default to prevent destructive reboot loops
-# Cellular monitoring and recovery is safely handled by modem-keepalive

@@ -1,0 +1,42 @@
+[2026-09-09 16:34:45] Starting Phase 5 1,800-Second Soak Test across 900-912s boundary...
+[2026-09-09 16:34:45] [T+   0.0s | Uptime:  547.6s] Ping: OK (206.3ms) | RX/TX pkts: 88/103 | rx_cb: 103 | cmd_data: 88 | PM susp/res: 38/39 | status: active | err: NONE
+[2026-09-09 16:35:12] [T+  26.8s | Uptime:  574.4s] Ping: OK ( 89.3ms) | RX/TX pkts: 95/110 | rx_cb: 110 | cmd_data: 95 | PM susp/res: 45/46 | status: active | err: NONE
+[2026-09-09 16:35:38] [T+  53.4s | Uptime:  601.0s] Ping: OK ( 93.2ms) | RX/TX pkts: 102/117 | rx_cb: 117 | cmd_data: 102 | PM susp/res: 51/52 | status: active | err: NONE
+[2026-09-09 16:36:05] [T+  80.0s | Uptime:  627.6s] Ping: OK ( 71.5ms) | RX/TX pkts: 109/124 | rx_cb: 124 | cmd_data: 109 | PM susp/res: 57/58 | status: active | err: NONE
+[2026-09-09 16:36:32] [T+ 106.6s | Uptime:  654.1s] Ping: OK ( 92.2ms) | RX/TX pkts: 115/130 | rx_cb: 130 | cmd_data: 115 | PM susp/res: 63/64 | status: active | err: NONE
+[2026-09-09 16:36:58] [T+ 133.2s | Uptime:  680.7s] Ping: OK ( 50.4ms) | RX/TX pkts: 121/136 | rx_cb: 136 | cmd_data: 121 | PM susp/res: 68/69 | status: active | err: NONE
+[2026-09-09 16:37:25] [T+ 159.8s | Uptime:  707.3s] Ping: OK (102.0ms) | RX/TX pkts: 128/143 | rx_cb: 143 | cmd_data: 128 | PM susp/res: 74/75 | status: active | err: NONE
+[2026-09-09 16:37:51] [T+ 186.5s | Uptime:  734.0s] Ping: OK ( 51.9ms) | RX/TX pkts: 135/150 | rx_cb: 150 | cmd_data: 135 | PM susp/res: 80/81 | status: active | err: NONE
+[2026-09-09 16:38:18] [T+ 213.2s | Uptime:  760.7s] Ping: OK ( 84.3ms) | RX/TX pkts: 142/157 | rx_cb: 157 | cmd_data: 142 | PM susp/res: 86/87 | status: active | err: NONE
+[2026-09-09 16:38:45] [T+ 239.7s | Uptime:  787.3s] Ping: OK ( 59.3ms) | RX/TX pkts: 149/164 | rx_cb: 164 | cmd_data: 149 | PM susp/res: 92/93 | status: active | err: NONE
+[2026-09-09 16:39:12] [T+ 266.5s | Uptime:  814.1s] Ping: OK ( 95.1ms) | RX/TX pkts: 154/169 | rx_cb: 169 | cmd_data: 154 | PM susp/res: 97/98 | status: active | err: NONE
+[2026-09-09 16:39:38] [T+ 293.4s | Uptime:  840.9s] Ping: OK ( 92.7ms) | RX/TX pkts: 161/176 | rx_cb: 176 | cmd_data: 161 | PM susp/res: 102/103 | status: active | err: NONE
+[2026-09-09 16:40:05] [T+ 320.0s | Uptime:  867.5s] Ping: OK ( 88.3ms) | RX/TX pkts: 168/183 | rx_cb: 183 | cmd_data: 168 | PM susp/res: 107/108 | status: active | err: NONE
+[2026-09-09 16:40:32] [T+ 346.7s | Uptime:  894.2s] Ping: OK ( 52.9ms) | RX/TX pkts: 175/190 | rx_cb: 190 | cmd_data: 175 | PM susp/res: 113/114 | status: active | err: NONE
+[2026-09-09 16:41:00] [T+ 374.2s | Uptime:  922.7s] Ping: OK (  0.0ms) | RX/TX pkts: 178/197 | rx_cb: 193 | cmd_data: 178 | PM susp/res: 119/120 | status: active | err: NONE
+[2026-09-09 16:41:25] [T+ 399.3s | Uptime:  947.7s] Ping: OK (  0.0ms) | RX/TX pkts: 179/201 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 123/124 | status: active | err: NONE
+[2026-09-09 16:41:56] [T+ 430.3s | Uptime:  978.7s] Ping: OK (  0.0ms) | RX/TX pkts: 179/208 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 130/131 | status: active | err: NONE
+[2026-09-09 16:42:27] [T+ 461.4s | Uptime: 1009.8s] Ping: OK (  0.0ms) | RX/TX pkts: 179/213 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 135/136 | status: active | err: NONE
+[2026-09-09 16:42:59] [T+ 492.6s | Uptime: 1041.1s] Ping: OK (  0.0ms) | RX/TX pkts: 179/218 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 140/141 | status: active | err: NONE
+[2026-09-09 16:43:24] [T+ 517.7s | Uptime: 1066.1s] Ping: OK (  0.0ms) | RX/TX pkts: 179/223 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 144/145 | status: active | err: NONE
+[2026-09-09 16:43:55] [T+ 548.9s | Uptime: 1097.2s] Ping: OK (  0.0ms) | RX/TX pkts: 179/229 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 150/151 | status: active | err: NONE
+[2026-09-09 16:44:26] [T+ 579.8s | Uptime: 1128.1s] Ping: OK (  0.0ms) | RX/TX pkts: 179/236 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 156/157 | status: active | err: NONE
+[2026-09-09 16:44:57] [T+ 610.7s | Uptime: 1159.1s] Ping: OK (  0.0ms) | RX/TX pkts: 179/241 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 161/162 | status: active | err: NONE
+[2026-09-09 16:45:27] [T+ 641.6s | Uptime: 1189.9s] Ping: OK (  0.0ms) | RX/TX pkts: 179/246 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 166/167 | status: active | err: NONE
+[2026-09-09 16:45:58] [T+ 672.4s | Uptime: 1220.8s] Ping: OK (  0.0ms) | RX/TX pkts: 179/253 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 173/174 | status: active | err: NONE
+[2026-09-09 16:46:29] [T+ 703.3s | Uptime: 1251.6s] Ping: OK (  0.0ms) | RX/TX pkts: 179/258 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 179/179 | status: suspended | err: NONE
+[2026-09-09 16:47:00] [T+ 734.2s | Uptime: 1282.6s] Ping: OK (  0.0ms) | RX/TX pkts: 179/265 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 184/185 | status: active | err: NONE
+[2026-09-09 16:47:31] [T+ 765.1s | Uptime: 1313.5s] Ping: OK (  0.0ms) | RX/TX pkts: 179/270 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 189/190 | status: active | err: NONE
+[2026-09-09 16:48:02] [T+ 796.0s | Uptime: 1344.3s] Ping: OK (  0.0ms) | RX/TX pkts: 179/275 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 194/195 | status: active | err: NONE
+[2026-09-09 16:48:33] [T+ 826.9s | Uptime: 1375.3s] Ping: OK (  0.0ms) | RX/TX pkts: 179/281 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 200/201 | status: active | err: NONE
+[2026-09-09 16:49:04] [T+ 857.8s | Uptime: 1406.2s] Ping: OK (  0.0ms) | RX/TX pkts: 179/286 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 205/206 | status: active | err: NONE
+[2026-09-09 16:49:35] [T+ 888.8s | Uptime: 1437.2s] Ping: OK (  0.0ms) | RX/TX pkts: 179/291 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 210/211 | status: active | err: NONE
+[2026-09-09 16:50:06] [T+ 919.9s | Uptime: 1468.3s] Ping: OK (  0.0ms) | RX/TX pkts: 179/296 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 215/216 | status: active | err: NONE
+[2026-09-09 16:50:37] [T+ 950.8s | Uptime: 1499.1s] Ping: OK (  0.0ms) | RX/TX pkts: 179/302 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 221/222 | status: active | err: NONE
+[2026-09-09 16:51:07] [T+ 981.7s | Uptime: 1530.0s] Ping: OK (  0.0ms) | RX/TX pkts: 179/307 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 226/227 | status: active | err: NONE
+[2026-09-09 16:51:38] [T+1012.5s | Uptime: 1560.8s] Ping: OK (  0.0ms) | RX/TX pkts: 179/314 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 232/233 | status: active | err: NONE
+[2026-09-09 16:52:09] [T+1043.2s | Uptime: 1591.5s] Ping: OK (  0.0ms) | RX/TX pkts: 179/319 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 237/238 | status: active | err: NONE
+[2026-09-09 16:52:40] [T+1074.1s | Uptime: 1622.4s] Ping: OK (  0.0ms) | RX/TX pkts: 179/324 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 242/243 | status: active | err: NONE
+[2026-09-09 16:53:11] [T+1104.9s | Uptime: 1653.3s] Ping: OK (  0.0ms) | RX/TX pkts: 179/330 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 248/249 | status: active | err: NONE
+[2026-09-09 16:53:42] [T+1135.9s | Uptime: 1684.2s] Ping: OK (  0.0ms) | RX/TX pkts: 179/339 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 253/254 | status: active | err: NONE
+[2026-09-09 16:54:13] [T+1166.8s | Uptime: 1715.1s] Ping: OK (  0.0ms) | RX/TX pkts: 179/344 | rx_cb: 194 | cmd_data: 179 | PM susp/res: 258/259 | status: active | err: NONE

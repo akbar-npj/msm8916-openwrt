@@ -1,0 +1,3 @@
+[2026-09-09 18:29:00] Starting Phase 5 1,800-Second Soak Test across 900-912s boundary...
+[2026-09-09 18:29:03] [T+   0.0s | Uptime: 1140.2s] Ping: OK (  0.0ms) | RX/TX pkts: 222/248 | rx_cb: 237 | cmd_data: 222 | PM susp/res: 82/82 | status: suspended | err: NONE
+[2026-09-09 18:29:36] [T+  32.8s | Uptime: 1173.0s] Ping: OK (  0.0ms) | RX/TX pkts: 222/257 | rx_cb: 237 | cmd_data: 222 | PM susp/res: 86/86 | status: suspended | err: NONE

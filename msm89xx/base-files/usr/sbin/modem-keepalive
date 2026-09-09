@@ -16,10 +16,12 @@ ENABLED=1
 INTERFACE="modem"
 TARGET="1.1.1.1"
 INTERVAL=2
+TIMEOUT=1
 TRAFFIC_THRESH=1
 FAIL_THRESH=3
 RECOVERY_COOLDOWN=180
 LOG_TELEMETRY=0
+ENABLE_RECOVERY=0
 
 load_config() {
 	config_load "$CONFIG" 2>/dev/null || return 0
@@ -27,10 +29,12 @@ load_config() {
 	config_get INTERFACE general interface "modem"
 	config_get TARGET general target "1.1.1.1"
 	config_get INTERVAL general interval 2
+	config_get TIMEOUT general timeout 1
 	config_get TRAFFIC_THRESH general traffic_threshold 1
 	config_get FAIL_THRESH general fail_threshold 3
 	config_get RECOVERY_COOLDOWN general recovery_cooldown 180
 	config_get_bool LOG_TELEMETRY general log_telemetry 0
+	config_get_bool ENABLE_RECOVERY general enable_recovery 0
 }
 
 load_config
@@ -85,6 +89,11 @@ wait_for_interface_up() {
 BEARER_RECOVERY_ATTEMPTED=0
 
 attempt_recovery() {
+	[ "$ENABLE_RECOVERY" -eq 1 ] || {
+		logger -t modem-keepalive "Recovery disabled (enable_recovery=0); skipping recovery action."
+		return 0
+	}
+
 	local now="$(get_monotonic_sec)"
 	local elapsed_since_recovery=$((now - LAST_RECOVERY))
 
@@ -170,13 +179,13 @@ while true; do
 	fi
 
 	# Active probe pulse during idle gaps (< 5s silence)
-	if ping -c 1 -W 1 -I "$DEV" "$TARGET" >/dev/null 2>&1; then
+	if ping -c 1 -W "$TIMEOUT" -I "$DEV" "$TARGET" >/dev/null 2>&1; then
 		CONSECUTIVE_FAILS=0
 		[ "$LOG_TELEMETRY" -eq 1 ] && logger -t modem-keepalive "Keepalive pulse OK: rx=${CUR_RX} tx=${CUR_TX}."
 	else
 		CONSECUTIVE_FAILS=$((CONSECUTIVE_FAILS + 1))
 		logger -t modem-keepalive "Keepalive probe lost (${CONSECUTIVE_FAILS}/${FAIL_THRESH})."
-		if [ "$CONSECUTIVE_FAILS" -ge "$FAIL_THRESH" ]; then
+		if [ "$ENABLE_RECOVERY" -eq 1 ] && [ "$CONSECUTIVE_FAILS" -ge "$FAIL_THRESH" ]; then
 			attempt_recovery
 		fi
 	fi
