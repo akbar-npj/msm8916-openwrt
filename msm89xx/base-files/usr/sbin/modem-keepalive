@@ -1,9 +1,20 @@
 #!/bin/sh
 #
-# Qualcomm MSM8916 Pure-Software Cellular Keepalive & Non-Destructive Recovery Service
+# Qualcomm MSM8916 Cellular Stall Monitor (Ping Keepalive — Disabled by Default on LTE)
 #
-# Provides traffic-aware user-plane keepalive probes and non-destructive serialized
-# bearer recovery to prevent carrier eNodeB DRB de-scheduling on 100% stock baseband firmware.
+# ARCHITECTURE NOTE:
+#   On LTE/4G, RRC idle/connected transitions are driven by the eNodeB inactivity
+#   timer — NOT by the host. QMI_WDS_GO_DORMANT (0x0025) is a CDMA/3G-only command
+#   and is not applicable to 4G EPS bearers.
+#
+#   With the BAM-DMUX Phase 5 persistent-channel patch, DMA channels and RX ring
+#   descriptors survive power collapse without needing artificial keepalive traffic.
+#   The modem-bearer-watchdog handles genuine user-plane stalls via WDS status checks
+#   and serialized bearer recovery without ping.
+#
+#   This script is DISABLED by default (enabled='0' in /etc/config/modem-keepalive).
+#   It can be re-enabled for diagnostic purposes or on networks where the eNodeB
+#   enforces aggressive idle-mode DRB release (rare with LTE dongles).
 #
 # Copyright (c) 2026 OpenWrt MSM8916 Project
 # SPDX-License-Identifier: BSD-3-Clause

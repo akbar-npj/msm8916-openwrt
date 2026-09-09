@@ -1,13 +1,13 @@
 #!/bin/sh
-# Modem Bearer Stall Watchdog & Carrier Keepalive
+# Modem Bearer Stall Watchdog — LTE-Native (Android-Equivalent) Implementation
 #
-# Resolves carrier-side user-plane stalls (traffic-channel-dormant) safely:
-# 1. Configurable low-rate keepalive (10s default) with confirmed RX counter increments.
-# 2. Stage 1 non-disruptive wakeup: qmicli --wds-go-active with RX verification.
-# 3. Stage 2 serialized netifd fallback: ifdown modem -> sleep 3 -> ifup modem.
-# 4. Zero mmcli --disable/enable, zero --set-power-state-low, zero AT+CFUN (eliminates SSR risk).
-# 5. Shared recovery lock (/var/lock/modem-bearer.lock) with cooldown timer.
-# 6. Comprehensive telemetry logging (WDS dormancy, Bearer ID, Cell ID, RX/TX).
+# On LTE/4G, RRC idle/connected transitions are eNodeB-driven — no host-side
+# "go dormant" command exists (QMI_WDS_GO_DORMANT is CDMA/3G only).
+# The BAM-DMUX Phase 5 persistent-channel patch keeps DMA channels alive
+# through power collapse, eliminating the need for artificial keepalive pings.
+#
+# This watchdog detects genuine user-plane stalls (eNodeB DRB de-scheduling or
+# RF freeze) by monitoring wwan0 RX counters and WDS packet service status:
 
 LOCKFILE="/var/lock/modem-bearer.lock"
 
@@ -230,6 +230,26 @@ while true; do
                         # 3c. Delete the old ModemManager bearer object
                         logger -t modem-stall-watchdog "Deleting obsolete ModemManager bearer: $b"
                         mmcli -m any --delete-bearer="$b" 2>/dev/null || true
+                    done
+
+                    # 3c-WAIT: Confirm all non-initial bearers are gone from ModemManager's D-Bus
+                    # object tree before calling ifup. Without this, ModemManager may route QMI
+                    # WDS_STOP_NETWORK_RESP to the stale WDS client handle of the old bearer while
+                    # the new bearer is waiting for WDS_START_NETWORK_RESP — the classic "commands
+                    # issued to wrong bearer" stall race condition.
+                    i=0
+                    while [ "$i" -lt 10 ]; do
+                        remaining=$(mmcli -m any --output-keyvalue 2>/dev/null | grep -c '/org/freedesktop/ModemManager1/Bearer/[0-9]*' || echo 0)
+                        init_count=0
+                        [ -n "$INIT_BEARER" ] && init_count=1
+                        expected_max=$init_count
+                        if [ "$remaining" -le "$expected_max" ]; then
+                            logger -t modem-stall-watchdog "All stale bearers removed ($remaining remaining). Proceeding with ifup."
+                            break
+                        fi
+                        logger -t modem-stall-watchdog "Waiting for bearer cleanup ($remaining bearers still active, expect <=$expected_max)..."
+                        sleep 1
+                        i=$((i + 1))
                     done
 
                     # 3d. Wait for the old IP/context to disappear
