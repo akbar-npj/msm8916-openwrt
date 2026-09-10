@@ -396,6 +396,15 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 		if (pkt.service == QMI_TIME_SERVICE_ID) {
 			syslog(LOG_NOTICE, "[QMI-TIME] Discovered QMI TIME service: node=%u port=%u service=%u instance=%u version=%u",
 			       pkt.node, pkt.port, pkt.service, pkt.instance, pkt.version);
+
+			/* Guard against duplicate NEW_SERVER for already connected service */
+			if (modem_connected &&
+			    modem_node == pkt.node && modem_port == pkt.port) {
+				syslog(LOG_INFO, "[QMI-TIME] Duplicate NEW_SERVER for node=%u port=%u; ignoring.",
+				       pkt.node, pkt.port);
+				return;
+			}
+
 			modem_node = pkt.node;
 			modem_port = pkt.port;
 			modem_connected = true;

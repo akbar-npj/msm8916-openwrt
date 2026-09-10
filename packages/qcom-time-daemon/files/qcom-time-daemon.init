@@ -19,7 +19,7 @@ start_service() {
 
 	procd_open_instance
 	procd_set_param command "$PROG"
-	procd_append_param command -r 0
+	procd_append_param command -r 60
 	procd_append_param command -v
 	procd_set_param respawn 3600 5 0
 	procd_set_param stdout 1

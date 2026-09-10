@@ -81,7 +81,7 @@ define KernelPackage/bam-dmux
   DEPENDS:=@TARGET_msm89xx +kmod-wwan +kmod-qcom-rproc
   KCONFIG:=CONFIG_QCOM_BAM_DMUX
   FILES:=$(LINUX_DIR)/drivers/net/wwan/qcom_bam_dmux.ko
-  AUTOLOAD:=$(call AutoProbe,qcom_bam_dmux)
+  AUTOLOAD:=$(call AutoProbe,qcom_common qcom_bam_dmux)
 endef
 
 define KernelPackage/bam-dmux/description
