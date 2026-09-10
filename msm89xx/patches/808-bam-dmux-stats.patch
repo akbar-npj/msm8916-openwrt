@@ -926,7 +926,7 @@
  	dev_dbg(dmux->dev, "pc ack\n");
  	complete_all(&dmux->pc_ack_completion);
  
-@@ -710,59 +1278,310 @@ static int bam_dmux_runtime_suspend(stru
+@@ -710,59 +1278,308 @@ static int bam_dmux_runtime_suspend(stru
  {
  	struct bam_dmux *dmux = dev_get_drvdata(dev);
  
