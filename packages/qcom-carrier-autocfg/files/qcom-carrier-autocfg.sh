@@ -422,24 +422,31 @@ connect_bearer() {
 	local iptype="$2"
 	local imsi="$3"
 
-	# Hard prerequisite: wait for verified Android-equivalent QMI Time ATS_USER sync
-	local wait_t=0
-	local synced=0
-	while [ "$wait_t" -lt 15 ]; do
-		if [ -f /var/run/qcom-time-synced ]; then
-			log "[QMI-TIME] Modem ATS_USER time sync verified before LTE attach."
-			synced=1
-			break
-		fi
-		log "[QMI-TIME] Waiting for qcom-time-daemon ATS_USER sync handshake ($wait_t/15s)..."
-		sleep 1
-		wait_t=$((wait_t + 1))
-	done
+	# Hard prerequisite on HMU05 (Modem OS v1.0): wait for verified QMI Time ATS_USER sync
+	local board=""
+	[ -f /tmp/sysinfo/board_name ] && board="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
+	[ -z "$board" ] && [ -f /proc/device-tree/compatible ] && board="$(cat /proc/device-tree/compatible 2>/dev/null)"
+	case "$board" in
+		*hmu05*|*HMU05*)
+			local wait_t=0
+			local synced=0
+			while [ "$wait_t" -lt 15 ]; do
+				if [ -f /var/run/qcom-time-synced ]; then
+					log "[QMI-TIME] Modem ATS_USER time sync verified before LTE attach."
+					synced=1
+					break
+				fi
+				log "[QMI-TIME] Waiting for qcom-time-daemon ATS_USER sync handshake ($wait_t/15s)..."
+				sleep 1
+				wait_t=$((wait_t + 1))
+			done
 
-	if [ "$synced" != "1" ]; then
-		log "[QMI-TIME-ERROR] Mandatory /var/run/qcom-time-synced marker absent after 15s! Refusing to attach LTE bearer without verified ATS_USER sync."
-		return 1
-	fi
+			if [ "$synced" != "1" ]; then
+				log "[QMI-TIME-ERROR] Mandatory /var/run/qcom-time-synced marker absent after 15s! Refusing to attach LTE bearer without verified ATS_USER sync on HMU05."
+				return 1
+			fi
+			;;
+	esac
 
 	(
 		flock -x 200
