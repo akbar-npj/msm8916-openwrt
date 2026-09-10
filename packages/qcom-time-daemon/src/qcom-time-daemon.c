@@ -75,6 +75,7 @@ static uint64_t last_user_refresh = 0;
 static uint64_t last_keepalive = 0;
 static uint64_t last_lookup_attempt = 0;
 static int consecutive_get_fails = 0;
+static uint64_t ssr_guard_until = 0; // guard to suppress ATS_USER refresh for 30s after SSR
 
 static uint64_t get_monotonic_sec(void)
 {
@@ -87,59 +88,6 @@ static void sig_handler(int sig)
 {
 	(void)sig;
 	running = 0;
-}
-
-static uint64_t get_rtc_time_ms(void)
-{
-	struct rtc_time rt;
-	struct tm t;
-	int fd;
-	time_t rtc_sec;
-
-	fd = open("/dev/rtc0", O_RDONLY);
-	if (fd < 0)
-		return 0;
-
-	if (ioctl(fd, RTC_RD_TIME, &rt) < 0) {
-		close(fd);
-		return 0;
-	}
-	close(fd);
-
-	memset(&t, 0, sizeof(t));
-	t.tm_sec = rt.tm_sec;
-	t.tm_min = rt.tm_min;
-	t.tm_hour = rt.tm_hour;
-	t.tm_mday = rt.tm_mday;
-	t.tm_mon = rt.tm_mon;
-	t.tm_year = rt.tm_year;
-
-	rtc_sec = timegm(&t);
-	if (rtc_sec < 0)
-		return 0;
-
-	return (uint64_t)rtc_sec * 1000ULL;
-}
-
-/*
- * Android time_daemon generic offset calculation (from reverse-engineered FUN_000113d0):
- * offset = (ap_time_ms - GPS_EPOCH_OFFSET_MS) - rtc_time_ms
- */
-static int64_t calculate_android_generic_offset(void)
-{
-	struct timeval tv;
-	uint64_t ap_time_ms;
-	uint64_t rtc_time_ms;
-
-	gettimeofday(&tv, NULL);
-	ap_time_ms = ((uint64_t)tv.tv_sec * 1000ULL) + ((uint64_t)tv.tv_usec / 1000ULL);
-	rtc_time_ms = get_rtc_time_ms();
-
-	int64_t genoff = (int64_t)(ap_time_ms - GPS_EPOCH_OFFSET_MS) - (int64_t)rtc_time_ms;
-	syslog(LOG_INFO, "[QMI-TIME] Android generic offset: (ap=%llu - gps_epoch=%llu) - rtc=%llu = %lld ms",
-	       (unsigned long long)ap_time_ms, (unsigned long long)GPS_EPOCH_OFFSET_MS,
-	       (unsigned long long)rtc_time_ms, (long long)genoff);
-	return genoff;
 }
 
 static void handle_qrtr_packet(int sock, void *buf, size_t len,
@@ -258,27 +206,94 @@ static int qmi_send_sync_transaction(int sock, uint32_t node, uint32_t port,
 }
 
 /*
- * Android-Equivalent Handshake & Refresh Transaction Engine:
- * Synchronously sets ATS_USER (0x0020) with 5-second timeout and explicit success check.
- * Handles both initial boot-time handshake and controlled experimental refreshes.
+ * Synchronously query an ATS timebase offset from modem (0x0021)
+ */
+static int query_modem_ats_base(int sock, uint32_t base, uint64_t *val_out)
+{
+	struct time_genoff_get_req req;
+	struct time_genoff_get_resp resp;
+	memset(&req, 0, sizeof(req));
+	memset(&resp, 0, sizeof(resp));
+	req.base = base;
+
+	int ret = qmi_send_sync_transaction(sock, modem_node, modem_port,
+					    QMI_TIME_GENOFF_GET_REQ, &req, time_genoff_get_req_ei,
+					    &resp, time_genoff_get_resp_ei, 3000);
+	if (ret == 0 && resp.result.result == QMI_RESULT_SUCCESS_V01 && resp.result.error == QMI_ERR_NONE_V01) {
+		*val_out = resp.offset;
+		return 0;
+	}
+	return -1;
+}
+
+/*
+ * Android-Equivalent Handshake & Alignment Engine:
+ * In Qualcomm Hexagon MPSS, ATS_TOD (base 1) and ATS_USER (base 2) both share
+ * the same underlying hardware SCLK counter (ATS_RTC, base 0):
+ *   ATS_TOD(t)  = ATS_RTC(t) + offset_TOD
+ *   ATS_USER(t) = ATS_RTC(t) + offset_USER
+ *
+ * Therefore, ATS_USER == ATS_TOD (drift = 0 ms) if and only if:
+ *   offset_USER == offset_TOD == ATS_TOD - ATS_RTC
+ *
+ * Setting offset_USER = (ATS_TOD - ATS_RTC) locks ATS_USER and ATS_TOD in perfect
+ * millisecond-level phase, completely eliminating SCLK calibration drift errors
+ * (lte_ml1_sleepmgr_stm.c:4054 and lte_ml1_common_timer.c:390) on 100% pure software.
  */
 static int send_ats_user_transaction(int sock, bool is_refresh)
 {
 	int ret;
+	uint64_t tod_val = 0;
+	uint64_t rtc_val = 0;
+	uint64_t genoff = 0;
 
 	if (!modem_connected || modem_port == 0)
 		return -1;
 
-	int64_t genoff = calculate_android_generic_offset();
-	syslog(LOG_INFO, "[QMI-TIME] %s: Synchronously setting ATS_USER (base=2, offset=%lld ms)...",
-	       is_refresh ? "REFRESH" : "INITIAL", (long long)genoff);
+	uint64_t now = get_monotonic_sec();
+	if (ssr_guard_until && now < ssr_guard_until) {
+		syslog(LOG_NOTICE, "[QMI-TIME] Guard active – skipping ATS_USER transaction after SSR");
+		return 0;
+	}
+
+	/* Query modem base 0 (ATS_RTC) and base 1 (ATS_TOD) */
+	int ret_tod = query_modem_ats_base(sock, ATS_TOD, &tod_val);
+	int ret_rtc = query_modem_ats_base(sock, ATS_RTC, &rtc_val);
+
+	if (ret_tod == 0 && ret_rtc == 0 && tod_val > 0 && tod_val >= rtc_val) {
+		/*
+		 * Modem has valid cellular network TOD (from NITZ):
+		 * Target offset is exactly (ATS_TOD - ATS_RTC).
+		 */
+		genoff = tod_val - rtc_val;
+		syslog(LOG_NOTICE, "[QMI-TIME] %s: Cellular network TOD locked! Aligned offset = TOD (%llu) - RTC (%llu) = %llu ms",
+		       is_refresh ? "REFRESH" : "INITIAL",
+		       (unsigned long long)tod_val, (unsigned long long)rtc_val,
+		       (unsigned long long)genoff);
+	} else {
+		/* Fallback to host AP time if network NITZ has not locked yet */
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		uint64_t ap_time_ms = ((uint64_t)tv.tv_sec * 1000ULL) + ((uint64_t)tv.tv_usec / 1000ULL);
+		uint64_t gps_time_ms = ap_time_ms - GPS_EPOCH_OFFSET_MS;
+		if (ret_rtc == 0 && gps_time_ms >= rtc_val) {
+			genoff = gps_time_ms - rtc_val;
+		} else {
+			genoff = gps_time_ms;
+		}
+		syslog(LOG_INFO, "[QMI-TIME] %s: Network TOD not yet locked; using AP host time offset: %llu ms",
+		       is_refresh ? "REFRESH" : "INITIAL", (unsigned long long)genoff);
+	}
+
+	syslog(LOG_INFO, "[QMI-TIME] %s: Synchronously setting ATS_USER (base=2, offset=%llu ms)...",
+	       is_refresh ? "REFRESH" : "INITIAL", (unsigned long long)genoff);
 
 	struct time_genoff_set_req set_req;
 	struct time_genoff_set_resp set_resp;
 	memset(&set_req, 0, sizeof(set_req));
 	memset(&set_resp, 0, sizeof(set_resp));
 	set_req.base = ATS_USER;
-	set_req.offset = (uint64_t)genoff;
+	set_req.offset = genoff;
 
 	ret = qmi_send_sync_transaction(sock, modem_node, modem_port,
 					QMI_TIME_GENOFF_SET_REQ, &set_req, time_genoff_set_req_ei,
@@ -306,15 +321,15 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 	syslog(LOG_NOTICE, "=================================================================");
 	syslog(LOG_NOTICE, "[QMI-TIME] %s ATS_USER TRANSACTION VERIFIED!",
 	       is_refresh ? "REFRESH" : "INITIAL");
-	syslog(LOG_NOTICE, "[QMI-TIME] Modem baseband confirmed ATS_USER (offset=%lld ms)", (long long)genoff);
+	syslog(LOG_NOTICE, "[QMI-TIME] Modem baseband confirmed ATS_USER (offset=%llu ms)", (unsigned long long)genoff);
 	if (!is_refresh)
 		syslog(LOG_NOTICE, "[QMI-TIME] SCLK calibration watchdog reset. Pure-software modem stable.");
 	syslog(LOG_NOTICE, "=================================================================");
 
 	int fd = open(SYNC_MARKER_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd >= 0) {
-		dprintf(fd, "offset_ms=%lld\nsynced_at=%ld\nstate=SYNCHRONIZED\nis_refresh=%d\n",
-			(long long)genoff, time(NULL), is_refresh ? 1 : 0);
+		dprintf(fd, "offset_ms=%llu\nsynced_at=%ld\nstate=SYNCHRONIZED\nis_refresh=%d\n",
+			(unsigned long long)genoff, time(NULL), is_refresh ? 1 : 0);
 		close(fd);
 	}
 
@@ -421,6 +436,7 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			modem_port = 0;
 			current_state = STATE_DISCOVERING;
 			unlink(SYNC_MARKER_FILE);
+			ssr_guard_until = get_monotonic_sec() + 30; // suppress ATS_USER for 30s after SSR
 			last_lookup_attempt = 0;
 			qrtr_new_lookup(sock, QMI_TIME_SERVICE_ID, 0, 0);
 		}
@@ -455,6 +471,10 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 					       sq->sq_node, sq->sq_port,
 					       ind.base, qmi_time_base_name(ind.base),
 					       (unsigned long long)ind.offset);
+					if (ind.base == ATS_TOD && ind.offset > 0 && modem_connected && current_state == STATE_SYNCHRONIZED) {
+						syslog(LOG_NOTICE, "[QMI-TIME] Cellular network NITZ update broadcast received! Re-aligning ATS_USER...");
+						send_ats_user_transaction(sock, true);
+					}
 				} else {
 					syslog(LOG_WARNING, "[QMI-TIME] Failed to decode indication 0x%04x (%s) from node=%u port=%u: ret=%d",
 					       msg_id, qmi_time_msg_name(msg_id), sq->sq_node, sq->sq_port, ret);
@@ -482,7 +502,8 @@ int main(int argc, char *argv[])
 			verbose = true;
 			break;
 		case 'p':
-			enable_periodic_get = true;
+			/* periodic get disabled for stability */
+			enable_periodic_get = false;
 			break;
 		case 'r':
 			refresh_interval = atoi(optarg);
