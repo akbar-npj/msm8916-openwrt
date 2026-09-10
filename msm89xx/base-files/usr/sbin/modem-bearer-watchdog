@@ -296,33 +296,75 @@ while true; do
                         RECOVERY_FAILED=0
                         STALL_COUNT=0
                     else
-                        RECOVERY_ATTEMPTS=$((RECOVERY_ATTEMPTS + 1))
-                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: New bearer $NEW_BEARER established but RX remains 0 (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
-                        if [ "$RECOVERY_ATTEMPTS" -ge "$MAX_RECOVERY_ATTEMPTS" ]; then
-                            RECOVERY_FAILED=1
-                            logger -t modem-stall-watchdog "HALTING further recovery attempts to prevent bearer churn. Preserving diagnostic telemetry."
-                            {
-                                echo "=== MODEM STALL DIAGNOSTIC CAPTURE ==="
-                                echo "Timestamp: $(date)"
-                                echo "Uptime: $(uptime)"
-                                echo "--- REMOTECPROC STATE ---"
-                                cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state
-                                echo "--- NAS SYSTEM INFO ---"
-                                qmicli -p -d /dev/wwan0qmi0 --nas-get-system-info
-                                echo "--- NAS SERVING SYSTEM ---"
-                                qmicli -p -d /dev/wwan0qmi0 --nas-get-serving-system
-                                echo "--- NAS CELL LOCATION ---"
-                                qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info
-                                echo "--- NAS SIGNAL INFO ---"
-                                qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info
-                                echo "--- WDS PACKET SERVICE STATUS ---"
-                                qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-service-status
-                                echo "--- WDS PACKET STATISTICS ---"
-                                qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-statistics
-                                echo "--- MODEMMANAGER STATUS ---"
-                                mmcli -m any
-                            } > /tmp/modem_stall_diagnostics.log 2>&1
-                            logger -t modem-stall-watchdog "Diagnostic snapshot saved to /tmp/modem_stall_diagnostics.log."
+                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: RF receiver frozen (RX remains 0). Escalating to Stage 3: Remoteproc SSR reset..."
+
+                        # Capture diagnostic snapshot before SSR
+                        {
+                            echo "=== MODEM STALL PRE-SSR DIAGNOSTIC CAPTURE ==="
+                            echo "Timestamp: $(date)"
+                            echo "Uptime: $(uptime)"
+                            echo "--- REMOTECPROC STATE ---"
+                            cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state 2>/dev/null
+                            echo "--- WDS PACKET STATISTICS ---"
+                            qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-statistics 2>/dev/null
+                            echo "--- MODEMMANAGER STATUS ---"
+                            mmcli -m any 2>/dev/null
+                        } > /tmp/modem_stall_diagnostics.log 2>&1
+
+                        # Disconnect netifd first
+                        ubus call network.interface.modem down 2>/dev/null || true
+
+                        # Trigger modem subsystem restart via remoteproc
+                        RPROC_STATE="/sys/class/remoteproc/remoteproc0/state"
+                        if [ -f "$RPROC_STATE" ]; then
+                            echo stop > "$RPROC_STATE" 2>/dev/null
+                            sleep 1
+                            echo start > "$RPROC_STATE" 2>/dev/null
+                            logger -t modem-stall-watchdog "Stage 3: Remoteproc SSR triggered; waiting for modem to reinitialize..."
+                            sleep 5
+                        fi
+
+                        # Reconnect netifd
+                        ubus call network.interface.modem up 2>/dev/null || true
+
+                        # Wait for netifd bringup (up to 25s)
+                        i=0
+                        while [ "$i" -lt 25 ]; do
+                            st=$(ubus call network.interface.modem status 2>/dev/null)
+                            u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
+                            [ "$u" = "true" ] && break
+                            sleep 1
+                            i=$((i + 1))
+                        done
+
+                        # Verify RX traffic post-SSR
+                        RX_RESTORED=0
+                        i=0
+                        while [ "$i" -lt 10 ]; do
+                            sleep 1
+                            RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                            if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                                RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                                if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
+                                    RX_RESTORED=1
+                                    break
+                                fi
+                            fi
+                            i=$((i + 1))
+                        done
+
+                        if [ "$RX_RESTORED" -eq 1 ]; then
+                            logger -t modem-stall-watchdog "Stage 3 SUCCESS: Remoteproc SSR restored RX traffic successfully."
+                            RECOVERY_ATTEMPTS=0
+                            RECOVERY_FAILED=0
+                            STALL_COUNT=0
+                        else
+                            RECOVERY_ATTEMPTS=$((RECOVERY_ATTEMPTS + 1))
+                            logger -t modem-stall-watchdog "Stage 3 INSUFFICIENT: RX remains 0 even after SSR (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
+                            if [ "$RECOVERY_ATTEMPTS" -ge "$MAX_RECOVERY_ATTEMPTS" ]; then
+                                RECOVERY_FAILED=1
+                                logger -t modem-stall-watchdog "HALTING further recovery attempts to prevent churn. Preserving diagnostic telemetry."
+                            fi
                         fi
                     fi
                 fi
