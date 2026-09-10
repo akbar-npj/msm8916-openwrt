@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,232 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -51,42 +51,38 @@
 +};
 +
 +/*
-+ * HMU05 LEDs
++ * HMU05 LEDs and RF Power
 + *
 + * Original Android GPIO mapping:
 + *
-+ *   GPIO71 = 4g_1
-+ *   GPIO72 = 4g_type
-+ *   GPIO73 = wifistatus
++ *   GPIO71 = 4g_1 (4G RF front-end power switch & green LED)
++ *   GPIO72 = 4g_type (4G network type / red LED)
++ *   GPIO73 = wifistatus (Wi-Fi status / blue LED)
 + *
 + * Physical LEDs identified on HMU05:
 + *
-+ *   GPIO71 = GREEN
-+ *   GPIO72 = RED
-+ *   GPIO73 = BLUE
++ *   GPIO71 = GREEN (RF power rail, hogged output-high)
++ *   GPIO72 = RED (Modem status/fault)
++ *   GPIO73 = BLUE (Wi-Fi/WAN status)
 + *
 + * Intended OpenWrt behaviour:
 + *
-+ * GREEN:
-+ *   LTE/netdev activity.
-+ *   The netdev trigger is selected here. The actual WWAN
-+ *   interface can be selected from userspace once we determine
-+ *   which BAM-DMUX netdev carries the LTE data connection.
++ * GREEN (GPIO71):
++ *   4G RF transceiver power. Hogged output-high in &tlmm.
++ *   &led_g is disabled so userspace LED triggers cannot cut RF power.
 + *
-+ * RED:
++ * RED (GPIO72):
 + *   Modem status/fault LED.
 + *   Starts ON during boot.
 + *   Userspace will turn it OFF when the modem is connected and
 + *   turn it ON again if the modem/remoteproc disconnects.
 + *
-+ * BLUE:
-+ *   Wi-Fi status.
++ * BLUE (GPIO73):
++ *   Wi-Fi / WAN status.
 + */
 +
 +&led_g {
-+    function = LED_FUNCTION_WLAN;
-+    gpios = <&tlmm 71 GPIO_ACTIVE_HIGH>;
-+    default-state = "off";
++    status = "disabled";
 +};
 +
 +&led_r {
@@ -113,12 +109,11 @@
 +/*
 + * LED pin configuration.
 + *
-+ * GPIO71 = green
 + * GPIO72 = red
 + * GPIO73 = blue
 + */
 +&gpio_leds_default {
-+    pins = "gpio71", "gpio72", "gpio73";
++    pins = "gpio72", "gpio73";
 +};
 +
 +/*
@@ -132,6 +127,7 @@
 + *   GPIO12   esim3_en       output LOW
 + *   GPIO14   esim2_en       output LOW
 + *   GPIO36   bat1           output LOW
++ *   GPIO71   4g_1           output HIGH
 + *   GPIO106  ftest          output LOW
 + *   GPIO114  sim_hotplug    output LOW
 + *   GPIO119  esim1_en       output HIGH
@@ -144,6 +140,22 @@
 + */
 +
 +&tlmm {
++
++    /*
++     * 4G RF transceiver power rail.
++     *
++     * Android:
++     *   GPIO71 = output HIGH
++     *
++     * Hogged HIGH early in TLMM to guarantee continuous power to
++     * the LTE RF front-end independently of userspace.
++     */
++    rf_power {
++        gpio-hog;
++        gpios = <71 GPIO_ACTIVE_HIGH>;
++        output-high;
++        line-name = "rf_power";
++    };
 +
 +    /*
 +     * Primary physical SIM enable.
