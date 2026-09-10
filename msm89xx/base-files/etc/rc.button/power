@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# Power button handler.
+#
+# button-hotplug reports SEEN as the number of whole seconds between the
+# previous event for this button and the current one, so on "released" it
+# is the time the button was held. A short press is ignored to protect
+# against accidental power-offs.
+#
+
+HOLD_SECONDS=3
+
+BLINK_COUNT=6
+BLINK_USEC=120000
+
+[ "$ACTION" = "released" ] || exit 0
+
+[ "$SEEN" -ge "$HOLD_SECONDS" ] 2>/dev/null || exit 0
+
+LED="/sys/class/leds/red:power"
+[ -d "$LED" ] || LED="/sys/class/leds/green:power"
+[ -d "$LED" ] || LED="/sys/class/leds/green:charging"
+[ -d "$LED" ] || LED="/sys/class/leds/red:charging"
+[ -d "$LED" ] || LED="/sys/class/leds/green:wan"
+[ -d "$LED" ] || LED="/sys/class/leds/blue:wan"
+
+blink_goodbye()
+{
+        local max
+        local i
+
+        [ -d "$LED" ] || return 0
+
+        max="$(cat "$LED/max_brightness" 2>/dev/null)"
+        [ -n "$max" ] || max=1
+
+        echo none > "$LED/trigger" 2>/dev/null
+
+        i=0
+
+        while [ "$i" -lt "$BLINK_COUNT" ]; do
+
+                echo "$max" > "$LED/brightness" 2>/dev/null
+                usleep "$BLINK_USEC"
+
+                echo 0 > "$LED/brightness" 2>/dev/null
+                usleep "$BLINK_USEC"
+
+                i=$((i + 1))
+
+        done
+}
+
+logger -t power-button "Power button held ${SEEN}s: powering off"
+
+blink_goodbye
+
+exec /sbin/poweroff
