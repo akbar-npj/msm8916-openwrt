@@ -217,7 +217,6 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 | Service                  | Access Details                  | Default Credentials              |
 | :----------------------- | :------------------------------ | :------------------------------- |
 | **Web Interface (LuCI)** | `http://192.168.8.1`            | No password (set on first login) |
-| **Connectivity Watchdog**| LuCI: **Services $\to$ Watchcat**| Configurable auto-reboot watchdog|
 | **SMS Management**       | LuCI: **Services $\to$ SMS**    | View / Send SMS via Web UI       |
 | **SSH Terminal**         | `ssh root@192.168.8.1`          | No password required             |
 | **USB Serial Console**   | `screen /dev/ttyACM0 115200`    | Direct root shell                |
