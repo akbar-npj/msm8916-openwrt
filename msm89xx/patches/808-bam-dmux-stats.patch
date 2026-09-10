@@ -1218,8 +1218,6 @@
 +			bam_dmux_pc_ack(dmux);
 +			pm_runtime_set_active(dmux->dev);
 +			dev_info(dmux->dev, "bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings\n");
-+			if (atomic_long_read(&dmux->tx_deferred_skb) && !READ_ONCE(dmux->in_teardown))
-+				queue_pm_work(&dmux->tx_wakeup_work);
 +		} else {
 +			dev_err(dmux->dev, "bam_dmux: SSR powerup: power_on failed\n");
 +			WRITE_ONCE(dmux->pc_state, false);
