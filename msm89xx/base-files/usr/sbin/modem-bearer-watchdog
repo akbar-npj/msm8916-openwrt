@@ -15,9 +15,9 @@ LOCKFILE="/var/lock/modem-bearer.lock"
 STALL_TIMEOUT=30
 CHECK_INTERVAL=5
 COOLDOWN_SECS=60
-KEEPALIVE_ENABLED=0
-KEEPALIVE_INTERVAL=10
-KEEPALIVE_TARGET="1.1.1.1"
+KEEPALIVE_ENABLED=1
+KEEPALIVE_INTERVAL=120
+KEEPALIVE_TARGET="openwrt.org"
 
 LAST_TX=0
 LAST_RX=0
@@ -29,7 +29,18 @@ MAX_RECOVERY_ATTEMPTS=1
 EXTENDED_COOLDOWN_SECS=300
 RECOVERY_FAILED=0
 
-logger -t modem-stall-watchdog "Started modem bearer stall watchdog and carrier keepalive service (interval=${KEEPALIVE_INTERVAL}s)"
+# Non-ping connectivity verification: standard DNS query to carrier/configured DNS
+verify_rx_connectivity() {
+    local dns_server rx_pre rx_post
+    dns_server=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@["dns-server"][0]' 2>/dev/null)
+    [ -z "$dns_server" ] && dns_server="8.8.8.8"
+    rx_pre=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+    nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$dns_server" >/dev/null 2>&1 || true
+    rx_post=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+    [ "$rx_post" -gt "$rx_pre" ]
+}
+
+logger -t modem-stall-watchdog "Started modem bearer stall watchdog and Option B carrier keepalive service (interval=${KEEPALIVE_INTERVAL}s, non-ping)"
 
 while true; do
     # Dynamically load UCI configuration
@@ -80,22 +91,7 @@ while true; do
 
     NOW=$(date +%s)
 
-    # 5. Low-rate keepalive (if enabled and link is up)
-    if [ "$KEEPALIVE_ENABLED" = "1" ] && [ ! -f /tmp/disable_modem_keepalive ]; then
-        if [ $((NOW - LAST_KEEPALIVE)) -ge "$KEEPALIVE_INTERVAL" ]; then
-            LAST_KEEPALIVE="$NOW"
-            RX_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-            ping -c 1 -W 1 -I wwan0 "$KEEPALIVE_TARGET" >/dev/null 2>&1 || true
-            RX_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-            if [ "$RX_POST" -gt "$RX_PRE" ]; then
-                logger -t modem-keepalive "Keepalive verified: RX incremented ($RX_PRE -> $RX_POST) via $KEEPALIVE_TARGET"
-            else
-                logger -t modem-keepalive "Keepalive warning: probe sent to $KEEPALIVE_TARGET but RX counter did not increment (RX=$RX_PRE)"
-            fi
-        fi
-    fi
-
-    # 6. Check traffic counters
+    # 5. Check traffic counters
     CUR_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
     CUR_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
 
@@ -113,7 +109,7 @@ while true; do
     LAST_TX="$CUR_TX"
     LAST_RX="$CUR_RX"
 
-    # Stall accumulation logic:
+    # Stall accumulation & keepalive logic:
     if [ "$DELTA_RX" -gt 0 ]; then
         # Actual incoming packets received: link healthy, reset stall counter
         STALL_COUNT=0
@@ -123,17 +119,43 @@ while true; do
         logger -t modem-stall-watchdog "Unbalanced traffic detected: TX+$DELTA_TX, RX+$DELTA_RX (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
 
         if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
-            # Verify if connectivity is actually stalled before taking action
-            RX_TEST_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-            if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
-                RX_TEST_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                if [ "$RX_TEST_POST" -gt "$RX_TEST_PRE" ]; then
-                    logger -t modem-stall-watchdog "Connectivity probe succeeded and RX incremented; clearing stall counter."
-                    STALL_COUNT=0
-                    sleep "$CHECK_INTERVAL"
-                    continue
-                fi
+            # Verify if connectivity is actually stalled before taking action (non-ping DNS query)
+            if verify_rx_connectivity; then
+                logger -t modem-stall-watchdog "Connectivity probe succeeded and RX incremented; clearing stall counter."
+                STALL_COUNT=0
+                sleep "$CHECK_INTERVAL"
+                continue
             fi
+        fi
+    else
+        # DELTA_TX == 0 and DELTA_RX == 0: Link is idle
+        STALL_COUNT=0
+
+        # 6. Low-overhead Android-equivalent carrier keepalive (Option B: non-ping)
+        # Emulates Android DcTracker DataStallAlarm: refreshes RRC carrier context
+        # during idle periods via standard DNS + QMI NAS telemetry
+        if [ "$KEEPALIVE_ENABLED" = "1" ] && [ ! -f /tmp/disable_modem_keepalive ]; then
+            if [ $((NOW - LAST_KEEPALIVE)) -ge "$KEEPALIVE_INTERVAL" ]; then
+                LAST_KEEPALIVE="$NOW"
+                DNS_SERVER=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@["dns-server"][0]' 2>/dev/null)
+                [ -z "$DNS_SERVER" ] && DNS_SERVER="8.8.8.8"
+                RX_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$DNS_SERVER" >/dev/null 2>&1 || true
+                RX_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                if [ "$RX_POST" -gt "$RX_PRE" ]; then
+                    logger -t modem-keepalive "Option B Keepalive: Carrier RRC refreshed (RX: $RX_PRE -> $RX_POST) via DNS to $DNS_SERVER"
+                    LAST_RX="$RX_POST"
+                else
+                    logger -t modem-keepalive "Option B Keepalive: Carrier RRC probe sent via DNS to $DNS_SERVER"
+                fi
+                LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
+                # Also query QMI NAS signal info (replicates Android RIL signal polling)
+                qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
+
+    if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
 
             # Check cooldown period and attempt limit
             NOW=$(date +%s)
@@ -183,13 +205,9 @@ while true; do
                 i=0
                 while [ "$i" -lt 6 ]; do
                     sleep 1
-                    RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                    if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
-                        RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                        if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
-                            WAKE_RECOVERED=1
-                            break
-                        fi
+                    if verify_rx_connectivity; then
+                        WAKE_RECOVERED=1
+                        break
                     fi
                     i=$((i + 1))
                 done
@@ -277,13 +295,9 @@ while true; do
                     i=0
                     while [ "$i" -lt 10 ]; do
                         sleep 1
-                        RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                        if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
-                            RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                            if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
-                                RX_RESTORED=1
-                                break
-                            fi
+                        if verify_rx_connectivity; then
+                            RX_RESTORED=1
+                            break
                         fi
                         i=$((i + 1))
                     done
@@ -340,13 +354,9 @@ while true; do
                         i=0
                         while [ "$i" -lt 10 ]; do
                             sleep 1
-                            RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                            if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
-                                RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                                if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
-                                    RX_RESTORED=1
-                                    break
-                                fi
+                            if verify_rx_connectivity; then
+                                RX_RESTORED=1
+                                break
                             fi
                             i=$((i + 1))
                         done
@@ -374,7 +384,6 @@ while true; do
             STALL_COUNT=0
             sleep 5
         fi
-    fi
 
     sleep "$CHECK_INTERVAL"
 done
