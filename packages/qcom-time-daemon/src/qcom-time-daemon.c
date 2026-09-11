@@ -75,7 +75,6 @@ static uint64_t last_user_refresh = 0;
 static uint64_t last_keepalive = 0;
 static uint64_t last_lookup_attempt = 0;
 static int consecutive_get_fails = 0;
-static uint64_t ssr_guard_until = 0; // guard to suppress ATS_USER refresh for 30s after SSR
 
 static uint64_t get_monotonic_sec(void)
 {
@@ -250,12 +249,6 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 	if (!modem_connected || modem_port == 0)
 		return -1;
 
-	uint64_t now = get_monotonic_sec();
-	if (ssr_guard_until && now < ssr_guard_until) {
-		syslog(LOG_NOTICE, "[QMI-TIME] Guard active – skipping ATS_USER transaction after SSR");
-		return 0;
-	}
-
 	/* Query modem base 0 (ATS_RTC) and base 1 (ATS_TOD) */
 	int ret_tod = query_modem_ats_base(sock, ATS_TOD, &tod_val);
 	int ret_rtc = query_modem_ats_base(sock, ATS_RTC, &rtc_val);
@@ -339,12 +332,16 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 static int run_handshake_state_machine(int sock)
 {
 	current_state = STATE_SYNCING_ATS_USER;
+	last_handshake_attempt = get_monotonic_sec();
 	int ret = send_ats_user_transaction(sock, false);
 	if (ret == 0) {
 		current_state = STATE_SYNCHRONIZED;
 		last_user_refresh = get_monotonic_sec();
 		last_keepalive = get_monotonic_sec();
 		consecutive_get_fails = 0;
+	} else {
+		current_state = STATE_FAILED;
+		unlink(SYNC_MARKER_FILE);
 	}
 	return ret;
 }
@@ -412,10 +409,16 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			syslog(LOG_NOTICE, "[QMI-TIME] Discovered QMI TIME service: node=%u port=%u service=%u instance=%u version=%u",
 			       pkt.node, pkt.port, pkt.service, pkt.instance, pkt.version);
 
-			/* Guard against duplicate NEW_SERVER for already connected service */
-			if (modem_connected &&
-			    modem_node == pkt.node && modem_port == pkt.port) {
-				syslog(LOG_INFO, "[QMI-TIME] Duplicate NEW_SERVER for node=%u port=%u; ignoring.",
+			uint64_t now = get_monotonic_sec();
+			/*
+			 * Guard against rapid duplicate NEW_SERVER events:
+			 * Only ignore if we are ALREADY synchronized and the last handshake was recent (< 3s).
+			 * If state is not synchronized or modem underwent SSR, always execute the handshake.
+			 */
+			if (modem_connected && current_state == STATE_SYNCHRONIZED &&
+			    modem_node == pkt.node && modem_port == pkt.port &&
+			    (now - last_handshake_attempt < 3)) {
+				syslog(LOG_INFO, "[QMI-TIME] Duplicate NEW_SERVER for node=%u port=%u within 3s; ignoring.",
 				       pkt.node, pkt.port);
 				return;
 			}
@@ -423,7 +426,6 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			modem_node = pkt.node;
 			modem_port = pkt.port;
 			modem_connected = true;
-			last_handshake_attempt = 0;
 
 			/* Execute transactional handshake state machine */
 			run_handshake_state_machine(sock);
@@ -436,7 +438,7 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			modem_port = 0;
 			current_state = STATE_DISCOVERING;
 			unlink(SYNC_MARKER_FILE);
-			ssr_guard_until = get_monotonic_sec() + 30; // suppress ATS_USER for 30s after SSR
+			last_handshake_attempt = 0;
 			last_lookup_attempt = 0;
 			qrtr_new_lookup(sock, QMI_TIME_SERVICE_ID, 0, 0);
 		}

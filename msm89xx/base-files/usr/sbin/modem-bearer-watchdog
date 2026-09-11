@@ -1,8 +1,8 @@
 #!/bin/sh
 # Modem Bearer Stall Watchdog — LTE-Native (Android-Equivalent) Implementation
 #
-# On LTE/4G, RRC idle/connected transitions are eNodeB-driven — no host-side
-# "go dormant" command exists (QMI_WDS_GO_DORMANT is CDMA/3G only).
+# RRC idle/connected transitions occur naturally via eNodeB inactivity timers,
+# and QMI WDS dormancy is monitored via --wds-get-dormancy-status.
 # The BAM-DMUX Phase 5 persistent-channel patch keeps DMA channels alive
 # through power collapse, eliminating the need for artificial keepalive pings.
 #
@@ -15,7 +15,7 @@ LOCKFILE="/var/lock/modem-bearer.lock"
 STALL_TIMEOUT=30
 CHECK_INTERVAL=5
 COOLDOWN_SECS=60
-KEEPALIVE_ENABLED=1
+KEEPALIVE_ENABLED=0
 KEEPALIVE_INTERVAL=10
 KEEPALIVE_TARGET="1.1.1.1"
 
