@@ -212,7 +212,7 @@ while true; do
 
                     # Wait for netifd teardown
                     i=0
-                    while [ "$i" -lt 15 ]; do
+                    while [ "$i" -lt 5 ]; do
                         st=$(ubus call network.interface.modem status 2>/dev/null)
                         u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
                         p=$(echo "$st" | jsonfilter -e '@.pending' 2>/dev/null)
@@ -235,12 +235,8 @@ while true; do
                     done
 
                     # 3c-WAIT: Confirm all non-initial bearers are gone from ModemManager's D-Bus
-                    # object tree before calling ifup. Without this, ModemManager may route QMI
-                    # WDS_STOP_NETWORK_RESP to the stale WDS client handle of the old bearer while
-                    # the new bearer is waiting for WDS_START_NETWORK_RESP — the classic "commands
-                    # issued to wrong bearer" stall race condition.
                     i=0
-                    while [ "$i" -lt 10 ]; do
+                    while [ "$i" -lt 3 ]; do
                         remaining=$(mmcli -m any --output-keyvalue 2>/dev/null | grep -c '/org/freedesktop/ModemManager1/Bearer/[0-9]*' || echo 0)
                         init_count=0
                         [ -n "$INIT_BEARER" ] && init_count=1
@@ -249,14 +245,13 @@ while true; do
                             logger -t modem-stall-watchdog "All stale bearers removed ($remaining remaining). Proceeding with ifup."
                             break
                         fi
-                        logger -t modem-stall-watchdog "Waiting for bearer cleanup ($remaining bearers still active, expect <=$expected_max)..."
                         sleep 1
                         i=$((i + 1))
                     done
 
                     # 3d. Wait for the old IP/context to disappear
                     ip -4 addr flush dev wwan0 2>/dev/null || true
-                    sleep 2
+                    sleep 1
 
                     # 3e. Create exactly one new bearer via netifd
                     logger -t modem-stall-watchdog "Creating exactly one new bearer via netifd ifup..."
@@ -264,7 +259,7 @@ while true; do
 
                     # Wait for netifd bringup
                     i=0
-                    while [ "$i" -lt 25 ]; do
+                    while [ "$i" -lt 8 ]; do
                         st=$(ubus call network.interface.modem status 2>/dev/null)
                         u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
                         [ "$u" = "true" ] && break
@@ -279,7 +274,7 @@ while true; do
 
                     RX_RESTORED=0
                     i=0
-                    while [ "$i" -lt 10 ]; do
+                    while [ "$i" -lt 3 ]; do
                         sleep 1
                         RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                         if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
@@ -302,26 +297,24 @@ while true; do
 
                         # 1. Bring down netifd to halt outbound packet flow
                         ubus call network.interface.modem down 2>/dev/null || true
-                        sleep 1
 
                         # 2. Cycle modem radio (low-power -> online)
-                        # This cleanly triggers LTE Detach and re-Attach, renegotiating the EPS bearer with PGW
                         QMI_DEV="/dev/wwan0qmi0"
                         RADIO_CYCLED=0
                         if [ -e "$QMI_DEV" ]; then
                             qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=low-power >/dev/null 2>&1 || true
-                            sleep 3
+                            sleep 1
                             qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=online >/dev/null 2>&1 || true
                             RADIO_CYCLED=1
                         else
                             mmcli -m any --set-power-state-low >/dev/null 2>&1 || true
-                            sleep 3
+                            sleep 1
                             mmcli -m any --set-power-state-on >/dev/null 2>&1 || true
                         fi
 
-                        # 3. Wait for LTE network re-attachment (up to 15s)
+                        # 3. Wait for LTE network re-attachment (up to 4s)
                         i=0
-                        while [ "$i" -lt 15 ]; do
+                        while [ "$i" -lt 4 ]; do
                             if [ -e "$QMI_DEV" ]; then
                                 reg=$(qmicli -p -d "$QMI_DEV" --nas-get-serving-system 2>/dev/null | grep -o "Registration state: 'registered'")
                                 [ -n "$reg" ] && break
@@ -334,17 +327,17 @@ while true; do
                         if [ -z "$reg" ] && [ -e "$QMI_DEV" ]; then
                             logger -t modem-stall-watchdog "Stage 3: Radio cycle incomplete; escalating to full baseband reset..."
                             qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=reset >/dev/null 2>&1 || mmcli -m any --reset >/dev/null 2>&1 || true
-                            sleep 8
+                            sleep 2
                             /etc/init.d/modemmanager restart >/dev/null 2>&1 || true
-                            sleep 8
+                            sleep 2
                         fi
 
                         # 5. Bring netifd back up
                         ubus call network.interface.modem up 2>/dev/null || true
 
-                        # Wait for netifd bringup (up to 25s)
+                        # Wait for netifd bringup (up to 8s)
                         i=0
-                        while [ "$i" -lt 25 ]; do
+                        while [ "$i" -lt 8 ]; do
                             st=$(ubus call network.interface.modem status 2>/dev/null)
                             u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
                             [ "$u" = "true" ] && break
@@ -355,10 +348,10 @@ while true; do
                         # Verify RX traffic post-recovery
                         RX_RESTORED=0
                         i=0
-                        while [ "$i" -lt 10 ]; do
+                        while [ "$i" -lt 3 ]; do
                             sleep 1
                             RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                            if ping -c 2 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 2 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                            if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
                                 RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                                 if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
                                     RX_RESTORED=1

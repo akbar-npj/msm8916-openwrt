@@ -1,0 +1,19 @@
+#!/bin/sh
+# Copyright (C) 2016 Velocloud Inc
+# Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+
+# Load hotplug common utilities
+. /usr/share/ModemManager/modemmanager.common
+
+# Do not probe Linux UART serial console
+case "$DEVNAME" in ttyMSM*) exit 0 ;; esac
+
+# We require a device name
+[ -n "$DEVNAME" ] || exit
+
+# Always make sure the rundir exists
+mkdir -m 0755 -p "${MODEMMANAGER_RUNDIR}"
+
+# Report TTY
+mm_log "info" "${ACTION} serial interface ${DEVNAME}: event processed"
+mm_report_event "${ACTION}" "${DEVNAME}" "tty" "/sys${DEVPATH}"
