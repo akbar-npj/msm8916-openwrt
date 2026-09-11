@@ -55,11 +55,11 @@ while true; do
         continue
     fi
 
-    # 2. Ensure BAM-DMUX maintains persistent mode (Stock Android parity)
+    # 2. Ensure BAM-DMUX dynamic power collapse mode (Phase 5 power-collapse voting)
     BAM_CTRL="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
-    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "on" ]; then
-        echo on > "$BAM_CTRL" 2>/dev/null || true
-        logger -t modem-stall-watchdog "Restored BAM-DMUX control=on (persistent DMA mode)"
+    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "auto" ]; then
+        echo auto > "$BAM_CTRL" 2>/dev/null || true
+        logger -t modem-stall-watchdog "Enforced BAM-DMUX control=auto (dynamic power collapse mode)"
     fi
 
     # 3. Check if wwan0 interface is up in netifd
@@ -294,35 +294,41 @@ while true; do
                         RECOVERY_FAILED=0
                         STALL_COUNT=0
                     else
-                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: RF receiver frozen (RX remains 0). Escalating to Stage 3: Remoteproc SSR reset..."
+                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: RX remains frozen on bearer. Escalating to Stage 3: Negotiated QMI baseband reset..."
 
-                        # Capture diagnostic snapshot before SSR
-                        {
-                            echo "=== MODEM STALL PRE-SSR DIAGNOSTIC CAPTURE ==="
-                            echo "Timestamp: $(date)"
-                            echo "Uptime: $(uptime)"
-                            echo "--- REMOTECPROC STATE ---"
-                            cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state 2>/dev/null
-                            echo "--- WDS PACKET STATISTICS ---"
-                            qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-statistics 2>/dev/null
-                            echo "--- MODEMMANAGER STATUS ---"
-                            mmcli -m any 2>/dev/null
-                        } > /tmp/modem_stall_diagnostics.log 2>&1
-
-                        # Disconnect netifd first
+                        # 1. Bring down netifd to halt outbound packet flow
                         ubus call network.interface.modem down 2>/dev/null || true
+                        sleep 1
 
-                        # Trigger modem subsystem restart via remoteproc
-                        RPROC_STATE="/sys/class/remoteproc/remoteproc0/state"
-                        if [ -f "$RPROC_STATE" ]; then
-                            echo stop > "$RPROC_STATE" 2>/dev/null
-                            sleep 1
-                            echo start > "$RPROC_STATE" 2>/dev/null
-                            logger -t modem-stall-watchdog "Stage 3: Remoteproc SSR triggered; waiting for modem to reinitialize..."
-                            sleep 5
+                        # 2. Tell modem baseband to restart gracefully via QMI DMS or ModemManager
+                        QMI_DEV="/dev/wwan0qmi0"
+                        RESET_ISSUED=0
+                        if [ -e "$QMI_DEV" ]; then
+                            qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=reset >/dev/null 2>&1
+                            if [ $? -eq 0 ]; then
+                                logger -t modem-stall-watchdog "Stage 3: QMI DMS baseband reset command accepted."
+                                RESET_ISSUED=1
+                            fi
+                        fi
+                        if [ "$RESET_ISSUED" -eq 0 ]; then
+                            mmcli -m any --reset >/dev/null 2>&1 || true
+                            logger -t modem-stall-watchdog "Stage 3: ModemManager reset command issued."
                         fi
 
-                        # Reconnect netifd
+                        # 3. Wait for the kernel SSR notification, baseband reboot, and BAM-DMUX channel powerup
+                        sleep 8
+
+                        # 4. Wait for ModemManager or netifd to see the device again (up to 20s)
+                        i=0
+                        while [ "$i" -lt 20 ]; do
+                            if [ -e "$QMI_DEV" ]; then
+                                break
+                            fi
+                            sleep 1
+                            i=$((i + 1))
+                        done
+
+                        # 5. Bring netifd back up
                         ubus call network.interface.modem up 2>/dev/null || true
 
                         # Wait for netifd bringup (up to 25s)
@@ -352,13 +358,13 @@ while true; do
                         done
 
                         if [ "$RX_RESTORED" -eq 1 ]; then
-                            logger -t modem-stall-watchdog "Stage 3 SUCCESS: Remoteproc SSR restored RX traffic successfully."
+                            logger -t modem-stall-watchdog "Stage 3 SUCCESS: Negotiated QMI reset restored RX traffic successfully."
                             RECOVERY_ATTEMPTS=0
                             RECOVERY_FAILED=0
                             STALL_COUNT=0
                         else
                             RECOVERY_ATTEMPTS=$((RECOVERY_ATTEMPTS + 1))
-                            logger -t modem-stall-watchdog "Stage 3 INSUFFICIENT: RX remains 0 even after SSR (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
+                            logger -t modem-stall-watchdog "Stage 3 INSUFFICIENT: RX remains 0 even after negotiated reset (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
                             if [ "$RECOVERY_ATTEMPTS" -ge "$MAX_RECOVERY_ATTEMPTS" ]; then
                                 RECOVERY_FAILED=1
                                 logger -t modem-stall-watchdog "HALTING further recovery attempts to prevent churn. Preserving diagnostic telemetry."
