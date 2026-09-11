@@ -55,11 +55,11 @@ while true; do
         continue
     fi
 
-    # 2. Ensure BAM-DMUX dynamic power collapse mode (Phase 5 power-collapse voting)
+    # 2. Ensure BAM-DMUX maintains persistent mode (Stock Android parity)
     BAM_CTRL="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
-    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "auto" ]; then
-        echo auto > "$BAM_CTRL" 2>/dev/null || true
-        logger -t modem-stall-watchdog "Enforced BAM-DMUX control=auto (dynamic power collapse mode)"
+    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "on" ]; then
+        echo on > "$BAM_CTRL" 2>/dev/null || true
+        logger -t modem-stall-watchdog "Restored BAM-DMUX control=on (persistent DMA mode)"
     fi
 
     # 3. Check if wwan0 interface is up in netifd
@@ -121,15 +121,11 @@ while true; do
         # Outgoing packets sent, but zero incoming packets received: accumulate stall duration
         STALL_COUNT=$((STALL_COUNT + CHECK_INTERVAL))
         logger -t modem-stall-watchdog "Unbalanced traffic detected: TX+$DELTA_TX, RX+$DELTA_RX (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
-    else
-        # Idle link (no TX, no RX): reset stall counter to prevent false positive accumulation
-        STALL_COUNT=0
-    fi
 
-    if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
-            # Verify if connectivity is actually stalled before taking action (give modem time to wake from DRX)
+        if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
+            # Verify if connectivity is actually stalled before taking action
             RX_TEST_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-            if ping -c 2 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 2 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+            if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
                 RX_TEST_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                 if [ "$RX_TEST_POST" -gt "$RX_TEST_PRE" ]; then
                     logger -t modem-stall-watchdog "Connectivity probe succeeded and RX incremented; clearing stall counter."
@@ -188,7 +184,7 @@ while true; do
                 while [ "$i" -lt 6 ]; do
                     sleep 1
                     RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                    if ping -c 2 -W 2 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 2 -W 2 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
+                    if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
                         RX_CHECK_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                         if [ "$RX_CHECK_POST" -gt "$RX_CHECK_PRE" ]; then
                             WAKE_RECOVERED=1
@@ -212,7 +208,7 @@ while true; do
 
                     # Wait for netifd teardown
                     i=0
-                    while [ "$i" -lt 5 ]; do
+                    while [ "$i" -lt 15 ]; do
                         st=$(ubus call network.interface.modem status 2>/dev/null)
                         u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
                         p=$(echo "$st" | jsonfilter -e '@.pending' 2>/dev/null)
@@ -221,9 +217,9 @@ while true; do
                         i=$((i + 1))
                     done
 
-                    # 3b. Stop the specific WDS data bearer(s) in ModemManager (protect initial bearer)
-                    INIT_BEARER=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.eps.initial-bearer.dbus-path/ {print $2}' | tr -d ' \r\n')
-                    for b in $(mmcli -m any --output-keyvalue 2>/dev/null | grep -o '/org/freedesktop/ModemManager1/Bearer/[0-9]*' | sort -u); do
+                    # 3b. Stop the specific WDS data bearer(s) in ModemManager
+                    INIT_BEARER=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.eps.initial-bearer/ {print $2}' | tr -d ' \r\n')
+                    for b in $(mmcli -m any --output-keyvalue 2>/dev/null | grep -o '/org/freedesktop/ModemManager1/Bearer/[0-9]*'); do
                         if [ -n "$INIT_BEARER" ] && [ "$b" = "$INIT_BEARER" ]; then
                             continue
                         fi
@@ -235,8 +231,12 @@ while true; do
                     done
 
                     # 3c-WAIT: Confirm all non-initial bearers are gone from ModemManager's D-Bus
+                    # object tree before calling ifup. Without this, ModemManager may route QMI
+                    # WDS_STOP_NETWORK_RESP to the stale WDS client handle of the old bearer while
+                    # the new bearer is waiting for WDS_START_NETWORK_RESP — the classic "commands
+                    # issued to wrong bearer" stall race condition.
                     i=0
-                    while [ "$i" -lt 3 ]; do
+                    while [ "$i" -lt 10 ]; do
                         remaining=$(mmcli -m any --output-keyvalue 2>/dev/null | grep -c '/org/freedesktop/ModemManager1/Bearer/[0-9]*' || echo 0)
                         init_count=0
                         [ -n "$INIT_BEARER" ] && init_count=1
@@ -245,13 +245,14 @@ while true; do
                             logger -t modem-stall-watchdog "All stale bearers removed ($remaining remaining). Proceeding with ifup."
                             break
                         fi
+                        logger -t modem-stall-watchdog "Waiting for bearer cleanup ($remaining bearers still active, expect <=$expected_max)..."
                         sleep 1
                         i=$((i + 1))
                     done
 
                     # 3d. Wait for the old IP/context to disappear
                     ip -4 addr flush dev wwan0 2>/dev/null || true
-                    sleep 1
+                    sleep 2
 
                     # 3e. Create exactly one new bearer via netifd
                     logger -t modem-stall-watchdog "Creating exactly one new bearer via netifd ifup..."
@@ -259,7 +260,7 @@ while true; do
 
                     # Wait for netifd bringup
                     i=0
-                    while [ "$i" -lt 8 ]; do
+                    while [ "$i" -lt 25 ]; do
                         st=$(ubus call network.interface.modem status 2>/dev/null)
                         u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
                         [ "$u" = "true" ] && break
@@ -274,7 +275,7 @@ while true; do
 
                     RX_RESTORED=0
                     i=0
-                    while [ "$i" -lt 3 ]; do
+                    while [ "$i" -lt 10 ]; do
                         sleep 1
                         RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                         if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
@@ -293,51 +294,40 @@ while true; do
                         RECOVERY_FAILED=0
                         STALL_COUNT=0
                     else
-                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: RX remains frozen on bearer. Escalating to Stage 3: Radio power-cycle & clean re-attach..."
+                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: RF receiver frozen (RX remains 0). Escalating to Stage 3: Remoteproc SSR reset..."
 
-                        # 1. Bring down netifd to halt outbound packet flow
+                        # Capture diagnostic snapshot before SSR
+                        {
+                            echo "=== MODEM STALL PRE-SSR DIAGNOSTIC CAPTURE ==="
+                            echo "Timestamp: $(date)"
+                            echo "Uptime: $(uptime)"
+                            echo "--- REMOTECPROC STATE ---"
+                            cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state 2>/dev/null
+                            echo "--- WDS PACKET STATISTICS ---"
+                            qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-statistics 2>/dev/null
+                            echo "--- MODEMMANAGER STATUS ---"
+                            mmcli -m any 2>/dev/null
+                        } > /tmp/modem_stall_diagnostics.log 2>&1
+
+                        # Disconnect netifd first
                         ubus call network.interface.modem down 2>/dev/null || true
 
-                        # 2. Cycle modem radio (low-power -> online)
-                        QMI_DEV="/dev/wwan0qmi0"
-                        RADIO_CYCLED=0
-                        if [ -e "$QMI_DEV" ]; then
-                            qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=low-power >/dev/null 2>&1 || true
+                        # Trigger modem subsystem restart via remoteproc
+                        RPROC_STATE="/sys/class/remoteproc/remoteproc0/state"
+                        if [ -f "$RPROC_STATE" ]; then
+                            echo stop > "$RPROC_STATE" 2>/dev/null
                             sleep 1
-                            qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=online >/dev/null 2>&1 || true
-                            RADIO_CYCLED=1
-                        else
-                            mmcli -m any --set-power-state-low >/dev/null 2>&1 || true
-                            sleep 1
-                            mmcli -m any --set-power-state-on >/dev/null 2>&1 || true
+                            echo start > "$RPROC_STATE" 2>/dev/null
+                            logger -t modem-stall-watchdog "Stage 3: Remoteproc SSR triggered; waiting for modem to reinitialize..."
+                            sleep 5
                         fi
 
-                        # 3. Wait for LTE network re-attachment (up to 4s)
-                        i=0
-                        while [ "$i" -lt 4 ]; do
-                            if [ -e "$QMI_DEV" ]; then
-                                reg=$(qmicli -p -d "$QMI_DEV" --nas-get-serving-system 2>/dev/null | grep -o "Registration state: 'registered'")
-                                [ -n "$reg" ] && break
-                            fi
-                            sleep 1
-                            i=$((i + 1))
-                        done
-
-                        # 4. If radio still not attached, escalate to full negotiated baseband reset + ModemManager restart
-                        if [ -z "$reg" ] && [ -e "$QMI_DEV" ]; then
-                            logger -t modem-stall-watchdog "Stage 3: Radio cycle incomplete; escalating to full baseband reset..."
-                            qmicli -p -d "$QMI_DEV" --dms-set-operating-mode=reset >/dev/null 2>&1 || mmcli -m any --reset >/dev/null 2>&1 || true
-                            sleep 2
-                            /etc/init.d/modemmanager restart >/dev/null 2>&1 || true
-                            sleep 2
-                        fi
-
-                        # 5. Bring netifd back up
+                        # Reconnect netifd
                         ubus call network.interface.modem up 2>/dev/null || true
 
-                        # Wait for netifd bringup (up to 8s)
+                        # Wait for netifd bringup (up to 25s)
                         i=0
-                        while [ "$i" -lt 8 ]; do
+                        while [ "$i" -lt 25 ]; do
                             st=$(ubus call network.interface.modem status 2>/dev/null)
                             u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
                             [ "$u" = "true" ] && break
@@ -345,10 +335,10 @@ while true; do
                             i=$((i + 1))
                         done
 
-                        # Verify RX traffic post-recovery
+                        # Verify RX traffic post-SSR
                         RX_RESTORED=0
                         i=0
-                        while [ "$i" -lt 3 ]; do
+                        while [ "$i" -lt 10 ]; do
                             sleep 1
                             RX_CHECK_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                             if ping -c 1 -W 1 -I wwan0 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 1 -I wwan0 8.8.8.8 >/dev/null 2>&1; then
@@ -362,13 +352,13 @@ while true; do
                         done
 
                         if [ "$RX_RESTORED" -eq 1 ]; then
-                            logger -t modem-stall-watchdog "Stage 3 SUCCESS: Radio re-attach restored RX traffic successfully."
+                            logger -t modem-stall-watchdog "Stage 3 SUCCESS: Remoteproc SSR restored RX traffic successfully."
                             RECOVERY_ATTEMPTS=0
                             RECOVERY_FAILED=0
                             STALL_COUNT=0
                         else
                             RECOVERY_ATTEMPTS=$((RECOVERY_ATTEMPTS + 1))
-                            logger -t modem-stall-watchdog "Stage 3 INSUFFICIENT: RX remains 0 even after radio re-attach (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
+                            logger -t modem-stall-watchdog "Stage 3 INSUFFICIENT: RX remains 0 even after SSR (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
                             if [ "$RECOVERY_ATTEMPTS" -ge "$MAX_RECOVERY_ATTEMPTS" ]; then
                                 RECOVERY_FAILED=1
                                 logger -t modem-stall-watchdog "HALTING further recovery attempts to prevent churn. Preserving diagnostic telemetry."
@@ -384,6 +374,7 @@ while true; do
             STALL_COUNT=0
             sleep 5
         fi
+    fi
 
     sleep "$CHECK_INTERVAL"
 done
