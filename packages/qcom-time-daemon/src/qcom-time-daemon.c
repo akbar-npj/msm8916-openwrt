@@ -38,7 +38,7 @@
 #include "qmi_time.h"
 
 #define DEFAULT_POLL_INTERVAL_SEC	60
-#define DEFAULT_REFRESH_INTERVAL_SEC	300
+#define DEFAULT_REFRESH_INTERVAL_SEC	0
 #define HANDSHAKE_RETRY_INTERVAL_SEC	5
 #define QMI_SYNC_TIMEOUT_MS		5000
 #define SYNC_MARKER_FILE		"/var/run/qcom-time-synced"
@@ -474,8 +474,8 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 					       ind.base, qmi_time_base_name(ind.base),
 					       (unsigned long long)ind.offset);
 					if (ind.base == ATS_TOD && ind.offset > 0 && modem_connected && current_state == STATE_SYNCHRONIZED) {
-						syslog(LOG_NOTICE, "[QMI-TIME] Cellular network NITZ update broadcast received! Re-aligning ATS_USER...");
-						send_ats_user_transaction(sock, true);
+						syslog(LOG_INFO, "[QMI-TIME] Cellular network NITZ broadcast received (base=%u, offset=%llu ms). Baseband ATS_TOD updated (passive host tracking).",
+						       ind.base, (unsigned long long)ind.offset);
 					}
 				} else {
 					syslog(LOG_WARNING, "[QMI-TIME] Failed to decode indication 0x%04x (%s) from node=%u port=%u: ret=%d",

@@ -23,6 +23,7 @@ LAST_TX=0
 LAST_RX=0
 STALL_COUNT=0
 LAST_KEEPALIVE=0
+LAST_KEEPALIVE_LOG=0
 LAST_RECOVERY=0
 RECOVERY_ATTEMPTS=0
 MAX_RECOVERY_ATTEMPTS=1
@@ -142,15 +143,18 @@ while true; do
                 RX_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
                 nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$DNS_SERVER" >/dev/null 2>&1 || true
                 RX_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-                if [ "$RX_POST" -gt "$RX_PRE" ]; then
-                    logger -t modem-keepalive "Option B Keepalive: Carrier RRC refreshed (RX: $RX_PRE -> $RX_POST) via DNS to $DNS_SERVER"
-                    LAST_RX="$RX_POST"
-                else
-                    logger -t modem-keepalive "Option B Keepalive: Carrier RRC probe sent via DNS to $DNS_SERVER"
+                if [ $((NOW - LAST_KEEPALIVE_LOG)) -ge 60 ]; then
+                    LAST_KEEPALIVE_LOG="$NOW"
+                    if [ "$RX_POST" -gt "$RX_PRE" ]; then
+                        logger -t modem-keepalive "Option B Keepalive: Carrier RRC active (RX: $RX_PRE -> $RX_POST) via DNS to $DNS_SERVER"
+                    else
+                        logger -t modem-keepalive "Option B Keepalive: Carrier RRC probe sent via DNS to $DNS_SERVER"
+                    fi
+                    # Periodic QMI NAS signal info update (replicates Android RIL signal polling)
+                    qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info >/dev/null 2>&1 || true
                 fi
+                [ "$RX_POST" -gt "$RX_PRE" ] && LAST_RX="$RX_POST"
                 LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
-                # Also query QMI NAS signal info (replicates Android RIL signal polling)
-                qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info >/dev/null 2>&1 || true
             fi
         fi
     fi
