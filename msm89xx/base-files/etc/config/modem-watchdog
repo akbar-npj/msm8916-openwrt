@@ -5,6 +5,6 @@ config watchdog 'general'
 	option cooldown_seconds '60'
 
 config keepalive 'keepalive'
-	option enabled '1'
-	option interval '10'
+	option enabled '0'
+	option interval '120'
 	option target 'openwrt.org'

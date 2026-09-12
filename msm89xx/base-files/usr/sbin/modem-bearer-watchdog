@@ -41,7 +41,9 @@ verify_rx_connectivity() {
     [ "$rx_post" -gt "$rx_pre" ]
 }
 
-logger -t modem-stall-watchdog "Started modem bearer stall watchdog and Option B carrier keepalive service (interval=${KEEPALIVE_INTERVAL}s, non-ping)"
+logger -t modem-stall-watchdog "Started modem bearer stall watchdog (Android-equivalent passive mode)"
+# Configure ModemManager for 0s signal polling (unsolicited only, matching Android RIL)
+mmcli -m any --signal-setup=0 >/dev/null 2>&1 || true
 
 while true; do
     # Dynamically load UCI configuration
@@ -82,14 +84,7 @@ while true; do
         continue
     fi
 
-    # 4. Check if QMI packet service remains connected
-    WDS_STATUS=$(qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-service-status 2>/dev/null | awk -F"'" '/Connection status:/ {print $2}')
-    if [ "$WDS_STATUS" != "connected" ]; then
-        STALL_COUNT=0
-        sleep "$CHECK_INTERVAL"
-        continue
-    fi
-
+    # 4. Initialize counters on first run; do not poll QMI WDS during idle to preserve DRX sleep
     NOW=$(date +%s)
 
     # 5. Check traffic counters
@@ -150,8 +145,6 @@ while true; do
                     else
                         logger -t modem-keepalive "Option B Keepalive: Carrier RRC probe sent via DNS to $DNS_SERVER"
                     fi
-                    # Periodic QMI NAS signal info update (replicates Android RIL signal polling)
-                    qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info >/dev/null 2>&1 || true
                 fi
                 [ "$RX_POST" -gt "$RX_PRE" ] && LAST_RX="$RX_POST"
                 LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
