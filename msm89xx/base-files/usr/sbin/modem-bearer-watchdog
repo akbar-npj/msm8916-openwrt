@@ -208,13 +208,14 @@ while true; do
 
                 logger -t modem-stall-watchdog "User-plane stall confirmed (${STALL_COUNT}s). Telemetry: WDS dormancy='${WDS_DORMANCY:-unknown}', Cell ID='${CELL_ID:-unknown}', PhysCell='${PHYS_CELL:-unknown}', EARFCN='${EARFCN:-unknown}', RSRP='${SIG_RSRP:-unknown}', SNR='${SIG_SNR:-unknown}', PrefDataPath='${PREF_PATH:-unknown}', Bearer='${BEARER_ID:-none}', TX=$CUR_TX, RX=$CUR_RX"
 
-                # 2. Stage 1: Call wds-go-active once
-                logger -t modem-stall-watchdog "Stage 1 recovery: executing 'qmicli -p -d /dev/wwan0qmi0 --wds-go-active'..."
-                GO_ACTIVE_RES=$(qmicli -p -d /dev/wwan0qmi0 --wds-go-active 2>&1)
-                GO_ACTIVE_RC=$?
-                logger -t modem-stall-watchdog "Result of wds-go-active: rc=$GO_ACTIVE_RC, output='${GO_ACTIVE_RES}'"
+                # 2. Stage 1: Command modem dormancy (wds-go-dormant) to reset traffic channel
+                logger -t modem-stall-watchdog "Stage 1 recovery: executing 'qmicli -p -d /dev/wwan0qmi0 --wds-go-dormant' to reset RRC channel..."
+                GO_DORMANT_RES=$(qmicli -p -d /dev/wwan0qmi0 --wds-go-dormant 2>&1)
+                GO_DORMANT_RC=$?
+                logger -t modem-stall-watchdog "Result of wds-go-dormant: rc=$GO_DORMANT_RC, output='${GO_DORMANT_RES}'"
+                sleep 1
 
-                # Wait for RX recovery after wds-go-active
+                # Wait for RX recovery after wds-go-dormant cycle
                 WAKE_RECOVERED=0
                 i=0
                 while [ "$i" -lt 6 ]; do
@@ -227,7 +228,7 @@ while true; do
                 done
 
                 if [ "$WAKE_RECOVERED" -eq 1 ]; then
-                    logger -t modem-stall-watchdog "Stage 1 SUCCESS: RX traffic successfully recovered via wds-go-active. No network teardown required."
+                    logger -t modem-stall-watchdog "Stage 1 SUCCESS: RX traffic successfully recovered via wds-go-dormant. No network teardown required."
                     STALL_COUNT=0
                     RECOVERY_ATTEMPTS=0
                     RECOVERY_FAILED=0
