@@ -1,0 +1,32 @@
+=== Generic HMU05 Clean Reboot Soak Monitor Started ===
+[2026-09-12 21:11:03] Starting continuous soak monitoring...
+[2026-09-12 21:11:04] STATUS [Uptime: 01m44s (104.0s)] | Modem: running | wwan0 Ping: OK | RX: 34 | Crashes: 0
+[2026-09-12 21:11:36] STATUS [Uptime: 02m16s (136.0s)] | Modem: running | wwan0 Ping: OK | RX: 45 | Crashes: 0
+[2026-09-12 21:12:08] STATUS [Uptime: 02m47s (168.0s)] | Modem: running | wwan0 Ping: OK | RX: 56 | Crashes: 0
+[2026-09-12 21:12:40] STATUS [Uptime: 03m20s (200.1s)] | Modem: running | wwan0 Ping: OK | RX: 67 | Crashes: 0
+[2026-09-12 21:13:12] STATUS [Uptime: 03m52s (232.1s)] | Modem: running | wwan0 Ping: OK | RX: 80 | Crashes: 0
+[2026-09-12 21:13:44] STATUS [Uptime: 04m24s (264.2s)] | Modem: running | wwan0 Ping: OK | RX: 92 | Crashes: 0
+[2026-09-12 21:14:16] STATUS [Uptime: 04m56s (296.2s)] | Modem: running | wwan0 Ping: OK | RX: 104 | Crashes: 0
+[2026-09-12 21:14:48] STATUS [Uptime: 05m28s (328.3s)] | Modem: running | wwan0 Ping: OK | RX: 114 | Crashes: 0
+[2026-09-12 21:15:20] STATUS [Uptime: 06m00s (360.3s)] | Modem: running | wwan0 Ping: OK | RX: 125 | Crashes: 0
+[2026-09-12 21:15:52] STATUS [Uptime: 06m32s (392.4s)] | Modem: running | wwan0 Ping: OK | RX: 136 | Crashes: 0
+[2026-09-12 21:16:24] STATUS [Uptime: 07m04s (424.2s)] | Modem: running | wwan0 Ping: OK | RX: 147 | Crashes: 0
+[2026-09-12 21:16:56] STATUS [Uptime: 07m36s (456.4s)] | Modem: running | wwan0 Ping: OK | RX: 155 | Crashes: 0
+[2026-09-12 21:17:28] STATUS [Uptime: 08m08s (488.5s)] | Modem: running | wwan0 Ping: OK | RX: 162 | Crashes: 0
+[2026-09-12 21:18:00] STATUS [Uptime: 08m40s (520.4s)] | Modem: running | wwan0 Ping: OK | RX: 172 | Crashes: 0
+[2026-09-12 21:18:32] STATUS [Uptime: 09m12s (552.1s)] | Modem: running | wwan0 Ping: OK | RX: 180 | Crashes: 0
+[2026-09-12 21:19:04] STATUS [Uptime: 09m44s (584.1s)] | Modem: running | wwan0 Ping: OK | RX: 188 | Crashes: 0
+[2026-09-12 21:19:36] STATUS [Uptime: 10m16s (616.1s)] | Modem: running | wwan0 Ping: OK | RX: 195 | Crashes: 0
+[2026-09-12 21:20:08] STATUS [Uptime: 10m48s (648.1s)] | Modem: running | wwan0 Ping: OK | RX: 204 | Crashes: 0
+[2026-09-12 21:20:40] STATUS [Uptime: 11m20s (680.4s)] | Modem: running | wwan0 Ping: OK | RX: 212 | Crashes: 0
+[2026-09-12 21:21:12] STATUS [Uptime: 11m52s (712.5s)] | Modem: running | wwan0 Ping: OK | RX: 221 | Crashes: 0
+[2026-09-12 21:21:44] STATUS [Uptime: 12m24s (744.4s)] | Modem: running | wwan0 Ping: OK | RX: 231 | Crashes: 0
+[2026-09-12 21:22:16] STATUS [Uptime: 12m56s (776.3s)] | Modem: running | wwan0 Ping: OK | RX: 240 | Crashes: 0
+[2026-09-12 21:22:48] STATUS [Uptime: 13m28s (808.4s)] | Modem: running | wwan0 Ping: OK | RX: 248 | Crashes: 0
+[2026-09-12 21:23:20] STATUS [Uptime: 14m00s (840.5s)] | Modem: running | wwan0 Ping: OK | RX: 257 | Crashes: 0
+[2026-09-12 21:23:53] STATUS [Uptime: 14m32s (872.5s)] | Modem: running | wwan0 Ping: OK | RX: 266 | Crashes: 0
+[2026-09-12 21:24:25] STATUS [Uptime: 15m04s (904.5s)] | Modem: running | wwan0 Ping: OK | RX: 274 | Crashes: 0
+[2026-09-12 21:24:35] CRITICAL: Crash detected at uptime 915.15s!
+[2026-09-12 21:24:35] Crash details: [  912.186986] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sm_conn_inter_freq_stm.c:712:
+[  912.187060] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  912.195672] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc

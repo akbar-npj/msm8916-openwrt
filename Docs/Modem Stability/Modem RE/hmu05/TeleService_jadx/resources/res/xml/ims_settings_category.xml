@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" xmlns:phone="http://schemas.android.com/apk/res/com.android.phone">
+    <PreferenceCategory
+        android:persistent="false"
+        android:title="@string/ims_settings"
+        android:key="ims_settings_category_key">
+        <PreferenceScreen
+            android:persistent="false"
+            android:title="@string/ims_accounts_title"
+            android:key="ims_account_settings_key">
+            <intent
+                android:targetPackage="com.android.phone"
+                android:action="android.intent.action.MAIN"
+                android:targetClass="com.android.phone.ims.ImsEditor"/>
+        </PreferenceScreen>
+        <ListPreference
+            android:persistent="false"
+            android:entries="@array/ims_registration_states"
+            android:title="@string/ims_reg_title"
+            android:key="ims_registration"
+            android:summary="@string/default_ims_reg_state"
+            android:dialogTitle="@string/ims_reg_title"
+            android:entryValues="@array/ims_registration_states"/>
+    </PreferenceCategory>
+</PreferenceScreen>

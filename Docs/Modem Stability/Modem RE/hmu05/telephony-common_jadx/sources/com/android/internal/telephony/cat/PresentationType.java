@@ -1,0 +1,8 @@
+package com.android.internal.telephony.cat;
+
+/* JADX INFO: loaded from: classes.dex */
+public enum PresentationType {
+    NOT_SPECIFIED,
+    DATA_VALUES,
+    NAVIGATION_OPTIONS
+}

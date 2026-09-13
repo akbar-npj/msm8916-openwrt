@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="call_banner_height">80dp</dimen>
+    <dimen name="in_call_touch_ui_upper_margin">2dp</dimen>
+    <dimen name="call_banner_side_padding">24dp</dimen>
+    <dimen name="call_banner_top_bottom_padding">16dp</dimen>
+    <dimen name="provider_info_top_bottom_padding">8dp</dimen>
+    <dimen name="call_banner_name_number_right_padding">50sp</dimen>
+    <dimen name="in_call_button_height">76dp</dimen>
+    <dimen name="in_call_end_button_height">74dp</dimen>
+    <dimen name="extra_row_button_width">56dp</dimen>
+    <dimen name="extra_row_button_height">@dimen/in_call_button_height</dimen>
+    <dimen name="button_cluster_side_padding">20dp</dimen>
+    <dimen name="otaactivate_layout_marginTop">10dp</dimen>
+    <dimen name="otalistenprogress_layout_marginTop">5dp</dimen>
+    <dimen name="otasuccessfail_layout_marginTop">10dp</dimen>
+    <dimen name="dialpad_horizontal_margin">4dp</dimen>
+    <dimen name="dialpad_vertical_margin">2dp</dimen>
+    <dimen name="dialpad_digits_text_size">35sp</dimen>
+    <dimen name="emergency_dialer_digits_height">0px</dimen>
+    <dimen name="dialpad_center_margin">3dp</dimen>
+    <dimen name="dialpad_button_margin">3dp</dimen>
+    <dimen name="notification_icon_size">64dp</dimen>
+    <dimen name="incoming_call_widget_circle_size">94dp</dimen>
+    <dimen name="incoming_call_widget_asset_margin">28dp</dimen>
+</resources>

@@ -69,11 +69,15 @@ while true; do
         continue
     fi
 
-    # 2. Ensure BAM-DMUX maintains persistent mode (Stock Android parity)
+    # 2. Ensure BAM-DMUX maintains 1000ms autosuspend (Phase 5 dynamic DRX power collapse)
     BAM_CTRL="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
-    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "on" ]; then
-        echo on > "$BAM_CTRL" 2>/dev/null || true
-        logger -t modem-stall-watchdog "Restored BAM-DMUX control=on (persistent DMA mode)"
+    BAM_DELAY="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/autosuspend_delay_ms"
+    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "auto" ]; then
+        echo auto > "$BAM_CTRL" 2>/dev/null || true
+        logger -t modem-stall-watchdog "Restored BAM-DMUX control=auto (Phase 5 dynamic power collapse)"
+    fi
+    if [ -f "$BAM_DELAY" ] && [ "$(cat "$BAM_DELAY" 2>/dev/null)" != "1000" ]; then
+        echo 1000 > "$BAM_DELAY" 2>/dev/null || true
     fi
 
     # 3. Check if wwan0 interface is up in netifd
@@ -323,18 +327,8 @@ while true; do
                         # Disconnect netifd first
                         ubus call network.interface.modem down 2>/dev/null || true
 
-                        # Trigger modem subsystem restart via remoteproc
-                        RPROC_STATE="/sys/class/remoteproc/remoteproc0/state"
-                        if [ -f "$RPROC_STATE" ]; then
-                            echo stop > "$RPROC_STATE" 2>/dev/null
-                            sleep 1
-                            echo start > "$RPROC_STATE" 2>/dev/null
-                            logger -t modem-stall-watchdog "Stage 3: Remoteproc SSR triggered; waiting for modem to reinitialize..."
-                            sleep 5
-                        fi
-
-                        # Reconnect netifd
-                        ubus call network.interface.modem up 2>/dev/null || true
+                        # Stage 3 SSR disabled per user requirement (no remoteproc SSR restart)
+                        logger -t modem-stall-watchdog "Stage 3 SSR disabled: preserving state for analysis without resetting baseband."
 
                         # Wait for netifd bringup (up to 25s)
                         i=0

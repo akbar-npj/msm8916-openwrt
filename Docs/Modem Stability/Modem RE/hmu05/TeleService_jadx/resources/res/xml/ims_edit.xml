@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:persistent="false"
+    android:title="@string/ims_edit_title">
+    <MultiSelectListPreference
+        android:persistent="false"
+        android:entries="@array/ims_call_cap_types"
+        android:title="@string/ims_service_capability_title"
+        android:key="@string/ims_call_type_control"
+        android:summary="@string/ims_service_capability"
+        android:dialogTitle="@string/ims_service_capability"
+        android:entryValues="@array/ims_call_cap_types"/>
+    <ListPreference
+        android:persistent="false"
+        android:entries="@array/ims_call_types_choices"
+        android:title="@string/mo_call_type_title"
+        android:key="@string/call_type"
+        android:summary="@string/default_call_type"
+        android:dialogTitle="@string/mo_call_type_title"
+        android:entryValues="@array/ims_call_types_values"/>
+</PreferenceScreen>

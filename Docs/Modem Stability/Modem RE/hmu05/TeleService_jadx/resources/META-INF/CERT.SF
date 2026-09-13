@@ -1,0 +1,874 @@
+Signature-Version: 1.0
+Created-By: 1.0 (Android SignApk)
+SHA1-Digest-Manifest: XovUe7LvZucarPvyioYws21gbe0=
+
+Name: res/drawable-ldrtl-mdpi/ic_btn_next.png
+SHA1-Digest-Manifest: trctqoK0EjQlOKEAG7PNYeAeOo4=
+
+Name: res/drawable-ldrtl-hdpi/ic_text_holo_dark.png
+SHA1-Digest-Manifest: TaV/Xc8PqLV3FBPizQMCeyA7qcI=
+
+Name: res/drawable-ar-mdpi/dial_num_4_wht.png
+SHA1-Digest-Manifest: AVSKWWZVeErYD6bdHihzpXGaG5A=
+
+Name: res/drawable-mdpi/stat_notify_voicemail_sub3.png
+SHA1-Digest-Manifest: qaUpbuQsgUY/pVQ8AN9tVILPwyY=
+
+Name: res/drawable-hdpi/dial_num_5_wht.png
+SHA1-Digest-Manifest: QgEaDvnWScyPVGRvJwnhUnkiwNA=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call_forward_sub1.png
+SHA1-Digest-Manifest: byMWQR4dV7LeVPDcWhrHPUAcLvM=
+
+Name: res/layout/delete_fdn_contact_screen.xml
+SHA1-Digest-Manifest: +dHuKMhWfPAtOPF0flGQzL1Hi1o=
+
+Name: res/drawable-hdpi/dial_num_7_wht.png
+SHA1-Digest-Manifest: Jmhiv0wGNnoolrZvBDtXhp6e/7M=
+
+Name: res/drawable/btn_cancel_normal.png
+SHA1-Digest-Manifest: se4S6b0tSEDoUv0qBAZm+CyUNLI=
+
+Name: res/layout/otacall_card.xml
+SHA1-Digest-Manifest: Znaz8yFIEr3PwN6imZ+1GO5+RuI=
+
+Name: res/drawable-hdpi/ic_see_contacts_holo_dark.png
+SHA1-Digest-Manifest: 7yTTtCUDEfP/1s8qpsnd6GxJQwI=
+
+Name: res/drawable-hdpi/dial_background_texture.png
+SHA1-Digest-Manifest: ch1xLx7qGl0jS4EezrsNyJ0zslo=
+
+Name: res/drawable-mdpi/ic_active_state_dialer_holo_dark.png
+SHA1-Digest-Manifest: U63ZQm9JSNUXdn0xv+mLK9QMm/s=
+
+Name: res/drawable-xhdpi/dial_background_texture.png
+SHA1-Digest-Manifest: IdjFKRsBbSQAT8QDDWM1NmreqMU=
+
+Name: res/drawable-mdpi/list_focused_holo.9.png
+SHA1-Digest-Manifest: mDPcFjKLX5tqxEYPdQR8Kq/dWvc=
+
+Name: res/drawable-hdpi/stat_sys_phone_call.png
+SHA1-Digest-Manifest: aVoXCU/q+zO8E2t3xewtqy2ERdI=
+
+Name: res/drawable-hdpi/ic_text_holo_dark.png
+SHA1-Digest-Manifest: astRnUuufSDd139/4FAcd0nPpFc=
+
+Name: res/layout/dialer_ms.xml
+SHA1-Digest-Manifest: w/F0qPu5AwfUNDqkD6g95C7nMog=
+
+Name: res/drawable-ldrtl-xhdpi/stat_sys_phone_call_on_hold.png
+SHA1-Digest-Manifest: zauI24SYnaRmFf6+syMN4I/dvS0=
+
+Name: res/drawable-ldrtl-xhdpi/ic_btn_next.png
+SHA1-Digest-Manifest: 7st3R3KCTNlRtaOkV2xE4s8ePzc=
+
+Name: res/drawable-ldrtl-hdpi/ic_btn_back.png
+SHA1-Digest-Manifest: ubaYXXQIThZvdeXkIjOTr3NdfyE=
+
+Name: res/drawable-ldrtl-mdpi/ic_btn_back.png
+SHA1-Digest-Manifest: aes/UiRk1pKcxHoD8hvsiBKLWko=
+
+Name: res/drawable-xhdpi/dial_num_4_wht.png
+SHA1-Digest-Manifest: PYMKts0f7zH6Pv7ME66AIqGlXqc=
+
+Name: res/drawable-ar-mdpi/dial_num_2_wht.png
+SHA1-Digest-Manifest: 83ZkJPMXcn/AeLj5JGqIZEAM8rM=
+
+Name: res/xml/callforward_options.xml
+SHA1-Digest-Manifest: 68ckIqMUxx7A9qLUHcUmUiyc7U8=
+
+Name: res/drawable-hdpi/stat_sys_vp_phone_call.png
+SHA1-Digest-Manifest: dE2DX6OfUZMgTn3QdMSi7px4dnQ=
+
+Name: res/drawable-xhdpi/dial_num_pound_wht.png
+SHA1-Digest-Manifest: arLTlw9OmrH57nft/PsktW6SYkc=
+
+Name: res/layout/ip_prefix.xml
+SHA1-Digest-Manifest: krkMeTvX6YVVPy3UcIqknyn+6ho=
+
+Name: res/drawable-ldrtl-mdpi/ic_see_contacts_holo_dark.png
+SHA1-Digest-Manifest: 3aYWZRMqehN/OSKM+4EARuCZpjw=
+
+Name: res/drawable-xhdpi/ic_text_holo_dark.png
+SHA1-Digest-Manifest: T0T2l7AaNGd4OmZwF0FEj+vVbb0=
+
+Name: res/xml/msim_fdn_setting.xml
+SHA1-Digest-Manifest: 1tHLKIdEaL6UgezGrJqb5Oywn5M=
+
+Name: res/drawable-ar-xhdpi/dial_num_4_wht.png
+SHA1-Digest-Manifest: /eWsDk9sJ+3bgiEPlR7xofhfTck=
+
+Name: res/drawable-mdpi/list_pressed_holo_dark.9.png
+SHA1-Digest-Manifest: KqwGIO+fTeK/0LB9Ns0Gt1l55z0=
+
+Name: res/drawable-hdpi/dial_num_8_wht.png
+SHA1-Digest-Manifest: qgB5CSreH9JdU+gT5qh5OodQ0e8=
+
+Name: res/drawable-mdpi/dial_num_3_wht.png
+SHA1-Digest-Manifest: GVw6lQFhwXgqT1vTSIXxHYGkpOE=
+
+Name: res/layout/ims_settings_ui.xml
+SHA1-Digest-Manifest: FQdddTMphsTlEQ5IFRBgahs9Lu0=
+
+Name: res/layout/enable_sim_pin_screen.xml
+SHA1-Digest-Manifest: F4uUSPC3rDlbpM3j/cHzBOdPBrY=
+
+Name: res/drawable-hdpi/dial_num_9_wht.png
+SHA1-Digest-Manifest: vekMItofiW7kgEQREwza/3FYdjY=
+
+Name: res/xml/gsm_umts_additional_options.xml
+SHA1-Digest-Manifest: i8vRSM7XNejtNG5dueSJOC7FfmA=
+
+Name: res/layout/sim_ndp.xml
+SHA1-Digest-Manifest: 4xUlAz3TAGdKmta/WOIs6ExVymo=
+
+Name: res/xml/data_usage_settings.xml
+SHA1-Digest-Manifest: ZecgvuuPIo63S+82PAp1pFhrXTo=
+
+Name: res/drawable-hdpi/dial_num_3_wht.png
+SHA1-Digest-Manifest: 6+3Ays0pbS84FyoSCxV2ndRpobk=
+
+Name: res/drawable-mdpi/ic_menu_contact.png
+SHA1-Digest-Manifest: ObDuGhaGY9gyxxFmcECw3FmbuTs=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_forward_sub2.png
+SHA1-Digest-Manifest: N+MQ4kBYEmRrHmQ+rsqlw5zYKDY=
+
+Name: res/mipmap-mdpi/ic_launcher_contacts.png
+SHA1-Digest-Manifest: nIww0RwVCkdHEcRDQbMMJFrUm7I=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call_on_hold.png
+SHA1-Digest-Manifest: sGHog9pYw1BGACcPQ80J8jHTkGc=
+
+Name: res/drawable-ar-hdpi/dial_num_2_wht.png
+SHA1-Digest-Manifest: n904iSJXVv1RkHUmDdvuJsr9Ux0=
+
+Name: res/drawable/btn_call_cancel.xml
+SHA1-Digest-Manifest: FG/IuPMWjWnbdC4WE1Epj4MU2jQ=
+
+Name: res/drawable-ar-mdpi/dial_num_0_no_plus_wht.png
+SHA1-Digest-Manifest: qj75TSbOQXeZabUeXcFqSF39xIo=
+
+Name: res/drawable-xhdpi/dial_num_3_wht.png
+SHA1-Digest-Manifest: scSc2n41iiNUEV+sbK2I/oxzNa0=
+
+Name: res/drawable-xhdpi/dial_num_2_wht.png
+SHA1-Digest-Manifest: 5WLpZC8ykMdPKKgWY29HcYkWU1A=
+
+Name: res/drawable-ar-hdpi/dial_num_0_no_plus_wht.png
+SHA1-Digest-Manifest: QEV03PJhyPA0mz78c8AWrTABCrQ=
+
+Name: res/drawable-hdpi/picture_emergency32x32.png
+SHA1-Digest-Manifest: L1OIokCGN8JSts4yX6ZoNMxdnWc=
+
+Name: res/drawable-mdpi/ic_see_contacts_holo_dark.png
+SHA1-Digest-Manifest: HvSu2ckhXvnEJugFVVkfRKrGglQ=
+
+Name: res/drawable-xhdpi/ic_dial_action_call.png
+SHA1-Digest-Manifest: EP+ZhezZIOkJSl+mcnRFp9354Nk=
+
+Name: res/drawable-ldrtl-mdpi/picture_emergency32x32.png
+SHA1-Digest-Manifest: mOoyfEo4SaoJvRSpeSPLEqa45qE=
+
+Name: res/drawable-xhdpi/ic_menu_contact.png
+SHA1-Digest-Manifest: IL2HS+89sLJKsBkCIze0npBWCe4=
+
+Name: res/layout/contact_screen.xml
+SHA1-Digest-Manifest: w7LhO+Tfp+9J1rOAb2I37o4nc2w=
+
+Name: res/xml/sip_edit.xml
+SHA1-Digest-Manifest: PBEUPDJxLyM8lvcMhm6MbTy9k7U=
+
+Name: res/xml/gsm_umts_options.xml
+SHA1-Digest-Manifest: bTpXkt9MU4y0x0m1jC0FopFDCKQ=
+
+Name: res/drawable-ldrtl-xhdpi/ic_see_contacts_holo_dark.png
+SHA1-Digest-Manifest: Q2jhXmvQA6/p4HMqqwJgfZlycrU=
+
+Name: res/xml/carrier_select.xml
+SHA1-Digest-Manifest: 0KrDSToy9Txmvk6mIpnFsCZTdOg=
+
+Name: res/drawable-ldrtl-xhdpi/stat_sys_phone_call_forward.png
+SHA1-Digest-Manifest: 5rOSdI+yV7cBFaXx/TzAW4qGHPE=
+
+Name: res/drawable-ldrtl-mdpi/stat_sys_vp_phone_call_on_hold.png
+SHA1-Digest-Manifest: VnilKlmnd0+33V4x5We/MYr8eDg=
+
+Name: res/drawable/btn_call_msim.xml
+SHA1-Digest-Manifest: Aou6YqIMfJvwzRT5hTrEMZMXDDk=
+
+Name: res/drawable-hdpi/list_focused_holo.9.png
+SHA1-Digest-Manifest: vhqnZJqucq+0UQOB69ZsNyOlokU=
+
+Name: res/drawable-hdpi/picture_emergency25x25.png
+SHA1-Digest-Manifest: NR/LLMwEfk8RHpOTh+I3UlgGTbI=
+
+Name: res/drawable-xhdpi/ic_menu_overflow_lt.png
+SHA1-Digest-Manifest: uG6NccY4XpZwqI0Lu7UrFrPhWnY=
+
+Name: res/drawable-hdpi/ic_menu_contact.png
+SHA1-Digest-Manifest: 3UpuHPHgogwC1mtT3yyNxAcFPP4=
+
+Name: res/drawable-hdpi/dial_num_4_wht.png
+SHA1-Digest-Manifest: U69BIJC2hO/PXQo6Jrbg5W5tmts=
+
+Name: res/color/ota_title_color.xml
+SHA1-Digest-Manifest: R4SmXFDkrI2xUx2HlEkeTNsbG4I=
+
+Name: res/drawable-mdpi/dial_num_star_wht.png
+SHA1-Digest-Manifest: Hj78wVsm0PQxuCxaTC+DXyKm2yw=
+
+Name: res/layout/adn_list.xml
+SHA1-Digest-Manifest: G4/KXAszqAxZQ/0cU5vZWmvuYPE=
+
+Name: res/xml/xdivert.xml
+SHA1-Digest-Manifest: WsZBV0DrdjcqP/+VnMI5N8g1WiQ=
+
+Name: res/drawable-hdpi/stat_notify_voicemail_sub2.png
+SHA1-Digest-Manifest: bP0KLELRKt+63lST81cgLcxJoMw=
+
+Name: res/layout/set_subscription_pref_layout.xml
+SHA1-Digest-Manifest: HxA3rpKIsOUJof/gLOJZRvf9fzQ=
+
+Name: res/drawable-hdpi/ic_btn_next.png
+SHA1-Digest-Manifest: ajqGTQq9f3ZUombmYCSGpfaS1D0=
+
+Name: res/drawable-ldrtl-xhdpi/stat_sys_vp_phone_call_on_hold.png
+SHA1-Digest-Manifest: kvT7WM7y6oLJeI/6IbEGiiL9zBA=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_forward_xdivert.png
+SHA1-Digest-Manifest: ENF1R2fKod1SUVLu3KWYVsla4/Y=
+
+Name: res/drawable-xhdpi/dial_num_5_wht.png
+SHA1-Digest-Manifest: LvgpsFYhbIJXzNOKUSwSUb3AQtg=
+
+Name: res/drawable/dialpad_background.xml
+SHA1-Digest-Manifest: P7ftCDpoP2fqalSdJGv9oCmAOBU=
+
+Name: res/drawable-xhdpi/dial_num_8_wht.png
+SHA1-Digest-Manifest: OGW0JM/W1cVzVkPvPQ8o4jtaBMo=
+
+Name: res/xml/network_setting.xml
+SHA1-Digest-Manifest: yozhlrxjWiT3OmwxLiEs/45QZzk=
+
+Name: res/drawable-xhdpi/green_divider.png
+SHA1-Digest-Manifest: YT24N5VfFvAAcMqpvFnX1Cq4i54=
+
+Name: res/mipmap-xxhdpi/ic_launcher_phone.png
+SHA1-Digest-Manifest: ZX5FuaL7ViGRoqD6Z/pRGRap3V8=
+
+Name: res/drawable-xhdpi/dial_num_0_no_plus_wht.png
+SHA1-Digest-Manifest: KoPNgawPUS0R3aBPs2LJw4HUU1w=
+
+Name: res/layout/dialpad.xml
+SHA1-Digest-Manifest: MvkEvcmBTzKtmRb0TNk7Pni54yk=
+
+Name: res/xml/uplmn_list.xml
+SHA1-Digest-Manifest: oM1dDnbHyAYUE3lVoVvP2Fzc7vM=
+
+Name: res/drawable-hdpi/green_divider.png
+SHA1-Digest-Manifest: ujIXfQOL47IXpUVpId7+EJ1hcPM=
+
+Name: res/drawable-xhdpi/ic_active_state_dialer_holo_dark.png
+SHA1-Digest-Manifest: eFQA+/DZM8TTlY3kyfbea4BoY3Y=
+
+Name: res/layout/xdivert_phone_numbers.xml
+SHA1-Digest-Manifest: CyCJuRM6QhSSq4DSuCJUGWi1vog=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call_forward.png
+SHA1-Digest-Manifest: NSr6fpmj5KXczx1J+6v6BgCzYqo=
+
+Name: res/drawable-ldrtl-hdpi/picture_emergency25x25.png
+SHA1-Digest-Manifest: GZGKJEJ4AgnmX1E68vL6jSQwGb0=
+
+Name: res/mipmap-hdpi/ic_launcher_contacts.png
+SHA1-Digest-Manifest: d2UDQswJY0uNCH7rfUxcs1Q49Ao=
+
+Name: res/drawable-ldrtl-xhdpi/picture_emergency25x25.png
+SHA1-Digest-Manifest: n+CBte9sRyeJ3eEr2mK9GSds5h0=
+
+Name: res/drawable-hdpi/list_selector_disabled_holo_dark.9.png
+SHA1-Digest-Manifest: 21ITCEIg9D7Z1DZGJxPRwMpiTak=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call.png
+SHA1-Digest-Manifest: rvANYtocpugAydBGhjU2D4vCzqc=
+
+Name: res/xml/uplmn_editor.xml
+SHA1-Digest-Manifest: FLALnFRZuq0pywyIgi6GxTmRtNY=
+
+Name: res/drawable-mdpi/dial_num_1_no_vm_wht.png
+SHA1-Digest-Manifest: hGo4qSzLzb03JX8+YUQMTeeiQbk=
+
+Name: res/drawable-hdpi/dial_num_6_wht.png
+SHA1-Digest-Manifest: zJVIO4z3KtgXzlFDv6dZB+JcL4Q=
+
+Name: res/layout/pref_dialog_editphonenumber.xml
+SHA1-Digest-Manifest: SB4MWg37BFSfcqff7oP5me/CRp8=
+
+Name: res/mipmap-hdpi/ic_launcher_phone.png
+SHA1-Digest-Manifest: v5PJ/vFAPGEBopAy2l1ZJnupb6U=
+
+Name: res/drawable-ar-xhdpi/dial_num_1_no_vm_wht.png
+SHA1-Digest-Manifest: xJsy9mRUfrwBg9j4JDODYzKC6hU=
+
+Name: res/drawable-mdpi/ims_state.png
+SHA1-Digest-Manifest: CAw9AbfVllSH9fXXbEvev/lN6EU=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_forward.png
+SHA1-Digest-Manifest: qtjL6DIC9iN0j0D1IcCHM9b17ks=
+
+Name: res/drawable-ar-xhdpi/dial_num_6_wht.png
+SHA1-Digest-Manifest: DjyBJI6QQq/WzFCOePWuMe9HnAo=
+
+Name: res/drawable-ar-xhdpi/dial_num_7_wht.png
+SHA1-Digest-Manifest: qmT+YaG5tdaO6O7HSpBm2eCVazo=
+
+Name: res/drawable-xhdpi/stat_notify_voicemail_sub3.png
+SHA1-Digest-Manifest: QxpAuB42IpNIYsE7G6v++tq7HtE=
+
+Name: res/drawable-mdpi/dial_num_4_wht.png
+SHA1-Digest-Manifest: lshOIIAlc67laEuUc+ixMe/tDvA=
+
+Name: res/xml/ims_edit.xml
+SHA1-Digest-Manifest: u+BDsLJkA8Mgs7jMcbUlBbBH2G4=
+
+Name: res/mipmap-xhdpi/ic_launcher_contacts.png
+SHA1-Digest-Manifest: Pb2VcCNdgXfSIbCstIfVrx58GqE=
+
+Name: res/layout/enable_fdn_screen.xml
+SHA1-Digest-Manifest: S7XYq1ee8aAzrQnbE29y9yCEYnQ=
+
+Name: res/drawable/background_dial_holo_dark.xml
+SHA1-Digest-Manifest: 2dQP6/3nEp4r21VhDew+37wS1Fg=
+
+Name: res/drawable-ldrtl-mdpi/ic_text_holo_dark.png
+SHA1-Digest-Manifest: JpHg0scauDbCmrAgzztjWoh6Er4=
+
+Name: res/drawable-hdpi/dial_num_2_wht.png
+SHA1-Digest-Manifest: KAKLsk/iE9f2Ij0oyy6SG63rM7g=
+
+Name: res/layout/emergency_call_list.xml
+SHA1-Digest-Manifest: fAWn1jodA3C90M8cfEeAz6Zw9c8=
+
+Name: res/drawable-xhdpi/dial_num_6_wht.png
+SHA1-Digest-Manifest: 3Xzvx5235zKaUupxnrIQCUn4I+E=
+
+Name: res/drawable-ar-hdpi/dial_num_7_wht.png
+SHA1-Digest-Manifest: RjxdHa0h1E1Ed7sZU47nsecujI4=
+
+Name: res/drawable-hdpi/dial_num_pound_wht.png
+SHA1-Digest-Manifest: rBGisU/KmU2L4Tz7uRB/7isdL5g=
+
+Name: res/drawable-ldrtl-hdpi/stat_sys_phone_call_forward.png
+SHA1-Digest-Manifest: buwk5ft41Q3/o5A5QV5Jchsu79g=
+
+Name: res/drawable-xxhdpi/ic_menu_overflow_lt.png
+SHA1-Digest-Manifest: 3GFNlqfg9S6SXBwaegUrBDZ58wA=
+
+Name: res/drawable-mdpi/stat_sys_phone_call.png
+SHA1-Digest-Manifest: 3WVEOmMD3vCSa9xHKCJ2/kPyMVQ=
+
+Name: res/xml/call_barring.xml
+SHA1-Digest-Manifest: nD6IucgyxMc1ZftrH7dqaQcpZaM=
+
+Name: res/drawable-mdpi/green_divider.png
+SHA1-Digest-Manifest: G8j6vpBUTGpNoTCipiKSzYWuJg8=
+
+Name: res/drawable-xhdpi/stat_notify_voicemail_sub1.png
+SHA1-Digest-Manifest: 69+hLaegHfHpHyZME37eIdLPBOs=
+
+Name: res/drawable-mdpi/dial_num_0_no_plus_wht.png
+SHA1-Digest-Manifest: tktBDrt5QTuMHPQnkGXg0CvPjYc=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call_forward_sub3.png
+SHA1-Digest-Manifest: HuvgN4KnLiDB0gTA/WFWBlVJk5A=
+
+Name: res/drawable-ar-mdpi/dial_num_8_wht.png
+SHA1-Digest-Manifest: iLNQzWIjA1Xt4C6EtzglVgNANqA=
+
+Name: res/xml/call_feature_setting.xml
+SHA1-Digest-Manifest: MawkkJ+0ToRuC5A6fENlYhO89CI=
+
+Name: res/drawable-mdpi/picture_emergency32x32.png
+SHA1-Digest-Manifest: 43k2T0TXa2VlzhxXCFxbxsqaP2c=
+
+Name: res/drawable-xhdpi/dial_num_1_no_vm_wht.png
+SHA1-Digest-Manifest: 09KGTIygxEjLAwaRbQVxTTTWCTA=
+
+Name: res/drawable/call_btn.png
+SHA1-Digest-Manifest: YGO3sFxEioBjT0RxTa1NyRAxw4g=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call_forward_sub2.png
+SHA1-Digest-Manifest: NN974RaNkfqlwKdjT0jxIQ8Yq0Y=
+
+Name: res/drawable-mdpi/ic_dial_action_delete.png
+SHA1-Digest-Manifest: 8Uqq7GzNKbFdEJMVXGcuDZOqrcU=
+
+Name: res/drawable-mdpi/dial_num_7_wht.png
+SHA1-Digest-Manifest: uitJ0W1jy8d+SbAhEY8abqgFQlc=
+
+Name: res/drawable/btn_compound_background.xml
+SHA1-Digest-Manifest: G6AjHgbqf2AqsV5XdWVryfO09eA=
+
+Name: res/xml/msim_call_feature_sub_setting.xml
+SHA1-Digest-Manifest: wWHtzTHDLOptWf6tDmLem5Ak2+w=
+
+Name: res/drawable-ldrtl-xhdpi/stat_sys_vp_phone_call.png
+SHA1-Digest-Manifest: yfvbWceIiyk2Sw3K/Zo0CIZMO4c=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_forward_sub3.png
+SHA1-Digest-Manifest: 0xk+tIOVelt+9gVn2h3PFwTrQ1A=
+
+Name: res/xml/ims_settings_category.xml
+SHA1-Digest-Manifest: 0uUezn0ggmKn0kOR48585c9tO6o=
+
+Name: res/drawable-ar-mdpi/dial_num_3_wht.png
+SHA1-Digest-Manifest: NIB9EvW/Kd7FGO+F7HUzsoEnrRc=
+
+Name: res/drawable/list_selector_focused_and_checked.xml
+SHA1-Digest-Manifest: lEwlM+dIxSt89xAJlRbCQpXyUtk=
+
+Name: res/drawable/btn_cancel_pressed.png
+SHA1-Digest-Manifest: SDHSJrVMrjMD1RpUwhA17glf0Sg=
+
+Name: res/drawable/btn_call.xml
+SHA1-Digest-Manifest: khHC1Mp5YkAItYqMBIGFQmAcfak=
+
+Name: res/xml/gsm_umts_call_options.xml
+SHA1-Digest-Manifest: ib75Kd7pxOz8BvFAwkO84OMlgo4=
+
+Name: res/drawable-xhdpi/dial_num_9_wht.png
+SHA1-Digest-Manifest: sUP5BT3wGT9G78M96REjxhvV3gc=
+
+Name: res/drawable/call_btn_press_highlight.png
+SHA1-Digest-Manifest: KaB0Hhm450hlbDnFI3OdMPUaQSw=
+
+Name: res/drawable-xhdpi/dial_num_7_wht.png
+SHA1-Digest-Manifest: 7OdB2QM39c8tKyD1y0GE7LEjMS8=
+
+Name: res/drawable-xhdpi/stat_sys_vp_phone_call.png
+SHA1-Digest-Manifest: Xu49zkSv3yP1aXZ+7THbDBLrxVI=
+
+Name: res/xml/cell_broadcast_sms.xml
+SHA1-Digest-Manifest: EMAfJFIusPyV7rfo5EQi3AH2T3E=
+
+Name: res/drawable-mdpi/ic_btn_next.png
+SHA1-Digest-Manifest: o24dh+f+0hW3yozPVo3WyQL8Ehg=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_forward_sub2.png
+SHA1-Digest-Manifest: dKNAqkJYEMclsJXoC7shAyZt6tA=
+
+Name: res/drawable-ar-hdpi/dial_num_3_wht.png
+SHA1-Digest-Manifest: aiECSjBKRexprkL6BO5cDJABRRo=
+
+Name: res/layout/sim_import_list_entry.xml
+SHA1-Digest-Manifest: l/XSU4qNU7Whf1aBp45SDezUBM4=
+
+Name: res/drawable-mdpi/dial_background_texture.png
+SHA1-Digest-Manifest: fGImapN2+M2zJr+9k7zsyWmkus4=
+
+Name: res/drawable-hdpi/ims_state.png
+SHA1-Digest-Manifest: Zru1tQwVM369SNQijc4YE2UCbA0=
+
+Name: res/drawable-mdpi/dial_num_pound_wht.png
+SHA1-Digest-Manifest: Pdxqe7ZArhc7lhzvHte/uZy6lTk=
+
+Name: res/mipmap-mdpi/ic_launcher_phone.png
+SHA1-Digest-Manifest: LTpfQXVrJrUlCBHXaUOgpvB6Xnc=
+
+Name: res/drawable/highlight_btn_call.xml
+SHA1-Digest-Manifest: bPHOp/NqIJJpdsNw3UnOhaTavYc=
+
+Name: res/drawable-ar-mdpi/dial_num_7_wht.png
+SHA1-Digest-Manifest: VkujPscg1Ihnaq552/ZOzo5sdok=
+
+Name: res/drawable-mdpi/stat_notify_voicemail_sub1.png
+SHA1-Digest-Manifest: 5CngBkVd0wdsGiCcu8ccpK/RU5E=
+
+Name: res/drawable-xxhdpi/ic_back_arrow.png
+SHA1-Digest-Manifest: vZigaU1E9VkcmeWgzLWtxVMXJSc=
+
+Name: res/drawable-xhdpi/stat_sys_vp_phone_call_on_hold.png
+SHA1-Digest-Manifest: Pz+iwddpBZCAp6pQM7gBbL4Pto8=
+
+Name: res/drawable-mdpi/stat_sys_vp_phone_call.png
+SHA1-Digest-Manifest: 0PumM+dfitVv3zlNpaW1FEz04jI=
+
+Name: res/xml/callforward_cdma_options.xml
+SHA1-Digest-Manifest: yr1zQYZpwWxPPfoU8ijF+siy5Eo=
+
+Name: res/drawable-mdpi/ic_btn_back.png
+SHA1-Digest-Manifest: CHeLWRM315xSMpctKeM1kNxhnYk=
+
+Name: res/layout/export_contact_screen.xml
+SHA1-Digest-Manifest: uvjOp/oNoFpIvTfVN4QR1+rZ3aQ=
+
+Name: res/drawable-xhdpi/list_focused_holo.9.png
+SHA1-Digest-Manifest: GfEel4j616FLX2NPofXS4P4hnwk=
+
+Name: res/layout/outgoing_call_broadcaster.xml
+SHA1-Digest-Manifest: QFd0yQFCAvVy3yA4XzwKAqtRhCM=
+
+Name: res/xml/set_subscription_pref.xml
+SHA1-Digest-Manifest: Hc09nc27Q7lULNt4Wm2LPlYBMOs=
+
+Name: res/mipmap-xhdpi/ic_launcher_phone.png
+SHA1-Digest-Manifest: 4zVoxXXdGkESIu9qjLO7Jn9BXBw=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_forward_sub1.png
+SHA1-Digest-Manifest: tJITEo0UfIert+AM7goCZGJYiWU=
+
+Name: res/drawable-xhdpi/ic_btn_back.png
+SHA1-Digest-Manifest: xsjSKsEBk6j3sIIqZDshUaH1jAc=
+
+Name: res/drawable-xhdpi/stat_sys_phone_call_end.png
+SHA1-Digest-Manifest: d+QiWaNQ+F3r8cFO0G7q9ug1txo=
+
+Name: res/drawable-mdpi/dial_num_5_wht.png
+SHA1-Digest-Manifest: 7fd1x4pno8RxXkdLMxX07dFmC8s=
+
+Name: res/drawable-xhdpi/ims_state.png
+SHA1-Digest-Manifest: qz67MOiPK0dtKEM7BESznXIrTII=
+
+Name: res/drawable-ldrtl-hdpi/stat_sys_vp_phone_call_on_hold.png
+SHA1-Digest-Manifest: GGFwRvoBLEa/Y8tGvn8d4hoe04M=
+
+Name: res/drawable-xhdpi/stat_notify_voicemail_sub2.png
+SHA1-Digest-Manifest: q/xq8VmMKzYTr9Qgym2+euYUtzI=
+
+Name: res/drawable-mdpi/ic_launcher_sip_call.png
+SHA1-Digest-Manifest: fHEfhftd4owiSdDIThIgxd+HY7I=
+
+Name: res/layout/pref_dialog_editpin.xml
+SHA1-Digest-Manifest: VM5IBsdpoUZvsPjljfhsj6oiLwQ=
+
+Name: res/drawable-ar-hdpi/dial_num_4_wht.png
+SHA1-Digest-Manifest: UQSM67SYBLBM7/5R57Lt9uU+SGs=
+
+Name: res/drawable-xhdpi/ic_back_arrow.png
+SHA1-Digest-Manifest: SBdcmbCCScbuv35SpZkwzXDxewg=
+
+Name: res/layout/change_sim_pin_screen.xml
+SHA1-Digest-Manifest: v3cip1g0cXk4c5/oQ9QyBNaJ+eQ=
+
+Name: res/drawable-ar-mdpi/dial_num_1_no_vm_wht.png
+SHA1-Digest-Manifest: CMhN/Akl8vd261N+iPT5lkkdo90=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_end.png
+SHA1-Digest-Manifest: e32ypfihYEMtnVA3HUtukE9HFN4=
+
+Name: res/xml/fdn_setting.xml
+SHA1-Digest-Manifest: BxUcD8e97YZW5i1nUaE94QatpDY=
+
+Name: res/drawable-xhdpi/list_selector_disabled_holo_dark.9.png
+SHA1-Digest-Manifest: KiAxsV0AP9GeAEuoZDLxytinNHs=
+
+Name: res/drawable-ar-hdpi/dial_num_5_wht.png
+SHA1-Digest-Manifest: pWiApHzbI33mO9x5g2l57P7EQyU=
+
+Name: res/drawable-xhdpi/ic_see_contacts_holo_dark.png
+SHA1-Digest-Manifest: e8APreddkz2AA7cGcS9TCAf1of8=
+
+Name: res/xml/sip_setting.xml
+SHA1-Digest-Manifest: 7Sb3417QNZ39nqgqioWahrorIFs=
+
+Name: res/drawable-ldrtl-xhdpi/ic_btn_back.png
+SHA1-Digest-Manifest: xpH7POX2jHM4nyeJGBFoihMSENk=
+
+Name: res/drawable-ar-xhdpi/dial_num_9_wht.png
+SHA1-Digest-Manifest: ZMfKplngztj0O/oKFfQTDzvA9Hk=
+
+Name: res/drawable-xhdpi/list_pressed_holo_dark.9.png
+SHA1-Digest-Manifest: vzHZKRsuPb3MRNykYa2HxQmajn4=
+
+Name: res/drawable-ldrtl-xhdpi/ic_dial_action_call.png
+SHA1-Digest-Manifest: j8vjwnWFLUDePDqDb0uUfgFJ2HA=
+
+Name: res/drawable-ldrtl-hdpi/picture_emergency32x32.png
+SHA1-Digest-Manifest: 6qZAOEtaijRJKYeYj1pkbr6vA1g=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_end.png
+SHA1-Digest-Manifest: J98sVMpSzaKT6cI3By35F+gCbbA=
+
+Name: resources.arsc
+SHA1-Digest-Manifest: Lo/gRNuf8lbcK+BqWoRC0Fkgc1U=
+
+Name: AndroidManifest.xml
+SHA1-Digest-Manifest: QDTd8S9VMLVZElhWPBgtqAdQdMQ=
+
+Name: res/drawable-ldrtl-hdpi/stat_sys_phone_call.png
+SHA1-Digest-Manifest: 43Uoe5Q0u55D/su0Z2JW1Z8ZA88=
+
+Name: res/xml/respond_via_sms_settings.xml
+SHA1-Digest-Manifest: Xx36TEeMqGIb7gmt8x5L4jjznDg=
+
+Name: res/drawable-hdpi/btn_call_pressed.png
+SHA1-Digest-Manifest: pnfumysR6laIZ9FhprFiavPUYjU=
+
+Name: res/drawable-ldrtl-hdpi/stat_sys_phone_call_on_hold.png
+SHA1-Digest-Manifest: UKkv6ZDVaT3Iel+XOx+ljUS8I6c=
+
+Name: res/drawable-mdpi/btn_call_pressed.png
+SHA1-Digest-Manifest: QqbCE9su6HGk9Aqc5rtAF+ne64g=
+
+Name: res/drawable-mdpi/ic_back_arrow.png
+SHA1-Digest-Manifest: oRm86DhsiTrgHV989RX9zrxiGq0=
+
+Name: res/drawable-hdpi/ic_btn_back.png
+SHA1-Digest-Manifest: oo92HWNrgSS9P+UASQtLxSYkEqE=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_forward_sub1.png
+SHA1-Digest-Manifest: Q6WMYlP5yv+a4KtXxCa5mzREWlY=
+
+Name: res/drawable-hdpi/ic_dial_action_delete.png
+SHA1-Digest-Manifest: JYNHD3JTqiAiKKiEVpeXPPnx+ww=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_on_hold.png
+SHA1-Digest-Manifest: sqk1+af5R0wLMwOUYxKa+Ewn/Q4=
+
+Name: res/drawable-ar-hdpi/dial_num_8_wht.png
+SHA1-Digest-Manifest: MD0M94jHoW936/9/i5clYYQrXEw=
+
+Name: res/drawable-hdpi/stat_notify_voicemail_sub3.png
+SHA1-Digest-Manifest: GYXomSbBDVBDh3t2B3FBdY+oyNc=
+
+Name: res/drawable-ldrtl-mdpi/ic_dial_action_call.png
+SHA1-Digest-Manifest: JINgqEqVtuqCYvPokyejJHzdLxg=
+
+Name: res/drawable-mdpi/stat_notify_voicemail_sub2.png
+SHA1-Digest-Manifest: qJPjNuJj5bum/SP1zImmNN0kQdA=
+
+Name: res/drawable-mdpi/ic_dial_action_call.png
+SHA1-Digest-Manifest: su4gt9RCOy1KMsNeB3GBSJeZ5RA=
+
+Name: classes.dex
+SHA1-Digest-Manifest: ERw5VWjBTo3tzDthM2aM8GNszvo=
+
+Name: res/drawable-mdpi/ic_menu_overflow_lt.png
+SHA1-Digest-Manifest: KMpOzDKG+J09CVi7Rl/ei/Nn2Ig=
+
+Name: res/drawable-hdpi/ic_menu_overflow_lt.png
+SHA1-Digest-Manifest: qUkm9LgkYgAFc/v2S5CtS12EdVg=
+
+Name: res/drawable-ar-xhdpi/dial_num_2_wht.png
+SHA1-Digest-Manifest: ggzjCWFMCK41ode99u4dwq9bIHc=
+
+Name: res/layout/dialog_ussd_response.xml
+SHA1-Digest-Manifest: 2/ZF+EmIZOqa2wJr4pFJzdMe0Ds=
+
+Name: res/layout/edit_fdn_contact_screen.xml
+SHA1-Digest-Manifest: rkcgNUsnZaH8Ll4cqxEmwDXiy+I=
+
+Name: res/drawable-ldrtl-hdpi/ic_btn_next.png
+SHA1-Digest-Manifest: 2RhS+TwArUW3rQckQg4Xj2QLytI=
+
+Name: res/drawable-xhdpi/dial_num_star_wht.png
+SHA1-Digest-Manifest: 490pvRzOvz3lIoTNsLYyIwvP/N8=
+
+Name: res/drawable-ldrtl-mdpi/picture_emergency25x25.png
+SHA1-Digest-Manifest: FSQsrpoEhune7I1P2gpmKCe95AY=
+
+Name: res/drawable-ldrtl-mdpi/stat_sys_phone_call.png
+SHA1-Digest-Manifest: 1j5sMniVZS7FA8aPHq+0MuKPSX0=
+
+Name: res/layout/fake_phone_activity.xml
+SHA1-Digest-Manifest: MXuaxReL0tfailtTfHmmMPkTIPk=
+
+Name: res/xml/sip_settings_category.xml
+SHA1-Digest-Manifest: nCk+QkSZriDGQrr5QF5vIxvdkFI=
+
+Name: res/drawable-ldrtl-xhdpi/picture_emergency32x32.png
+SHA1-Digest-Manifest: IzyL+CrQvV2SZVNXmSWKlrCTOPk=
+
+Name: res/xml/msim_network_setting.xml
+SHA1-Digest-Manifest: oEAnb2CsFIm5ARgYVYV261MzR4E=
+
+Name: res/drawable-xhdpi/picture_emergency25x25.png
+SHA1-Digest-Manifest: wgYxwLIZQ+ceV33PvahxiYv1BVo=
+
+Name: res/layout/new_emergency_call_number.xml
+SHA1-Digest-Manifest: c19E1RhLfWckwPKF++m3BEJlKa0=
+
+Name: res/drawable-hdpi/ic_active_state_dialer_holo_dark.png
+SHA1-Digest-Manifest: csVJEW8/DFR5yO2cWWLoDkmoJhE=
+
+Name: res/drawable-ar-mdpi/dial_num_5_wht.png
+SHA1-Digest-Manifest: OBDrFilOibKBUeEkKJQivVMLyhU=
+
+Name: res/drawable-ar-hdpi/dial_num_6_wht.png
+SHA1-Digest-Manifest: osublJDRxmD0b+Gjmm8biPLIk8Q=
+
+Name: res/drawable-hdpi/ic_launcher_sip_call.png
+SHA1-Digest-Manifest: rCpo60ufTdQg/CN26NaRtCsbAA0=
+
+Name: res/drawable-mdpi/picture_emergency25x25.png
+SHA1-Digest-Manifest: Yd5q3O+t8ARH6T3uFqFZuW1OAD0=
+
+Name: res/drawable-ar-hdpi/dial_num_1_no_vm_wht.png
+SHA1-Digest-Manifest: M+mz4uKRzM1rZPNx9ZpsJ6e2IbQ=
+
+Name: res/xml/msim_network_sub_setting.xml
+SHA1-Digest-Manifest: HZwuuSM0iAN9BGFgX28NMlfME4U=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_forward_xdivert.png
+SHA1-Digest-Manifest: HccliLrXnWw87IK/nuJFga29SaU=
+
+Name: res/xml/cdma_options.xml
+SHA1-Digest-Manifest: kcsm32IWa8nJDHV8avhBYZV9atQ=
+
+Name: res/drawable-mdpi/dial_num_9_wht.png
+SHA1-Digest-Manifest: 1P1ElUG9rKHz5VTthZdSkODGKyE=
+
+Name: res/drawable-ar-hdpi/dial_num_9_wht.png
+SHA1-Digest-Manifest: 5MYciXURvQiPR2YDhice/ZxXHMM=
+
+Name: res/drawable-ldrtl-hdpi/ic_see_contacts_holo_dark.png
+SHA1-Digest-Manifest: PQ3Ugx7BY8J3QC7X+u+CTXJ4fAk=
+
+Name: res/xml/sip_advanced_edit.xml
+SHA1-Digest-Manifest: OssBZgY26nUxYKuoklvnt5zcUmk=
+
+Name: res/drawable-hdpi/stat_notify_voicemail_sub1.png
+SHA1-Digest-Manifest: cXbxeNoyKqZ/GcbBtmzuZsRip9c=
+
+Name: res/drawable-ar-mdpi/dial_num_6_wht.png
+SHA1-Digest-Manifest: yYy+UAhiigBGRS3eVxukQMDehnU=
+
+Name: res/drawable-xhdpi/btn_call_pressed.png
+SHA1-Digest-Manifest: LSjZ9x8XQ+cOziNYADyt5gEua7I=
+
+Name: res/drawable-mdpi/list_selector_disabled_holo_dark.9.png
+SHA1-Digest-Manifest: 1xD+lBav6nG+BW+gZ3tAtVG2Zjg=
+
+Name: res/layout/sip_settings_ui.xml
+SHA1-Digest-Manifest: XspSbpXVI/gJgQJ2EP9ZAjJUca4=
+
+Name: res/drawable-mdpi/dial_num_2_wht.png
+SHA1-Digest-Manifest: cSipnQZIMCDB+yHcbtuh2XfCy0c=
+
+Name: res/drawable-ldrtl-mdpi/stat_sys_vp_phone_call.png
+SHA1-Digest-Manifest: 0cNYJSwh6PA4vOUw/B5MMoeqgfg=
+
+Name: res/drawable-hdpi/dial_num_1_no_vm_wht.png
+SHA1-Digest-Manifest: sr11Chr/gXV7da4yhdeotOGQG6A=
+
+Name: res/drawable/call_btn_press.png
+SHA1-Digest-Manifest: 36Jmm6cKFq7oFahjbeGRmocrISM=
+
+Name: res/drawable-hdpi/list_pressed_holo_dark.9.png
+SHA1-Digest-Manifest: 6oh+MESxkOjY1pezlgUCaZdrayY=
+
+Name: res/drawable-xhdpi/ic_dial_action_delete.png
+SHA1-Digest-Manifest: WQ4ji/0VD2MhO4rOn5hsnzqQq/Y=
+
+Name: res/menu/emergency_call_list_menu.xml
+SHA1-Digest-Manifest: D5n/dbQ0RvUTAeGRPfeWbFYXu3s=
+
+Name: res/drawable-mdpi/stat_sys_phone_call_forward.png
+SHA1-Digest-Manifest: v5VtPYBTYXoQ60Umjq18APJF7Dk=
+
+Name: res/mipmap-xxxhdpi/ic_launcher_contacts.png
+SHA1-Digest-Manifest: 45SDzVuK/HYEuCPBXhU5SyrZUQo=
+
+Name: res/drawable-mdpi/dial_num_8_wht.png
+SHA1-Digest-Manifest: DZxu2b8kgdY1WIIrwO+YkwhA+jg=
+
+Name: res/drawable-xhdpi/picture_emergency32x32.png
+SHA1-Digest-Manifest: wvid7Kx9asWDVB/RyXFHvx1loHs=
+
+Name: res/drawable-hdpi/ic_back_arrow.png
+SHA1-Digest-Manifest: KdXOcdr3UJZkldgEMf69fpl/DIk=
+
+Name: res/xml/cdma_call_privacy.xml
+SHA1-Digest-Manifest: NX1E84eJ3qLmDDerogEPDJ2kEIE=
+
+Name: res/drawable/actionbar_background.xml
+SHA1-Digest-Manifest: EHO2wbjwIdWUYSVAxcjiu2Aatys=
+
+Name: res/drawable-mdpi/ic_text_holo_dark.png
+SHA1-Digest-Manifest: ttXeMTPcWiAgBHlYLuu/RiJArrA=
+
+Name: res/mipmap-xxxhdpi/ic_launcher_phone.png
+SHA1-Digest-Manifest: OPSyYxpGLvH25ST3eJDn85qydwE=
+
+Name: res/drawable-ldrtl-xhdpi/stat_sys_phone_call.png
+SHA1-Digest-Manifest: Z169h+cnJqHKJl+TuCJxHiLy380=
+
+Name: res/drawable-ldrtl-mdpi/stat_sys_phone_call_on_hold.png
+SHA1-Digest-Manifest: FFaK2X8qF/rAMJC50d+eCQTQ2wc=
+
+Name: res/drawable-ldrtl-hdpi/ic_dial_action_call.png
+SHA1-Digest-Manifest: 9q4vW0f0PfU6nPNs72Fe9CAlowQ=
+
+Name: res/drawable-hdpi/ic_dial_action_call.png
+SHA1-Digest-Manifest: H+dAjtmzWweCguIeSfC9b4tQpMA=
+
+Name: res/drawable-ldrtl-hdpi/stat_sys_vp_phone_call.png
+SHA1-Digest-Manifest: 2FDAFTbW13wmfC1kHEYkQUxKxdY=
+
+Name: res/drawable-ar-xhdpi/dial_num_8_wht.png
+SHA1-Digest-Manifest: mi099YkhUB7Hg3bbz5tuPk/3YLk=
+
+Name: res/layout/emergency_dialer.xml
+SHA1-Digest-Manifest: tdVAGGALt6oWZENJHlAozweHhK0=
+
+Name: res/mipmap-xxhdpi/ic_launcher_contacts.png
+SHA1-Digest-Manifest: aDq5hNbuzCgFnQ1ehPX+fF3HJkw=
+
+Name: res/drawable-ar-xhdpi/dial_num_5_wht.png
+SHA1-Digest-Manifest: a5mxqZCvpPgZ0qv6HLqY0mEezwg=
+
+Name: res/menu/respond_via_message_settings_menu.xml
+SHA1-Digest-Manifest: OH4csgM8w7eN5NvM6TTt4mDtBKs=
+
+Name: res/drawable-mdpi/dial_num_6_wht.png
+SHA1-Digest-Manifest: F328nX6YbjHaGJJNKWZy9qSE4Is=
+
+Name: res/drawable-hdpi/dial_num_star_wht.png
+SHA1-Digest-Manifest: a7mS1RlWKytgzsKSP+f1RTQckFg=
+
+Name: res/layout/multi_sim_setting.xml
+SHA1-Digest-Manifest: 5cM6AFV2zZPj9AL116bz3Hax/Sk=
+
+Name: res/drawable-hdpi/stat_sys_vp_phone_call_on_hold.png
+SHA1-Digest-Manifest: yNcBQx1wh/Enm979jQCpfE2Lx7k=
+
+Name: res/drawable-mdpi/stat_sys_vp_phone_call_on_hold.png
+SHA1-Digest-Manifest: XI+iEf8i7qR0vnaVcDNZ/3P1wyE=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_forward_sub3.png
+SHA1-Digest-Manifest: Fpdh15O5+3ljKt07w1jRG1jIKnU=
+
+Name: res/drawable-ar-xhdpi/dial_num_0_no_plus_wht.png
+SHA1-Digest-Manifest: ZEO2oVt6UYsyUSaAltHZ51bFT6Q=
+
+Name: res/drawable-ldrtl-xhdpi/ic_text_holo_dark.png
+SHA1-Digest-Manifest: YrU6vrx7d20eZGOi69HVWdPW+lk=
+
+Name: res/drawable-ar-mdpi/dial_num_9_wht.png
+SHA1-Digest-Manifest: WcwNnEmCP4fwV9Z10TOixYTEf10=
+
+Name: res/xml/msim_call_feature_setting.xml
+SHA1-Digest-Manifest: GpxrjNZ27Leg5sc/64KRk92llAY=
+
+Name: res/drawable-hdpi/stat_sys_phone_call_on_hold.png
+SHA1-Digest-Manifest: Y+YtOVkcauUvn0ZpSclLi5N0wR8=
+
+Name: res/drawable-ar-xhdpi/dial_num_3_wht.png
+SHA1-Digest-Manifest: b4STbQY9VMdcXe1j1wBZPjtwVJw=
+
+Name: res/drawable-xhdpi/ic_launcher_sip_call.png
+SHA1-Digest-Manifest: TWmSW06V28ehUJCfj0Xl+YURrho=
+
+Name: res/drawable-xhdpi/ic_btn_next.png
+SHA1-Digest-Manifest: eB8otNlmikUL8vtK/9h0dpUxQdw=
+
+Name: res/drawable-hdpi/dial_num_0_no_plus_wht.png
+SHA1-Digest-Manifest: nRLFfvivqb7Q6TU8ZMHTmL2cKNg=
+
+Name: res/drawable-ldrtl-mdpi/stat_sys_phone_call_forward.png
+SHA1-Digest-Manifest: M4Kwt8/x7HGXhsuNriIw9LW4TWQ=
+
+Name: res/layout/get_pin2_screen.xml
+SHA1-Digest-Manifest: 9C/hVVjDcI5UTBHv2sZbjz9FAGM=
+

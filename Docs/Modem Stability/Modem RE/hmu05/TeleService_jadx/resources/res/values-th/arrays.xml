@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="clir_display_values">
+        <item>ค่าเริ่มต้นของเครือข่าย</item>
+        <item>ซ่อนหมายเลข</item>
+        <item>แสดงหมายเลข</item>
+    </array>
+    <array name="clir_values">
+        <item>DEFAULT</item>
+        <item>HIDE</item>
+        <item>SHOW</item>
+    </array>
+    <array name="preferred_network_mode_choices_lte">
+        <item>@string/preferred_network_mode_lte</item>
+        <item>@string/preferred_network_mode_4g_3g_2g_lte</item>
+        <item>@string/preferred_network_mode_4g_3g_2g_td</item>
+        <item>@string/preferred_network_mode_tdscdma_only</item>
+    </array>
+    <array name="preferred_network_mode_values_lte">
+        <item>11</item>
+        <item>20-1</item>
+        <item>20-2</item>
+        <item>13</item>
+    </array>
+    <array name="preferred_network_mode_choices_tdscdma">
+        <item>@string/preferred_network_mode_tdscdma_only</item>
+        <item>@string/preferred_network_mode_gsm_only</item>
+        <item>@string/preferred_network_mode_3g_2g_auto</item>
+    </array>
+    <array name="preferred_network_mode_values_tdscdma">
+        <item>13</item>
+        <item>1</item>
+        <item>18</item>
+    </array>
+    <array name="preferred_network_mode_choices_cmcc">
+        <item>@string/preferred_network_mode_4g_3g_2g_4g</item>
+        <item>@string/preferred_network_mode_4g_3g_2g_3g</item>
+        <item>@string/preferred_network_mode_3g_2g_auto</item>
+    </array>
+    <array name="preferred_network_mode_values_cmcc">
+        <item>20-1</item>
+        <item>20-2</item>
+        <item>18</item>
+    </array>
+    <array name="preferred_network_mode_choices">
+        <item>TD-SCDMA/LTE/GSM/WCDMA/CDMA/EVDO</item>
+        <item>TD-SCDMA/GSM/WCDMA/CDMA/EVDO</item>
+        <item>TD-SCDMA/GSM/WCDMA/LTE</item>
+        <item>TD-SCDMA/WCDMA/LTE</item>
+        <item>TD-SCDMA/GSM/WCDMA</item>
+        <item>TD-SCDMA/GSM/LTE</item>
+        <item>TD-SCDMA/GSM</item>
+        <item>TD-SCDMA/LTE</item>
+        <item>TD-SCDMA/WCDMA</item>
+        <item>TD-SCDMA เท่านั้น</item>
+        <item>LTE / WCDMA</item>
+        <item>LTE</item>
+        <item>ทั่วโลก</item>
+        <item>GSM/WCDMA/LTE</item>
+        <item>CDMA + LTE/EvDo</item>
+        <item>CDMA/EvDo/GSM/WCDMA</item>
+        <item>EvDo เท่านั้น</item>
+        <item>CDMA w/o EvDo</item>
+        <item>CDMA/EvDo อัตโนมัติ</item>
+        <item>GSM/WCDMA อัตโนมัติ</item>
+        <item>WCDMA เท่านั้น</item>
+        <item>GSM เท่านั้น</item>
+        <item>ต้องการ GSM/WCDMA</item>
+    </array>
+    <array name="preferred_network_mode_values">
+        <item>22</item>
+        <item>21</item>
+        <item>20</item>
+        <item>19</item>
+        <item>18</item>
+        <item>17</item>
+        <item>16</item>
+        <item>15</item>
+        <item>14</item>
+        <item>13</item>
+        <item>12</item>
+        <item>11</item>
+        <item>10</item>
+        <item>9</item>
+        <item>8</item>
+        <item>7</item>
+        <item>6</item>
+        <item>5</item>
+        <item>4</item>
+        <item>3</item>
+        <item>2</item>
+        <item>1</item>
+        <item>0</item>
+    </array>
+    <array name="list_language_entries">
+        <item>อังกฤษ</item>
+        <item>ฝรั่งเศส</item>
+        <item>สเปน</item>
+        <item>ญี่ปุ่น</item>
+        <item>เกาหลี</item>
+        <item>จีน</item>
+        <item>ฮีบรู</item>
+    </array>
+    <array name="list_language_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+    </array>
+    <array name="enabled_networks_except_gsm_choices">
+        <item>@string/network_lte</item>
+        <item>@string/network_3G</item>
+    </array>
+    <array name="enabled_networks_except_gsm_4g_choices">
+        <item>@string/network_4G</item>
+        <item>@string/network_3G</item>
+    </array>
+    <array name="enabled_networks_except_gsm_values">
+        <item>9</item>
+        <item>0</item>
+    </array>
+    <array name="enabled_networks_except_lte_choices">
+        <item>@string/network_3G</item>
+        <item>@string/network_2G</item>
+    </array>
+    <array name="enabled_networks_except_lte_values">
+        <item>0</item>
+        <item>1</item>
+    </array>
+    <array name="enabled_networks_except_gsm_lte_choices">
+        <item>@string/network_3G</item>
+    </array>
+    <array name="enabled_networks_except_gsm_lte_values">
+        <item>0</item>
+    </array>
+    <array name="enabled_networks_choices">
+        <item>@string/network_lte</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_2G</item>
+    </array>
+    <array name="enabled_networks_4g_choices">
+        <item>@string/network_4G</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_2G</item>
+    </array>
+    <array name="enabled_networks_values">
+        <item>9</item>
+        <item>0</item>
+        <item>1</item>
+    </array>
+    <array name="enabled_networks_cdma_choices">
+        <item>@string/network_lte</item>
+        <item>@string/network_3G</item>
+        <item>@string/network_1x</item>
+        <item>@string/network_global</item>
+    </array>
+    <array name="enabled_networks_cdma_values">
+        <item>8</item>
+        <item>4</item>
+        <item>5</item>
+        <item>10</item>
+    </array>
+    <array name="cdma_system_select_choices">
+        <item>โทรกลับบ้านเท่านั้น</item>
+        <item>อัตโนมัติ</item>
+    </array>
+    <array name="cdma_system_select_values">
+        <item>0</item>
+        <item>2</item>
+    </array>
+    <array name="cdma_subscription_choices">
+        <item>RUIM/SIM</item>
+        <item>NV</item>
+    </array>
+    <array name="cdma_subscription_values">
+        <item>0</item>
+        <item>1</item>
+    </array>
+    <array name="tty_mode_entries">
+        <item>ปิด TTY</item>
+        <item>TTY เต็ม</item>
+        <item>TTY HCO</item>
+        <item>TTY VCO</item>
+    </array>
+    <array name="tty_mode_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </array>
+    <array name="dtmf_tone_entries">
+        <item>ปกติ</item>
+        <item>ยาว</item>
+    </array>
+    <array name="dtmf_tone_values">
+        <item>0</item>
+        <item>1</item>
+    </array>
+    <array name="absent_num">
+        <item>ABSENT NUMBER</item>
+        <item>ABSENTNUMBER</item>
+    </array>
+    <array name="voicemail_notification_vibrate_when_values">
+        <item>always</item>
+        <item>silent</item>
+        <item>never</item>
+    </array>
+    <array name="call_barring_outgoing_display_values">
+        <item>ปิด</item>
+        <item>การโรมมิ่งระหว่างประเทศ</item>
+        <item>การโทรระหว่างประเทศ</item>
+        <item>การโทรออก</item>
+    </array>
+    <array name="call_barring_outgoing_values">
+        <item>-1</item>
+        <item>2</item>
+        <item>1</item>
+        <item>0</item>
+    </array>
+    <array name="call_barring_incoming_display_values">
+        <item>ปิด</item>
+        <item>โรมมิ่ง</item>
+        <item>ทั้งหมด</item>
+    </array>
+    <array name="call_barring_incoming_values">
+        <item>-2</item>
+        <item>4</item>
+        <item>3</item>
+    </array>
+</resources>

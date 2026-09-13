@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" xmlns:phone="http://schemas.android.com/apk/res/com.android.phone" android:title="@string/xdivert_button">
+    <com.android.phone.XDivertCheckBoxPreference
+        android:persistent="false"
+        android:title="@string/xdivert_title"
+        android:key="xdivert_checkbox"
+        android:summaryOn="@string/sum_xdivert_enabled"
+        android:summaryOff="@string/sum_xdivert_disabled"/>
+</PreferenceScreen>

@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="IccPanel" parent="">
+        <item name="android:windowBackground">@drawable/grayBg</item>
+        <item name="android:windowFrame">@null</item>
+    </style>
+    <style name="info_label" parent="">
+        <item name="android:textAppearance">@style/TextAppearance.info_label</item>
+        <item name="android:layout_width">-2</item>
+        <item name="android:layout_height">-2</item>
+        <item name="android:paddingEnd">4dp</item>
+    </style>
+    <style name="info_layout" parent="">
+        <item name="android:orientation">1</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:layout_width">-1</item>
+        <item name="android:layout_height">-1</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+    </style>
+    <style name="entry_layout" parent="">
+        <item name="android:orientation">1</item>
+        <item name="android:layout_width">-2</item>
+        <item name="android:layout_height">-2</item>
+    </style>
+    <style name="TextAppearance" parent="@android:style/TextAppearance">
+    </style>
+    <style name="TextAppearance.info_label" parent="@style/TextAppearance">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">0x1</item>
+    </style>
+    <style name="EditPhoneNumberPreference" parent="">
+        <item name="enableButtonText">@string/enable</item>
+        <item name="disableButtonText">@string/disable</item>
+        <item name="changeNumButtonText">@string/change_num</item>
+        <item name="confirmMode">activation</item>
+    </style>
+    <style name="ccOtaButtonBar" parent="">
+        <item name="android:background">@android:drawable/bottom_bar</item>
+        <item name="android:layout_width">-1</item>
+        <item name="android:layout_height">60dp</item>
+    </style>
+    <style name="ccOtaButton" parent="">
+        <item name="android:layout_width">150dp</item>
+        <item name="android:layout_height">-2</item>
+        <item name="android:layout_marginTop">5dp</item>
+        <item name="android:layout_marginBottom">5dp</item>
+    </style>
+    <style name="ccOtaNextButton" parent="@style/ccOtaButton">
+        <item name="android:layout_alignParentBottom">true</item>
+        <item name="android:layout_marginEnd">4dp</item>
+        <item name="android:layout_alignParentEnd">true</item>
+    </style>
+    <style name="ccOtaSkipButton" parent="@style/ccOtaButton">
+        <item name="android:layout_alignParentBottom">true</item>
+        <item name="android:layout_marginStart">4dp</item>
+        <item name="android:layout_alignParentStart">true</item>
+    </style>
+    <style name="ccOtaWizardTitle" parent="">
+        <item name="android:textSize">22sp</item>
+        <item name="android:textColor">@color/ota_title_color</item>
+    </style>
+    <style name="ccOtaTextPrimary" parent="">
+        <item name="android:textSize">17sp</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+    </style>
+    <style name="InCallButton" parent="">
+        <item name="android:background">?android:attr/selectableItemBackground</item>
+        <item name="android:layout_width">0px</item>
+        <item name="android:layout_height">@dimen/in_call_button_height</item>
+        <item name="android:layout_weight">1</item>
+    </style>
+    <style name="InCallCompoundButton" parent="@style/InCallButton">
+        <item name="android:textOn">@null</item>
+        <item name="android:textOff">@null</item>
+    </style>
+    <style name="VerticalSeparator" parent="">
+        <item name="android:background">@android:color/black</item>
+        <item name="android:layout_width">2dp</item>
+        <item name="android:layout_height">-1</item>
+    </style>
+    <style name="InCallEndButton" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">@dimen/in_call_end_button_height</item>
+        <item name="android:layout_weight">1</item>
+    </style>
+    <style name="InCallExtraRowButton" parent="">
+        <item name="android:background">@null</item>
+        <item name="android:layout_width">@dimen/extra_row_button_width</item>
+        <item name="android:layout_height">@dimen/extra_row_button_height</item>
+    </style>
+    <style name="InCallExtraRowButtonLabel" parent="">
+        <item name="android:textAppearance">?android:attr/textAppearanceSmall</item>
+        <item name="android:textStyle">0x1</item>
+        <item name="android:textColor">@color/incall_call_banner_text_color</item>
+        <item name="android:layout_gravity">0x10</item>
+        <item name="android:layout_width">-2</item>
+        <item name="android:layout_height">-2</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:layout_marginStart">5dp</item>
+        <item name="android:layout_marginEnd">5dp</item>
+    </style>
+    <style name="Theme.Settings" parent="@android:style/Theme.Holo.DialogWhenLarge">
+        <item name="android:windowCloseOnTouchOutside">true</item>
+    </style>
+    <style name="SettingsLight" parent="@android:style/Theme.Holo.Light">
+        <item name="android:windowBackground">@color/phone_settings_background_color</item>
+        <item name="android:actionBarStyle">@style/DialtactsActionBarStyle</item>
+        <item name="android:actionOverflowButtonStyle">@style/DialtactsActionBarOverflow</item>
+        <item name="android:homeAsUpIndicator">@drawable/ic_back_arrow</item>
+    </style>
+    <style name="Empty" parent="@android:style/Theme.Holo">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
+    <style name="InCallAnimationStyle" parent="@android:style/Widget.Material.Light.ButtonBar.AlertDialog">
+        <item name="android:taskOpenEnterAnimation">@android:anim/activity_open_enter</item>
+        <item name="android:taskOpenExitAnimation">@android:anim/activity_open_exit</item>
+        <item name="android:taskToFrontEnterAnimation">@android:anim/activity_open_enter</item>
+        <item name="android:taskToFrontExitAnimation">@android:anim/activity_open_exit</item>
+    </style>
+    <style name="OutgoingAnimationStyle" parent="@android:style/Widget.Material.Light.ButtonBar.AlertDialog">
+        <item name="android:taskOpenEnterAnimation">@android:anim/activity_open_enter</item>
+        <item name="android:taskOpenExitAnimation">@android:anim/activity_open_exit</item>
+    </style>
+    <style name="Theme.InCallScreen" parent="@android:style/Theme.Holo.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowAnimationStyle">@style/InCallAnimationStyle</item>
+    </style>
+    <style name="DialpadButtonStyle" parent="">
+        <item name="android:background">?android:attr/selectableItemBackground</item>
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">-1</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:soundEffectsEnabled">false</item>
+    </style>
+    <style name="ContactsActionBarStyle" parent="@android:style/Widget.Holo.Light.ActionBar.Solid.Inverse">
+        <item name="android:background">@color/people_app_theme_color</item>
+        <item name="android:backgroundStacked">@color/people_app_theme_color</item>
+    </style>
+    <style name="DialtactsActionBarStyle" parent="@android:style/Widget.Holo.ActionBar">
+        <item name="android:icon">@android:color/transparent</item>
+        <item name="android:background">@drawable/actionbar_background</item>
+        <item name="android:titleTextStyle">@style/DialtactsActionBarTitleText</item>
+        <item name="android:backgroundStacked">#ffffff</item>
+    </style>
+    <style name="DialtactsActionBarTitleText" parent="@android:style/TextAppearance.Holo.Widget.ActionBar.Title">
+        <item name="android:textColor">@color/phone_settings_actionbar_text_color</item>
+    </style>
+    <style name="DialtactsActionBarOverflow" parent="@android:style/Widget.Holo.ActionButton.Overflow">
+        <item name="android:src">@drawable/ic_menu_overflow_lt</item>
+    </style>
+    <style name="SimImportTheme" parent="@android:style/Theme.Holo.Light.DarkActionBar">
+        <item name="android:actionBarStyle">@style/ContactsActionBarStyle</item>
+    </style>
+    <style name="EmergencyDialerTheme" parent="@android:style/Theme.Holo">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <style name="OutgoingCallBroadcasterTheme" parent="@android:style/Theme.Holo.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowAnimationStyle">@style/OutgoingAnimationStyle</item>
+    </style>
+    <style name="SipCallOptionHandlerTheme" parent="@android:style/Theme.Holo.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <style name="DialtactsDigitsTextAppearance" parent="">
+        <item name="android:textSize">@dimen/dialpad_digits_text_size</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:cursorVisible">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:editable">true</item>
+        <item name="android:freezesText">true</item>
+    </style>
+    <style name="Theme.Transparent" parent="@android:style/Theme">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+    <style name="cfbt_value" parent="">
+        <item name="android:textAppearance">?android:attr/textAppearanceMedium</item>
+        <item name="android:layout_width">80dp</item>
+        <item name="android:layout_height">-2</item>
+        <item name="android:singleLine">true</item>
+    </style>
+    <style name="cfbt_formate" parent="">
+        <item name="android:textAppearance">?android:attr/textAppearanceMedium</item>
+        <item name="android:layout_width">70dp</item>
+        <item name="android:layout_height">-2</item>
+        <item name="android:singleLine">true</item>
+    </style>
+    <style name="cfbt_text_value" parent="">
+        <item name="android:textAppearance">?android:attr/textAppearanceMedium</item>
+        <item name="android:layout_width">-1</item>
+        <item name="android:layout_height">-2</item>
+        <item name="android:singleLine">true</item>
+    </style>
+</resources>

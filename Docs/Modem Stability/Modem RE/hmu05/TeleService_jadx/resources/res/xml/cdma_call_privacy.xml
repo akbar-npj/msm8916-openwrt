@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" xmlns:settings="http://schemas.android.com/apk/res/com.android.phone" android:title="@string/additional_cdma_call_settings">
+    <PreferenceScreen
+        android:persistent="false"
+        android:title="@string/labelCF"
+        android:key="button_cf_expand_key">
+        <intent
+            android:targetPackage="com.android.phone"
+            android:action="android.intent.action.MAIN"
+            android:targetClass="com.android.phone.CdmaCallForwardOptions"/>
+    </PreferenceScreen>
+    <PreferenceScreen
+        android:persistent="false"
+        android:title="@string/labelCW"
+        android:key="button_cw_key">
+        <PreferenceScreen
+            android:title="@string/CFActivate"
+            android:key="button_cw_act_key">
+            <intent
+                android:targetPackage="com.android.phone"
+                android:action="android.intent.action.CALL_PRIVILEGED"
+                android:targetClass="com.android.phone.OutgoingCallBroadcaster"/>
+        </PreferenceScreen>
+        <PreferenceScreen
+            android:title="@string/CFDeactivate"
+            android:key="button_cw_deact_key">
+            <intent
+                android:targetPackage="com.android.phone"
+                android:action="android.intent.action.CALL_PRIVILEGED"
+                android:targetClass="com.android.phone.OutgoingCallBroadcaster"/>
+        </PreferenceScreen>
+    </PreferenceScreen>
+    <com.android.phone.CdmaVoicePrivacyCheckBoxPreference
+        android:persistent="false"
+        android:title="@string/voice_privacy"
+        android:key="button_voice_privacy_key"
+        android:summary="@string/voice_privacy_summary"/>
+</PreferenceScreen>

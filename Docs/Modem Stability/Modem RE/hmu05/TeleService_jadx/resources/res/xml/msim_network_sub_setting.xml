@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" xmlns:phone="http://schemas.android.com/apk/res/com.android.phone" android:title="@string/mobile_networks">
+    <CheckBoxPreference
+        android:persistent="false"
+        android:title="@string/data_enabled"
+        android:key="button_data_enabled_key"
+        android:summary="@string/data_enable_summary"/>
+    <PreferenceScreen
+        android:persistent="false"
+        android:title="@string/uplmn_list_setting_title"
+        android:key="button_uplmn_key">
+        <intent
+            android:targetPackage="com.android.phone"
+            android:action="android.intent.action.MAIN"
+            android:targetClass="com.android.phone.UserPLMNListPreference"/>
+    </PreferenceScreen>
+    <ListPreference
+        android:entries="@array/preferred_network_mode_choices"
+        android:title="@string/preferred_network_mode_title"
+        android:key="preferred_network_mode_key"
+        android:summary="@string/preferred_network_mode_summary"
+        android:dialogTitle="@string/preferred_network_mode_dialogtitle"
+        android:entryValues="@array/preferred_network_mode_values"/>
+    <CheckBoxPreference
+        android:persistent="false"
+        android:title="@string/preferred_lte"
+        android:key="toggle_preferred_lte"
+        android:summary="@string/preferred_lte_summary"/>
+</PreferenceScreen>
