@@ -128,8 +128,21 @@ while true; do
             fi
         fi
     else
-        # DELTA_TX == 0 and DELTA_RX == 0: Link is idle
-        STALL_COUNT=0
+        # DELTA_TX == 0 and DELTA_RX == 0: No new packets exchanged during this check interval
+        if [ "$STALL_COUNT" -gt 0 ]; then
+            # A stall is already in progress: continue accumulating stall duration until resolved
+            STALL_COUNT=$((STALL_COUNT + CHECK_INTERVAL))
+            logger -t modem-stall-watchdog "Pending stall continuing: zero RX observed (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
+            if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
+                # Verify if connectivity is actually stalled before taking action
+                if verify_rx_connectivity; then
+                    logger -t modem-stall-watchdog "Connectivity probe succeeded and RX incremented; clearing stall counter."
+                    STALL_COUNT=0
+                    sleep "$CHECK_INTERVAL"
+                    continue
+                fi
+            fi
+        fi
 
         # 6. Low-overhead Android-equivalent carrier keepalive (Option B: non-ping)
         # Emulates Android DcTracker DataStallAlarm: refreshes RRC carrier context
