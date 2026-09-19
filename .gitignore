@@ -24,3 +24,7 @@ GitIgnore
 ghidra_proj/
 ghidra_scripts/
 scratch/
+
+# Large generated RE artifacts (exceed GitHub's 100 MB limit; regenerate locally)
+modem_full_decompiled.c
+scratch_chunk.bin
