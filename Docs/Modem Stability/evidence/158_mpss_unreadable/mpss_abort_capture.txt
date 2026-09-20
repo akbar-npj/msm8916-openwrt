@@ -1,0 +1,87 @@
+### uptime / uname
+657.42 2499.72
+Linux OpenWrt 6.12.94 #0 SMP PREEMPT Mon Jun 29 12:59:20 2026 aarch64 GNU/Linux
+### mpss reserved-memory node
+reg:  00000000 00008086 00000000 00005005
+no-map present: yes
+### module state
+mpss_mem               12288 -1 
+refcnt: -1
+### D-state processes on the debugfs file
+21279 root      1332 D    ls -l /sys/kernel/debug/mpss_mem
+22034 root      1332 D    ls -l /sys/kernel/debug/mpss_mem
+### fault summary
+0
+5
+[  469.330057] Internal error: synchronous external abort: 0000000096000010 [#1] PREEMPT SMP
+[  469.581246] Internal error: synchronous external abort: 0000000096000010 [#2] PREEMPT SMP
+[  475.604726] Internal error: synchronous external abort: 0000000096000010 [#3] PREEMPT SMP
+[  475.851628] Internal error: synchronous external abort: 0000000096000010 [#4] PREEMPT SMP
+### full oops #4
+[  475.851628] Internal error: synchronous external abort: 0000000096000010 [#4] PREEMPT SMP
+[  475.851704] Modules linked in: mpss_mem(O) pppoe ppp_async nft_fib_inet nf_flow_table_inet wireguard wcn36xx(O) rpmsg_wwan_ctrl qcom_bam_dmux(O) pppox ppp_generic nft_reject_ipv6 nft_reject_ipv4 nft_reject_inet nft_reject nft_redir nft_quota nft_numgen nft_nat nft_masq nft_log nft_limit nft_hash nft_flow_offload nft_fib_ipv6 nft_fib_ipv4 nft_fib nft_ct nft_chain_nat nf_tables nf_nat nf_flow_table nf_conntrack mac80211(O) libchacha20poly1305 chacha_neon cfg80211(O) wwan slhc qcom_wcnss_pil qcom_q6v5_mss qcom_q6v5 qcom_pil_info qcom_common poly1305_neon nfnetlink nf_reject_ipv6 nf_reject_ipv4 nf_log_syslog nf_defrag_ipv6 nf_defrag_ipv4 mdt_loader lzo_rle lzo libcurve25519_generic libchacha crc_ccitt compat(O) ip6_udp_tunnel udp_tunnel tun nls_utf8 zram zsmalloc lzo_compress seqiv geniv
+[  475.905920] CPU: 2 UID: 0 PID: 17512 Comm: dd Tainted: G   M  D    O       6.12.94 #0
+[  475.928087] Tainted: [M]=MACHINE_CHECK, [D]=DIE, [O]=OOT_MODULE
+[  475.935975] Hardware name: HMU05 4G Modem Stick (DT)
+[  475.941702] pstate: 80000005 (Nzcv daif -PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  475.946913] pc : mpss_read+0xc0/0x238 [mpss_mem]
+[  475.953594] lr : full_proxy_read+0x5c/0xa8
+[  475.958454] sp : ffff800081733c80
+[  475.962357] x29: ffff800081733c80 x28: ffffb04f0d8a6000 x27: 0000000000010000
+[  475.965751] x26: ffffb04f0d8a6000 x25: 00000000035a9680 x24: ffff019e843fd700
+[  475.972868] x23: 0000ffff944d3000 x22: 0000000000000040 x21: 0000000000000000
+[  475.979986] x20: 0000000000000040 x19: 0001000000000000 x18: 0000000000000000
+[  475.987104] x17: 0000000000000000 x16: 0000000000000000 x15: 0000000000000000
+[  475.994223] x14: 0000000000000000 x13: 0000000000000000 x12: 0000000000000000
+[  476.001340] x11: 0000000000000000 x10: 0000000000000000 x9 : 0000000000000040
+[  476.008459] x8 : 00000000035a9680 x7 : ffff019e8de76980 x6 : 0000000000000000
+[  476.015577] x5 : 00000000035a9680 x4 : 00000000035a96c0 x3 : 00000000035a96c0
+[  476.022694] x2 : ffffb04f0d8a6300 x1 : ffff019e91420000 x0 : ffff8000935a9680
+[  476.029814] Call trace:
+[  476.036922]  mpss_read+0xc0/0x238 [mpss_mem]
+[  476.039184]  full_proxy_read+0x5c/0xa8
+[  476.043696]  vfs_read+0x98/0x2a0
+[  476.047254]  ksys_read+0x58/0xdc
+[  476.050639]  __arm64_sys_read+0x18/0x20
+[  476.053852]  invoke_syscall+0x50/0xf0
+[  476.057409]  el0_svc_common.constprop.0+0x44/0xdc
+[  476.061232]  do_el0_svc+0x18/0x20
+[  476.065917]  el0_svc+0x18/0x60
+[  476.069218]  el0t_64_sync_handler+0xc0/0xe0
+[  476.072168]  el0t_64_sync+0x14c/0x150
+[  476.076251] Code: 910c0382 cb080027 f9400040 8b050000 (b9400000) 
+[  476.080075] ---[ end trace 0000000000000000 ]---
+### full oops #5
+[  484.917046] Internal error: synchronous external abort: 0000000096000010 [#5] PREEMPT SMP
+[  484.917152] Modules linked in: mpss_mem(O) pppoe ppp_async nft_fib_inet nf_flow_table_inet wireguard wcn36xx(O) rpmsg_wwan_ctrl qcom_bam_dmux(O) pppox ppp_generic nft_reject_ipv6 nft_reject_ipv4 nft_reject_inet nft_reject nft_redir nft_quota nft_numgen nft_nat nft_masq nft_log nft_limit nft_hash nft_flow_offload nft_fib_ipv6 nft_fib_ipv4 nft_fib nft_ct nft_chain_nat nf_tables nf_nat nf_flow_table nf_conntrack mac80211(O) libchacha20poly1305 chacha_neon cfg80211(O) wwan slhc qcom_wcnss_pil qcom_q6v5_mss qcom_q6v5 qcom_pil_info qcom_common poly1305_neon nfnetlink nf_reject_ipv6 nf_reject_ipv4 nf_log_syslog nf_defrag_ipv6 nf_defrag_ipv4 mdt_loader lzo_rle lzo libcurve25519_generic libchacha crc_ccitt compat(O) ip6_udp_tunnel udp_tunnel tun nls_utf8 zram zsmalloc lzo_compress seqiv geniv
+[  484.971364] CPU: 3 UID: 0 PID: 17785 Comm: dd Tainted: G   M  D    O       6.12.94 #0
+[  484.993525] Tainted: [M]=MACHINE_CHECK, [D]=DIE, [O]=OOT_MODULE
+[  485.001412] Hardware name: HMU05 4G Modem Stick (DT)
+[  485.007138] pstate: 80000005 (Nzcv daif -PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  485.012350] pc : mpss_read+0xc0/0x238 [mpss_mem]
+[  485.019030] lr : full_proxy_read+0x5c/0xa8
+[  485.023889] sp : ffff800082053c80
+[  485.027793] x29: ffff800082053c80 x28: ffffb04f0d8a6000 x27: 0000000000010000
+[  485.031187] x26: ffffb04f0d8a6000 x25: 0000000000000000 x24: ffff019e843fba00
+[  485.038305] x23: 0000ffffb4b86000 x22: 0000000000000010 x21: 0000000000000000
+[  485.045423] x20: 0000000000000010 x19: 0001000000000000 x18: 0000000000000000
+[  485.052546] x17: 0000000000000000 x16: 0000000000000000 x15: 0000000000000000
+[  485.059658] x14: 0000000000000000 x13: 0000000000000000 x12: 0000000000000000
+[  485.066777] x11: 0000000000000000 x10: 0000000000000000 x9 : 0000000000000010
+[  485.073895] x8 : 0000000000000000 x7 : ffff019e8f8c0000 x6 : 0000000000000000
+[  485.081013] x5 : 0000000000000000 x4 : 0000000000000010 x3 : 0000000000000010
+[  485.088132] x2 : ffffb04f0d8a6300 x1 : ffff019e8f8c0000 x0 : ffff800090000000
+[  485.095251] Call trace:
+[  485.102357]  mpss_read+0xc0/0x238 [mpss_mem]
+[  485.104619]  full_proxy_read+0x5c/0xa8
+[  485.109132]  vfs_read+0x98/0x2a0
+[  485.112690]  ksys_read+0x58/0xdc
+[  485.116074]  __arm64_sys_read+0x18/0x20
+[  485.119288]  invoke_syscall+0x50/0xf0
+[  485.122845]  el0_svc_common.constprop.0+0x44/0xdc
+[  485.126669]  do_el0_svc+0x18/0x20
+[  485.131352]  el0_svc+0x18/0x60
+[  485.134650]  el0t_64_sync_handler+0xc0/0xe0
+[  485.137604]  el0t_64_sync+0x14c/0x150
+[  485.141688] Code: 910c0382 cb080027 f9400040 8b050000 (b9400000) 
+[  485.145513] ---[ end trace 0000000000000000 ]---

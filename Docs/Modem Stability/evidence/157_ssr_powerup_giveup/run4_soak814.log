@@ -1,0 +1,2 @@
+[87.41s] started burst generator pid 6863 (6 s idle, then 40 x ping -c 1)
+[87.43s] === soak814 start; oops=0 module=eca269f10a685a83a8b679bc7be38d1d ===
