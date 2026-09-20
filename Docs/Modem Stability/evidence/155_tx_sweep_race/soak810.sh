@@ -24,23 +24,40 @@ LOG=/overlay/soak810.log
 
 log() { echo "[$(cut -d' ' -f1 /proc/uptime)s] $*" >> "$LOG"; }
 
-# Burst generator: idle 6 s, then 40 packets at 0.05 s, forever.
+# ===========================================================================
+# RETRACTED 2026-09-21 (Doc 155 §8.5).  As originally run, this harness used
+# `ping -c 40 -i 0.05`, and this device's busybox `ping` accepts INTEGER `-i`
+# ONLY -- the command failed instantly with "ping: invalid number '0.05'", and
+# the error was hidden by the /dev/null redirect.  The generator stayed alive,
+# looped on its `sleep`, and transmitted NOTHING.  Every edge count attributed
+# to a "burst" in Doc 155 §8.2/§8.3 was the modem's own ~5.4 s collapse cadence
+# plus background AP traffic.  The burst below is the corrected form; the
+# original run's numbers are NOT reproducible with it.
 #
-# Tuning note: the modem collapses/wakes on its own roughly every 5.4 s
-# (measured: 69 pc_irq edges in 370 s), independent of the burst cycle.  The
-# race needs a tx_queue() to land inside the sweep's bam_dmux_free_skbs() loop,
-# and the defer branch needs active <= 0 -- i.e. a resume already in flight,
-# which is exactly the wake window.  So the useful quantity is TX *density*
-# while a resume is in flight, not packets per burst.  This pattern runs ~20
-# packets/s for 2 s out of every 6 s and still leaves 4 s idle to collapse in.
+# The tuning rationale (TX density while a resume is in flight) is plausible
+# but was never actually tested.
+# ===========================================================================
+burst() {
+	i=0
+	while [ "$i" -lt "${BURST_N:-40}" ]; do
+		ping -c 1 -W 1 -q 8.8.8.8 >/dev/null 2>&1
+		i=$((i + 1))
+	done
+}
+
+# Burst generator: idle 6 s, then 40 x `ping -c 1`, forever.
+#
+# `ping -c 1` needs no `-i` at all, which is the whole point: measured 20
+# packets in 1.24 s (tx_pkts +20, rx_pkts +20, pc_irq +1).  Do NOT substitute
+# `ping -i 0` -- it hangs unboundedly and there is no `timeout(1)` here.
 (
 	while true; do
 		sleep 6
-		ping -c 40 -i 0.05 -W 1 -q 8.8.8.8 >/dev/null 2>&1
+		burst
 	done
 ) &
 GEN=$!
-log "started burst generator pid $GEN (6 s idle, then 40 packets @0.05 s)"
+log "started burst generator pid $GEN (6 s idle, then ${BURST_N:-40} x ping -c 1)"
 log "=== soak810 start; oops=$(dmesg | grep -c 'Unable to handle') ==="
 
 echo "uptime,oops,fatal,ssr,pc_irq,pc_vote,pm_susp,pm_res,pc_state,rx_cb,rx_last_ms,pm_last_susp_ms,guard_hits" > "$OUT"

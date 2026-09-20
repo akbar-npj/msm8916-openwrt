@@ -271,6 +271,15 @@ soak does not test this bug at all.** (Data kept as `/overlay/soak810_phase1_1hz
 
 ### 8.2 Phase 2 (the real test) — idle-then-burst
 
+> **RETRACTED 2026-09-21 — this phase and §8.3 never generated a burst. See §8.5.** The pattern below
+> used `ping -i 0.2`, and this device's busybox `ping` accepts **integer `-i` only**. The command
+> failed instantly with `ping: invalid number '0.2'`, and because its output was redirected to
+> `/dev/null` the failure was invisible. Every "burst" phase of the patch-810 soak therefore
+> transmitted **nothing**; the edge counts below are the modem's own ~5.4 s collapse cadence plus
+> background AP traffic, not the effect of the burst. The *conclusion* of §8.4 (a clean soak is not a
+> proof) survives and is strengthened — there was even less TX than believed. The tuning rationale in
+> §8.3 is withdrawn.
+
 The race needs *both* a collapsed modem (so `start_xmit` defers) **and** a wake edge landing in the
 window. So the harness now idles 20 s to let the modem collapse, then fires 8 packets at 0.2 s
 intervals, forever — repeatedly colliding TX with the wake transition.
@@ -316,6 +325,11 @@ restarted; `rx_telemetry` confirms the new attribute is live.
 The burst pattern was then tuned three times, because the hit rate depends on TX *density during a
 wake*, not on packets per burst:
 
+> **WITHDRAWN — see §8.5.** All three patterns below used a fractional `-i` (`0.2`, `0.15`, `0.05`),
+> which this device's busybox `ping` **rejects**. None of them transmitted anything. The rationale is
+> plausible but **untested**, and the edge counts are not evidence of burst density. The tuning was
+> re-derived and the harness fixed in §8.5.
+
 | pattern | rationale | result |
 | :-- | :-- | :-- |
 | idle 20 s, 8 pkts @0.2 s | first attempt | 69 edges / 370 s; `guard_hits = 0` |
@@ -338,6 +352,58 @@ occurrence is recorded automatically.
 > **PHASE 3 RESULT (as of the writing of this doc): ~313 collapse/wake cycles across the three
 > tunings, `guard_hits = 0`, `oops = 0`, bearer healthy throughout.** Raw data:
 > `/overlay/soak810_phase3a_burst20s.csv`, `_phase3b_burst8s.csv`, `/overlay/soak810.csv`.
+
+### 8.5 CORRECTION (2026-09-21): the burst generator never ran — busybox `ping` rejects fractional `-i`
+
+Found while writing Doc 156's soak harness, by testing the exact command by hand:
+
+```
+$ ping -c 40 -i 0.05 -W 1 -q 8.8.8.8
+ping: invalid number '0.05'
+```
+
+**This device's busybox `ping` accepts only integer `-i` values.** Every burst pattern in §8.2 and
+§8.3 used a fractional one (`-i 0.2`, `-i 0.15`, `-i 0.05`), and every one of them failed
+**instantly** — and because the burst was redirected with `>/dev/null 2>&1`, the error was
+**invisible**. The generator process stayed alive, looped on its `sleep`, and transmitted nothing.
+
+What this means for the numbers above:
+
+| claim | status |
+| :-- | :-- |
+| §8.1 — continuous 1 Hz ping holds the modem awake (`pc_irq` frozen 105 s) | **Stands.** That used `-i 1`, an integer. Consistent with real traffic. |
+| §8.2/§8.3 — the "idle-then-burst" phases exercised the defer path | **RETRACTED.** No burst traffic was ever generated. |
+| §8.3's tuning table (20 s/8 pkts → 8 s/6 pkts → 6 s/40 pkts) | **WITHDRAWN.** The rationale is plausible but untested; the edge counts are background traffic plus the modem's own collapse cadence. |
+| §8.4 — a clean soak is not a proof | **Stands, and is strengthened.** There was *even less* TX than believed, so the soak was even weaker evidence than stated. |
+
+**The working high-rate burst**, measured on the device: a shell loop of single pings, because
+`ping -c 1` needs no `-i` at all —
+
+```sh
+burst() {
+	i=0
+	while [ "$i" -lt "${BURST_N:-40}" ]; do
+		ping -c 1 -W 1 -q 8.8.8.8 >/dev/null 2>&1
+		i=$((i + 1))
+	done
+}
+```
+
+Measured: **20 packets in 1.24 s**, `tx_pkts +20`, `rx_pkts +20`, `pc_irq +1`. `ping -i 0` must
+**not** be used as a substitute — it hangs (no `timeout(1)` on the device to bound it).
+
+**Two lessons, both generalisable:**
+
+1. **Never redirect a soak generator's output to `/dev/null` without also asserting that it produced
+   traffic.** The failure mode of a silently broken generator is identical to the success mode of a
+   clean soak: nothing happens. `soak812.sh` now carries a liveness check that logs
+   `WARNING: no TX for Ns (tx_pkts stuck at …) -- burst generator dead?`.
+2. **Verify the exact command by hand before trusting a harness built on it.** One manual invocation
+   would have caught this at the start.
+
+The corrected harness is `evidence/156_deferred_tx_loss/soak812.sh`, and the retraction is recorded
+in Doc 156 §9 and the README's eleventh round item 32.
+
 
 ## 9. Established vs not established
 
@@ -363,10 +429,14 @@ occurrence is recorded automatically.
 * Whether the race is what actually fired on 2026-09-21 — §4.2's table is the only interleaving
   found that is consistent with every fact **and** has a window wide enough to explain the fault
   rate, but it is a reconstruction, not an observed trace.
-* **Whether the fix has ever actually fired.** `guard_hits = 0` after ~313 collapse/wake cycles
-  (§8.4). The race is rare enough that a clean soak is *expected* either way, so the fix currently
-  rests on construction (the guards are defensive and cannot cause harm; hunk 3 is provably
-  race-free) plus the counter as an ongoing detector — **not** on an observed save.
+* **Whether the fix has ever actually fired.** `guard_hits = 0` after the soak. The race is rare
+  enough that a clean soak is *expected* either way, so the fix currently rests on construction (the
+  guards are defensive and cannot cause harm; hunk 3 is provably race-free) plus the counter as an
+  ongoing detector — **not** on an observed save.
+  **Corrected 2026-09-21 (§8.5): the soak's burst generator never ran** (busybox `ping` rejects a
+  fractional `-i`), so the "~313 collapse/wake cycles" figure overstates the TX that was actually
+  applied. The conclusion is unchanged and the evidence is weaker than stated — which is exactly why
+  the counter, not the soak, is the test.
 * Whether the same race explains the **failed modem restart** after fatal #15 (Doc 154 §6) — still
   separate and unexplained; see Doc 154 §6.1 for the localisation.
 * The residual non-atomic window in `start_xmit` (§5.2).

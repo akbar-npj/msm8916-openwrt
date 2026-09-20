@@ -337,6 +337,33 @@ At AP **424.573497 s** — during the DNS-after-idle test, with patch 812 deploy
 Recovery was clean: the remaining DNS rounds succeeded, `tx_defer_wiped_live` stayed 0, and
 `tx_defer_queued == tx_defer_submitted` across the SSR.
 
+### 8.2 The soak, and a harness defect in it
+
+`soak812.sh` (idle 6 s, then a burst) ran with the fix deployed and never reported
+`DEFERRED PACKET LOST`; the final state before the harness was corrected was
+`tx_defer_queued 59 / tx_defer_submitted 59 / tx_defer_wiped_live 0 / tx_sweep_guard_hits 0`, across
+~65 collapse/wake cycles and one fatal + SSR — i.e. the fix held through the SSR too.
+
+**But that run generated no burst traffic.** Its burst was `ping -c 40 -i 0.05`, and this device's
+busybox `ping` accepts **integer `-i` only**:
+
+```
+$ ping -c 40 -i 0.05 -W 1 -q 8.8.8.8
+ping: invalid number '0.05'
+```
+
+The generator stayed alive, slept, and transmitted nothing, with the error hidden by
+`>/dev/null 2>&1`. So the run measured background AP traffic, not the intended burst. The harness is
+now a shell loop of `ping -c 1` (no `-i`), measured at **20 packets in 1.24 s with `tx_pkts +20` /
+`rx_pkts +20`**, plus a liveness check that logs
+`WARNING: no TX for Ns (tx_pkts stuck at …) -- burst generator dead?`.
+
+**Scope of the damage:** none of this doc's primary evidence (§5, §7.1–§7.4) is affected — those
+tests all use `ping -c N` or `nslookup` with no `-i`, and their counter deltas (`defer +1` /
+`submitted +1` / `dtx=+1` / `drx=+1`) prove traffic actually flowed. The soak is supporting evidence
+only. The same defect **does** invalidate Doc 155 §8.2/§8.3, whose three burst tunings all used a
+fractional `-i`; that is retracted in Doc 155 §8.5.
+
 ## 9. Established vs not established
 
 **Established:**
@@ -363,6 +390,16 @@ Recovery was clean: the remaining DNS rounds succeeded, `tx_defer_wiped_live` st
   not regress it.
 * **Long-run stability.** The verification above is minutes long, not hours. A soak is running (§11);
   the metric to watch is `tx_defer_queued − tx_defer_submitted`, which must stay 0.
+* **A harness defect found and fixed mid-session, and it also invalidates Doc 155 §8.2/§8.3.** The
+  first `soak812.sh` burst used `ping -c 40 -i 0.05`, and this device's busybox `ping` **rejects a
+  fractional `-i`** — `ping: invalid number '0.05'`. With the burst redirected to `/dev/null` the
+  failure was invisible: the generator stayed alive, slept, and transmitted **nothing**. So the first
+  soak run was measuring background AP traffic, not bursts. **None of this doc's primary evidence is
+  affected** — `defertest.sh`, `repro120.sh` and the DNS test all use `ping -c N` / `nslookup` with no
+  `-i`, and the A/B counter deltas prove traffic flowed. The harness is now a shell loop of
+  `ping -c 1` (measured: 20 packets in 1.24 s, `tx_pkts +20`, `rx_pkts +20`) and carries a liveness
+  check that logs `WARNING: no TX for Ns … burst generator dead?`. Doc 155 §8.5 records the
+  retraction. **Lesson: a silently broken traffic generator is indistinguishable from a clean soak.**
 * **Any protective effect on the fatal.** One fatal was observed with the fix deployed, at 424.57 s
   (§8.1) — i.e. **no protective effect was seen** — but a single observation under a low-rate bursty
   traffic pattern says nothing about the ~902 s idle case. Untested.

@@ -287,8 +287,16 @@ that into **5/5** delivered) — see the sections below.
     `cbz x2` immediately before that same load.
 32. **A 1 Hz ping soak does NOT test this bug** — measured: `pc_irq`/`pc_vote`/`pm_suspend` froze
     for 105 s because continuous traffic holds the modem permanently awake, so it never collapses
-    and the `:597` defer branch is never taken. The soak must **idle first, then burst**; with that
-    pattern it produced **23 collapse/wake cycles in ~140 s** and **0 oopses**.
+    and the `:597` defer branch is never taken. The soak must **idle first, then burst**.
+    **CORRECTED 2026-09-21 (Doc 155 §8.5): the burst phases never actually ran.** All three tunings
+    used a fractional `-i` (`0.2` / `0.15` / `0.05`) and **this device's busybox `ping` accepts
+    integer `-i` only** — `ping: invalid number '0.05'`. With the burst redirected to `/dev/null`
+    the failure was invisible: the generator stayed alive, slept, and transmitted nothing. So the
+    "23 collapse/wake cycles in ~140 s" and the §8.3 tuning table are **withdrawn** — those edges
+    were the modem's own ~5.4 s cadence plus background AP traffic. The working burst is a shell
+    loop of `ping -c 1` (measured: 20 packets in 1.24 s, `tx_pkts +20`); `ping -i 0` hangs and must
+    not be used (no `timeout(1)` on the device). **A silently broken traffic generator is
+    indistinguishable from a clean soak — always assert TX is advancing.**
 
 ## A twelfth round — Doc 156, 2026-09-21: the data stall ROOT-CAUSED and FIXED (patches 811 + 812)
 
@@ -350,6 +358,16 @@ that into **5/5** delivered) — see the sections below.
     the bitmap *before* the bit is set still frees that slot; counted by patch 810's
     `tx_sweep_guard_hits`, still 0). Full report:
     `156_DEFERRED_TX_PACKET_LOSS_ROOT_CAUSE_AND_FIX.md`.
+41. **A harness defect found mid-session — and it also invalidates Doc 155 §8.2/§8.3.** The first
+    `soak812.sh` burst used `ping -c 40 -i 0.05`; **this device's busybox `ping` rejects a fractional
+    `-i`** (`ping: invalid number '0.05'`), and with the burst redirected to `/dev/null` the failure
+    was invisible — the generator stayed alive, slept, and transmitted **nothing**. None of Doc 156's
+    primary evidence is affected (the A/B, DNS and 120 s-repro tests all use `ping -c N`/`nslookup`
+    with no `-i`, and their counter deltas prove traffic flowed), but the soak is supporting evidence
+    only, and **Doc 155's three burst tunings are retracted** (Doc 155 §8.5). The harness is now a
+    shell loop of `ping -c 1` (20 packets in 1.24 s, `tx_pkts +20`) with a liveness check that logs
+    `WARNING: no TX for Ns … burst generator dead?`. **Lesson: a silently broken traffic generator is
+    indistinguishable from a clean soak — always assert TX is advancing.**
 
 ## The steady-state symptom, measured (Doc 147 §5.4)
 

@@ -22,19 +22,40 @@ LOG=/overlay/soak812.log
 
 log() { echo "[$(cut -d' ' -f1 /proc/uptime)s] $*" >> "$LOG"; }
 
+# ---------------------------------------------------------------------------
+# TRAP, AND THE REASON THIS IS A SHELL LOOP AND NOT `ping -i 0.05`:
+# this device's busybox `ping` accepts only INTEGER `-i` values.  `-i 0.05`
+# fails instantly with "ping: invalid number '0.05'", and because the burst was
+# redirected to /dev/null the failure was invisible -- the generator ran, slept,
+# and transmitted nothing.  That silently invalidated the first soak812 run (and
+# soak810's phase-3 tunings, which used -i 0.2 / 0.15 / 0.05).
+#
+# A loop of `ping -c 1` is the working high-rate burst: measured 20 packets in
+# 1.24 s, tx_pkts +20, rx_pkts +20.
+# ---------------------------------------------------------------------------
+burst() {
+	i=0
+	while [ "$i" -lt "${BURST_N:-40}" ]; do
+		ping -c 1 -W 1 -q 8.8.8.8 >/dev/null 2>&1
+		i=$((i + 1))
+	done
+}
+
 (
 	while true; do
 		sleep 6
-		ping -c 40 -i 0.05 -W 1 -q 8.8.8.8 >/dev/null 2>&1
+		burst
 	done
 ) &
 GEN=$!
-log "started burst generator pid $GEN (6 s idle, then 40 packets @0.05 s)"
+log "started burst generator pid $GEN (6 s idle, then ${BURST_N:-40} x ping -c 1)"
 log "=== soak812 start; oops=$(dmesg | grep -c 'Unable to handle') ==="
 
 echo "uptime,oops,fatal,ssr,pc_irq,pc_vote,pm_susp,pm_res,pc_state,rx_cb,tx_pkts,rx_pkts,defer_q,defer_sub,defer_keep,defer_wipe_live,submit_ok,tx_complete,guard_hits" > "$OUT"
 
 last_q=""
+last_tx=""
+last_tx_up=""
 while true; do
 	up=$(cut -d' ' -f1 /proc/uptime)
 	oops=$(dmesg | grep -c 'Unable to handle')
@@ -60,6 +81,18 @@ while true; do
 	rp=$(cat $NET/rx_packets 2>/dev/null)
 
 	echo "$up,$oops,$fatal,$ssr,$pc_irq,$vote,$psusp,$pres,$pcst,$rcb,$tp,$rp,$dq,$ds,$dk,$dwl,$so,$tc,$gh" >> "$OUT"
+
+	# LIVENESS: if the burst generator dies or its command stops working, the
+	# whole soak becomes a measurement of nothing.  Fail loudly instead.
+	if [ -n "$last_tx" ] && [ "$tp" = "$last_tx" ]; then
+		if [ -n "$last_tx_up" ]; then
+			log "WARNING: no TX for $((up - last_tx_up))s (tx_pkts stuck at $tp) -- burst generator dead?"
+			last_tx_up=""
+		fi
+	else
+		last_tx_up=$up
+	fi
+	last_tx=$tp
 
 	# The headline metric: a deferred packet that was never submitted is a
 	# lost packet.  Report the first time the gap grows.
