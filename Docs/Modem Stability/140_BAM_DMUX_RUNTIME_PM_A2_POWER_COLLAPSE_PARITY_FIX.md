@@ -387,6 +387,55 @@ asymmetry — OpenWrt's `bam_dmux_runtime_resume()` waits **250 ms** for the ack
 (`qcom_bam_dmux.c:1615-1616`), Android's `ul_wakeup()` waits **2000 ms**
 (`UL_WAKEUP_TIMEOUT_MS`).
 
+### 10.5 The fault lands exactly 900 s after modem power-up
+
+Measured on this run:
+
+```
+[   10.935731] remoteproc remoteproc0: powering up 4080000.remoteproc
+[  912.560598] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+```
+
+**912.560 − 10.936 = 901.6 s.** The fault is anchored to *modem* boot, not AP boot.
+
+This matches a **900 s timer already documented in the tree.** `/etc/init.d/rmtfs` carries:
+
+```
+# NOTE: Do NOT use -r (read-only mode). The modem firmware runs a
+# periodic EFS sync timer every 900 seconds (15 minutes). If rmtfs
+# rejects the write, the modem panics with a fatal SSR crash. Stock
+# Android's rmt_storage always runs with full read-write access.
+```
+
+**rmtfs read/write state — checked 2026-09-20, it is READ-WRITE.** The daemon runs as
+`/usr/sbin/rmtfs -P -s` (no `-r`), and `/proc/<pid>/fdinfo/*` confirms `O_RDWR` on every
+backing device:
+
+| fd | Target | `flags:` | Access mode |
+| :--- | :--- | :--- | :--- |
+| 6 | `.../remoteproc0/state` | `0400001` | **O_RDONLY** (control file — expected) |
+| 8 | `/dev/mmcblk0p4` (modemst1) | `0400002` | **O_RDWR** |
+| 9 | `/dev/mmcblk0p5` (modemst2) | `0400002` | **O_RDWR** |
+| 10 | `/dev/mmcblk0p2` (fsg) | `0400002` | **O_RDWR** |
+| 11 | `/dev/mmcblk0p1` (fsc) | `0400002` | **O_RDWR** |
+| 5 | `/dev/qcom_rmtfs_mem1` | `0400002` | **O_RDWR** |
+
+All four EFS partitions (`modemst1`, `modemst2`, `fsg`, `fsc`) plus the rmtfs shared-memory
+region are open read-write. `logread` contains **zero** rmtfs messages — no
+`request for unknown partition … rejecting` and no `failed to open …` — so rmtfs is neither
+in read-only mode nor logging a rejection.
+
+**So the "rmtfs is read-only" variant of the hypothesis is DISPROVEN.** What remains open:
+
+- The fault is an **`a2_power.c` (power-collapse) error**, not an EFS error, which argues
+  against the EFS-sync reading and in favour of the sleep-manager reading of the same 900 s.
+- Two independent ~900 s explanations now exist and are **not yet distinguished**: the modem
+  EFS-sync timer, and the firmware RE's "sleep count not incrementing after ~400 DRX cycles"
+  (400 × ~2.25 s ≈ 900 s). Both land on the same instant.
+- rmtfs is write-*capable* but that does not prove the modem's EFS writes **succeed** — a
+  write can still fail below rmtfs (eMMC write-protect, partition mismatch). Distinguishing
+  this needs request-level tracing, which rmtfs does not currently emit.
+
 ---
 
 ## 11. Rollback
@@ -464,12 +513,18 @@ never returns to 0 localises the leak to the second it happened (this is how Def
 
 Ordered by (evidence strength ÷ cost). Nothing here is claimed to work yet.
 
-**N1 — Test the 400-DRX / deep-sleep hypothesis directly.** §10.4 suggests the firmware counts
-something the AP's vote does not control. Check whether the modem's *actual* deep-sleep
-transitions are happening, not just the AP's votes. Candidates: `/sys/kernel/debug/rpm_master_stats`
-(compare `MPSS numshutdowns` against Android's ~17/min), and whether the **AP itself** ever
-enters system suspend (`/sys/power/state`, `pm_genpd_summary`). If Android's AP suspends and
-OpenWrt's never does, that is a new and testable divergence.
+**N1 — Anchor on the 900 s modem-boot timer and distinguish the two readings.** §10.5 shows the
+fault is 901.6 s after *modem* power-up, matching both the documented modem EFS-sync timer and
+the firmware's ~400-DRX sleep-count check. rmtfs is confirmed read-write, so the
+"read-only rmtfs" branch is closed. To separate the two:
+  - Confirm the anchor is modem-boot and not AP-boot by rebooting and checking that a modem SSR
+    mid-run **resets** the 900 s window (i.e. next fault ≈ SSR time + 900 s).
+  - For the EFS reading: trace rmtfs requests around t+900 s (it emits no request logging today —
+    add it, or watch the eMMC for writes to `modemst*`).
+  - For the sleep reading: check `/sys/kernel/debug/rpm_master_stats` (`MPSS numshutdowns`,
+    compare against Android's ~17/min) and whether the **AP itself** ever enters system suspend
+    (`/sys/power/state`, `pm_genpd_summary`). If Android's AP suspends and OpenWrt's never does,
+    that is a new and testable divergence.
 
 **N2 — Instrument the 912 s boundary.** Add fine-grained logging (timestamped) around
 `bam_dmux_pc_irq` / `bam_dmux_pc_ack` / `runtime_resume` in the ~60 s before the fault, to see
