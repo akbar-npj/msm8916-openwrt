@@ -1,0 +1,106 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -185,6 +185,7 @@
+ 	 */
+ 	atomic64_t tx_defer_queued;
+ 	atomic64_t tx_defer_submitted;
++	atomic64_t tx_defer_preserved;
+ 	atomic64_t tx_defer_wiped;
+ 	atomic64_t tx_defer_wiped_live;
+ 	atomic64_t tx_submit_ok;
+@@ -1472,14 +1473,17 @@
+ 			atomic64_inc(&dmux->tx_defer_wiped_live);
+ }
+ 
+-static void bam_dmux_free_skbs(struct bam_dmux_skb_dma skbs[],
+-			       enum dma_data_direction dir)
++static void bam_dmux_free_skbs_except(struct bam_dmux_skb_dma skbs[],
++				      enum dma_data_direction dir,
++				      unsigned long keep)
+ {
+ 	int i;
+ 
+ 	for (i = 0; i < BAM_DMUX_NUM_SKB; i++) {
+ 		struct bam_dmux_skb_dma *skb_dma = &skbs[i];
+ 
++		if (test_bit(i, &keep))
++			continue;
+ 		if (skb_dma->addr)
+ 			bam_dmux_skb_dma_unmap(skb_dma, dir);
+ 		if (skb_dma->skb) {
+@@ -1505,6 +1509,12 @@
+ 	}
+ }
+ 
++static void bam_dmux_free_skbs(struct bam_dmux_skb_dma skbs[],
++			       enum dma_data_direction dir)
++{
++	bam_dmux_free_skbs_except(skbs, dir, 0);
++}
++
+ static void bam_dmux_power_off(struct bam_dmux *dmux)
+ {
+ 	unsigned long flags;
+@@ -1735,7 +1745,7 @@
+ static void bam_dmux_pm_restart(struct bam_dmux *dmux)
+ {
+ 	struct device *dev = dmux->dev;
+-	unsigned long flags;
++	unsigned long flags, deferred;
+ 	int i;
+ 
+ 	/* 1. Drop the channels so the next request re-runs bam_reset(). */
+@@ -1748,13 +1758,32 @@
+ 	 * bam_dmux_tx_queue() would keep seeing an occupied slot, stop the TX
+ 	 * queue and return NULL (NETDEV_TX_BUSY) forever. Only
+ 	 * bam_dmux_tx_callback() re-wakes the queue and it can never fire.
++	 *
++	 * Deferred packets are the exception and must survive. A slot in
++	 * tx_deferred_skb was only DMA-mapped by bam_dmux_netdev_start_xmit(),
++	 * never submitted, so the quiesce never had a descriptor of its own to
++	 * terminate and the mapping is still valid for the rebuilt channel.
++	 * Freeing them here -- which is what this function used to do -- threw
++	 * away the packet that start_xmit() had just deferred while waiting for
++	 * this very wake. bam_dmux_runtime_suspend() refuses to suspend while
++	 * tx_deferred_skb is non-zero (its Guard 1), so a deferred packet is
++	 * always meant to be drained by the wake, not discarded by it.
++	 *
++	 * Measured before this fix (patch 811 telemetry, one boot): 27 packets
++	 * deferred, 27 wiped with a live skb, 0 submitted. A single ping sent
++	 * to a collapsed modem was lost 3/3; the same ping sent while the modem
++	 * was awake was delivered.
+ 	 */
+ 	cancel_delayed_work_sync(&dmux->tx_retry_work);
+-	bam_dmux_account_deferred_wipe(dmux,
+-				       atomic_long_read(&dmux->tx_deferred_skb));
+-	atomic_long_set(&dmux->tx_deferred_skb, 0);
+-	bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE);
+-	dmux->tx_next_skb = 0;
++	deferred = atomic_long_read(&dmux->tx_deferred_skb);
++	atomic64_add(hweight_long(deferred), &dmux->tx_defer_preserved);
++	bam_dmux_free_skbs_except(dmux->tx_skbs, DMA_TO_DEVICE, deferred);
++	/*
++	 * tx_next_skb is deliberately NOT reset: slots named by `deferred` are
++	 * still occupied, so restarting the ring at 0 would hand out an
++	 * occupied slot, stop the TX queue, and wait for a completion that the
++	 * preserved slot has not even been submitted for yet.
++	 */
+ 
+ 	/* 3. Re-request both channels and re-apply the slave config. */
+ 	dmux->rx = dma_request_chan(dev, "rx");
+@@ -2072,6 +2101,7 @@
+ 			 "tx_sweep_guard_hits: %llu\n"
+ 			 "tx_defer_queued: %llu\n"
+ 			 "tx_defer_submitted: %llu\n"
++			 "tx_defer_preserved: %llu\n"
+ 			 "tx_defer_wiped: %llu\n"
+ 			 "tx_defer_wiped_live: %llu\n"
+ 			 "tx_submit_ok: %llu\n"
+@@ -2121,6 +2151,7 @@
+ 			 (unsigned long long)atomic64_read(&dmux->tx_sweep_guard_hits),
+ 			 (unsigned long long)atomic64_read(&dmux->tx_defer_queued),
+ 			 (unsigned long long)atomic64_read(&dmux->tx_defer_submitted),
++			 (unsigned long long)atomic64_read(&dmux->tx_defer_preserved),
+ 			 (unsigned long long)atomic64_read(&dmux->tx_defer_wiped),
+ 			 (unsigned long long)atomic64_read(&dmux->tx_defer_wiped_live),
+ 			 (unsigned long long)atomic64_read(&dmux->tx_submit_ok),

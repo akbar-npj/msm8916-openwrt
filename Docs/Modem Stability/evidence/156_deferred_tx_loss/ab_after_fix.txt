@@ -1,0 +1,50 @@
+AB TEST — AFTER THE FIX (patch 812)
+===================================
+Module md5 68dcc4ace88a1729d6081569c72c6383 (237568 B).
+Boot point 22:17:38, tests run at ~2-7 min uptime.
+Command: ROUNDS=5 sh /overlay/defertest.sh
+Test: identical to ab_before_fix.txt — idle 25 s, snapshot, ONE ping, snapshot.
+
+--- the headline, one minute after boot ---
+tx_defer_queued: 8
+tx_defer_submitted: 8     <- was 0
+tx_defer_preserved: 8     <- new counter: 8 carried across a wake
+tx_defer_wiped: 0         <- was 27
+tx_defer_wiped_live: 0    <- was 27
+tx_submit_ok: 33
+tx_complete: 33
+
+=== round 1 ===
+before: tx_defer_queued=11 tx_defer_submitted=11 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=37 tx_complete=37 tx_sweep_guard_hits=0 pc_vote_tx_count=5 pm_suspend_attempts=5 pm_resume_attempts=5 tx_pkts=34 rx_pkts=22 rs=suspended pc=0
+ping  : 1 packets transmitted, 1 packets received, 0% packet loss
+after : tx_defer_queued=12 tx_defer_submitted=12 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=38 tx_complete=38 tx_sweep_guard_hits=0 pc_vote_tx_count=6 pm_suspend_attempts=5 pm_resume_attempts=6 tx_pkts=35 rx_pkts=23 rs=active pc=1
+=> deferred +1, submitted +1, wiped_live +0, rx_pkts +1, ping RECEIVED
+
+=== round 2 ===
+before: tx_defer_queued=13 tx_defer_submitted=13 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=42 tx_complete=42 tx_sweep_guard_hits=0 pc_vote_tx_count=7 pm_suspend_attempts=7 pm_resume_attempts=7 tx_pkts=39 rx_pkts=27 rs=suspended pc=0
+ping  : 1 packets transmitted, 1 packets received, 0% packet loss
+after : tx_defer_queued=14 tx_defer_submitted=14 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=43 tx_complete=43 tx_sweep_guard_hits=0 pc_vote_tx_count=8 pm_suspend_attempts=7 pm_resume_attempts=8 tx_pkts=40 rx_pkts=28 rs=active pc=1
+=> ping RECEIVED
+
+=== round 3 ===  (control: the modem was already awake)
+before: tx_defer_queued=15 tx_defer_submitted=15 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=46 tx_complete=46 tx_sweep_guard_hits=0 pc_vote_tx_count=9 pm_suspend_attempts=8 pm_resume_attempts=9 tx_pkts=43 rx_pkts=30 rs=active pc=1
+ping  : 1 packets transmitted, 1 packets received, 0% packet loss
+after : tx_defer_queued=15 tx_defer_submitted=15 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=47 tx_complete=47 tx_sweep_guard_hits=0 pc_vote_tx_count=9 pm_suspend_attempts=8 pm_resume_attempts=9 tx_pkts=44 rx_pkts=32 rs=active pc=1
+=> deferred +0 (direct path), submit_ok +1, complete +1, ping RECEIVED
+
+=== round 4 ===
+before: tx_defer_queued=15 tx_defer_submitted=15 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=48 tx_complete=48 tx_sweep_guard_hits=0 pc_vote_tx_count=9 pm_suspend_attempts=9 pm_resume_attempts=9 tx_pkts=45 rx_pkts=33 rs=suspended pc=0
+ping  : 1 packets transmitted, 1 packets received, 0% packet loss
+after : tx_defer_queued=16 tx_defer_submitted=16 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=49 tx_complete=49 tx_sweep_guard_hits=0 pc_vote_tx_count=10 pm_suspend_attempts=9 pm_resume_attempts=10 tx_pkts=46 rx_pkts=34 rs=active pc=1
+=> ping RECEIVED
+
+=== round 5 ===
+before: tx_defer_queued=19 tx_defer_submitted=19 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=53 tx_complete=53 tx_sweep_guard_hits=0 pc_vote_tx_count=11 pm_suspend_attempts=11 pm_resume_attempts=11 tx_pkts=50 rx_pkts=38 rs=suspended pc=0
+ping  : 1 packets transmitted, 1 packets received, 0% packet loss
+after : tx_defer_queued=20 tx_defer_submitted=20 tx_defer_wiped=0 tx_defer_wiped_live=0 tx_submit_ok=54 tx_complete=54 tx_sweep_guard_hits=0 pc_vote_tx_count=12 pm_suspend_attempts=11 pm_resume_attempts=12 tx_pkts=51 rx_pkts=39 rs=active pc=1
+=> ping RECEIVED
+
+RESULT: 5/5 delivered, including 4 rounds that started from rs=suspended pc=0 —
+the exact condition that lost 3/3 before the fix.  In every suspended round
+tx_defer_queued and tx_defer_submitted advanced together by exactly 1, and
+tx_defer_wiped_live stayed at 0.

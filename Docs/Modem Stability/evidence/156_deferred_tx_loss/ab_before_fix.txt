@@ -1,0 +1,43 @@
+AB TEST — BEFORE THE FIX (patch 811 instrumentation only, no behaviour change)
+==============================================================================
+Module md5 26014c0e78f89455904ae7e0db7d017c (236128 B).
+Boot point 22:13:08, tests run at ~1-4 min uptime.
+Command: ROUNDS=4 sh /overlay/defertest.sh
+Test: idle 25 s (modem collapses), snapshot, send exactly ONE ping, snapshot.
+
+--- the headline, one minute after boot, before any test traffic ---
+tx_defer_queued: 27      <- 27 packets took the defer branch
+tx_defer_submitted: 0    <- NONE was ever submitted
+tx_defer_wiped: 27       <- all 27 bits discarded by bam_dmux_pm_restart()
+tx_defer_wiped_live: 27  <- ...and all 27 still had a live skb = 27 real packets
+tx_submit_ok: 18         <- 18 packets took the direct path
+tx_complete: 18          <- and all 18 completed
+=> 27 of 45 TX packets (60%) silently destroyed.
+
+=== round 1 ===
+before: tx_defer_queued=71 tx_defer_submitted=0 tx_defer_wiped=71 tx_defer_wiped_live=71 tx_submit_ok=18 tx_complete=18 tx_sweep_guard_hits=0 pc_vote_tx_count=12 pm_suspend_attempts=12 pm_resume_attempts=12 tx_pkts=86 rx_pkts=8 rs=suspended pc=0
+ping  : 1 packets transmitted, 0 packets received, 100% packet loss
+after : tx_defer_queued=72 tx_defer_submitted=0 tx_defer_wiped=72 tx_defer_wiped_live=72 tx_submit_ok=42 tx_complete=42 tx_sweep_guard_hits=0 pc_vote_tx_count=13 pm_suspend_attempts=13 pm_resume_attempts=13 tx_pkts=111 rx_pkts=16 rs=suspended pc=0
+=> deferred +1, wiped_live +1, submitted +0, ping LOST
+
+=== round 2 ===
+before: tx_defer_queued=111 tx_defer_submitted=0 tx_defer_wiped=111 tx_defer_wiped_live=111 tx_submit_ok=42 tx_complete=42 tx_sweep_guard_hits=0 pc_vote_tx_count=19 pm_suspend_attempts=19 pm_resume_attempts=19 tx_pkts=150 rx_pkts=16 rs=suspended pc=0
+ping  : 1 packets transmitted, 0 packets received, 100% packet loss
+after : tx_defer_queued=116 tx_defer_submitted=0 tx_defer_wiped=116 tx_defer_wiped_live=116 tx_submit_ok=42 tx_complete=42 tx_sweep_guard_hits=0 pc_vote_tx_count=21 pm_suspend_attempts=21 pm_resume_attempts=21 tx_pkts=155 rx_pkts=16 rs=suspended pc=0
+=> ping LOST
+
+=== round 3 ===  (control: the modem was already awake)
+before: tx_defer_queued=147 tx_defer_submitted=0 tx_defer_wiped=147 tx_defer_wiped_live=147 tx_submit_ok=42 tx_complete=42 tx_sweep_guard_hits=0 pc_vote_tx_count=26 pm_suspend_attempts=25 pm_resume_attempts=26 tx_pkts=186 rx_pkts=16 rs=active pc=1
+ping  : 1 packets transmitted, 1 packets received, 0% packet loss
+after : tx_defer_queued=147 tx_defer_submitted=0 tx_defer_wiped=147 tx_defer_wiped_live=147 tx_submit_ok=43 tx_complete=43 tx_sweep_guard_hits=0 pc_vote_tx_count=26 pm_suspend_attempts=25 pm_resume_attempts=26 tx_pkts=187 rx_pkts=17 rs=active pc=1
+=> deferred +0 (direct path), submit_ok +1, complete +1, rx_pkts +1, ping RECEIVED
+
+=== round 4 ===
+before: tx_defer_queued=155 tx_defer_submitted=8 tx_defer_wiped=147 tx_defer_wiped_live=147 tx_submit_ok=53 tx_complete=53 tx_sweep_guard_hits=0 pc_vote_tx_count=27 pm_suspend_attempts=27 pm_resume_attempts=27 tx_pkts=197 rx_pkts=23 rs=suspended pc=0
+ping  : 1 packets transmitted, 0 packets received, 100% packet loss
+after : tx_defer_queued=156 tx_defer_submitted=8 tx_defer_wiped=148 tx_defer_wiped_live=148 tx_submit_ok=53 tx_complete=53 tx_sweep_guard_hits=0 pc_vote_tx_count=28 pm_suspend_attempts=28 pm_resume_attempts=28 tx_pkts=198 rx_pkts=23 rs=suspended pc=0
+=> deferred +1, wiped_live +1, submitted +0, ping LOST
+
+RESULT: 3/3 lost when the snapshot showed rs=suspended pc=0; 1/1 delivered when
+it showed rs=active pc=1.  The single discriminating variable is whether the
+packet took the defer branch.

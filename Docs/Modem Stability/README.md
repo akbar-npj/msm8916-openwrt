@@ -23,8 +23,13 @@ the clean stock HMU05 set), and a tenth by **Doc 154** (which finds a **second, 
 restart after fatal #15**, requiring a reboot), and an eleventh by **Doc 155** (which **corrects
 Doc 154 §5.3** — the sweep *is* always under `state_lock`; the real hole is that
 `bam_dmux_netdev_start_xmit()` re-arms the deferred bit without it — and **fixes the race with
-patch 810**, verified against the disassembly of the very module that crashed) — see the sections
-below.
+patch 810**, verified against the disassembly of the very module that crashed), and a twelfth by
+**Doc 156** (which **root-causes the steady-state data stall**: `pm_runtime_get()` is *async*, so the
+first packet after every A2 power collapse always takes `start_xmit`'s defer branch — and
+`bam_dmux_pm_restart()` then cleared `tx_deferred_skb` and freed the skb on the very wake that packet
+was waiting for, destroying it with **no crash and no counter**; measured **27/27** deferred packets
+destroyed in the first minute of one boot and **3/3** single-packet pings lost, and **patch 812** turns
+that into **5/5** delivered) — see the sections below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -285,6 +290,58 @@ below.
     and the `:597` defer branch is never taken. The soak must **idle first, then burst**; with that
     pattern it produced **23 collapse/wake cycles in ~140 s** and **0 oopses**.
 
+## A twelfth round — Doc 156, 2026-09-21: the data stall ROOT-CAUSED and FIXED (patches 811 + 812)
+
+33. **`pm_runtime_get()` is asynchronous, and that is the whole bug.**
+    `pm_runtime_get()` is `__pm_runtime_resume(dev, RPM_GET_PUT | RPM_ASYNC)`
+    (`include/linux/pm_runtime.h:400-403`) — it **queues** the resume and returns `-EINPROGRESS`; it
+    does **not** block. `start_xmit` is atomic context and cannot sleep, which is why the driver uses
+    this variant. So for the **first packet after the modem has collapsed**, `active = -EINPROGRESS`,
+    and the branch at `qcom_bam_dmux.c:667` (`active <= 0 || !pc_state`) is taken **deterministically**.
+    Assuming `pm_runtime_get()` behaved like `_sync` is what made this invisible to inspection for
+    several sessions.
+34. **`bam_dmux_pm_restart()` then destroyed exactly that packet.** The wake transition is
+    `pc_irq` → `pc_state = true` → **`pm_restart()`**, and `pm_restart()` did
+    `atomic_long_set(&dmux->tx_deferred_skb, 0)` + `bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE)`
+    — i.e. it cleared the bit and freed the skb of the packet that `start_xmit` had deferred *while
+    waiting for this very wake*. The drain at `pc_irq:1878` was therefore **dead code**: `pm_restart()`
+    had already zeroed the bitmap it tests.
+35. **Nothing retransmits it.** `start_xmit` returned `NETDEV_TX_OK`, so the stack believes the skb was
+    consumed and the qdisc holds nothing to retry. `bam_dmux_tx_wake_queues()` cannot resurrect a
+    packet the driver already acknowledged. TCP survives by RTO; **one** ICMP echo, DNS query or UDP
+    datagram does not — which is exactly why `modem-bearer-watchdog`'s single-attempt gate ate it.
+36. **Measured, and it is not rare.** Patch 811 adds six counters (`tx_defer_queued`,
+    `tx_defer_submitted`, `tx_defer_preserved`, `tx_defer_wiped`, `tx_defer_wiped_live`,
+    `tx_submit_ok`, `tx_complete`). One minute after boot, **before the fix**:
+    `queued 27 / submitted 0 / wiped 27 / wiped_live 27` — **27 of 45 TX packets (60 %) silently
+    destroyed**, with no oops, no fatal, no SSR and `tx_sweep_guard_hits: 0`. It is invisible to every
+    stability gate this project had. `tx_defer_wiped_live` is the decisive counter: it separates "a
+    stale bit was cleaned up" from "a real packet was thrown away".
+37. **The symptom reproduced and attributed in one test.** `defertest.sh`: idle 25 s, snapshot, **one**
+    ping, snapshot. **3/3 lost** when the snapshot showed `rs=suspended pc=0` (`deferred +1,
+    submitted +0, wiped_live +1`); **1/1 delivered** when it showed `rs=active pc=1` (direct path:
+    `tx_submit_ok +1, tx_complete +1`). The single discriminating variable is whether the packet took
+    the defer branch — which rules out "the modem is just slow to answer".
+38. **Patch 812 fixes it** by making `pm_restart()` obey the invariant the suspend path already relies
+    on: `bam_dmux_runtime_suspend()` has an explicit **Guard 1** (`:1933`) that aborts while
+    `tx_deferred_skb` is non-zero, i.e. *a deferred packet pins the device awake until delivered*.
+    `pm_restart()` was the one path that threw the work away instead of draining it. The fix adds
+    `bam_dmux_free_skbs_except(skbs, dir, keep)` and preserves the deferred slots (and their DMA
+    mappings — `dma_map_single()` maps for the **device**, not the channel, so it survives the channel
+    rebuild) plus their PM references. `tx_next_skb` must **not** be reset while slots are preserved,
+    or the ring hands out an occupied slot and stops the TX queue forever. `power_off()` (SSR) is
+    unchanged and still discards — dropping is correct there.
+39. **Verified.** After the fix, one minute after boot: `queued 8 / preserved 8 / submitted 8 /
+    wiped_live 0`. The same symptom test: **5/5 delivered**, including **4/4** from `rs=suspended
+    pc=0` — the exact condition that lost 3/3. Patch-chain integrity re-verified against the pre-810
+    snapshot: `pre810 + 810 == pre811`, `pre811 + 811 == post811`, `post811 + 812 == the built file`.
+40. **Scope — what this does NOT explain.** It does **not** explain the ~900 s fatal
+    (`a2_power.c:1189`, `lte_ml1_common_timer.c:390`) or the failed modem restart after fatal #15; those
+    paths are untouched. It also does not close the residual `start_xmit` window (a `pm_restart()`
+    that reads the bitmap *before* the bit is set still frees that slot; counted by patch 810's
+    `tx_sweep_guard_hits`, still 0). Full report:
+    `156_DEFERRED_TX_PACKET_LOSS_ROOT_CAUSE_AND_FIX.md`.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -298,6 +355,15 @@ precisely what this defect eats.
 (`PROBE_ATTEMPTS=3`, 2 s apart) and requires `PROBE_FAIL_MIN=2` **consecutive** failures
 before escalating. Verified: a first-packet loss is absorbed with no escalation and the
 bearer stays up, while a genuinely sustained failure still escalates.
+
+**ROOT-CAUSED AND FIXED 2026-09-21 (Doc 156).** The watchdog change above is a **workaround**; the
+defect itself was in the driver. `pm_runtime_get()` is async, so the first packet after every A2
+collapse takes `start_xmit`'s defer branch, and `bam_dmux_pm_restart()` destroyed it on the wake it
+was waiting for. Measured **27/27** deferred packets destroyed (60 % of TX in the first minute of a
+boot) and **3/3** single-packet pings lost before the fix; **patch 812** gives **5/5** delivered
+after. `dtx=1` was never evidence the packet reached the wire — it is incremented on the defer branch
+*before* the packet is destroyed. The watchdog's single-attempt gate is now a **safety net, not a
+fix**; do not remove it yet, because Doc 156 §9's residual `start_xmit` window is still open.
 
 Also established and not to be re-litigated:
 
@@ -343,6 +409,7 @@ Also established and not to be re-litigated:
 | `153_FATAL14_CAPTURED_DEVMEM_IMPOSSIBLE_AND_WATCHER_AUTOSTART.md` | **Doc 152's watcher fix confirmed by capturing fatals #14 AND #15** (each 85 398 475 B, md5 verified) — the `test -s` guard was the whole cause. **The coredump is created only after `rproc_stop()` returns**, so a hanging fatal (fatal #13) is *structurally uncapturable* — the dump is never created. **`/dev/mem` cannot read the mpss region by any method** (read()→EFAULT, mmap()→SIGBUS; source-verified), so live `devmem` observation is impossible and a `nomap`-capable kernel module is the next instrument. Establishes **`dump_va == AP physical` for mpss**; the watcher now autostarts from `/etc/rc.local` (and busybox `start-stop-daemon -S` is **not idempotent** for a script); **the deployed baseband is verified byte-identical to the stock HMU05 dump** (21 modem + 9 WCNSS segments); the `rpm` LPR `+0x18` counter spans **375–1064** (not monotonic either way) and word B **advances 11 per period at 4/4 within-boot but does not reset across a reboot** |
 | `154_BAM_DMUX_TX_WAKEUP_NULL_DEREF_AND_FAILED_MODEM_RESTART.md` | **A second, distinct `bam_dmux` NULL deref** — `bam_dmux_tx_wakeup_work+0xc8` → `bam_dmux_skb_dma_submit_tx+0x2c`, faulting load `ldr w22, [x2, #0x70]` with `x2 = NULL` (= `skb_dma->skb`; `skb->len` at 0x70 BTF-verified). Different function/caller/offset from Doc 147's oops. Separately: **the modem failed to restart after fatal #15** (`port failed halt`, stall at `loading mpss`, `state = offline`, reboot required); and the Doc 153 rc.local autostart is verified at a real boot. **Its §5.3 mechanism ("neither `power_off` nor `pm_restart` takes `state_lock`") is WRONG and is corrected by Doc 155 — the sweep is always under `state_lock`; the hole is that `start_xmit` sets the deferred bit without it.** Its §4 decode is correct and stands |
 | `155_TX_SWEEP_RACE_PATCH_810_AND_DOC154_CORRECTION.md` | **The TX-sweep race, corrected and FIXED.** Corrects Doc 154 §5.3: the sweep (`bam_dmux_free_skbs()` from `power_off()`/`pm_restart()`) is **always** under `state_lock` (`pc_irq` `:1701`, rx-watchdog resync `:1191`, teardown `:2059`, powerup `:2213`, remove `:2292`), so the `:654` comment is true. The real hole is the **producer**: `bam_dmux_netdev_start_xmit()` is atomic context and sets `tx_deferred_skb` at `:599` **without** the lock, so it can re-arm a bit for a slot a concurrent sweep already freed. **Patch 810** (`msm89xx/patches/810-bam-dmux-tx-sweep-race.patch`) makes the consumers tolerant: NULL-guard `bam_dmux_skb_dma_map()`/`bam_dmux_skb_dma_submit_tx()`, **drop** stale bits in the `tx_wakeup_work` loop, and stop `start_xmit`'s `drop:` from double-freeing/double-putting. **`cancel_work_sync(&tx_wakeup_work)` there would deadlock.** Verified in the crashing object (md5 `3b693188…`): `pc` `b30−b04 = 0x2c`, `lr` `13b0−12e8 = 0xc8`, faulting word `b9407056`. Soak caveat: **1 Hz traffic keeps the modem awake and does not exercise the path** — idle-then-burst gives 23 collapse cycles and 0 oops |
+| `156_DEFERRED_TX_PACKET_LOSS_ROOT_CAUSE_AND_FIX.md` | **ROOT CAUSE of the steady-state data stall, and its fix.** `pm_runtime_get()` is `__pm_runtime_resume(dev, RPM_GET_PUT \| RPM_ASYNC)` (`include/linux/pm_runtime.h:400-403`) — **asynchronous**; it queues the resume and returns `-EINPROGRESS` rather than blocking. So the **first packet after every A2 power collapse** takes `start_xmit`'s defer branch (`qcom_bam_dmux.c:667`, `active <= 0`), deterministically. The wake then runs `pc_irq` → `pc_state = true` → **`bam_dmux_pm_restart()`**, which did `atomic_long_set(&dmux->tx_deferred_skb, 0)` + `bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE)` — destroying the skb of the packet it was supposed to drain, and making the drain at `pc_irq:1878` **dead code**. `start_xmit` had already returned `NETDEV_TX_OK`, so nothing retransmits it (TCP survives by RTO; a single ICMP/DNS/UDP packet does not — this is the `dtx=1 drx=0` stall). **Measured before the fix: 27 packets deferred, 27 destroyed with a live skb, 0 delivered — 60 % of all TX in the first minute of a boot, with no oops/fatal/SSR and `tx_sweep_guard_hits: 0`.** A single ping to a collapsed modem: **3/3 lost**; the same ping to an awake modem: delivered. **Patch 811** adds the counters (`tx_defer_queued/submitted/preserved/wiped/wiped_live`, `tx_submit_ok`, `tx_complete`); **patch 812** adds `bam_dmux_free_skbs_except()` and makes `pm_restart()` **preserve** deferred slots (the `dma_map_single()` mapping is for the *device*, not the channel, so it survives the rebuild) — honouring `runtime_suspend()`'s existing **Guard 1** (`:1933`). `tx_next_skb` must **not** be reset while slots are preserved. **Verified: `queued 8 / preserved 8 / submitted 8 / wiped_live 0`, and 5/5 pings delivered including 4/4 from `rs=suspended pc=0`.** Does **not** explain the ~900 s fatal or the failed restart. Residual `start_xmit` window remains open and counted |
 
 ## Sound but narrow (accurate, subordinate scope)
 
