@@ -4,10 +4,11 @@
 syslog lines are converted to kernel time where both exist, and the conversion is stated.
 
 **Status:** **root cause found, mechanism source-verified and measured on the live device, fix written,
-built, deployed and running.** Soak run 1 confirms the **normal** SSR path is intact with the patch
-deployed (§7.4). The two **new recovery paths have not yet been observed to fire**, because the trigger
-is a modem that takes longer than 3.2 s to become ready and this build cannot force one on demand
-(§8.4).
+built, deployed and running, and the recovery path proven.** Soak run 1 confirms the **normal** SSR path
+is intact with the patch deployed (§7.4); run 3 proves the retry rebuilds the channels **with the assert
+edge deliberately dropped**, i.e. in exactly the failure mode the patch exists for (§7.5). What is still
+missing is a *natural* occurrence of the trigger (a modem slower than 3.2 s) — soak run 4 is watching
+for one (§8.4).
 
 Source changed in the **tracked** tree (`msm89xx/patches/814-bam-dmux-ssr-powerup-retry.patch`); the
 deployed `/lib/modules/6.12.94/qcom_bam_dmux.ko` was replaced (md5 `eca269f1…`, previous build backed
@@ -40,8 +41,8 @@ and the data plane was still dead, because the *driver* had stopped trying.
 | Ground truth from source, not narrative | **Applied, and it is what produced the answer.** The corpus had the *symptom* (memory quirk #9: "`wwan0` gets an IP but no default route … will be misread as a modem data-plane failure") but attributed it to `network.modem.auto` being unset. `auto` is set now and the symptom returned, so the corpus explanation was insufficient and the driver source had to be read. |
 | Read the definition, not the name | **Applied.** Three separate traps in this one chain: (a) `bam_dmux_runtime_resume()` **returns 0** on the missing-channels path, so it *looks* like a successful resume; (b) the message "RX watchdog: … (lost edge), resyncing" is reached only when `dmux->rx && dmux->tx` — the one state it cannot help in; (c) `irq_get_irqchip_state(IRQCHIP_STATE_LINE_LEVEL)` on the SMSM irqchip reads the **remote SMEM state word**, not a GPIO level (`smsm.c:330-331`). |
 | Check the call sites, not just the body | **Applied.** `bam_dmux_netdev_open()` (`:545`) calls the **synchronous** `pm_runtime_resume_and_get()` and then `bam_dmux_send_cmd()`; that pair is what turns the driver's silent success into a failed `ndo_open` and a DOWN interface. |
-| Measure on the live device, before and after | **Partly applied.** The stuck state was measured exhaustively (§5). The *fix* is deployed and the post-fix baseline is verified, but the failing condition has not recurred yet (§8.4) — this doc does not claim a verified recovery. |
-| Minimal, reversible change | Yes — patch 814 is one retry loop, one widened condition, and two schedule calls. The previous module is on the device as `qcom_bam_dmux.ko.p812`. |
+| Measure on the live device, before and after | **Applied.** The stuck state was measured exhaustively (§5); the fix is deployed and the post-fix baseline verified (§7.2); the normal path survived a real fatal-triggered SSR (§7.4); and the new retry path was driven on the live device by a deliberately crippled test build (§7.5). What has *not* happened is a natural occurrence of the trigger — this doc says so rather than implying otherwise. |
+| Minimal, reversible change | Yes — patch 814 is one retry loop, one widened condition, and two schedule calls. The previous module is on the device as `qcom_bam_dmux.ko.p812`. The run-3 test build was temporary, is preserved as a patch for reproducibility, and was reverted to a byte-identical production module (§7.5). |
 | Record what was done, the result, and what is next | §4–§7 mechanism, §5 measurement, §6 fix, §8 scope and next. |
 | Never classify a fault by its `file:line` | **Applied.** See §7.3 — the three fatals in this boot carry two different signatures. |
 
@@ -445,6 +446,67 @@ modem's start time and yields a **negative** modem uptime (run 1 logged `-1.4061
 the last line older than the fatal's timestamp, which for fatal #1 gives the correct **900.904 s** —
 the deterministic idle timer, consistent with Doc 156's 900.811 s.
 
+Run 2 (`run2_soak814.csv`, `.log`) was started on the production module at uptime 1013.9 s and
+abandoned ~2 s later when the test build below was deployed. It carries no measurement.
+
+### 7.5 Run 3 — the retry's *own* rebuild branch, proven by dropping the assert edge
+
+§8.4 item 1 left the decisive question open: the retry was known to **fire**, but in the only
+observation of it (the `i < 2` test build's boot, §8.4) the channels had already been rebuilt by the
+**pc_irq edge** — `CMD_OPEN` at 12.221 s arrived *before* the retry's success log at 12.542 s, and the
+retry reported `channels already active`. That leaves exactly the wrong half verified. The failure this
+patch exists for is a **lost assert edge** (§5.1): if the edge is what rebuilds the channels, then
+patch 814 does nothing for the case it was written for.
+
+So run 3 forced it. Two temporary edits were applied to the working source — **neither is part of
+patch 814** — and saved as `evidence/…/run3_test_edits.patch` (49 lines) against `post814`:
+
+1. the poll window `for (i = 0; i < 150; i++)` → `i < 2`, i.e. 40 ms instead of 3200 ms, so every SSR
+   must take the retry path; and
+2. in `bam_dmux_pc_irq()`, the rising edge is **dropped outright** when `dmux->rx` or `dmux->tx` is
+   NULL — nothing is written, nothing is acked, no `bam_dmux_power_on()` — which is a faithful
+   simulation of the edge never reaching SMSM. The pc IRQ is edge-triggered (`smsm 1 Edge`) and SMSM's
+   cascade handler is edge-based on a cached value (`smsm.c:219-220`), so dropping it cannot storm.
+
+The reconstructed test source rebuilds to `5e26986d4697ac992489cc849f29c899`, byte-identical to the
+module that was deployed — so the saved patch reproduces the test exactly.
+
+Result (full capture: `evidence/…/run3_lost_edge_retry_rebuild.txt`):
+
+```
+[   11.866793] SSR after powerup: scheduling powerup work
+[   12.126163] SSR powerup: modem pc line not asserted, retry 1/20 in 500 ms
+[   12.516987] TEST: pc assert edge DROPPED (rx=0000000000000000 tx=0000000000000000) -- only the poll path can recover now
+[   12.866073] SSR powerup: modem pc_state=1 (waited 200 ms)
+[   12.869878] SSR powerup: successfully reinitialized BAM channels and rings   <- the RETRY did this
+[   12.874720] received CMD_OPEN (1) on channel 0   ... through channel 7
+```
+
+The edge at 12.517 s was discarded with `rx == tx == NULL`; the retry polled again at 12.866 s, read
+the modem's true SMEM state word (not an interrupt), found `!dmux->rx`, and called
+`bam_dmux_power_on()` itself. The eight `CMD_OPEN` messages follow from the driver's own open sequence
+— there was no second edge to trigger them. The resulting data plane is fully functional:
+
+```
+wwan0: <POINTOPOINT,NOARP,UP,LOWER_UP> ... state UNKNOWN
+inet 10.101.20.157/30   default via 10.101.20.158 dev wwan0 proto static src 10.101.20.157 metric 10
+4 packets transmitted, 4 received, 0% packet loss
+rx_slots_mapped: 32   rx_tearing_down: 0   pc_state: 1   pc_line_level: 1   pc_resync_count: 0
+nslookup openwrt.org -> 2a03:b0c0:3:d0::1a51:c001
+```
+
+`pc_irq_count` reached 11 over the boot, so the handler resumed working normally once the channels
+existed — the suppression was confined to the missing-channels state, as intended.
+
+Both temporary edits were then reverted. The restored source is byte-identical to `post814`
+(`diff` clean) and rebuilds to **`eca269f10a685a83a8b679bc7be38d1d`**, the production module hash —
+verified by rebuild, not by assumption. It was redeployed and the device rebooted: the boot log is the
+normal path again (`SSR powerup: modem pc_state=1 (waited 560 ms)`, `channels already active`, no
+`TEST:` lines, no `retry`), with `5/5` and `5/5` ping and `cmd_open: 8`.
+
+**This closes the last verification gap on patch 814.** The recovery does not depend on ever receiving
+another interrupt.
+
 
 ## 8. Scope, what this is not, and next
 
@@ -477,7 +539,10 @@ a 30 s timeout, and the device came back at uptime 32 s. **n=2**, on a different
 patch 814, and patch 814 does not fix it. Evidence:
 `evidence/157_ssr_powerup_giveup/echo_stop_hang_second_observation.txt`.
 
-**Consequence:** an AP-initiated modem teardown is still not available as a test route, so §8.4 stands.
+**Consequence:** an AP-initiated modem teardown is still not available as a test route. The recovery
+paths were therefore exercised by a **deliberately crippled test build** instead of by forcing an SSR —
+which turned out to be the better experiment anyway, because it isolates the poll path from the
+interrupt path (§7.5).
 
 ### 8.3 Open questions
 
@@ -485,17 +550,20 @@ patch 814, and patch 814 does not fix it. Evidence:
    state word in `bam_dmux_ssr_teardown_work_func()` (`:2189-2191`), which SMSM's `last_value` cache
    does not observe. It does not explain this incident (the `enable_irq()` refresh lands before the
    modem asserts) but it is a real hazard. A test: instrument `smsm_intr()` to log `val`, `changed` and
-   `last_value` for the pc bit, then force an SSR.
+   `last_value` for the pc bit, then force an SSR. **Lower priority since §7.5:** the driver now
+   recovers from a wholly missed edge, so this is now a question about the *mechanism*, not about
+   whether the symptom returns. It would still be worth knowing whether an edge is ever missed in the
+   field at all — if it never is, the real trigger is only the slow-boot case.
 2. **Why did this modem boot take 6.4 s when the other two took 0.4 s?** Crash #3 was the third fatal
    in ~980 s. Back-to-back crashes may load the firmware more slowly.
 
 ### 8.4 Next, in priority order
 
-1. **Keep `soak814.sh` running and watch for a `retry N/20` line.** Run 1 survived a real
-   fatal-triggered SSR on the normal path (§7.4), so the normal path is verified intact — but the
-   **fix** is verified end-to-end only when a retry actually fires *and* the following
-   `DATA PLANE OK (SSR #n)` line appears. A run in which no retry fires is **inconclusive, not
-   negative** — say so, do not upgrade it.
+1. **Keep `soak814.sh` running** (run 4 is live on the production module `eca269f1…`) and watch for a
+   **natural** `retry N/20` line followed by `DATA PLANE OK (SSR #n)`. The retry's own rebuild branch is
+   now proven by construction (§7.5), so this is no longer a correctness question — it is a
+   confirmation that the *trigger* occurs in the field. A run in which no retry fires is
+   **inconclusive, not negative** — say so, do not upgrade it.
 2. **Amend memory quirk #9** — `auto` is not the whole story; see §8.1.
 3. **Instrument SMSM** for the missed-edge question (§8.3 item 1), if a third occurrence appears.
 4. **Do not** retry `echo stop` as a test route (§8.2).
@@ -531,12 +599,21 @@ patch 814, and patch 814 does not fix it. Evidence:
     `rebuilds 0`, `pc_resync_count 0`, `pc_timeout_count 0`) — they are inert unless needed. §7.4.
 13. The fatal cadence is unaffected by patch 814: run 1's fatal #1 was `lte_ml1_sleepmgr_stm.c:4054` at
     **900.904 s of modem uptime** — the deterministic idle timer. §7.4.
+14. **The retry path rebuilds the channels on its own, with no help from the pc_irq edge.** With the
+    edge deliberately dropped while `rx == tx == NULL`, the retry polled the modem's SMEM state word,
+    called `bam_dmux_power_on()` itself, logged `successfully reinitialized BAM channels and rings`,
+    the modem opened all eight channels, and the data plane came back fully (4/4 ping, DNS,
+    `rx_slots_mapped 32`, `rx_tearing_down 0`). §7.5.
+15. The run-3 test build is reproducible from the saved patch (`run3_test_edits.patch` → md5
+    `5e26986d…`), and reverting it reproduces the production module byte-exactly
+    (`eca269f10a685a83a8b679bc7be38d1d`), verified by rebuild. §7.5.
 
 **Not established:**
 
-* **That patch 814 fixes the incident.** The recovery paths are source-verified and the normal path is
-  verified intact (§7.4), but **neither new path has been observed to fire**: the trigger is a modem
-  slower than 3.2 s, and this build cannot force one on demand (§8.2, §8.4 item 1).
+* **That a retry fires in the field on the production build.** The path is proven by construction
+  (§7.5) and inert when unneeded (§7.4), but no *natural* occurrence has been observed — the trigger is
+  a modem slower than 3.2 s. Soak run 4 is watching for one. This is now a question about the trigger,
+  not about the fix.
 * **Why the assert edge was missed.** §5.1. The SMEM-write hazard is a candidate that does not fit the
   observed timing.
 * **Whether the 3.2 s budget is the only reason the first two SSRs succeeded** (they waited 200 ms;
@@ -557,6 +634,11 @@ patch 814, and patch 814 does not fix it. Evidence:
 | `stuck_state_capture.txt` | the live stuck device, verbatim |
 | `echo_stop_hang_second_observation.txt` | the n=2 confirmation of Doc 151 §5 |
 | `soak814.sh` | the soak with per-SSR data-plane probes |
+| `run1_soak814.csv` / `.log` | run 1 — the normal SSR path is intact |
+| `run2_soak814.csv` / `.log` | run 2 — abandoned after 2 s, no measurement |
+| `run3_test_edits.patch` | **not** part of patch 814: the two temporary test edits |
+| `qcom_bam_dmux.c.run3_testbuild` | the run-3 test source (rebuilds to `5e26986d…`) |
+| `run3_lost_edge_retry_rebuild.txt` | run 3 — the retry's own rebuild, with the edge dropped |
 
 ## 11. One line
 

@@ -1,0 +1,49 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -1900,6 +1900,27 @@
+ 	if (new_state == READ_ONCE(dmux->pc_state))
+ 		return IRQ_HANDLED;
+ 
++	/*
++	 * *** TEMPORARY TEST BUILD (not patch 814) ***
++	 * Simulate a LOST pc-line assert edge.  The modem's SMEM state word
++	 * says the line is high, but this handler deliberately does nothing
++	 * at all, exactly as if the edge had never reached SMSM -- the
++	 * failure mode Doc 157 section 5.1 observed live (pc_irq_count
++	 * frozen while the parent GIC line kept firing).  Only the SSR
++	 * powerup retry and the RX watchdog poll paths can then rebuild the
++	 * channels, which is precisely the code path this test exists to
++	 * exercise.  The pc IRQ is edge-triggered (`smsm 1 Edge`) and SMSM's
++	 * cascade handler is edge-based on a cached value, so dropping the
++	 * edge here cannot cause an interrupt storm.
++	 * REVERT THIS before rebuilding the production module.
++	 */
++	if (new_state && (!READ_ONCE(dmux->rx) || !READ_ONCE(dmux->tx))) {
++		dev_warn(dmux->dev,
++			 "bam_dmux: TEST: pc assert edge DROPPED (rx=%px tx=%px) -- only the poll path can recover now\n",
++			 dmux->rx, dmux->tx);
++		return IRQ_HANDLED;
++	}
++
+ 	mutex_lock(&dmux->state_lock);
+ 	if (new_state) {
+ 		WRITE_ONCE(dmux->pm_suspend_start_ns, 0);
+@@ -2278,8 +2299,16 @@
+ 	/* 2. Initial settling delay for modem firmware bootloader */
+ 	msleep(200);
+ 
+-	/* 3. Wait for modem to assert PC line (give modem up to 3000ms after powerup) */
+-	for (i = 0; i < 150; i++) {
++	/*
++	 * 3. Wait for modem to assert PC line (give modem up to 3000ms after powerup)
++	 *
++	 * *** TEMPORARY TEST BUILD (not patch 814) ***  150 -> 2, i.e. a 40 ms
++	 * first window instead of 3200 ms, so that EVERY SSR has to take the
++	 * retry path below.  This exists only to exercise that path on demand,
++	 * because the real trigger (a modem slower than 3.2 s) cannot be forced.
++	 * REVERT THIS before rebuilding the production module.
++	 */
++	for (i = 0; i < 2; i++) {
+ 		ret = irq_get_irqchip_state(dmux->pc_irq, IRQCHIP_STATE_LINE_LEVEL, &pc_line);
+ 		if (!ret && pc_line)
+ 			break;

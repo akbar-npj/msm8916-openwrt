@@ -1,0 +1,87 @@
+### module md5 (test build with BOTH temporary edits)
+5e26986d4697ac992489cc849f29c899  /lib/modules/6.12.94/qcom_bam_dmux.ko
+### uname -a
+Linux OpenWrt 6.12.94 #0 SMP PREEMPT Mon Jun 29 12:59:20 2026 aarch64 GNU/Linux
+### uptime
+80.71 272.35
+### dmesg: TEST / SSR powerup / CMD_OPEN
+[   11.866793] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   12.126066] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=0 (waited 240 ms)
+[   12.126163] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc line not asserted, retry 1/20 in 500 ms
+[   12.516987] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: TEST: pc assert edge DROPPED (rx=0000000000000000 tx=0000000000000000) -- only the poll path can recover now
+[   12.866073] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[   12.869878] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[   12.874720] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[   12.874753] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[   12.874769] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[   12.874782] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[   12.874793] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[   12.874805] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[   12.874816] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[   12.874828] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+### dmesg: wwan0 ports
+[   12.322653] wwan wwan0: port wwan0at0 attached
+[   12.323082] wwan wwan0: port wwan0at1 attached
+[   12.518140] wwan wwan0: port wwan0qmi0 attached
+### ip
+    inet 10.101.20.157/30 brd 10.101.20.159 scope global wwan0
+default via 10.101.20.158 dev wwan0 proto static src 10.101.20.157 metric 10 
+### ping
+--- 8.8.8.8 ping statistics ---
+4 packets transmitted, 4 packets received, 0% packet loss
+round-trip min/avg/max = 49.375/72.151/100.443 ms
+### nslookup
+Name:	openwrt.org
+Address: 2a03:b0c0:3:d0::1a51:c001
+
+### rx_telemetry
+rx_callbacks: 46
+rx_last_callback_ms_ago: 9
+rx_submitted: 270
+rx_submit_failed: 0
+rx_queued_buffers: 32
+rx_slots_mapped: 32
+rx_slots_free: 0
+rx_slots_submitting: 0
+rx_slots_submitted: 32
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 0
+rx_rearm_count: 0
+pc_state: 1
+pc_ack_state: 1
+pc_irq_count: 13
+pc_resync_count: 0
+pc_quiesce_ms: 0
+pc_line_level: 1
+pc_vote_tx_count: 6
+pc_unvote_tx_count: 5
+pc_ack_irq_count: 11
+pc_timeout_count: 0
+pm_suspend_attempts: 5
+pm_suspend_completions: 5
+pm_resume_attempts: 6
+pm_last_suspend_ms: 872
+pm_last_resume_ms: 3
+pm_last_handshake_ms: 3
+cmd_data: 31
+cmd_open: 8
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+tx_sweep_guard_hits: 0
+tx_defer_queued: 10
+tx_defer_submitted: 10
+tx_defer_preserved: 6
+tx_defer_wiped: 0
+tx_defer_wiped_live: 0
+tx_submit_ok: 51
+tx_complete: 51
+runtime_status: active
+pm_usage_count: 0
