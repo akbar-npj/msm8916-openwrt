@@ -61,8 +61,8 @@ in Doc 154 §4 (which was byte-level and correct) is untouched.
 ## 4. The real race: the producer does not take the lock
 
 `bam_dmux_netdev_start_xmit()` is `ndo_start_xmit` — **atomic context, so it cannot take the
-mutex.** It takes only `tx_lock` inside `bam_dmux_tx_queue()` (`:356`) and sets the deferred bit at
-`:599` with **no lock at all**:
+mutex.** It takes only `tx_lock` inside `bam_dmux_tx_queue()` and sets the deferred bit at `:599`
+with **no lock at all**:
 
 ```c
 	if (active <= 0 || !READ_ONCE(dmux->pc_state)) {
@@ -76,28 +76,67 @@ mutex.** It takes only `tx_lock` inside `bam_dmux_tx_queue()` (`:356`) and sets 
 	}
 ```
 
-The winning interleaving is therefore the **reverse** of the one Doc 154 described — the sweep
-clears the bitmap *before* `start_xmit` re-arms it, so "the bitmap was cleared" is not a guard:
+### 4.1 The window is the `bam_dmux_free_skbs()` loop, not an instruction gap
 
-| step | CPU A — `bam_dmux_netdev_start_xmit()` | CPU B — `bam_dmux_pc_irq()` (wake edge) |
+The key is the **order inside the sweep**. `bam_dmux_pm_restart()` (`:1694-1696`) and
+`bam_dmux_power_off()` (`:1512-1514`) both do:
+
+```c
+	atomic_long_set(&dmux->tx_deferred_skb, 0);   /* clear the bitmap  ... */
+	bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE);   /* ... then walk all 32 slots */
+	dmux->tx_next_skb = 0;
+```
+
+`bam_dmux_free_skbs()` is a **32-iteration loop**, each iteration doing `bam_dmux_skb_dma_unmap()`
+(→ `dma_unmap_single`) and `dev_kfree_skb()`. It tests `if (skb_dma->skb)` **as it reaches each
+slot**, so it frees whatever is in the slot *at that moment* — including a slot that
+`start_xmit` fills **while the loop is still walking**.
+
+Meanwhile `bam_dmux_tx_queue()` (`:396`) picks its slot as
+`&dmux->tx_skbs[dmux->tx_next_skb % BAM_DMUX_NUM_SKB]`, and `tx_next_skb` is **not** reset to 0
+until *after* the loop (`:1696`). So the producer's target index and the sweep's cursor are
+independent.
+
+### 4.2 The interleaving
+
+| step | CPU A — `bam_dmux_netdev_start_xmit()` (no lock) | CPU B — `bam_dmux_pc_irq()` wake (holds `state_lock`) |
 | :-- | :-- | :-- |
-| 1 | `bam_dmux_tx_queue()` → slot *i* now holds our skb (`:583`) | |
-| 2 | `bam_dmux_skb_dma_map()` (`:594`) | |
-| 3 | reads `pc_state` → **false** (still collapsed) ⇒ will take the defer branch (`:597`) | |
-| 4 | | `state_lock` (`:1701`); `pc_state = true` (`:1704`); `pm_restart()` → `bam_dmux_free_skbs()` **NULLs slot *i*** and `atomic_long_set(&tx_deferred_skb, 0)` (`:1625`); unlock (`:1737`) |
-| 5 | `atomic_long_fetch_or(BIT(i), …)` → **sets bit *i* on the now-empty bitmap** (`:599`); queues `tx_wakeup_work` (`:602`) | |
-| 6 | | `tx_wakeup_work`: `pc_state` true, `pending = BIT(i)`, `skb_dma->skb == NULL` → **the crash** |
+| 1 | | `pc_state = true` (`:1704`); `pm_restart()` → **`tx_deferred_skb = 0`** (`:1694`) |
+| 2 | | `free_skbs()` begins its loop: slot 0, 1, 2 … |
+| 3 | `pm_runtime_get()` returned `-EINPROGRESS` (a resume is in flight) ⇒ `active <= 0` | |
+| 4 | `tx_queue()` → target index *j* (still `tx_next_skb % 32`) is **NULL**, so it succeeds — slot *j* now holds our skb | |
+| 5 | `skb_dma_map()` succeeds | |
+| 6 | `atomic_long_fetch_or(BIT(j), …)` → **bitmap = `BIT(j)`**; queues `tx_wakeup_work` | |
+| 7 | | the loop **reaches slot *j***, sees `skb_dma->skb != NULL`, and **frees our skb, NULLing the slot** |
+| 8 | | `tx_wakeup_work`: `pending = BIT(j)`, `skb_dma->skb == NULL` → **the crash** |
 
-**Same shape as Doc 147's bug** — a slot reserved before a PM transition overtakes it — but on the
-deferred-bitmap side instead of the map side.
+So the window is **as long as it takes `free_skbs()` to walk from slot 0 to slot *j*** — tens to
+hundreds of microseconds, not an instruction gap. That is why the fault is rare but real, and why
+the bitmap clear alone does not protect: the clear happens *before* the loop, and the loop is what
+actually NULLs the slot.
 
-The same race has three more reachable NULL sites, all in the same window:
+`active <= 0` in step 3 is the natural condition during a wake — `pm_runtime_get()` returns
+`-EINPROGRESS` while `bam_dmux_runtime_resume()` is still running, which is exactly the window the
+wake transition creates.
 
-* `bam_dmux_skb_dma_map()` (`:594`, `:471`) — dereferences `skb_dma->skb->data` at `0xc8`, which is
-  **literally Doc 147's faulting load**;
-* `bam_dmux_skb_dma_submit_tx()` from `start_xmit` (`:609`) — the same `skb->len` load as the
-  observed crash;
-* `bam_dmux_skb_dma_submit_tx()` from `send_cmd` (`:476`).
+### 4.3 The same race has four NULL sites, and patch 810 covers all of them
+
+Depending on where step 7 lands relative to CPU A's progress:
+
+| step 7 lands… | pre-fix result | patch 810 |
+| :-- | :-- | :-- |
+| before `skb_dma_map()` | NULL deref at `skb_dma->skb->data` (`0xc8`) — **literally Doc 147's faulting load** | hunk 1 → `false` → `drop:` → hunk 4 (no double-free) |
+| between `map()` and the `pc_state` read | `submit_tx` or the defer branch | hunk 2, or hunk 3 at the consumer |
+| after the `fetch_or` | **the observed crash**: `tx_wakeup_work` → `submit_tx(NULL)` | **hunk 3 drops the bit** |
+
+Hunk 4 matters because in the first two rows the sweep has *already freed and unmapped* our skb and
+released its runtime-PM reference; `bam_dmux_tx_done()` + `dev_kfree_skb_any()` would free it a
+second time and drop the PM count twice.
+
+### 4.4 Why `send_cmd` shares the exposure
+
+`bam_dmux_send_cmd()` also calls `bam_dmux_tx_queue()` (`:471`) and `bam_dmux_skb_dma_map()` — same
+slot ring, same sweep. Patch 810's hunk 1 covers it too.
 
 ## 5. The fix — `msm89xx/patches/810-bam-dmux-tx-sweep-race.patch`
 
@@ -284,8 +323,11 @@ restarted; `rx_telemetry` confirms the new attribute is live.
 1. **Doc 154 §5.3 was wrong**: every call to `bam_dmux_power_off()` and `bam_dmux_pm_restart()` is
    made with `state_lock` held; the `:654` comment is substantially true (§3).
 2. The hole is the **producer**: `bam_dmux_netdev_start_xmit()` sets `tx_deferred_skb` at `:599`
-   without `state_lock`, so it can re-arm a bit for a slot a concurrent sweep already freed (§4).
-3. The race is reachable at four NULL sites, including Doc 147's own `skb->data` load (§4).
+   without `state_lock`, and the sweep's bitmap clear (`:1694`) happens **before** the
+   `bam_dmux_free_skbs()` loop (`:1695`) that actually NULLs the slots — so a `tx_queue()` that
+   lands inside that loop installs an skb the loop then frees, leaving a set bit on a NULL slot
+   (§4.1–§4.2).
+3. The race is reachable at four NULL sites, including Doc 147's own `skb->data` load (§4.3).
 4. **`cancel_work_sync(&tx_wakeup_work)` in `power_off()`/`pm_restart()` would deadlock** (§5.1).
 5. Patch 810 applies cleanly, builds without warnings, and **the pre-fix build reproduces both
    reported addresses exactly** — `pc` `b30 − b04 = 0x2c` and `lr` `13b0 − 12e8 = 0xc8`, with the
@@ -295,8 +337,9 @@ restarted; `rx_telemetry` confirms the new attribute is live.
 
 **Not established:**
 
-* Whether the race is what actually fired on 2026-09-21 — §4's table is the only interleaving
-  consistent with every fact, not an observed trace.
+* Whether the race is what actually fired on 2026-09-21 — §4.2's table is the only interleaving
+  found that is consistent with every fact **and** has a window wide enough to explain the fault
+  rate, but it is a reconstruction, not an observed trace. §8.3's counter is the test.
 * Whether the fix *prevents* the oops under soak (§8, pending).
 * Whether the same race explains the **failed modem restart** after fatal #15 (Doc 154 §6) — still
   separate and unexplained.

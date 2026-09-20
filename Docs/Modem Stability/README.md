@@ -258,12 +258,13 @@ below.
     byte-level fault decode stands.)
 29. **The real defect is the *producer*.** `bam_dmux_netdev_start_xmit()` is `ndo_start_xmit`
     (atomic context — it *cannot* take the mutex) and sets `tx_deferred_skb` at `:599` with **no
-    lock at all**. So a concurrent `pm_restart()` sweep can free the slot and clear the bitmap
-    **first**, and `start_xmit` then re-arms a bit for a slot that no longer has an skb:
-    `tx_queue()` → `map()` → read `pc_state` (false) → *[sweep: `free_skbs` + bitmap = 0]* →
-    `fetch_or(BIT(i))` → queue `tx_wakeup_work` → `submit_tx(NULL skb)` → the oops. **Same shape as
-    Doc 147's bug, on the deferred-bitmap side instead of the map side.** The same race has three
-    more reachable NULL sites, including Doc 147's own `skb->data` load at `0xc8`.
+    lock at all**. The window is the **`bam_dmux_free_skbs()` loop**, not an instruction gap: the
+    sweep clears the bitmap (`:1694`) *before* the 32-iteration loop (`:1695`) that actually NULLs
+    the slots, and `tx_next_skb` is not reset until *after* it (`:1696`). So a `tx_queue()` that
+    lands inside the loop installs an skb the loop then frees — leaving a set bit on a NULL slot,
+    which `tx_wakeup_work` dereferences. `active <= 0` is the natural trigger during a wake
+    (`pm_runtime_get()` → `-EINPROGRESS`). **Same shape as Doc 147's bug, on the deferred-bitmap
+    side.** Four NULL sites are reachable the same way, including Doc 147's own `skb->data` load.
 30. **Patch 810 fixes it** — the producer cannot be locked, so the **consumers** are made tolerant:
     NULL-guard `bam_dmux_skb_dma_map()` and `bam_dmux_skb_dma_submit_tx()`; **drop** stale set bits
     in `tx_wakeup_work`'s loop (a slot with no skb can never be submitted — restoring the bit would
