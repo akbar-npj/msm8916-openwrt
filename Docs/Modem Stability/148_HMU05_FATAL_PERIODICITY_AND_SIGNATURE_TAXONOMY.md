@@ -215,12 +215,31 @@ The last 180 s of continuous collapse ends immediately before fatal #3. Whether 
 precursor or simply a consequence of the link being idle is **not established** — it is one
 observation and the confound is obvious.
 
-### 5.2 Two small telemetry facts that weaken an earlier claim
+### 5.2 `pc_timeout_count` is an SSR artifact, NOT a handshake defect — self-correction
 
-* **`pc_timeout_count: 2`** — the A2 resume ACK *has* timed out twice. Doc 146 §11 hypothesis #2
-  was set aside partly on `pc_timeout_count: 0`. That specific ground no longer holds.
-* **`pm_suspend_attempts: 202` vs `pm_suspend_completions: 199`** — three suspend attempts never
-  completed. Small, but nonzero, and consistent with the two ACK timeouts.
+An earlier revision of this section claimed that `pc_timeout_count: 2` showed the A2 resume ACK
+"has timed out", weakening Doc 146 §11 hypothesis #2 (which had been set aside partly on
+`pc_timeout_count: 0`). **That reading was wrong.** Checking `dmesg` against the fatal times:
+
+| fatal (s) | nearest driver warning | Δ |
+| ---: | :--- | ---: |
+| 914.769287 | `refusing to queue command while modem is collapsed` @914.879374 | +0.110 s |
+| 1818.443149 | `modem pc-ack timeout during resume` @1818.815204 | +0.372 s |
+| 3625.792806 | `modem pc-ack timeout during resume` @3626.414786 | +0.622 s |
+| 4529.467002 | `modem pc-ack timeout during resume` @4529.854549 | +0.388 s |
+| 5426.331445 | `modem pc-ack timeout during resume` @5426.705289 | +0.374 s |
+
+Every `pc-ack timeout` lands **0.1–0.6 s after a fatal**, and `remoteproc0: stopped remote
+processor` lands ~0.06 s after the fatal. So the sequence is: **modem dies → SSR → the AP's
+in-flight resume handshake times out.** The counter measures the *consequence*, not a defect.
+`pc_resync_count` remains 0 and no `lost edge` warning has ever appeared.
+
+This **removes** the "the A2 handshake is failing" line of attack rather than opening it. It also
+means `pc_timeout_count` is expected to scale with the *number of fatals* — a useful sanity check
+when reading it on any future boot (this boot: 6 fatals, `pc_timeout_count: 7`).
+
+The remaining unexplained telemetry is `pm_suspend_attempts` vs `pm_suspend_completions`
+(553 vs 538 here — 15 incomplete, more than the 4 handshake timeouts). Not yet attributed.
 
 ---
 
