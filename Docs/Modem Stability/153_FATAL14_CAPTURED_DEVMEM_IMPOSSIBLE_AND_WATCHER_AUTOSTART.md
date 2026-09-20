@@ -1,4 +1,4 @@
-# 153 — FATAL #14 CAPTURED: THE WATCHER FIX IS CONFIRMED; THE COREDUMP IS CREATED ONLY *AFTER* `rproc_stop`; AND `/dev/mem` CANNOT READ THE MODEM AT ALL
+# 153 — FATALS #14 AND #15 CAPTURED: THE WATCHER FIX IS CONFIRMED; THE COREDUMP IS CREATED ONLY *AFTER* `rproc_stop`; AND `/dev/mem` CANNOT READ THE MODEM AT ALL
 
 **Date:** 2026-09-21 (host clock). All times below are **AP `CLOCK_MONOTONIC` / `/proc/uptime` seconds**,
 because the device RTC is not trustworthy (see `reference_hmu05_device_quirks`). The device clock
@@ -17,16 +17,19 @@ Doc 152 fixed the coredump watcher on a **source-verified** argument and predict
 yet measure, that the fix would work. It also recorded a **next step that is now known to be
 impossible** (§5) and explained the missing fatal-#13 dump with a **wrong mechanism** (§4).
 
-This doc closes all three:
+This doc closes all three, and adds a fourth result:
 
-1. **The corrected watcher captured the very next fatal** — fatal #14, 85 398 475 B, md5 verified
-   end-to-end (§3). Doc 152 §3.1 is confirmed by measurement.
+1. **The corrected watcher captured the next two fatals with no intervention** — #14 and #15, each
+   85 398 475 B, md5 verified end-to-end (§3). Doc 152 §3.1 is confirmed by measurement, twice.
 2. **The coredump is created only after `rproc_stop()` returns** (source-verified, §4). Fatal #13
    produced no dump because the AP stopped making progress *inside* `rproc_stop()` — the dump was
    **never created**, not merely expired. This is now confirmed on both sides of the comparison.
 3. **`/dev/mem` cannot read the mpss region by any method** (§5) — source-verified *and* measured.
    Doc 152 §8 item 3 option (b) ("read `0xc1d47410` live from the AP with `devmem` at ~1 Hz") is
    **withdrawn**.
+4. **The deployed firmware is verified to be the clean stock HMU05 set** — all 21 modem and 9 WCNSS
+   segments byte-identical to the stock device dump (§6b), discharging the standing directive's
+   step 1 and ruling out any firmware-patch experiment as the cause.
 
 ## 2. SOP compliance
 
@@ -35,11 +38,12 @@ This doc closes all three:
 | Dual-firmware comparative protocol | **N/A** — no firmware was built, patched or transplanted; this is pure instrumentation of the deployed HMU05 stock baseband. |
 | Verify before trusting a premise | **Applied, and it paid.** Doc 152 §8 item 3(b) asserted `devmem` could read modem memory. Measurement + source reading disproved it (§5). |
 | Ground truth from source, not narrative | **Applied.** Every claim in §4 and §5 is quoted from the 6.12.94 tree in `openwrt/build_dir/…/linux-msm89xx_msm8916/linux-6.12.94/`. |
-| Record what was done, the result, and what is next | This doc: §3–§6 done, §8 next. |
+| Record what was done, the result, and what is next | This doc: §3–§7 results, §8 status, §9 next. |
+| Confirm firmware provenance before attributing a result | **Applied.** The deployed modem and WCNSS sets were hashed against the stock dump (§6b) rather than assumed, per the standing SOP step. |
 | Do not treat the corpus as fact | Doc 152 §3.1/§7 are *confirmed*; Doc 152 §8 item 3(b) is *withdrawn*; the §4 mechanism is *corrected*. |
 | Minimal, reversible device changes | Yes — see the status block above. |
 
-## 3. Result: fatal #14 was captured
+## 3. Result: fatals #14 and #15 were captured
 
 ### 3.1 The fatal and the complete SSR sequence
 
@@ -98,7 +102,27 @@ Watcher log (`/overlay/coredump_watch.log`), verbatim:
 * The poll caught the device at 915.44 s; `rproc_stop` had returned at 914.103 s. The 2 s poll
   therefore cost ≈1.3 s — **the poll interval is not the bottleneck** (§4 explains why).
 
-### 3.3 What this proves
+### 3.3 A second fatal, captured automatically — the watcher is repeatable
+
+While this doc was being written, the **next** fatal fired in the same boot and was captured with
+no intervention:
+
+| | fatal #14 | fatal #15 |
+| :-- | :-- | :-- |
+| `fatal error received` at AP | 914.042208 s | **1817.721637 s** |
+| Δ from the previous fatal | — | **903.679429 s** |
+| devcd device | `devcd1` | `devcd2` |
+| captured at AP | 915.44 s | 1818.92 s |
+| bytes | 85 398 475 | 85 398 475 |
+| md5 | `ed1a32554f19abf419cb67f4f6636f54` | `e66281e38061a152c282756e05ebf13e` |
+
+Both md5s verified on device **and** host. **Two fatals, two captures, zero manual steps** — the
+watcher is no longer a suspect for anything. Note also that the fatal at **1817.72 s** is again
+*not* the ~902 s of the idle case: this boot's two fatals were at 914.04 s and 1817.72 s, i.e. the
+period is right but the phase is offset — consistent with the activity-correlation already
+recorded.
+
+### 3.4 What this proves
 
 * **Doc 152 §3.1 is confirmed by measurement.** The `test -s` guard really was why nothing was
   captured: the corrected watcher, changed *only* in its guard and its release, captured the very
@@ -327,33 +351,41 @@ The new dump reproduces the known signature exactly:
 * **`rpm` LPR descriptor** at `0xc1d473f8` — same self-consistent shape, first word = the `"rpm"`
   name pointer `0xc1848058`.
 
-### 7.1 The `rpm` LPR `+0x18` counter — 5th sample, and it breaks the "≤ max" reading
+### 7.1 The `rpm` LPR `+0x18` counter — 6 samples; it is not monotonic in either direction
 
-| dump (AP uptime s) | `rpm LPR +0x18` |
-| :-- | :-- |
-| 915.44 (**fatal #14, new boot**) | **1064** (`0x428`) |
-| 919.52 | 833 (`0x341`) |
-| 1822.52 | 989 (`0x3dd`) |
-| 2723.69 | 937 (`0x3a9`) |
-| 3629.79 | 1009 (`0x3f1`) |
+| dump (AP uptime s) | `rpm LPR +0x18` | Δ from previous fatal |
+| :-- | :-- | :-- |
+| 915.44 (fatal #14) | **1064** (`0x428`) | — |
+| 919.52 | 833 (`0x341`) | — |
+| 1818.92 (fatal #15) | **375** (`0x177`) | **−689** |
+| 1822.52 | 989 (`0x3dd`) | — |
+| 2723.69 | 937 (`0x3a9`) | −52 |
+| 3629.79 | 1009 (`0x3f1`) | +72 |
 
-The neighbouring words are literal **1000**s. The previous four all sat **at or below 1009**, which
-is why Doc 152 §6.1 read them as "per-client maxima". **1064 exceeds every one of them**, so that
-reading is at best incomplete. Range across five fatals: 833–1064 (~28 %). Still **not
-monotonic** in uptime.
+Sorted by uptime within each boot: boot B gave 1064 → 375; boot A gave 833 → 989 → 937 → 1009
+(Δ = +156, −52, +72). So the value neither rises nor falls monotonically and its step is not
+constant.
 
-### 7.2 Word B does not reset across a reboot
+The rest of the 16-byte entry is **byte-identical in all six dumps** — only this first word moves;
+the neighbouring words are literal **1000**s. The previous four samples all sat at or below 1009,
+which is why Doc 152 §6.1 read them as "per-client maxima"; **1064 exceeds every one of them, and
+375 is far below**, so that reading is at best incomplete. Range across six fatals: **375–1064**.
+Whether this is the quantity the RE's `sleep count not incrmnt` check tests is still **not
+established** — that check is on a *delta*, and a dump gives one sample.
 
-| dump | word B (ELF `0xc35b1298`) |
-| :-- | :-- |
-| 919.52 | `0x01128bfc` |
-| 1822.52 | `0x01128c07` |
-| 2723.69 | `0x01128c12` |
-| 3629.79 | `0x01128c1d` |
-| **915.44 (new boot)** | **`0x01128c90`** |
+### 7.2 Word B increments by 11 per fatal period — now 4/4 within a boot — but does not reset across a reboot
 
-Within the four same-boot samples, B advances by exactly `0x0b = 11` per fatal period — confirmed
-again. Across the reboot the advance is `0x73 = 115`, which is **not** a multiple of 11. So:
+| dump | word B (ELF `0xc35b1298`) | ΔB from previous fatal |
+| :-- | :-- | :-- |
+| 919.52 | `0x01128bfc` | — |
+| 1822.52 | `0x01128c07` | **+0x0b** |
+| 2723.69 | `0x01128c12` | **+0x0b** |
+| 3629.79 | `0x01128c1d` | **+0x0b** |
+| 915.44 (new boot) | `0x01128c90` | — |
+| 1818.92 (new boot) | `0x01128c9b` | **+0x0b** |
+
+The `+0x0b = 11` step is now confirmed at **4/4** within-boot transitions, across **two different
+boots**. But across the reboot the advance is `0x73 = 115`, which is **not** a multiple of 11. So:
 
 * B is **not** a per-fatal counter, and
 * B **survives the modem firmware reload** — even though the descriptor lives in modem BSS, which
@@ -362,22 +394,27 @@ again. Across the reboot the advance is `0x73 = 115`, which is **not** a multipl
 Read as one 64-bit little-endian value with A, the increments are `0x0B_083EC684` (within a boot,
 per ~903 s) and `0x72_65EFC036` (across the reboot). If A:B is a free-running counter at the
 ~52.4 MHz the previous analysis inferred, the two fatals were ~**9 360 s apart in that counter's
-own time** — a **falsifiable prediction** against wall-clock (§8 item 4).
+own time** — a **falsifiable prediction** against wall-clock (§9 item 4).
 
-### 7.3 A determinism hint
+### 7.3 A determinism hint, now with three comparisons
 
-A full segment diff of fatal #14 against fatal #1 (`919.52`, a *different* boot) gives
-**4 388 621 differing bytes = 5.139 %** — almost exactly the **4 396 967 / 5.15 %** that fatal #1 vs
-fatal #2 (same boot, 903 s apart) gave in Doc 152 §6. Two dumps from *different boots* differ by
-about as much as two from the *same* boot. That is consistent with the post-fatal memory state
-being largely **deterministic** — the ~5 % being volatile buffers and counters — and is worth
-keeping in mind before reading anything into a diff.
+| comparison | boots | Δuptime | differing bytes |
+| :-- | :-- | :-- | :-- |
+| #1 vs #2 | same | 903.00 s | 4 396 967 (5.150 %) |
+| #14 vs #1 | **different** | — | 4 388 621 (5.139 %) |
+| #14 vs #15 | same | 903.48 s | 4 530 350 (5.305 %) |
+
+All three land in **5.14–5.31 %**. Two dumps from *different boots* differ by about as much as two
+from the *same* boot — consistent with the post-fatal memory state being largely **deterministic**,
+the ~5 % being volatile buffers and counters. Worth keeping in mind before reading anything into a
+diff.
 
 ## 8. Established vs not established
 
 **Established (measured / source-verified):**
 
-1. The corrected watcher captures: fatal #14, 85 398 475 B, md5 verified on both sides (§3).
+1. The corrected watcher captures, repeatably: **two fatals, two dumps, zero manual steps** in one
+   boot (fatal #14 and fatal #15), each 85 398 475 B with the md5 verified on both sides (§3.2, §3.3).
 2. `rproc->ops->coredump()` runs only after `rproc_stop()` returns, and the `bam_dmux` SSR teardown
    is scheduled from inside `rproc_stop()` (§4.1).
 3. Fatal #13 had no dump because it never reached `coredump()`; fatal #14 did and did (§4.2).
@@ -386,14 +423,19 @@ keeping in mind before reading anything into a diff.
 5. `dump_va == AP physical` for the mpss region — the coredump segment range lies inside
    `mpss@86800000` (§5.1).
 6. `start-stop-daemon -S -x <script>` is not idempotent in busybox 1.37 (§6).
-7. Fatal #14 reproduces the same fatal signature; the `+0x18` counter is 1064 and **exceeds** the
-   adjacent 1000s (§7.1).
-8. Word B survives a modem firmware reload (§7.2).
+7. Every fatal reproduces the same signature; the deployed baseband is the **clean stock HMU05**
+   set, byte-identical to the stock dump across all 21 modem + 9 WCNSS segments (§6b).
+8. The `+0x18` counter spans **375–1064** across six fatals, is **not monotonic in either
+   direction**, and exceeds the adjacent literal 1000s (§7.1).
+9. Word B advances by exactly **11 per fatal period at 4/4 within-boot transitions across two
+   boots**, yet does **not** reset across a reboot (§7.2).
+10. Two dumps from *different* boots differ by ~5.14 % of bytes — the same as two from the *same*
+    boot (~5.15 %, ~5.31 %) (§7.3).
 
 **Not established:**
 
-* Why fatal #13 hung and fatal #14 did not. Both printed the same `file:line`.
-* What `+0x18` measures, and what A and B mean.
+* Why fatal #13 hung and fatal #14/#15 did not. All three printed the same `file:line`.
+* What `+0x18` measures (it is not a simple counter), and what A and B mean.
 * Whether B's cross-boot increment is consistent with a persistent ~52.4 MHz source (§7.2).
 * Anything AP-side from the dumps: they contain the modem's private memory, **not SMEM**, so the
   SMSM APPS word and the A2 client vote list are still absent. The `a2_power` state block is in
@@ -403,16 +445,19 @@ keeping in mind before reading anything into a diff.
 
 1. **Build the mpss reader** (§5.3 item 1) — a kernel module exposing a read-only debugfs window on
    the mpss region. This is now the *only* route to live modem observation, and it unblocks the
-   `+0x18` delta, the `a2_power` block, and the DRX/sleep counters in one instrument.
-2. **Establish the `a2_power` state block's ELF VA** so it can be read out of the five dumps on
+   `+0x18` delta, the `a2_power` block, and the DRX/sleep counters in one instrument. **Top
+   priority:** the `+0x18` samples (§7.1) are now clearly not a simple counter, and only a
+   continuous trace can say what they are.
+2. **Establish the `a2_power` state block's ELF VA** so it can be read out of the six dumps on
    hand without any new hardware access.
 3. **Disassemble the `0xC1500000` segment** where `lte_ml1_common_timer.c`'s code lives
    (`modem.asm` stops at `0xc1404e0c`) — the standing blocker on naming the assert.
 4. **Test the A:B prediction (§7.2)** — measure wall-clock between two fatals and compare with the
    A:B delta. Cheap, and it either validates or kills the "persistent ~52.4 MHz counter" reading.
-5. **Characterise the `bam_dmux` SSR hang** — now the gating obstacle for *any* future capture
-   (§4.2), and the A2 diagnostic block in §3.1 (`pc-ack timeout`, `channels not initialized`,
-   `refusing to queue command while modem is collapsed`) is the natural place to start.
+5. **Characterise the `bam_dmux` SSR hang** — the gating obstacle for any *future* capture that
+   happens to hang (§4.2), and the A2 diagnostic block in §3.1 (`pc-ack timeout`, `channels not
+   initialized`, `refusing to queue command while modem is collapsed`) is the natural place to
+   start.
 6. **Keep the watcher running** — it is armed and autostarting; each clean fatal now yields a dump.
    Prune to one dump per fatal (`/overlay` is 3.2 GB; each dump is 85 MB).
 
@@ -421,21 +466,25 @@ keeping in mind before reading anything into a diff.
 | what | where |
 | :-- | :-- |
 | fatal #14 coredump (85 398 475 B, md5 `ed1a3255…`) | `scratch/coredump_live/modem_coredump_up915.44_devcd1.elf` |
+| fatal #15 coredump (85 398 475 B, md5 `e66281e3…`) | `scratch/coredump_live/modem_coredump_up1818.92_devcd2.elf` |
 | fatal #14 dmesg + firmware provenance hashes | `evidence/153_fatal14_capture/fatal14_dmesg_and_capture.txt` |
 | fatal #14 dmesg (full block) | §3.1 of this doc |
 | corrected watcher (with pidfile guard) | `scratch/coredump_watch.sh`, `evidence/152_coredump_capture/coredump_watch.sh` |
 | autostart hook (tracked copy) | `scratch/rc.local`; deployed at `/etc/rc.local`; original at `/overlay/rc.local.orig` |
 | watcher log (device) | `/overlay/coredump_watch.log` |
 | VA dumper / diff tools | `scratch/coredump_live/vadump.py`, `scratch/coredump_live/diff_dumps.py` |
+| field extractor (A, B, counter across all dumps) | `scratch/coredump_live/fatal_fields.py` |
 | prior 4 coredumps | `scratch/coredump_live/modem_coredump_up{919.52,1822.52,2723.69,3629.79}.elf` |
 
 ## 11. One line
 
-The coredump watcher fixed in Doc 152 **captured the very next fatal** (fatal #14, 85 398 475 B,
-md5 verified) — confirming that the `test -s` guard was the whole reason nothing was ever
-captured — while two structural facts were established the hard way: the dump is created **only
-after `rproc_stop()` returns**, so fatal #13's hang meant its dump was never created at all (not
-merely expired), and **`/dev/mem` cannot read the modem region by any method** (read() → EFAULT via
-`valid_phys_addr_range`, mmap() → SIGBUS via `pgprot_noncached` on a `nomap` pfn), which withdraws
-Doc 152's "read `0xc1d47410` with `devmem`" plan and makes a small mpss-mapping kernel module the
-next instrument.
+The coredump watcher fixed in Doc 152 **captured the next two fatals with no intervention** (#14
+and #15, each 85 398 475 B, md5 verified) — confirming that the `test -s` guard was the whole reason
+nothing was ever captured — while three structural facts were established the hard way: the dump is
+created **only after `rproc_stop()` returns**, so fatal #13's hang meant its dump was never created
+at all (not merely expired); **`/dev/mem` cannot read the modem region by any method** (read() →
+EFAULT via `valid_phys_addr_range`, mmap() → SIGBUS via `pgprot_noncached` on a `nomap` pfn), which
+withdraws Doc 152's "read `0xc1d47410` with `devmem`" plan and makes a small mpss-mapping kernel
+module the next instrument; and the deployed baseband is verified to be the **clean stock HMU05**
+set, so no firmware-patch experiment can be blamed for the fatal.
+
