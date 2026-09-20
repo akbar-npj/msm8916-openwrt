@@ -1,0 +1,86 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -249,6 +249,20 @@
+ {
+ 	struct device *dev = skb_dma->dmux->dev;
+ 
++	/*
++	 * An A2 power-collapse sweep (bam_dmux_free_skbs() from
++	 * bam_dmux_pm_restart()/bam_dmux_power_off()) can NULL the slot while
++	 * bam_dmux_netdev_start_xmit() is between bam_dmux_tx_queue() and this
++	 * call, because start_xmit does not hold state_lock.  The sweep also
++	 * freed the skb, so there is nothing to map -- fail instead of
++	 * dereferencing NULL.  The caller's drop path detects the sweep and
++	 * leaves cleanup to it.
++	 */
++	if (!skb_dma->skb) {
++		dev_dbg(dev, "DMA map skipped: TX slot already swept\n");
++		return false;
++	}
++
+ 	skb_dma->addr = dma_map_single(dev, skb_dma->skb->data, skb_dma->skb->len, dir);
+ 	if (dma_mapping_error(dev, skb_dma->addr)) {
+ 		dev_err(dev, "Failed to DMA map buffer\n");
+@@ -329,6 +343,20 @@
+ 	struct bam_dmux *dmux = skb_dma->dmux;
+ 	struct dma_async_tx_descriptor *desc;
+ 
++	/*
++	 * Defensive: never dereference skb_dma->skb->len without checking it.
++	 * A slot with no skb cannot be submitted -- its descriptor would have
++	 * nothing to transmit.  This is reachable when a concurrent A2
++	 * power-collapse sweep NULLs the slot between the caller's check and
++	 * this call (bam_dmux_netdev_start_xmit() holds no state_lock), and it
++	 * is the exact fault observed at bam_dmux_tx_wakeup_work+0xc8:
++	 *   ldr w22, [x2, #0x70]  (skb_dma->skb->len)  with x2 = NULL
++	 */
++	if (!skb_dma->skb) {
++		dev_dbg(dmux->dev, "TX submit skipped: slot has no skb\n");
++		return false;
++	}
++
+ 	desc = dmaengine_prep_slave_single(dmux->tx, skb_dma->addr,
+ 					   skb_dma->skb->len, DMA_MEM_TO_DEV,
+ 					   DMA_PREP_INTERRUPT);
+@@ -615,6 +643,19 @@
+ 	return NETDEV_TX_OK;
+ 
+ drop:
++	/*
++	 * A concurrent A2 power-collapse sweep (bam_dmux_free_skbs() from
++	 * bam_dmux_pm_restart()/bam_dmux_power_off()) may have freed this skb
++	 * and released its runtime-PM reference while we were between
++	 * bam_dmux_tx_queue() and here -- start_xmit holds no state_lock, so
++	 * that sweep can win.  The slot no longer holding our skb is the
++	 * signal: the sweep owns the cleanup, and calling
++	 * bam_dmux_tx_done()/dev_kfree_skb_any() here would double-free the
++	 * skb and double-put the PM reference.
++	 */
++	if (READ_ONCE(skb_dma->skb) != skb)
++		return NETDEV_TX_OK;
++
+ 	bam_dmux_tx_done(skb_dma);
+ 	dev_kfree_skb_any(skb);
+ 	return NETDEV_TX_OK;
+@@ -688,6 +729,21 @@
+ 		struct bam_dmux_skb_dma *skb_dma = &dmux->tx_skbs[i];
+ 		struct sk_buff *skb = skb_dma->skb;
+ 
++		/*
++		 * A set bit whose slot holds no skb is stale: the slot was
++		 * swept by bam_dmux_free_skbs() after bam_dmux_start_xmit()
++		 * deferred it.  start_xmit sets tx_deferred_skb without
++		 * state_lock, so it can re-arm a bit for a slot the sweep has
++		 * already freed.  Both that sweep and this loop hold
++		 * state_lock, so this test is race-free.  Drop the bit -- the
++		 * skb is gone and its PM reference was released by the sweep,
++		 * so there is nothing to submit and nothing to retry.
++		 */
++		if (!skb) {
++			dev_dbg(dmux->dev, "TX wakeup: slot %d has no skb, dropping stale bit\n", i);
++			continue;
++		}
++
+ 		if (!bam_dmux_skb_dma_submit_tx(skb_dma)) {
+ 			/*
+ 			 * Submission failed — restore the bit in tx_deferred_skb

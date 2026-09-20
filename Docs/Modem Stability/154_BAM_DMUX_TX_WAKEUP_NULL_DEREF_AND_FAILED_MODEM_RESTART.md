@@ -5,6 +5,13 @@
 **Status:** analysis only — **no source, patch, DT, firmware or userspace file was modified.** The
 only device action was a reboot to restore the modem (§6), which was already dead.
 
+> **CORRECTION 2026-09-21 (same day):** §5.3 as first written claimed that `state_lock` does not
+> protect against the sweep and that the in-tree comment is therefore false. **That claim was wrong**
+> and is replaced by the corrected §5.3 below. Re-reading every call site shows the sweep is
+> *always* under `state_lock`; the real hole is that `bam_dmux_netdev_start_xmit()` mutates the slot
+> and the deferred bitmap *without* it. The faulting address, the decode and the distinction from
+> Doc 147 are unchanged. The fix derived from this is **Doc 155**.
+
 ---
 
 ## 1. Why this doc exists
@@ -148,27 +155,65 @@ It is called for TX from exactly two places, and **both clear the bitmap and can
 `cancel_work_sync(&dmux->tx_wakeup_work)` appears only at `:1997`, `:2234` and `:2277` (the
 SSR-teardown / remove paths).
 
-So: **`bam_dmux_start_xmit()` can defer an skb (set a bit + queue `tx_wakeup_work`), and then
-`power_off()` or `pm_restart()` frees that slot and NULLs `skb_dma->skb` while the already-queued
-work is still pending.**
+### 5.3 CORRECTED — `state_lock` *is* held across the sweep; the hole is on the `start_xmit` side
 
-### 5.3 The lock comment is wrong
+> **This subsection replaces an earlier, wrong claim.** The first version of this doc asserted that
+> "neither `bam_dmux_power_off()` nor `bam_dmux_pm_restart()` takes `state_lock` … the guard the
+> comment promises does not exist." **That is false**, and it was disproved by re-reading every call
+> site rather than only the two function bodies.
 
-`tx_wakeup_work` takes `state_lock` and documents why:
+Neither function takes the lock *itself*, but **every caller holds it**. Verified call sites:
 
-```
-	 * Hold state_lock across the confirmed-awake check, deferred bitmap exchange,
-	 * TX submissions, and dma_async_issue_pending() to protect against concurrent
-	 * SSR teardown or power_off freeing dmux->tx or TX slots.
-```
+| caller | line | `state_lock` held? |
+| :-- | :-- | :-- |
+| `bam_dmux_pc_irq()` (wake, `pm_restart`) | `:1715` | **yes** — `mutex_lock` `:1701` … `mutex_unlock` `:1737` |
+| `bam_dmux_pc_irq()` (SSR recovery / teardown, `power_off`) | `:1709`, `:1732` | **yes** — same region |
+| `bam_dmux_power_on()` → `power_off` (3 error paths) | `:1304`, `:1328`, `:1335` | **yes** — `power_on` is called at `:1707` (pc_irq), `:2067`, `:2215`, all under the lock |
+| `bam_dmux_rx_watchdog_func()` lost-edge resync → `pm_restart` | `:1205` | **yes** — `mutex_lock` `:1191` … `mutex_unlock` `:1212` |
+| `bam_dmux_ssr_teardown()` → `power_off` | `:1681` | **yes** — called at `:2074`, `:2220` (under the lock) and `:2293` (`mutex_lock` `:2292`) |
 
-**But neither `bam_dmux_power_off()` (`:1382`) nor `bam_dmux_pm_restart()` (`:1607`) takes
-`state_lock` anywhere** — verified: there is no `state_lock` reference at all in lines 1400–1700.
-`state_lock` therefore serialises `tx_wakeup_work` only against the **SSR teardown** (which does
-take it), not against the two functions that actually free the slots. The guard the comment
-promises does not exist.
+So the `:654` comment — "hold `state_lock` … to protect against concurrent SSR teardown or
+`power_off` freeing `dmux->tx` or TX slots" — is **substantially true**. `tx_wakeup_work` and the
+sweep really are mutually exclusive, and that is exactly why the consumer-side test in §5.5 is
+race-free.
 
-### 5.4 This is a different bug from Doc 147's
+**The actual hole is the other side of the race.** `bam_dmux_netdev_start_xmit()` mutates the TX
+slot *and* the deferred bitmap **without `state_lock`** — it is `ndo_start_xmit`, so it runs in
+atomic context and cannot take a mutex. It takes only `tx_lock` inside `bam_dmux_tx_queue()`
+(`:356`), and it sets the deferred bit at `:599` with **no lock at all**.
+
+The winning interleaving is therefore the *reverse* of the one originally described:
+
+| step | CPU A — `bam_dmux_netdev_start_xmit()` | CPU B — `bam_dmux_pc_irq()` (wake) |
+| :-- | :-- | :-- |
+| 1 | `tx_queue()` → slot *i* now holds our skb (`:583`) | |
+| 2 | `skb_dma_map()` (`:594`) | |
+| 3 | reads `pc_state` → **false** (modem still collapsed), so it will take the defer branch (`:597`) | |
+| 4 | | `state_lock`; `pc_state = true` (`:1704`); `pm_restart()` → `free_skbs()` **NULLs slot *i*** and `atomic_long_set(tx_deferred_skb, 0)` (`:1625`); unlock |
+| 5 | `atomic_long_fetch_or(BIT(i), …)` → **sets bit *i* on the now-empty bitmap** (`:599`) and queues `tx_wakeup_work` (`:602`) | |
+| 6 | | `tx_wakeup_work` runs: `pc_state` true, `pending = BIT(i)`, `skb_dma->skb == NULL` → **the crash** |
+
+The sweep clears the bitmap *before* `start_xmit` re-arms it, so the "cleared bitmap" is not a
+guard at all. This is the same *shape* as Doc 147's bug — a slot reserved before a PM transition
+overtakes it — but on the deferred-bitmap side instead of the map side.
+
+### 5.4 The same race can also fault in `start_xmit` itself
+
+If `start_xmit` reads `pc_state` as **true** at `:597` (the wake has already set it at `:1704`,
+before `pm_restart()` swept), it skips the defer branch and calls
+`bam_dmux_skb_dma_submit_tx()` at `:609` — the same function, the same `skb_dma->skb->len` load,
+the same NULL. `bam_dmux_skb_dma_map()` at `:594` has the identical exposure (`skb_dma->skb->data`
+at `0xc8` — literally Doc 147's faulting load). The observed crash was the `tx_wakeup_work` variant;
+the `start_xmit` variants are the same defect reached a few instructions earlier.
+
+### 5.5 The fix must not add `cancel_work_sync()` to the two sweeps
+
+Because the sweep always runs **under `state_lock`** (§5.3) and `tx_wakeup_work` also takes
+`state_lock` (`:658`), adding `cancel_work_sync(&dmux->tx_wakeup_work)` to `power_off()` or
+`pm_restart()` would **deadlock** whenever the work is already running and waiting for the lock the
+canceller holds. The fix has to be tolerant on the consumer side instead — see Doc 155.
+
+### 5.6 This is a different bug from Doc 147's
 
 | | Doc 147 (fixed) | this one |
 | :-- | :-- | :-- |
@@ -243,25 +288,37 @@ capture → release.
 4. `bam_dmux_free_skbs()` NULLs TX slots from exactly two callers, `bam_dmux_power_off()` and
    `bam_dmux_pm_restart()`; both clear `tx_deferred_skb` and cancel only `tx_retry_work`, and
    **neither cancels `tx_wakeup_work`** (§5.2).
-5. Neither `bam_dmux_power_off()` nor `bam_dmux_pm_restart()` takes `state_lock`, so the
-   in-tree comment claiming `state_lock` protects against `power_off` is **wrong** (§5.3).
-6. The modem failed to restart after fatal #15 and required a reboot (§6).
-7. The `/etc/rc.local` autostart works at a real boot (§7).
+5. **Every call to `bam_dmux_power_off()` and `bam_dmux_pm_restart()` is made with `state_lock`
+   held** — `pc_irq` `:1701`, the rx-watchdog resync `:1191`, the SSR teardown work `:2059`, the
+   SSR powerup work `:2213`, and remove `:2292`. The `:654` comment is therefore **substantially
+   true**, and it is why the consumer-side test is race-free (§5.3, corrected).
+6. **The hole is on the producer side:** `bam_dmux_netdev_start_xmit()` sets the deferred bit at
+   `:599` with no `state_lock` (it is atomic context), so it can re-arm a bit for a slot the sweep
+   has already freed — the interleaving table in §5.3. The same race can also fault in
+   `start_xmit`'s own `bam_dmux_skb_dma_map()`/`bam_dmux_skb_dma_submit_tx()` calls (§5.4).
+7. **`cancel_work_sync(&dmux->tx_wakeup_work)` must NOT be added to the two sweeps** — both run
+   under `state_lock` and the work takes it, so that would deadlock (§5.5).
+8. The modem failed to restart after fatal #15 and required a reboot (§6).
+9. The `/etc/rc.local` autostart works at a real boot (§7).
 
 **Not established:**
 
 * Which exact interleaving won on this occasion (the oops proves the state existed; it does not
-  prove the sequence that produced it).
+  prove the sequence that produced it). §5.3's table is the only interleaving that is *consistent*
+  with every fact, not an observed trace.
 * Whether the oops caused the failed modem restart (§6).
 * Whether the oops is reproducible — **1 occurrence in this boot, 0 in the boot after the reboot**
   (uptime 76 s, `dmesg | grep -c "Unable to handle"` = 0).
 
 ## 9. Next experiments, in priority order
 
-1. **Fix the `tx_wakeup_work` path.** Minimal, defensive and independent of the interleaving: in
-   the `for_each_set_bit` loop, **skip and drop bits whose `skb_dma->skb` is NULL** (they can never
-   be submitted). Optionally also `cancel_work_sync(&dmux->tx_wakeup_work)` in `power_off()` /
-   `pm_restart()`, and/or take `state_lock` in those two functions so the comment becomes true.
+1. **Fix the TX-sweep race — DONE, see Doc 155.** The shape is: make the *consumers* of a swept
+   slot tolerant, because the producer (`start_xmit`) cannot take `state_lock`. Specifically
+   (a) drop set bits whose `skb_dma->skb` is NULL in `tx_wakeup_work`'s loop; (b) NULL-guard
+   `bam_dmux_skb_dma_map()` and `bam_dmux_skb_dma_submit_tx()`; (c) stop `start_xmit`'s `drop:`
+   path from double-freeing / double-putting when the sweep already took ownership.
+   **Do NOT add `cancel_work_sync(&dmux->tx_wakeup_work)` to `power_off()`/`pm_restart()`** —
+   both run under `state_lock` and the work takes it, so that deadlocks (§5.5).
    **Any change must land in the tracked driver source (`msm89xx/patches`), not
    `openwrt/target/linux/msm89xx`** — see `project_driver_patch_reproducibility`.
 2. **Determine whether the oops is reproducible** — it appeared once in ~1170 s of a boot that
@@ -282,13 +339,15 @@ capture → release.
 | oops decode + `pahole` offset proof | §4 of this doc |
 | driver source (read-only) | `openwrt/build_dir/…/linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.c` |
 | tracked driver source of truth | `msm89xx/patches` (NOT `openwrt/target/linux/msm89xx`) |
+| **the fix** | `msm89xx/patches/810-bam-dmux-tx-sweep-race.patch` — see **Doc 155** |
 
 ## 11. One line
 
 A second, **distinct** `bam_dmux` NULL dereference — `bam_dmux_tx_wakeup_work` submitting a TX slot
-whose `skb_dma->skb` was NULLed by `bam_dmux_free_skbs()` (called from `power_off`/`pm_restart`,
-which take no `state_lock` and never cancel the non-delayed `tx_wakeup_work`, contrary to the
-comment that claims they do) — proved byte-for-byte by decoding `ldr w22, [x2, #0x70]` with
-`x2 = 0` against the BTF-verified `skb->len` offset; and, separately, **the modem failed to restart
-after fatal #15**, stalling at `loading mpss` with `remoteproc0/state = offline` until a reboot —
-while the Doc 153 `/etc/rc.local` autostart was verified working at a real boot.
+whose `skb_dma->skb` was NULLed by `bam_dmux_free_skbs()` — proved byte-for-byte by decoding
+`ldr w22, [x2, #0x70]` with `x2 = 0` against the BTF-verified `skb->len` offset; the sweep is always
+under `state_lock` (**correcting this doc's first version**), so the race is that
+`bam_dmux_netdev_start_xmit()` re-arms the deferred bit without it, after the sweep already cleared
+it; and, separately, **the modem failed to restart after fatal #15**, stalling at `loading mpss`
+with `remoteproc0/state = offline` until a reboot — while the Doc 153 `/etc/rc.local` autostart was
+verified working at a real boot. Fix: **Doc 155** / patch 810.

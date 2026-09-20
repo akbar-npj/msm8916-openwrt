@@ -1,0 +1,59 @@
+=== patch 810 — disassembly evidence ===
+
+--- module md5s ---
+3b693188c3ba27de9edeb7d1d1e53f76  qcom_bam_dmux.ko.deployed_prefix810  (THE MODULE THAT CRASHED, 227480 B)
+395cb590a24418e317048c2e21fb5fbe    qcom_bam_dmux.ko.fixed
+
+--- source md5s ---
+44a78a0fd22bb26a9a2af905f8550662  scratch/patch810/qcom_bam_dmux.c.orig
+b4a5e333791e2a90165694b117c575cf  scratch/patch810/qcom_bam_dmux.c.fixed
+
+############################################################
+# 1. THE DEPLOYED (CRASHING) MODULE REPRODUCES BOTH ADDRESSES
+############################################################
+
+--- bam_dmux_skb_dma_submit_tx : oops said pc = +0x2c, Code = (b9407056) ---
+0000000000000b04 <bam_dmux_skb_dma_submit_tx>:
+     b04:	a9ba7bfd 	stp	x29, x30, [sp, #-96]!
+     b08:	52800021 	mov	w1, #0x1                   	// #1
+     b0c:	910003fd 	mov	x29, sp
+     b10:	a90153f3 	stp	x19, x20, [sp, #16]
+     b14:	aa0003f4 	mov	x20, x0
+     b18:	910103e0 	add	x0, sp, #0x40
+     b1c:	a9025bf5 	stp	x21, x22, [sp, #32]
+     b20:	f9001bf7 	str	x23, [sp, #48]
+     b24:	a9400a95 	ldp	x21, x2, [x20]
+     b28:	f9400a97 	ldr	x23, [x20, #16]
+     b2c:	f94036b3 	ldr	x19, [x21, #104]
+     b30:	b9407056 	ldr	w22, [x2, #112]
+     b34:	94000000 	bl	0 <sg_init_table>
+
+   function start b04 ; faulting load at b30  ->  b30 - b04 = 0x2c   == oops 'pc'
+   faulting word b9407056 with #112 (0x70)     == oops 'Code: ... (b9407056)'
+
+--- bam_dmux_tx_wakeup_work : oops said lr = +0xc8 ---
+    13a4:	9bb85c00 	umaddl	x0, w0, w24, x23
+    13a8:	8b000260 	add	x0, x19, x0
+    13ac:	97fffdd6 	bl	b04 <bam_dmux_skb_dma_submit_tx>
+
+   function start 12e8 ; bl at 13ac ; arm64 bl sets LR = next instr = 13b0
+   13b0 - 12e8 = 0xc8                          == oops 'lr'
+
+############################################################
+# 2. THE FIXED BUILD PUTS THE GUARD BEFORE THAT INSTRUCTION
+############################################################
+
+0000000000000b10 <bam_dmux_skb_dma_submit_tx>:
+     b10:	f9400402 	ldr	x2, [x0, #8]
+     b14:	b40005a2 	cbz	x2, bc8 <bam_dmux_skb_dma_submit_tx+0xb8>
+     b18:	a9ba7bfd 	stp	x29, x30, [sp, #-96]!
+     b1c:	52800021 	mov	w1, #0x1                   	// #1
+     b20:	910003fd 	mov	x29, sp
+   ...
+     b44:	b9407056 	ldr	w22, [x2, #112]
+
+--- loop guard (hunk 3) in bam_dmux_tx_wakeup_work ---
+    13cc:	9bbc6c00 	umaddl	x0, w0, w28, x27
+    13d0:	8b000260 	add	x0, x19, x0
+    13d4:	b4000081 	cbz	x1, 13e4 <bam_dmux_tx_wakeup_work+0xdc>
+    13d8:	97fffdce 	bl	b10 <bam_dmux_skb_dma_submit_tx>
