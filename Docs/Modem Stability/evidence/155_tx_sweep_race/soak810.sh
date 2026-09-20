@@ -11,9 +11,9 @@
 #   frozen at 29 for >100 s -- so it never collapses and the window never opens.
 #   The oops boot (Doc 154) had pm_suspend_attempts: 185, i.e. a collapsing modem.
 #
-#   So: stay idle long enough to collapse (~20 s), then fire a short burst of
-#   packets, so TX and the wake edge collide repeatedly.  One keepalive ping per
-#   cycle also keeps the bearer from dropping.
+#   So: stay idle long enough to collapse, then fire a short burst of packets, so
+#   TX and the wake edge collide repeatedly.  One keepalive ping per cycle also
+#   keeps the bearer from dropping.  See the tuning note at the burst generator.
 #
 # Samples: uptime, oops, fatal, ssr, and the bam_dmux telemetry words that move
 # with the sweep.
@@ -24,15 +24,23 @@ LOG=/overlay/soak810.log
 
 log() { echo "[$(cut -d' ' -f1 /proc/uptime)s] $*" >> "$LOG"; }
 
-# Burst generator: idle 20 s, then 8 packets at 0.2 s, forever.
+# Burst generator: idle 6 s, then 40 packets at 0.05 s, forever.
+#
+# Tuning note: the modem collapses/wakes on its own roughly every 5.4 s
+# (measured: 69 pc_irq edges in 370 s), independent of the burst cycle.  The
+# race needs a tx_queue() to land inside the sweep's bam_dmux_free_skbs() loop,
+# and the defer branch needs active <= 0 -- i.e. a resume already in flight,
+# which is exactly the wake window.  So the useful quantity is TX *density*
+# while a resume is in flight, not packets per burst.  This pattern runs ~20
+# packets/s for 2 s out of every 6 s and still leaves 4 s idle to collapse in.
 (
 	while true; do
-		sleep 20
-		ping -c 8 -i 0.2 -W 2 -q 8.8.8.8 >/dev/null 2>&1
+		sleep 6
+		ping -c 40 -i 0.05 -W 1 -q 8.8.8.8 >/dev/null 2>&1
 	done
 ) &
 GEN=$!
-log "started burst generator pid $GEN (20 s idle, then 8 packets @0.2 s)"
+log "started burst generator pid $GEN (6 s idle, then 40 packets @0.05 s)"
 log "=== soak810 start; oops=$(dmesg | grep -c 'Unable to handle') ==="
 
 echo "uptime,oops,fatal,ssr,pc_irq,pc_vote,pm_susp,pm_res,pc_state,rx_cb,rx_last_ms,pm_last_susp_ms,guard_hits" > "$OUT"

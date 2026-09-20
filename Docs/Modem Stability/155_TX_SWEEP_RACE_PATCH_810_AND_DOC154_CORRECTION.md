@@ -313,8 +313,31 @@ the result decisive, patch 810 also carries a counter:
 The counter build (`c74596349219b4b22bfe32caef79bbba`, 229624 B) was deployed and the soak
 restarted; `rx_telemetry` confirms the new attribute is live.
 
-> **PHASE 3 RESULT: in progress — 52 collapse/wake cycles at uptime 250 s, `guard_hits = 0`,
-> `oops = 0`.** Final numbers in `/overlay/soak810.csv` and §9.
+The burst pattern was then tuned three times, because the hit rate depends on TX *density during a
+wake*, not on packets per burst:
+
+| pattern | rationale | result |
+| :-- | :-- | :-- |
+| idle 20 s, 8 pkts @0.2 s | first attempt | 69 edges / 370 s; `guard_hits = 0` |
+| idle 8 s, 6 pkts @0.15 s | the modem collapses on its own every **~5.4 s** (measured), so a 20 s idle wastes most wakes with no TX in flight | 154 edges / 484 s; `guard_hits = 0` |
+| idle 6 s, 40 pkts @0.05 s | the defer branch needs `active <= 0`, i.e. a resume **already in flight** — the wake window itself. So what matters is ~20 pkt/s *while a resume runs*, with just enough idle left to collapse | **90 edges / 131 s**; `guard_hits = 0`, `oops = 0`, bearer up (4/5 ping) |
+
+### 8.4 Honest limitation: this race is rare enough that a clean soak is not a proof
+
+The guards cannot be validated by soak alone. The window is the `bam_dmux_free_skbs()` loop
+(§4.1) — order 10²–10³ µs — while TX ops arrive at ~20/s at best. So the probability of a hit per
+wake is small, and **`guard_hits = 0` over a few hundred cycles is expected whether or not the race
+is real.**
+
+That is exactly why the counter exists: it converts the question from "did we see an oops?" (rare,
+and a reboot destroys the boot) into "did the guard ever fire?" (cumulative, cheap, and it survives
+as long as the module is loaded). **A non-zero `guard_hits` with zero oopses is the proof; its
+absence is not disproof.** The deployed module carries the counter permanently, so any future
+occurrence is recorded automatically.
+
+> **PHASE 3 RESULT (as of the writing of this doc): ~313 collapse/wake cycles across the three
+> tunings, `guard_hits = 0`, `oops = 0`, bearer healthy throughout.** Raw data:
+> `/overlay/soak810_phase3a_burst20s.csv`, `_phase3b_burst8s.csv`, `/overlay/soak810.csv`.
 
 ## 9. Established vs not established
 
@@ -339,18 +362,26 @@ restarted; `rx_telemetry` confirms the new attribute is live.
 
 * Whether the race is what actually fired on 2026-09-21 — §4.2's table is the only interleaving
   found that is consistent with every fact **and** has a window wide enough to explain the fault
-  rate, but it is a reconstruction, not an observed trace. §8.3's counter is the test.
-* Whether the fix *prevents* the oops under soak (§8, pending).
+  rate, but it is a reconstruction, not an observed trace.
+* **Whether the fix has ever actually fired.** `guard_hits = 0` after ~313 collapse/wake cycles
+  (§8.4). The race is rare enough that a clean soak is *expected* either way, so the fix currently
+  rests on construction (the guards are defensive and cannot cause harm; hunk 3 is provably
+  race-free) plus the counter as an ongoing detector — **not** on an observed save.
 * Whether the same race explains the **failed modem restart** after fatal #15 (Doc 154 §6) — still
-  separate and unexplained.
+  separate and unexplained; see Doc 154 §6.1 for the localisation.
 * The residual non-atomic window in `start_xmit` (§5.2).
 
 ## 10. Next experiments, in priority order
 
-1. **Finish the soak** (§8) and decide whether the fix holds; if an oops appears, the snapshot in
-   `/overlay/soak810_telemetry_oops.txt` plus dmesg is the next data point.
-2. **Investigate the failed modem restart** (Doc 154 §6) — `port failed halt`, stall at
-   `loading mpss`, `state = offline`, reboot required. Is it PIL, the MBA, or the A2 handshake?
+1. **Keep the counter build deployed and watch `tx_sweep_guard_hits`.** It is the only cheap,
+   cumulative detector. A non-zero value with zero oopses settles §4.2. If the race must be
+   *forced* rather than waited for, the options are (a) a fault-injection knob in patch 810 that
+   inserts a delay in `start_xmit` between `tx_queue()` and the `fetch_or` — noting the delay must
+   be in atomic context and cannot approach the seconds needed to guarantee overlap — or (b)
+   `trace_printk`/ftrace on the two sides to catch the interleaving in the act.
+2. **Investigate the failed modem restart** (Doc 154 §6/§6.1) — localised to a **hang inside
+   `q6v5_mpss_load()`**, after a failed AXI halt, in a path with no timeout. Prime suspect: the SCM
+   ownership transfer blocking while the modem's AXI port is stuck.
 3. **Build the mpss reader** (Doc 153 §9 item 1) — still the top *instrument*; a `nomap`-capable
    kernel module is the only way in.
 4. **Consider closing the residual `start_xmit` window** (§5.2) — the options are a `tx_lock`-held
