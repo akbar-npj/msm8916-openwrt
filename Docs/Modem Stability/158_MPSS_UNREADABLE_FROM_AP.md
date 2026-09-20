@@ -6,7 +6,10 @@
 "the next instrument" was built, deployed and tested. It does not work, and it cannot be made to work
 while the modem is running: every read of mpss from the AP raises a **synchronous external abort**,
 because mpss is assigned to the modem's VMID by **TrustZone**, not merely marked `no-map` in the kernel.
-The "live mpss observation" line of work is **closed**.
+The "live mpss observation" line of work is **closed**. The abort was reproduced under **both** mapping
+types — `ioremap()`'s Device-nGnRE *and* `memremap(MEMREMAP_WC)`'s Normal-NonCacheable, which is the
+memory type the driver itself uses (§4.1) — so the refusal is a permission decision, not a page-attribute
+artefact.
 
 **Consequence for the corpus:** Doc 153's inference that "a `nomap`-capable kernel module is the next
 instrument" is **half right and misleading**. A kernel module *can* `ioremap` the region (that part is
@@ -33,6 +36,7 @@ This doc records the attempt to build that window, and why it is impossible.
 | Read the definition, not the name | **Applied.** "`nomap`" is a *kernel memory-management* attribute; it says nothing about whether the bus will answer an AP access. Treating the two as the same thing is what made the instrument look feasible. |
 | Check the call sites, not just the body | **Applied.** `q6v5_xfer_mem_ownership()` returns early when `!qproc->need_mem_protection` (`:429-430`), so on a platform without memory protection it would be a no-op — the abort is therefore evidence that **this** platform does have it configured. |
 | Measure on the live device, before and after | **Applied.** The module was built, loaded on the live device, and exercised. The abort is measured, not inferred. The device was rebooted afterwards and verified clean. |
+| Eliminate the obvious confound before concluding | **Applied, and it nearly changed the answer.** The first experiment used `ioremap()` (Device-nGnRE) while the driver reads mpss with `memremap(MEMREMAP_WC)` (Normal-NC); a memory-type mismatch would have produced the same abort for an entirely different reason. The experiment was repeated with the driver's own mapping (§4.1). Both abort — which is what makes the permission explanation the only one left. |
 | Minimal, reversible change | The module is out-of-tree and was never installed; a reboot removes it. It touched no tracked file. |
 | Record what was done, the result, and what is next | this doc, §6–§7. |
 | Never classify a fault by its `file:line` | N/A. |
@@ -43,11 +47,13 @@ This doc records the attempt to build that window, and why it is impossible.
 
 * module parameters `base` (default `0x86800000`) and `size` (default `0x5500000`), so the same module
   can be pointed at any reserved region without a rebuild;
-* `ioremap(base, size)` at init, `iounmap` at exit;
+* a `wc` parameter selecting the mapping — `1` (default) = `memremap(MEMREMAP_WC)`, `0` = `ioremap()`.
+  This exists so the two candidate causes can be told apart in one build; see §4.1;
+* `ioremap`/`memremap` at init, `iounmap`/`memunmap` at exit;
 * one read-only (`0444`) debugfs file whose **file offset is an offset within the region**, so
   `dd if=/sys/kernel/debug/mpss_mem bs=4096 skip=N count=1` reads a window;
-* reads use 32-bit `readl()` into a 64 KiB `kmalloc`'d bounce buffer — Device-nGnRE semantics, because
-  a cacheable mapping of memory the modem may still be writing would return stale data.
+* a 64 KiB `kmalloc`'d bounce buffer per open (the tree is built with
+  `-Werror=frame-larger-than=2048`, so a useful window cannot live on the stack).
 
 The region and the VA convention were taken from the device, not assumed:
 
@@ -98,6 +104,39 @@ and **kept running**; it did not panic.
 
 The fault address is the *first* byte of the region, so this is not a hole or a partially-backed
 region: **the whole of mpss refuses AP access while the modem owns it.**
+
+### 4.1 Ruling out the confound: it is not the memory type
+
+There is an obvious alternative explanation, and it had to be eliminated before the result meant
+anything. The module used `ioremap()`, which on arm64 gives a **Device-nGnRE** mapping — but the driver
+itself reads mpss through `memremap(..., MEMREMAP_WC)`, i.e. **Normal-NonCacheable**
+(`qcom_q6v5_mss.c:1440`, `:1555`). Touching Normal DRAM through a Device mapping is an architectural
+memory-type mismatch, and an interconnect is permitted to raise an external abort for it. If *that* was
+the cause, the abort would say nothing about permission and the live reader would be perfectly feasible
+with the right mapping.
+
+So the module gained a `wc` parameter and the experiment was repeated using **the driver's own memory
+type**:
+
+```
+insmod /tmp/mpss_mem2.ko        # wc=1 -> memremap(base, size, MEMREMAP_WC)
+[  179.184656] mpss_mem: window 0x86800000..0x8bcfffff (offset 0 == modem va 0xc0000000)
+              at /sys/kernel/debug/mpss_mem [memremap WC]
+
+[  180.196016] Internal error: synchronous external abort: 0000000096000010 [#1] PREEMPT SMP
+CPU: 0 UID: 0 PID: 9750 Comm: dd Tainted: G   M       O       6.12.94 #0
+pc : __memcpy+0x24/0x260
+lr : mpss_read+0xa4/0x278 [mpss_mem]
+x23: ffffdce188260000                                     <- the memremap(WC)'d mpss base
+Code: f100805f 540003c8 f100405f 540000c3 (a9401c26)      <- `ldp x6, x7, [x1]`, in __memcpy
+```
+
+**Both memory types abort**, with the same 16-byte read at offset 0. The confound is removed: the
+refusal is not about page attributes, cacheability or access width. It is about **who is permitted to
+touch the region**, which is the only variable left.
+
+(Full capture: `evidence/158_mpss_unreadable/mpss_wc_abort_capture.txt`. The module's own source is the
+`wc` parameter's documentation — `mpss_mem.c`, "MAPPING MODE".)
 
 ## 5. Why — and what it corrects
 
@@ -161,6 +200,10 @@ A reboot was performed and the device came back clean: module absent, production
 `eca269f10a685a83a8b679bc7be38d1d`, default route up, `5/5` ping, the coredump watcher autostarted
 from `/etc/rc.local`, and the soak restarted.
 
+The second experiment (§4.1) was cleaned up by rebooting **without attempting `rmmod` at all** —
+deliberately, because `rmmod` entering `debugfs_remove()` is what wedged it the first time. That reboot
+was also clean. **Procedure for next time: after an abort, do not `rmmod`; reboot.**
+
 ## 7. What this means, and what is left
 
 **Closed:** a live read window on mpss. It cannot be built, because the AP is not permitted to touch
@@ -195,18 +238,22 @@ post-mortem, from the coredump, or indirectly from the RPM log and the AP-side t
 3. **Every access to that mapping aborts**, including the very first byte, with
    `synchronous external abort: 0000000096000010`, at the 32-bit load inside `mpss_read()` (`pc :
    mpss_read+0xc0`, `x0 = ffff800090000000`). Five occurrences, `#1`–`#5`. §4.
-4. The kernel treats it as an MCE, kills the faulting process, taints the kernel and **continues**; it
+4. **The abort is not a memory-type artefact.** It reproduces identically with
+   `memremap(..., MEMREMAP_WC)` — Normal-NonCacheable, the memory type the driver itself uses to read
+   mpss — where it faults in `__memcpy` (`pc : __memcpy+0x24`, `lr : mpss_read+0xa4`,
+   `x23 = ffffdce188260000`). So neither Device-nGnRE nor Normal-NC is permitted. §4.1.
+5. The kernel treats it as an MCE, kills the faulting process, taints the kernel and **continues**; it
    does not panic. §4.
-5. mpss ownership is transferred with `qcom_scm_assign_mem()` between `QCOM_SCM_VMID_HLOS` and
+6. mpss ownership is transferred with `qcom_scm_assign_mem()` between `QCOM_SCM_VMID_HLOS` and
    `QCOM_SCM_VMID_MSS_MSA` (`qcom_q6v5_mss.c:422-450`), and the driver only `memremap`s mpss *after*
    taking ownership back (`:1403-1404`, `:1440`, `:1547-1555`). §5.
-6. Therefore the abort is a **hardware/TrustZone** refusal, not a kernel policy one. §5.
-7. Doc 153's `/dev/mem` `EFAULT`/`SIGBUS` are the same abort by two userspace paths, not a
+7. Therefore the abort is a **hardware/TrustZone** refusal, not a kernel policy one. §5.
+8. Doc 153's `/dev/mem` `EFAULT`/`SIGBUS` are the same abort by two userspace paths, not a
    `no-map`/`CONFIG_STRICT_DEVMEM` effect. §5.
-8. After the aborts the module could not be unloaded (`rmmod` rc=255, `refcnt -1`) and `stat()` of the
+9. After the aborts the module could not be unloaded (`rmmod` rc=255, `refcnt -1`) and `stat()` of the
    debugfs file blocked in `D` state; a reboot cleared everything. §6.
-9. The device was otherwise healthy throughout, and after the reboot the production module, data plane,
-   coredump watcher and soak were all verified good. §6.
+10. The device was otherwise healthy throughout, and after each reboot the production module, data
+    plane, coredump watcher and soak were all verified good. §6.
 
 **Not established:**
 
@@ -226,10 +273,11 @@ post-mortem, from the coredump, or indirectly from the RPM log and the AP-side t
 | file | what |
 | :-- | :-- |
 | `mpss_mem.c` / `Makefile` | the module that was built and tested (out-of-tree; never installed) |
-| `mpss_abort_capture.txt` | the five aborts, the module state, the `D`-state processes, the DT node |
+| `mpss_abort_capture.txt` | experiment 1 (`ioremap`, Device): the five aborts, the module state, the `D`-state processes, the DT node |
+| `mpss_wc_abort_capture.txt` | experiment 2 (`memremap` WC, Normal-NC): the abort in `__memcpy`, module md5 `b9f0b22e…` |
 
 ## 10. One line
 
 **The modem's memory is not hidden from the AP by a kernel policy that a module can bypass — it is
-assigned to the modem's VMID by TrustZone, so the AP's every access aborts in hardware, and the
-"live mpss reader" cannot exist.**
+assigned to the modem's VMID by TrustZone, so the AP's every access aborts in hardware, whatever
+mapping type is used, and the "live mpss reader" cannot exist.**

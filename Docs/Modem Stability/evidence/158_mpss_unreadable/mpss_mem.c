@@ -55,11 +55,22 @@
  *    halted, so it is a consistent snapshot; this is for watching the
  *    TRANSITION, which the dump structurally cannot show.
  *
- * Reads use 32-bit ioremap'd (Device-nGnRE) accesses.  mpss is really normal
- * DRAM, but a cacheable mapping of memory the modem may still be writing
- * would return stale data, and Device is the honest choice for a live debug
- * window.  It costs ~4 bytes per access; a 4 KiB dd block is instant, a
- * multi-megabyte dump is slow but tolerable.
+ * MAPPING MODE
+ * ------------
+ * The `wc` module parameter selects between the two mappings the abort could
+ * plausibly be about, so that the experiment can tell them apart in one build:
+ *
+ *   wc=1 (default)  memremap(base, size, MEMREMAP_WC)   Normal-NonCacheable
+ *   wc=0            ioremap(base, size)                 Device-nGnRE
+ *
+ * The driver itself reads mpss with memremap(..., MEMREMAP_WC) once it has
+ * taken ownership back from the modem (qcom_q6v5_mss.c:1440, :1555).  So:
+ *
+ *   wc=0 aborts, wc=1 works  -> a memory-type mismatch, not a permission
+ *                               problem, and the live reader IS feasible
+ *   both abort               -> the region is denied to the AP outright
+ *
+ * wc=1 is the default because it matches what the driver does.
  */
 
 #include <linux/module.h>
@@ -83,8 +94,26 @@ static char *fname = "mpss_mem";
 module_param_named(name, fname, charp, 0444);
 MODULE_PARM_DESC(name, "debugfs file name (default mpss_mem)");
 
-static void __iomem *mpss;
+static void *mpss;
 static struct dentry *dent;
+static bool use_wc;
+
+/*
+ * Mapping mode.  This exists because the abort we are chasing has TWO
+ * candidate causes and they must be told apart:
+ *
+ *   wc=0  ioremap()            -> Device-nGnRE, accessed with readl()
+ *   wc=1  memremap(MEMREMAP_WC)-> Normal-NonCacheable, accessed with memcpy()
+ *
+ * The driver itself reads mpss with memremap(..., MEMREMAP_WC) after taking
+ * ownership back from the modem (qcom_q6v5_mss.c:1440, :1555).  If wc=0 aborts
+ * and wc=1 works, the cause is a memory-type mismatch, NOT TrustZone, and the
+ * live reader is feasible after all.  If both abort, the region is genuinely
+ * denied to the AP while the modem owns it.
+ */
+static int wc = 1;
+module_param(wc, int, 0444);
+MODULE_PARM_DESC(wc, "1 = memremap(MEMREMAP_WC) [Normal-NC, default]; 0 = ioremap() [Device]");
 
 /*
  * Bounce buffer size.  kmalloc'd in .open() rather than put on the stack:
@@ -127,16 +156,20 @@ static ssize_t mpss_read(struct file *f, char __user *ubuf, size_t count,
 		if (!n)
 			break;
 
-		words = DIV_ROUND_UP(n, 4);
-		if (o + (loff_t)words * 4 > size)
-			words = (size - o) / 4;	/* 4-aligned tail only */
+		if (use_wc) {
+			memcpy(bounce, mpss + o, n);
+		} else {
+			words = DIV_ROUND_UP(n, 4);
+			if (o + (loff_t)words * 4 > size)
+				words = (size - o) / 4;	/* 4-aligned tail only */
 
-		for (i = 0; i < words; i++)
-			((u32 *)bounce)[i] = readl(mpss + o + i * 4);
+			for (i = 0; i < words; i++)
+				((u32 *)bounce)[i] = readl(mpss + o + i * 4);
 
-		/* at most 3 leftover bytes, and they are inside the region */
-		for (i = words * 4; i < n; i++)
-			bounce[i] = readb(mpss + o + i);
+			/* at most 3 leftover bytes, inside the region */
+			for (i = words * 4; i < n; i++)
+				bounce[i] = readb(mpss + o + i);
+		}
 
 		if (copy_to_user(ubuf + done, bounce, n))
 			return done ? (ssize_t)done : -EFAULT;
@@ -164,9 +197,15 @@ static int __init mpss_mem_init(void)
 		return -EINVAL;
 	}
 
-	mpss = ioremap(base, size);
+	use_wc = !!wc;
+	if (use_wc)
+		mpss = memremap(base, size, MEMREMAP_WC);
+	else
+		mpss = ioremap(base, size);
+
 	if (!mpss) {
-		pr_err("mpss_mem: ioremap(%#lx, %#lx) failed\n", base, size);
+		pr_err("mpss_mem: %s(%#lx, %#lx) failed\n",
+		       use_wc ? "memremap" : "ioremap", base, size);
 		return -ENOMEM;
 	}
 
@@ -176,20 +215,30 @@ static int __init mpss_mem_init(void)
 
 		pr_err("mpss_mem: debugfs_create_file(%s) failed: %d\n",
 		       fname, ret);
-		iounmap(mpss);
-		mpss = NULL;
-		return ret;
+		goto unmap;
 	}
 
-	pr_info("mpss_mem: window %#lx..%#lx (offset 0 == modem va %#lx) at /sys/kernel/debug/%s\n",
-		base, base + size - 1, base + 0x39800000UL, fname);
+	pr_info("mpss_mem: window %#lx..%#lx (offset 0 == modem va %#lx) at /sys/kernel/debug/%s [%s]\n",
+		base, base + size - 1, base + 0x39800000UL, fname,
+		use_wc ? "memremap WC" : "ioremap Device");
 	return 0;
+
+unmap:
+	if (use_wc)
+		memunmap(mpss);
+	else
+		iounmap(mpss);
+	mpss = NULL;
+	return -ENODEV;
 }
 
 static void __exit mpss_mem_exit(void)
 {
 	debugfs_remove(dent);
-	iounmap(mpss);
+	if (use_wc)
+		memunmap(mpss);
+	else
+		iounmap(mpss);
 	mpss = NULL;
 	pr_info("mpss_mem: unloaded\n");
 }

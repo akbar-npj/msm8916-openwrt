@@ -1,0 +1,43 @@
+### SECOND EXPERIMENT: memremap(MEMREMAP_WC) -- the same memory type the driver uses
+### module md5: b9f0b22e5318ef2f69940215e2b83513
+### uptime
+188.58 687.11
+### dmesg: module banner
+[  179.184656] mpss_mem: window 0x86800000..0x8bcfffff (offset 0 == modem va 0xc0000000) at /sys/kernel/debug/mpss_mem [memremap WC]
+### dmesg: the WC abort, full
+[  180.196016] Internal error: synchronous external abort: 0000000096000010 [#1] PREEMPT SMP
+[  180.196083] Modules linked in: mpss_mem(O) pppoe ppp_async nft_fib_inet nf_flow_table_inet wireguard wcn36xx(O) rpmsg_wwan_ctrl qcom_bam_dmux(O) pppox ppp_generic nft_reject_ipv6 nft_reject_ipv4 nft_reject_inet nft_reject nft_redir nft_quota nft_numgen nft_nat nft_masq nft_log nft_limit nft_hash nft_flow_offload nft_fib_ipv6 nft_fib_ipv4 nft_fib nft_ct nft_chain_nat nf_tables nf_nat nf_flow_table nf_conntrack mac80211(O) libchacha20poly1305 chacha_neon cfg80211(O) wwan slhc qcom_wcnss_pil qcom_q6v5_mss qcom_q6v5 qcom_pil_info qcom_common poly1305_neon nfnetlink nf_reject_ipv6 nf_reject_ipv4 nf_log_syslog nf_defrag_ipv6 nf_defrag_ipv4 mdt_loader lzo_rle lzo libcurve25519_generic libchacha crc_ccitt compat(O) ip6_udp_tunnel udp_tunnel tun nls_utf8 zram zsmalloc lzo_compress seqiv geniv
+[  180.250299] CPU: 0 UID: 0 PID: 9750 Comm: dd Tainted: G   M       O       6.12.94 #0
+[  180.272472] Tainted: [M]=MACHINE_CHECK, [O]=OOT_MODULE
+[  180.280360] Hardware name: HMU05 4G Modem Stick (DT)
+[  180.285310] pstate: 60000005 (nZCv daif -PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  180.290435] pc : __memcpy+0x24/0x260
+[  180.297112] lr : mpss_read+0xa4/0x278 [mpss_mem]
+[  180.300934] sp : ffff800081443c80
+[  180.305530] x29: ffff800081443c80 x28: ffffdce188260300 x27: 0000000000000010
+[  180.308746] x26: 0000000000000000 x25: 0000000000000010 x24: 0000000000010000
+[  180.315864] x23: ffffdce188260000 x22: 0000000000000000 x21: ffff730302c31d00
+[  180.322981] x20: ffff730310a30000 x19: 0000ffffba139000 x18: 0000000000000000
+[  180.330100] x17: 0000000000000000 x16: ffffdce1a0317960 x15: 0000000000000000
+[  180.337218] x14: 0000000000000000 x13: 0000000000000000 x12: 0000000000000000
+[  180.344337] x11: 0000000000000000 x10: 0000000000000000 x9 : 0000000000000000
+[  180.351453] x8 : 0000000000000000 x7 : 0000000000000000 x6 : 0000000000000000
+[  180.358570] x5 : ffff730310a30010 x4 : ffff800088000010 x3 : ffff800088000000
+[  180.365689] x2 : 0000000000000010 x1 : ffff800088000000 x0 : ffff730310a30000
+[  180.372808] Call trace:
+[  180.379916]  __memcpy+0x24/0x260
+[  180.382175]  full_proxy_read+0x5c/0xa8
+[  180.385648]  vfs_read+0x98/0x2a0
+[  180.389207]  ksys_read+0x58/0xdc
+[  180.392592]  __arm64_sys_read+0x18/0x20
+[  180.395804]  invoke_syscall+0x50/0xf0
+[  180.399362]  el0_svc_common.constprop.0+0x44/0xdc
+[  180.403185]  do_el0_svc+0x18/0x20
+[  180.407868]  el0_svc+0x18/0x60
+[  180.411167]  el0t_64_sync_handler+0xc0/0xe0
+[  180.414121]  el0t_64_sync+0x14c/0x150
+### fault count
+1
+### module state
+mpss_mem               12288  0 
+refcnt: 0
