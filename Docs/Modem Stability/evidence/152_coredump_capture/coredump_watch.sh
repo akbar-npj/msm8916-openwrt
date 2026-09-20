@@ -21,16 +21,35 @@
 #
 # The device has no nohup: launch this under a background ssh from the host.
 #
-# Usage:  /tmp/coredump_watch.sh [outdir] [logfile]
+# Usage:  /overlay/coredump_watch.sh [outdir] [logfile]
+#
+# Autostart: /etc/rc.local starts it via start-stop-daemon.  NOTE: busybox
+# start-stop-daemon's -x match does NOT match a script's cmdline (/bin/sh
+# /overlay/...), so -S alone is NOT idempotent -- it spawned a duplicate when
+# tested.  Instead this script writes its own pidfile and the caller guards on
+# that with kill -0.
 
 OUT="${1:-/overlay/coredump_live}"
 LOG="${2:-/overlay/coredump_watch.log}"
+PIDFILE="${3:-/var/run/coredump_watch.pid}"
 mkdir -p "$OUT"
 seen=""
 
+# Single-instance guard: refuse to run if a live watcher already holds the pidfile.
+if [ -f "$PIDFILE" ]; then
+    old=$(cat "$PIDFILE" 2>/dev/null)
+    if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
+        echo "[$(cut -d' ' -f1 /proc/uptime)s] pidfile $PIDFILE held by live pid $old; exiting" \
+            >> "$LOG"
+        exit 0
+    fi
+fi
+echo $$ > "$PIDFILE"
+trap 'rm -f "$PIDFILE"' EXIT INT TERM HUP
+
 log() { echo "[$(cut -d' ' -f1 /proc/uptime)s] $*" >> "$LOG"; }
 
-log "=== coredump_watch start out=$OUT armed=$(cat /sys/class/remoteproc/remoteproc0/coredump 2>/dev/null) ==="
+log "=== coredump_watch start pid=$$ out=$OUT armed=$(cat /sys/class/remoteproc/remoteproc0/coredump 2>/dev/null) ==="
 
 while :; do
     # keep it armed (the setting does not survive a reboot)

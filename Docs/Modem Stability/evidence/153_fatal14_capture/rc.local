@@ -1,0 +1,26 @@
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+# --- modem coredump watcher (Docs/Modem Stability/152) ----------------------
+# A ~900 s modem fatal can hang the AP inside the bam_dmux SSR teardown and
+# trigger a watchdog reboot, and the devcoredump window is only ~5 min.  The
+# only way to guarantee a capture is to have the watcher already running at
+# boot.  Deterministic fatals land at ~900 s, so S95done is early enough.
+#
+# NOTE: busybox start-stop-daemon -S is NOT idempotent for a script -- its -x
+# match does not see a cmdline of the form "/bin/sh /overlay/...", so a second
+# -S spawns a duplicate (observed 2026-09-21).  Guard on the script's pidfile.
+if [ -x /overlay/coredump_watch.sh ]; then
+	if [ -f /var/run/coredump_watch.pid ] && \
+	   kill -0 "$(cat /var/run/coredump_watch.pid)" 2>/dev/null; then
+		/usr/bin/logger -t coredump-watch \
+			"watcher already running (pid $(cat /var/run/coredump_watch.pid))"
+	else
+		/sbin/start-stop-daemon -S -b -x /overlay/coredump_watch.sh \
+			-- /overlay/coredump_live /overlay/coredump_watch.log
+		/usr/bin/logger -t coredump-watch "watcher autostarted from rc.local"
+	fi
+fi
+# ---------------------------------------------------------------------------
+
+exit 0

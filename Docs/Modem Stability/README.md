@@ -10,11 +10,13 @@ signature framing), a sixth by **Doc 150** (which retracts Doc 149's own RPM-log
 reading method and answers its §7 experiment 1), a seventh by **Doc 151** (which
 replicates client-0's fatal-only window at 2/2, names the AP as its leading candidate,
 records a new AP-side hang in the modem-shutdown path, and **withdraws Doc 149 §7 item 3's
-one-line `qcom,idle-state-spc` DT patch** as unworkable), and an eighth by **Doc 152**
+one-line `qcom,idle-state-spc` DT patch** as unworkable), an eighth by **Doc 152**
 (which finds the modem-coredump watcher was **structurally incapable of capturing** — a
 `test -s` guard on a size-0 attribute and a release path that does not exist — so fatals
-#11 and #12 were lost; it records the corrected procedure and the coredump analysis status)
-— see the sections below.
+#11 and #12 were lost; it records the corrected procedure and the coredump analysis status),
+and a ninth by **Doc 153** (which **confirms Doc 152's fix by capturing fatal #14**, and
+withdraws Doc 152 §8 item 3(b): **`/dev/mem` cannot read the modem region at all**, so the
+proposed live `devmem` read of `0xc1d47410` is impossible) — see the sections below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -158,6 +160,37 @@ one-line `qcom,idle-state-spc` DT patch** as unworkable), and an eighth by **Doc
     lead. The dumps hold the **modem's** memory, **not SMEM**, so the SMSM APPS word and the A2
     client vote list are **not** in them.
 
+## A ninth round — Doc 153, 2026-09-21: fatal #14 captured; `devmem` cannot read the modem
+
+17. **Doc 152's fix is CONFIRMED by measurement.** The corrected watcher captured **fatal #14**
+    (85 398 475 B, md5 `ed1a3255…`, verified on both sides) on the very next fatal. The `test -s`
+    guard really was the whole reason nothing had ever been captured. The watcher now also
+    **autostarts from `/etc/rc.local`** (`S95done`), because a hanging fatal reboots the AP.
+    *Trap:* busybox `start-stop-daemon -S -x <script>` is **not idempotent** — its `-x` match is
+    applied to `/proc/PID/cmdline` (`/bin/sh /overlay/…`), so a second `-S` spawns a duplicate.
+    The hook guards on a pidfile the watcher writes itself.
+18. **The coredump is created only *after* `rproc_stop()` returns** — `rproc_boot_recovery()`
+    calls `rproc_stop()` and only then `rproc->ops->coredump()`, and the `bam_dmux` SSR teardown
+    is *scheduled from inside* `rproc_stop()` (`ssr_notify_stop` → `QCOM_SSR_BEFORE_SHUTDOWN` →
+    `qcom_bam_dmux.c:2083`). Fatal #13 never printed `stopped remote processor` and produced no
+    dump; fatal #14 did, and did. So **a hanging fatal is structurally uncapturable** — the dump
+    is never created, not merely expired. (Supersedes Doc 152's "the 5-min window elapsed" framing.)
+19. **`/dev/mem` cannot read the mpss region — by *any* method.** Source-verified *and* measured:
+    `read()` → **EFAULT** (`arch/arm64/mm/mmap.c` `valid_phys_addr_range()` requires
+    `memblock_is_map_memory()`, false for `nomap`); `mmap()` → **SIGBUS**
+    (`arch/arm64/mm/mmu.c:99` `phys_mem_access_prot()` forces `pgprot_noncached` for a
+    non-`map` pfn → DRAM as Device-nGnRnE → external abort). `CONFIG_STRICT_DEVMEM` is **not**
+    the blocker (it is unset). This is why `rpmring` works (the RPM ring is **SRAM**) and
+    `devmem` on mpss cannot. **Doc 152 §8 item 3(b) — "read `0xc1d47410` live with `devmem`" —
+    is WITHDRAWN.** A kernel module *can* `ioremap` a `nomap` region
+    (`arch/arm64/mm/ioremap.c:27` refuses only *map* memory), so that is the next instrument.
+20. **`dump_va == AP physical` for the mpss region**, established structurally: the coredump
+    PT_LOAD segments span `0x86800000`–`0x8ace6000`, inside `mpss@86800000..0x8bcfffff`.
+21. **The `rpm` LPR `+0x18` counter reads 1064 at fatal #14** — it **exceeds** the adjacent
+    literal 1000s, so Doc 152's "per-client maximum table" reading is at best incomplete
+    (5 samples: 833 / 989 / 937 / 1009 / 1064). **Word B does not reset across a reboot**
+    (0x01128c1d → 0x01128c90, Δ = 115, *not* a multiple of the within-boot +11).
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -212,7 +245,8 @@ Also established and not to be re-litigated:
 | `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; `rpm.bin` is a disassemblable ARM ELF. **Its §5.2/§5.3 log-reading method and census are RETRACTED by Doc 150**; its VMIN/XOSD and "AP never votes VMIN" findings stand; **its §5.5 SPM framing and §7-item-3 one-line DT patch are WITHDRAWN by Doc 151 §6** (SAW nodes are `reserved` under PSCI; CPR never probes) |
 | `150_HMU05_RPM_LOG_IS_LIVE_AND_ITS_CLIENT_IS_THE_MODEM.md` | **The RPM log is now a trustworthy, ordered, wall-clock-stamped stream** (`rpmring`: mmap, ~500 µs/sample; `+0x38` is the ring's byte write counter, verified twice); the RPM timestamp is **19.2 MHz measured to ±0.017 %**; the log carries a **client id** — client 1 = **MSS** (its sequence counter restarts at the modem SSR, once in 1152 transactions); **the RPM is alive through the fatal and the SSR** (214 records in the fatal window, then 1286 rec/s), so the "RPM-wedged" arm of the `rpm.sync` hypothesis is **not supported**; answers Doc 149 §7 exp. 1. **Its §13's VMIN/SPM patch plan is withdrawn by Doc 151 §6; its SIGBUS boundary-straddle bug (and two-`memcpy` fix) are documented in its uncommitted addendum** |
 | `151_HMU05_F10_REPLICATION_CLIENT0_AND_SPM_CORRECTION.md` | **Fatal #10 replicated** (331.7 s / 94 252 records / 2271 bursts): client 0 appears in a 1.308 s window at the fatal and **nowhere else** in 330.4 s — the "fatal-only" signature holds at 2/2 fatals; **client 0's sequence counter is contiguous across the SSR (0x135→0x14c) while client 1's restarts, so client 0 is NOT the modem**; the AP is the leading client-0 candidate (`ldoa`/`smpa` = the AP's `qcom,rpm-pm8916-regulators` names; the AP acts only during remoteproc crash recovery — the mechanism for "only at the fatal"); **a new AP-side hang** in the `bam_dmux` "SSR before shutdown" teardown path (`echo stop > .../state` → hard hang, no panic, watchdog reset); **the SPM/CPR plan withdrawn** (SAW `status="reserved"` under PSCI; `qcom_spm_find_any_cpu()` returns false; CPR never probes; the `-3` is benign) |
-| `152_COREDUMP_WATCHER_REGRESSION_AND_CAPTURE_FIX.md` | **The modem-coredump watcher could never capture** — a `[ -s "$d/data" ]` guard on a `bin_attribute` with `.size = 0`, and a release that wrote a nonexistent per-device `disabled` (the real one is a **global write-once lockdown**); the per-device release is a **write to `data`**. Fatals #11 and #12 were lost; Δ(#11→#12) = **903.674516 s** is a fresh period sample. Records the corrected, deployed (detached, `setsid`) watcher; the mapping `dump_va = elf_va − 0x39800000` re-verified; the ERR_FATAL record's structure at ELF `0xC35B1280` and its word **B (11 per period)**; and that the dumps hold modem memory, **not SMEM** |
+| `152_COREDUMP_WATCHER_REGRESSION_AND_CAPTURE_FIX.md` | **The modem-coredump watcher could never capture** — a `[ -s "$d/data" ]` guard on a `bin_attribute` with `.size = 0`, and a release that wrote a nonexistent per-device `disabled` (the real one is a **global write-once lockdown**); the per-device release is a **write to `data`**. Fatals #11 and #12 were lost; Δ(#11→#12) = **903.674516 s** is a fresh period sample. Records the corrected watcher; the mapping `dump_va = elf_va − 0x39800000` re-verified; the ERR_FATAL record's structure at ELF `0xC35B1280` and its word **B (11 per period)**; and that the dumps hold modem memory, **not SMEM**. **Its fix is CONFIRMED by Doc 153; its §8 item 3(b) (`devmem` live read) is WITHDRAWN by Doc 153 §5; its "5-min window elapsed" explanation of fatal #13 is superseded by Doc 153 §4** |
+| `153_FATAL14_CAPTURED_DEVMEM_IMPOSSIBLE_AND_WATCHER_AUTOSTART.md` | **Doc 152's watcher fix confirmed by capturing fatal #14** (85 398 475 B, md5 verified) — the `test -s` guard was the whole cause. **The coredump is created only after `rproc_stop()` returns**, so a hanging fatal (fatal #13) is *structurally uncapturable* — the dump is never created. **`/dev/mem` cannot read the mpss region by any method** (read()→EFAULT, mmap()→SIGBUS; source-verified), so live `devmem` observation is impossible and a `nomap`-capable kernel module is the next instrument. Establishes **`dump_va == AP physical` for mpss**; the watcher now autostarts from `/etc/rc.local` (and busybox `start-stop-daemon -S` is **not idempotent** for a script); the `rpm` LPR `+0x18` counter reads **1064** (exceeds the adjacent 1000s) and word B **does not reset across a reboot** |
 
 ## Sound but narrow (accurate, subordinate scope)
 

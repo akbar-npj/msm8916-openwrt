@@ -1,0 +1,67 @@
+fatal #14 — full dmesg (AP uptime in [ ]), captured 2026-09-21 on the HMU05
+OpenWrt 25.12.5 / Linux 6.12.94, baseband = stock HMU05.
+
+This is the FIRST fatal captured after the Doc 152 watcher fix. Note that it is a
+CLEAN fatal: rproc_stop() returned ("stopped remote processor") and the whole SSR
+completed in 2.09 s, so the coredump was created and the watcher caught it.
+
+Contrast fatal #13 (Doc 153 §4.2): its console ended mid-teardown and NEVER printed
+"stopped remote processor", so rproc->ops->coredump() was never reached and no dump
+was created at all.
+
+--------------------------------------------------------------------------------
+[   17.733488] br-lan: port 2(usb0) entered blocking state
+[   17.739813] br-lan: port 2(usb0) entered forwarding state
+[   17.745235] br-lan: port 2(usb0) entered disabled state
+[   18.070482] br-lan: port 2(usb0) entered blocking state
+[   18.070554] br-lan: port 2(usb0) entered forwarding state
+[  914.042208] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[  914.042289] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  914.050750] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[  914.058182] remoteproc remoteproc0: recovering 4080000.remoteproc
+[  914.065024] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  914.071622] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[  914.078008] wwan wwan0: port wwan0at0 disconnected
+[  914.090588] wwan wwan0: port wwan0at1 disconnected
+[  914.095641] wwan wwan0: port wwan0qmi0 disconnected
+[  914.103358] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[  914.405108] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[  914.813232] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[  914.861869] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[  915.418573] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[  915.418777] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[  915.427125] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: refusing to queue command while modem is collapsed
+[  915.436572] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  915.446930] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[  915.661643] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[  915.661719] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[  915.877035] wwan wwan0: port wwan0at0 attached
+[  915.877463] wwan wwan0: port wwan0at1 attached
+[  916.075133] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[  916.075786] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[  916.082839] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[  916.091404] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[  916.099938] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[  916.108520] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[  916.117114] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[  916.125689] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[  916.134503] wwan wwan0: port wwan0qmi0 attached
+--------------------------------------------------------------------------------
+
+Watcher log (/overlay/coredump_watch.log), the relevant lines:
+
+  [915.44s] dump device devcd1 at uptime 915.44s -> /overlay/coredump_live/modem_coredump_up915.44_devcd1.elf
+  [920.01s] captured 85398475 bytes from devcd1
+
+Artifact:
+  modem_coredump_up915.44_devcd1.elf  85 398 475 B
+  md5  ed1a32554f19abf419cb67f4f6636f54   (verified on device AND host)
+  (kept out of git — 85 MB; see scratch/coredump_live/)
+
+Key timings:
+  fatal                     914.042208
+  rproc_stop() returned     914.103358   (+61 ms)  <-- coredump created only after this
+  devcd1 seen by watcher    915.44
+  capture complete          920.01        (4.57 s to read 85 MB)
+  modem re-provisioned      916.134503
+  SSR downtime              2.09 s
