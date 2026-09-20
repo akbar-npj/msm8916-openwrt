@@ -40,7 +40,7 @@ every fatal signature already recorded anywhere in this repo.
 
 ---
 
-## 3. The measurement: three fatals, 903.674 s apart
+## 3. The measurement: four fatals, 903.674 s apart
 
 `dmesg` on the deployed boot (all timestamps are AP uptime, seconds):
 
@@ -59,23 +59,30 @@ every fatal signature already recorded anywhere in this repo.
 [ 2722.180187] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
 [ 2723.511231] bam-dmux ...: bam_dmux: SSR after powerup: scheduling powerup work
 [ 2723.511313] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+
+[ 3625.792806] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
 ```
 
 | quantity | value |
 | :--- | :--- |
+| fatal times (AP uptime) | 914.769287 / 1818.443149 / 2722.117987 / **3625.792806** |
 | interval #1→#2 | **903.673862 s** |
 | interval #2→#3 | **903.674838 s** |
-| difference between the two intervals | 0.000976 s = **1.08 ppm** |
-| signature | `lte_ml1_common_timer.c:390`, **3/3** |
+| interval #3→#4 | **903.674819 s** |
+| spread across 3 intervals | 0.000976 s = **1.08 ppm** |
+| signature | `lte_ml1_common_timer.c:390`, **4/4** |
 | SSR outage per fatal | ~1.3 s (fatal → modem back up) |
 | AP-side oopses this boot | **0** |
 
 Modem bring-up in this boot is at AP 12.092370 s, so on the *modem's* own uptime clock the
-fatals land at ≈ **902.68 / 1806.35 / 2710.03 s**.
+fatals land at ≈ **902.68 / 1806.35 / 2710.03 / 3613.70 s**.
 
-**A period stable to 1 ppm across two intervals is not a coincidence.** Whatever produces this
-is a counter or timer, not a random failure rate. That is the opposite of what the corpus
+**A period stable to 1 ppm across three intervals is not a coincidence.** Whatever produces
+this is a counter or timer, not a random failure rate. That is the opposite of what the corpus
 currently asserts for this family — §6.
+
+The 4th fatal also produced a **4th `wwan0` address** (`10.90.201.29`), confirming the
+fatal→SSR→rebuild chain in §4 a fourth time.
 
 ### 3.1 What it is *not*
 
@@ -318,24 +325,58 @@ both sides and compare (a) `pc_irq_count`-equivalent collapse cadence and (b) wh
 `lte_ml1_common_timer.c:390` appears in Android's `dmesg` past 903 s. The Android device was
 **not reachable** (`adb devices` empty) when this document was written.
 
-### 7.1 Static decode of the assert site: attempted, blocked
+### 7.1 The ERR_FATAL descriptor for this assert is DECODED — from the coredump
 
-Tried on 2026-09-20 and did **not** succeed — recording it so the next session does not repeat it:
+The corpus recorded that the descriptor → file/line link "is NOT decoded" and that descriptors
+"read as high-entropy obfuscated data even in rodata". **Both are wrong for this descriptor
+family.** The modem coredump holds the runtime copy in plaintext, and it matches the formatter
+(`0xc08794e0`: line u16 at `+0x00`, inline NUL-terminated filename at `+0x14`) exactly.
 
-* `lte_ml1_common_timer.c:390` is **not** in the BSS line-table family that carries the verified
-  controls (`lte_ml1_sleepmgr_stm.c:4054`, `lte_ml1_rfmgr_trm.c:4014`, `a2_power.c:1189`).
-  Searching `modem.asm` for the initialiser form (`rN = #0x186`, i.e. line 390) gives **4** hits
-  (`c02c3930`, `c04b01bc`, `c0b3e0e8`, `c0cb0b64`) and **none** is a line-table initialiser —
-  they are arithmetic and structure-init sites.
-* `scratch/firmware/modem.asm` contains **no string content at all**: `a2_power.c`,
-  `lte_ml1_sleepmgr_stm.c`, `mmoc.c` and `lte_ml1_common_timer.c` each appear **0** times, so the
-  filename-grouping route is unavailable from that artifact.
-* This is consistent with the recorded traps: the descriptor → file/line link is **obfuscated**
-  and needs the firmware's decryption routine; `modem.asm` also stops at `PT_LOAD#16`.
+File offset `0x03524f40` (VA **0x89db1290**):
 
-**Consequence:** the assert site cannot be decoded statically with the current artifacts. The
-practical route remains what the modem *prints* — i.e. DIAG capture around the fault — and the
-AP-side differential, not firmware RE.
+```
++0x00  86 01 00 00   u16 line = 0x0186 = 390
++0x02  00 00         pad
++0x04  62 be 78 c7   u32 A   (runtime-varying)
++0x08  12 8c 12 01   u32 B   (runtime-varying)
++0x0c  00 00 00 00
++0x10  00 00 00 00
++0x14  "lte_ml1_common_timer.c\0"
+```
+
+The descriptor is **static** — the same file offset in every coredump — yet its payload words
+**change between dumps**, i.e. the firmware records live state into it:
+
+| dump (uptime s) | A | B |
+| :--- | :--- | :--- |
+| 919.52 | 0xb7bb76cf | 0x01128bfc |
+| 1000.86 | 0xb7bb76cf | 0x01128bfc |
+| 1822.52 | 0xbffa3d53 | 0x01128c07 |
+| 2723.69 | 0xc778be62 | 0x01128c12 |
+| 3629.79 | 0xce3f7ed6 | 0x01128c1d |
+
+`B` increases monotonically by 0x0b (11) per fatal period; across 2710 s it rises 33, i.e.
+**one count per ~82.1 s**. It is *not* a plain tick count (that would scale 1:1 with uptime), so
+it is a counter of something with a ~82 s period — a candidate for the quantity the assert
+checks. `A` also varies but is not yet interpreted.
+
+**Not resolved:** no pointer to `0x89db1290` exists anywhere in the dump, and `modem.asm` (which
+covers only up to `0xc1404e0c`) has no `0x89db1290` / `-0x7624ed70` immediate, so the referencing
+site is not yet located and `A`/`B` cannot be interpreted without it.
+
+**Also tried and failed, so it is not repeated:** `lte_ml1_common_timer.c:390` is not in the BSS
+line-table family that carries the verified controls (4054/4014/1189) — searching `modem.asm` for
+the initialiser form (`rN = #0x186`) gives 4 hits, none a table initialiser. And
+`scratch/firmware/modem.asm` contains **no string content at all** (`a2_power.c`,
+`lte_ml1_sleepmgr_stm.c`, `mmoc.c`, `lte_ml1_common_timer.c` each appear 0 times), so the
+filename-grouping route is unavailable from that artifact. The coredump is the working oracle.
+
+### 7.2 Coredump reading is a disk hazard
+
+`/sys/class/devcoredump/` exposes a **single** device (`devcd4`), and repeated reads return
+*changing* data (a live dump). A naive polling loop therefore writes a fresh 85 MB file each
+time: the watch used here wrote **122 dumps = 9.6 GB in ~45 min** before being stopped. Bound
+the number of captures and prune; one dump per fatal era is sufficient.
 
 ---
 
@@ -346,6 +387,9 @@ AP-side differential, not firmware RE.
 | live capture (fatal + SSR sequence, telemetry, module info) | `evidence/148_fatal_periodicity/live_capture_20260920.txt` |
 | A2 cadence samples + interpretation | `evidence/148_fatal_periodicity/a2_cadence_20260920.txt` |
 | fatal signature census | `evidence/148_fatal_periodicity/fatal_signature_census.txt` |
+| ERR_FATAL descriptor decode (this assert) | `evidence/148_fatal_periodicity/errfatal_descriptor_decode.txt` |
+| coredump descriptor scanner (**tracked**) | `evidence/148_fatal_periodicity/coredump_descriptors.py` |
+| modem coredumps (one per fatal era, gitignored) | `scratch/coredump_live/modem_coredump_up{919.52,1822.52,2723.69,3629.79}.elf` |
 | Android 921 s barrier test (the real control) | `../Stock_Android_Analysis/16_15min_barrier_test_log.txt` |
 | telemetry interface source | `rx_telemetry` = `DEVICE_ATTR_RO` in `msm89xx/patches/808-bam-dmux-stats.patch` |
 | driver source of truth | `msm89xx/patches/808-*.patch` + `msm89xx/patches/809-bam-dmux-tx-pm-ordering.patch` |
@@ -356,11 +400,13 @@ AP-side differential, not firmware RE.
 
 ## 9. One-line summary for the next session
 
-The modem fatals every **903.674 s** this boot (`lte_ml1_common_timer.c:390`, 3/3, stable to
-1 ppm), each fatal costs an SSR and a bearer rebuild — which is what the `wwan0` address churn
-in Doc 147 §8 actually was, so stop looking for an AP-side rebuild timer. The corpus conflates
-**ten** fatal signatures, and retraction #1's "fixed 900 s is FALSE" is only true for
-`a2_power.c:1189`; for `lte_ml1_common_timer.c:390` the periodicity is real and unexplained.
-Android at 921 s uptime is healthy with 0 % loss on byte-identical firmware, so **the fatal is
-AP-dependent and is the remaining lever** — with the A2 collapse cadence differing 4.6× as the
-leading, unproven candidate.
+The modem fatals every **903.674 s** this boot (`lte_ml1_common_timer.c:390`, **4/4**, three
+intervals spread by 1.08 ppm), each fatal costs an SSR and a bearer rebuild — which is what the
+`wwan0` address churn in Doc 147 §8 actually was, so stop looking for an AP-side rebuild timer.
+The corpus conflates **ten** fatal signatures, and retraction #1's "fixed 900 s is FALSE" is only
+true for `a2_power.c:1189`; for `lte_ml1_common_timer.c:390` the periodicity is real and
+unexplained. Android at 921 s uptime is healthy with 0 % loss on byte-identical firmware, so
+**the fatal is AP-dependent and is the remaining lever** — with the A2 collapse cadence differing
+4.6× as the leading, unproven candidate. **New capability:** the ERR_FATAL descriptor for this
+assert is now decoded from a modem coredump (VA `0x89db1290`, line 390, inline filename, plus two
+runtime-varying payload words), which the corpus had recorded as not decodable — §7.1.

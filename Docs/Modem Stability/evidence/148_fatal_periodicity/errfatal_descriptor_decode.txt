@@ -1,0 +1,77 @@
+### ERR_FATAL descriptor DECODED from a modem coredump — 2026-09-20
+### Method: evidence/148_fatal_periodicity/coredump_descriptors.py  (tracked copy)
+###         scratch/firmware/coredump_descriptors.py                (working copy)
+### Source: scratch/coredump_live/modem_coredump_up*.elf  (gitignored; 85,398,475 B each)
+###
+### NOTE: scratch/ is entirely gitignored and NO scratch/firmware/*.py was tracked, so the
+### scanner was copied into this tracked evidence directory. Reproduce with:
+###   cd scratch/coredump_live
+###   python3 "<repo>/Docs/Modem Stability/evidence/148_fatal_periodicity/coredump_descriptors.py" \
+###           modem_coredump_up2723.69.elf
+
+## Why this matters
+
+`reference_err_fatal_file_line_decode.md` recorded that the descriptor -> file/line link
+"is NOT decoded" and that descriptors "read as high-entropy obfuscated data even in rodata".
+**Both are now shown to be wrong for this descriptor family.** The runtime copy in a modem
+coredump is plaintext and structurally exact.
+
+## The layout (verified)
+
+Formatter is at `0xc08794e0`; it reads:
+    line     = zxth(memw(r18 + 0x00))     # u16 at +0x00
+    filename = (char *)(r18 + 0x14)       # inline NUL-terminated at +0x14
+
+Observed bytes at file offset 0x03524f54 - 0x14 = 0x03524f40 (VA 0x89db1290):
+
+    +0x00  86 01 00 00   u16 line = 0x0186 = 390
+    +0x02  00 00         pad
+    +0x04  62 be 78 c7   u32 A   (runtime-varying, see below)
+    +0x08  12 8c 12 01   u32 B   (runtime-varying, see below)
+    +0x0c  00 00 00 00   0
+    +0x10  00 00 00 00   0
+    +0x14  "lte_ml1_common_timer.c\0"
+
+That is an EXACT match to what the formatter reads. The descriptor is the one that produced
+the observed kernel message `fatal error received: lte_ml1_common_timer.c:390:`.
+
+## It is a STATIC object, but its payload is runtime state
+
+The descriptor sits at the SAME file offset (0x03524f54) in every coredump => same VA
+0x89db1290 => it is a compile-time object, not a stack copy. Yet two of its words change
+between dumps:
+
+    dump (uptime s)     A           B
+    up919.52            0xb7bb76cf  0x01128bfc
+    up1000.86           0xb7bb76cf  0x01128bfc     <- same as up919.52 (81 s apart)
+    up1822.52           0xbffa3d53  0x01128c07
+    up2723.69           0xc778be62  0x01128c12
+    up3629.79           0xce3f7ed6  0x01128c1d
+
+* B increases monotonically: 0x01128bfc -> 0x01128c07 -> 0x01128c12 -> 0x01128c1d
+  (delta 0x0b = 11 per fatal period). Over up919.52 -> up3629.79 (delta 2710.27 s) B rises 33,
+  i.e. **one count per ~82.1 s**. B is NOT a plain tick count (it would scale 1:1 with uptime).
+  Candidate: a counter of some event with a ~82 s period, captured into the descriptor.
+* A also varies, increasing with uptime but with a decreasing increment
+  (0x083EC684, 0x077E810F, 0x06C6C074). Not yet interpreted; it does not look like an address
+  (the modem's code lives at 0xc0.., and 0xb7bb76cf is below that).
+
+## What is NOT resolved
+
+* No pointer to 0x89db1290 exists anywhere in the dump (`d.find(struct.pack('<I',0x89db1290))`
+  = 0 hits), so the descriptor address is computed rather than stored as a 32-bit immediate.
+  Searching `modem.asm` for `0x89db1290` / `-0x7624ed70` also gives 0 — and `modem.asm` only
+  covers code up to 0x1404e0c, so the referencing site may simply be outside it.
+* A and B cannot be interpreted without the assert site.
+
+## Operational note — coredump reading is a DISK HAZARD
+
+`/sys/class/devcoredump/` exposes a SINGLE device (`devcd4`). Repeated reads return *changing*
+data (a live dump), so a naive polling loop writes a fresh 85 MB file each time. The watch
+used here wrote **122 dumps = 9.6 GB in ~45 min** before being stopped. Always bound the
+number of captures, and prune. One dump per fatal era is enough.
+
+## Reproduce
+
+    cd scratch/coredump_live
+    python3 ../firmware/coredump_descriptors.py modem_coredump_up2723.69.elf
