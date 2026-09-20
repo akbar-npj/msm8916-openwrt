@@ -7,10 +7,14 @@ fraction of it rests on three premises that have since been **measured to be fal
 Four further retractions/corrections were added the same day by Docs 147 and 148, a
 fifth round the next day by **Doc 149** (which corrects Doc 148's own period figure and
 signature framing), a sixth by **Doc 150** (which retracts Doc 149's own RPM-log
-reading method and answers its §7 experiment 1), and a seventh by **Doc 151** (which
+reading method and answers its §7 experiment 1), a seventh by **Doc 151** (which
 replicates client-0's fatal-only window at 2/2, names the AP as its leading candidate,
 records a new AP-side hang in the modem-shutdown path, and **withdraws Doc 149 §7 item 3's
-one-line `qcom,idle-state-spc` DT patch** as unworkable) — see the sections below.
+one-line `qcom,idle-state-spc` DT patch** as unworkable), and an eighth by **Doc 152**
+(which finds the modem-coredump watcher was **structurally incapable of capturing** — a
+`test -s` guard on a size-0 attribute and a release path that does not exist — so fatals
+#11 and #12 were lost; it records the corrected procedure and the coredump analysis status)
+— see the sections below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -128,6 +132,32 @@ one-line `qcom,idle-state-spc` DT patch** as unworkable) — see the sections be
     6.12 it is `drivers/pmdomain/qcom/cpr.c`, with no `vmin` references). The VMIN/XOSD gap is
     real (Doc 150) but is **not testable by that route**.
 
+## An eighth round — Doc 152, 2026-09-21: the coredump watcher was silently broken
+
+14. **"A watcher streams the ELF off-device the moment a dump appears" (Doc 146 §7) — FALSE as
+    deployed.** The watcher could **never** capture, for two source-verified reasons:
+    * it guarded on `[ -s "$d/data" ]`, but `data` is a `bin_attribute` with **`.size = 0`**
+      (`devcoredump.c:146`; passed straight to kernfs via `fs/sysfs/file.c:343`), so `test -s`
+      is false **even with a complete dump present**;
+    * it released by `echo 1 > "$d/disabled"`, but the per-device attribute set is **only
+      `data`** (`devcoredump.c:151`). The real `disabled` is **class-level**
+      (`/sys/class/devcoredump/disabled`) and is a **global, write-once lockdown** that must
+      never be written (`devcoredump.c:214`).
+    The per-device release is a **write to `data`** (`devcd_data_write`, line 127).
+    Consequence: **fatals #11 and #12 produced no dump.** The previous session's log
+    (`/tmp/coredump_capture.log`, 29.6 KB) proves a devcd device *is* capturable — it shows
+    ~34 reads of one device every ~9 s until the 5-min timeout, i.e. the earlier watcher had no
+    `-s` guard and no working release (the "122 dumps = 9.6 GB in 45 min" hazard Doc 148
+    already flagged). The corrected watcher is deployed detached and armed (Doc 152).
+15. **New period sample:** Δ(#11→#12) = **903.674516 s**, 0.0004 s from the family mean —
+    another confirmation of the deterministic period.
+16. **Coredump status:** the mapping `dump_va = elf_va − 0x39800000` is re-verified; the
+    ERR_FATAL record is a **structured object** at ELF `0xC35B1280` (`{3, 1, ptr 0xC3C0BF84, 3,
+    line=390, A, B, "lte_ml1_common_timer.c", "Assert 0 failed: "}`); its word **B increments
+    exactly 11 per fatal period** (~82.15 s/count) — still unexplained, the descriptor's only
+    lead. The dumps hold the **modem's** memory, **not SMEM**, so the SMSM APPS word and the A2
+    client vote list are **not** in them.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -182,6 +212,7 @@ Also established and not to be re-litigated:
 | `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; `rpm.bin` is a disassemblable ARM ELF. **Its §5.2/§5.3 log-reading method and census are RETRACTED by Doc 150**; its VMIN/XOSD and "AP never votes VMIN" findings stand; **its §5.5 SPM framing and §7-item-3 one-line DT patch are WITHDRAWN by Doc 151 §6** (SAW nodes are `reserved` under PSCI; CPR never probes) |
 | `150_HMU05_RPM_LOG_IS_LIVE_AND_ITS_CLIENT_IS_THE_MODEM.md` | **The RPM log is now a trustworthy, ordered, wall-clock-stamped stream** (`rpmring`: mmap, ~500 µs/sample; `+0x38` is the ring's byte write counter, verified twice); the RPM timestamp is **19.2 MHz measured to ±0.017 %**; the log carries a **client id** — client 1 = **MSS** (its sequence counter restarts at the modem SSR, once in 1152 transactions); **the RPM is alive through the fatal and the SSR** (214 records in the fatal window, then 1286 rec/s), so the "RPM-wedged" arm of the `rpm.sync` hypothesis is **not supported**; answers Doc 149 §7 exp. 1. **Its §13's VMIN/SPM patch plan is withdrawn by Doc 151 §6; its SIGBUS boundary-straddle bug (and two-`memcpy` fix) are documented in its uncommitted addendum** |
 | `151_HMU05_F10_REPLICATION_CLIENT0_AND_SPM_CORRECTION.md` | **Fatal #10 replicated** (331.7 s / 94 252 records / 2271 bursts): client 0 appears in a 1.308 s window at the fatal and **nowhere else** in 330.4 s — the "fatal-only" signature holds at 2/2 fatals; **client 0's sequence counter is contiguous across the SSR (0x135→0x14c) while client 1's restarts, so client 0 is NOT the modem**; the AP is the leading client-0 candidate (`ldoa`/`smpa` = the AP's `qcom,rpm-pm8916-regulators` names; the AP acts only during remoteproc crash recovery — the mechanism for "only at the fatal"); **a new AP-side hang** in the `bam_dmux` "SSR before shutdown" teardown path (`echo stop > .../state` → hard hang, no panic, watchdog reset); **the SPM/CPR plan withdrawn** (SAW `status="reserved"` under PSCI; `qcom_spm_find_any_cpu()` returns false; CPR never probes; the `-3` is benign) |
+| `152_COREDUMP_WATCHER_REGRESSION_AND_CAPTURE_FIX.md` | **The modem-coredump watcher could never capture** — a `[ -s "$d/data" ]` guard on a `bin_attribute` with `.size = 0`, and a release that wrote a nonexistent per-device `disabled` (the real one is a **global write-once lockdown**); the per-device release is a **write to `data`**. Fatals #11 and #12 were lost; Δ(#11→#12) = **903.674516 s** is a fresh period sample. Records the corrected, deployed (detached, `setsid`) watcher; the mapping `dump_va = elf_va − 0x39800000` re-verified; the ERR_FATAL record's structure at ELF `0xC35B1280` and its word **B (11 per period)**; and that the dumps hold modem memory, **not SMEM** |
 
 ## Sound but narrow (accurate, subordinate scope)
 

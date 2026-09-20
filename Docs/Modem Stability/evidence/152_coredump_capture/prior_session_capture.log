@@ -1,0 +1,247 @@
+=== coredump watcher start 2026-09-20T23:21:56+05:45 ===
+[2026-09-20T23:39:08+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 919.52s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up919.52.elf
+[2026-09-20T23:39:11+05:45] captured 85398475 bytes
+[2026-09-20T23:39:17+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 928.44s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up928.44.elf
+[2026-09-20T23:39:20+05:45] captured 85398475 bytes
+[2026-09-20T23:39:26+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 937.47s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up937.47.elf
+[2026-09-20T23:39:29+05:45] captured 85398475 bytes
+[2026-09-20T23:39:35+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 946.61s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up946.61.elf
+[2026-09-20T23:39:38+05:45] captured 85398475 bytes
+[2026-09-20T23:39:44+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 955.67s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up955.67.elf
+[2026-09-20T23:39:47+05:45] captured 85398475 bytes
+[2026-09-20T23:39:53+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 964.62s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up964.62.elf
+[2026-09-20T23:39:56+05:45] captured 85398475 bytes
+[2026-09-20T23:40:02+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 973.65s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up973.65.elf
+[2026-09-20T23:40:05+05:45] captured 85398475 bytes
+[2026-09-20T23:40:11+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 982.79s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up982.79.elf
+[2026-09-20T23:40:15+05:45] captured 85398475 bytes
+[2026-09-20T23:40:20+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 991.87s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up991.87.elf
+[2026-09-20T23:40:24+05:45] captured 85398475 bytes
+[2026-09-20T23:40:29+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1000.86s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1000.86.elf
+[2026-09-20T23:40:33+05:45] captured 85398475 bytes
+[2026-09-20T23:40:38+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1009.88s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1009.88.elf
+[2026-09-20T23:40:42+05:45] captured 85398475 bytes
+[2026-09-20T23:40:47+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1018.80s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1018.80.elf
+[2026-09-20T23:40:51+05:45] captured 85398475 bytes
+[2026-09-20T23:40:56+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1027.91s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1027.91.elf
+[2026-09-20T23:41:00+05:45] captured 85398475 bytes
+[2026-09-20T23:41:05+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1036.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1036.90.elf
+[2026-09-20T23:41:09+05:45] captured 85398475 bytes
+[2026-09-20T23:41:14+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1045.95s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1045.95.elf
+[2026-09-20T23:41:18+05:45] captured 85398475 bytes
+[2026-09-20T23:41:23+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1055.01s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1055.01.elf
+[2026-09-20T23:41:27+05:45] captured 85398475 bytes
+[2026-09-20T23:41:32+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1064.04s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1064.04.elf
+[2026-09-20T23:41:36+05:45] captured 85398475 bytes
+[2026-09-20T23:41:41+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1073.06s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1073.06.elf
+[2026-09-20T23:41:45+05:45] captured 85398475 bytes
+[2026-09-20T23:41:50+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1082.08s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1082.08.elf
+[2026-09-20T23:41:54+05:45] captured 85398475 bytes
+[2026-09-20T23:42:00+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1091.58s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1091.58.elf
+[2026-09-20T23:42:03+05:45] captured 85398475 bytes
+[2026-09-20T23:42:09+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1100.59s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1100.59.elf
+[2026-09-20T23:42:12+05:45] captured 85398475 bytes
+[2026-09-20T23:42:18+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1109.66s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1109.66.elf
+[2026-09-20T23:42:21+05:45] captured 85398475 bytes
+[2026-09-20T23:42:27+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1118.66s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1118.66.elf
+[2026-09-20T23:42:30+05:45] captured 85398475 bytes
+[2026-09-20T23:42:36+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1127.63s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1127.63.elf
+[2026-09-20T23:42:39+05:45] captured 85398475 bytes
+[2026-09-20T23:42:45+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1136.74s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1136.74.elf
+[2026-09-20T23:42:49+05:45] captured 85398475 bytes
+[2026-09-20T23:42:54+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1145.77s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1145.77.elf
+[2026-09-20T23:42:58+05:45] captured 85398475 bytes
+[2026-09-20T23:43:03+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1154.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1154.90.elf
+[2026-09-20T23:43:07+05:45] captured 85398475 bytes
+[2026-09-20T23:43:12+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1163.86s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1163.86.elf
+[2026-09-20T23:43:16+05:45] captured 85398475 bytes
+[2026-09-20T23:43:21+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1172.91s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1172.91.elf
+[2026-09-20T23:43:25+05:45] captured 85398475 bytes
+[2026-09-20T23:43:30+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1181.91s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1181.91.elf
+[2026-09-20T23:43:34+05:45] captured 85398475 bytes
+[2026-09-20T23:43:39+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1190.93s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1190.93.elf
+[2026-09-20T23:43:43+05:45] captured 85398475 bytes
+[2026-09-20T23:43:48+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1199.87s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1199.87.elf
+[2026-09-20T23:43:52+05:45] captured 85398475 bytes
+[2026-09-20T23:43:57+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1208.88s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1208.88.elf
+[2026-09-20T23:44:01+05:45] captured 85398475 bytes
+[2026-09-20T23:44:06+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1217.87s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1217.87.elf
+[2026-09-20T23:44:10+05:45] captured 85398475 bytes
+[2026-09-20T23:44:15+05:45] dump device /sys/class/devcoredump/devcd1 at uptime 1226.83s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1226.83.elf
+[2026-09-20T23:44:17+05:45] capture FAILED
+[2026-09-20T23:54:11+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1822.52s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1822.52.elf
+[2026-09-20T23:54:14+05:45] captured 85398475 bytes
+[2026-09-20T23:54:20+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1831.58s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1831.58.elf
+[2026-09-20T23:54:23+05:45] captured 85398475 bytes
+[2026-09-20T23:54:29+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1840.60s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1840.60.elf
+[2026-09-20T23:54:33+05:45] captured 85398475 bytes
+[2026-09-20T23:54:38+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1849.74s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1849.74.elf
+[2026-09-20T23:54:42+05:45] captured 85398475 bytes
+[2026-09-20T23:54:47+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1858.71s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1858.71.elf
+[2026-09-20T23:54:51+05:45] captured 85398475 bytes
+[2026-09-20T23:54:56+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1867.74s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1867.74.elf
+[2026-09-20T23:55:00+05:45] captured 85398475 bytes
+[2026-09-20T23:55:05+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1876.79s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1876.79.elf
+[2026-09-20T23:55:09+05:45] captured 85398475 bytes
+[2026-09-20T23:55:14+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1885.75s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1885.75.elf
+[2026-09-20T23:55:18+05:45] captured 85398475 bytes
+[2026-09-20T23:55:23+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1894.78s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1894.78.elf
+[2026-09-20T23:55:27+05:45] captured 85398475 bytes
+[2026-09-20T23:55:32+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1903.78s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1903.78.elf
+[2026-09-20T23:55:36+05:45] captured 85398475 bytes
+[2026-09-20T23:55:41+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1912.77s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1912.77.elf
+[2026-09-20T23:55:45+05:45] captured 85398475 bytes
+[2026-09-20T23:55:50+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1921.83s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1921.83.elf
+[2026-09-20T23:55:54+05:45] captured 85398475 bytes
+[2026-09-20T23:55:59+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1930.84s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1930.84.elf
+[2026-09-20T23:56:03+05:45] captured 85398475 bytes
+[2026-09-20T23:56:08+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1939.88s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1939.88.elf
+[2026-09-20T23:56:12+05:45] captured 85398475 bytes
+[2026-09-20T23:56:17+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1948.86s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1948.86.elf
+[2026-09-20T23:56:21+05:45] captured 85398475 bytes
+[2026-09-20T23:56:26+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1957.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1957.90.elf
+[2026-09-20T23:56:30+05:45] captured 85398475 bytes
+[2026-09-20T23:56:35+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1966.92s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1966.92.elf
+[2026-09-20T23:56:39+05:45] captured 85398475 bytes
+[2026-09-20T23:56:44+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1975.86s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1975.86.elf
+[2026-09-20T23:56:48+05:45] captured 85398475 bytes
+[2026-09-20T23:56:53+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1984.87s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1984.87.elf
+[2026-09-20T23:56:57+05:45] captured 85398475 bytes
+[2026-09-20T23:57:02+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 1993.88s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up1993.88.elf
+[2026-09-20T23:57:06+05:45] captured 85398475 bytes
+[2026-09-20T23:57:11+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2002.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2002.90.elf
+[2026-09-20T23:57:15+05:45] captured 85398475 bytes
+[2026-09-20T23:57:20+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2012.00s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2012.00.elf
+[2026-09-20T23:57:24+05:45] captured 85398475 bytes
+[2026-09-20T23:57:29+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2021.05s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2021.05.elf
+[2026-09-20T23:57:34+05:45] captured 85398475 bytes
+[2026-09-20T23:57:39+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2030.86s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2030.86.elf
+[2026-09-20T23:57:43+05:45] captured 85398475 bytes
+[2026-09-20T23:57:48+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2039.92s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2039.92.elf
+[2026-09-20T23:57:52+05:45] captured 85398475 bytes
+[2026-09-20T23:57:57+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2048.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2048.90.elf
+[2026-09-20T23:58:01+05:45] captured 85398475 bytes
+[2026-09-20T23:58:06+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2057.82s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2057.82.elf
+[2026-09-20T23:58:10+05:45] captured 85398475 bytes
+[2026-09-20T23:58:15+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2066.78s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2066.78.elf
+[2026-09-20T23:58:19+05:45] captured 85398475 bytes
+[2026-09-20T23:58:24+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2075.78s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2075.78.elf
+[2026-09-20T23:58:28+05:45] captured 85398475 bytes
+[2026-09-20T23:58:33+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2084.75s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2084.75.elf
+[2026-09-20T23:58:37+05:45] captured 85398475 bytes
+[2026-09-20T23:58:42+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2093.78s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2093.78.elf
+[2026-09-20T23:58:46+05:45] captured 85398475 bytes
+[2026-09-20T23:58:51+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2102.79s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2102.79.elf
+[2026-09-20T23:58:55+05:45] captured 85398475 bytes
+[2026-09-20T23:59:00+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2111.82s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2111.82.elf
+[2026-09-20T23:59:04+05:45] captured 85398475 bytes
+[2026-09-20T23:59:09+05:45] dump device /sys/class/devcoredump/devcd2 at uptime 2120.79s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2120.79.elf
+[2026-09-20T23:59:13+05:45] captured 85398475 bytes
+[2026-09-21T00:09:12+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2723.69s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2723.69.elf
+[2026-09-21T00:09:16+05:45] captured 85398475 bytes
+[2026-09-21T00:09:21+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2732.79s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2732.79.elf
+[2026-09-21T00:09:25+05:45] captured 85398475 bytes
+[2026-09-21T00:09:30+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2741.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2741.90.elf
+[2026-09-21T00:09:34+05:45] captured 85398475 bytes
+[2026-09-21T00:09:39+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2751.05s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2751.05.elf
+[2026-09-21T00:09:43+05:45] captured 85398475 bytes
+[2026-09-21T00:09:48+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2760.05s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2760.05.elf
+[2026-09-21T00:09:52+05:45] captured 85398475 bytes
+[2026-09-21T00:09:57+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2769.05s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2769.05.elf
+[2026-09-21T00:10:01+05:45] captured 85398475 bytes
+[2026-09-21T00:10:06+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2778.13s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2778.13.elf
+[2026-09-21T00:10:10+05:45] captured 85398475 bytes
+[2026-09-21T00:10:15+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2787.05s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2787.05.elf
+[2026-09-21T00:10:19+05:45] captured 85398475 bytes
+[2026-09-21T00:10:24+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2796.13s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2796.13.elf
+[2026-09-21T00:10:28+05:45] captured 85398475 bytes
+[2026-09-21T00:10:33+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2805.17s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2805.17.elf
+[2026-09-21T00:10:37+05:45] captured 85398475 bytes
+[2026-09-21T00:10:42+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2814.16s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2814.16.elf
+[2026-09-21T00:10:46+05:45] captured 85398475 bytes
+[2026-09-21T00:10:51+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2823.12s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2823.12.elf
+[2026-09-21T00:10:55+05:45] captured 85398475 bytes
+[2026-09-21T00:11:00+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2832.07s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2832.07.elf
+[2026-09-21T00:11:04+05:45] captured 85398475 bytes
+[2026-09-21T00:11:09+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2841.18s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2841.18.elf
+[2026-09-21T00:11:13+05:45] captured 85398475 bytes
+[2026-09-21T00:11:18+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2850.27s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2850.27.elf
+[2026-09-21T00:11:22+05:45] captured 85398475 bytes
+[2026-09-21T00:11:27+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2859.26s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2859.26.elf
+[2026-09-21T00:11:31+05:45] captured 85398475 bytes
+[2026-09-21T00:11:36+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2868.20s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2868.20.elf
+[2026-09-21T00:11:40+05:45] captured 85398475 bytes
+[2026-09-21T00:11:45+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2877.24s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2877.24.elf
+[2026-09-21T00:11:49+05:45] captured 85398475 bytes
+[2026-09-21T00:11:54+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2886.13s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2886.13.elf
+[2026-09-21T00:11:58+05:45] captured 85398475 bytes
+[2026-09-21T00:12:03+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2895.13s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2895.13.elf
+[2026-09-21T00:12:07+05:45] captured 85398475 bytes
+[2026-09-21T00:12:12+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2904.17s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2904.17.elf
+[2026-09-21T00:12:16+05:45] captured 85398475 bytes
+[2026-09-21T00:12:21+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2913.16s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2913.16.elf
+[2026-09-21T00:12:25+05:45] captured 85398475 bytes
+[2026-09-21T00:12:30+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2922.20s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2922.20.elf
+[2026-09-21T00:12:34+05:45] captured 85398475 bytes
+[2026-09-21T00:12:39+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2931.23s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2931.23.elf
+[2026-09-21T00:12:43+05:45] captured 85398475 bytes
+[2026-09-21T00:12:48+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2940.34s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2940.34.elf
+[2026-09-21T00:12:52+05:45] captured 85398475 bytes
+[2026-09-21T00:12:58+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2949.40s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2949.40.elf
+[2026-09-21T00:13:01+05:45] captured 85398475 bytes
+[2026-09-21T00:13:07+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2958.40s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2958.40.elf
+[2026-09-21T00:13:10+05:45] captured 85398475 bytes
+[2026-09-21T00:13:16+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2967.41s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2967.41.elf
+[2026-09-21T00:13:19+05:45] captured 85398475 bytes
+[2026-09-21T00:13:25+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2976.41s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2976.41.elf
+[2026-09-21T00:13:28+05:45] captured 85398475 bytes
+[2026-09-21T00:13:33+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2985.35s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2985.35.elf
+[2026-09-21T00:13:37+05:45] captured 85398475 bytes
+[2026-09-21T00:13:43+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 2994.38s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up2994.38.elf
+[2026-09-21T00:13:46+05:45] captured 85398475 bytes
+[2026-09-21T00:13:52+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 3003.49s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3003.49.elf
+[2026-09-21T00:13:55+05:45] captured 85398475 bytes
+[2026-09-21T00:14:01+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 3012.55s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3012.55.elf
+[2026-09-21T00:14:04+05:45] captured 85398475 bytes
+[2026-09-21T00:14:10+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 3021.54s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3021.54.elf
+[2026-09-21T00:14:13+05:45] captured 85398475 bytes
+[2026-09-21T00:14:19+05:45] dump device /sys/class/devcoredump/devcd3 at uptime 3030.52s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3030.52.elf
+[2026-09-21T00:14:19+05:45] capture FAILED
+[2026-09-21T00:24:18+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3629.79s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3629.79.elf
+[2026-09-21T00:24:22+05:45] captured 85398475 bytes
+[2026-09-21T00:24:28+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3639.69s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3639.69.elf
+[2026-09-21T00:24:32+05:45] captured 85398475 bytes
+[2026-09-21T00:24:37+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3648.85s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3648.85.elf
+[2026-09-21T00:24:41+05:45] captured 85398475 bytes
+[2026-09-21T00:24:46+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3657.86s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3657.86.elf
+[2026-09-21T00:24:50+05:45] captured 85398475 bytes
+[2026-09-21T00:24:55+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3666.90s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3666.90.elf
+[2026-09-21T00:24:59+05:45] captured 85398475 bytes
+[2026-09-21T00:25:04+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3675.85s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3675.85.elf
+[2026-09-21T00:25:08+05:45] captured 85398475 bytes
+[2026-09-21T00:25:13+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3684.91s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3684.91.elf
+[2026-09-21T00:25:17+05:45] captured 85398475 bytes
+[2026-09-21T00:25:22+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3693.95s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3693.95.elf
+[2026-09-21T00:25:26+05:45] captured 85398475 bytes
+[2026-09-21T00:25:31+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3703.00s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3703.00.elf
+[2026-09-21T00:25:35+05:45] captured 85398475 bytes
+[2026-09-21T00:25:40+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3712.03s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3712.03.elf
+[2026-09-21T00:25:44+05:45] captured 85398475 bytes
+[2026-09-21T00:25:49+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3721.00s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3721.00.elf
+[2026-09-21T00:25:53+05:45] captured 85398475 bytes
+[2026-09-21T00:25:58+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3730.04s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3730.04.elf
+[2026-09-21T00:26:02+05:45] captured 85398475 bytes
+[2026-09-21T00:26:07+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3738.98s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3738.98.elf
+[2026-09-21T00:26:11+05:45] captured 85398475 bytes
+[2026-09-21T00:26:16+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3748.09s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3748.09.elf
+[2026-09-21T00:26:20+05:45] captured 85398475 bytes
+[2026-09-21T00:26:25+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3757.21s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3757.21.elf
+[2026-09-21T00:26:29+05:45] captured 85398475 bytes
+[2026-09-21T00:26:34+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3766.35s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3766.35.elf
+[2026-09-21T00:26:38+05:45] captured 85398475 bytes
+[2026-09-21T00:26:43+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3775.35s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3775.35.elf
+[2026-09-21T00:26:47+05:45] captured 85398475 bytes
+[2026-09-21T00:26:52+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3784.32s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3784.32.elf
+[2026-09-21T00:26:56+05:45] captured 85398475 bytes
+[2026-09-21T00:27:01+05:45] dump device /sys/class/devcoredump/devcd4 at uptime 3793.36s -> /home/shaanair/Projects/msm8916-openwrt-clean/scratch/coredump_live/modem_coredump_up3793.36.elf
+[2026-09-21T00:27:05+05:45] captured 85398475 bytes
