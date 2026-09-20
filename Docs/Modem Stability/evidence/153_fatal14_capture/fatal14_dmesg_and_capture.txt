@@ -65,3 +65,55 @@ Key timings:
   capture complete          920.01        (4.57 s to read 85 MB)
   modem re-provisioned      916.134503
   SSR downtime              2.09 s
+
+--------------------------------------------------------------------------------
+FIRMWARE PROVENANCE (verified 2026-09-21, Doc 153 §6b)
+
+Deployed /lib/firmware vs GitIgnore/MelbonWhiteStock_Dump/modem_extracted/image/
+  modem  (modem.mdt + modem.b00..b25)  21 segments  -> BYTE-IDENTICAL
+  wcnss  (wcnss.mdt + wcnss.b00..b11)   9 segments  -> BYTE-IDENTICAL
+
+modem.mdt md5 = 1a6f9507e03d4ddbbf1977af81ecdbd7
+  == MelbonWhiteStock_Dump/modem_extracted/image/modem.mdt   (stock HMU05)
+  == compare/modem_hmu05_extracted/image/modem.mdt
+  != compare/modem_ufi001b_extracted/image/modem.mdt         56259b76da608d124a3f32b7a4bcddee
+  != compare/modem_hmu05_patched/image/modem.mdt             aa26ee9acc60f8a86fc6cf239f0cdd09
+  != any of the ~60 modem_ufi001b_patchNN_backup variants
+
+So the clean stock HMU05 baseband (and WiFi firmware) is what is deployed.
+No firmware-side patch experiment can be blamed for the fatal.
+Re-verify with: md5sum /lib/firmware/modem.mdt   (expect 1a6f9507...)
+
+--- deployed modem set (device md5sum, sorted) ---
+1555f1fb15446582177480112ee85f6d  modem.b13
+1a6f9507e03d4ddbbf1977af81ecdbd7  modem.mdt
+1d0a8e74cad0cde5d6cb0cef735e0664  modem.b15
+332f000baa2522e8bc01f3240115d316  modem.b05
+364885a87e3a1ff5ba240d4f472ecd22  modem.b10
+365a660c8cb0f6af6bae8d5855497d8b  modem.b25
+3c7951f66107029a8577d1ef313be0db  modem.b02
+43434a4053ca82c3c33581c41e5c2cc5  modem.b18
+4ec32d29fb549740b12820bd7d211fde  modem.b19
+57fef19de7178fb732c8b2edc40bc9dc  modem.b16
+646b9b0f262acc4d390d035e6c458e46  modem.b14
+6d79875856844b311918c2c3dde7dc04  modem.b08
+9a5bcdad67ac4b03fd880578d44eeaaa  modem.b04
+a820e73be4a1571d1215951fca7e6e91  modem.b17
+b85b86cec95bc250d753fe3eca016dc9  modem.b01
+b9603328201da63e99a3b179b8d7f921  modem.b11
+c4ca1e4b64dadd773d546a6e920e56ec  modem.b03
+d8e7e61274655ae9410190dad757bd9b  modem.b00
+ddc7cdf384a1dbc7a8a08f973675fe4d  modem.b23
+e24c5cfa7642ea84de20ebec09ac299d  modem.b24
+f6b55594039f86800fce20cfb63b0d5a  modem.b22
+
+--- deployed wcnss set (device md5sum, sorted) ---
+157e39521e47ad1c923a94edd69ad59c  wcnss.b10
+469aa816010c9c8639a9176f625189af  wcnss.b09
+62bb56b2bfd0a1aa1ef57ec44b51a396  wcnss.mdt
+a9458ed7d6dae0ec242034c0b608f25d  wcnss.b04
+be3612f82b68fdbc23a51fe99725515c  wcnss.b06
+d4981b78c07fb9bbab57ad1733b1de38  wcnss.b01
+d6ec7ed16bd2ff88498ff9f9f3bbb7a7  wcnss.b02
+dae514d982835c3e7026791a9735e7fb  wcnss.b00
+eb75550b89cef38a36e4e2c1e14ae956  wcnss.b11

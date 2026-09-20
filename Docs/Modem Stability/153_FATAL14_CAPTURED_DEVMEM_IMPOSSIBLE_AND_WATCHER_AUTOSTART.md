@@ -292,6 +292,32 @@ logged; the start branch exercised when no watcher was running). `/var/run` is t
 pidfile cannot survive a reboot. The original file is preserved at `/overlay/rc.local.orig`
 (132 B); the deployed file is 1299 B. A tracked copy is at `scratch/rc.local`.
 
+## 6b. Firmware provenance verified — the deployed baseband IS the clean stock HMU05 set
+
+The standing directive's step 1 is *"first replace the firmware with clean hmu05 modem firmware
+and wifi firmware"*. That is **already satisfied**, and this session verified it end to end
+against the stock device dump rather than assuming it.
+
+`md5sum` of the deployed `/lib/firmware` set vs `GitIgnore/MelbonWhiteStock_Dump/modem_extracted/image/`:
+
+| set | segments | result |
+| :-- | :-- | :-- |
+| modem (`modem.mdt` + `modem.b00…b25`) | 21 | **byte-identical** |
+| WCNSS/WiFi (`wcnss.mdt` + `wcnss.b00…b11`) | 9 | **byte-identical** |
+
+Specifically, `modem.mdt` = **`1a6f9507e03d4ddbbf1977af81ecdbd7`**, which equals both
+`MelbonWhiteStock_Dump/modem_extracted/image/modem.mdt` and
+`compare/modem_hmu05_extracted/image/modem.mdt`, and equals **neither** the UFI001B firmware
+(`56259b76…`) **nor** `compare/modem_hmu05_patched/image/modem.mdt` (`aa26ee9a…`) **nor** any of
+the ~60 `modem_ufi001b_patchNN_backup` variants. The deployed WCNSS set likewise matches the stock
+HMU05 dump and differs from the UFI001B set.
+
+**Consequence:** fatal #14 (and every other fatal in this programme) fired on the **clean stock
+HMU05 baseband**. No firmware-side patching experiment can be blamed for it, and the "restore
+clean firmware first" precondition is discharged. Re-verify with `md5sum /lib/firmware/modem.mdt`
+after any reflash — `/lib/firmware` lives on the overlay, so a sysupgrade does **not** change it
+(see `project_modem_firmware_deployment`).
+
 ## 7. Fatal #14's own data
 
 The new dump reproduces the known signature exactly:
@@ -395,6 +421,7 @@ keeping in mind before reading anything into a diff.
 | what | where |
 | :-- | :-- |
 | fatal #14 coredump (85 398 475 B, md5 `ed1a3255…`) | `scratch/coredump_live/modem_coredump_up915.44_devcd1.elf` |
+| fatal #14 dmesg + firmware provenance hashes | `evidence/153_fatal14_capture/fatal14_dmesg_and_capture.txt` |
 | fatal #14 dmesg (full block) | §3.1 of this doc |
 | corrected watcher (with pidfile guard) | `scratch/coredump_watch.sh`, `evidence/152_coredump_capture/coredump_watch.sh` |
 | autostart hook (tracked copy) | `scratch/rc.local`; deployed at `/etc/rc.local`; original at `/overlay/rc.local.orig` |
