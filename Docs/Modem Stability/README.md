@@ -17,7 +17,11 @@ one-line `qcom,idle-state-spc` DT patch** as unworkable), an eighth by **Doc 152
 and a ninth by **Doc 153** (which **confirms Doc 152's fix by capturing fatals #14 and #15**,
 withdraws Doc 152 §8 item 3(b) — **`/dev/mem` cannot read the modem region at all**, so the
 proposed live `devmem` read of `0xc1d47410` is impossible — and verifies the deployed baseband is
-the clean stock HMU05 set) — see the sections below.
+the clean stock HMU05 set), and a tenth by **Doc 154** (which finds a **second, distinct
+`bam_dmux` NULL deref** on the TX-wakeup path — `tx_wakeup_work` submits a slot whose
+`skb_dma->skb` was NULLed by `power_off`/`pm_restart`, neither of which takes `state_lock` or
+cancels that work — and records that **the modem failed to restart after fatal #15**, requiring a
+reboot) — see the sections below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -202,6 +206,44 @@ the clean stock HMU05 set) — see the sections below.
 23. **The post-fatal memory state is largely deterministic** — three independent diffs (same-boot
     ×2, different-boot ×1) all differ by **5.14–5.31 %** of bytes. Do not read much into a diff.
 
+## A tenth round — Doc 154, 2026-09-21: a *second* `bam_dmux` NULL deref, and a modem that would not restart
+
+24. **A second, distinct `bam_dmux` NULL dereference — this one on the TX-wakeup path.** At
+    AP uptime **1167.94 s**, on the `pm` workqueue:
+
+    ```
+    pc : bam_dmux_skb_dma_submit_tx+0x2c/0xe0 [qcom_bam_dmux]
+    lr : bam_dmux_tx_wakeup_work+0xc8/0x258 [qcom_bam_dmux]
+    ```
+
+    The faulting instruction decodes to **`ldr w22, [x2, #0x70]` with `x2 = NULL`**, and
+    `skb->len` is at offset **0x70** on this build (`pahole -C sk_buff vmlinux` → `len /* 112 4 */`),
+    so the NULL pointer is **`skb_dma->skb`**. `bam_dmux_tx_wakeup_work()` reads
+    `skb_dma->skb` into a local and calls `bam_dmux_skb_dma_submit_tx()` **without a NULL check**
+    (`x23 = 0` in the dump is that local). This is a **different call site** from Doc 147's
+    `send_cmd` oops: different function, different caller, different faulting load
+    (`skb->data` at `0xc8` vs `skb->len` at `0x70`). **Doc 147's fix closed one route to a NULL
+    `skb_dma->skb`; it did not add the missing check on this route.**
+25. **The in-tree comment that claims `state_lock` guards against `power_off` is FALSE.**
+    `bam_dmux_free_skbs()` NULLs TX slots from exactly two callers —
+    `bam_dmux_power_off()` (`:1382`) and `bam_dmux_pm_restart()` (`:1607`) — and **neither takes
+    `state_lock` anywhere** (there is no `state_lock` reference in lines 1400–1700). Both clear
+    `tx_deferred_skb` and `cancel_delayed_work_sync(&dmux->tx_retry_work)` but **never cancel the
+    non-delayed `tx_wakeup_work`**, which is only cancelled at `:1997`, `:2234` and `:2277` (the
+    SSR-teardown / remove paths). So a deferred slot can be freed while its `tx_wakeup_work` is
+    still queued. The comment at `:654` documents a guarantee that does not exist.
+26. **The modem failed to restart after fatal #15.** `rproc_stop` returned at 1817.774 s, then
+    `port failed halt`, then a stall at `MBA booted without debug policy, loading mpss` — and
+    nothing further. `remoteproc0/state` stayed **`offline`**, all eight `wwan*` DOWN, `ping` →
+    *Network unreachable*, and it did not recover on its own in the following 240 s. **Only a
+    reboot recovered it.** Whether the earlier oops caused this is **not established** (they are
+    650 s apart and the oops only killed one `kworker`); read it as **two independent AP-side
+    failures in one boot**.
+27. **The Doc 153 `/etc/rc.local` autostart is now verified at a real boot** (watcher pid 3275,
+    `coredump armed enabled`, syslog `watcher autostarted from rc.local`). The capture pipeline is
+    fully automatic across reboots. The watcher's own log confirms arming does **not** survive a
+    reboot (`armed=disabled` on the first read, `enabled` after the loop's first re-arm).
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -258,6 +300,7 @@ Also established and not to be re-litigated:
 | `151_HMU05_F10_REPLICATION_CLIENT0_AND_SPM_CORRECTION.md` | **Fatal #10 replicated** (331.7 s / 94 252 records / 2271 bursts): client 0 appears in a 1.308 s window at the fatal and **nowhere else** in 330.4 s — the "fatal-only" signature holds at 2/2 fatals; **client 0's sequence counter is contiguous across the SSR (0x135→0x14c) while client 1's restarts, so client 0 is NOT the modem**; the AP is the leading client-0 candidate (`ldoa`/`smpa` = the AP's `qcom,rpm-pm8916-regulators` names; the AP acts only during remoteproc crash recovery — the mechanism for "only at the fatal"); **a new AP-side hang** in the `bam_dmux` "SSR before shutdown" teardown path (`echo stop > .../state` → hard hang, no panic, watchdog reset); **the SPM/CPR plan withdrawn** (SAW `status="reserved"` under PSCI; `qcom_spm_find_any_cpu()` returns false; CPR never probes; the `-3` is benign) |
 | `152_COREDUMP_WATCHER_REGRESSION_AND_CAPTURE_FIX.md` | **The modem-coredump watcher could never capture** — a `[ -s "$d/data" ]` guard on a `bin_attribute` with `.size = 0`, and a release that wrote a nonexistent per-device `disabled` (the real one is a **global write-once lockdown**); the per-device release is a **write to `data`**. Fatals #11 and #12 were lost; Δ(#11→#12) = **903.674516 s** is a fresh period sample. Records the corrected watcher; the mapping `dump_va = elf_va − 0x39800000` re-verified; the ERR_FATAL record's structure at ELF `0xC35B1280` and its word **B (11 per period)**; and that the dumps hold modem memory, **not SMEM**. **Its fix is CONFIRMED by Doc 153; its §8 item 3(b) (`devmem` live read) is WITHDRAWN by Doc 153 §5; its "5-min window elapsed" explanation of fatal #13 is superseded by Doc 153 §4** |
 | `153_FATAL14_CAPTURED_DEVMEM_IMPOSSIBLE_AND_WATCHER_AUTOSTART.md` | **Doc 152's watcher fix confirmed by capturing fatals #14 AND #15** (each 85 398 475 B, md5 verified) — the `test -s` guard was the whole cause. **The coredump is created only after `rproc_stop()` returns**, so a hanging fatal (fatal #13) is *structurally uncapturable* — the dump is never created. **`/dev/mem` cannot read the mpss region by any method** (read()→EFAULT, mmap()→SIGBUS; source-verified), so live `devmem` observation is impossible and a `nomap`-capable kernel module is the next instrument. Establishes **`dump_va == AP physical` for mpss**; the watcher now autostarts from `/etc/rc.local` (and busybox `start-stop-daemon -S` is **not idempotent** for a script); **the deployed baseband is verified byte-identical to the stock HMU05 dump** (21 modem + 9 WCNSS segments); the `rpm` LPR `+0x18` counter spans **375–1064** (not monotonic either way) and word B **advances 11 per period at 4/4 within-boot but does not reset across a reboot** |
+| `154_BAM_DMUX_TX_WAKEUP_NULL_DEREF_AND_FAILED_MODEM_RESTART.md` | **A second, distinct `bam_dmux` NULL deref** — `bam_dmux_tx_wakeup_work+0xc8` → `bam_dmux_skb_dma_submit_tx+0x2c`, faulting load `ldr w22, [x2, #0x70]` with `x2 = NULL` (= `skb_dma->skb`; `skb->len` at 0x70 BTF-verified). The work **never NULL-checks the slot**; `bam_dmux_free_skbs()` NULLs slots from `power_off()`/`pm_restart()`, **neither of which takes `state_lock` or cancels the non-delayed `tx_wakeup_work`** — so the `:654` comment is false. Different function/caller/offset from Doc 147's oops. Separately: **the modem failed to restart after fatal #15** (`port failed halt`, stall at `loading mpss`, `state = offline`, reboot required); and the Doc 153 rc.local autostart is verified at a real boot |
 
 ## Sound but narrow (accurate, subordinate scope)
 
