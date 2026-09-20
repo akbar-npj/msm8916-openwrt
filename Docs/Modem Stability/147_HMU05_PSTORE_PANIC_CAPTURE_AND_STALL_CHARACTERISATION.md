@@ -348,6 +348,9 @@ confirms the same asymmetry from the other direction: 4/5 received, dormancy fli
   (`10.32.48.33` → `10.139.191.152` → `10.89.244.25`) with no reboot. Something is tearing the bearer down and
   rebuilding it on a timer. That is worth chasing next: it is an unnecessary interruption, and each rebuild is a
   window in which the first packet is lost.
+  **CLOSED — see Doc 148 §4.** It is not an AP-side timer: the modem firmware fatals every ~903.674 s
+  (`lte_ml1_common_timer.c:390`, 3/3, stable to 1 ppm), the AP runs SSR (~1.3 s), and the carrier hands out a new
+  `10.x` address on re-attach. Three fatals → three rebuilds → `bearer8`. The lever is the fatal, not the rebuild.
 * **`--wds-go-dormant` is useless on this modem.** It returns QMI error 25 `DeviceUnsupported` whenever the modem
   is already `traffic-channel-dormant`, i.e. exactly when Stage 1 runs. Stage 1 is effectively dead code and the
   "recovery" the logs credit it with is really the link waking on its own.
@@ -355,8 +358,10 @@ confirms the same asymmetry from the other direction: 4/5 received, dormancy fli
 **Ruled out by measurement this session — do not re-open:**
 * the DNS keepalive as the cause of the *boot-time* stalls (disabled; they still occurred);
 * the RX rearm / RX watchdog path (§5.3);
-* the 250 ms resume-handshake tolerance (`pc_timeout_count: 0`);
-* any fixed-900 s timer;
+* the 250 ms resume-handshake tolerance (`pc_timeout_count: 0` — **note: this is `2` on a later
+  boot, see Doc 148 §5.2, so this ground no longer holds**);
+* any fixed-900 s timer **for the *data stall*** — but see Doc 148: the *modem fatal* `lte_ml1_common_timer.c:390`
+  **is** periodic at 903.674 s, 3/3, stable to 1 ppm. The retraction covers the stall onset, not that signature;
 * the bam_dmux NULL deref as a *stall* mechanism (it is the *crash* mechanism, and it is fixed).
 
 ---

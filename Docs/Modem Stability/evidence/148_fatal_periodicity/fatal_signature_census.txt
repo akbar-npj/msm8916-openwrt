@@ -1,0 +1,21 @@
+### Census of modem fatal signatures across every local log in this repo
+### generated 2026-09-20; command:
+###   grep -rhoE 'fatal error received: [a-zA-Z0-9_]+\.c:[0-9]+' scratch/ Docs/ | sort | uniq -c | sort -rn
+
+     17 fatal error received: lte_ml1_sleepmgr_stm.c:4054
+     17 fatal error received: lte_ml1_common_timer.c:390
+      6 fatal error received: a2_power.c:1189
+      5 fatal error received: mmoc.c:2326
+      2 fatal error received: mmoc.c:2192
+      1 fatal error received: wl1m.c:8670
+      1 fatal error received: memheap.c:1242
+      1 fatal error received: lte_ml1_sm_conn_inter_freq_stm.c:712
+      1 fatal error received: lte_ml1_rfmgr_trm.c:4014
+      1 fatal error received: coex_interface.c:530
+
+### Datable instances with timestamps:
+12.016801  coex_interface.c:530
+716.711996  a2_power.c:1189
+912.900514  lte_ml1_sleepmgr_stm.c:4054
+912.900514  lte_ml1_sleepmgr_stm.c:4054
+1815.130800  lte_ml1_sleepmgr_stm.c:4054

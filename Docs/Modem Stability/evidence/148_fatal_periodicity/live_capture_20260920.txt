@@ -1,0 +1,97 @@
+### captured 2026-09-20T18:37:43Z  uptime=3535.11 13202.21
+
+### dmesg: fatal + SSR sequence
+288:[   12.092370] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+289:[   12.092460] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+336:[  831.856817] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+337:[  914.769287] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+346:[  914.830957] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+350:[  916.175733] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+351:[  916.175824] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+365:[ 1269.023046] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+366:[ 1525.545630] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+367:[ 1653.898947] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+368:[ 1784.512190] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+369:[ 1818.443149] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+378:[ 1818.502612] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+382:[ 1819.807073] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+383:[ 1819.807165] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+399:[ 2035.835397] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+400:[ 2095.921630] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+401:[ 2196.252040] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+402:[ 2356.495206] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+403:[ 2516.741930] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+404:[ 2576.698589] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+405:[ 2636.678128] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 180s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+406:[ 2722.117987] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+415:[ 2722.180187] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+418:[ 2723.511231] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+419:[ 2723.511313] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+433:[ 2936.338410] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+434:[ 3203.138479] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+
+### dmesg: boot-time modem bring-up anchor
+271:[    9.723715] remoteproc remoteproc0: 4080000.remoteproc is available
+283:[   11.329592] remoteproc remoteproc0: powering up 4080000.remoteproc
+284:[   11.332731] remoteproc remoteproc0: Booting fw image mba.mbn, size 234176
+288:[   12.092370] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+289:[   12.092460] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+292:[   12.794139] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+293:[   12.794227] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+294:[   12.801751] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+295:[   12.810323] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+296:[   12.812693] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 600 ms)
+297:[   12.818881] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+298:[   12.827446] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+
+### rx_telemetry
+rx_callbacks: 563
+rx_last_callback_ms_ago: 60931
+rx_submitted: 7699
+rx_submit_failed: 0
+rx_queued_buffers: 0
+rx_slots_mapped: 32
+rx_slots_free: 32
+rx_slots_submitting: 0
+rx_slots_submitted: 0
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 1
+rx_rearm_count: 0
+pc_state: 0
+pc_ack_state: 0
+pc_irq_count: 442
+pc_resync_count: 0
+pc_quiesce_ms: 13801
+pc_line_level: 0
+pc_vote_tx_count: 224
+pc_unvote_tx_count: 224
+pc_ack_irq_count: 444
+pc_timeout_count: 2
+pm_suspend_attempts: 224
+pm_suspend_completions: 220
+pm_resume_attempts: 224
+pm_last_suspend_ms: 0
+pm_last_resume_ms: 5
+pm_last_handshake_ms: 5
+cmd_data: 503
+cmd_open: 32
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+runtime_status: suspended
+pm_usage_count: 0
+
+### kernel version / module
+Linux OpenWrt 6.12.94 #0 SMP PREEMPT Mon Jun 29 12:59:20 2026 aarch64 GNU/Linux
+filename:	/lib/modules/6.12.94/qcom_bam_dmux.ko
+srcversion:	AE9E81C5F9DCC7334CC1F04
+
+### watchdog md5
+2eb113ac623c9b2c339c096c29a43ce6  /usr/sbin/modem-bearer-watchdog

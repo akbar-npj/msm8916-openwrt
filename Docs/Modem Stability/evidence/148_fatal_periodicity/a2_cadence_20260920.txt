@@ -1,0 +1,100 @@
+### A2 power-collapse cadence sample, OpenWrt HMU05, 2026-09-20
+### sampled on-device: rx_telemetry every 20 s for 120 s
+### telemetry path:
+###   /sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/rx_telemetry
+
+=== full telemetry @ t0 (uptime ~3322 s) ===
+rx_callbacks: 558
+rx_last_callback_ms_ago: 181027
+rx_submitted: 7022
+rx_submit_failed: 0
+rx_queued_buffers: 0
+rx_slots_mapped: 32
+rx_slots_free: 32
+rx_slots_submitting: 0
+rx_slots_submitted: 0
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 1
+rx_rearm_count: 0
+pc_state: 0
+pc_ack_state: 0
+pc_irq_count: 400
+pc_resync_count: 0
+pc_quiesce_ms: 2047
+pc_line_level: 0
+pc_vote_tx_count: 202
+pc_unvote_tx_count: 202
+pc_ack_irq_count: 400
+pc_timeout_count: 2
+pm_suspend_attempts: 202
+pm_suspend_completions: 199
+pm_resume_attempts: 202
+pm_last_suspend_ms: 0
+pm_last_resume_ms: 4
+pm_last_handshake_ms: 4
+cmd_data: 498
+cmd_open: 32
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+runtime_status: suspended
+pm_usage_count: 0
+
+=== cadence samples ===
+t=0    pc_irq=400 pc_state=0 pc_quiesce_ms=2059  rx_callbacks=558 rx_queued=0
+t=20   pc_irq=406 pc_state=0 pc_quiesce_ms=9803  rx_callbacks=560 rx_queued=0
+t=40   pc_irq=406 pc_state=0 pc_quiesce_ms=29830 rx_callbacks=560 rx_queued=0
+t=60   pc_irq=408 pc_state=0 pc_quiesce_ms=9557  rx_callbacks=560 rx_queued=0
+t=80   pc_irq=412 pc_state=0 pc_quiesce_ms=10061 rx_callbacks=560 rx_queued=0
+t=100  pc_irq=412 pc_state=0 pc_quiesce_ms=30086 rx_callbacks=560 rx_queued=0
+t=120  pc_irq=424 pc_state=0 pc_quiesce_ms=358   rx_callbacks=560 rx_queued=0
+
+=== interpretation ===
+pc_irq_count 400 -> 424 over 120 s = 24 edges = 12 collapse/wake cycles
+  => ~10 s per cycle during this window (idle, no user traffic)
+pc_irq_count is 2 per cycle (assert edge + deassert edge); pc_ack_irq_count matches
+  (400 == 400), so every PC edge was acked. pc_resync_count: 0 => no lost edge.
+
+Whole-boot rate: pm_suspend_attempts 202 in ~3322 s => ~16.4 s per wake/suspend cycle.
+
+COMPARISON (Android, stock, live 2026-09-20, from prior session):
+  918 modem power-collapses in 54 min => ~3.53 s per cycle.
+  => OpenWrt's modem wakes ~4.6x less often than Android's.
+CAVEAT: the two runs had different traffic. This is a candidate difference, NOT yet
+a causal finding. It needs a matched-traffic comparison before it can be cited.
+
+=== power-collapse duration trend within this boot (from dmesg, RX-watchdog quiesce logs) ===
+pc_quiesce_ns is cleared by bam_dmux_power_on() (qcom_bam_dmux.c:1317), so a logged
+"quiesced Ns" really is N seconds of CONTINUOUS collapse.
+
+  quiesce start (approx)   logged as
+  1209.0                    60s     (between fatal #1 and #2)
+  1465.5                    60s
+  1593.9                    60s
+  1724.5                    60s
+  1975.8                    60s, then 120s   (between fatal #2 and #3)
+  2136.3                    60s
+  2296.5                    60s
+  2456.7                    60s, 120s, then 180s   (immediately before fatal #3)
+
+=> the continuous-collapse duration grows across the boot: 60 s chunks early,
+   120 s and 180 s later. Whether this is a precursor to the fatal or a
+   consequence of the link being idle is NOT established.
+
+=== first-packet-after-dormancy loss, re-confirmed live (2026-09-20T18:36Z) ===
+BEFORE: rx_callbacks=560 rx_queued_buffers=0 rx_tearing_down=1 pc_state=0 pc_quiesce_ms=9439
+  ping -c 3 -W 5 8.8.8.8  ->  3 transmitted, 2 received, 33% packet loss (first lost)
+AFTER:  rx_callbacks=562 rx_queued_buffers=32 rx_tearing_down=0 pc_state=1 pc_quiesce_ms=0
+
+rx_tearing_down: 1 while pc_state=0 is BY DESIGN, not a stuck flag:
+  - bam_dmux_pm_quiesce() disarms the ring and sets rx_tearing_down (qcom_bam_dmux.c:1475)
+  - bam_dmux_power_on() clears it under rx_lock (qcom_bam_dmux.c:1312)
+  - the RX watchdog deliberately skips rearming while it is set (qcom_bam_dmux.c:1235)
+Observed clearing exactly on wake, with the ring re-armed to 32/32 buffers.

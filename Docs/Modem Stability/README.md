@@ -4,14 +4,20 @@
 across many sessions, and a full trust audit on **2026-09-20** found that a large
 fraction of it rests on three premises that have since been **measured to be false**.
 29 files were moved to `_QUARANTINE/` as a result (see `_QUARANTINE/README.md`).
+Four further retractions/corrections were added the same day by Docs 147 and 148 —
+see the sections below. **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
 
-1. **"The fatal has a fixed ~900 s period."** FALSE. Measured `a2_power.c:1189` fatal
-   times: **172.353 / 918.195 / 1823.753 / 2729.267 s**. One boot produced a single
-   fatal at 172 s and none through 1157 s. It is a *rate*, not a period. Everything
-   that models a "900 s timer" / "SCLK maintenance timer" / "`lte_ml1_common_timer.c:390`
-   every 902 s" is wrong.
+1. **"The fatal has a fixed ~900 s period."** **SCOPED 2026-09-20 — read Doc 148 §6.3.**
+   FALSE *for `a2_power.c:1189`*: measured times **172.353 / 918.195 / 1823.753 /
+   2729.267 s** (intervals 745.842 / 905.558 / 905.514), and one boot produced a single
+   fatal at 172 s and none through 1157 s. That signature is a *rate*, not a period.
+   **But the generalisation was wrong.** `lte_ml1_common_timer.c:390` was measured at
+   **914.769287 / 1818.443149 / 2722.117987 s** — intervals **903.6739 / 903.6748 s**,
+   3/3, stable to **1.08 ppm**. So: name the signature. "Fixed 900 s" is falsified for
+   `a2_power.c:1189`; for `lte_ml1_common_timer.c:390` the periodicity is **real and
+   unexplained** (Doc 148 §3).
 2. **"The 1000 ms bam-dmux autosuspend is the bug; disable it (`autosuspend_delay_ms=-1`,
    `control=on`)."** FALSE and BACKWARDS. Android clears `SMSM_A2_POWER_CONTROL` 1000 ms
    after the last TX (918 power-collapse shutdowns in 53.8 min, measured live). The
@@ -31,6 +37,24 @@ fraction of it rests on three premises that have since been **measured to be fal
    seconds without any recovery action. Under sustained traffic the link is perfect
    (1 Hz ping, 240 s, TX:RX ≈ 1:1, **0 % loss**; DNS to the carrier resolver, 8.8.8.8
    and 1.1.1.1 all resolving).
+
+## A further correction (Doc 148, 2026-09-20)
+
+6. **"The 900 s crash is one phenomenon."** FALSE — the corpus conflates **at least ten**
+   distinct modem fatal signatures (`lte_ml1_sleepmgr_stm.c:4054`, `lte_ml1_common_timer.c:390`,
+   `a2_power.c:1189`, `mmoc.c:2326`, `mmoc.c:2192`, `wl1m.c:8670`, `memheap.c:1242`,
+   `lte_ml1_sm_conn_inter_freq_stm.c:712`, `lte_ml1_rfmgr_trm.c:4014`, `coex_interface.c:530`).
+   Any claim of the form "the fatal does X" must **name the signature**. Three of them show
+   ~900 s periods but with *different* values (902.230 / 903.674 / 905.5 s); within a boot the
+   period is stable to ~1 ppm, across boots both the period and the signature change.
+7. **The differential doc's "no FATAL" evidence is weak — but its conclusion is right.**
+   `Stock_Android_Live/02_DIFFERENTIAL_DIAG_ANALYSIS.md` rests on a ~488 s Android DIAG capture
+   and a ~121 s OpenWrt one. DIAG **dies on every SSR**, and a fatal *causes* an SSR, so absence
+   of a FATAL record there proves little. The strong control is
+   `Stock_Android_Analysis/16_15min_barrier_test_log.txt`: Android at **uptime 921.01 s**,
+   `3 transmitted / 3 received, 0% loss`, dmesg silent since 117.59 s. **Android really does
+   survive the mark; the fatal really is AP-dependent** (byte-identical firmware). Keep the
+   conclusion, downgrade the citation.
 
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
@@ -57,15 +81,18 @@ Also established and not to be re-litigated:
   `skb` dereference in `bam_dmux_send_cmd()` reached from `bam_dmux_netdev_stop`
   (i.e. `wwan0` going down). Fixed, deployed, and verified — Doc 147 §4.
 - The deployed modem driver is now **reproducible from source**: patch
-  `809-bam-dmux-tx-pm-ordering-and-pc-resync.patch` was added because 13 fix hunks
-  existed only in `build_dir` and would have been lost on rebuild — Doc 147 §7.
+  `809-bam-dmux-tx-pm-ordering.patch` was added because fix hunks existed only in
+  `build_dir` and would have been lost on rebuild — Doc 147 §7.
+- The `wwan0` address churn (`10.32.48.33` → `10.139.191.152` → `10.89.244.25`) is **not** an
+  AP-side rebuild timer: it is the modem fataling, the AP running SSR, and the carrier handing
+  out a new address on re-attach. Three fatals, three rebuilds, `bearer8` — Doc 148 §4.
 
 ## Trustworthy core — safe to cite
 
 | File | What it establishes |
 | :--- | :--- |
 | `Stock_Android_Live/01_ANDROID_LIVE_SESSION_FINDINGS.md` | 21-segment byte-identical firmware proof; partition/tooling ground truth |
-| `Stock_Android_Live/02_DIFFERENTIAL_DIAG_ANALYSIS.md` | The modem does **not** crash at 900 s on Android; the failure is 100 % AP-side |
+| `Stock_Android_Live/02_DIFFERENTIAL_DIAG_ANALYSIS.md` | The modem does **not** crash at 900 s on Android; the failure is 100 % AP-side. **Conclusion sound, evidence downgraded — cite `Stock_Android_Analysis/16_15min_barrier_test_log.txt` (Android at 921 s, 0 % loss) instead; the DIAG captures are too short and DIAG dies on SSR (Doc 148 §6.4)** |
 | `Modem RE/hmu05/900S_CRASH_LPR_FRAMEWORK_RE.md` | Latest firmware RE; identifies the `rpm.sync` stall; disproves the QMI-time and `common_timer.c:390` theories |
 | `Modem RE/hmu05/900S_CRASH_ROOT_CAUSE_FIRMWARE_RE.md` | The Q6 power-collapse-vote root cause (only its counter semantics are superseded by the LPR doc) |
 | `134_UFI001B_RF_FRONTEND_BRINGUP_SESSION_RECORD_AND_PENDING_WORK.md` | Model SOP-compliance statement; disproves Doc 133's RF claims |
@@ -79,6 +106,7 @@ Also established and not to be re-litigated:
 | `145_RF_PORT_FEASIBILITY_WTR1605_INTO_UFI001B_VERDICT.md` | Quantitative infeasibility verdict |
 | `146_HMU05_AP_SIDE_FIX_SESSION_AND_TRUST_INDEX.md` | Previous session: RTNL oops root cause + fix + verification; corpus trust index; next experiments |
 | `147_HMU05_PSTORE_PANIC_CAPTURE_AND_STALL_CHARACTERISATION.md` | **The pstore kernel panic** proving the oops; fix verified in situ; stall re-characterised (not 900 s, not the RX ring); patch-809 reproducibility fix |
+| `148_HMU05_FATAL_PERIODICITY_AND_SIGNATURE_TAXONOMY.md` | **The fatal is periodic within a boot** (903.674 s, 3/3, 1 ppm); ten-signature taxonomy; scopes retraction #1; explains the address churn; downgrades the DIAG-based "no FATAL" evidence |
 
 ## Sound but narrow (accurate, subordinate scope)
 
