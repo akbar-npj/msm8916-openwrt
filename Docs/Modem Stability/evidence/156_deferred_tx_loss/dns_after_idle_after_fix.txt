@@ -1,0 +1,36 @@
+DNS-AFTER-IDLE TEST — THE USER-VISIBLE SYMPTOM, WITH THE FIX
+===========================================================
+Module md5 68dcc4ace88a1729d6081569c72c6383 (patch 810 + 811 + 812).
+Boot point 22:17:38; test at ~7 min uptime, soak stopped first so the modem
+really was idle.
+
+WHY THIS TEST: the original symptom was never ICMP-specific — it is the
+browse/DNS-after-idle hang.  `modem-bearer-watchdog`'s pre-escalation gate
+made ONE DNS attempt and one attempt was what the defect ate.  A DNS query is
+a single UDP datagram, so it has no retransmit at the application layer.
+
+METHOD: idle 30 s (autosuspend 1 s + the modem's own ~5.4 s collapse), then
+`nslookup example.com 8.8.8.8` — a direct upstream UDP query, so nothing is
+answered from dnsmasq's cache.
+
+round 1: pc_state_before=1 defer +3 submitted +3 wiped_live +0 dns_answers=3
+Address:	8.8.8.8:53
+Address: 2606:4700:99e5:72db:f2ca:0:ef6b:ff98
+Address: 172.66.147.243
+round 2: pc_state_before=0 defer +3 submitted +3 wiped_live +0 dns_answers=3
+Address:	8.8.8.8:53
+Address: 104.20.23.154
+Address: 172.66.147.243
+round 3: pc_state_before=0 defer +3 submitted +3 wiped_live +0 dns_answers=3
+Address:	8.8.8.8:53
+Address: 172.66.147.243
+Address: 104.20.23.154
+round 4: pc_state_before=1 defer +1 submitted +1 wiped_live +0 dns_answers=3
+Address:	8.8.8.8:53
+Address: 104.20.23.154
+Address: 172.66.147.243
+
+RESULT: 4/4 answered on the first attempt, including rounds 2 and 3 which
+started from pc_state=0 — the collapsed state that lost the query every time
+before the fix.  `tx_defer_wiped_live` stayed at 0 in all four rounds: the
+deferred DNS datagrams were preserved and submitted, not destroyed.

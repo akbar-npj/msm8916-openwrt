@@ -243,7 +243,24 @@ Identical procedure. Full transcript: `ab_after_fix.txt`.
 
 **5/5 delivered, including 4/4 from the exact condition that lost 3/3 before the fix.**
 
-### 7.3 Patch-chain integrity
+### 7.3 The user-visible symptom: DNS after idle
+
+The original symptom was never ICMP-specific — it is the browse/DNS-after-idle hang, and
+`modem-bearer-watchdog`'s pre-escalation gate made **one** DNS attempt. A DNS query is a single UDP
+datagram, so it has no application-layer retransmit. Idle 30 s, then `nslookup example.com 8.8.8.8`
+(a direct upstream query, so dnsmasq's cache cannot mask the result). Transcript:
+`dns_after_idle_after_fix.txt`.
+
+| round | `pc_state` before | `tx_defer_queued` | `tx_defer_submitted` | `tx_defer_wiped_live` | DNS answers |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| 1 | 1 | +3 | +3 | +0 | 3 |
+| 2 | **0** | +3 | +3 | +0 | 3 |
+| 3 | **0** | +3 | +3 | +0 | 3 |
+| 4 | 1 | +1 | +1 | +0 | 3 |
+
+**4/4 answered on the first attempt**, including the two rounds that started from `pc_state=0`.
+
+### 7.4 Patch-chain integrity
 
 The patches were verified to reproduce the built source exactly, anchored on the previously verified
 pre-810 snapshot:
@@ -278,6 +295,32 @@ qcom_bam_dmux.c.post811    + 812  == qcom_bam_dmux.c.fixed == the built file   (
 * **The TX-sweep race** (patch 810). Still real, still unobserved firing; the residual window is
   described in §9.
 
+### 8.1 Confirmed in passing: a fatal fired with the fix deployed, and the modem restarted
+
+At AP **424.573497 s** — during the DNS-after-idle test, with patch 812 deployed — the modem took
+`fatal error received: a2_power.c:1189` (crash #1) and the AP ran a full SSR. Transcript:
+`fatal_at_424s_with_patch812.txt`. Three things follow:
+
+1. **The fix does not prevent the fatal.** Expected and stated above; the fatal is a modem-internal
+   timer and patch 812 only stops the AP destroying its own deferred packets. **Do not cite patch 812
+   as a stability fix.**
+2. **The timing is variable again** — 424.57 s AP ≈ 413 s of modem uptime, neither the ~902 s idle
+   deterministic timer nor the ~900 s family. Consistent with the corpus' "`a2_power.c:1189` is a
+   *rate*, not a period" and with "traffic suppresses the deterministic idle fatal and substitutes a
+   variable one" (Doc 149 §3). The traffic here was low-rate and bursty, which is neither the idle nor
+   the sustained case.
+3. **`port failed halt` is not sufficient to cause the restart hang.** Doc 154 §6 recorded a fatal
+   after which the modem never came back: `port failed halt`, then a stall at `MBA booted without
+   debug policy, loading mpss` with nothing after it, `state = offline`, reboot required. The
+   **identical** warning appeared here (425.340321), followed by the same `MBA booted ... loading mpss`
+   (425.385456) — and this time the load completed in ~0.56 s (`remote processor ... is now up`,
+   425.949302). So the halt warning (AXI port not idle within `HALT_ACK_TIMEOUT_US`,
+   `q6v5proc_halt_axi_port:974`) is **not** by itself the cause. Doc 154 §6.1's SCM-blocking
+   hypothesis survives, but the hang is **intermittent**, not a deterministic consequence.
+
+Recovery was clean: the remaining DNS rounds succeeded, `tx_defer_wiped_live` stayed 0, and
+`tx_defer_queued == tx_defer_submitted` across the SSR.
+
 ## 9. Established vs not established
 
 **Established:**
@@ -286,6 +329,8 @@ qcom_bam_dmux.c.post811    + 812  == qcom_bam_dmux.c.fixed == the built file   (
   with the surviving-skb count to prove they were real packets and not stale bits.
 * The loss is the cause of the measured single-packet-after-idle stall — same test, same device,
   3/3 lost before and 5/5 delivered after, with the discriminating counter moving in lockstep.
+* The **user-visible** symptom is fixed: a DNS query after 30 s idle (one UDP datagram, no
+  application-layer retransmit) is answered **4/4 on the first attempt**, including from `pc_state=0`.
 * Patch 812 preserves and delivers them; `tx_defer_wiped_live` is 0 across the test.
 * The fix is inert for the direct path: `tx_submit_ok`/`tx_complete` behaviour is unchanged.
 * The patch chain reproduces the built source exactly.
@@ -300,17 +345,24 @@ qcom_bam_dmux.c.post811    + 812  == qcom_bam_dmux.c.fixed == the built file   (
   not regress it.
 * **Long-run stability.** The verification above is minutes long, not hours. A soak is running (§11);
   the metric to watch is `tx_defer_queued − tx_defer_submitted`, which must stay 0.
-* **Any effect on the ~900 s fatal.** Untested.
+* **Any protective effect on the fatal.** One fatal was observed with the fix deployed, at 424.57 s
+  (§8.1) — i.e. **no protective effect was seen** — but a single observation under a low-rate bursty
+  traffic pattern says nothing about the ~902 s idle case. Untested.
+* **Whether the fix changes the collapse/wake rate or the fatal timing distribution.** The natural
+  experiment: the same soak on the pre-812 module vs the post-812 module and compare fatal times.
+  Not run.
 * **Whether `tx_defer_wiped_live` can be non-zero post-fix.** Only via `power_off()` (SSR), where it
   is expected and correct.
 
 ## 10. Next experiments, in priority order
 
-1. **Long soak with the fix** and read `tx_defer_queued − tx_defer_submitted` (§11). Then repeat the
-   ~900 s observation: does removing the per-collapse packet loss change the fatal timing, the
-   collapse rate, or the stall? The corpus' `project_fatal_periodicity_and_signatures.md` says traffic
-   *suppresses* the deterministic idle fatal and substitutes a variable one — the fix changes what
-   traffic actually reaches the modem, so this is now a live variable.
+1. **Long soak with the fix** and read `tx_defer_queued − tx_defer_submitted` (§11). Then the
+   **fatal A/B**: run the identical soak on the pre-812 module (`/overlay/modbackup/qcom_bam_dmux.ko.p811`)
+   and on the post-812 module, and compare fatal times and the collapse/wake rate. The corpus'
+   `project_fatal_periodicity_and_signatures.md` says traffic *suppresses* the deterministic idle fatal
+   and substitutes a variable one — the fix changes what traffic actually reaches the modem, so the
+   fatal timing distribution is now a live variable. One fatal was already observed with the fix
+   deployed at 424.57 s (§8.1), which is neither the idle family nor the sustained-traffic family.
 2. **Close the residual `start_xmit` window** (§9) if `tx_sweep_guard_hits` ever moves. The clean way
    is to make the slot install and the bit set atomic against the sweep — e.g. have `tx_queue()` take
    the defer bit under `tx_lock`, or have `pm_restart()` re-check after freeing.
@@ -328,6 +380,8 @@ qcom_bam_dmux.c.post811    + 812  == qcom_bam_dmux.c.fixed == the built file   (
 | patch 812 (the fix), tracked | `msm89xx/patches/812-bam-dmux-preserve-deferred-tx.patch` |
 | pre-811 / post-811 / fixed source | `evidence/156_deferred_tx_loss/qcom_bam_dmux.c.{pre811,post811,fixed}` |
 | A/B transcripts | `evidence/156_deferred_tx_loss/ab_{before,after}_fix.txt` |
+| DNS-after-idle transcript | `evidence/156_deferred_tx_loss/dns_after_idle_after_fix.txt` |
+| fatal at 424 s with the fix deployed | `evidence/156_deferred_tx_loss/fatal_at_424s_with_patch812.txt` |
 | test harness (idle → one ping) | `evidence/156_deferred_tx_loss/defertest.sh` |
 | soak harness (fix verification) | `evidence/156_deferred_tx_loss/soak812.sh` |
 | instrumented, unfixed module | `26014c0e78f89455904ae7e0db7d017c`, 236128 B → `/overlay/modbackup/qcom_bam_dmux.ko.p811` |

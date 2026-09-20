@@ -333,12 +333,19 @@ that into **5/5** delivered) — see the sections below.
     unchanged and still discards — dropping is correct there.
 39. **Verified.** After the fix, one minute after boot: `queued 8 / preserved 8 / submitted 8 /
     wiped_live 0`. The same symptom test: **5/5 delivered**, including **4/4** from `rs=suspended
-    pc=0` — the exact condition that lost 3/3. Patch-chain integrity re-verified against the pre-810
-    snapshot: `pre810 + 810 == pre811`, `pre811 + 811 == post811`, `post811 + 812 == the built file`.
+    pc=0` — the exact condition that lost 3/3. And the **user-visible symptom**: idle 30 s then
+    `nslookup example.com 8.8.8.8` (a single UDP datagram, so no application-layer retransmit)
+    answered **4/4 on the first attempt**, including both rounds that started from `pc_state=0`.
+    Patch-chain integrity re-verified against the pre-810 snapshot: `pre810 + 810 == pre811`,
+    `pre811 + 811 == post811`, `post811 + 812 == the built file`.
 40. **Scope — what this does NOT explain.** It does **not** explain the ~900 s fatal
     (`a2_power.c:1189`, `lte_ml1_common_timer.c:390`) or the failed modem restart after fatal #15; those
-    paths are untouched. It also does not close the residual `start_xmit` window (a `pm_restart()`
-    that reads the bitmap *before* the bit is set still frees that slot; counted by patch 810's
+    paths are untouched. Confirmed in passing: a fatal fired at AP **424.57 s** with patch 812 deployed
+    (signature `a2_power.c:1189`, variable timing as expected), so **patch 812 is not a stability fix** —
+    do not cite it as one. That same event also shows **`port failed halt` is not sufficient to cause the
+    restart hang**: the identical warning appeared and the modem came up 0.56 s later, so Doc 154 §6's
+    hang is **intermittent**. The residual `start_xmit` window is still open (a `pm_restart()` that reads
+    the bitmap *before* the bit is set still frees that slot; counted by patch 810's
     `tx_sweep_guard_hits`, still 0). Full report:
     `156_DEFERRED_TX_PACKET_LOSS_ROOT_CAUSE_AND_FIX.md`.
 

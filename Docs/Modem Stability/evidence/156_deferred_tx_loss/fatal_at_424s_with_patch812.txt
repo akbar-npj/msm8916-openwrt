@@ -1,0 +1,63 @@
+FATAL OBSERVED WITH PATCH 812 DEPLOYED — the fix does NOT prevent it, and the
+modem DID restart this time
+===========================================================================
+Boot 22:17:38. Fatal at AP uptime 424.573497 s. Soak812 was stopped and the
+DNS-after-idle test was running (30 s idle + one DNS query per round), so the
+modem was being woken repeatedly but with almost no throughput.
+
+--- dmesg, verbatim ---
+[  424.573497] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[  424.573693] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  424.580467] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[  424.588610] remoteproc remoteproc0: recovering 4080000.remoteproc
+[  424.595367] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  424.601881] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[  424.612301] wwan wwan0: port wwan0at0 disconnected
+[  424.621372] wwan wwan0: port wwan0at1 disconnected
+[  424.625888] wwan wwan0: port wwan0qmi0 disconnected
+[  424.633680] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[  424.948702] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[  425.340321] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[  425.385456] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[  425.949188] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  425.949302] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[  425.961986] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[  425.964981] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[  425.974242] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: refusing to queue command while modem is collapsed
+
+--- what this establishes ---
+
+1. THE FIX DOES NOT PREVENT THE FATAL. Expected and documented (Doc 156 §8) —
+   the fatal is a modem-internal timer; patch 812 only stops the AP destroying
+   its own deferred packets. The signature is the familiar `a2_power.c:1189`.
+   Do not cite patch 812 as a stability fix.
+
+2. THE TIMING IS VARIABLE, again. 424.57 s AP, and the modem had booted at
+   ~11.2 s, so ~413 s of modem uptime. This is neither the ~902 s idle
+   deterministic timer nor the ~900 s family; it is consistent with the corpus'
+   "`a2_power.c:1189` is a RATE, not a period" (172 / 706 / 918 / 1824 / 2729 s
+   previously observed) and with "traffic suppresses the deterministic idle
+   fatal and substitutes a variable one" (Doc 149 §3). The traffic here was
+   low-rate and bursty (one DNS query per 30 s), which is neither the idle case
+   nor the sustained case.
+
+3. THE MODEM RESTARTED SUCCESSFULLY THIS TIME — and `port failed halt`
+   appeared anyway. Doc 154 §6 recorded a fatal after which the modem never
+   came back: `port failed halt`, then a stall at `MBA booted without debug
+   policy, loading mpss` with nothing after it, `state = offline`, reboot
+   required. The identical `port failed halt` warning (425.340321) is present
+   here and the very next line is the same `MBA booted ... loading mpss`
+   (425.385456) — and this time the load completed in ~0.56 s
+   (`remote processor ... is now up` at 425.949302).
+   => `port failed halt` (the AXI port not idle within HALT_ACK_TIMEOUT_US,
+   `q6v5proc_halt_axi_port` `:974`) is a WARNING and is NOT sufficient to
+   cause the hang. Doc 154 §6.1's "the SCM ownership transfer blocks while the
+   AXI port is stuck" remains a hypothesis, but the hang is INTERMITTENT, not
+   a deterministic consequence of the failed halt.
+
+4. Recovery is clean: the DNS-after-idle test's remaining rounds all
+   succeeded, `tx_defer_wiped_live` stayed 0, and `defer_queued ==
+   defer_submitted` across the SSR.
+
+Raw: /overlay/soak812.csv (the `fatal`/`ssr` columns are cumulative dmesg
+counts, so the new soak run starts at fatal=1).
