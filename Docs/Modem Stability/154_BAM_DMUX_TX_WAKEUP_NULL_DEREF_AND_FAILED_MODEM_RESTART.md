@@ -254,6 +254,31 @@ the oops only killed one `kworker`. The honest reading: this boot exhibited *two
 AP-side failures — a TX-path NULL deref, and a modem PIL boot that stalled at `loading mpss`.
 Both need separate follow-up (§9 items 1 and 4).
 
+### 6.1 Refinement (2026-09-21): the stall is inside `q6v5_mpss_load()`, and it is a *hang*
+
+Source-verified against `drivers/remoteproc/qcom_q6v5_mss.c`:
+
+* `port failed halt` is `q6v5proc_halt_axi_port()` (`:974`) — the modem's AXI port **did not go
+  idle within `HALT_ACK_TIMEOUT_US` = 100 ms** (`:82`). It is only a warning: the halt request is
+  cleared and the port is left halted until reset.
+* `MBA booted without debug policy, loading mpss` is printed by `q6v5_start()` (`:1589`)
+  immediately **before** `q6v5_mpss_load()` (`:1592`).
+* Everything after that point in `q6v5_start()` logs on failure — `q6v5_mpss_load()`'s own
+  `dev_err`s, the `q6v5_rmb_mba_wait(..., 10000)` "MPSS authentication timed out" (`:189`, a
+  **bounded** 10 s wait), and `qcom_q6v5_wait_for_start(..., 5000)` "start timed out" (`:1598`, a
+  **bounded** 5 s wait).
+
+**None of those messages appear**, and the log simply stops for the remaining ~240 s until the
+reboot. So the boot did not fail and return an error — it **hung inside `q6v5_mpss_load()`, in a
+path with no timeout**, and the bounded waits after it were never reached.
+
+The prime suspect is the interaction with the failed AXI halt: `q6v5_mpss_load()` copies segments
+into modem memory and calls `q6v5_xfer_mem_ownership()`, which transfers ownership via an SCM call.
+`q6v5_xfer_mem_ownership()` contains **no wait loop at all** (verified), so if the SCM call itself
+blocks — plausible when the modem's AXI port is stuck after a failed halt — the boot blocks
+forever with nothing to log. **Hypothesis, not proof**: no capture exists from the hung state, and
+`remoteproc0/state` was already `offline` when it was read.
+
 ## 7. Bonus: the `/etc/rc.local` autostart is verified at a real boot
 
 Doc 153 §6 deployed the hook but could only verify it by hand. This reboot exercised it:
