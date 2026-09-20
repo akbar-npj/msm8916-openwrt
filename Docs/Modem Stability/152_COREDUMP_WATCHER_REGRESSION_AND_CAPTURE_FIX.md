@@ -212,6 +212,42 @@ The tooling works and the address mapping is confirmed.
   named objects. The heaviest segments are `0x8ace6000` (2.85 M), `0x88870000` (0.94 M) and
   `0x8872c000` (0.22 M).
 
+### 6.1 Following the RE's own pointer chain yields a live AP-relevant counter
+
+The LPR RE (`Modem RE/hmu05/900S_CRASH_LPR_FRAMEWORK_RE.md` §3) records that
+`FUN_c08bd220(name)` walks a **9-entry `{char *name; void *descriptor;}` table at `0xc1d464b0`**.
+That table is intact in the dump:
+
+| idx | name ptr | name | descriptor |
+| :-- | :-- | :-- | :-- |
+| 2 | `0xc1854ff5` | `"cpu_vdd"` | `0xc1d46f18` |
+| 6 | `0xc1848058` | `"rpm"` | `0xc1d473f8` |
+
+The `rpm` LPR descriptor at `0xc1d473f8` is self-consistent (its first word *is* the `"rpm"`
+name pointer) and holds a **live, varying field at `+0x18` = `0xc1d47410`** — the offset the
+memory record places **`q6pcvote`** at:
+
+| dump (AP uptime s) | `rpm LPR +0x18` |
+| :-- | :-- |
+| 919.52 | **833** (0x341) |
+| 1822.52 | **989** (0x3dd) |
+| 2723.69 | **937** (0x3a9) |
+| 3629.79 | **1009** (0x3f1) |
+
+All four sit around **1000**, and the next six words are literal **1000**s (`0xe8 0x03`) — a
+per-client maximum table, consistent with the RE's "Q6 PC vote" framing. **The value does not
+monotonically increase across fatals** (833 → 989 → 937 → 1009), i.e. at ~903 s of modem uptime
+the vote total varies by ~21 %. This is the **first live AP-relevant quantity read out of the
+dumps**. Whether it is the quantity the `sleep count not incrmnt` check tests is **not
+established** — that check is on a *delta*, and a dump gives only one sample.
+
+Two negatives worth recording, because they close off the "obvious" addresses:
+
+* The RE's `r25` base `0xc30fd9a8` (called the "q6pcvote table" there) is **all zeros** in all
+  four dumps — the base in the RE is not where the live data sits.
+* `DAT_c3c68290` (the descriptor passed to `FUN_c0879150`) is a **static high-entropy blob**,
+  byte-identical across fatals — obfuscated rodata, not runtime state.
+
 ## 7. Established vs not established
 
 **Established (measured / source-verified):**
@@ -224,6 +260,10 @@ The tooling works and the address mapping is confirmed.
 4. `dump_va = elf_va − 0x39800000`; the ERR_FATAL descriptor and its `Assert 0 failed:` template
    are confirmed in the dumps (§6).
 5. Δ(#11→#12) = 903.674516 s — a fresh period sample (§5).
+6. The RE's LPR pointer chain resolves in the dump: the `rpm` LPR descriptor is at `0xc1d473f8`
+   and its `+0x18` field — `q6pcvote` per the memory record — is a **live counter**
+   (833 / 989 / 937 / 1009 at the four fatals), beside a per-client table of literal 1000s
+   (§6.1).
 
 **Not established:**
 * That the `-s` guard is the *sole* reason #11/#12 were lost — it is the best-supported cause
@@ -240,12 +280,17 @@ The tooling works and the address mapping is confirmed.
    the direct test of §3.1.
 2. **Pull the dump and analyse it** (priorities: the `a2_power` state block; the DRX/sleep
    counters near `FUN_c0ce7fe0`; the descriptor's A/B).
-3. **Establish the `a2_power` state block's ELF VA** so it can be read directly from the dumps.
-4. **Disassemble the `0xC1500000` segment** — where `lte_ml1_common_timer.c`'s own code/rodata
+3. **Turn the `rpm LPR +0x18` counter (§6.1) into a delta.** The `sleep count not incrmnt`
+   check is on a change, and one dump is one sample. Two options: (a) find the *previous* value
+   the same field held (the LPR may keep a shadow), or (b) read `0xc1d47410` **live** from the
+   AP with `devmem` at ~1 Hz and watch it across a fatal — this is the same class of
+   measurement as `rpmring` and does not require a crash to start.
+4. **Establish the `a2_power` state block's ELF VA** so it can be read directly from the dumps.
+5. **Disassemble the `0xC1500000` segment** — where `lte_ml1_common_timer.c`'s own code/rodata
    live; `modem.asm` stops at `0xc1404e0c`, so the assert site is still not disassembled
    (Doc 148 §"Where the assert site actually is"). This is the standing blocker on naming the
    assert.
-5. Bound coredump storage: keep one dump per fatal and prune (`/overlay` is 3.2 GB).
+6. Bound coredump storage: keep one dump per fatal and prune (`/overlay` is 3.2 GB).
 
 ## 9. Artifacts
 
@@ -266,5 +311,6 @@ The modem-coredump watcher deployed for fatal #11 **could never capture** — it
 does not exist (the real `disabled` is a global write-once lockdown) — so fatals #11 and #12
 (Δ = 903.674516 s, another clean period sample) were lost; the corrected watcher is deployed
 detached and armed, the address mapping and the ERR_FATAL record are re-confirmed in the four
-dumps on hand, and the descriptor's word B (11 per period, ~82.15 s per count) is still the one
-unexplained lead.
+dumps on hand, **following the RE's own LPR pointer chain reaches a live counter at the
+`rpm` LPR `+0x18` (`q6pcvote`) that reads 833 / 989 / 937 / 1009 at the four fatals** — and the
+descriptor's word B (11 per period, ~82.15 s per count) is still the one unexplained lead.
