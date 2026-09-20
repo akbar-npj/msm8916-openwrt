@@ -1,0 +1,44 @@
+=== Doc 151 §5 re-observed: `echo stop` on the modem remoteproc hangs the AP ===
+
+Context: attempting an on-demand SSR to exercise the patch-814 recovery paths
+without waiting for a fatal.  Module deployed: patch 814
+(md5 eca269f10a685a83a8b679bc7be38d1d).  Modem was healthy and the link was up.
+
+What was issued (uptime 116.39 s):
+
+    echo stop > /sys/class/remoteproc/remoteproc0/state
+
+The ssh connection was reset by peer ("Connection reset by peer" /
+"Broken pipe") and the device rebooted, coming back at uptime 32 s -- i.e. it
+did not survive the write.
+
+/sys/fs/pstore/console-ramoops-0 holds the console of the boot that died.
+Its FINAL lines are identical in kind to Doc 151 §5.3:
+
+    [  116.534504] bam-dmux ...: bam_dmux: SSR before shutdown: scheduling teardown work
+    [  116.535604] wwan wwan0: port wwan0at0 disconnected
+    <nothing further>
+
+No `dmesg-ramoops` record was written for this boot (only an unrelated,
+older encrypted one from 21:19), and `kernel.panic = 3` is set -- so this was
+NOT a panic.  The console stops mid-teardown, i.e. a hard hang in kernel
+context terminated by the hardware watchdog (watchdog0 timeout=30 s,
+state=active).
+
+Significance:
+
+  * This is a SECOND, independent occurrence of the Doc 151 §5 hang.  Doc 151
+    recorded it once and explicitly declined to claim reproducibility
+    ("One observation only ... not claimed to be reproducible").  It is now
+    n=2, on a different boot and with a different module build.
+  * It is therefore NOT caused by patch 814 (which does not touch the graceful
+    stop path) and is not fixed by it.  The two observations differ in module
+    build and in uptime (9355 s vs 116 s), and agree in every other respect.
+  * The hang lands immediately after QCOM_SSR_BEFORE_SHUTDOWN, before the
+    teardown work reaches its first print ("executing serialized asynchronous
+    SSR teardown"), so the hang is in the remoteproc stop path (or in the
+    teardown work's leading cancel_* calls) rather than in the BAM teardown
+    body itself.
+  * Consequence for testing: an AP-initiated modem teardown is still NOT
+    available as a test route.  The patch-814 recovery paths can only be
+    exercised by a real fatal-triggered SSR.

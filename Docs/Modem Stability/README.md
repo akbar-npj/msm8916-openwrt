@@ -29,7 +29,12 @@ first packet after every A2 power collapse always takes `start_xmit`'s defer bra
 `bam_dmux_pm_restart()` then cleared `tx_deferred_skb` and freed the skb on the very wake that packet
 was waiting for, destroying it with **no crash and no counter**; measured **27/27** deferred packets
 destroyed in the first minute of one boot and **3/3** single-packet pings lost, and **patch 812** turns
-that into **5/5** delivered) — see the sections below.
+that into **5/5** delivered), and a thirteenth by **Doc 157** (which finds a **third AP-side defect**:
+the SSR powerup work polled the modem's power-control line for 3.2 s and then **returned permanently**,
+so a modem that took 6.4 s to boot after a fatal was left with `dmux->rx == dmux->tx == NULL` — the
+interface stayed DOWN, the kernel deleted its default route, and the symptom looked like a dead modem;
+**patch 814** retries instead, and also rebuilds the channels from the RX watchdog) — see the sections
+below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -376,6 +381,74 @@ that into **5/5** delivered) — see the sections below.
     `WARNING: no TX for Ns … burst generator dead?`. **Lesson: a silently broken traffic generator is
     indistinguishable from a clean soak — always assert TX is advancing.**
 
+## A thirteenth round — Doc 157, 2026-09-21: the SSR powerup gave up permanently (patch 814)
+
+42. **"The default route is missing" is a SYMPTOM, not the defect.** For IPv4 the kernel **deletes
+    every route on a device when the device goes down** (`fib_disable_ip()`). netifd had installed the
+    route successfully (`adding default IPv4 route via 10.89.144.122`) and `ifstatus modem` reported
+    `"up": true` with `"updated": ["addresses","routes"]` — while the kernel had `wwan0` in
+    `state DOWN`. So the real question is always **why is the interface down**, not where the route
+    went. This is the third time a data-plane fault on this device has presented as a routing or
+    bearer fault; check `ip link show wwan0` before `ip route`.
+43. **The primary defect: the SSR powerup defer was a permanent give-up.** When the modem's A2
+    power-control line was not asserted within 3.2 s, `bam_dmux_ssr_powerup_work_func()` did a bare
+    `return` — **no retry, no reschedule, ever**. The comment said "deferring"; the code said
+    "abandoning". Nothing re-runs that work except a *new* `QCOM_SSR_AFTER_POWERUP`.
+44. **Why 3.2 s is not enough, measured.** A fatal error forces a **full modem firmware reload**. In
+    the failing boot the modem took **~6.4 s** to become ready (teardown 1405.70 s → `wwan0at0
+    attached` 1413.57 s), so the poll expired at 1410.92 s, **2.65 s before the modem finished
+    booting**. The other two SSRs in the same boot waited only 200 ms — the budget is right for a warm
+    restart and wrong for a reload. **One retry would have been enough.**
+45. **The false success that turned it into a DOWN interface.**
+    `bam_dmux_runtime_resume()` **returns 0** when `dmux->rx == NULL` — it logs
+    `channels not initialized after resume` and then reports success. `bam_dmux_netdev_open()` calls
+    the *synchronous* `pm_runtime_resume_and_get()`, gets 0, and proceeds to
+    `bam_dmux_send_cmd()`, which refuses with `-EAGAIN` on `pc_state == false`
+    (`refusing to queue command while modem is collapsed`). So `ndo_open` fails, the interface stays
+    DOWN, and the routes go with it. **Measured:** `ip link set wwan0 up` →
+    `RTNETLINK answers: Resource temporarily unavailable`.
+46. **The lost-edge resync was unreachable in the state it exists for.** The RX watchdog's
+    "PC line asserted while pc_state=0 (lost edge), resyncing" path was gated on
+    **`dmux->rx && dmux->tx`** — i.e. it could only run when the channels were already there, which is
+    precisely not the case after an SSR teardown. Measured `pc_resync_count: 0` for the whole stuck
+    period. The two paths that *can* rebuild the channels both require a **rising edge** on the pc IRQ,
+    so a missed edge left no recovery route at all.
+47. **`pc_line_level` is not a GPIO level — it is the modem's SMEM state word.** The pc IRQ is
+    `smsm 1 Edge`, and `irq_get_irqchip_state(…, IRQCHIP_STATE_LINE_LEVEL, …)` is implemented by
+    `smsm_get_irqchip_state()` as `readl(entry->remote_state)` (`smsm.c:320-334`). So
+    `pc_line_level: 1` with `pc_state: 0` is a genuine contradiction: **the modem said it was awake
+    and the driver did not believe it.** The SMSM cascade handler is edge-based on a cached
+    `last_value` (`smsm.c:219-220`), refreshed on unmask — which is why an edge can be lost.
+48. **The stuck state, verbatim:** `pc_line_level 1` / `pc_state 0` / `pc_resync_count 0` /
+    `rx_tearing_down 1` / `rx_slots_mapped 0` / `cmd_open` frozen at **24** / `runtime_status
+    suspended` — while `remoteproc0/state` was **`running`** and the modem was registered, attached and
+    at 88 % signal. **This is not Doc 154 §6**: there the modem never came up (`state = offline`, log
+    stopped at `loading mpss`). Here the modem came up fine and the *driver* stopped trying.
+49. **Patch 814** (three changes): retry the powerup work 500 ms apart, 20 times (~77 s total budget),
+    resetting the counter on every `QCOM_SSR_BEFORE_SHUTDOWN`; let the RX watchdog rebuild the channels
+    when the modem is awake and `rx`/`tx` are NULL; and arm both from `bam_dmux_runtime_resume()`.
+    **`runtime_resume()` still returns 0 deliberately** — an error would set
+    `dev->power.runtime_error`, and `rpm_resume()` then refuses *every* later resume
+    (`if (dev->power.runtime_error) goto out;`), converting a transient condition into a permanent
+    one. **The retry polls the SMEM level, so it recovers from a slow boot and from a lost edge
+    alike** — it does not depend on ever receiving another interrupt.
+50. **Patch 814 is NOT a stability fix.** The fatal cadence is untouched; the three fatals in the
+    failing boot still happened (two different signatures in one boot — never classify a fatal by its
+    `file:line`). Its chain reproduces the built source byte-exactly, and the post-fix baseline is
+    healthy (`cmd_open 8`, `rx_slots_mapped 32`, default route present, 2/2 ping). **The recovery
+    paths have not yet been observed to fire** — the trigger is a modem slower than 3.2 s, which this
+    build cannot force on demand. Do not upgrade that to "verified".
+51. **The Doc 151 §5 `echo stop` hang is now n=2.** Re-observed while trying to force an SSR on
+    demand: `echo stop > /sys/class/remoteproc/remoteproc0/state` hung the AP and the watchdog reset
+    it, with the console ending on exactly the same two lines
+    (`SSR before shutdown: scheduling teardown work` / `port wwan0at0 disconnected`) and no
+    `dmesg-ramoops` record (so not a panic). Different boot (116 s vs 9355 s) and different module
+    build (patch 814) ⇒ **not caused by, and not fixed by, patch 814**. An AP-initiated modem teardown
+    is still not available as a test route.
+52. **Memory quirk #9 is necessary but not sufficient.** `network.modem.auto` *is* set now, netifd
+    *did* install the address and the route, and the interface was still DOWN. Do not stop at the
+    config when this symptom appears — go to `bam_dmux` telemetry.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -444,6 +517,7 @@ Also established and not to be re-litigated:
 | `154_BAM_DMUX_TX_WAKEUP_NULL_DEREF_AND_FAILED_MODEM_RESTART.md` | **A second, distinct `bam_dmux` NULL deref** — `bam_dmux_tx_wakeup_work+0xc8` → `bam_dmux_skb_dma_submit_tx+0x2c`, faulting load `ldr w22, [x2, #0x70]` with `x2 = NULL` (= `skb_dma->skb`; `skb->len` at 0x70 BTF-verified). Different function/caller/offset from Doc 147's oops. Separately: **the modem failed to restart after fatal #15** (`port failed halt`, stall at `loading mpss`, `state = offline`, reboot required); and the Doc 153 rc.local autostart is verified at a real boot. **Its §5.3 mechanism ("neither `power_off` nor `pm_restart` takes `state_lock`") is WRONG and is corrected by Doc 155 — the sweep is always under `state_lock`; the hole is that `start_xmit` sets the deferred bit without it.** Its §4 decode is correct and stands |
 | `155_TX_SWEEP_RACE_PATCH_810_AND_DOC154_CORRECTION.md` | **The TX-sweep race, corrected and FIXED.** Corrects Doc 154 §5.3: the sweep (`bam_dmux_free_skbs()` from `power_off()`/`pm_restart()`) is **always** under `state_lock` (`pc_irq` `:1701`, rx-watchdog resync `:1191`, teardown `:2059`, powerup `:2213`, remove `:2292`), so the `:654` comment is true. The real hole is the **producer**: `bam_dmux_netdev_start_xmit()` is atomic context and sets `tx_deferred_skb` at `:599` **without** the lock, so it can re-arm a bit for a slot a concurrent sweep already freed. **Patch 810** (`msm89xx/patches/810-bam-dmux-tx-sweep-race.patch`) makes the consumers tolerant: NULL-guard `bam_dmux_skb_dma_map()`/`bam_dmux_skb_dma_submit_tx()`, **drop** stale bits in the `tx_wakeup_work` loop, and stop `start_xmit`'s `drop:` from double-freeing/double-putting. **`cancel_work_sync(&tx_wakeup_work)` there would deadlock.** Verified in the crashing object (md5 `3b693188…`): `pc` `b30−b04 = 0x2c`, `lr` `13b0−12e8 = 0xc8`, faulting word `b9407056`. Soak caveat: **1 Hz traffic keeps the modem awake and does not exercise the path** — idle-then-burst gives 23 collapse cycles and 0 oops |
 | `156_DEFERRED_TX_PACKET_LOSS_ROOT_CAUSE_AND_FIX.md` | **ROOT CAUSE of the steady-state data stall, and its fix.** `pm_runtime_get()` is `__pm_runtime_resume(dev, RPM_GET_PUT \| RPM_ASYNC)` (`include/linux/pm_runtime.h:400-403`) — **asynchronous**; it queues the resume and returns `-EINPROGRESS` rather than blocking. So the **first packet after every A2 power collapse** takes `start_xmit`'s defer branch (`qcom_bam_dmux.c:667`, `active <= 0`), deterministically. The wake then runs `pc_irq` → `pc_state = true` → **`bam_dmux_pm_restart()`**, which did `atomic_long_set(&dmux->tx_deferred_skb, 0)` + `bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE)` — destroying the skb of the packet it was supposed to drain, and making the drain at `pc_irq:1878` **dead code**. `start_xmit` had already returned `NETDEV_TX_OK`, so nothing retransmits it (TCP survives by RTO; a single ICMP/DNS/UDP packet does not — this is the `dtx=1 drx=0` stall). **Measured before the fix: 27 packets deferred, 27 destroyed with a live skb, 0 delivered — 60 % of all TX in the first minute of a boot, with no oops/fatal/SSR and `tx_sweep_guard_hits: 0`.** A single ping to a collapsed modem: **3/3 lost**; the same ping to an awake modem: delivered. **Patch 811** adds the counters (`tx_defer_queued/submitted/preserved/wiped/wiped_live`, `tx_submit_ok`, `tx_complete`); **patch 812** adds `bam_dmux_free_skbs_except()` and makes `pm_restart()` **preserve** deferred slots (the `dma_map_single()` mapping is for the *device*, not the channel, so it survives the rebuild) — honouring `runtime_suspend()`'s existing **Guard 1** (`:1933`). `tx_next_skb` must **not** be reset while slots are preserved. **Verified: `queued 8 / preserved 8 / submitted 8 / wiped_live 0`, and 5/5 pings delivered including 4/4 from `rs=suspended pc=0`.** Does **not** explain the ~900 s fatal or the failed restart. Residual `start_xmit` window remains open and counted |
+| `157_SSR_POWERUP_GIVEUP_AND_PATCH814.md` | **A third AP-side defect: the SSR powerup work gave up permanently.** `bam_dmux_ssr_powerup_work_func()` polled the modem's A2 power-control line for **3.2 s** and, when it was not asserted, did a bare `return` — **no retry, no reschedule**. A fatal error forces a **full modem firmware reload**, and this boot's modem took **~6.4 s** to become ready (teardown 1405.70 s → `wwan0at0 attached` 1413.57 s), so the poll expired **2.65 s before the modem finished booting** and `dmux->rx == dmux->tx == NULL` from then on. **`bam_dmux_runtime_resume()` then returned 0 with the channels missing**, so `bam_dmux_netdev_open()` (`:545`, the *synchronous* `pm_runtime_resume_and_get()`) proceeded into `bam_dmux_send_cmd()`, which refused with `-EAGAIN` on `pc_state == false` (`refusing to queue command while modem is collapsed`) — `ndo_open` failed, `wwan0` stayed **DOWN**, and the kernel **deleted its routes** (`fib_disable_ip`), which is why the symptom looked like a missing default route. **The RX-watchdog lost-edge resync was unreachable in exactly this state** (it required `dmux->rx && dmux->tx`, measured `pc_resync_count: 0`), and the only other rebuild paths need a **rising edge** that never arrived. **Stuck state, verbatim:** `pc_line_level 1` (the SMSM irqchip reads the **modem's SMEM state word** — the modem said it was awake) with `pc_state 0`, `rx_tearing_down 1`, `rx_slots_mapped 0`, `cmd_open` frozen at **24**, `runtime_status suspended` — while `remoteproc0/state` was **`running`** and the modem was registered/attached at 88 %. **This is NOT Doc 154 §6** (there `state = offline`, log stopped at `loading mpss`). **Patch 814** retries the powerup work (500 ms apart, 20×, ~77 s), lets the watchdog rebuild missing channels, and arms both from the resume path; `runtime_resume()` still returns 0 deliberately because an error sets `dev->power.runtime_error`, after which `rpm_resume()` refuses **every** later resume. **Not a stability fix** (cadence untouched); chain byte-verified; baseline healthy; **recovery not yet observed to fire**. Also **re-observes the Doc 151 §5 `echo stop` hang (n=2)** |
 
 ## Sound but narrow (accurate, subordinate scope)
 
