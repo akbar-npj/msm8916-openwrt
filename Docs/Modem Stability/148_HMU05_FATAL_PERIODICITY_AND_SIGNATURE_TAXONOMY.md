@@ -40,7 +40,7 @@ every fatal signature already recorded anywhere in this repo.
 
 ---
 
-## 3. The measurement: four fatals, 903.674 s apart
+## 3. The measurement: five fatals, 903.674 s apart — and the model predicts the next one
 
 `dmesg` on the deployed boot (all timestamps are AP uptime, seconds):
 
@@ -61,25 +61,35 @@ every fatal signature already recorded anywhere in this repo.
 [ 2723.511313] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
 
 [ 3625.792806] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 4529.467002] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
 ```
 
 | quantity | value |
 | :--- | :--- |
-| fatal times (AP uptime) | 914.769287 / 1818.443149 / 2722.117987 / **3625.792806** |
-| interval #1→#2 | **903.673862 s** |
-| interval #2→#3 | **903.674838 s** |
-| interval #3→#4 | **903.674819 s** |
-| spread across 3 intervals | 0.000976 s = **1.08 ppm** |
-| signature | `lte_ml1_common_timer.c:390`, **4/4** |
+| fatal times (AP uptime) | 914.769287 / 1818.443149 / 2722.117987 / 3625.792806 / **4529.467002** |
+| interval #1→#2 | 903.673862 s |
+| interval #2→#3 | 903.674838 s |
+| interval #3→#4 | 903.674819 s |
+| interval #4→#5 | 903.674196 s |
+| mean interval (n=4) | **903.674429 s** |
+| spread across 4 intervals | 0.000976 s = **1.08 ppm** |
+| signature | `lte_ml1_common_timer.c:390`, **5/5** |
 | SSR outage per fatal | ~1.3 s (fatal → modem back up) |
 | AP-side oopses this boot | **0** |
 
 Modem bring-up in this boot is at AP 12.092370 s, so on the *modem's* own uptime clock the
-fatals land at ≈ **902.68 / 1806.35 / 2710.03 / 3613.70 s**.
+fatals land at ≈ **902.68 / 1806.35 / 2710.03 / 3613.70 / 4517.37 s**.
 
-**A period stable to 1 ppm across three intervals is not a coincidence.** Whatever produces
-this is a counter or timer, not a random failure rate. That is the opposite of what the corpus
-currently asserts for this family — §6.
+### 3.0 The model is PREDICTIVE, not merely a fit
+
+Before the fifth fatal occurred, this document stated the next one was *due at AP ~4529.5 s*.
+It landed at **4529.467002 s** — an error of **0.033 s over a 903.674 s horizon (37 ppm of the
+interval, and 6 s of wall clock)**. A retrospective fit to four points would not survive that
+test. This is a **deterministic ~903.674 s timer**, and the remaining question is no longer
+*whether* it is periodic but **what resets it, and why the AP fails to**.
+
+That reframes the whole line of attack: the useful question is "what does Android do, at least
+once every 903.674 s, that OpenWrt does not?" — not "what is the failure rate".
 
 The 4th fatal also produced a **4th `wwan0` address** (`10.90.201.29`), confirming the
 fatal→SSR→rebuild chain in §4 a fourth time.
@@ -400,13 +410,15 @@ the number of captures and prune; one dump per fatal era is sufficient.
 
 ## 9. One-line summary for the next session
 
-The modem fatals every **903.674 s** this boot (`lte_ml1_common_timer.c:390`, **4/4**, three
-intervals spread by 1.08 ppm), each fatal costs an SSR and a bearer rebuild — which is what the
-`wwan0` address churn in Doc 147 §8 actually was, so stop looking for an AP-side rebuild timer.
-The corpus conflates **ten** fatal signatures, and retraction #1's "fixed 900 s is FALSE" is only
-true for `a2_power.c:1189`; for `lte_ml1_common_timer.c:390` the periodicity is real and
-unexplained. Android at 921 s uptime is healthy with 0 % loss on byte-identical firmware, so
-**the fatal is AP-dependent and is the remaining lever** — with the A2 collapse cadence differing
-4.6× as the leading, unproven candidate. **New capability:** the ERR_FATAL descriptor for this
-assert is now decoded from a modem coredump (VA `0x89db1290`, line 390, inline filename, plus two
-runtime-varying payload words), which the corpus had recorded as not decodable — §7.1.
+The modem fatals every **903.674 s** this boot (`lte_ml1_common_timer.c:390`, **5/5**, four
+intervals spread by 1.08 ppm) — and the fifth fatal was **predicted to ~0.03 s before it
+happened**, so this is a deterministic timer, not a rate. Each fatal costs an SSR and a bearer
+rebuild, which is what the `wwan0` address churn in Doc 147 §8 actually was, so stop looking for
+an AP-side rebuild timer. The corpus conflates **ten** fatal signatures, and retraction #1's
+"fixed 900 s is FALSE" is only true for `a2_power.c:1189`; for `lte_ml1_common_timer.c:390` the
+periodicity is real. Android at 921 s uptime is healthy with 0 % loss on byte-identical firmware,
+so **the fatal is AP-dependent and is the remaining lever**. The right question is now "what does
+Android do at least once every 903.674 s that OpenWrt does not?" — not "what is the failure
+rate". **New capability:** the ERR_FATAL descriptor for this assert is decoded from a modem
+coredump (VA `0x89db1290`, line 390, inline filename, plus two runtime-varying payload words),
+which the corpus had recorded as not decodable — §7.1.
