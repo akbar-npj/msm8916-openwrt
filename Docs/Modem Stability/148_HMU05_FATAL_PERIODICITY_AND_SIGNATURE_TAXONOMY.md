@@ -91,6 +91,32 @@ test. This is a **deterministic ~903.674 s timer**, and the remaining question i
 That reframes the whole line of attack: the useful question is "what does Android do, at least
 once every 903.674 s, that OpenWrt does not?" — not "what is the failure rate".
 
+### 3.0.1 The pattern BREAKS under traffic — experiment E1
+
+A 1 Hz ping was started at AP 5310 s to test whether the AP's activity pattern matters. Fatal #6
+came at **5426.331445 s** — and **two things changed at once**:
+
+| | idle (fatals 1–5) | under traffic (fatal 6) |
+| :--- | :--- | :--- |
+| signature | `lte_ml1_common_timer.c:390`, 5/5 | **`a2_power.c:1189`** |
+| interval | 903.674 s (1.08 ppm over 4) | **896.864443 s** (−6.81 s) |
+
+A **falsifiable prediction** was recorded before the next fatal (E1 continued past the next
+boundary): the two competing models differ by 6.81 s, which the measured 1 ppm stability
+resolves easily.
+
+| model | predicted next fatal |
+| :--- | :--- |
+| #6 was an anomaly; idle cadence resumed | 5426.331445 + 903.674429 = **6330.005874 s** |
+| traffic changed it; new cadence persists | 5426.331445 + 896.864443 = **6323.195888 s** |
+
+This is the first evidence that the fatal is **not one immutable timer**, and it would unify two
+things the corpus found confusing: three signatures with three *different* ~900 s periods
+(§6.2), and `a2_power.c:1189` appearing at 172 / 918 / 1824 / 2729 s across boots. If the AP's
+activity pattern selects which of several ~900 s timers expires first, both fall out of one model
+— and the AP becomes the lever. Full record:
+`evidence/148_fatal_periodicity/e1_traffic_interim.md`.
+
 The 4th fatal also produced a **4th `wwan0` address** (`10.90.201.29`), confirming the
 fatal→SSR→rebuild chain in §4 a fourth time.
 

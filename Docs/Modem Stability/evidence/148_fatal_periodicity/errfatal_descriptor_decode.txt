@@ -56,13 +56,66 @@ between dumps:
   (0x083EC684, 0x077E810F, 0x06C6C074). Not yet interpreted; it does not look like an address
   (the modem's code lives at 0xc0.., and 0xb7bb76cf is below that).
 
-## What is NOT resolved
+## RESOLVED 2026-09-20: the coredump <-> ELF address mapping, and what 0x89db1290 actually is
 
-* No pointer to 0x89db1290 exists anywhere in the dump (`d.find(struct.pack('<I',0x89db1290))`
-  = 0 hits), so the descriptor address is computed rather than stored as a 32-bit immediate.
-  Searching `modem.asm` for `0x89db1290` / `-0x7624ed70` also gives 0 — and `modem.asm` only
-  covers code up to 0x1404e0c, so the referencing site may simply be outside it.
-* A and B cannot be interpreted without the assert site.
+### The mapping: `dump_va = elf_va - 0x39800000`
+
+The coredump uses **physical** addresses; the ELF uses **virtual**. The delta is exactly
+0x39800000, verified on four independent segment bases AND on the string pool itself:
+
+| ELF VA | coredump VA | evidence |
+| :--- | :--- | :--- |
+| 0xc0000000 | 0x86800000 | segment base |
+| 0xc0287000 | 0x86a87000 | segment base |
+| 0xc1500000 | 0x87d00000 | segment base |
+| 0xc175b2b8 (`lte_ml1_common_timer.c` literal) | 0x87f5b2b8 | same content at the same in-segment offset 0x25b2b8 |
+
+So descriptor dump-VA 0x89db1290 -> **ELF VA 0xC35B1290**, which lands in the ELF PT_LOAD at
+`0xc2070000` with **`filesz = 0`, `memsz = 0x1b98840`** — i.e. **BSS**. That is exactly why a
+byte search of the ELF for the descriptor found nothing: the object has no file content.
+
+### What 0xC35B1290 is: the single global "last fatal" record
+
+Searching `modem.asm` for the **ELF** VA (not the dump VA — that was the earlier mistake) gives
+three references, and all of them are inside the ERR_FATAL machinery:
+
+```
+c0878fec:  r3  = memw(##0xc35b1290)      # read the record
+c08793d0:  r19 = memw(##0xc35b1290)      # read the record
+c0879504:  r18 = ##-0x3ca4ed70           # r18 = 0xC35B1290  <-- the formatter's own r18
+```
+
+`c0879504` is immediately adjacent to the formatter at `0xc08794e0` that the earlier note
+identified as reading `line` at `+0x00` and the filename at `+0x14` via `r18`. And
+`c0878fdc: r1 = ##0xc35b12a4` is `0xC35B1290 + 0x14` — the inline filename.
+
+**Conclusion: 0xC35B1290 is not a per-assert descriptor. It is the one global record that the
+ERR_FATAL path fills with the *most recent* fatal's {line, A, B, filename}, then formats.** So:
+
+* the decoded line/filename tell us only what we already know from `dmesg` — the last fatal was
+  `lte_ml1_common_timer.c:390`;
+* the two payload words A and B are **captured at the fatal**, and B increments by exactly 0x0b
+  (11) per fatal period, i.e. one count per ~82.15 s. That is a real, unexplained quantity — it
+  is the only lead the descriptor gives.
+
+### Where the assert site actually is
+
+The `lte_ml1_common_timer.c` **string literals live at ELF VA 0xc175b2a4** (10 consecutive
+copies, stride 0x18), which is in the ELF segment at **`0xc1500000` (filesz 0x73ace0)**.
+`scratch/firmware/modem.asm` stops at **0xc1404e0c**, so that segment — and therefore
+`lte_ml1_common_timer.c`'s own code and rodata — **is not disassembled**. That is the concrete
+next step for the RE: disassemble `0xc1500000` and look for the ERR_FATAL call that passes this
+file/line.
+
+Also checked and negative: none of the four `rN = #0x186` sites in `modem.asm`
+(`c02c3930`, `c04b01bc`, `c0b3e0e8`, `c0cb0b64`) is the assert — they are 25-41 instructions
+away from the nearest `call 0xc0879150` and are arithmetic/structure-init uses.
+
+## Still open
+
+* The meaning of A and B. B is the promising one (11 per fatal period, ~82.15 s per count).
+* The assert site, blocked on disassembling the `0xc1500000` segment.
+
 
 ## Operational note — coredump reading is a DISK HAZARD
 
