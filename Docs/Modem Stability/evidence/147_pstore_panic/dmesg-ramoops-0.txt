@@ -1,0 +1,204 @@
+Oops#1 Part1
+<6>[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd030]
+<5>[    0.000000] Linux version 6.12.94 (builder@192.168.8.243) (aarch64-openwrt-linux-musl-gcc (OpenWrt GCC 14.3.0 r33051-f5dae5ece4) 14.3.0, GNU ld (GNU Binutils) 2.44) #0 SMP PREEMPT Mon Jun 29 12:59:20 2026
+<6>[    0.000000] KASLR enabled
+<5>[    0.000000] random: crng init done
+<6>[    0.000000] Machine model: HMU05 4G Modem Stick
+<6>[    0.000000] earlycon: msm_serial_dm0 at MMIO 0x00000000078b0000 (options '')
+<6>[    0.000000] printk: legacy bootconsole [msm_serial_dm0] enabled
+<6>[    0.000000] OF: reserved mem: 0x000000008e200000..0x000000008e7fffff (6144 KiB) nomap non-reusable wcnss
+<6>[    0.000000] OF: reserved mem: 0x000000008dd00000..0x000000008e1fffff (5120 KiB) nomap non-reusable venus
+<6>[    0.000000] OF: reserved mem: 0x000000008dc00000..0x000000008dcfffff (1024 KiB) nomap non-reusable mba
+<6>[    0.000000] OF: reserved mem: 0x0000000086000000..0x00000000862fffff (3072 KiB) nomap non-reusable tz-apps@86000000
+<6>[    0.000000] OF: reserved mem: 0x0000000086300000..0x00000000863fffff (1024 KiB) nomap non-reusable smem@86300000
+<6>[    0.000000] OF: reserved mem: 0x0000000086400000..0x00000000864fffff (1024 KiB) nomap non-reusable hypervisor@86400000
+<6>[    0.000000] OF: reserved mem: 0x0000000086100000..0x000000008667ffff (1536 KiB) nomap non-reusable tz@86100000
+<6>[    0.000000] OF: reserved mem: 0x0000000086680000..0x00000000866fffff (512 KiB) nomap non-reusable reserved@86680000
+<6>[    0.000000] OF: reserved mem: 0x0000000086700000..0x00000000867dffff (896 KiB) nomap non-reusable rmtfs@86700000
+<6>[    0.000000] OF: reserved mem: 0x00000000867e0000..0x00000000867fffff (128 KiB) nomap non-reusable rfsa@867e0000
+<6>[    0.000000] OF: reserved mem: 0x0000000086800000..0x000000008bcfffff (87040 KiB) nomap non-reusable mpss@86800000
+<6>[    0.000000] OF: reserved mem: 0x000000008db00000..0x000000008dbfffff (1024 KiB) map non-reusable ramoops@8db00000
+<6>[    0.000000] Zone ranges:
+<6>[    0.000000]   DMA      [mem 0x0000000080000000-0x000000009fffffff]
+<6>[    0.000000]   DMA32    empty
+<6>[    0.000000]   Normal   empty
+<6>[    0.000000] Movable zone start for each node
+<6>[    0.000000] Early memory node ranges
+<6>[    0.000000]   node   0: [mem 0x0000000080000000-0x0000000085ffffff]
+<6>[    0.000000]   node   0: [mem 0x0000000086000000-0x000000008bcfffff]
+<6>[    0.000000]   node   0: [mem 0x000000008bd00000-0x000000008dbfffff]
+<6>[    0.000000]   node   0: [mem 0x000000008dc00000-0x000000008e7fffff]
+<6>[    0.000000]   node   0: [mem 0x000000008e800000-0x000000009fffffff]
+<6>[    0.000000] Initmem setup node 0 [mem 0x0000000080000000-0x000000009fffffff]
+<6>[    0.000000] cma: Reserved 16 MiB at 0x000000009e600000 on node -1
+<6>[    0.000000] psci: probing for conduit method from DT.
+<6>[    0.000000] psci: PSCIv1.0 detected in firmware.
+<6>[    0.000000] psci: Using standard PSCI v0.2 function IDs
+<6>[    0.000000] psci: MIGRATE_INFO_TYPE not supported.
+<6>[    0.000000] psci: SMC Calling Convention v1.0
+<6>[    0.000000] psci: OSI mode supported.
+<6>[    0.000000] psci: [Firmware 00-0x0Fir: fai6>[ top no PC supp: -3    0.000000] psci: ercpu: Embedd>[ 21 pa6>[/cpu s483B) r868. d29480 u0001[  7 0.000000] psci: cpu-g Coc: s483B) r868. d29480 u0001[ g Coc=21*409[  7 0.000000] psci: cpu-g Coc: [ci:0 [ci:1 [ci:2 [ci:3     0.000000] psci:Ded in fiVIn JI-codeeode x00[    0.000000] psci:x000featuved: kernel pa6> tzone 864lav1.0
+ondc fiON byR enab    0.000000] psci:x000featuved: ted in f: Kernel pa6> tzone 864lav1.0
+(KPTI[    0.000000] printx000featuved: ted in f: ARM erratum 843419    0.000000] printx000featuved: ted in f: ARM erratum 845719    0.000000] printx000featuved: ted in f: ARM errata 826319, 827319, 824069, ndu868472    0.000000] printalternav1ved: 860lyonveonsotalternav1ved    0.000000] randoKernel commd P Conp: con: msm le [msm=tty0 le [msm=ttyMSM0,1150.. rnso=/dev/mmcblk0p14 rnsofstiso=squashfs rnsowait    0.000000] psci:Dentde codeeohash tzone entdied: 65iB) (or92.: 7, 524288 bytes, Conpar[    0.000000] printI-1
+<-codeeohash tzone entdied: 32768 (or92.: 6, 262iB) bytes, Conpar[    0.000000] printBr@1t:1 starlists, m folity grouponveon.  Total pa6>d: 131072    0.000000] printx000auto-done:dardck:off, hen-rg Coc:off, hen-rfree:off    0.000000] printsoft00-0x000TLB CaWIOTLBeonon e buffer size adjust>[ top0MB    0.000000] printsoft00-0x000TLB C0-0a num 4[    0.000000] psci:soft00-0x000TLB CaWIOTLBeonon e buffer size rou mep top1MB    0.000000] printsoft00-0x000TLB Con-p>[ 0x00000000800009e4000-00000009fffffe58 print(1MB[    0.000000] printSLUB CHWalign=64, Or92.=0-3,at nObj ins=0,tx00s=4, N1
+<s=[    0.000000] psci:rcu: Pree<6>iypervier4-opCPU 0RCU implementav1.0[    0.000000] psci:rcu: 	RCU vedtdicLinuxx00s DT.
+<NR_x00S=8 topnr_cpu_ids=4[    0.000000] psci:	Tps@poConp variant of Tasks0RCU ed
+<6>[[    0.000000] psci:	Tpscinuxvariant of Tasks0RCU ed
+<6>[[    0.000000] psci:rcu: RCU PU culav>[ value of sdeeduler-enlistment telay 86 30 jiffied[    0.000000] psci:rcu: Adjustinuxgeod fde ondurcu_fanout_leaf=16, nr_cpu_ids=4    0.000000] psci:RCU Tasks Caettinuxshift top2 d P Com top1urcu_task_cb_adjust=1urcu_task_cpu_ids=4[    0.000000] psci:RCU Tasks Tpsce Caettinuxshift top2 d P Com top1urcu_task_cb_adjust=1urcu_task_cpu_ids=4[    0.000000] psci:NR_IRQS: 64, nr_irqs: 64, p-0a Cocav>[ irqs: [    0.000000] psci:RnsotIRQohandl2.: gic_handl2_irq    0.000000] psci:rcu: srcu_done:daettinuxsrcu_dtduct sizes bas>[ sm le tn v1.0[    0.000000] psci:4-op_tim2.: cp15 d P mmio tim2.(s) runninux00019.20MHz (virt/virt)[    0.000000] psci:cCocksource C4-op_sys_cou t2.: mask0000ffffffffffffff max_cycl>d: 0x46d987e47, max_idl2_nd: 4407950.2767 n[    0.000000] psci:sdeed_cCock: 56 bitsx00019MHz, vedoluv1.0
+52ns, wraps evede 4398046511078n[    0.00000010907]enti[msm: colour dummy tevi e 80x25    0.00000018753ntk: legacy bootcle [msm_stty0bled
+<6>[    0.00000024116]ing ibratinuxtelay l8db (ski-p>[), value PU culav>[ ustandtim2.rfrequency.. 3800] BogoMIPS (lpj=00
+<6[    0.00000028066]ipid_max: tefault: 32768 mdonmum: 30[    0.00000038543ableu t-codeeohash tzone entdied: KiB) (or92.: 1, 868. bytes, Conpar[    0.00000042994ableu tpoi t-codeeohash tzone entdied: KiB) (or92.: 1, 868. bytes, Conpar[    0.00000052345i:rcu: Hier4-opCPU 0SRCU implementav1.0[    0.00000058 13i:rcu: 	Max phasesup-telay 8nard ces 86 1
+<6[    0.00000062818] Tim2.rmigrav1.0: 1rvier4-opy levels; 8 opCldren: er group; 1rcross-1
+<6level    0.00000068092i:smp: B: lgtandep seit made x00s ..[    0.00000076676i:Ded in fiVIn JI-codeeode x001    0.00000076786ntx001:ing L fiseit made ng cessndu00000078b00110fd030]
+<5>[    0.000000775sci:Ded in fiVIn JI-codeeode x002    0.00000077592i:x002:ing L fiseit made ng cessndu00000078b00210fd030]
+<5>[    0.00000078324i:Ded in fiVIn JI-codeeode x003    0.00000078413i:x003:ing L fiseit made ng cessndu00000078b00310fd030]
+<5>[    0.00000078524i:smp: B:oughtdep 1 -1
+<, 4 x00s    0.00000111911]PREE: Total of 4 ng cessndsx0cLiva<6>[    0.00000115980i:x00: Al 0x00(s)  for  fi000EL1    0.0000012075sntx000featuved: ted in f: 32-bit0EL0 Sted.
+<    0.00000124771ntx000featuved: ted in f: CRC32 8narduct'')
+    0.00000129911]Palternav1ved: 860lyonvesystem-wi
+<6alternav1ved    0.00000135473abl node: 369604K/524288K availzone (9iB)K kernel c1
+<, 110)K rwdata, 2920K rodata, 960K done, 378K bss, 135320K red 16 M, 16384K Res-red 16 M[    0.00000150963i:cCocksource Cjiffied: mask0000ffffffff max_cycl>d: 0xffffffff, max_idl2_nd: 637ffff509511994 n[    0.00000154401]Pfutexohash tzone entdied: KiB) (or92.: 4, 65iB) bytes, Conpar[    0.00000164614i:2G supuserveg1.0
+ondc fiby RANDOMIZE_MODULE_REGION_FULL    0.0000017fffci:0 pa6>dirmws
+<6> ondueusaPLT usa6>    0.0000017fff6nt50.476 pa6>dirmws
+<6> onduPLT usa6>    0.00000177169]ipinctrl c1re Cdoneig iz fipinctrl subsystem    0.00000189512i:NETervegister fiPF_NETLINK/PF_ROUTE ng tocol famil[    0.0000068.403i:DMA: p-0a Cocav>[ iB) nom GFP_KERNEL pool fnduatomic a Cocav'')
+    0.00000197679i:DMA: p-0a Cocav>[ iB) nom GFP_KERNEL|GFP_    pool fnduatomic a Cocav'')
+    0.00000205133i:DMA: p-0a Cocav>[ iB) nom GFP_KERNEL|GFP_   32 pool fnduatomic a Cocav'')
+    0.00000212901]Pthe  em_syservegister fithe  em govednndu'step_wise'    0.00000212951]Pcpuidl2: ustandgovednndumenu    0.00000226127i:NETervegister fiPF_QIPCRTR ng tocol famil[    0.00000230026ntASID a Cocavndudoneig is>[ with 32768 entdied    0.00000236664i: [t1re C standcrash dump comp-0ss1.0: teflav>    0.0000024032intk: legacy bootcle [msm_sps@8db0-1bled
+<6>[    0.00000246255i: [t1re Cvegister fips@8db0 as: ersistent [t1re backen[    0.00000250714i:ps@8db0: ustand0x178b00@0x000
+<6>[, ecc: [    0.0000025841sntx00idl2 v0.2:mem sig iz fix000PM domarmwtopoCogy ustandode supp    0.00000267765i:/soc@0/usb@78d96>[: Fix fidepen[ency cycl>(s) with /soc@0/usb@78d96>[/ulpi/ph[    0.00000268898i:/soc@0/usb@78d96>[/ulpi/ph[: Fix fidepen[ency cycl>(s) with /soc@0/usb@78d96>[    0.00000277256i:/soc@0/i t2.rupt-ce troll2.@0
+<6>[[: Fix fidepen[ency cycl>(s) with /soc@0/i t2.rupt-ce troll2.@0
+<6>[[    0.00000294234i:/soc@0/usb@78d96>[: Fix fidepen[ency cycl>(s) with /soc@0/usb@78d96>[/ulpi/ph[    0.00000295875i:/soc@0/usb@78d96>[/ulpi/ph[: Fix fidepen[ency cycl>(s) with /soc@0/usb@78d96>[    0.0000030745>[ HugeTLB Cregister fi100] Gom pa6> size, p-0-a Cocav>[ 0 pa6>d    0.00000312365[ HugeTLB C) nom vmemon-rcan berfreed fnduai100] Gom pa6>    0.00000319207[ HugeTLB Cregister fi32.0at 0xpa6> size, p-0-a Cocav>[ 0 pa6>d    0.00000325277[ HugeTLB C) nom vmemon-rcan berfreed fnduai32.0at 0xpa6>    0.0000033222>[ HugeTLB Cregister fi200] t 0xpa6> size, p-0-a Cocav>[ 0 pa6>d    0.00000338296[ HugeTLB C) nom vmemon-rcan berfreed fnduai200] t 0xpa6>    0.00000345242[ HugeTLB Cregister fi64.) nom pa6> size, p-0-a Cocav>[ 0 pa6>d    0.00000351316[ HugeTLB C) nom vmemon-rcan berfreed fnduai64.) nom pa6>    0.00000360947[ iommu: Default domarmwtype CTs
+<slav>[    0.00000364355i:iommu: D   domarmwTLBeinvalidav1.0
+poCocy:dardicL supp  5 0.00000369648i:SCde subsystemCdoneig iz f    0.00000375598i:usbc1re Cregister finew i t2.face dr1ver:usbfd    0.00000379134i:usbc1re Cregister finew i t2.face dr1ver:hub    0.00000384605i:usbc1re Cregister finew tevi e dr1ver:usb    0.00000390219]ipps_core C versPPS APIion .p1uregister f    0.00000394979]ipps_core CSoft00-0xon .p5.3.6 - Copyrightd2005-2007 Rodolfo Good fti <good fti@-musl.it>    0.000000
+<649]iPTP:cCockorted.
+<uregister f    0.0000041s352[ qcom_scng ition v1.0:damc armi32    0.00000414505i:Bluetg Lh: Co-0xon i2022    0.00000417333i:NETervegister fiPF_BLUETOOTH ng tocol famil[    0.00000420851]PBluetg Lh: HCI tevi e d P itine IDs
+<mana6>rCdoneig iz f    0.00000426151]PBluetg Lh: HCI socket lay>rCdoneig iz f    0.00000432489]PBluetg Lh: L2CAP socket lay>rCdoneig iz f    0.00000437ff9]PBluetg Lh: SCO socket lay>rCdoneig iz f    0.00000442562i:cCocksource CSwitdeed topcCocksourceC4-op_sys_cou t2.  5 0.00000447315i:VFS: Disk quotas dquot_6.6>[    0.00000453254i:VFS: Dquot-codeeohash tzone entdied: iB) (or92. [, 409[ bytes[    0.000004617iommNETervegister fiPF_INET ng tocol famil[    0.0000046403ommIP i
+<ntsohash tzone entdied: 868. (or92.: 4, 65iB) bytes, Conpar[    0.00000469604]Ptcp_listen_d.
+<addr_hash hash tzone entdied: 256 (or92.: [, 409[ bytes, Conpar[    0.00000476039]PTzone- erturbohash tzone entdied: 65iB) (or92.: 6, 262iB) bytes, Conpar[    0.00000484239]PTCP estzoniseed hash tzone entdied: 409[ (or92.: 3, 32768 bytes, Conpar[    0.00000492254i:TCP bind hash tzone entdied: 409[ (or92.: 5, 131072 bytes, Conpar[    0.000000
+<688i:TCP: Hash tzones itifigur fi(estzoniseed 409[ bind 409[[    0.000000
+7147[ MPTCP tokenohash tzone entdied: iB) (or92.: 2, 12288 bytes, Conpar[    0.0000051353>[ UDP hash tzone entdied: 256 (or92.: 1, 868. bytes, Conpar[    0.0000050.525[ UDP-Liteohash tzone entdied: 256 (or92.: 1, 868. bytes, Conpar[    0.00000507257i:NETervegister fiPF_UNIX/PF_LOCAL ng tocol famil[  5 0.00000335124i:Ioneig is>esystem trust>[ key: lgd    0.0000050
+<68i:work lgdet:dtim2stzmp_bits=46 max_or92.=17 bucket_or92.=0    0.00000504599]Psquashfs:ion 6.12.4.) (2009/01/31) Phillip Lough2.  5 0.00000635045doKeywtype asymd fdic register f  5 0.00000635845dAasymd fdic kem prs92.'x509'<uregister f    0.00006386325i:if sdeedule mq-deadoConpuregister f    0.00006043385i:if sdeedule kyble uregister f    0.0000652129]acyd fdg-rcpu:Cregister f tobiniocavsx0cLilityode x0sf    0.00006578980iserial_dm0 000 (op.al_dm0m_serial_dm0d: ted in  ed.
+<#0f    0.00006580147[serial_dm0 000 (op.al_dm0m_uartclk = 737286>[    0.00006604399]000 (op.al_dm0m_=ttyMSMMMIO 0x0000000 (optiirq = 2 1, bas_baud = 84686>)s 86a yMS[    0.0000669529]aserial_dm0d:cle [msmp node1.0
+p.
+<#0f    0.00006697023ntk: legacy bootcle [msm_sttyMSM1bled
+<6>[    0.0000607837intk: legacy bootconsole [msm_serial_dm0] enabdisd
+<6>[    0.0000694324]aserial_dm0d: dr1verCdoneig iz f    0.00006955842[ qco-:iomm 1ef (op.:iommu::iomm sec: pg tzone siz: 90420f    0.00007105325i l8d:G supuseloadz f    0.0000711153>[spmi_pmic_aurb(20f(op.apmi: PMICeC4_biverion 6.12vB) 0x(20x178b)f    0.00007174599]:usbc1re Cregister finew i t2.face dr1verrtl8150f    0.00007198771n:usbc1re Cregister finew tevi e dr1verr8152-cflgdld iorf    0.00007255571n:usbc1re Cregister finew i t2.face dr1verr8152f    0.00007731071n:usbc1re Cregister finew i t2.face dr1ver:us- [t1pa6>    0.00007521225irtc-pm8xxxb(20f(op.apmi:pmic@0:rtc@696>[:Cregister ftasrtc0>    0.00007523207[rtc-pm8xxxb(20f(op.apmi:pmic@0:rtc@696>[:saettinuxsystem:cCock top970-01-01T05:50:iB)UTC) (41s9[[    0.00007584ff6ninpuet:pm8941_pwr kemtas/ tevi s/psla fnm /soc@0(20f(op.apmi/apmi-0/0-0@0(20f(op.apmi:pmic@0:pon@80@0(20f(op.apmi:pmic@0:pon@80@:pwr ke/inpue/inpue0>    0.00007719233isdhSMC Cecgur: DgiotalHost]ent troll2i:I t2.face dr1ve>    0.000078 1103isdhSMC  Copyrigh(c1) ierur:Oss<ma>    0.00007870403isdhSM-pltfcngSD HCIpsla fnme d POFe dr1ver:elpve>    0.00007917iiommNETervegister fiPF_INE6T ng tocol famil[    0.000080
+<611]PegtmentRouttinu withIPv6[    0.00008052345iIn-situ OAM (IOAM)u withIPv6[    0.0000805778ommNETervegister fiPFPACKNET ng tocol famil[    0.00008097385i8051q:i805.1Q VLAN0 Sted.
+0
+<68f  5 0.000082014inuxoadstandompai6>-in X0009 c erifiocavsf    0.00008521239]s3p: B: lgtan0uVw i top200
+<6-p200
+<6uVf    0.0000852537ins4p: B: lgtan0uVw i top800
+<6-p800
+<6uVf    0.00008563818]l2p: B: lgtan0uVw i top200
+<6-p200
+<6uVf    0.0000861387inl5p: B: lgtan0uVw i top800
+<6-p800
+<6uVf    0.0000866
+<68il6p: B: lgtan0uVw i top800
+<6-p800
+<6uVf    0.00008687994ainpuet:GPx00Butt'')
+tas/ tevi s/psla fnm gpio- kes/inpue/inpueL1    0.00008707604]l7p: B: lgtan0uVw i top800
+<6-p800
+<6uVf    0.00008757363i:ckS: Ditzontandnuis>[pcCockf    0.00008825911]l8p: B: lgtan0uVw i to2900
+<6-2900
+<6uVf    0.000088736inu06h<6uk0e05:50:iBpow d :iommunuis>[pcCockf9  00.0l908825911]l8p: B: lgt3smem@8-3smem@8
+<6-2900
+<6uV9015 0.001108825911]l8p: B: lgtan5uVw i top800
+<6-p800
+<6uV90  00.001008563818]l2p: B: lgtan0uVw i top800
+<6-p800
+<6uV9    0.0l1008521239]s3p: B: lgt305uVw i305uVw 
+<6-p800
+<6uV9 74 0.0Waiti: probiso=sgister f1150.. rnso=/det made x00s ..   330.0. r0sdhSM-pl0/i t2.rupe [m7824to2.. r [7824to2.. r]armwtopADMA
+<4 x00s 1.067  0.0. r0sdCg st-0x0d f dl2:ntanded;0:rq 17777O 0x0 bittobuecg1777777770 b
+<4 x00s 1.067  0.0. r0sdCg st-0x0d f dl2:ntanded;0:rq 17777O 0x0 bittobuecg1777777770 b
+<6 x00s 1.0[  20.0. r0sdCregHSd
+<6MMC cg st-t _lisess sndu
+<6 x00s 1.082270.0. rnso=:0. r0ssndu0H4G2a 3 f d fn
+<4 x00s 1.0925 0.0GPT:Primg L heedupethinks Alt. heedupe = O_TY-t thteohd]PREthtel_dk.
+<4 x00s 1.0926 0.0GPT:7569407 !0m_634943
+<4 x00s 1.099016.0GPT:Aystem-we0GPT heedupeO_TY-t thteohd]PREthtel_dk.
+<4 x00s 1.102260.0GPT:7569407 !0m_634943
+<4 x00s 1.1084 0.0GPT: U24iNU lPl 0x00e CSorigct0GPT yrior86 30 jiffi10s  650.00. rnso=:0p1 p2 p3 p4 p5 per 7 p8 p90p100p11 p12 p13 p14 p15 30 jiffi10s 83 0.0. rnso=lega=:0. r0ssndu0H4G2a 4reed fn 30 jiffi10s2[   .0. rnso=lega1:0. r0ssndu0H4G2a 4reed fn 30 jiffi10s29193.0. rnso=rpmb:0. r0ssndu0H4G2a 4reed fn, chg sev5:541:) 0x(20x17810s374 9.00000400000re Co=sg( rnsofstifoad>[:sae)0:radonlcavsxister f179:146 30 jiffi10s398 0.0Freek0e05:50:iBzone (9m000135420K  30 jiffi10s  0 0.0Run /sbin/: crnasm: crn Total  Coc=21*41M[  0 0.0  OAM (argu80
+<e raoc=21*41M[  010.000  /sbin/: crraoc=21*41M[  017.0  OAM (environ80
+< raoc=21*41M[  0 0.00000HOME=/raoc=21*41M[  030.00000TERM=i <go
+<14 x00s 1.454500.00:rcu:0000010d = 8lme 
+<14 x00s 1.4547 0.00:rcu:- watchdog -
+<14 x00s 1.f  5 0.0k5328d:G r:l8d:Gk0e0zone (9m325i tdicLin/etc/m325i t-lega.d/*
+<14 x00s 1.ff   0.0k5328d:G r:lg inl8d:Gk0e0zone (9m325i tdicLin/etc/m325i t-lega.d/*
+<14 x00s 1.f9M er.00:rcu:- pre: crn-
+<12 x00s 6.  01 0.0/mmcbl_ta, : exici:rcuextifoad>[:saeserial_dm
+<12 x00s 6.  0260.0/mmcbl_ta, : o0002gic=1 nsoid_k0p14ext4
+<12 x00s 6.  5  0.0/mmcbl_ta, : io tim2.e2fsuxs-p
+<12 x00s 6.798  0.0/mmcbl_ta, : iecdl2:im2.jouem-l
+<12 x00s 6.98[  0.0/mmcbl_ta, : clean, 388/217728ifoad>,    90/8[     nsandnui12 x00s 6.98[  0.0ui12 x00s 7.0[3920.0/mmcbl_ta, : foad>[:saesclean
+<14 x00s 7.1826 0.0m0000_/mmc:l8d:Gk0e0zm32tdicLinistern11]Pl2:lay
+<14 x00s 7.1928 0.0k5328d:G r:l8d:Gk0e0zone (9m325i tdicLin//etc/m325i t-lega.d/*
+<14 x00s 7.193893.0k5328d:G r:lg inl8d:Gk0e0zone (9m325i tdicLin//etc/m325i t-lega.d/*
+<14 x00s 7.406  0.0bpsci:sattsci:r culol8d:Gn/etc/Hash t/ftifi
+<14 x00s 7.4383 0.0bpsci:sext/mmc:lO_TYHash tzone
+<14 x00s 7.438  0.0bpsci:sattsci:r culol8d:Gn/etc/Hash t/ftifi
+<14 x00s 7.441  0.0bpsci:sext/mmc:lO_TYHash tzone
+<6 x00s 7.5179 0.0EXT4-sti(. rnso=/d5):0m0000-rcaoad>[:saese8d090 4-f  8-4560-b28d-5f11e6a569fe C/w OAM (.=17 lpi/n f:ocy:. Q:VFS>[ top n in.
+<14 x00s 7.5190 0.0m0000_/mmc:l8d:Gk0e0zm32tdicLinistern11]Pl2:lay
+<14 x00s 7.5  0 0.0k5328d:G r:l8d:Gk0e0zone (9m325i tdicLin/tmp/Pl2:lay/5.1er/etc/m325i t-lega.d/*
+<14 x00s 7.55 047.0k5328d:G r:lg inl8d:Gk0e0zone (9m325i tdicLin/tmp/Pl2:lay/5.1er/etc/m325i t-lega.d/*
+<14 x00s 7.742381.0bpsci:sattsci:r culol8d:Gn/tmp/Pl2:lay/5.1er/etc/Hash t/ftifi
+<14 x00s 7.743520.0bpsci:sext/mmc:lO_TYHash tzone
+<14 x00s 7.74f  9.0bpsci:sattsci:r culol8d:Gn/etc/Hash t/ftifi
+<14 x00s 7.752[  .0bpsci:sext/mmc:lO_TYHash tzone
+<14 x00s 7.758430.0m0000_/mmc:lsocksor culolext4]Pl2:lay
+<12 x00s 7.     0.0u00000]-seuved-euvegtmentRo/etc/u00000].seuv
+<14 x00s 7.top810.000ocdu:- mmd P -
+<14 x00s 7.top 00.000ocdu:- watchdog -
+<14 x00s 8.460070.000ocdu:- watchdog -
+<14 x00s 8.460428.000ocdu:- ubus -
+<14 x00s 8.623  0.000ocdu:- : crn-
+<14 x00s 9.2   00.00rngdu:enti.2: Al 0x0.
+<14 x00s 9.28   0.0k5328d:G r:l8d:Gk0e0zone (9m325i tdicLin/etc/m325i t.d/*
+<6 x00s 9.3335 9.0zram00] dlpi/pter :0zram0
+<6 x00s 9.338[ 0.0tun: Unme ds11]/UN/TAPgister finew t, 1.6
+<4 x00s 9.353450.0inuxac:l8d:Gk0e0out-of-tree05325i ltmmuts0zone (.
+<6 x00s 9.3539 0.000082014m325i tdstenode sudicLin00000] Linux vv6.18.26-0-g1fe0   01
+<6 x00s 9.358247.0Btenode 8873ere, p-bydstenode s.gcrn6ecbb44
+<6 x00s 9.387520.00000te00oc00000te00oc0zone0000860000te00oc0 = 84K/52428
+<6 x00s 9.396 08.00000te00oc00000te00oc1:0a20400860000te00oc0 = 84K/52428
+<6 x00s 9.406 20.00000te00oc00000te00oc1:0d :ioi:smp: a20400860000te00oc
+<6 x00s 9.406  0.00000te00oc00000te00oc1:000000] Bfw imggreusabl.mdt,non e 7260
+<6 x00s 9. 20270.0PPP8873eric fnme d  Linux v2.4.2
+<6 x00s 9. 23700.0000805778ommNETervegPPOX fiPFPACKNET ng tocol fam9l[  7 0.0wiregug s: WireGug s 1.0.0l8d:G s.d-eu www.wiregug s.inuprobiinteviCU implementav19l[  8 0.0wiregug s: n .p5.3.6 (C) 201opyr19 Jasx vA. D innfeld <Jasx @zx2c4.inu>.11598R.3.6s0] cma: R.
+<14 x00s 9.548075.0k5328d:G r:lg inl8d:Gk0e0zone (9m325i tdicLin/etc/m325i t.d/*
+<6 x00s 9.9178 0.00000te00oc00000te00oc1:00000te fiseit mada20400860000te00oc0 = nowmp:
+<6 x00s130[ 4670.000004usabl_eig i0000te00oc1:smd-edge.WCNSS_CTRL.-1.-1: WCNSS VLinux v1.5v1.2
+<6 x00s130[.  50.00cn36xxrce c _lisess: 02ssn:c2:b9:10:3c
+<6 x00s1309898 1.00000te00oc00000te00oc0zod :ioi:smp: ne0000860000te00oc
+<6 x00s1309928 0.00000te00oc00000te00oc0zo00000] Bfw imggremba.mbn,non e 2302 pa6>d: 1311.0218 0.0zram0_serial_dm0capaciocachg pa6>cLin0ulol389120a6>d: 1311.0352 0.0] d0] B1945  klsoale [m1150.zram0.  Priorioc:100lext0
+<e 1 aer gr:1945  klSSDsca6>d: 1311.039290.00000-q6v5-mss ne0000860000te00oc: MBA legandudoneoutserbuginvalid,l8d:Gk0e0usaba6>d: 1311.7875 0.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR af: PMd :ioup:06043385k0e0d :ioup00000a6>d: 1311.788836.00000te00oc00000te00oc0zo0000te fiseit madne0000860000te00oc0 = nowmp:
+<3d: 1312.016800.00000-q6v5-mss ne0000860000te00oc: faCecgyrior ieceme daserex_ister fin.c:530:
+<3d: 1312.016880.00000te00oc00000te00oc0zot1re C Iv1.0 detecne0000860000te00oc: 63504faCecgyrior
+<3d: 1312.02  06.00000te00oc00000te00oc0zoandl2i: [t1re C#1etecne0000860000te00oc
+<3d: 1312.032200.00000te00oc00000te00oc0zoiecdl2:im2.ne0000860000te00oc
+<6 x00s12.039074.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR befBlueshutdown:06043385k0e0tmmddown00000a6>d: 1312.046  0.00000te00oc00000te00occ@0:to0x0000000te fiseit madne0000860000te00oca6>d: 1312.054to2.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0exec]Pegtm94324]0.2:masynchronous SSR tmmddowna6>d: 1312.1059 0.00000-q6v5-mss ne0000860000te00oc: MBA legandudoneoutserbuginvalid,l8d:Gk0e0usaba6>d: 1312. 01300.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR af: PMd :ioup:06043385k0e0d :ioup00000a6>d: 1312. 013 0.00000te00oc00000te00occ@00000te fiseit madne0000860000te00oc0 = nowmp:
+<>d: 1313.145006.0wwan0wwan0zod e 8wwan0atdm0mtVFS:d
+<>d: 1313.146  0.0wwan0wwan0zod e 8wwan0at1m0mtVFS:d
+<>d: 1313.311  0.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR d :ioup:0m05 4Gpc_ Alte=1 (quas: p-060 m[, 409[ by13.312961.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (90 409[ by13.3197 9.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (91 409[ by13.328 40.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (92 409[ by13.334221.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR d :ioup:0eande (= 8l:rady tobine 409[ by13.336893.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (93 409[ by13.3 5 07.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (94 409[ by13.362  0.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (95 409[ by13.371490.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (96 409[ by13.300007.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0ieceme d CMD_OPEN (1) sizeande (97 409[ by13.3909 0.00wan0wwan0zod e 8wwan0qmidm0mtVFS:d
+<>d: 1313.54[   .0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR d :ioup:0m05 4Gpc_ Alte=1 (quas: pd
+<6m[, 409[ by13.54[720.0bam-dm00]ne0000860000te00oc:bam-dm00:0bam_dm00:0SSR d :ioup:0eande (= 8l:rady tobine 409[ by15.316  0.00cn36xxrcted in f Wq:i8 Linux v'WCN vreedR:GkoPhy vUnknown00ntRo runinuxXO'HCIpsCRM8 Linux v'0011 ' 409[ by15.3162 0.00cn36xxrcted in f e C 1.5.1.2, 41: Altomic, 2K doids 409[ by15.3726 0.0br-lanzod e 81(phy0-ap0)eohamNETebpscisci: Uste 409[ by15.372  0.0br-lanzod e 81(phy0-ap0)eohamNETel_dm0] e: Uste 409[ by15.378  0.00cn36xxda20400860000te00oc:smd-edge:usabl:wifi phy0-ap0:eohamNETeallmulticastgy ustandode 15.383220.00cn36xxda20400860000te00oc:smd-edge:usabl:wifi phy0-ap0:eohamNETe00omiscuous y ustandode 15.392670.0br-lanzod e 81(phy0-ap0)eohamNETebpscisci: Uste 409[ by15.3999 0.0br-lanzod e 81(phy0-ap0)eohamNETefBlin dsci: Uste 409[ by15.430193.0br-lanzod e 81(phy0-ap0)eohamNETel_dm0] e: Uste 409[ by15.5285 0.0br-lanzod e 81(phy0-ap0)eohamNETebpscisci: Uste 409[ by15.528630.0br-lanzod e 81(phy0-ap0)eohamNETefBlin dsci: Uste 409[ by18.1091 0.0Hash tfs-gadget.g1 gadget.0:eHOST MAC 1e:04:8e:86:b3:ea 409[ by18.109180.0Hash tfs-gadget.g1 gadget.0:eMAC 32:61:93:86:66:dd
+<>d: 131runn4223.0br-lanzod e 82(usb0)eohamNETebpscisci: Uste 409[ by1runn4280.0br-lanzod e 82(usb0)eohamNETel_dm0] e: Uste 409[ by1runn8440.0Hash tfs-gadget.g1 gadget.0.fac0:eohamNETeallmulticastgy ustandode 1run14110.0Hash tfs-gadget.g1 gadget.0.fac0:eohamNETe00omiscuous y ustandode 1run21 00.0br-lanzod e 82(usb0)eohamNETebpscisci: Uste 409[ by1run26700.0br-lanzod e 82(usb0)eohamNETefBlin dsci: Uste 409[ by19.3237 0.0br-lanzod e 82(usb0)eohamNETel_dm0] e: Uste 409[ by1ru3    0.0Hash tfs-gadget.g1 gadget.0.fac0:elefteallmulticastgy ustandode 1ru327006.0Hash tfs-gadget.g1 gadget.0.fac0:elefte00omiscuous y ustandode 1ru334750.0br-lanzod e 82(usb0)eohamNETel_dm0] e: Uste 409[ by1ru34500310br-lanzod e 82(usb0)eohamNETebpscisci: Uste 409[ by1ru3455 0.0br-lanzod e 82(usb0)eohamNETel_dm0] e: Uste 409[ by1ru350850.0insh tfs-gadget.g1 gadget.0.fac0:eohamNETeallmulticastgy ustandode 1ru356309.0Hash tfs-gadget.g1 gadget.0.fac0:eohamNETe00omiscuous y ustandode 1ru362  0.0br-lanzod e 82(usb0)eohamNETebpscisci: Uste 409[ by1ru3692 0.0br-lanzod e 82(usb0)eohamNETefBlin dsci: Uste 419[ b159.883900.0Unon-reuosci:Rns0zone (9NULom Gister 17 lf7 lCaWIat 20MHuecg_lisess snddddddddddddc8 419[ b159.883970.0M0000b e 8inte: 419[ b159.891870.000ESR =Con-p>[ 0x000000096 419[ b159.894390.000EC =Con25: DABT (curr0
+<6EL), IL =C32ed_cC 419[ b159.898140.0  SET =Co, FnV =Co 419[ b159.903  0.000EA =Co, S1PTW =Co 419[ b159.90    .000FSC =Con06: 1rcro 2KtmarmwtyG sup[ io 419[ b159.9095 0.0Dn f:0b e 8inte: 419[ b159.91f   .000ISV =Co, ISS =Con-p>[ 0x6, ISS2 =Con-p>[ 0x0 419[ b159.9175 0.0  CM =Co, WnR =Co, TnD =Co, TagAceit  =Co 419[ b159.922700.000GCS =Co, Ol2:lay =Co, D0MHyBit =Co, X  =Co 419[ b159.927  0.0ufdic:iomm s: 4k-a Coc, 48ted iVAc, pgdp=-p>[ 0x082f5d0x0 419[ b159.9333er.0[snddddddddddddc8] pgd=0000000084b3d0x3, p4d=0000000084b3d0x3, pud=0000000084321 x3, pmd=0000000000000000
+<09[ b159.939  0.0Istern11]yrior: O25071-p>[ 0x000000096 [#0.0P0 SMP PSMP
+<4 x00159.950190.00025i tdlink detezodppoeodpp_async nft_fib_inet nf_flow_omm s_inet wiregug s00cn36xx(O) rpmsg_wwan_eig i00004bam_dm00(O) dppoxodpp_873eric nft_re.=0-_ipv6 nft_re.=0-_ipv4 nft_re.=0-_inet nft_re.=0- nft_redir nft_i:VFS nft_num873 nft_na- nft_masq nft_log nft_limi- nft_5[ UDnft_flow_off8d:Gnnft_fib_ipv6 nft_fib_ipv4 nft_fib nft_0- nft_eanin_na- nf_i:TCP: nf_na- nf_flow_omm s nf_ tevtmackce c00081(O) libeanean20poly1305 eanean_nesizefg00081(O) 0wan0slhc000004usabl_pi i00004q6v5_mss 00004q6v5 00004pi _inte 00004randBeinvay1305_nesiznfnetlink nf_re.=0-_ipv6 nf_re.=0-_ipv4 nf_logksoulog nf_defrag_ipv6 nf_defrag_ipv4 mdt_loedupelzo_ri l8zo libeurve25519_873eric libeanean crc_ccitt0inuxac(O) ip6_udp_tude (9udp_tude (9tud nls_utf80zram zsm> sizelzo_dcrash d seqiv8873iv
+<4 x0016 n[ 2  0.0000012 UID316[PID31   0 CandsdCrtifd Taisted: G           O       ersion 6ode14 x0016 n[246 0.0Taisted: [O]=OOTby RANDe14 x0016 n[32  0.0Hg sin f namee model: HMU05 4G Mode (DT)e14 x0016 n[36120.0p Uste71-p>[ 0x5 (nzcv daif -P:i8-UAO -TCO -DIT -SSBS BE_IN=--)e14 x0016 n[413 0.0pc :0bam_dm00_skb_dma_map+on 6/0xf80[00004bam_dm00]e14 x0016 n[480er.0lr :0bam_dm00_send_cmd+on98/0xffff[00004bam_dm00]e14 x0016 n[53920.00p :0cl>d80x082ef3afde14 x0016 n[5981r.0x29:0cl>d80x082ef3afd0x28:0cl>d3   42f03a0d0x27: 0000000000000000
+<4 x0016 n[630 0.0x26: 0000000000000000 n25: 00000000000000d0 n24:0cl>d3   4199334c
+<4 x0016 n[70  0.0x23: 00000000000000410x22:0cl>d3   4432d0000x21: 0000000000000001
+<4 x0016 n[77361.0n 6:0cl>d3   4432d4f80x19:0cl>d3   4432d4f80x18: 0000002  663eaa1
+<4 x0016 n[844 0.0x17:0cl>d882ea59e3000 n16:0cl>dab41b98cff00 n15: 0000000000000001
+<4 x0016 n[91597.0x14: 00000000000000010x13:0cl>d3   42f03a000x10080000000000000168
+<4 x0016 n[98716.0x11: 00000000000000c00x10: 0000000000000950 x9 : 0000000000000000
+<4 x0016 n1 08 0.0x8 :0cl>d3   5fea5e40 x7 : 0000000010000000 n6 : 0000000000000008
+<4 x0016 n1    0.0x5 : 0000000000000000 x4 : 00000000000000010x3 : 0000000000000000
+<4 x0016 n12   0.0x2 : 0000000000000000 x1 : 0000000000000000 x0 :0cl>d3   4432d000
+<4 x0016 n12.1 0.0i: SKtmace:
+<4 x0016 n134297.00bam_dm00_skb_dma_map+on 6/0xf80[00004bam_dm00]e14 x0016 n136561.00bam_dm00_send_cmd+on98/0xffff[00004bam_dm00]e14 x0016 n140814.00bam_dm00_Crtdev_:to0+on48/0x6cf[00004bam_dm00]e14 x0016 n1476  .00__dev_close_many+ona8/0xf14e14 x0016 n153  0.00__dev_chg pa_flags+onbc/on 6.e14 x0016 n157216.0 dev_chg pa_flags+on 6/0x64e14 x0016 n161  1.0 dev_ifsioc+on 86/0x38ce14 x0016 n1648 0.0 dev_ioctl+on 58/0x4f4e14 x0016 n168320.0uetg _do_ioctl+onbc/on11.e14 x0016 n1717 0.0uetg _ioctl+on a4/0x32.e14 x0016 n175  0.00__arm64ksourioctl+on94/0xd.e14 x0016 n178836.0  dookeksouc: S+on56/0xf.e14 x0016 n183001.0 el0_svc4randBe.cy bt00op.0+on44/0xdce14 x0016 n186571.0 do_el0_svc+on18/on 6e14 x0016 n1912 0.0 el0_svc+on18/on66e14 x0016 n1945 0.0 el0t_64ksonohandl2.r+onc6/0xe6e14 x0016 n19   0.0 el0t_64ksono+on14c/on150
+<09[ b16')
+ 1580.0C top a902 bf5 2a0103f5 f9001bf7 a9400400 (f940   4) e14 x0016 n2054 0.0---[eohd]tmace 0000000000000000 ]---

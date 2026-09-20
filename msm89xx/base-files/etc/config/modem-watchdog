@@ -1,10 +1,30 @@
 config watchdog 'general'
 	option enabled '1'
-	option stall_timeout '15'
-	option check_interval '2'
+	# Android's DcTracker data-stall alarm defaults: 60000 ms aggressive,
+	# 180000 ms non-aggressive.  We use the aggressive default.  The previous
+	# 15 s / 2 s settings caused the watchdog to declare a stall on ordinary
+	# idle gaps and drive the Stage-1/2/3 recovery ladder unnecessarily --
+	# Stage 2 tears the interface down, which used to hit the bam_dmux
+	# TX-slot/pm-resume race and wedge RTNL for the rest of the boot.
+	option stall_timeout '60'
+	option check_interval '10'
 	option cooldown_seconds '60'
 
 config keepalive 'keepalive'
-	option enabled '1'
-	option interval '2'
+	# DISABLED: stock Android has no DNS keepalive.  It relies on the modem's
+	# own DRX/paging and on DcTracker's indication-driven dormancy state
+	# machine.  The previous interval=2 sent a DNS query -- i.e. a modem TX
+	# that resets the BAM-DMUX autosuspend timer -- every 2 seconds while the
+	# link was idle.  That is the opposite of Android's behaviour, which
+	# explicitly *quiesces* AP-side polling while the bearer is dormant
+	# (DcTrackerBase stopNetStatPoll() + stopDataStallAlarm()).
+	option enabled '0'
+	option interval '60'
 	option target 'openwrt.org'
+
+# Stage 3 recovery: remoteproc SSR (stop/start remoteproc0).
+# Android parity - stock bam_dmux.c restarts the modem on every A2 handshake
+# timeout (ssrestart_check -> subsystem_restart("modem")). Set to '0' to keep
+# the modem state frozen for post-mortem analysis instead of recovering.
+config recovery 'recovery'
+	option ssr_enabled '1'

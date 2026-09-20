@@ -19,17 +19,24 @@ start_service() {
 
 	procd_open_instance
 	procd_set_param command "$PROG"
-	# -r 60: re-anchor the baseband ATS_USER offset every 60s.
+	# -r 0: no periodic ATS_USER re-anchor (stock-Android behaviour).
 	#
-	# This MUST stay > 0. With -r 0 the daemon anchors the modem ATS/SCLK clock
-	# once at boot and never again, so the Hexagon SCLK drift accumulator runs
-	# free and the ~900s sleep-manager maintenance timer misfires, desyncing the
-	# WTR1605 Rx demodulator (RX freezes, TX continues, modem stays registered).
-	# Commit 96cc13c set this to 0 in the name of "stock Android parity", but
-	# stock Android's tod_update_ind_cb actively re-anchors on every NITZ update
-	# (docs Stock_Android_Analysis/17 §Mechanism 1, 39 §Root Cause 1) - passive
-	# tracking is the opposite of parity. Observed stall: uptime 904-937s.
-	procd_append_param command -r 60
+	# Stock Android's time_daemon is purely indication-driven: it sends ONE
+	# ATS_USER SET (QMI 0x20) at boot, then sits in poll(..., -1) and issues a
+	# GET (0x21) only when the modem pushes a NITZ/tod indication.  It never
+	# performs a periodic write.  Evidence: time_daemon_decompiled.c
+	# FUN_000113d0 (boot SET, 5000 ms), FUN_00011670 (indication cb, sends
+	# nothing), FUN_000120d0 (refresh GET, 1000 ms); live strace shows
+	# poll([...], 3, -1) -- infinite timeout.
+	#
+	# A non-zero -r makes this daemon send an extra QMI 0x20 WRITE every N
+	# seconds: a modem-touching mechanism Android does not have, and one that
+	# resets the BAM-DMUX autosuspend timer.  The previous "-r 60 is required
+	# for parity" justification cited the 900 s SCLK sleep-manager maintenance
+	# timer, which is a RETRACTED premise -- measured a2_power.c:1189 fatal
+	# times are 172.353 / 918.195 / 1823.753 / 2729.267 s, so there is no fixed
+	# 900 s timer to desync.  See Docs/Modem Stability/README.md.
+	procd_append_param command -r 0
 	procd_append_param command -v
 	procd_set_param respawn 30 5 0
 	procd_set_param stdout 1

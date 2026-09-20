@@ -11,6 +11,9 @@
 
 LOCKFILE="/var/lock/modem-bearer.lock"
 
+# Modem remoteproc control node (used by Stage 3 SSR recovery)
+RPROC_STATE="/sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state"
+
 # Default baseline fallback values
 STALL_TIMEOUT=30
 CHECK_INTERVAL=5
@@ -62,7 +65,7 @@ while true; do
     KEEPALIVE_TARGET=$(uci -q get modem-watchdog.keepalive.target || echo "1.1.1.1")
 
     # 1. Check if modem remoteproc is running
-    RPROC=$(cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state 2>/dev/null)
+    RPROC=$(cat "$RPROC_STATE" 2>/dev/null)
     if [ "$RPROC" != "running" ]; then
         STALL_COUNT=0
         sleep "$CHECK_INTERVAL"
@@ -341,8 +344,39 @@ while true; do
                         # Disconnect netifd first
                         ubus call network.interface.modem down 2>/dev/null || true
 
-                        # Stage 3 SSR disabled per user requirement (no remoteproc SSR restart)
-                        logger -t modem-stall-watchdog "Stage 3 SSR disabled: preserving state for analysis without resetting baseband."
+                        # Stage 3: remoteproc SSR.
+                        # This is Android parity. Stock bam_dmux.c calls ssrestart_check() ->
+                        # subsystem_restart("modem") from 10 call sites, every one of them an
+                        # A2 power-collapse handshake timeout (UL_WAKEUP_TIMEOUT_MS = 2000).
+                        # Android therefore never lets a failed A2 handshake accumulate - it
+                        # resets the modem instead. Without that, the modem's sleep chain
+                        # stalls in rpm.sync and the firmware's own watchdog kills it with
+                        # "UT detects Q6 PC Voting failure" (surfaced as a2_power.c:1189).
+                        if [ "$(uci -q get modem-watchdog.recovery.ssr_enabled || echo 1)" = "1" ] && [ -f "$RPROC_STATE" ]; then
+                            logger -t modem-stall-watchdog "Stage 3 recovery: remoteproc SSR (stop -> start)..."
+                            echo stop > "$RPROC_STATE" 2>/dev/null || true
+                            i=0
+                            while [ "$i" -lt 10 ]; do
+                                [ "$(cat "$RPROC_STATE" 2>/dev/null)" != "running" ] && break
+                                sleep 1
+                                i=$((i + 1))
+                            done
+                            logger -t modem-stall-watchdog "Remoteproc stopped (state=$(cat "$RPROC_STATE" 2>/dev/null)); restarting..."
+                            echo start > "$RPROC_STATE" 2>/dev/null || true
+                            i=0
+                            while [ "$i" -lt 20 ]; do
+                                [ "$(cat "$RPROC_STATE" 2>/dev/null)" = "running" ] && break
+                                sleep 1
+                                i=$((i + 1))
+                            done
+                            logger -t modem-stall-watchdog "Remoteproc SSR complete (state=$(cat "$RPROC_STATE" 2>/dev/null)); waiting for modem services..."
+                            sleep 10
+                        else
+                            logger -t modem-stall-watchdog "Stage 3 SSR disabled (modem-watchdog.recovery.ssr_enabled=0 or $RPROC_STATE missing); preserving state."
+                        fi
+
+                        # Bring the bearer back up explicitly (the interface was taken down above).
+                        ubus call network.interface.modem up 2>/dev/null || true
 
                         # Wait for netifd bringup (up to 25s)
                         i=0

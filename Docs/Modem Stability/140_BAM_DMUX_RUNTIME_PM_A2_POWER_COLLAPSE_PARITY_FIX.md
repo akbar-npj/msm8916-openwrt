@@ -14,6 +14,18 @@ srcversion `92F15578020994438860CE5`, `.text` = 0x3380 (13184)
 
 ---
 
+> **UPDATE 2026-09-20 (Doc 146) — one correction, one addition.**
+> - **§10.5 ("The fault lands exactly 900 s after modem power-up") is RETRACTED.** Measured
+>   `a2_power.c:1189` fatal times are 172.353 / 918.195 / 1823.753 / 2729.267 s, and one boot
+>   produced a single fatal at 172.353 s with none through 1156.95 s. There is no fixed timer.
+>   Treat the fault as a **rate**, not a period. Everything else in this document stands.
+> - **The RTNL-leak oops in Doc 144 §8 is now root-caused and fixed.** `bam_dmux_send_cmd()`
+>   reserved a `tx_skbs[]` slot *before* `pm_runtime_get_sync()`; the resume path
+>   (`bam_dmux_pc_irq` → `bam_dmux_pm_restart`) then freed that slot, so
+>   `bam_dmux_skb_dma_map()` dereferenced `skb_dma->skb == NULL`. Fixed by taking the PM
+>   reference first (both `send_cmd` and `start_xmit`); verified 8/8 `wwan0` down/up cycles clean.
+>   See Doc 146 §5.
+
 ## 1. Purpose
 
 The user's question was: *"Android runs without any firmware modification — what do we lack on
@@ -436,6 +448,105 @@ in read-only mode nor logging a rejection.
   write can still fail below rmtfs (eMMC write-protect, partition mismatch). Distinguishing
   this needs request-level tracing, which rmtfs does not currently emit.
 
+### 10.6 `a2_power.c:1189` investigated — an A2-power assert, and the "EFS sync" reading has no independent provenance
+
+*(Added 2026-09-20.)*
+
+**A. How the firmware reports the location (verified).**
+
+`FUN_c0879150` @ `0xc0879150` is the universal `ERR_FATAL` handler — it has **17,708 direct
+`call 0xc0879150` sites** in `modem.asm`.
+
+The AP-visible text is then formatted by the code at **`0xc08794e0`**, which reads a record where
+
+* the **line is a 16-bit field at `+0x00`** — `r3 = zxth(memw(r18+#0x0))`, and
+* the **filename is an inline NUL-terminated string at `+0x14`** — `r4 = add(r18,#0x14)`,
+
+and renders them with `"%s:%d:"` (`0xc18491f9`; its only code reference in the whole image is
+`0xc087950c`). That trailing colon is exactly what appears in
+`fatal error received: a2_power.c:1189:`.
+
+> ⚠️ **The descriptor → file/line link is NOT decoded.** The descriptor pointers passed to
+> `FUN_c0879150` (`0xc3c68290`, `0xc3c69940`, `0xc164e490`, …) read as **high-entropy, obfuscated
+> data** even inside rodata, so the pairing cannot be resolved statically without the firmware's
+> decryption routine. Do **not** claim a verified file↔line pairing from static bytes.
+
+**B. What *is* verifiable — the BSS line tables, and a real control.**
+
+The firmware keeps **`{u32 line; u32 flag}`, stride-8 tables in BSS**, initialised by per-file
+functions that zero the `flag` half of every slot and then fill the `line` half:
+
+```
+c0e98748: { r11 = #0xb85 ; r16 = #0xb86
+c0e98750:   memw(r0+#0x368) = r11 ; memw(r0+#0x370) = r16 }
+```
+
+The **control that validates these tables** is that they contain lines appearing verbatim in real
+AP kernel logs:
+
+| table slot | raw | line | observed in a real log? |
+| :--- | :--- | ---: | :--- |
+| `DAT_c3a45908` | `0xfd6` | **4054** | ✅ `lte_ml1_sleepmgr_stm.c:4054:` — many captures |
+| (same family) | `0xfae` | **4014** | ✅ `lte_ml1_rfmgr_trm.c:4014:` (Doc 91) |
+| `DAT_c3a44fa0` | `0x4a5` | **1189** | ✅ `a2_power.c:1189:` — this soak, 912.6 s and 1084.5 s |
+
+So the tables do carry reported crash lines. They are **partial**, though — several other observed
+lines (`lte_ml1_common_timer.c:390`, `mmoc.c:2192`, `lte_ml1_sm_conn_inter_freq_stm.c:712`,
+`lte_LL1_gap_rf_tune.c:351`) are absent from this family, so it is one of several mechanisms, not
+the whole story.
+
+> ⚠️ **Correction (2026-09-20).** An earlier revision of this section used **`a2_power.c:2949` as
+> the control, calling it "independently observed". That was wrong.** `a2_power.c:2949` appears in
+> **no log anywhere in this repository**. It originates in
+> `78_DECOMPILED_MODEM_RE_AND_OPENWRT_GAP_ANALYSIS.md` §2.4 (commit `831b55a`, 2026-09-12), which
+> cites `0xc0e98748` — the *initializer instruction* that writes `0xb85` into the line table. That
+> is an inference from the table, not an observation, so it cannot serve as a control. The
+> 4054/4014 entries above replace it.
+>
+> Likewise, the "16-byte-strided filename table, 329 entries" framing used in the first revision
+> was an artifact: the filenames are **packed variable-length string literals** (stride 7 for
+> `mmoc.c`, 24 for `lte_ml1_sleepmgr_stm.c`, 16 for `a2_power.c`), not fixed-size records. What is
+> real is that the literals are **grouped by source file**.
+
+**C. The A2 module grouping (verified), and what it does / does not settle.**
+
+`a2_power.c` is an **A2 power-collapse module**, not EFS code. The image holds **76 consecutive
+copies of the `a2_power.c` string literal**, bracketed by runs of `a2_ul_per.c` (before) and
+`a2_sio.c` (after); the same neighbourhood holds `a2_task.c`, `a2_ipfilter.c`, `a2_diag.c`,
+`a2_dbg.c`, `a2_dl_tlp.c`, `a2_dl_phy_hspa.c`. EFS modules exist elsewhere in the image
+(`fs_db.c` ×28, `fs_device.c` ×12, `ds_mppm_efs_parser.c` ×1) and do not appear in this group.
+
+* This **does** support the reading that the fatal is raised by A2-power code rather than EFS
+  code — A2 is the HSIC / application-processor power-collapse engine, the same subsystem whose
+  `SMSM_A2_POWER_CONTROL` handshake `bam_dmux` drives.
+* It **does not** prove the 900 s timer is the DRX-cycle counter. `file:line` names *where the
+  firmware gave up*, which can be downstream of whatever stalled. An EFS sync that blocked the
+  sleep chain would still surface as an `a2_power.c` assert.
+* The strongest evidence for the location is simply that **the modem itself printed
+  `a2_power.c:1189:`** — an observation that needs no table decoding at all.
+
+**D. The "EFS sync timer" reading has no independent provenance.**
+
+The only source for the 900 s EFS-sync timer is the comment in **this project's own** rmtfs init
+script:
+
+```
+# NOTE: Do NOT use -r (read-only mode). The modem firmware runs a
+# periodic EFS sync timer every 900 seconds (15 minutes). ...
+```
+
+`git log -S "periodic EFS sync timer"` traces it to commit **`2f8dc7c` (2026-09-02)**, authored by
+this project ("feat(modem): implement definitive 4-tier stability architecture…"). It is **not**
+upstream OpenWrt/rmtfs text and **not** Qualcomm documentation. As evidence for the 900 s
+mechanism it is therefore **circular** — a hypothesis the project wrote into a comment and later
+re-read as if it were a finding.
+
+**Verdict.** With (i) the fatal being an A2-**power** assert, (ii) the firmware RE's independent
+~400-DRX × ~2.25 s ≈ 900 s sleep-count check, and (iii) the fault time being invariant to the AP's
+vote count, the **DRX/sleep reading now carries substantially more evidence than the EFS reading**.
+The EFS reading is not formally dead — an EFS write could still be the upstream trigger — but its
+only citation has been removed.
+
 ---
 
 ## 11. Rollback
@@ -502,10 +613,16 @@ never returns to 0 localises the leak to the second it happened (this is how Def
    independently verifiable (§10.1/§10.2), but they do **not** deliver the user's goal. Decide
    whether to commit them as a mitigation while the real trigger is pursued.
 2. **The ~912 s trigger is still unidentified** — and §10.4 shows it is *not* the AP's collapse
-   voting. This is now the primary question.
+   voting. This is now the primary question. §10.6 narrows it: the fatal is an assertion inside
+   `a2_power.c` (the A2 power-collapse module), **not** EFS code, and the only citation for the
+   900 s EFS-sync timer turns out to be a comment this project wrote itself.
 3. **Escalation gap.** OpenWrt's `bam_dmux_runtime_resume()` only `dev_warn`s on handshake
    timeout (`qcom_bam_dmux.c:1617-1619`); Android's `ssrestart_check()` restarts the modem
    subsystem. The user has rejected SSR as an *end state*, so this is a last resort only.
+4. **The two uncommitted watchdog files** (`msm89xx/base-files/etc/config/modem-watchdog`,
+   `msm89xx/base-files/usr/sbin/modem-bearer-watchdog`) implement the option-2 SSR recovery
+   described in §13.3 — deployed on the device, rejected by the user as an end state, still
+   uncommitted.
 
 ---
 
@@ -514,17 +631,24 @@ never returns to 0 localises the leak to the second it happened (this is how Def
 Ordered by (evidence strength ÷ cost). Nothing here is claimed to work yet.
 
 **N1 — Anchor on the 900 s modem-boot timer and distinguish the two readings.** §10.5 shows the
-fault is 901.6 s after *modem* power-up, matching both the documented modem EFS-sync timer and
-the firmware's ~400-DRX sleep-count check. rmtfs is confirmed read-write, so the
-"read-only rmtfs" branch is closed. To separate the two:
-  - Confirm the anchor is modem-boot and not AP-boot by rebooting and checking that a modem SSR
-    mid-run **resets** the 900 s window (i.e. next fault ≈ SSR time + 900 s).
+fault is 901.6 s after *modem* power-up. rmtfs is confirmed read-write, so the "read-only rmtfs"
+branch is closed; §10.6 then removed the EFS reading's only citation and showed the fatal is an
+`a2_power.c` assert. The readings are therefore no longer evenly weighted — but the EFS write can
+still be the *upstream* trigger, so keep testing it:
+  - **Highest value:** confirm the anchor is modem-boot and not AP-boot by rebooting and checking
+    that a modem SSR mid-run **resets** the 900 s window (next fault ≈ SSR time + 900 s). This
+    alone separates "free-running modem timer" from "AP-anchored event".
   - For the EFS reading: trace rmtfs requests around t+900 s (it emits no request logging today —
     add it, or watch the eMMC for writes to `modemst*`).
   - For the sleep reading: check `/sys/kernel/debug/rpm_master_stats` (`MPSS numshutdowns`,
     compare against Android's ~17/min) and whether the **AP itself** ever enters system suspend
     (`/sys/power/state`, `pm_genpd_summary`). If Android's AP suspends and OpenWrt's never does,
     that is a new and testable divergence.
+  - **New from §10.6:** the image holds 76 consecutive `a2_power.c` string literals, i.e. that
+    many distinct assert sites in the file. Naming *which* one is line 1189 requires the
+    firmware's descriptor decryption routine (the descriptors are obfuscated — §10.6 A), so this
+    is currently a static-analysis dead end; the practical route is a DIAG capture that includes
+    the `a2_power.c` error text around the fault.
 
 **N2 — Instrument the 912 s boundary.** Add fine-grained logging (timestamped) around
 `bam_dmux_pc_irq` / `bam_dmux_pc_ack` / `runtime_resume` in the ~60 s before the fault, to see
