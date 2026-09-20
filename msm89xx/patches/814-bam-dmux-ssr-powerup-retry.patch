@@ -1,0 +1,237 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -36,6 +36,19 @@
+ #define BAM_DMUX_AUTOSUSPEND_DELAY	1000
+ #define BAM_DMUX_REMOTE_TIMEOUT		msecs_to_jiffies(2000)
+ 
++/*
++ * SSR powerup budget.  The first attempt polls the modem's A2 power-control
++ * line for 3200 ms, which is enough for a warm restart but NOT for a full
++ * modem firmware reload after a fatal error -- measured once at ~5.9 s
++ * (teardown 1405.70 s -> wwan ports attached 1413.57 s).  When the poll
++ * expires the work used to return and never run again, so the driver stayed
++ * with dmux->rx == dmux->tx == NULL forever: the modem never received a
++ * CMD_OPEN, ndo_open() failed with -EAGAIN, and the interface (and with it
++ * the default route) stayed down until a reboot.  Retry instead.
++ */
++#define BAM_DMUX_SSR_POWERUP_RETRY_MS	500
++#define BAM_DMUX_SSR_POWERUP_MAX_RETRIES	20	/* ~77 s of extra budget */
++
+ enum {
+ 	BAM_DMUX_CMD_DATA,
+ 	BAM_DMUX_CMD_OPEN,
+@@ -148,7 +161,8 @@
+ 	struct notifier_block ssr_nb;
+ 	void *ssr_notifier;
+ 	struct work_struct ssr_teardown_work;
+-	struct work_struct ssr_powerup_work;
++	struct delayed_work ssr_powerup_work;
++	unsigned int ssr_powerup_retries;
+ 	struct mutex state_lock;
+ 
+ 	atomic64_t rx_duplicate_submissions;
+@@ -1245,6 +1259,7 @@
+ }
+ 
+ static void bam_dmux_pm_restart(struct bam_dmux *dmux);
++static bool bam_dmux_power_on(struct bam_dmux *dmux);
+ 
+ /*
+  * bam_dmux_rx_watchdog_func - Polling-mode RX fallback (Android parity).
+@@ -1295,22 +1310,50 @@
+ 			/*
+ 			 * Re-check everything under state_lock: rx/tx are only
+ 			 * released while holding it, so they cannot vanish
+-			 * between this test and bam_dmux_pm_restart().
++			 * between this test and the rebuild below.
+ 			 */
+ 			if (!READ_ONCE(dmux->pc_state) &&
+ 			    !READ_ONCE(dmux->in_teardown) &&
+-			    dmux->rx && dmux->tx &&
+ 			    bam_dmux_pc_line_asserted(dmux)) {
+-				dev_warn(dmux->dev,
+-					 "bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing\n");
+-				WRITE_ONCE(dmux->pm_suspend_start_ns, 0);
+-				WRITE_ONCE(dmux->pc_state, true);
+-				bam_dmux_pm_restart(dmux);
+-				bam_dmux_pc_ack(dmux);
+-				dmux->pc_resync_count++;
+-				dmux->pc_quiesce_ns = 0;
+-				dmux->pc_quiesce_log_s = 0;
+-				resynced = true;
++				if (!dmux->rx || !dmux->tx) {
++					/*
++					 * The modem is awake but the BAM channels
++					 * were released by an SSR teardown and never
++					 * rebuilt -- the powerup work ran before the
++					 * modem was ready (or its assert edge was
++					 * lost, which is what this resync exists
++					 * for).  Nothing else can recover this:
++					 * bam_dmux_pc_irq()'s rebuild path needs a
++					 * rising edge that has already been missed,
++					 * and bam_dmux_runtime_resume() only reports
++					 * the channels are missing.  Rebuild here.
++					 */
++					dev_warn(dmux->dev,
++						 "bam_dmux: RX watchdog: modem awake (pc line asserted) but no channels, rebuilding\n");
++					WRITE_ONCE(dmux->pm_suspend_start_ns, 0);
++					WRITE_ONCE(dmux->pc_state, true);
++					if (bam_dmux_power_on(dmux)) {
++						bam_dmux_pc_ack(dmux);
++						pm_runtime_set_active(dmux->dev);
++						dmux->pc_resync_count++;
++						dmux->pc_quiesce_ns = 0;
++						dmux->pc_quiesce_log_s = 0;
++						resynced = true;
++					} else {
++						WRITE_ONCE(dmux->pc_state, false);
++					}
++				} else {
++					dev_warn(dmux->dev,
++						 "bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing\n");
++					WRITE_ONCE(dmux->pm_suspend_start_ns, 0);
++					WRITE_ONCE(dmux->pc_state, true);
++					bam_dmux_pm_restart(dmux);
++					bam_dmux_pc_ack(dmux);
++					dmux->pc_resync_count++;
++					dmux->pc_quiesce_ns = 0;
++					dmux->pc_quiesce_log_s = 0;
++					resynced = true;
++				}
+ 			}
+ 			mutex_unlock(&dmux->state_lock);
+ 
+@@ -2008,6 +2051,26 @@
+ 		dev_warn(dev, "bam_dmux: channels not initialized after resume\n");
+ 		mutex_unlock(&dmux->state_lock);
+ 		bam_dmux_record_resume_time(dmux, t_start_ns);
++		/*
++		 * The SSR teardown released the channels and the powerup work
++		 * has not rebuilt them (yet).  Do NOT return an error here: the
++		 * PM core latches dev->power.runtime_error on a failed resume
++		 * and then refuses every later resume until something calls
++		 * pm_runtime_set_active(), which would turn a transient
++		 * condition into a permanent one.
++		 *
++		 * Returning 0 is not enough either, because the caller then
++		 * proceeds to bam_dmux_send_cmd(), which fails with -EAGAIN on
++		 * pc_state == false and leaves the interface down -- with
++		 * nothing scheduled that could ever change that.  So arm the
++		 * two mechanisms that can rebuild the channels: the SSR powerup
++		 * work (which polls the modem's true power-control level) and
++		 * the RX watchdog (which rebuilds from a missing-channels state
++		 * and keeps itself armed).
++		 */
++		schedule_delayed_work(&dmux->ssr_powerup_work,
++				      msecs_to_jiffies(BAM_DMUX_SSR_POWERUP_RETRY_MS));
++		schedule_delayed_work(&dmux->rx_watchdog_work, msecs_to_jiffies(100));
+ 		return 0;
+ 	}
+ 	mutex_unlock(&dmux->state_lock);
+@@ -2203,7 +2266,8 @@
+ 
+ static void bam_dmux_ssr_powerup_work_func(struct work_struct *work)
+ {
+-	struct bam_dmux *dmux = container_of(work, struct bam_dmux, ssr_powerup_work);
++	struct bam_dmux *dmux = container_of(to_delayed_work(work),
++					     struct bam_dmux, ssr_powerup_work);
+ 	bool pc_line = false;
+ 	int ret, i;
+ 
+@@ -2226,10 +2290,46 @@
+ 		 pc_line, 200 + i * 20);
+ 
+ 	if (!pc_line) {
+-		dev_warn(dmux->dev, "bam_dmux: SSR powerup: modem pc line not asserted, deferring\n");
++		/*
++		 * A full modem firmware reload after a fatal error does not fit
++		 * in the 3.2 s poll above, and a lost assert edge never arrives
++		 * at all.  Returning here -- which is what this used to do --
++		 * left dmux->rx == dmux->tx == NULL permanently: the modem was
++		 * never sent a CMD_OPEN, bam_dmux_netdev_open() failed with
++		 * -EAGAIN on pc_state == false, and wwan0 (and with it the
++		 * default route) stayed down until a reboot.
++		 *
++		 * Retry instead.  The poll reads the modem's true SMEM state
++		 * word through irq_get_irqchip_state(), so this recovers from a
++		 * slow boot and from a lost edge alike -- it does not depend on
++		 * ever receiving another interrupt.
++		 */
++		if (dmux->ssr_powerup_retries++ < BAM_DMUX_SSR_POWERUP_MAX_RETRIES) {
++			dev_warn(dmux->dev,
++				 "bam_dmux: SSR powerup: modem pc line not asserted, retry %u/%u in %d ms\n",
++				 dmux->ssr_powerup_retries,
++				 BAM_DMUX_SSR_POWERUP_MAX_RETRIES,
++				 BAM_DMUX_SSR_POWERUP_RETRY_MS);
++			schedule_delayed_work(&dmux->ssr_powerup_work,
++					      msecs_to_jiffies(BAM_DMUX_SSR_POWERUP_RETRY_MS));
++			return;
++		}
++
++		dev_err(dmux->dev,
++			"bam_dmux: SSR powerup: modem pc line not asserted after %u retries, giving up\n",
++			dmux->ssr_powerup_retries);
++		/*
++		 * Leave the RX watchdog armed as the unbounded safety net: it
++		 * rebuilds the channels from a missing-channels state whenever
++		 * the modem's power-control line is asserted, and keeps itself
++		 * armed, so a modem that comes up even later still recovers.
++		 */
++		schedule_delayed_work(&dmux->rx_watchdog_work, msecs_to_jiffies(100));
+ 		return;
+ 	}
+ 
++	dmux->ssr_powerup_retries = 0;
++
+ 	/* 3. Reinitialize BAM channels and rings under state_lock if not already up */
+ 	mutex_lock(&dmux->state_lock);
+ 	if (READ_ONCE(dmux->in_teardown)) {
+@@ -2264,11 +2364,13 @@
+ 		dev_info(dmux->dev, "bam_dmux: SSR before shutdown: scheduling teardown work\n");
+ 		WRITE_ONCE(dmux->in_teardown, true);
+ 		WRITE_ONCE(dmux->pc_state, false);
++		/* Every SSR gets a fresh powerup budget. */
++		dmux->ssr_powerup_retries = 0;
+ 		schedule_work(&dmux->ssr_teardown_work);
+ 		break;
+ 	case QCOM_SSR_AFTER_POWERUP:
+ 		dev_info(dmux->dev, "bam_dmux: SSR after powerup: scheduling powerup work\n");
+-		schedule_work(&dmux->ssr_powerup_work);
++		schedule_delayed_work(&dmux->ssr_powerup_work, 0);
+ 		break;
+ 	default:
+ 		break;
+@@ -2344,7 +2446,7 @@
+ 	INIT_DELAYED_WORK(&dmux->tx_retry_work, bam_dmux_tx_retry_work);
+ 	INIT_WORK(&dmux->register_netdev_work, bam_dmux_register_netdev_work);
+ 	INIT_WORK(&dmux->ssr_teardown_work, bam_dmux_ssr_teardown_work_func);
+-	INIT_WORK(&dmux->ssr_powerup_work, bam_dmux_ssr_powerup_work_func);
++	INIT_DELAYED_WORK(&dmux->ssr_powerup_work, bam_dmux_ssr_powerup_work_func);
+ 	INIT_DELAYED_WORK(&dmux->rx_rearm_work, bam_dmux_rx_rearm_work_func);
+ 	INIT_DELAYED_WORK(&dmux->rx_watchdog_work, bam_dmux_rx_watchdog_func);
+ 	atomic_set(&dmux->rx_queued_buffers, 0);
+@@ -2407,7 +2509,7 @@
+ 	WRITE_ONCE(dmux->in_teardown, true);
+ 	cancel_delayed_work_sync(&dmux->tx_retry_work);
+ 	cancel_work_sync(&dmux->tx_wakeup_work);
+-	cancel_work_sync(&dmux->ssr_powerup_work);
++	cancel_delayed_work_sync(&dmux->ssr_powerup_work);
+ 	if (dmux->ssr_notifier) {
+ 		qcom_unregister_ssr_notifier(dmux->ssr_notifier, &dmux->ssr_nb);
+ 		dmux->ssr_notifier = NULL;
+@@ -2427,13 +2529,13 @@
+ 
+ 	WRITE_ONCE(dmux->in_teardown, true);
+ 
+-	cancel_work_sync(&dmux->ssr_powerup_work);
++	cancel_delayed_work_sync(&dmux->ssr_powerup_work);
+ 	if (dmux->ssr_notifier) {
+ 		qcom_unregister_ssr_notifier(dmux->ssr_notifier, &dmux->ssr_nb);
+ 		dmux->ssr_notifier = NULL;
+ 	}
+ 	cancel_work_sync(&dmux->ssr_teardown_work);
+-	cancel_work_sync(&dmux->ssr_powerup_work);
++	cancel_delayed_work_sync(&dmux->ssr_powerup_work);
+ 
+ 	device_remove_file(dev, &dev_attr_rx_telemetry);
+ 	cancel_delayed_work_sync(&dmux->rx_rearm_work);

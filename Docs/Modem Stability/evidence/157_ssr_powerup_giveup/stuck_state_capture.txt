@@ -1,0 +1,132 @@
+=== CAPTURED 2026-09-20T22:49:19Z from the live HMU05 ===
+
+### /proc/uptime
+1976.75 7602.88
+
+### ip link show wwan0  (DOWN, no UP flag)
+2: wwan0: <POINTOPOINT,NOARP> mtu 1500 qdisc fq_codel state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 
+
+### ip route  (NO default route)
+192.168.8.0/24 dev br-lan proto kernel scope link src 192.168.8.1 
+
+### ping 8.8.8.8
+PING 8.8.8.8 (8.8.8.8): 56 data bytes
+ping: sendto: Network unreachable
+
+### ip link set wwan0 up  (EAGAIN from bam_dmux_send_cmd)
+RTNETLINK answers: Resource temporarily unavailable
+rc=2
+
+### bam_dmux rx_telemetry
+rx_callbacks: 652
+rx_last_callback_ms_ago: 577047
+rx_submitted: 3532
+rx_submit_failed: 0
+rx_queued_buffers: 0
+rx_slots_mapped: 0
+rx_slots_free: 32
+rx_slots_submitting: 0
+rx_slots_submitted: 0
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 1
+rx_rearm_count: 0
+pc_state: 0
+pc_ack_state: 0
+pc_irq_count: 177
+pc_resync_count: 0
+pc_quiesce_ms: 0
+pc_line_level: 1
+pc_vote_tx_count: 95
+pc_unvote_tx_count: 94
+pc_ack_irq_count: 183
+pc_timeout_count: 10
+pm_suspend_attempts: 94
+pm_suspend_completions: 89
+pm_resume_attempts: 95
+pm_last_suspend_ms: 0
+pm_last_resume_ms: 1015
+pm_last_handshake_ms: 1015
+cmd_data: 607
+cmd_open: 24
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+tx_sweep_guard_hits: 0
+tx_defer_queued: 103
+tx_defer_submitted: 103
+tx_defer_preserved: 100
+tx_defer_wiped: 0
+tx_defer_wiped_live: 0
+tx_submit_ok: 637
+tx_complete: 637
+runtime_status: active
+pm_usage_count: 0
+
+### remoteproc0 state
+running
+
+### dmesg: bam-dmux / wwan / q6v5
+[ 1328.616702] wwan wwan0: port wwan0at0 attached
+[ 1328.617151] wwan wwan0: port wwan0at1 attached
+[ 1328.809452] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 1328.809861] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 1328.818714] wwan wwan0: port wwan0qmi0 attached
+[ 1328.825636] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 1328.825680] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 1328.825699] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 1328.825713] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 1328.825726] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 1328.825740] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 1405.636209] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[ 1405.636407] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 1405.643202] remoteproc remoteproc0: handling crash #3 in 4080000.remoteproc
+[ 1405.651338] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 1405.658167] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 1405.665283] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 1405.669902] wwan wwan0: port wwan0at0 disconnected
+[ 1405.684025] wwan wwan0: port wwan0at1 disconnected
+[ 1405.690016] wwan wwan0: port wwan0qmi0 disconnected
+[ 1405.695037] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 1406.018703] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 1406.409312] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 1406.452156] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 1407.032131] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 1407.032232] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 1407.197927] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 1407.199457] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 1410.918738] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=0 (waited 3200 ms)
+[ 1410.918806] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc line not asserted, deferring
+[ 1413.566878] wwan wwan0: port wwan0at0 attached
+[ 1413.567946] wwan wwan0: port wwan0at1 attached
+[ 1413.763247] wwan wwan0: port wwan0qmi0 attached
+[ 1437.913064] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 1438.926599] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 1438.926817] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 1731.331143] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 1731.331335] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 1978.318737] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 1978.318929] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+
+### /proc/interrupts: smsm + bam lines
+ 17:       1235          0          0          0 GIC-0  61 Level     bam_dma
+ 18:          4          0          0          0 GIC-0 270 Level     bam_dma
+ 34:        334          0          0          0 GIC-0  58 Edge      smsm
+ 35:          0          0          0          0 GIC-0 176 Edge      smsm
+ 50:        177          0          0          0      smsm   1 Edge      4080000.remoteproc:bam-dmux
+ 51:        183          0          0          0      smsm  11 Edge      4080000.remoteproc:bam-dmux
+
+### logread: netifd route/ifup for modem
+Sun Sep 20 22:38:56 2026 daemon.notice netifd: modem (571): adding default IPv4 route via 10.133.225.93
+Sun Sep 20 22:38:56 2026 daemon.notice netifd: Interface 'modem' is now up
+Sun Sep 20 22:38:56 2026 user.notice firewall: Reloading firewall due to ifup of modem (wwan0)
+Sun Sep 20 22:40:20 2026 daemon.notice netifd: modem (2948): adding default IPv4 route via 10.89.144.122
+Sun Sep 20 22:40:21 2026 daemon.notice netifd: Interface 'modem' is now up
+Sun Sep 20 22:40:21 2026 user.notice firewall: Reloading firewall due to ifup of modem (wwan0)
