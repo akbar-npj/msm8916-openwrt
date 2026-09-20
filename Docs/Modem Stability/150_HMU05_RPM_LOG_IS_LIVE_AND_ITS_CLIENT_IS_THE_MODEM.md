@@ -399,6 +399,23 @@ window** (rel 9.175 ± 1 s), which is why §8's conclusion is unaffected — but
 The fix (delta-only copy, §4.2) removes the guard entirely. Validated: a 6 s run at 2 ms
 polling produced **0 overruns** and per-poll copies of 25–140 µs.
 
+**The fix then had its own bug, and it cost the first fatal-#10 attempt.** The delta copy was
+written as a single linear `memcpy`, but a delta can *straddle* the ring boundary
+(`start + nrec > 256`). When it did, the copy read past the end of the mmap and the process
+died with **SIGBUS** — after 191.8 s, ~190 s before the predicted fatal, having produced a
+clean, complete-looking file that simply stopped mid-record:
+
+```
+R 00200000 b3d264fc 00000027 000000d5 616f646cBus error
+# f10 end uptime=8879.35
+```
+
+The lesson is the one this document keeps relearning: **a capture that ends early looks exactly
+like a capture that ended on time, unless you check the end condition.** The end anchor
+(`# f10 end uptime=…`) was written, so the file was not obviously truncated; only the
+191.8 s-vs-520 s runtime and the torn final line gave it away. Fixed by splitting the copy into
+two `memcpy`s at the boundary (`rpmring.c`, tracked).
+
 **Baseline capture (314 s, 70 469 records, 224.2 rec/s):** only client 1 present; no gap above
 2.07 s; `word[2]` 0x24→0x26.
 

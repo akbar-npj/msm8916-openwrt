@@ -288,6 +288,29 @@ directly implicated, and neither has ever been reached on OpenWrt.
 
 ### 5.5 The AP never votes VMIN — Android does
 
+> **CORRECTION 2026-09-21 (Doc 151 §6) — the cheap test in §7 item 3 is WITHDRAWN.**
+> This section's *measurements* (CPR method absent; CPU sleep-status absent; PSCI-only idle
+> path; SAW2 nodes present) stand. But its framing — "the OpenWrt DT has everything
+> `cpuidle-qcom-spm` needs except the compatible" — is **wrong on two counts**:
+>
+> 1. The SAW/ACC nodes are `status = "reserved"` under **PSCI firmware ownership**
+>    (`msm8916.dtsi:2591-2636`), so `qcom_spm_find_any_cpu()` returns false and the
+>    `qcom-spm-cpuidle` platform device is **never created** (live
+>    `/sys/bus/platform/drivers/qcom_spm/` has zero bound devices). Adding
+>    `"qcom,idle-state-spc"` to `CPU_SLEEP_0` does nothing. Making the SAW nodes `okay`
+>    would put Linux in conflict with secure firmware over the same registers.
+> 2. The cited path `drivers/regulator/qcom-cpr.c` **does not exist** in 6.12; CPR moved to
+>    `drivers/pmdomain/qcom/cpr.c`, which contains **no `vmin`/`VMIN` code**. CPR is built
+>    (`CONFIG_QCOM_CPR=y`) but never probes (no DT node).
+>
+> The `psci: [Firmware Bug]: failed to set PC mode: -3` line is **benign** — `psci_1_0_init()`
+> deliberately defaults to PC mode, the firmware implements only OSI, so it denies (-3), then
+> OSI is set successfully. It is not a defect to fix.
+>
+> The VMIN/XOSD *gap* is real (Doc 150 confirms no `vmin`/`xosd` request ever appears in the
+> RPM log), and the AP never voting VMIN is real — but the §7-item-3 one-line DT patch is not a
+> valid test of it. The hypothesis is not refuted; it is **untestable by that route**.
+
 | | Android (`GitIgnore/android_kernel_zte_msm8916`) | OpenWrt (deployed) |
 | :-- | :-- | :-- |
 | CPR VMIN method | `qcom,vdd-mx-vmin-method = <4>` on `apc_vreg_corner` | **absent** — `drivers/regulator/qcom-cpr.c` contains no `vmin` code at all |
@@ -345,10 +368,14 @@ never-entered.
    `churning`-equivalent retries or stops logging for the modem, that separates Q6-side from
    RPM-side conclusively.
 2. **Establish the RPM tick rate** by sampling the newest record's timestamp against AP uptime.
-3. **Test the VMIN hypothesis cheaply and reversibly.** Add `"qcom,idle-state-spc",` to
+3. **Test the VMIN hypothesis cheaply and reversibly.** ~~Add `"qcom,idle-state-spc",` to
    `CPU_SLEEP_0`'s compatible (one line, `msm89xx/patches/`), rebuild, and read
    `qcom_stats/vmin` — if the count becomes non-zero, the AP's SPM path is the missing vote and
-   the fatal schedule should change. This is the smallest change that tests §5.5.
+   the fatal schedule should change. This is the smallest change that tests §5.5.~~
+   **WITHDRAWN (Doc 151 §6): the SAW nodes are `status="reserved"` under PSCI ownership, so the
+   `cpuidle-qcom-spm` driver never creates a device regardless of the idle-state compatible;
+   making them `okay` would fight secure firmware. CPR also never probes (no DT node). The
+   VMIN gap remains real but is not testable by this one-line patch.**
 4. **Disassemble `/node/sleep/uber`** in `rpm.bin` to find what the RPM requires before it will
    enter `vmin`/`xosd`, and whether a client vote can block it.
 5. Read `sram@60000` (RPM message RAM) during a stall to see whether the modem's request is

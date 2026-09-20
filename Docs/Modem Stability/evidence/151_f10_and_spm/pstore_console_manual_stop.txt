@@ -1,0 +1,645 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd030]
+[    0.000000] Linux version 6.12.94 (builder@192.168.8.243) (aarch64-openwrt-linux-musl-gcc (OpenWrt GCC 14.3.0 r33051-f5dae5ece4) 14.3.0, GNU ld (GNU Binutils) 2.44) #0 SMP PREEMPT Mon Jun 29 12:59:20 2026
+[    0.000000] KASLR enabled
+[    0.000000] random: crng init done
+[    0.000000] Machine model: HMU05 4G Modem Stick
+[    0.000000] earlycon: msm_serial_dm0 at MMIO 0x00000000078b0000 (options '')
+[    0.000000] printk: legacy bootconsole [msm_serial_dm0] enabled
+[    0.000000] OF: reserved mem: 0x000000008e200000..0x000000008e7fffff (6144 KiB) nomap non-reusable wcnss
+[    0.000000] OF: reserved mem: 0x000000008dd00000..0x000000008e1fffff (5120 KiB) nomap non-reusable venus
+[    0.000000] OF: reserved mem: 0x000000008dc00000..0x000000008dcfffff (1024 KiB) nomap non-reusable mba
+[    0.000000] OF: reserved mem: 0x0000000086000000..0x00000000862fffff (3072 KiB) nomap non-reusable tz-apps@86000000
+[    0.000000] OF: reserved mem: 0x0000000086300000..0x00000000863fffff (1024 KiB) nomap non-reusable smem@86300000
+[    0.000000] OF: reserved mem: 0x0000000086400000..0x00000000864fffff (1024 KiB) nomap non-reusable hypervisor@86400000
+[    0.000000] OF: reserved mem: 0x0000000086500000..0x000000008667ffff (1536 KiB) nomap non-reusable tz@86500000
+[    0.000000] OF: reserved mem: 0x0000000086680000..0x00000000866fffff (512 KiB) nomap non-reusable reserved@86680000
+[    0.000000] OF: reserved mem: 0x0000000086700000..0x00000000867dffff (896 KiB) nomap non-reusable rmtfs@86700000
+[    0.000000] OF: reserved mem: 0x00000000867e0000..0x00000000867fffff (128 KiB) nomap non-reusable rfsa@867e0000
+[    0.000000] OF: reserved mem: 0x0000000086800000..0x000000008bcfffff (87040 KiB) nomap non-reusable mpss@86800000
+[    0.000000] OF: reserved mem: 0x000000008db00000..0x000000008dbfffff (1024 KiB) map non-reusable ramoops@8db00000
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000080000000-0x000000009fffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000080000000-0x0000000085ffffff]
+[    0.000000]   node   0: [mem 0x0000000086000000-0x000000008bcfffff]
+[    0.000000]   node   0: [mem 0x000000008bd00000-0x000000008dbfffff]
+[    0.000000]   node   0: [mem 0x000000008dc00000-0x000000008e7fffff]
+[    0.000000]   node   0: [mem 0x000000008e800000-0x000000009fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000080000000-0x000000009fffffff]
+[    0.000000] cma: Reserved 16 MiB at 0x000000009e600000 on node -1
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.0 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: MIGRATE_INFO_TYPE not supported.
+[    0.000000] psci: SMC Calling Convention v1.0
+[    0.000000] psci: OSI mode supported.
+[    0.000000] psci: [Firmware Bug]: failed to set PC mode: -3
+[    0.000000] percpu: Embedded 21 pages/cpu s48344 r8192 d29480 u86016
+[    0.000000] Detected VIPT I-cache on CPU0
+[    0.000000] CPU features: kernel page table isolation forced ON by KASLR
+[    0.000000] CPU features: detected: Kernel page table isolation (KPTI)
+[    0.000000] CPU features: detected: ARM erratum 843419
+[    0.000000] CPU features: detected: ARM erratum 845719
+[    0.000000] CPU features: detected: ARM errata 826319, 827319, 824069, or 819472
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: earlycon console=tty0 console=ttyMSM0,115200 root=/dev/mmcblk0p14 rootfstype=squashfs rootwait
+[    0.000000] Dentry cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 131072
+[    0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size adjusted to 0MB
+[    0.000000] software IO TLB: area num 4.
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size roundup to 1MB
+[    0.000000] software IO TLB: mapped [mem 0x000000009e480000-0x000000009e580000] (1MB)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=8 to nr_cpu_ids=4.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 30 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 and mmio timer(s) running at 19.20MHz (virt/virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x46d987e47, max_idle_ns: 440795202767 ns
+[    0.000001] sched_clock: 56 bits at 19MHz, resolution 52ns, wraps every 4398046511078ns
+[    0.010907] Console: colour dummy device 80x25
+[    0.018755] printk: legacy console [tty0] enabled
+[    0.024116] Calibrating delay loop (skipped), value calculated using timer frequency.. 38.00 BogoMIPS (lpj=64000)
+[    0.028066] pid_max: default: 32768 minimum: 301
+[    0.038543] Mount-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.042996] Mountpoint-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.052337] rcu: Hierarchical SRCU implementation.
+[    0.058016] rcu: 	Max phase no-delay instances is 1000.
+[    0.062820] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.068110] smp: Bringing up secondary CPUs ...
+[    0.076697] Detected VIPT I-cache on CPU1
+[    0.076808] CPU1: Booted secondary processor 0x0000000001 [0x410fd030]
+[    0.077533] Detected VIPT I-cache on CPU2
+[    0.077627] CPU2: Booted secondary processor 0x0000000002 [0x410fd030]
+[    0.078376] Detected VIPT I-cache on CPU3
+[    0.078461] CPU3: Booted secondary processor 0x0000000003 [0x410fd030]
+[    0.078568] smp: Brought up 1 node, 4 CPUs
+[    0.111909] SMP: Total of 4 processors activated.
+[    0.115981] CPU: All CPU(s) started at EL1
+[    0.120752] CPU features: detected: 32-bit EL0 Support
+[    0.124769] CPU features: detected: CRC32 instructions
+[    0.129912] alternatives: applying system-wide alternatives
+[    0.135474] Memory: 369604K/524288K available (9536K kernel code, 1106K rwdata, 2920K rodata, 960K init, 378K bss, 135320K reserved, 16384K cma-reserved)
+[    0.151976] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 6370867519511994 ns
+[    0.154400] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.164604] 2G module region forced by RANDOMIZE_MODULE_REGION_FULL
+[    0.170861] 0 pages in range for non-PLT usage
+[    0.170867] 520496 pages in range for PLT usage
+[    0.177168] pinctrl core: initialized pinctrl subsystem
+[    0.189522] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.192420] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.197681] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.205139] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.212887] thermal_sys: Registered thermal governor 'step_wise'
+[    0.212952] cpuidle: using governor menu
+[    0.226127] NET: Registered PF_QIPCRTR protocol family
+[    0.230026] ASID allocator initialised with 32768 entries
+[    0.236803] pstore: Using crash dump compression: deflate
+[    0.240326] printk: legacy console [ramoops-1] enabled
+[    0.246260] pstore: Registered ramoops as persistent store backend
+[    0.250716] ramoops: using 0x100000@0x8db00000, ecc: 0
+[    0.258423] CPUidle PSCI: Initialized CPU PM domain topology using OSI mode
+[    0.267775] /soc@0/usb@78d9000: Fixed dependency cycle(s) with /soc@0/usb@78d9000/ulpi/phy
+[    0.268898] /soc@0/usb@78d9000/ulpi/phy: Fixed dependency cycle(s) with /soc@0/usb@78d9000
+[    0.277255] /soc@0/interrupt-controller@b000000: Fixed dependency cycle(s) with /soc@0/interrupt-controller@b000000
+[    0.294203] /soc@0/usb@78d9000: Fixed dependency cycle(s) with /soc@0/usb@78d9000/ulpi/phy
+[    0.295886] /soc@0/usb@78d9000/ulpi/phy: Fixed dependency cycle(s) with /soc@0/usb@78d9000
+[    0.307361] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.312345] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.319212] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.325277] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    0.332220] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.338295] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.345240] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.351317] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.360943] iommu: Default domain type: Translated
+[    0.364355] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.369679] SCSI subsystem initialized
+[    0.375603] usbcore: registered new interface driver usbfs
+[    0.379133] usbcore: registered new interface driver hub
+[    0.384603] usbcore: registered new device driver usb
+[    0.390231] pps_core: LinuxPPS API ver. 1 registered
+[    0.394979] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.400045] PTP clock support registered
+[    0.410348] qcom_scm: convention: smc arm 32
+[    0.414510] Bluetooth: Core ver 2.22
+[    0.417332] NET: Registered PF_BLUETOOTH protocol family
+[    0.420851] Bluetooth: HCI device and connection manager initialized
+[    0.426151] Bluetooth: HCI socket layer initialized
+[    0.432480] Bluetooth: L2CAP socket layer initialized
+[    0.437088] Bluetooth: SCO socket layer initialized
+[    0.442556] clocksource: Switched to clocksource arch_sys_counter
+[    0.447317] VFS: Disk quotas dquot_6.6.0
+[    0.453253] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.461755] NET: Registered PF_INET protocol family
+[    0.464035] IP idents hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.469606] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.476002] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.484240] TCP established hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.492256] TCP bind hash table entries: 4096 (order: 5, 131072 bytes, linear)
+[    0.500095] TCP: Hash tables configured (established 4096 bind 4096)
+[    0.507148] MPTCP token hash table entries: 512 (order: 2, 12288 bytes, linear)
+[    0.513530] UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.520525] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.527248] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.535206] Initialise system trusted keyrings
+[    0.540059] workingset: timestamp_bits=46 max_order=17 bucket_order=0
+[    0.544601] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.635635] Key type asymmetric registered
+[    0.635677] Asymmetric key parser 'x509' registered
+[    0.638819] io scheduler mq-deadline registered
+[    0.643427] io scheduler kyber registered
+[    0.651477] ledtrig-cpu: registered to indicate activity on CPUs
+[    0.658082] msm_serial 78b0000.serial: msm_serial: detected port #0
+[    0.658238] msm_serial 78b0000.serial: uartclk = 7372800
+[    0.664509] 78b0000.serial: ttyMSM0 at MMIO 0x78b0000 (irq = 21, base_baud = 460800) is a MSM
+[    0.669823] msm_serial: console setup on port #0
+[    0.669932] printk: legacy console [ttyMSM0] enabled
+[    0.678530] printk: legacy bootconsole [msm_serial_dm0] disabled
+[    0.693234] msm_serial: driver initialized
+[    0.695784] qcom-iommu 1ef0000.iommu: iommu sec: pgtable size: 94208
+[    0.710645] loop: module loaded
+[    0.711226] spmi_pmic_arb 200f000.spmi: PMIC arbiter version v2 (0x20010000)
+[    0.717688] usbcore: registered new interface driver rtl8150
+[    0.719971] usbcore: registered new device driver r8152-cfgselector
+[    0.725739] usbcore: registered new interface driver r8152
+[    0.731615] usbcore: registered new interface driver usb-storage
+[    0.751348] rtc-pm8xxx 200f000.spmi:pmic@0:rtc@6000: registered as rtc0
+[    0.751432] rtc-pm8xxx 200f000.spmi:pmic@0:rtc@6000: setting system clock to 1970-01-01T07:21:16 UTC (26476)
+[    0.758461] input: pm8941_pwrkey as /devices/platform/soc@0/200f000.spmi/spmi-0/0-00/200f000.spmi:pmic@0:pon@800/200f000.spmi:pmic@0:pon@800:pwrkey/input/input0
+[    0.771973] sdhci: Secure Digital Host Controller Interface driver
+[    0.781230] sdhci: Copyright(c) Pierre Ossman
+[    0.787184] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.797919] NET: Registered PF_INET6 protocol family
+[    0.800149] Segment Routing with IPv6
+[    0.802428] In-situ OAM (IOAM) with IPv6
+[    0.805905] NET: Registered PF_PACKET protocol family
+[    0.809856] 8021q: 802.1Q VLAN Support v1.8
+[    0.820541] Loading compiled-in X.509 certificates
+[    0.853362] s3: Bringing 0uV into 1250000-1250000uV
+[    0.853826] s4: Bringing 0uV into 1850000-1850000uV
+[    0.857692] l2: Bringing 0uV into 1200000-1200000uV
+[    0.862625] l5: Bringing 0uV into 1800000-1800000uV
+[    0.865356] input: GPIO Buttons as /devices/platform/gpio-keys/input/input1
+[    0.867234] l6: Bringing 0uV into 1800000-1800000uV
+[    0.872060] clk: Disabling unused clocks
+[    0.878804] l7: Bringing 0uV into 1800000-1800000uV
+[    0.883645] PM: genpd: Disabling unused power domains
+[    0.888028] l8: Bringing 0uV into 2900000-2900000uV
+[    0.897751] l9: Bringing 0uV into 3300000-3300000uV
+[    0.902952] l11: Bringing 0uV into 2950000-2950000uV
+[    0.903205] l12: Bringing 0uV into 1800000-1800000uV
+[    0.907204] l13: Bringing 0uV into 3050000-3050000uV
+[    0.914625] Waiting for root device /dev/mmcblk0p14...
+[    0.946079] mmc0: SDHCI controller on 7824900.mmc [7824900.mmc] using ADMA
+[    1.072319] mmc0: Card appears overclocked; req 177770000 Hz, actual 177777777 Hz
+[    1.072392] mmc0: Card appears overclocked; req 177770000 Hz, actual 177777777 Hz
+[    1.084074] mmc0: new HS200 MMC card at address 0001
+[    1.088715] mmcblk0: mmc0:0001 H4G2a 3.64 GiB
+[    1.102496] GPT:Primary header thinks Alt. header is not at the end of the disk.
+[    1.102726] GPT:7569407 != 7634943
+[    1.109173] GPT:Alternate GPT header not at the end of the disk.
+[    1.112382] GPT:7569407 != 7634943
+[    1.118568] GPT: Use GNU Parted to correct GPT errors.
+[    1.121952]  mmcblk0: p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15
+[    1.130037] mmcblk0boot0: mmc0:0001 H4G2a 4.00 MiB
+[    1.135782] mmcblk0boot1: mmc0:0001 H4G2a 4.00 MiB
+[    1.140247] mmcblk0rpmb: mmc0:0001 H4G2a 4.00 MiB, chardev (241:0)
+[    1.154570] VFS: Mounted root (squashfs filesystem) readonly on device 179:14.
+[    1.156151] Freeing unused kernel memory: 960K
+[    1.160998] Run /sbin/init as init process
+[    1.521421] init: Console is alive
+[    1.521642] init: - watchdog -
+[    1.923938] kmodloader: loading kernel modules from /etc/modules-boot.d/*
+[    1.954131] kmodloader: done loading kernel modules from /etc/modules-boot.d/*
+[    1.962716] init: - preinit -
+[    6.831076] rootfs_data: existing ext filesystem detected
+[    6.831192] rootfs_data: od_magic=1 blkid_type=ext4
+[    6.835560] rootfs_data: running e2fsck -p
+[    7.083547] rootfs_data: recovering journal
+[    7.272961] rootfs_data: clean, 457/217728 files, 70300/869879 blocks
+[    7.272985] 
+[    7.361794] rootfs_data: filesystem clean
+[    7.431008] mount_root: loading kmods from internal overlay
+[    7.440947] kmodloader: loading kernel modules from //etc/modules-boot.d/*
+[    7.441948] kmodloader: done loading kernel modules from //etc/modules-boot.d/*
+[    7.703060] block: attempting to load /etc/config/fstab
+[    7.734174] block: extroot: not configured
+[    7.734375] block: attempting to load /etc/config/fstab
+[    7.737511] block: extroot: not configured
+[    7.815219] EXT4-fs (mmcblk0p15): mounted filesystem e8d09064-8528-4560-b28d-5f11e6a569fd r/w with ordered data mode. Quota mode: none.
+[    7.816524] mount_root: loading kmods from internal overlay
+[    7.855499] kmodloader: loading kernel modules from /tmp/overlay/upper/etc/modules-boot.d/*
+[    7.858028] kmodloader: done loading kernel modules from /tmp/overlay/upper/etc/modules-boot.d/*
+[    8.043669] block: attempting to load /tmp/overlay/upper/etc/config/fstab
+[    8.044929] block: extroot: not configured
+[    8.049810] block: attempting to load /etc/config/fstab
+[    8.053781] block: extroot: not configured
+[    8.059725] mount_root: switching to ext4 overlay
+[    8.088020] urandom-seed: Seeding with /etc/urandom.seed
+[    8.154825] procd: - early -
+[    8.155289] procd: - watchdog -
+[    8.775082] procd: - watchdog -
+[    8.775415] procd: - ubus -
+[    8.945528] procd: - init -
+[    9.586212] urngd: v1.0.2 started.
+[    9.616768] kmodloader: loading kernel modules from /etc/modules.d/*
+[    9.667460] zram: Added device: zram0
+[    9.672810] tun: Universal TUN/TAP device driver, 1.6
+[    9.687310] compat: loading out-of-tree module taints kernel.
+[    9.687809] Loading modules backported from Linux version v6.18.26-0-g1fe060681
+[    9.693362] Backport generated by backports.git 6ecbb44
+[    9.723715] remoteproc remoteproc0: 4080000.remoteproc is available
+[    9.734715] remoteproc remoteproc1: a204000.remoteproc is available
+[    9.742707] remoteproc remoteproc1: powering up a204000.remoteproc
+[    9.742771] remoteproc remoteproc1: Booting fw image wcnss.mdt, size 7260
+[    9.867767] PPP generic driver version 2.4.2
+[    9.868880] NET: Registered PF_PPPOX protocol family
+[    9.884997] wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+[    9.885063] wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+[    9.895951] kmodloader: done loading kernel modules from /etc/modules.d/*
+[   10.289774] remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+[   10.411148] qcom_wcnss_ctrl remoteproc1:smd-edge.WCNSS_CTRL.-1.-1: WCNSS Version 1.5 1.2
+[   10.420838] wcn36xx: mac address: 02:00:c2:b9:10:3c
+[   11.329592] remoteproc remoteproc0: powering up 4080000.remoteproc
+[   11.332731] remoteproc remoteproc0: Booting fw image mba.mbn, size 234176
+[   11.376037] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[   11.383259] zram0: detected capacity change from 0 to 389120
+[   11.398448] Adding 194556k swap on /dev/zram0.  Priority:100 extents:1 across:194556k SSDsc
+[   12.092370] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   12.092460] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[   12.596689] wwan wwan0: port wwan0at0 attached
+[   12.597240] wwan wwan0: port wwan0at1 attached
+[   12.794139] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[   12.794227] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[   12.801751] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[   12.810323] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[   12.812693] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 600 ms)
+[   12.818881] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[   12.827446] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[   12.837102] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[   12.854703] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[   12.863023] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[   12.872457] wwan wwan0: port wwan0qmi0 attached
+[   15.671834] wcn36xx: firmware WLAN version 'WCN v2.0 RadioPhy vUnknown with 19.2MHz XO' and CRM version 'CNSS-PR-1-4-2-c4-00084'
+[   15.671910] wcn36xx: firmware API 1.5.1.2, 41 stations, 2 bssids
+[   15.755717] br-lan: port 1(phy0-ap0) entered blocking state
+[   15.755816] br-lan: port 1(phy0-ap0) entered disabled state
+[   15.762524] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered allmulticast mode
+[   15.766179] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered promiscuous mode
+[   15.780459] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: left allmulticast mode
+[   15.784505] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: left promiscuous mode
+[   15.792037] br-lan: port 1(phy0-ap0) entered disabled state
+[   16.045574] br-lan: port 1(phy0-ap0) entered blocking state
+[   16.045656] br-lan: port 1(phy0-ap0) entered disabled state
+[   16.051144] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered allmulticast mode
+[   16.056292] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered promiscuous mode
+[   16.075345] br-lan: port 1(phy0-ap0) entered blocking state
+[   16.075416] br-lan: port 1(phy0-ap0) entered forwarding state
+[   18.303856] configfs-gadget.g1 gadget.0: HOST MAC 9e:16:4f:7a:b3:55
+[   18.303933] configfs-gadget.g1 gadget.0: MAC be:84:7e:93:fa:4d
+[   19.394023] br-lan: port 2(usb0) entered blocking state
+[   19.394110] br-lan: port 2(usb0) entered disabled state
+[   19.398200] configfs-gadget.g1 gadget.0 usb0: entered allmulticast mode
+[   19.403688] configfs-gadget.g1 gadget.0 usb0: entered promiscuous mode
+[   19.410872] br-lan: port 2(usb0) entered blocking state
+[   19.416533] br-lan: port 2(usb0) entered forwarding state
+[   19.524454] br-lan: port 2(usb0) entered disabled state
+[   19.525620] configfs-gadget.g1 gadget.0 usb0: left allmulticast mode
+[   19.528893] configfs-gadget.g1 gadget.0 usb0: left promiscuous mode
+[   19.535520] br-lan: port 2(usb0) entered disabled state
+[   19.545368] br-lan: port 2(usb0) entered blocking state
+[   19.546428] br-lan: port 2(usb0) entered disabled state
+[   19.551592] configfs-gadget.g1 gadget.0 usb0: entered allmulticast mode
+[   19.557175] configfs-gadget.g1 gadget.0 usb0: entered promiscuous mode
+[   19.563809] br-lan: port 2(usb0) entered blocking state
+[   19.569960] br-lan: port 2(usb0) entered forwarding state
+[  831.856817] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[  914.769287] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[  914.769357] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  914.776945] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[  914.785378] remoteproc remoteproc0: recovering 4080000.remoteproc
+[  914.792152] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  914.798567] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[  914.806742] wwan wwan0: port wwan0at0 disconnected
+[  914.818313] wwan wwan0: port wwan0at1 disconnected
+[  914.822830] wwan wwan0: port wwan0qmi0 disconnected
+[  914.830957] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[  914.879374] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: refusing to queue command while modem is collapsed
+[  915.555221] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[  915.605456] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[  916.175733] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  916.175824] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[  916.606092] wwan wwan0: port wwan0at0 attached
+[  916.607174] wwan wwan0: port wwan0at1 attached
+[  916.798823] wwan wwan0: port wwan0qmi0 attached
+[  916.808602] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[  916.811340] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[  916.811574] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[  916.828178] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[  916.836729] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[  916.845326] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[  916.853908] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[  916.862503] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[  916.871095] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[  916.879689] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 1269.023046] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 1525.545630] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 1653.898947] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 1784.512190] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 1818.443149] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 1818.443219] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 1818.450867] remoteproc remoteproc0: handling crash #2 in 4080000.remoteproc
+[ 1818.459238] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 1818.465937] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 1818.475096] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 1818.479162] wwan wwan0: port wwan0at0 disconnected
+[ 1818.491759] wwan wwan0: port wwan0at1 disconnected
+[ 1818.496447] wwan wwan0: port wwan0qmi0 disconnected
+[ 1818.502612] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 1818.815204] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 1819.209815] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 1819.255055] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 1819.807073] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 1819.807165] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 1819.828603] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 1819.828678] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 1820.018394] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 1820.018475] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 1820.237793] wwan wwan0: port wwan0at0 attached
+[ 1820.238302] wwan wwan0: port wwan0at1 attached
+[ 1820.435328] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 1820.435577] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 1820.443014] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 1820.451519] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 1820.460107] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 1820.468697] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 1820.477297] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 1820.485881] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 1820.494938] wwan wwan0: port wwan0qmi0 attached
+[ 2035.835397] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2095.921630] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2196.252040] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2356.495206] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2516.741930] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2576.698589] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2636.678128] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 180s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 2722.117987] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 2722.118102] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 2722.125802] remoteproc remoteproc0: handling crash #3 in 4080000.remoteproc
+[ 2722.134021] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 2722.140855] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 2722.148202] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 2722.154685] wwan wwan0: port wwan0at0 disconnected
+[ 2722.166703] wwan wwan0: port wwan0at1 disconnected
+[ 2722.171350] wwan wwan0: port wwan0qmi0 disconnected
+[ 2722.180187] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 2722.888645] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 2722.938369] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 2723.511231] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 2723.511313] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 2723.938016] wwan wwan0: port wwan0at0 attached
+[ 2723.938538] wwan wwan0: port wwan0at1 attached
+[ 2724.133287] wwan wwan0: port wwan0qmi0 attached
+[ 2724.144795] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[ 2724.146922] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 2724.147120] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 2724.164382] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 2724.172933] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 2724.181531] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 2724.190106] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 2724.198695] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 2724.207288] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 2724.215881] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 2936.338410] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 3203.138479] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 3625.792806] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 3625.792876] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 3625.800646] remoteproc remoteproc0: handling crash #4 in 4080000.remoteproc
+[ 3625.808856] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 3625.815670] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 3625.823971] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 3625.826525] wwan wwan0: port wwan0at0 disconnected
+[ 3625.841548] wwan wwan0: port wwan0at1 disconnected
+[ 3625.846156] wwan wwan0: port wwan0qmi0 disconnected
+[ 3625.851960] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 3626.414786] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 3626.649590] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 3626.694852] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 3627.257018] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 3627.257122] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 3627.461504] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 3627.461584] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 3627.685246] wwan wwan0: port wwan0at0 attached
+[ 3627.685640] wwan wwan0: port wwan0at1 attached
+[ 3627.879675] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 3627.879964] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 3627.887430] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 3627.895918] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 3627.904533] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 3627.913081] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 3627.921750] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 3627.930289] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 3627.939649] wwan wwan0: port wwan0qmi0 attached
+[ 3985.121512] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 4045.188405] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 4510.368119] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 4529.467002] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 4529.467072] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 4529.474827] remoteproc remoteproc0: handling crash #5 in 4080000.remoteproc
+[ 4529.483032] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 4529.489868] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 4529.497875] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 4529.506564] wwan wwan0: port wwan0at0 disconnected
+[ 4529.515501] wwan wwan0: port wwan0at1 disconnected
+[ 4529.520344] wwan wwan0: port wwan0qmi0 disconnected
+[ 4529.528942] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 4529.854549] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 4530.242202] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 4530.288135] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 4530.841672] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 4530.841763] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 4530.867929] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 4530.868012] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 4531.051096] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 4531.051175] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 4531.275175] wwan wwan0: port wwan0at0 attached
+[ 4531.275658] wwan wwan0: port wwan0at1 attached
+[ 4531.472362] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 4531.472822] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 4531.480038] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 4531.488562] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 4531.497126] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 4531.505730] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 4531.514311] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 4531.522905] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 4531.531952] wwan wwan0: port wwan0qmi0 attached
+[ 5036.556645] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 5096.515616] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 5156.504808] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 180s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 5426.331445] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[ 5426.331511] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 5426.338575] remoteproc remoteproc0: handling crash #6 in 4080000.remoteproc
+[ 5426.346599] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 5426.353388] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 5426.361845] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 5426.365716] wwan wwan0: port wwan0at0 disconnected
+[ 5426.378798] wwan wwan0: port wwan0at1 disconnected
+[ 5426.383814] wwan wwan0: port wwan0qmi0 disconnected
+[ 5426.391585] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 5426.705289] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 5427.102971] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 5427.145349] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 5427.699074] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 5427.699310] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 5427.718728] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 5427.718922] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 5427.908422] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 5427.912361] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 5428.147121] wwan wwan0: port wwan0at0 attached
+[ 5428.147551] wwan wwan0: port wwan0at1 attached
+[ 5428.344653] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 5428.345137] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 5428.352291] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 5428.360837] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 5428.369415] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 5428.378007] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 5428.386595] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 5428.395202] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 5428.404107] wwan wwan0: port wwan0qmi0 attached
+[ 6360.554391] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[ 6360.554475] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 6360.561330] remoteproc remoteproc0: handling crash #7 in 4080000.remoteproc
+[ 6360.569353] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 6360.576189] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 6360.583200] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 6360.585003] wwan wwan0: port wwan0at0 disconnected
+[ 6360.601737] wwan wwan0: port wwan0at1 disconnected
+[ 6360.606780] wwan wwan0: port wwan0qmi0 disconnected
+[ 6360.614799] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 6360.924542] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 6361.327491] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 6361.374777] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 6361.938159] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 6361.938276] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 6361.940031] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 6361.955365] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 6362.158031] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 6362.159510] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 6362.370461] wwan wwan0: port wwan0at0 attached
+[ 6362.371041] wwan wwan0: port wwan0at1 attached
+[ 6362.560346] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 6362.560783] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 6362.567991] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 6362.576524] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 6362.585112] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 6362.593697] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 6362.602280] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 6362.610866] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 6362.619616] wwan wwan0: port wwan0qmi0 attached
+[ 7262.819515] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 7262.819585] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 7262.827705] remoteproc remoteproc0: handling crash #8 in 4080000.remoteproc
+[ 7262.835652] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 7262.842505] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 7262.849196] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 7262.861906] wwan wwan0: port wwan0at0 disconnected
+[ 7262.868893] wwan wwan0: port wwan0at1 disconnected
+[ 7262.872968] wwan wwan0: port wwan0qmi0 disconnected
+[ 7262.880290] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 7263.605566] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 7263.649380] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 7264.214351] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 7264.214429] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 7264.611826] wwan wwan0: port wwan0at0 attached
+[ 7264.615628] wwan wwan0: port wwan0at1 attached
+[ 7264.660037] wwan wwan0: port wwan0qmi0 attached
+[ 7264.662467] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 400 ms)
+[ 7264.665304] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 7264.665477] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 7264.684141] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 7264.692706] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 7264.701289] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 7264.709886] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 7264.718484] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 7264.727079] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 7264.735764] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 8165.925446] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 8165.925516] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 8165.933162] remoteproc remoteproc0: handling crash #9 in 4080000.remoteproc
+[ 8165.941401] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 8165.948319] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 8165.957307] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 8165.961130] wwan wwan0: port wwan0at0 disconnected
+[ 8165.974193] wwan wwan0: port wwan0at1 disconnected
+[ 8165.978782] wwan wwan0: port wwan0qmi0 disconnected
+[ 8165.985103] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 8166.294084] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 8166.722620] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 8166.767595] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 8167.307510] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 8167.307674] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 8167.325087] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 8167.325182] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 8167.537400] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 8167.537485] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 8167.758845] wwan wwan0: port wwan0at0 attached
+[ 8167.759499] wwan wwan0: port wwan0at1 attached
+[ 8167.954510] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 8167.954908] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 8167.962168] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 8167.970690] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 8167.979261] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 8167.987852] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 8167.996443] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 8168.005064] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 8168.015703] wwan wwan0: port wwan0qmi0 attached
+[ 8533.790719] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 8593.783944] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 120s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 9069.476923] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 9069.600322] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[ 9069.600383] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 9069.607890] remoteproc remoteproc0: handling crash #10 in 4080000.remoteproc
+[ 9069.616351] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 9069.623560] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 9069.630271] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 9069.635638] wwan wwan0: port wwan0at0 disconnected
+[ 9069.648964] wwan wwan0: port wwan0at1 disconnected
+[ 9069.655009] wwan wwan0: port wwan0qmi0 disconnected
+[ 9069.659530] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 9069.973521] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 9070.370673] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 9070.417107] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 9070.982784] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 9070.982865] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 9070.986836] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc_state wait timeout during resume
+[ 9070.998623] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 9071.193602] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 9071.193675] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 9071.410434] wwan wwan0: port wwan0at0 attached
+[ 9071.411060] wwan wwan0: port wwan0at1 attached
+[ 9071.598908] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[ 9071.599550] wwan wwan0: port wwan0qmi0 attached
+[ 9071.599581] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[ 9071.606537] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[ 9071.606564] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[ 9071.606579] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[ 9071.606592] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[ 9071.606604] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[ 9071.606616] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[ 9148.690201] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 9338.846833] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: quiesced 60s (pc_state=0, pc_line=0, rx=held, ring disarmed)
+[ 9355.876748] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 9355.877908] wwan wwan0: port wwan0at0 disconnected

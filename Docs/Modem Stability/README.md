@@ -6,8 +6,11 @@ fraction of it rests on three premises that have since been **measured to be fal
 29 files were moved to `_QUARANTINE/` as a result (see `_QUARANTINE/README.md`).
 Four further retractions/corrections were added the same day by Docs 147 and 148, a
 fifth round the next day by **Doc 149** (which corrects Doc 148's own period figure and
-signature framing), and a sixth by **Doc 150** (which retracts Doc 149's own RPM-log
-reading method and answers its §7 experiment 1) — see the sections below.
+signature framing), a sixth by **Doc 150** (which retracts Doc 149's own RPM-log
+reading method and answers its §7 experiment 1), and a seventh by **Doc 151** (which
+replicates client-0's fatal-only window at 2/2, names the AP as its leading candidate,
+records a new AP-side hang in the modem-shutdown path, and **withdraws Doc 149 §7 item 3's
+one-line `qcom,idle-state-spc` DT patch** as unworkable) — see the sections below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -96,6 +99,35 @@ reading method and answers its §7 experiment 1) — see the sections below.
     **Still open:** who client 0 is; whether the RPM replies; the cause of a unique 9.33 s
     modem-side RPM silence at AP 8178.7–8188.0 s that did not recur.
 
+## A seventh round — Doc 151, 2026-09-21: client 0 is not the modem; the AP is the candidate; the SPM patch withdrawn
+
+11. **"The AP's client id appears only in a 0.73 s window at the fatal (Doc 150 §10) — so the
+    AP is essentially never an RPM client."** **REFINED, not refuted.** Fatal #10 was captured
+    (331.7 s, 94 252 records, 2271 bursts) and client 0 appeared in a **1.308 s** window
+    (9069.596–9070.904 s) and **nowhere else in 330.4 s** — the "fatal-only" signature holds at
+    2/2 fatals. But client 0's **sequence counter is contiguous and monotonic across the SSR**
+    (0x135→0x14c, no restart) while client 1's *does* restart — so **client 0 is NOT the modem**.
+    The leading hypothesis is now that client 0 **is the AP**: it requests only `ldoa` (val 3)
+    and `smpa` (val 1), which `qcom_smd-regulator.c:967-985` maps to exactly the AP's
+    `qcom,rpm-pm8916-regulators` client names; the AP is silent in steady state (regulators
+    configured once at boot) and acts at runtime only during remoteproc crash recovery — which
+    is *when* client 0 appears. **Status: hypothesis with a mechanism, not proof.**
+12. **New AP-side defect found in the modem-shutdown path.** `echo stop >
+    /sys/class/remoteproc/remoteproc0/state` **hangs the AP** in the `bam_dmux`
+    "SSR before shutdown" teardown path — pstore `console-ramoops-0` ends mid-teardown
+    (`bam_dmux: SSR before shutdown: scheduling teardown work` → `port wwan0at0
+    disconnected`, then silence) with **no panic/oops/BUG/backtrace**, so it is a hard hang
+    followed by a watchdog reset. This is a **second, independent AP-side defect** in the
+    modem-teardown path (distinct from the already-solved `wwan0-down` oops of Doc 147). One
+    observation; not yet re-attempted.
+13. **The SPM/VMIN/`cpuidle-qcom-spm` plan (Doc 149 §5.5/§7 item 3) is WITHDRAWN.** The SAW/ACC
+    nodes are `status = "reserved"` under PSCI firmware ownership, so `qcom_spm_find_any_cpu()`
+    returns false and the `qcom-spm-cpuidle` platform device is never created; the one-line
+    `"qcom,idle-state-spc"` patch does nothing. The `psci ... -3` line is benign. CPR is built
+    but never probes (no DT node; the `vmin` code the corpus cited is at the wrong path — in
+    6.12 it is `drivers/pmdomain/qcom/cpr.c`, with no `vmin` references). The VMIN/XOSD gap is
+    real (Doc 150) but is **not testable by that route**.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -147,8 +179,9 @@ Also established and not to be re-litigated:
 | `146_HMU05_AP_SIDE_FIX_SESSION_AND_TRUST_INDEX.md` | Previous session: RTNL oops root cause + fix + verification; corpus trust index; next experiments |
 | `147_HMU05_PSTORE_PANIC_CAPTURE_AND_STALL_CHARACTERISATION.md` | **The pstore kernel panic** proving the oops; fix verified in situ; stall re-characterised (not 900 s, not the RX ring); patch-809 reproducibility fix |
 | `148_HMU05_FATAL_PERIODICITY_AND_SIGNATURE_TAXONOMY.md` | **The fatal is periodic within a boot**; scopes retraction #1; explains the address churn; downgrades the DIAG-based "no FATAL" evidence. **Its period figure (903.674 s) and its ten-signature framing are corrected by Doc 149** |
-| `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; `rpm.bin` is a disassemblable ARM ELF. **Its §5.2/§5.3 log-reading method and census are RETRACTED by Doc 150**; its VMIN/XOSD and "AP never votes VMIN" findings stand |
-| `150_HMU05_RPM_LOG_IS_LIVE_AND_ITS_CLIENT_IS_THE_MODEM.md` | **The RPM log is now a trustworthy, ordered, wall-clock-stamped stream** (`rpmring`: mmap, ~500 µs/sample; `+0x38` is the ring's byte write counter, verified twice); the RPM timestamp is **19.2 MHz measured to ±0.017 %**; the log carries a **client id** — client 1 = **MSS** (its sequence counter restarts at the modem SSR, once in 1152 transactions); **the RPM is alive through the fatal and the SSR** (214 records in the fatal window, then 1286 rec/s), so the "RPM-wedged" arm of the `rpm.sync` hypothesis is **not supported**; answers Doc 149 §7 exp. 1 |
+| `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; `rpm.bin` is a disassemblable ARM ELF. **Its §5.2/§5.3 log-reading method and census are RETRACTED by Doc 150**; its VMIN/XOSD and "AP never votes VMIN" findings stand; **its §5.5 SPM framing and §7-item-3 one-line DT patch are WITHDRAWN by Doc 151 §6** (SAW nodes are `reserved` under PSCI; CPR never probes) |
+| `150_HMU05_RPM_LOG_IS_LIVE_AND_ITS_CLIENT_IS_THE_MODEM.md` | **The RPM log is now a trustworthy, ordered, wall-clock-stamped stream** (`rpmring`: mmap, ~500 µs/sample; `+0x38` is the ring's byte write counter, verified twice); the RPM timestamp is **19.2 MHz measured to ±0.017 %**; the log carries a **client id** — client 1 = **MSS** (its sequence counter restarts at the modem SSR, once in 1152 transactions); **the RPM is alive through the fatal and the SSR** (214 records in the fatal window, then 1286 rec/s), so the "RPM-wedged" arm of the `rpm.sync` hypothesis is **not supported**; answers Doc 149 §7 exp. 1. **Its §13's VMIN/SPM patch plan is withdrawn by Doc 151 §6; its SIGBUS boundary-straddle bug (and two-`memcpy` fix) are documented in its uncommitted addendum** |
+| `151_HMU05_F10_REPLICATION_CLIENT0_AND_SPM_CORRECTION.md` | **Fatal #10 replicated** (331.7 s / 94 252 records / 2271 bursts): client 0 appears in a 1.308 s window at the fatal and **nowhere else** in 330.4 s — the "fatal-only" signature holds at 2/2 fatals; **client 0's sequence counter is contiguous across the SSR (0x135→0x14c) while client 1's restarts, so client 0 is NOT the modem**; the AP is the leading client-0 candidate (`ldoa`/`smpa` = the AP's `qcom,rpm-pm8916-regulators` names; the AP acts only during remoteproc crash recovery — the mechanism for "only at the fatal"); **a new AP-side hang** in the `bam_dmux` "SSR before shutdown" teardown path (`echo stop > .../state` → hard hang, no panic, watchdog reset); **the SPM/CPR plan withdrawn** (SAW `status="reserved"` under PSCI; `qcom_spm_find_any_cpu()` returns false; CPR never probes; the `-3` is benign) |
 
 ## Sound but narrow (accurate, subordinate scope)
 

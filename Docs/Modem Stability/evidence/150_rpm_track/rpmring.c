@@ -176,65 +176,89 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		uint32_t prev_ctr = 0;
-		int have_ctr = 0, clean = 0, dirty = 0, lost = 0;
+		int have_ctr = 0, lost = 0, polls = 0;
 		uint64_t emitted = 0;
 
+		/*
+		 * Read only the records the RPM has written since the last poll.
+		 * Copying the whole 8 KB ring on every poll (~500 us) is what forced
+		 * the old "skip dirty samples" logic, which silently dropped records
+		 * whenever a write burst outlasted one poll interval.  Copying just
+		 * the delta region makes a poll ~50 us and lets us poll far faster,
+		 * so bursts no longer have to be skipped.
+		 */
 		for (int s = 0; s < nsamp; s++) {
-			uint64_t a0, a1, b0, b1, c0, c1;
-			/* header, ring, header -- only accept if the counter is stable */
-			sample(&hdr, hdr.buf, &a0, &a1);
-			uint32_t c_a = hdr.buf[14];
-			sample(&ring, cur, &b0, &b1);
-			sample(&hdr, hdr.buf, &c0, &c1);
-			uint32_t c_b = hdr.buf[14];
-
-			if (c_a != c_b) {
-				dirty++;
-				goto next;
-			}
-			clean++;
+			uint64_t h0, h1, d0, d1;
+			sample(&hdr, hdr.buf, &h0, &h1);
+			uint32_t ctr = hdr.buf[14];
+			polls++;
 
 			if (!have_ctr) {
-				prev_ctr = c_a;
+				prev_ctr = ctr;
 				have_ctr = 1;
 				printf("# TRACK start t=%" PRIu64 " counter=%#010" PRIx32
-				       " pos=%u\n", b0, c_a, (c_a >> 5) & 0xFF);
+				       " pos=%u\n", h0, ctr, (ctr >> 5) & 0xFF);
 				goto next;
 			}
-			if (c_a == prev_ctr)
+			if (ctr == prev_ctr)
 				goto next;
 
-			uint32_t delta = c_a - prev_ctr;	/* unsigned, handles wrap */
+			uint32_t delta = ctr - prev_ctr;	/* unsigned, handles wrap */
 			if (delta > 0x2000) {
 				lost++;
 				printf("# TRACK OVERRUN t=%" PRIu64 " counter=%#010" PRIx32
 				       " delta=%u bytes (%u records > ring)\n",
-				       b0, c_a, delta, delta >> 5);
-				prev_ctr = c_a;
+				       h0, ctr, delta, delta >> 5);
+				prev_ctr = ctr;
 				goto next;
 			}
 
 			uint32_t start = (prev_ctr >> 5) & 0xFF;
 			uint32_t nrec = delta >> 5;
+			uint32_t nrecs = rwords / REC_WORDS;
+			const volatile uint32_t *rbase = ring.base + ring.off / 4;
+
+			/*
+			 * Copy just the new records, straight out of the mapping.
+			 * The delta can straddle the ring boundary (start + nrec >
+			 * nrecs), so this must be two copies.  Doing it as one
+			 * linear memcpy reads past the end of the mmap and dies
+			 * with SIGBUS -- which is exactly what killed the first
+			 * fatal-#10 attempt ~190 s before the fatal.
+			 */
+			d0 = now_ns();
+			if (start + nrec <= nrecs) {
+				memcpy(cur, (const void *)(rbase + start * REC_WORDS),
+				       (size_t)nrec * REC_WORDS * 4);
+			} else {
+				uint32_t first = nrecs - start;
+				memcpy(cur, (const void *)(rbase + start * REC_WORDS),
+				       (size_t)first * REC_WORDS * 4);
+				memcpy(cur + first * REC_WORDS, (const void *)rbase,
+				       (size_t)(nrec - first) * REC_WORDS * 4);
+			}
+			d1 = now_ns();
+
 			printf("# NEW t=%" PRIu64 " counter=%#010" PRIx32
-			       " start=%u nrec=%u\n", b0, c_a, start, nrec);
+			       " start=%u nrec=%u copy_ns=%" PRIu64 "\n",
+			       h0, ctr, start, nrec, d1 - d0);
 			for (uint32_t k = 0; k < nrec; k++) {
-				const uint32_t *r = &cur[((start + k) & 0xFF) * REC_WORDS];
+				const uint32_t *r = &cur[k * REC_WORDS];
 				printf("R");
 				for (int j = 0; j < REC_WORDS; j++)
 					printf(" %08" PRIx32, r[j]);
 				putchar('\n');
 				emitted++;
 			}
-			prev_ctr = c_a;
+			prev_ctr = ctr;
 
 next:
 			if (s + 1 < nsamp && interval_ms > 0)
 				usleep((useconds_t)interval_ms * 1000);
 		}
 		fprintf(stderr,
-			"# TRACK done clean=%d dirty=%d overrun=%d records=%" PRIu64 "\n",
-			clean, dirty, lost, emitted);
+			"# TRACK done polls=%d overrun=%d records=%" PRIu64 "\n",
+			polls, lost, emitted);
 		return 0;
 	}
 
