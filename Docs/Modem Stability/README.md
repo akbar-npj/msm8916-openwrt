@@ -19,9 +19,12 @@ withdraws Doc 152 §8 item 3(b) — **`/dev/mem` cannot read the modem region at
 proposed live `devmem` read of `0xc1d47410` is impossible — and verifies the deployed baseband is
 the clean stock HMU05 set), and a tenth by **Doc 154** (which finds a **second, distinct
 `bam_dmux` NULL deref** on the TX-wakeup path — `tx_wakeup_work` submits a slot whose
-`skb_dma->skb` was NULLed by `power_off`/`pm_restart`, neither of which takes `state_lock` or
-cancels that work — and records that **the modem failed to restart after fatal #15**, requiring a
-reboot) — see the sections below.
+`skb_dma->skb` was NULLed by `power_off`/`pm_restart` — and records that **the modem failed to
+restart after fatal #15**, requiring a reboot), and an eleventh by **Doc 155** (which **corrects
+Doc 154 §5.3** — the sweep *is* always under `state_lock`; the real hole is that
+`bam_dmux_netdev_start_xmit()` re-arms the deferred bit without it — and **fixes the race with
+patch 810**, verified against the disassembly of the very module that crashed) — see the sections
+below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -244,6 +247,43 @@ reboot) — see the sections below.
     fully automatic across reboots. The watcher's own log confirms arming does **not** survive a
     reboot (`armed=disabled` on the first read, `enabled` after the loop's first re-arm).
 
+## An eleventh round — Doc 155, 2026-09-21: the TX-sweep race FIXED (patch 810), and Doc 154 §5.3 corrected
+
+28. **Doc 154's mechanism was wrong — the sweep is *always* under `state_lock`.** Doc 154 §5.3
+    claimed neither `bam_dmux_power_off()` nor `bam_dmux_pm_restart()` takes `state_lock`, so the
+    in-tree comment at `:654` was false. **Re-reading every call site shows the opposite**: the
+    sweep is under `state_lock` in every path — `pc_irq` `:1701`, the rx-watchdog lost-edge resync
+    `:1191`, `ssr_teardown_work` `:2059`, `ssr_powerup_work` `:2213`, and remove `:2292`. The
+    `:654` comment is **substantially true**. (Doc 154 §5.3/§5.4/§8/§9 rewritten in place; its
+    byte-level fault decode stands.)
+29. **The real defect is the *producer*.** `bam_dmux_netdev_start_xmit()` is `ndo_start_xmit`
+    (atomic context — it *cannot* take the mutex) and sets `tx_deferred_skb` at `:599` with **no
+    lock at all**. So a concurrent `pm_restart()` sweep can free the slot and clear the bitmap
+    **first**, and `start_xmit` then re-arms a bit for a slot that no longer has an skb:
+    `tx_queue()` → `map()` → read `pc_state` (false) → *[sweep: `free_skbs` + bitmap = 0]* →
+    `fetch_or(BIT(i))` → queue `tx_wakeup_work` → `submit_tx(NULL skb)` → the oops. **Same shape as
+    Doc 147's bug, on the deferred-bitmap side instead of the map side.** The same race has three
+    more reachable NULL sites, including Doc 147's own `skb->data` load at `0xc8`.
+30. **Patch 810 fixes it** — the producer cannot be locked, so the **consumers** are made tolerant:
+    NULL-guard `bam_dmux_skb_dma_map()` and `bam_dmux_skb_dma_submit_tx()`; **drop** stale set bits
+    in `tx_wakeup_work`'s loop (a slot with no skb can never be submitted — restoring the bit would
+    retry every 20 ms forever); and stop `start_xmit`'s `drop:` from **double-freeing** and
+    **double-putting** when the sweep already took ownership. The loop guard is provably race-free
+    because both it and the sweep hold `state_lock`. *Trap:* `cancel_work_sync(&tx_wakeup_work)` in
+    `power_off()`/`pm_restart()` would **deadlock** — both run under `state_lock` and the work takes
+    it. Full report: `155_TX_SWEEP_RACE_PATCH_810_AND_DOC154_CORRECTION.md`.
+31. **The fix is verified in the object that actually crashed.** The pre-fix module was recovered
+    from the device backup (md5 `3b693188c3ba27de9edeb7d1d1e53f76`) and disassembled:
+    `bam_dmux_skb_dma_submit_tx` starts at `b04` and the faulting `ldr w22, [x2, #112]`
+    (`b9407056` — the oops `Code:` word) is at `b30`, i.e. **`+0x2c` = the oops `pc`**;
+    `bam_dmux_tx_wakeup_work` starts at `12e8` and its `bl` is at `13ac`, so `lr = 13b0 − 12e8` =
+    **`+0xc8` = the oops `lr`**. Both reported addresses reproduce exactly. The fixed build places
+    `cbz x2` immediately before that same load.
+32. **A 1 Hz ping soak does NOT test this bug** — measured: `pc_irq`/`pc_vote`/`pm_suspend` froze
+    for 105 s because continuous traffic holds the modem permanently awake, so it never collapses
+    and the `:597` defer branch is never taken. The soak must **idle first, then burst**; with that
+    pattern it produced **23 collapse/wake cycles in ~140 s** and **0 oopses**.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -300,7 +340,8 @@ Also established and not to be re-litigated:
 | `151_HMU05_F10_REPLICATION_CLIENT0_AND_SPM_CORRECTION.md` | **Fatal #10 replicated** (331.7 s / 94 252 records / 2271 bursts): client 0 appears in a 1.308 s window at the fatal and **nowhere else** in 330.4 s — the "fatal-only" signature holds at 2/2 fatals; **client 0's sequence counter is contiguous across the SSR (0x135→0x14c) while client 1's restarts, so client 0 is NOT the modem**; the AP is the leading client-0 candidate (`ldoa`/`smpa` = the AP's `qcom,rpm-pm8916-regulators` names; the AP acts only during remoteproc crash recovery — the mechanism for "only at the fatal"); **a new AP-side hang** in the `bam_dmux` "SSR before shutdown" teardown path (`echo stop > .../state` → hard hang, no panic, watchdog reset); **the SPM/CPR plan withdrawn** (SAW `status="reserved"` under PSCI; `qcom_spm_find_any_cpu()` returns false; CPR never probes; the `-3` is benign) |
 | `152_COREDUMP_WATCHER_REGRESSION_AND_CAPTURE_FIX.md` | **The modem-coredump watcher could never capture** — a `[ -s "$d/data" ]` guard on a `bin_attribute` with `.size = 0`, and a release that wrote a nonexistent per-device `disabled` (the real one is a **global write-once lockdown**); the per-device release is a **write to `data`**. Fatals #11 and #12 were lost; Δ(#11→#12) = **903.674516 s** is a fresh period sample. Records the corrected watcher; the mapping `dump_va = elf_va − 0x39800000` re-verified; the ERR_FATAL record's structure at ELF `0xC35B1280` and its word **B (11 per period)**; and that the dumps hold modem memory, **not SMEM**. **Its fix is CONFIRMED by Doc 153; its §8 item 3(b) (`devmem` live read) is WITHDRAWN by Doc 153 §5; its "5-min window elapsed" explanation of fatal #13 is superseded by Doc 153 §4** |
 | `153_FATAL14_CAPTURED_DEVMEM_IMPOSSIBLE_AND_WATCHER_AUTOSTART.md` | **Doc 152's watcher fix confirmed by capturing fatals #14 AND #15** (each 85 398 475 B, md5 verified) — the `test -s` guard was the whole cause. **The coredump is created only after `rproc_stop()` returns**, so a hanging fatal (fatal #13) is *structurally uncapturable* — the dump is never created. **`/dev/mem` cannot read the mpss region by any method** (read()→EFAULT, mmap()→SIGBUS; source-verified), so live `devmem` observation is impossible and a `nomap`-capable kernel module is the next instrument. Establishes **`dump_va == AP physical` for mpss**; the watcher now autostarts from `/etc/rc.local` (and busybox `start-stop-daemon -S` is **not idempotent** for a script); **the deployed baseband is verified byte-identical to the stock HMU05 dump** (21 modem + 9 WCNSS segments); the `rpm` LPR `+0x18` counter spans **375–1064** (not monotonic either way) and word B **advances 11 per period at 4/4 within-boot but does not reset across a reboot** |
-| `154_BAM_DMUX_TX_WAKEUP_NULL_DEREF_AND_FAILED_MODEM_RESTART.md` | **A second, distinct `bam_dmux` NULL deref** — `bam_dmux_tx_wakeup_work+0xc8` → `bam_dmux_skb_dma_submit_tx+0x2c`, faulting load `ldr w22, [x2, #0x70]` with `x2 = NULL` (= `skb_dma->skb`; `skb->len` at 0x70 BTF-verified). The work **never NULL-checks the slot**; `bam_dmux_free_skbs()` NULLs slots from `power_off()`/`pm_restart()`, **neither of which takes `state_lock` or cancels the non-delayed `tx_wakeup_work`** — so the `:654` comment is false. Different function/caller/offset from Doc 147's oops. Separately: **the modem failed to restart after fatal #15** (`port failed halt`, stall at `loading mpss`, `state = offline`, reboot required); and the Doc 153 rc.local autostart is verified at a real boot |
+| `154_BAM_DMUX_TX_WAKEUP_NULL_DEREF_AND_FAILED_MODEM_RESTART.md` | **A second, distinct `bam_dmux` NULL deref** — `bam_dmux_tx_wakeup_work+0xc8` → `bam_dmux_skb_dma_submit_tx+0x2c`, faulting load `ldr w22, [x2, #0x70]` with `x2 = NULL` (= `skb_dma->skb`; `skb->len` at 0x70 BTF-verified). Different function/caller/offset from Doc 147's oops. Separately: **the modem failed to restart after fatal #15** (`port failed halt`, stall at `loading mpss`, `state = offline`, reboot required); and the Doc 153 rc.local autostart is verified at a real boot. **Its §5.3 mechanism ("neither `power_off` nor `pm_restart` takes `state_lock`") is WRONG and is corrected by Doc 155 — the sweep is always under `state_lock`; the hole is that `start_xmit` sets the deferred bit without it.** Its §4 decode is correct and stands |
+| `155_TX_SWEEP_RACE_PATCH_810_AND_DOC154_CORRECTION.md` | **The TX-sweep race, corrected and FIXED.** Corrects Doc 154 §5.3: the sweep (`bam_dmux_free_skbs()` from `power_off()`/`pm_restart()`) is **always** under `state_lock` (`pc_irq` `:1701`, rx-watchdog resync `:1191`, teardown `:2059`, powerup `:2213`, remove `:2292`), so the `:654` comment is true. The real hole is the **producer**: `bam_dmux_netdev_start_xmit()` is atomic context and sets `tx_deferred_skb` at `:599` **without** the lock, so it can re-arm a bit for a slot a concurrent sweep already freed. **Patch 810** (`msm89xx/patches/810-bam-dmux-tx-sweep-race.patch`) makes the consumers tolerant: NULL-guard `bam_dmux_skb_dma_map()`/`bam_dmux_skb_dma_submit_tx()`, **drop** stale bits in the `tx_wakeup_work` loop, and stop `start_xmit`'s `drop:` from double-freeing/double-putting. **`cancel_work_sync(&tx_wakeup_work)` there would deadlock.** Verified in the crashing object (md5 `3b693188…`): `pc` `b30−b04 = 0x2c`, `lr` `13b0−12e8 = 0xc8`, faulting word `b9407056`. Soak caveat: **1 Hz traffic keeps the modem awake and does not exercise the path** — idle-then-burst gives 23 collapse cycles and 0 oops |
 
 ## Sound but narrow (accurate, subordinate scope)
 
