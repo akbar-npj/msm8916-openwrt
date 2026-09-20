@@ -1,50 +1,79 @@
 FATAL CADENCE WITH PATCH 812 DEPLOYED (and real burst traffic)
 ==============================================================
 Boot 22:17:38. Module md5 68dcc4ace88a1729d6081567c72c6383 (810 + 811 + 812).
-Signatures read from dmesg; times are AP /proc/uptime seconds.
+All times are the dmesg AP timestamps verbatim.
 
-#1  424.573497 s   a2_power.c:1189
-#2 1326.760468 s   lte_ml1_sleepmgr_stm.c:4054     interval 902.187 s
-#3 1411.16     s   a2_power.c:1189                 interval  84.400 s
+--- the raw events ---
+ 11.908539  4080000.remoteproc is now up        (modem boot)
+424.573497  fatal error received: a2_power.c:1189:
+424.633680  stopped remote processor
+425.385456  MBA booted without debug policy, loading mpss
+425.949302  4080000.remoteproc is now up        (modem back)
+1326.760468 fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+1326.824118 stopped remote processor
+1327.596843 MBA booted without debug policy, loading mpss
+1328.167124 4080000.remoteproc is now up        (modem back)
+1405.636209 fatal error received: a2_power.c:1189:
+1405.695037 stopped remote processor
+1406.452156 MBA booted without debug policy, loading mpss
+1407.199457 4080000.remoteproc is now up        (modem back)
 
---- traffic context for each interval ---
-#1 -> #2 (902.19 s): essentially IDLE.  The soak "burst" generator was running
-    but broken (fractional -i, Doc 155 §8.5), so only background AP traffic
-    (NTP/DNS/watchdog) woke the modem.
-#2 -> #3 (84.40 s): ACTIVE BURSTS.  The corrected harness restarted at 1401.05 s
-    with real 40-packet bursts every 6 s; fatal #3 came 10 s later.
+--- the intervals, in BOTH conventions ---
+
+| # | fatal (AP) | modem up since | MODEM uptime at fatal | AP fatal-to-fatal | signature |
+| :-- | --: | --: | --: | --: | :-- |
+| 1 | 424.573497 |  11.908539 | 412.664958 | — | a2_power.c:1189 |
+| 2 | 1326.760468 | 425.949302 | **900.811166** | 902.186971 | lte_ml1_sleepmgr_stm.c:4054 |
+| 3 | 1405.636209 | 1328.167124 | **77.469085** | 78.875741 | a2_power.c:1189 |
+
+**The convention matters and mixing them is a known trap** (corpus retraction #1 was
+exactly a period figure off by one layer).  The corpus states the period as
+**~902.3 s of MODEM uptime**; the AP fatal-to-fatal interval is that plus the SSR
+downtime.  Here fatal #1 -> #2 is 902.187 s AP but **900.811 s of modem uptime**.
 
 --- what this shows ---
-1. PATCH 812 DOES NOT PREVENT THE FATAL.  Three fatals in 1411 s with the fix
+
+1. PATCH 812 DOES NOT PREVENT THE FATAL.  Three fatals in 1405 s with the fix
    deployed.  As Doc 156 §8 scopes: the fatal is a modem-internal timer and
    patch 812 only stops the AP destroying its own deferred packets.  Patch 812
    is NOT a stability fix.
 
-2. THE 902.19 s INTERVAL IS THE KNOWN DETERMINISTIC IDLE TIMER.  #1 -> #2 is
-   902.187 s, matching the corpus' ~902.3 s-of-modem-uptime family (Doc 149:
-   902.267 s, 112 ppm, n=4) to within 0.1 s.  That interval was idle.
+2. #2 IS THE KNOWN DETERMINISTIC IDLE TIMER.  900.811166 s of modem uptime,
+   with signature lte_ml1_sleepmgr_stm.c:4054.  The corpus' own sleepmgr sample
+   is 900.864150 s of modem uptime (Doc 149, table row 8) -- the two agree to
+   **0.053 s**, on the same signature.  That interval was effectively idle: the
+   soak's "burst" generator was still broken (Doc 155 §8.5), so only background
+   AP traffic woke the modem.
 
-3. UNDER REAL TRAFFIC THE INTERVAL COLLAPSES TO 84.4 s.  This is the corpus'
-   "traffic SUPPRESSES the deterministic idle fatal and substitutes a variable
-   one" (Doc 149 §3, and project_fatal_periodicity_and_signatures.md) —
-   observed here as a 10.7x shorter interval once genuine bursts started.
+3. THE INTERVAL COLLAPSES UNDER REAL TRAFFIC.  #3 came only 77.469 s of modem
+   uptime after #2, and the corrected harness had restarted with genuine
+   40-packet bursts 4.6 s before it.  This is the corpus' "traffic SUPPRESSES
+   the deterministic idle fatal and substitutes a variable one"
+   (project_fatal_periodicity_and_signatures.md), observed directly.  Fatal #1
+   (412.665 s, also under the broken generator) is likewise not the idle period.
 
 4. THE SIGNATURE CHANGES BETWEEN FATALS IN THE SAME BOOT.  #1 and #3 are
    a2_power.c:1189, #2 is lte_ml1_sleepmgr_stm.c:4054.  Confirms the standing
-   rule: never classify a fatal by its file:line string — the descriptor is a
+   rule: never classify a fatal by its file:line string -- the descriptor is a
    single mutable global "last fatal" record.
 
 5. RECOVERY IS CLEAN EVERY TIME.  All three ran the full SSR path and the modem
    came back: `port failed halt` (AXI not idle within HALT_ACK_TIMEOUT_US)
-   followed by `MBA booted without debug policy, loading mpss`, then
-   `remote processor ... is now up` ~0.56 s later.  Doc 154 §6's hang did NOT
-   recur in 3/3 — further evidence that hang is intermittent, not a
-   consequence of the failed halt (Doc 156 §8.1 item 3).
+   followed by `MBA booted ... loading mpss`, then `is now up` 0.56-0.62 s later
+   (fatal#1: 425.385456 -> 425.949302 = 0.564 s; #2: 0.570 s; #3: 0.747 s).
+   Doc 154 §6's hang did NOT recur in 3/3 -- further evidence that hang is
+   intermittent, not a consequence of the failed halt (Doc 156 §8.1 item 3).
 
-6. NO PACKET LOSS ACROSS ANY OF IT.  In every sample `tx_defer_queued ==
-   tx_defer_submitted` and `tx_defer_wiped_live == 0`, including the samples
+6. NO PACKET LOSS ACROSS ANY OF IT.  In every sample tx_defer_queued ==
+   tx_defer_submitted and tx_defer_wiped_live == 0, including the samples
    spanning each SSR.  The fix holds through fatal + SSR.
 
-Raw: /overlay/soak812.csv (samples from 1401.05 s), /overlay/soak812.log
-(the FATAL #n lines are written by the harness as they are detected),
-/overlay/soak812_phase4.csv (the 1265-1337 s window that caught #2).
+--- measurement note ---
+The soak's "FATAL #n at uptime Ns" line reports the SAMPLER's uptime, and the
+sampler runs every 10 s, so that figure can be up to 10 s LATE (it read 1411.16
+for a fatal that dmesg timestamps at 1405.636209).  The harness now extracts the
+fatal's own dmesg timestamp and computes the modem uptime from the last
+"is now up" line.  Use the dmesg timestamps, never the sampler's.
+
+Raw: /overlay/soak812.csv, /overlay/soak812.log (FATAL #n lines, now with the
+dmesg timestamp and the modem uptime), /overlay/soak812_phase4.csv.

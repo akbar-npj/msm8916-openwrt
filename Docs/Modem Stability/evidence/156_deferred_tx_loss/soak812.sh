@@ -110,10 +110,19 @@ while true; do
 
 	# The modem recovers cleanly from these fatals (each SSR takes ~1.4 s and
 	# the bearer comes back), so do NOT stop on the first ones -- the useful
-	# measurement is the fatal CADENCE, which needs a long run.  Log each one
-	# with its uptime so the interval can be read off directly.
+	# measurement is the fatal CADENCE, which needs a long run.
+	#
+	# Log the FATAL's OWN dmesg timestamp, not the sampler's uptime: the
+	# sampler runs every 10 s, so `$up` here can be up to 10 s LATE.  That
+	# distinction produced a wrong interval once already.
 	if [ "$fatal" -gt "$last_fatal" ] 2>/dev/null; then
-		log "FATAL #$fatal at uptime ${up}s: $(dmesg | grep 'fatal error received' | tail -1 | sed 's/.*fatal error received: //')"
+		line=$(dmesg | grep 'fatal error received' | tail -1)
+		ft=$(echo "$line" | sed 's/^\[ *\([0-9.]*\)\].*/\1/')
+		fs=$(echo "$line" | sed 's/.*fatal error received: //')
+		mup=$(dmesg | grep '4080000.remoteproc is now up' | tail -1 |
+			sed 's/^\[ *\([0-9.]*\)\].*/\1/')
+		log "FATAL #$fatal at AP ${ft}s (sampler saw it at ${up}s): $fs"
+		log "  modem uptime at fatal = $(awk "BEGIN{printf \"%.6f\", $ft - $mup}")s (modem up since ${mup}s)"
 	fi
 	last_fatal=$fatal
 
