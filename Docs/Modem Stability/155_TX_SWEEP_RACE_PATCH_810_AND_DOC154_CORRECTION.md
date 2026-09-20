@@ -108,8 +108,9 @@ slot are made tolerant** and the sweep's ownership is respected.
 | :-- | :-- | :-- | :-- |
 | 1 | `bam_dmux_skb_dma_map()` | `if (!skb_dma->skb) return false;` | covers `start_xmit` `:594` and `send_cmd` `:471` |
 | 2 | `bam_dmux_skb_dma_submit_tx()` | `if (!skb_dma->skb) return false;` | covers the **observed** fault (`tx_wakeup_work`) and `start_xmit` `:609` |
-| 3 | `bam_dmux_tx_wakeup_work()` loop | `if (!skb) { dev_dbg(...); continue; }` — **drop** the stale bit | a slot with no skb can never be submitted; restoring the bit instead would retry every 20 ms forever |
+| 3 | `bam_dmux_tx_wakeup_work()` loop | `if (!skb) { ...; continue; }` — **drop** the stale bit | a slot with no skb can never be submitted; restoring the bit instead would retry every 20 ms forever |
 | 4 | `bam_dmux_netdev_start_xmit()` `drop:` | `if (READ_ONCE(skb_dma->skb) != skb) return NETDEV_TX_OK;` | the sweep already freed the skb and released its PM reference; `bam_dmux_tx_done()`+`dev_kfree_skb_any()` here would **double-free** and **double-put** |
+| 5 | `struct bam_dmux` + `rx_telemetry` | `atomic64_t tx_sweep_guard_hits`, incremented at every guard site and printed in `rx_telemetry` | makes the fix **falsifiable**: every hit is a crash that did not happen (§8.3) |
 
 Hunk 3 is the one that is **provably race-free**: the sweep NULLs slots under `state_lock` (§3) and
 this loop reads them under `state_lock` (`:658`), so the test cannot be torn.
@@ -240,21 +241,41 @@ Measured, immediately after the change:
 | uptime | pc_irq | pc_vote | pm_susp | pc_state |
 | :-- | :-- | :-- | :-- | :-- |
 | 293.31 s | 29 | 15 | 15 | 1 |
-| 384.05 s | 38 | 19 | 19 | 0 |
-| 434.46 s | **46** | **23** | **23** | 0 |
+| 434.46 s | 46 | 23 | 23 | 0 |
+| 656.25 s | **128** | **64** | **64** | 0 |
 
-**23 collapse/wake cycles in ~140 s** (vs 0 in phase 1), the bearer still up
+**64 collapse/wake cycles in ~363 s** (vs 0 in phase 1), the bearer still up
 (`wwan0` = `10.132.105.60/29`, `ping 8.8.8.8` → 3/4), and
 
 ```
 oops = 0    fatal = 0
 ```
 
-> **SOAK RESULT: in progress at the time of writing — 23 collapse cycles and 0 oopses.** The final
-> count is recorded in `/overlay/soak810.csv` on the device and in §9. Note this is a **negative
-> result so far, not a proof**: the oops occurred **once in ~1170 s** with ~185 cycles on the
-> crashing build, so a clean run of a few hundred cycles is consistent with the fix working *and*
-> with the race simply not having fired yet.
+Data kept on device as `/overlay/soak810_phase2_fix.csv` (38 samples).
+
+### 8.3 Phase 3 (the decisive test) — instrumented build that counts guard hits
+
+A clean soak is **weak** evidence: the oops fired once in ~1170 s with ~185 cycles, so "no oops in
+64 cycles" is equally consistent with the fix working and with the race not having fired. To make
+the result decisive, patch 810 also carries a counter:
+
+* `atomic64_t tx_sweep_guard_hits` in `struct bam_dmux`, incremented at **every** guard site
+  (the two DMA helpers, the `tx_wakeup_work` loop, and `start_xmit`'s `drop:`), and exposed as
+  `tx_sweep_guard_hits:` in the existing `rx_telemetry` sysfs attribute.
+
+**Every increment is a crash that did not happen.** So the experiment now has three outcomes:
+
+| observation | conclusion |
+| :-- | :-- |
+| hits > 0, oops = 0 | **the race is real and the fix handles it** — a direct positive proof |
+| hits = 0, oops = 0 | the race did not fire in this window; the fix is untested, not validated |
+| hits any, oops > 0 | the fix is incomplete |
+
+The counter build (`c74596349219b4b22bfe32caef79bbba`, 229624 B) was deployed and the soak
+restarted; `rx_telemetry` confirms the new attribute is live.
+
+> **PHASE 3 RESULT: in progress — 52 collapse/wake cycles at uptime 250 s, `guard_hits = 0`,
+> `oops = 0`.** Final numbers in `/overlay/soak810.csv` and §9.
 
 ## 9. Established vs not established
 

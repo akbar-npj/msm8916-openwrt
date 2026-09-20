@@ -154,6 +154,14 @@ struct bam_dmux {
 	atomic64_t rx_duplicate_submissions;
 	atomic64_t rx_negative_queue_count;
 
+	/*
+	 * Diagnostic for the TX-sweep race (patch 810): counts how many times a
+	 * TX slot was observed already swept by bam_dmux_free_skbs() while
+	 * bam_dmux_netdev_start_xmit() still owned it.  Every increment is a
+	 * crash that the guards prevented.  Exposed in rx_telemetry.
+	 */
+	atomic64_t tx_sweep_guard_hits;
+
 	DECLARE_BITMAP(remote_channels, BAM_DMUX_NUM_CH);
 	struct work_struct register_netdev_work;
 	struct net_device *netdevs[BAM_DMUX_NUM_CH];
@@ -259,6 +267,7 @@ static bool bam_dmux_skb_dma_map(struct bam_dmux_skb_dma *skb_dma,
 	 * leaves cleanup to it.
 	 */
 	if (!skb_dma->skb) {
+		atomic64_inc(&skb_dma->dmux->tx_sweep_guard_hits);
 		dev_dbg(dev, "DMA map skipped: TX slot already swept\n");
 		return false;
 	}
@@ -353,6 +362,7 @@ static bool bam_dmux_skb_dma_submit_tx(struct bam_dmux_skb_dma *skb_dma)
 	 *   ldr w22, [x2, #0x70]  (skb_dma->skb->len)  with x2 = NULL
 	 */
 	if (!skb_dma->skb) {
+		atomic64_inc(&dmux->tx_sweep_guard_hits);
 		dev_dbg(dmux->dev, "TX submit skipped: slot has no skb\n");
 		return false;
 	}
@@ -653,8 +663,10 @@ drop:
 	 * bam_dmux_tx_done()/dev_kfree_skb_any() here would double-free the
 	 * skb and double-put the PM reference.
 	 */
-	if (READ_ONCE(skb_dma->skb) != skb)
+	if (READ_ONCE(skb_dma->skb) != skb) {
+		atomic64_inc(&dmux->tx_sweep_guard_hits);
 		return NETDEV_TX_OK;
+	}
 
 	bam_dmux_tx_done(skb_dma);
 	dev_kfree_skb_any(skb);
@@ -740,6 +752,7 @@ static void bam_dmux_tx_wakeup_work(struct work_struct *work)
 		 * so there is nothing to submit and nothing to retry.
 		 */
 		if (!skb) {
+			atomic64_inc(&dmux->tx_sweep_guard_hits);
 			dev_dbg(dmux->dev, "TX wakeup: slot %d has no skb, dropping stale bit\n", i);
 			continue;
 		}
@@ -1995,6 +2008,7 @@ static ssize_t rx_telemetry_show(struct device *dev,
 			 "cmd_open_no_a2_pc: %llu\n"
 			 "cmd_unknown: %llu\n"
 			 "a2_pc_disabled: %u\n"
+			 "tx_sweep_guard_hits: %llu\n"
 			 "runtime_status: %s\n"
 			 "pm_usage_count: %d\n",
 			 dmux->rx_callback_count,
@@ -2037,6 +2051,7 @@ static ssize_t rx_telemetry_show(struct device *dev,
 			 dmux->cmd_open_no_a2_pc_count,
 			 dmux->cmd_unknown_count,
 			 dmux->a2_pc_disabled,
+			 (unsigned long long)atomic64_read(&dmux->tx_sweep_guard_hits),
 			 pm_runtime_status_suspended(dev) ? "suspended" :
 			 (pm_runtime_active(dev) ? "active" : "other"),
 			 atomic_read(&dev->power.usage_count));

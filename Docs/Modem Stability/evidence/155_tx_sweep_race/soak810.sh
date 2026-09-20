@@ -35,7 +35,7 @@ GEN=$!
 log "started burst generator pid $GEN (20 s idle, then 8 packets @0.2 s)"
 log "=== soak810 start; oops=$(dmesg | grep -c 'Unable to handle') ==="
 
-echo "uptime,oops,fatal,ssr,pc_irq,pc_vote,pm_susp,pm_res,pc_state,rx_cb,rx_last_ms,pm_last_susp_ms" > "$OUT"
+echo "uptime,oops,fatal,ssr,pc_irq,pc_vote,pm_susp,pm_res,pc_state,rx_cb,rx_last_ms,pm_last_susp_ms,guard_hits" > "$OUT"
 
 while true; do
 	up=$(cut -d' ' -f1 /proc/uptime)
@@ -52,8 +52,10 @@ while true; do
 	rcb=$(grep '^rx_callbacks:' "$t" 2>/dev/null | awk '{print $2}')
 	rlast=$(grep '^rx_last_callback_ms_ago:' "$t" 2>/dev/null | awk '{print $2}')
 	plast=$(grep '^pm_last_suspend_ms:' "$t" 2>/dev/null | awk '{print $2}')
+	ghits=$(grep '^tx_sweep_guard_hits:' "$t" 2>/dev/null | awk '{print $2}')
+	[ -z "$ghits" ] && ghits=NA
 
-	echo "$up,$oops,$fatal,$ssr,$pc_irq,$vote,$psusp,$pres,$pcst,$rcb,$rlast,$plast" >> "$OUT"
+	echo "$up,$oops,$fatal,$ssr,$pc_irq,$vote,$psusp,$pres,$pcst,$rcb,$rlast,$plast,$ghits" >> "$OUT"
 
 	# The moment an oops appears, snapshot everything for the record.
 	if [ "$oops" -gt 0 ]; then
@@ -61,6 +63,12 @@ while true; do
 		dmesg | grep -A40 'Unable to handle' >> "$LOG"
 		cp "$t" "/overlay/soak810_telemetry_oops.txt" 2>/dev/null
 	fi
+
+	# A guard hit is a crash that did NOT happen -- the whole point of patch 810.
+	if [ -n "$last_ghits" ] && [ "$ghits" != "NA" ] && [ "$ghits" != "$last_ghits" ]; then
+		log "TX-SWEEP GUARD FIRED: guard_hits $last_ghits -> $ghits at uptime ${up}s (0 oopses)"
+	fi
+	last_ghits=$ghits
 
 	# Stop once the modem has fataled twice; the boot is no longer clean.
 	if [ "$fatal" -ge 2 ]; then

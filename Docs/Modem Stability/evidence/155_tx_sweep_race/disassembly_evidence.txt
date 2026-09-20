@@ -57,3 +57,30 @@ b4a5e333791e2a90165694b117c575cf  scratch/patch810/qcom_bam_dmux.c.fixed
     13d0:	8b000260 	add	x0, x19, x0
     13d4:	b4000081 	cbz	x1, 13e4 <bam_dmux_tx_wakeup_work+0xdc>
     13d8:	97fffdce 	bl	b10 <bam_dmux_skb_dma_submit_tx>
+
+############################################################
+# 3. COUNTER-INSTRUMENTED BUILD (phase 3)
+############################################################
+
+md5:
+c74596349219b4b22bfe32caef79bbba  scratch/patch810/qcom_bam_dmux.ko.counter
+
+telemetry attribute strings:
+tx_sweep_guard_hits: %llu
+tx_sweep_guard_hits
+
+guards still present in bam_dmux_skb_dma_submit_tx:
+0000000000000c60 <bam_dmux_skb_dma_submit_tx>:
+     c60:	a9ba7bfd 	stp	x29, x30, [sp, #-96]!
+     c64:	910003fd 	mov	x29, sp
+     c68:	a90153f3 	stp	x19, x20, [sp, #16]
+     c6c:	aa0003f3 	mov	x19, x0
+     c70:	a9025bf5 	stp	x21, x22, [sp, #32]
+     c74:	a9400015 	ldp	x21, x0, [x0]
+     c78:	b40004e0 	cbz	x0, d14 <bam_dmux_skb_dma_submit_tx+0xb4>
+     c7c:	f9001bf7 	str	x23, [sp, #48]
+     c80:	52800021 	mov	w1, #0x1                   	// #1
+     c84:	f94036b4 	ldr	x20, [x21, #104]
+     c88:	f9400a77 	ldr	x23, [x19, #16]
+     c8c:	b9407016 	ldr	w22, [x0, #112]
+     c90:	910103e0 	add	x0, sp, #0x40
