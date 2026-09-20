@@ -1,0 +1,136 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -388,16 +388,58 @@
+ 	hdr->cmd = cmd;
+ 	hdr->ch = bndev->ch;
+ 
++	/*
++	 * Ordering is load-bearing: acquire the runtime-PM reference BEFORE
++	 * reserving a TX slot.
++	 *
++	 * pm_runtime_get_sync() may run bam_dmux_runtime_resume(), which votes
++	 * SMSM_A2_POWER_CONTROL high.  The modem then asserts the A2 power-control
++	 * line and bam_dmux_pc_irq() takes the wake transition, which calls
++	 * bam_dmux_pm_restart().  That path frees every slot in tx_skbs[] because
++	 * the preceding quiesce terminated their descriptors, so their completion
++	 * callbacks can never fire to clear them.
++	 *
++	 * If the slot were reserved first, pm_restart() would free the skb out
++	 * from under this function and bam_dmux_skb_dma_map() would dereference
++	 * skb_dma->skb == NULL.  That is the observed crash:
++	 *
++	 *   pc : bam_dmux_skb_dma_map+0x20  ldr x20, [x1, #0xc8]  (x1 = 0)
++	 *   lr : bam_dmux_send_cmd+0x98
++	 *   x19/x20 = &dmux->tx_skbs[0]   (pm_restart() reset tx_next_skb to 0)
++	 *
++	 * It is reached from bam_dmux_netdev_stop() under RTNL, so the oops leaks
++	 * RTNL and every later network configuration operation hangs forever.
++	 *
++	 * Reserving only after the resume has completed makes that interleaving
++	 * impossible: once the reference is held the device cannot be suspended,
++	 * so bam_dmux_pm_restart() cannot run again until this slot is submitted.
++	 */
++	ret = pm_runtime_get_sync(dmux->dev);
++	if (ret < 0) {
++		/* __pm_runtime_resume() bumps usage_count even when it fails. */
++		pm_runtime_put_noidle(dmux->dev);
++		goto free_skb;
++	}
++
++	/*
++	 * The resume can also return success after its handshake timed out, in
++	 * which case the modem is still collapsed and pc_state is false.  Do not
++	 * reserve a slot in that state either -- the eventual wake transition
++	 * would free it.  Fail instead so the caller retries later.
++	 */
++	if (!READ_ONCE(dmux->pc_state)) {
++		dev_warn_once(dmux->dev,
++			      "bam_dmux: refusing to queue command while modem is collapsed\n");
++		ret = -EAGAIN;
++		goto put_skb;
++	}
++
+ 	skb_dma = bam_dmux_tx_queue(dmux, skb);
+ 	if (!skb_dma) {
+ 		ret = -EAGAIN;
+-		goto free_skb;
++		goto put_skb;
+ 	}
+ 
+-	ret = pm_runtime_get_sync(dmux->dev);
+-	if (ret < 0)
+-		goto tx_fail;
+-
+ 	if (!bam_dmux_skb_dma_map(skb_dma, DMA_TO_DEVICE)) {
+ 		ret = -ENOMEM;
+ 		goto tx_fail;
+@@ -412,10 +454,17 @@
+ 	return 0;
+ 
+ tx_fail:
++	/* bam_dmux_tx_done() releases the reference taken above. */
+ 	bam_dmux_tx_done(skb_dma);
+ free_skb:
+ 	dev_kfree_skb(skb);
+ 	return ret;
++
++put_skb:
++	pm_runtime_mark_last_busy(dmux->dev);
++	pm_runtime_put_autosuspend(dmux->dev);
++	dev_kfree_skb(skb);
++	return ret;
+ }
+ 
+ static int bam_dmux_netdev_open(struct net_device *netdev)
+@@ -517,13 +566,26 @@
+ 		return NETDEV_TX_OK;
+ 	}
+ 
++	/*
++	 * Same ordering rule as bam_dmux_send_cmd(): take the PM reference before
++	 * reserving a TX slot.  bam_dmux_runtime_resume() -> bam_dmux_pm_restart()
++	 * frees every slot in tx_skbs[], so reserving first would let the slot be
++	 * freed before bam_dmux_skb_dma_map() dereferences skb_dma->skb.
++	 */
++	active = pm_runtime_get(dmux->dev);
++	if (active < 0 && active != -EINPROGRESS) {
++		/* __pm_runtime_resume() bumps usage_count even when it fails. */
++		pm_runtime_put_noidle(dmux->dev);
++		dev_kfree_skb_any(skb);
++		return NETDEV_TX_OK;
++	}
++
+ 	skb_dma = bam_dmux_tx_queue(dmux, skb);
+-	if (!skb_dma)
++	if (!skb_dma) {
++		pm_runtime_mark_last_busy(dmux->dev);
++		pm_runtime_put_autosuspend(dmux->dev);
+ 		return NETDEV_TX_BUSY;
+-
+-	active = pm_runtime_get(dmux->dev);
+-	if (active < 0 && active != -EINPROGRESS)
+-		goto drop;
++	}
+ 
+ 	ret = bam_dmux_tx_prepare_skb(bndev, skb);
+ 	if (ret)
+@@ -1087,10 +1149,18 @@
+  * Fires every 100ms. If the RX ring has drained (queued=0) and no callback
+  * has fired for 200ms, rearms all FREE/HANDLED slots and kicks the DMA
+  * engine. This catches the case where a DMA interrupt was missed during a
+- * power transition — the root cause of the ~900s data stall.
++ * power transition.
+  *
+  * Equivalent to Android's rx_timer_work_func polling loop, but simpler:
+  * it only fires when the ring is drained, not continuously.
++ *
++ * NOTE (Doc 147): this watchdog did NOT fire during the measured data stalls,
++ * so a missed RX interrupt is not what causes them. The ring was armed with
++ * buffers queued and the modem delivered nothing. Do not attribute stalls to
++ * this path without first checking for the "rx watchdog" log line.
++ *
++ * The "~900s" figure that used to appear here is retracted: measured stall
++ * onsets are ~90s and ~180s after boot, and there is no fixed timer.
+  */
+ static void bam_dmux_rx_watchdog_func(struct work_struct *work)
+ {
