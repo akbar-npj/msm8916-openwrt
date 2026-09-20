@@ -1,0 +1,46 @@
+rx_callbacks: 75
+rx_last_callback_ms_ago: 296575
+rx_submitted: 6059
+rx_submit_failed: 0
+rx_queued_buffers: 32
+rx_slots_mapped: 32
+rx_slots_free: 0
+rx_slots_submitting: 0
+rx_slots_submitted: 32
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 0
+rx_rearm_count: 0
+pc_state: 0
+pc_ack_state: 1
+pc_irq_count: 373
+pc_resync_count: 0
+pc_quiesce_ms: 0
+pc_line_level: 1
+pc_vote_tx_count: 186
+pc_unvote_tx_count: 185
+pc_ack_irq_count: 371
+pc_timeout_count: 2
+pm_suspend_attempts: 185
+pm_suspend_completions: 185
+pm_resume_attempts: 186
+pm_last_suspend_ms: 828
+pm_last_resume_ms: 1
+pm_last_handshake_ms: 1
+cmd_data: 45
+cmd_open: 16
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+runtime_status: active
+pm_usage_count: 1
+---
+offline
+---
+2082.84
