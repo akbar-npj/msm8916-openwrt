@@ -350,12 +350,17 @@ that into **5/5** delivered) — see the sections below.
     `pre811 + 811 == post811`, `post811 + 812 == the built file`.
 40. **Scope — what this does NOT explain.** It does **not** explain the ~900 s fatal
     (`a2_power.c:1189`, `lte_ml1_common_timer.c:390`) or the failed modem restart after fatal #15; those
-    paths are untouched. Confirmed in passing: a fatal fired at AP **424.57 s** with patch 812 deployed
-    (signature `a2_power.c:1189`, variable timing as expected), so **patch 812 is not a stability fix** —
-    do not cite it as one. That same event also shows **`port failed halt` is not sufficient to cause the
-    restart hang**: the identical warning appeared and the modem came up 0.56 s later, so Doc 154 §6's
-    hang is **intermittent**. The residual `start_xmit` window is still open (a `pm_restart()` that reads
-    the bitmap *before* the bit is set still frees that slot; counted by patch 810's
+    paths are untouched. **Established, not just unobserved:** **three** fatals fired with patch 812
+    deployed, including a clean **902.187 s** idle interval — i.e. the deterministic idle timer fires
+    with the fix in place — so **patch 812 is not a stability fix**; do not cite it as one. The
+    intervals are themselves a result: **902.187 s idle → 84.400 s once real bursts started**
+    (10.7× shorter), matching the corpus' "traffic suppresses the deterministic idle fatal and
+    substitutes a variable one", and the **signature changed between fatals in one boot**
+    (`a2_power.c:1189` / `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189`), so never classify a
+    fatal by its `file:line`. Those same events show **`port failed halt` is not sufficient to cause
+    the restart hang**: it appeared 3/3 and the modem came up ~0.56 s later every time, so Doc 154
+    §6's hang is **intermittent**. The residual `start_xmit` window is still open (a `pm_restart()`
+    that reads the bitmap *before* the bit is set still frees that slot; counted by patch 810's
     `tx_sweep_guard_hits`, still 0). Full report:
     `156_DEFERRED_TX_PACKET_LOSS_ROOT_CAUSE_AND_FIX.md`.
 41. **A harness defect found mid-session — and it also invalidates Doc 155 §8.2/§8.3.** The first

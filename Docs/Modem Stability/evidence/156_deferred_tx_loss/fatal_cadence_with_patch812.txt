@@ -1,0 +1,50 @@
+FATAL CADENCE WITH PATCH 812 DEPLOYED (and real burst traffic)
+==============================================================
+Boot 22:17:38. Module md5 68dcc4ace88a1729d6081567c72c6383 (810 + 811 + 812).
+Signatures read from dmesg; times are AP /proc/uptime seconds.
+
+#1  424.573497 s   a2_power.c:1189
+#2 1326.760468 s   lte_ml1_sleepmgr_stm.c:4054     interval 902.187 s
+#3 1411.16     s   a2_power.c:1189                 interval  84.400 s
+
+--- traffic context for each interval ---
+#1 -> #2 (902.19 s): essentially IDLE.  The soak "burst" generator was running
+    but broken (fractional -i, Doc 155 §8.5), so only background AP traffic
+    (NTP/DNS/watchdog) woke the modem.
+#2 -> #3 (84.40 s): ACTIVE BURSTS.  The corrected harness restarted at 1401.05 s
+    with real 40-packet bursts every 6 s; fatal #3 came 10 s later.
+
+--- what this shows ---
+1. PATCH 812 DOES NOT PREVENT THE FATAL.  Three fatals in 1411 s with the fix
+   deployed.  As Doc 156 §8 scopes: the fatal is a modem-internal timer and
+   patch 812 only stops the AP destroying its own deferred packets.  Patch 812
+   is NOT a stability fix.
+
+2. THE 902.19 s INTERVAL IS THE KNOWN DETERMINISTIC IDLE TIMER.  #1 -> #2 is
+   902.187 s, matching the corpus' ~902.3 s-of-modem-uptime family (Doc 149:
+   902.267 s, 112 ppm, n=4) to within 0.1 s.  That interval was idle.
+
+3. UNDER REAL TRAFFIC THE INTERVAL COLLAPSES TO 84.4 s.  This is the corpus'
+   "traffic SUPPRESSES the deterministic idle fatal and substitutes a variable
+   one" (Doc 149 §3, and project_fatal_periodicity_and_signatures.md) —
+   observed here as a 10.7x shorter interval once genuine bursts started.
+
+4. THE SIGNATURE CHANGES BETWEEN FATALS IN THE SAME BOOT.  #1 and #3 are
+   a2_power.c:1189, #2 is lte_ml1_sleepmgr_stm.c:4054.  Confirms the standing
+   rule: never classify a fatal by its file:line string — the descriptor is a
+   single mutable global "last fatal" record.
+
+5. RECOVERY IS CLEAN EVERY TIME.  All three ran the full SSR path and the modem
+   came back: `port failed halt` (AXI not idle within HALT_ACK_TIMEOUT_US)
+   followed by `MBA booted without debug policy, loading mpss`, then
+   `remote processor ... is now up` ~0.56 s later.  Doc 154 §6's hang did NOT
+   recur in 3/3 — further evidence that hang is intermittent, not a
+   consequence of the failed halt (Doc 156 §8.1 item 3).
+
+6. NO PACKET LOSS ACROSS ANY OF IT.  In every sample `tx_defer_queued ==
+   tx_defer_submitted` and `tx_defer_wiped_live == 0`, including the samples
+   spanning each SSR.  The fix holds through fatal + SSR.
+
+Raw: /overlay/soak812.csv (samples from 1401.05 s), /overlay/soak812.log
+(the FATAL #n lines are written by the harness as they are detected),
+/overlay/soak812_phase4.csv (the 1265-1337 s window that caught #2).

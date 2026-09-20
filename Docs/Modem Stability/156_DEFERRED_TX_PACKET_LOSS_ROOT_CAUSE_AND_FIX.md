@@ -337,6 +337,29 @@ At AP **424.573497 s** — during the DNS-after-idle test, with patch 812 deploy
 Recovery was clean: the remaining DNS rounds succeeded, `tx_defer_wiped_live` stayed 0, and
 `tx_defer_queued == tx_defer_submitted` across the SSR.
 
+**Extended:** two more fatals followed in the same boot, and the intervals are informative
+(`fatal_cadence_with_patch812.txt`):
+
+| # | uptime | signature | interval | traffic in the interval |
+| :-- | --: | :-- | --: | :-- |
+| 1 | 424.573497 s | `a2_power.c:1189` | — | mostly idle (the burst generator was broken) |
+| 2 | 1326.760468 s | `lte_ml1_sleepmgr_stm.c:4054` | **902.187 s** | mostly idle |
+| 3 | 1411.16 s | `a2_power.c:1189` | **84.400 s** | **real bursts** (corrected harness) |
+
+Four things this settles:
+
+* **The 902.187 s interval is the known deterministic idle timer** — it matches the corpus'
+  ~902.3 s-of-modem-uptime family (Doc 149: 902.267 s, 112 ppm, n=4) to within 0.1 s.
+* **Under real traffic the interval collapses to 84.4 s** (10.7× shorter). That is the corpus'
+  "traffic *suppresses* the deterministic idle fatal and substitutes a variable one"
+  (`project_fatal_periodicity_and_signatures.md`), now observed directly.
+* **The signature changes between fatals in the same boot** (#1/#3 `a2_power.c:1189`, #2
+  `lte_ml1_sleepmgr_stm.c:4054`) — the standing rule holds: never classify a fatal by its
+  `file:line`.
+* **Recovery was clean 3/3.** `port failed halt` appeared every time and the modem came up ~0.56 s
+  after `loading mpss` every time, so Doc 154 §6's hang did **not** recur — more evidence it is
+  intermittent (item 3 above).
+
 ### 8.2 The soak, and a harness defect in it
 
 `soak812.sh` (idle 6 s, then a burst) ran with the fix deployed and never reported
@@ -400,9 +423,11 @@ fractional `-i`; that is retracted in Doc 155 §8.5.
   `ping -c 1` (measured: 20 packets in 1.24 s, `tx_pkts +20`, `rx_pkts +20`) and carries a liveness
   check that logs `WARNING: no TX for Ns … burst generator dead?`. Doc 155 §8.5 records the
   retraction. **Lesson: a silently broken traffic generator is indistinguishable from a clean soak.**
-* **Any protective effect on the fatal.** One fatal was observed with the fix deployed, at 424.57 s
-  (§8.1) — i.e. **no protective effect was seen** — but a single observation under a low-rate bursty
-  traffic pattern says nothing about the ~902 s idle case. Untested.
+* **Any protective effect on the fatal.** **Three** fatals were observed with the fix deployed
+  (§8.1) — including a clean **902.187 s** idle interval, i.e. the deterministic idle timer fired
+  with the fix in place. So there is **no protective effect**, and that is now established rather
+  than merely unobserved. What remains open is whether the fix changes the *distribution* of fatal
+  intervals (the 84.4 s traffic interval is a single sample).
 * **Whether the fix changes the collapse/wake rate or the fatal timing distribution.** The natural
   experiment: the same soak on the pre-812 module vs the post-812 module and compare fatal times.
   Not run.
@@ -438,6 +463,7 @@ fractional `-i`; that is retracted in Doc 155 §8.5.
 | DNS-after-idle transcript | `evidence/156_deferred_tx_loss/dns_after_idle_after_fix.txt` |
 | the recorded 120 s reproduction, inverted | `evidence/156_deferred_tx_loss/repro120_after_fix.txt` |
 | fatal at 424 s with the fix deployed | `evidence/156_deferred_tx_loss/fatal_at_424s_with_patch812.txt` |
+| fatal cadence (3 fatals, 902 s then 84 s) | `evidence/156_deferred_tx_loss/fatal_cadence_with_patch812.txt` |
 | test harness (idle → one ping) | `evidence/156_deferred_tx_loss/defertest.sh` |
 | soak harness (fix verification) | `evidence/156_deferred_tx_loss/soak812.sh` |
 | instrumented, unfixed module | `26014c0e78f89455904ae7e0db7d017c`, 236128 B → `/overlay/modbackup/qcom_bam_dmux.ko.p811` |

@@ -56,6 +56,7 @@ echo "uptime,oops,fatal,ssr,pc_irq,pc_vote,pm_susp,pm_res,pc_state,rx_cb,tx_pkts
 last_q=""
 last_tx=""
 last_tx_up=""
+last_fatal=""
 while true; do
 	up=$(cut -d' ' -f1 /proc/uptime)
 	oops=$(dmesg | grep -c 'Unable to handle')
@@ -107,8 +108,17 @@ while true; do
 		cp "$t" "/overlay/soak812_telemetry_oops.txt" 2>/dev/null
 	fi
 
-	if [ "$fatal" -ge 2 ]; then
-		log "two fatals seen; stopping soak"
+	# The modem recovers cleanly from these fatals (each SSR takes ~1.4 s and
+	# the bearer comes back), so do NOT stop on the first ones -- the useful
+	# measurement is the fatal CADENCE, which needs a long run.  Log each one
+	# with its uptime so the interval can be read off directly.
+	if [ "$fatal" -gt "$last_fatal" ] 2>/dev/null; then
+		log "FATAL #$fatal at uptime ${up}s: $(dmesg | grep 'fatal error received' | tail -1 | sed 's/.*fatal error received: //')"
+	fi
+	last_fatal=$fatal
+
+	if [ "$fatal" -ge "${STOP_AT_FATALS:-8}" ]; then
+		log "reached $fatal fatals; stopping soak"
 		dmesg > /overlay/soak812_dmesg_final.txt
 		break
 	fi
