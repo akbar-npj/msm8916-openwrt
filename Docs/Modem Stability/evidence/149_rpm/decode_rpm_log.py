@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Decode the HMU05 RPM's log ring (Doc 149 §5.2).
+"""SUPERSEDED 2026-09-21 by evidence/150_rpm_track/rpm_track.py -- see Doc 150 §3.
+
+A full `devmem` ring dump takes **5.94 s** (measured), while the RPM overwrites all
+256 ring records in ~0.5-3 s.  So a devmem dump is not a snapshot: slots are
+overwritten while you are still walking them, the record sequence aliases, and the
+resulting histogram/ordering is an artefact.  Everything derived from devmem dumps
+(Doc 149 §5.3's histogram, evidence/149_rpm/rpm_timeline.py's "span") is retracted.
+Kept only so the retraction is auditable.  Use `rpmring` + `rpm_track.py` instead.
+
+--- original docstring ---
+Decode the HMU05 RPM's log ring (Doc 149 §5.2).
 
 The RPM's log structure lives at AP physical 0x29dc00 and its 8 KB ring at 0x29dc58.
 `/dev/mem` read() is blocked for that range, but `devmem`'s mmap path works, so the

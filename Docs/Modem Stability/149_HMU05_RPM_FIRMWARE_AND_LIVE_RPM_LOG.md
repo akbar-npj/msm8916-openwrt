@@ -6,6 +6,9 @@ E1 traffic experiment closed with a **failed prediction that is itself the resul
 `Modem RE/hmu05/900S_CRASH_LPR_FRAMEWORK_RE.md` (§6.4/§6.6 — the `rpm.sync` stall).
 **Corrects:** Doc 148 §3/§3.0/§3.0.1 (the "903.674 s timer" framing and the "the AP selects
 which timer fires" inference), and Doc 148 §6.1's "≥10 distinct signatures" framing.
+**Corrected by:** `150_HMU05_RPM_LOG_IS_LIVE_AND_ITS_CLIENT_IS_THE_MODEM.md` §3 — §5.2's read
+method and §5.3's histogram/census are retracted, `[2]` is not constant, `+0x38` is the write
+counter, and §7 experiment 1 has now been run (§8 there: **the RPM is alive through the fatal**).
 
 ---
 
@@ -167,6 +170,23 @@ Also recovered, and worth knowing because they are the RPM's own failure modes:
 
 ### 5.2 The RPM's log ring is readable from the AP with `devmem`
 
+> [!WARNING]
+> **CORRECTED 2026-09-21 (Doc 150 §3).** The *addresses* below are right, but **`devmem` is the
+> wrong way to read this ring and everything read that way is retracted.**
+>
+> Measured: a 2048-word `devmem` walk takes **5.94 s**, while the RPM overwrites all 256 ring
+> slots in **0.5–3 s** (it writes in bursts of 100–200 records). So a `devmem` dump is not a
+> snapshot — by the time the walk reaches index *i*, that slot has usually been overwritten.
+> Proof: two dumps taken back-to-back shared **0 of 256 records**; two taken 36 s apart also
+> shared 0.
+>
+> Also corrected: `+0x38` is **not** "—", it is the ring's **byte write counter**
+> (`write_pos = (counter>>5)&0xFF`), which is what makes an ordered read possible; `+0x08` reads
+> `"RPM External Log"` — this doc's "Exitrnal" is a misread of `0x65747845` = `"Exte"`.
+>
+> Use `rpmring` (`evidence/150_rpm_track/rpmring.c`), which mmaps and copies the ring in
+> ~500 µs, or copies only the new records in ~25–140 µs. See Doc 150 §3.1.
+
 The AP DT (`msm8916.dtsi`) gives the addresses:
 
 ```
@@ -184,6 +204,8 @@ address). Header words read live:
 | `+0x24` | `0x0009DC58` | log buffer address **in RPM space** (`+0x200000` = AP phys `0x29dc58`) |
 | `+0x28` | `0x00002000` | log length (8 KB) |
 | `+0x2c` | `0x00001FFF` | ring mask |
+| `+0x38` | byte counter | **ring write counter** — `(counter>>5)&0xFF` = next record slot (Doc 150 §4.2) |
+| `+0x3c` | byte counter − `0x2020` | tracks `+0x38` |
 
 **The log ring itself is at AP phys `0x29dc58`, 8 KB, and it decodes as 256 fixed 8-word
 (32-byte) records:**
@@ -192,7 +214,7 @@ address). Header words read live:
 | :-- | :-- |
 | `[0]` | constant `0x00200000` (record marker / module base) |
 | `[1]` | RPM timestamp |
-| `[2]` | constant `0x00000020` |
+| `[2]` | ~~constant `0x00000020`~~ — **CORRECTED: not constant**; takes a small set of values that change rarely (`0x24`→`0x25`→`0x26`, two changes in 314 s). Not decoded. Doc 150 §6.3 |
 | `[3]` | **event id** |
 | `[4..7]` | arguments — frequently 4-char ASCII resource names |
 
@@ -210,6 +232,18 @@ i=0; while [ $i -lt 2048 ]; do devmem $((0x29dc58 + i*4)); i=$((i+1)); done
 work for this range; `devmem` (mmap) does.** Do not conclude the region is unmapped.
 
 ### 5.3 What the first dump already shows
+
+> [!WARNING]
+> **RETRACTED 2026-09-21 (Doc 150 §3).** The histogram and the ASCII census below come from a
+> `devmem` dump, which is not a snapshot (§5.2 banner), so **the counts are not real**. They are
+> additionally inflated by a name-detection bug: any word whose four bytes were printable was
+> accepted as a resource name, which turned the sequence number `0x00003148` into `"H1.."` and
+> the small integers `0x72`/`0x65`/`0x4d` into `"r..."`/`"e..."`/`"M..."` — roughly 40 % of the
+> entries below are noise.
+>
+> The corrected census (147 s, lossless, `is_name` fixed) is in Doc 150 §6.2 and gives exactly
+> the same *qualitative* conclusion: `ldoa`, `bslv`, `bmas`, `smpa`, `clk0/1/2`, `clka`, and no
+> `vmin`/`xosd`/`cxo` anywhere. The qualitative finding survives; these numbers do not.
 
 Event-id histogram over the 256-record ring, and the ASCII arguments recovered:
 

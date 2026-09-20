@@ -4,9 +4,10 @@
 across many sessions, and a full trust audit on **2026-09-20** found that a large
 fraction of it rests on three premises that have since been **measured to be false**.
 29 files were moved to `_QUARANTINE/` as a result (see `_QUARANTINE/README.md`).
-Four further retractions/corrections were added the same day by Docs 147 and 148, and a
+Four further retractions/corrections were added the same day by Docs 147 and 148, a
 fifth round the next day by **Doc 149** (which corrects Doc 148's own period figure and
-signature framing) — see the sections below.
+signature framing), and a sixth by **Doc 150** (which retracts Doc 149's own RPM-log
+reading method and answers its §7 experiment 1) — see the sections below.
 **Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
@@ -71,6 +72,30 @@ signature framing) — see the sections below.
    survive the mark; the fatal really is AP-dependent** (byte-identical firmware). Keep the
    conclusion, downgrade the citation.
 
+## A sixth round — Doc 150, 2026-09-21: the RPM log is now trustworthy
+
+8. **"The RPM log ring can be read with `devmem`."** FALSE — and everything read that way is
+   **retracted**. A 2048-word `devmem` walk takes **5.94 s**, while the RPM overwrites all 256
+   slots in **0.5–3 s**. Two dumps taken back-to-back shared **0 of 256 records**. So Doc 149
+   §5.3's event histogram and ASCII census, and `evidence/149_rpm/rpm_timeline.py`'s
+   `span=453.865 s`, are artefacts and are retracted (Doc 150 §3). Both tools are marked
+   superseded. The qualitative part of Doc 149 §5.3 survives: the requested resources are
+   regulators and clocks, and **no `vmin`/`xosd`/`cxo` request ever appears**.
+9. **"The RPM is the stalled party (the Q6 spins in `rpm.sync` waiting for a dead RPM)."**
+   **NOT SUPPORTED.** With a real instrument (`rpmring`, mmap, ~500 µs/sample) the RPM's log
+   counter advances monotonically **through** fatal #9 and its SSR: 214 records inside the
+   1.6 s fatal window, then **1286 rec/s** for 3.6 s as the modem returns (Doc 150 §8). The RPM
+   is receiving and processing. It is *not* proven that it replies (§8.2).
+10. **New, and load-bearing: the RPM's only real client is the modem.** The log carries a
+    client id and a per-client sequence number. Client 1's counter restarts **exactly once in
+    1152 transactions — at the modem SSR** (Doc 150 §7), so client 1 = MSS. The AP's client id
+    appears only in a 0.73 s window at the fatal (18 transactions), so any "the AP is voting X
+    to the RPM" claim must now explain why it is essentially never seen.
+    Also: the RPM's `record[1]` timestamp is a **19.2 MHz** counter, measured four ways to
+    ±0.017 % (Doc 150 §5) — it had only ever been assumed.
+    **Still open:** who client 0 is; whether the RPM replies; the cause of a unique 9.33 s
+    modem-side RPM silence at AP 8178.7–8188.0 s that did not recur.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -122,7 +147,8 @@ Also established and not to be re-litigated:
 | `146_HMU05_AP_SIDE_FIX_SESSION_AND_TRUST_INDEX.md` | Previous session: RTNL oops root cause + fix + verification; corpus trust index; next experiments |
 | `147_HMU05_PSTORE_PANIC_CAPTURE_AND_STALL_CHARACTERISATION.md` | **The pstore kernel panic** proving the oops; fix verified in situ; stall re-characterised (not 900 s, not the RX ring); patch-809 reproducibility fix |
 | `148_HMU05_FATAL_PERIODICITY_AND_SIGNATURE_TAXONOMY.md` | **The fatal is periodic within a boot**; scopes retraction #1; explains the address churn; downgrades the DIAG-based "no FATAL" evidence. **Its period figure (903.674 s) and its ten-signature framing are corrected by Doc 149** |
-| `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; **`rpm.bin` is a disassemblable ARM ELF and the RPM's live log ring is readable from the AP with `devmem`**; the RPM has never entered VMIN/XOSD and the AP never votes VMIN |
+| `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; `rpm.bin` is a disassemblable ARM ELF. **Its §5.2/§5.3 log-reading method and census are RETRACTED by Doc 150**; its VMIN/XOSD and "AP never votes VMIN" findings stand |
+| `150_HMU05_RPM_LOG_IS_LIVE_AND_ITS_CLIENT_IS_THE_MODEM.md` | **The RPM log is now a trustworthy, ordered, wall-clock-stamped stream** (`rpmring`: mmap, ~500 µs/sample; `+0x38` is the ring's byte write counter, verified twice); the RPM timestamp is **19.2 MHz measured to ±0.017 %**; the log carries a **client id** — client 1 = **MSS** (its sequence counter restarts at the modem SSR, once in 1152 transactions); **the RPM is alive through the fatal and the SSR** (214 records in the fatal window, then 1286 rec/s), so the "RPM-wedged" arm of the `rpm.sync` hypothesis is **not supported**; answers Doc 149 §7 exp. 1 |
 
 ## Sound but narrow (accurate, subordinate scope)
 
