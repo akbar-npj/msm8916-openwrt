@@ -33,15 +33,50 @@ MAX_RECOVERY_ATTEMPTS=1
 EXTENDED_COOLDOWN_SECS=300
 RECOVERY_FAILED=0
 
-# Non-ping connectivity verification: standard DNS query to carrier/configured DNS
+# Connectivity verification: standard DNS query to carrier/configured DNS.
+#
+# RETRYING IS MANDATORY. The modem drops the FIRST uplink packet after it has been
+# RRC-idle (WDS dormancy 'traffic-channel-dormant'): that packet triggers the RRC
+# Service Request but is not delivered. Measured 2026-09-20 (Doc 147 §5.4):
+#
+#   * a single `ping -c 1` after 120 s idle gets NO reply, 5/5 rounds, even with a
+#     20 s timeout, while the very next packet always succeeds;
+#   * a 5-packet burst after 120 s idle gives 4/5 - exactly the first one lost -
+#     and dormancy then flips to 'traffic-channel-active'.
+#
+# The link is NOT stalled in that state: the modem is registered, the bearer is
+# connected and the AP has a valid address and route. A single-attempt probe
+# therefore produces a false "stall", and the old single-attempt version is what
+# drove the watchdog into Stage 2 (`ubus call network.interface.modem down`) -
+# which, before the bam-dmux fix, panicked the kernel (Doc 147 §4).
+#
+# Android never makes this mistake: TCP retransmits, and DcTracker's data-stall
+# alarm waits 60 s rather than acting on one lost probe. Do the retrying here.
+PROBE_ATTEMPTS=3
+PROBE_GAP=2
+
+# How many consecutive failed (already-retrying) probes before escalating to the
+# recovery ladder. See the note above verify_rx_connectivity().
+PROBE_FAIL_MIN=2
+PROBE_FAILS=0
+
 verify_rx_connectivity() {
-    local dns_server rx_pre rx_post
+    local dns_server rx_pre rx_post attempt
     dns_server=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@["dns-server"][0]' 2>/dev/null)
     [ -z "$dns_server" ] && dns_server="8.8.8.8"
-    rx_pre=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-    nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$dns_server" >/dev/null 2>&1 || true
-    rx_post=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
-    [ "$rx_post" -gt "$rx_pre" ]
+
+    for attempt in 1 2 3; do
+        rx_pre=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+        nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$dns_server" >/dev/null 2>&1 || true
+        rx_post=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+        if [ "$rx_post" -gt "$rx_pre" ]; then
+            [ "$attempt" -gt 1 ] && logger -t modem-stall-watchdog \
+                "Connectivity probe recovered on attempt $attempt/$PROBE_ATTEMPTS (first-packet-after-dormancy loss, link is healthy)"
+            return 0
+        fi
+        [ "$attempt" -lt "$PROBE_ATTEMPTS" ] && sleep "$PROBE_GAP"
+    done
+    return 1
 }
 
 logger -t modem-stall-watchdog "Started modem bearer stall watchdog (Android-equivalent passive mode)"
@@ -116,6 +151,7 @@ while true; do
     if [ "$DELTA_RX" -gt 0 ]; then
         # Actual incoming packets received: link healthy, reset stall counter
         STALL_COUNT=0
+        PROBE_FAILS=0
     elif [ "$DELTA_TX" -gt 0 ]; then
         # Outgoing packets sent, but zero incoming packets received: accumulate stall duration
         STALL_COUNT=$((STALL_COUNT + CHECK_INTERVAL))
@@ -173,6 +209,26 @@ while true; do
     fi
 
     if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
+
+            # Require the connectivity probe to fail PROBE_FAIL_MIN times in a row
+            # before touching the bearer. A single failed probe is not evidence of
+            # a stall - the modem drops the first uplink packet after every idle
+            # period (Doc 147 §5.4). Only a link that is still dead after several
+            # independent, individually-retrying probes is worth escalating on.
+            if verify_rx_connectivity; then
+                logger -t modem-stall-watchdog "Connectivity probe succeeded at the escalation gate; link is healthy, clearing stall counter."
+                PROBE_FAILS=0
+                STALL_COUNT=0
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+            PROBE_FAILS=$((PROBE_FAILS + 1))
+            if [ "$PROBE_FAILS" -lt "$PROBE_FAIL_MIN" ]; then
+                logger -t modem-stall-watchdog "Probe failed (${PROBE_FAILS}/${PROBE_FAIL_MIN}) - not escalating yet; a lost first packet after dormancy looks identical to a stall."
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+            logger -t modem-stall-watchdog "Probe failed ${PROBE_FAILS} times consecutively; treating as a genuine stall."
 
             # Check cooldown period and attempt limit
             NOW=$(date +%s)
@@ -421,6 +477,7 @@ while true; do
             LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
             LAST_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
             STALL_COUNT=0
+            PROBE_FAILS=0
             sleep 5
         fi
 

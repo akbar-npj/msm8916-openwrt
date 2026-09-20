@@ -55,7 +55,10 @@ Standing rule (Doc 146 / `feedback_sop_statement_in_porting_docs`): every portin
 
 **The steady-state symptom is found and reproduces 5/5** (§5.4): after the link has been idle, the **first packet is always lost** and the retry always works. 120 s idle, then one `ping -c 1 -W 5`: `replies=0/1 took=5s`, `dtx=1 drx=0`; the following 3-packet ping gives `2/3` and DNS resolves. That is the browse/DNS-after-idle hang the user reports, and it is exactly why the watchdog escalates — its pre-escalation gate makes a **single** DNS attempt.
 
-**One concrete AP-side defect was found and is still open** (§8): the watchdog's stall detector escalates on that single lost packet. Pre-fix that path **panicked the kernel**. Post-fix it is safe but still tears down the bearer for no reason.
+**One concrete AP-side defect was found, fixed and verified** (§8): the watchdog treated a single lost packet as
+a stall and escalated to Stage 2. Pre-fix that path **panicked the kernel**; post-fix the retrying probe absorbs
+the first-packet loss with no escalation, while a genuinely sustained failure still escalates correctly and the
+bearer survives.
 
 ---
 
@@ -300,26 +303,54 @@ hand-edit must be folded back into `msm89xx/patches/` in the same session.
 
 ---
 
-## 8. What is still open, and the next concrete step
+## 8. The AP-side fix: the watchdog must not mistake a lost first packet for a stall
 
-**Open item 1 — the watchdog can escalate on a single lost packet.** `modem-bearer-watchdog` declares a stall
-whenever `DELTA_TX > 0 && DELTA_RX == 0` for 60 s, and its pre-escalation gate `verify_rx_connectivity()` makes
-**one** DNS attempt. §5.4 shows one attempt is exactly what the first-packet defect eats, so the gate can fail
-on a link that is about to work anyway. Pre-fix, escalation meant Stage 2 →
-`ubus call network.interface.modem down` → **panic**. Post-fix it is merely destructive (bearer teardown).
+§5.4 shows the modem drops the **first** uplink packet after every idle period — a property of RRC-idle
+operation, not a fault. The link is registered, the bearer is connected, and the AP has a valid address and
+route. `modem-bearer-watchdog` nevertheless treated it as a stall, because its pre-escalation gate
+`verify_rx_connectivity()` made exactly **one** DNS attempt. Pre-fix, that false stall reached Stage 2
+(`ubus call network.interface.modem down`) and **panicked the kernel** (§4).
 
-**Open item 2 — which mechanism loses the first packet.** §5.4 distinguishes two; the wake-latency probe
-(`scratch/soak_20260920/wake_latency.log`, single `ping -c 1 -W 20` after 120 s idle, plus the modem's own
-`--wds-get-packet-statistics` before and after) settles it:
+**Change made** — `msm89xx/base-files/usr/sbin/modem-bearer-watchdog` (the tracked, deployed copy):
 
-* **slow wake** — the reply arrives but later than 5 s → the AP should raise its client timeouts, and the fix
-  is in the recovery logic, not the driver; or
-* **dropped first packet** — no reply at all, and the modem's UL counter does not move → the UL data starts the
-  Service Request but is discarded before the DRB is up. Then the question becomes why Android does not suffer
-  it. Most likely answer: Android's always-on traffic (NTP, push, Play Services, `qmuxd` wake locks) keeps the
-  bearer out of the fully-idle state this defect requires — which would make the AP-side fix
-  *"do not let the link go fully dormant"*, i.e. reinstate a keepalive, but with a period and a retry policy
-  derived from the measured wake latency rather than the arbitrary 2 s that was removed in Doc 146.
+1. **`verify_rx_connectivity()` now retries.** Up to `PROBE_ATTEMPTS=3` DNS queries, `PROBE_GAP=2` s apart,
+   returning success as soon as RX increments. This is the AP-side equivalent of Android's TCP
+   retransmission — Android is never exposed to this defect because it retries and because its always-on
+   traffic keeps the bearer out of the fully-idle state.
+2. **A single failed probe no longer escalates.** The escalation gate re-probes and requires
+   `PROBE_FAIL_MIN=2` **consecutive** failures before touching the bearer. `PROBE_FAILS` resets whenever RX
+   is observed or after any recovery.
+
+**Verification** (stall timeout temporarily 10 s so the condition is reachable, then restored to 60 s):
+
+```
+18:28:25 Unbalanced traffic detected: TX+1, RX+0 (stall duration: 10s/10s)
+18:28:37 Connectivity probe recovered on attempt 2/3 (first-packet-after-dormancy loss, link is healthy)
+18:28:37 Connectivity probe succeeded and RX incremented; clearing stall counter.
+...
+18:29:36 Probe failed (1/2) - not escalating yet; a lost first packet after dormancy looks identical to a stall.
+18:30:24 Probe failed 2 times consecutively; treating as a genuine stall.
+```
+
+The first-packet loss was absorbed with **no escalation**; a genuinely sustained failure still escalated after
+two consecutive failed probes; and **the bearer stayed up** (`up=true`, IP retained). The 5-packet burst in §5.4
+confirms the same asymmetry from the other direction: 4/5 received, dormancy flips to
+`traffic-channel-active`, and the next ping is 3/3.
+
+**Still open, and next steps**
+
+* **Which mechanism loses the first packet** — slow wake vs a dropped triggering packet. §5.4 and §5.5 give the
+  probe (`scratch/soak_20260920/wake_latency.log`); it does not change the fix above, but it decides whether a
+  light keepalive is also warranted. A keepalive is the *only* way to remove the symptom rather than absorb it,
+  and if it is reinstated the period must come from the measured wake latency — not the arbitrary 2 s removed in
+  Doc 146, which was blamed for boot-time stalls it did not cause.
+* **The bearer is being re-established repeatedly.** The wwan0 address changed three times during this session
+  (`10.32.48.33` → `10.139.191.152` → `10.89.244.25`) with no reboot. Something is tearing the bearer down and
+  rebuilding it on a timer. That is worth chasing next: it is an unnecessary interruption, and each rebuild is a
+  window in which the first packet is lost.
+* **`--wds-go-dormant` is useless on this modem.** It returns QMI error 25 `DeviceUnsupported` whenever the modem
+  is already `traffic-channel-dormant`, i.e. exactly when Stage 1 runs. Stage 1 is effectively dead code and the
+  "recovery" the logs credit it with is really the link waking on its own.
 
 **Ruled out by measurement this session — do not re-open:**
 * the DNS keepalive as the cause of the *boot-time* stalls (disabled; they still occurred);
@@ -353,7 +384,9 @@ on a link that is about to work anyway. Pre-fix, escalation meant Stage 2 →
 ## 10. One-line summary for the next session
 
 The AP-side crash was a NULL `skb` dereference in `bam_dmux_send_cmd()` triggered by `wwan0` going down — pstore
-had a full panic proving it, the fix is deployed and clean, and the "900 s data stall" is actually **the first
-packet after an idle period being lost every time** (5/5, `dtx=1 drx=0`), which the watchdog's single-attempt DNS
-gate then mistakes for a dead link; the AP's RX ring is not at fault, and the next step is to decide from
-`wake_latency.log` whether the modem wakes slowly or drops the triggering packet.
+had a full panic proving it, and the fix is deployed and clean. The "900 s data stall" is really **the first
+packet after an idle period being lost every time** (5/5, `dtx=1 drx=0`) — normal RRC-idle behaviour that
+`modem-bearer-watchdog` mistook for a dead link because its gate made a single DNS attempt; that gate now retries
+and requires two consecutive failures, verified with the bearer staying up. The AP's RX ring was never at fault.
+Next: why the bearer is being rebuilt repeatedly (the wwan0 address changed three times with no reboot), and
+whether a keepalive with a *measured* period is worth reinstating to remove the symptom rather than absorb it.

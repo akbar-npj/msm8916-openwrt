@@ -41,6 +41,11 @@ browse/DNS-after-idle hang users report, and it is exactly why `modem-bearer-wat
 escalates — its pre-escalation gate makes a **single** DNS attempt, and one attempt is
 precisely what this defect eats.
 
+**Fixed 2026-09-20 (Doc 147 §8):** `modem-bearer-watchdog`'s gate now retries the DNS probe
+(`PROBE_ATTEMPTS=3`, 2 s apart) and requires `PROBE_FAIL_MIN=2` **consecutive** failures
+before escalating. Verified: a first-packet loss is absorbed with no escalation and the
+bearer stays up, while a genuinely sustained failure still escalates.
+
 Also established and not to be re-litigated:
 
 - The modem firmware is **byte-identical** to the stock Android build (all 21 MDT
