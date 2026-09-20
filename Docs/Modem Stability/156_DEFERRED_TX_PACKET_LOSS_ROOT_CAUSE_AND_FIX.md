@@ -73,7 +73,7 @@ consequences change.
 | :-- | :-- | :-- |
 | 1 | `start_xmit` `:645` | `active = pm_runtime_get(dmux->dev);` — the modem is autosuspended, so this **queues an async resume** and returns `-EINPROGRESS`. It does **not** wait. |
 | 2 | `start_xmit` `:653` | `bam_dmux_tx_queue()` reserves a slot and installs the skb. |
-| 3 | `start_xmit` `:664` | `bam_dmux_skb_dma_map()` maps the buffer. **No descriptor is submitted** — `bam_dmux_skb_dma_map()` (`:257`) only calls `dma_map_single()`. |
+| 3 | `start_xmit` `:664` | `bam_dmux_skb_dma_map()` maps the buffer. **No descriptor is submitted** — `bam_dmux_skb_dma_map()` (`:284`) only calls `dma_map_single()`. |
 | 4 | `start_xmit` `:667` | `if (active <= 0 \|\| !READ_ONCE(dmux->pc_state))` → **true** (`-EINPROGRESS <= 0`, and `pc_state` is still false because the resume has not run yet). |
 | 5 | `start_xmit` `:669-674` | Sets `BIT(slot)` in `tx_deferred_skb`, queues `tx_wakeup_work`, and returns `NETDEV_TX_OK`. **The stack now considers the packet sent.** |
 | 6 | async resume | `bam_dmux_runtime_resume()` (`:1970`) votes `SMSM_A2_POWER_CONTROL` high, then waits for the ack and for `pc_state` (`:1987`, `:1996`). |
@@ -260,7 +260,23 @@ datagram, so it has no application-layer retransmit. Idle 30 s, then `nslookup e
 
 **4/4 answered on the first attempt**, including the two rounds that started from `pc_state=0`.
 
-### 7.4 Patch-chain integrity
+### 7.4 The original recorded reproduction, inverted
+
+`project_stall_first_packet_lost.md` recorded **120 s idle, then one `ping -c 1 -W 5`** as **5/5
+failed**, with `replies=0/1 took=5s` and **`dtx=1 drx=0`**. That is the single most-cited fact about
+this stall. Run again unchanged, with patch 812 (transcript: `repro120_after_fix.txt`):
+
+```
+round 1: pc_state_before=0 defer +1 submitted +1 wiped_live +0 dtx=+1 drx=+1 received=1/1
+round 2: pc_state_before=0 defer +1 submitted +1 wiped_live +0 dtx=+1 drx=+1 received=1/1
+round 3: pc_state_before=0 defer +1 submitted +1 wiped_live +0 dtx=+1 drx=+1 received=1/1
+```
+
+**3/3 on the first attempt**, every round from `pc_state_before=0` — the collapsed state in which the
+test failed 5/5 before. And **`dtx=1 drx=0` is now `dtx=1 drx=1`**: the recorded failure metric is
+inverted, and there is nothing left to retry.
+
+### 7.5 Patch-chain integrity
 
 The patches were verified to reproduce the built source exactly, anchored on the previously verified
 pre-810 snapshot:
@@ -331,6 +347,8 @@ Recovery was clean: the remaining DNS rounds succeeded, `tx_defer_wiped_live` st
   3/3 lost before and 5/5 delivered after, with the discriminating counter moving in lockstep.
 * The **user-visible** symptom is fixed: a DNS query after 30 s idle (one UDP datagram, no
   application-layer retransmit) is answered **4/4 on the first attempt**, including from `pc_state=0`.
+* **The original recorded reproduction is inverted.** Doc 147 §5.4's 120 s-idle test was 5/5 failed
+  with `dtx=1 drx=0`; it is now **3/3 delivered with `dtx=1 drx=1`** (§7.4).
 * Patch 812 preserves and delivers them; `tx_defer_wiped_live` is 0 across the test.
 * The fix is inert for the direct path: `tx_submit_ok`/`tx_complete` behaviour is unchanged.
 * The patch chain reproduces the built source exactly.
@@ -381,6 +399,7 @@ Recovery was clean: the remaining DNS rounds succeeded, `tx_defer_wiped_live` st
 | pre-811 / post-811 / fixed source | `evidence/156_deferred_tx_loss/qcom_bam_dmux.c.{pre811,post811,fixed}` |
 | A/B transcripts | `evidence/156_deferred_tx_loss/ab_{before,after}_fix.txt` |
 | DNS-after-idle transcript | `evidence/156_deferred_tx_loss/dns_after_idle_after_fix.txt` |
+| the recorded 120 s reproduction, inverted | `evidence/156_deferred_tx_loss/repro120_after_fix.txt` |
 | fatal at 424 s with the fix deployed | `evidence/156_deferred_tx_loss/fatal_at_424s_with_patch812.txt` |
 | test harness (idle → one ping) | `evidence/156_deferred_tx_loss/defertest.sh` |
 | soak harness (fix verification) | `evidence/156_deferred_tx_loss/soak812.sh` |

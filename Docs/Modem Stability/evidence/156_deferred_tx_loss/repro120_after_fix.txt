@@ -1,0 +1,33 @@
+THE DOCUMENTED REPRODUCTION, WITH THE FIX — `dtx=1 drx=0` IS NOW `dtx=1 drx=1`
+=============================================================================
+Module md5 68dcc4ace88a1729d6081569c72c6383 (patch 810 + 811 + 812).
+
+`project_stall_first_packet_lost.md` recorded this exact test as **5/5 failed**
+before the fix (Doc 147 §5.4):
+
+    120 s idle, then ONE ping -c 1 -W 5
+      ping1: replies=0/1  took=5s        <-- always lost, always the full client timeout
+             after ping1: dtx=1 drx=0    <-- 1 packet handed to the TX pipe, 0 back
+      ping2: replies=2/3  took=3s        <-- retry always works
+
+Same test, same device, patch 812 deployed:
+
+round 1: pc_state_before=0 defer +1 submitted +1 wiped_live +0 dtx=+1 drx=+1 received=1/1
+round 2: pc_state_before=0 defer +1 submitted +1 wiped_live +0 dtx=+1 drx=+1 received=1/1
+round 3: pc_state_before=0 defer +1 submitted +1 wiped_live +0 dtx=+1 drx=+1 received=1/1
+
+3/3 on the FIRST attempt, every round, with `pc_state_before=0` — the modem
+collapsed, which is the state in which this test failed 5/5 before.
+
+READ THE DELTAS
+  defer +1, submitted +1, wiped_live +0   the packet took the defer branch,
+                                          was preserved, and was submitted
+  dtx=+1 drx=+1                           <-- was dtx=1 drx=0.  This is the
+                                          recorded failure metric, inverted.
+  received=1/1                            and no retry was needed.
+
+So the single most-cited fact about this stall — "the first packet is always
+lost, the retry always works" — is now: the first packet arrives, and there is
+nothing to retry.
+
+(Scratch copy of the harness: scratch/patch811/repro120.sh)

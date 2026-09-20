@@ -336,6 +336,8 @@ that into **5/5** delivered) — see the sections below.
     pc=0` — the exact condition that lost 3/3. And the **user-visible symptom**: idle 30 s then
     `nslookup example.com 8.8.8.8` (a single UDP datagram, so no application-layer retransmit)
     answered **4/4 on the first attempt**, including both rounds that started from `pc_state=0`.
+    And **the original recorded reproduction is inverted**: Doc 147 §5.4's 120 s-idle / one-ping test
+    was **5/5 failed with `dtx=1 drx=0`**; it is now **3/3 delivered with `dtx=1 drx=1`**.
     Patch-chain integrity re-verified against the pre-810 snapshot: `pre810 + 810 == pre811`,
     `pre811 + 811 == post811`, `post811 + 812 == the built file`.
 40. **Scope — what this does NOT explain.** It does **not** explain the ~900 s fatal
