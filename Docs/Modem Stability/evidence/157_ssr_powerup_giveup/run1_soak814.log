@@ -1,0 +1,14 @@
+[128.16s] started burst generator pid 7494 (6 s idle, then 40 x ping -c 1)
+[128.18s] === soak814 start; oops=0 module=eca269f10a685a83a8b679bc7be38d1d ===
+[918.67s] SSR #1 detected at sampler uptime 918.53s
+[   11.818882] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   12.462907] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+[   12.508013] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[  912.746032] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  914.129025] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  914.761965] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[  914.764299] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[926.71s] DATA PLANE DOWN (SSR #1): NO DEFAULT ROUTE; wwan0: 2: wwan0: <POINTOPOINT,NOARP> mtu 1500 qdisc fq_codel state DOWN mode DEFAULT group default qlen 1000
+[926.72s]   telemetry: rx_slots_mapped: 32 rx_tearing_down: 1 pc_state: 0 pc_resync_count: 0 pc_line_level: 0 cmd_open: 16 
+[926.75s] FATAL #1 at AP 912.723006s (sampler saw it at 918.53s): lte_ml1_sleepmgr_stm.c:4054:
+[926.76s]   modem uptime at fatal = -1.406112s (modem up since 914.129118s)

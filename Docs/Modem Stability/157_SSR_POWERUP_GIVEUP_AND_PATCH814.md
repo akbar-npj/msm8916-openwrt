@@ -4,9 +4,10 @@
 syslog lines are converted to kernel time where both exist, and the conversion is stated.
 
 **Status:** **root cause found, mechanism source-verified and measured on the live device, fix written,
-built, deployed and running.** The recovery paths are correct-by-construction but have **not yet been
-observed to fire**, because the trigger is a modem that takes longer than 3.2 s to become ready and
-that is not something this build can force on demand (§8.4).
+built, deployed and running.** Soak run 1 confirms the **normal** SSR path is intact with the patch
+deployed (§7.4). The two **new recovery paths have not yet been observed to fire**, because the trigger
+is a modem that takes longer than 3.2 s to become ready and this build cannot force one on demand
+(§8.4).
 
 Source changed in the **tracked** tree (`msm89xx/patches/814-bam-dmux-ssr-powerup-retry.patch`); the
 deployed `/lib/modules/6.12.94/qcom_bam_dmux.ko` was replaced (md5 `eca269f1…`, previous build backed
@@ -401,23 +402,49 @@ classified by its `file:line`:
 | 2 | 1326.760468 | `lte_ml1_sleepmgr_stm.c:4054` |
 | 3 | 1405.636209 | `a2_power.c:1189` |
 
-### 7.4 The soak in progress
+### 7.4 Soak run 1 — an SSR survived, and a harness defect that would have been misread
 
-`soak814.sh` (this doc's evidence directory) runs the corrected idle-then-burst traffic generator and,
-unlike its predecessors, **probes the data plane after every SSR** — `ip route show default` plus a
-ping — and logs the verdict. A `DATA PLANE DOWN (SSR #n)` line is this defect.
-
-Live at the time of writing (uptime 158 s):
+`soak814.sh` runs the corrected idle-then-burst traffic generator and, unlike its predecessors,
+**probes the data plane after every SSR**. Run 1 (`evidence/…/run1_soak814.csv`, `.log`) reached a real
+fatal-triggered SSR and the driver recovered:
 
 ```
-128.18,0,0,0,0,0,14,0,0,0,32,8,36,24,15,15,13,0,0
-138.30,0,0,0,0,0,16,0,0,0,32,8,80,68,18,18,15,0,0
-148.43,0,0,0,0,0,18,0,0,0,32,8,120,108,19,19,16,0,0
-158.55,0,0,0,0,0,20,0,0,0,32,8,160,148,20,20,17,0,0
+[  912.723006] fatal error received: lte_ml1_sleepmgr_stm.c:4054:      <- 900.904 s of modem uptime
+[  912.746032] SSR before shutdown: scheduling teardown work
+[  914.129025] SSR after powerup: scheduling powerup work
+[  914.761965] SSR powerup: modem pc_state=1 (waited 560 ms)          <- no retry needed, correct
+[  914.764299] SSR powerup: successfully reinitialized BAM channels and rings
 ```
 
-Traffic is flowing (+40 TX per sample), `defer_q == defer_sub` throughout, `defer_wipe_live 0`,
-`guard_hits 0`, `rx_mapped 32`, `cmd_open 8`.
+and, in the CSV, **`cmd_open` 8 → 16** — the modem reopened all eight data channels, which can only
+happen if the driver rebuilt the BAM channels. `defer_q == defer_sub` throughout (129/129), `wiped_live 0`,
+`guard_hits 0`, `pc_timeout_count 0`, `pc_resync_count 0`. So the **normal** SSR path is intact with
+patch 814 deployed, and the new retry/rebuild paths stayed silent — they are inert unless needed.
+
+**The harness defect.** Run 1 also logged
+
+```
+[926.71s] DATA PLANE DOWN (SSR #1): NO DEFAULT ROUTE; wwan0: ... state DOWN
+```
+
+which is **false**. By 972.6 s the link was fully back (`default via 10.103.224.185 dev wwan0`,
+`2 packets transmitted, 2 received, 0% packet loss`). An SSR is followed by ModemManager
+re-registration, a bearer reconnect, and netifd re-installing the address and the route — which
+legitimately takes **~30 s** (here ~45 s: SSR at 914.8 s, route back by ~960 s). A single probe 8 s
+after the SSR therefore reports "down" for a perfectly healthy recovery.
+
+This is the **second** measurement artefact of exactly this kind in two sessions (the first was the
+`ping -i 0.05` burst that silently transmitted nothing, Doc 156 §8.2/§8.5). Both would have been read as
+a device fault. The probe now **polls** (5 s × 12 = 60 s) and reports the **time to recovery**, so
+"down" means it never came back inside the window. Run 1's numbers are kept as-is rather than
+reinterpreted.
+
+A second, smaller harness defect was found and fixed in the same pass: the modem-uptime-at-fatal
+calculation took the **last** `is now up` line unconditionally, which after a recovery picks the *new*
+modem's start time and yields a **negative** modem uptime (run 1 logged `-1.406112s`). It now selects
+the last line older than the fatal's timestamp, which for fatal #1 gives the correct **900.904 s** —
+the deterministic idle timer, consistent with Doc 156's 900.811 s.
+
 
 ## 8. Scope, what this is not, and next
 
@@ -464,9 +491,11 @@ patch 814, and patch 814 does not fix it. Evidence:
 
 ### 8.4 Next, in priority order
 
-1. **Let `soak814.sh` run to a real fatal-triggered SSR** and read the verdict. If a `retry N/20` line
-   appears and the following `DATA PLANE OK (SSR #n)` line appears, the fix is verified end-to-end. If
-   no retry appears, the run is inconclusive rather than negative — say so, do not upgrade it.
+1. **Keep `soak814.sh` running and watch for a `retry N/20` line.** Run 1 survived a real
+   fatal-triggered SSR on the normal path (§7.4), so the normal path is verified intact — but the
+   **fix** is verified end-to-end only when a retry actually fires *and* the following
+   `DATA PLANE OK (SSR #n)` line appears. A run in which no retry fires is **inconclusive, not
+   negative** — say so, do not upgrade it.
 2. **Amend memory quirk #9** — `auto` is not the whole story; see §8.1.
 3. **Instrument SMSM** for the missed-edge question (§8.3 item 1), if a third occurrence appears.
 4. **Do not** retry `echo stop` as a test route (§8.2).
@@ -496,16 +525,26 @@ patch 814, and patch 814 does not fix it. Evidence:
 10. The Doc 151 §5 `echo stop` hang reproduced — **n=2**. §8.2.
 11. Patch 814's chain reproduces the built source byte-exactly, and the post-fix baseline is healthy.
     §7.1, §7.2.
+12. **Patch 814 does not disturb the normal SSR path.** Soak run 1 survived a real fatal-triggered SSR:
+    the powerup work found the modem in 560 ms, reinitialised the channels, and the modem reopened all
+    eight of them (`cmd_open` 8 → 16). The new retry and rebuild paths stayed silent (`retries 0`,
+    `rebuilds 0`, `pc_resync_count 0`, `pc_timeout_count 0`) — they are inert unless needed. §7.4.
+13. The fatal cadence is unaffected by patch 814: run 1's fatal #1 was `lte_ml1_sleepmgr_stm.c:4054` at
+    **900.904 s of modem uptime** — the deterministic idle timer. §7.4.
 
 **Not established:**
 
-* **That patch 814 fixes the incident.** The recovery paths are source-verified and the baseline is
-  healthy, but they have not been observed to fire. §8.4 item 1.
+* **That patch 814 fixes the incident.** The recovery paths are source-verified and the normal path is
+  verified intact (§7.4), but **neither new path has been observed to fire**: the trigger is a modem
+  slower than 3.2 s, and this build cannot force one on demand (§8.2, §8.4 item 1).
 * **Why the assert edge was missed.** §5.1. The SMEM-write hazard is a candidate that does not fit the
   observed timing.
-* **Whether the 3.2 s budget is the only reason the first two SSRs succeeded** (they waited 200 ms).
+* **Whether the 3.2 s budget is the only reason the first two SSRs succeeded** (they waited 200 ms;
+  run 1's recovery waited 560 ms).
 * **Whether `bam_dmux_rx_slot_submit()` failing inside `bam_dmux_power_on()` is silent** — it is the
   one failure path in `power_on()` with no `dev_err`, and it was not observed.
+* **Whether the ~30-45 s post-SSR blackout is itself reducible.** It is normal ModemManager
+  re-provisioning, but it is long enough to be user-visible.
 
 ## 10. Artifacts
 

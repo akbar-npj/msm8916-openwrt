@@ -448,6 +448,22 @@ below.
 52. **Memory quirk #9 is necessary but not sufficient.** `network.modem.auto` *is* set now, netifd
     *did* install the address and the route, and the interface was still DOWN. Do not stop at the
     config when this symptom appears — go to `bam_dmux` telemetry.
+53. **Soak run 1: the normal SSR path is intact, and a SECOND measurement artefact of the same kind.**
+    A real fatal-triggered SSR (`lte_ml1_sleepmgr_stm.c:4054` at **900.904 s of modem uptime** — the
+    deterministic idle timer) recovered on the normal path: `pc_state=1 (waited 560 ms)`, channels
+    reinitialised, and **`cmd_open` 8 → 16** — the modem reopened all eight data channels, which can
+    only happen if the driver rebuilt them. The new retry/rebuild paths stayed silent, i.e. inert.
+    But the harness also logged **`DATA PLANE DOWN (SSR #1)`** at 926.7 s, which was **false**: the
+    link was fully back by 972.6 s. An SSR is followed by ModemManager re-registration and a bearer
+    reconnect — **~30-45 s** — so a single probe 8 s after the SSR reports "down" for a healthy
+    recovery. **This is the second artefact of exactly this kind in two sessions** (the first was
+    Doc 156's `ping -i 0.05` burst that silently transmitted nothing); both would have been read as a
+    device fault. The probe now polls (5 s × 12) and reports the **time to recovery**. A second,
+    smaller bug in the same pass: the modem-uptime-at-fatal calculation took the *last* `is now up`
+    line unconditionally, which after a recovery picks the **new** modem's start time and gives a
+    **negative** uptime (run 1 logged `-1.406112 s`); it now picks the last line older than the fatal.
+    **Lesson, again: when a harness reports a fault, verify the harness against a known-good recovery
+    before believing it.**
 
 ## The steady-state symptom, measured (Doc 147 §5.4)
 

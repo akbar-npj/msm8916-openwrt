@@ -51,20 +51,33 @@ burst() {
 
 # Data-plane probe.  This is the direct test of the fix: after an SSR the
 # interface and the default route must come back without a reboot.
+#
+# DO NOT PROBE ONCE, AND DO NOT PROBE EARLY.  An SSR is followed by
+# ModemManager re-registration, a bearer reconnect, and netifd re-installing
+# the address and the route.  That legitimately takes ~30 s: measured
+# 2026-09-21, SSR at 912.7-914.8 s and the route back by ~960 s.  A single
+# probe 8 s after the SSR therefore reported "DATA PLANE DOWN" for a perfectly
+# healthy recovery -- the same class of measurement artefact as the
+# `ping -i 0.05` bug of Doc 156.  Poll instead, and report the TIME TO
+# RECOVERY; "down" means it never came back inside the window.
 probe_dataplane() {
 	why="$1"
-	route=$(ip route show default 2>/dev/null | head -1)
-	link=$(ip link show wwan0 2>/dev/null | head -1)
-	if [ -z "$route" ]; then
-		log "DATA PLANE DOWN ($why): NO DEFAULT ROUTE; wwan0: $link"
-		log "  telemetry: $(grep -E '^(pc_state|pc_line_level|pc_resync_count|rx_slots_mapped|cmd_open|rx_tearing_down):' "$TEL" | tr '\n' ' ')"
-		return
-	fi
-	if ping -c 2 -W 3 -q 8.8.8.8 >/dev/null 2>&1; then
-		log "DATA PLANE OK ($why): $route"
-	else
-		log "DATA PLANE DEGRADED ($why): route present but ping failed; $route"
-	fi
+	tries="${PROBE_TRIES:-12}"
+	every="${PROBE_EVERY:-5}"
+	i=0
+	while [ "$i" -lt "$tries" ]; do
+		route=$(ip route show default 2>/dev/null | head -1)
+		if [ -n "$route" ] && ping -c 1 -W 3 -q 8.8.8.8 >/dev/null 2>&1; then
+			log "DATA PLANE OK ($why): recovered after ~$((i * every))s; $route"
+			return 0
+		fi
+		i=$((i + 1))
+		sleep "$every"
+	done
+	log "DATA PLANE DOWN ($why): NOT recovered after $((tries * every))s"
+	log "  wwan0: $(ip link show wwan0 2>/dev/null | head -1)"
+	log "  telemetry: $(grep -E '^(pc_state|pc_line_level|pc_resync_count|rx_slots_mapped|cmd_open|rx_tearing_down):' "$TEL" | tr '\n' ' ')"
+	return 1
 }
 
 (
@@ -139,9 +152,6 @@ while true; do
 	if [ -n "$last_ssr" ] && [ "$ssr" -gt "$last_ssr" ] 2>/dev/null; then
 		log "SSR #$ssr detected at sampler uptime ${up}s"
 		dmesg | grep -E 'SSR (before shutdown|after powerup)|SSR powerup|channels not initialized|no channels, rebuilding' | tail -8 >> "$LOG"
-		# Give the driver a moment, then probe.  Pre-patch the failure was
-		# permanent, so a single late probe is a valid test.
-		sleep 8
 		probe_dataplane "SSR #$ssr"
 	fi
 	last_ssr=$ssr
@@ -160,10 +170,19 @@ while true; do
 		line=$(dmesg | grep 'fatal error received' | tail -1)
 		ft=$(echo "$line" | sed 's/^\[ *\([0-9.]*\)\].*/\1/')
 		fs=$(echo "$line" | sed 's/.*fatal error received: //')
-		mup=$(dmesg | grep '4080000.remoteproc is now up' | tail -1 |
-			sed 's/^\[ *\([0-9.]*\)\].*/\1/')
+		# Take the last "is now up" line that is OLDER than the fatal.  Using
+		# the last one unconditionally is wrong whenever a recovery has already
+		# happened in this boot: it picks the NEW modem's start time and yields
+		# a NEGATIVE modem uptime at the fatal (observed 2026-09-21).
+		mup=$(dmesg | grep '4080000.remoteproc is now up' |
+			sed 's/^\[ *\([0-9.]*\)\].*/\1/' |
+			awk -v f="$ft" '$1 <= f {v=$1} END{print v}')
 		log "FATAL #$fatal at AP ${ft}s (sampler saw it at ${up}s): $fs"
-		log "  modem uptime at fatal = $(awk "BEGIN{printf \"%.6f\", $ft - $mup}")s (modem up since ${mup}s)"
+		if [ -n "$mup" ]; then
+			log "  modem uptime at fatal = $(awk "BEGIN{printf \"%.6f\", $ft - $mup}")s (modem up since ${mup}s)"
+		else
+			log "  modem uptime at fatal = n/a (no 'is now up' before ${ft}s)"
+		fi
 	fi
 	last_fatal=$fatal
 
