@@ -32,6 +32,15 @@ fraction of it rests on three premises that have since been **measured to be fal
    (1 Hz ping, 240 s, TX:RX ≈ 1:1, **0 % loss**; DNS to the carrier resolver, 8.8.8.8
    and 1.1.1.1 all resolving).
 
+## The steady-state symptom, measured (Doc 147 §5.4)
+
+**After the link has been idle, the first packet is always lost and the retry always
+works.** Reproduced **5/5**: 120 s idle, then one `ping -c 1 -W 5` → `replies=0/1 took=5s`
+with `dtx=1 drx=0`; the next 3-packet ping gives `2/3` and DNS resolves. That is the
+browse/DNS-after-idle hang users report, and it is exactly why `modem-bearer-watchdog`
+escalates — its pre-escalation gate makes a **single** DNS attempt, and one attempt is
+precisely what this defect eats.
+
 Also established and not to be re-litigated:
 
 - The modem firmware is **byte-identical** to the stock Android build (all 21 MDT

@@ -53,7 +53,9 @@ Standing rule (Doc 146 / `feedback_sop_statement_in_porting_docs`): every portin
 * The RX watchdog **never fired once** (0 log lines). So the driver's RX ring was armed with buffers queued and the modem simply delivered nothing — **the AP-side RX drain/rearm path is not the fault.**
 * The stall is therefore a **modem-side dormancy/wake** condition (`WDS dormancy = traffic-channel-dormant`, TX flowing, RX silent), and it **self-heals**: at 17:42:41 the watchdog logged `Stage 1 SUCCESS` even though `--wds-go-dormant` had just been rejected with QMI error 25 `DeviceUnsupported` — i.e. RX returned on its own.
 
-**One concrete AP-side defect was found and is still open** (§7): the watchdog's stall detector can declare a stall on an idle link and escalate to Stage 2. Pre-fix that path **panicked the kernel**. Post-fix it is safe but still tears down the bearer for no reason.
+**The steady-state symptom is found and reproduces 5/5** (§5.4): after the link has been idle, the **first packet is always lost** and the retry always works. 120 s idle, then one `ping -c 1 -W 5`: `replies=0/1 took=5s`, `dtx=1 drx=0`; the following 3-packet ping gives `2/3` and DNS resolves. That is the browse/DNS-after-idle hang the user reports, and it is exactly why the watchdog escalates — its pre-escalation gate makes a **single** DNS attempt.
+
+**One concrete AP-side defect was found and is still open** (§8): the watchdog's stall detector escalates on that single lost packet. Pre-fix that path **panicked the kernel**. Post-fix it is safe but still tears down the bearer for no reason.
 
 ---
 
@@ -183,11 +185,58 @@ The RX watchdog only intervenes when `rx_queued_buffers == 0 && last_cb_ago_ms >
 
 Likewise `pc_timeout_count: 0` retires Doc 146 §11's hypothesis #2 (the 250 ms resume-handshake tolerance): the A2 resume ACK has never once timed out.
 
-### 5.4 Conclusion on the stall
+### 5.4 THE ACTUAL USER-VISIBLE SYMPTOM, REPRODUCED 5/5: the first packet after an idle period is lost
 
-The stall is a **modem-side dormancy/wake condition**, not an AP DMA-ring defect, and it is **transient and self-healing**. The conntrack table caught it mid-flight — DNS queries to 49.45.0.1, 8.8.8.8, 1.1.1.1 and the IPv6 resolver all `[UNREPLIED]` with `packets=3` sent and `packets=0` received — while NTP to 168.144.182.136 and ICMP were being answered normally. Once real traffic flowed, everything worked.
+The boot-time stalls in §5.1 are a warm-up artefact. The symptom that persists into steady state was found by
+idling the link and then sending exactly one packet. Watchdog disabled so nothing masks the behaviour; 120 s
+idle; then a single `ping -c 1 -W 5`, then a normal 3-packet ping, then a DNS lookup.
 
-What this does **not** yet explain is *why* the modem, already in `traffic-channel-dormant`, ignores a short UDP burst. That is now the single open question (§7).
+```
+########## round 1 ##########      ########## round 2 ##########
+  pre : tx=721 rx=456                pre : tx=731 rx=462
+  ping1: replies=0/1  took=5s        ping1: replies=0/1  took=5s
+         after ping1: dtx=4 drx=3           after ping1: dtx=1 drx=0
+  ping2: replies=2/3  took=3s        ping2: replies=2/3  took=3s
+  dns  : answers=1  took=0s          dns  : answers=1  took=1s
+  post: dtx=8 drx=6                  post: dtx=5 drx=3
+
+########## round 3 ##########      ########## round 4 ##########
+  pre : tx=738 rx=465                pre : tx=745 rx=468
+  ping1: replies=0/1  took=5s        ping1: replies=0/1  took=5s
+         after ping1: dtx=1 drx=0           after ping1: dtx=1 drx=0
+  ping2: replies=2/3  took=3s        ping2: replies=2/3  took=3s
+  dns  : answers=1  took=0s          dns  : answers=1  took=0s
+  post: dtx=5 drx=3                  post: dtx=5 drx=3
+```
+
+**The first packet is lost in every round, and the retry always works.** Rounds 2–4 are identical to the packet:
+exactly **1 packet out, 0 back** in the 5 s window, then a successful retry.
+
+This is the stall the user actually sees: a browse or DNS request made after the link has been idle hangs, and
+works on the second attempt. It is also exactly why `modem-bearer-watchdog` escalates — its
+`verify_rx_connectivity()` makes **one** DNS attempt, and one attempt is precisely what this defect eats.
+
+Two candidate mechanisms, distinguishable by the wake-latency probe (`scratch/soak_20260920/wake_latency.log`):
+
+* the modem **wakes slowly** (RRC Service Request takes longer than the 5 s client timeout) — the packet is
+  buffered and answered late; or
+* the modem **drops the triggering packet** — the UL data starts the Service Request but is not delivered after
+  the DRB comes up.
+
+Either way the AP-side DMA path is not at fault: `dtx=1` proves the packet was handed to the TX pipe.
+
+### 5.5 Conclusion on the stall
+
+The boot-time stall is a **modem-side dormancy/wake condition**, not an AP DMA-ring defect, and it is
+**transient and self-healing**. The conntrack table caught it mid-flight — DNS queries to 49.45.0.1, 8.8.8.8,
+1.1.1.1 and the IPv6 resolver all `[UNREPLIED]` with `packets=3` sent and `packets=0` received — while NTP to
+168.144.182.136 and ICMP were being answered normally. Once real traffic flowed, everything worked.
+
+The **steady-state** symptom is the first-packet loss in §5.4, reproducible on demand at 5/5.
+
+The single open question is which of the two mechanisms in §5.4 it is, and whether Android's stack avoids it
+(Android runs always-on services — NTP, push, Play Services — so its bearer rarely reaches the fully-idle state
+that this defect needs). That is §8.
 
 ---
 
@@ -253,16 +302,27 @@ hand-edit must be folded back into `msm89xx/patches/` in the same session.
 
 ## 8. What is still open, and the next concrete step
 
-**Open item 1 — the watchdog can escalate on an idle link.** `modem-bearer-watchdog` declares a stall whenever `DELTA_TX > 0 && DELTA_RX == 0` for 60 s. On an idle link the only TX is background traffic (NTP, DNS, IPv6), which is exactly the traffic a dormant modem is slowest to wake for. Pre-fix, escalation meant Stage 2 → `ubus call network.interface.modem down` → **panic**. Post-fix it is merely destructive (bearer teardown). The `verify_rx_connectivity()` gate is applied *before* escalation, which is good, but a single lost DNS query is enough to fail it.
+**Open item 1 — the watchdog can escalate on a single lost packet.** `modem-bearer-watchdog` declares a stall
+whenever `DELTA_TX > 0 && DELTA_RX == 0` for 60 s, and its pre-escalation gate `verify_rx_connectivity()` makes
+**one** DNS attempt. §5.4 shows one attempt is exactly what the first-packet defect eats, so the gate can fail
+on a link that is about to work anyway. Pre-fix, escalation meant Stage 2 →
+`ubus call network.interface.modem down` → **panic**. Post-fix it is merely destructive (bearer teardown).
 
-**Open item 2 — why a dormant modem ignores a short UDP burst.** This is the residual user-visible symptom. §5.4 localises it to the modem's dormancy/wake, with the AP's ring armed. Candidate levers, in order:
+**Open item 2 — which mechanism loses the first packet.** §5.4 distinguishes two; the wake-latency probe
+(`scratch/soak_20260920/wake_latency.log`, single `ping -c 1 -W 20` after 120 s idle, plus the modem's own
+`--wds-get-packet-statistics` before and after) settles it:
 
-1. **A2 / SMSM wake on TX.** Whether the driver asserts anything to the modem when it queues the first TX after a dormancy gap. Android's `bam_dmux_write()` path is the reference. *Note:* `pc_timeout_count: 0` says the resume handshake itself is completing, so this is about a *separate* dormant (RRC-idle) wake, not the power-collapse wake.
-2. **`SMSM_A2_POWER_CONTROL_ACK` toggle pattern** (Doc 146 §11 row 1) — Android toggles once per BAM connect/disconnect; OpenWrt toggles on every power-collapse edge.
-3. **OPEN-signal negotiation** (Doc 146 §11 row 3) — OpenWrt sends `signal=0` with fixed 2 K buffers; Android uses DYNAMIC_MTU and a 2 K↔4 K pool.
+* **slow wake** — the reply arrives but later than 5 s → the AP should raise its client timeouts, and the fix
+  is in the recovery logic, not the driver; or
+* **dropped first packet** — no reply at all, and the modem's UL counter does not move → the UL data starts the
+  Service Request but is discarded before the DRB is up. Then the question becomes why Android does not suffer
+  it. Most likely answer: Android's always-on traffic (NTP, push, Play Services, `qmuxd` wake locks) keeps the
+  bearer out of the fully-idle state this defect requires — which would make the AP-side fix
+  *"do not let the link go fully dormant"*, i.e. reinstate a keepalive, but with a period and a retry policy
+  derived from the measured wake latency rather than the arbitrary 2 s that was removed in Doc 146.
 
 **Ruled out by measurement this session — do not re-open:**
-* the DNS keepalive as the cause (disabled; stalls still occurred);
+* the DNS keepalive as the cause of the *boot-time* stalls (disabled; they still occurred);
 * the RX rearm / RX watchdog path (§5.3);
 * the 250 ms resume-handshake tolerance (`pc_timeout_count: 0`);
 * any fixed-900 s timer;
@@ -279,7 +339,8 @@ hand-edit must be folded back into `msm89xx/patches/` in the same session.
 | boot B dmesg / syslog | `scratch/soak_20260920/dmesg_bootB.txt`, `logread_bootB.txt` |
 | module builds for fingerprinting | `scratch/soak_20260920/qcom_bam_dmux.ko.orig-20260920T172948Z`, `.pmrestart-backup` |
 | load probe | `scratch/soak_20260920/wwan_probe.log`, `wwan_probe2.log` |
-| idle→wake probe | `scratch/soak_20260920/idle_wake.log` |
+| idle→wake probe (first-packet loss, 5/5) | `scratch/soak_20260920/idle_wake.log` |
+| wake-latency probe (slow wake vs dropped packet) | `scratch/soak_20260920/wake_latency.log` |
 | fixed driver source | `openwrt/build_dir/…/linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.c` |
 | driver source of truth | **`msm89xx/patches/808-bam-dmux-stats.patch`** + **`msm89xx/patches/809-bam-dmux-tx-pm-ordering.patch`** (new) |
 | driver base the patches apply to | `scratch/orig_kernel/drivers/net/wwan/qcom_bam_dmux.c` |
@@ -291,4 +352,8 @@ hand-edit must be folded back into `msm89xx/patches/` in the same session.
 
 ## 10. One-line summary for the next session
 
-The AP-side crash was a NULL `skb` dereference in `bam_dmux_send_cmd()` triggered by `wwan0` going down — pstore had a full panic proving it, the fix is deployed and clean, and the "900 s data stall" is actually a transient modem-side dormancy/wake gap in the first minutes after boot that self-heals; the AP's RX ring is not at fault.
+The AP-side crash was a NULL `skb` dereference in `bam_dmux_send_cmd()` triggered by `wwan0` going down — pstore
+had a full panic proving it, the fix is deployed and clean, and the "900 s data stall" is actually **the first
+packet after an idle period being lost every time** (5/5, `dtx=1 drx=0`), which the watchdog's single-attempt DNS
+gate then mistakes for a dead link; the AP's RX ring is not at fault, and the next step is to decide from
+`wake_latency.log` whether the modem wakes slowly or drops the triggering packet.
