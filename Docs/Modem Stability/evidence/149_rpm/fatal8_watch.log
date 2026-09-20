@@ -1,0 +1,66 @@
+=== fatal #8 watcher started (host) 2026-09-20T19:25:57Z ===
+2026-09-20T19:25:58Z uptime=6429.42 fatals=7
+2026-09-20T19:26:18Z uptime=6449.59 fatals=7
+2026-09-20T19:26:38Z uptime=6469.70 fatals=7
+2026-09-20T19:26:58Z uptime=6489.82 fatals=7
+2026-09-20T19:27:18Z uptime=6509.99 fatals=7
+2026-09-20T19:27:38Z uptime=6530.16 fatals=7
+2026-09-20T19:27:58Z uptime=6550.28 fatals=7
+2026-09-20T19:28:19Z uptime=6570.45 fatals=7
+2026-09-20T19:28:39Z uptime=6590.61 fatals=7
+2026-09-20T19:28:59Z uptime=6610.78 fatals=7
+2026-09-20T19:29:19Z uptime=6630.95 fatals=7
+2026-09-20T19:29:39Z uptime=6651.11 fatals=7
+2026-09-20T19:29:59Z uptime=6671.27 fatals=7
+2026-09-20T19:30:20Z uptime=6691.38 fatals=7
+2026-09-20T19:30:40Z uptime=6711.51 fatals=7
+2026-09-20T19:31:00Z uptime=6731.68 fatals=7
+2026-09-20T19:31:20Z uptime=6751.81 fatals=7
+2026-09-20T19:31:40Z uptime=6771.97 fatals=7
+2026-09-20T19:32:00Z uptime=6792.09 fatals=7
+2026-09-20T19:32:20Z uptime=6812.25 fatals=7
+2026-09-20T19:32:41Z uptime=6832.37 fatals=7
+2026-09-20T19:33:01Z uptime=6852.49 fatals=7
+2026-09-20T19:33:21Z uptime=6872.67 fatals=7
+2026-09-20T19:33:41Z uptime=6892.79 fatals=7
+2026-09-20T19:34:01Z uptime=6912.96 fatals=7
+2026-09-20T19:34:21Z uptime=6933.08 fatals=7
+2026-09-20T19:34:41Z uptime=6953.20 fatals=7
+2026-09-20T19:35:01Z uptime=6973.32 fatals=7
+2026-09-20T19:35:22Z uptime=6993.49 fatals=7
+2026-09-20T19:35:42Z uptime=7013.67 fatals=7
+2026-09-20T19:36:02Z uptime=7033.79 fatals=7
+2026-09-20T19:36:22Z uptime=7053.95 fatals=7
+2026-09-20T19:36:42Z uptime=7074.12 fatals=7
+2026-09-20T19:37:02Z uptime=7094.24 fatals=7
+2026-09-20T19:37:23Z uptime=7114.37 fatals=7
+2026-09-20T19:37:43Z uptime=7134.50 fatals=7
+2026-09-20T19:38:03Z uptime=7154.66 fatals=7
+2026-09-20T19:38:23Z uptime=7174.82 fatals=7
+2026-09-20T19:38:43Z uptime=7194.94 fatals=7
+2026-09-20T19:39:03Z uptime=7215.06 fatals=7
+2026-09-20T19:39:23Z uptime=7235.22 fatals=7
+2026-09-20T19:39:43Z uptime=7255.34 fatals=7
+2026-09-20T19:40:04Z uptime=7275.45 fatals=8
+=== FATAL 8 OBSERVED ===
+8 7275.45
+[ 7262.819515] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 5426.391585] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 5427.699310] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 6360.554391] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[ 6360.614799] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 6361.955365] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 7262.819515] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 7262.880290] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 7264.214429] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+Count: 0
+Last Entered At: 0
+Last Exited At: 0
+Accumulated Duration: 0
+Client Votes: 0x0
+---
+Count: 0
+Last Entered At: 0
+Last Exited At: 0
+Accumulated Duration: 0
+Client Votes: 0x5070507

@@ -7,6 +7,24 @@ retraction) — see §6.
 **Depends on:** `147_HMU05_PSTORE_PANIC_CAPTURE_AND_STALL_CHARACTERISATION.md` (the AP-side
 crash fix; the first-packet-loss characterisation; §8's open item about the bearer churn).
 
+> ### ⚠ CORRECTED 2026-09-21 by Doc 149 — read `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md`
+>
+> Three claims below were superseded by measurement. They are corrected in place in §3 and
+> §6.1, and fully re-derived in Doc 149:
+>
+> 1. **The period is ~902.3 s of *modem* uptime, not 903.674 s.** The 903.674 s figure is the
+>    AP-observed interval and includes ~1.4 s of SSR downtime. It reconciles with the modem
+>    RE's `400 × 2.256 s = 902.4 s`. Measured modem-uptime period: **902.267 s, 112 ppm, n=4**.
+> 2. **§3.0.1's inference is wrong.** E1 was run to completion as an A/B/A and the
+>    pre-registered prediction **failed** (#7 landed 30.6 s late). Traffic does not "select
+>    which of several ~900 s timers expires first" — it *suppresses* the deterministic idle
+>    fatal and substitutes a variable one (895.5 s, then 932.9 s). When traffic stopped, the
+>    ~900 s period returned with a *third* signature.
+> 3. **§6.1's "≥10 distinct signatures" is the wrong framing.** Three signatures fired at
+>    ~900 s of modem uptime in one boot, two of them in the *same* idle condition on different
+>    boots. The `file:line` string is a mutable global descriptor and **must never be used to
+>    classify a fatal**.
+
 ---
 
 ## 1. Why this document exists
@@ -92,6 +110,16 @@ That reframes the whole line of attack: the useful question is "what does Androi
 once every 903.674 s, that OpenWrt does not?" — not "what is the failure rate".
 
 ### 3.0.1 The pattern BREAKS under traffic — experiment E1
+
+> **CORRECTED 2026-09-21 (Doc 149 §3).** The inference drawn in this subsection — that the
+> AP's activity pattern *selects* which ~900 s timer fires — is **wrong**. E1 was run to
+> completion as an A/B/A and the pre-registered prediction below **failed**: fatal #7 landed at
+> **6360.554391 s**, 30.6 s late against the "idle resumed" model and 37.4 s late against the
+> "traffic persists" model. The A/B/A shows the real behaviour: traffic *suppresses* the
+> deterministic idle fatal and substitutes a **non-deterministic** one (895.490 s, then
+> 932.855 s), and when traffic stopped at AP ~6401 s the ~900 s period returned — with a
+> **third** signature, `lte_ml1_sleepmgr_stm.c:4054` at 900.864 s of modem uptime. The
+> table and the prediction below are kept as the pre-registered record.
 
 A 1 Hz ping was started at AP 5310 s to test whether the AP's activity pattern matters. Fatal #6
 came at **5426.331445 s** — and **two things changed at once**:
@@ -246,6 +274,16 @@ The remaining unexplained telemetry is `pm_suspend_attempts` vs `pm_suspend_comp
 ## 6. Corpus corrections
 
 ### 6.1 There are at least **ten** distinct fatal signatures, not one
+
+> **CORRECTED 2026-09-21 (Doc 149 §3.1).** The *census* below is right; the **conclusion drawn
+> from it is not**. In one boot, three signatures fired at ~900 s of modem uptime, and two of
+> them (`lte_ml1_common_timer.c:390` in the idle phase, `lte_ml1_sleepmgr_stm.c:4054` in the
+> later idle phase) fired in the *same* idle condition on different boots. That confirms the
+> modem RE's reading (`900S_CRASH_LPR_FRAMEWORK_RE.md` §5.2): these are one root event —
+> the MCPM `system_sleep_check` Q6-PC-voting failure — surfacing at different assert sites.
+> The ERR_FATAL descriptor is a **single mutable global "last fatal" record** (its payload
+> words vary at runtime), so the `file:line` string identifies *where the formatter happened to
+> be pointed*, not a distinct bug. **Do not classify a fatal by its string.**
 
 Census over every log in this repo (`evidence/148_fatal_periodicity/fatal_signature_census.txt`):
 

@@ -4,8 +4,10 @@
 across many sessions, and a full trust audit on **2026-09-20** found that a large
 fraction of it rests on three premises that have since been **measured to be false**.
 29 files were moved to `_QUARANTINE/` as a result (see `_QUARANTINE/README.md`).
-Four further retractions/corrections were added the same day by Docs 147 and 148 —
-see the sections below. **Retraction 1 is scoped: read it before citing it.**
+Four further retractions/corrections were added the same day by Docs 147 and 148, and a
+fifth round the next day by **Doc 149** (which corrects Doc 148's own period figure and
+signature framing) — see the sections below.
+**Retraction 1 is scoped: read it before citing it.**
 
 ## The three retracted premises — do not build on these
 
@@ -18,6 +20,13 @@ see the sections below. **Retraction 1 is scoped: read it before citing it.**
    3/3, stable to **1.08 ppm**. So: name the signature. "Fixed 900 s" is falsified for
    `a2_power.c:1189`; for `lte_ml1_common_timer.c:390` the periodicity is **real and
    unexplained** (Doc 148 §3).
+   **CORRECTED 2026-09-21 (Doc 149 §2):** the period is **~902.3 s of *modem* uptime**
+   (measured 902.267 s, 112 ppm, n=4), not 903.674 s. The 903.674 s figure is the
+   AP-observed interval and includes ~1.4 s of SSR downtime — which is why it reconciles
+   with the modem RE's independent `400 × 2.256 s = 902.4 s`. **Also corrected (Doc 149
+   §3):** the fatal is **not** paced by the AP's A2 vote cadence (that varies 5.9× while
+   the period stays flat), and under traffic the deterministic idle fatal is **suppressed**
+   and replaced by a variable one.
 2. **"The 1000 ms bam-dmux autosuspend is the bug; disable it (`autosuspend_delay_ms=-1`,
    `control=on`)."** FALSE and BACKWARDS. Android clears `SMSM_A2_POWER_CONTROL` 1000 ms
    after the last TX (918 power-collapse shutdowns in 53.8 min, measured live). The
@@ -47,6 +56,12 @@ see the sections below. **Retraction 1 is scoped: read it before citing it.**
    Any claim of the form "the fatal does X" must **name the signature**. Three of them show
    ~900 s periods but with *different* values (902.230 / 903.674 / 905.5 s); within a boot the
    period is stable to ~1 ppm, across boots both the period and the signature change.
+   **CORRECTED 2026-09-21 (Doc 149 §3.1) — the census is right, the conclusion is not.**
+   In one boot **three** signatures fired at ~900 s of modem uptime, two of them in the *same*
+   idle condition on different boots. That confirms the modem RE's reading (they are one root
+   event — the MCPM `system_sleep_check` Q6-PC-voting failure — at different assert sites) and
+   refutes this item's "distinct bugs" reading. The ERR_FATAL descriptor is a **single mutable
+   global record**, so **never classify a fatal by its `file:line` string**.
 7. **The differential doc's "no FATAL" evidence is weak — but its conclusion is right.**
    `Stock_Android_Live/02_DIFFERENTIAL_DIAG_ANALYSIS.md` rests on a ~488 s Android DIAG capture
    and a ~121 s OpenWrt one. DIAG **dies on every SSR**, and a fatal *causes* an SSR, so absence
@@ -106,7 +121,8 @@ Also established and not to be re-litigated:
 | `145_RF_PORT_FEASIBILITY_WTR1605_INTO_UFI001B_VERDICT.md` | Quantitative infeasibility verdict |
 | `146_HMU05_AP_SIDE_FIX_SESSION_AND_TRUST_INDEX.md` | Previous session: RTNL oops root cause + fix + verification; corpus trust index; next experiments |
 | `147_HMU05_PSTORE_PANIC_CAPTURE_AND_STALL_CHARACTERISATION.md` | **The pstore kernel panic** proving the oops; fix verified in situ; stall re-characterised (not 900 s, not the RX ring); patch-809 reproducibility fix |
-| `148_HMU05_FATAL_PERIODICITY_AND_SIGNATURE_TAXONOMY.md` | **The fatal is periodic within a boot** (903.674 s, 3/3, 1 ppm); ten-signature taxonomy; scopes retraction #1; explains the address churn; downgrades the DIAG-based "no FATAL" evidence |
+| `148_HMU05_FATAL_PERIODICITY_AND_SIGNATURE_TAXONOMY.md` | **The fatal is periodic within a boot**; scopes retraction #1; explains the address churn; downgrades the DIAG-based "no FATAL" evidence. **Its period figure (903.674 s) and its ten-signature framing are corrected by Doc 149** |
+| `149_HMU05_RPM_FIRMWARE_AND_LIVE_RPM_LOG.md` | **The period is ~902.3 s of *modem* uptime** (not 903.674 s AP), reconciling with the RE's `400 × 2.256 s`; the E1 A/B/A result (traffic *suppresses* the deterministic fatal; the pre-registered prediction **failed**); the assert string is a mutable global and **must not classify a fatal**; **`rpm.bin` is a disassemblable ARM ELF and the RPM's live log ring is readable from the AP with `devmem`**; the RPM has never entered VMIN/XOSD and the AP never votes VMIN |
 
 ## Sound but narrow (accurate, subordinate scope)
 
