@@ -214,6 +214,39 @@ Three signatures, three *different* periods: **902.230 / 903.674 / 905.5 s**. Sp
 to be unrelated. The honest statement is: *there is a ~900 s class of timeout; which signature
 fires, and the exact period, vary per boot.*
 
+#### 6.2.1 Can the period be expressed in timer units? **Not established — and the near-miss is a trap**
+
+The temptation is to divide 903.674 s by a plausible LTE clock and declare a wrap counter. The
+numbers:
+
+| candidate unit | 903.674350 s ÷ unit | nearest integer | residual |
+| :--- | ---: | ---: | ---: |
+| 1.28 s (LTE DRX short) | 705.99559 | 706 | **−5.65 ms (−6.3 ppm)** |
+| 2.56 s (LTE DRX long) | 352.99779 | 353 | −5.65 ms (−6.3 ppm) |
+| 0.64 s | 1411.99117 | 1412 | −5.65 ms (−6.3 ppm) |
+| 10.24 s (SFN hyperframe) | 88.24945 | 88 | +2.554 s (+2827 ppm) |
+| 1 ms tick | 903674.35 | 903674 | +0.35 ms (0.4 ppm) |
+
+`706 × 1.28 s = 903.68 s`, and the measurement sits 6.3 ppm below it — exactly the kind of
+discrepancy you would expect between the AP's clock and the modem's DRX clock. **But the same
+test applied to the other two signatures fails:**
+
+| signature | period (s) | ÷ 1.28 s | residual |
+| :--- | ---: | ---: | ---: |
+| `lte_ml1_common_timer.c:390` | 903.6744 | 705.9956 | −0.0057 s (−6 ppm) |
+| `lte_ml1_sleepmgr_stm.c:4054` | 902.2303 | 704.8674 | −0.170 s (−188 ppm) |
+| `a2_power.c:1189` | 905.536 | 707.4500 | +0.576 s (+636 ppm) |
+
+Only one of three lands on an integer. With ~900 s of run time and a free choice of unit, *some*
+coarse unit will always fit one series to a few ppm — that is exactly how the corpus's "901.5 s
+hardcoded timer" and "`lte_ml1_common_timer.c:390` every 902 s" claims arose. The 1 ms and
+sleep-clock rows "fit" trivially because the unit is fine-grained, and carry no information.
+
+**So: do not adopt a DRX-cycle model on this evidence.** The model-free facts are the ones to
+build on — *within* a boot the interval is stable to ~1 ms, and *across* boots both the period
+(±3.3 s) and the signature change. A DRX model would become testable if the network's paging
+cycle were changed and the period scaled with it; that has not been done.
+
 ### 6.3 Retraction #1 must be scoped to the signature it was measured on
 
 `README.md` currently says, of retraction #1:
@@ -284,6 +317,25 @@ therefore AP-dependent** — which is exactly the premise the AP-side effort res
 both sides and compare (a) `pc_irq_count`-equivalent collapse cadence and (b) whether
 `lte_ml1_common_timer.c:390` appears in Android's `dmesg` past 903 s. The Android device was
 **not reachable** (`adb devices` empty) when this document was written.
+
+### 7.1 Static decode of the assert site: attempted, blocked
+
+Tried on 2026-09-20 and did **not** succeed — recording it so the next session does not repeat it:
+
+* `lte_ml1_common_timer.c:390` is **not** in the BSS line-table family that carries the verified
+  controls (`lte_ml1_sleepmgr_stm.c:4054`, `lte_ml1_rfmgr_trm.c:4014`, `a2_power.c:1189`).
+  Searching `modem.asm` for the initialiser form (`rN = #0x186`, i.e. line 390) gives **4** hits
+  (`c02c3930`, `c04b01bc`, `c0b3e0e8`, `c0cb0b64`) and **none** is a line-table initialiser —
+  they are arithmetic and structure-init sites.
+* `scratch/firmware/modem.asm` contains **no string content at all**: `a2_power.c`,
+  `lte_ml1_sleepmgr_stm.c`, `mmoc.c` and `lte_ml1_common_timer.c` each appear **0** times, so the
+  filename-grouping route is unavailable from that artifact.
+* This is consistent with the recorded traps: the descriptor → file/line link is **obfuscated**
+  and needs the firmware's decryption routine; `modem.asm` also stops at `PT_LOAD#16`.
+
+**Consequence:** the assert site cannot be decoded statically with the current artifacts. The
+practical route remains what the modem *prints* — i.e. DIAG capture around the fault — and the
+AP-side differential, not firmware RE.
 
 ---
 
