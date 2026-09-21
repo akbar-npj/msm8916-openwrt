@@ -1,0 +1,36 @@
+=== A FREE SAMPLE FOR THE PERIODIC-TIMER FINDING (Doc 162/164), 2026-09-21 ===
+
+The natural fatal captured for Question B also lands a sample in the
+periodicity taxonomy, because it was preceded by a fresh modem power-up:
+
+  [  434.187561] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+  [ 1335.049762] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+
+  modem uptime at fatal = 1335.049762 - 434.187561 = 900.862 s
+
+Doc 164's taxonomy (from 8 boots, 2 fatals per boot):
+  * SHORT band ~900.5 - 901.0 s, spread 0.46 s, ALWAYS lte_ml1_sleepmgr_stm.c:4054
+  * LONG band ~940.2 - 947.0 s, spread 6.8 s  -- later shown by Doc 165 to be a
+    4-sample artefact, since a new boot's first fatal was a2_power.c:1189 at
+    ~925.4 s, in NEITHER band.
+
+This sample:  signature lte_ml1_sleepmgr_stm.c:4054,  900.862 s  ->  IN the short band.
+
+=> n = 12 for the short band, and the band<->signature pairing holds again.  The
+   short band is the one with the CLOCK signature (Doc 162: common_timer n=11 at
+   902.353 s +/- 281 ppm); 900.862 s is 958 ppm below 900.000 s, i.e. within the
+   same order as the other samples' spread.  It is one more independent
+   confirmation that a modem-uptime clock, not an AP-side timer, gates this fatal.
+
+CAVEAT, stated because it matters: this is a SINGLE sample taken opportunistically,
+not a controlled A/B.  It is offered as a consistency check on an existing finding,
+not as new proof of it.
+
+--- AND THE FACT THAT MATTERS FOR THE FIXES ---
+This fatal occurred with the UNPATCHED rpmsg_wwan_ctrl.ko deployed and did NOT
+produce the SMD poll use-after-free (0 list_del corruption, coredump captured,
+AP survived).  So:
+  * the fatal itself is not what the UAF needs -- the TEARDOWN CONTEXT is;
+  * fixing the UAF (823/822) makes the fatal survivable but does NOT stop the
+    fatal.  The ~900.9 s modem-internal timer remains, and is a separate piece
+    of work from the reset.
