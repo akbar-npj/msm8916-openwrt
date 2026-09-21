@@ -6,7 +6,8 @@
 §7's pre-registration is **withdrawn** (§8.2) and the fix stands on mechanism, not on a run count
 (§8.6); one unexplained boot is recorded and **not** exculpated (§8.8); **and §8.10 records an AP
 reset that survived 823 — so 823 is a real fix for the UAF it targets but is NOT a complete fix for
-the production reset.**
+the production reset.** §8.11 names the reset mechanism (**PMIC PON WDT, 30 s, active**) and reports a
+reboot rate the "1 in 20–40" model does not predict; §8.12 deploys the instrument that was missing.
 
 ---
 
@@ -59,6 +60,14 @@ and then has to report that the reproduction it was going to be scored against d
     so it was not a trappable fault; no fourth coredump and no ledger row exist, so it is *not*
     attributable to a fatal from this data. 823 fixes the UAF it was written for; it does **not** close
     the coredump-reclaim hang that Doc 159 located. **This is why the round does not end with "fixed".**
+8. **The reset mechanism is now named, and the rate is uncomfortable** (§8.11): the AP does not panic,
+    it **stops**, and the **PM8916 PON watchdog (active, 30 s timeout)** resets the SoC — which is
+    exactly "empty pstore + reboot" and explains the `~30 s stall + ~15–40 s boot` shape of every
+    outage. The watcher's 15 real reboots in ~5 h are nearer **1 in 1–3 SSRs than 1 in 20–40**, though
+    **14 of the 15 are pre-823** and that window was also the heaviest manual-activity window — so
+    neither reading is a fact yet. **The instrument that was missing is now deployed** (§8.12): a
+    reset-durable beacon plus a per-boot rolling kernel log, both reboot-persistent, so **the next
+    stall will be characterised rather than merely counted.**
 
 ---
 
@@ -709,6 +718,91 @@ for the coredump-reclaim hang — is still required.
 
 ---
 
+### §8.11 THE RESET MECHANISM IS THE PMIC PON WATCHDOG (30 s) — AND THE RATE IS NOT RARE
+
+Chasing §8.10's undetermined cause produced two hard facts, both read from the device rather than
+inferred, plus one measurement that is uncomfortable for the standing model.
+
+**(1) The reset mechanism, named.** The AP does not panic — it **stops running**, and hardware resets it:
+
+```
+# cat /sys/class/watchdog/watchdog0/state    -> active
+# cat /sys/class/watchdog/watchdog0/timeout  -> 30
+# cat /sys/class/watchdog/watchdog0/identity -> QCOM PM8916 PON WDT
+```
+
+The PM8916 PON watchdog is **active with a 30 s timeout**, and something in userspace (procd) must
+kick it every ≤30 s while the kernel is healthy. So **an empty pstore plus a reboot is exactly what a
+≥30 s global stall looks like**: the kernel stops, the kick stops, the PMIC resets the SoC. This is the
+mechanism §8.10 could only describe as "a global stall → PMIC watchdog reset" — and it also explains
+the **shape** of every observed outage: the short ones (13–61 s) are `~30 s stall + ~15–40 s boot`,
+two components, exactly as the timings in §8.10 show.
+
+**(2) The rate.** The host watcher has logged 19 unreachable events; keeping only those where the AP's
+uptime actually *decreased* (i.e. it really rebooted, rather than the USB gadget dropping) gives
+**15 reboots in ~5 h**:
+
+| uptime before the reset (s) | 5294 · 2427 · 2275 · 2250 · 1812 · 1614 · 1139 · 1042 · 897 · 395 · 307 · 220 · 187 · 164 · 126 |
+
+A modem that fatals on its ~902 s idle timer produces roughly 20 SSRs in 5 h, so **15 reboots in ~20
+SSRs is nearer 1 in 1–3 than the 1 in 20–40 Doc 167 measured.** Two honest readings, and neither is a
+fact yet:
+
+* **The pre/post-823 split.** **14 of the 15 reboots are pre-823** (12:02–16:42); the only post-823 one
+  is 17:04 (§8.10). The current boot has since run **two consecutive `lte_ml1_sleepmgr_stm.c:4054`
+  fatals at AP 919.62 and 1825.87 — a 906 s gap, i.e. the idle timer — and survived both**, `t0..t9`
+  present, 0 corruption, coredumps 17/18. **So 823 may well have lowered the rate; n is far too small
+  to claim it.**
+* **The pre-823 window was also the heaviest manual-activity window** (echo-stop runs, deploys, soaks,
+  the UAF A/B), so its rate is not a clean steady-state figure either.
+
+**What is now true regardless.** The reset is a **≥30 s global stall**; the instruments that can name
+the stall are deployed and **reboot-persistent** (a reset-durable beacon, §8.10, and a per-boot rolling
+kernel log, §8.12); and the reboot uptimes cluster near **small multiples of ~902 s** (897 ≈ 1×,
+1812 ≈ 2×), which is *suggestive* of "the AP hangs on the SSR of the n-th idle-timer fatal" — worth
+testing, **not** established.
+
+---
+
+### §8.12 THE INSTRUMENT THAT WAS MISSING — a per-boot rolling kernel log
+
+§8.11 leaves one question: **what does the kernel print in the last seconds before it stops?** Nothing
+on the device answered it. `pstore` was empty (§8.10); `console-ramoops` is absent, not merely stale;
+and the soak's own `/dev/kmsg` stream file (`/overlay/q6trace.log`) has an mtime of the boot, i.e. it
+is **not being written** — its sibling `q6trace.csv` is current, so only the log path is dead.
+
+Deployed instead (`scratch/dmesg_roll.sh`, autostarted from `/etc/rc.local`):
+
+```sh
+BOOTID=$(cut -c1-8 /proc/sys/kernel/random/boot_id)
+F="$OUT/dmesg_roll_$BOOTID.txt"
+ls -t "$OUT"/dmesg_roll_*.txt | tail -n +5 | while read -r old; do rm -f "$old"; done
+while true; do
+    dmesg | tail -n "$LINES" > "$F.tmp" && mv -f "$F.tmp" "$F"
+    sync
+    sleep "$INTERVAL"
+done
+```
+
+Three deliberate choices, each of which is a mistake already made once in this project:
+
+* **`dmesg` (the ring buffer), not `/dev/kmsg`.** A `/dev/kmsg` reader sleeps on `log_wait` when the
+  ring is quiet, and a leaked `cat /dev/kmsg | …` pipeline has already cost this project a permanent
+  fd. `dmesg` is a bounded read that always returns.
+* **One file per BOOT, not one rolling file.** A single rolling file is overwritten within `INTERVAL`
+  seconds of the next boot — so it destroys exactly the pre-hang tail it exists to capture. **That is
+  the same self-erasing-instrument bug the beacon had (§8.10), and it is why the beacon's fix and this
+  design share the `BOOT`-marker idea.**
+* **`sync` on every write.** The tail must be durable before the stall, since nothing runs after it.
+
+Verified live: `/overlay/dmesg_roll_a9fd907c.txt` (18673 B, rewritten every 5 s) ending at the SSR
+powerup lines of the 919.62 s fatal. `rc.local` passes `sh -n` and the block is present.
+
+**Together with §8.10's beacon, the next stall will be characterised rather than merely counted** —
+the beacon gives the *when* and the A(sync)-vs-B(nosync) split, the rolling log gives the *what*.
+
+---
+
 ## §9 Traps recorded this round
 
 1. **A patch that "cannot need a flash" is a property of the config, not of the bug.** The first
@@ -749,12 +843,16 @@ for the coredump-reclaim hang — is still required.
 
 ## §10 What's next
 
-* **FIRST: characterise the AP-reset path that survives 823 (§8.10).** The 17:03 reset is the live
-  production failure and 823 does not close it. The beacon is now reset-durable, so the *next* reset
-  will say whether the AP stalled globally (both `beacon_a` and `beacon_b` stop together) or only the
-  filesystem path wedged (`a` stops, `b` continues), and *when* the stall began. **Do not patch
-  anything until that record exists** — the whole point of §8.10 is that one unexplained reset was
-  inferred rather than measured.
+* **FIRST: let the new instruments catch a stall (§8.12), then read the cause off it.** The reset is a
+  **≥30 s global stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the
+  per-boot rolling kernel log are both deployed and reboot-persistent, so the next stall yields the
+  *when* (beacon, plus the A(sync)-vs-B(nosync) split that separates a wedged writeback path from a
+  global stall) and the *what* (the kernel's last lines). **Do not patch anything until that record
+  exists** — §8.10 exists precisely because one reset was inferred rather than measured.
+* **Then test §8.11's open question:** is the reboot uptime ≈ n × 902 s (i.e. does the AP hang on the
+  SSR of the n-th idle-timer fatal)? That is a *prediction*, and it is falsifiable from the ledger +
+  the watcher's uptime-before-reset series without any new instrumentation. If it holds, the fix target
+  is the SSR path of the idle-timer fatal specifically; if it fails, the reset is not fatal-driven.
 * **Re-check the 16:40–16:46 cluster.** Four resets in six minutes, only one explained by
   `deploy823.sh`. The same instruments now cover it.
 * **Finish scoring 823.** It is deployed and functionally clean (§8.7) and passed the `echo stop`
@@ -809,10 +907,16 @@ for the coredump-reclaim hang — is still required.
   * **`M_post823_apreset_1703.txt`** — **the 17:03 AP reset with 823 deployed (§8.10): the full reset
     record, the three recovered fatals that preceded it, the empty pstore, the two confounders ruled
     out, the poller-identity re-check, and the beacon fix.**
+  * **`O_watchdog_reset_mechanism_and_rate.txt`** — **§8.11/§8.12: the reset mechanism (PMIC PON WDT,
+    30 s, active), the 15-reboot-in-5 h rate with its pre/post-823 split, the two consecutive
+    idle-timer fatals the current boot survived, and the rolling-kernel-log instrument.**
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.
 * `scratch/beacon.sh` — the **reset-durable** liveness beacon (§8.10): appends a `BOOT <uptime>s` marker
   instead of truncating, so the pre-reset tail survives the next reset. Copy kept at
   `evidence/170_two_fixes_for_the_smd_poll_uaf/N_beacon_sh_reset_durable.sh`.
+* `scratch/dmesg_roll.sh` — the **per-boot rolling kernel log** (§8.12), autostarted from
+  `/etc/rc.local`; `scratch/dev_state_mon.sh` — the host-side device-state sampler (§8.12). Copies kept
+  at `evidence/170_two_fixes_for_the_smd_poll_uaf/P_…` and `Q_…`.
 * `scratch/mkko823.sh` — produces and self-validates the deployable stripped module.
 * `msm89xx/patches/822-rpmsg-smd-drain-pollers-before-free.patch` (md5 `2781b4bc2916dee0ae48dee1e7cf789a`, 85 lines)
 * `msm89xx/patches/823-rpmsg-wwan-ctrl-no-smd-poll-registration.patch` (md5 `23c6a7a3e1222a881858f5ea1b733727`)

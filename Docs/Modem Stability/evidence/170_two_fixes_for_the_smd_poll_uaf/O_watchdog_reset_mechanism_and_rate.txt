@@ -1,0 +1,112 @@
+O — THE RESET MECHANISM (PMIC PON WDT, 30 s), THE RATE, AND THE MISSING INSTRUMENT
+==================================================================================
+Captured 2026-09-21 ~17:30-18:00 +05:45.  Follow-up to Doc 170 §8.10.
+Device: Melbon HMU05, OpenWrt 25.12.5 / Linux 6.12.94, patch 823 deployed
+(md5 6553acd4eb83fcf032c1cf0821f35f4d).
+
+1. THE RESET MECHANISM, READ FROM THE DEVICE
+--------------------------------------------
+# ls -la /sys/class/watchdog/
+  watchdog0 -> ../../devices/platform/soc@0/200f000.spmi/spmi-0/0-00/
+                200f000.spmi:pmic@0:pon@800/.../watchdog/watchdog0
+# cat /sys/class/watchdog/watchdog0/state     -> active
+# cat /sys/class/watchdog/watchdog0/timeout   -> 30
+# cat /sys/class/watchdog/watchdog0/identity  -> QCOM PM8916 PON WDT
+
+dmesg (boot):
+  [    1.486517] init: - watchdog -
+  [    8.932408] procd: - watchdog -
+  [    9.511892] procd: - watchdog -
+
+=> The PM8916 PON watchdog is ACTIVE with a 30 s timeout.  procd kicks it while the
+   kernel is healthy.  A >=30 s GLOBAL STALL => the kick stops => the PMIC resets the SoC.
+   This is exactly "empty pstore + reboot", and it explains the two-component shape of
+   every outage:  ~30 s stall + ~15-40 s boot = the 13-61 s outages the watcher recorded.
+
+2. THE RATE -- 15 REBOOTS IN ~5 h (uptime actually DECREASED, so a real reboot)
+-------------------------------------------------------------------------------
+From Docs/Modem Stability/evidence/164_q6v5_ssr_window_trace/host_hang_watch.log
+(19 unreachable events; the ones where the uptime-check did NOT reset are USB-gadget
+drops, e.g. the 1641 s and 926 s outages, and are excluded):
+
+  12:02:03  (uptime before 5294)
+  12:33:00  (1812)
+  13:11:04  (2250)
+  13:15:01  (220)
+  13:31:03  (897)
+  13:33:00  (126)
+  13:36:00  (164)
+  13:56:02  (1139)
+  14:01:01  (307)
+  15:07:02  (2275)
+  15:15:01  (395)
+  15:42:00  (1614)
+  16:01:01  (187)
+  16:42:03  (2427)      <- 823 deploy window
+  17:04:01  (1042)      <- the §8.10 reset
+
+Pre/post-823 split: 14 pre-823, 1 post-823.
+NOTE the heartbeat is only every 60 s, so each "uptime before" is within +60 s of truth.
+
+A modem on the ~902 s idle timer produces ~20 SSRs in 5 h.  15 reboots / ~20 SSRs is
+nearer 1 in 1-3 than Doc 167's 1 in 20-40.  BUT:
+  * 14/15 are pre-823, and the pre-823 window was also the heaviest MANUAL-ACTIVITY
+    window (echo-stop runs, deploys, soaks, the UAF A/B), so it is not a steady-state rate;
+  * n is far too small to claim 823 lowered it.
+Neither reading is a fact yet.  Flagged, not concluded.
+
+Suggestive but NOT established: the reboot uptimes cluster near small multiples of ~902 s
+(897 ~= 1x, 1812 ~= 2x), consistent with "the AP hangs on the SSR of the n-th idle-timer
+fatal".  Testing this is the point of the instruments below.
+
+3. THE SAME BOOT SURVIVED TWO CONSECUTIVE IDLE-TIMER FATALS (post-823)
+----------------------------------------------------------------------
+/overlay/ssr_ledger.csv, current boot (started 17:03:22):
+
+  919.62,1,lte_ml1_sleepmgr_stm.c:4054,1,1,1,1,1,1,1,1,1,1,1,1,0,1,17
+  1825.87,2,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,0,1,18
+
+  gap = 1825.87 - 919.62 = 906.25 s  => the ~902 s idle timer (modem uptime resets on SSR)
+  both rows: t0..t9 ALL PRESENT, 0 list_del corruption, coredump captured
+  AP survived both (uptime 1849.35 s and climbing, rproc=running)
+
+dmesg_roll tail after the second fatal:
+  [ 1818.079734] bam_dmux: received CMD_OPEN (1) on channel 5
+  [ 1818.080090] bam_dmux: received CMD_OPEN (1) on channel 6
+  [ 1818.080462] bam_dmux: received CMD_OPEN (1) on channel 7
+
+4. THE MISSING INSTRUMENT -- deployed
+-------------------------------------
+Nothing on the device answered "what does the kernel print in the last seconds before it
+stops?":
+  * pstore EMPTY (§8.10);
+  * console-ramoops ABSENT, not merely stale;
+  * /overlay/q6trace.log (the soak's /dev/kmsg stream) has mtime = boot time => the log
+    path is dead (its sibling q6trace.csv IS current, so only the log path died).
+
+Deployed `scratch/dmesg_roll.sh` (autostarted from /etc/rc.local):
+  * `dmesg` (ring buffer), NOT /dev/kmsg -- a /dev/kmsg reader sleeps on log_wait when the
+    ring is quiet, and a leaked `cat /dev/kmsg | ...` has already cost this project an fd;
+  * ONE FILE PER BOOT (/overlay/dmesg_roll_<boot_id>.txt) -- a single rolling file is
+    overwritten seconds after the next boot, destroying the pre-hang tail it exists to
+    capture (the same self-erasing-instrument bug the beacon had, §8.10);
+  * `sync` every write -- the tail must be durable before the stall.
+  * keeps only the 4 most recent per-boot files.
+
+Verified live:
+  /overlay/dmesg_roll.log:
+    [1769.98s] dmesg_roll start boot_id=a9fd907c -> /overlay/dmesg_roll_a9fd907c.txt
+               (every 5s, last 250 lines)
+  -rw-r--r-- 18673 /overlay/dmesg_roll_a9fd907c.txt   (rewritten every 5 s)
+  /etc/rc.local: dmesg_roll block present, `sh -n /etc/rc.local` => SYNTAX OK
+
+5. THE COMPLETE INSTRUMENT SET NOW (all reboot-persistent via rc.local)
+-----------------------------------------------------------------------
+  beacon_a.txt / beacon_b.txt   reset-durable liveness (when + a-vs-b divergence)
+  dmesg_roll_<bootid>.txt       the kernel log up to the stall (what)
+  ssr_ledger.csv                one line per fatal/SSR (which teardown stages ran)
+  coredump_watch.log            recovered-vs-hung record per fatal
+  host dev_state_mon.log        host copy of the above every 20 s
+  host host_hang_watch.log      the clock (unreachable window, uptime resets)
+
+=> The next stall will be CHARACTERISED, not merely counted.
