@@ -66,7 +66,17 @@ at `+0x24`**, and that it names the **same `file:line` dmesg does in 11 dumps ou
 boots** — so Doc 149's "never classify a fatal by its `file:line`" is a correct warning and a wrong
 conclusion, and Doc 162's suppressed-~901 s-fatal finding cannot be a stale-signature artefact; it
 also preserves a 36-dump, 2.9 GB coredump corpus that was one write away from filling the overlay
-partition) — see the sections
+partition), and a twentieth by **Doc 164** (which instruments the Doc 159 hang window with a
+temporary kernel patch — **23 `dev_info()` trace points**, one before each step, so the last line
+printed names the step that hung — and then **measures its own instrument before trusting it**: the
+console costs **1.03 ms + 0.0904 ms/char** (a 4 % match to the 115200-baud serialisation rate), so the
+23 trace lines would have added **≈ 190 ms to a 45.481 ms window**, and the window itself is
+re-measured independently at **43.726–46.944 ms, n=5**; the fix is one sysctl,
+`console_loglevel = 6`, which makes the trace ring-only and **32× cheaper** while leaving `dev_err`
+reference points a kernel-side sink; it also records an **8/8 correlation between a fatal's interval
+and its signature** — the short ≈900.7 s fatal is always `lte_ml1_sleepmgr_stm.c:4054` and the long
+≈942 s fatal is always `a2_power.c:1189` — which **reframes Doc 162's "unexplained alternation" as two
+mechanisms with different periods competing inside one boot**) — see the sections
 below.
 **Retraction 1 is scoped: read it before citing it.**
 
@@ -785,6 +795,72 @@ below.
     (36/36)**; only 6 were in the repo before. `/overlay/coredump_live/` was then cleared —
     **9.2 MB → 2.9 GB free**. The watcher is still running.
 
+## A twentieth round — Doc 164, 2026-09-21: the q6v5 SSR window is now observable — and the instrument was 4× the phenomenon
+
+93. **The Doc 159 hang window is now instrumented.** Patch `817-q6v5-ssr-window-trace.patch`
+    (temporary, diagnostic) puts one `dev_info()` immediately **before** each of the **23** steps in
+    the window — the tail of `q6v5_mba_reclaim()` (steps 01–09) and the head of `q6v5_mba_load()`
+    (steps 10–23), bracketed by `port failed halt` and `MBA booted`. The **last `q6v5-trace:` line
+    printed names the step that never returned.** It is a loadable module
+    (`kmod-qcom-rproc-modem`), so **no kernel image flash was needed**; the artifact is
+    `79e7a858d41b6c9f7edf8b26b90c77f8`, `srcversion 3F0B3E31…`, 23 trace strings, vermagic matching
+    the running kernel. Two traps: the `root-msm89xx` staging `.ko` is the **stale pristine
+    baseline** (0 trace strings) — take the kernel-tree one; and the rootfs is **squashfs**, so the
+    `.ko` reverts on every reboot, *including a watchdog reboot caused by the hang this soak exists
+    to catch*.
+94. **The window was re-measured independently, n=5: 43.726–46.944 ms, mean 45.481 ms.** Taken from
+    the previous boot's `console-ramoops-0` (38 403 B, the whole boot), which Doc 159 did not use. Its
+    43–47 ms figure reproduces exactly. **That span contains all 23 trace points plus the MBA
+    firmware load** — the number the instrument has to fit inside.
+95. **The instrument was 4.2× the phenomenon, and it was measured before it was trusted.** The console
+    is `ttyMSM0,115200`. Writing to `/dev/kmsg` runs the full `printk` path (ring + console) from
+    process context, and a `<N>` prefix selects the level, so the same probe measures printed and
+    suppressed messages. Fitted: **cost ≈ 1.03 ms + 0.0904 ms/char**, against the 115200-baud
+    serialisation rate of 0.0868 ms/char — a **4 % match**, i.e. pure serialisation. An 80-char trace
+    line costs **≈ 8.3 ms**, so patch 817's 23 lines cost **≈ 190 ms against a 45.481 ms window**.
+    An independent upper bound agrees: steps 10→23 plus `MBA booted` span **159.32 ms** on a cold
+    boot against 45.48 ms for the same code on a real recovery (**113.8 ms ≈ 8.1 ms/line**).
+    **An instrument four times the size of what it measures is not a measurement** — and the
+    perturbation is not neutral, because it changes the timing of exactly the handoff the leading
+    hypothesis blames.
+96. **Fixed with one sysctl, verified, and persisted.** `console_loglevel = 6` suppresses KERN_INFO
+    on **every** console (including `ramoops-1`) while still storing it in the ring buffer:
+    **11.87 ms/line → 0.37 ms/line, 32× cheaper**, and the trace is still captured because the soak
+    reads `/dev/kmsg`. Verified directly (`<6>PROBE_INFO` → `dmesg | grep -c` = 1). The two
+    **reference points keep a kernel-side sink** — `fatal error received` and `port failed halt` are
+    `dev_err` (3), so they still reach the serial console and the ramoops console. Applied at runtime
+    **and** persisted in `/etc/rc.local` (a watchdog reboot would otherwise restore 7 and silently
+    re-arm the 4× perturbation), and the soak records the level it started under. **The tradeoff,
+    stated plainly:** the trace's only sink is now the userspace reader — justified because Doc 159's
+    hang left **no** `console-ramoops` record anyway. **Pre-registered A/B:** if no hang lands within
+    ~10 h, the *perturbed* arm is the next configuration to try, not a repeat of this one.
+97. **An unplanned finding, from the same capture: the interval predicts the signature, 8/8.** The
+    previous boot took **5** fatals (**not 4** — the ramoops copy has byte corruption: `received`
+    appears as `rEceived`, so a plain `grep -c` undercounts; cross-check with a marker you are not
+    counting — `MBA booted` = 6 and `port failed halt` = 5 agree on 5 recoveries). The cadence is
+    **S, A, S, A, A — identical to run 8** (Doc 162 §3), which had to be recorded as "unexplained,
+    n=4, a property of the boot". It reproduces. Combining both boots, **8/8 with no overlap**: the
+    short fatal (**≈900.5–901.0 s** of modem uptime, spread **0.46 s**) is always
+    `lte_ml1_sleepmgr_stm.c:4054`; the long fatal (**≈940.2–947.0 s**, spread **6.8 s**, 15× larger)
+    is always `a2_power.c:1189`. **This reframes Doc 162's "alternation" as two mechanisms with
+    different periods competing inside one boot, not one mechanism whose phase flips.** Testable
+    prediction recorded for the next boot.
+98. **`/dev/pmsg0` is a reset-surviving sink, verified empirically rather than assumed.** Three lines
+    written to `/dev/pmsg0` in the previous boot came back after the reboot via
+    `/sys/fs/pstore/pmsg-ramoops-0`. It has no filesystem and no page cache in the path — reserved
+    RAM — which is exactly the case it exists for: the `sync` loop dying with the AP. Also
+    re-confirmed rather than assumed: **netconsole is impossible here** (`usb0` is a configfs USB
+    gadget, so no netpoll; `CONFIG_NETCONSOLE`, `CONFIG_DYNAMIC_DEBUG` and `CONFIG_FTRACE` are all
+    off), and `console-ramoops-0` **did** survive a *clean* shutdown (the full 5-fatal boot) while
+    Doc 159's hang left none.
+99. **Two harness incidents worth carrying forward.** `DRY_RUN=1 ./build.sh kernel hmu05` prints
+    "not executing" for the make steps but **still runs `sync_bsp()`**, so it healed a real drift —
+    `DRY_RUN` guards only the make/config steps. And because **`pkill` does not exist on this image**,
+    an old soak survived a restart and **three soaks ran concurrently** (14 processes, two extra
+    full-ring replays); the rc.local block had also first landed **after `exit 0`** and could never
+    run. **Always verify the process count after a restart** — `ps w | awk '/q6trace_soak/ && !/awk/'`
+    must show exactly 5.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -860,6 +936,7 @@ Also established and not to be re-litigated:
 | `161_BUILD_TOOLING_PATCH_GUARD_AND_SELECTIVE_BUILDS.md` | **Build tooling; no firmware/driver/DTS change.** `build.sh` now (a) **guards the patch tree**: `bsp_drift()` compares tracked vs live (`msm89xx/` → `target/linux/msm89xx/`, `packages/` → `package/msm8916/`), `sync_bsp()` **reports drift before healing and asserts afterwards**, and `assert_bsp_synced()` covers **both** install paths (`sync_bsp` *and* `scripts/openwrt-prepare.sh`, via `ensure_prepared`/`force_prepare`); (b) adds **`./build.sh guard [--deep]`**, exiting non-zero on drift and needing no Docker in its basic form; (c) `--deep` predicts a re-prepare **exactly by asking make** for its own `STAMP_PREPARED` via an `--eval`'d target, rather than re-implementing `find_md5` — which would be **wrong**, because that hash covers **absolute** paths that differ between host and container; it records that **`make -p` prints recursive variables UNEXPANDED** (so `-p` cannot work), that **`TOPDIR` must be passed** (exported by the top-level make, not set in `rules.mk`), and that **`TARGET_BUILD` must be exactly `1`**; (d) adds **`kernel [board]`, `package <name\|path> [board]`, `kmod <name> [board]`** with a board-optional `ensure_config` (reuses `.config` instead of re-running `defconfig`) and five-path package resolution (base-tree nested / feed symlink / project / explicit); (e) draws the honest line that an **in-tree** kmod (`qcom_bam_dmux`) has **no narrower goal than the kernel target**, and prints matching modules with **md5** (`kmod bam-dmux` → `qcom_bam_dmux.ko` `eca269f1…`, the hash on the device); (f) adds a **fully side-effect-free `DRY_RUN=1`**, whose `prepare_config` guard was added after a dry run **clobbered `.config`** (leaving `TARGET_DIR_NAME` = `_`; `.config` restored to the hmu05 board config). Validated by **10 checks** including a real **drift-injection cycle** (detect → report → heal → verify). **The guard does NOT cover a `make` run directly inside the container — that is what `guard` is for.** |
 | `162_SOAK_RUN8_PATCH812_AT_SCALE_AND_FATAL_SIGNATURE_TAXONOMY.md` | **Run 8: the two AP-side data-plane fixes measured at scale, plus a quantified fatal-signature taxonomy.** 70 min, 4 fatals, 4 SSRs, same harness as run 6: **`tx_defer_queued 549` = `tx_defer_submitted 549`, gap 0, `tx_defer_wiped_live 0`, `tx_sweep_guard_hits 0`, 0 oopses, `cmd_open 40`** — against Doc 156's pre-fix **27/27 destroyed**; the data stall is gone at load, not just in the 3-packet repro. Patch 814 recovered the data plane on **4/4 natural SSR triggers** (~20/40/15/30 s) but **`retries: 0`**, so the *retry* path is still unvalidated on a natural trigger. **The run's four fatals alternate 900.965 / 941.288 / 900.662 / 940.238 s of modem uptime with the signature alternating `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189` in lock-step** — on boots 2 and 4 the deterministic ~901 s fatal did not fire at all (SSR count 4 = fatal count 4, so nothing was missed); run 6 showed no such alternation under identical conditions, so it is a property of the boot, **unexplained, n=4**. And the taxonomy: `lte_ml1_common_timer.c:390` **n=11, 902.353 s, ±281 ppm** (the deterministic timer, matching `400 × 2.256 s`); `lte_ml1_sleepmgr_stm.c:4054` **n=10, 901.230 s, 4.6× the spread** (likely downstream); `a2_power.c:1189` **n=7, 68.5–941.3 s — not a clock**. **Refines Doc 149: the `file:line` does not identify *the* assert, but it *does* identify which mechanism fired — ask "what is this signature's period?"** |
 | `163_ERRFATAL_DESCRIPTOR_IS_INLINE_AND_MATCHES_DMESG.md` | **The ERR_FATAL coredump descriptor carries a plaintext, INLINE filename, and its `file:line` matches that fatal's dmesg signature 11/11 across two boots.** Record at ELF VA `0xC35B1280`: `+0x10` line (u16), `+0x14`/`+0x18` words A/B, **`+0x24` filename, NUL-terminated, in the clear**. The corpus' *"obfuscated"* / *"no 16-byte filename table"* is true of the **ELF on disk** but not of the **runtime copy in a coredump** — the earlier reader followed the unrelated `+0x08` pointer instead of reading `+0x24`. Run 8's 5 dumps decode to `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `a2_power.c` 1189, exactly its 5 dmesg signatures; the earlier boot's 6 dumps all decode to `lte_ml1_common_timer.c` 390, matching Doc 149 §2's table (and covering **4** distinct fatals, not 6 — two were captured twice). Word B advances **+11/+12 per fatal**. **So Doc 149's "must not classify a fatal by its `file:line`" is a correct warning and a wrong conclusion** — the string does not name the root cause but it does name *which site tripped*, which is the modem RE's §5.2 exactly, and it closes the alternative reading of Doc 162 §3 (the signature cannot be stale). Also records that `/overlay` was at **100 % with 9.2 MB free** while the watcher writes an 85 MB dump per fatal; **all 36 dumps (2.9 GB) were copied to `scratch/coredump_live_full/` and verified byte-identical by md5 (36/36)** before `/overlay/coredump_live/` was cleared (**9.2 MB → 2.9 GB free**). Tool: `evidence/163_errfatal_descriptor/errfatal_descriptor.py`. |
+| `164_Q6V5_SSR_WINDOW_IS_NOW_OBSERVABLE.md` | **The Doc 159 hang window is instrumented (patch 817, 23 trace points), and the instrument was measured before it was trusted — it was 4.2× the phenomenon, and that was fixed.** The window re-measured independently from the previous boot's `console-ramoops-0`: **43.726–46.944 ms, n=5, mean 45.481 ms** (Doc 159's 43–47 ms reproduces exactly). The console costs **1.03 ms + 0.0904 ms/char** (a **4 %** match to the 115200-baud serialisation rate of 0.0868 ms/char), so an 80-char trace line is **≈ 8.3 ms** and 23 of them are **≈ 190 ms against a 45.481 ms window**; an independent bound from the cold-boot bring-up agrees (**113.8 ms ≈ 8.1 ms/line**). **Fixed by `console_loglevel = 6`** — KERN_INFO is suppressed on every console but still stored in the ring buffer, **11.87 → 0.37 ms/line (32×)**, verified that a suppressed line still reaches the ring, with `dev_err` reference points keeping a kernel-side sink; applied at runtime and persisted in `/etc/rc.local`. Records the **8/8 interval↔signature correlation** (short ≈900.7 s ⇒ `lte_ml1_sleepmgr_stm.c:4054`; long ≈942 s ⇒ `a2_power.c:1189`) that reframes Doc 162 §3's "alternation"; that **`/dev/pmsg0` survives a reboot** (verified) and that netconsole is impossible here; the **ramoops byte-corruption trap** (`received` → `rEceived`, so a plain `grep -c` undercounted 5 fatals as 4); the squashfs/staging-`.ko` deployment traps; and both pre-registrations. Tooling in `evidence/164_q6v5_ssr_window_trace/`. |
 
 
 ## Sound but narrow (accurate, subordinate scope)

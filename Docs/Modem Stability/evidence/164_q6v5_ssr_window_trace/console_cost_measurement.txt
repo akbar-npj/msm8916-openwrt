@@ -1,0 +1,14 @@
+printk = 6	4	1	7   (console_loglevel default_message min default)
+N = 300 writes per measurement
+
+control: loop only, no write                0.010 s     0.03 ms/line
+KERN_WARNING(4), ~10 ch, printed            0.580 s     1.93 ms/line
+KERN_WARNING(4), ~120 ch, printed           3.560 s    11.87 ms/line
+KERN_INFO(6), ~120 ch, suppressed           0.110 s     0.37 ms/line
+KERN_INFO(6), ~10 ch, suppressed            0.090 s     0.30 ms/line
+
+--- proof that a suppressed line still reaches the ring buffer ---
+dmesg | grep -c PROBE_INFO = 1   (must be 1)
+dmesg | grep -c PROBE_WARN = 1   (must be 1)
+[  496.109937] PROBE_INFO suppressed-must-be-in-ring
+[  496.110296] PROBE_WARN printed-must-be-in-ring

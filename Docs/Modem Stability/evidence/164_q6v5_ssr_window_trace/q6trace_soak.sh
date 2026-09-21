@@ -17,6 +17,19 @@
 #   follows never completes.  Reading /dev/kmsg is therefore the only in-guest
 #   instrument that can still see the last line of a console-lock hang.
 #
+# WHY THE CONSOLE LOGLEVEL MUST BE 6 (this is not optional)
+#   The window being traced is 43.7-46.9 ms wide (Doc 164 section 5, n=5).  The
+#   console is a 115200-baud serial line, and a printk line costs
+#       1.25 ms + 0.0882 ms/char        (measured, n=300 per length, control run)
+#   which is the UART serialisation rate to within 1.6 %.  An 80-character trace
+#   line therefore costs ~8.3 ms, and patch 817 adds 23 of them: up to ~190 ms,
+#   i.e. up to 4x the window it measures.  An instrument that large is not a
+#   measurement.  At console_loglevel = 6, KERN_INFO (dev_info) is suppressed on
+#   every console but still lands in the ring buffer, so the trace costs ~0 and
+#   this script still captures it.  dev_err (KERN_ERR = 3) -- "fatal error
+#   received", "port failed halt" -- still reaches the console and ramoops.
+#   rc.local sets the level; the startup line below records what was in force.
+#
 # WHY THERE ARE THREE SINKS
 #   $OUT   /overlay, the full stream, flushed by a `sync` loop every 0.5 s.
 #          Survives a watchdog reset; can lose up to ~0.5 s of page cache.
@@ -112,6 +125,7 @@ burst() {
 BURST_PID=$!
 
 log "=== q6trace_soak start; stream=$STREAM_PID filter=$FILTER_PID sync=$SYNC_PID burst=$BURST_PID"
+log "    printk='$(cat /proc/sys/kernel/printk)'  (console_loglevel must be 6 so dev_info is ring-only)"
 log "    oops=$(dmesg | grep -c 'Unable to handle') fatal=$(dmesg | grep -ci 'fatal error received') ssr=$(dmesg | grep -c 'stopped remote processor')"
 
 echo "uptime,oops,fatal,ssr,traces,defer_q,defer_sub,defer_keep,defer_wipe_live,guard_hits,pc_irq,pc_resync,pc_state,rx_mapped,cmd_open,tx_pkts,rx_pkts" > "$CSV"
