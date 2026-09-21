@@ -400,8 +400,15 @@ they cluster on **0.320 s** and its multiples:
 | **0.320 s** (1×) | **227** (45.0 %) | **171** (58.2 %) |
 | 0.64 s (2×) | 31 | 22 |
 | 1.28 s (4×) | 99 | 16 |
-| 0.31 / 1.29 s (± rounding) | 21 / 17 | 6 / 4 |
-| **all multiples of 0.320 s** | **~92 %** | **~90 %** |
+| **ON a multiple of 0.320 s, ±5 ms** | **71.3 %** | **71.1 %** |
+| ON a multiple, ±15 ms (also admits the 0.31 / 0.65 / 1.29 s neighbours) | 85.7 % | 76.9 % |
+
+> **Correction (same day, caught while extending this section):** a first draft of
+> this table said the multiples carry **"~92 %"** of intervals. That is **wrong**.
+> The measured figures are **71 %** at ±5 ms and **85.7 % / 76.9 %** at ±15 ms.
+> The quantization claim does not need the inflated number — the modal interval is
+> 0.320 s in every capture — but the wrong figure is corrected here rather than
+> quietly dropped.
 
 So the modem runs a **fixed 3.125 Hz sleep/wake cadence**, and the average rate is simply
 

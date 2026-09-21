@@ -45,7 +45,8 @@ transport), not a behavioural difference.
 > `FW_SLEEP_PWRDN_FULL` marker and the same traffic, give **1.456 /s** (501 in
 > 344.0 s) and **2.136 /s** (291 in 136.3 s) — a **1.47× spread within Android**,
 > with this table's 1.88 falling **between** them. The cadence is **quantized to
-> 0.320 s (3.125 Hz)** and its multiples (0.64 s, 1.28 s — ~90 % of intervals),
+> 0.320 s (3.125 Hz)** and its multiples (0.64 s, 1.28 s — **71 %** of intervals
+> land on a multiple within ±5 ms, 77–86 % within ±15 ms),
 > so the mean equals `3.125/s × (fraction of time in the fast mode)`: it is a
 > **duty cycle**, and the two captures differ only in idle-gap count (25 vs 7).
 > A ratio of two such means, each from one window, measures nothing about
