@@ -4064,7 +4064,8 @@ PART 27 -- PART 25's OPEN QUESTION IS CLOSED: THE STOCK DUMP WAS IN THE REPO ALL
 ================================================================================
 PART 28 -- THE ANDROID AP-SIDE CONTROL IS MEASURED: THE pc-ack BUDGET HAS 39x
            HEADROOM, SO s8.16's 250 ms TIMEOUTS ARE CATEGORICAL, NOT A LATENCY
-           TAIL -- AND THE PROPOSED 2000 ms A/B IS NOW PREDICTED TO FAIL
+           TAIL -- AND THE PROPOSED 2000 ms A/B IS NOW PREDICTED TO REMOVE ONLY
+           THE SSR-WINDOW SUBSET, NOT THE BULK
 ================================================================================
 
 0. WHY THIS PART EXISTS
@@ -4337,19 +4338,35 @@ PART 28 -- THE ANDROID AP-SIDE CONTROL IS MEASURED: THE pc-ack BUDGET HAS 39x
        exactly where s5.4 and s8.21.1 place them.
 
      * s8.16's minimal comparative test -- widen 250 ms to Android's 2000 ms --
-       is now PREDICTED TO NOT MATERIALLY REDUCE `pc_timeout_count`.
+       is now predicted to remove ONLY THE SSR-WINDOW SUBSET, not the bulk.
+
+       This is a REFINEMENT, not a reversal.  s8.21.1 already PROVED that 6
+       events are of the "the modem needed >250 ms but <2000 ms" kind: they sit
+       inside the SSR down-window and the mpss load is only 0.556 s, well inside
+       2000 ms.  Widening SHOULD fix those.  But they are 6 of 44 in the V boot,
+       so the other ~38 have no explanation at all yet -- and s5.4's four early
+       events (3 of them +0.43..0.58 s post-fatal) are a different, tighter
+       cluster again.
 
        PRE-REGISTERED PREDICTION FOR THE A/B (this is Task #98, currently BLOCKED
        until the HMU05 returns to OpenWrt):
 
-         P1  widen 250 -> 2000 ms; `pc_timeout_count` per suspend cycle does NOT
-             drop materially (i.e. stays within noise of the 0.99-5.7 % band).
-         P2  if instead it collapses to ~0, Reading L wins, this PART is
-             FALSIFIED, and the constant is the lever after all.
+         P1  widen 250 -> 2000 ms; `pc_timeout_count` per suspend cycle drops by
+             roughly the SSR-window count (~1 per fatal) and NOT to zero.
+             i.e. a PARTIAL drop is the prediction, and the residual should
+             still sit in the 0.5-5 % band.
 
-       Stating P2 is the point: the prediction is falsifiable, and the A/B is
-       still worth running BECAUSE it can falsify me.  It is a cheap test with a
-       live falsifier, not a fishing expedition.
+         P2  FALSIFIER, two-sided:
+               - if it collapses to ~0, Reading L wins wholesale: the constant
+                 WAS the lever, the "categorical" reading is wrong, and this
+                 PART is FALSIFIED.
+               - if it does not drop AT ALL, then even the s8.21.1 SSR-window
+                 subset was not a latency effect, which would contradict
+                 s8.21.1's own mpss-load arithmetic and must be re-read.
+
+       Stating P2 is the point: the prediction is falsifiable in BOTH directions,
+       and the A/B is still worth running BECAUSE it can falsify me.  It is a
+       cheap test with a live falsifier, not a fishing expedition.
 
      * It does NOT change s8.16's other scoping: OpenWrt LOGS the 250 ms timeout
        and then PROCEEDS to the 1000 ms pc_state wait, so even when it fires it
@@ -4378,8 +4395,10 @@ WHAT PART 28 CHANGES
     serialization max 0.375 ms (always falls through).
   - 250 ms is 39.4x the worst healthy Android ack => P-B (categorical failure)
     supported, P-A (latency tail) falsified.
-  - A NEW PRE-REGISTRATION: the proposed 250->2000 ms A/B is predicted to NOT
-    materially reduce `pc_timeout_count`.  If it does, this PART is falsified.
+  - A NEW PRE-REGISTRATION: the proposed 250->2000 ms A/B is predicted to remove
+    only the SSR-WINDOW SUBSET (~1 increment per fatal, per s8.21.1's own mpss-
+    load arithmetic), NOT the bulk.  A collapse to ~0 falsifies this PART; a
+    ZERO drop would falsify s8.21.1 instead.
   - The soak's n is a COUNTED denominator, causally closed to the ping bursts
     (UL hold = (ticks+1) x 1.000 s, exact, 54/54 cycles).
   - n >= 300 wakeups (~2 h) pre-registered before any claim about the 1 % regime.
