@@ -1,0 +1,72 @@
+=== 1. is there a time daemon, and who owns the modem QMI link? ===
+system    243   1     7924   1060  ffffffff b6f7eaf4 S /system/bin/time_daemon
+u0_a27    2019  198   328468 17484 ffffffff 40089928 S com.qualcomm.timeservice
+--- diag kernel threads ---
+root      99    2     0      0     c003b7d8 00000000 S diag_real_time_
+root      100   2     0      0     c003b7d8 00000000 S diag_modem_data
+root      101   2     0      0     c003b7d8 00000000 S diag_lpass_data
+root      102   2     0      0     c003b7d8 00000000 S diag_wcnss_data
+root      103   2     0      0     c003b7d8 00000000 S diag_wq
+root      104   2     0      0     c003b7d8 00000000 S diag_usb_wq
+root      105   2     0      0     c003b7d8 00000000 S diag_cntl_wq
+root      106   2     0      0     c003b7d8 00000000 S diag_dci_wq
+
+=== 2. what does the daemon PERSIST across reboots? ===
+-rw------- system   net_raw         8 2026-09-22 02:39 ats_1
+-rw------- system   net_raw         8 2026-09-22 02:39 ats_13
+-rw------- system   net_raw         8 2026-09-22 02:39 ats_2
+/data/time/ats_1:         1790017629034
+/data/time/ats_2:         1790017629034
+/data/time/ats_13:         1790017629000
+
+=== 3. does the AP RTC track wall time? ===
+rtc=7566  uptime=4079  system_clock=1790025194
+rtc name: qpnp_rtc
+rtc as a date: n/a
+after 10 s: rtc_delta=10  uptime_delta=10
+
+=== 4. is the modem time service driven from the AP wall clock? ===
+
+=== 5. what is INSIDE the daemon (architecture strings) ===
+--- local socket, persistence path, clock setting ---
+settimeofday
+#}D(J)FzD
+#xDk`
+#6J6K!FzD{D
+# "+F
+# "+F
+#0F!F
+#0F!F
+#0F!F
+#0F!F
+#0F!F
+#1F4J+F
+#)FO
+genoff_persistent_update
+genoff_boot_tod_init
+genoff_post_init
+genoff_handler
+genoff_modem_qmi_init
+genoff_get
+ats_rtc_init
+genoff_opr
+genoff_set
+genoff_send_modem
+genoff_pre_init
+ats_bases_init
+Daemon:%s: Unable to open RTC device
+Daemon:%s: Unable to read from RTC device
+Daemon:%s: Time read from RTC -- MM/DD/YY HH:MM:SS%d/%d/%d %d:%d:%d
+Daemon:Invalid RTC seconds = %ld
+Daemon: genoff get for %d
+
+=== 6. WHAT is the persisted offset? (sample 3x, 4 s apart) ===
+    hypothesis: ats_1 = (AP system time - AP RTC) * 1000
+    NOTE: this device shell does 32-BIT arithmetic, and ats_1 ~ 1.79e12
+          overflows it. Use awk (doubles) for the subtraction.
+rtc=7576 sys=1790025205 ats_1_ms=1790017629034 | sys_minus_rtc_ms=1790017629000 | residual_ms=34
+rtc=7580 sys=1790025209 ats_1_ms=1790017629034 | sys_minus_rtc_ms=1790017629000 | residual_ms=34
+rtc=7584 sys=1790025213 ats_1_ms=1790017629034 | sys_minus_rtc_ms=1790017629000 | residual_ms=34
+    If the residual is CONSTANT while sys and rtc advance in lockstep, the
+    hypothesis holds and the residual is a ONE-TIME skew from the instant the
+    file was last written -- not a growing error.

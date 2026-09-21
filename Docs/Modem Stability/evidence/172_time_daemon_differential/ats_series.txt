@@ -1,0 +1,30 @@
+# Extracted from scratch/qmi900/qmi_syslog.txt (OpenWrt boot 2026-09-19, qcom-time-daemon -r 60)
+# Filter: lines containing 'QMI-TIME' or 'kernel:' (daemon stderr duplicates removed)
+#
+Sat Sep 19 15:25:12 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] Indication 0x0027 (ATS_TOD_UPDATE_IND) received from QRTR node=0 port=11: base=1 (ATS_TOD), offset=1473867647649 ms
+Sat Sep 19 15:41:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473867713061) - RTC (65413) = 1473867647648 ms
+Sat Sep 19 15:42:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473867773128) - RTC (125479) = 1473867647649 ms
+Sat Sep 19 15:43:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473867833211) - RTC (185563) = 1473867647648 ms
+Sat Sep 19 15:44:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473867893299) - RTC (245651) = 1473867647648 ms
+Sat Sep 19 15:45:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473867953378) - RTC (305730) = 1473867647648 ms
+Sat Sep 19 15:46:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868013462) - RTC (365813) = 1473867647649 ms
+Sat Sep 19 15:47:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868073544) - RTC (425896) = 1473867647648 ms
+Sat Sep 19 15:48:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868133633) - RTC (485984) = 1473867647649 ms
+Sat Sep 19 15:49:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868193714) - RTC (546065) = 1473867647649 ms
+Sat Sep 19 15:50:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868253798) - RTC (606150) = 1473867647648 ms
+Sat Sep 19 15:51:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868313869) - RTC (666221) = 1473867647648 ms
+Sat Sep 19 15:52:53 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868372933) - RTC (725285) = 1473867647648 ms
+Sat Sep 19 15:53:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868433008) - RTC (785360) = 1473867647648 ms
+Sat Sep 19 15:54:54 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868493089) - RTC (845441) = 1473867647648 ms
+Sat Sep 19 15:55:49 2026 kern.err kernel: [  912.900514] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+Sat Sep 19 15:55:49 2026 daemon.warn qcom-time-daemon[2486]: [QMI-TIME] Modem SSR / Disconnect detected (node=0 port=11). Resetting state machine.
+Sat Sep 19 15:55:49 2026 kern.info kernel: [  912.961581] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+Sat Sep 19 15:55:50 2026 kern.info kernel: [  913.588120] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+Sat Sep 19 15:55:50 2026 daemon.info qcom-time-daemon[2486]: [QMI-TIME] INITIAL: Network TOD not yet locked; using AP host time offset: 1473868550430 ms
+Sat Sep 19 15:55:53 2026 daemon.info qcom-time-daemon[2486]: [QMI-TIME] INITIAL: Network TOD not yet locked; using AP host time offset: 1473868550430 ms
+Sat Sep 19 15:55:53 2026 daemon.err qcom-time-daemon[2486]: [QMI-TIME] Timeout (3000 ms) waiting for response to 0x0021 (txn=50, QRTR node=0 port=11)
+Sat Sep 19 15:55:53 2026 daemon.info qcom-time-daemon[2486]: [QMI-TIME] INITIAL: Network TOD not yet locked; using AP host time offset: 1473868550430 ms
+Sat Sep 19 15:55:53 2026 daemon.err qcom-time-daemon[2486]: [QMI-TIME] Timeout (3000 ms) waiting for response to 0x0021 (txn=49, QRTR node=0 port=11)
+Sat Sep 19 15:55:53 2026 daemon.info qcom-time-daemon[2486]: [QMI-TIME] INITIAL: Network TOD not yet locked; using AP host time offset: 1473868550430 ms
+Sat Sep 19 15:56:25 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] Indication 0x0027 (ATS_TOD_UPDATE_IND) received from QRTR node=0 port=11: base=1 (ATS_TOD), offset=1473868550120 ms
+Sat Sep 19 15:56:53 2026 daemon.notice qcom-time-daemon[2486]: [QMI-TIME] REFRESH: Cellular network TOD locked! Aligned offset = TOD (1473868613040) - RTC (62922) = 1473868550118 ms
