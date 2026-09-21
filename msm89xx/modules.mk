@@ -59,6 +59,27 @@ endef
 
 $(eval $(call KernelPackage,qcom-rproc-modem))
 
+define KernelPackage/rpm-master-stats
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=Qualcomm RPM master sleep statistics
+  DEPENDS:=@TARGET_msm89xx
+  KCONFIG:=CONFIG_QCOM_RPM_MASTER_STATS
+  FILES:=$(LINUX_DIR)/drivers/soc/qcom/rpm_master_stats.ko
+endef
+
+define KernelPackage/rpm-master-stats/description
+ Per-subsystem RPM sleep/wake counters read from the RPM message RAM,
+ exposed as /sys/kernel/debug/qcom_rpm_master_stats/{APSS,MPSS,PRONTO}.
+
+ Deliberately NOT autoloaded: the driver ships no MODULE_DEVICE_TABLE
+ ("that's a debugging module, to be loaded manually only"), so load it
+ with `modprobe rpm_master_stats` when you want the counters.
+
+ Requires the msm8916.dtsi master-stats node (patch 824).
+endef
+
+$(eval $(call KernelPackage,rpm-master-stats))
+
 define KernelPackage/rpmsg-wwan-ctrl
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=RPMSG WWAN Control

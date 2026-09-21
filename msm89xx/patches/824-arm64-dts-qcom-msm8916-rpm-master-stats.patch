@@ -1,0 +1,50 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8916.dtsi
+@@ -306,6 +306,16 @@
+ 	rpm: remoteproc {
+ 		compatible = "qcom,msm8916-rpm-proc", "qcom,rpm-proc";
+ 
++		master-stats {
++			compatible = "qcom,rpm-master-stats";
++			qcom,rpm-msg-ram = <&apss_master_stats>,
++					   <&mpss_master_stats>,
++					   <&pronto_master_stats>;
++			qcom,master-names = "APSS",
++					    "MPSS",
++					    "PRONTO";
++		};
++
+ 		smd-edge {
+ 			interrupts = <GIC_SPI 168 IRQ_TYPE_EDGE_RISING>;
+ 			mboxes = <&apcs 0>;
+@@ -541,6 +551,30 @@
+ 		rpm_msg_ram: sram@60000 {
+ 			compatible = "qcom,rpm-msg-ram";
+ 			reg = <0x00060000 0x8000>;
++
++			#address-cells = <1>;
++			#size-cells = <1>;
++			ranges = <0 0x00060000 0x8000>;
++
++			/*
++			 * Master Stats v2 slices.  Stride 0x1000, record 0x50
++			 * (= sizeof(struct rpm_master_stats), the layout the
++			 * upstream driver reads).  Ground truth is the stock
++			 * HMU05 DTS: qcom,rpm-master-stats@60150 with
++			 * qcom,master-offset = <0x1000> and qcom,masters =
++			 * "APSS", "MPSS", "PRONTO" -> 0x60150/0x61150/0x62150.
++			 */
++			apss_master_stats: sram@150 {
++				reg = <0x150 0x50>;
++			};
++
++			mpss_master_stats: sram@1150 {
++				reg = <0x1150 0x50>;
++			};
++
++			pronto_master_stats: sram@2150 {
++				reg = <0x2150 0x50>;
++			};
+ 		};
+ 
+ 		sram@290000 {
