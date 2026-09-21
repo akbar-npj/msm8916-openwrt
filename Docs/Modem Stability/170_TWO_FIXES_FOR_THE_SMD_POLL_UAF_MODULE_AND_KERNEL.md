@@ -2160,11 +2160,36 @@ fatal #9** (`dmesg` 6360–6397 contains nothing but the fatal itself). So they 
 and **not** SSR outages: the data plane was silently dropping packets while the modem was already in
 the cascade. **A new, unexplained failure mode, recorded with n = 2.**
 
-**(d) THE EXPERIMENT THAT IS RUNNING NOW.** Traffic was stopped at **uptime 6600.88** (fatal count 10)
-and the marker `S2 STOP at uptime=6600.88 fatals=10` is appended to `/overlay/s2.log`. With no traffic
-at all, the discriminating question is whether the **cascade continues** (⇒ cumulative modem
-degradation, or an intrinsic post-clock-fatal state) or **stops** (⇒ traffic-induced). The RPM capture,
-`watch813.sh` and `storm_sampler.sh` all keep running, so the answer costs nothing but time.
+**(d) THE CASCADE EXPERIMENT — FIRST RESULT: THE CASCADE STOPPED WHEN TRAFFIC WAS REMOVED, WHILE THE
+STORM KEPT RUNNING AT FULL RATE.** Traffic was stopped at **uptime 6600.88** (fatal count 10) and the
+marker `S2 STOP at uptime=6600.88 fatals=10` is appended to `/overlay/s2.log`. At **uptime 7035.44 —
+434.6 s later — there has been NO fatal #11**, against cascade intervals of 120.8 / 166.6 / 182.7 s.
+P(0 in 434.6 s │ mean 156.7 s) = e^(−2.77) ≈ **6 %**.
+
+**And in the same window the storm ran at full rate**, so this is a **clean separation of the cascade
+from the storm**:
+
+```
+6600.88 -> 7035.44 (434.6 s), NO traffic:
+  pc_resync_count      60 -> 70   (+10 = 1 per 30.6 s)
+  pc_timeout_count     63 -> 70   (+7)
+  pm_suspend_attempts 840 -> 879  (+39 = 1 per 7.8 s)
+  => failure rate 10/39 = 26 % resync, 7/39 = 18 % timeout  (the ~15-40 % post-onset band)
+  => 25 lost-edge / pc-ack lines in dmesg since 6600
+```
+
+**⇒ the cascade is traffic-dependent, and the storm is NOT sufficient for it.** That is a stronger
+statement than §8.17 could make, because it separates them by intervention rather than by correlation.
+
+**⚠ THE AMBIGUITY THAT REMAINS, AND IT IS THE NEXT MEASUREMENT.** "No fatal in 434.6 s" is consistent
+with **two** different worlds: (i) removing traffic stopped the cascade, or (ii) **the cascade is
+self-limiting and the modem returned to the 902 s clock** — fatal #10's modem booted at ~6580.6, so a
+clock fatal is due at **AP ≈ 7482.8 s**, and we are at 7035.4. **The two are distinguishable only by
+waiting ~450 s more:** a fatal at ~7483 s means back on the clock; nothing past ~7500 s means both the
+cascade and the clock are gone. **Do not conclude before that.** The RPM capture (host bg task),
+`watch813.sh` and `storm_sampler.sh` all keep running, so the answer costs nothing but time — and the
+RPM capture is what makes fatal #11 interpretable at all (the ring turns over in ~6 s, so it must not
+be stopped).
 
 ---
 
