@@ -75,11 +75,16 @@ then **739 s silent across ~94 suspends INCLUDING across fatal #11's full modem 
 **REFUTES "the storm is AP-runtime-PM-gated" as §8.15.4 stated it: the churn is necessary but not
 sufficient.** §8.19(c) also **CORRECTS S2 to 58 samples / 9 losses** (the silent class is **n = 3**, not
 2 — 6130.44 was misclassified) and makes the §8.16 counter accounting **EXACT at 100 %** (81 = 81;
-78 = 76 + 2).**
+78 = 76 + 2), now **extended to 79 = 77 + 2** by §8.21.1.**
 **§8.13.6 then adds fatal #12 (sleepmgr, AP `8385.263928`) — **n = 8**, recovery **`0.122951 s`**,
 predicted from fatal #11's modem boot and **missed by 1.64 s**, so **the modem is still on the clock**
 two fatals after the cascade ended; and the storm silence, still unbroken, now spans **TWO** modem
 reloads (§8.21 updated).**
+**§8.21.1 then explains the one counter that did move: a THIRD class of `pc-ack timeout` fires inside
+an SSR's own down-window (`stopped remote processor` → `is now up`), where the modem provably cannot
+ack — **6 of the 12 fatals produce one** (Δ from the fatal a tight **150 ms** band), so an increment is
+**not** storm evidence, and the §8.16 fix gains a falsifiable target. It also **corrects §8.13.6's
+mixed reference points and its omission of fatal #9**.**
 
 ---
 
@@ -1311,9 +1316,12 @@ Boot-wide: **12 fatals / 13 `MBA booted`** (= cold boot + one per recovery) **/ 
 (exactly the two capture-ON) **/ `cmd_open` 104 = 8 channels × 13 modem boots / 12 `SSR before
 shutdown`**.
 
-Post-SSR artefact, 6th sample: `pc-ack timeout` at **8385.704199** = **+0.293573 s** after `MBA booted`
-(prior: +0.431112 / +0.581419 / +0.435022 / none / +0.302392). **It is the ONLY new handshake event in
-the whole window, and it is post-fatal** — the pattern §8.18 recorded holds.
+Post-SSR artefact, 6th sample: `pc-ack timeout` at **8385.704199**, **+0.440271 s after the fatal**
+(prior, all Δ from the fatal: +0.431112 / +0.581419 / +0.435022 / +0.445107 / +0.439598 — **§8.21.1**).
+**It is the ONLY new handshake event in the whole window, and it is post-fatal** — the pattern §8.18
+recorded holds. ⚠ **This paragraph originally mixed reference points** (three Δ from the fatal, two Δ
+from `MBA booted`) and **omitted fatal #9**; corrected in **§8.21.1**, which also shows the class is
+**6 of 12 fatals** and **inevitable**, not racy.
 
 **★ AND THE STORM IS STILL SILENT — NOW ACROSS A SECOND MODEM RELOAD.** `pc_resync_count` is **81**
 and the **last lost edge in `dmesg` is STILL `[ 7417.446456]`**, so the silence stands at
@@ -2260,6 +2268,10 @@ pc_timeout_count 78  ==  dmesg "pc-ack timeout" 76
 were **ring incompleteness at the time of scoring**, not a second mechanism: on the full, verified-
 unwrapped ring the two counters reconcile **exactly**. The falsifier survives at 100 %.
 
+**⇒ EXTENDED AFTER FATAL #12: `79 = 77 + 2`, still exact (§8.21.1).** The +1 is fatal #12's own
+SSR-window `pc-ack timeout`, and **§8.21.1 shows that class fires in 6 of the 12 fatals** — so a
+`pc_timeout_count` increment is **not by itself** evidence of storm activity.
+
 **(d) ⚠ THE CASCADE IS BOUNDED — 3 BEATS — AND THE MODEM RETURNS TO THE 902 s CLOCK. AND MY FIRST
 READING OF THIS EXPERIMENT WAS CONFOUNDED AND IS WITHDRAWN.**
 
@@ -2417,12 +2429,18 @@ The last lost-edge line in `dmesg` is **`[ 7417.446456] … (lost edge), resynci
 
 ```
 pc_resync_count        81   <- FROZEN  (identical at 7449.4 and at 8156.67)
-pc_timeout_count       78   <- FROZEN
+pc_timeout_count       78   <- FROZEN  at this instant (see the correction below: it later moved to 79)
 pm_suspend_attempts  1018   <- CLIMBING (924 at 7394.0; +94 across the silence)
 runtime_status     active
 fatals               11     <- fatal #11 (7483.840) came AND went inside the silence
 rproc            running
 ```
+
+**⚠ CORRECTION (re-read at uptime 8798.27): `pc_timeout_count` did NOT stay frozen — it is 79.** The
+single increment is **fatal #12's own SSR-window `pc-ack timeout`**, a **third class of handshake event
+that is neither the storm nor the silent data-plane loss**, and it is **fully explained** in §8.21.1. So
+the storm's silence stands (the lost-edge counter is still **81**, last line `[ 7417.446456]`) — but
+"**both counters froze**" was wrong as written, and only the resync counter froze.
 
 **⇒ THE STORM EPISODE IS AP 3477.894835 → 7417.446456 = 3939.55 s, AND IT HAS NOW BEEN SILENT FOR 968 s
 ACROSS ~126 SUSPENDS — INCLUDING ACROSS *TWO* FULL MODEM RELOADS** (fatal #11: ports re-attached
@@ -2456,6 +2474,75 @@ direction.** This does test it: **the AP suspends 94 more times with zero resync
 until a further onset is observed. The `storm_sampler` and `logroll.sh` are both still running and will
 catch a restart; **what the silence does prove is that the churn rate alone does not sustain the storm,
 and neither does a modem reload — in either direction.**
+
+---
+
+### §8.21.1 THE ONE POST-STORM COUNTER INCREMENT IS A THIRD CLASS OF `pc-ack timeout` — and it is INEVITABLE, not racy
+
+Chasing the §8.21 correction above produced a finding that stands on its own. **`pc_timeout_count` has
+three sources, and one of them is a routine consequence of every SSR that happens to attract a PM
+resume.**
+
+**First, the accounting is exact again at the new value** — verified against the driver's own two
+increment sites, both inside `bam_dmux_runtime_resume()`:
+
+```
+pc_timeout_count  79  ==  dmesg "modem pc-ack timeout during resume"        77   (qcom_bam_dmux.c:2069,  250 ms wait)
+                        + dmesg "modem pc_state wait timeout during resume"  2   (qcom_bam_dmux.c:2078, 1000 ms wait)
+                         = 79   ->  EXACT, 0 unexplained
+```
+
+§8.16 recorded `78 = 76 + 2`; **the +1 is fatal #12.** And the two `pc_state wait timeout` lines are
+`[ 915.085520]` and `[ 6111.869030]` — fatals #1 and #7. `dmesg` is **not** wrapped (its first line is
+`[ 0.000000] Booting Linux`), so this is a full-ring count, not a truncated one.
+
+**Second — and this is the new part — SIX OF THE TWELVE FATALS PRODUCE ONE, and all six land inside
+their own SSR down-window:**
+
+| fatal | AP fatal | `pc-ack timeout` | Δ from **fatal** | Δ from `MBA booted` | in down-window? |
+|---|---|---|---|---|---|
+| #1  | 913.640795  | 914.071907  | **+0.431112** | −0.416685 | yes |
+| #2  | 1816.046634 | 1816.628053 | **+0.581419** | −0.273279 | yes |
+| #3  | 2718.436833 | 2718.871855 | **+0.435022** | +0.286831 | yes |
+| #7  | 6110.407029 | 6110.852136 | **+0.445107** | +0.302392 | yes |
+| #9  | 6397.771058 | 6398.210656 | **+0.439598** | +0.290005 | yes |
+| #12 | 8385.263928 | 8385.704199 | **+0.440271** | +0.293573 | yes |
+| #4, #5, #6, #8, #10, #11 | — | **none within ±2 s** | — | — | no resume attempted |
+
+**⚠ CORRECTION TO §8.13.6's FRAMING.** §8.13.6 called this a *"post-SSR artefact … after `MBA booted`"*
+and listed `+0.431112 / +0.581419 / +0.435022 / none / +0.302392`. **Those five mix two reference
+points** — the first three are Δ from the **fatal**, the last two are Δ from **`MBA booted`** — and the
+set **omits fatal #9**. Measured consistently **from the fatal**, the six values are
+**+0.431112 / +0.581419 / +0.435022 / +0.445107 / +0.439598 / +0.440271** — a **150 ms** band.
+Measured from `MBA booted` they **change sign** (−0.417 … +0.302), because the two capture-ON
+recoveries push `MBA booted` *later* while the resume fires at a fixed offset from the fatal.
+**The anchor is the fatal (equivalently the SSR teardown), not the MBA boot.**
+
+**Why it is inevitable rather than racy.** The timeout is a `bam_dmux_runtime_resume()` that **races the
+SSR down-window**. The teardown's `power_off` (T7) drops the device's PM refcount, and something — a port
+open, a queued packet, the bearer watchdog — re-requests it while the modem is **provably stopped**:
+
+```
+fatal #1   stopped remote processor 913.745683  ->  is now up 915.042804   (1.297 s down)
+           pc-ack timeout           914.071907   <- INSIDE
+fatal #12  stopped remote processor 8385.365728 ->  is now up 8385.966522   (0.601 s down)
+           pc-ack timeout           8385.704199  <- INSIDE
+```
+
+The modem **cannot ack a power-collapse vote while its firmware is being reloaded**, so the 250 ms wait
+**must** expire. This is not a defect in the AP's bookkeeping and not a race — it is the **250 ms window
+being far too short for a 0.6–1.4 s down-window** (§8.16). The six fatals that produced **no** timeout
+are the natural control: no resume was attempted in their down-window, so nothing changed.
+
+**★ IT GIVES THE §8.16 FIX A FALSIFIABLE TARGET.** Android's `UL_WAKEUP_TIMEOUT_MS` is **2000 ms**, and
+the whole `MBA booted` → `is now up` mpss load is only **0.556 s** for fatal #12 — so a 2000 ms window
+(or re-reading the ack state on timeout) would **cover this class entirely**. Prediction: after the fix,
+`pc_timeout_count` should stop rising by ~1 per fatal, leaving only the storm's own resumes.
+
+**⚠ AND IT DOES NOT CONTAMINATE THE §8.13 A/B BAR.** That metric's endpoints are `SSR before shutdown` →
+`MBA booted`; the timeout lands *before* `MBA booted` for #1/#2 and *after* it for #3/#7/#9/#12, so it
+cannot be what separates the two populations — which stay separated (`0.119170–0.130237 s` vs
+`0.824902–0.831559 s`).
 
 ---
 
@@ -2689,9 +2776,18 @@ and neither does a modem reload — in either direction.**
     instrument class is not a statement about the world.)
     **And the recovery exposed a device quirk: `nohup` DOES NOT EXIST on this device** (only `setsid`
     and `start-stop-daemon`), so `nohup <script> &` fails with **no output file created at all** —
-    indistinguishable from "the experiment ran and produced nothing". **`start-stop-daemon -S -b -x
+    indistinguishable from "the experiment ran and produced nothing".     **`start-stop-daemon -S -b -x
     <script>` is the working recipe**, and a launch is confirmed only by seeing **both** the process in
     `ps` **and** the output file growing.
+23. **A TIME DELTA WITHOUT ITS ANCHOR IS NOT A MEASUREMENT — AND A LIST THAT MIXES TWO ANCHORS STILL
+    LOOKS SELF-CONSISTENT (§8.21.1).** §8.13.6 listed five `pc-ack timeout` deltas as
+    `+0.431112 / +0.581419 / +0.435022 / none / +0.302392`, all under the heading *"after `MBA
+    booted`"*. **Three of them were measured from the FATAL**, two from `MBA booted`, and **fatal #9 was
+    missing entirely.** The mixture survived review because the numbers are all sub-second and the
+    labels looked uniform — the same values re-anchored consistently give a **tight 150 ms band from the
+    fatal** and a set that **changes sign** from `MBA booted` (−0.417 … +0.302). **Write the anchor
+    into every delta, and re-derive a list from raw timestamps before extending it** — an inherited
+    list is only as good as the anchor you cannot see.
 
 ---
 
@@ -2812,7 +2908,11 @@ and neither does a modem reload — in either direction.**
   idiom, which exists for the *pc* line but was never given to the *ack* path. Alternative: widen
   250 → 2000 ms (Android parity, one constant). **NOT DEPLOYED — it must not run inside the open §8.13
   window.** Falsifier: the spikes vanish **and** `pc_timeout_count` stops rising, `pc_resync_count`
-  unchanged.
+  unchanged. **★ §8.21.1 SHARPENS THIS INTO A COUNTABLE PREDICTION:** **6 of the 12 fatals produce a
+  `pc-ack timeout` inside their own SSR down-window**, where the modem provably cannot ack, and the mpss
+  load is only **0.556 s** — so a 2000 ms window (or re-reading the ack) should **remove ~1 increment per
+  fatal**, leaving only the storm's own resumes. Score it as *"increments per fatal"*, before vs after,
+  against the six-fatals-with / six-without control already in hand.
 * **★ NEW SIGNATURE `a2_task.c:3179`, AND A NEGATIVE THAT MATTERS (§8.17).** Fatal #8 fired at AP
   6231.169902 s, only **120.762873 s** after fatal #7 — far outside the 902 s clock, the first
   non-clock fatal of the boot, and a **third `a2_*` file**. Its **antecedent is a negative**: the
@@ -2843,12 +2943,15 @@ and neither does a modem reload — in either direction.**
   The recipe that works is **`start-stop-daemon -S -b -x <script>`** (`setsid` also exists; `nohup` does
   not). A failed background launch here creates **no output file at all**, which reads exactly like
   "the experiment produced nothing". **Trap 22.**
-* **`pc_state wait timeout` vs `pc-ack timeout` = 2 vs 76 (§8.16, re-measured on the full ring).** The
+* **`pc_state wait timeout` vs `pc-ack timeout` = 2 vs 77 (§8.16, re-measured on the full ring).** The
   §8.16 accounting is now **exact at 100 %**: `pc_resync_count` **81** = **81** `lost edge` lines;
-  `pc_timeout_count` **78** = **76** `pc-ack timeout` + **2** `pc_state wait timeout`. The earlier
+  `pc_timeout_count` **79** = **77** `pc-ack timeout` + **2** `pc_state wait timeout` (the +1 over
+  §8.16's `78 = 76 + 2` is fatal #12 — **§8.21.1**). The earlier
   *"51 + 2 = 53 (96.2 %)"* was **ring incompleteness at scoring time**, not a second mechanism.
   **If that ratio ever inverts, the 250 ms constant is not the whole story and the fix must be
-  re-derived.**
+  re-derived.** ⚠ **AND §8.21.1 SHOWS 6 OF 12 FATALS PRODUCE A `pc-ack timeout` INSIDE THEIR OWN SSR
+  DOWN-WINDOW, where the modem provably cannot ack — so an increment is not by itself storm evidence,
+  and the §8.16 fix has a falsifiable target (~1 fewer increment per fatal).**
 * **⚠ PARTLY REFUTED: "THE STORM IS AP-RUNTIME-PM-GATED" — THE FATAL IS STILL NOT. S1 IS DONE AND P5 IS
   CONFIRMED (§8.15.4), BUT §8.21 WEAKENS THE GATING CLAIM.** A lost edge requires `pc_state == 0`
   **and** the line asserted, so it can only happen on the way **out of** a quiesced state. S1 = 600
@@ -2910,10 +3013,12 @@ and neither does a modem reload — in either direction.**
   failure rate is.** S1 is independently corroborated by the second sampler: six consecutive samples
   (~332 s) with `dresync=0`, `dtimeout=0` and `susp` frozen at 636/625.
   **End (§8.21):** the last lost edge is **`[ 7417.446456]`**, so the episode is **AP 3477.894835 →
-  7417.446456 = 3939.55 s**. Verified live at **uptime 8156.67**: `pc_resync_count` **81** and
-  `pc_timeout_count` **78** both **FROZEN** while `pm_suspend_attempts` climbed **924 → 1018 (+94)** with
+  7417.446456 = 3939.55 s**. Verified live at **uptime 8156.67**: `pc_resync_count` **81**
+  **FROZEN** while `pm_suspend_attempts` climbed **924 → 1018 (+94)** with
   `runtime_status: active` — **739 s of silence across ~94 suspends, including across fatal #11's full
-  modem reload.** ⚠ **This refutes "the storm is AP-runtime-PM-gated" as §8.15.4 stated it** (see the
+  modem reload.** ⚠ **`pc_timeout_count` did NOT stay frozen — it is 79 at uptime 8798.27, and the
+  single increment is fatal #12's own SSR-window `pc-ack timeout` (§8.21.1), so only the RESYNC counter
+  froze.** ⚠ **This refutes "the storm is AP-runtime-PM-gated" as §8.15.4 stated it** (see the
   bullet above): **the churn is necessary but not sufficient**, and the storm needs a third,
   unidentified condition. The natural next instrument is to log **which** suspends are followed by a
   resync, not how many. ⚠ A 739 s silence is a **lull** until a further onset is observed — the sampler
@@ -3040,6 +3145,12 @@ and neither does a modem reload — in either direction.**
     withdrawn as accounting. (5) **PART 8**: **S1 scored — P5 CONFIRMED** as a within-run A/B/A
     (0 resyncs and 0 suspends in 364.34 s of 1 Hz traffic, 364/364 pings), **and fatal #6 firing inside
     that window on the clock**, which separates a PM-gated storm from a non-PM-gated fatal.
+    **(6) PARTs 12–15** close the round: §8.20's negative (the RPM stall does not precede a fatal, with
+    the local-cadence and ring-turnover traps), §8.21's bounded storm, the `rpm9` capture's exit at its
+    poll budget (**35 m 57 s, 4.31 ms/poll**) and the `nohup`-absent relaunch, and **PART 15** =
+    **§8.21.1: the `79 = 77 + 2` accounting, the six-of-twelve SSR-window `pc-ack timeout` class with
+    all six inside `stopped remote processor` → `is now up`, the correction to §8.13.6's mixed anchors
+    and its omission of fatal #9, and the §8.16 fix's countable prediction.**
   * **`W_watch_resync_sh.sh`** — the P1/P2 scorer, and **`X_storm_sampler_sh.sh`** — the 60-minute
     sampler that makes the P3-falsifier branch scoreable and independently corroborated the PM-gating
     (`pc_state=0` in 6 of 10 pre-S1 samples vs 0 of 365 during S1).

@@ -1966,9 +1966,13 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      but only **modestly** (enrichment **1.55× at ≥ 0.5 s**, **4.44× at ≥ 8 s** on 6 events in 3 gaps —
      suggestive, not established), and **the direction is NOT established.**
      **(f) ★ THE STORM IS BOUNDED TOO (§8.21):** the episode is **AP 3477.894835 → 7417.446456 =
-     3939.55 s**, after which `pc_resync_count` **81** and `pc_timeout_count` **78** both **FROZE** while
+     3939.55 s**, after which `pc_resync_count` **81** stayed **FROZEN** while
      `pm_suspend_attempts` climbed **924 → 1050 (+126)** with `runtime_status: active` — **968 s of
      silence across ~126 suspends, INCLUDING across TWO full modem reloads (fatal #11 AND fatal #12).**
+     ⚠ **`pc_timeout_count` did NOT stay frozen — it moved 78 → 79, and §8.21.1 shows the single
+     increment is fatal #12's own SSR-window `pc-ack timeout`, a THIRD class of handshake event that is
+     neither the storm nor the silent data-plane loss. So "both counters froze" was wrong as written;
+     only the resync counter froze, and the storm's silence still stands.**
      **This REFUTES "the storm is AP-runtime-PM-gated" as §8.15.4 stated it:** freezing both counters
      under traffic is *equally* consistent with "traffic suppresses suspends" and "traffic suppresses
      resyncs", and the AP now suspends 126 more times with **zero** resyncs. **The churn is necessary
@@ -1980,14 +1984,28 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      intact parts stand: traffic does suppress the storm in practice, and **idle-avoidance does not
      suppress the fatals.** ⚠ A 968 s silence is a **lull** until a further onset is observed — the
      sampler and `logroll.sh` are both still running.
+     **(h) ★ NEW — A THIRD CLASS OF `pc-ack timeout`, AND IT IS INEVITABLE (§8.21.1):** **6 of the 12
+     fatals** produce a `pc-ack timeout` **inside their own SSR down-window** (`stopped remote
+     processor` → `is now up`), where the modem is **provably stopped** and **cannot ack a
+     power-collapse vote** — so the 250 ms wait **must** expire. Δ from the fatal is a tight **150 ms**
+     band (`+0.431112 / +0.581419 / +0.435022 / +0.445107 / +0.439598 / +0.440271`); measured from
+     `MBA booted` the sign **changes**, so **the anchor is the fatal, not the MBA boot.** This
+     **corrects §8.13.6**, which mixed those two reference points and **omitted fatal #9**. The other
+     six fatals are the control (no resume attempted in their down-window). **Consequences:** a
+     `pc_timeout_count` increment is **not by itself storm evidence**; and the §8.16 fix (Android's
+     **2000 ms** vs the 250 ms here) gains a **falsifiable target** — the mpss load is only **0.556 s**,
+     so a 2000 ms window would cover this class, and `pc_timeout_count` should then stop rising by ~1
+     per fatal. **It does NOT contaminate the §8.13 A/B bar** (the timeout lands *before* `MBA booted`
+     for #1/#2 and *after* it for the rest).
      **(g) ⚠ CORRECTIONS:** S2 is **58 samples / 9 losses** (not 56/7), the **silent-loss class is n = 3**
      (not 2 — 6130.44 was misclassified as "ping crossed the ifup": fatal #7's SSR completed at
      `6111.927`, the ports attached by `6112.87`, and the ping fired **17.6 s later** then timed out for
      the full 5.03 s), and the §8.16 counter accounting is now **EXACT at 100 %** — `pc_resync_count`
      **81** = **81** `lost edge` lines; `pc_timeout_count` **78** = **76** `pc-ack timeout` + **2**
      `pc_state wait timeout` (the earlier 51 + 2 = 53 at 96.2 % was **ring incompleteness at scoring
-     time**). **A new, unexplained failure mode: a real ~5 s data-plane timeout with NO dmesg correlate
-     at all — no lost edge, no `pc-ack timeout`, no fatal, no SSR — n = 3.**
+     time**), **extended after fatal #12 to `79 = 77 + 2`, still exact (§8.21.1)**. **A new, unexplained
+     failure mode: a real ~5 s data-plane timeout with NO dmesg correlate at all — no lost edge, no
+     `pc-ack timeout`, no fatal, no SSR — n = 3.**
 
      **What it does NOT claim:** the resync does not (yet) cause the fatal, and it explains **neither**
      the `lte_ml1_sleepmgr_stm.c:4054` **nor** the `a2_power.c:1189` fatals — **neither has ever been

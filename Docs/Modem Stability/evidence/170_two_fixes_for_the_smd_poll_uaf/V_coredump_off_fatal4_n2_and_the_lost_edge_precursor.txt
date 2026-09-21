@@ -2253,3 +2253,219 @@ checking it.
 
 
 
+
+
+================================================================================
+PART 15 -- THE ONE POST-STORM COUNTER INCREMENT IS A THIRD CLASS OF
+           `pc-ack timeout`, AND IT IS INEVITABLE (Doc 170 section 8.21.1)
+================================================================================
+
+1. THE OBSERVATION THAT STARTED IT
+--------------------------------------------------------------------------------
+
+   Doc 170 section 8.21 stated "pc_resync_count 81 and pc_timeout_count 78 both
+   FROZE".  Re-read at uptime 8798.27:
+
+     $ ssh root@192.168.8.1 'cat .../bam-dmux/rx_telemetry' | grep -E "resync|timeout|suspend"
+     pc_resync_count: 81
+     pc_timeout_count: 79          <-- MOVED (78 -> 79)
+     pm_suspend_attempts: 1097
+
+   The host sampler had already caught it and its log line is the witness:
+
+     $ tail -1 /tmp/storm_sampler2.log
+     2026-09-21T19:27:10+05:45 up=8628.96 fatals=12 resync=81 lostedge=81
+       pctimeout=79 quiesce_ms=657 pc_state=0 susp=1076/1042
+
+   So the increment happened between the uptime-8156.67 reading (78) and
+   up=8628.96 (79) -- i.e. at or after fatal #12 (AP 8385.263928).
+
+2. IT IS THE ONLY NEW HANDSHAKE EVENT, AND IT IS POST-FATAL
+--------------------------------------------------------------------------------
+
+   $ dmesg | grep -E "^\[ *838[0-9]\." | grep -vE "q6v5-trace|CMD_OPEN"
+
+   [ 8385.263928] qcom-q6v5-mss: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+   [ 8385.264036] remoteproc remoteproc0: crash detected ... type fatal error
+   [ 8385.272813] remoteproc remoteproc0: handling crash #12
+   [ 8385.287675] bam-dmux: SSR before shutdown: scheduling teardown work
+   ...
+   [ 8385.341150] bam-dmux: bam-dmux T7 power_off returned
+   [ 8385.363705] wwan wwan0: port wwan0at0 disconnected
+   [ 8385.365728] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+   [ 8385.410626] qcom-q6v5-mss: MBA booted without debug policy, loading mpss
+   [ 8385.704199] bam-dmux: modem pc-ack timeout during resume      <== THE INCREMENT
+   [ 8385.966467] bam-dmux: SSR after powerup: scheduling powerup work
+   [ 8385.966522] remoteproc remoteproc0: remote processor ... is now up
+   [ 8386.170598] bam-dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+   [ 8386.407207] wwan wwan0: port wwan0at0 attached
+   ...
+   [ 8386.601333] bam-dmux: received CMD_OPEN (1) on channel 0
+   ... (8 CMD_OPENs)
+
+   The timeout sits BETWEEN "stopped remote processor" and "is now up".
+
+3. THE ACCOUNTING IS EXACT AGAIN AT THE NEW VALUE
+--------------------------------------------------------------------------------
+
+   Source: openwrt/build_dir/.../drivers/net/wwan/qcom_bam_dmux.c
+   pc_timeout_count has exactly TWO increment sites, both in
+   bam_dmux_runtime_resume():
+
+     :2066  ret = wait_for_completion_timeout(&dmux->pc_ack_completion,
+     :2067                                    msecs_to_jiffies(250));
+     :2068  if (!ret) {
+     :2069          atomic64_inc(&dmux->pc_timeout_count);
+     :2070          dev_warn(dev, "bam_dmux: modem pc-ack timeout during resume\n");
+
+     :2074  if (!READ_ONCE(dmux->pc_state)) {
+     :2075          ret = wait_event_timeout(dmux->pc_wait, ..., msecs_to_jiffies(1000));
+     :2077          if (!ret || !READ_ONCE(dmux->pc_state)) {
+     :2078                  atomic64_inc(&dmux->pc_timeout_count);
+     :2079                  dev_warn(dev, "... pc_state wait timeout during resume\n");
+
+   Measured on the full ring (dmesg is NOT wrapped -- its first line is
+   "[    0.000000] Booting Linux on physical CPU ..."):
+
+     $ dmesg | grep -c "pc-ack timeout"                 -> 77
+     $ dmesg | grep -c "pc_state wait timeout"          ->  2
+     $ cat rx_telemetry | grep pc_timeout_count         -> 79
+
+     pc_timeout_count 79 == 77 pc-ack + 2 pc_state wait     (100.0 %, exact)
+
+   The two pc_state wait lines:
+     [  915.085520] ... modem pc_state wait timeout during resume   (fatal #1)
+     [ 6111.869030] ... modem pc_state wait timeout during resume   (fatal #7)
+
+   Doc 170 section 8.16 recorded 78 = 76 + 2; the +1 is fatal #12.
+
+4. SIX OF THE TWELVE FATALS PRODUCE ONE -- ALL SIX INSIDE THEIR OWN DOWN-WINDOW
+--------------------------------------------------------------------------------
+
+   $ dmesg | grep "pc-ack timeout" | sed 's/.*\[ *\([0-9.]*\)\].*/\1/'
+   914.071907 1816.628053 2718.871855 4119.470945 4176.057624 4297.231159
+   4304.244365 4376.591183 ... 8385.704199      (77 values)
+
+   $ dmesg | grep "fatal error received" | sed 's/.*\[ *\([0-9.]*\)\].*/\1/'
+   913.640795 1816.046634 2718.436833 3477.969305 4304.991306 5208.721361
+   6110.407029 6231.169902 6397.771058 6580.507441 7483.839750 8385.263928
+
+   Nearest timeout within +/- 2 s of each fatal:
+
+     fatal# 1    913.641  next<=2s:   +0.431   prev<=2s:       --
+     fatal# 2   1816.047  next<=2s:   +0.581   prev<=2s:       --
+     fatal# 3   2718.437  next<=2s:   +0.435   prev<=2s:       --
+     fatal# 4   3477.969  next<=2s:       --   prev<=2s:       --
+     fatal# 5   4304.991  next<=2s:       --   prev<=2s:   -0.747
+     fatal# 6   5208.721  next<=2s:       --   prev<=2s:       --
+     fatal# 7   6110.407  next<=2s:   +0.445   prev<=2s:       --
+     fatal# 8   6231.170  next<=2s:       --   prev<=2s:       --
+     fatal# 9   6397.771  next<=2s:   +0.440   prev<=2s:       --
+     fatal#10   6580.507  next<=2s:       --   prev<=2s:       --
+     fatal#11   7483.840  next<=2s:       --   prev<=2s:       --
+     fatal#12   8385.264  next<=2s:   +0.440   prev<=2s:       --
+
+     fatals with a recovery-window timeout: 6 of 12
+
+   (fatal #5's -0.747 is a STORM timeout just before the crash, not a recovery
+   one; it is excluded.)
+
+   Down-window check -- "stopped remote processor" -> "is now up":
+
+     fatal# 1  stopped 913.745683   up 915.042804   timeout 914.071907  INSIDE
+     fatal# 2  stopped 1816.147432  up 1817.455214  timeout 1816.628053 INSIDE
+     fatal# 3  stopped 2718.539856  up 2719.296525  timeout 2718.871855 INSIDE
+     fatal# 7  stopped 6110.507629  up 6111.927153  timeout 6110.852136 INSIDE
+     fatal# 9  stopped 6397.877615  up 6398.492369  timeout 6398.210656 INSIDE
+     fatal#12  stopped 8385.365728  up 8385.966522  timeout 8385.704199 INSIDE
+
+     6 of 6 inside.  Down-window lengths: 1.297 / 1.308 / 0.757 / 1.420 /
+     0.615 / 0.601 s.
+
+   The six fatals with NO timeout (#4, #5, #6, #8, #10, #11) are the control:
+   no runtime resume was attempted during their down-window, so nothing changed.
+   Down-window length does NOT separate the two groups (fatal #5 has 1.342 s and
+   no timeout; fatal #12 has 0.601 s and one) -- what separates them is whether
+   some entity re-requested the device inside the window.
+
+5. CORRECTION TO Doc 170 SECTION 8.13.6
+--------------------------------------------------------------------------------
+
+   Section 8.13.6 called this a "post-SSR artefact ... after MBA booted" and
+   listed: +0.431112 / +0.581419 / +0.435022 / none / +0.302392
+
+   Those five MIX TWO REFERENCE POINTS and OMIT fatal #9.  Matching each of the
+   five listed values to its fatal and its anchor:
+
+     listed value    fatal   matches  delta-from-FATAL   delta-from-MBA-booted
+     +0.431112        #1      +0.431112 (fatal)          -0.416685
+     +0.581419        #2      +0.581419 (fatal)          -0.273279
+     +0.435022        #3      +0.435022 (fatal)          +0.286831
+     "none"           #4      (no timeout within +/-2 s)  --
+     +0.302392        #7      +0.445107                  +0.302392 (MBA)
+     (absent)         #9      +0.439598  <-- OMITTED      +0.290005
+     +0.293573       #12      +0.440271                  +0.293573 (MBA)
+
+   So the first three are fatal-anchored, the last two are MBA-anchored -- and
+   fatal #9 was never listed at all.
+
+   Recomputed consistently, all six, DELTA FROM THE FATAL:
+
+     fatal# 1  +0.431112
+     fatal# 2  +0.581419
+     fatal# 3  +0.435022
+     fatal# 7  +0.445107
+     fatal# 9  +0.439598        <-- omitted by 8.13.6
+     fatal#12  +0.440271
+
+     spread 150 ms.
+
+   And DELTA FROM MBA BOOTED the same six:
+
+     fatal# 1  -0.416685
+     fatal# 2  -0.273279
+     fatal# 3  +0.286831
+     fatal# 7  +0.302392
+     fatal# 9  +0.290005
+     fatal#12  +0.293573
+
+   THE SIGN CHANGES, because the two capture-ON recoveries push "MBA booted"
+   LATER (the coredump copy) while the resume fires at a fixed offset from the
+   fatal.  So the anchor is the FATAL (equivalently the SSR teardown), not the
+   MBA boot.  The +0.302392 in 8.13.6's list is fatal #7 measured from MBA
+   booted -- which is why it looked consistent next to three fatal-anchored
+   values.
+
+6. WHY IT IS INEVITABLE, AND WHY THAT GIVES THE SECTION 8.16 FIX A TARGET
+--------------------------------------------------------------------------------
+
+   The modem is being reloaded inside the window.  It cannot ack a
+   power-collapse vote, so the 250 ms wait must expire.  Android's constant is
+   UL_WAKEUP_TIMEOUT_MS = 2000 (see reference_android_bam_dmux_comparison),
+   and the whole "MBA booted" -> "is now up" mpss load is only:
+
+     fatal#12: 8385.966522 - 8385.410626 = 0.555896 s
+
+   so a 2000 ms window (or re-reading the ack state on timeout) would COVER this
+   class entirely.  Falsifiable prediction: after the section 8.16 fix,
+   pc_timeout_count should stop rising by ~1 per fatal, leaving only the storm's
+   own resumes.
+
+7. IT DOES NOT CONTAMINATE THE SECTION 8.13 A/B BAR
+--------------------------------------------------------------------------------
+
+   The metric's endpoints are "SSR before shutdown" -> "MBA booted".  The
+   timeout lands BEFORE "MBA booted" for #1 and #2 and AFTER it for
+   #3/#7/#9/#12, so it cannot be what separates the two populations -- which
+   remain separated (0.119170-0.130237 s capture-OFF vs 0.824902-0.831559 s
+   capture-ON).
+
+8. WHAT THIS CHANGES IN THE DOCUMENT
+--------------------------------------------------------------------------------
+
+   * Section 8.21: "both counters FROZE" -> only pc_resync_count froze; the
+     timeout moved once and that increment is explained.  (The storm's silence
+     is therefore CLEANER than written, not weaker.)
+   * Section 8.16 / section 8.19(c): accounting extended to 79 = 77 + 2.
+   * Section 8.13.6: reference points unified, fatal #9 added.
+   * New section 8.21.1.
