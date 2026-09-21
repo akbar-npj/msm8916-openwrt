@@ -1,0 +1,74 @@
+# Android RPM master stats -- clean 30 s sampler (2026-09-22)
+# source: /d/rpm_master_stats on stock Android 4.4.4, kernel 3.10.28, adb root
+# fields per sample: APSS numshutdowns, MPSS numshutdowns, PRONTO numshutdowns
+
+=== up 2389 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xd0a
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2419 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xd3a
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2449 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xd78
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2479 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xda4
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2509 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xdd2
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2539 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xe06
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2569 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xe35
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2599 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xe57
+	active_cores:0x1
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2629 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xe8a
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1
+=== up 2659 ===
+	numshutdowns:0x8b99
+	active_cores:0x1
+	numshutdowns:0xeb1
+	active_cores:0x0
+	numshutdowns:0xb
+	active_cores:0x1

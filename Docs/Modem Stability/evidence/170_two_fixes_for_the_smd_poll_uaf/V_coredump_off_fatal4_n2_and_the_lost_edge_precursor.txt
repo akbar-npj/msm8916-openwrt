@@ -4833,3 +4833,86 @@ WHAT PART 30 DOES NOT CLAIM
     decisively and 2 % marginally, and nothing smaller.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 31 -- THE ANDROID RPM POWER-COLLAPSE SERIES, AT LAST MEASURED PROPERLY:
+           MODEM 1.600 /s OVER 240 s (8 x 30 s INTERVALS, RANGE 1.133-2.067),
+           APSS AND PRONTO FLAT AT 0.000 /s
+================================================================================
+
+1. WHY THIS SUPERSEDES PART 29 s4
+
+   PART 29 s4 reported three ad-hoc windows (1.310 / 1.523 / 1.711 /s) taken from
+   two samplers, one of which was a busy loop.  A clean 30 s sampler has since run
+   continuously, and it gives a real SERIES rather than three point estimates.
+   This PART records the series and replaces the point estimates as the Android
+   baseline.
+
+2. THE SERIES -- /d/rpm_master_stats, MPSS `numshutdowns`, 30 s cadence
+
+     uptime   APSS     MPSS    PRONTO
+     2389     35737     3338      11
+     2419     35737     3386      11
+     2449     35737     3448      11
+     2479     35737     3492      11
+     2509     35737     3538      11
+     2539     35737     3590      11
+     2569     35737     3637      11
+     2599     35737     3671      11
+     2629     35737     3722      11
+
+     per-interval MPSS rate (/s):
+       2389->2419  1.600      2509->2539  1.733
+       2419->2449  2.067      2539->2569  1.567
+       2449->2479  1.467      2569->2599  1.133
+       2479->2509  1.533      2599->2629  1.700
+
+     240 s window:  MPSS 1.600 /s   APSS 0.000 /s   PRONTO 0.000 /s
+     intervals:     n = 8,  min 1.133,  max 2.067  (1.82x spread)
+
+3. WHAT THE SERIES ESTABLISHES, AND WHY THE SPREAD MATTERS
+
+   * **The modem's RPM power-collapse rate on Android is 1.60 /s** (240 s, n=8
+     intervals), with a per-interval range of 1.13-2.07 /s.  The rate is NOT a
+     constant, so a SINGLE pair of samples is not enough -- PART 29 s4's three
+     point estimates (1.310/1.523/1.711) sit inside this range, which is the
+     consistency check that they should.
+   * **APSS and PRONTO are FLAT at 0.000 /s across all 240 s** while the AP is
+     awake with adb and the display on.  So the counter isolates the MODEM, which
+     is what makes it usable: no subtraction, no subtraction error, no assumption
+     about the AP's own sleep.
+   * The 1.82x spread sets the noise floor for the OpenWrt comparison.  A single
+     OpenWrt sample that differs from 1.60 /s by less than ~2x is NOT evidence of
+     a behavioural difference; the corpus's claimed gap (Android 1.88 /s vs
+     OpenWrt 0.83 /s = 2.3x) is only just above this floor, so **the comparison
+     will need several OpenWrt intervals, not one.**
+
+   PRE-REGISTERED, BEFORE ANY OPENWRT SAMPLE EXISTS:
+     P1  OpenWrt's MPSS rate, measured the same way over >= 240 s at a 30 s
+         cadence, will be **below 1.0 /s** (i.e. the 2.3x gap is real).
+     P2  FALSIFIER: if OpenWrt's MPSS rate lands inside Android's observed
+         1.13-2.07 /s band, the corpus's gap was a DIAG-transport artefact after
+         all, the MCPM cadence difference is CLOSED as a lead, and PART 29 s4's
+         "re-frames the gap as testable" must be read as "tested and null".
+     P3  A single OpenWrt interval is NOT sufficient to decide P1/P2 -- at least
+         4 intervals (120 s) are required, because the within-Android spread is
+         1.82x.
+
+4. WHAT PART 31 CHANGES
+
+  - Replaces PART 29 s4's three ad-hoc point estimates with a proper 240 s series:
+    **MPSS 1.600 /s (n=8, range 1.133-2.067)**, APSS and PRONTO 0.000 /s.
+  - Records that the modem's collapse rate is NOT stationary within a boot, which
+    sets a 1.82x noise floor on the OpenWrt-vs-Android comparison.
+  - Pre-registers P1/P2/P3 for the OpenWrt measurement, including the falsifier
+    that would CLOSE the MCPM-cadence lead entirely.
+
+WHAT PART 31 DOES NOT CLAIM
+
+  - It does NOT claim the 2.3x gap is real; it pre-registers the test for it.
+  - It does NOT claim the AP's RPM activity is causal.  PART 29 s3's finding that
+    the AP->RPM round trip never exceeds 617 us stands unchanged.
+  - It does NOT change PART 28/PART 30 (the bam_dmux control) or any OpenWrt
+    number.
+
+--------------------------------------------------------------------------------
