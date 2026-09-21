@@ -37,6 +37,23 @@ start_service() {
 	# times are 172.353 / 918.195 / 1823.753 / 2729.267 s, so there is no fixed
 	# 900 s timer to desync.  See Docs/Modem Stability/README.md.
 	procd_append_param command -r 0
+	# -p: opt-in READ-ONLY modem-uptime telemetry (Doc 173).
+	#
+	# It sends only QMI_TIME_GENOFF_GET_REQ (0x0021) for ATS_RTC (base 0, the
+	# modem's OWN uptime counter) and ATS_TOD (base 1). It cannot write: the
+	# GET message has no offset TLV at all -- 14 bytes on the wire, against
+	# the write's 25, and that 11-byte difference IS the u64 offset field.
+	# Verified by the encoder test in
+	# Docs/Modem Stability/evidence/173_ats_rtc_readonly_poll/.
+	#
+	# Left DISABLED here on purpose. Doc 146 §9's experiment (no AP-initiated
+	# modem traffic while idle) is judged by fatal RATE over a long soak, and
+	# turning on a new periodic AP->modem exchange mid-experiment would
+	# confound it. Enable only for a soak where the modem-uptime anchor is
+	# wanted; the log line is
+	#   [QMI-TIME] MODEM-UPTIME rtc_ms=<n> tod_ms=<n> tod_minus_rtc_ms=<n>
+	#
+	#procd_append_param command -p
 	procd_append_param command -v
 	procd_set_param respawn 30 5 0
 	procd_set_param stdout 1

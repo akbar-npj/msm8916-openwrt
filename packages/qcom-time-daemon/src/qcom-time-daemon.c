@@ -394,6 +394,53 @@ static int validate_periodic_time_get(int sock)
 	return -1;
 }
 
+/*
+ * Read-only modem-uptime telemetry.
+ *
+ * ATS_RTC (base 0) is the modem's OWN uptime counter in milliseconds. It is the
+ * only instrument in this project that measures modem uptime without borrowing
+ * an AP-side offset from a previous boot (Doc 172; see
+ * reference_modem_ats_rtc_uptime_instrument.md).
+ *
+ * WHY THIS CANNOT WRITE TO THE MODEM -- it is a property of the wire format, not
+ * of this function's care. The only message sent here is
+ * QMI_TIME_GENOFF_GET_REQ (0x0021), and time_genoff_get_req_ei (qmi_time.c:58)
+ * declares EXACTLY ONE TLV: type 0x01, 4 bytes, offsetof(base). There is no
+ * offset/value field anywhere in the descriptor, so no encoding of this message
+ * can carry a value. Confirmed against the wire: the deployed daemon logs
+ * "TX 0x0021 ... (len=14)" = 7-byte QMI header + (1 + 2 + 4) TLV, versus
+ * "TX 0x0020 ... (len=25)" for the write = 7 + 7 + 11. The write is 11 bytes
+ * longer and that extra TLV (0x02, 8-byte offset) is the only thing that makes
+ * it a write.
+ *
+ * Deliberately has NO state effects: a failure is logged and dropped. It must
+ * never be able to revoke sync -- that is validate_periodic_time_get()'s job,
+ * and a telemetry path that can knock the daemon out of STATE_SYNCHRONIZED
+ * would be a surprising side effect of asking a question.
+ */
+static int log_modem_uptime(int sock)
+{
+	uint64_t rtc_ms = 0;
+	uint64_t tod_ms = 0;
+	int ret_rtc = query_modem_ats_base(sock, ATS_RTC, &rtc_ms);
+	int ret_tod = query_modem_ats_base(sock, ATS_TOD, &tod_ms);
+
+	if (ret_rtc != 0) {
+		syslog(LOG_WARNING, "[QMI-TIME] MODEM-UPTIME unavailable: ATS_RTC read failed (read-only, no state change)");
+		return -1;
+	}
+
+	if (ret_tod == 0 && tod_ms >= rtc_ms)
+		syslog(LOG_NOTICE, "[QMI-TIME] MODEM-UPTIME rtc_ms=%llu tod_ms=%llu tod_minus_rtc_ms=%llu",
+		       (unsigned long long)rtc_ms, (unsigned long long)tod_ms,
+		       (unsigned long long)(tod_ms - rtc_ms));
+	else
+		syslog(LOG_NOTICE, "[QMI-TIME] MODEM-UPTIME rtc_ms=%llu (ATS_TOD unavailable)",
+		       (unsigned long long)rtc_ms);
+
+	return 0;
+}
+
 static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			       const struct sockaddr_qrtr *sq)
 {
@@ -504,8 +551,21 @@ int main(int argc, char *argv[])
 			verbose = true;
 			break;
 		case 'p':
-			/* periodic get disabled for stability */
-			enable_periodic_get = false;
+			/*
+			 * Opt-in READ-ONLY telemetry poll: periodic 0x0021 GETs of
+			 * ATS_RTC (base 0, the modem's own uptime) and ATS_TOD
+			 * (base 1). Sends no 0x0020 write -- see log_modem_uptime().
+			 *
+			 * FIXED 2026-09-22: this case previously read
+			 * "enable_periodic_get = false", i.e. it assigned the
+			 * flag its own default and was therefore a NO-OP. The
+			 * periodic poll has never actually run, and the loop
+			 * comment claiming it "can be explicitly enabled with
+			 * '-p'" was false. Kept OFF by default: the deployed
+			 * config must stay Android-parity while Doc 146 §9's
+			 * fatal-rate experiment is running.
+			 */
+			enable_periodic_get = true;
 			break;
 		case 'r':
 			refresh_interval = atoi(optarg);
@@ -517,6 +577,8 @@ int main(int argc, char *argv[])
 			break;
 		default:
 			fprintf(stderr, "Usage: %s [-v] [-p] [-r <refresh_sec>] [-i <interval_sec>]\n", argv[0]);
+			fprintf(stderr, "  -p  enable the READ-ONLY modem-uptime poll (0x0021 GET only; no 0x0020 write)\n");
+			fprintf(stderr, "  -r  enable the periodic ATS_USER WRITE (0x0020) every <refresh_sec>; 0 = off (Android parity)\n");
 			return 1;
 		}
 	}
@@ -525,7 +587,7 @@ int main(int argc, char *argv[])
 	syslog(LOG_NOTICE, "[QMI-TIME] Starting Qualcomm QMI Time Synchronization Daemon (Android Protocol Reconstructed)");
 	syslog(LOG_NOTICE, "[QMI-TIME] Pure software modem stability mode active. Periodic ATS_USER refresh: %s (interval=%ds)",
 	       refresh_interval > 0 ? "ENABLED" : "DISABLED", refresh_interval);
-	syslog(LOG_NOTICE, "[QMI-TIME] Periodic ATS_TOD query: %s (interval=%ds)",
+	syslog(LOG_NOTICE, "[QMI-TIME] Read-only modem-uptime poll (ATS_RTC base 0 + ATS_TOD base 1, 0x0021 GET only): %s (interval=%ds)",
 	       enable_periodic_get ? "ENABLED" : "DISABLED", poll_interval);
 
 	signal(SIGINT, sig_handler);
@@ -596,12 +658,19 @@ int main(int argc, char *argv[])
 
 		/*
 		 * In STATE_SYNCHRONIZED:
-		 * Periodic ATS_TOD GET (0x0021) query is DISABLED by default.
-		 * Can be explicitly enabled with '-p' flag for diagnostic testing.
+		 * Opt-in periodic READ-ONLY poll, enabled with '-p'.
+		 *   - log_modem_uptime()  : 0x0021 GET of ATS_RTC + ATS_TOD. Pure
+		 *                           telemetry; no state effects.
+		 *   - validate_periodic_time_get() : 0x0021 GET of ATS_TOD used as a
+		 *                           liveness check. This one DOES have a state
+		 *                           effect -- 3 consecutive failures revoke
+		 *                           sync so the handshake is retried.
+		 * Neither sends a 0x0020 write.
 		 */
 		if (enable_periodic_get && modem_connected && current_state == STATE_SYNCHRONIZED &&
 		    (now - last_keepalive >= (uint64_t)poll_interval)) {
 			validate_periodic_time_get(sock);
+			log_modem_uptime(sock);
 			last_keepalive = now;
 		}
 

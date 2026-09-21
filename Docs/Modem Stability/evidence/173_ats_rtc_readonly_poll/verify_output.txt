@@ -1,0 +1,30 @@
+# Output of: sh build_and_run_test_encode.sh
+# Host: Linux 7.1.13-402.asahi.fc44.aarch64+16k aarch64
+# Toolchain: OpenWrt GCC 14.3.0, aarch64-openwrt-linux-musl, STATIC link
+#
+== building (static, aarch64) ==
+== running (natively) ==
+== what the READ-ONLY poll sends (ATS_RTC, base 0) ==
+  GET  (14 bytes): 00 2f 00 21 00 07 00 01 04 00 00 00 00 00
+         header: type=0x00 txn=47 msg=0x0021 msg_len=7
+         TLV type=0x01 len=4  <- `base` (u32) = 0
+  qmi_encode_message() -> 14   [captured wire length: 14]
+
+== what the periodic WRITE sends (ATS_USER, base 2) ==
+  SET  (25 bytes): 00 30 00 20 00 12 00 01 04 00 02 00 00 00 02 08 00 a0 8a 5b 29 57 01 00 00
+         header: type=0x00 txn=48 msg=0x0020 msg_len=18
+         TLV type=0x01 len=4  <- `base` (u32) = 2
+         TLV type=0x02 len=8  <- `offset` (u64)  *** THIS IS THE WRITE ***
+  qmi_encode_message() -> 25   [captured wire length: 25]
+
+difference = 11 bytes = TLV header (3) + u64 offset (8)
+
+RESULT: PASS -- encoder reproduces the captured wire lengths
+
+== also smoke-testing the daemon's -p wiring ==
+--- with -p (poll ENABLED, write must stay DISABLED) ---
+qcom-time-daemon[1465337]: [QMI-TIME] Pure software modem stability mode active. Periodic ATS_USER refresh: DISABLED (interval=0s)
+qcom-time-daemon[1465337]: [QMI-TIME] Read-only modem-uptime poll (ATS_RTC base 0 + ATS_TOD base 1, 0x0021 GET only): ENABLED (interval=60s)
+--- without -p (deployed default) ---
+qcom-time-daemon[1465356]: [QMI-TIME] Pure software modem stability mode active. Periodic ATS_USER refresh: DISABLED (interval=0s)
+qcom-time-daemon[1465356]: [QMI-TIME] Read-only modem-uptime poll (ATS_RTC base 0 + ATS_TOD base 1, 0x0021 GET only): DISABLED (interval=60s)
