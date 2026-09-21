@@ -864,13 +864,37 @@ static int rproc_boot_recovery(struct rproc *rproc)
   `/sys/class/devcoredump/disabled` is a **write-once global lockdown** that kills every future dump
   and must never be written.
 
-**Why this is the right thing to remove.** The step being skipped is not a passive copy:
+**What the skipped step actually contains — read line by line, because the first draft of this
+section overclaimed.** `qcom_q6v5_dump_segment()` (`qcom_q6v5_mss.c:1575-1619`) does:
 
-* `qcom_q6v5_dump_segment()` is the **second caller of `q6v5_mba_load()`** (Doc 165) — i.e. a whole
-  extra MBA power-up/handshake per fatal, in the middle of recovery;
-* the dump reclaim is what emits **`port failed halt`**, and Doc 159 put the AP hang **43–47 ms after
-  that line**; Doc 165 measured the 85 398 475 B synchronous copy at **1.064 s, on this path**;
-* and it writes **85 MB per fatal to `/overlay`** — 18 dumps is already 1.5 GB of a 3.2 GB partition.
+```c
+if (!qproc->dump_mba_loaded) {
+        ret = q6v5_reload_mba(rproc);          /* -> q6v5_load() + q6v5_mba_load()  (2nd MBA load) */
+        q6v5_xfer_mem_ownership(... mpss ...);
+}
+ptr = memremap(qproc->mpss_phys + offset + cp_offset, size, MEMREMAP_WC);
+memcpy(dest, ptr, size);                        /* the 85 MB copy */
+if (qproc->current_dump_size == qproc->total_dump_size) {
+        q6v5_xfer_mem_ownership(... back to Q6 ...);
+        q6v5_mba_reclaim(qproc);                /* a SECOND reclaim */
+}
+```
+
+So disabling the coredump removes **a second full MBA load, the 85 MB copy, and a second MBA
+reclaim** from the middle of every SSR recovery.
+
+**BUT — and this is the correction — it does NOT remove Doc 159's hang site.** `q6v5_mba_reclaim()`
+has **three** callers (`qcom_q6v5_mss.c:1616`, `:1657`, `:1672`), and the last is **`q6v5_stop()`**,
+which `rproc_stop()` runs unconditionally. `q6v5_mba_reclaim()` is what calls
+`q6v5proc_halt_axi_port()` (`:1282-1286`), and **that** is where **`port failed halt`** is emitted
+(`:974`). So **"port failed halt" is produced by the STOP path, not by the coredump path** — and the
+43–47 ms window Doc 159 located the hang in is still present with the coredump disabled.
+
+**What the experiment therefore tests, stated precisely:** not "the hang site is removed", but
+"**the recovery does ~1 s less work and one fewer MBA power-cycle/reclaim in the middle of a 44 ms
+window**". That is still a real hypothesis — the extra MBA load and the second reclaim are exactly the
+kind of work that can wedge a narrow handshake — but it is a **weaker** claim than the first draft,
+and the pre-registration below is written against the weaker one.
 
 **Deployed** (`/etc/rc.local`, gated so it survives a reboot and is trivially reversible):
 
@@ -887,7 +911,9 @@ Verified: `cat /sys/class/remoteproc/remoteproc0/coredump` → **`disabled`**; w
 just start the watcher — it re-arms within 2 s).
 
 **PRE-REGISTRATION (written before the run, per the standing SOP rule).**
-* **Prediction:** if the coredump path is the hang, the AP reboot rate falls to **zero**.
+* **Prediction:** removing the second MBA load + 85 MB copy + second reclaim from the middle of every
+  SSR recovery reduces the AP reboot rate to **zero**. (Note the weaker framing above: the hang site
+  itself is **not** removed — only the extra work around it.)
 * **Bar:** **0 AP reboots across the next 20 fatals.** At the idle timer's ~902 s that is ~5 h of
   unattended running. *Justification for n=20:* the pre-823 rate was of order 1 reboot per 1–3 SSRs,
   so 20 clean fatals would be decisive; if the true post-823 rate were as low as 1 in 4, 20 fatals
@@ -898,6 +924,9 @@ just start the watcher — it re-arms within 2 s).
   is the stronger design if the device time is available.
 * **What would falsify it:** any reboot during the 20 fatal window, or a stall whose `dmesg_roll`
   tail shows the recovery had already passed the coredump step.
+* **A second, independent reason to run it:** it stops **85 MB per fatal** being written to
+  `/overlay` (18 dumps already = 1.5 GB of 3.2 GB), which removes a disk-fill hazard *and* a large
+  synchronous write from the recovery window — either of which could matter on its own.
 * **Cost, stated plainly:** no coredump is captured during the window, so a fatal in this period
   cannot be decoded via its ERR_FATAL descriptor (Doc 163). The fatal *signature* still lands in
   `dmesg_roll`, and the ledger still records the teardown stages, so the loss is bounded.

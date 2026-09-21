@@ -59,10 +59,31 @@ WHY THE SKIPPED STEP MATTERS
 ----------------------------
 * qcom_q6v5_dump_segment() is the SECOND caller of q6v5_mba_load() (Doc 165) --
   a whole extra MBA power-up/handshake per fatal, mid-recovery.
-* The dump reclaim is what emits "port failed halt"; Doc 159 put the AP hang 43-47 ms
-  AFTER that line.  Doc 165 measured the 85 398 475 B synchronous copy at 1.064 s ON
-  this path.
+* Doc 165 measured the 85 398 475 B synchronous copy at 1.064 s ON this path.
 * It writes 85 MB per fatal to /overlay -- 18 dumps = 1.5 GB of a 3.2 GB partition.
+
+WHAT THIS DOES *NOT* DO -- corrected after reading the callers (first draft overclaimed)
+-------------------------------------------------------------------------------------
+It does NOT remove Doc 159's hang site.
+
+  q6v5_mba_reclaim() has THREE callers:
+      qcom_q6v5_mss.c:1616   the coredump's reclaim      <- removed by this experiment
+      qcom_q6v5_mss.c:1657   q6v5_mpss_load error path   <- not on the recovery path
+      qcom_q6v5_mss.c:1672   q6v5_stop()                 <- rproc_stop() runs this
+                                                          UNCONDITIONALLY
+  q6v5_mba_reclaim() is what calls q6v5proc_halt_axi_port() (:1282-1286), and THAT
+  is where "port failed halt" is emitted (:974).
+
+  => "port failed halt" is produced by the STOP path, not the coredump path, so the
+     43-47 ms window Doc 159 located the hang in is STILL PRESENT with the dump off.
+
+WHAT THE EXPERIMENT THEREFORE TESTS (the weaker, accurate claim)
+----------------------------------------------------------------
+Not "the hang site is removed", but "the recovery does ~1 s less work and one fewer
+MBA power-cycle/reclaim in the middle of a 44 ms window".  That is still a real
+hypothesis -- extra MBA load + a second reclaim are exactly the kind of work that can
+wedge a narrow handshake -- but it is weaker, and the pre-registration is written
+against the weaker claim.
 
 DEPLOYED (survives reboot, trivially reversible)
 ------------------------------------------------

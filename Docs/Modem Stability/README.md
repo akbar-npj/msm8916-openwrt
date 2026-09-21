@@ -1737,10 +1737,17 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      The remoteproc one controls whether a dump is **produced**; the class-level
      `/sys/class/devcoredump/disabled` is a **write-once global lockdown** (never write it).
      **Why removing it matters:** `qcom_q6v5_dump_segment()` is the **second caller of
-     `q6v5_mba_load()`** (Doc 165) — a whole extra MBA power-up mid-recovery; the dump reclaim is what
-     emits **`port failed halt`**, and Doc 159 put the hang **43–47 ms after that line**; Doc 165
+     `q6v5_mba_load()`** (Doc 165) — a whole extra MBA power-up mid-recovery; Doc 165
      measured the 85 MB synchronous copy at **1.064 s on this path**; and it writes **85 MB per fatal
-     to `/overlay`** (18 dumps = 1.5 GB of 3.2 GB). **Deployed** via `/etc/rc.local`, gated on
+     to `/overlay`** (18 dumps = 1.5 GB of 3.2 GB). **What it does NOT do — corrected after reading
+     the callers: it does not remove Doc 159's hang site.** `q6v5_mba_reclaim()` has **three**
+     callers (`qcom_q6v5_mss.c:1616` dump, `:1657` error path, **`:1672` `q6v5_stop()`**, which
+     `rproc_stop()` runs unconditionally); `q6v5_mba_reclaim()` is what calls
+     `q6v5proc_halt_axi_port()` (`:1282-1286`), and **that** is where **`port failed halt`** is
+     emitted (`:974`) — so the 43–47 ms window is produced by the **STOP** path and is **still
+     present** with the coredump disabled. The hypothesis tested is therefore the **weaker** one:
+     *"~1 s less work and one fewer MBA power-cycle/reclaim in the middle of a 44 ms window"*, not
+     *"the hang site is removed"*. **Deployed** via `/etc/rc.local`, gated on
      `/overlay/coredump_ENABLE` so it survives a reboot and re-enables with one `touch`. Verified:
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
