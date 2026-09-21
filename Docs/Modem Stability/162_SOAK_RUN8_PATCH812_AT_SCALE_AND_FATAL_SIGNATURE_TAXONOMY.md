@@ -36,21 +36,29 @@ Doc 157 §7.1).
 
 ## 2. Result: both patches hold at scale
 
-Measured at device uptime **4206 s** (70 min), 4 modem fatals, 4 SSRs:
+Measured at the end of the run, device uptime **5246 s (87 min)**, 5 modem fatals, 5 SSRs:
 
 | metric | value | what it means |
 | :--- | :--- | :--- |
-| `tx_defer_queued` | **549** | packets that took `start_xmit`'s defer branch |
-| `tx_defer_submitted` | **549** | … of which were eventually submitted |
+| `tx_defer_queued` | **675** | packets that took `start_xmit`'s defer branch |
+| `tx_defer_submitted` | **675** | … of which were eventually submitted |
 | **gap (queued − submitted)** | **0** | **no packet was lost** |
-| `tx_defer_preserved` | 521 | preserved across a `pm_restart()` |
+| `tx_defer_preserved` | 647 | preserved across a `pm_restart()` |
 | `tx_defer_wiped_live` | **0** | nothing destroyed by the wake path |
 | `tx_sweep_guard_hits` | **0** | patch 810's guards never had to fire |
-| `pc_resync_count` | 0 | the watchdog never had to rebuild |
-| `retries` | 0 | patch 814's retry never had to fire |
+| `tx_submit_ok` / `tx_complete` | **23341 / 23341** | every submit completed |
+| **`pc_resync_count`** | **4** | **patch 814's watchdog rebuilt the channels on 4 of the 5 SSRs** |
+| `retries` | 0 | patch 814's *retry* path never had to fire |
 | `oops` | **0** | no AP-side fault |
-| `cmd_open` | 40 | 5 modem boots × 8 channels — every reopen succeeded |
+| `cmd_open` | 48 | 6 modem boots × 8 channels — every reopen succeeded |
 | `rx_slots_mapped` | 32 | full RX ring |
+
+(The table was first written at uptime 4206 s with 4 fatals and `pc_resync_count: 0`; the run
+continued to 5246 s and the numbers above are final. **`pc_resync_count` reaching 4 is the run's
+second finding**: the SSR `pc` assert edge was **lost on 4 of the 5 fatals**, and each time the
+patch-814 watchdog rebuilt the channels from the modem's SMEM state word. Before patch 814 that
+state was a permanent `wwan0` DOWN — Doc 157's third AP-side defect, now observed on a *natural*
+trigger four times in one boot.)
 
 **The headline is the gap.** Doc 156 measured the pre-812 defect as **27 deferred packets, 27
 destroyed, 0 delivered** — 60 % of all TX in the first minute of a boot. Run 8 measures **549
@@ -215,8 +223,9 @@ periodic, but the idle deterministic timer IS".
 
 ## 9. One line
 
-**Patch 812 held at scale — 549 deferred packets, 549 delivered, 0 destroyed, over four A2
-collapses — patch 814 recovered the data plane on 4/4 natural SSRs, and the run's five fatals
+**Patch 812 held at scale — 675 deferred packets, 675 delivered, 0 destroyed, over five A2
+collapses — patch 814 recovered the data plane on 5/5 natural SSRs (its watchdog rebuilding the
+channels on 4 of them, `pc_resync_count: 4`, because the `pc` assert edge was lost), and the run's five fatals
 showed that the deterministic ~900.8 s fatal fires on only some boots: it fired on 2 of 5, and on
 the other 3 an `a2_power.c:1189` fatal fired instead at 940.2–947.2 s. The first four fatals
 alternated exactly; the fifth broke it.**

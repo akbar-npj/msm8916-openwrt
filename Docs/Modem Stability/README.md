@@ -715,16 +715,19 @@ below.
 ## An eighteenth round — Doc 162, 2026-09-21: run 8 puts patch 812 at scale, and the fatal signature *is* informative
 
 84. **Patch 812 holds at scale, and the number is the point.** Run 8 (70 min, 4 fatals, 4 SSRs,
-    the same 6 s-idle-then-burst harness as run 6) measured **`tx_defer_queued 549` /
-    `tx_defer_submitted 549` / gap 0 / `tx_defer_wiped_live 0` / `tx_sweep_guard_hits 0` / 0
-    oopses**. Doc 156's pre-fix baseline was **27 deferred, 27 destroyed, 0 delivered** — 60 % of
-    all TX in the first minute of a boot. The defect does not degrade under load; it is gone.
-    `cmd_open: 40` (5 modem boots × 8 channels) is the modem's own confirmation that the driver
-    rebuilt the channels every time.
-85. **Patch 814 recovered the data plane on 4/4 natural SSR triggers** without a reboot (~20 / 40 /
-    15 / 30 s). But **`retries: 0`** — this modem came ready in 540–580 ms every time, well inside
-    the original 3.2 s budget. So run 8 does **not** validate the retry path; run 6's watchdog
-    rebuild remains the only natural-trigger evidence, and the *retry*'s trigger is still unobserved.
+    the same 6 s-idle-then-burst harness as run 6) measured **`tx_defer_queued 675` /
+    `tx_defer_submitted 675` / gap 0 / `tx_defer_wiped_live 0` / `tx_sweep_guard_hits 0` /
+    `tx_submit_ok 23341` = `tx_complete 23341` / 0 oopses**. Doc 156's pre-fix baseline was
+    **27 deferred, 27 destroyed, 0 delivered** — 60 % of all TX in the first minute of a boot. The
+    defect does not degrade under load; it is gone. `cmd_open: 48` (6 modem boots × 8 channels) is
+    the modem's own confirmation that the driver rebuilt the channels every time.
+85. **Patch 814 recovered the data plane on 5/5 natural SSR triggers** without a reboot (~20 / 40 /
+    15 / 30 s), **and its watchdog rebuilt the channels on 4 of them — `pc_resync_count: 4`**, i.e.
+    the SSR `pc` assert edge was lost on 4 of the 5 fatals. That is Doc 157's third AP-side defect
+    (before patch 814, that state was a permanent `wwan0` DOWN) now observed on a **natural**
+    trigger four times in one boot — which run 6 could only show twice. But **`retries: 0`**: this
+    modem came ready in 540–580 ms every time, well inside the original 3.2 s budget, so the
+    *retry* path's trigger is still unobserved.
 86. **Run 8's ~901 s fatal fires on only some boots — the first four fatals made this look like a
     clean 2-cycle, and the fifth broke it.** Modem uptime at fatal:
     **900.965 / 941.288 / 900.662 / 940.238 / 947.161 s**, signatures
