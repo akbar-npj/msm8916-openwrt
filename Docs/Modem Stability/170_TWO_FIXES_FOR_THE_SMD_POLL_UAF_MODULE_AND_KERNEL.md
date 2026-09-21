@@ -448,7 +448,7 @@ boot after the deploy:
 | ping 8.8.8.8 | 4/4, 0% loss, 42.2/64.3/81.8 ms |
 | DNS | `nslookup openwrt.org 8.8.8.8` → `2a03:b0c0:3:d0::1a51:c001` |
 | **`echo stop` × 3** | **3 PASS / 0 FAIL / 0 SKIP** |
-| **a NATURAL fatal** (`a2_power.c:1189`, AP 381.485) | **`t0..t9` all present, 0 corruption, coredump captured, AP survived, modem recovered, ping 3/3** |
+| **a NATURAL fatal** (`a2_power.c:1189`, AP 381.485 **and again at 502.08**) | **2/2: `t0..t9` all present, 0 corruption, coredumps 14→15, AP survived, modem recovered, ping 2–3/3** |
 
 The `echo stop` runs (`bash scratch/qa.sh 3 post823`) are the *targeted scenario* — the trigger that
 produces the UAF — and they also exercise the one thing 823 could plausibly have broken: the poller's

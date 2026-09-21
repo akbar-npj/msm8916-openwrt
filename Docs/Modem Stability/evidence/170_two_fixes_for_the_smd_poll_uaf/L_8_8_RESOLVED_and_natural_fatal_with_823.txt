@@ -110,6 +110,31 @@ consistency check that passes -- and it is another reminder that this signature
 must never be treated as a fixed timer.
 
 ---------------------------------------------------------------------------
+3b. A SECOND NATURAL FATAL WITH 823 -- SAME RESULT
+---------------------------------------------------------------------------
+Observed ~90 s later on the same boot (device still healthy at uptime 572.55 s).
+Ledger now ends:
+
+    389.95,1,a2_power.c:1189,4,4,4,4,4,4,4,4,4,4,4,4,0,1,14
+    502.08,2,a2_power.c:1189,5,5,5,5,5,5,5,5,5,5,5,5,0,1,15
+
+i.e. a SECOND fatal, same signature, **`t0..t9` all present again**, coredump count
+14 -> 15, and the device survived and kept its data path:
+
+    uptime 572.55   rproc=running   wwan0 UP 10.16.51.244/29 + global v6
+    ping 8.8.8.8 2/2, 0 % loss, 84.1/84.5/84.9 ms
+    list_del corruption count in dmesg: 0   (the only 2 matches are the fatal lines)
+
+So with 823 deployed: **2/2 natural fatals ran the full teardown, produced 0
+corruption, and the AP survived and kept working.**  Again offered as
+non-regression on the production path, not as discrimination -- the unpatched
+natural-fatal control also gave 0 (Doc 170 section 4).
+
+Note also the fatal rate: two `a2_power.c:1189` fatals inside ~120 s of each other
+(381.5 and 502.1 s AP time).  Consistent with Doc 162's finding that this signature
+is activity/state-correlated and spans 68.5-941.3 s, NOT a ~902 s clock.
+
+---------------------------------------------------------------------------
 4. THE TRAP THIS CREATED, AND THE LESSON
 ---------------------------------------------------------------------------
 `timeout waiting for ssctl service` and `modem pc-ack timeout during resume` were
