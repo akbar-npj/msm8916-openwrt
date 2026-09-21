@@ -5385,6 +5385,20 @@ Scored against the pre-registration filed in PART 36 (committed at uptime 265 s,
    1260.4 s, i.e. 311 s after the window closed.  See the note at the end of s2
    for why freezing was not optional.
 
+   **AND THE SOAK DID NOT STOP AT THE FREEZE.**  All five captures were still
+   growing when this was written -- checked over 60 s: ping +737 B, bam_dmux
+   +7.7 KB, logcat +80 KB -- so every count below is a SNAPSHOT at uptime
+   1260.4 s, not a total.  That is safe here for one specific reason: the verdict
+   is a statement about events INSIDE AP 868.9-948.9 s, a region already in the
+   past when the freeze was taken, so no later data can change what happened in
+   it.  It would NOT be safe for a rate or a total.
+   (Related trap, hit while writing this: a first liveness check concluded "the
+   ping loops have stopped" from a 20 s size sample showing delta 0.  The loop is
+   `ping -c 3 -W 2; sleep 27`, so a 20 s sample can fall entirely inside the
+   sleep.  Android KitKat's `ps` also truncates arguments, so `ps | grep` for
+   the loop's command line is not a liveness test either.  **Sample for longer
+   than the loop's period, or not at all.**)
+
    The primary instrument, bam_dmux silence gaps, restricted to AP >= 206 s
    (see s4 for why 206):
 
