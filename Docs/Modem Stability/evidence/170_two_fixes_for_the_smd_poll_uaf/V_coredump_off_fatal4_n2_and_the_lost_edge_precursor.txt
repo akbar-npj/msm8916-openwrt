@@ -3948,22 +3948,59 @@ PART 26 -- THE USER SUPPLIES A CROSS-DEVICE CONTROL THAT RE-FRAMES PART 25:
    treats the 250 ms timeout as fatal where the UFI001B does not, the latency
    defect CAN become a stability defect on the HMU05 specifically.
 
-3. ONE CAVEAT, STATED BECAUSE THE CONTROL IS ONLY AS GOOD AS IT
+3. THE CONTROL IS CONFIRMED VALID -- AND IT IS STRONGER THAN FIRST READ
 --------------------------------------------------------------------------------
 
-   The UFI001B control is decisive ONLY IF "no crash" means the UFI001B ran
-   past the 902 s boundary WITHOUT a `fatal error received`.  The corpus has
-   not independently observed a native-UFI001B OpenWrt soak (the UFI001B work
-   in the corpus was a b26 TRANSPLANT into the HMU05, which "could not work"
-   because the RF driver sets are disjoint).  So this is the user's report,
-   not a corpus-verified run.  It is recorded as reported; a one-line
-   confirmation ("yes, the UFI001B ran > 15 min with zero `fatal error
-   received`") would make it load-bearing.
+   The assistant flagged a caveat: "no crash" is decisive only if it means the
+   UFI001B ran past the ~900 s boundary, and not if it meant a failed
+   transplant.  **The user has now resolved it, and the strong reading holds:**
 
-   If the user means instead that the UFI001B's MODEM FIRMWARE, transplanted
-   into the HMU05, does not crash (but also has no RF, hence no stall because
-   there is no data path) -- that is a different and weaker statement, and the
-   memory already records that transplant as "NOT RESIDENT / could not work".
-   The two readings lead to opposite conclusions, so the wording matters.
+       "i have two device one is ufi001b and other one is hmu05, ufi001b has
+        upgraded modem firmware and runs fine on ufi001b device without any
+        crash for HOURS, so i thought why not try ufi001b modem firmware on
+        hmu05, but it was a failure as hmu05 firmware is written in c and has
+        different RF transceiver but ufi001b firmware is written in c++"
+
+   So:
+     (a) TWO PHYSICAL DEVICES, each running its OWN modem firmware, with the
+         same OpenWrt AP-side stack (tz + qhypstub + kernel).
+     (b) The UFI001B runs **for HOURS** without a crash.  The HMU05 faults at
+         ~902 s (~15 min).  "Hours" is 4x+ the fault period, so the UFI001B
+         does not merely miss the boundary -- it passes it repeatedly.
+     (c) The transplant attempt FAILED, and for the reason the corpus already
+         records independently: different RF transceiver (WTR4905 vs WTR1605)
+         and disjoint transceiver driver sets.  The user's experiment therefore
+         CORROBORATES the corpus's "transplant could not work" finding.
+     (d) The C (HMU05) vs C++ (UFI001B) detail is a source-language observation
+         about the two vendor firmware trees.  It is NOT causal on its own and
+         is recorded as an observation, not as a mechanism.
+
+   **THE CONTROL IS THEREFORE VALID AND DECISIVE FOR WHAT IT CLAIMS:** the same
+   AP-side firmware, the same kernel, two different modems, and only the HMU05
+   faults.  D2 stands.  The tz/qhyp candidate stays WEAKENED.
+
+4. A PRACTICAL LEAD THE USER'S MESSAGE OPENS, RECORDED BUT NOT PURSUED
+--------------------------------------------------------------------------------
+
+   The user says the UFI001B is running **UPGRADED** modem firmware.  That
+   raises an obvious question the corpus has never asked: **is there an upgraded
+   HMU05 / HMUF02-v5 modem firmware, and does it fix the 902 s fatal?**
+
+   This is NOT the forbidden "binary-patch the baseband" route -- it is a
+   vendor firmware update, which is a legitimate input, and the UFI001B is
+   direct evidence that an upgraded image can run crash-free on this family.
+   Two cautions before it is treated as a plan:
+
+     * The corpus's standing directive is to solve the fault WITHOUT patching
+       the modem firmware, and the corpus has already been burned once by a
+       FABRICATED patch guide (see the trust index).  A vendor image is
+       different in kind from a hand patch, but the provenance must be verified
+       byte-for-byte before use.
+     * The HMU05 modem firmware hashes IDENTICAL on Android and OpenWrt
+       (all 21 segments), so whatever the fault is, Android tolerates it with
+       the SAME modem image -- which means an upgrade is a WORKAROUND, not an
+       explanation.  It would still be worth knowing whether one exists.
+
+   Status: asked as a question, not investigated.
 
 --------------------------------------------------------------------------------
