@@ -196,3 +196,84 @@ subsystem, uevent} -- no reason attribute.  The PM8916 PON reason registers rema
 unchecked (they would need an explicit PMIC register read).
 
 debugfs IS mounted (rw) -- available for a future in-kernel reader.
+
+-------------------------------------------------------------------------------
+10. TWO CORRECTIONS TO DOC 166, MADE AFTER ITS FIRST DRAFT (Doc 166 §2.2b, §5.4)
+-------------------------------------------------------------------------------
+CORRECTION 1 -- pmsg-ramoops-0 is USERSPACE-FED, so its silence is not proof
+that the kernel stopped printing.
+
+Source: /overlay/q6trace_soak.sh, lines 91-100 (the mirror is written by a shell
+loop, not by the kernel):
+
+	cat /dev/kmsg | while IFS= read -r line; do
+		case "$line" in
+		*q6v5-trace:*|*"fatal error received"*|...) 
+			printf '%s\n' "$line" >> "$TRACE"
+			printf '%s\n' "$line" >> /dev/pmsg0 2>/dev/null
+			;;
+		esac
+	done
+
+=> pmsg-ramoops-0's last line = the last line a USERSPACE process copied, not
+   the last line printk stored.  And reading /dev/kmsg itself needs the logbuf
+   lock.  So:
+
+   PROVEN      no dev_err-or-higher message after `recovering` (1840.406218) --
+               console-ramoops-0 is an in-kernel struct console sink
+   PROVEN      a userspace process was still copying at 1840.413105
+   NOT PROVEN  that no dev_info message was emitted after that -- the missing
+               `executing serialized asynchronous SSR teardown` is dev_info and
+               may simply never have been copied
+   PROVEN      no Kernel panic / BUG: / oops banner (all KERN_EMERG/KERN_ERR)
+   PROVEN      rproc_stop() never returned -- but ONLY via the coredump watcher,
+               which is printk-free (boot B: one dump for crash #1, none for #2)
+
+CORRECTION 2 -- `wwan0at0 disconnected` is an RPMSG line, NOT a bam_dmux one.
+
+  $ grep -rn "wwan_remove_port(\|wwan_port_remove(" drivers/net/wwan/*.c
+  drivers/net/wwan/mhi_wwan_ctrl.c:255:	wwan_remove_port(mhiwwan->wwan_port);
+  drivers/net/wwan/rpmsg_wwan_ctrl.c:145:	wwan_remove_port(rpwwan->wwan_port);
+  drivers/net/wwan/wwan_core.c:514:void wwan_remove_port(struct wwan_port *port)
+  drivers/net/wwan/wwan_hwsim.c:239:		wwan_remove_port(port->wwan);
+
+  $ grep -n "wwan_remove_port\|wwan_create_port\|wwan_port" \
+        drivers/net/wwan/qcom_bam_dmux.c
+  (no output -- qcom_bam_dmux.c contains NO wwan_* port calls at all)
+
+  wwan_core.c:529 is the print:
+	dev_info(&wwandev->dev, "port %s disconnected\n", dev_name(&port->dev));
+
+=> the line is emitted when the RPMSG device is removed (the modem's SMD
+   channels being unregistered) -- a different component, on a different thread,
+   from bam_dmux's SSR teardown work.
+
+COMBINED CONSEQUENCE -- three independent consumers stop within ~7 ms of the
+notifier callback:
+   (i)   the SMD/rpmsg teardown      (no `wwan0at0 disconnected`)
+   (ii)  bam_dmux's teardown work    (no `executing serialized ...`)
+   (iii) the userspace /dev/kmsg reader
+A single mutex cycle inside one driver thread cannot do that -- the other three
+CPUs would keep running.  Hence Doc 166 §5.4's live alternative: the stall is in
+the LOGGING/CONSOLE path.  Evidence for that direction:
+  * the console is ttyMSM0,115200 and serialises SYNCHRONOUSLY: measured
+    1.03 ms + 0.0904 ms/char  =>  ~8.3 ms for an 80-char line
+  * console_loglevel = 6 removes KERN_INFO from the console but dev_err STILL
+    goes there -- and the last line before the silence, `recovering`, IS a
+    dev_err, i.e. the console was actively writing in the final millisecond
+  * a wedged logbuf/console lock silences every sink AND blocks every /dev/kmsg
+    reader at once, and explains rproc_stop() never returning with NO bam_dmux
+    lock cycle at all
+
+ORDERING vs Doc 151/157's `echo stop` hang (memory quirk 11):
+  echo stop hang     last TWO lines: `SSR before shutdown` + `wwan0at0 disconnected`
+  this hang          last ONE line : `SSR before shutdown`
+  => this hang is one step EARLIER.  The region has >= 2 adjacent hang points.
+
+ZERO-COST DISCRIMINATOR FOR THE NEXT HANG -- do this FIRST:
+  /overlay/q6trace.csv is written by a USERSPACE shell loop every ~5 s.
+  Compare its last timestamp with the last pmsg line:
+    CSV continues PAST the pmsg line  -> userspace alive while the log stopped
+                                         => the LOGGING path is the stall, and
+                                            the driver locks are innocent
+    CSV stops BEFORE the pmsg line    -> a global/scheduling stall

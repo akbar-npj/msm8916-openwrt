@@ -6,16 +6,21 @@ bootloader byte was changed.** No new build was produced or deployed this round;
 module is still Doc 164's `msm89xx/patches/817-q6v5-ssr-window-trace.patch` as the loadable module
 `kmod-qcom-rproc-modem`.
 **Result:** the AP hang was **caught on a spontaneous fatal** (crash #2 at AP 1840.390 s,
-`lte_ml1_sleepmgr_stm.c:4054`). Two independent pstore sinks agree that the **last message the
-kernel ever emitted was `bam_dmux: SSR before shutdown: scheduling teardown work`** — the SSR
-notifier's *hand-off*, not the SSR itself. The teardown work's own first print (`bam_dmux:
-executing serialized asynchronous SSR teardown`, `qcom_bam_dmux.c:2238`) **never appeared**, and
-**no coredump device was created**, so `rproc_stop()` never returned. Doc 164 §9's pre-registration
-is therefore **falsified in site**: the hang is not in the 23-step window and not in Doc 159's
-window either — it is **upstream of both**. The only unbounded waits in that region are
-`cancel_delayed_work_sync(&dmux->tx_retry_work)` and `cancel_work_sync(&dmux->tx_wakeup_work)`
-(`:2234`, `:2235`), and both are **redundant** — the flag set one line earlier already makes both
-target works self-abort on their first statement. §8 proposes patch 820.
+`lte_ml1_sleepmgr_stm.c:4054`). The **last line a userspace reader copied** was the SSR notifier's
+*hand-off*, `bam_dmux: SSR before shutdown: scheduling teardown work` — and **the teardown work's
+own first print (`qcom_bam_dmux.c:2238`) never appeared**, and **no coredump device was created**, so
+`rproc_stop()` never returned. Doc 164 §9's pre-registration is therefore **falsified in site**: the
+hang is not in the 23-step window and not in Doc 159's window either — it is **upstream of both**.
+
+**Two corrections were made to this document after its first draft, and they matter more than the
+original finding. Read §2.2b and §5.4 before citing anything here.** (i) The `pmsg` sink is fed by a
+**userspace** reader, so "no further line appeared" is *proven* only for `dev_err`-and-above — the
+missing `dev_info` line may simply never have been copied. (ii) `wwan0at0 disconnected` is an
+**rpmsg/SMD** line, not a bam_dmux one, so **three independent consumers stop within ~7 ms** — which
+a single driver mutex cycle cannot explain, and which points at the **logging/console path** as a
+live alternative. §8 nonetheless fixes **two provable deadlocks** — including a **true ABBA on one
+mutex** — and ships five `dev_err` hand-off probes with a pre-registered decode table; it is
+justified on its own merits, but is **not claimed to be the cure**.
 
 ---
 
@@ -28,7 +33,7 @@ target works self-abort on their first statement. §8 proposes patch 820.
 | Verify against ground truth before acting | **Honoured.** Every claim in §5 is read from the **live build tree** (`openwrt/build_dir/.../drivers/net/wwan/qcom_bam_dmux.c`), line-numbered. `queue_pm_work` was not assumed — it was resolved to `include/linux/pm_runtime.h:62`. The "read the definition, not the name" rule (memory `feedback_read_the_definition_not_the_name`) is what forced the `cancel_work_sync` analysis instead of accepting the function's apparent intent. |
 | Hash the artifact, verify it in situ | **Honoured.** Resident module md5 `79e7a858d41b6c9f7edf8b26b90c77f8`; the instrument **survived the reboot** (§11.2). |
 | Never classify a fatal by its `file:line` | **Honoured.** `lte_ml1_sleepmgr_stm.c:4054` is used only as an identity label (Doc 162 §7's refinement: ask what *this* signature's period is). The fatal is not the subject of this document — the **teardown** is. |
-| Do not treat corpus docs as fact | **Honoured, and this round retracts one of my own in-session findings** (§7.1): the "stale `qcom-time-daemon` performing a periodic ATS_USER refresh" lead is **dead**, disproved by direct process inspection. |
+| Do not treat corpus docs as fact | **Honoured, and this round retracts two of my own in-session findings.** (§7.1) the "stale `qcom-time-daemon` performing a periodic ATS_USER refresh" lead is **dead**, disproved by direct process inspection. (§2.2b, §5.4) this document's own first-draft claim that "no further line appeared" was **overstated** — the `pmsg` sink is userspace-fed — and the "five-line region" attribution is therefore **downgraded from a cause to a candidate**. Both corrections are recorded in place rather than silently rewritten. |
 | Record what was done, the result, and what is next | This document, plus §12 and §13. |
 
 ---
@@ -109,8 +114,68 @@ The healthy crash #1 emitted, in this order after the same hand-off:
 | `Kernel panic`, `BUG:`, `Unable to handle`, `watchdog` | emerg/err | **yes** | **NO** |
 
 Every step the instrument was built to observe, and every kernel fault-path banner, is inside the
-filter. **None of them fired.** So this is not "the console went quiet": the one sink that carries
-`dev_info` *and* is guaranteed to capture the next expected line is silent too.
+filter. **None of them fired.**
+
+### 2.2b — but that is NOT the proof it looks like: the `pmsg` sink needs a *userspace* reader
+
+**This correction was made after the first draft of this document and it materially weakens §2.2's
+claim. Read it before citing §2.2.**
+
+`pmsg-ramoops-0` is not an in-kernel sink. It is written by the soak, in userspace, from a shell loop:
+
+```sh
+cat /dev/kmsg | while IFS= read -r line; do
+	case "$line" in *q6v5-trace:*|*"SSR "*|...) printf '%s\n' "$line" >> /dev/pmsg0 ;;
+	esac
+done
+```
+
+So `pmsg-ramoops-0`'s last line is **the last line a userspace process managed to copy**, not
+necessarily the last line `printk` stored. If userspace stops — or if it blocks reading `/dev/kmsg`,
+which needs the **logbuf lock** — the mirror stops even though the kernel is still printing.
+
+**What is therefore actually proven, and what is not:**
+
+| claim | status |
+|---|---|
+| No `dev_err`-or-higher message was emitted after `recovering` (1840.406218) | **Proven.** `console-ramoops-0` is an in-kernel `struct console` sink and carries level ≤ 6; it ends there. |
+| A userspace process was still running and still copying at 1840.413105 | **Proven.** It copied that line. |
+| **No `dev_info` message was emitted after `SSR before shutdown`** | **NOT proven.** `executing serialized asynchronous SSR teardown` is `dev_info`; it may have been printed and simply never copied. |
+| No `Kernel panic` / `BUG:` / oops banner | **Proven.** Those are `KERN_EMERG`/`KERN_ERR` and would have landed in `console-ramoops`. |
+| `rproc_stop()` never returned | **Proven, independently of `printk`** — by the coredump watcher (§2.3). |
+
+**And the cessation of *both* sinks at once, together with the absence of the coredump, is itself
+evidence about the shape of the stall.** A single mutex cycle in one driver thread would leave
+userspace running on the other three CPUs and would let the other SSR consumers proceed. Instead
+**three independent things all stop within ~7 ms of the notifier callback**: the SMD/rpmsg teardown
+thread, bam_dmux's teardown work, and the userspace `/dev/kmsg` reader. §5.4 adds the competing
+hypothesis this implies.
+
+### 2.2c — `wwan0at0 disconnected` is not bam_dmux's line
+
+The healthy sequence's second line is easy to misattribute:
+
+```
+938.808624  bam_dmux: SSR before shutdown: scheduling teardown work
+938.810877  wwan wwan0: port wwan0at0 disconnected        (+2.253 ms)
+938.811371  bam_dmux: executing serialized asynchronous SSR teardown   (+2.747 ms)
+```
+
+`wwan_remove_port()` — the function that prints `port %s disconnected` (`wwan_core.c:529`) — is
+called from **`rpmsg_wwan_ctrl.c:145`** (`rpwwan_remove`), `mhi_wwan_ctrl.c:255` and
+`wwan_hwsim.c:239`. **`qcom_bam_dmux.c` contains no `wwan_*` port calls at all.** So that line is
+emitted by the **rpmsg/SMD** teardown when the modem's SMD channels are unregistered — a *different
+component* from the bam_dmux teardown work, running on a *different thread*.
+
+That matters twice:
+
+1. Its absence in this hang is evidence about the **SMD/rpmsg** path, not about bam_dmux — and it
+   was missing too, so the stall is not confined to one driver.
+2. **It fixes the ordering between this hang and Doc 151/157's `echo stop` hang.** Memory quirk 11
+   records that the `echo stop` hang ends on **two** lines — `SSR before shutdown` **and**
+   `wwan0at0 disconnected`. **Our spontaneous hang ends on one.** So the `echo stop` hang is one step
+   *later* than this one: this region contains **at least two adjacent hang points**, and ours is the
+   earlier. Any fix must be scored against the right one.
 
 ### 2.3 Independent corroboration: the coredump watcher
 
@@ -268,6 +333,47 @@ boot's evidence alone. **(a) is the more likely reading** — `system_wq` is per
 and `register_netdev_work`, so wedging *all* workers would need a broader cause than this driver.
 **But it is a reading, not a measurement**, and §9 pre-registers the test that settles it.
 
+### 5.4 A third candidate this analysis does NOT exclude: the stall is in the *logging* path
+
+§2.2b showed that `pmsg-ramoops-0` is fed by a userspace reader, and that three independent things —
+the SMD/rpmsg teardown, bam_dmux's teardown work, and that reader — all stop within ~7 ms of the
+notifier callback. **A single mutex cycle inside one driver cannot explain that**, because the other
+three CPUs would keep running and the other SSR consumers would keep printing.
+
+**What can explain it:** a stall in the kernel's logging/console path.
+
+* `printk` stores into the ring under the **logbuf lock**, and `/dev/kmsg` readers take the same
+  lock. A thread that dies (or spins) holding it silences *every* sink and blocks every reader —
+  exactly the observed pattern.
+* This device's console is `ttyMSM0,115200` and it **serialises synchronously**: measured
+  **1.03 ms + 0.0904 ms/char**, i.e. ~8.3 ms for an 80-character line (memory
+  `reference_hmu05_console_cost_and_trace_sinks`). `console_loglevel = 6` removed `KERN_INFO` from
+  the console but **`dev_err` still goes there** — and the last line before the silence,
+  `recovering`, *is* a `dev_err`. So the console was actively writing in the final millisecond.
+* If the serial console's write blocks (UART not draining, TX interrupt lost), the console lock is
+  held indefinitely and every subsequent `printk` that targets the console blocks with it.
+
+**Under this hypothesis the driver-level deadlocks in §8 are real but incidental**, and the reason
+`rproc_stop()` never returned is that it tried to log while the log path was wedged — which also
+explains why the coredump never appeared without needing any bam_dmux lock cycle.
+
+**I do not claim this hypothesis is true.** I claim §2.2's original "nothing further happened" was
+overstated, and that this is a live alternative that the evidence cannot separate from §5.3(a).
+
+**A zero-cost discriminator already exists and should be read first on the next hang.** The soak
+writes `/overlay/q6trace.csv` from a userspace shell loop every ~5 s. Compare its **last timestamp**
+against the last `pmsg` line:
+
+| CSV vs pmsg | meaning |
+|---|---|
+| CSV stops *before* the pmsg line | userspace died first → a global/scheduling stall |
+| CSV continues *past* it | userspace was alive while the log stopped → **the logging path is the stall**, and the driver locks are innocent |
+
+That single comparison separates §5.4 from everything else, and it needs no new instrument — only
+the discipline of reading the CSV on a hang. **Add a second, independent beacon anyway** (§13
+item 3): a heartbeat that does not touch `printk` or `/dev/kmsg` at all, so "alive but silent" is
+distinguishable from "dead".
+
 ---
 
 ## 6. The reset: narrowed, still unresolved — but *not a panic*, and *not an oops*
@@ -355,7 +461,7 @@ by the *following* boot's traffic.
 
 ---
 
-## 8. The fix — patch 820 (built and ready to deploy)
+## 8. Patch 820 — two *provable* deadlocks fixed (but §5.4 says this is not the cure)
 
 **Principle: a teardown path must never perform a synchronous wait on a work item that needs the
 same lock the waiter holds.** Two sites violate it, and **820 fixes both**, because they are one
@@ -603,24 +709,40 @@ over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
 
 | question | status |
 |---|---|
-| Where does the AP hang? | **Located.** The `rproc_stop()` → SSR-notifier → bam_dmux-teardown **hand-off**, upstream of both instrumented windows. Last line = `SSR before shutdown: scheduling teardown work`; `rproc_stop()` never returned (no coredump, watcher-corroborated). |
-| Why? | **Attributed, not proven.** The five-line region `:2233-:2237` contains two unbounded `cancel_*_sync()` waits on works that touch runtime PM and `state_lock`. **A second, stronger instance of the same defect was then found: `power_off`/`pm_quiesce` cancel `rx_watchdog_work` synchronously while holding `state_lock`, which is a true ABBA on one mutex (§8.2) and is exercised ~7×/min.** Competing candidate (workqueue starvation) cannot be excluded from this boot's evidence (§5.3). |
+| Where does the AP hang? | **Located to a region, not a line.** The stall is at or immediately after the `QCOM_SSR_BEFORE_SHUTDOWN` **hand-off** (`bam_dmux: SSR before shutdown`, `qcom_bam_dmux.c:2364` — the last line userspace copied) and is **upstream of both instrumented windows**. It blocks **three independent consumers at once**: bam_dmux's teardown work (`:2238` never copied), the **rpmsg/SMD** teardown (`wwan0at0 disconnected` — a `rpmsg_wwan_ctrl.c:145` line, not a bam_dmux one — never copied), and the userspace `/dev/kmsg` reader. `rproc_stop()` never returned (no coredump, watcher-corroborated). |
+| Why? | **Three candidates, none excluded.** (1) The teardown work hung in `:2233-:2237` — two unbounded `cancel_*_sync()` on works that touch runtime PM and `state_lock` (§5.2). (2) The work never got a `system_wq` worker (§5.3). (3) **The stall is in the logging/console path** (§5.4) — a `dev_err` console write serialises at 115200 baud, and a wedged console/logbuf lock would silence every sink and block every reader at once, which is what the evidence actually shows. **§2.2's original "nothing further happened" was overstated** — see §2.2b. |
 | Was the hang a panic? | **No** — no `Kernel panic` banner in the ramoops console, and the dmesg zone exists while holding no record. |
 | Reset mechanism | **Unresolved.** ~2–4 s, silent; **does not match** Doc 159's 30 s PM8916 PON WDT, so the two AP hangs do not share a reset path. A first `devmem` attempt at SMEM item 403 returned a **negative result** (§13 item 3). |
 | Doc 164 §9's prediction | **Falsified in site** (§3). |
 | Doc 165 §4.1's coverage gap | **Widened** — the blind spot is upstream of the window, not just inside it. |
-| Fix | **Built** — patch 820, four hunks: both cancel sites made non-blocking (§8.1, §8.2) plus five `dev_err` hand-off trace points T0–T4 (§9). Two further sites of the same class recorded and deliberately left out (§8.4). |
+| Relation to Doc 151/157's `echo stop` hang | **This is one step EARLIER.** The `echo stop` hang ends on two lines (`SSR before shutdown` **and** `wwan0at0 disconnected`); this one ends on one. The region has **at least two adjacent hang points** (§2.2c). |
+| Fix | **Patch 820 built** — four hunks: both cancel sites made non-blocking (§8.1, §8.2) plus five `dev_err` hand-off probes T0–T4 (§9). It fixes **two provable deadlocks** (one of them a true ABBA, §8.2) and is worth shipping on those merits — **but it is no longer claimed to be the cause of this hang** (§5.4). Two further sites of the same class recorded and deliberately left out (§8.4). |
 | The `qcom-time-daemon` lead | **Dead** (§7.1). |
 
 ---
 
 ## 13. Next
 
-1. **Build and deploy patch 820** (`820-bam-dmux-ssr-teardown-nonblocking-cancel.patch`) together
-   with the §9 four-line `dev_err` hand-off trace, as a loadable module, and soak.
-2. **Score §9's pre-registration** on the next fatal-triggered SSR — the last `T` line, or its
-   absence, settles (a) vs (b) in one boot.
-3. **Close the reset question — first attempt returned a NEGATIVE result.** The AP's restart reason
+1. **Deploy patch 820** (`820-bam-dmux-ssr-teardown-nonblocking-cancel.patch`) together with the
+   §9 five-point `dev_err` hand-off trace, as a loadable module, and soak. It is justified on its own
+   merits — it removes a **provable** ABBA (§8.2) and a provable unbounded wait (§8.1) — and it is
+   also the cheapest way to get the T0–T4 probes in. **It is not claimed to be the cure for this
+   hang** (§5.4).
+2. **On the next hang, read `/overlay/q6trace.csv` BEFORE anything else.** Its last timestamp versus
+   the last `pmsg` line is the single comparison that separates §5.4 (logging-path stall — userspace
+   alive while the log stops) from a driver stall (userspace dies with the log). Then score §9's
+   T0–T4 decode table.
+3. **Add a non-`printk` liveness beacon** — the instrument the evidence says is missing. A small
+   process that appends `date +%s` to a file on `/overlay` every 2 s, **and a second one that only
+   ever writes to a separate file**, so "the AP is alive but its logging path is wedged" is
+   distinguishable from "the AP is stalled". Without this, every future hang reproduces the same
+   ambiguity §2.2b exposed. **Cheap and independent of every sink used so far.**
+4. **Test the logging hypothesis directly, if a hang recurs:** the console is the one component whose
+   cost is already measured (1.03 ms + 0.0904 ms/char). Boot once with the serial console removed
+   from the kernel command line (or `console_loglevel = 1`) and soak. If the hang disappears, §5.4 is
+   the cause — and that is a far more consequential finding than any driver lock, because it applies
+   to every `dev_err` on the fatal path.
+5. **Close the reset question — first attempt returned a NEGATIVE result.** The AP's restart reason
    is plausibly in **SMEM item 403 (`SMEM_POWER_ON_STATUS_INFO`)** — the very item the driver's own
    comment at `:2250` warns must not be *written*. A read-only `devmem` walk was tried and
    **does not work**: `/dev/mem` itself is fine (the control reads the ramoops `DBGC` console magic
@@ -632,11 +754,12 @@ over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
    legacy heap-header form a naive walk assumes. **This needs the real `qcom_smem` layout or an
    in-kernel reader, not `devmem`.** Also unchecked: the PM8916 PON reason registers, and the
    `pm8916-pon` node's sysfs (it exposes only `pwrkey`, `watchdog`, `driver`, `of_node`, … — no
-   reason attribute).
-4. **The `pm_wq` / `system_wq` double-queue of `tx_wakeup_work`** (§8) — separate patch, after 820.
-5. Still open from before: the failed modem restart (Doc 154 §6); the `echo stop` hang (n=2);
-   patch 814's retry path still unobserved on a natural trigger (`retries: 0`); the harness gap that
-   **nothing records the AP uptime at which the modem comes up** (Doc 165 §11 item 6).
-6. **Explicitly closed — do not restart:** the WTR1605→UFI001B RF transplant; the one-line
+   reason attribute). **debugfs IS mounted**, so an in-kernel reader is available.
+6. **The `pm_wq` / `system_wq` double-queue of `tx_wakeup_work`** (§8.4) — separate patch, after 820.
+7. Still open from before: the failed modem restart (Doc 154 §6); the `echo stop` hang (n=2, and now
+   known to be **one step later** than this one, §2.2c); patch 814's retry path still unobserved on a
+   natural trigger (`retries: 0`); the harness gap that **nothing records the AP uptime at which the
+   modem comes up** (Doc 165 §11 item 6).
+8. **Explicitly closed — do not restart:** the WTR1605→UFI001B RF transplant; the one-line
    `qcom-idle-state-spc` DT patch; "the RPM is the stalled party"; the live-mpss reader (Doc 158);
    the `deploy` command (declined); **the `qcom-time-daemon` periodic-refresh lead (§7.1)**.
