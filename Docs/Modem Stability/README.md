@@ -47,7 +47,11 @@ TrustZone ownership transfers), and a sixteenth by **Doc 160** (a **build-proven
 kernel **does** contain all 18 tracked patches — 17/17 target files byte-identical — but the **live**
 target patch directory was **stale at 14**, and since the build reads the live directory, a re-prepare
 would have silently reverted four fixes in one file, including **patch 812's root-cause fix for the data
-stall**; now synced and re-verified) — see the sections
+stall**; now synced and re-verified), and a seventeenth by **Doc 161** (**build tooling**, no
+firmware/driver change: `build.sh` now guards the patch tree — reporting drift before healing it and
+asserting the copy landed on **both** install paths — answers "will the next build re-prepare?" by
+**asking make** for its own `STAMP_PREPARED`, and can rebuild **just the kernel, one package, or one
+kernel module**) — see the sections
 below.
 **Retraction 1 is scoped: read it before citing it.**
 
@@ -652,6 +656,47 @@ below.
     for a dirty input before believing its failure** — the same lesson as Doc 159 §9's `tail -8` blind
     spot and §11's invalid ramoops, in a different medium.
 
+## A seventeenth round — Doc 161, 2026-09-21: the build now guards the patch tree, and can build one thing
+
+78. **`build.sh` reports and verifies BSP drift instead of healing it silently.** `bsp_drift()`
+    compares the tracked trees against the live ones (`msm89xx/` → `target/linux/msm89xx/`,
+    `packages/` → `package/msm8916/`) with `diff -rq`. `sync_bsp()` now **reports** any difference
+    *before* its `rm -rf live && cp -a tracked live`, and **asserts** afterwards that the copy landed
+    — a partial or failed copy used to mean a kernel built from the wrong patch set with no error.
+    Both install paths are covered: `assert_bsp_synced()` also runs after `scripts/openwrt-prepare.sh`
+    (`ensure_prepared` slow path and `force_prepare`).
+79. **`./build.sh guard [--deep]`** — a standalone pre-flight that exits **non-zero on drift**. Docker
+    is not required for the basic form, because the check is most useful when the build environment is
+    *not* running.
+80. **`guard --deep` answers "will the next build re-prepare?" exactly, by asking make.** A re-prepare
+    wipes `build_dir`, so it is worth predicting. Re-implementing OpenWrt's `find_md5` would be
+    **wrong** — it hashes **absolute paths**, which differ between host and container. Instead an
+    `--eval`'d target prints make's own `STAMP_PREPARED`. Three things had to be measured, not assumed:
+    **`make -p` prints recursive variables UNEXPANDED** (verified on a minimal makefile), so `-p`
+    alone cannot work; **`TOPDIR` must be passed** (it is exported by the top-level make, not set in
+    `rules.mk`); and **`TARGET_BUILD` must be exactly `1`** (`include/target.mk:389`). Cross-checked
+    against ground truth: on-disk stamp `.prepared_355cb72e…` vs computed `.prepared_28a7f3ba…` →
+    **"re-prepare pending"**, the correct answer after Doc 160's 14→18 sync.
+81. **Selective builds: `kernel [board]`, `package <name|path> [board]`, `kmod <name> [board]`.**
+    `make target/linux/compile` and `make package/<path>/compile` were always available (the toplevel
+    `%::` catch-all, `include/toplevel.mk:225-238`) — they only needed a `.config`, which is what the
+    new `ensure_config` supplies. Without a board it **reuses the existing `.config`** instead of
+    re-running `make defconfig`, which is what makes iteration fast. Package resolution verified across
+    all five paths: base-tree nested (`dnsmasq` → `package/network/services/dnsmasq`, `mac80211` →
+    `package/kernel/mac80211`), feed symlink (`curl` → `package/feeds/packages/curl`), project
+    (`qrtr`/`rmtfs`/`reboot-edl` → `package/msm8916/…`), and explicit path.
+82. **`kmod` distinguishes the two real cases rather than guessing.** An out-of-tree kmod package is
+    built directly; an **in-tree** module (`qcom_bam_dmux` → `kmod-bam-dmux`, no package directory at
+    all) has **no narrower goal than the kernel target**, and the command says so instead of pretending
+    otherwise. It then prints matching modules with md5 — `kmod bam-dmux` → `qcom_bam_dmux.ko`
+    `eca269f1…`, the hash the device is running.
+83. **`DRY_RUN=1` prints the make command instead of running it — and is fully side-effect-free.**
+    It is what made the new commands validatable without a multi-minute build. Its `prepare_config`
+    guard was added *because the first version clobbered `.config`*: a dry run still copied the bare
+    hmu05 diffconfig and then skipped `make defconfig`, so `TARGET_DIR_NAME` evaluated to `_` and the
+    deep check printed `target-_/…`. **A testing affordance that mutates state is worse than none.**
+    `.config` was restored to the hmu05 board config that produced the deployed images.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -724,6 +769,7 @@ Also established and not to be re-litigated:
 | `159_THE_AP_HANGS_ON_A_NATURAL_FATAL_SSR.md` | **The AP can hang on a SPONTANEOUS fatal-triggered SSR — it is a production failure, not the `echo stop` testing hazard the corpus recorded.** A boot that ran 4 h 27 min took **21** modem fatals, recovered from **20**, and **hung on the 21st** with nobody touching `remoteproc0/state`; the console stops dead (no panic banner, no `BUG:`, no `dmesg-ramoops`) and only the hardware watchdog recovers the device. **`port failed halt` is NORMAL — 21 crashes, 21 `port failed halt`, 21 `MBA booted`** — it is a `dev_err()` on a 100 ms `AXI_IDLE` poll timeout (`qcom_q6v5_mss.c:969-974`) and 20 of those crashes recovered 43–47 ms after printing it; **a message is not a cause until its rate is known.** Because the next print normally follows in 43–47 ms, the hang window is bounded by two adjacent printk calls and is enumerable: the tail of `q6v5_mba_reclaim()` + the head of `q6v5_mba_load()` — **three untimed `qcom_scm_assign_mem()` TrustZone ownership transfers** (`:1294`, `:1149`, `:1157`), a reset assert/deassert pair, four regulator ops, four clock ops, six TCSR writes, and one SMP2P/mbox teardown+setup. **Leading candidate: the SCM handoff** — a synchronous SMC with no timeout, at the exact moment the modem (the other VMID owner of that memory; Doc 158) has just crashed. **Not proven.** The hang lands at a **different site** from Doc 151 §5 / Doc 157 §8.2 (that one stops *before* `executing serialized asynchronous SSR teardown`; this one gets past it, past the port detaches, past `stopped remote processor`). Crash #21 came **49.0 s** after #20 (an activity-correlated fatal, not the 902 s timer) — n=1 hypothesis. Crash #19 carries the **same signature** (`a2_power.c:2949`) and survived in 47 ms — third confirmation of the "never classify a fatal by its `file:line`" rule; and **`a2_power.c:2949` has now been observed**, where the decode reference said it was not. Recommended next step: `dev_info()` at each of the 13 steps in a temporary build — the console is the only instrument that survives a hang |
 | `158_MPSS_UNREADABLE_FROM_AP.md` | **A measured negative result that closes the live-mpss-observation line.** A kernel module **can** `ioremap` the `no-map` mpss region (`mpss@86800000`, base `0x86800000`, size `0x5500000`), and the debugfs file is created — but the **first read of offset 0 aborts**: `Internal error: synchronous external abort`, `pc : mpss_read+0xc0`, `x0 = ffff800090000000`, faulting insn `ldr w0, [x0]`; five occurrences; the kernel kills the `dd`, taints `[M]=MACHINE_CHECK` and continues. **The memory-type confound was eliminated**: the abort reproduces identically with `memremap(MEMREMAP_WC)` (Normal-NC, the driver's own mapping), faulting in `__memcpy` — so page attributes, cacheability and access width are all excluded. **Cause: mpss is assigned by TrustZone** — `q6v5_xfer_mem_ownership()` → `qcom_scm_assign_mem()` between `QCOM_SCM_VMID_HLOS` and `QCOM_SCM_VMID_MSS_MSA` (`qcom_q6v5_mss.c:422-450`), and the AP only `memremap`s mpss after taking ownership back (`:1403-1404`, `:1440`, `:1547-1555`). **Corrects Doc 153 §5:** its `/dev/mem` `EFAULT`/`SIGBUS` are the same hardware abort by two userspace paths, not a `no-map`/`CONFIG_STRICT_DEVMEM` effect; `nomap` is a kernel-MM attribute that says nothing about bus access. Also: after the aborts `rmmod` failed (`refcnt -1`) and `stat()` of the debugfs file blocked in `D` state (a reboot clears it); `rpmring` works only because the RPM ring is SRAM. **Consequence: the coredump is the only instrument for the fatal's state.** |
 | `160_PATCH_CHAIN_VERIFICATION_AND_STALE_LIVE_TREE.md` | **Build-provenance verification: the built kernel contains all 18 tracked patches (17/17 target files byte-identical to pristine + `msm89xx/patches/`), but the LIVE `openwrt/target/linux/msm89xx/patches/` was stale at 14 — missing `810`, `811`, `812`, `814`.** Because the build reads the **live** directory (`PATCH_DIR`, `include/kernel.mk:43`), and because that directory is part of the prepare stamp's md5 (`include/kernel-build.mk:12-13`), a re-prepare in that state would have `rm -rf`'d `build_dir` and rebuilt from the stale set — producing a `qcom_bam_dmux.c` **277 lines shorter** (2598→2321; 26 hunks, +303/−26) with the `tx_sweep_guard_hits`, `defer_q`/`defer_sub` counters and **patch 812's root-cause data-stall fix** all absent, invisibly. The tracked tree is authoritative only because `build.sh`'s `sync_bsp()` copies it over the live one (`build.sh:336`). **Fixed** by syncing (both trees now byte-identical; reconstruction from the live tree re-verifies 17/17). Two wrong intermediate answers are recorded: a created file expressed as `--- a/…` + `@@ -0,0 +1,N @@` (patch `813`'s `msm-poweroff.h`) is missed by a `--- /dev/null` scan, and a "patches FAILED" result that was a dirty-tree artefact. **No firmware, driver or DTS change was made.** |
+| `161_BUILD_TOOLING_PATCH_GUARD_AND_SELECTIVE_BUILDS.md` | **Build tooling; no firmware/driver/DTS change.** `build.sh` now (a) **guards the patch tree**: `bsp_drift()` compares tracked vs live (`msm89xx/` → `target/linux/msm89xx/`, `packages/` → `package/msm8916/`), `sync_bsp()` **reports drift before healing and asserts afterwards**, and `assert_bsp_synced()` covers **both** install paths (`sync_bsp` *and* `scripts/openwrt-prepare.sh`, via `ensure_prepared`/`force_prepare`); (b) adds **`./build.sh guard [--deep]`**, exiting non-zero on drift and needing no Docker in its basic form; (c) `--deep` predicts a re-prepare **exactly by asking make** for its own `STAMP_PREPARED` via an `--eval`'d target, rather than re-implementing `find_md5` — which would be **wrong**, because that hash covers **absolute** paths that differ between host and container; it records that **`make -p` prints recursive variables UNEXPANDED** (so `-p` cannot work), that **`TOPDIR` must be passed** (exported by the top-level make, not set in `rules.mk`), and that **`TARGET_BUILD` must be exactly `1`**; (d) adds **`kernel [board]`, `package <name\|path> [board]`, `kmod <name> [board]`** with a board-optional `ensure_config` (reuses `.config` instead of re-running `defconfig`) and five-path package resolution (base-tree nested / feed symlink / project / explicit); (e) draws the honest line that an **in-tree** kmod (`qcom_bam_dmux`) has **no narrower goal than the kernel target**, and prints matching modules with **md5** (`kmod bam-dmux` → `qcom_bam_dmux.ko` `eca269f1…`, the hash on the device); (f) adds a **fully side-effect-free `DRY_RUN=1`**, whose `prepare_config` guard was added after a dry run **clobbered `.config`** (leaving `TARGET_DIR_NAME` = `_`; `.config` restored to the hmu05 board config). Validated by **10 checks** including a real **drift-injection cycle** (detect → report → heal → verify). **The guard does NOT cover a `make` run directly inside the container — that is what `guard` is for.** |
 
 ## Sound but narrow (accurate, subordinate scope)
 
