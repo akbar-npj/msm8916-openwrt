@@ -1,75 +1,75 @@
-file: scratch/android_capture/bam_dmux.log   parsed+deduped events: 2032
-uptime span: 8.2 -> 1308.8 s (1301 s)
+file: scratch/android_capture/bam_dmux_pre_root.log   parsed+deduped events: 3357
+uptime span: 8.2 -> 1979.5 s (1971 s)
 
 === 1. REAL ACK-WAIT TIMEOUTS (bam_dmux.c:1917/1928/1936) ===
   ZERO.  Android never hit a pc-ack timeout in this capture.
 
 === 2. PC-ACK LATENCY  (AP vote -> modem's ack) ===
-  vote->ack: n=56  min=0.066  p50=2.064  p90=4.123  p99=6.332  max=6.340  mean=2.154 ms
+  vote->ack: n=95  min=0.066  p50=1.976  p90=2.972  p99=6.326  max=6.340  mean=1.932 ms
       >  250.0 ms (OpenWrt 250 ms wait): 0   <-- NONE
       > 2000.0 ms (Android 2000 ms wait): 0   <-- NONE
       >   50.0 ms (50 ms): 0   <-- NONE
       >   10.0 ms (10 ms): 0   <-- NONE
-      >    5.0 ms (5 ms): 4
+      >    5.0 ms (5 ms): 5
       headroom vs OpenWrt 250 ms : 39.4x
       headroom vs Android 2000 ms: 315x
 
 === 3. 'waiting for previous ack' (serialize vs prior down-ack) ===
     OpenWrt has NO equivalent step -- it can vote pc on while a
     previous down-ack is still outstanding.
-  previous-ack wait: n=55  min=0.014  p50=0.032  p90=0.087  p99=0.232  max=0.375  mean=0.046 ms
+  previous-ack wait: n=94  min=0.014  p50=0.033  p90=0.071  p99=0.138  max=0.375  mean=0.043 ms
 
 === 4. FULL ul_wakeup DURATION (previous-ack -> complete) ===
   cycle: (no samples)
-      complete cycles: 55  (prev=55 complete=56 vote=56)
+      complete cycles: 94  (prev=94 complete=95 vote=95)
 
 === 5. INTER-CYCLE INTERVAL ===
-      n=55  min=2.00  p50=29.09  mean=23.58  max=114.29 s
-      56 UL wakeups over 1297 s => 2.59 wakeups/min
+      n=94  min=2.00  p50=27.14  mean=20.93  max=114.29 s
+      95 UL wakeups over 1967 s => 2.90 wakeups/min
 
 === 6. UL DOWN PATH ===
-      ul_powerdown events: 56
-  down-vote->ack: n=56  min=0.091  p50=0.262  p90=0.608  p99=0.870  max=1.035  mean=0.324 ms
+      ul_powerdown events: 95
+  down-vote->ack: n=95  min=0.091  p50=0.287  p90=0.649  p99=0.916  max=1.035  mean=0.335 ms
 
 === 7. MESSAGE CENSUS (normalized) ===
-    207  release_wakelock: ref count = N
-    205  grab_wakelock: ref count = N
-    155  rx_timer_work_func: polling exit, no data
-    154  rx_timer_work_func: polling start
-    123  ul_timeout: pkt written N
-    112  power_vote: curr=N, vote=N
-    112  notify_all: event=N, data=N
-    103  toggle_apps_ack: apps ack N->N
-     56  ul_wakeup waiting for wakeup ack
-     56  ul_wakeup waiting completion
-     56  ul_wakeup complete
-     56  ul_powerdown: powerdown
-     55  ul_wakeup waiting for previous ack
-     52  bam_dmux_smsm_cb: NxNb -> NxN
-     52  bam_dmux_smsm_cb: disconnect
-     52  disconnect_to_bam: disconnect tx
-     52  disconnect_to_bam: disconnect rx
-     52  disconnect_to_bam: device reset
-     52  unvote_dfab
-     51  bam_dmux_smsm_cb: NxN -> NxNb
-     51  bam_dmux_smsm_cb: reconnect
-     51  vote_dfab
-     47  bam_dmux_smsm_ack_cb: NxNb -> NxNb
-     36  bam_dmux_smsm_ack_cb: NxN -> NxN
+    337  release_wakelock: ref count = N
+    335  grab_wakelock: ref count = N
+    251  rx_timer_work_func: polling exit, no data
+    250  rx_timer_work_func: polling start
+    193  ul_timeout: pkt written N
+    190  power_vote: curr=N, vote=N
+    190  notify_all: event=N, data=N
+    171  toggle_apps_ack: apps ack N->N
+     95  ul_wakeup waiting for wakeup ack
+     95  ul_wakeup waiting completion
+     95  ul_wakeup complete
+     95  ul_powerdown: powerdown
+     94  ul_wakeup waiting for previous ack
+     86  bam_dmux_smsm_cb: NxNb -> NxN
+     86  bam_dmux_smsm_cb: disconnect
+     86  disconnect_to_bam: disconnect tx
+     86  disconnect_to_bam: disconnect rx
+     86  disconnect_to_bam: device reset
+     86  unvote_dfab
+     85  bam_dmux_smsm_cb: NxN -> NxNb
+     85  bam_dmux_smsm_cb: reconnect
+     85  vote_dfab
+     84  bam_dmux_smsm_ack_cb: NxNb -> NxNb
+     63  bam_dmux_smsm_ack_cb: NxN -> NxN
 
 === 8. STATE-STRING CENSUS (top 15) ===
-    909  drPA/VUwA
-    272  drpa/vuWA
-    145  drPa/VuwA
-    105  drpa/vuWa
-     97  drPA/vuWa
-     86  drpa/Vuwa
-     74  drpA/vuWA
-     60  drPA/VuwA
-     56  drPA/VUWa
-     56  drPa/Vuwa
-     50  drpa/vuwa
-     40  drPA/Vuwa
-     31  drpa/VuwA
-     30  drpA/vuWa
-     10  drPA/vuWA
+   1474  drPA/VUwA
+    454  drpa/vuWA
+    256  drPa/VuwA
+    168  drPA/vuWa
+    168  drpa/vuWa
+    145  drpa/Vuwa
+    124  drpA/vuWA
+    102  drPA/VuwA
+     95  drPA/VUWa
+     82  drpa/vuwa
+     76  drPa/Vuwa
+     64  drPA/Vuwa
+     52  drpa/VuwA
+     48  drpA/vuWa
+     23  drPA/vuWA

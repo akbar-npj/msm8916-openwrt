@@ -1,0 +1,74 @@
+file: scratch/android_capture/bam_dmux.log   parsed+deduped events: 895
+uptime span: 1999.5 -> 2609.5 s (610 s)
+
+=== 1. REAL ACK-WAIT TIMEOUTS (bam_dmux.c:1917/1928/1936) ===
+  ZERO.  Android never hit a pc-ack timeout in this capture.
+
+=== 2. PC-ACK LATENCY  (AP vote -> modem's ack) ===
+  vote->ack: n=23  min=1.722  p50=1.881  p90=2.000  p99=2.269  max=2.291  mean=1.855 ms
+      >  250.0 ms (OpenWrt 250 ms wait): 0   <-- NONE
+      > 2000.0 ms (Android 2000 ms wait): 0   <-- NONE
+      >   50.0 ms (50 ms): 0   <-- NONE
+      >   10.0 ms (10 ms): 0   <-- NONE
+      >    5.0 ms (5 ms): 0   <-- NONE
+      headroom vs OpenWrt 250 ms : 109.1x
+      headroom vs Android 2000 ms: 873x
+
+=== 3. 'waiting for previous ack' (serialize vs prior down-ack) ===
+    OpenWrt has NO equivalent step -- it can vote pc on while a
+    previous down-ack is still outstanding.
+  previous-ack wait: n=23  min=0.027  p50=0.040  p90=0.057  p99=0.109  max=0.120  mean=0.045 ms
+
+=== 4. FULL ul_wakeup DURATION (previous-ack -> complete) ===
+  cycle: n=23  min=2.244  p50=2.852  p90=3.229  p99=3.385  max=3.395  mean=2.855 ms
+      complete cycles: 23  (prev=23 complete=23 vote=23)
+
+=== 5. INTER-CYCLE INTERVAL ===
+      n=22  min=3.22  p50=29.12  mean=27.54  max=109.78 s
+      23 UL wakeups over 606 s => 2.28 wakeups/min
+
+=== 6. UL DOWN PATH ===
+      ul_powerdown events: 23
+  down-vote->ack: n=23  min=0.095  p50=0.292  p90=0.520  p99=0.740  max=0.774  mean=0.306 ms
+
+=== 7. MESSAGE CENSUS (normalized) ===
+     92  grab_wakelock: ref count = N
+     92  release_wakelock: ref count = N
+     68  rx_timer_work_func: polling start
+     68  rx_timer_work_func: polling exit, no data
+     58  ul_timeout: pkt written N
+     48  toggle_apps_ack: apps ack N->N
+     46  power_vote: curr=N, vote=N
+     46  notify_all: event=N, data=N
+     24  bam_dmux_smsm_cb: NxN -> NxNb
+     24  bam_dmux_smsm_cb: reconnect
+     24  vote_dfab
+     24  bam_dmux_smsm_cb: NxNb -> NxN
+     24  bam_dmux_smsm_cb: disconnect
+     24  disconnect_to_bam: disconnect tx
+     24  disconnect_to_bam: disconnect rx
+     24  disconnect_to_bam: device reset
+     24  unvote_dfab
+     23  ul_wakeup waiting for previous ack
+     23  ul_wakeup waiting for wakeup ack
+     23  bam_dmux_smsm_ack_cb: NxN -> NxN
+     23  ul_wakeup waiting completion
+     23  ul_wakeup complete
+     23  ul_powerdown: powerdown
+     18  bam_dmux_smsm_ack_cb: NxNb -> NxNb
+
+=== 8. STATE-STRING CENSUS (top 15) ===
+    395  drPA/VUwA
+    137  drpa/vuWA
+     93  drPa/VuwA
+     46  drpa/Vuwa
+     41  drPA/vuWa
+     38  drpA/vuWA
+     35  drpa/vuWa
+     23  drpa/vuwa
+     23  drPA/VuwA
+     23  drPA/VUWa
+     22  drpa/VuwA
+     10  drpA/vuWa
+      5  drPA/vuWA
+      4  drPa/vuWA

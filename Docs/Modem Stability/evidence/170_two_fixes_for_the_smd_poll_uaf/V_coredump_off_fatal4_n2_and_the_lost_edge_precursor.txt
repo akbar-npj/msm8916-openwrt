@@ -4747,3 +4747,89 @@ WHAT PART 29 DOES NOT CLAIM
    as an exact number.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 30 -- CORRECTION: THE PRE-ROOT CAPTURE WAS SCORED FROM A PARTIAL READ, AND
+           THE TWO WINDOWS **ARE** POOLABLE (same boot, no reboot) -- POOLED
+           n = 117 WAKEUPS, STILL ZERO TIMEOUTS
+================================================================================
+
+1. WHAT WAS WRONG
+
+   PART 28 scored the Android control at n = 56, and PART 29's addendum then
+   treated the post-root window as a separate "REPRODUCTION, not n=70" on the
+   stated ground that "the two windows are not independent samples of the same
+   process state (the device was re-rooted between them)".
+
+   BOTH statements undercount, and the second is wrong on its reasoning:
+
+   (a) The pre-root capture was still being written when PART 28 read it, so
+       PART 28 scored a PARTIAL file.  The completed file is 232,837 B and its
+       full analysis gives **n = 95**, not 56.  The distribution is materially
+       the same (max 6.340 ms, p99 6.326 ms) -- so PART 28's CONCLUSION is
+       unchanged; only its n was too small.
+
+   (b) "The device was re-rooted between them" does NOT make the windows
+       incomparable.  Re-rooting restarts adbd; it does NOT reboot the kernel
+       and does NOT touch bam_dmux, the SMSM word, or the modem.  The two
+       windows are DISJOINT IN TIME WITHIN ONE BOOT:
+
+           pre-root   uptime    8.2 -> 1979.5 s   (1971 s, n = 95)
+           post-root  uptime 1999.5 -> 2601.2 s   ( 602 s, n = 22)
+
+       -- 20 s of gap, no overlap, one continuous kernel.  They POOL.
+
+2. POOLED RESULT
+
+     n = 117 pc-ack handshakes, ONE boot
+     real ack-wait timeouts ........ 0
+     vote -> ack  min 0.066   p50 ~1.98   p99 6.326   MAX 6.340 ms
+                  > 250 ms: 0     > 10 ms: 0     > 5 ms: 5
+     headroom vs OpenWrt's 250 ms .. 39.4x   (the pooled max is still 6.340 ms,
+                                              so the headroom figure is unchanged)
+     previous-ack serialisation .... max 0.375 ms
+     down-vote -> ack .............. max 1.035 ms
+
+   Note the two windows differ in CADENCE (pre-root 2.90 wakeups/min over 1971 s;
+   post-root 1.83/min over 602 s) -- consistent with the post-root window
+   starting after the ping soak was restarted, not with any state change.  For a
+   RATE test (timeouts per handshake) the two are comparable; for a
+   wakeups-per-second claim they are not, and none is made here.
+
+3. THE POWER STATEMENT, UPDATED
+
+     P(0 timeouts in 117 | rate = 5.7 %)  = 0.0010   -> decisive
+     P(0 timeouts in 117 | rate = 2.0 %)  = 0.094    -> marginal (p < 0.10 only)
+     P(0 timeouts in 117 | rate = 0.99 %) = 0.31     -> NOT significant
+
+     n needed for P(0) < 0.05:
+       at 5.7 %  ->  51   (met long ago)
+       at 2.0 %  -> 148   (~50 min more at 2.9/min)
+       at 1.0 %  -> 298   (~100 min more)   <-- the standing pre-registration
+       at 0.5 %  -> 598
+
+   So the honest standing statement becomes: **Android excludes a pc-ack-timeout
+   rate of 5.7 % decisively and 2 % marginally; it does NOT yet exclude 1 %.**  The
+   n >= 300 pre-registration is unchanged and is the number that matters.
+
+4. WHAT PART 30 CHANGES
+
+  - Corrects PART 28's n from 56 to 95 (partial read) and the pooled figure to
+    117; PART 28's conclusion, its 39.4x headroom and its pre-registered A/B
+    prediction are all UNCHANGED (same max, same p99).
+  - Retracts PART 29's addendum reasoning that the two windows are not poolable.
+    They are: same boot, disjoint, no reboot.  Recorded as a self-correction of
+    the same class as PART 25's withdrawn ELF-header claim -- a comparability
+    judgement made from the wrong variable (who ran the command) instead of the
+    right one (did the kernel state change).
+  - Records the CORRECT reason the two windows must not be pooled for CADENCE
+    claims (2.90 vs 1.83 wakeups/min) while they may be pooled for RATE claims.
+
+WHAT PART 30 DOES NOT CLAIM
+
+  - It does NOT change any OpenWrt number, the 902 s fatal, the bearer rebuild,
+    or the n >= 60 AP-hang soak.
+  - It does NOT claim n = 117 settles the pc-ack question.  It excludes 5.7 %
+    decisively and 2 % marginally, and nothing smaller.
+
+--------------------------------------------------------------------------------
