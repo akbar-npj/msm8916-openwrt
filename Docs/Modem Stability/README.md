@@ -51,7 +51,14 @@ stall**; now synced and re-verified), and a seventeenth by **Doc 161** (**build 
 firmware/driver change: `build.sh` now guards the patch tree — reporting drift before healing it and
 asserting the copy landed on **both** install paths — answers "will the next build re-prepare?" by
 **asking make** for its own `STAMP_PREPARED`, and can rebuild **just the kernel, one package, or one
-kernel module**) — see the sections
+kernel module**), and an eighteenth by **Doc 162** (which measures the two data-plane fixes at scale —
+**549 deferred packets, 549 delivered, 0 destroyed** over four A2 collapses, against Doc 156's pre-fix
+**27/27 destroyed** — confirms patch 814's recovery on 4/4 natural SSRs while noting its *retry* path is
+still unvalidated, and records a **new unexplained structure**: four consecutive fatals alternating
+900.965 / 941.288 / 900.662 / 940.238 s of modem uptime in lock-step with their signatures; it also
+**quantifies the fatal-signature taxonomy**, showing the three `file:line` values near 900 s have
+measurably different distributions — so Doc 149's "must not classify a fatal by its `file:line`" is a
+correct warning but too strong as stated) — see the sections
 below.
 **Retraction 1 is scoped: read it before citing it.**
 
@@ -697,6 +704,41 @@ below.
     deep check printed `target-_/…`. **A testing affordance that mutates state is worse than none.**
     `.config` was restored to the hmu05 board config that produced the deployed images.
 
+## An eighteenth round — Doc 162, 2026-09-21: run 8 puts patch 812 at scale, and the fatal signature *is* informative
+
+84. **Patch 812 holds at scale, and the number is the point.** Run 8 (70 min, 4 fatals, 4 SSRs,
+    the same 6 s-idle-then-burst harness as run 6) measured **`tx_defer_queued 549` /
+    `tx_defer_submitted 549` / gap 0 / `tx_defer_wiped_live 0` / `tx_sweep_guard_hits 0` / 0
+    oopses**. Doc 156's pre-fix baseline was **27 deferred, 27 destroyed, 0 delivered** — 60 % of
+    all TX in the first minute of a boot. The defect does not degrade under load; it is gone.
+    `cmd_open: 40` (5 modem boots × 8 channels) is the modem's own confirmation that the driver
+    rebuilt the channels every time.
+85. **Patch 814 recovered the data plane on 4/4 natural SSR triggers** without a reboot (~20 / 40 /
+    15 / 30 s). But **`retries: 0`** — this modem came ready in 540–580 ms every time, well inside
+    the original 3.2 s budget. So run 8 does **not** validate the retry path; run 6's watchdog
+    rebuild remains the only natural-trigger evidence, and the *retry*'s trigger is still unobserved.
+86. **Run 8's four fatals alternate, in lock-step with their signatures.** Modem uptime at fatal:
+    **900.965 / 941.288 / 900.662 / 940.238 s**, signatures
+    `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189` / `lte_ml1_sleepmgr_stm.c:4054` /
+    `a2_power.c:1189`. On boots 2 and 4 the deterministic ~901 s fatal **did not fire at all** (it
+    would have landed at AP 1815.3 s and 3660.1 s; the SSR count is 4, matching the 4 fatals, so
+    nothing went unrecorded). Run 6, under the *same harness and traffic*, showed no alternation —
+    so this is a property of the boot, not of the measurement. **New structure; unexplained; n=4.**
+87. **"The period" is only well-defined per signature.** Over every fatal in the corpus that can
+    be paired with a signature and a modem-uptime anchor (`evidence/162_fatal_signature_taxonomy/fatal_taxonomy.py`,
+    every row cited):
+    `lte_ml1_common_timer.c:390` — **n=11, 902.353 s mean, spread 0.508 s, ±281 ppm**;
+    `lte_ml1_sleepmgr_stm.c:4054` — **n=10, 901.230 s mean, spread 2.319 s** (±1287 ppm);
+    `a2_power.c:1189` — **n=7, 68.524 … 941.288 s, spread 872.764 s**.
+    The first is the deterministic timer (and matches the RE's `400 × 2.256 s`). The second sits
+    **1.12 s earlier with 4.6× the spread** — a difference larger than both spreads combined, so
+    likely a downstream consequence rather than the timer. The third is **not a clock at all**.
+88. **Doc 149's "must not classify a fatal by its `file:line`" is right as a warning and too strong
+    as stated.** Three `file:line` values do all appear near 900 s, so a `file:line` does not
+    identify *the* assert — but the three distributions are measurably different, so it *does* say
+    which mechanism fired. **Ask "what is this signature's period?", not "what is the fatal's
+    period?"**
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -770,6 +812,7 @@ Also established and not to be re-litigated:
 | `158_MPSS_UNREADABLE_FROM_AP.md` | **A measured negative result that closes the live-mpss-observation line.** A kernel module **can** `ioremap` the `no-map` mpss region (`mpss@86800000`, base `0x86800000`, size `0x5500000`), and the debugfs file is created — but the **first read of offset 0 aborts**: `Internal error: synchronous external abort`, `pc : mpss_read+0xc0`, `x0 = ffff800090000000`, faulting insn `ldr w0, [x0]`; five occurrences; the kernel kills the `dd`, taints `[M]=MACHINE_CHECK` and continues. **The memory-type confound was eliminated**: the abort reproduces identically with `memremap(MEMREMAP_WC)` (Normal-NC, the driver's own mapping), faulting in `__memcpy` — so page attributes, cacheability and access width are all excluded. **Cause: mpss is assigned by TrustZone** — `q6v5_xfer_mem_ownership()` → `qcom_scm_assign_mem()` between `QCOM_SCM_VMID_HLOS` and `QCOM_SCM_VMID_MSS_MSA` (`qcom_q6v5_mss.c:422-450`), and the AP only `memremap`s mpss after taking ownership back (`:1403-1404`, `:1440`, `:1547-1555`). **Corrects Doc 153 §5:** its `/dev/mem` `EFAULT`/`SIGBUS` are the same hardware abort by two userspace paths, not a `no-map`/`CONFIG_STRICT_DEVMEM` effect; `nomap` is a kernel-MM attribute that says nothing about bus access. Also: after the aborts `rmmod` failed (`refcnt -1`) and `stat()` of the debugfs file blocked in `D` state (a reboot clears it); `rpmring` works only because the RPM ring is SRAM. **Consequence: the coredump is the only instrument for the fatal's state.** |
 | `160_PATCH_CHAIN_VERIFICATION_AND_STALE_LIVE_TREE.md` | **Build-provenance verification: the built kernel contains all 18 tracked patches (17/17 target files byte-identical to pristine + `msm89xx/patches/`), but the LIVE `openwrt/target/linux/msm89xx/patches/` was stale at 14 — missing `810`, `811`, `812`, `814`.** Because the build reads the **live** directory (`PATCH_DIR`, `include/kernel.mk:43`), and because that directory is part of the prepare stamp's md5 (`include/kernel-build.mk:12-13`), a re-prepare in that state would have `rm -rf`'d `build_dir` and rebuilt from the stale set — producing a `qcom_bam_dmux.c` **277 lines shorter** (2598→2321; 26 hunks, +303/−26) with the `tx_sweep_guard_hits`, `defer_q`/`defer_sub` counters and **patch 812's root-cause data-stall fix** all absent, invisibly. The tracked tree is authoritative only because `build.sh`'s `sync_bsp()` copies it over the live one (`build.sh:336`). **Fixed** by syncing (both trees now byte-identical; reconstruction from the live tree re-verifies 17/17). Two wrong intermediate answers are recorded: a created file expressed as `--- a/…` + `@@ -0,0 +1,N @@` (patch `813`'s `msm-poweroff.h`) is missed by a `--- /dev/null` scan, and a "patches FAILED" result that was a dirty-tree artefact. **No firmware, driver or DTS change was made.** |
 | `161_BUILD_TOOLING_PATCH_GUARD_AND_SELECTIVE_BUILDS.md` | **Build tooling; no firmware/driver/DTS change.** `build.sh` now (a) **guards the patch tree**: `bsp_drift()` compares tracked vs live (`msm89xx/` → `target/linux/msm89xx/`, `packages/` → `package/msm8916/`), `sync_bsp()` **reports drift before healing and asserts afterwards**, and `assert_bsp_synced()` covers **both** install paths (`sync_bsp` *and* `scripts/openwrt-prepare.sh`, via `ensure_prepared`/`force_prepare`); (b) adds **`./build.sh guard [--deep]`**, exiting non-zero on drift and needing no Docker in its basic form; (c) `--deep` predicts a re-prepare **exactly by asking make** for its own `STAMP_PREPARED` via an `--eval`'d target, rather than re-implementing `find_md5` — which would be **wrong**, because that hash covers **absolute** paths that differ between host and container; it records that **`make -p` prints recursive variables UNEXPANDED** (so `-p` cannot work), that **`TOPDIR` must be passed** (exported by the top-level make, not set in `rules.mk`), and that **`TARGET_BUILD` must be exactly `1`**; (d) adds **`kernel [board]`, `package <name\|path> [board]`, `kmod <name> [board]`** with a board-optional `ensure_config` (reuses `.config` instead of re-running `defconfig`) and five-path package resolution (base-tree nested / feed symlink / project / explicit); (e) draws the honest line that an **in-tree** kmod (`qcom_bam_dmux`) has **no narrower goal than the kernel target**, and prints matching modules with **md5** (`kmod bam-dmux` → `qcom_bam_dmux.ko` `eca269f1…`, the hash on the device); (f) adds a **fully side-effect-free `DRY_RUN=1`**, whose `prepare_config` guard was added after a dry run **clobbered `.config`** (leaving `TARGET_DIR_NAME` = `_`; `.config` restored to the hmu05 board config). Validated by **10 checks** including a real **drift-injection cycle** (detect → report → heal → verify). **The guard does NOT cover a `make` run directly inside the container — that is what `guard` is for.** |
+| `162_SOAK_RUN8_PATCH812_AT_SCALE_AND_FATAL_SIGNATURE_TAXONOMY.md` | **Run 8: the two AP-side data-plane fixes measured at scale, plus a quantified fatal-signature taxonomy.** 70 min, 4 fatals, 4 SSRs, same harness as run 6: **`tx_defer_queued 549` = `tx_defer_submitted 549`, gap 0, `tx_defer_wiped_live 0`, `tx_sweep_guard_hits 0`, 0 oopses, `cmd_open 40`** — against Doc 156's pre-fix **27/27 destroyed**; the data stall is gone at load, not just in the 3-packet repro. Patch 814 recovered the data plane on **4/4 natural SSR triggers** (~20/40/15/30 s) but **`retries: 0`**, so the *retry* path is still unvalidated on a natural trigger. **The run's four fatals alternate 900.965 / 941.288 / 900.662 / 940.238 s of modem uptime with the signature alternating `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189` in lock-step** — on boots 2 and 4 the deterministic ~901 s fatal did not fire at all (SSR count 4 = fatal count 4, so nothing was missed); run 6 showed no such alternation under identical conditions, so it is a property of the boot, **unexplained, n=4**. And the taxonomy: `lte_ml1_common_timer.c:390` **n=11, 902.353 s, ±281 ppm** (the deterministic timer, matching `400 × 2.256 s`); `lte_ml1_sleepmgr_stm.c:4054` **n=10, 901.230 s, 4.6× the spread** (likely downstream); `a2_power.c:1189` **n=7, 68.5–941.3 s — not a clock**. **Refines Doc 149: the `file:line` does not identify *the* assert, but it *does* identify which mechanism fired — ask "what is this signature's period?"** |
 
 ## Sound but narrow (accurate, subordinate scope)
 
