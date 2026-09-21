@@ -4571,16 +4571,22 @@ PART 29 -- ANDROID'S AP SIDE EXPOSES AN RPM OBSERVABILITY LAYER OPENWRT DOES NOT
      MPSS      ... the same fields, for the MODEM
      PRONTO    ... the same fields, for WiFi/BT
 
-   MEASURED on Android, two independent windows:
+   MEASURED on Android, THREE independent windows:
 
      MPSS  numshutdowns  3104 -> 3252  in 113 s  =  1.310 /s
      MPSS  numshutdowns  3024 -> 3103  in  52 s  =  1.523 /s
+     MPSS  numshutdowns  3338 -> 3492  in  90 s  =  1.711 /s   (clean 30 s sampler)
      APSS  numshutdowns  35737 -> 35737 in 113 s =  0.000 /s
+     APSS  numshutdowns  35737 -> 35737 in  90 s =  0.000 /s
      PRONTO numshutdowns    11 -> 11    in 113 s =  0.000 /s
 
      MPSS  active_cores = 0x0   (the modem is power-collapsed at sample time)
      APSS  active_cores = 0x1
      MPSS  last_sleep_transition_duration 0x2fd8, last_wake_transition_duration 0x4f6a
+
+   => Android's modem RPM power-collapse rate is **1.31-1.71 /s over three
+      windows** (mean ~1.5 /s), and the counter is FLAT for APSS and PRONTO
+      throughout, so it isolates the modem cleanly.
 
    Note the APSS/PRONTO counters are FLAT while the AP is awake with adb and the
    display on -- only the modem's counter advances.  That is exactly the
@@ -4705,5 +4711,28 @@ WHAT PART 29 DOES NOT CLAIM
     observability of the shared subsystem the modem's PC vote depends on.
   - It does NOT touch PART 28's conclusion, the userspace bearer rebuild, or the
     n >= 60 AP-hang soak.
+
+--------------------------------------------------------------------------------
+
+7. ADDENDUM -- THE POST-ROOT bam_dmux SEGMENT INDEPENDENTLY REPRODUCES PART 28
+
+   Re-rooting adbd restarted the captures, so a second, post-root bam_dmux window
+   exists (uptime 1999.5 -> 2463.8 s, 464 s).  It was analysed with the same
+   analyzer and reproduces PART 28's result on a disjoint window:
+
+     real ack-wait timeouts ........ 0            (again)
+     vote -> ack  n=14 ............. min 1.733  p50 1.749  p99 2.240  MAX 2.291 ms
+                                     >250 ms: 0   >10 ms: 0   >5 ms: 0
+                                     headroom vs OpenWrt's 250 ms = 109.1x
+     previous-ack serialization .... max 0.120 ms
+     full cycle (prev-ack->complete) max 3.395 ms
+     UL wakeups .................... 14 in 460 s = 1.83/min
+
+   This window is TIGHTER than PART 28's (max 2.291 ms vs 6.340 ms), so the
+   "39.4x headroom" figure in PART 28 is the CONSERVATIVE one; the pooled
+   evidence is that the healthy Android ack never exceeds ~6.3 ms.  It is not
+   pooled into a single n because the two windows are not independent samples of
+   the same process state (the device was re-rooted between them) -- recorded as
+   a REPRODUCTION, not as n=70.
 
 --------------------------------------------------------------------------------
