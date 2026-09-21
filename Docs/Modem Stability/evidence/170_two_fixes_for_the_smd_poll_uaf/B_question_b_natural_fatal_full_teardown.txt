@@ -1,0 +1,59 @@
+=== QUESTION B: the natural-fatal path, with the extended ledger deployed (2026-09-21) ===
+
+Device: HMU05, AP uptime 1336.93 s at detection.
+Deployed: qcom_bam_dmux.ko = 364376867224df54d47b9b7a06528db3  (patch 821)
+          rpmsg_wwan_ctrl.ko = cd46d8f45a74e6a1f77c0a136a862c49  (UNPATCHED baseline)
+          ssr_ledger.sh = 6e560c24bd32de3f241d6fbda0c2dcf5  (v2: t5..t9 + pc_state + rx_tearing_down)
+
+--- the fatal ---
+[ 1335.049762] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 1335.049973] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 1335.058234] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[ 1335.066047] remoteproc remoteproc0: recovering 4080000.remoteproc
+
+--- the ledger row ---
+uptime,n,sig,t0,t1,t2,t3,t4,t5,t6,t7,t8,t9,exec,wwan,pc_state,rx_tearing_down,coredumps
+1337.83,1,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,1,0,9
+
+--- reading ---
+  t0..t4 = 2 and t5..t9 = 2   -> BOTH SSR teardowns in this boot ran the COMPLETE
+                                 T0..T9 sequence, including T5 "rx released",
+                                 T6 "tx released", T7 "power_off returned".
+                                 => the idempotent early return in
+                                    bam_dmux_power_off() (qcom_bam_dmux.c:1568,
+                                    rx_tearing_down && !rx && !tx) was NOT taken.
+                                    This is the column-set the ledger was extended for.
+  pc_state = 1                -> the modem was powered when the teardown ran.
+  rx_tearing_down = 0         -> consistent with the full power_off path having run.
+  exec = 2, wwan = 2          -> both teardowns reached the async teardown work and
+                                 the rpmsg port detach.
+  coredumps 8 -> 9            -> a coredump WAS produced, so rproc_stop() RETURNED.
+                                 (Doc 153 section 4: a dump is created only after
+                                 rproc_stop() returns, so a hang is uncapturable.)
+  AP uptime 1350.17 (monotonic past 1336.93) -> the AP SURVIVED.
+
+--- corruption ---
+  $ dmesg | grep -c "list_del corruption"
+  0
+
+=== WHAT THIS ESTABLISHES ===
+1. QUESTION B: the natural-fatal path runs the FULL teardown (t5..t9 present) and is
+   clean -- 0 corruption, 0 reset, coredump captured.  With patch 821 deployed this
+   is 2/2 in this boot (the earlier SSR at AP 232.69 s also completed T0..T9).
+2. The ledger's t5..t9 columns WORK and answer the question they were added for.
+3. The SMD poll use-after-free does NOT reproduce on the natural-fatal path here,
+   even though that path also unregisters the SMD edge and frees the channels.
+
+=== WHY THE TWO PATHS DIFFER (mechanism, stated as a hypothesis, not a measurement) ===
+Both paths end in the same qcom_smd_unregister_edge() -> qcom_smd_edge_release() ->
+kfree(channel).  The difference is the CONTEXT that runs it:
+  * `echo stop`: the sysfs write runs rproc_stop() in the writer's context, and with
+    patch 821 the notifier's flush_work() waits for the teardown work, after which
+    q6v5_stop() unregisters the edge.  The woken poller needs a context switch to
+    reach poll_freewait(); on this path it does not get one -> deterministic UAF.
+  * natural fatal: rproc_stop() is run from the recovery workqueue after the fatal is
+    reported, and the modem's death wakes port->waitqueue (wwan_remove_port) with more
+    scheduling opportunities in between, so the poller usually unlinks first.
+This predicts the natural path is the SAME race at a much lower probability -- which
+is exactly the ~1-in-21 figure Doc 159 measured -- and it is consistent with Doc 169
+section 6 ("the 4 clean natural fatals remain open").  It is NOT proven here.

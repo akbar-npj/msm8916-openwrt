@@ -1,0 +1,44 @@
+=== THE POLLER IS PARKED IN do_sys_poll -- MEASURED (2026-09-21, AP uptime 1411.82 s) ===
+
+Doc 168 section 2.4 closed with: "Hypothesis, not measurement -- confirm the poller's
+identity (/proc/<qmi-proxy pid>/fd) before claiming it."  This is that measurement,
+and it closes BOTH ends of the loop.
+
+$ P=$(pidof qmi-proxy); echo pid=$P; cat /proc/$P/wchan; cat /proc/$P/stack
+pid=3658
+do_sys_poll
+[<0>] do_sys_poll+0x390/0x4ec
+[<0>] __arm64_sys_ppoll+0x88/0xe8
+[<0>] invoke_syscall+0x50/0xf0
+[<0>] el0_svc_common.constprop.0+0x44/0xdc
+[<0>] do_el0_svc+0x18/0x20
+[<0>] el0_svc+0x18/0x60
+[<0>] el0t_64_sync_handler+0xc0/0xe0
+[<0>] el0t_64_sync+0x14c/0x150
+
+$ ls -l /proc/3658/fd | grep wwan
+lrwx------ 1 root root 64 Sep 21 08:11 7 -> /dev/wwan0qmi0
+
+$ cat /sys/class/remoteproc/remoteproc0/state
+running
+
+--- THE TWO ENDS, BOTH MEASURED, AND THEY ARE THE SAME FUNCTION ---
+  (a) the poller's ENTRY state: qmi-proxy is inside do_sys_poll on fd 7 =
+      /dev/wwan0qmi0  [above]
+  (b) the corruption's EXIT state: run A's WARNING call trace is
+        __list_del_entry_valid_or_report <- remove_wait_queue
+          <- poll_freewait <- do_sys_poll <- __arm64_sys_ppoll
+      (Doc 168 run B / Doc 169 run A)
+
+do_sys_poll() is where poll_table_entry objects live (on this task's kernel stack)
+and poll_freewait() is the ONLY thing that unlinks them.  So a task observed inside
+do_sys_poll is, by construction, holding its entries linked in every queue it
+registered -- including channel->fblockread_event.  Freeing the channel while that
+task is in do_sys_poll is the use-after-free, and the WARNING above is what it looks
+like when the task finally runs poll_freewait().
+
+--- ALSO MEASURED ---
+  * qmi-proxy fd 7 on /dev/wwan0qmi0 is the ONLY wwan/rpmsg fd on the device
+    (a full /proc/*/fd sweep) -- so the reachable poller set is a set of one.
+  * /proc/<pid>/stack IS readable as root for a userspace task on this device
+    (it was previously verified only for kernel threads, Doc 168 section 13f).

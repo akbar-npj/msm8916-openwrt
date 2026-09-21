@@ -1,0 +1,65 @@
+=== patch 823 verified in the built object (2026-09-21) ===
+
+$ aarch64-openwrt-linux-musl-objdump -d --disassemble=rpmsg_wwan_ctrl_tx_poll rpmsg_wwan_ctrl.o
+
+0000000000000020 <rpmsg_wwan_ctrl_tx_poll>:
+  20: a9bd7bfd  stp  x29, x30, [sp, #-48]!
+  24: 910003fd  mov  x29, sp
+  28: f9000bf3  str  x19, [sp, #16]
+  2c: aa0103f3  mov  x19, x1              ; save filp
+  30: 94000000  bl   wwan_port_get_drvdata
+  34: 910083e2  add  x2, sp, #0x20        ; x2 = &no_wait
+  38: f9400800  ldr  x0, [x0, #16]        ; rpwwan->ept
+  3c: aa1303e1  mov  x1, x19              ; filp
+  40: a9027fff  stp  xzr, xzr, [sp, #32]  ; _qproc = NULL, _key = 0
+  44: 94000000  bl   rpmsg_poll
+
+=> the incoming poll_table (x2 on entry) is DISCARDED; a zeroed table is passed
+   to rpmsg_poll(), so qcom_smd_poll()'s poll_wait() is a no-op and no
+   poll_table_entry is linked into channel->fblockread_event.
+
+=== patch 822 (kernel) verified present in the live tree ===
+openwrt/build_dir/.../drivers/rpmsg/qcom_smd.c:1609  qcom_smd_drain_channel_pollers(edge);
+   wall-clock bounded: deadline = jiffies + msecs_to_jiffies(2000)
+
+=== patch 822 verified in the compiled object (drivers/rpmsg/qcom_smd.o, 2026-09-21) ===
+The static helper was inlined into qcom_smd_unregister_edge(), so it is read there:
+
+$ aarch64-openwrt-linux-musl-objdump -d --disassemble=qcom_smd_unregister_edge qcom_smd.o
+
+  2c0: 94000000  bl   device_for_each_child     ; remove child rpmsg devices
+  2c4: 35000720  cbnz w0, <warn path>           ; (this is what wakes the poller:
+                                                 ;  rpmsg_wwan_ctrl_remove -> wwan_remove_port
+                                                 ;  -> wake_up_interruptible)
+  2c8: f9419ee0  ldr  x0, [x23, #824]           ; edge->channels.next
+  2cc: 910ce2f8  add  x24, x23, #0x338          ; &edge->channels (list head)
+  2d0: d1028013  sub  x19, x0, #0xa0            ; channel = container_of(...)
+  2d4: eb00031f  cmp  x24, x0                   ; list_for_each_entry(channel, ...)
+  2e4: 90000019  adrp x25, jiffies              ; <-- WALL-CLOCK DEADLINE
+  2fc: f9403261  ldr  x1, [x19, #96]            ; channel->fblockread_event.head.next
+  300: 91018274  add  x20, x19, #0x60           ; &fblockread_event.head = channel + 96
+  304: 91016260  add  x0,  x19, #0x58           ; &fblockread_event      = channel + 88
+  308: eb01029f  cmp  x20, x1                   ; waitqueue_active() -> skip if empty
+  31c: 94000000  bl   __wake_up                 ; wake_up_all(&channel->fblockread_event)
+  320: f9400335  ldr  x21, [x25]                ; jiffies
+  32c: 910962b5  add  x21, x21, #0x258          ; deadline = jiffies + 600
+  33c: 94000000  bl   msleep
+  34c: f94002c1  ldr  x1, [x22]                 ; jiffies
+  354: eb15003f  cmp  x1, x21                   ; time_before(jiffies, deadline)
+  358: 54ffff24  b.mi <msleep>                  ; -> loop while active AND before deadline
+  35c: f9403260  ldr  x0, [x19, #96]            ; waitqueue_active() after the wait
+  368: f9400e62  ldr  x2, [x19, #24]            ; channel->name
+  378: 94000000  bl   _dev_warn                 ; "channel '%s' still has pollers after 2s"
+
+THREE THINGS THIS PROVES, ALL FROM THE BINARY RATHER THAN THE SOURCE:
+1. The drain sits between device_for_each_child() (the wake) and device_unregister()
+   (the free) -- the ordering the fix depends on.
+2. The bound is WALL CLOCK: `adrp x25, jiffies` + `add x21, x21, #0x258` and a
+   `cmp x1, x21` loop test.  #0x258 = 600 = msecs_to_jiffies(2000) at HZ = 300, so
+   the deadline is exactly 2.0 s and does NOT depend on msleep's granularity.
+   (The rejected first revision -- `for (retries = 5000; retries--; ) msleep(1)` --
+   had no jiffies reference at all, so this is a real difference, not a style one.)
+3. It independently reproduces Doc 169 section 4's offset arithmetic from the
+   COMPILER, not from pahole: &channel->fblockread_event = channel + 88 (0x58) and
+   &...head = channel + 96 (0x60).  Those are the two constants the whole
+   identification rests on.

@@ -8,7 +8,7 @@
  #include <linux/interrupt.h>
  #include <linux/io.h>
  #include <linux/mailbox_client.h>
-@@ -1532,6 +1533,63 @@
+@@ -1532,6 +1533,66 @@
  	return 0;
  }
  
@@ -44,7 +44,7 @@
 +	struct qcom_smd_channel *channel;
 +
 +	list_for_each_entry(channel, &edge->channels, list) {
-+		int retries;
++		unsigned long deadline;
 +
 +		if (!waitqueue_active(&channel->fblockread_event))
 +			continue;
@@ -55,16 +55,19 @@
 +		 */
 +		wake_up_all(&channel->fblockread_event);
 +
-+		/* Bounded at roughly 5 seconds. */
-+		for (retries = 5000; retries > 0; retries--) {
-+			if (!waitqueue_active(&channel->fblockread_event))
-+				break;
++		/*
++		 * Bound the wait by wall time rather than by an iteration
++		 * count: msleep(1) can sleep for a full tick or longer, so a
++		 * retry counter would bound this only very loosely.
++		 */
++		deadline = jiffies + msecs_to_jiffies(2000);
++		while (waitqueue_active(&channel->fblockread_event) &&
++		       time_before(jiffies, deadline))
 +			msleep(1);
-+		}
 +
 +		if (waitqueue_active(&channel->fblockread_event))
 +			dev_warn(&edge->dev,
-+				 "channel '%s' still has pollers after ~5s\n",
++				 "channel '%s' still has pollers after 2s\n",
 +				 channel->name);
 +	}
 +}
@@ -72,7 +75,7 @@
  /**
   * qcom_smd_unregister_edge() - release an edge and its children
   * @edge:      edge reference acquired from qcom_smd_register_edge
-@@ -1548,6 +1606,7 @@
+@@ -1548,6 +1609,7 @@
  	if (ret)
  		dev_warn(&edge->dev, "can't remove smd device: %d\n", ret);
  

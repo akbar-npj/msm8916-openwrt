@@ -1,0 +1,16 @@
+=== poller identity, 2026-09-21, boot uptime 973 s ===
+
+$ for p in /proc/[0-9]*; do for f in $p/fd/*; do ... esac; done
+
+3658 qmi-proxy /proc/3658/fd/7 -> /dev/wwan0qmi0
+
+=> qmi-proxy fd 7 on /dev/wwan0qmi0 is the ONLY wwan/rpmsg fd on the device.
+   This is the empirical confirmation Doc 168 section 2.4 asked for.
+
+=== module identity ===
+cd46d8f45a74e6a1f77c0a136a862c49  /lib/modules/6.12.94/rpmsg_wwan_ctrl.ko   (6808 B, from /rom, NOT overlay-shadowed)
+   (unpatched baseline; the patched build is patch 823)
+
+=== config ===
+CONFIG_RPMSG_WWAN_CTRL=m   => the second poll registration is in a LOADABLE MODULE (no kernel flash needed)
+CONFIG_RPMSG_QCOM_SMD=y     => patch 822 needs a kernel flash
