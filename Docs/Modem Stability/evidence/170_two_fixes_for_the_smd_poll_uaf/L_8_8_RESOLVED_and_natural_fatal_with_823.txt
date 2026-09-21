@@ -1,0 +1,129 @@
+=== §8.8 RESOLVED: THE t=73.93 s HANG IS THE KNOWN INTERMITTENT SSR-PATH HANG, NOT A 823 REGRESSION ===
+    2026-09-21, round 27, second half.  Same boot that ran the qa.sh 3 post823 runs.
+
+    This SUPERSEDES the "cause unresolved, 823 not exculpated" verdict in
+    H_first_823_boot_anomaly.txt.  That file's FACTS stand; its CONCLUSION is now
+    much weaker, and the reason is a measurement made afterwards.
+
+---------------------------------------------------------------------------
+1. WHAT WAS OBSERVED (one boot, ~485 s of uptime, 823 deployed)
+---------------------------------------------------------------------------
+Complete modem timeline for this boot, from `dmesg`, with the cause of each
+transition identified:
+
+   11.275  powering up            <- normal boot
+   12.149  is now up
+  211.046  timeout waiting for ssctl service   <- GRACEFUL stop   [qa.sh run 1]
+  211.130  stopped remote processor
+  229.872  powering up            <- qa.sh's restore (`echo start`)
+  230.470  is now up
+  251.143  stopped remote processor            <- GRACEFUL stop   [qa.sh run 2]
+  269.886  powering up            <- qa.sh's restore
+  270.490  is now up
+  291.053  stopped remote processor            <- GRACEFUL stop   [qa.sh run 3]
+  309.720  powering up            <- qa.sh's restore
+  310.325  is now up
+  381.485  fatal error received: a2_power.c:1189   <- NATURAL FATAL (crash, not graceful)
+  381.500  crash detected / recovering
+  381.588  stopped remote processor
+  382.912  is now up              <- recovered
+  (485.58  still running, modem up, data working)
+
+The three stops at 211.05 / 251.14 / 291.05 are **my own three `echo stop` runs** —
+qa.sh's recorded pre-uptimes were 207.30 / 245.89 / 285.95, and its post-uptimes
+219.15 / 259.17 / 299.04.  The restores at 229.87 / 269.89 / 309.72 are qa.sh's
+`echo start`.
+
+**All three graceful stops ran the SAME sequence as the §8.8 hang, and all three
+recovered.** The §8.8 sequence was:
+
+    timeout waiting for ssctl service -> teardown T0..T9 -> pc-ack timeout during resume -> HANG
+
+and the §8.8 boot's stop was at 72.95 s.
+
+---------------------------------------------------------------------------
+2. WHY THIS CHANGES THE CONCLUSION -- THREE SEPARATE POINTS
+---------------------------------------------------------------------------
+(a) **`timeout waiting for ssctl service` is the NORMAL signature of a graceful
+    `rproc_stop()` on this device, not an anomaly.** It is emitted by
+    `sysmon_stop()` (`qcom_sysmon.c:555`) after a `HZ/2` = 500 ms wait, and it is
+    reached only when `crashed == false`.  It appeared here on an ordinary
+    `echo stop` that then recovered cleanly.  (It appeared on only ONE of the
+    three stops -- the wait returns immediately once `ssctl_comp` has been
+    completed by a `sysmon_start`, which is why it is not on all of them.  **Do
+    not use its presence or absence to count graceful stops.**)
+
+(b) **`modem pc-ack timeout during resume` also occurs normally and normally
+    SELF-HEALS.**  It fired here at 381.900 s and the very next lines are the
+    recovery, driven by patch 814's RX watchdog:
+
+        382.913  modem pc_state wait timeout during resume
+        382.913  channels not initialized after resume
+        383.027  RX watchdog: modem awake (pc line asserted) but no channels, rebuilding
+        (then: SSR powerup: modem pc_state=1 (waited 200 ms) -> data works, ping 3/3)
+
+    So the exact line that was the last thing §8.8 printed before its console
+    stopped is a line this device **prints and survives**.  What failed in §8.8
+    was not the pc-ack timeout itself but the recovery that normally follows it.
+
+(c) **Therefore the §8.8 hang is the pre-existing intermittent AP hang on the SSR
+    path** -- the same failure Doc 167 quantified at **~1 in 20-40 SSRs (3-5 %)**,
+    which Doc 169/170 had located at the *teardown* and Doc 159 at a *later* site.
+    A rare race landing on that boot is a far more parsimonious explanation than a
+    regression introduced by an 18-line change that cannot call `rproc_shutdown`,
+    especially when the same change ran the same sequence three more times and
+    survived all three.
+
+**Revised verdict: 823 is SUBSTANTIALLY EXONERATED, not absolutely.** The
+observation is still 1 hang in 4 graceful stops on this boot plus the 1 on the
+previous boot; "substantially" rather than "absolutely" because the §8.8 hang was
+on a *graceful* stop and the self-heal here was on a *fatal* recovery.  A
+controlled boot with the unpatched module (`bash scratch/deploy823.sh --revert`)
+remains the clean discriminator and is still **not run**.
+
+---------------------------------------------------------------------------
+3. A SECOND, INDEPENDENT NATURAL-FATAL DATA POINT WITH 823 DEPLOYED
+---------------------------------------------------------------------------
+The fatal at AP 381.484577 (`a2_power.c:1189`) is the REAL production trigger, and
+`qmi-proxy` was running and parked in `do_sys_poll` throughout.  Ledger row:
+
+    389.95,1,a2_power.c:1189,4,4,4,4,4,4,4,4,4,4,4,4,0,1,14
+                             ^ t0..t9 ALL PRESENT
+
+  list_del corruption count            0
+  coredump                             captured, 85398475 B, devcd1 at uptime 382.41
+                                       (/overlay/coredump_live/, 14 files total)
+  AP                                   SURVIVED (uptime 485.58 and rising)
+  modem                                recovered: rproc=running
+  wwan0                                UP, 10.147.20.190/30 + global v6
+  ping 8.8.8.8                         3/3, 0 % loss, 52.7/62.9/83.2 ms
+  qmi-proxy                             pid 5166, 1 wwan fd
+
+**Honest caveat:** the control for the natural-fatal path (Doc 170 §4, Question B)
+ALSO gave 0 corruption *without* 823, so this does not discriminate either.  It is
+**non-regression on the production path**, which is what it is offered as.
+
+Free periodicity sample: the modem came up at 309.719860 and the fatal is at
+381.484577 => **71.76 s of modem uptime**.  Doc 162's taxonomy has `a2_power.c:1189`
+spanning **68.5-941.3 s and explicitly NOT clock-driven**, so 71.76 s is a
+consistency check that passes -- and it is another reminder that this signature
+must never be treated as a fixed timer.
+
+---------------------------------------------------------------------------
+4. THE TRAP THIS CREATED, AND THE LESSON
+---------------------------------------------------------------------------
+`timeout waiting for ssctl service` and `modem pc-ack timeout during resume` were
+read in H_first_823_boot_anomaly.txt as markers of an abnormal event, and the whole
+"823 is not exculpated" verdict rested on that reading.  Both are in fact **normal
+lines on this device** -- the first for any graceful stop, the second whenever the
+modem is slow to ACK a power-collapse resume, which the RX watchdog then repairs.
+
+**The generalisable lesson: before treating a kernel message as a fault marker,
+establish its BASE RATE -- does it appear on known-good runs?** The two lines were
+treated as diagnostic precisely because they were rare in the corpus, and the
+corpus is dominated by boots that died before reaching them.  That is the same
+error class as Doc 168 §5's "a corpus that structurally cannot contain a line is
+not evidence the line's cause is new" -- here it is the mirror image: **a line that
+is rare in the corpus may simply be rare in the corpus, not rare in the kernel.**
+The cheap fix is one `dmesg | grep -n` on a healthy boot, which is what produced
+the table in section 1 above.

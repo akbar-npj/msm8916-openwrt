@@ -1,0 +1,68 @@
+=== TOOLING TRAP: `bash grep` IS NOT grep -- AND 2>/dev/null TURNS ITS FAILURE INTO A FALSE NEGATIVE ===
+    2026-09-21, round 27.  Cost: one wrong conclusion, caught before it was written up.
+
+---------------------------------------------------------------------------
+1. THE TRAP
+---------------------------------------------------------------------------
+The project's memory says "the Grep tool is broken -- use `bash grep`/`awk`".  That
+advice is WRONG and actively dangerous:
+
+    $ bash grep -c "bam_dmux" <file>
+    /usr/bin/grep: /usr/bin/grep: cannot execute binary file
+
+`bash grep -c PATTERN FILE` does not run grep at all.  It runs BASH, with the
+resolved path of `grep` (/usr/bin/grep) as the SCRIPT to interpret.  Bash is being
+asked to execute an ELF binary as a shell script, so it fails every time.
+
+The failure is invisible if the call also has `2>/dev/null`, which is exactly the
+idiom used for searching:
+
+    bash grep -rn "ssctl" drivers/remoteproc/ 2>/dev/null | head -10
+    -> (no output)   which reads as "the string is not there"
+
+That is how it bit me: I "established" that `timeout waiting for ssctl service` and
+`pc-ack timeout during resume` did not exist anywhere in linux-6.12.94, and was one
+step from recording "these messages have no source in the tree we run" -- a strong,
+interesting and completely false finding.  The strings are at
+qcom_sysmon.c:555 and qcom_bam_dmux.c:2070.
+
+---------------------------------------------------------------------------
+2. WHAT ACTUALLY WORKS ON THIS HOST
+---------------------------------------------------------------------------
+The host is an aarch64 machine (Apple silicon, Asahi Fedora):
+
+    uname -m   -> aarch64
+    uname -a   -> Linux 192.168.8.243 7.1.13-402.asahi.fc44.aarch64+16k aarch64
+
+    grep       -> aliased to `grep --color=auto`, GNU grep 3.12, WORKS
+    rg         -> /usr/bin/rg, ripgrep 15.2.0, WORKS  <-- use this
+    bash grep  -> BROKEN (see above)
+
+So the rule is: use `rg`, or plain `grep`.  Never `bash grep`.
+
+---------------------------------------------------------------------------
+3. TWO GENERALISABLE LESSONS
+---------------------------------------------------------------------------
+(a) A search that returns nothing is EVIDENCE only if the search tool ran.  Verify
+    a negative search with a positive control -- search for a string you KNOW is
+    present in the same file/tree.  `rg -c "bam_dmux" qcom_bam_dmux.c -> 315` is
+    what a working search looks like; that check takes two seconds and would have
+    caught this immediately.
+
+(b) `2>/dev/null` on a search command is a correctness hazard, not a tidiness
+    habit: it converts "the tool could not run" into the same output as "no
+    matches", and the two demand opposite conclusions.  Keep stderr visible on
+    searches; suppress it on transfers and probes, where a failure is not
+    interpretable as a negative result.
+
+    This is the same class of error as the corpus's existing "checking a function
+    body but not its call sites" trap: the tool answered a different question than
+    the one being asked, and the answer looked like a finding.
+
+---------------------------------------------------------------------------
+4. RELATED, AND WORTH NOTING FOR THE DEVICE SIDE
+---------------------------------------------------------------------------
+`rg` is NOT installed on the OpenWrt device (busybox only).  A host-side
+`rg ... root@192.168.8.1:...` therefore finds nothing.  On the device use the
+device's own `grep`.  Both halves of this are the same mistake: a tool that is
+absent and a tool that is broken both look like "no matches".

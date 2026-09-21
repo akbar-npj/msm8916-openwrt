@@ -1,0 +1,55 @@
+=== qa.sh N=3 label=post823  2026-09-21T16:49:08+05:45 ===
+
+---------------- run 1/3 ----------------
+  pre  uptime = 207.30
+  pre  qmi-proxy pid=5166  wwan fds=1  rproc=running
+  pre  poller wchan=do_sys_poll
+       [<0>] do_sys_poll+0x390/0x4ec
+       [<0>] __arm64_sys_ppoll+0x88/0xe8
+  pre  console-ramoops md5 = e4352f1d4adda5d879f66772750577e7
+  TRIGGER echo stop
+write rc=0
+  write returned after 0s
+  post uptime = 219.15  =>  survived
+  dmesg list_del corruption count = 0
+  teardown T9 count = 1
+  VERDICT: PASS (survived, 0 corruption)
+  restore: waiting for the AP, then restarting the modem
+  restore: rproc=running qmi-proxy=5166 wwan fds=1
+
+---------------- run 2/3 ----------------
+  pre  uptime = 245.89
+  pre  qmi-proxy pid=5166  wwan fds=1  rproc=running
+  pre  poller wchan=do_sys_poll
+       [<0>] do_sys_poll+0x390/0x4ec
+       [<0>] __arm64_sys_ppoll+0x88/0xe8
+  pre  console-ramoops md5 = e4352f1d4adda5d879f66772750577e7
+  TRIGGER echo stop
+write rc=0
+  write returned after 0s
+  post uptime = 259.17  =>  survived
+  dmesg list_del corruption count = 0
+  teardown T9 count = 2
+  VERDICT: PASS (survived, 0 corruption)
+  restore: waiting for the AP, then restarting the modem
+  restore: rproc=running qmi-proxy=5166 wwan fds=1
+
+---------------- run 3/3 ----------------
+  pre  uptime = 285.95
+  pre  qmi-proxy pid=5166  wwan fds=1  rproc=running
+  pre  poller wchan=do_sys_poll
+       [<0>] do_sys_poll+0x390/0x4ec
+       [<0>] __arm64_sys_ppoll+0x88/0xe8
+  pre  console-ramoops md5 = e4352f1d4adda5d879f66772750577e7
+  TRIGGER echo stop
+write rc=0
+  write returned after 0s
+  post uptime = 299.04  =>  survived
+  dmesg list_del corruption count = 0
+  teardown T9 count = 3
+  VERDICT: PASS (survived, 0 corruption)
+  restore: waiting for the AP, then restarting the modem
+  restore: rproc=running qmi-proxy=5166 wwan fds=1
+
+=== RESULT: 3 PASS / 0 FAIL / 0 SKIP  (n=3) ===
+=== log: scratch/qa_post823_20260921_164908.log ===

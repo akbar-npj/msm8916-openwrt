@@ -1,0 +1,106 @@
+=== PATCH 823 DEPLOYED AND FUNCTIONALLY VALIDATED (no kernel flash) ===
+    2026-09-21, round 27.  Build host 192.168.8.243 (aarch64), device 192.168.8.1.
+
+---------------------------------------------------------------------------
+1. THE DEPLOYABLE ARTIFACT -- AND HOW IT WAS PRODUCED
+---------------------------------------------------------------------------
+`./build.sh kernel` leaves rpmsg_wwan_ctrl.ko UNSTRIPPED.  OpenWrt strips kernel
+modules in the PACKAGING step, not the kernel build, so a kernel-only build never
+produces the object the image would ship.  Deploying the unstripped one works but
+leaves "is this the same artifact the image would contain?" unanswerable.
+
+The strip rule was found by reading the build system, not guessed:
+    rules.mk:383-390   RSTRIP= ... STRIP_KMOD="$(SCRIPT_DIR)/strip-kmod.sh" ...
+    scripts/strip-kmod.sh   objcopy -x -G __this_module --strip-unneeded
+                                   -R .comment -R .note.gnu.build-id ...
+and NO_RENAME=1 is set when CONFIG_KERNEL_KALLSYMS=y (it is), which skips the
+symbol-renaming pass.
+
+    openwrt/.config: CONFIG_KERNEL_KALLSYMS=y   CONFIG_USE_SSTRIP=y
+
+scratch/mkko823.sh reproduces it:
+
+    input  (unstripped): 1457ad79afaeeb8c7d451ea895b10da3  56112 B
+    output (stripped):   6553acd4eb83fcf032c1cf0821f35f4d   6808 B
+    shipped baseline:    cd46d8f45a74e6a1f77c0a136a862c49   6808 B
+                         ^ SIZE MATCH -- this is the recipe the build uses.
+
+---------------------------------------------------------------------------
+2. THE PATCH IS VERIFIED BY CONTENT, NOT BY SYMBOL LABEL
+---------------------------------------------------------------------------
+strip-kmod.sh passes objcopy -x, which discards LOCAL symbols, and
+rpmsg_wwan_ctrl_tx_poll is static -- so the stripped object has no label for it,
+and the SHIPPED BASELINE has none either.  A label-based grep therefore reports a
+false negative (it did, on the first attempt).  Anchor on the rpmsg_poll
+relocation instead:
+
+  BASELINE (cd46d8f4, the module that was on the device):
+    28: a90153f3  stp  x19, x20, [sp, #16]
+    30: aa0203f4  mov  x20, x2            <-- SAVE the caller's poll_table
+    34: 94000000  bl   0 <wwan_port_get_drvdata>
+    38: f9400800  ldr  x0, [x0, #16]
+    3c: aa1403e2  mov  x2, x20            <-- PASS IT THROUGH
+    44: 94000000  bl   0 <rpmsg_poll>
+
+  PATCH 823 (6553acd4):
+    28: f9000bf3  str  x19, [sp, #16]
+    30: 94000000  bl   0 <wwan_port_get_drvdata>
+    34: 910083e2  add  x2, sp, #0x20      <-- x2 = &no_wait (stack)
+    38: f9400800  ldr  x0, [x0, #16]
+    3c: aa1303e1  mov  x1, x19
+    40: a9027fff  stp  xzr, xzr, [sp, #32] <-- no_wait = {0, 0}
+    44: 94000000  bl   0 <rpmsg_poll>
+
+A full `objdump -d` diff of baseline vs patched is 18 lines and EVERY ONE of them
+is inside this single function.  Nothing else in the module changed.
+
+Why that is sufficient, stated precisely: rpmsg_poll() calls poll_wait() with the
+poll_table it is handed, and poll_wait() is a no-op when p->_qproc == NULL
+(include/linux/poll.h:42).  A stack poll_table initialised to {0,0} has
+_qproc == NULL.  Therefore NO poll_table_entry is ever linked into
+channel->fblockread_event by this path, and qcom_smd_edge_release()'s bare
+kfree(channel) can no longer free a queue that a userspace poller is linked in.
+The use-after-free is removed structurally, not narrowed.
+
+---------------------------------------------------------------------------
+3. DEPLOYMENT (scratch/deploy823.sh, module swap + reboot; NO flash)
+---------------------------------------------------------------------------
+  back up : /overlay/modbackup/rpmsg_wwan_ctrl.ko.pre823 = cd46d8f4...  (verified)
+  install : /lib/modules/6.12.94/rpmsg_wwan_ctrl.ko = 6553acd4...      (verified
+            ON THE DEVICE before use -- a partial copy is indistinguishable from
+            a good one until it is too late)
+  reboot  : rmmod is impossible, qmi-proxy holds /dev/wwan0qmi0
+  loaded  : lsmod -> rpmsg_wwan_ctrl 12288 0 ; wwan 16384 3 rpmsg_wwan_ctrl
+
+sysupgrade was NOT used, so /overlay (firmware, modules, coredumps, logs) is
+untouched.  Revert at any time:  bash scratch/deploy823.sh --revert
+
+---------------------------------------------------------------------------
+4. FUNCTIONAL NON-REGRESSION -- THE PART THAT MATTERS
+---------------------------------------------------------------------------
+Patch 823 changes what poll() reports for the wwan port, so a fix that removes the
+UAF but breaks qmi-proxy would look clean in a corruption count and be worthless.
+Measured after the deploy, on a fresh boot:
+
+  module on device  6553acd4eb83fcf032c1cf0821f35f4d   (patched)
+  uptime            202.38 s
+  qmi-proxy         pid=5166  wwan fds=1  wchan=do_sys_poll
+                    /proc/5166/fd/7 -> /dev/wwan0qmi0
+  wwan0             UP  10.104.99.100/29 + 2409:4071:eb2:fa73:.../128
+  default route     via 10.104.99.101 dev wwan0 proto static metric 10
+  ping 8.8.8.8      4 transmitted, 4 received, 0% loss, 42.2/64.3/81.8 ms
+  DNS               nslookup openwrt.org 8.8.8.8 -> 2a03:b0c0:3:d0::1a51:c001
+
+So the QMI path, the data plane, the default route and name resolution all still
+work with the fix in place.  The poller is still parked in do_sys_poll, i.e. the
+device node still blocks and wakes as before.
+
+HONEST LIMITATION, recorded rather than hidden: 823 removes entry 1 (the SMD
+flow-control queue) but entry 0 (port->waitqueue, registered by
+wwan_port_fops_poll) remains, and wwan_port_rx() wakes that queue, so EPOLLIN is
+unaffected.  EPOLLOUT is also unaffected in VALUE because rpmsg_poll() still
+RETURNS the same mask -- only the wakeup source is gone.  The "obvious" fix
+(deleting .tx_poll so the caller falls through to `else if
+(!is_write_blocked(port)) mask |= EPOLLOUT`) would have been WRONG here:
+is_write_blocked() is dead code for this driver (nothing in rpmsg_wwan_ctrl.c
+calls wwan_port_txoff()/txon()), so EPOLLOUT would become unconditional.

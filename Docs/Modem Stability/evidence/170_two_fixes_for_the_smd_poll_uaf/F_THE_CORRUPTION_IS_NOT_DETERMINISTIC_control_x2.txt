@@ -1,0 +1,118 @@
+=== CONTROL RESULT: THE `list_del corruption` IS **NOT** DETERMINISTIC ===
+    Two consecutive `echo stop` runs with the UNPATCHED rpmsg_wwan_ctrl.ko,
+    both of which should have reproduced Doc 169's corruption, did NOT.
+
+Deployed during both runs (verified by md5 on the device):
+    qcom_bam_dmux.ko     364376867224df54d47b9b7a06528db3   (patch 821)
+    rpmsg_wwan_ctrl.ko   cd46d8f45a74e6a1f77c0a136a862c49   (UNPATCHED baseline)
+    wwan.ko              cc8752c7286272e03c650f434b01c855
+    kernel               unmodified (no flash has happened)
+
+---------------------------------------------------------------------------
+CONTROL RUN 1 -- label `control`, 2026-09-21T15:39:28, AP uptime 1578.35
+---------------------------------------------------------------------------
+  pre  qmi-proxy pid=3658  wwan fds=1  rproc=running
+  pre  poller wchan=do_sys_poll
+       [<0>] do_sys_poll+0x390/0x4ec
+       [<0>] __arm64_sys_ppoll+0x88/0xe8
+  TRIGGER echo stop   -> write rc=0, returned after 0s
+  post uptime = 1590.71   =>  SURVIVED
+  dmesg list_del corruption count = 0
+  teardown T9 count = 3
+  VERDICT: PASS (survived, 0 corruption)
+
+  CAVEAT ON THIS RUN: this boot had ALREADY unregistered the SMD edge 3 times
+  (`port wwan0qmi0 attached` 4, `disconnected` 3), so qmi-proxy's fd 7 could in
+  principle have been on a stale port whose ->ops is NULL -- in which case
+  wwan_port_fops_poll() would never call tx_poll() and no entry would be linked.
+  This run is therefore NOT a clean control.  Run 2 removes that objection.
+
+---------------------------------------------------------------------------
+CONTROL RUN 2 -- label `control_freshboot`, 2026-09-21T15:42:58, AP uptime 124.46
+---------------------------------------------------------------------------
+  The device was REBOOTED first, specifically to guarantee the precondition
+  run 1 could not:
+      $ dmesg | grep -cE "port wwan0qmi0 attached"      -> 1
+      $ dmesg | grep -cE "port wwan0qmi0 disconnected"  -> 0
+  i.e. the SMD edge had NEVER been unregistered in this boot, so qmi-proxy's
+  open of /dev/wwan0qmi0 is necessarily on the ORIGINAL, live port.
+      rproc=running, wwan0 UP, ping 2/2, qmi-proxy fd 7 -> /dev/wwan0qmi0,
+      wchan=do_sys_poll, stack do_sys_poll+0x390 <- __arm64_sys_ppoll+0x88
+
+  pre  qmi-proxy pid=4487  wwan fds=1  rproc=running
+  pre  console-ramoops md5 = cd27ea61f172a8b5da59537936ddee94
+  TRIGGER echo stop   -> write rc=0, returned after 1s
+  post uptime = 137.37   =>  SURVIVED
+  dmesg list_del corruption count = 0
+  teardown T9 count = 1
+  VERDICT: PASS (survived, 0 corruption)
+
+  The FULL teardown, verbatim from dmesg -- every stage present, no corruption:
+
+    [  129.117624] bam_dmux: SSR before shutdown: scheduling teardown work
+    [  129.117712] bam_dmux: SSR teardown T0 scheduled
+    [  129.123092] bam_dmux: SSR teardown T1 entry
+    [  129.130934] bam_dmux: SSR teardown T2 tx_retry cancelled
+    [  129.140685] bam_dmux: SSR teardown T3 tx_wakeup cancelled
+    [  129.147844] bam_dmux: SSR teardown T4 state_lock acquired
+    [  129.159484] bam_dmux: executing serialized asynchronous SSR teardown
+    [  129.159916] bam-dmux T5 rx released
+    [  129.166065] bam-dmux T6 tx released
+    [  129.171594] bam-dmux T7 power_off returned
+    [  129.178514] bam-dmux T8 work done
+    [  129.186015] bam-dmux T9 flush returned
+    [  129.197672] wwan wwan0: port wwan0at0 disconnected
+    [  129.198364] wwan wwan0: port wwan0at1 disconnected
+    [  129.213099] wwan wwan0: port wwan0qmi0 disconnected   <-- the poller's WAKE
+    [  129.215173] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+                                                             <-- kfree(channel) already done
+    (then: modem re-attached at 149.76 / 149.96, SSR powerup reinitialized the BAM)
+
+=== WHAT THIS FALSIFIES, AND WHAT IT LEAVES STANDING ===
+
+FALSIFIED: Doc 169 section 5's claim that the defect is DETERMINISTIC ("the teardown
+never yields ... so the poller always loses").  It does not always lose.  Two clean
+controls, the second with the precondition explicitly forced, both show the poller
+WINNING.
+
+WHAT REPLACES IT -- and the measurement is in the log above.  The poller is woken by
+wwan_remove_port() at 129.213099 and the channel is freed before 129.215173.  That is
+a window of at most 2.07 ms, during which the woken poller must reach poll_freewait()
+and unlink.  On a 4-CPU system it usually can.  So this is a RACE with a ~2 ms window,
+not a guaranteed loss.
+
+That also re-reads Doc 169's two positive observations correctly: both were taken with
+the ms-period sampler (hp3.sh) running, i.e. under heavy load, which is exactly the
+condition that would delay the woken poller past the 2 ms window.  That is a HYPOTHESIS
+and is directly testable (run the same `echo stop` with hp3.sh armed); it was not tested
+here because the device left the USB bus before the experiment could be run.
+
+CONSEQUENCE FOR THE FIX: this is the important one, and it is why the control was run
+first.  Doc 169 section 8 / Doc 170 section 7 pre-registered "n = 5, predict 0/0" and
+called the control "2/2".  A control that is 2/2 in the corpus but 0/2 here cannot
+support that pre-registration: five clean runs after deploying a fix would be
+indistinguishable from five clean runs WITHOUT it.  The control rate must be measured
+before the fix can be scored, and the load hypothesis above is the most likely way to
+get a reliable forcing function.
+
+NOT AFFECTED: the arithmetic identification of the corrupted object (Doc 169 section 4,
+re-derived from the compiled code in Doc 170 section 3), the poll chain, and the A/B
+experiment with qmi-proxy SIGSTOPped (which removed the corruption 1/1 -- a single
+observation, now also weaker than it looked).
+
+=== AND THEN THE DEVICE LEFT THE USB BUS ===
+About 60 s after control run 2's `echo stop` -- with the teardown COMPLETE and the
+modem successfully re-attached at AP 149.96 -- the device became unreachable:
+
+  15:43:01  ok (uptime-check: 127)
+  15:44:01  ok (uptime-check: 187)
+  15:44:42  *** AP UNREACHABLE *** (3 consecutive failures; last ok 15:44:21)
+
+and `lsusb` on the host shows ONLY the two root hubs -- the dongle is gone from the USB
+bus entirely, so this is not a plain reset (a reset returned in 37 s at 15:41:45 and
+re-enumerated).  Whether it HUNG or RESET-with-a-failed-gadget-re-enumeration cannot be
+determined from the host: with no USB there is no dmesg, no pstore, no ssh.
+
+This is the same presentation Doc 168 section 13f recorded after the 821 run B reset
+("usb0 disappeared from the host and 192.168.8.1 stopped answering for 5+ minutes").
+It is recorded here as a FACT with an unresolved cause, not as a finding.

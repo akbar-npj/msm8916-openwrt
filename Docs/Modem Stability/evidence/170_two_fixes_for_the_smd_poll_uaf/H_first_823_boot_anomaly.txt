@@ -1,0 +1,136 @@
+=== THE FIRST BOOT WITH PATCH 823 HUNG AT t=73.93 s -- CAUSE UNRESOLVED, 823 NOT EXCLUDED ===
+    2026-09-21, round 27.  Recorded as a FACT with an unresolved cause, not as a
+    finding.  It did NOT recur on the next boot.
+
+---------------------------------------------------------------------------
+1. WHAT HAPPENED
+---------------------------------------------------------------------------
+The deploy script installed 6553acd4 (patch 823) and rebooted.  That boot reached
+t=73.93 s and then the console STOPPED.  The device rebooted.  (Uptime observed
+before the hang: 71.37 s.  After it: 30.13 s on a new boot.)
+
+Evidence: /sys/fs/pstore/console-ramoops-0, fetched verbatim to
+scratch/post823/console-ramoops-0.txt (24155 B, 339 lines).
+
+The last 14 lines, in order:
+
+  [   72.752419] wcn36xx: ERROR hal_delete_sta_self response failed err=7
+  [   73.452171] qcom-q6v5-mss 4080000.remoteproc: timeout waiting for ssctl service
+  [   73.454181] bam-dmux: bam_dmux: SSR teardown T1 entry
+  [   73.458428] bam-dmux: bam_dmux: SSR teardown T0 scheduled
+  [   73.466034] bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+  [   73.473974] bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+  [   73.482335] bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+  [   73.490993] bam-dmux: bam-dmux T5 rx released
+  [   73.499709] bam-dmux: bam-dmux T6 tx released
+  [   73.509827] bam-dmux: bam-dmux T7 power_off returned
+  [   73.541355] bam-dmux: bam-dmux T8 work done
+  [   73.550436] bam-dmux: bam-dmux T9 flush returned
+  [   73.932201] bam-dmux: bam_dmux: modem pc-ack timeout during resume
+
+  <-- the record ENDS here.  No panic, no oops, no Call trace, no fatal error,
+      no list_del corruption, no watchdog message.  The console just stops, which
+      is what an AP hang looks like on this device (the hardware watchdog then
+      reboots it).
+
+---------------------------------------------------------------------------
+2. WHERE THOSE TWO MESSAGES COME FROM (read out of the tree we run)
+---------------------------------------------------------------------------
+  qcom_sysmon.c:555   drivers/remoteproc/qcom_sysmon.c
+      sysmon_stop(struct rproc_subdev *subdev, bool crashed):
+          ...
+          /* Don't request graceful shutdown if we've crashed */
+          if (crashed)
+                  return;
+          if (sysmon->ssctl_instance) {
+                  if (!wait_for_completion_timeout(&sysmon->ssctl_comp, HZ / 2))
+                          dev_err(sysmon->dev, "timeout waiting for ssctl service\n");
+          }
+
+      => This message is reached ONLY when crashed == false, i.e. a GRACEFUL
+         rproc_stop() (rproc_shutdown path), NOT crash recovery
+         (rproc_trigger_recovery passes crashed = true and returns early).
+      => It is 500 ms (HZ/2) after sysmon_stop began, so sysmon_stop started at
+         approximately t = 72.95 s.
+
+  qcom_bam_dmux.c:2070   drivers/net/wwan/qcom_bam_dmux.c
+      bam_dmux_runtime_resume():
+          reinit_completion(&dmux->pc_ack_completion);
+          mutex_lock(&dmux->state_lock);
+          bam_dmux_pc_vote(dmux, true);
+          mutex_unlock(&dmux->state_lock);
+          ret = wait_for_completion_timeout(&dmux->pc_ack_completion,
+                                            msecs_to_jiffies(250));
+          if (!ret) {
+                  atomic64_inc(&dmux->pc_timeout_count);
+                  dev_warn(dev, "bam_dmux: modem pc-ack timeout during resume\n");
+          }
+      (This is our own instrumentation, patches 808-821, not upstream.)
+
+---------------------------------------------------------------------------
+3. THE SHAPE OF IT, AND WHY IT IS NOT THE KNOWN list_del UAF
+---------------------------------------------------------------------------
+  t=72.95   a GRACEFUL rproc_stop() is requested by something
+  t=72.95   sysmon_stop -> blocking_notifier_call_chain -> bam_dmux schedules its
+            teardown work
+  t=73.45   the ssctl wait times out (500 ms) -- the graceful handshake failed
+  t=73.45-  the bam_dmux teardown runs to completion: T0..T9 ALL PRESENT, with no
+  t=73.55   list_del corruption.  This is the same "complete teardown" the
+            natural-fatal Question B run showed.
+  t=73.93   a runtime RESUME is attempted and the modem does not ACK the
+            power-collapse vote within 250 ms
+  t=73.93   console stops -> AP hang -> watchdog reboot
+
+  It is NOT the Doc 169/170 UAF: that one reports `list_del corruption` and kills
+  the AP in the poller's poll_freewait().  Here the teardown is clean and the
+  hang is in the modem power-collapse/resume handshake afterwards.
+
+  It IS in the same family as Doc 159 (the AP hangs on a natural fatal-triggered
+  SSR) and Doc 166's second, earlier hang site -- but with no `fatal error
+  received` anywhere, so it was not a modem fatal.
+
+---------------------------------------------------------------------------
+4. WHAT IS AND IS NOT RULED OUT
+---------------------------------------------------------------------------
+NOT the watchers.  Nothing under /overlay writes remoteproc state.  Grepped on the
+device with its own grep (the host-side `rg` is absent there, so a host `rg` over
+ssh returns nothing -- do not read that as "not found"):
+
+    /overlay/coredump_watch.sh:52,56,57   reads .../remoteproc0/coredump only
+    /overlay/ssr_ledger.sh:59             reads the bam-dmux rx_telemetry only
+    /overlay/q6trace_soak.sh:61           reads the bam-dmux rx_telemetry only
+
+NOT reproducible so far.  The very next boot -- also running 823 -- shows NONE of
+these messages and was still healthy at uptime 173 s, well past the 73.93 s hang
+point:
+
+    dmesg | grep -nE "ssctl|pc-ack|SSR teardown|fatal error|list_del"   -> empty
+    uptime 173.03 s, rproc=running, wwan0 UP with a route, ping 4/4
+
+  So the observation is 1 boot out of 2 with 823.
+
+823 IS NOT EXCLUDED, and the mechanism has not been established either way.  A
+hand-waved "823 cannot call rproc_shutdown" is an argument from the patch's text,
+not a measurement, and this project has already been burned once this round by
+inferring a mechanism from a pattern (see the memory entry on Doc 166 section 5.4).
+The clean discriminator is a controlled comparison: boot with the unpatched module
+(bash scratch/deploy823.sh --revert) and check whether the same
+ssctl -> teardown -> pc-ack sequence appears.  That has NOT been run.
+
+---------------------------------------------------------------------------
+5. TWO CONFOUNDERS PRESENT ON THIS DEVICE, RECORDED FOR WHOEVER RUNS THAT TEST
+---------------------------------------------------------------------------
+(a) A device-specific script loops every 10 s and drives the modem through
+    ModemManager:  /usr/sbin/qcom-carrier-autocfg (563 lines, `while ... sleep 10`).
+    It calls, among others,
+        mmcli -m M --set-power-state-low / --set-power-state-on / -e   (reset_baseband_cache)
+        mmcli -m M --simple-disconnect, --delete-bearer, --3gpp-set-initial-eps-bearer-settings
+    and it can `reboot` the device itself (lines ~529 and ~537) when an MBN change
+    is detected.  A 10 s loop that power-cycles the modem through QMI is a live
+    confounder for ANY modem-state experiment on this image and had not been
+    catalogued before.
+(b) The device was carrying a heavy instrumentation load of my own: 5 instances of
+    q6trace_soak.sh, 3 of beacon.sh, ssr_ledger.sh, coredump_watch.sh,
+    ModemManager, mmcli -M, collectd, qcom-time-daemon.  Under the Doc 170 section 8
+    load hypothesis that load makes the UAF MORE likely, not less -- and it still
+    did not reproduce in the two controls.

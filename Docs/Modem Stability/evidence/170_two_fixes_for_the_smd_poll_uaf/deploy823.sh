@@ -12,7 +12,7 @@
 set -uo pipefail
 
 DEV=192.168.8.1
-KO=openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/net/wwan/rpmsg_wwan_ctrl.ko
+KO=scratch/ko823/rpmsg_wwan_ctrl.ko     # produced by scratch/mkko823.sh (stripped)
 DEST=/lib/modules/6.12.94/rpmsg_wwan_ctrl.ko
 BAK=/overlay/modbackup/rpmsg_wwan_ctrl.ko.pre823
 SSH=(ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=8 "root@$DEV")

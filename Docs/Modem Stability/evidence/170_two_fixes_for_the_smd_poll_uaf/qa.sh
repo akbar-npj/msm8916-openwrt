@@ -146,9 +146,33 @@ for i in $(seq 1 "$N"); do
         FAIL=$((FAIL+1))
     fi
 
-    # let the device settle / the modem restart before the next run
-    sleep 12
-    dev 'cat /proc/uptime' >/dev/null 2>&1
+    # --- restore the device for the next run ---------------------------------
+    # `echo stop` leaves the modem OFFLINE and it does NOT come back on its own
+    # (measured: run B ended with rproc=offline and stayed there).  Without this
+    # step every run after the first would SKIP on the rproc precondition and
+    # n=5 would silently become n=1.
+    log "  restore: waiting for the AP, then restarting the modem"
+    sleep 10
+    if [ -z "$(wait_up)" ]; then
+        log "  restore: device still unreachable, skipping to the next run"
+        continue
+    fi
+    dev 'echo start > /sys/class/remoteproc/remoteproc0/state' >/dev/null 2>&1
+    ROK=""
+    for _ in $(seq 1 30); do
+        RST2="$(dev 'cat /sys/class/remoteproc/remoteproc0/state' | tr -d ' \r')"
+        if [ "$RST2" = "running" ]; then ROK=yes; break; fi
+        sleep 3
+    done
+    if [ -z "$ROK" ]; then
+        log "  restore: modem did not come back (rproc=$RST2) -- next run will SKIP"
+        continue
+    fi
+    # give qmi-proxy time to re-open /dev/wwan0qmi0 and wwan0 to come up
+    sleep 15
+    QPID2="$(dev 'pidof qmi-proxy' | tr -d ' \r')"
+    FD2="$(dev "ls -l /proc/$QPID2/fd 2>/dev/null | grep -c wwan")"
+    log "  restore: rproc=running qmi-proxy=$QPID2 wwan fds=$FD2"
 done
 
 log ""
