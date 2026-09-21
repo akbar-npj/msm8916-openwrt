@@ -1,0 +1,57 @@
+=== BOOT C HAND-OFF ORDERS (fatal 1 @916.536, fatal 2 @1837.401) ===
+--- fatal 1 ---
+[  916.535985] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[  916.536192] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  916.545290] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[  916.552199] remoteproc remoteproc0: recovering 4080000.remoteproc
+[  916.559262] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  916.560999] wwan wwan0: port wwan0at0 disconnected
+[  916.561318] wwan wwan0: port wwan0at1 disconnected
+[  916.562551] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[  916.564196] wwan wwan0: port wwan0qmi0 disconnected
+[  916.564625] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[  916.564644] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[  916.564656] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[  917.305019] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[  917.305065] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[  917.305255] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+--- fatal 2 ---
+[ 1837.400528] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[ 1837.400643] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 1837.407743] remoteproc remoteproc0: handling crash #2 in 4080000.remoteproc
+[ 1837.415623] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 1837.422750] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 1837.423524] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 1837.426472] wwan wwan0: port wwan0at0 disconnected
+[ 1837.429164] wwan wwan0: port wwan0at1 disconnected
+[ 1837.429724] wwan wwan0: port wwan0qmi0 disconnected
+[ 1837.434680] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[ 1837.434719] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[ 1837.434741] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[ 1839.235150] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 1839.235326] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[ 1839.235375] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[ 1839.235419] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[ 1840.601266] wwan wwan0: port wwan0at0 attached
+[ 1840.602885] wwan wwan0: port wwan0at1 attached
+[ 1840.795927] wwan wwan0: port wwan0qmi0 attached
+
+=== TRACE STEP SEQUENCE (boot C) ===
+10 11 12 13 14 15 16 17 18 19 20 21 22 23 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 
+=== counts ===
+trace lines: 106
+uptime: 2181.14
+fatals: 2
+oops: 0
+=== fatals ===
+[  916.535985] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 1837.400528] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+=== recovery/retry lines ===
+[   11.429921] remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+[   14.977701] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   14.977917] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[  916.628644] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: refusing to queue command while modem is collapsed
+[  917.915281] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  917.915316] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 1840.136637] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 1840.136726] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up

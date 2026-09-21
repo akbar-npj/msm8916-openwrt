@@ -1,0 +1,100 @@
+[2340.71s] === coredump_watch start out=/overlay/coredump_live armed=enabled ===
+[2354.20s] === coredump_watch start out=/overlay/coredump_live armed=enabled ===
+[104.15s] === coredump_watch start out=/overlay/coredump_live armed=enabled ===
+[546.89s] === coredump_watch start out=/overlay/coredump_live armed=enabled ===
+[576.31s] === coredump_watch start pid=14919 out=/overlay/coredump_live armed=enabled ===
+[578.34s] pidfile /var/run/coredump_watch.pid held by live pid 14919; exiting
+[915.44s] dump device devcd1 at uptime 915.44s -> /overlay/coredump_live/modem_coredump_up915.44_devcd1.elf
+[920.01s] captured 85398475 bytes from devcd1
+[1818.92s] dump device devcd2 at uptime 1818.92s -> /overlay/coredump_live/modem_coredump_up1818.92_devcd2.elf
+[1828.72s] captured 85398475 bytes from devcd2
+[16.28s] === coredump_watch start pid=3275 out=/overlay/coredump_live armed=disabled ===
+[16.14s] === coredump_watch start pid=3255 out=/overlay/coredump_live armed=disabled ===
+[16.49s] === coredump_watch start pid=3321 out=/overlay/coredump_live armed=disabled ===
+[915.42s] dump device devcd1 at uptime 915.42s -> /overlay/coredump_live/modem_coredump_up915.42_devcd1.elf
+[921.52s] captured 85398475 bytes from devcd1
+[16.72s] === coredump_watch start pid=3313 out=/overlay/coredump_live armed=disabled ===
+[16.85s] === coredump_watch start pid=3325 out=/overlay/coredump_live armed=disabled ===
+[426.20s] dump device devcd1 at uptime 426.20s -> /overlay/coredump_live/modem_coredump_up426.20_devcd1.elf
+[431.09s] captured 85398475 bytes from devcd1
+[1328.05s] dump device devcd2 at uptime 1328.04s -> /overlay/coredump_live/modem_coredump_up1328.04_devcd2.elf
+[1333.68s] captured 85398475 bytes from devcd2
+[1406.94s] dump device devcd3 at uptime 1406.94s -> /overlay/coredump_live/modem_coredump_up1406.94_devcd3.elf
+[1412.75s] captured 85398475 bytes from devcd3
+[16.67s] === coredump_watch start pid=3276 out=/overlay/coredump_live armed=disabled ===
+[16.74s] === coredump_watch start pid=3204 out=/overlay/coredump_live armed=disabled ===
+[913.64s] dump device devcd1 at uptime 913.64s -> /overlay/coredump_live/modem_coredump_up913.64_devcd1.elf
+[918.44s] captured 85398475 bytes from devcd1
+[16.29s] === coredump_watch start pid=3266 out=/overlay/coredump_live armed=disabled ===
+[16.66s] === coredump_watch start pid=3325 out=/overlay/coredump_live armed=disabled ===
+[16.76s] === coredump_watch start pid=3237 out=/overlay/coredump_live armed=disabled ===
+[16.42s] === coredump_watch start pid=3260 out=/overlay/coredump_live armed=disabled ===
+[16.23s] === coredump_watch start pid=3260 out=/overlay/coredump_live armed=disabled ===
+[923.12s] dump device devcd1 at uptime 923.12s -> /overlay/coredump_live/modem_coredump_up923.12_devcd1.elf
+[927.72s] captured 85398475 bytes from devcd1
+[1824.57s] dump device devcd2 at uptime 1824.57s -> /overlay/coredump_live/modem_coredump_up1824.57_devcd2.elf
+[1830.37s] captured 85398475 bytes from devcd2
+[2728.07s] dump device devcd3 at uptime 2728.06s -> /overlay/coredump_live/modem_coredump_up2728.06_devcd3.elf
+[2734.39s] captured 85398475 bytes from devcd3
+[2906.94s] dump device devcd4 at uptime 2906.94s -> /overlay/coredump_live/modem_coredump_up2906.94_devcd4.elf
+[2913.42s] captured 85398475 bytes from devcd4
+[3810.45s] dump device devcd5 at uptime 3810.44s -> /overlay/coredump_live/modem_coredump_up3810.44_devcd5.elf
+[3818.40s] captured 85398475 bytes from devcd5
+[3888.64s] dump device devcd6 at uptime 3888.64s -> /overlay/coredump_live/modem_coredump_up3888.64_devcd6.elf
+[3895.64s] captured 85398475 bytes from devcd6
+[4792.50s] dump device devcd7 at uptime 4792.50s -> /overlay/coredump_live/modem_coredump_up4792.50_devcd7.elf
+[4799.87s] captured 85398475 bytes from devcd7
+[5696.69s] dump device devcd8 at uptime 5696.69s -> /overlay/coredump_live/modem_coredump_up5696.69_devcd8.elf
+[5704.38s] captured 85398475 bytes from devcd8
+[6619.26s] dump device devcd9 at uptime 6619.26s -> /overlay/coredump_live/modem_coredump_up6619.26_devcd9.elf
+[6627.06s] captured 85398475 bytes from devcd9
+[7196.87s] dump device devcd10 at uptime 7196.86s -> /overlay/coredump_live/modem_coredump_up7196.86_devcd10.elf
+[7205.65s] captured 85398475 bytes from devcd10
+[8238.92s] dump device devcd11 at uptime 8238.92s -> /overlay/coredump_live/modem_coredump_up8238.92_devcd11.elf
+[8247.05s] captured 85398475 bytes from devcd11
+[9143.88s] dump device devcd12 at uptime 9143.88s -> /overlay/coredump_live/modem_coredump_up9143.88_devcd12.elf
+[9151.78s] captured 85398475 bytes from devcd12
+[10044.63s] dump device devcd13 at uptime 10044.62s -> /overlay/coredump_live/modem_coredump_up10044.62_devcd13.elf
+[10053.76s] captured 85398475 bytes from devcd13
+[10946.58s] dump device devcd14 at uptime 10946.58s -> /overlay/coredump_live/modem_coredump_up10946.58_devcd14.elf
+[10954.89s] captured 85398475 bytes from devcd14
+[11849.72s] dump device devcd15 at uptime 11849.71s -> /overlay/coredump_live/modem_coredump_up11849.71_devcd15.elf
+[11858.46s] captured 85398475 bytes from devcd15
+[12753.29s] dump device devcd16 at uptime 12753.29s -> /overlay/coredump_live/modem_coredump_up12753.29_devcd16.elf
+[12761.77s] captured 85398475 bytes from devcd16
+[13656.59s] dump device devcd17 at uptime 13656.59s -> /overlay/coredump_live/modem_coredump_up13656.59_devcd17.elf
+[13666.21s] captured 85398475 bytes from devcd17
+[14559.08s] dump device devcd18 at uptime 14559.07s -> /overlay/coredump_live/modem_coredump_up14559.07_devcd18.elf
+[14568.15s] captured 85398475 bytes from devcd18
+[15079.79s] dump device devcd19 at uptime 15079.78s -> /overlay/coredump_live/modem_coredump_up15079.78_devcd19.elf
+[15088.02s] captured 85398475 bytes from devcd19
+[15982.85s] dump device devcd20 at uptime 15982.84s -> /overlay/coredump_live/modem_coredump_up15982.84_devcd20.elf
+[15991.26s] captured 85398475 bytes from devcd20
+[16.75s] === coredump_watch start pid=3228 out=/overlay/coredump_live armed=disabled ===
+[923.72s] dump device devcd1 at uptime 923.71s -> /overlay/coredump_live/modem_coredump_up923.71_devcd1.elf
+[928.34s] captured 85398475 bytes from devcd1
+[1827.23s] dump device devcd2 at uptime 1827.23s -> /overlay/coredump_live/modem_coredump_up1827.23_devcd2.elf
+[1831.58s] captured 85398475 bytes from devcd2
+[2275.75s] dump device devcd3 at uptime 2275.74s -> /overlay/coredump_live/modem_coredump_up2275.74_devcd3.elf
+[2281.37s] captured 85398475 bytes from devcd3
+[2389.74s] dump device devcd4 at uptime 2389.74s -> /overlay/coredump_live/modem_coredump_up2389.74_devcd4.elf
+[2395.10s] captured 85398475 bytes from devcd4
+[16.63s] === coredump_watch start pid=3252 out=/overlay/coredump_live armed=disabled ===
+[915.56s] dump device devcd1 at uptime 915.55s -> /overlay/coredump_live/modem_coredump_up915.55_devcd1.elf
+[920.54s] captured 85398475 bytes from devcd1
+[1857.52s] dump device devcd2 at uptime 1857.52s -> /overlay/coredump_live/modem_coredump_up1857.52_devcd2.elf
+[1867.26s] captured 85398475 bytes from devcd2
+[2760.09s] dump device devcd3 at uptime 2760.09s -> /overlay/coredump_live/modem_coredump_up2760.09_devcd3.elf
+[2766.53s] captured 85398475 bytes from devcd3
+[3701.47s] dump device devcd4 at uptime 3701.47s -> /overlay/coredump_live/modem_coredump_up3701.47_devcd4.elf
+[3709.76s] captured 85398475 bytes from devcd4
+[4649.09s] dump device devcd5 at uptime 4649.09s -> /overlay/coredump_live/modem_coredump_up4649.09_devcd5.elf
+[4658.87s] captured 85398475 bytes from devcd5
+[16.27s] === coredump_watch start pid=3199 out=/overlay/coredump_live armed=disabled ===
+[939.35s] dump device devcd1 at uptime 939.34s -> /overlay/coredump_live/modem_coredump_up939.34_devcd1.elf
+[945.24s] captured 85398475 bytes from devcd1
+[31.35s] === coredump_watch start pid=3746 out=/overlay/coredump_live armed=disabled ===
+[918.22s] dump device devcd1 at uptime 918.22s -> /overlay/coredump_live/modem_coredump_up918.22_devcd1.elf
+[927.20s] captured 85398475 bytes from devcd1
+[1840.94s] dump device devcd2 at uptime 1840.93s -> /overlay/coredump_live/modem_coredump_up1840.93_devcd2.elf
+[1853.62s] captured 85398475 bytes from devcd2

@@ -164,6 +164,16 @@ hypothesis this implies.
 
 ### 2.2c — `wwan0at0 disconnected` is not bam_dmux's line
 
+> **PARTIALLY SUPERSEDED BY DOC 167 §3.** The *attribution* below is correct and stands: the line is
+> `wwan_remove_port()` from the rpmsg/SMD teardown, not bam_dmux. But the **ordering argument** at the
+> end of this section is **retracted** — Doc 167 measured the two lines' relative order **flipping
+> within a single boot**, because the bam_dmux teardown work and the rpmsg/SMD teardown are
+> concurrent. "Ends on two lines vs one" therefore does **not** establish a step ordering. The
+> conclusion (this hang is earlier) survives for a better reason: **the discriminator is *which* line
+> is missing** — `wwan0at0 disconnected` runs *inside* `q6v5_stop()`, after the notifier returns, so
+> its absence means `rproc_stop()` never got past the notifier; in the `echo stop` hang it *did*
+> appear, so there only the teardown **work** failed. See Doc 167 §3.
+
 The healthy sequence's second line is easy to misattribute:
 
 ```

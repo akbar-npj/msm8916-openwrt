@@ -1,0 +1,25 @@
+=== BOOT C FINAL CONTROL SNAPSHOT (pre-820) ===
+uptime: 2239.26
+fatals: 2
+oops: 0
+SSRs (stopped remote processor): 2
+modem-up lines: 4
+trace lines: 106
+guard_hits (last CSV row): 0
+defer_wipe_live (last CSV row): 0
+defer_q / defer_sub: 300,300
+coredumps:
+drwxr-xr-x    2 root     root          4096 Sep 21 07:17 .
+drwxr-xr-x    6 root     root          4096 Sep 21 07:17 ..
+-rw-r--r--    1 root     root      85398475 Sep 21 07:17 modem_coredump_up1840.93_devcd2.elf
+-rw-r--r--    1 root     root      85398475 Sep 21 07:01 modem_coredump_up918.22_devcd1.elf
+-rw-r--r--    1 root     root      85398475 Sep 21 06:31 modem_coredump_up939.34_devcd1.elf
+module:
+eca269f10a685a83a8b679bc7be38d1d  /lib/modules/6.12.94/qcom_bam_dmux.ko
+fatals:
+[  916.535985] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 1837.400528] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+modem-up times:
+[   14.977917] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[  917.915316] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 1840.136726] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
