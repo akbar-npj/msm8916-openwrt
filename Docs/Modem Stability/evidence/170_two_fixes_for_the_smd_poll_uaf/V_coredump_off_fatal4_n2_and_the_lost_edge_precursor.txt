@@ -1665,3 +1665,306 @@ PART 11 -- THE FALSIFIER ANSWERED, THE CASCADE, AND THE 13.24 s RPM VOTE STALL
    removed BEFORE a cascade starts.
 
    *** The RPM capture must not be stopped: the ring turns over in ~6 s. ***
+
+
+================================================================================
+PART 12 -- THE RPM STALL DOES NOT PRECEDE A FATAL, AND THE STORM IS BOUNDED
+           (added 2026-09-21 ~19:10 local / 13:25 UTC, boot a9fd907c, AP 8156.67 s)
+================================================================================
+
+This part closes the question PART 11 left open and records a second bounded
+episode.  Both are negatives/limits, and both were obtained by leaving an
+instrument RUNNING past the point where it had already produced a result.
+
+--------------------------------------------------------------------------------
+1. PROVENANCE
+--------------------------------------------------------------------------------
+
+   Device capture: /overlay/rpm9.txt   (rpmring -t -n 500000 -i 4, pid 14908)
+   Host snapshot : scratch/rpm11/rpm11.txt   (scp'd at AP ~7782 s)
+
+     $ wc -l scratch/rpm11/rpm11.txt
+     431383
+     $ head -2 scratch/rpm11/rpm11.txt
+     RPM9 START uptime=6343.17 fatals=8
+     # rpmring ring=0x29dc58 words=2048 hdr=0x29dc00 hwords=22 samples=500000 interval=4ms
+     # TRACK start t=6343208927874 counter=0x03ccdae0 pos=215
+
+   Analyser: the corpus tool, unchanged
+     Docs/Modem Stability/evidence/150_rpm_track/rpm_track.py
+
+     blocks=7627 records=423704 wall=1451.045 s  (292.0 rec/s)
+     measured RPM tick rate = 19.1997 MHz (vs 19.200 MHz assumed; -0.00%)
+
+   Two purpose-written helpers (new, kept in scratch/rpm11/):
+     analyze.py   -- quiet periods on the absolute AP timeline, fatals overlaid
+     enrich.py    -- time-fraction vs event-fraction enrichment test
+
+   The capture covers AP 6343.30 -> 7794.35 s, i.e. fatal #9 (6397.771),
+   fatal #10 (6580.507) and fatal #11 (7483.840).
+
+--------------------------------------------------------------------------------
+2. THE ANSWER -- NO
+--------------------------------------------------------------------------------
+
+   $ python3 scratch/rpm11/analyze.py scratch/rpm11/rpm11.txt | tail -5
+
+   === fatals vs nearest preceding quiet period >= 1 s ===
+     AP   6397.771  #9  a2_power.c:1189              nearest quiet   1.268 s
+                     at AP 6396.092 ( +1.679 s before fatal)
+     AP   6580.507  #10 a2_task.c:3179               nearest quiet   1.145 s
+                     at AP 6580.291 ( +0.216 s before fatal)
+     AP   7483.840  #11 lte_ml1_sleepmgr_stm.c:4054  nearest quiet   3.141 s
+                     at AP 7476.482 ( +7.358 s before fatal)
+
+   *** ALL THREE ARE THE NORMAL CADENCE FOR THEIR ERA ***
+   (the RPM's inter-burst gap is ~1.267 s around 6390, ~1.12 s around 6580,
+    and 2.3-3.6 s around 7480 -- see s4 below)
+
+   The three gaps >= 8 s in the whole 1451 s, and what is inside them:
+
+     $ awk 'NR>3 && $3+0>=8' scratch/rpm11/quiet.txt
+       6469.802   6483.065   13.264        288      9
+       6563.623   6572.133    8.510        288      9
+       7044.160   7055.040   10.880        992     31
+
+     $ python3 scratch/rpm11/enrich.py ... (s5 of its output)
+     the three gaps >= 8 s:
+       6469.802 -> 6483.065  13.264 s  (9 recs)
+         AP events inside: ['6478.290 pc-ack timeout']
+       6563.623 -> 6572.133   8.510 s  (9 recs)
+         AP events inside: ['6563.800 lost edge', '6564.023 pc-ack timeout',
+                            '6566.210 pc-ack timeout']
+       7044.160 -> 7055.040  10.880 s  (31 recs)
+         AP events inside: ['7044.180 lost edge', '7052.390 pc-ack timeout']
+
+   => NONE is immediately before a fatal.  The 13.264 s stall sits 72 s AFTER
+      fatal #9 and 97 s BEFORE fatal #10.  All three RECOVER, and the modem ran
+      on for a further 97 / 8.4 / 428 s without a fatal.
+
+   Fatal #11 itself fires at the END of a 2.504 s gap (7481.353 -> 7483.857),
+   which is BELOW that era's cadence:
+
+     $ awk 'NR>3 && $2+0>=7440 && $2+0<=7500' scratch/rpm11/quiet.txt
+       7441.369   7444.446    3.078       2016     63
+       7449.379   7452.586    3.207        480     15
+       7455.052   7455.791    0.740      13216     94  delta>=ring
+       7457.343   7459.616    2.273        288      9
+       7459.641   7462.175    2.535         96      3
+       7465.384   7468.584    3.200       2016     63
+       7473.341   7476.482    3.141       2016     63
+       7481.353   7483.857    2.504       1408     44   <-- fatal #11 fires HERE
+       7483.857   7484.426    0.570        192      6
+       7488.112   7488.810    0.698       1728     54
+
+   *** CONCLUSION: THE 13.24 s RPM VOTE STALL IS AN INDEPENDENT, RECURRING,
+       SELF-RECOVERING MODEM-SIDE EVENT (~1 per 480 s in this capture).  IT IS
+       NOT THE FATAL'S MECHANISM. ***
+   PART 11's "one sample each way" is now three samples, all pointing the same
+   way, and it confirms the scoping PART 11 already claimed: the stall is a
+   LATENCY/RECOVERY defect (like the s8.16 250 ms handshake), not a stability one.
+
+--------------------------------------------------------------------------------
+3. WHY "QUIET PERIOD" MUST NOT BE READ AS "STALL" -- THE LOG IS BURSTY
+--------------------------------------------------------------------------------
+
+   This is the trap that would have manufactured a false positive.
+
+   The RPM does not write at a steady rate; it writes in BURSTS, and the
+   inter-burst gap CHANGES over the capture:
+
+     AP 6343-6352   ~470-830 records/s        (near-continuous)
+     AP 6373-6397   9 records per 1.267 s     (one 9-record vote cycle at a time)
+     AP 6615+       63 records per ~3.1 s     (seven vote cycles at a time)
+
+   From rpm_track.py's per-second histogram the rate is 470-830 rec/s in the
+   first ten seconds and then falls by 25-40x for the rest of the capture.
+
+   $ awk 'NR>3' scratch/rpm11/quiet.txt | awk '{s+=$3} END {print s}'
+   (sum of all gaps >= 500 ms) / 1451.0 = 0.5046
+   *** 50.5 % OF THE ENTIRE CAPTURE IS INSIDE A GAP >= 0.5 s ***
+
+   *** THE DISCARDED FIRST ANALYSIS, RECORDED SO IT IS NOT REPEATED ***
+   My first pass divided each gap by the median of ALL consecutive gaps.  Most
+   consecutive "# NEW" blocks are ~4 ms apart, so that median is ~0.03 s, and
+   every >= 500 ms gap scored 30-400x -- i.e. it "found" a stall in almost every
+   second of the capture.  It was discarded.  (Trap 20.)
+   The correct baseline is the LOCAL cadence, and it must be re-measured per era.
+
+--------------------------------------------------------------------------------
+4. A MODEST, REAL ENRICHMENT -- AND THE DIRECTION IS NOT ESTABLISHED
+--------------------------------------------------------------------------------
+
+   $ python3 scratch/rpm11/enrich.py scratch/rpm11/rpm11.txt \
+                                   scratch/rpm11/events.txt
+
+   capture 6343.30..7794.35 = 1451.0 s; 60 of 159 events in capture
+
+     T(s)  time_frac  event_frac   enrich  #events  #gaps
+      0.5     0.5046      0.7833     1.55       47    325
+      1.0     0.4556      0.6333     1.39       38    231
+      2.0     0.3890      0.5667     1.46       34    161
+      3.0     0.3256      0.5167     1.59       31    123
+      5.0     0.0610      0.1500     2.46        9     12
+      8.0     0.0225      0.1000     4.44        6      3
+
+   per-kind placement in gaps >= 2 s:
+     lost edge               18/35  =  51.4%
+     pc-ack timeout          16/25  =  64.0%
+
+   => the AP's handshake events DO cluster in RPM gaps, but only modestly at
+      ordinary thresholds.  The 4.44x at >= 8 s rests on 6 events in 3 gaps:
+      SUGGESTIVE, NOT ESTABLISHED.
+
+   *** DIRECTION IS NOT ESTABLISHED. ***
+   Two readings fit equally: (a) the RPM stall delays the modem's PC-ack, which
+   the AP then reports as a timeout and a lost edge; or (b) the AP's PC-vote
+   churn is what the RPM stalls ON.  The events inside the three stalls are not
+   all at the same phase -- 6563.800 and 7044.180 sit 0.02-0.18 s AFTER the
+   stall opens, while 6478.290 and 7052.390 sit 8.2-8.5 s INTO it -- which does
+   not discriminate.  STATED, NOT RESOLVED.
+
+--------------------------------------------------------------------------------
+5. CAPTURE-QUALITY CAVEAT -- 49 RING OVERRUNS, 22 664 RECORDS LOST
+--------------------------------------------------------------------------------
+
+   rpmring emits a "# TRACK OVERRUN" line whenever the RPM writes more than the
+   8 KiB ring between its 4 ms polls:
+
+     # TRACK OVERRUN t=6399122970069 counter=0x03d0ee00 delta=54592 bytes (1706 records > ring)
+     # TRACK OVERRUN t=6403326082862 counter=0x03d35c20 delta=14976 bytes (468 records > ring)
+     # TRACK OVERRUN t=6403428791198 counter=0x03d39740 delta=11296 bytes (353 records > ring)
+     ... 49 such events, 22 664 records total
+
+   Those are windows where the RPM was writing FURIOUSLY (a fatal's SSR teardown)
+   and the tool could not keep up.  They do NOT affect the negative in s2 -- an
+   overrun is the OPPOSITE of a silence -- but the capture is therefore NOT
+   perfectly lossless, and any future "the RPM wrote nothing here" claim must be
+   checked against BOTH the # TRACK OVERRUN line AND the counter delta:
+   *** a gap whose counter delta is >= 8192 B is a ring turnover, not a silence. ***
+
+--------------------------------------------------------------------------------
+6. THE STORM IS BOUNDED TOO -- AND A MODEM RELOAD DID NOT RESTART IT
+--------------------------------------------------------------------------------
+
+   The storm's onset was AP 3477.894835 (PART 10).  The sampler's last samples:
+
+     7394.0  resync= 79 (d+1)  pctimeout= 78 (d+0)  susp=924/890  fatals=10
+     7449.4  resync= 81 (d+2)  pctimeout= 78 (d+0)  susp=931/897  fatals=10
+     7504.7  resync= 81 (d+0)  pctimeout= 78 (d+0)  susp=936/902  fatals=11
+     7560.0  resync= 81 (d+0)  pctimeout= 78 (d+0)  susp=943/909  fatals=11
+     7615.3  resync= 81 (d+0)  pctimeout= 78 (d+0)  susp=949/915  fatals=11
+
+   The last lost-edge line in dmesg:
+     [ 7417.446456] ... RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+
+   Live verification at uptime 8156.67:
+     $ cat /sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/rx_telemetry
+     pc_resync_count: 81          <- FROZEN (identical at 7449.4 and at 8156.67)
+     pc_timeout_count: 78         <- FROZEN
+     pm_suspend_attempts: 1018    <- CLIMBING (924 at 7394.0; +94 across the silence)
+     runtime_status: active
+     $ cat /sys/class/remoteproc/remoteproc0/state
+     running
+     $ dmesg | grep -c "fatal error received"
+     11                            <- fatal #11 (7483.840) came AND went inside it
+
+   *** STORM EPISODE: AP 3477.894835 -> 7417.446456 = 3939.55 s ***
+   *** THEN 739 s SILENT ACROSS ~94 SUSPENDS, INCLUDING ACROSS FATAL #11's
+       FULL MODEM RELOAD (ports re-attached 7488.1, 8 CMD_OPENs, runtime active,
+       ZERO resyncs). ***
+
+   *** THIS REFUTES "THE STORM IS AP-runtime-PM-GATED" AS s8.15.4 STATED IT. ***
+   S1 froze pc_resync_count AND pm_suspend_attempts together and inferred the
+   storm is gated by AP runtime-PM.  But freezing both is EQUALLY consistent
+   with "traffic suppresses suspends" and "traffic suppresses resyncs" -- the
+   inference was never tested in the other direction.  This tests it: the AP
+   suspends 94 more times with ZERO resyncs.
+   => THE CHURN IS NECESSARY BUT NOT SUFFICIENT.  The gating is NOT simply
+      "a suspend can produce a resync".
+
+   WHAT s8.15.4 ESTABLISHED AND STILL STANDS:
+     - 1 Hz traffic suppresses the storm in practice (the S1 A/B/A is intact);
+     - idle-avoidance does NOT suppress the FATALS (fatal #6 fired inside S1's
+       window with pm_suspend_attempts frozen; fatal #11 fired inside this one).
+
+   WHAT IS OPEN INSTEAD -- the storm needs a THIRD condition:
+     (a) the modem's own state -- but the storm began 81.5 ms before crash #4
+         and SURVIVED four SSRs, so it is not purely per-modem-boot; and fatal
+         #11's reload did not restart it;
+     (b) the cascade regime -- but the storm ran 836.9 s PAST the cascade's last
+         fatal (#10, 6580.507);
+     (c) a specific PATTERN of suspends rather than their rate -- UNTESTED, and
+         the natural next instrument (log WHICH suspends are followed by a
+         resync, not how many).
+
+   *** A 739 s SILENCE IS NOT PROOF THE STORM IS OVER. ***
+   A lull cannot be distinguished from an end until a further onset is observed.
+   The storm_sampler and logroll.sh are both still running and will catch it.
+   What the silence DOES prove is that the churn rate alone does not sustain it.
+
+--------------------------------------------------------------------------------
+7. CORRECTION -- S2 IS 58 SAMPLES / 9 LOSSES, AND THE SILENT CLASS IS n = 3
+--------------------------------------------------------------------------------
+
+   $ grep -c "rtt="      /overlay/s2.log   ->  58
+   $ grep -c "rtt=LOST"  /overlay/s2.log   ->  9
+
+   The earlier "56 samples, 7 losses ... n = 2" was wrong on BOTH figures.  Two
+   LOST lines (6576.27, 6596.37) were written after the scoring, and a third
+   loss (6130.44) was misclassified.
+
+     uptime    wall    class             cause
+     6115.36  0.01 s  interface DOWN    fatal #7's SSR -- ports attached 6112.87
+     6130.44  5.03 s  SILENT            17.6 s AFTER the SSR completed
+     6226.85  5.05 s  pre-fatal         4.3 s before fatal #8; pc-ack 6218.398
+     6246.98  0.01 s  interface DOWN    fatal #8's SSR (quiesce_ms=12594)
+     6368.31  5.00 s  SILENT            no dmesg correlate within +/-19 s
+     6388.34  5.01 s  SILENT            no dmesg correlate within +/-19 s
+     6408.39  0.01 s  interface DOWN    fatal #9's SSR (quiesce_ms=7404)
+     6576.27  5.01 s  pre-fatal         4.2 s before fatal #10; pc-ack 6566.210
+     6596.37  0.01 s  interface DOWN    fatal #10's SSR (quiesce_ms=12055)
+
+   The class is read off the wall time, not guessed: a loss is "interface DOWN"
+   when t_end - t_start ~ 10 ms, because `ping -c 1 -W 5` CANNOT time out in
+   10 ms -- the ICMP failed on the spot because the interface was down.
+   quiesce_ms is non-zero on EXACTLY those four samples (431 / 12594 / 7404 /
+   12055) and zero on every other loss.  A genuine timeout takes the full ~5 s.
+
+   *** s8.18's CLASSIFICATION OF 6130.44 IS REFUTED. ***
+   s8.18 recorded it as "ping crossed the ifup".  The dmesg timeline:
+     [ 6111.869030] modem pc_state wait timeout during resume
+     [ 6111.869113] channels not initialized after resume
+     [ 6111.927153] remoteproc remoteproc0: remote processor ... is now up
+     [ 6112.389773] wwan wwan0: port wwan0at0 attached
+     [ 6112.393756] wwan wwan0: port wwan0at1 attached
+     [ 6112.869333] wwan wwan0: port wwan0qmi0 attached
+   The ping fired at 6130.44 -- 17.6 s AFTER the interface was back -- and then
+   timed out for the full 5.03 s.  Nothing in dmesg within +/-19 s: the nearest
+   handshake event is 6111.869 (18.6 s before) and the nearest after is
+   6150.125 lost edge (19.7 s later).
+   => same class as 6368.31/6388.34: a REAL 5 s data-plane timeout with NOTHING
+      in dmesg -- no lost edge, no pc-ack timeout, no fatal, no SSR.
+   *** A NEW, UNEXPLAINED FAILURE MODE, n = 3. ***
+
+   COUNTER ACCOUNTING IS NOW EXACT (s8.16's falsifier, re-measured on the full ring):
+     pc_resync_count  81  ==  dmesg "lost edge"                 81
+     pc_timeout_count 78  ==  dmesg "pc-ack timeout" 76
+                            + dmesg "pc_state wait timeout"  2   = 78  (100.0 %)
+   s8.16 recorded 51 + 2 = 53 (96.2 %).  The two missing pc-ack lines were RING
+   INCOMPLETENESS at scoring time, not a second mechanism.  The falsifier
+   survives at 100 %.
+
+--------------------------------------------------------------------------------
+8. WHAT TO DO NEXT (from this part)
+--------------------------------------------------------------------------------
+
+   * LEAVE THE RPM CAPTURE RUNNING.  It has answered its original question; it
+     is now the instrument for a DIFFERENT one: does the stall's rate change
+     across the next cascade?  (It costs nothing to leave it running.)
+   * Log WHICH suspends are followed by a resync, not how many -- that is the
+     untested third condition in s6.
+   * Do NOT quote "the storm is AP-runtime-PM-gated" without the s8.21
+     correction.
+   * The silent data-plane loss (n = 3) has no instrument pointed at it yet.
+
