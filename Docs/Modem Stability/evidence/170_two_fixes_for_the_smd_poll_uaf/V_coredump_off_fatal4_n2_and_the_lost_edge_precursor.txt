@@ -575,3 +575,164 @@ WHAT PART 5 DOES NOT CLAIM
     minutes rather than milliseconds.
   - It does NOT explain fatal #4's missing post-fatal pc-ack timeout.
 ================================================================================
+
+
+================================================================================
+PART 6 -- FATAL #5  (2026-09-21 ~12:35 UTC, AP 4304.991306 s)
+          (a) the coredump-off A/B is now n = 3, across THREE signatures
+          (b) P3 IS SCORED AND ITS SIGNATURE PREDICTION FAILED
+          (c) THE RESYNC ANTECEDENT IS `a2_power.c:2949`-SPECIFIC, and the storm
+              is a period of BIDIRECTIONAL PC-handshake failure
+================================================================================
+
+6.1  s8.13.3 -- THE COREDUMP-OFF A/B IS n = 3, ON A THIRD SIGNATURE
+-------------------------------------------------------------------
+Fatal #5 is `a2_power.c:1189` at AP **4304.991306 s** -- a signature that has never
+been seen with a resync in front of it.  Its recovery, with the capture still OFF:
+
+    SSR before shutdown     4305.013229
+    stopped remote processor 4305.092833
+    MBA booted              4305.137760
+    SSR-shutdown -> MBA     0.124531 s
+
+Against the whole boot:
+
+  #   signature         capture  pairs  port failed halt  SSR-shutdown->MBA
+  ---------------------------------------------------------------------------
+  1   sleepmgr:4054     ON       2      914.443745        0.824902 s
+  2   sleepmgr:4054     ON       2      1816.854035       0.831559 s
+  3   sleepmgr:4054     OFF      1      ABSENT            0.125291 s
+  4   a2_power.c:2949   OFF      1      ABSENT            0.130237 s
+  5   a2_power.c:1189   OFF      1      ABSENT            0.124531 s
+
+  THREE signatures, THREE boots' worth of capture-off recoveries, all inside
+  0.125291-0.130237 s (spread 5.0 ms) against 0.824902-0.831559 s (spread 6.7 ms)
+  for the two with it ON.  The two populations do not overlap and are 6.6x apart.
+
+  Boot-wide: fatals 5, `MBA booted` 6 (cold boot + one per recovery), `port failed
+  halt` 2 (exactly the two capture-ON recoveries), trace `01-09` x7, trace `10-23`
+  x8 (= cold boot + 2+2+1+1+1), `cmd_open` 48 = 8 channels x 6 modem boots.
+  coredump_live FROZEN at 18; ledger row `4313.31,5,a2_power.c:1189,...,18`.
+
+  **s8.13 BAR: 3 of 20 post-disable fatals scored, 0 AP reboots.**
+
+  One detail worth keeping: `SSR powerup: modem pc_state=1 (waited 580 ms)` -- the
+  powerup had to wait 580 ms for the modem here, against 200 ms at fatal #4.
+
+6.2  P3 IS SCORED -- THE SIGNATURE PREDICTION FAILED, THE STRUCTURE HALF-HELD
+-----------------------------------------------------------------------------
+  P3 predicted:  fatal #5 is a `lte_ml1_sleepmgr_stm.c:4054` at roughly AP 4380 s.
+  Actual:        `a2_power.c:1189` at AP 4304.991306 s.
+
+  **Signature: WRONG.**  **Timing: 75.0 s early** (1.7 % of the interval, but the
+  mechanism named was simply not the one that fired).
+
+  The weaker half -- "a fatal follows the storm" -- did hold: the storm ran
+  4079.094133 -> 4352.497742 (273.4 s) and the fatal landed at 4304.991306, i.e.
+  226 s INTO it.  **But the storm also CONTINUED 47.5 s PAST the fatal** (resyncs at
+  4344.057823 and 4352.497742), so "the storm is the modem approaching its next
+  fatal" is not cleanly supported either.  **The honest reading is that the storm
+  BRACKETS the fatal rather than preceding it.**
+
+  Fatal #5's interval from fatal #4 was **827.022001 s**, inside Doc 162's
+  `a2_power` band (68.5-941.3 s) and off the 902.4 s clock -- the same story as
+  fatal #4's 759.53 s.
+
+6.3  THE RESYNC ANTECEDENT IS `a2_power.c:2949`-SPECIFIC
+--------------------------------------------------------
+Fatal #5's nearest preceding resync is **4224.514264, which is 80.477042 s earlier**
+-- NOT 74-86 ms.  So the tight lag does not generalise:
+
+  signature            resync within 100 ms before it?
+  ----------------------------------------------------
+  lte_ml1_sleepmgr_stm.c:4054    never observed (0/3 fatals)
+  a2_power.c:2949                3/3   <-- 85.797 / 73.955 / 74.470 ms
+  a2_power.c:1189                0/1   (nearest was 80.48 s earlier)
+
+  Pooled sufficiency, updated:
+
+    resyncs observed   boot P 1, boot Q 1, boot R 1, boot S 4, boot Y 8  =  15
+    hits (a2_power.c:2949 within 100 ms)                                  =   3
+    =>  a2_power.c:2949  =>  a resync ~78 ms earlier   is  3/3
+    =>  a resync         =>  a2_power.c:2949           is  3/15   (was 3/13)
+
+  So the antecedent survives as a NECESSARY-looking condition for ONE signature and
+  is now 5x from sufficient.  It is a property of `a2_power.c:2949`, not of the
+  fatal in general.
+
+6.4  ★ THE STORM IS BIDIRECTIONAL PC-HANDSHAKE FAILURE
+-----------------------------------------------------
+Lining up both failure messages for the whole boot makes the storm legible.  The
+two lines are the two DIRECTIONS of the same handshake:
+
+  `RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing`
+        = the MODEM asserted the PC line and the AP's edge IRQ missed it
+          (AP waiting for the modem; the watchdog repairs it)
+  `modem pc-ack timeout during resume`
+        = the AP voted for power state and the MODEM did not ACK within 250 ms
+          (modem waiting/slow; the AP gives up and continues)
+
+Timeline, both together:
+
+   913.640795  FATAL #1 (sleepmgr)          <- 3 clean recoveries, no storm
+   914.071907  timeout   (+0.431112 s)
+   915.085520  pc_state wait timeout (+1.444725 s) + channels-not-initialized
+  1816.046634  FATAL #2 (sleepmgr)
+  1816.628053  timeout   (+0.581419 s)
+  2718.436833  FATAL #3 (sleepmgr)
+  2718.871855  timeout   (+0.435022 s)
+  3477.894835  resync    <-- 74.470 ms
+  3477.969305  FATAL #4 (a2_power.c:2949)
+  ---- STORM BEGINS (1 resync in the previous 3478 s; 5 now in 145 s) ----
+  4079.094133  resync
+  4119.287485  resync
+  4119.470945  timeout   (+0.183460 s after the resync)
+  4175.847548  resync
+  4176.057624  timeout   (+0.210076 s)
+  4192.370087  resync
+  4224.514264  resync
+  4297.231159  timeout   (-7.760147 s before the fatal)
+  4304.244365  timeout   (-0.746941 s before the fatal)
+  4304.991306  FATAL #5 (a2_power.c:1189)   <-- 226 s INTO the storm
+  ---- STORM CONTINUES ----
+  4344.057823  resync    (+39.066517 s after the fatal)
+  4352.497742  resync    (+47.506436 s)
+  4376.591183  timeout   (+71.599877 s)
+
+  **Both directions of the handshake fail during the storm.**  A resync means the AP
+  missed the modem's edge; a pc-ack timeout means the modem missed the AP's vote.
+  Either way the modem's power-collapse handshake has become unreliable, and the
+  fatal happens inside that window.  **This reframes the whole s8.15 question:** the
+  interesting variable may not be "did a resync fire 74 ms before the fatal" but
+  "is the PC handshake in a failing regime at all" -- a state that persists for
+  minutes and can be measured from two counters (`pc_resync_count`,
+  `pc_timeout_count`) without any new instrumentation.
+
+  AND A COUNTER THAT MOVES WITH IT: `pm_suspend_attempts` minus
+  `pm_suspend_completions` was a constant **7** all through the clean part of the
+  boot (488/481, then 560/553) and is **10** at 576/566 after the storm.  One
+  observation; recorded, not explained.
+
+  **What this does NOT establish.**  Five of the storm's eight resyncs produced no
+  fatal, and the storm outlived the fatal, so "storm => fatal" is false.  Whether
+  the storm is a CAUSE, a CONSEQUENCE, or a third symptom of something else in the
+  modem is exactly what D1/D2/D3 (s8.15) are for -- and the measurement above says
+  the discriminator should now be scored on the STORM, not on a single resync.
+
+================================================================================
+WHAT PART 6 CHANGES
+  - s8.13's A/B is n = 3, on three different signatures, two non-overlapping
+    populations 6.6x apart.  Bar: 3 of 20 scored, 0 reboots.
+  - P3 is FALSIFIED in its specific form (signature wrong); the storm BRACKETS the
+    fatal rather than preceding it.  Recorded as a failed prediction.
+  - The 74-86 ms resync antecedent is `a2_power.c:2949`-SPECIFIC: it does not hold
+    for `a2_power.c:1189` (nearest resync 80.48 s earlier).  Pooled sufficiency is
+    now 3/15.
+  - NEW: the storm is BIDIRECTIONAL PC-handshake failure -- the AP missing the
+    modem's edges AND the modem missing the AP's votes -- measurable from two
+    counters, and a better candidate variable than a single resync.
+WHAT PART 6 DOES NOT CLAIM
+  - It does not claim the storm causes the fatal.  It outlives it, and 5 of its 8
+    resyncs produced nothing.
+  - It does not explain the `pm_suspend` deficit moving 7 -> 10.
+================================================================================
