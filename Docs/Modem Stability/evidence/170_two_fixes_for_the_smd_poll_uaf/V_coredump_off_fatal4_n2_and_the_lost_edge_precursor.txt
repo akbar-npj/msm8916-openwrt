@@ -3265,3 +3265,134 @@ PART 21 -- THE WATCHER SCORED A FALSE FAILURE, AND THE FIX IS A PRE-REGISTERED
    been observed to reset itself in this window.
 
 --------------------------------------------------------------------------------
+PART 22 -- *** THE s8.13 BAR IS MET: 21 OF 20 POST-DISABLE FATALS, 0 AP REBOOTS ***
+           -- AND WHY THAT IS WEAKER EVIDENCE THAN THE PRE-REGISTRATION IMPLIED
+           (2026-09-21 23:27 local / 17:42 UTC)
+--------------------------------------------------------------------------------
+
+1. THE RESULT
+--------------------------------------------------------------------------------
+
+     boot A (a9fd907c)   15 post-disable fatals   0 AP reboots   (lid close = host power event)
+     boot B (ea6401be)    2 post-disable fatals   0 AP reboots   (loose wire = host power event)
+     boot C (48f567c0)    4 post-disable fatals   0 AP reboots   (running)
+     ----------------------------------------------------------------------------------
+     pooled              21 of 20                  0 AP reboots
+
+   *** BAR MET: 0 AP reboots across 21 fatal-triggered SSRs. ***
+   The watcher fired at 23:27:25 (`scratch/watch813_v2.sh`, pooled prior 17).
+
+   Boot C's four fatals, with the s8.13 recovery metric
+   (`SSR before shutdown` -> `MBA booted`):
+
+     #   fatal@AP     signature                    SSR->MBA     recovered
+     1    541.457046  a2_power.c:1189              0.125977 s   yes
+     2    578.581815  a2_power.c:1189              0.133399 s   yes
+     3   1397.732455  lte_ml1_sm_idle.c:2533       0.137563 s   yes   <- NEW SIGNATURE
+     4   1420.237624  a2_power.c:1189              0.123339 s   yes
+
+   `rproc=offline` in the watcher's bar-met sample is NOT a failure: the sample
+   landed at uptime 1420, i.e. between fatal #4 (1420.238) and its recovery
+   (1420.941).  It is the watcher catching an SSR in flight.  Recorded because
+   it reads as alarming and is not.
+
+2. *** THE CAVEAT THAT MATTERS: THE BAR'S POWER ARGUMENT USED A RATE THE CORPUS LATER REVISED DOWN ***
+--------------------------------------------------------------------------------
+
+   The bar's justification (PART 19 / README) was:
+
+     "the pre-823 rate was order 1 reboot per 1-3 SSRs, and even a true 1-in-4
+      rate gives ~99.7 % chance of seeing one in 20"
+
+   Against a 1-in-4 rate, 0 reboots in 21 SSRs gives P = 0.75^21 = 0.0018, so
+   the result WOULD reject it.  **But the corpus's own later estimate of the AP
+   hang rate is 3-5 % (1 in 20-40 SSRs)** -- the standing statistics rule
+   ("pre-register the sample size") records exactly this.  Against a 5 % rate:
+
+     P(0 reboots in 21) = 0.95^21 = 0.34
+     P(0 reboots in 21) = 0.97^21 = 0.53   (at 3 %)
+
+   **So 21 clean SSRs does NOT establish that the fix works.**  The bar is met
+   as PRE-REGISTERED, and that is worth stating plainly, but the pre-registration
+   was powered against a rate the corpus subsequently revised downward by ~5x.
+   The standing rule requires **n >= 60 SSRs (~18 h)** before "zero AP reboots"
+   becomes evidence against a 3-5 % race.
+
+   This is not a reason to discard the run; it is the reason the run does not
+   close the question.  Stated here rather than discovered later.
+
+3. THE RECOVERY-TIME A/B IS REFINED, AND IT SURVIVES
+--------------------------------------------------------------------------------
+
+   The capture-OFF band was 0.119170-0.130237 s (n = 9, spread 11.1 ms) against
+   0.824902-0.831559 s for the two capture-ON recoveries.  Boot C adds four
+   capture-OFF samples, and TWO of them exceed the old upper edge:
+
+     0.123339   0.125977   (inside)
+     0.133399   0.137563   (OUTSIDE the old band)
+
+   New capture-OFF range: **0.119170-0.137563 s (n = 13, spread 18.4 ms)** --
+   the band is 66 % wider than the n = 9 sample suggested.  **The A/B conclusion
+   is unchanged**: the two populations are still non-overlapping and still ~6x
+   apart (0.1376 vs 0.8249), on four signatures.  But the OFF edge is not as
+   tight as previously stated, and a future sample above ~0.14 s would begin to
+   matter.
+
+4. A NEW FATAL SIGNATURE
+--------------------------------------------------------------------------------
+
+   `lte_ml1_sm_idle.c:2533` (boot C fatal #3, AP 1397.732455) has **no prior
+   occurrence anywhere in the corpus** -- the only hits are from this boot's own
+   captures.  The ledger's cumulative signature census is now:
+
+     lte_ml1_sleepmgr_stm.c:4054   16
+     a2_power.c:1189               14
+     a2_power.c:2949                3
+     a2_task.c:3179                 2
+     lte_ml1_sm_idle.c:2533         1   <- NEW
+     ----------------------------------
+     total                         36
+
+5. AN ANOMALY LEFT OPEN: BOOT C's FATALS ARE NOT ON THE ~902 s CLOCK
+--------------------------------------------------------------------------------
+
+   Boots A and B both opened with `lte_ml1_sleepmgr_stm.c:4054` at ~920 s of AP
+   uptime -- the clock, at ~902 s of modem uptime.  **Boot C does not follow it**:
+   its four fatals are at AP 541, 578, 1397 and 1420 s, i.e. modem uptimes of
+   ~529, ~566, ~1385 and ~1408 s after the modem boots at AP 12.6 s.  None is
+   near 902 s, and two of the four are `a2_power.c:1189` -- the
+   ACTIVITY-CORRELATED signature (E1), not the clock.
+
+   Two readings, not yet distinguished:
+
+   (a) The 902 s is not a wall-clock timer but a DRX-cycle COUNT (~400 cycles at
+       ~2.26 s).  A different paging/DRX cadence in boot C would then move the
+       fatal in wall-clock time while leaving the mechanism intact.  This is
+       consistent with the root-cause record (the Q6 power-collapse vote fails
+       after ~400 DRX cycles).
+   (b) Something in boot C generated activity that substituted the
+       activity-correlated fatal for the idle clock -- E1's hazard, which the
+       corpus records as a standing trap ("a soak that generates traffic is not
+       measuring the idle clock").
+
+   Boot C is the first boot after a HOST POWER LOSS, so (b) has an obvious
+   candidate mechanism (a cold boot re-establishing bearers differently), but it
+   is NOT established and must not be asserted.  What IS established: **the
+   regime label matters -- boot C's 4 samples are not the idle-clock regime, so
+   they cannot be pooled with A/B's 17 for any statement ABOUT THE CLOCK.**
+
+   The s8.13 BAR itself is unaffected: the bar counts AP reboots across
+   fatal-triggered SSRs, whatever the signature.  But any future claim about the
+   902 s clock must say which regime it rests on.
+
+6. SCOPE NOTE
+--------------------------------------------------------------------------------
+
+   The bar is met as pre-registered.  It does NOT establish that the AP hang is
+   fixed (item 2), and the device has still never been observed to reset itself
+   (all three boot boundaries were host power events).  The next honest step is
+   to keep the soak running toward n >= 60, which is passive, while the
+   non-flash parts of the Android differential (NV/EFS/mcfg hashes) proceed in
+   parallel.
+
+--------------------------------------------------------------------------------

@@ -1771,7 +1771,15 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
      per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20.
-     **Progress: 17 of 20 scored, 0 AP reboots** — boot A 15, boot B 2. **BOTH boot boundaries so far
+     **★★ BAR MET 2026-09-21 23:27 — 21 of 20 post-disable fatals, 0 AP reboots** (boot A 15, boot B 2,
+     boot C 4). **⚠ BUT MEETING THE BAR IS WEAKER EVIDENCE THAN THE PRE-REGISTRATION IMPLIED** (PART 22
+     §2): the bar was powered against a **1-in-4** reboot rate, while the corpus's own later estimate is
+     **3–5 %** — against which `P(0 reboots in 21) = 0.34–0.53`, so **21 clean SSRs does NOT establish
+     the fix**; the standing rule requires **n ≥ 60 (~18 h)**. Boot C's 4 samples are also **NOT the
+     idle-clock regime** (fatals at AP `541`/`578`/`1397`/`1420` s, two of them `a2_power.c:1189`, and
+     one a **NEW signature `lte_ml1_sm_idle.c:2533`**), so they must not be pooled with A/B for any
+     statement *about the clock*. The capture-OFF band widens to **`0.119170–0.137563 s` (n = 13)** but
+     the A/B conclusion stands (~6× apart, still non-overlapping). **BOTH boot boundaries so far
      were HOST-SIDE POWER EVENTS, and the second one caught a false positive in my own watcher**
      (PART 21): boot A ended 2026-09-21 20:47 by `systemd-logind: Lid closed.` removing both xHCI
      buses, and boot B ended 23:04 by a **loose wire** — the host log shows `macsmc … aceElec.cpp:711:
