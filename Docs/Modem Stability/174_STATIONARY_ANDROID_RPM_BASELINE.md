@@ -1,13 +1,16 @@
-# 174 — The STATIONARY Android RPM baseline: the modem collapses ~1.4×/s, and the bus never confounded that
+# 174 — The STATIONARY Android baseline: the modem collapses ~1.4×/s, the bus never confounded that, and the MCPM cadence turns out to be a duty cycle
 
 **Date:** 2026-09-22
 **Device:** HMUF02-v5 ("hmu05"), stock Android `msm8916_32_512-userdebug 4.4.4 KTU84P`
 **Answers:** Doc 171 §7 / Task #101 — the Android half of the RPM master-stats comparison,
-measured with the platform **stationary** so the bus confound is removed.
+measured with the platform **stationary** so the bus confound is removed; and §9,
+the MCPM-cadence half of the same task.
 **Status:** the Android side is now CLOSED. The OpenWrt side is still **PREPARED, NOT BUILT,
 NOT FLASHED** (Doc 171 / commit `3bd279b`).
 **Supersedes:** the "Android MPSS rate is a BUS baseline" caution recorded in Doc 171 and in
-memory — see §3, which finds the bus did **not** move this metric.
+memory — see §3, which finds the bus did **not** move this metric. §9 additionally
+**withdraws** the corpus's "Android 1.88 /s vs OpenWrt 0.83 /s, 2.3×" MCPM claim as
+unsupported.
 
 ---
 
@@ -21,8 +24,9 @@ memory — see §3, which finds the bus did **not** move this metric.
 | Routing-path connectivity recorded | **Yes** — `ping` without `-I` (hygiene rule 3) |
 | Physical/environmental context established first | **Yes** — and it mattered twice: the operator's "cable loose" disclosure (§7), and the stationary-vs-bus question (§3) |
 | Sample size pre-registered | **Partially** — no `n` was pre-registered for this baseline; the collapse-rate windows are 324 s and 456 s (448 and 690 collapses), which is ample for a rate but was not fixed in advance |
-| Instrument verified before use | **Yes** — the RPM ring layout was checked against Doc 150's grammar on the live device before any census was taken (§2.2) |
-| Negative controls | **Yes** — §4 is a self-caught false positive, and §3's bus comparison is a negative control on the confound claim |
+| Instrument verified before use | **Yes** — the RPM ring layout was checked against Doc 150's grammar on the live device before any census was taken (§2.2); and the §9 modem clock was verified two independent ways before it was used to time anything (§9.2) |
+| Negative controls | **Yes** — §4 is a self-caught false positive, §3's bus comparison is a negative control on the confound claim, and §9.3's second capture is the control that distinguished a clock error from buffered pre-history |
+| Denominator justified, not assumed | **Yes** — §9.3: the AP bracket and the modem clock disagree by 14 % on capture A, and the doc says which is right and why |
 
 **Skipped:** nothing that applies. The 250→2000 ms pc-ack A/B (Task #98) and the
 `FastDormancyService` falsifier (Task #103) remain blocked on OpenWrt and are not touched here.
@@ -216,6 +220,38 @@ Burst rate from the `0xd0` count: **~10.7 /s** on Android against Doc 150's **8.
 > comparison is not matched. The honest reading is: **the resource mix is broadly the same on
 > both stacks**, and the two outliers are unresolved.
 
+### 6.1 A second Android census shows the mix is not stable within Android either
+
+A second 14-dump census (3584 records, AP uptime 1601–1668 s — a **later window of the same
+boot**, and with a **changed RF context**: RSRP −84 dBm and a new subnet `10.101.170.71/28`,
+against RSRP −91…−94 and `10.98.144.27/29` for census 1) gives a materially different mix:
+
+| resource | Android census 1 | Android census 2 | ratio | OpenWrt (Doc 150) |
+| :-- | --: | --: | --: | --: |
+| `ldoa` | 37.9 % | 51.7 % | **1.36×** | 40.7 % |
+| `bslv` | 19.7 % | 18.3 % | 1.08× | 14.6 % |
+| `bmas` | 14.4 % | 11.9 % | 1.21× | 7.8 % |
+| `clk2` | 6.9 % | 3.1 % | **2.23×** | 10.8 % |
+| `smpa` | 6.0 % | 1.8 % | **3.33×** | 16.0 % |
+| `clk1` | 5.8 % | 5.2 % | 1.12× | 5.9 % |
+| `clk0` | 5.2 % | 4.4 % | 1.18× | 0.4 % |
+| `clka` | 4.1 % | 3.5 % | 1.17× | 3.8 % |
+
+Both censuses are 14 dumps / 3584 records with **3584/3584 markers**, so this is not a sampling
+artefact — **the mix genuinely moves by up to 3.3× between two windows of one Android boot.**
+
+> **This weakens §6 substantially, and that is the point of running it.** With within-platform
+> variation of 1.08–3.33×, the Android-vs-OpenWrt ratios of 0.93–1.84× are **inside the noise**
+> and must not be cited. Only **`clk0`** survives as a candidate — Android is 4.4 % and 5.2 %
+> across both censuses against OpenWrt's **0.4 %** (6 of 1701), a ~10× gap with no overlap — and
+> even that is not a finding while Doc 150's reference window is fatal-adjacent. **A matched idle
+> OpenWrt census is required (pre-registered as W3 in §8).**
+
+The RPM record rate is similarly window-dependent: census 1 mean **388.4 rec/s** vs census 2 mean
+**368.0 rec/s** (per-dump p50 380.1 vs 394.8), against 540.2–590.9 rec/s from the free-running
+counter polls (§5). **The spread across methods and windows is wider than the Android-vs-OpenWrt
+difference**, which is the same conclusion §5 reached by a different route.
+
 ---
 
 ## 7. The cable incident — attributed from the HOST, not the device
@@ -275,7 +311,143 @@ stationary exercise was for.
 
 ---
 
-## 9. Artifacts
+## 9. Result 4 — the MCPM cadence is **duty-cycle dependent**, so the Android-vs-OpenWrt "2.3×" is NOT established
+
+`Stock_Android_Live/02_DIFFERENTIAL_DIAG_ANALYSIS.md` §2 is the origin of the corpus's
+"Android does 1.88 MCPM sleep/wake cycles per second, OpenWrt 0.83, a 2.3× gap"
+claim — **916 `SLEEP_PWRDN_FULL` in ~488 s** vs **100 in ~121 s**. Doc 170 flagged
+that gap as bus-confounded. This section measures the Android side stationary,
+with the **same marker**, twice, back to back, on the same device, with the same
+traffic (3 pings / 30 s).
+
+### 9.1 Two stationary captures disagree by 1.47×
+
+| capture | window (host) | `SLEEP_PWRDN_FULL` | `FW_WAKE-UP_Start` | modem-clock span | **rate** |
+| :-- | :-- | --: | --: | --: | --: |
+| A (300 s) | 04:48–04:53 | 501 | 506 | 344.0 s | **1.456 /s** |
+| B (120 s) | 05:12–05:15 | 291 | 295 | 136.3 s | **2.136 /s** |
+
+Both captures have **zero** fatal/watchdog/Q6-PC frames and `subsys-restart count: 0`,
+and the `SLEEP_PWRDN_FULL : FW_WAKE-UP_Start` ratio is **0.99 : 1** in both.
+
+The two stationary Android numbers differ by **1.47×** — and the old, bus-era
+**1.88 /s falls BETWEEN them**. So the corpus figure was not wrong; it was a
+single draw from a wide distribution.
+
+### 9.2 A new instrument: the modem's **own** clock, carried inside `FW_WAKE-UP_Start`
+
+Every `FW_WAKE-UP_Start` message embeds its own timing:
+
+```
+MCPM FW_WAKE-UP_Start. Triggered Start time = %lx, End time = %lx, duration = %lu usecs
+```
+
+`Start`/`End` are a **19.2 MHz** counter and `duration` is its integer-microsecond
+floor. This is **self-calibrating**: `d = floor((End-Start)/R)` constrains
+`R ∈ (sp/(d+1), sp/d]`, and intersecting that over every frame gives a rigorous
+interval with no assumption:
+
+| capture | frames | constraint interval for R | `floor(sp/19.2)==d` | 21.1 MHz admissible? |
+| :-- | --: | :-- | --: | :-- |
+| A | 506 | **(19.1818, 19.2000] ticks/µs** | 506/506 | **no** |
+| B | 295 | **(19.1818, 19.2000] ticks/µs** | 295/295 | **no** |
+
+That interval is 0.0182 wide and it *contains* 19.2 — the same 19.2 MHz domain as
+the RPM log's `record[1]` (§4). Unwrapping the 32-bit counter (223.7 s per wrap;
+capture A wrapped twice, B once, and every wrap was a clean ~223 s step) gives a
+duration that owes **nothing** to the AP clock — the same principle as `ATS_RTC`
+in Doc 172/173.
+
+**And the clock is wall-accurate.** Capture B's file existed for ~134 s
+(`wall_duration_s=134`) and its modem span is **136.3 s** — agreement to **1.7 %**.
+That control is what makes capture A's 344.0 s span interpretable.
+
+### 9.3 The trap that control caught: capture A's qmdl carried ~29 s of **pre-history**
+
+Capture A's AP bracket is 301 s, but its modem span is 344.0 s. The gap is not a
+clock error — it is **DIAG records the modem buffered while no `diag_mdlog` was
+attached and flushed into the new file at attach**. The bracket is stamped
+`bracket_delay_s` after `diag_mdlog` starts (14 s for A, 17 s for B), so the file
+should span bracket + delay:
+
+| capture | bracket | + delay | expected file span | modem span | pre-history |
+| :-- | --: | --: | --: | --: | --: |
+| A | 301 s | 14 s | 315 s | 344.0 s | **~29 s** |
+| B | 121 s | 17 s | 138 s | 136.3 s | ~0 s |
+
+**This matters for the number, not just for tidiness.** Those pre-history cycles
+are *counted* in the 501, so dividing by the AP bracket (301 s) gives **1.664 /s**
+while the correct denominator (344.0 s) gives **1.456 /s** — a **14 % overstatement**.
+The scorer now detects this and says so. (`Stock_Android_Live`'s 916-in-488 s used
+an AP-derived bracket, so it carries the same exposure; its capture followed a
+reboot, which is exactly the condition that produces a long unattached gap.)
+
+### 9.4 The cadence is **quantized**, and that is the real finding
+
+The mean rate is the wrong statistic. The inter-cycle intervals are not spread —
+they cluster on **0.320 s** and its multiples:
+
+| capture | min | p10 | **p50** | p90 | max | mean | gaps > 4× median |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| A | 0.037 s | 0.320 | **0.320** | 1.280 | 31.068 s | 0.681 s | 25 |
+| B | 0.037 s | 0.305 | **0.320** | 1.219 | 1.981 s | 0.463 s | 7 |
+
+`0.320 s` is **3.125 Hz**, and the histogram is built from its **multiples** — 0.64 s
+(2×) and 1.28 s (4×) — not from a continuum:
+
+| interval | capture A (n=505) | capture B (n=294) |
+| :-- | --: | --: |
+| **0.320 s** (1×) | **227** (45.0 %) | **171** (58.2 %) |
+| 0.64 s (2×) | 31 | 22 |
+| 1.28 s (4×) | 99 | 16 |
+| 0.31 / 1.29 s (± rounding) | 21 / 17 | 6 / 4 |
+| **all multiples of 0.320 s** | **~92 %** | **~90 %** |
+
+So the modem runs a **fixed 3.125 Hz sleep/wake cadence**, and the average rate is simply
+
+> `rate ≈ 3.125 /s × (fraction of time in the fast mode)`
+
+The two captures differ **only** in how many long idle gaps they happened to contain —
+25 vs 7. Capture A spent 51.5 % of its intervals at the 0.320 s mode and 23.2 % at 1.28 s;
+capture B spent 60.2 % at 0.320 s and only 6.8 % at 1.28 s. This is a **duty-cycle
+measurement wearing a rate's clothes**, which is why the same device gave 1.46 /s and
+2.14 /s an hour apart.
+
+**What is comparable across platforms is the modal interval (0.320 s), not the
+mean.** An invariant of the fast mode is not perturbed by how much the modem idled.
+
+### 9.5 Consequence for the differential, and the pre-registered OpenWrt step
+
+**The "Android 1.88 /s vs OpenWrt 0.83 /s, 2.3×" claim is not established and must
+not be cited.** Within Android alone, two back-to-back stationary captures differ
+by 1.47×, and the OpenWrt side is a *single* 121 s window carrying the same
+uncertainty. A ratio of two means of a duty-cycle-dependent quantity, each from
+one window, is not a measurement of a behavioural difference.
+
+Pre-registered for the OpenWrt side (Task #100/#101 remainder), **before** running:
+
+* **O1.** Report the **interval distribution** (p50, p90, the fraction at the modal
+  value) and the modal interval itself — *not* a mean rate. If OpenWrt also shows a
+  ~0.320 s mode, the platforms agree and the old gap was an artifact.
+* **O2.** Report `SLEEP_PWRDN_FULL` **and** `FW_WAKE-UP_Start` separately with their
+  ratio; a ratio far from 0.99 : 1 would mean the two stacks count differently.
+* **O3.** Use the **modem clock** where available, and if the OpenWrt capture has no
+  equivalent of `FW_WAKE-UP_Start`'s embedded timestamps, say so and fall back to the
+  bracket **with the pre-history check of §9.3 applied**.
+* **O4.** The old 0.83 /s must be re-derived, not re-quoted: it was 100 cycles in an
+  AP-bracketed 121 s, and §9.3 shows that denominator can be wrong by 14 %.
+
+### 9.6 A tooling defect this round found and fixed (it cost a capture)
+
+`diag_mdlog` **dies the moment the launching `adb shell` disconnects, and `nohup`
+does not prevent it.** A `nohup … & sleep 8; ps` check *inside the same shell* sees
+`procs=1`, so the failure is silent and the run yields nothing. `busybox setsid`
+(new session) survives — verified `procs=1` at +45 s with the shell long gone.
+`mcpm_stationary.sh` now launches with `busybox setsid nohup … < /dev/null`,
+retries up to 3×, and **aborts loudly** if `procs` stays 0; that guard is what
+turned the failed attempt into a one-line diagnosis instead of an empty capture.
+
+## 10. Artifacts
 
 `Docs/Modem Stability/evidence/174_stationary_android_rpm_baseline/`
 
@@ -292,6 +464,10 @@ stationary exercise was for.
 | `rpm_ring_android_multi.txt.gz` | 14 ring walks with per-walk counter brackets |
 | `rpm_ring_android_t0.txt.gz` | the first ring walk, with header before and after |
 | `ping_plain_stationary.txt.gz` | routing-path `ping` (no `-I`) across the baseline |
+| `score_mcpm_stationary.py` | §9 scorer — decodes the qmdl, verifies the 19.2 MHz clock, reports both denominators and the interval distribution |
+| `verify_mcpm.txt` | the §9 scorer's output for both captures |
+| `window_300s.txt`, `window_120s.txt` | the per-capture brackets (incl. `bracket_delay_s`) the §9 scorer consumes |
+| `mcpm_stationary.sh` | the §9 capture driver (capture A is the 300 s run) |
 | `MANIFEST.md5` | hashes of the frozen set |
 
 **Reproduce the ring read with nothing but the device:**
@@ -299,6 +475,16 @@ stationary exercise was for.
 ```sh
 adb shell 'i=0; while [ $i -lt 2048 ]; do /system/xbin/devmem $((0x29dc58 + i*4)); i=$((i+1)); done'
 adb shell '/system/xbin/devmem 0x29dc38'    # byte write counter; records = counter>>5
+```
+
+**Reproduce §9** (both captures in one pass; the qmdl files are 83 MB and 54 MB and are
+not committed, so point the scorer at your own copy):
+
+```sh
+EV="Docs/Modem Stability/evidence/174_stationary_android_rpm_baseline"
+python3 "$EV/score_mcpm_stationary.py" \
+    <A>/diag_log_20260922_043307.qmdl --window "$EV/window_300s.txt" \
+    <B>/diag_log_20260922_045750.qmdl --window "$EV/window_120s.txt"
 ```
 
 **Note on a live file:** `rpm_stationary_boot2.csv` and `rpm_ctr_long.txt` were **still growing**

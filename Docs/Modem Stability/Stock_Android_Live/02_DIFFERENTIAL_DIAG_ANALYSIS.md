@@ -39,6 +39,20 @@ in ~488 s = 1.88/s. On OpenWrt, 100 cycles in ~121 s = 0.83/s. The lower
 OpenWrt rate is attributable to the 30× lower DIAG capture rate (rpmsg vs USB
 transport), not a behavioural difference.
 
+> **⚠ WITHDRAWN — 2026-09-22, Doc 174 §9. Do not cite the 1.88/s-vs-0.83/s "2.3×" gap.**
+> The cycle count is real, but the **rate** is not a platform constant. Two
+> back-to-back *stationary* Android captures on the same device, with the same
+> `FW_SLEEP_PWRDN_FULL` marker and the same traffic, give **1.456 /s** (501 in
+> 344.0 s) and **2.136 /s** (291 in 136.3 s) — a **1.47× spread within Android**,
+> with this table's 1.88 falling **between** them. The cadence is **quantized to
+> 0.320 s (3.125 Hz)** and its multiples (0.64 s, 1.28 s — ~90 % of intervals),
+> so the mean equals `3.125/s × (fraction of time in the fast mode)`: it is a
+> **duty cycle**, and the two captures differ only in idle-gap count (25 vs 7).
+> A ratio of two such means, each from one window, measures nothing about
+> behaviour. **Compare the modal interval, not the mean.** (This table's ~488 s
+> is also an AP-derived denominator, which Doc 174 §9.3 shows can overstate the
+> rate by 14 % when the qmdl carries buffered pre-history.)
+
 ## 3. Record density — flat across the 900s mark on OpenWrt
 
 ```

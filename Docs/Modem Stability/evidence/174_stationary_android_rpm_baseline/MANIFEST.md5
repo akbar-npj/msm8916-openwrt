@@ -1,6 +1,26 @@
-3d254d57ddd2cb35fabba71a91d68659  scratch/android_capture/stationary/frozen_20260922T041958/ping_plain_stationary.txt
-d2f7511137037e63d311125e95b85280  scratch/android_capture/stationary/frozen_20260922T041958/rpm_ctr_long.txt
-be6eabd26b805957d570ee25b56265da  scratch/android_capture/stationary/frozen_20260922T041958/rpm_ring_android_multi.txt
-19a644bb31e19e5139c95964cb6af8b4  scratch/android_capture/stationary/frozen_20260922T041958/rpm_ring_android_t0.txt
-2db5601d03cd99253e2165cafd4c12f1  scratch/android_capture/stationary/frozen_20260922T041958/rpm_stationary.csv
-bbb1f17cfe720a0f833378f255721311  scratch/android_capture/stationary/frozen_20260922T041958/rpm_stationary_boot2.csv
+# Doc 174 evidence manifest -- regenerated 2026-09-22 after the s9 MCPM work.
+# Verify with: md5sum -c MANIFEST.md5
+#
+# The two qmdl captures of s9 are 83 MB and 54 MB and are NOT committed (they live in
+# scratch/android_capture/stationary/mcpm_stat/). Their hashes, for the record:
+#   d93b6f1033a523f71a46d50e3698678a  diag_log_20260922_043307.qmdl   (capture A, 300 s)
+#   d7a7d1a4c352f1a38834c61614d9c4ae  diag_log_20260922_045750.qmdl   (capture B, 120 s)
+22025bb5b22c14bad3a95b4a4e3f127f  mcpm_stationary.sh
+183938559c3929ddd414e67a81c5352a  ping_plain_stationary.txt.gz
+8c1825d9d19629515da21d56ea4e882f  probe_rpm_log_node.sh
+f196ac47dfaec10ad693db9b4c78b35a  rpm_ctr_long.txt.gz
+a5f9f35290f896e0df4c1eed15a8fdae  rpm_ctr_rate.txt.gz
+ee714d5acbc42ccfa051295afb0843d6  rpm_ctr_rate2.txt.gz
+176c6fbdf7d7fa3f63ded1eeebb34a70  rpm_log_200k.bin.gz
+51141773ed56b0bf3c3f4020e3b17abc  rpm_ring_android_multi.txt.gz
+6d9c204d12f35a0fbb01bfbd90a14589  rpm_ring_android_multi2.txt.gz
+20a786ba995df362a89bd29a22331473  rpm_ring_android_t0.txt.gz
+1574ff8a9a92d1e03076fadcd4f59c93  rpm_stationary.csv.gz
+1ce6c0b6aeeaa0e71e1565655b790ad9  rpm_stationary_boot2.csv.gz
+93b9df11fd6db4d57cc75638fd0555e0  score_mcpm_stationary.py
+9ebb6fe81228e67cbb770411d436fedf  score_stationary_baseline.py
+dd9a817bdddb122cf063cab0e74d3538  stationary_baseline.sh
+a1c9cfda486a0b4bbf51d2b4931d26d7  verify_mcpm.txt
+5ca4262653a15008574ee252762525dc  verify_output.txt
+d6f27fa55a1e8a2eabe9be7ab2dce343  window_120s.txt
+12c31eb57b288569f2f04bbf714602cd  window_300s.txt

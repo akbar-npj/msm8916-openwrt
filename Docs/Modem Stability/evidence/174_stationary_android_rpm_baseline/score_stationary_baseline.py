@@ -193,16 +193,9 @@ OPENWRT = {"ldoa": 693, "smpa": 272, "bslv": 248, "clk2": 183, "bmas": 133,
            "clk1": 101, "clka": 65, "clk0": 6}
 
 
-def section_ring():
-    print()
-    print("=" * 78)
-    print("4. RPM ring: event ids and resource census (Android) vs OpenWrt")
-    print("=" * 78)
-    p = find("rpm_ring_android_multi.txt")
-    if not p:
-        print("(multi-dump artifact missing)")
-        return
-    txt = op(p).read()
+def _ring_census(path, label):
+    """Parse one multi-dump file; return (rates, records)."""
+    txt = op(path).read()
     blocks = re.split(r"^# DUMP ", txt, flags=re.M)[1:]
     rates, recs = [], []
     for b in blocks:
@@ -210,44 +203,68 @@ def section_ring():
         end = re.search(r"^# ENDDUMP \d+ uptime=([\d.]+) ctr=0x([0-9A-Fa-f]+)", b, re.M)
         u0 = re.search(r"uptime=([\d.]+)", head)
         c0 = re.search(r"ctr=0x([0-9A-Fa-f]+)", head)
-        body = b.split("# ENDDUMP")[0]
-        ring = [int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]{8})", body)][1:]
+        ring = [int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]{8})", b.split("# ENDDUMP")[0])][1:]
         recs += [ring[i * 8:(i + 1) * 8] for i in range(256)]
         if end and u0 and c0:
             dt = float(end.group(1)) - float(u0.group(1))
             dn = (int(end.group(2), 16) - int(c0.group(1), 16)) >> 5
             if dt > 0:
-                rates.append(dn / dt)
-    rates.sort()
-    print(f"dumps={len(blocks)}  pooled records={len(recs)}")
-    if rates:
-        print(f"per-dump rate: n={len(rates)} min={rates[0]:.1f} p50={rates[len(rates)//2]:.1f} "
-              f"max={rates[-1]:.1f} mean={sum(rates)/len(rates):.1f} rec/s")
-    mk = [i for i, w in enumerate([r[0] for r in recs]) if w == 0x200000]
-    print(f"record markers 0x00200000: {len(mk)}/{len(recs)}"
-          f"  (all at stride 8 => layout confirmed)")
-    ids = Counter(r[3] for r in recs if len(r) == 8)
-    print("\nevent-id histogram (top 12):")
-    for k, v in ids.most_common(12):
-        print(f"   {k:#06x} x{v:5d}  ({100*v/len(recs):4.1f} %)")
-    res = Counter()
-    for r in recs:
-        for w in r[4:8]:
-            if w in RES:
-                res[RES[w]] += 1
-    tot = sum(res.values())
+                rates.append((float(u0.group(1)), float(end.group(1)), dn / dt))
+    return rates, recs
+
+
+def section_ring():
+    print()
+    print("=" * 78)
+    print("4. RPM ring: event ids and resource census (Android) vs OpenWrt")
+    print("=" * 78)
     owt = sum(OPENWRT.values())
-    print(f"\nresource census (exact 4-char match), Android n={tot} vs OpenWrt n={owt} (Doc 150):")
-    print(f"   {'resource':9s} {'Android':>9s} {'OpenWrt':>9s}   ratio")
-    for k in sorted(set(res) | set(OPENWRT), key=lambda x: -(res.get(x, 0) / max(tot, 1))):
-        ap = 100 * res.get(k, 0) / max(tot, 1)
-        op_ = 100 * OPENWRT.get(k, 0) / owt
-        ratio = ap / op_ if op_ else float("inf")
-        print(f"   {k:9s} {ap:8.1f}% {op_:8.1f}%   {ratio:5.2f}x")
-    n0d0 = ids.get(0xD0, 0)
-    print(f"\n0xd0 (client-id) records pooled: {n0d0}"
-          f"  => burst rate ~= {n0d0/len(recs)*(sum(rates)/len(rates)):.1f}/s"
-          f"  (OpenWrt Doc 150 idle: 8.6/s)")
+    censuses = []
+    for name, label in (("rpm_ring_android_multi.txt", "census 1"),
+                        ("rpm_ring_android_multi2.txt", "census 2")):
+        p = find(name)
+        if not p:
+            continue
+        rates, recs = _ring_census(p, label)
+        r = sorted(x[2] for x in rates)
+        upt = [x[0] for x in rates]
+        print(f"\n--- {label} ({name}) ---")
+        print(f"dumps={len(rates)}  uptime {min(upt):.0f}-{max(upt):.0f}s  pooled records={len(recs)}")
+        if r:
+            print(f"per-dump rate: min={r[0]:.1f} p50={r[len(r)//2]:.1f} max={r[-1]:.1f} "
+                  f"mean={sum(r)/len(r):.1f} rec/s")
+        mk = sum(1 for x in recs if x and x[0] == 0x200000)
+        print(f"record markers 0x00200000: {mk}/{len(recs)} (all at stride 8 => layout confirmed)")
+        ids = Counter(x[3] for x in recs if len(x) == 8)
+        res = Counter()
+        for x in recs:
+            for w in x[4:8]:
+                if w in RES:
+                    res[RES[w]] += 1
+        tot = sum(res.values())
+        censuses.append((label, res, tot, ids, len(recs), sum(r) / len(r) if r else 0))
+        print("event ids (top 6):", ", ".join(f"{k:#06x} x{v} ({100*v/len(recs):.1f} %)"
+                                             for k, v in ids.most_common(6)))
+        print(f"0xd0 (client-id) records: {ids.get(0xD0,0)}"
+              f"  => burst rate ~= {ids.get(0xD0,0)/len(recs)*(sum(r)/len(r)):.1f}/s"
+              f"  (OpenWrt Doc 150 idle: 8.6/s)")
+
+    if len(censuses) >= 2:
+        print("\n--- resource census: the two Android windows are NOT the same ---")
+        print(f"   {'resource':9s} {'cens 1':>8s} {'cens 2':>8s} {'ratio':>7s} {'OpenWrt':>9s} {'OW/c2':>7s}")
+        a, b = censuses[0], censuses[1]
+        for k in sorted(set(a[1]) | set(b[1]) | set(OPENWRT),
+                        key=lambda x: -(a[1].get(x, 0) / max(a[2], 1))):
+            p1 = 100 * a[1].get(k, 0) / max(a[2], 1)
+            p2 = 100 * b[1].get(k, 0) / max(b[2], 1)
+            ow = 100 * OPENWRT.get(k, 0) / owt
+            ratio = (p1 / p2) if p2 else float("inf")
+            owr = (ow / p2) if p2 else float("inf")
+            print(f"   {k:9s} {p1:7.1f}% {p2:7.1f}% {ratio:6.2f}x {ow:8.1f}% {owr:6.2f}x")
+        print("\n=> within-Android variation is up to 3.3x, so the Android-vs-OpenWrt")
+        print("   ratios of 0.93-1.84x are INSIDE THE NOISE and must not be cited.")
+        print("   Only clk0 survives (Android 4.4-5.2 % vs OpenWrt 0.4 %), and even that")
+        print("   is not a finding while Doc 150's reference window is fatal-adjacent.")
 
 
 if __name__ == "__main__":

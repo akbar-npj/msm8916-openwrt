@@ -1,0 +1,89 @@
+
+########## diag_log_20260922_043307.qmdl ##########
+qmdl bytes: 82,912,685  (read 82,912,685)
+frames: valid=444,598  DIAG_MSGF(0x79)=6,159  bad_crc=1
+marker counts: {'FW_WAKE-UP_Start': 506, 'SLEEP_PWRDN_FULL': 501, 'wakeup_req_clearing': 153}
+fatal/watchdog/Q6-PC frames: 0
+
+--- CLOCK SELF-CHECK: is the WAKE Start/End pair 19.2 MHz? ---
+  R must lie in (19.1818, 19.2000] ticks/us  ->  (19.1818, 19.2000] MHz   [width 0.0182]
+  19.2 MHz inside? True    21.1 MHz inside? False
+  frames matching floor(sp/19.2)==d: 506/506
+  raw sp/d spans 19.200..21.857 ticks/us (p50 20.111); the floor biases every ratio UP, so the MINIMUM is the meaningful end
+
+AP bracket: modem 2237 -> 2538 s  = 301 s  (kernel 2244 -> 2545)
+  rotation guard: 82,912,685 B vs 8 x 100 MB budget (838,860,800 B), 1 file(s) -- no wrap, window is valid
+
+MODEM clock (FW_WAKE-UP_Start 'Start time', 19.2 MHz):
+  n=506  strictly-non-decreasing 503/505  wraps=2
+  span = 6,605,207,123 ticks = 344.0 s  (first 0xd9007c73 -> last 0x62b3f2c6)
+  NOTE this span is FIRST-WAKE to LAST-WAKE, so it is ~1 cycle SHORTER
+  than the capture; the rate below is a slight OVERestimate for that reason.
+
+--- MCPM CADENCE ---
+counts: SLEEP_PWRDN_FULL=501  FW_WAKE-UP_Start=506  ratio=0.99:1
+              AP bracket: SLEEP 1.664 /s   WAKE 1.681 /s   (over 301.0 s)
+    modem 19.2 MHz clock: SLEEP 1.456 /s   WAKE 1.471 /s   (over 344.0 s)
+  !! PRE-HISTORY: modem span 344.0 s vs expected file span 315.0 s (bracket 301.0 + launch delay 14)
+     => ~29.0 s of buffered records from BEFORE diag_mdlog attached.  Those cycles are counted, so use the
+     MODEM span; the AP-bracket rate above is an OVERSTATEMENT.
+
+Doc 170 / Stock_Android_Live s2 reference (BUS-confounded, AP bracket):
+  Android 916 SLEEP_PWRDN_FULL in ~488 s = 1.88 /s ; OpenWrt 100 in ~121 s = 0.83 /s
+
+--- INTER-CYCLE INTERVALS (modem clock, n=505) ---
+  min=0.037s  p10=0.320  p50=0.320  p90=1.280  max=31.068s
+  mean=0.681s   max/median = 97.1x
+  gaps > 4x median: 25  [1.28, 1.29, 1.29, 1.29, 1.29, 1.29, 1.29, 1.29, 1.29, 1.29, 1.29, 1.29]
+
+--- side observation: the 12-byte message header word (LE u32 @ +4) ---
+  present on all 6159 frames; first=0x66b92800 last=0x99ef2c00
+  It advances LOCALLY in exact lockstep with the 19.2 MHz WAKE clock
+  (ratio constant to 3 s.f. across intervals from 0.32 s to 31 s), but it
+  takes 338 BACKWARDS steps across the file, so it is NOT a usable clock.
+  Not used for any timing here.
+
+########## diag_log_20260922_045750.qmdl ##########
+qmdl bytes: 53,643,010  (read 53,643,010)
+frames: valid=289,897  DIAG_MSGF(0x79)=3,398  bad_crc=1
+marker counts: {'FW_WAKE-UP_Start': 295, 'SLEEP_PWRDN_FULL': 291, 'wakeup_req_clearing': 62}
+fatal/watchdog/Q6-PC frames: 0
+
+--- CLOCK SELF-CHECK: is the WAKE Start/End pair 19.2 MHz? ---
+  R must lie in (19.1818, 19.2000] ticks/us  ->  (19.1818, 19.2000] MHz   [width 0.0182]
+  19.2 MHz inside? True    21.1 MHz inside? False
+  frames matching floor(sp/19.2)==d: 295/295
+  raw sp/d spans 19.200..22.000 ticks/us (p50 20.111); the floor biases every ratio UP, so the MINIMUM is the meaningful end
+
+AP bracket: modem 3723 -> 3844 s  = 121 s  (kernel 3730 -> 3851)
+  rotation guard: 53,643,010 B vs 8 x 100 MB budget (838,860,800 B), 1 file(s) -- no wrap, window is valid
+
+MODEM clock (FW_WAKE-UP_Start 'Start time', 19.2 MHz):
+  n=295  strictly-non-decreasing 293/294  wraps=1
+  span = 2,616,289,939 ticks = 136.3 s  (first 0x9cc8d232 -> last 0x38ba3cc5)
+  NOTE this span is FIRST-WAKE to LAST-WAKE, so it is ~1 cycle SHORTER
+  than the capture; the rate below is a slight OVERestimate for that reason.
+
+--- MCPM CADENCE ---
+counts: SLEEP_PWRDN_FULL=291  FW_WAKE-UP_Start=295  ratio=0.99:1
+              AP bracket: SLEEP 2.405 /s   WAKE 2.438 /s   (over 121.0 s)
+    modem 19.2 MHz clock: SLEEP 2.136 /s   WAKE 2.165 /s   (over 136.3 s)
+
+Doc 170 / Stock_Android_Live s2 reference (BUS-confounded, AP bracket):
+  Android 916 SLEEP_PWRDN_FULL in ~488 s = 1.88 /s ; OpenWrt 100 in ~121 s = 0.83 /s
+
+--- INTER-CYCLE INTERVALS (modem clock, n=294) ---
+  min=0.037s  p10=0.305  p50=0.320  p90=1.219  max=1.981s
+  mean=0.463s   max/median = 6.2x
+  gaps > 4x median: 7  [1.28, 1.28, 1.29, 1.29, 1.29, 1.29, 1.98]
+
+--- side observation: the 12-byte message header word (LE u32 @ +4) ---
+  present on all 3398 frames; first=0xdfa51800 last=0x8986a000
+  It advances LOCALLY in exact lockstep with the 19.2 MHz WAKE clock
+  (ratio constant to 3 s.f. across intervals from 0.32 s to 31 s), but it
+  takes 157 BACKWARDS steps across the file, so it is NOT a usable clock.
+  Not used for any timing here.
+
+================ OVERALL ================
+  diag_log_20260922_043307.qmdl            n_sleep=501   modem_span=  344.0s -> 1.456 /s   (AP bracket 301s -> 1.664 /s)
+  diag_log_20260922_045750.qmdl            n_sleep=291   modem_span=  136.3s -> 2.136 /s   (AP bracket 121s -> 2.405 /s)

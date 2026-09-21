@@ -7,12 +7,12 @@ rpm_stationary.csv seg0: uptime 494->818 s  n=33
   APSS 5->5   PRONTO 9->9   (flat => only the MODEM collapses)
   50 s windows (n=6): min=1.106 p50=1.541 max=1.700 /s
 
-rpm_stationary_boot2.csv seg0: uptime 79->535 s  n=46
-  span=455.8s  MPSS collapses=690  rate=1.5137/s  wall period=660.7 ms
+rpm_stationary_boot2.csv seg0: uptime 79->1872 s  n=178
+  span=1792.2s  MPSS collapses=2590  rate=1.4451/s  wall period=692.0 ms
   APSS 0->0   PRONTO 21->21   (flat => only the MODEM collapses)
-  50 s windows (n=9): min=1.086 p50=1.561 max=1.917 /s
+  50 s windows (n=35): min=0.000 p50=1.621 max=2.353 /s
 
-OVERALL across boots: 1.3831, 1.5137 /s  (spread 9.4 %)
+OVERALL across boots: 1.3831, 1.4451 /s  (spread 4.5 %)
 
 Doc 171's bus-era numbers were 1.310 / 1.523 / 1.711 /s.
 => the bus values fall INSIDE the stationary range: the bus did NOT
@@ -31,10 +31,10 @@ rpm_stationary.csv seg0: n=33 samples
   wakeup_ind    observed/expected(19.2MHz*dt): p50=1.013 min=0.631 max=1.416
   long-span (WRAPPED, shown only to demonstrate the trap): shutdown_req delta over 324 s reads as 104.9 s of tick time => a bogus duty cycle of 32.4 %
 
-rpm_stationary_boot2.csv seg0: n=46 samples
-  shutdown_req  observed/expected(19.2MHz*dt): p50=1.004 min=0.725 max=1.298
-  wakeup_ind    observed/expected(19.2MHz*dt): p50=0.998 min=0.725 max=1.289
-  long-span (WRAPPED, shown only to demonstrate the trap): shutdown_req delta over 456 s reads as 5.6 s of tick time => a bogus duty cycle of 1.2 %
+rpm_stationary_boot2.csv seg0: n=178 samples
+  shutdown_req  observed/expected(19.2MHz*dt): p50=0.985 min=0.000 max=4.230
+  wakeup_ind    observed/expected(19.2MHz*dt): p50=0.982 min=0.000 max=9.581
+  long-span (WRAPPED, shown only to demonstrate the trap): shutdown_req delta over 1792 s reads as 68.9 s of tick time => a bogus duty cycle of 3.8 %
 
 => ratio p50 = 1.00 for BOTH counters on BOTH boots: they are FREE-RUNNING, not
    gated.  An earlier draft of Doc 174 read the wrapped long-span delta as a
@@ -56,8 +56,8 @@ rpm_ctr_rate.txt: n=40 span=39.3s records=22382 rate=568.8 rec/s
 rpm_ctr_rate2.txt: n=30 span=58.2s records=34397 rate=590.9 rec/s
   per-interval: min=182.1 p50=592.5 max=1105.0 rec/s
 
-rpm_ctr_long.txt: n=47 span=230.5s records=124521 rate=540.2 rec/s
-  per-interval: min=192.0 p50=524.6 max=946.7 rec/s
+rpm_ctr_long.txt: n=240 span=1197.6s records=644858 rate=538.5 rec/s
+  per-interval: min=132.5 p50=541.1 max=946.7 rec/s
 
 OpenWrt reference (Doc 150, 314 s baseline): 224.2 rec/s.
 Doc 170 also records OpenWrt windows of 470-830 rec/s.
@@ -66,33 +66,33 @@ Doc 170 also records OpenWrt windows of 470-830 rec/s.
 ==============================================================================
 4. RPM ring: event ids and resource census (Android) vs OpenWrt
 ==============================================================================
-dumps=14  pooled records=3584
-per-dump rate: n=14 min=162.6 p50=380.1 max=643.9 mean=388.4 rec/s
-record markers 0x00200000: 3584/3584  (all at stride 8 => layout confirmed)
 
-event-id histogram (top 12):
-   0x00d5 x 1300  (36.3 %)
-   0x00cb x  339  ( 9.5 %)
-   0x0042 x  278  ( 7.8 %)
-   0x0044 x  211  ( 5.9 %)
-   0x02bf x  187  ( 5.2 %)
-   0x00d1 x  124  ( 3.5 %)
-   0x00d2 x  124  ( 3.5 %)
-   0x00d4 x  116  ( 3.2 %)
-   0x00cd x  110  ( 3.1 %)
-   0x0143 x  107  ( 3.0 %)
-   0x00d0 x   99  ( 2.8 %)
-   0x0245 x   96  ( 2.7 %)
+--- census 1 (rpm_ring_android_multi.txt) ---
+dumps=14  uptime 328-395s  pooled records=3584
+per-dump rate: min=162.6 p50=380.1 max=643.9 mean=388.4 rec/s
+record markers 0x00200000: 3584/3584 (all at stride 8 => layout confirmed)
+event ids (top 6): 0x00d5 x1300 (36.3 %), 0x00cb x339 (9.5 %), 0x0042 x278 (7.8 %), 0x0044 x211 (5.9 %), 0x02bf x187 (5.2 %), 0x00d1 x124 (3.5 %)
+0xd0 (client-id) records: 99  => burst rate ~= 10.7/s  (OpenWrt Doc 150 idle: 8.6/s)
 
-resource census (exact 4-char match), Android n=1616 vs OpenWrt n=1701 (Doc 150):
-   resource    Android   OpenWrt   ratio
-   ldoa          37.9%     40.7%    0.93x
-   bslv          19.7%     14.6%    1.35x
-   bmas          14.4%      7.8%    1.84x
-   clk2           6.9%     10.8%    0.64x
-   smpa           6.0%     16.0%    0.38x
-   clk1           5.8%      5.9%    0.98x
-   clk0           5.2%      0.4%   14.74x
-   clka           4.1%      3.8%    1.07x
+--- census 2 (rpm_ring_android_multi2.txt) ---
+dumps=14  uptime 1601-1668s  pooled records=3584
+per-dump rate: min=260.0 p50=394.8 max=445.4 mean=368.0 rec/s
+record markers 0x00200000: 3584/3584 (all at stride 8 => layout confirmed)
+event ids (top 6): 0x00d5 x1488 (41.5 %), 0x0042 x280 (7.8 %), 0x00cb x274 (7.6 %), 0x0044 x197 (5.5 %), 0x02bf x158 (4.4 %), 0x0245 x112 (3.1 %)
+0xd0 (client-id) records: 90  => burst rate ~= 9.2/s  (OpenWrt Doc 150 idle: 8.6/s)
 
-0xd0 (client-id) records pooled: 99  => burst rate ~= 10.7/s  (OpenWrt Doc 150 idle: 8.6/s)
+--- resource census: the two Android windows are NOT the same ---
+   resource    cens 1   cens 2   ratio   OpenWrt   OW/c2
+   ldoa         37.9%    51.7%   0.73x     40.7%   0.79x
+   bslv         19.7%    18.3%   1.07x     14.6%   0.80x
+   bmas         14.4%    11.9%   1.21x      7.8%   0.66x
+   clk2          6.9%     3.1%   2.21x     10.8%   3.43x
+   smpa          6.0%     1.8%   3.35x     16.0%   8.92x
+   clk1          5.8%     5.2%   1.12x      5.9%   1.14x
+   clk0          5.2%     4.4%   1.18x      0.4%   0.08x
+   clka          4.1%     3.5%   1.16x      3.8%   1.08x
+
+=> within-Android variation is up to 3.3x, so the Android-vs-OpenWrt
+   ratios of 0.93-1.84x are INSIDE THE NOISE and must not be cited.
+   Only clk0 survives (Android 4.4-5.2 % vs OpenWrt 0.4 %), and even that
+   is not a finding while Doc 150's reference window is fatal-adjacent.
