@@ -1,0 +1,331 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd030]
+[    0.000000] Linux version 6.12.94 (builder@192.168.8.243) (aarch64-openwrt-linux-musl-gcc (OpenWrt GCC 14.3.0 r33051-f5dae5ece4) 14.3.0, GNU ld (GNU Binutils) 2.44) #0 SMP PREEMPT Mon Jun 29 12:59:20 2026
+[    0.000000] KASLR enabled
+[    0.000000] random: crng init done
+[    0.000000] Machine model: HMU05 4G Modem Stick
+[    0.000000] earlycon: msm_serial_dm0 at MMIO 0x00000000078b0000 (options '')
+[    0.000000] printk: legacy bootconsole [msm_serial_dm0] enabled
+[    0.000000] OF: reserved mem: 0x000000008e200000..0x000000008e7fffff (6144 KiB) nomap non-reusable wcnss
+[    0.000000] OF: reserved mem: 0x000000008dd00000..0x000000008e1fffff (5120 KiB) nomap non-reusable venus
+[    0.000000] OF: reserved mem: 0x000000008dc00000..0x000000008dcfffff (1024 KiB) nomap non-reusable mba
+[    0.000000] OF: reserved mem: 0x0000000086000000..0x00000000862fffff (3072 KiB) nomap non-reusable tz-apps@86000000
+[    0.000000] OF: reserved mem: 0x0000000086300000..0x00000000863fffff (1024 KiB) nomap non-reusable smem@86300000
+[    0.000000] OF: reserved mem: 0x0000000086400000..0x00000000864fffff (1024 KiB) nomap non-reusable hypervisor@86400000
+[    0.000000] OF: reserved mem: 0x0000000086500000..0x000000008667ffff (1536 KiB) nomap non-reusable tz@86500000
+[    0.000000] OF: reserved mem: 0x0000000086680000..0x00000000866fffff (512 KiB) nomap non-reusable reserved@86680000
+[    0.000000] OF: reserved mem: 0x0000000086700000..0x00000000867dffff (896 KiB) nomap non-reusable rmtfs@86700000
+[    0.000000] OF: reserved mem: 0x00000000867e0000..0x00000000867fffff (128 KiB) nomap non-reusable rfsa@867e0000
+[    0.000000] OF: reserved mem: 0x0000000086800000..0x000000008bcfffff (87040 KiB) nomap non-reusable mpss@86800000
+[    0.000000] OF: reserved mem: 0x000000008db00000..0x000000008dbfffff (1024 KiB) map non-reusable ramoops@8db00000
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000080000000-0x000000009fffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000080000000-0x0000000085ffffff]
+[    0.000000]   node   0: [mem 0x0000000086000000-0x000000008bcfffff]
+[    0.000000]   node   0: [mem 0x000000008bd00000-0x000000008dbfffff]
+[    0.000000]   node   0: [mem 0x000000008dc00000-0x000000008e7fffff]
+[    0.000000]   node   0: [mem 0x000000008e800000-0x000000009fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000080000000-0x000000009fffffff]
+[    0.000000] cma: Reserved 16 MiB at 0x000000009e600000 on node -1
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.0 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: MIGRATE_INFO_TYPE not supported.
+[    0.000000] psci: SMC Calling Convention v1.0
+[    0.000000] psci: OSI mode supported.
+[    0.000000] psci: [Firmware Bug]: failed to set PC mode: -3
+[    0.000000] percpu: Embedded 21 pages/cpu s48344 r8192 d29480 u86016
+[    0.000000] Detected VIPT I-cache on CPU0
+[    0.000000] CPU features: kernel page table isolation forced ON by KASLR
+[    0.000000] CPU features: detected: Kernel page table isolation (KPTI)
+[    0.000000] CPU features: detected: ARM erratum 843419
+[    0.000000] CPU features: detected: ARM erratum 845719
+[    0.000000] CPU features: detected: ARM errata 826319, 827319, 824069, or 819472
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: earlycon console=tty0 console=ttyMSM0,115200 root=/dev/mmcblk0p14 rootfstype=squashfs rootwait
+[    0.000000] Dentry cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 131072
+[    0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size adjusted to 0MB
+[    0.000000] software IO TLB: area num 4.
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size roundup to 1MB
+[    0.000000] software IO TLB: mapped [mem 0x000000009e480000-0x000000009e580000] (1MB)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=8 to nr_cpu_ids=4.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 30 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 and mmio timer(s) running at 19.20MHz (virt/virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x46d987e47, max_idle_ns: 440795202767 ns
+[    0.000000] sched_clock: 56 bits at 19MHz, resolution 52ns, wraps every 4398046511078ns
+[    0.010908] Console: colour dummy device 80x25
+[    0.018755] printk: legacy console [tty0] enabled
+[    0.024121] Calibrating delay loop (skipped), value calculated using timer frequency.. 38.00 BogoMIPS (lpj=64000)
+[    0.028065] pid_max: default: 32768 minimum: 301
+[    0.038543] Mount-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.042996] Mountpoint-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.052341] rcu: Hierarchical SRCU implementation.
+[    0.058013] rcu: 	Max phase no-delay instances is 1000.
+[    0.062814] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.068110] smp: Bringing up secondary CPUs ...
+[    0.076706] Detected VIPT I-cache on CPU1
+[    0.076815] CPU1: Booted secondary processor 0x0000000001 [0x410fd030]
+[    0.077538] Detected VIPT I-cache on CPU2
+[    0.077633] CPU2: Booted secondary processor 0x0000000002 [0x410fd030]
+[    0.078390] Detected VIPT I-cache on CPU3
+[    0.078477] CPU3: Booted secondary processor 0x0000000003 [0x410fd030]
+[    0.078583] smp: Brought up 1 node, 4 CPUs
+[    0.111910] SMP: Total of 4 processors activated.
+[    0.115982] CPU: All CPU(s) started at EL1
+[    0.120752] CPU features: detected: 32-bit EL0 Support
+[    0.124770] CPU features: detected: CRC32 instructions
+[    0.129913] alternatives: applying system-wide alternatives
+[    0.135478] Memory: 369604K/524288K available (9536K kernel code, 1106K rwdata, 2920K rodata, 960K init, 378K bss, 135320K reserved, 16384K cma-reserved)
+[    0.151975] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 6370867519511994 ns
+[    0.154399] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.164603] 2G module region forced by RANDOMIZE_MODULE_REGION_FULL
+[    0.170861] 0 pages in range for non-PLT usage
+[    0.170868] 520496 pages in range for PLT usage
+[    0.177166] pinctrl core: initialized pinctrl subsystem
+[    0.189517] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.192408] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.197671] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.205126] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.212893] thermal_sys: Registered thermal governor 'step_wise'
+[    0.212959] cpuidle: using governor menu
+[    0.226127] NET: Registered PF_QIPCRTR protocol family
+[    0.230026] ASID allocator initialised with 32768 entries
+[    0.236715] pstore: Using crash dump compression: deflate
+[    0.240325] printk: legacy console [ramoops-1] enabled
+[    0.246261] pstore: Registered ramoops as persistent store backend
+[    0.250714] ramoops: using 0x100000@0x8db00000, ecc: 0
+[    0.258409] CPUidle PSCI: Initialized CPU PM domain topology using OSI mode
+[    0.267777] /soc@0/usb@78d9000: Fixed dependency cycle(s) with /soc@0/usb@78d9000/ulpi/phy
+[    0.268908] /soc@0/usb@78d9000/ulpi/phy: Fixed dependency cycle(s) with /soc@0/usb@78d9000
+[    0.277256] /soc@0/interrupt-controller@b000000: Fixed dependency cycle(s) with /soc@0/interrupt-controller@b000000
+[    0.294217] /soc@0/usb@78d9000: Fixed dependency cycle(s) with /soc@0/usb@78d9000/ulpi/phy
+[    0.295876] /soc@0/usb@78d9000/ulpi/phy: Fixed dependency cycle(s) with /soc@0/usb@78d9000
+[    0.307442] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.312345] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.319211] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.325277] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    0.332221] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.338296] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.345240] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.351317] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.360953] iommu: Default domain type: Translated
+[    0.364363] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.369638] SCSI subsystem initialized
+[    0.375602] usbcore: registered new interface driver usbfs
+[    0.379135] usbcore: registered new interface driver hub
+[    0.384604] usbcore: registered new device driver usb
+[    0.390230] pps_core: LinuxPPS API ver. 1 registered
+[    0.394979] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.400045] PTP clock support registered
+[    0.410353] qcom_scm: convention: smc arm 32
+[    0.414509] Bluetooth: Core ver 2.22
+[    0.417333] NET: Registered PF_BLUETOOTH protocol family
+[    0.420852] Bluetooth: HCI device and connection manager initialized
+[    0.426152] Bluetooth: HCI socket layer initialized
+[    0.432481] Bluetooth: L2CAP socket layer initialized
+[    0.437088] Bluetooth: SCO socket layer initialized
+[    0.442560] clocksource: Switched to clocksource arch_sys_counter
+[    0.447312] VFS: Disk quotas dquot_6.6.0
+[    0.453252] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.461749] NET: Registered PF_INET protocol family
+[    0.464042] IP idents hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.469601] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.475999] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.484243] TCP established hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.492258] TCP bind hash table entries: 4096 (order: 5, 131072 bytes, linear)
+[    0.500086] TCP: Hash tables configured (established 4096 bind 4096)
+[    0.507146] MPTCP token hash table entries: 512 (order: 2, 12288 bytes, linear)
+[    0.513529] UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.520525] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.527247] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.535176] Initialise system trusted keyrings
+[    0.540071] workingset: timestamp_bits=46 max_order=17 bucket_order=0
+[    0.544605] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.635773] Key type asymmetric registered
+[    0.635814] Asymmetric key parser 'x509' registered
+[    0.638972] io scheduler mq-deadline registered
+[    0.643566] io scheduler kyber registered
+[    0.651609] ledtrig-cpu: registered to indicate activity on CPUs
+[    0.658240] msm_serial 78b0000.serial: msm_serial: detected port #0
+[    0.658373] msm_serial 78b0000.serial: uartclk = 7372800
+[    0.664645] 78b0000.serial: ttyMSM0 at MMIO 0x78b0000 (irq = 21, base_baud = 460800) is a MSM
+[    0.669956] msm_serial: console setup on port #0
+[    0.670063] printk: legacy console [ttyMSM0] enabled
+[    0.678662] printk: legacy bootconsole [msm_serial_dm0] disabled
+[    0.693139] msm_serial: driver initialized
+[    0.695916] qcom-iommu 1ef0000.iommu: iommu sec: pgtable size: 94208
+[    0.710897] loop: module loaded
+[    0.711482] spmi_pmic_arb 200f000.spmi: PMIC arbiter version v2 (0x20010000)
+[    0.718022] usbcore: registered new interface driver rtl8150
+[    0.720229] usbcore: registered new device driver r8152-cfgselector
+[    0.725871] usbcore: registered new interface driver r8152
+[    0.731856] usbcore: registered new interface driver usb-storage
+[    0.751571] rtc-pm8xxx 200f000.spmi:pmic@0:rtc@6000: registered as rtc0
+[    0.751655] rtc-pm8xxx 200f000.spmi:pmic@0:rtc@6000: setting system clock to 1970-01-01T03:00:31 UTC (10831)
+[    0.758828] input: pm8941_pwrkey as /devices/platform/soc@0/200f000.spmi/spmi-0/0-00/200f000.spmi:pmic@0:pon@800/200f000.spmi:pmic@0:pon@800:pwrkey/input/input0
+[    0.772277] sdhci: Secure Digital Host Controller Interface driver
+[    0.781458] sdhci: Copyright(c) Pierre Ossman
+[    0.787399] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.798104] NET: Registered PF_INET6 protocol family
+[    0.799408] Segment Routing with IPv6
+[    0.802517] In-situ OAM (IOAM) with IPv6
+[    0.806158] NET: Registered PF_PACKET protocol family
+[    0.810082] 8021q: 802.1Q VLAN Support v1.8
+[    0.820816] Loading compiled-in X.509 certificates
+[    0.854418] s3: Bringing 0uV into 1250000-1250000uV
+[    0.855055] s4: Bringing 0uV into 1850000-1850000uV
+[    0.858997] l2: Bringing 0uV into 1200000-1200000uV
+[    0.863925] l5: Bringing 0uV into 1800000-1800000uV
+[    0.866665] input: GPIO Buttons as /devices/platform/gpio-keys/input/input1
+[    0.868291] l6: Bringing 0uV into 1800000-1800000uV
+[    0.873095] clk: Disabling unused clocks
+[    0.879885] l7: Bringing 0uV into 1800000-1800000uV
+[    0.884711] PM: genpd: Disabling unused power domains
+[    0.889004] l8: Bringing 0uV into 2900000-2900000uV
+[    0.898823] l9: Bringing 0uV into 3300000-3300000uV
+[    0.903587] l11: Bringing 0uV into 2950000-2950000uV
+[    0.908268] l12: Bringing 0uV into 1800000-1800000uV
+[    0.914258] l13: Bringing 0uV into 3050000-3050000uV
+[    0.919928] Waiting for root device /dev/mmcblk0p14...
+[    0.954420] mmc0: SDHCI controller on 7824900.mmc [7824900.mmc] using ADMA
+[    1.082631] mmc0: Card appears overclocked; req 177770000 Hz, actual 177777777 Hz
+[    1.082702] mmc0: Card appears overclocked; req 177770000 Hz, actual 177777777 Hz
+[    1.092192] mmc0: new HS200 MMC card at address 0001
+[    1.098201] mmcblk0: mmc0:0001 H4G2a 3.64 GiB
+[    1.109842] GPT:Primary header thinks Alt. header is not at the end of the disk.
+[    1.109901] GPT:7569407 != 7634943
+[    1.116343] GPT:Alternate GPT header not at the end of the disk.
+[    1.119581] GPT:7569407 != 7634943
+[    1.125727] GPT: Use GNU Parted to correct GPT errors.
+[    1.129064]  mmcblk0: p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15
+[    1.135689] mmcblk0boot0: mmc0:0001 H4G2a 4.00 MiB
+[    1.142177] mmcblk0boot1: mmc0:0001 H4G2a 4.00 MiB
+[    1.146570] mmcblk0rpmb: mmc0:0001 H4G2a 4.00 MiB, chardev (241:0)
+[    1.156951] VFS: Mounted root (squashfs filesystem) readonly on device 179:14.
+[    1.157467] Freeing unused kernel memory: 960K
+[    1.164068] Run /sbin/init as init process
+[    1.480949] init: Console is alive
+[    1.481183] init: - watchdog -
+[    1.885176] kmodloader: loading kernel modules from /etc/modules-boot.d/*
+[    1.915708] kmodloader: done loading kernel modules from /etc/modules-boot.d/*
+[    1.922291] init: - preinit -
+[    6.653072] rootfs_data: existing ext filesystem detected
+[    6.653190] rootfs_data: od_magic=1 blkid_type=ext4
+[    6.657835] rootfs_data: running e2fsck -p
+[    6.861224] rootfs_data: recovering journal
+[    7.091003] rootfs_data: clean, 517/217728 files, 133423/869879 blocks
+[    7.091028] 
+[    7.177029] rootfs_data: filesystem clean
+[    7.244535] mount_root: loading kmods from internal overlay
+[    7.254442] kmodloader: loading kernel modules from //etc/modules-boot.d/*
+[    7.255446] kmodloader: done loading kernel modules from //etc/modules-boot.d/*
+[    7.496605] block: attempting to load /etc/config/fstab
+[    7.528393] block: extroot: not configured
+[    7.528599] block: attempting to load /etc/config/fstab
+[    7.531728] block: extroot: not configured
+[    7.609985] EXT4-fs (mmcblk0p15): mounted filesystem e8d09064-8528-4560-b28d-5f11e6a569fd r/w with ordered data mode. Quota mode: none.
+[    7.611251] mount_root: loading kmods from internal overlay
+[    7.643635] kmodloader: loading kernel modules from /tmp/overlay/upper/etc/modules-boot.d/*
+[    7.644357] kmodloader: done loading kernel modules from /tmp/overlay/upper/etc/modules-boot.d/*
+[    7.835660] block: attempting to load /tmp/overlay/upper/etc/config/fstab
+[    7.836947] block: extroot: not configured
+[    7.841636] block: attempting to load /etc/config/fstab
+[    7.846037] block: extroot: not configured
+[    7.851729] mount_root: switching to ext4 overlay
+[    7.875025] urandom-seed: Seeding with /etc/urandom.seed
+[    7.970979] procd: - early -
+[    7.971447] procd: - watchdog -
+[    8.549678] procd: - watchdog -
+[    8.550007] procd: - ubus -
+[    8.710761] procd: - init -
+[    9.340371] urngd: v1.0.2 started.
+[    9.374411] kmodloader: loading kernel modules from /etc/modules.d/*
+[    9.416535] zram: Added device: zram0
+[    9.421666] tun: Universal TUN/TAP device driver, 1.6
+[    9.437221] compat: loading out-of-tree module taints kernel.
+[    9.437713] Loading modules backported from Linux version v6.18.26-0-g1fe060681
+[    9.442119] Backport generated by backports.git 6ecbb44
+[    9.474133] remoteproc remoteproc0: 4080000.remoteproc is available
+[    9.484417] remoteproc remoteproc1: a204000.remoteproc is available
+[    9.489444] remoteproc remoteproc1: powering up a204000.remoteproc
+[    9.489519] remoteproc remoteproc1: Booting fw image wcnss.mdt, size 7260
+[    9.608357] PPP generic driver version 2.4.2
+[    9.609656] NET: Registered PF_PPPOX protocol family
+[    9.624606] wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+[    9.624669] wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+[    9.635547] kmodloader: done loading kernel modules from /etc/modules.d/*
+[   10.027609] remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+[   10.151238] qcom_wcnss_ctrl remoteproc1:smd-edge.WCNSS_CTRL.-1.-1: WCNSS Version 1.5 1.2
+[   10.160865] wcn36xx: mac address: 02:00:c2:b9:10:3c
+[   11.105360] remoteproc remoteproc0: powering up 4080000.remoteproc
+[   11.108594] remoteproc remoteproc0: Booting fw image mba.mbn, size 234176
+[   11.111855] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[   11.117799] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[   11.125165] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[   11.131719] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[   11.135946] zram0: detected capacity change from 0 to 389120
+[   11.140188] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[   11.153491] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[   11.160540] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[   11.163190] Adding 194556k swap on /dev/zram0.  Priority:100 extents:1 across:194556k SSDsc
+[   11.168312] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[   11.183653] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[   11.190559] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[   11.197761] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[   11.205308] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[   11.213018] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[   11.220909] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[   11.272748] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[   12.561519] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   12.561619] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[   13.070611] wwan wwan0: port wwan0at0 attached
+[   13.071316] wwan wwan0: port wwan0at1 attached
+[   13.271684] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[   13.271775] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[   13.279327] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[   13.279580] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 620 ms)
+[   13.287828] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[   13.296606] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[   13.306042] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[   13.323653] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[   13.331966] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[   13.340533] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
+[   13.349956] wwan wwan0: port wwan0qmi0 attached
+[   18.382722] wcn36xx: firmware WLAN version 'WCN v2.0 RadioPhy vUnknown with 19.2MHz XO' and CRM version 'CNSS-PR-1-4-2-c4-00084'
+[   18.382938] wcn36xx: firmware API 1.5.1.2, 41 stations, 2 bssids
+[   18.656049] br-lan: port 1(phy0-ap0) entered blocking state
+[   18.656225] br-lan: port 1(phy0-ap0) entered disabled state
+[   18.666839] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered allmulticast mode
+[   18.667784] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered promiscuous mode
+[   18.865579] br-lan: port 1(phy0-ap0) entered blocking state
+[   18.865686] br-lan: port 1(phy0-ap0) entered forwarding state
+[   19.111630] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: left allmulticast mode
+[   19.111710] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: left promiscuous mode
+[   19.137213] br-lan: port 1(phy0-ap0) entered disabled state
+[   19.431441] br-lan: port 1(phy0-ap0) entered blocking state
+[   19.431514] br-lan: port 1(phy0-ap0) entered disabled state
+[   19.436416] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered allmulticast mode
+[   19.442332] wcn36xx a204000.remoteproc:smd-edge:wcnss:wifi phy0-ap0: entered promiscuous mode
+[   19.453648] br-lan: port 1(phy0-ap0) entered blocking state
+[   19.458851] br-lan: port 1(phy0-ap0) entered forwarding state
+[  165.974635] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T0 scheduled
+[  165.978314] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T1 entry
+[  165.985784] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+[  165.988939] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+[  165.997713] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired

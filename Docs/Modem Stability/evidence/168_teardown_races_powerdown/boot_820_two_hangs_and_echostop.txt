@@ -1,0 +1,121 @@
+Doc 168 evidence — patch 820's two hanging boots, and the two `echo stop` freezes
+==============================================================================
+Captured 2026-09-21. All lines are verbatim `dmesg`/pstore console output.
+Device: HMU05, OpenWrt 25.12.5 / Linux 6.12.94, module qcom_bam_dmux.ko md5
+e441491317f09e34a3e72dc15cdacd3c (patch 820).
+
+
+-------------------------------------------------------------------------------
+1. BOOT 820-#1 — fatal at AP 276.111919, hang after T4
+-------------------------------------------------------------------------------
+  [   64.499417] bam-dmux: bam_dmux: modem pc-ack timeout during resume
+  [   81.312620] bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+  [   89.469247] bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+  [  275.389534] bam-dmux: bam_dmux: modem pc-ack timeout during resume
+  [  276.111919] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+  [  276.111983] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+  [  276.118956] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+  [  276.127055] remoteproc remoteproc0: recovering 4080000.remoteproc
+  [  276.133762] bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+  [  276.133805] bam-dmux: bam_dmux: SSR teardown T0 scheduled
+  [  276.140110] bam-dmux: bam_dmux: SSR teardown T1 entry
+  [  276.148171] bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+  [  276.156528] qcom-q6v5-mss: q6v5-trace: 01 disable_qchannel mdm
+  [  276.156549] qcom-q6v5-mss: q6v5-trace: 02 disable_qchannel cx
+  [  276.156559] qcom-q6v5-mss: q6v5-trace: 03 disable_qchannel axi
+  [  276.156568] qcom-q6v5-mss: q6v5-trace: 04 reset_assert
+  [  276.156608] qcom-q6v5-mss: q6v5-trace: 05 clk_disable reset
+  [  276.156618] qcom-q6v5-mss: q6v5-trace: 06 clk_disable active
+  [  276.156652] qcom-q6v5-mss: q6v5-trace: 07 regulator_disable active
+  [  276.156662] qcom-q6v5-mss: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+  [  276.156671] qcom-q6v5-mss: q6v5-trace: 09 qcom_q6v5_unprepare
+  [  276.156851] bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+  [  276.164748] bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+  <nothing further — device reset>
+
+  Gaps: T0->T1 6.305 ms, T1->T2 8.061 ms, T2->T3 8.680 ms, T3->T4 7.897 ms.
+  fatal -> q6v5-trace 09 = +44.75 ms;  fatal -> T4 = +52.83 ms.
+  No coredump (coredump_watch.log shows no dump line for this boot).
+  console-ramoops-0 = 24304 B, first line [0.000000] Booting Linux ... => no wrap.
+
+
+-------------------------------------------------------------------------------
+2. BOOT 820-#2 — fatal at AP 951.663368, hang after T4, NO power-down trace
+-------------------------------------------------------------------------------
+  [  950.955673] bam-dmux: bam_dmux: modem pc-ack timeout during resume
+  [  951.663368] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+  [  951.663564] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+  [  951.670756] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+  [  951.678361] remoteproc remoteproc0: recovering 4080000.remoteproc
+  [  951.685278] bam-dmux: bam_dmux: SSR teardown T0 scheduled
+  [  951.691510] bam-dmux: bam_dmux: SSR teardown T1 entry
+  [  951.699261] bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+  [  951.707643] bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+  [  951.719173] bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+  <nothing further — device reset>
+
+  NOTE: no q6v5-trace 01..09 at all in this boot, i.e. the modem power-down had
+  NOT started when T4 printed. The AP froze anyway. This is the observation that
+  makes "the BAM was already unpowered" insufficient as the mechanism.
+  Gaps: T0->T1 6.232, T1->T2 7.751, T2->T3 8.382, T3->T4 11.530 ms.
+  console-ramoops-0 = 24003 B, no wrap.
+
+
+-------------------------------------------------------------------------------
+3. `echo stop` — run 1, AP 137 s
+-------------------------------------------------------------------------------
+  $ ssh root@192.168.8.1 'echo stop > /sys/class/remoteproc/remoteproc0/state; echo "RC=$?"'
+  RC=0
+
+  pstore console (this boot):
+  [  138.088635] bam-dmux: bam_dmux: SSR teardown T0 scheduled
+  [  138.092817] bam-dmux: bam_dmux: SSR teardown T1 entry
+  [  138.095526] bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+  [  138.104037] bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+  [  138.112650] bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+  <nothing further — device reset to uptime 33>
+
+  No q6v5-trace. No "fatal error received" line at all (this was a CLEAN stop).
+  console-ramoops-0 = 23513 B, no wrap.
+
+
+-------------------------------------------------------------------------------
+4. `echo stop` — run 2, AP 165 s  (saved in full as console_ramoops_echostop2.txt)
+-------------------------------------------------------------------------------
+  $ ssh root@192.168.8.1 'echo stop > /sys/class/remoteproc/remoteproc0/state; echo "RC=$?"'
+  RC=0
+
+  pstore console (this boot):
+  [  165.974635] bam-dmux: bam_dmux: SSR teardown T0 scheduled
+  [  165.978314] bam-dmux: bam_dmux: SSR teardown T1 entry
+  [  165.985784] bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+  [  165.988939] bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+  [  165.997713] bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+  <nothing further — device reset to uptime 36>
+
+  No q6v5-trace. No fatal line.
+  console-ramoops-0 = 23513 B, no wrap.
+
+
+-------------------------------------------------------------------------------
+5. The pre-820 control (Doc 167 §1, boot C) — for contrast
+-------------------------------------------------------------------------------
+  Boot C ran on the pre-820 module (eca269f1...) and reached 2181.14 s through
+  TWO fatals, recovering from both, with 2 coredumps and 106 trace lines.
+  Its fatal #2 landed at AP 1837.400528 (a2_power.c:1189) — only 2.989 s from
+  boot B's hang at AP 1840.390188. See evidence/167_hang_not_deterministic/.
+
+
+-------------------------------------------------------------------------------
+6. What is NOT in these logs, and why
+-------------------------------------------------------------------------------
+* `wwan0at0 disconnected` does not appear in any console-ramoops record above.
+  That is EXPECTED and is not evidence: the line is `dev_info`
+  (drivers/net/wwan/wwan_core.c:529) and is suppressed on every console at
+  console_loglevel = 6. It can only reach the userspace-fed pmsg mirror.
+  Use `q6v5-trace 01..09` (dev_err) as the marker of rproc_stop()'s progress.
+* `stopped remote processor 4080000.remoteproc` is also `dev_info` and equally
+  invisible, so it is not evidence either way.
+* The pmsg-ramoops mirrors end at T3 rather than T4 in every case; pmsg is fed
+  by a userspace `cat /dev/kmsg | while read` loop whose grep is block-buffered,
+  so the last line it copied is not the last line the kernel stored.

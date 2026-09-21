@@ -1,0 +1,67 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -1603,6 +1603,7 @@
+ 		dmux->rx = NULL;
+ 		spin_unlock_irqrestore(&dmux->rx_lock, flags);
+ 	}
++	dev_err(dmux->dev, "bam-dmux T5 rx released\n");
+ 
+ 	/* 5. Wait for any in-flight RX callbacks to complete */
+ 	wait_event(dmux->rx_callback_wait,
+@@ -1616,6 +1617,7 @@
+ 		dmux->tx = NULL;
+ 		spin_unlock_irqrestore(&dmux->rx_lock, flags);
+ 	}
++	dev_err(dmux->dev, "bam-dmux T6 tx released\n");
+ 
+ 	/* Bump generation counter so concurrent runtime_resume() detects change */
+ 	spin_lock_irqsave(&dmux->rx_lock, flags);
+@@ -1914,6 +1916,7 @@
+ static void bam_dmux_ssr_teardown(struct bam_dmux *dmux)
+ {
+ 	bam_dmux_power_off(dmux);
++	dev_err(dmux->dev, "bam-dmux T7 power_off returned\n");
+ 	bam_dmux_free_skbs(dmux->rx_skbs, DMA_FROM_DEVICE);
+ }
+ 
+@@ -2327,6 +2330,7 @@
+ 	 */
+ 	disable_irq(dmux->pc_irq);
+ 	enable_irq(dmux->pc_irq);
++	dev_err(dmux->dev, "bam-dmux T8 work done\n");
+ }
+ 
+ static void bam_dmux_ssr_powerup_work_func(struct work_struct *work)
+@@ -2439,6 +2443,32 @@
+ 		 * way to tell them apart from a dying boot's last line.
+ 		 */
+ 		dev_err(dmux->dev, "bam_dmux: SSR teardown T0 scheduled\n");
++
++		/*
++		 * patch 821: run the teardown to COMPLETION here, before
++		 * rproc_stop() continues.
++		 *
++		 * rproc_stop() calls rproc_stop_subdevices() (which fires this
++		 * notifier) and then, tens of ms later, rproc->ops->stop() ->
++		 * q6v5_stop(), which powers the modem down (q6v5-trace 01..09:
++		 * disable_qchannel, reset_assert, clk_disable,
++		 * regulator_disable).  bam_dmux_power_off() terminates and
++		 * RELEASES the BAM-DMUX DMA channels, and the BAM sits in the
++		 * modem's power domain.  Left asynchronous -- as it was before
++		 * this patch -- the work races that power-down.  Measured
++		 * 2026-09-21: when the work reaches state_lock after the
++		 * power-down the AP stops printing and silently resets, with no
++		 * coredump (rproc_stop() never returns).  The five T0..T4
++		 * dev_err probes added ~40 ms of console time and made the work
++		 * lose that race 2/2 times; the identical freeze is reproducible
++		 * on demand with
++		 *   echo stop > /sys/class/remoteproc/remoteproc0/state
++		 *
++		 * Flushing makes the ordering deterministic: the DMA channels are
++		 * released while the BAM is still powered.
++		 */
++		flush_work(&dmux->ssr_teardown_work);
++		dev_err(dmux->dev, "bam-dmux T9 flush returned\n");
+ 		break;
+ 	case QCOM_SSR_AFTER_POWERUP:
+ 		dev_info(dmux->dev, "bam_dmux: SSR after powerup: scheduling powerup work\n");
