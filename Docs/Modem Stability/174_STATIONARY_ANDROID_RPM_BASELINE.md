@@ -85,6 +85,27 @@ resource histograms are still valid samples** (each slot is read once), but the 
 **ordering and timestamps are not usable**. A lossless Android track is **not achievable this
 way**: at ~590 rec/s a 2 ms/word `devmem` loop cannot keep up.
 
+### 2.3 `/d/rpm_log` is a trap — do not use it as an RPM record source
+
+`/d/rpm_log` looks like the obvious answer to §2.2's aliasing problem, and memory lists it as an
+available instrument. It is **not usable**, and this was established before relying on it:
+
+* It is a **live, unbounded ASCII-hex stream** (`- 0x00, 0xCC, 0x1D, 0xB0, …`) — two 200 KB reads
+  8 s apart differ (`md5` `6700a222…` vs `d7152baa…`), and a plain `cat` ran for **3.5 min
+  producing 17 MB** without EOF. Throughput ≈ **130 KB/s of text ≈ 22 KB/s of data**, which is
+  suspiciously close to the ring's own 540 rec/s × 32 B ≈ 17 KB/s — which is why it is tempting.
+* **It does not carry the ring's records.** Decoded to bytes, **neither** sample contains the
+  `0x00200000` record marker **at any byte offset** (0 hits in 33 326 bytes and 0 hits in
+  2 851 541 bytes).
+* **Its content is not stable.** The 200 KB read has clear structure (11.6 % of 32-bit words
+  below `0x1000`, a repeated `?? ?? 1d b0` motif); the 17 MB read has **none** — **0.00 %** of
+  words below `0x1000` and a flat 256-value byte histogram. Two reads of the same node returned
+  two different *kinds* of data.
+
+**Verdict: `/d/rpm_log` must not be used as an RPM record source.** Whatever it streams, it is not
+the external-log ring in the ring's encoding, and it is not reproducible. The `devmem` ring read
+above remains the only verified way to get RPM records on Android.
+
 ---
 
 ## 3. Result 1 — the modem's power-collapse rate, and the bus never mattered
@@ -263,6 +284,8 @@ stationary exercise was for.
 | `score_stationary_baseline.py` | replays every number in this doc from the frozen artifacts; gz-transparent |
 | `verify_output.txt` | the scorer's output |
 | `stationary_baseline.sh` | the sampler (one `adb` round trip per sample; records uptime, the three masters' counters, the MPSS tick fields, and the **raw** telephony lines) |
+| `probe_rpm_log_node.sh` | reproduces §2.3 — the two differing `md5`s and the zero-marker result |
+| `rpm_log_200k.bin.gz` | one 200 KB `/d/rpm_log` read, for the §2.3 structure check |
 | `rpm_stationary.csv.gz` | boot A — uptime 493.8 → 817.8 s |
 | `rpm_stationary_boot2.csv.gz` | boot B — uptime 79.3 → 535.2 s |
 | `rpm_ctr_rate.txt.gz`, `rpm_ctr_rate2.txt.gz`, `rpm_ctr_long.txt.gz` | RPM write-counter series (1 s, 2 s, 5 s intervals) |
