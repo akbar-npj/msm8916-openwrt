@@ -41,6 +41,7 @@ DATA = {
         (932.855, "Doc 149 table fatal #7 (E1 phase B)"),
         (940.238, "soak814 run8 fatal #4"),
         (941.288, "soak814 run8 fatal #2"),
+        (947.161, "soak814 run8 fatal #5 (breaks the apparent 2-cycle)"),
     ],
 }
 
@@ -54,9 +55,9 @@ for sig, rows in DATA.items():
     print(f"{sig:<30} {len(v):>2} {v[0]:>9.3f} {v[-1]:>9.3f} {mean:>10.3f} {spread:>8.3f} {ppm:>8.0f}")
 
 print()
-print("run 8 (soak814) — the 2-cycle, raw dmesg anchors:")
-up = [11.950, 914.305, 1856.956, 2759.129]
-fat = [912.915, 1855.593, 2757.618, 3699.367]
-sig = ["sleepmgr", "a2_power", "sleepmgr", "a2_power"]
+print("run 8 (soak814) — raw dmesg anchors (S,A,S,A,A: NOT a 2-cycle):")
+up = [11.950, 914.305, 1856.956, 2759.129, 3700.741]
+fat = [912.915, 1855.593, 2757.618, 3699.367, 4647.902]
+sig = ["sleepmgr", "a2_power", "sleepmgr", "a2_power", "a2_power"]
 for i, (u, f, s) in enumerate(zip(up, fat, sig), 1):
     print(f"  #{i}  modem_up {f:>9.3f} - {u:>9.3f} = {f-u:>9.3f} s   {s}")

@@ -54,11 +54,19 @@ asserting the copy landed on **both** install paths — answers "will the next b
 kernel module**), and an eighteenth by **Doc 162** (which measures the two data-plane fixes at scale —
 **549 deferred packets, 549 delivered, 0 destroyed** over four A2 collapses, against Doc 156's pre-fix
 **27/27 destroyed** — confirms patch 814's recovery on 4/4 natural SSRs while noting its *retry* path is
-still unvalidated, and records a **new unexplained structure**: four consecutive fatals alternating
-900.965 / 941.288 / 900.662 / 940.238 s of modem uptime in lock-step with their signatures; it also
+still unvalidated, and records a **new unexplained structure**: the deterministic ~900.8 s fatal fired on
+only 2 of that boot's 5 modem boots, and on the other 3 an `a2_power.c:1189` fatal fired instead at
+940.2–947.2 s of modem uptime (the first four fatals alternated exactly and the fifth broke it, so
+Doc 162's initial "2-cycle" reading is corrected in place); it also
 **quantifies the fatal-signature taxonomy**, showing the three `file:line` values near 900 s have
 measurably different distributions — so Doc 149's "must not classify a fatal by its `file:line`" is a
-correct warning but too strong as stated) — see the sections
+correct warning but too strong as stated), and a nineteenth by **Doc 163** (which reads the
+ERR_FATAL record out of the modem's own coredumps and finds the **filename is plaintext and inline
+at `+0x24`**, and that it names the **same `file:line` dmesg does in 11 dumps out of 11 across two
+boots** — so Doc 149's "never classify a fatal by its `file:line`" is a correct warning and a wrong
+conclusion, and Doc 162's suppressed-~901 s-fatal finding cannot be a stale-signature artefact; it
+also preserves a 36-dump, 2.9 GB coredump corpus that was one write away from filling the overlay
+partition) — see the sections
 below.
 **Retraction 1 is scoped: read it before citing it.**
 
@@ -717,19 +725,24 @@ below.
     15 / 30 s). But **`retries: 0`** — this modem came ready in 540–580 ms every time, well inside
     the original 3.2 s budget. So run 8 does **not** validate the retry path; run 6's watchdog
     rebuild remains the only natural-trigger evidence, and the *retry*'s trigger is still unobserved.
-86. **Run 8's four fatals alternate, in lock-step with their signatures.** Modem uptime at fatal:
-    **900.965 / 941.288 / 900.662 / 940.238 s**, signatures
+86. **Run 8's ~901 s fatal fires on only some boots — the first four fatals made this look like a
+    clean 2-cycle, and the fifth broke it.** Modem uptime at fatal:
+    **900.965 / 941.288 / 900.662 / 940.238 / 947.161 s**, signatures
     `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189` / `lte_ml1_sleepmgr_stm.c:4054` /
-    `a2_power.c:1189`. On boots 2 and 4 the deterministic ~901 s fatal **did not fire at all** (it
-    would have landed at AP 1815.3 s and 3660.1 s; the SSR count is 4, matching the 4 fatals, so
-    nothing went unrecorded). Run 6, under the *same harness and traffic*, showed no alternation —
-    so this is a property of the boot, not of the measurement. **New structure; unexplained; n=4.**
+    `a2_power.c:1189` / `a2_power.c:1189` — i.e. **S, A, S, A, A, not an alternation**. The
+    surviving claim is the useful one: **the deterministic ~900.8 s fatal fired on only 2 of the 5
+    modem boots; on the other 3 an `a2_power.c:1189` fatal fired instead at 940.2–947.2 s.** On
+    boots 2, 4 and 5 the ~901 s fatal did **not** fire at all (it would have landed at AP 1815.3,
+    3660.1 and 4601.5 s; SSR count = fatal count = 5, so nothing went unrecorded). Run 6, under the
+    *same harness and traffic*, showed none of this. **New structure; unexplained; n=5, one boot.**
+    Doc 162 was written when only four fatals were in and claimed a 2-cycle; **it is corrected in
+    place, with the wrong reading kept visible.**
 87. **"The period" is only well-defined per signature.** Over every fatal in the corpus that can
     be paired with a signature and a modem-uptime anchor (`evidence/162_fatal_signature_taxonomy/fatal_taxonomy.py`,
     every row cited):
     `lte_ml1_common_timer.c:390` — **n=11, 902.353 s mean, spread 0.508 s, ±281 ppm**;
     `lte_ml1_sleepmgr_stm.c:4054` — **n=10, 901.230 s mean, spread 2.319 s** (±1287 ppm);
-    `a2_power.c:1189` — **n=7, 68.524 … 941.288 s, spread 872.764 s**.
+    `a2_power.c:1189` — **n=8, 68.524 … 947.161 s, spread 878.637 s**.
     The first is the deterministic timer (and matches the RE's `400 × 2.256 s`). The second sits
     **1.12 s earlier with 4.6× the spread** — a difference larger than both spreads combined, so
     likely a downstream consequence rather than the timer. The third is **not a clock at all**.
@@ -738,6 +751,36 @@ below.
     identify *the* assert — but the three distributions are measurably different, so it *does* say
     which mechanism fired. **Ask "what is this signature's period?", not "what is the fatal's
     period?"**
+
+## A nineteenth round — Doc 163, 2026-09-21: the ERR_FATAL descriptor is inline and matches dmesg 11/11
+
+89. **The ERR_FATAL descriptor carries a plaintext, INLINE filename — and it names the same
+    `file:line` dmesg does, 11 dumps out of 11, across two boots.** The record is at ELF VA
+    `0xC35B1280`: `+0x10` = line (u16), `+0x14`/`+0x18` = words A/B, and **`+0x24` = the filename,
+    NUL-terminated and in the clear**. The corpus recorded the descriptor as *"obfuscated"* with
+    *"no 16-byte filename table"* — that is true of the **ELF on disk**, but the runtime copy in a
+    coredump is plaintext, and the earlier reader followed the unrelated `+0x08` pointer instead of
+    reading `+0x24`. Run 8's five dumps decode to `lte_ml1_sleepmgr_stm.c` 4054 /
+    `a2_power.c` 1189 / `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `a2_power.c` 1189 —
+    exactly the five dmesg signatures. The earlier boot's six dumps all decode to
+    `lte_ml1_common_timer.c` 390, matching that boot's dmesg table (Doc 149 §2). Word B advances
+    **+11/+12 per fatal** (Doc 152 re-confirmed).
+90. **Doc 149's "must not classify a fatal by its `file:line`" is a correct warning and a wrong
+    conclusion.** The string does not name the *root cause* — several sites can trip near 900 s —
+    but it does name **which site tripped**, and the firmware's own bytes confirm it. That is the
+    modem RE's §5.2 exactly: one root event at different assert sites. **Doc 162's revision is now
+    confirmed from the firmware's memory, not just from timing.**
+91. **This closes the alternative reading of Doc 162 §3.** The suppressed-~901 s-fatal finding
+    cannot be a stale/lagging signature, because the descriptor is rewritten per fatal and matches
+    5/5. The live hypothesis is the other one: two competing mechanisms whose relative phase
+    depends on the state the SSR recovery leaves behind.
+92. **The 36-dump coredump corpus was one write away from destroying itself.** `/overlay` was at
+    **100 % with 9.2 MB free**, holding 2.9 GB of dumps on a 3.2 GB partition, while the autostarting
+    watcher writes a **fresh 85 MB dump on every fatal** — so the next fatal would have failed to
+    write and the capture the watcher exists to make would have been lost silently. All 36 dumps
+    were copied to `scratch/coredump_live_full/coredump_live/` and **verified byte-identical by md5
+    (36/36)**; only 6 were in the repo before. `/overlay/coredump_live/` was then cleared —
+    **9.2 MB → 2.9 GB free**. The watcher is still running.
 
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
@@ -813,6 +856,8 @@ Also established and not to be re-litigated:
 | `160_PATCH_CHAIN_VERIFICATION_AND_STALE_LIVE_TREE.md` | **Build-provenance verification: the built kernel contains all 18 tracked patches (17/17 target files byte-identical to pristine + `msm89xx/patches/`), but the LIVE `openwrt/target/linux/msm89xx/patches/` was stale at 14 — missing `810`, `811`, `812`, `814`.** Because the build reads the **live** directory (`PATCH_DIR`, `include/kernel.mk:43`), and because that directory is part of the prepare stamp's md5 (`include/kernel-build.mk:12-13`), a re-prepare in that state would have `rm -rf`'d `build_dir` and rebuilt from the stale set — producing a `qcom_bam_dmux.c` **277 lines shorter** (2598→2321; 26 hunks, +303/−26) with the `tx_sweep_guard_hits`, `defer_q`/`defer_sub` counters and **patch 812's root-cause data-stall fix** all absent, invisibly. The tracked tree is authoritative only because `build.sh`'s `sync_bsp()` copies it over the live one (`build.sh:336`). **Fixed** by syncing (both trees now byte-identical; reconstruction from the live tree re-verifies 17/17). Two wrong intermediate answers are recorded: a created file expressed as `--- a/…` + `@@ -0,0 +1,N @@` (patch `813`'s `msm-poweroff.h`) is missed by a `--- /dev/null` scan, and a "patches FAILED" result that was a dirty-tree artefact. **No firmware, driver or DTS change was made.** |
 | `161_BUILD_TOOLING_PATCH_GUARD_AND_SELECTIVE_BUILDS.md` | **Build tooling; no firmware/driver/DTS change.** `build.sh` now (a) **guards the patch tree**: `bsp_drift()` compares tracked vs live (`msm89xx/` → `target/linux/msm89xx/`, `packages/` → `package/msm8916/`), `sync_bsp()` **reports drift before healing and asserts afterwards**, and `assert_bsp_synced()` covers **both** install paths (`sync_bsp` *and* `scripts/openwrt-prepare.sh`, via `ensure_prepared`/`force_prepare`); (b) adds **`./build.sh guard [--deep]`**, exiting non-zero on drift and needing no Docker in its basic form; (c) `--deep` predicts a re-prepare **exactly by asking make** for its own `STAMP_PREPARED` via an `--eval`'d target, rather than re-implementing `find_md5` — which would be **wrong**, because that hash covers **absolute** paths that differ between host and container; it records that **`make -p` prints recursive variables UNEXPANDED** (so `-p` cannot work), that **`TOPDIR` must be passed** (exported by the top-level make, not set in `rules.mk`), and that **`TARGET_BUILD` must be exactly `1`**; (d) adds **`kernel [board]`, `package <name\|path> [board]`, `kmod <name> [board]`** with a board-optional `ensure_config` (reuses `.config` instead of re-running `defconfig`) and five-path package resolution (base-tree nested / feed symlink / project / explicit); (e) draws the honest line that an **in-tree** kmod (`qcom_bam_dmux`) has **no narrower goal than the kernel target**, and prints matching modules with **md5** (`kmod bam-dmux` → `qcom_bam_dmux.ko` `eca269f1…`, the hash on the device); (f) adds a **fully side-effect-free `DRY_RUN=1`**, whose `prepare_config` guard was added after a dry run **clobbered `.config`** (leaving `TARGET_DIR_NAME` = `_`; `.config` restored to the hmu05 board config). Validated by **10 checks** including a real **drift-injection cycle** (detect → report → heal → verify). **The guard does NOT cover a `make` run directly inside the container — that is what `guard` is for.** |
 | `162_SOAK_RUN8_PATCH812_AT_SCALE_AND_FATAL_SIGNATURE_TAXONOMY.md` | **Run 8: the two AP-side data-plane fixes measured at scale, plus a quantified fatal-signature taxonomy.** 70 min, 4 fatals, 4 SSRs, same harness as run 6: **`tx_defer_queued 549` = `tx_defer_submitted 549`, gap 0, `tx_defer_wiped_live 0`, `tx_sweep_guard_hits 0`, 0 oopses, `cmd_open 40`** — against Doc 156's pre-fix **27/27 destroyed**; the data stall is gone at load, not just in the 3-packet repro. Patch 814 recovered the data plane on **4/4 natural SSR triggers** (~20/40/15/30 s) but **`retries: 0`**, so the *retry* path is still unvalidated on a natural trigger. **The run's four fatals alternate 900.965 / 941.288 / 900.662 / 940.238 s of modem uptime with the signature alternating `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189` in lock-step** — on boots 2 and 4 the deterministic ~901 s fatal did not fire at all (SSR count 4 = fatal count 4, so nothing was missed); run 6 showed no such alternation under identical conditions, so it is a property of the boot, **unexplained, n=4**. And the taxonomy: `lte_ml1_common_timer.c:390` **n=11, 902.353 s, ±281 ppm** (the deterministic timer, matching `400 × 2.256 s`); `lte_ml1_sleepmgr_stm.c:4054` **n=10, 901.230 s, 4.6× the spread** (likely downstream); `a2_power.c:1189` **n=7, 68.5–941.3 s — not a clock**. **Refines Doc 149: the `file:line` does not identify *the* assert, but it *does* identify which mechanism fired — ask "what is this signature's period?"** |
+| `163_ERRFATAL_DESCRIPTOR_IS_INLINE_AND_MATCHES_DMESG.md` | **The ERR_FATAL coredump descriptor carries a plaintext, INLINE filename, and its `file:line` matches that fatal's dmesg signature 11/11 across two boots.** Record at ELF VA `0xC35B1280`: `+0x10` line (u16), `+0x14`/`+0x18` words A/B, **`+0x24` filename, NUL-terminated, in the clear**. The corpus' *"obfuscated"* / *"no 16-byte filename table"* is true of the **ELF on disk** but not of the **runtime copy in a coredump** — the earlier reader followed the unrelated `+0x08` pointer instead of reading `+0x24`. Run 8's 5 dumps decode to `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `a2_power.c` 1189, exactly its 5 dmesg signatures; the earlier boot's 6 dumps all decode to `lte_ml1_common_timer.c` 390, matching Doc 149 §2's table (and covering **4** distinct fatals, not 6 — two were captured twice). Word B advances **+11/+12 per fatal**. **So Doc 149's "must not classify a fatal by its `file:line`" is a correct warning and a wrong conclusion** — the string does not name the root cause but it does name *which site tripped*, which is the modem RE's §5.2 exactly, and it closes the alternative reading of Doc 162 §3 (the signature cannot be stale). Also records that `/overlay` was at **100 % with 9.2 MB free** while the watcher writes an 85 MB dump per fatal; **all 36 dumps (2.9 GB) were copied to `scratch/coredump_live_full/` and verified byte-identical by md5 (36/36)** before `/overlay/coredump_live/` was cleared (**9.2 MB → 2.9 GB free**). Tool: `evidence/163_errfatal_descriptor/errfatal_descriptor.py`. |
+
 
 ## Sound but narrow (accurate, subordinate scope)
 

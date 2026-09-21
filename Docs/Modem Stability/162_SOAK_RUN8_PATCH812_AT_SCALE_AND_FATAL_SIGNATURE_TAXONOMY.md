@@ -70,7 +70,7 @@ boot + four SSRs). That can only happen if the driver rebuilt the channels each 
 
 ---
 
-## 3. The fatal cadence in run 8 — a clean 2-cycle
+## 3. The fatal cadence in run 8 — the ~901 s fatal is suppressed on 3 of 5 boots
 
 Raw `dmesg` anchors, AP uptime seconds:
 
@@ -80,26 +80,39 @@ Raw `dmesg` anchors, AP uptime seconds:
 | 2 | 914.305 | 1855.593 | **941.288** | `a2_power.c:1189` |
 | 3 | 1856.956 | 2757.618 | **900.662** | `lte_ml1_sleepmgr_stm.c:4054` |
 | 4 | 2759.129 | 3699.367 | **940.238** | `a2_power.c:1189` |
+| 5 | 3700.741 | 4647.902 | **947.161** | `a2_power.c:1189` |
 
-Four consecutive fatals, alternating **900.965 / 941.288 / 900.662 / 940.238 s of modem uptime**,
-with the signature alternating in lock-step. On boots 2 and 4 the deterministic ~901 s fatal
-**did not fire at all**: the timer would have landed at AP 1815.3 s and 3660.1 s, and there is no
-fatal there (`ssr` count is 4, matching the 4 fatals — no fatal went unrecorded).
+**This document was written when only four fatals were in; the fifth one breaks the pattern, and
+the corrected reading is below. The correction is recorded rather than edited away, because the
+four-fatal reading was plausible and someone will re-derive it.**
 
-This is **new structure**. Run 6, under the *same* harness and the same burst pattern, showed no
-such alternation: all four of its sleepmgr fatals sat at 900.699 / 901.324 / 901.965 / 902.981 s,
-and its `a2_power` fatals were scattered at 68.5 / 178.0 / 909.1 s (Doc 157 evidence). So the
-2-cycle is a property of *this* boot, not of the harness.
+**Four fatals looked like a clean 2-cycle** — 900.965 / 941.288 / 900.662 / 940.238 s of modem
+uptime, signature alternating in lock-step. **The fifth fatal is `a2_power.c:1189` at 947.161 s**,
+so the sequence is **S, A, S, A, A**, not an alternation. What survives is the weaker and more
+useful statement:
 
-**Not claimed:** why. Four samples is a pattern, not a mechanism. The two candidate readings are
-(a) two competing mechanisms whose relative phase depends on the state the SSR recovery leaves
-behind, and (b) one mechanism whose *reported* signature lags or leads by one event. §5's
-taxonomy is evidence for (a) over (b), but does not settle it.
+> **The deterministic ~900.8 s `lte_ml1_sleepmgr_stm.c:4054` fatal fired on only 2 of this boot's
+> 5 modem boots. On the other 3 an `a2_power.c:1189` fatal fired instead, at 940.2 / 941.3 /
+> 947.2 s of modem uptime.**
 
-**What it does establish:** the ~40 s offset of run 8's `a2_power` fatals (941.288, 940.238) is
-**not** a new period. It is the deterministic timer's neighbourhood plus ~40 s, and the ~40 s
-coincides with the data-plane recovery time this harness measures after an SSR (~20–40 s). That
-coincidence is worth testing, not asserting.
+On boots 2, 4 and 5 the ~901 s fatal **did not fire at all**: it would have landed at AP 1815.3,
+3660.1 and 4601.5 s, and there is no fatal there (`ssr` count equals the fatal count, 5 — no fatal
+went unrecorded). That is the finding, and it is what needs explaining.
+
+Run 6, under the *same* harness and burst pattern, showed none of this: all four of its sleepmgr
+fatals sat at 900.699 / 901.324 / 901.965 / 902.981 s, and its `a2_power` fatals were scattered at
+68.5 / 178.0 / 909.1 s (Doc 157 evidence). So the suppression is a property of *this* boot.
+
+**Not claimed:** why. Five samples over one boot is a pattern, not a mechanism. The two candidate
+readings are (a) two competing mechanisms whose relative phase depends on the state the SSR
+recovery leaves behind, and (b) one mechanism whose *reported* signature varies. **Doc 163 rules
+(b) out from the coredump side** — the firmware's own record names the site, and it matches the
+dmesg line 5/5 — which leaves (a) as the live hypothesis.
+
+**What it does establish:** run 8's `a2_power` fatals at 940.2 / 941.3 / 947.2 s are **not** the
+deterministic timer. They cluster ~40–46 s above it, and the ~40 s coincides with the data-plane
+recovery time this harness measures after an SSR (~20–40 s). That coincidence is worth testing,
+not asserting.
 
 ---
 
@@ -107,8 +120,8 @@ coincidence is worth testing, not asserting.
 
 Across the corpus the fatal is described as "~900 s", "~901.6 s", "~902.3 s", and "903.674 s"
 (AP-side). Doc 149 corrected the last of these to **902.267 s of modem uptime (n=4, 112 ppm)**.
-Run 8's four samples (900.965, 941.288, 900.662, 940.238) are **not** consistent with a single
-period, and this is the second independent boot to say so — Doc 149's own E1 experiment already
+Run 8's five samples (900.965, 941.288, 900.662, 940.238, 947.161) are **not** consistent with a
+single period, and this is the second independent boot to say so — Doc 149's own E1 experiment already
 produced 895.490 s then 932.855 s under traffic.
 
 The reconciliation is §5: **"the period" is only well-defined per signature.**
@@ -126,7 +139,7 @@ source).
 | :--- | --: | --: | --: | --: | --: | --: |
 | `lte_ml1_common_timer.c:390` | 11 | 902.169 | 902.677 | **902.353** | **0.508** | **281** |
 | `lte_ml1_sleepmgr_stm.c:4054` | 10 | 900.662 | 902.981 | **901.230** | 2.319 | 1287 |
-| `a2_power.c:1189` | 7 | 68.524 | 941.288 | 695.068 | **872.764** | 627826 |
+| `a2_power.c:1189` | 8 | 68.524 | 947.161 | 726.580 | **878.637** | 604639 |
 
 Read it as three different things:
 
@@ -137,8 +150,10 @@ Read it as three different things:
    Its mean is **1.12 s earlier** and its spread is **4.6× wider**. The difference (1.12 s)
    exceeds the two spreads combined, so it is likely real, not sampling noise. It behaves like a
    *downstream* consequence of the timer rather than the timer itself.
-3. **`a2_power.c:1189` is not a timer at all.** 68.5 s to 941.3 s, a spread of 872 s. Treating it
-   as a period is the error Doc 148's retraction #1 was scoped to avoid.
+3. **`a2_power.c:1189` is not a timer at all.** 68.5 s to 947.2 s, a spread of 879 s. Treating it
+   as a period is the error Doc 148's retraction #1 was scoped to avoid. (Run 8's three samples
+   of it — 940.2 / 941.3 / 947.2 — do cluster, and that clustering is the §3 finding; it is a
+   property of one boot, not of the signature.)
 
 **This refines Doc 149's rule.** Doc 149 says the assert string is a mutable global and **must
 not classify a fatal**. That is correct as a warning — three different `file:line` values all
@@ -159,7 +174,8 @@ periodic, but the idle deterministic timer IS".
 * **Not** that the 15-minute crash is fixed. It is not. Four fatals fired in this 70-minute run
   with both patches deployed. Each costs a 15–40 s data outage. Patches 810/811/812/814 fix the
   **data plane**; they do not touch the modem's timer.
-* **Not** that the 2-cycle is deterministic. n=4, one boot.
+* **Not** that there is a 2-cycle. There is not — fatal #5 breaks it (§3).
+* **Not** that the ~901 s suppression is deterministic. n=5, one boot.
 * **Not** that `lte_ml1_sleepmgr_stm.c:4054` is a separate timer from
   `lte_ml1_common_timer.c:390`. It may be the same timer observed at a different point; the
   data show different *distributions*, not different *sources*.
@@ -200,9 +216,10 @@ periodic, but the idle deterministic timer IS".
 ## 9. One line
 
 **Patch 812 held at scale — 549 deferred packets, 549 delivered, 0 destroyed, over four A2
-collapses — patch 814 recovered the data plane on 4/4 natural SSRs, and the run's four fatals
-alternated 900.965 / 941.288 / 900.662 / 940.238 s of modem uptime with the signature alternating
-in lock-step, which is new structure the corpus does not explain.**
+collapses — patch 814 recovered the data plane on 4/4 natural SSRs, and the run's five fatals
+showed that the deterministic ~900.8 s fatal fires on only some boots: it fired on 2 of 5, and on
+the other 3 an `a2_power.c:1189` fatal fired instead at 940.2–947.2 s. The first four fatals
+alternated exactly; the fifth broke it.**
 
 ---
 
