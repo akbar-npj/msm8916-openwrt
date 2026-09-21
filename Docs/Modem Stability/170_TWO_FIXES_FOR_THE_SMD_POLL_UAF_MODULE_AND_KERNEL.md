@@ -60,13 +60,16 @@ and then has to report that the reproduction it was going to be scored against d
     so it was not a trappable fault; no fourth coredump and no ledger row exist, so it is *not*
     attributable to a fatal from this data. 823 fixes the UAF it was written for; it does **not** close
     the coredump-reclaim hang that Doc 159 located. **This is why the round does not end with "fixed".**
-8. **The reset mechanism is now named, and the rate is uncomfortable** (§8.11): the AP does not panic,
-    it **stops**, and the **PM8916 PON watchdog (active, 30 s timeout)** resets the SoC — which is
+8. **The reset mechanism is now named, and the tidy explanation is REJECTED** (§8.11): the AP does not
+    panic, it **stops**, and the **PM8916 PON watchdog (active, 30 s timeout)** resets the SoC — which is
     exactly "empty pstore + reboot" and explains the `~30 s stall + ~15–40 s boot` shape of every
-    outage. The watcher's 15 real reboots in ~5 h are nearer **1 in 1–3 SSRs than 1 in 20–40**, though
-    **14 of the 15 are pre-823** and that window was also the heaviest manual-activity window — so
-    neither reading is a fact yet. **The instrument that was missing is now deployed** (§8.12): a
-    reset-durable beacon plus a per-boot rolling kernel log, both reboot-persistent, so **the next
+    outage. The watcher's 15 real reboots in ~5 h *look* like 1 in 1–3 SSRs rather than 1 in 20–40, but
+    **14 of the 15 are pre-823, that window was also the heaviest manual-activity window, and six are
+    boot-loop reboots below 500 s uptime**. The tempting model — "the AP hangs on the SSR of the n-th
+    idle-timer fatal", i.e. reboots at multiples of ~902 s — **was tested and fails: only 2 of 15 fit,
+    and 6 of 15 cannot fit at all.** So the reset is driven by the variable activity-correlated fatals
+    or by something that is not a fatal. **The instrument that was missing is now deployed** (§8.12):
+    a reset-durable beacon plus a per-boot rolling kernel log, both reboot-persistent, so **the next
     stall will be characterised rather than merely counted.**
 
 ---
@@ -744,9 +747,9 @@ uptime actually *decreased* (i.e. it really rebooted, rather than the USB gadget
 
 | uptime before the reset (s) | 5294 · 2427 · 2275 · 2250 · 1812 · 1614 · 1139 · 1042 · 897 · 395 · 307 · 220 · 187 · 164 · 126 |
 
-A modem that fatals on its ~902 s idle timer produces roughly 20 SSRs in 5 h, so **15 reboots in ~20
-SSRs is nearer 1 in 1–3 than the 1 in 20–40 Doc 167 measured.** Two honest readings, and neither is a
-fact yet:
+A modem that fatals on its ~902 s idle timer produces roughly 20 SSRs in 5 h, so **taken at face value**
+15 reboots in ~20 SSRs is nearer 1 in 1–3 than the 1 in 20–40 Doc 167 measured. **It should not be
+taken at face value**, for three reasons — and the third kills the tidy explanation:
 
 * **The pre/post-823 split.** **14 of the 15 reboots are pre-823** (12:02–16:42); the only post-823 one
   is 17:04 (§8.10). The current boot has since run **two consecutive `lte_ml1_sleepmgr_stm.c:4054`
@@ -755,12 +758,30 @@ fact yet:
   to claim it.**
 * **The pre-823 window was also the heaviest manual-activity window** (echo-stop runs, deploys, soaks,
   the UAF A/B), so its rate is not a clean steady-state figure either.
+* **Six of the fifteen reboots happened at an uptime below 500 s** (395 · 307 · 220 · 187 · 164 · 126),
+  i.e. **before the modem could possibly have reached its first ~902 s idle-timer fatal**. Three of
+  them (13:31:03 @897 s → 13:33:00 @126 s → 13:36:00 @164 s) are a **boot loop** — three reboots in
+  five minutes — as is the 16:40–16:46 cluster. **A boot loop is not a steady-state hang, and counting
+  it as one inflates the rate.**
+
+**The tidy hypothesis is TESTED AND REJECTED.** If the reboot were "the AP hangs on the SSR of the n-th
+idle-timer fatal", the reboot uptimes would sit at multiples of ~902 s. They do not:
+
+| uptime before reset | 5294 | 2427 | 2275 | 2250 | 1812 | 1614 | 1139 | 1042 | 897 | 395 | 307 | 220 | 187 | 164 | 126 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| nearest n×902 | 5412 | 2706 | 2706 | 1804 | 1804 | 1804 | 902 | 902 | 902 | — | — | — | — | — | — |
+| delta | −118 | −279 | −431 | +446 | **+8** | −190 | +237 | +140 | **−5** | — | — | — | — | — | — |
+
+**Only 2 of 15 fall within ±20 s of a multiple of 902, and 6 of 15 cannot be one at all.** So the
+reset is **not** simply "the n-th idle-timer fatal"; it is driven by the **variable, activity-correlated
+fatals** (`a2_power.c:1189`/`:2949`, which fire anywhere in 68.5–941.3 s) or by something that is not a
+fatal at all. **This is exactly the kind of clean-looking mechanism that has to be checked against the
+data before it is written down** — and it failed the check.
 
 **What is now true regardless.** The reset is a **≥30 s global stall**; the instruments that can name
 the stall are deployed and **reboot-persistent** (a reset-durable beacon, §8.10, and a per-boot rolling
-kernel log, §8.12); and the reboot uptimes cluster near **small multiples of ~902 s** (897 ≈ 1×,
-1812 ≈ 2×), which is *suggestive* of "the AP hangs on the SSR of the n-th idle-timer fatal" — worth
-testing, **not** established.
+kernel log, §8.12); and the **next** stall is therefore the measurement that matters. Everything above
+is rate *bookkeeping* — the instrument is what will actually identify the cause.
 
 ---
 
@@ -849,12 +870,15 @@ the beacon gives the *when* and the A(sync)-vs-B(nosync) split, the rolling log 
   *when* (beacon, plus the A(sync)-vs-B(nosync) split that separates a wedged writeback path from a
   global stall) and the *what* (the kernel's last lines). **Do not patch anything until that record
   exists** — §8.10 exists precisely because one reset was inferred rather than measured.
-* **Then test §8.11's open question:** is the reboot uptime ≈ n × 902 s (i.e. does the AP hang on the
-  SSR of the n-th idle-timer fatal)? That is a *prediction*, and it is falsifiable from the ledger +
-  the watcher's uptime-before-reset series without any new instrumentation. If it holds, the fix target
-  is the SSR path of the idle-timer fatal specifically; if it fails, the reset is not fatal-driven.
-* **Re-check the 16:40–16:46 cluster.** Four resets in six minutes, only one explained by
-  `deploy823.sh`. The same instruments now cover it.
+* **Then settle §8.11's remaining rate question — but only after the stall is characterised.** The
+  "reboot at the n-th idle-timer fatal" model is already **rejected** (2/15 fit, 6/15 impossible), so
+  the reset is **not** a simple function of the idle timer. What is still unmeasured is the clean
+  **post-823** per-SSR hang rate, and the pre-823 number is unusable for it (boot loops + manual
+  activity). Count it from the ledger's max-`n`-per-boot once a few more boots have run *without*
+  manual intervention.
+* **Re-check the boot loops.** Six of the fifteen reboots are at uptime <500 s, three of them a
+  three-reboots-in-five-minutes loop (13:31–13:36); 16:40–16:46 is another. A boot loop is a different
+  failure from a steady-state hang and deserves its own instrumentation window.
 * **Finish scoring 823.** It is deployed and functionally clean (§8.7) and passed the `echo stop`
   scenario (§8.8). What is still missing is the **control rate**: `echo stop` × n with the
   **unpatched** module (`bash scratch/deploy823.sh --revert`) under a *stated* condition, to see

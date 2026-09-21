@@ -1695,9 +1695,15 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      not a clean steady-state rate. **The current boot has since survived TWO consecutive
      `lte_ml1_sleepmgr_stm.c:4054` fatals at AP 919.62 and 1825.87 — a 906 s gap, i.e. the idle timer —
      with `t0..t9` present and 0 corruption**, so 823 may well have lowered the rate; n is too small to
-     claim it. **Suggestive, not established:** the reboot uptimes cluster near small multiples of
-     ~902 s (897 ≈ 1×, 1812 ≈ 2×) — i.e. "the AP hangs on the SSR of the n-th idle-timer fatal" is a
-     testable prediction, and Doc 170 §10 makes it the next test.
+     claim it. **The tempting tidy model — "the AP hangs on the SSR of the n-th idle-timer fatal", i.e.
+     reboots at multiples of ~902 s — was TESTED AND REJECTED: only 2 of 15 fall within ±20 s of a
+     multiple of 902, and 6 of 15 (uptimes 395 · 307 · 220 · 187 · 164 · 126) cannot be one at all
+     because they are below 500 s.** Three of those six (13:31:03 @897 s → 13:33:00 @126 s → 13:36:00
+     @164 s) are a **boot loop** — three reboots in five minutes — as is the 16:40–16:46 cluster, so
+     **counting boot loops as steady-state hangs inflates the rate.** The reset is therefore driven by
+     the **variable activity-correlated fatals** (`a2_power.c:1189`/`:2949`, which fire anywhere in
+     68.5–941.3 s) or by something that is not a fatal at all. **A clean-looking mechanism that fails
+     its own check is the one worth recording — this is that case.**
 
 135. **THE INSTRUMENT THAT WAS MISSING — a per-boot rolling kernel log (Doc 170 §8.12).** §8.11 leaves
      "what does the kernel print in the last seconds before it stops?", and **nothing on the device
