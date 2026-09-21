@@ -123,7 +123,8 @@ while true; do
 	oops=$(dmesg | grep -c 'Unable to handle')
 	fatal=$(dmesg | grep -ci 'fatal error received')
 	ssr=$(dmesg | grep -c 'stopped remote processor')
-	traces=$(grep -c 'q6v5-trace:' "$TRACE" 2>/dev/null || echo 0)
+	traces=$(grep -c 'q6v5-trace:' "$TRACE" 2>/dev/null)
+	[ -n "$traces" ] || traces=0
 
 	g() { grep "^$1:" "$TEL" 2>/dev/null | awk '{print $2}'; }
 	echo "$up,$oops,$fatal,$ssr,$traces,$(g tx_defer_queued),$(g tx_defer_submitted),$(g tx_defer_preserved),$(g tx_defer_wiped_live),$(g tx_sweep_guard_hits),$(g pc_irq_count),$(g pc_resync_count),$(g pc_state),$(g rx_slots_mapped),$(g cmd_open),$(cat $NET/tx_packets 2>/dev/null),$(cat $NET/rx_packets 2>/dev/null)" >> "$CSV"
@@ -138,8 +139,11 @@ while true; do
 	fi
 
 	# --- fatals, with the full trace block that surrounds each one ---
-	if [ -n "$fatal" ] && [ "$fatal" != "$last_fatal" ]; then
+	# NOTE the `-gt 0` guard: `[ -n "0" ]` is TRUE, so a bare `-n` logs a
+	# spurious "FATAL COUNT 0" on the first iteration of every boot.
+	if [ "$fatal" -gt 0 ] && [ "$fatal" != "$last_fatal" ]; then
 		log "FATAL COUNT $fatal at AP ${up}s"
+		dmesg | grep -B2 -A2 'fatal error received' | tail -20 >> "$LOG"
 		last_fatal=$fatal
 	fi
 

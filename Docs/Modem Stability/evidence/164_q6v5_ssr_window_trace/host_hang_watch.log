@@ -1,0 +1,6 @@
+# host_hang_watch start 2026-09-21T11:59:53+05:45 target=192.168.8.1 interval=5s
+2026-09-21T12:00:03+05:45 ok (uptime-check: 5294)
+2026-09-21T12:00:59+05:45 *** AP UNREACHABLE *** (3 consecutive failures; last ok 2026-09-21T12:00:38+05:45)
+2026-09-21T12:01:23+05:45 AP-BACK after 21s unreachable (last ok 2026-09-21T12:00:38+05:45)
+2026-09-21T12:02:03+05:45 ok (uptime-check: 75)
+2026-09-21T12:03:03+05:45 ok (uptime-check: 136)
