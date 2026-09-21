@@ -5360,3 +5360,80 @@ PART 33 -- CORRECTIONS: THE POOLED ANDROID PING IS ~2 % NOT 0.7 %, AND THE
     work's "0 % ping loss" line supports.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 34 -- LEAD, NOT A FINDING: ANDROID RUNS A 1 Hz IDLE-TIMER SERVICE THAT
+           EXCHANGES MESSAGES WITH THE MODEM AND OPENTWRT HAS NO EQUIVALENT
+================================================================================
+
+STATUS: this is a LEAD recorded from a logcat census.  It is NOT a mechanism and
+it is NOT claimed to cause or prevent anything.  It is written down because it is
+an AP-side, IDLE-TIMERED modem control, which is the exact shape of the thing the
+two differentials (D1 Android-vs-OpenWrt, D2 HMU05-vs-UFI001B) are looking for.
+
+1. THE OBSERVATION
+
+   The persistent logcat started in PART 32's follow-up contains 852
+   `FastDormancyService` lines from pid 1118 (system_server), in 284 triplets:
+
+     D/FastDormancyService(1118): detect mobile data activity! isAlarmExpired: false  mFDset: 3
+     D/FastDormancyService(1118): sent:N received:M
+     D/FastDormancyService(1118): scheduling timer:1000ms Alarm:15000ms
+
+   i.e. a **1 Hz poll** of mobile data activity, rescheduling a **15000 ms
+   alarm** each time, plus a **request/response exchange with the modem**:
+
+     sent:0 received:0   243      sent:1 received:2     3
+     sent:1 received:1    32      sent:2 received:2     1
+     sent:1 received:0     4      sent:0 received:1     1
+
+   `mFDset: 3`, `isAlarmExpired: false` and `timer:1000ms Alarm:15000ms` are
+   CONSTANT across all 284 samples in this window, so the observed window is
+   entirely in one state of this state machine; the 15 s alarm did not expire
+   while it was being watched.  (Capture still running -- these counts grow.)
+
+2. WHY IT IS WORTH RECORDING
+
+   - It is **AP-side** (system_server), so it is on the correct side of D1.
+   - It is **idle-timer-driven** (1 s poll, 15 s alarm), and the OpenWrt fatal is
+     an idle-timer event (~902.3 s of modem uptime, deterministic when idle).
+   - It **sends to the modem** (29 request/response pairs in the retained
+     window), so it is a live AP->modem control channel, not passive telemetry.
+   - **OpenWrt has no equivalent**: there is no fast-dormancy service, no 1 s
+     mobile-data-activity poll, and (per the corpus) no periodic modem command
+     during idle -- the corpus REMOVED OpenWrt's 2 s keepalive and its 60 s QMI
+     write on 2026-09-20 precisely to make OpenWrt's idle look like Android's.
+
+3. WHY IT IS ONLY A LEAD
+
+   - `FastDormancyService` is a Java service; logcat shows it sends, but NOT what
+     it sends, over which channel, or whether the modem acts on it.  No QMI/AT
+     message has been correlated with a `sent:1` event.
+   - This is a PATTERN, and the corpus has already been burned once by inferring
+     a mechanism from a pattern without grepping it out of the running system
+     (Doc 166 s5.4 blamed a logbuf lock deleted in v5.10).  Do not promote this
+     to a cause on the strength of a log tag.
+   - The corpus's own scoping stands: the fatal is NOT AP-runtime-PM-gated, and
+     boot C's fatals were activity-CORRELATED (541/578/1397/1420 s), so an
+     activity-driven AP control could move the fatal in wall-clock time without
+     being its cause.
+
+4. THE CHEAP FALSIFIER (runs on either stack, no flash)
+
+   On OpenWrt, capture the AP->modem command channel during a long idle window
+   (QMI over the `qmi_wwan`/`qmi-proxy` path, plus any AT traffic) and ask:
+   **does OpenWrt emit ANY unsolicited modem command on an idle timer?**
+     * If it DOES, and at a comparable cadence, the "OpenWrt has no equivalent"
+       half of this lead is FALSIFIED and the lead is closed.
+     * If it does NOT, the differential is CONFIRMED as a difference -- which
+       still does not make it causal.  The causal test is then an A/B: emit an
+       equivalent fast-dormancy signal from OpenWrt and see whether the ~902 s
+       idle fatal moves, disappears, or is replaced by the activity-correlated
+       signature (which is what happened under 1 Hz traffic, E1).
+
+   PRE-REGISTERED: the falsifier is the FIRST step.  No A/B until the falsifier
+   has been run, because "OpenWrt is silent during idle" is a claim the corpus
+   already made once (and then had to walk back the 2 s keepalive), so it must be
+   re-established by measurement, not by memory.
+
+--------------------------------------------------------------------------------

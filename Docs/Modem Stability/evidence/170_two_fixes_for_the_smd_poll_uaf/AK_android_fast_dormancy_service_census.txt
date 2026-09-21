@@ -1,0 +1,35 @@
+FastDormancyService census -- Android AP-side idle-timer modem control (Doc 170 PART 34)
+source: scratch/android_capture/logcat_persistent.log (persistent 'adb logcat -v time', started 2026-09-22 ~01:44 device-local)
+
+=== total lines ===
+852
+
+=== message shapes (digits normalised) ===
+    284 FastDormancyService: sent:N received:N
+    284 FastDormancyService: scheduling timer:Nms Alarm:Nms
+    284 FastDormancyService: detect mobile data activity! isAlarmExpired: false  mFDset: N
+
+=== sent/received pairs ===
+    243 sent:0 received:0
+     32 sent:1 received:1
+      4 sent:1 received:0
+      3 sent:1 received:2
+      1 sent:2 received:2
+      1 sent:0 received:1
+
+=== constant fields ===
+    284 isAlarmExpired: false
+    284 mFDset: 3
+    284 scheduling timer:1000ms Alarm:15000ms
+
+=== one triplet in context (a 'sent:1 received:1') ===
+09-22 01:26:25.583 D/StatusBar.NetworkController(  909): refreshViews connected={ data } level=3 combinedSignalIconId=0x7f020240/com.android.systemui:drawable/stat_sys_signal_3_fully mobileLabel=JIO 4G 4G|Jio 4G wifiLabel= emergencyOnly=false combinedLabel=JIO 4G 4G|Jio 4G mAirplaneMode=false mDataActivity=0 mPhoneSignalIconId=0x7f020240/com.android.systemui:drawable/stat_sys_signal_3_fully mQSPhoneSignalIconId=0x7f020050/com.android.systemui:drawable/ic_qs_signal_3 mDataDirectionIconId=0x0/(null) mDataSignalIconId=0x7f020240/com.android.systemui:drawable/stat_sys_signal_3_fully mDataTypeIconId=0x7f0200b2/com.android.systemui:drawable/stat_sys_data_fully_connected_4g mQSDataTypeIconId=0x7f020053/com.android.systemui:drawable/ic_qs_signal_4g mNoSimIconId=0x0/(null) mWifiIconId=0x0/(null) mQSWifiIconId=0x0/(null) mWifiActivityIconId=0x0/(null) mBluetoothTetherIconId=0x10805d7/android:drawable/stat_sys_tether_bluetooth
+09-22 01:26:25.923 D/FastDormancyService( 1118): detect mobile data activity! isAlarmExpired: false  mFDset: 3
+09-22 01:26:25.923 D/FastDormancyService( 1118): sent:1 received:1
+09-22 01:26:25.923 D/FastDormancyService( 1118): scheduling timer:1000ms Alarm:15000ms
+09-22 01:26:26.783 D/MainService(  909): onSignalStrengthsChanged signalStrength=SignalStrength: 99 0 -120 -160 -120 -1 -1 29 -82 -9 76 2147483647 2147483647 gsm|lte level=3
+09-22 01:26:26.783 D/StatusBar.NetworkController(  909): onSignalStrengthsChanged signalStrength=SignalStrength: 99 0 -120 -160 -120 -1 -1 29 -82 -9 76 2147483647 2147483647 gsm|lte level=3
+
+NOTE: 15 s alarm did NOT expire anywhere in this window (isAlarmExpired: false, all samples),
+so this window shows only one state of the machine.  The channel and payload are NOT visible
+in logcat -- do not promote this to a cause (see PART 34 s3).
