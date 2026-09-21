@@ -724,6 +724,44 @@ not polluted.
 This is the same discipline as Doc 164 §9, corrected for the two scope errors this round exposed:
 **trace the hand-off, and use a level the dying console cannot suppress.**
 
+### 9.1 The instrument's own cost — measured before it was trusted (Doc 164 §5's rule, applied again)
+
+Doc 164 §5's rule is that an instrument must be measured against the phenomenon before it is
+trusted. **These five probes are `dev_err`, so unlike the `q6v5` trace they are *not* free at
+`console_loglevel = 6`** — `suppress_message_printing()` only suppresses level ≥ 6, and `dev_err`
+is level 3. Each one therefore takes the serial console for a full synchronous write:
+
+| line | chars (with `[ts] qcom-q6v5-mss 4080000.remoteproc:bam-dmux: ` prefix) | cost @ 1.03 + 0.0904 ms/char |
+|---|---|---|
+| `bam_dmux: SSR teardown T0 scheduled` | ~95 | **≈ 9.6 ms** |
+| `… T1 entry` / `… T2 …` / `… T3 …` / `… T4 …` | ~92–105 | ≈ 9.4–10.5 ms each |
+
+**T0 is the one that matters, because it is on `rproc_stop()`'s critical path** — it sits in the SSR
+notifier callback, which runs synchronously inside the stop. For comparison, the *entire* healthy
+hand-off measured **7.453 ms** from `recovering` to the notifier line. So T0 adds a delay **larger
+than the interval it is placed in.**
+
+**Why it is nonetheless acceptable, stated precisely:**
+
+* T0 is placed **after** `schedule_work(&dmux->ssr_teardown_work)` (verified in the re-prepared tree,
+  `qcom_bam_dmux.c:2434` → probe at `:2441`). So the ~9.6 ms is spent *after* the work is queued —
+  **the probe cannot prevent the teardown work from starting**, which is the one thing T0 exists to
+  prove. It delays `rproc_stop()`'s continuation only.
+* T1–T4 run in the **teardown work**, which is asynchronous — off `rproc_stop()`'s critical path.
+* Only `dev_err` takes the console here; the suppressed `dev_info` lines (`:2303`, `:2444`) do not,
+  so the probes are not queuing behind a stream of invisible writers.
+
+**The ambiguity this creates, pre-registered rather than discovered later:** if the hang disappears
+with 820 deployed, **the improvement cannot be attributed to the non-blocking cancels alone** — the
+~9.6 ms T0 delay, inserted exactly at the hand-off, is a confound. Distinguishing them needs one more
+boot: deploy 820's **two cancel changes without the probes** and soak. If the hang returns, the
+cancels are the cause; if it does not, the delay was.
+
+**This is a strictly better position than Doc 164 was in**, where the 23-line trace cost up to
+**190 ms against a 45.481 ms window (4.2×)** and was only noticed afterwards. Here the cost is known
+in advance, is confined to one line on the critical path, and the confound it creates is written down
+before the run rather than after it.
+
 ---
 
 ## 10. Telemetry (boot C, current, uptime 402 s at last sample)
@@ -839,6 +877,7 @@ dependencies on `dmesg`, on the bam_dmux telemetry sysfs and on a shell loop. **
 | Doc 165 §4.1's coverage gap | **Widened** — the blind spot is upstream of the window, not just inside it. |
 | Relation to Doc 151/157's `echo stop` hang | **This is one step EARLIER.** The `echo stop` hang ends on two lines (`SSR before shutdown` **and** `wwan0at0 disconnected`); this one ends on one. The region has **at least two adjacent hang points** (§2.2c). |
 | Fix | **Patch 820 built** — four hunks: both cancel sites made non-blocking (§8.1, §8.2) plus five `dev_err` hand-off probes T0–T4 (§9). It fixes **two provable deadlocks** (one of them a true ABBA, §8.2), and with §5.4 retracted (§5.5) it is **again the leading explanation** for the hang — though still not proven. Two further sites of the same class recorded and deliberately left out (§8.4). |
+| The instrument's own cost | **Measured before deploying, not after (§9.1).** The five `dev_err` probes are **not free at `console_loglevel = 6`** (`dev_err` is level 3), so each costs a full synchronous console write: **T0 ≈ 9.6 ms**, T1–T4 ≈ 9.4–10.5 ms each, against a healthy hand-off of **7.453 ms**. T0 is on `rproc_stop()`'s critical path but sits **after** `schedule_work()` (`:2434` → `:2441`), so it cannot prevent the work starting. **Pre-registered ambiguity: if the hang disappears, the cancels and the T0 delay are both candidate causes** — resolving it needs one boot with the cancels and no probes (§13 item 7). |
 | The `qcom-time-daemon` lead | **Dead** (§7.1). |
 
 ---
@@ -878,10 +917,16 @@ dependencies on `dmesg`, on the bam_dmux telemetry sysfs and on a shell loop. **
    `pm8916-pon` node's sysfs (it exposes only `pwrkey`, `watchdog`, `driver`, `of_node`, … — no
    reason attribute). **debugfs IS mounted**, so an in-kernel reader is available.
 6. **The `pm_wq` / `system_wq` double-queue of `tx_wakeup_work`** (§8.4) — separate patch, after 820.
-7. Still open from before: the failed modem restart (Doc 154 §6); the `echo stop` hang (n=2, and now
+7. **If the hang DISAPPEARS with 820, re-run without the probes before claiming the cancels fixed
+   it.** §9.1 measures T0 at **≈ 9.6 ms** of synchronous console time inside the SSR notifier — on
+   `rproc_stop()`'s critical path, and larger than the 7.453 ms healthy hand-off it sits in. So a
+   disappearance has two candidate causes. One extra boot with the two cancel changes and **no**
+   `dev_err` probes separates them. **Do not skip this; it is the difference between "fixed" and
+   "masked".**
+8. Still open from before: the failed modem restart (Doc 154 §6); the `echo stop` hang (n=2, and now
    known to be **one step later** than this one, §2.2c); patch 814's retry path still unobserved on a
    natural trigger (`retries: 0`); the harness gap that **nothing records the AP uptime at which the
    modem comes up** (Doc 165 §11 item 6).
-8. **Explicitly closed — do not restart:** the WTR1605→UFI001B RF transplant; the one-line
+9. **Explicitly closed — do not restart:** the WTR1605→UFI001B RF transplant; the one-line
    `qcom-idle-state-spc` DT patch; "the RPM is the stalled party"; the live-mpss reader (Doc 158);
    the `deploy` command (declined); **the `qcom-time-daemon` periodic-refresh lead (§7.1)**.

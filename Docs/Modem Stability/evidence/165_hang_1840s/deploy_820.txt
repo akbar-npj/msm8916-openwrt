@@ -98,3 +98,48 @@ single unlabelled "module md5 79e7a858..." row. That hash is qcom_q6v5_mss.ko
 (the Doc 164 tracer), NOT qcom_bam_dmux.ko. Two different modules. Verified on
 boot C with `md5sum /lib/modules/6.12.94/*.ko`. The table is fixed and now names
 each module beside its hash. /rom's pristine bam_dmux copy is 6ac6603141c25b1e3462615411e92f7c.
+
+---------------------------------------------------------------------------
+THE INSTRUMENT'S OWN COST -- measured BEFORE deploying (Doc 166 §9.1)
+---------------------------------------------------------------------------
+Doc 164 §5's rule: measure the instrument against the phenomenon before
+trusting it.  These five probes are dev_err, so unlike the q6v5 trace they are
+NOT free at console_loglevel = 6 -- suppress_message_printing() only suppresses
+level >= 6, and dev_err is level 3.  Each one takes the serial console for a
+full synchronous write.
+
+  cost model: 1.03 ms + 0.0904 ms/char  (measured, Doc 164 §5)
+
+  "bam_dmux: SSR teardown T0 scheduled"
+      with the "[ts] qcom-q6v5-mss 4080000.remoteproc:bam-dmux: " prefix
+      ~95 chars  ->  ~9.6 ms
+  T1/T2/T3/T4 (~92-105 chars)  ->  ~9.4-10.5 ms each
+
+  HEALTHY HAND-OFF, for comparison: 7.453 ms
+      (from `recovering` to the notifier's `SSR before shutdown` line)
+  => T0 alone adds a delay LARGER than the interval it is placed in.
+
+WHY IT IS STILL ACCEPTABLE, precisely:
+  * T0 is placed AFTER schedule_work(&dmux->ssr_teardown_work)
+      verified in the re-prepared tree: qcom_bam_dmux.c:2434 -> probe at :2441
+    so the ~9.6 ms is spent after the work is QUEUED.  The probe cannot prevent
+    the teardown work from starting -- which is the one thing T0 exists to
+    prove.  It delays rproc_stop()'s continuation only.
+  * T1-T4 run in the teardown WORK, which is asynchronous -> off rproc_stop()'s
+    critical path.
+  * Only dev_err takes the console; the suppressed dev_info lines (:2303, :2444)
+    do not, so the probes are not queued behind invisible writers.
+
+PRE-REGISTERED AMBIGUITY (written down BEFORE the run, not discovered after):
+  If the hang DISAPPEARS with 820, the improvement CANNOT be attributed to the
+  non-blocking cancels alone -- the ~9.6 ms T0 delay sits exactly at the
+  hand-off under test and is a confound.
+  RESOLUTION: one more boot with the two cancel changes and NO dev_err probes.
+    hang returns     -> the cancels are the cause
+    hang stays away  -> the delay was
+  This is the difference between "fixed" and "masked".  Do not skip it.
+
+CONTRAST with Doc 164: there the 23-line trace cost up to 190 ms against a
+45.481 ms window (4.2x) and was only noticed AFTERWARDS.  Here the cost is known
+in advance, is confined to one line on the critical path, and the confound it
+creates is recorded before the run.
