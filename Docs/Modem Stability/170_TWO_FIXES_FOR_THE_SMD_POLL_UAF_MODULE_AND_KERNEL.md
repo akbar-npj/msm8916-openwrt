@@ -123,9 +123,12 @@ and then has to report that the reproduction it was going to be scored against d
     reporting `PC line asserted while pc_state=0 (lost edge), resyncing` **74.470 ms** before the
     fatal, and `pc_resync_count` went **0 → 1** for the boot. Searching the preserved logs found the
     same pair in two earlier boots — **85.797 ms** and **73.955 ms**, mean **78.074 ms**, spread
-    **11.842 ms** (the two closest are **0.515 ms** apart). **But it is not sufficient:** 8 resyncs
-    were observed in total and only **3** were followed by this fatal within 100 ms, so
-    *`a2_power.c:2949` ⇒ resync* is **3/3** while *resync ⇒ `a2_power.c:2949`* is **3/8**.
+    **11.842 ms** (the two closest are **0.515 ms** apart). **But it is not sufficient, and P2 has now
+    measured how far from sufficient it is:** with this boot's six resyncs pooled against P/Q/R/S,
+    **13 resyncs were observed and only 3 were followed by this fatal within 100 ms**, so
+    *`a2_power.c:2949` ⇒ resync* is **3/3** while *resync ⇒ `a2_power.c:2949`* is **3/13** (§8.15.1).
+    **And the rate is not stationary:** 1 resync in the first 3478 s, then **5 in 145 s** starting at
+    4079 s with no AP-side change — recorded with a pre-registered prediction (P3) and a falsifier.
     The resync is **patch-808 code** (not upstream) and two of its four actions are modem-visible
     (`bam_dmux_pm_restart()` and `bam_dmux_pc_ack()`), so an AP-side driver action is on the causal
     path under one of three readings — **and `qcom_bam_dmux` is a LOADABLE MODULE (241 KB `.ko`), so
@@ -1380,6 +1383,76 @@ observational half is pre-registered now.
 with a tight lag and a plausible mechanism, nothing more. It does not explain the
 `lte_ml1_sleepmgr_stm.c:4054` or `a2_power.c:1189` fatals, **neither of which has ever been seen with
 a resync in front of it**. Evidence: `V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`.
+
+### §8.15.1 P2 IS SCORED, AND THE RESYNC RATE IS NOT STATIONARY — the sufficiency figure falls to 3/13, and a storm of 5 resyncs in 145 s appears out of nowhere
+
+**P2 existed to stop the hits accumulating alone. It did its job.** `pc_resync_count` reached **6** in
+this boot; every resync, with what followed it:
+
+| # | resync | outcome | hit? |
+|---|---|---|---|
+| 1 | 3477.894835 | fatal `a2_power.c:2949` at 3477.969305 (**+74.470 ms**) | **YES** |
+| 2 | 4079.094133 | nothing logged | no |
+| 3 | 4119.287485 | `pc-ack timeout` at 4119.470945 (+183.460 ms) | no |
+| 4 | 4175.847548 | `pc-ack timeout` at 4176.057624 (+210.076 ms) | no |
+| 5 | 4192.370087 | nothing logged | no |
+| 6 | 4224.514264 | nothing logged | no |
+
+Pooling every boot with a surviving log (P 1/1, Q 1/1, R 1/0, S 4/0, Y 6/1):
+
+> **`a2_power.c:2949` ⇒ a resync ~78 ms earlier is 3/3.**
+> **a resync ⇒ `a2_power.c:2949` is 3/13 (was 3/8).**
+
+The two figures now differ by more than **4×**. Whatever the 74–86 ms lag is, it is **not a sufficient
+condition**, and any fix built on "the resync causes it" must first explain why ten resyncs do nothing.
+*Caveat that cuts the other way:* the P/Q/R resync counts come from the partial `q6trace.log`, so a
+missing resync would make the denominator **larger** — 3/13 is a floor.
+
+**The rate is not stationary, and it changed abruptly with no AP-side cause.**
+
+```
+first resync   3477.894835    <- the ONLY one in the first 3478 s
+next           4079.094133    <- +601.199 s of silence
+then           4119.287485, 4175.847548, 4192.370087, 4224.514264
+                              => FIVE resyncs inside 145.420 s
+```
+
+Nothing about the AP changed at 4079 s — no patch, no reboot, no manual action, `coredump` still
+`disabled`, `rproc=running`. The modem simply began losing PC-line edges repeatedly. `pc_quiesce_ms`
+had fallen to **1669 ms** (the modem was cycling, not quiesced), and `pm_suspend_attempts` vs
+`pm_suspend_completions` showed the same constant deficit of **7** as at 488/481 earlier in the boot.
+
+**Recorded as an observation with a pre-registration, not as a finding.**
+
+* **P3:** the storm is the modem approaching its next fatal ⇒ fatal #5 should be a
+  `lte_ml1_sleepmgr_stm.c:4054` at roughly AP **4380 s** (2718.436833 + 902.4 = 3620.8 s has already
+  passed silently, so either that timer restarted at the `a2_power` fatal — 3477.969 + 902.4 = 4380.4 s
+  — or it was suppressed).
+* **P3-FALSIFIER:** no fatal in the following ~15 min, or a fatal with no storm in front of it, or a
+  storm that simply stops.
+* **Why it matters either way:** if the storm *precedes* the fatal, the right window for the resync
+  association is **minutes, not milliseconds** — and the three tight hits would be the tail of a storm
+  that happened to be caught, which is a different mechanism from "the resync causes the fatal". If it
+  does **not** precede the fatal, the resync is a benign (if noisy) repair path and the three hits are
+  more likely coincidence than cause.
+
+**§8.15's "cheapest next step" is done, and the answer is negative.** `pc_timeout_count` is
+incremented in exactly two places, both inside `bam_dmux_runtime_resume()` (patch 808): a
+**250 ms** `wait_for_completion_timeout(&dmux->pc_ack_completion, …)` and a **1000 ms**
+`wait_event_timeout(dmux->pc_wait, …)`. So it counts **the AP waiting for the modem** — the *mirror*
+of Reading C's "the modem waits for the AP's ACK". **It cannot discriminate C; do not design around
+it.** (It does bound the AP's side, and both windows are generous next to the 74–86 ms.) A small but
+real cross-check came with it: the counter read **4** when exactly four such lines existed in `dmesg`,
+and **6** when six did.
+
+**And the post-fatal `pc-ack timeout` lines are recovery artefacts, not precursors.** Each against the
+nearest preceding fatal: #1 → **+0.431112 s**, #2 → **+0.581419 s**, #3 → **+0.435022 s**, #4 →
+**none**. Three of four land ~0.43–0.58 s *after* a fatal, which is the AP's post-SSR resume finding
+the modem slow to ACK — exactly the base-rate reading §8.8 arrived at. Fatal #4 having none is a
+single observation and is **not** explained; the tempting story (the coredump-off recovery is 0.70 s
+shorter, so the resume lands earlier and the modem is readier) is **speculation, recorded as
+speculation**. The one `pc_state wait timeout` + `channels not initialized after resume` pair, at
+915.085520 / 915.085715 (+1.44 s after fatal #1), is the patch-814 path doing its job.
 
 ---
 
