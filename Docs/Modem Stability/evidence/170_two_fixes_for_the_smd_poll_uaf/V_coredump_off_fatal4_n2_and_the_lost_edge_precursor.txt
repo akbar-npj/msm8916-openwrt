@@ -3855,3 +3855,115 @@ PART 25 -- THE USER SUPPLIES THE POSTMARKETOS WIKI TEXT; IT CONFIRMS THE STOCK
    the protocol reports was not the number the protocol had counted.
 
 --------------------------------------------------------------------------------
+
+
+PART 26 -- THE USER SUPPLIES A CROSS-DEVICE CONTROL THAT RE-FRAMES PART 25:
+           THE UFI001B, WITH THE SAME tz AND qhypstub, HAS NO CRASH AND NO
+           DATA STALL -- SO THE FIRMWARE SUBSTITUTION IS NOT THE SOLE CAUSE
+           (2026-09-22 00:02 local / 18:32 UTC)
+--------------------------------------------------------------------------------
+
+0. WHAT THE USER SAID, VERBATIM
+--------------------------------------------------------------------------------
+
+   "my device is HMUF02-v5 but shortened to hmu05, also ufi001b modem works
+    perfectly without any crash or data stall in ufi001b device with same tz
+    and qthyp"
+
+   Two facts in one message:
+
+   (a) NAMING: this device is an **HMUF02-v5**, which the user has been
+       shortening to "hmu05" throughout.  The postmarketOS wiki lists a
+       "HMUF02 V5" (in Ryjelsum's user entry: "the undocumented HMUF02 V5,
+       lk2nd/lk1st PMOS works sans LEDs when built for UFI001c").  So
+       "hmu05" in the corpus == HMUF02-v5, a real but less-documented
+       member of the family.  Recorded so future citations do not treat
+       "hmu05" as a separate model.
+
+   (b) CONTROL: the **UFI001B device** running OpenWrt, with the SAME `tz`
+       and the SAME `qhypstub`, has **no crash and no data stall**.
+
+1. WHAT THIS CONTROL ELIMINATES, AND IT IS IMMEDIATE
+--------------------------------------------------------------------------------
+
+   PART 25 raised the tz / qhypstub substitution as a NEW, UNEXAMINED candidate
+   for the 902 s fatal and the AP hang.  **The UFI001B control weakens that
+   candidate from "likely" to "not sufficient":**
+
+       HMU05 + OpenWrt (this tz + qhypstub)   -> 902 s fatal + data stall
+       UFI001B + OpenWrt (SAME tz + qhyp)    -> NO crash, NO stall
+
+   The AP-side firmware is the SAME on both, yet only the HMU05 crashes.  So
+   the tz/qhyp substitution **cannot be the sole cause** -- a sole cause would
+   crash both.  It could still be a NECESSARY cofactor (the crash might need
+   the OpenWrt tz AND the HMU05 modem), but it is not SUFFICIENT, and the
+   Android-vs-OpenWrt differential already covers the AP side more directly.
+
+   **The candidate list after PART 26:**
+
+       NV ................. REMOVED (PART 24: derived from stock)
+       modem firmware ..... REMOVED for Android-vs-OpenWrt (byte-identical),
+                            BUT the HMU05 modem firmware DIFFERS from the
+                            UFI001B's (different RF: WTR1605 vs WTR4905) --
+                            so the MODEM-SIDE difference between HMU05 and
+                            UFI001B is back on the table as the device-side
+                            differentiator
+       hyp/qhypstub ....... WEAKENED to "not sufficient" (same on UFI001B)
+       tz ................. WEAKENED to "not sufficient" (same on UFI001B)
+       AP->modem control .. STILL OPEN, and now the LEADING candidate
+
+2. THE TWO DIFFERENTIALS INTERSECT, AND THEY NARROW THE CAUSE SHARPLY
+--------------------------------------------------------------------------------
+
+   We now have TWO independent differentials, and the cause must lie in their
+   INTERSECTION:
+
+       D1 (Android-vs-OpenWrt, SAME modem):
+           HMU05 + Android AP    -> no crash
+           HMU05 + OpenWrt AP    -> 902 s fatal + stall
+           => the cause is AP-side (and the modem firmware is byte-identical)
+
+       D2 (HMU05-vs-UFI001B, SAME tz+qhyp, SAME OpenWrt kernel):
+           HMU05  + OpenWrt AP   -> 902 s fatal + stall
+           UFI001B + OpenWrt AP   -> no crash, no stall
+           => the cause involves the MODEM (the two devices differ in modem
+              firmware and RF transceiver)
+
+   The cause must satisfy BOTH: it is something the OpenWrt AP does that the
+   Android AP does NOT, AND something the HMU05 modem is sensitive to that the
+   UFI001B modem is NOT.
+
+   The corpus's bam_dmux differential (Doc 170 s8.16 / the Android-kernel
+   comparison) sits EXACTLY at that intersection:
+       -- OpenWrt bam_dmux gives the modem's pc-ack 250 ms; Android gives 2000 ms.
+       -- that is an AP-side behaviour that differs (satisfies D1)
+       -- and it targets the modem's power-collapse ack path, which is
+          modem-firmware-specific (satisfies D2: the HMU05 modem's WTR1605 path
+          may race under 250 ms where the UFI001B's WTR4905 path does not)
+
+   So the UFI001B control does not merely weaken the tz candidate; it
+   STRENGTHENS the bam_dmux pc-ack-timeout hypothesis, which was already scoped
+   (s8.16: "a LATENCY defect, not a stability one -- it does NOT touch the
+   902 s fatal").  That scoping note now needs revisiting: if the HMU05 modem
+   treats the 250 ms timeout as fatal where the UFI001B does not, the latency
+   defect CAN become a stability defect on the HMU05 specifically.
+
+3. ONE CAVEAT, STATED BECAUSE THE CONTROL IS ONLY AS GOOD AS IT
+--------------------------------------------------------------------------------
+
+   The UFI001B control is decisive ONLY IF "no crash" means the UFI001B ran
+   past the 902 s boundary WITHOUT a `fatal error received`.  The corpus has
+   not independently observed a native-UFI001B OpenWrt soak (the UFI001B work
+   in the corpus was a b26 TRANSPLANT into the HMU05, which "could not work"
+   because the RF driver sets are disjoint).  So this is the user's report,
+   not a corpus-verified run.  It is recorded as reported; a one-line
+   confirmation ("yes, the UFI001B ran > 15 min with zero `fatal error
+   received`") would make it load-bearing.
+
+   If the user means instead that the UFI001B's MODEM FIRMWARE, transplanted
+   into the HMU05, does not crash (but also has no RF, hence no stall because
+   there is no data path) -- that is a different and weaker statement, and the
+   memory already records that transplant as "NOT RESIDENT / could not work".
+   The two readings lead to opposite conclusions, so the wording matters.
+
+--------------------------------------------------------------------------------
