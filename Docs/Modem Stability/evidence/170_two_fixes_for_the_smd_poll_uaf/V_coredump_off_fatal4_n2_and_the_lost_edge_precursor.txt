@@ -4735,4 +4735,15 @@ WHAT PART 29 DOES NOT CLAIM
    the same process state (the device was re-rooted between them) -- recorded as
    a REPRODUCTION, not as n=70.
 
+   CORRECTION TO "0% PING LOSS", recorded because it is a claim this round made
+   loosely.  Over the Android soak's 45 ping bursts, 44 were 3/3 and ONE was 2/3
+   (33 %) -- so the honest figure is 44/45 bursts, 134/135 packets, ~0.7 %
+   packet loss, NOT 0 %.  And the one loss is NOT the OpenWrt signature: it was
+   icmp_seq=3, the LAST packet of the burst, in a burst whose RTTs were already
+   elevated (209 / 118 ms against a baseline of 85-130 ms), i.e. ordinary
+   cellular jitter.  The OpenWrt "first packet after idle" signature is
+   replies=0/1 on the FIRST packet after a 120 s idle (Doc 147 s5.4) and it does
+   not appear here.  Recorded so "Android has 0 % loss" is not carried forward
+   as an exact number.
+
 --------------------------------------------------------------------------------
