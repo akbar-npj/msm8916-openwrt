@@ -1739,19 +1739,30 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      **Why removing it matters:** `qcom_q6v5_dump_segment()` is the **second caller of
      `q6v5_mba_load()`** (Doc 165) — a whole extra MBA power-up mid-recovery; Doc 165
      measured the 85 MB synchronous copy at **1.064 s on this path**; and it writes **85 MB per fatal
-     to `/overlay`** (18 dumps = 1.5 GB of 3.2 GB). **What it does NOT do — corrected after reading
-     the callers: it does not remove Doc 159's hang site.** `q6v5_mba_reclaim()` has **three**
-     callers (`qcom_q6v5_mss.c:1616` dump, `:1657` error path, **`:1672` `q6v5_stop()`**, which
-     `rproc_stop()` runs unconditionally); `q6v5_mba_reclaim()` is what calls
-     `q6v5proc_halt_axi_port()` (`:1282-1286`), and **that** is where **`port failed halt`** is
-     emitted (`:974`) — so the 43–47 ms window is produced by the **STOP** path and is **still
-     present** with the coredump disabled. The hypothesis tested is therefore the **weaker** one:
-     *"~1 s less work and one fewer MBA power-cycle/reclaim in the middle of a 44 ms window"*, not
-     *"the hang site is removed"*. **Deployed** via `/etc/rc.local`, gated on
+     to `/overlay`** (18 dumps = 1.5 GB of 3.2 GB). **RESULT — fatal #3, the first with the capture
+     off, is a clean within-boot A/B and it corrected my own correction.** Fatal #3 fired at AP
+     **2718.436833 s** (predicted from the previous gap within **0.01 s**), recovered fully
+     (`t0..t9`, `rproc=running`), produced **no coredump** (count frozen at 18), and its recovery
+     differs from fatal #2's (capture **on**) exactly as the source says it should:
+     **2 half-cycle pairs (`01-09,10-23,01-09,10-23`) → 1**, **`port failed halt` present → ABSENT**,
+     and `SSR before shutdown`→`MBA booted` **0.8316 s → 0.1253 s (0.706 s faster)**; boot-wide,
+     **3 fatals / 4 `MBA booted` / 2 `port failed halt`**. So the dump's second MBA load, the 85 MB
+     copy, the second reclaim **and the `port failed halt` window all genuinely disappear**.
+     **The reasoning I had to retract:** I had argued (from the call graph) that because
+     `q6v5_mba_reclaim()` is *also* called by `q6v5_stop()` (`:1672`) unconditionally,
+     `port failed halt` must still print. It does not — `q6v5proc_halt_axi_port()` opens with
+     **`if (!ret && val) return;`** (`:961-964`, "already idle, say nothing"), and the port is idle in
+     the stop path but **live** in the dump path, which has just re-loaded the MBA. **A call site being
+     reached is not evidence that its error branch executes.** **What still survives:** the restart's
+     own `q6v5_mba_load()`, whose untraced tail (trace 23 → `MBA booted` = **39.2 ms**) is
+     `q6v5_rmb_mba_wait()` — Doc 165's 86.2 %-of-the-window call, still bounded (5000 ms). So a
+     same-duration window of the same kind **remains**, relocated from `port failed halt`→`MBA booted`
+     to `stopped remote processor`→`MBA booted`. **Deployed** via `/etc/rc.local`, gated on
      `/overlay/coredump_ENABLE` so it survives a reboot and re-enables with one `touch`. Verified:
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
-     per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20. **Stated
+     per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20.
+     **Progress: 1 of 20 scored, AP survived.** **Stated
      cost:** no coredump is captured in the window, so a fatal there cannot be decoded via its
      ERR_FATAL descriptor (Doc 163) — though its *signature* still lands in `dmesg_roll`.
 

@@ -28,8 +28,10 @@ tmp=$(mktemp -d)
 for f in beacon_a.txt beacon_b.txt beacon.log ssr_ledger.csv; do
     timeout 30 "${SSH[@]}" "cat /overlay/$f" > "$tmp/$f" 2>/dev/null || echo "(no $f)"
 done
-timeout 30 "${SSH[@]}" 'ls /overlay/dmesg_roll_*.txt' > "$tmp/roll_list" 2>/dev/null || true
-# newest-first; index BACK counts back from the newest
+timeout 30 "${SSH[@]}" 'ls -t /overlay/dmesg_roll_*.txt' > "$tmp/roll_list" 2>/dev/null || true
+# ls -t = newest first; index BACK counts back from the newest.
+# (A plain `ls` would sort by boot_id hex, which is uncorrelated with time -- the
+#  wrong file would be picked as soon as a second boot's log exists.)
 roll=$(sed -n "$((BACK + 1))p" "$tmp/roll_list" | tr -d '\r')
 [ -n "$roll" ] && timeout 30 "${SSH[@]}" "cat $roll" > "$tmp/roll.txt" 2>/dev/null
 

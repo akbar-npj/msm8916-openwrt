@@ -883,18 +883,85 @@ if (qproc->current_dump_size == qproc->total_dump_size) {
 So disabling the coredump removes **a second full MBA load, the 85 MB copy, and a second MBA
 reclaim** from the middle of every SSR recovery.
 
-**BUT — and this is the correction — it does NOT remove Doc 159's hang site.** `q6v5_mba_reclaim()`
-has **three** callers (`qcom_q6v5_mss.c:1616`, `:1657`, `:1672`), and the last is **`q6v5_stop()`**,
-which `rproc_stop()` runs unconditionally. `q6v5_mba_reclaim()` is what calls
-`q6v5proc_halt_axi_port()` (`:1282-1286`), and **that** is where **`port failed halt`** is emitted
-(`:974`). So **"port failed halt" is produced by the STOP path, not by the coredump path** — and the
-43–47 ms window Doc 159 located the hang in is still present with the coredump disabled.
+**MY OWN CORRECTION WAS ITSELF WRONG, AND THE FIRST FATAL OF THE EXPERIMENT PROVED IT.** The second
+draft of this section argued that because `q6v5_mba_reclaim()` is also called from `q6v5_stop()`
+(`:1672`) — which `rproc_stop()` runs unconditionally — **`port failed halt` must still print with the
+coredump disabled**, so the Doc 159 window would survive. **It does not print.** The reasoning failed
+because it was taken from the **call graph**, and the message is guarded by a **branch on runtime
+state**, not by whether the call site is reached:
 
-**What the experiment therefore tests, stated precisely:** not "the hang site is removed", but
-"**the recovery does ~1 s less work and one fewer MBA power-cycle/reclaim in the middle of a 44 ms
-window**". That is still a real hypothesis — the extra MBA load and the second reclaim are exactly the
-kind of work that can wedge a narrow handshake — but it is a **weaker** claim than the first draft,
-and the pre-registration below is written against the weaker one.
+```c
+static void q6v5proc_halt_axi_port(struct q6v5 *qproc, struct regmap *halt_map, u32 offset)
+{
+        /* Check if we're already idle */
+        ret = regmap_read(halt_map, offset + AXI_IDLE_REG, &val);
+        if (!ret && val)
+                return;                       /* <-- EARLY RETURN: no message at all */
+        ...
+        if (ret || !val)
+                dev_err(qproc->dev, "port failed halt\n");   /* only if the halt FAILS */
+}
+```
+(`qcom_q6v5_mss.c:961-975`)
+
+* **In the STOP path** the modem has just crashed and been reset, so the AXI port is **already idle**
+  ⇒ the early return fires ⇒ **silent**.
+* **In the DUMP path** `q6v5_reload_mba()` has *just re-loaded and re-started the MBA*, so
+  `q6v5_mba_reclaim()` is halting the AXI port of a **LIVE modem** ⇒ the halt times out ⇒
+  **`port failed halt`**.
+
+So the message means **"the reclaim ran against a live modem"**, which happens **only in the dump
+path**. *A call site being reached is not evidence that its error branch executes.*
+
+### §8.13.1 RESULT — first fatal with the capture OFF, and it is a clean within-boot A/B
+
+Fatal #3 of the current boot, AP **2718.436833 s** (`lte_ml1_sleepmgr_stm.c:4054`) — **predicted** from
+the previous gap at AP ≈ 2718.45 s, i.e. **within 0.01 s**. The two recoveries sit in the same boot, on
+the same firmware, minutes apart, differing only in the coredump setting:
+
+| | fatal #2 — capture **ON** (1816.046634) | fatal #3 — capture **OFF** (2718.436833) |
+|---|---|---|
+| `recovering` | 1816.062669 | 2718.452876 |
+| `SSR before shutdown` | 1816.069773 | 2718.459733 |
+| trace `01-09` (reclaim) | 1816.147194 | 2718.539571 |
+| `stopped remote processor` | 1816.147432 | 2718.539856 |
+| trace `10-23` (MBA load) | 1816.166714 | 2718.540745 |
+| **`port failed halt`** | **1816.854035** | **ABSENT** |
+| trace `01-09` (2nd reclaim) | 1816.854135 | **ABSENT** |
+| trace `10-23` (2nd load) | 1816.856197 | **ABSENT** |
+| `MBA booted` | 1816.901332 | 2718.585024 |
+| half-cycle pairs | **2** (`01-09,10-23,01-09,10-23`) | **1** (`01-09,10-23`) |
+| `SSR before shutdown` → `MBA booted` | **0.8316 s** | **0.1253 s** |
+
+Boot-wide counts confirm the pattern is not an artefact of one window: **3 fatals, 4 `MBA booted`
+(one being the cold boot), 2 `port failed halt`** — the two fatals with the capture on, none for the
+one with it off. `qcom_q6v5_dump_segment()` also gates the second load on `if (!qproc->dump_mba_loaded)`
+and the second reclaim on `current_dump_size == total_dump_size`, so with the capture off **both**
+branches are skipped — the `dump_mba_loaded` flag is the mechanism, exactly as Doc 165 described.
+
+**Measured effect of disabling the capture:**
+1. one **whole extra `q6v5_mba_load()`** (trace 10-23) is removed from the recovery;
+2. the **85 MB synchronous copy** is removed (Doc 165 measured 1.064 s for it on this path);
+3. one **`q6v5_mba_reclaim()`** is removed;
+4. **`port failed halt` itself disappears** — and with it the exact two-printk window Doc 159 bounded
+   the hang by;
+5. **85 MB/fatal** stops being written to `/overlay`;
+6. net effect on this pair: the `SSR before shutdown` → `MBA booted` span falls **0.8316 s → 0.1253 s
+   (0.706 s faster)**, and the boot's `stopped remote processor` → `MBA booted` span is **44.3 ms**,
+   the same order as the 43–47 ms Doc 159 measured.
+
+**What this does NOT remove — and it matters for the prediction.** The restart's own `q6v5_mba_load()`
+still runs, and its untraced tail is still there: trace 23 → `MBA booted` = **39.2 ms**, which is
+`q6v5_rmb_mba_wait(qproc, 0, 5000)` — the call Doc 165 identified as **86.2 % of the 43.968 ms window**.
+So a **same-duration window of the same kind survives**, merely relocated from
+`port failed halt`→`MBA booted` to `stopped remote processor`→`MBA booted`. `q6v5_rmb_mba_wait()` is
+**bounded** (`msleep(1)` + `time_after`, 5000 ms → `-ETIMEDOUT` → `MBA boot timed out`), so it cannot
+hang forever — but if the AP hang lives inside *it*, this experiment will not remove the hang.
+
+**What the experiment therefore tests, stated precisely:** it removes **the dump's extra MBA load, the
+85 MB copy, the second reclaim, and the `port failed halt` window** — a real and now *measured*
+reduction of ~0.7 s of work and one full power-cycle from every recovery — but **not** the restart's
+`q6v5_rmb_mba_wait()`. The prediction below is written against that.
 
 **Deployed** (`/etc/rc.local`, gated so it survives a reboot and is trivially reversible):
 
@@ -910,10 +977,12 @@ Verified: `cat /sys/class/remoteproc/remoteproc0/coredump` → **`disabled`**; w
 `sh -n /etc/rc.local` → OK; **re-enable with `touch /overlay/coredump_ENABLE`** (plus a reboot, or
 just start the watcher — it re-arms within 2 s).
 
-**PRE-REGISTRATION (written before the run, per the standing SOP rule).**
-* **Prediction:** removing the second MBA load + 85 MB copy + second reclaim from the middle of every
-  SSR recovery reduces the AP reboot rate to **zero**. (Note the weaker framing above: the hang site
-  itself is **not** removed — only the extra work around it.)
+**PRE-REGISTRATION (written before the run, per the standing SOP rule; the framing note was amended
+*after* fatal #3 — see §8.13.1 — but the bar and the falsifier are unchanged and were not touched).**
+* **Prediction:** removing the dump's second MBA load, the 85 MB copy, the second reclaim **and the
+  `port failed halt` window** from every SSR recovery reduces the AP reboot rate to **zero**. (Per
+  §8.13.1 this is now a **measured** removal, not an inference — but note it does **not** remove the
+  restart's own `q6v5_rmb_mba_wait()`, which is a same-duration window.)
 * **Bar:** **0 AP reboots across the next 20 fatals.** At the idle timer's ~902 s that is ~5 h of
   unattended running. *Justification for n=20:* the pre-823 rate was of order 1 reboot per 1–3 SSRs,
   so 20 clean fatals would be decisive; if the true post-823 rate were as low as 1 in 4, 20 fatals
@@ -972,16 +1041,39 @@ just start the watcher — it re-arms within 2 s).
 10. **Do not conclude "no WiFi" from `CONFIG_QCOM_WCNSS_PIL` being unset.** WiFi works on this device
     via a different WCNSS path, and its AP is the only management route that survives a dead USB
     gadget (§8.3.1).
+11. **A call site being reached is NOT evidence that its error branch executes — read the branch
+    condition, not the call graph.** This round's own worst error, caught by the experiment it
+    justified (§8.13.1): because `q6v5_mba_reclaim()` is called from `q6v5_stop()` (`:1672`)
+    unconditionally, I concluded `port failed halt` must still print with the coredump disabled — and
+    *wrote the correction into this document on that basis*. It does not print, because
+    `q6v5proc_halt_axi_port()` opens with **`if (!ret && val) return;`** (`:961-964`) — "already idle,
+    say nothing" — and the port is idle in the stop path but **live** in the dump path (which has just
+    re-loaded the MBA). The message means *"the reclaim ran against a live modem"*. **How to apply:**
+    when predicting whether a log line or a hang will survive a change, find the `if` that guards the
+    print/blocking call and ask which *state* selects it — a reachable call site with an untaken
+    branch produces nothing. **And the general form:** a correction written from a call graph is a
+    hypothesis, not a finding; the experiment was already running, so it was settled in five minutes
+    at zero cost — *run the cheap measurement before rewriting the conclusion.*
+12. **An instrument's own first result can falsify the reasoning that deployed it — keep the
+    instrument that tells you *when*, and read it before writing prose.** §8.12's `dmesg_roll` was
+    built to characterise a *future* stall; it immediately produced the within-boot A/B (fatal #2 vs
+    #3) that corrected §8.13, because it is a per-boot rolling copy of the kernel's own last lines
+    with **timestamps**. The `port failed halt` *count* (2 vs 3 fatals) and the trace-pair *count*
+    (2 vs 1) were both visible only because the log was retained in full.
 
 ---
 
 ## §10 What's next
 
-* **RUNNING NOW: the §8.13 coredump-off experiment.** The bar is **0 AP reboots across 20 fatals**
-  (~5 h at the idle timer). Re-enable the capture with `touch /overlay/coredump_ENABLE`. If it
-  succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling it
-  also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says whether
-  the recovery had already passed the coredump step, which is itself informative.
+* **RUNNING NOW: the §8.13 coredump-off experiment — 1 of 20 fatals scored, AP survived.** The bar is
+  **0 AP reboots across 20 fatals** (~5 h at the idle timer). **Fatal #3 (the first with the capture
+  off) fired on schedule at AP 2718.436833 s, recovered fully (`t0..t9`, `rproc=running`), produced
+  no coredump (count frozen at 18), and its recovery was 0.706 s shorter and one half-cycle pair
+  lighter than fatal #2's** (§8.13.1). Re-enable the capture with `touch /overlay/coredump_ENABLE`.
+  If it succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling
+  it also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says
+  whether the recovery had already passed the coredump step, which is itself informative.
+  **Remaining: 19 fatals (~4.8 h).**
 * **Let §8.12's instruments catch a stall, then read the cause off it.** The reset is a **≥30 s global
   stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the per-boot
   rolling kernel log are both deployed and reboot-persistent, so the next stall yields the *when*
@@ -1053,7 +1145,13 @@ just start the watcher — it re-arms within 2 s).
     30 s, active), the 15-reboot-in-5 h rate with its pre/post-823 split, the two consecutive
     idle-timer fatals the current boot survived, and the rolling-kernel-log instrument.**
   * **`S_coredump_off_experiment.txt`** — **§8.13: the recovery-path code, the per-device `disabled`
-    finding, the deployment, and the pre-registered bar (0 reboots / 20 fatals).**
+    finding, the deployment, the pre-registered bar (0 reboots / 20 fatals), and the *retracted*
+    call-graph correction.**
+  * **`T_coredump_off_first_fatal_AB.txt`** — **§8.13.1: the first fatal with the capture OFF, as a
+    clean within-boot A/B against the fatal immediately before it.** Both recovery windows verbatim,
+    the boot-wide counts (3 fatals / 4 `MBA booted` / 2 `port failed halt`), the full ledger, the
+    guarded branch that retracted my correction, and the reason the `q6v5_rmb_mba_wait()` window
+    still survives.
   * `R_analyze_hang_sh.sh`, `P_dmesg_roll_sh_per_boot_kernel_log.sh`,
     `Q_dev_state_mon_sh_host_sampler.sh` — the §8.12/§8.13 instruments.
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.

@@ -1,0 +1,232 @@
+================================================================================
+T_coredump_off_first_fatal_AB.txt
+Doc 170 s8.13.1 -- FIRST FATAL WITH THE COREDUMP CAPTURE DISABLED, AND IT IS A
+CLEAN WITHIN-BOOT A/B AGAINST THE FATAL IMMEDIATELY BEFORE IT.
+Captured 2026-09-21 (device UTC 12:05).
+================================================================================
+
+WHY THIS FILE EXISTS
+--------------------
+Doc 170 s8.13 turned the remoteproc coredump capture OFF to test whether a step
+INSIDE the SSR recovery is implicated in the AP hang.  A second draft of s8.13
+then argued, from the CALL GRAPH, that this could NOT remove "port failed halt"
+(because q6v5_mba_reclaim() is also called by q6v5_stop():1672, which rproc_stop()
+runs unconditionally).  This file is the measurement that RETRACTED that argument.
+
+THE A/B, READ OFF THE TWO WINDOWS BELOW
+---------------------------------------
+                                    fatal #2            fatal #3
+                                    capture ON          capture OFF
+  fatal                            1816.046634         2718.436833
+  recovering                       1816.062669         2718.452876
+  SSR before shutdown              1816.069773         2718.459733
+  trace 01-09 (reclaim)            1816.147194         2718.539571
+  stopped remote processor         1816.147432         2718.539856
+  trace 10-23 (MBA load)           1816.166714         2718.540745
+  port failed halt                 1816.854035         *** ABSENT ***
+  trace 01-09 (2nd reclaim)        1816.854135         *** ABSENT ***
+  trace 10-23 (2nd load)           1816.856197         *** ABSENT ***
+  MBA booted                       1816.901332         2718.585024
+  half-cycle pairs                 2                   1
+  SSR-shutdown -> MBA booted       0.8316 s            0.1253 s   (0.706 s faster)
+
+  boot-wide: 3 fatals, 4 MBA booted (one is the cold boot), 2 port failed halt
+             -> exactly the two fatals with the capture ON; none for the OFF one.
+  coredump_live frozen at 18; attribute "disabled"; rproc "running"; AP survived.
+
+WHY MY CORRECTION WAS WRONG (the transferable lesson)
+-----------------------------------------------------
+q6v5proc_halt_axi_port() (qcom_q6v5_mss.c:961-975) opens with
+
+        /* Check if we're already idle */
+        ret = regmap_read(halt_map, offset + AXI_IDLE_REG, &val);
+        if (!ret && val)
+                return;                 /* EARLY RETURN -- prints nothing */
+
+and only reaches dev_err(..., "port failed halt") if the halt FAILS.
+
+  STOP path: the modem has just crashed and been reset => the AXI port is ALREADY
+             IDLE => early return => SILENT.
+  DUMP path: q6v5_reload_mba() has JUST re-loaded and re-started the MBA => the
+             reclaim halts the AXI port of a LIVE MODEM => times out => the message.
+
+  => "port failed halt" means "the reclaim ran against a LIVE modem".
+  => A CALL SITE BEING REACHED IS NOT EVIDENCE THAT ITS ERROR BRANCH EXECUTES.
+
+WHAT STILL SURVIVES (so the prediction is not over-read)
+--------------------------------------------------------
+The restart's OWN q6v5_mba_load() still runs, and its untraced tail is still there:
+trace 23 -> MBA booted = 39.2 ms, which is q6v5_rmb_mba_wait() -- the call Doc 165
+identified as 86.2 % of the 43.968 ms window.  A same-duration window of the same
+kind therefore REMAINS, merely relocated from
+"port failed halt"->"MBA booted"  to  "stopped remote processor"->"MBA booted".
+q6v5_rmb_mba_wait() is BOUNDED (msleep(1) + time_after, 5000 ms -> -ETIMEDOUT ->
+"MBA boot timed out"), so it cannot hang forever -- but if the AP hang lives inside
+IT, this experiment will not remove the hang.
+
+ALSO NOTE
+---------
+The fatal line in dmesg is EXACT; the ledger's column 1 is a NOTICED time (the
+writer polls and then `sleep 10`), so the ledger reads 1825.87 and 2718.81 for
+fatals that actually occurred at 1816.046634 and 2718.436833.  Take period samples
+from dmesg, never from the ledger.  (Both the raw ledger rows and the dmesg lines
+are below, so the difference is auditable.)
+
+================================================================================
+RAW CAPTURE
+================================================================================
+### HOST-MEASURED A/B: fatal #2 (capture ON) vs fatal #3 (capture OFF)
+### captured 2026-09-21T12:05:51+00:00   device uptime 2849.76 s
+
+### fatal lines (dmesg -- these are EXACT; the ledger column 1 is a NOTICED time)
+[  913.640795] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 1816.046634] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 2718.436833] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+
+### boot-wide counts
+fatals            = 3
+MBA booted        = 4
+port failed halt  = 2
+coredump_live     = 18
+coredump attr     = disabled
+rproc state       = running
+
+### every port failed halt
+[  914.443745] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 1816.854035] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+
+### ledger (all rows)
+uptime,n,sig,t0,t1,t2,t3,t4,t5,t6,t7,t8,t9,exec,wwan,pc_state,rx_tearing_down,coredumps
+951.90,1,a2_power.c:1189,1,1,1,1,1,?,?,?,?,?,1,1,?,?,4
+543.77,1,a2_power.c:1189,1,1,1,1,1,?,?,?,?,?,1,1,?,?,4
+1455.70,2,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,?,?,?,?,?,2,2,?,?,6
+2449.65,3,a2_power.c:1189,3,3,3,3,3,?,?,?,?,?,3,3,?,?,7
+3355.26,4,lte_ml1_sleepmgr_stm.c:4054,4,4,4,4,4,?,?,?,?,?,4,4,?,?,8
+1337.83,1,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,1,0,9
+1053.95,1,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,1,0,10
+719.00,1,a2_power.c:2949,1,1,1,1,1,1,1,1,1,1,1,1,0,1,11
+1336.18,2,a2_power.c:1189,2,2,2,2,2,2,2,2,2,2,2,2,0,1,12
+2244.25,3,lte_ml1_sleepmgr_stm.c:4054,3,3,3,3,3,3,3,3,3,3,3,3,0,1,13
+389.95,1,a2_power.c:1189,4,4,4,4,4,4,4,4,4,4,4,4,0,1,14
+502.08,2,a2_power.c:1189,5,5,5,5,5,5,5,5,5,5,5,5,0,1,15
+896.52,3,a2_power.c:2949,6,6,6,6,6,6,6,6,6,6,6,6,0,1,16
+919.62,1,lte_ml1_sleepmgr_stm.c:4054,1,1,1,1,1,1,1,1,1,1,1,1,0,1,17
+1825.87,2,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,0,1,18
+2718.81,3,lte_ml1_sleepmgr_stm.c:4054,3,3,3,3,3,3,3,3,3,3,3,3,0,1,18
+
+### WINDOW fatal#2 (capture ON)  1816.046634 .. 1816.901332
+[ 1816.046634] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 1816.046705] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 1816.054712] remoteproc remoteproc0: handling crash #2 in 4080000.remoteproc
+[ 1816.062669] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 1816.069773] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 1816.069812] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T1 entry
+[ 1816.071257] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T0 scheduled
+[ 1816.076237] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+[ 1816.091323] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+[ 1816.099625] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+[ 1816.108224] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 1816.108291] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T5 rx released
+[ 1816.116829] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T6 tx released
+[ 1816.123731] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T7 power_off returned
+[ 1816.130760] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T8 work done
+[ 1816.138176] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T9 flush returned
+[ 1816.145572] wwan wwan0: port wwan0at0 disconnected
+[ 1816.145754] wwan wwan0: port wwan0at1 disconnected
+[ 1816.146047] wwan wwan0: port wwan0qmi0 disconnected
+[ 1816.147194] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[ 1816.147214] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[ 1816.147223] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[ 1816.147232] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+[ 1816.147271] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+[ 1816.147281] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+[ 1816.147319] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+[ 1816.147329] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+[ 1816.147337] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+[ 1816.147432] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 1816.166714] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[ 1816.166741] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[ 1816.167405] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[ 1816.167422] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[ 1816.167439] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[ 1816.167450] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[ 1816.167459] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[ 1816.167468] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[ 1816.167507] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[ 1816.167533] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[ 1816.167542] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[ 1816.167552] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[ 1816.167561] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[ 1816.167570] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[ 1816.628053] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+[ 1816.854035] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 1816.854135] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[ 1816.854159] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[ 1816.854180] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[ 1816.854202] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+[ 1816.854255] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+[ 1816.854278] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+[ 1816.854330] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+[ 1816.854353] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+[ 1816.854374] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+[ 1816.856197] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[ 1816.856224] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[ 1816.859047] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[ 1816.859081] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[ 1816.859115] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[ 1816.859140] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[ 1816.859161] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[ 1816.859182] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[ 1816.859237] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[ 1816.859282] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[ 1816.859304] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[ 1816.859326] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[ 1816.859347] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[ 1816.859369] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[ 1816.901332] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+
+### WINDOW fatal#3 (capture OFF) 2718.436833 .. 2718.585024
+[ 2718.436833] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 2718.436904] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 2718.445428] remoteproc remoteproc0: handling crash #3 in 4080000.remoteproc
+[ 2718.452876] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 2718.459733] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 2718.459778] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T0 scheduled
+[ 2718.466102] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T1 entry
+[ 2718.473780] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+[ 2718.481261] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+[ 2718.489755] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+[ 2718.498386] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[ 2718.498494] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T5 rx released
+[ 2718.507084] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T6 tx released
+[ 2718.514001] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T7 power_off returned
+[ 2718.520905] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T8 work done
+[ 2718.528328] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T9 flush returned
+[ 2718.536809] wwan wwan0: port wwan0at0 disconnected
+[ 2718.537195] wwan wwan0: port wwan0at1 disconnected
+[ 2718.537862] wwan wwan0: port wwan0qmi0 disconnected
+[ 2718.539571] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[ 2718.539599] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[ 2718.539613] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[ 2718.539624] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+[ 2718.539671] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+[ 2718.539684] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+[ 2718.539722] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+[ 2718.539735] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+[ 2718.539746] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+[ 2718.539856] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 2718.540745] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[ 2718.540774] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[ 2718.545667] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[ 2718.545691] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[ 2718.545710] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[ 2718.545722] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[ 2718.545731] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[ 2718.545740] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[ 2718.545784] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[ 2718.545810] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[ 2718.545820] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[ 2718.545828] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[ 2718.545837] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[ 2718.545846] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[ 2718.585024] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss

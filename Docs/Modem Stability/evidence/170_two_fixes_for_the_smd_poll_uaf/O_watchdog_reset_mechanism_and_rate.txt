@@ -85,9 +85,38 @@ should sit at multiples of ~902 s.
   919.62,1,lte_ml1_sleepmgr_stm.c:4054,1,1,1,1,1,1,1,1,1,1,1,1,0,1,17
   1825.87,2,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,0,1,18
 
-  gap = 1825.87 - 919.62 = 906.25 s  => the ~902 s idle timer (modem uptime resets on SSR)
+  naive gap from the ledger = 1825.87 - 919.62 = 906.25 s
+
+  *** CORRECTION -- THE LEDGER'S FIRST COLUMN IS A "NOTICED" TIME, NOT THE FATAL TIME. ***
+  ssr_ledger.sh:14 says so in its own comment ("AP uptime (s) when the new fatal was
+  noticed") and the mechanism is the loop at :71-93: it polls `dmesg | grep -c "fatal
+  error received"` and stamps /proc/uptime at the moment it NOTICES the increment, then
+  `sleep 10`. So every ledger uptime = true fatal time + 0..10 s of independent lag.
+
+  The actual fatal lines, from dmesg, are exact:
+
+    [  913.640795] fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+    [ 1816.046634] fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+
+  => TRUE gap = 1816.046634 - 913.640795 = 902.405839 s  (the ~902 s idle timer)
+  => ledger lags = 919.62-913.64 = 5.98 s  and  1825.87-1816.05 = 9.82 s, both inside
+     [0,10] as the code requires.  The 3.85 s by which the ledger gap overstates the
+     period is the DIFFERENCE of two independent lags, not a measurement of anything.
+
+  RULE: take fatal-period samples from the `[ <ts>] fatal error received` line in dmesg,
+  never from the ledger's column 1.  The ledger is for the teardown STAGE counts (t0..t9,
+  exec, wwan, pc_state, coredumps), which are read at the same instant and are unaffected
+  by the lag in the same way -- a count is not a timestamp.
+
   both rows: t0..t9 ALL PRESENT, 0 list_del corruption, coredump captured
   AP survived both (uptime 1849.35 s and climbing, rproc=running)
+
+  FREE PERIOD SAMPLE (new): this is one clean AP-measured inter-fatal gap for the
+  `lte_ml1_sleepmgr_stm.c:4054` signature -- 902.405839 s -- taken from dmesg, so it carries
+  no ledger lag.  Converted with the established AP-vs-modem relation (AP gap = modem
+  period + the SSR/recovery duration, measured at ~1.4 s), the modem period is ~901.0 s,
+  which lands inside Doc 164's SHORT band (900.5-901.0 s, spread 0.46 s, always this
+  signature) rather than the common_timer band.  n += 1.
 
 dmesg_roll tail after the second fatal:
   [ 1818.079734] bam_dmux: received CMD_OPEN (1) on channel 5

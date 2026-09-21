@@ -62,28 +62,58 @@ WHY THE SKIPPED STEP MATTERS
 * Doc 165 measured the 85 398 475 B synchronous copy at 1.064 s ON this path.
 * It writes 85 MB per fatal to /overlay -- 18 dumps = 1.5 GB of a 3.2 GB partition.
 
-WHAT THIS DOES *NOT* DO -- corrected after reading the callers (first draft overclaimed)
--------------------------------------------------------------------------------------
-It does NOT remove Doc 159's hang site.
+WHAT THIS DOES *NOT* DO -- the correction I had to RETRACT (see T_... for the result)
+----------------------------------------------------------------------------------------
+A SECOND draft of this file claimed it does NOT remove Doc 159's hang site, reasoning
+from the CALL GRAPH: q6v5_mba_reclaim() has three callers --
+      qcom_q6v5_mss.c:1616   the coredump's reclaim
+      qcom_q6v5_mss.c:1657   q6v5_mpss_load error path
+      qcom_q6v5_mss.c:1672   q6v5_stop()  <- rproc_stop() runs this UNCONDITIONALLY
+-- so "port failed halt" must still print with the dump off.
 
-  q6v5_mba_reclaim() has THREE callers:
-      qcom_q6v5_mss.c:1616   the coredump's reclaim      <- removed by this experiment
-      qcom_q6v5_mss.c:1657   q6v5_mpss_load error path   <- not on the recovery path
-      qcom_q6v5_mss.c:1672   q6v5_stop()                 <- rproc_stop() runs this
-                                                          UNCONDITIONALLY
-  q6v5_mba_reclaim() is what calls q6v5proc_halt_axi_port() (:1282-1286), and THAT
-  is where "port failed halt" is emitted (:974).
+THAT WAS WRONG.  The first fatal with the capture OFF (fatal #3) produced NO
+"port failed halt" at all.  The error is that the message is guarded by a BRANCH ON
+RUNTIME STATE, not by whether the call site is reached:
 
-  => "port failed halt" is produced by the STOP path, not the coredump path, so the
-     43-47 ms window Doc 159 located the hang in is STILL PRESENT with the dump off.
+    static void q6v5proc_halt_axi_port(struct q6v5 *qproc, struct regmap *halt_map,
+                                       u32 offset)
+    {
+            /* Check if we're already idle */
+            ret = regmap_read(halt_map, offset + AXI_IDLE_REG, &val);
+            if (!ret && val)
+                    return;                 /* <-- EARLY RETURN: prints nothing */
+            ...
+            ret = regmap_read(halt_map, offset + AXI_IDLE_REG, &val);
+            if (ret || !val)
+                    dev_err(qproc->dev, "port failed halt\n");   /* only if halt FAILS */
+    }
+                                            (qcom_q6v5_mss.c:961-975)
 
-WHAT THE EXPERIMENT THEREFORE TESTS (the weaker, accurate claim)
-----------------------------------------------------------------
-Not "the hang site is removed", but "the recovery does ~1 s less work and one fewer
-MBA power-cycle/reclaim in the middle of a 44 ms window".  That is still a real
-hypothesis -- extra MBA load + a second reclaim are exactly the kind of work that can
-wedge a narrow handshake -- but it is weaker, and the pre-registration is written
-against the weaker claim.
+  STOP path: the modem has just crashed and been reset => the AXI port is ALREADY
+             IDLE => early return => SILENT.
+  DUMP path: q6v5_reload_mba() has JUST re-loaded and re-started the MBA =>
+             q6v5_mba_reclaim() halts the AXI port of a LIVE MODEM => times out =>
+             "port failed halt".
+
+  => the message means "the reclaim ran against a LIVE modem", which happens ONLY in
+     the dump path.
+
+  *** A CALL SITE BEING REACHED IS NOT EVIDENCE THAT ITS ERROR BRANCH EXECUTES. ***
+
+WHAT THE EXPERIMENT THEREFORE TESTS (measured, not inferred -- see T_...)
+------------------------------------------------------------------------
+It removes, per fatal: the dump's q6v5_mba_load() (a whole extra MBA power-up), the
+85 MB synchronous copy, the dump's q6v5_mba_reclaim(), "port failed halt" itself, and
+85 MB of /overlay writes -- measured as 0.706 s off the recovery window and one
+half-cycle pair (2 -> 1).
+
+It does NOT remove: the restart's own q6v5_mba_load(), whose untraced tail
+(trace 23 -> "MBA booted" = 39.2 ms) is q6v5_rmb_mba_wait() -- Doc 165's 86.2 % of the
+window.  So a SAME-DURATION window of the same kind survives, relocated from
+"port failed halt"->"MBA booted" to "stopped remote processor"->"MBA booted".
+q6v5_rmb_mba_wait() is BOUNDED (msleep(1) + time_after, 5000 ms -> -ETIMEDOUT ->
+"MBA boot timed out"), so it cannot hang forever -- but if the AP hang lives inside
+it, this experiment will not remove the hang.
 
 DEPLOYED (survives reboot, trivially reversible)
 ------------------------------------------------
