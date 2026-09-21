@@ -1,0 +1,102 @@
+# 821 `echo stop` run #2 — the teardown COMPLETES, then a wait-queue corruption
+
+Captured 2026-09-21 08:16-08:18 UTC from `/sys/fs/pstore/console-ramoops-0` and
+`/sys/fs/pstore/pmsg-ramoops-0` while the device was still up.  A later reboot
+emptied the record, so this file is the **verbatim** extract that the device
+printed at the time (not a re-read).
+
+Context: deployed module = patch **821** (`qcom_bam_dmux.ko` md5
+`364376867224df54d47b9b7a06528db3`, 241232 B).  Trigger = one
+`echo stop > /sys/class/remoteproc/remoteproc0/state`.
+
+## console-ramoops-0, lines 318-362 (the whole SSR)
+
+```
+[  309.301329] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T1 entry
+[  309.301391] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+[  309.307960] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T0 scheduled
+[  309.316443] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+[  309.324357] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+[  309.333033] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T5 rx released
+[  309.344838] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T6 tx released
+[  309.349416] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T7 power_off returned
+[  309.363183] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T8 work done
+[  309.363296] bam-dmux 4080000.remoteproc:bam-dmux: bam-dmux T9 flush returned
+[  309.376143] ------------[ cut here ]------------
+[  309.376211] list_del corruption. prev->next should be ffff800083533c88, but was c40df08e5a393833. (prev=ffff6ee6c4a07f60)
+[  309.380847] WARNING: CPU: 3 PID: 4833 at lib/list_debug.c:62 __list_del_entry_valid_or_report+0xd0/0xfc
+[  309.391667] Modules linked in: pppoe ppp_async nft_fib_inet nf_flow_table_inet wireguard wcn36xx(O) rpmsg_wwan_ctrl qcom_bam_dmux pppox ppp_generic nft_reject_ipv6 nft_reject_ipv4 nft_reject_inet nft_reject nft_redir nft_quota nft_numgen nft_nat nft_masq nft_log nft_limit nft_hash nft_flow_offload nft_fib_ipv6 nft_fib_ipv4 nft_fib nft_ct nft_chain_nat nf_tables nf_nat nf_flow_table nf_conntrack mac80211(O) libchacha20poly1305 chacha_neon cfg80211(O) wwan slhc qcom_wcnss_pil qcom_q6v5_mss qcom_q6v5 qcom_pil_info qcom_common poly1305_neon nfnetlink nf_reject_ipv6 nf_reject_ipv4 nf_log_syslog nf_defrag_ipv6 nf_defrag_ipv4 mdt_loader lzo_rle lzo libcurve25519_generic libchacha crc_ccitt compat(O) ip6_udp_tunnel udp_tunnel tun nls_utf8 zram zsmalloc lzo_compress seqiv geniv
+[  309.446747] CPU: 3 UID: 0 PID: 4833 Comm: qmi-proxy Tainted: G           O       6.12.94 #0
+[  309.468923] Tainted: [O]=OOT_MODULE
+[  309.477240] Hardware name: HMU05 4G Modem Stick (DT)
+[  309.480715] pstate: 800000c5 (Nzcv daIF -PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  309.485928] pc : __list_del_entry_valid_or_report+0xd0/0xfc
+[  309.492610] lr : __list_del_entry_valid_or_report+0xd0/0xfc
+[  309.498164] sp : ffff800083533910
+[  309.503715] x29: ffff800083533910 x28: 00000000000027ff x27: 0000000000000000
+[  309.507194] x26: 0000000000000001 x25: ffff800083533a5c x24: 0000000000000000
+[  309.514314] x23: 0000000000000000 x22: ffff800083533b30 x21: 0000000000000000
+[  309.521431] x20: ffff6ee6c4a07f58 x19: ffff800083533c70 x18: ffff8000835334ff
+[  309.528552] x17: 20747562202c3838 x16: 6333333533383030 x15: 0720072007200720
+[  309.535666] x14: 0720072007200720 x13: 0720072007200720 x12: ffffcf342f35d820
+[  309.542785] x11: 0000000000000167 x10: ffffcf342f35d820 x9 : 0720072007200720
+[  309.549903] x8 : ffffcf342f3b5820 x7 : ffffcf342f35d820 x6 : 0000000000000168
+[  309.557023] x5 : ffff6ee6dfeba510 x4 : 0000000000000000 x3 : 0000000000000027
+[  309.564140] x2 : 0000000000000027 x1 : ffff6ee6d0be8e80 x0 : 0000000100000001
+[  309.571259] Call trace:
+[  309.578367]  __list_del_entry_valid_or_report+0xd0/0xfc
+[  309.580629]  remove_wait_queue+0x7c/0x80
+[  309.585837]  poll_freewait+0x44/0xbc
+[  309.590002]  do_sys_poll+0x3ec/0x4ec
+[  309.593561]  __arm64_sys_ppoll+0x88/0xe8
+[  309.597119]  invoke_syscall+0x50/0xf0
+[  309.601026]  el0_svc_common.constprop.0+0x44/0xdc
+[  309.604586]  do_el0_svc+0x18/0x20
+[  309.609271]  el0_svc+0x18/0x60
+[  309.612570]  el0t_64_sync_handler+0xc0/0xe0
+[  309.615527]  el0t_64_sync+0x14c/0x150
+[  309.619602] ---[ end trace 0000000000000000 ]---
+[  310.381983] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: modem pc-ack timeout during resume
+```
+
+The console record **ends** at 310.381983 — the reset follows.  Note that the
+whole SSR occupies **62 ms** (T1 309.301 → `stopped` 309.376), and the corruption
+is detected **0.14 ms** after `stopped remote processor`.
+
+## pmsg-ramoops-0, tail (the userspace-copied sink)
+
+```
+3,337,309324357,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+6,338,309332955,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+6,347,309375474,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+6,348,309375501,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+6,349,309375512,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+6,350,309375522,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+6,351,309375562,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+6,352,309375573,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+6,353,309375610,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+6,354,309375620,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+6,355,309375629,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+6,356,309375823,-;remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+```
+
+**The pmsg sink stops at entry 356** (`stopped remote processor`, 309.375823).
+The oops lines are entries 357+ and never arrive, i.e. the userspace copier
+stopped at the same instant.  This is the *expected* consequence of the CPU
+being taken down by the corruption, and it is the same behaviour Doc 166 §5.5
+predicts (a `/dev/kmsg` reader cannot be a liveness beacon).
+
+## What this run proves
+
+1. **Patch 821 does what it was written to do.** `flush_work()` in the
+   `QCOM_SSR_BEFORE_SHUTDOWN` notifier returned (`T9 flush returned` at
+   309.363296), `rproc_stop()` then proceeded to `q6v5_stop()`
+   (`q6v5-trace 01..09`, 309.375474-309.375629) and the modem went down
+   (`stopped remote processor`, 309.375823).  Compare the **earlier** 821 run,
+   where the record ended on `T4` with no `T5` and no trace at all — i.e. the
+   T4→T5 block is **intermittent**, not deterministic.
+2. **A new failure follows immediately**: a wait-queue list corruption detected
+   in `qmi-proxy`'s `poll()`.  It is a `WARNING` (not a panic), and the AP
+   resets ~1 s later.
+3. The T4→T5 timing in this run is **normal**: T4→T5 8.7 ms, T5→T6 11.8 ms,
+   T6→T7 4.6 ms, T7→T8 13.8 ms, T8→T9 0.1 ms.  Nothing blocked.

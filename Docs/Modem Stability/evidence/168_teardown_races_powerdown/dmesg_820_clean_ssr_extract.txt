@@ -1,0 +1,79 @@
+[  943.555967] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[  943.556032] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  943.562947] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[  943.570927] remoteproc remoteproc0: recovering 4080000.remoteproc
+[  943.577836] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  943.578229] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T1 entry
+[  943.581580] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T0 scheduled
+[  943.584109] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T2 tx_retry cancelled
+[  943.592527] wwan wwan0: port wwan0at0 disconnected
+[  943.599283] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+[  943.599296] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR teardown T4 state_lock acquired
+[  943.599302] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+[  943.600630] wwan wwan0: port wwan0at1 disconnected
+[  943.617637] wwan wwan0: port wwan0qmi0 disconnected
+[  943.618022] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[  943.618039] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[  943.618050] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[  943.618059] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+[  943.618098] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+[  943.618108] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+[  943.618143] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+[  943.618153] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+[  943.618161] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+[  943.621375] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[  943.634571] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[  943.634598] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[  943.635850] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[  943.635870] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[  943.635891] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[  943.635904] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[  943.635914] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[  943.635922] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[  943.635968] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[  943.636000] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[  943.636009] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[  943.636019] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[  943.636028] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[  943.636038] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[  943.671994] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: refusing to queue command while modem is collapsed
+[  944.316790] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[  944.316963] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[  944.317010] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[  944.317052] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[  944.317094] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+[  944.317191] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+[  944.317236] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+[  944.317320] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+[  944.317364] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+[  944.317407] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+[  944.319921] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[  944.319958] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[  944.321180] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[  944.321198] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[  944.321216] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[  944.321229] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[  944.321240] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[  944.321251] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[  944.321285] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[  944.321309] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[  944.321321] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[  944.321332] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[  944.321343] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[  944.321354] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[  944.365189] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[  944.922397] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  944.922440] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[  945.356583] wwan wwan0: port wwan0at0 attached
+[  945.357520] wwan wwan0: port wwan0at1 attached
+[  945.550168] wwan wwan0: port wwan0qmi0 attached
+[  945.551733] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[  945.559275] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[  945.559459] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 0
+[  945.559493] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 1
+[  945.559512] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 2
+[  945.559528] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 3
+[  945.559544] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 4
+[  945.559559] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 5
+[  945.559574] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 6
+[  945.559588] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: received CMD_OPEN (1) on channel 7
