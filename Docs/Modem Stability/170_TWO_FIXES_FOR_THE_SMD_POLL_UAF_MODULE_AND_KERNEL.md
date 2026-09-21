@@ -34,6 +34,14 @@ pings, 0 % loss) and the storm returned at the pre-S1 rate the moment the traffi
 A/B/A inside one run — so the STORM is AP-runtime-PM-gated. ⚠ BUT THE SAME RUN REFUTES THE MITIGATION
 FOR THE FATALS: fatal #6 fired INSIDE the suppression window with the modem never suspended, on the
 clock (902.286373 s of modem uptime, 19.4 ms from Doc 162's figure).**
+**⚠ AND §8.15.5 WITHDRAWS §8.15.3 §5's "NO EXTERNAL TRIGGER" TO "OPEN": the device runs
+`/usr/sbin/modem-bearer-watchdog`, which enforces the bam-dmux `power/control` and
+`autosuspend_delay_ms` every 10 s via sysfs WITH NO LOG LINE and can also do `wds-go-dormant`, a
+bearer down/up and a full remoteproc SSR — while `logread` is a ~15-minute ring buffer that had
+already rotated past the onset. `/overlay/logroll.sh` is now deployed (userspace log + kernel log +
+PM state machine on one timeline) and answers the NEXT onset, not this one. S2's first data also
+shows the storm's cost is LATENCY (a `551.417 ms` first packet against a ~41–43 ms baseline), not
+loss — so P6's predicate must be the TIMEOUT delta, not the resync delta.**
 
 ---
 
@@ -55,6 +63,7 @@ clock (902.286373 s of modem uptime, 19.4 ms from Doc 162's figure).**
 | Pre-register before running | ✔ §7 — **and then withdrawn in §8.2 when the control invalidated it.** Registering is not the same as being entitled to the prediction. **§8.13 re-registers a bar (0 reboots / 20 fatals) for the coredump-off experiment *before* it runs.** |
 | Check the *other side* of an attribution before publishing it | ✔ **§8.14 (this round's biggest correction)**: §8.10 blamed the AP for a 17:03 reset. The **host kernel log** shows the dongle disconnecting from port `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and the dongle returning at `1-1.2` at `17:03:41` — a **physical intervention by me**. §8.10's verdict on 823 is withdrawn. The same log shows **24 host xHCI remove/re-probe cycles** (18 in one hour) and **39** dongle re-enumerations against ~19 AP uptime-decreases ⇒ *a device-side uptime decrease proves the device restarted, not that it restarted itself.* **And the follow-up lesson: §8.14's own first draft labelled four more outages "host-caused" on a correlation; reading the ORDERING (mixed — the dongle usually disconnects first) forced that back to "entangled, direction not established". A correlation with a plausible upstream cause is still not a direction.** |
 | Read the guarded BRANCH, not the call graph | ✔ **§8.13/§8.13.1**: I argued from the call graph that `port failed halt` must survive the coredump being disabled (because `q6v5_mba_reclaim()` is also reached via `q6v5_stop()`). The measurement falsified it — `q6v5proc_halt_axi_port()` opens with `if (!ret && val) return;` and the port is idle in the STOP path but **live** in the DUMP path. **A call site being reached is not evidence its error branch executes** (§9 trap 11). |
+| **A negative is only as wide as the instrument class you searched — and check its horizon** | ✔ **§8.15.5 (this round's second self-correction)**: §8.15.3 §5 published "no external trigger" from two *true* negatives (empty `dmesg`, silent host log). The device runs `/usr/sbin/modem-bearer-watchdog`, which **writes the bam-dmux `power/control` and `autosuspend_delay_ms` every 10 s with no log line**, and `logread` is a **~15-minute ring buffer** that had already rotated past the onset. **The conclusion was withdrawn to "OPEN", and `/overlay/logroll.sh` was deployed to put the userspace log, the kernel log and the PM state machine on one timeline.** |
 | Cross-check a rate against *every* instrument that could contradict it | ✔ **§8.14**: §8.11 fit its watchdog model to the 13–61 s outages and never noticed the distribution has a **second mode** — a **1641 s** and a **926 s** outage no 30 s stall can produce. Checking the durations for a second mode is now part of reading any rate. |
 | Check the **provenance of the sample** before counting it | ✔ **§8.15**: the two extra `a2_power.c:2949` samples came from `/overlay/q6trace.log`, which is an **append-across-boots** file, not one boot — so each was cross-checked against the independent `ssr_ledger.csv` (**6 of 6 match**, 0–10 s lag) and the two boots were separated by their own `n = 1,2,3` sequences and the ledger's monotonic `coredumps` column (11,12,13 then 14,15,16). `grep -c` on that file returns **5** for **3 distinct events**. |
 | Report **sufficiency as well as necessity** — and do not act on the necessity alone | ✔ **§8.15**: the "lost edge" resync precedes every `a2_power.c:2949` (**3/3**) *and* occurs 5 more times with no such fatal (**3/8**). Both numbers are recorded, the counter-examples are tabulated, and the three competing readings are left **open** with a discriminator design rather than a conclusion. A tight 74–86 ms lag makes the correlation look like a cause; the denominator is what keeps it honest. |
@@ -1651,6 +1660,12 @@ low, but n = 1 against a 5 % base rate is exactly the shape of a coincidence. **
 ~18:11:20 host time — with a **positive control** (the same query returned the 17:04–17:34 lines, so
 this is a real negative and not a broken query). **The onset is AP/modem-internal.** Note this is
 §8.14's lesson applied *before* blaming anything: the host was checked first and excluded cheaply.
+**⚠ THIS PARAGRAPH IS CORRECTED BY §8.15.5 AND MUST NOT BE QUOTED ALONE.** Both negatives are true and
+**neither is sufficient**: the device runs `/usr/sbin/modem-bearer-watchdog`, which **enforces
+`power/control=auto` and `autosuspend_delay_ms=1000` on the bam-dmux device every 10 s with no log
+line** and can also do `wds-go-dormant`, a bearer down/up (changing the IP) and a full remoteproc SSR —
+and `logread` is a ~15-minute ring buffer that had already rotated past the onset. **The trigger
+question is OPEN, not answered.**
 
 **6. The runtime-PM rate is UNCHANGED across the onset.** `pm_suspend_attempts` = 623 at uptime ~4720
 ⇒ **0.132 /s** averaged over the boot; measured during the storm, **7 per 55 s = 0.127 /s** and
@@ -1743,6 +1758,32 @@ difference between pings with and without a lost edge. **S2 also doubles as a pa
 check** — 15 s of idle is exactly the condition Doc 156 measured as `replies=0/1` before 812 and
 `dtx=1 drx=1` after it. (`/overlay/s2.sh` is written and syntax-checked; it must be launched with the
 ssh held open, because a backgrounded job inside a one-shot ssh dies at session exit.)
+
+---
+
+### §8.15.5 ⚠ CORRECTION — §8.15.3 §5's "NO EXTERNAL TRIGGER" IS **UNSAFE**: the device runs a userspace watchdog that writes the bam-dmux PM knobs every 10 s **with no log line**, and `logread` is a 15-minute ring buffer that has already rotated past the onset
+
+**Both of §8.15.3 §5's negatives are true and neither is sufficient.** `dmesg` really has zero lines in the 589 s before the onset, and the host's `journalctl -k` really is silent (with a positive control). **But a userspace action can change the modem's power behaviour without producing a kernel log line** — and I checked the kernel and the host, not the device's own automation. That is §8.10's mistake with `qcom-carrier-autocfg`, repeated.
+
+**What is actually running — `/usr/sbin/modem-bearer-watchdog` (485 lines), from `uci show modem-watchdog`:**
+`general.enabled='1'`, `stall_timeout='60'`, `check_interval='10'`, `keepalive.enabled='0'`, **`recovery.ssr_enabled='1'`** (default on). Its body:
+
+| line | action |
+|---|---|
+| **:111-118** | **enforces `power/control = auto` and `autosuspend_delay_ms = 1000` on `4080000.remoteproc:bam-dmux` — every 10 s, via sysfs, with NO dmesg line and NO log line** |
+| :271 | Stage 1 = `qmicli … --wds-go-dormant` (resets the RRC channel) |
+| :299, :351 | Stage 2 = `ubus call network.interface.modem down` / `up` — **which would change the bearer IP** |
+| :403-416 | Stage 3 = `echo stop > …/remoteproc0/state` — **a full remoteproc SSR** |
+
+**:111-118 is the one that matters.** `autosuspend_delay_ms = 1000` means the modem runtime-suspends **one second** after traffic stops — and **the AP runtime-PM suspend/resume cycle is exactly the mechanism §8.15.4 just showed gates the storm.** So the single knob that controls the storm's mechanism is pinned at 1000 by a userspace script my checks could not see. (In steady state the `!=` guards mean no write actually occurs — verified current state `auto/1000/suspended` — so the watchdog is not *actively* changing anything, but it *will revert* a change, and it explains why the value is 1000 rather than whatever the DT chose.)
+
+**And the onset is now unrecoverable:** `logread` is a **~15-minute ring buffer** whose earliest line at check time was **12:43:29**, against an onset at **~12:27**. A `grep -c` over it for `modem-stall-watchdog|modem-keepalive|Stage [123]` returns **0** — which is evidence about the last 15 minutes, not about the onset.
+
+**⇒ CORRECTED STATEMENT, replacing §8.15.3 §5:** *no trigger is visible in `dmesg` or on the host; the device additionally runs a watchdog that can write the bam-dmux PM knobs, reset the RRC channel, bring the bearer down/up (changing the IP) and perform a full remoteproc SSR; its own log is a 15-minute ring buffer and has already rotated past the onset. **The trigger question is OPEN, not answered.***
+
+**THE MISSING INSTRUMENT IS DEPLOYED — `/overlay/logroll.sh`.** Running now (ssh held open) and added to `/etc/rc.local` with a pidfile guard (backup `/overlay/rc.local.bak.logroll`, `sh -n` verified before the move). It writes ONE file, `/overlay/logroll_<boot_id>.log`, containing (a) `logread -f` minus dropbear noise, `sync` per line, and (b) a 1 Hz sample of `power/control` + `autosuspend_delay_ms` + `runtime_status`, emitting a `PMKNOB` line only on change. **It interleaves the userspace log, the kernel log and the PM state machine on one timeline** — verified working, and it also gives the §8.13 window the device-side attribution instrument §8.14 had to reconstruct after the fact from the host. **Limitation, stated because it is the same trap twice: it starts now, so it cannot answer the question for the onset that motivated it — it is an instrument for the NEXT onset.**
+
+**FIRST DATA FROM S2, AND THE STORM'S COST IS LATENCY, NOT LOSS.** After 14 pings (one per 15 s) every ping replied, but the **one ping during which a `pc-ack timeout` fired took `551.417 ms` against a ~41–43 ms baseline** (and its `resync` delta was 0 while its `timeout` delta was 1). **⇒ the correct predicate for the first-packet-after-idle case is the TIMEOUT delta, not the resync delta — so P6 as pre-registered was the wrong predicate, and S2 must be scored on the timeout delta.** n = 1 so far; S2 runs 80 pings.
 
 ---
 
@@ -1871,6 +1912,26 @@ ssh held open, because a backgrounded job inside a one-shot ssh dies at session 
     **How to apply:** before reading a result off a log, confirm (i) the producer was still running,
     (ii) the run reached its planned end, and (iii) the metric's endpoints bracket the code you
     changed and nothing else.
+16. **A NEGATIVE IN ONE INSTRUMENT CLASS IS NOT A NEGATIVE — AND A RING BUFFER HAS A HORIZON
+    (§8.15.5).** §8.15.3 §5 concluded "no external trigger" from two genuine negatives: the AP's
+    `dmesg` was empty for 589 s and the host's `journalctl -k` was silent. **Both were true, and the
+    conclusion was still unsafe**, because the device runs
+    `/usr/sbin/modem-bearer-watchdog`, which **enforces `power/control=auto` and
+    `autosuspend_delay_ms=1000` on the bam-dmux device every 10 s via sysfs — producing no dmesg line
+    and no log line** — and which can additionally do `qmicli --wds-go-dormant`, a
+    `network.interface.modem down/up` (changing the bearer IP) and a **full remoteproc SSR**
+    (`recovery.ssr_enabled='1'`). It also pins the one knob (`autosuspend_delay_ms = 1000`) that
+    controls the storm's own mechanism.
+    **How to apply:** (a) when you publish a negative, **name the instrument class you searched** and
+    ask what class you did not — a silent kernel log says nothing about a sysfs write, a QMI command
+    or a userspace recovery ladder; (b) **grep the image's own automation before concluding "nothing
+    acted"** — `ps w`, `uci show`, and the `/usr/sbin` scripts that touch the device you are studying
+    (this is §8.10's lesson, repeated); (c) **check the instrument's horizon**: `logread` here is a
+    **~15-minute ring buffer**, so a check made 30 minutes after an event cannot see it — and a
+    `grep -c` returning 0 then means "nothing in the last 15 minutes", not "nothing happened";
+    (d) **the fix is an instrument, not an argument** — `/overlay/logroll.sh` now interleaves the
+    userspace log, the kernel log and the PM state machine on one timeline, but it was deployed
+    *after* the onset, so **it answers the NEXT question, not the one that motivated it**.
 
 ---
 
@@ -1930,12 +1991,25 @@ ssh held open, because a backgrounded job inside a one-shot ssh dies at session 
   INSIDE the suppression window, with the modem never suspended, on the clock
   (`lte_ml1_sleepmgr_stm.c:4054`, 902.286373 s of modem uptime, 19.4 ms from Doc 162's figure).**
   **Idle-avoidance does not suppress the fatals, and it is now measured rather than inferred.**
-  **Next: S2** (`/overlay/s2.sh`, written and syntax-checked, **not yet run**) — one ping every 15 s ×
-  80, so the modem quiesces between pings and the storm returns, recording each ping's RTT and the
-  counters either side. **P6:** the pings whose wake missed the edge show an RTT spike up to the
-  **100 ms watchdog period**. **P6-FALSIFIER:** no RTT difference. S2 also regression-tests patch 812
-  at exactly the idle period Doc 156 measured as broken. **Launch it with the ssh held open** — a
-  backgrounded job inside a one-shot ssh dies at session exit.
+  **Next: S2** (`/overlay/s2.sh`, written and syntax-checked, **running**) — one ping every 15 s × 80,
+  so the modem quiesces between pings and the storm returns, recording each ping's RTT and the
+  counters either side. ⚠ **P6 as pre-registered ("pair on the resync delta") is the WRONG PREDICATE
+  (§8.15.5): the first data shows the one slow ping (`551.417 ms` vs a ~41–43 ms baseline) is the one
+  whose `pc_timeout_count` advanced, while its resync delta was 0. Score S2 on the TIMEOUT delta.**
+  S2 also regression-tests patch 812 at exactly the idle period Doc 156 measured as broken. **Launch
+  it with the ssh held open** — a backgrounded job inside a one-shot ssh dies at session exit.
+* **⚠ NEW AND UNRESOLVED: the storm's TRIGGER is OPEN, and the instrument that can answer it is now
+  deployed (§8.15.5).** §8.15.3 §5 claimed "no external trigger" from `dmesg` + the host log. **Both
+  negatives are true and neither is sufficient** — `/usr/sbin/modem-bearer-watchdog` **writes the
+  bam-dmux `power/control` and `autosuspend_delay_ms` every 10 s with no log line**, and can also do
+  `wds-go-dormant`, a bearer down/up (which changes the IP) and a **full remoteproc SSR**
+  (`recovery.ssr_enabled='1'` by default). `logread` is a ~15-minute ring buffer and has already
+  rotated past the onset, so this boot's question is **unanswerable**. `/overlay/logroll.sh` is now
+  running and in `/etc/rc.local`; it puts the userspace log, the kernel log and the PM state machine on
+  ONE timeline. **The next onset is the measurement to take.** Also worth noting: the watchdog pins
+  `autosuspend_delay_ms` at **1000 ms** — the knob that controls the storm's mechanism — so any future
+  attempt to test "does a longer autosuspend delay suppress the storm?" must account for the watchdog
+  reverting it within 10 s.
 * **Let §8.12's instruments catch a stall, then read the cause off it.** The reset is a **≥30 s global
   stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the per-boot
   rolling kernel log are both deployed and reboot-persistent, so the next stall yields the *when*

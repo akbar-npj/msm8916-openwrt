@@ -1017,3 +1017,114 @@ the idle-avoidance mitigation for the FATALS while keeping it for the STORM.**
     in the data plane.
   - One run, one boot.  The A/B/A is within-run, which is the strongest form
     available, but n = 1 for the suppression event.
+
+================================================================================
+PART 9 -- CORRECTION TO PART 7 s5: THE "NO EXTERNAL TRIGGER" CLAIM IS UNSAFE, AND
+THE DEVICE HAS A USERSPACE WATCHDOG THAT WRITES THE BAM-DMUX PM KNOBS WITH NO LOG
+  found 2026-09-21 18:55 host time, same boot a9fd907c, uptime ~5890
+================================================================================
+
+1. WHAT PART 7 s5 CLAIMED, AND WHY IT WAS NOT ENOUGH
+
+Part 7 s5 concluded "the storm has no external trigger" from two negatives:
+  (a) the AP's `dmesg` has ZERO lines in 3490.000 -> 4078.999 s (the 589 s before
+      the first storm resync), and
+  (b) the host's `journalctl -k` is silent (last entry 17:34:12 vs an onset of
+      ~18:11:20 host time), with a positive control proving the query works.
+
+**Both negatives are true. Neither is sufficient, because a userspace action can
+change the modem's power behaviour WITHOUT producing a kernel log line.** I
+checked the kernel and the host; I did not check the DEVICE'S OWN USERSPACE
+AUTOMATION. That is the same mistake s8.10 made about `qcom-carrier-autocfg`.
+
+2. WHAT IS ACTUALLY RUNNING: `/usr/sbin/modem-bearer-watchdog` (485 lines)
+
+  uci show modem-watchdog
+    modem-watchdog.general.enabled='1'          stall_timeout='60'
+    modem-watchdog.general.check_interval='10'  cooldown_seconds='60'
+    modem-watchdog.keepalive.enabled='0'        interval='60'  target='openwrt.org'
+    modem-watchdog.recovery.ssr_enabled='1'     <-- DEFAULT ON
+
+  And its body (line numbers in the shipped script):
+
+    :111-118  BAM_CTRL=.../4080000.remoteproc:bam-dmux/power/control
+              BAM_DELAY=.../4080000.remoteproc:bam-dmux/power/autosuspend_delay_ms
+              if [ "$(cat $BAM_CTRL)"  != "auto" ]; then echo auto > $BAM_CTRL; fi
+              if [ "$(cat $BAM_DELAY)" != "1000" ]; then echo 1000 > $BAM_DELAY; fi
+    :271      Stage 1 recovery = `qmicli ... --wds-go-dormant`  (resets the RRC channel)
+    :299,351  Stage 2 recovery = `ubus call network.interface.modem down` / `up`
+              -- which WOULD change the bearer IP
+    :403-416  Stage 3 recovery = `echo stop > $RPROC_STATE` -- a FULL REMOTEPROC SSR,
+              gated on recovery.ssr_enabled, default 1
+
+  **:111-118 is the important one. It ENFORCES `power/control = auto` and
+  `autosuspend_delay_ms = 1000` on the bam-dmux device EVERY 10 s, and a sysfs
+  write produces NO dmesg line and NO log line.** `autosuspend_delay_ms = 1000`
+  means the modem runtime-suspends one second after traffic stops -- and the
+  AP-runtime-PM suspend/resume cycle is EXACTLY the mechanism s8.15.4 just showed
+  gates the storm. So the one knob that controls the storm's mechanism is
+  re-asserted every 10 s by a userspace script that my checks could not see.
+
+  VERIFIED CURRENT STATE (logroll, below): `auto/1000/suspended`. In steady state
+  the guards mean no write occurs, so the watchdog is NOT actively changing
+  anything -- but it WILL revert a change, and it is the reason the value is
+  pinned at 1000 rather than whatever the driver or a DT property chose.
+
+3. THE ONSET IS NOW UNRECOVERABLE, WHICH IS THE REAL PROBLEM
+
+  `logread` is a **~15-minute ring buffer**. At the time of this check its
+  earliest line was **12:43:29**, and the storm onset was **~12:27** device time.
+  **So the question "did the watchdog act at 4079 s?" can no longer be answered
+  for this boot**, and `grep -c` over the buffer for
+  `modem-stall-watchdog|modem-keepalive|Stage [123]` returns **0** -- which is
+  evidence about the last 15 minutes only, not about the onset.
+
+  **CORRECTED STATEMENT, replacing Part 7 s5:** *no trigger is visible in dmesg or
+  on the host; the device additionally runs a watchdog that can write the
+  bam-dmux PM knobs, reset the RRC channel, bring the bearer down/up (changing the
+  IP) and perform a full remoteproc SSR; its own log is a 15-minute ring buffer
+  and has already rotated past the onset.  The trigger question is therefore OPEN,
+  not answered.*  The AP-side and host-side negatives stand as far as they go.
+
+4. THE MISSING INSTRUMENT IS NOW DEPLOYED: `/overlay/logroll.sh`
+
+  Written and running (ssh held open), and added to `/etc/rc.local` with a
+  pidfile guard so it survives a reboot (backup: `/overlay/rc.local.bak.logroll`,
+  `sh -n` verified before the move).  It does two things into ONE file,
+  `/overlay/logroll_<boot_id>.log`:
+    * `logread -f` filtered of dropbear/authpriv noise, `sync` after every line;
+    * a 1 Hz sample of `power/control` + `autosuspend_delay_ms` + `runtime_status`,
+      writing a `PMKNOB` line ONLY when the triple changes.
+
+  **It works, and it is already better than what it replaces** -- first lines:
+    === BOOT a9fd907c uptime=5895.82 2026-09-21T12:56:37Z ===
+    2026-09-21T12:56:37Z uptime=5895.85 PMKNOB auto/1000/suspended (was )
+    ... bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+    2026-09-21T12:56:38Z uptime=5897.21 PMKNOB auto/1000/resuming (was auto/1000/suspended)
+    2026-09-21T12:56:40Z uptime=5898.48 PMKNOB auto/1000/active   (was auto/1000/resuming)
+    2026-09-21T12:56:43Z uptime=5901.57 PMKNOB auto/1000/suspended (was auto/1000/active)
+
+  **It interleaves the userspace log, the kernel log AND the PM state machine on
+  one timeline** -- which is what was needed to answer s8.15.3 s5's question, and
+  it also gives the s8.13 window a userspace-side attribution instrument it did
+  not have (s8.14 had to reconstruct a reboot's cause from the host after the
+  fact; this records the device's own side going forward).
+
+  **LIMITATION, stated because it is the same trap twice:** logroll starts NOW, so
+  it cannot answer the question for the onset that motivated it.  It is an
+  instrument for the NEXT onset, not a retroactive fix.
+
+5. FIRST DATA FROM S2 (still running) -- THE STORM'S COST IS LATENCY, NOT LOSS
+
+  `s2.log` after 14 pings (one per 15 s):
+    5872.04 5872.11 rtt=42.807  resync=35/35 pctimeout=32/32
+    5887.23 5887.80 rtt=551.417 resync=35/35 pctimeout=33/34   <-- +1 timeout
+    5902.88 5902.93 rtt=40.868  resync=36/36 pctimeout=35/35
+
+  **Every ping replied (no loss), but the ONE ping during which a `pc-ack timeout`
+  fired took 551.417 ms against a ~41-43 ms baseline.**  The resync delta was 0
+  for that ping; the TIMEOUT delta was 1.  So the correct pairing for the
+  first-packet-after-idle case is with `pc_timeout_count`, not `pc_resync_count`
+  -- which also means **P6 as pre-registered (pair on the resync delta) was the
+  wrong predicate**; the analysis must pair on the timeout delta.
+  n = 1 so far; S2 runs 80 pings and will be scored on completion.
