@@ -1771,17 +1771,24 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
      per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20.
-     **Progress: 15 of 20 scored, AP survived.** Boot A (`a9fd907c`, 17 fatals) ended **2026-09-21
-     20:47 by a HOST power cycle** — `systemd-logind: Lid closed.` removed both xHCI buses, so the
-     dongle lost power; **that is not a scored failure** and the bar is intact (PART 19; it is the
-     same mis-attribution as §8.14's "reset that survived 823"). **Boot B (`ea6401be`) is armed with
-     the bar POOLED 15 + 5 = 20, pre-registered before the run** (PART 20); boot B is the **cleaner**
-     regime — `/overlay/coredump_ENABLE` is absent, so `rc.local` disables the capture at boot and
-     **every** fatal counts, where boot A had to exclude fatals #1–#2. The watcher was redesigned
-     (`scratch/watch813_bootB.sh`): it keeps polling through unreachable windows and scores a failure
-     only when the `boot_id` changes **and the previous sample had already seen a fatal** — the old
-     `watch813.sh` broke on 3 misses and so would have thrown away the very event being scored.
-     **Fatal #14 (AP `10210.922046`) is
+     **Progress: 17 of 20 scored, 0 AP reboots** — boot A 15, boot B 2. **BOTH boot boundaries so far
+     were HOST-SIDE POWER EVENTS, and the second one caught a false positive in my own watcher**
+     (PART 21): boot A ended 2026-09-21 20:47 by `systemd-logind: Lid closed.` removing both xHCI
+     buses, and boot B ended 23:04 by a **loose wire** — the host log shows `macsmc … aceElec.cpp:711:
+     Elec Cause 0x0` (an SMC ELECTRICAL EVENT) plus `xhci-hcd … remove, state 4` / `USB bus 1
+     deregistered`, i.e. the host re-probed its **controller**. **An AP reboot cannot do that** — it
+     only disconnects the USB *gadget* on the bus already present. So v1's `*** FAILURE` was wrong.
+     **PRE-REGISTERED ADJUDICATION RULE (v2, both tests required for a failure): (A) the host log over
+     the outage window shows no `USB bus N deregistered` / `Elec Cause` / `xhci-hcd … remove`, AND
+     (B) the dead boot's `dmesg_roll_<boot_id>.txt` ends with a fatal and NO completed recovery after
+     it** — because an AP hang happens *inside* a fatal-triggered SSR, so a real reset must leave the
+     SSR unrecovered (verified on boot B: last fatal line 191, last recovery line 239 ⇒ not scored).
+     **An unavailable `dmesg_roll` is UNKNOWN, not a negative.** Watcher: `scratch/watch813_v2.sh 17`.
+     **Boot A (`a9fd907c`, 17 fatals) and boot B (`ea6401be`, 2 fatals at `920.32`/`1822.54`, both
+     `sleepmgr:4054`, `coredumps` frozen at 18) are pooled with the bar 15 + 2 + 3 = 20, pre-registered
+     before the run** (PART 20); boot B/C are the **cleaner** regime — `/overlay/coredump_ENABLE` is
+     absent, so `rc.local` disables the capture at boot and **every** fatal counts. **Fatal #14 (AP
+     `10210.922046`) is
      `a2_power.c:1189` — NOT the clock** — and recovers in **`0.119210 s`**. It arrived **21 s after**
      the clock predicted (`10189.8 s`) and with a **different signature**, because **the test traffic I
      generated to probe the data stall substituted the activity-correlated fatal for the idle clock**

@@ -3132,3 +3132,136 @@ PART 20 -- BOOT B IS ARMED, THE POOLING IS PRE-REGISTERED HERE, AND THE DEVICE
    discovered as anomalies later.
 
 --------------------------------------------------------------------------------
+PART 21 -- THE WATCHER SCORED A FALSE FAILURE, AND THE FIX IS A PRE-REGISTERED
+           TWO-PART TEST FOR "AP HANG vs POWER LOSS"
+           (2026-09-21 ~23:04 local / 17:19 UTC)
+--------------------------------------------------------------------------------
+
+1. WHAT HAPPENED
+--------------------------------------------------------------------------------
+
+   Boot B (`ea6401be`) reached 2 fatals:
+
+     920.32   lte_ml1_sleepmgr_stm.c:4054   coredumps=18
+    1822.54   lte_ml1_sleepmgr_stm.c:4054   coredumps=18
+
+   Both recovered.  At 23:04:29 the v1 watcher printed:
+
+     *** FAILURE: AP RESET DETECTED -- boot_id ea6401be -> 48f567c0, and the
+     *** previous sample had fatals=2, so the AP died during a fatal-triggered SSR.
+     *** pooled score at the reset: 17/20
+
+   THE USER REPORTED A LOOSE WIRE.  The user was right and the watcher was wrong.
+   The host kernel log proves it, and the proof is a CONTROLLER-LEVEL event:
+
+     23:03:41 usb 1-1: USB disconnect, device number 2
+     23:03:41 cdc_ncm 1-1:1.2 enu1i2: unregister 'cdc_ncm'
+     23:03:41 macsmc 23e400000.smc: RTKit: syslog message: aceElec.cpp:711:
+                                            Elec: Elec Cause 0x0
+     23:03:41 xhci-hcd xhci-hcd.2.auto: remove, state 4
+     23:03:41 xhci-hcd xhci-hcd.2.auto: USB bus 2 deregistered
+     23:03:41 xhci-hcd xhci-hcd.2.auto: remove, state 4
+     23:03:41 xhci-hcd xhci-hcd.2.auto: USB bus 1 deregistered
+     23:03:43 xhci-hcd xhci-hcd.2.auto: new USB bus registered   <- controller re-probed
+     23:04:04 usb 1-1: new high-speed USB device number 2 ... Product: USB Gadget
+
+   The host's Apple SMC reported an ELECTRICAL EVENT, and the host removed and
+   re-registered its xHCI CONTROLLER.  **An AP reboot cannot do that**: an AP
+   reboot disconnects and re-enumerates the USB GADGET on the bus that is
+   already there; it never causes the host to deregister a controller.  The
+   dongle lost VBUS, cold-booted, and came back as a new boot_id.
+
+   So the 23:04 event is a HOST POWER EVENT.  It is NOT scored, the bar is
+   intact, and the corrected pooled score is 17/20 with 0 AP reboots.
+
+2. THE PRE-REGISTERED ADJUDICATION RULE (written before any further data)
+--------------------------------------------------------------------------------
+
+   The v1 rule -- "boot_id changed AND prev_fatals >= 1" -- is TOO COARSE: it
+   does not require any evidence that the AP actually hung, so ANY power loss
+   after any fatal scores as a failure.  v2 replaces it with two INDEPENDENT
+   tests, both required for a failure:
+
+   (A) HOST-LOG TEST.  A power loss removes the host's xHCI controller and makes
+       the SMC report an electrical event; an AP hang does not.  On a boot_id
+       change, search the host log over the outage window (last good sample
+       -120 s .. now) for
+           USB bus [0-9]+ deregistered | Elec Cause | xhci-hcd.*remove, state
+       Any hit => POWER LOSS => not scored.
+       Verified on the real event: 5 hits.  Verified on a control window
+       (22:50-22:55, no outage): 0 hits.
+
+   (B) MID-SSR TEST.  An AP hang happens INSIDE a fatal-triggered SSR -- Doc 159
+       puts the site in the tens of ms after `port failed halt`.  So a real AP
+       reset must leave the DEAD boot's `dmesg_roll_<boot_id>.txt` ending with a
+       fatal and NO completed recovery after it.  That file is boot-keyed, so it
+       survives the reboot.  Concretely: the line number of the last
+       "fatal error received" must be GREATER than the line number of the last
+       "is now up" / "successfully reinitialized BAM channels".
+       Verified on boot B (a known power loss): last fatal at line 191, last
+       completed recovery at line 239 => mid_ssr = 0 => NOT scored.  Correct.
+       The dead tail shows both fatals recovered:
+           131: [  914.431036] fatal error received: lte_ml1_sleepmgr_stm.c:4054
+           177: [  915.582318] remote processor 4080000.remoteproc is now up
+           191: [ 1818.344929] fatal error received: lte_ml1_sleepmgr_stm.c:4054
+           237: [ 1819.430521] remote processor 4080000.remoteproc is now up
+           239: [ 1819.645583] SSR powerup: successfully reinitialized BAM channels and rings
+
+       This is the stronger of the two: it is device-side, it does not depend on
+       the host, and it directly tests the mechanism (an AP hang requires an
+       in-progress SSR).  If the dead file is unavailable, mid_ssr is recorded
+       as UNKNOWN, not 0 -- an unavailable instrument is not a negative result.
+
+   A boot_id change is scored as a FAILURE only if (A) shows no power event AND
+   (B) shows mid_ssr = 1.  Anything else is re-baselined and not scored.
+
+3. SCORING AFTER THE CORRECTION
+--------------------------------------------------------------------------------
+
+     boot A (a9fd907c)   15 post-disable fatals   0 reboots   (host power cycle, PART 19)
+     boot B (ea6401be)    2 post-disable fatals   0 reboots   (loose wire, this PART)
+     ------------------------------------------------------------------------
+     pooled              17 of 20                  0 reboots
+
+   Boot C (`48f567c0`) is armed: baseline fatals=0, coredump=disabled,
+   `/overlay/coredump_ENABLE` absent.  Watcher: `scratch/watch813_v2.sh 17`
+   (pooled prior 17, bar 20, both tests ACTIVE).
+
+   The clock self-corrected in boot C as well: at 17:20:21Z the device and the
+   host agreed to the second, while boot C's early logroll mtime read ~22:35
+   local.  Consistent with PART 20 item 5 -- the offset is boot-specific and
+   transient, so /proc/uptime remains the only safe anchor.
+
+4. TWO TOOLING TRAPS HIT WHILE BUILDING THE FIX (both silent)
+--------------------------------------------------------------------------------
+
+   (a) `date -d "$t - 120 seconds"` DOES NOT SUBTRACT.  GNU date parses the
+       "- 120" as a UTC OFFSET, not as an arithmetic term, and silently returns a
+       time ~7 h in the FUTURE:
+
+           $ date -d "2026-09-21 23:03:36 - 120 seconds" '+%F %T'
+           2026-09-22 06:08:37          <-- wrong, and no error
+
+       The consequence would have been a discriminator that ALWAYS found 0 power
+       events (the window starts in the future), i.e. it would have confirmed
+       every false failure.  Caught only because the window was tested against
+       the known event BEFORE arming.  Use epoch arithmetic:
+           date -d "@$(( $(date -d "$t" +%s) - 120 ))" '+%F %T'
+
+   (b) `pkill -f "watch813_v2"` KILLED THE SHELL THAT ISSUED IT, because the
+       pattern matched the tool's own command line.  Both the old watcher and
+       the issuing shell died and the replacement never started -- a silent gap
+       in monitoring.  Kill by PID read from `ps`, never by `pkill -f` on a
+       pattern that appears in your own command line.
+
+   Both are recorded because both would have corrupted the experiment silently
+   rather than loudly.
+
+5. SCOPE NOTE
+--------------------------------------------------------------------------------
+
+   No fix is claimed.  The bar is 17 of 20 with 0 AP reboots, and the only two
+   boot boundaries so far were both HOST-SIDE power events.  The device has not
+   been observed to reset itself in this window.
+
+--------------------------------------------------------------------------------
