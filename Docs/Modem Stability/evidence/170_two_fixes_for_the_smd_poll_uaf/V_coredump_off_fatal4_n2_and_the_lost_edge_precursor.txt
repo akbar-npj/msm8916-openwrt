@@ -4004,3 +4004,59 @@ PART 26 -- THE USER SUPPLIES A CROSS-DEVICE CONTROL THAT RE-FRAMES PART 25:
    Status: asked as a question, not investigated.
 
 --------------------------------------------------------------------------------
+
+
+PART 27 -- PART 25's OPEN QUESTION IS CLOSED: THE STOCK DUMP WAS IN THE REPO ALL
+           ALONG, AND IT PROVES tz AND hyp WERE BOTH REPLACED
+           (2026-09-22 00:10 local / 18:40 UTC)
+--------------------------------------------------------------------------------
+
+   PART 25 s3 ended with "STILL NEEDED, one file: whether TZ.BF.3.0-00714 equals
+   the STOCK ZTE tz".  The assistant asked the user for it.  **IT WAS ALREADY IN
+   THE REPOSITORY** -- `GitIgnore/MelbonWhiteStock_Dump/` holds a full stock
+   partition dump including `tz.bin`, `hyp.bin`, `sbl1.bin` and `aboot.bin`.
+   The assistant should have looked before asking.
+
+   THE COMPARISON, and it is decisive:
+
+       partition   STOCK (MelbonWhiteStock_Dump)        DEVICE (live p*)        verdict
+       ---------   ----------------------------------   ---------------------   ----------
+       tz          TZ.BF.2.2-2.2.0026                    TZ.BF.3.0-00714         DIFFERENT
+                   md5 bcb4278e379b81b09c34d28b18a3a28a  md5 1f5e33f0...        REPLACED
+                   524,288 B                             (1 MB partition)
+       hyp         md5 54e34834409667f4acfdbba85aa87857  md5 73326f4c...         DIFFERENT
+                   NO "qhypstub" string                  HAS "qhypstub"          REPLACED
+                   524,288 B                             (512 KB partition)
+
+   **So the tz/hyp substitution is CONFIRMED at byte level, not merely inferred.**
+   PART 25's "tz = non-DB410c; stock-vs-not UNRESOLVED" becomes **"tz = replaced;
+   stock was TZ.BF.2.2-2.2.0026, device is TZ.BF.3.0-00714"**.
+
+   Note the stock tz is `TZ.BF.2.2` (an OLDER QCOM branch than both the device's
+   `TZ.BF.3.0-00714` and DB410c's `TZ.BF.3.0.R2-00068`).  So the port did not
+   keep stock, and did not use the wiki's recommended DB410c image either -- it
+   used a THIRD build.  That is worth recording plainly: the device's TZ
+   provenance is still not tied to a named release, only to its version string.
+
+   CONSEQUENCE FOR THE CANDIDATE LIST: tz and hyp are now CONFIRMED non-stock
+   (upgraded from "likely"), but PART 26's UFI001B control still caps them at
+   "not sufficient".  The list is unchanged in shape:
+
+       tz / hyp ........... CONFIRMED REPLACED, but NOT SUFFICIENT (PART 26)
+       NV ................. REMOVED (PART 24)
+       modem firmware ..... byte-identical Android-vs-OpenWrt; DIFFERS
+                            HMU05-vs-UFI001B (WTR1605 vs WTR4905)
+       AP->modem control .. still the leading candidate
+
+   ALSO ESTABLISHED, and it changes what is SAFE: the user HAS a full stock dump
+   (tz/hyp/sbl1/aboot/modem/modemst1/modemst2/fsg/fsc/persist/...).  So the
+   brick risk of flashing stock Android -- the wiki warns "mixing the use of tz
+   from linaro and stock hyp is not supported and causes device brick" -- is
+   RECOVERABLE.  That materially lowers the cost of the Android reflash the user
+   is proposing.
+
+   PROCESS NOTE, recorded because it is the same failure as PART 25 s4/s5: the
+   assistant asked the user for a file that was already in `GitIgnore/`.  The
+   corpus has a rule about checking the tree before asking; it was not applied.
+
+--------------------------------------------------------------------------------
