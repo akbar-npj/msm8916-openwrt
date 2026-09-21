@@ -4060,3 +4060,343 @@ PART 27 -- PART 25's OPEN QUESTION IS CLOSED: THE STOCK DUMP WAS IN THE REPO ALL
    corpus has a rule about checking the tree before asking; it was not applied.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 28 -- THE ANDROID AP-SIDE CONTROL IS MEASURED: THE pc-ack BUDGET HAS 39x
+           HEADROOM, SO s8.16's 250 ms TIMEOUTS ARE CATEGORICAL, NOT A LATENCY
+           TAIL -- AND THE PROPOSED 2000 ms A/B IS NOW PREDICTED TO FAIL
+================================================================================
+
+0. WHY THIS PART EXISTS
+
+   s8.16 left a falsifier and a minimal comparative test:
+
+     "FALSIFIER: if the `pc_state wait timeout` string never appears in dmesg
+      while `pc_timeout_count` rises, the 250 ms ack wait is the only failing
+      wait, and widening it to Android's 2000 ms is the minimal comparative
+      test.  If BOTH strings appear, the fix is not a constant."
+
+   The user then flashed stock Android onto the HMU05 to obtain the AP-side
+   control, and asked for the AP-side bam_dmux instrumentation.  That control is
+   now measured.  This PART reports it and re-scores the candidate.
+
+   The comparison is only meaningful if the two paths are the same protocol
+   step.  They are:
+
+     Android  ul_wakeup()              bam_dmux.c:1840   (data-driven, on demand)
+              INIT_COMPLETION(ul_wakeup_ack_completion)
+              power_vote(1)                                    :1921-1922
+              wait_for_completion_timeout(..., 2000 ms)         :1924-1925
+              wait_for_completion_timeout(bam_connection_... )  :1932-1933
+
+     OpenWrt  bam_dmux_runtime_resume()  qcom_bam_dmux.c:2049 (PM-driven)
+              reinit_completion(&pc_ack_completion)             :2059
+              bam_dmux_pc_vote(dmux, true)                      :2062
+              wait_for_completion_timeout(..., 250 ms)          :2066-2067
+              wait_event_timeout(pc_wait, pc_state, 1000 ms)    :2075-2076
+
+   Both: clear the completion, set the SMSM pc bit, wait for the modem's ack.
+   The trigger differs; the handshake step does not.  So the latency of that one
+   step is comparable across the two.
+
+   SOP COMPLIANCE (standing rule, 2026-09-20): this PART is EVIDENCE, not a
+   patch.  Nothing was flashed, no modem firmware was touched, no driver was
+   rebuilt for this measurement -- the Android instrumentation was already live
+   (debugfs), so no kernel build was required.  The comparative protocol's
+   "verify against ground truth before acting" step is satisfied by reading the
+   Android driver's own DEFINITION of the wait (bam_dmux.c:1909-1938) rather
+   than inferring it from the log.  The sample-size pre-registration is in s4.
+
+--------------------------------------------------------------------------------
+
+1. THE INSTRUMENT, AND THE ONE PARSE TRAP IT SET
+
+   Source:   /d/ipc_logging/bam_dmux/log_cont     (Android debugfs, already live)
+   Reader:   `log_cont` is the BLOCKING/continuous node, which is the correct
+             one -- `log` is the consuming reader.  Confirmed from
+             kernel/trace/ipc_logging_debug.c (create_ctx_debugfs()).
+   Capture:  scratch/android_capture/bam_dmux.log      (host-held adb shell)
+   Analyzer: scratch/android_capture/analyze_android_dmux.py
+   Output:   scratch/android_capture/android_dmux_analysis.txt
+
+   `dmesg` and `logcat -b kernel` are BOTH blocked by SELinux on this build even
+   as root ("klogctl: Operation not permitted"), so the IPC logs are the SOLE
+   AP-side source.  That is fine -- they are the better instrument anyway.
+
+   *** TRAP, AND I WALKED INTO IT IN THE FIRST MINUTE. ***
+   The kernel format string is (bam_dmux.c:337):
+
+       "<DMUX> %c%c%c%c %c%c%c%c%d "
+
+   -- the 8 state characters are split by a SPACE into two tokens, with the
+   on-demand vote count glued to the second.  A line reads
+
+       [  252.751697228] <DMUX> drpa vuWA0 ul_wakeup waiting for wakeup ack
+
+   My first regex captured ONE state token, so the "message" came out as
+   "vuWA0 ul_wakeup waiting for wakeup ack" and every startswith("ul_wakeup")
+   test failed.  The analyzer then reported "no samples" for every metric --
+   which looks like "the event never happened" rather than "the parser is
+   wrong".  Fixed by reading the format string at :337.
+
+   This is the SAME trap as s8.16's self-correction (GPIO-vs-SMSM) and the
+   corpus's standing rule: read the DEFINITION, not the name -- and when a
+   measurement returns zero, suspect the parser before believing the zero.
+   A "zero" produced by a broken parser is indistinguishable from a real zero
+   unless you have a positive control.  The positive control here is s3.
+
+   STATE CHARACTER ORDER (bam_dmux.c:320-331):
+     [D a2_pc_disabled][R in_global_reset][P power_state][A connection_active]
+     [V uplink_vote][U is_connected][W wait_for_ack][A ack_completion.done]
+     + on-demand vote count
+
+--------------------------------------------------------------------------------
+
+2. THE SECOND TRAP: "timeout" IN THIS LOG USUALLY IS NOT A TIMEOUT
+
+   A naive `grep -c timeout bam_dmux.log` returns 120+ hits, and they are
+   ALMOST ALL THE GOOD PATH:
+
+       [ 253.748061085] drPA VUwA0 ul_timeout: pkt written 1
+
+   `ul_timeout()` (bam_dmux.c:1776) is the UL_TIMEOUT_DELAY=1000 ms recovery
+   work.  When it finds the packet WAS written it logs "pkt written 1" and
+   re-arms (:1805-1810).  It is a SUCCESS report.  Reading it as a timeout would
+   manufacture ~120 phantom failures out of a clean boot.
+
+   The three REAL ack-wait timeouts are the strings at:
+
+       :1917  "ul_wakeup timeout previous ack"   (wait #1, 2000 ms)
+       :1928  "ul_wakeup timeout wakeup ack"     (wait #2, 2000 ms)  <-- the pc-ack
+       :1936  "ul_wakeup timeout power on"       (wait #3, 2000 ms)
+
+   The analyzer now matches ONLY those three.
+
+--------------------------------------------------------------------------------
+
+3. RESULT 1 -- ZERO REAL ACK-WAIT TIMEOUTS
+
+   In 1271 s of uptime spanning 55 UL wakeups:
+
+       "timeout previous ack" : 0
+       "timeout wakeup ack"   : 0
+       "timeout power on"     : 0
+
+   Android never hit the pc-ack timeout.  Not once.
+
+   And the positive control that the parser works: it DOES find the real events
+   -- 55 "waiting for wakeup ack", 55 "ul_wakeup complete", 54 "ul_powerdown",
+   55 paired acks.  So the zero is a real zero, not a parser artefact.
+
+--------------------------------------------------------------------------------
+
+4. RESULT 2 -- THE LATENCY DISTRIBUTION, AND THE PRE-REGISTRATION IT SCORES
+
+   PRE-REGISTERED BEFORE COMPUTING (stated so it cannot be fitted afterwards):
+
+     P-A  "the constant is too small" (Reading L): the healthy Android ack
+          distribution should have a HEAVY TAIL -- events in the tens-to-
+          hundreds of ms, with occasional samples past 250 ms.  A 250 ms budget
+          is only "too small" if the ack sometimes lands near or beyond it.
+
+     P-B  "the failure is categorical" (Reading S): the distribution should be
+          TIGHT AND UNIMODAL, with 250 ms far out in the tail, and no sample
+          anywhere near it.
+
+     FALSIFIER for P-B: any single Android event > 250 ms, or p99 > 50 ms.
+
+   MEASURED (vote -> modem's ack; n = 55):
+
+       min   0.066 ms
+       p50   2.033 ms
+       p90   4.211 ms
+       p99   6.332 ms
+       MAX   6.340 ms
+       mean  2.153 ms
+
+       > 250 ms : 0        (OpenWrt's budget)
+       >  10 ms : 0
+       >   5 ms : 4
+
+       HEADROOM vs OpenWrt's 250 ms : 39.4x
+       HEADROOM vs Android's 2000 ms:  315x
+
+   The OTHER TWO directions, for completeness:
+
+     previous-down-ack serialization (Android-only; OpenWrt has no such step)
+       n=54  min 0.014  p50 0.032  p90 0.088  p99 0.234  max 0.375 ms
+       -> it ALWAYS falls through instantly, exactly as the source comment at
+          :1905-1907 predicts ("chances are it already came in and this will
+          just fall through instead of waiting").  So the serialization OpenWrt
+          lacks is NOT a latency cost; its value is the GUARANTEE that the prior
+          down-ack has arrived, not the time it saves.
+
+     down-vote -> ack (the mirror direction)
+       n=54  min 0.091  p50 0.233  p90 0.587  p99 0.858  max 1.035 ms
+
+   => **P-B IS SUPPORTED AND P-A IS FALSIFIED.**  The healthy Android handshake
+      is a tight, unimodal, sub-7 ms distribution in BOTH directions.  250 ms is
+      39.4x the worst ack Android ever produced.
+
+--------------------------------------------------------------------------------
+
+5. RESULT 3 -- n IS NOT AN ACCIDENT: THE WHOLE CYCLE IS CAUSALLY EXPLAINED
+
+   This matters because "55 samples" is only meaningful if each sample is a real
+   handshake, and if we know what produced it.
+
+   `ul_timeout()` (bam_dmux.c:1789-1814) re-arms itself every UL_TIMEOUT_DELAY =
+   1000 ms while `ul_packet_written || ul_ondemand_vote`, and calls
+   `ul_powerdown()` when both are zero.  Measured, over 54 complete cycles:
+
+       (ticks in cycle, ticks reporting "pkt written 1")   cycles
+       (3, 3)                                                24
+       (1, 1)                                                23
+       (2, 2)                                                 5
+       (6, 6)                                                 2
+
+     -- in EVERY cycle the two numbers are EQUAL, i.e. every logged tick carried
+        a packet, and the powerdown tick is the SILENT one (the else branch at
+        :1812 has no log line).
+
+       UL hold duration (complete -> powerdown):
+         min 1.990 s   p50 3.005 s   max 6.999 s
+         = exactly (ticks + 1) x 1.000 s:  3 ticks -> 4.0 s, 1 -> 2.0 s,
+           2 -> 3.0 s, 6 -> 7.0 s.
+
+   So the soak's `ping -c 3; sleep 27` burst delivers its packets one per second,
+   each setting `ul_packet_written`, and the link powers down 1 s after the last
+   one.  The causal chain from workload to handshake is CLOSED: 55 ping bursts
+   -> 55 UL wakeups -> 55 pc-ack handshakes.  n is a counted denominator.
+
+   CADENCE (recorded, and see s7 for why it is NOT the 10x the s8.16 table
+   might be read to imply):
+     55 UL wakeups in 1268 s = 2.60 wakeups/min
+     inter-cycle: min 2.00, p50 29.09, max 114.29 s  (the 114 s gap is a lull)
+
+--------------------------------------------------------------------------------
+
+6. THE POWER STATEMENT -- WHAT n = 55 DOES AND DOES NOT EXCLUDE
+
+   The OpenWrt baseline is NOT a single number.  Two boots in this corpus:
+
+     Doc 148 boot (3322 s, 3 fatals)  pc_timeout_count 2  / 202 resumes = 0.99 %
+     Doc 170 V boot (6118 s, 8 fatals) pc_timeout_count 44 / 766 resumes = 5.7 %
+
+   A 5.8x spread -- the rate is NOT stationary.  So the comparison must be made
+   against BOTH, and stated as a bound rather than a verdict:
+
+     P(0 timeouts in 55 | rate = 5.7 %) = (1 - 0.057)^55 = 0.041   -> SIGNIFICANT
+     P(0 timeouts in 55 | rate = 0.99 %) = (1 - 0.0099)^55 = 0.58  -> NOT
+
+   n needed for P(0) < 0.05:
+     at 5.7 %  ->  51 wakeups  (ALREADY MET, ~19 min)
+     at 2 %    -> 148 wakeups  (~56 min)
+     at 1 %    -> 298 wakeups  (~113 min)
+
+   *** PRE-REGISTERED NOW, BEFORE THE DATA: the Android soak must reach n >= 300
+   UL wakeups (~2 h at 2.60/min) before any claim is made about the 1 % regime.
+   Until then the honest statement is exactly: "Android excludes a rate of 5.7 %
+   at p < 0.05; it does NOT yet exclude 1 %." ***
+
+   AND THE LIMIT THAT NO AMOUNT OF n WILL FIX:
+
+     Android had ZERO fatals in this boot.  Therefore this control CANNOT
+     measure a post-fatal phenomenon AT ALL -- it bounds the HEALTHY regime only.
+     The corpus's own placement of the OpenWrt timeouts is in the ABNORMAL one:
+
+       V s5.4      3 of the first 4 pc-ack timeouts are +0.43..0.58 s AFTER a fatal
+       s8.21.1     6 of 12 fatals produce one INSIDE their own SSR down-window,
+                   where the modem provably cannot ack
+
+     So the comparison is: Android-healthy (0 in 55) vs OpenWrt-healthy (unknown,
+     but the Doc 148 boot at 0.99 % is the nearest healthy proxy) vs
+     OpenWrt-post-fatal (the bulk of the 44).  Only the first two are comparable.
+
+--------------------------------------------------------------------------------
+
+7. THE DELIVERABLE -- THIS RE-SCOPES THE 250 ms ITEM
+
+   The arithmetic that matters:
+
+     OpenWrt's budget ............ 250 ms
+     Android's worst healthy ack . 6.340 ms
+     ratio ....................... 39.4x
+
+   A budget that is 39x the worst value the healthy path has ever produced does
+   not expire 1-5.7 % of the time by being SLIGHTLY too small.  A latency tail
+   that reaches 39x the observed maximum would be a phenomenon of its own, and
+   Android's n=55 shows no trace of it (p99 = 6.332 ms, i.e. the 99th percentile
+   is 1.001x the maximum -- the distribution is COMPRESSED, not heavy-tailed).
+
+   THEREFORE:
+
+     * The OpenWrt pc-ack failures are CATEGORICAL, not marginal.  In those
+       events the ack is not "a bit late" -- it does not come.  That is
+       consistent with the modem being mid-SSR / mid-firmware-reload, which is
+       exactly where s5.4 and s8.21.1 place them.
+
+     * s8.16's minimal comparative test -- widen 250 ms to Android's 2000 ms --
+       is now PREDICTED TO NOT MATERIALLY REDUCE `pc_timeout_count`.
+
+       PRE-REGISTERED PREDICTION FOR THE A/B (this is Task #98, currently BLOCKED
+       until the HMU05 returns to OpenWrt):
+
+         P1  widen 250 -> 2000 ms; `pc_timeout_count` per suspend cycle does NOT
+             drop materially (i.e. stays within noise of the 0.99-5.7 % band).
+         P2  if instead it collapses to ~0, Reading L wins, this PART is
+             FALSIFIED, and the constant is the lever after all.
+
+       Stating P2 is the point: the prediction is falsifiable, and the A/B is
+       still worth running BECAUSE it can falsify me.  It is a cheap test with a
+       live falsifier, not a fishing expedition.
+
+     * It does NOT change s8.16's other scoping: OpenWrt LOGS the 250 ms timeout
+       and then PROCEEDS to the 1000 ms pc_state wait, so even when it fires it
+       is a latency defect, not a stability one.  Nothing here touches the 902 s
+       fatal.  The item stays off the stability candidate list.
+
+   SCOPE CORRECTION TO THE s8.16 TABLE, recorded so a row is not over-read later:
+   the "vote policy" row (Android reference-counted/on-demand vs OpenWrt
+   unconditional-per-resume) is a REAL design difference, but it does NOT produce
+   a large EXPOSURE difference under comparable load:
+
+     Android        55 in 1268 s  = 2.60 /min
+     OpenWrt Doc148 202 in 3322 s = 3.65 /min
+     OpenWrt V boot 766 in 6118 s = 7.51 /min
+
+   All the same order of magnitude (the workloads differ, so this is NOT a
+   controlled rate comparison -- it is only enough to say "not 10x").
+
+--------------------------------------------------------------------------------
+
+WHAT PART 28 CHANGES
+
+  - The Android AP-side control s8.16 asked for is MEASURED, not assumed:
+    0 real ack-wait timeouts in 1271 s / 55 wakeups; vote->ack max 6.340 ms,
+    p99 6.332 ms, p50 2.033 ms; down-ack max 1.035 ms; previous-ack
+    serialization max 0.375 ms (always falls through).
+  - 250 ms is 39.4x the worst healthy Android ack => P-B (categorical failure)
+    supported, P-A (latency tail) falsified.
+  - A NEW PRE-REGISTRATION: the proposed 250->2000 ms A/B is predicted to NOT
+    materially reduce `pc_timeout_count`.  If it does, this PART is falsified.
+  - The soak's n is a COUNTED denominator, causally closed to the ping bursts
+    (UL hold = (ticks+1) x 1.000 s, exact, 54/54 cycles).
+  - n >= 300 wakeups (~2 h) pre-registered before any claim about the 1 % regime.
+  - Two parse traps recorded: the two-token state prefix (bam_dmux.c:337), and
+    "ul_timeout: pkt written 1" being a SUCCESS report, not a timeout.
+
+WHAT PART 28 DOES NOT CLAIM
+
+  - It does NOT say the pc-ack timeout is harmless.  It says it is a LATENCY
+    defect whose observed events are categorical (modem not answering), so the
+    constant is not the fix.
+  - It does NOT establish the OpenWrt healthy-regime rate.  n=55 excludes 5.7 %
+    and nothing smaller.
+  - It does NOT compare like-for-like on workload: Android ran `ping -c 3` every
+    30 s; the OpenWrt soaks did not.  The cadence numbers are recorded as
+    "same order of magnitude", not as a controlled measurement.
+  - It does NOT touch the 902 s fatal, the userspace bearer rebuild, or the
+    n >= 60 AP-hang soak.  Those are unaffected.
+
+--------------------------------------------------------------------------------
