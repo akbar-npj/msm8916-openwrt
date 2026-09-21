@@ -1,0 +1,418 @@
+================================================================================
+V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt
+Doc 170 -- TWO RESULTS FROM FATAL #4 (2026-09-21, device UTC 12:17).
+
+  (1) The s8.13 coredump-off A/B is now n = 2 (fatal #3 AND fatal #4), and the
+      second sample reproduces the first exactly.
+
+  (2) *** A NEW CROSS-BOOT FINDING ***  Every `a2_power.c:2949` fatal ever
+      observed (n = 3, in three DIFFERENT boots) is preceded 73.96 - 85.80 ms
+      earlier by the bam-dmux RX-watchdog "lost edge" PC resync.  The resync is
+      AP-side code added by patch 808, and qcom_bam_dmux is a LOADABLE MODULE,
+      so the follow-up experiment needs no kernel flash.
+
+Captured with:  dmesg / the ssr_ledger / rx_telemetry, over ssh, 12:17 UTC.
+================================================================================
+
+
+PART 1 -- THE s8.13 A/B, NOW n = 2
+==================================
+
+Fatal #4 fired at AP 3477.969305 s with the coredump capture still OFF.  It is
+the first fatal of this boot with a DIFFERENT signature, and it reproduces
+fatal #3's recovery structure exactly.
+
+ALL FOUR FATALS OF THIS BOOT, READ OFF dmesg
+--------------------------------------------
+                            cold boot    #1 (ON)      #2 (ON)      #3 (OFF)     #4 (OFF)
+  fatal                     --           913.640795   1816.046634  2718.436833  3477.969305
+  signature                 --           sleepmgr     sleepmgr     sleepmgr     a2_power
+                                          :4054        :4054        :4054        :2949
+  SSR before shutdown       --           913.663690   1816.069773  2718.459733  3477.991158
+  trace 01-09 (reclaim)     --           913.745419   1816.147194  2718.539571  3478.072006
+  stopped remote proc       --           913.745683   1816.147432  2718.539856  3478.072612
+  trace 10-23 (MBA load)    12.039793    913.764296   1816.166714  2718.540745  3478.073938
+  port failed halt          --           914.443745   1816.854035  *** ABSENT ***  ABSENT
+  trace 01-09 (2nd reclaim) --           914.443813   1816.854135  *** ABSENT ***  ABSENT
+  trace 10-23 (2nd load)    --           914.445731   1816.856197  *** ABSENT ***  ABSENT
+  MBA booted                12.199395    914.488592   1816.901332  2718.585024  3478.121395
+  ---------------------------------------------------------------- --------------------
+  half-cycle pairs          --           2            2            1             1
+  SSR-shutdown -> MBA        --           0.824902 s   0.831559 s   0.125291 s    0.130237 s
+  stopped -> "is now up"     --           1.297121 s   1.307782 s   0.756669 s    0.607311 s
+
+BOOT-WIDE COUNTS (each one is exactly what the two-state model predicts)
+-----------------------------------------------------------------------
+  fatals                    4     (#1 #2 capture ON, #3 #4 capture OFF)
+  MBA booted                5     (cold boot + exactly 1 per fatal recovery)
+  port failed halt          2     (exactly the two fatals with the capture ON)
+  trace "01 disable_qchannel mdm"  6   (2 + 2 + 1 + 1)
+  trace "10 qcom_q6v5_prepare"     7   (1 cold boot + 2 + 2 + 1 + 1)
+  SSR before shutdown       4
+  coredump_live             18    FROZEN -- #1 took it 16->17, #2 17->18,
+                                  #3 and #4 produced NO dump
+  attr=disabled, rproc=running, AP survived.
+
+  The ledger's own coredumps column confirms it independently:
+    919.62,1,sleepmgr,....,17      <- after fatal #1
+    1825.87,2,sleepmgr,....,18     <- after fatal #2
+    2718.81,3,sleepmgr,....,18     <- after fatal #3  (no change)
+    3480.91,4,a2_power.c:2949,..,18 <- after fatal #4 (no change)
+
+  => Two independent instruments agree: turning the capture off removes one
+     q6v5_mba_load() and one q6v5_mba_reclaim() per fatal, removes
+     "port failed halt", and cuts SSR-shutdown -> MBA-booted from ~0.83 s to
+     ~0.13 s (0.70 s, 6.4x).  n = 2, same direction, same magnitude.
+
+  See T_coredump_off_first_fatal_AB.txt for the retraction of my own call-graph
+  correction that this measurement forced.
+
+
+PART 2 -- FATAL #4'S SIGNATURE AND PERIOD
+=========================================
+
+Fatal times and intervals:
+
+    913.640795   sleepmgr:4054   (boot start ~0; the modem came up at ~12.9 s)
+   1816.046634   sleepmgr:4054   interval 902.405839 s
+   2718.436833   sleepmgr:4054   interval 902.390199 s
+   3477.969305   a2_power.c:2949 interval 759.532472 s   <-- NOT the clock
+
+The sleepmgr clock was running true (902.406, 902.390 -- 17 ppm apart) and would
+have produced its 4th beat at 2718.436833 + 902.4 = 3620.83 s.  Instead an
+a2_power.c:2949 event fired 142.87 s EARLY and pre-empted it.
+
+This is NOT a new anomaly.  Doc 162's taxonomy already separates the signatures
+by their period distribution -- common_timer n=11 at 902.353 s (+/-281 ppm, the
+clock), sleepmgr n=10 at 901.230 s, and a2_power n=7 spanning 68.5-941.3 s which
+is NOT a clock.  759.53 s sits inside the a2_power band.  So the correct reading
+is the one Doc 164 established: two mechanisms with different periods compete
+inside one boot, and here the a2_power one won the race.
+
+The ledger's history agrees that a2_power.c:2949 is not clock-locked: it appears
+at uptime 719.00 s and 896.52 s in two earlier boots (see Part 3).
+
+
+PART 3 -- *** THE LOST-EDGE PRECURSOR ***
+=========================================
+
+THE OBSERVATION
+---------------
+74.470 ms before fatal #4, this line appears -- and it appears exactly ONCE in
+the whole boot (pc_resync_count went 0 -> 1):
+
+  [ 3477.894835] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog:
+                 PC line asserted while pc_state=0 (lost edge), resyncing
+  [ 3477.969305] qcom-q6v5-mss 4080000.remoteproc: fatal error received:
+                 a2_power.c:2949:
+
+Everything between those two lines is the resync's own work (bam_dmux_pm_restart()
++ bam_dmux_pc_ack()), which logs nothing.  Nothing else happened in those 74 ms.
+
+CROSS-BOOT: 3 OF 3 a2_power.c:2949 FATALS, IN THREE DIFFERENT BOOTS
+------------------------------------------------------------------
+  boot  resync (lost edge)   fatal                gap          signature
+  ----  -------------------  -------------------  -----------  ------------------
+  P     714.454106           714.539903           85.797 ms    a2_power.c:2949
+  Q     886.743235           886.817190           73.955 ms    a2_power.c:2949
+  Y     3477.894835          3477.969305          74.470 ms    a2_power.c:2949
+  --------------------------------------------------------------------------
+  mean 78.074 ms   spread 11.842 ms   (the two closest are 0.515 ms apart)
+
+THE COUNTER-EXAMPLES -- the resync is NOT sufficient
+----------------------------------------------------
+  boot  resync              next fatal after it                    outcome
+  ----  ------------------  -------------------------------------  --------------
+  R     1763.929555         1837.400528 (a2_power.c:1189)  +73.47 s  NO fatal near it
+  S     4874.826138         none before the log ends at 5110      NO fatal
+  S     4924.559122         none before the log ends at 5110      NO fatal
+  S     4932.915755         none before the log ends at 5110      NO fatal
+  S     4991.240271         none before the log ends at 5110      NO fatal
+
+  => 8 resyncs observed in total; 3 were followed by an a2_power.c:2949 within
+     100 ms and 5 were not.
+  => "a2_power.c:2949  =>  a resync ~78 ms earlier"  is 3/3.
+  => "a resync  =>  a2_power.c:2949"                 is 3/8.
+
+  The log for boot S ends 119 s after its last resync, so "no fatal" there is a
+  bounded claim, not an unbounded one.  Boot R's is unbounded in the useful
+  direction: 73.47 s of subsequent log with no a2_power.c:2949.
+
+PROVENANCE -- EACH SAMPLE IS VERIFIED AGAINST THE LEDGER
+--------------------------------------------------------
+The boot-P and boot-Q samples come from /overlay/q6trace.log, which is an
+append-across-boots log, NOT one boot.  They are therefore cross-checked against
+/overlay/ssr_ledger.csv, whose rows are independent (a 10 s poller).  The
+ledger's column 1 is a NOTICED time that lags the true fatal by 0-10 s, so the
+test is "is the ledger uptime 0-10 s LATER than the dmesg uptime?".
+
+  boot  dmesg fatal (q6trace.log)   ledger row                 lag      verdict
+  ----  --------------------------  -------------------------  -------  -------
+  P     #1 714.539903               719.00,1,a2_power.c:2949    4.46 s   MATCH
+  P     #2 1332.185916              1336.18,2,a2_power.c:1189   3.99 s   MATCH
+  P     #3 2234.552365              2244.25,3,sleepmgr         9.70 s   MATCH
+  Q     #1  381.484577               389.95,1,a2_power.c:1189   8.47 s   MATCH
+  Q     #2  495.055798               502.08,2,a2_power.c:1189   7.02 s   MATCH
+  Q     #3  886.817190               896.52,3,a2_power.c:2949   9.70 s   MATCH
+  Y     #4 3477.969305              3480.91,4,a2_power.c:2949   2.94 s   MATCH
+
+  Six for six.  P and Q are definitively DIFFERENT boots: each has its own
+  n = 1,2,3 sequence and the ledger's coredumps column is monotonic across them
+  (11,12,13 then 14,15,16), so Q came after P.
+
+  PROVENANCE TRAP:  grep -c "a2_power.c:2949" /overlay/q6trace.log  returns 5,
+  but that is 3 distinct EVENTS -- the boot-P line is duplicated three times in
+  the file.  A naive count over this file inflates the sample.  Always check
+  whether a log spans boots before counting fatals in it.
+
+WHY THE MECHANISM IS PLAUSIBLE (stated as a hypothesis, NOT adopted)
+--------------------------------------------------------------------
+The resync branch, added by patch 808, does four things, two of which the MODEM
+can see:
+
+    WRITE_ONCE(dmux->pm_suspend_start_ns, 0);      /* AP-local */
+    WRITE_ONCE(dmux->pc_state, true);              /* AP-local */
+    bam_dmux_pm_restart(dmux);                     /* MODEM-VISIBLE: powers the
+                                                      BAM down and up again */
+    bam_dmux_pc_ack(dmux);                         /* MODEM-VISIBLE: the SMSM
+                                                      power-collapse ACK */
+  then complete_all(&dmux->pc_ack_completion);     /* AP-local */
+       wake_up_all(&dmux->pc_wait);                /* AP-local */
+
+  Reading A (the resync is a POISON PILL): the ACK and/or the BAM restart lands
+  on a modem whose power state machine has already moved on, and a2_power
+  asserts.  Under A the resync->fatal gap is a modem reaction constant, so it
+  should NOT vary with how late the AP noticed the edge.
+
+  Reading B (COMMON CAUSE): the modem's PC state machine had already
+  desynchronised, which is why the edge was lost AND why a2_power asserts.  The
+  resync is a symptom.
+
+  Reading C (the AP's MISSED EDGE is the cause): the modem asserts the PC line
+  and has a bounded wait for the ACK; the AP missed the edge and only the
+  watchdog finds it, so the ACK arrives outside that window and the modem's
+  timeout is what a2_power.c:2949 reports.  Under C the gap is
+  (modem_timeout - edge_delay), so it SHOULD vary with the AP's detection delay.
+
+  THE WATCHDOG POLLS EVERY 100 ms, so the AP's detection delay is uniform on
+  [0, 100] ms (qcom_bam_dmux.c, patch 808:
+  `schedule_delayed_work(&dmux->rx_watchdog_work, msecs_to_jiffies(100))`).
+  The measured spread is 11.842 ms over 3 samples.  If Reading C were right the
+  three edge delays would have had to land inside an 11.8 ms window out of 100 ms
+  -- roughly a 4 % coincidence.  That mildly favours A over C, and is far too
+  weak to act on.  It is recorded so the next session does not have to redo it.
+
+  Reading A does NOT distinguish WHICH of the two modem-visible actions is the
+  trigger, and the measurement cannot: both are inside the same 74-86 ms.
+
+  NOT YET EXAMINED: `pc_timeout_count: 4` in rx_telemetry.  If that counter is
+  the AP's own PC-handshake timeout it may be measuring the same window from the
+  other side, and reading its definition is the cheapest next step.
+
+THE DISCRIMINATOR, AND WHY IT IS CHEAP
+--------------------------------------
+qcom_bam_dmux IS A LOADABLE MODULE on this device:
+
+    # lsmod | grep bam
+    qcom_bam_dmux          32768  0
+    # ls -la /lib/modules/6.12.94/qcom_bam_dmux.ko
+    -rw-r--r--  1 root root 241232 Sep 21 08:07 .../qcom_bam_dmux.ko
+
+so a variant that changes ONLY the resync branch can be deployed by swapping the
+.ko -- no kernel flash, exactly the patch-823 playbook (scratch/mkko823.sh).
+
+Two designs, in increasing strength:
+
+  D1 (observational, zero behaviour change).  Add a dev_warn immediately before
+     bam_dmux_pc_ack() and immediately after bam_dmux_pm_restart(), so the fatal
+     can be timed against each action separately rather than against the single
+     resync line.  Cost: one build.  Answers nothing on its own -- the two
+     actions are < 1 ms apart -- but it removes the assumption.
+
+  D2 (behavioural, decisive).  Make the resync SKIP bam_dmux_pc_ack() (leaving
+     pm_restart() in place) and count a2_power.c:2949 per resync.  If Reading A
+     is right and the ACK is the trigger, the signature disappears.  Risk: the
+     modem never receives its ACK, so it may hang in a different way -- this
+     variant is a probe, not a candidate fix, and must be reverted after.
+
+  D3 (behavioural, the other half).  Skip bam_dmux_pm_restart() instead, keeping
+     the ACK.  Together D2 and D3 split Reading A into its two sub-cases.
+
+SEQUENCING DECISION (recorded so it is not re-litigated)
+--------------------------------------------------------
+The s8.13 coredump-off window is still open (2 of 20 post-disable fatals scored,
+bar = 0 AP reboots).  D2/D3 must NOT be deployed inside it: they change which
+fatals occur, and a reboot after the swap could not be attributed.  BUT the
+window is free to leave running, and it produces fatals passively -- so the
+passive half of this test costs nothing and is pre-registered below.
+
+PRE-REGISTRATION (passive, on the running window)
+-------------------------------------------------
+  P1. The next a2_power.c:2949 fatal in this boot will be preceded by a
+      "lost edge" resync within 100 ms.   (Currently 3/3; this tests for 4/4.)
+  P2. The next 4 resyncs that are NOT followed by an a2_power.c:2949 within
+      100 ms will be counted, to keep the 3/8 sufficiency figure honest.
+  FALSIFIER: an a2_power.c:2949 with no resync in the preceding 100 ms breaks
+  the association and Reading A/B/C all lose their AP-side handle.
+
+
+PART 4 -- RAW
+=============
+
+rx_telemetry at 12:17 UTC (uptime 3536 s)
+-----------------------------------------
+  rx_callbacks: 18016          pc_state: 0                pm_suspend_attempts: 488
+  rx_submitted: 33536          pc_ack_state: 0            pm_suspend_completions: 481
+  rx_slots_mapped: 32          pc_irq_count: 966          pm_resume_attempts: 488
+  rx_slots_free: 32            pc_resync_count: 1         pm_last_suspend_ms: 1
+  rx_tearing_down: 1           pc_quiesce_ms: 400         pm_last_resume_ms: 2
+  rx_rearm_count: 0            pc_line_level: 0           pm_last_handshake_ms: 2
+  rx_duplicate_submissions: 0  pc_vote_tx_count: 488      cmd_data: 17941
+  rx_negative_queue_count: 0   pc_unvote_tx_count: 488    cmd_open: 40
+  rx_active_submitters: 0      pc_ack_irq_count: 976      cmd_open_no_a2_pc: 0
+  rx_active_callbacks: 0       pc_timeout_count: 4        a2_pc_disabled: 0
+                               (pc_ack_irq_count > pc_irq_count by 10 -- not
+                                examined; noted so it is not lost)
+  tx_sweep_guard_hits: 0       tx_defer_queued: 486       tx_submit_ok: 17993
+  tx_defer_submitted: 486      tx_defer_preserved: 479    tx_complete: 17993
+  tx_defer_wiped: 0            tx_defer_wiped_live: 0
+  runtime_status: suspended    pm_usage_count: 0
+
+  cmd_open: 40 = 8 channels x 5 modem boots (cold + 4 fatals).  tx_defer_preserved
+  479 / 486 queued with 0 wiped confirms patch 812 is holding under 4 SSRs.
+
+The four fatal lines (this boot)
+--------------------------------
+  [  913.640795] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+  [ 1816.046634] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+  [ 2718.436833] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+  [ 3477.969305] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:2949:
+
+The fatal #4 recovery window, verbatim
+--------------------------------------
+[ 3477.894835] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+[ 3477.969305] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:2949:
+[ 3477.969369] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 3477.976314] remoteproc remoteproc0: handling crash #4 in 4080000.remoteproc
+[ 3477.984456] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 3477.991158] bam-dmux ...: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 3477.991201] bam-dmux ...: bam_dmux: SSR teardown T0 scheduled
+[ 3477.997474] bam-dmux ...: bam_dmux: SSR teardown T1 entry
+[ 3478.005166] bam-dmux ...: bam_dmux: SSR teardown T2 tx_retry cancelled
+[ 3478.012626] bam-dmux ...: bam_dmux: SSR teardown T3 tx_wakeup cancelled
+[ 3478.021251] bam-dmux ...: bam_dmux: SSR teardown T4 state_lock acquired
+[ 3478.029723] bam-dmux ...: bam_dmux: executing serialized asynchronous SSR teardown
+[ 3478.029834] bam-dmux ...: bam-dmux T5 rx released
+[ 3478.038481] bam-dmux ...: bam-dmux T6 tx released
+[ 3478.045355] bam-dmux ...: bam-dmux T7 power_off returned
+[ 3478.052253] bam-dmux ...: bam-dmux T8 work done
+[ 3478.059869] bam-dmux ...: bam-dmux T9 flush returned
+[ 3478.067033] wwan wwan0: port wwan0at0 disconnected
+[ 3478.067215] wwan wwan0: port wwan0at1 disconnected
+[ 3478.067498] wwan wwan0: port wwan0qmi0 disconnected
+[ 3478.072006] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+[ 3478.072032] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+[ 3478.072043] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+[ 3478.072052] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+[ 3478.072093] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+[ 3478.072105] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+[ 3478.072142] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+[ 3478.072151] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+[ 3478.072160] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+[ 3478.072612] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+[ 3478.073938] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+[ 3478.073969] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+[ 3478.075512] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+[ 3478.075531] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+[ 3478.075549] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+[ 3478.075560] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+[ 3478.075569] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+[ 3478.075577] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+[ 3478.075618] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+[ 3478.075646] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+[ 3478.075656] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+[ 3478.075664] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+[ 3478.075673] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+[ 3478.075681] qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+[ 3478.121395] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 3478.679815] bam-dmux ...: bam_dmux: SSR after powerup: scheduling powerup work
+[ 3478.679923] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[ 3478.881945] bam-dmux ...: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 3478.889648] bam-dmux ...: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 3479.128903] wwan wwan0: port wwan0at0 attached
+[ 3479.129869] wwan wwan0: port wwan0at1 attached
+[ 3479.328696] wwan wwan0: port wwan0qmi0 attached
+[ 3479.329725] bam-dmux ...: bam_dmux: received CMD_OPEN (1) on channel 0
+  ... through channel 7 at 3479.329864
+
+  ONE half-cycle pair, NO "port failed halt", NO second MBA load, NO coredump.
+  Note the driver's own teardown T0..T9 and the trace 01-09 / 10-23 markers: the
+  whole teardown is 68.7 ms and the whole powerup 47.5 ms.
+
+The full ledger (17 rows, all boots)
+------------------------------------
+uptime,n,sig,t0,t1,t2,t3,t4,t5,t6,t7,t8,t9,exec,wwan,pc_state,rx_tearing_down,coredumps
+951.90,1,a2_power.c:1189,1,1,1,1,1,?,?,?,?,?,1,1,?,?,4
+543.77,1,a2_power.c:1189,1,1,1,1,1,?,?,?,?,?,1,1,?,?,4
+1455.70,2,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,?,?,?,?,?,2,2,?,?,6
+2449.65,3,a2_power.c:1189,3,3,3,3,3,?,?,?,?,?,3,3,?,?,7
+3355.26,4,lte_ml1_sleepmgr_stm.c:4054,4,4,4,4,4,?,?,?,?,?,4,4,?,?,8
+1337.83,1,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,1,0,9
+1053.95,1,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,1,0,10
+719.00,1,a2_power.c:2949,1,1,1,1,1,1,1,1,1,1,1,1,0,1,11
+1336.18,2,a2_power.c:1189,2,2,2,2,2,2,2,2,2,2,2,2,0,1,12
+2244.25,3,lte_ml1_sleepmgr_stm.c:4054,3,3,3,3,3,3,3,3,3,3,3,3,0,1,13
+389.95,1,a2_power.c:1189,4,4,4,4,4,4,4,4,4,4,4,4,0,1,14
+502.08,2,a2_power.c:1189,5,5,5,5,5,5,5,5,5,5,5,5,0,1,15
+896.52,3,a2_power.c:2949,6,6,6,6,6,6,6,6,6,6,6,6,0,1,16
+919.62,1,lte_ml1_sleepmgr_stm.c:4054,1,1,1,1,1,1,1,1,1,1,1,1,0,1,17
+1825.87,2,lte_ml1_sleepmgr_stm.c:4054,2,2,2,2,2,2,2,2,2,2,2,2,0,1,18
+2718.81,3,lte_ml1_sleepmgr_stm.c:4054,3,3,3,3,3,3,3,3,3,3,3,3,0,1,18
+3480.91,4,a2_power.c:2949,4,4,4,4,4,4,4,4,4,4,4,4,1,0,18
+
+  Note the two a2_power.c:2949 rows at 719.00 and 896.52 -- these are the boot-P
+  and boot-Q samples of Part 3, and they are what makes the cross-boot claim
+  checkable without the q6trace.log.
+
+The boot-P and boot-Q context, as preserved in /overlay/q6trace.log
+-------------------------------------------------------------------
+  (boot P -- its section is headed "[717.16s] FATAL COUNT 1 at AP 717.04s")
+[  714.454106] bam-dmux ...: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+[  714.539903] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:2949:
+[  714.539967] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  714.546998] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+
+  (boot Q -- its section is headed "[891.46s] FATAL COUNT 3 at AP 891.30s")
+[  886.743235] bam-dmux ...: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+[  886.817190] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:2949:
+[  886.817260] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  886.824180] remoteproc remoteproc0: handling crash #3 in 4080000.remoteproc
+
+  (boot R -- its section is headed "[1838.97s] FATAL COUNT 2 at AP 1838.22s"
+   -- a resync with NO a2_power.c:2949 after it, 73.47 s before a DIFFERENT fatal)
+[ 1763.929555] bam-dmux ...: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+[ 1836.693343] bam-dmux ...: bam_dmux: modem pc-ack timeout during resume
+[ 1837.400528] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+
+  (boot S -- /overlay/soak814_dmesg_rolling.txt lines 395-399)
+[ 4874.826138] ... lost edge, resyncing
+[ 4924.559122] ... lost edge, resyncing
+[ 4932.915755] ... lost edge, resyncing
+[ 4990.725001] bam-dmux ...: bam_dmux: modem pc-ack timeout during resume
+[ 4991.240271] ... lost edge, resyncing
+[ 5110.460356] CAPTURE_LIVENESS_PROBE uptime=5110
+
+================================================================================
+WHAT THIS FILE CHANGES
+  - s8.13's A/B goes from n = 1 to n = 2, same direction and magnitude.
+  - a2_power.c:2949 is confirmed off-clock (759.53 s), consistent with Doc 162.
+  - A NEW AP-side precursor to a modem fatal: 3/3 a2_power.c:2949 preceded by a
+    74-86 ms "lost edge" resync, with 5 counter-examples showing it is not
+    sufficient.  The resync is patch-808 code and qcom_bam_dmux is a loadable
+    module, so the follow-up needs no kernel flash.
+WHAT THIS FILE DOES NOT CLAIM
+  - It does NOT claim the resync causes the fatal.  3/8 is a correlation with a
+    tight lag and a plausible mechanism, nothing more.
+  - It does NOT explain the sleepmgr:4054 or a2_power.c:1189 fatals, neither of
+    which has ever been seen with a resync in front of it.
+================================================================================

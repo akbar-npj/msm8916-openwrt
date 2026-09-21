@@ -9,8 +9,14 @@
 **§8.13 turns the coredump capture OFF — and §8.13.1's first fatal is a clean within-boot A/B that
 RETRACTS my own call-graph correction.** **⚠ §8.14 then withdraws §8.10's verdict and reframes §8.11's
 rate: §8.10's "reset that survived 823" was my own physical USB-hub installation, the 16:40–16:46
-"boot loop" is a host xHCI controller episode, and at least 6 of 19 outages are host-caused or manual —
-so the reset rate is NOT an AP-hang rate and 823 is substantially rehabilitated.**
+"boot loop" is entangled with a host xHCI controller episode (**direction not established**), and
+**7 of 19** outages are not clean AP-hang data points (1 manual, 2 provably not hangs by duration,
+4 entangled) — so the reset rate is NOT an AP-hang rate and 823 is substantially rehabilitated.**
+**§8.13.2 then makes the coredump-off A/B n = 2 (fatal #4 reproduces fatal #3 to within 5 ms), and
+§8.15 reports the round's most interesting new result: every `a2_power.c:2949` fatal ever observed
+(3/3, three boots) is preceded 74–86 ms earlier by a patch-808 "lost edge" PC resync — a correlation
+with a tight lag and a plausible mechanism, explicitly NOT a cause (3 of 8 resyncs have no such
+fatal), with a no-flash module discriminator designed and pre-registered.**
 
 ---
 
@@ -33,6 +39,8 @@ so the reset rate is NOT an AP-hang rate and 823 is substantially rehabilitated.
 | Check the *other side* of an attribution before publishing it | ✔ **§8.14 (this round's biggest correction)**: §8.10 blamed the AP for a 17:03 reset. The **host kernel log** shows the dongle disconnecting from port `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and the dongle returning at `1-1.2` at `17:03:41` — a **physical intervention by me**. §8.10's verdict on 823 is withdrawn. The same log shows **24 host xHCI remove/re-probe cycles** (18 in one hour) and **39** dongle re-enumerations against ~19 AP uptime-decreases ⇒ *a device-side uptime decrease proves the device restarted, not that it restarted itself.* **And the follow-up lesson: §8.14's own first draft labelled four more outages "host-caused" on a correlation; reading the ORDERING (mixed — the dongle usually disconnects first) forced that back to "entangled, direction not established". A correlation with a plausible upstream cause is still not a direction.** |
 | Read the guarded BRANCH, not the call graph | ✔ **§8.13/§8.13.1**: I argued from the call graph that `port failed halt` must survive the coredump being disabled (because `q6v5_mba_reclaim()` is also reached via `q6v5_stop()`). The measurement falsified it — `q6v5proc_halt_axi_port()` opens with `if (!ret && val) return;` and the port is idle in the STOP path but **live** in the DUMP path. **A call site being reached is not evidence its error branch executes** (§9 trap 11). |
 | Cross-check a rate against *every* instrument that could contradict it | ✔ **§8.14**: §8.11 fit its watchdog model to the 13–61 s outages and never noticed the distribution has a **second mode** — a **1641 s** and a **926 s** outage no 30 s stall can produce. Checking the durations for a second mode is now part of reading any rate. |
+| Check the **provenance of the sample** before counting it | ✔ **§8.15**: the two extra `a2_power.c:2949` samples came from `/overlay/q6trace.log`, which is an **append-across-boots** file, not one boot — so each was cross-checked against the independent `ssr_ledger.csv` (**6 of 6 match**, 0–10 s lag) and the two boots were separated by their own `n = 1,2,3` sequences and the ledger's monotonic `coredumps` column (11,12,13 then 14,15,16). `grep -c` on that file returns **5** for **3 distinct events**. |
+| Report **sufficiency as well as necessity** — and do not act on the necessity alone | ✔ **§8.15**: the "lost edge" resync precedes every `a2_power.c:2949` (**3/3**) *and* occurs 5 more times with no such fatal (**3/8**). Both numbers are recorded, the counter-examples are tabulated, and the three competing readings are left **open** with a discriminator design rather than a conclusion. A tight 74–86 ms lag makes the correlation look like a cause; the denominator is what keeps it honest. |
 
 ---
 
@@ -100,6 +108,29 @@ and then has to report that the reproduction it was going to be scored against d
     0.8316 s → 0.1253 s.** That measurement **retracted my own call-graph correction** and produced the
     round's sharpest transferable rule: **a call site being reached is not evidence that its error
     branch executes.**
+11. **THE A/B IS NOW n = 2, AND THE SECOND SAMPLE CAME FROM A DIFFERENT FATAL SIGNATURE (§8.13.2).**
+    Fatal #4 (AP **3477.969305 s**, `a2_power.c:2949`) reproduces fatal #3 exactly: **one** half-cycle
+    pair, **no** `port failed halt`, **one** `MBA booted`, `SSR before shutdown` → `MBA booted`
+    **0.130237 s** against **0.824902 / 0.831559 s** for the two with the capture on. Boot-wide:
+    **4 fatals, 5 `MBA booted` (cold boot + one per recovery), 2 `port failed halt`** — exactly the two
+    with the capture **on**. A **second, independent instrument agrees**: the ledger's `coredumps`
+    column (written by a separate 10 s poller, not the driver) reads **17, 18, 18, 18** across fatals
+    #1–#4 — fatal #1 took it 16→17, fatal #2 17→18, and #3 and #4 produced **no dump at all**.
+    **Scored: 2 of 20 post-disable fatals, 0 AP reboots.**
+12. **NEW, AND THE FIRST AP-SIDE HANDLE ON A MODEM FATAL — EVERY `a2_power.c:2949` IS PRECEDED BY A
+    "LOST EDGE" RESYNC 74–86 ms EARLIER (3 of 3, in three different boots) (§8.15).** Fatal #4's own
+    window contains an extra line the other three fatals do not have: the bam-dmux RX watchdog
+    reporting `PC line asserted while pc_state=0 (lost edge), resyncing` **74.470 ms** before the
+    fatal, and `pc_resync_count` went **0 → 1** for the boot. Searching the preserved logs found the
+    same pair in two earlier boots — **85.797 ms** and **73.955 ms**, mean **78.074 ms**, spread
+    **11.842 ms** (the two closest are **0.515 ms** apart). **But it is not sufficient:** 8 resyncs
+    were observed in total and only **3** were followed by this fatal within 100 ms, so
+    *`a2_power.c:2949` ⇒ resync* is **3/3** while *resync ⇒ `a2_power.c:2949`* is **3/8**.
+    The resync is **patch-808 code** (not upstream) and two of its four actions are modem-visible
+    (`bam_dmux_pm_restart()` and `bam_dmux_pc_ack()`), so an AP-side driver action is on the causal
+    path under one of three readings — **and `qcom_bam_dmux` is a LOADABLE MODULE (241 KB `.ko`), so
+    the discriminating experiment needs NO kernel flash** (§8.15, D2/D3). **Not yet a claim:** the
+    sleepmgr:4054 and a2_power.c:1189 fatals have **never** been seen with a resync in front of them.
 
 ---
 
@@ -1056,6 +1087,52 @@ just start the watcher — it re-arms within 2 s).
 `/overlay/coredump_off_experiment.txt`; baseline at that moment: uptime 2420 s, 2 fatals this boot
 (both with the coredump still on).
 
+### §8.13.2 SECOND SAMPLE — fatal #4 reproduces fatal #3 exactly, so the A/B is **n = 2**
+
+Fatal #4 fired at AP **3477.969305 s**, with the capture still off, and it is the first fatal of this
+boot with a **different signature** (`a2_power.c:2949`, not `lte_ml1_sleepmgr_stm.c:4054`). The
+recovery structure is identical to fatal #3's:
+
+| | cold boot | #1 — **ON** | #2 — **ON** | #3 — **OFF** | #4 — **OFF** |
+|---|---|---|---|---|---|
+| fatal | — | 913.640795 | 1816.046634 | 2718.436833 | **3477.969305** |
+| signature | — | sleepmgr:4054 | sleepmgr:4054 | sleepmgr:4054 | **a2_power.c:2949** |
+| `SSR before shutdown` | — | 913.663690 | 1816.069773 | 2718.459733 | 3477.991158 |
+| trace `01-09` (reclaim) | — | 913.745419 | 1816.147194 | 2718.539571 | 3478.072006 |
+| `stopped remote processor` | — | 913.745683 | 1816.147432 | 2718.539856 | 3478.072612 |
+| trace `10-23` (MBA load) | 12.039793 | 913.764296 | 1816.166714 | 2718.540745 | 3478.073938 |
+| **`port failed halt`** | — | **914.443745** | **1816.854035** | ABSENT | **ABSENT** |
+| trace `01-09` (2nd reclaim) | — | 914.443813 | 1816.854135 | ABSENT | ABSENT |
+| trace `10-23` (2nd load) | — | 914.445731 | 1816.856197 | ABSENT | ABSENT |
+| `MBA booted` | 12.199395 | 914.488592 | 1816.901332 | 2718.585024 | 3478.121395 |
+| half-cycle pairs | — | **2** | **2** | **1** | **1** |
+| `SSR before shutdown` → `MBA booted` | — | 0.824902 s | 0.831559 s | 0.125291 s | **0.130237 s** |
+| `stopped` → `is now up` | — | 1.297121 s | 1.307782 s | 0.756669 s | 0.607311 s |
+
+Boot-wide, at the moment of capture: **4 fatals, 5 `MBA booted` (cold boot + exactly one per
+recovery), 2 `port failed halt`** — and the two are exactly the fatals with the capture **on**.
+Trace-pair counts are `01-09` ×6 and `10-23` ×7 (= 1 cold boot + 2+2+1+1).
+
+**A second, independent instrument agrees.** The ledger's `coredumps` column — written by a separate
+10 s poller, not by the driver — reads **17, 18, 18, 18** across fatals #1–#4. Fatal #1 took the dump
+count 16→17 and fatal #2 took it 17→18; fatals #3 and #4 produced **no dump at all**.
+
+**So the s8.13 result is no longer n = 1.** Two recoveries with the capture off, on two different
+fatal signatures, both show one half-cycle pair, no `port failed halt`, one `MBA booted`, and a
+~0.128 s `SSR before shutdown` → `MBA booted` span against ~0.828 s for the two with it on — a
+**0.70 s reduction, 6.4×**, reproduced to within 5 ms.
+
+**Fatal #4's period is a separate point, and it is not an anomaly.** The intervals were
+**902.405839 s**, **902.390199 s** (the sleepmgr clock, 17 ppm apart), then **759.532472 s**. The
+clock's 4th beat would have been at 3620.83 s; an `a2_power.c:2949` event fired **142.87 s early**
+and pre-empted it. Doc 162's taxonomy already puts `a2_power` at 68.5–941.3 s and explicitly **not**
+on the clock, so this is Doc 164's "two mechanisms with different periods competing inside one boot",
+with the `a2_power` one winning the race. The ledger independently agrees that this signature is not
+clock-locked: it appears at uptime **719.00 s** and **896.52 s** in two earlier boots.
+
+**Scored so far: 2 of 20 post-disable fatals, 0 AP reboots.** Evidence:
+`V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`.
+
 ---
 
 ### §8.14 THE HOST KERNEL LOG REFRAMES THE AP-RESET RATE — §8.10's "reset that survived 823" WAS MY OWN HUB INSTALLATION, AND §8.11's RATE IS NOT AN AP-HANG RATE
@@ -1175,6 +1252,137 @@ the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
 
 ---
 
+### §8.15 NEW — EVERY `a2_power.c:2949` FATAL IS PRECEDED BY AN AP-SIDE "LOST EDGE" RESYNC, 74–86 ms EARLIER (3 of 3, in three different boots)
+
+**This is the first AP-side observable found that reliably precedes a modem fatal.** It came out of
+fatal #4 by accident: the fatal's own window contained one extra line.
+
+```
+[ 3477.894835] bam-dmux ...: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+[ 3477.969305] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:2949:
+```
+
+**74.470 ms.** Nothing else was logged in between — only the resync's own work, which logs nothing.
+And `pc_resync_count` in `rx_telemetry` went **0 → 1** for the boot: this was the only resync in
+3477 s.
+
+**It is not a one-off.** Searching the preserved logs for the same pair:
+
+| boot | resync (`lost edge`) | fatal | gap | signature |
+|---|---|---|---|---|
+| P | 714.454106 | 714.539903 | **85.797 ms** | `a2_power.c:2949` |
+| Q | 886.743235 | 886.817190 | **73.955 ms** | `a2_power.c:2949` |
+| Y (this boot) | 3477.894835 | 3477.969305 | **74.470 ms** | `a2_power.c:2949` |
+
+mean **78.074 ms**, spread **11.842 ms** — and the two closest are **0.515 ms** apart.
+
+**But it is NOT sufficient, and the counter-examples matter as much as the hits:**
+
+| boot | resync | next fatal after it | verdict |
+|---|---|---|---|
+| R | 1763.929555 | 1837.400528 (`a2_power.c:1189`) at **+73.47 s** | no fatal near it |
+| S | 4874.826138 | none before the log ends at 5110 | no fatal |
+| S | 4924.559122 | " | no fatal |
+| S | 4932.915755 | " | no fatal |
+| S | 4991.240271 | " | no fatal |
+
+So **`a2_power.c:2949` ⇒ a resync ~78 ms earlier is 3/3**, while **a resync ⇒ `a2_power.c:2949` is
+3/8**. Boot S's log ends 119 s after its last resync, so "no fatal" there is a *bounded* claim; boot
+R's 73.47 s of subsequent log with no `a2_power.c:2949` is not.
+
+**Provenance, because these samples come from a multi-boot log.** `/overlay/q6trace.log` is an
+append-across-boots file, not one boot, so the P and Q samples were cross-checked against
+`/overlay/ssr_ledger.csv`, whose rows are produced by an independent 10 s poller. The ledger's
+column 1 is a *noticed* time that lags the true fatal by 0–10 s, so the test is "0–10 s later?":
+**6 of 6 match** (P: 714.54→719.00, 1332.19→1336.18, 2234.55→2244.25; Q: 381.48→389.95,
+495.06→502.08, 886.82→896.52). P and Q are definitively different boots — each has its own
+`n = 1,2,3` sequence and the ledger's `coredumps` column is monotonic across them (11,12,13 then
+14,15,16).
+
+> **Provenance trap.** `grep -c "a2_power.c:2949" /overlay/q6trace.log` returns **5**, but that is
+> **3 distinct events** — the boot-P line is duplicated three times in the file. A naive count over
+> a log that spans boots inflates the sample. **Check whether a log spans boots before counting
+> fatals in it.**
+
+**Why an AP-side action is a plausible cause at all.** The resync branch is code **added by patch
+808** (it did not exist upstream). It does four things, **two of which the modem can see**:
+
+```c
+WRITE_ONCE(dmux->pm_suspend_start_ns, 0);   /* AP-local  */
+WRITE_ONCE(dmux->pc_state, true);           /* AP-local  */
+bam_dmux_pm_restart(dmux);                  /* MODEM-VISIBLE: powers the BAM down and up */
+bam_dmux_pc_ack(dmux);                      /* MODEM-VISIBLE: the SMSM power-collapse ACK */
+complete_all(&dmux->pc_ack_completion);     /* AP-local  */
+wake_up_all(&dmux->pc_wait);                /* AP-local  */
+```
+
+Three readings fit the correlation, and the data does **not** yet choose between them:
+
+* **A — the resync is a poison pill.** The ACK and/or the BAM restart lands on a modem whose power
+  state machine has already moved on, and `a2_power` asserts. Under A the resync→fatal gap is a
+  *modem reaction constant*, so it should **not** vary with how late the AP noticed the edge.
+* **B — common cause.** The modem's PC state machine had already desynchronised, which is why the
+  edge was lost *and* why `a2_power` asserts. The resync is a symptom.
+* **C — the AP's missed edge is the cause.** The modem asserts the PC line with a bounded wait for
+  the ACK; the AP missed the edge, so only the watchdog finds it and the ACK lands outside that
+  window. Under C the gap is `(modem_timeout − edge_delay)` and **should** vary with the AP's
+  detection delay.
+
+**The 100 ms watchdog period is what makes C testable, and it is weakly disfavoured.** The watchdog
+re-arms itself every 100 ms (`schedule_delayed_work(&dmux->rx_watchdog_work, msecs_to_jiffies(100))`,
+patch 808), so the AP's detection delay is uniform on [0, 100] ms. Under C the three observed gaps
+would require three independent edge delays to land inside an 11.8 ms window out of 100 ms — roughly
+a 4 % coincidence. That mildly favours **A**, and it is **far too weak to act on**; it is recorded so
+the next session does not have to redo it. Reading A also cannot say *which* of the two
+modem-visible actions is the trigger — both sit inside the same 74–86 ms.
+
+**Not yet examined, and the cheapest next step:** `pc_timeout_count: 4` in `rx_telemetry`. If that
+counter is the AP's own PC-handshake timeout it may be measuring the same window from the other
+side; read its definition before designing anything around it.
+
+**THE DISCRIMINATOR IS CHEAP — `qcom_bam_dmux` IS A LOADABLE MODULE.**
+
+```
+# lsmod | grep bam
+qcom_bam_dmux          32768  0
+# ls -la /lib/modules/6.12.94/qcom_bam_dmux.ko
+-rw-r--r--  1 root root 241232 Sep 21 08:07 /lib/modules/6.12.94/qcom_bam_dmux.ko
+```
+
+so a variant that changes **only the resync branch** deploys by swapping the `.ko` — **no kernel
+flash**, exactly the patch-823 playbook (`scratch/mkko823.sh`). Three designs:
+
+* **D1 — observational, zero behaviour change.** Log immediately before `bam_dmux_pc_ack()` and
+  immediately after `bam_dmux_pm_restart()`, so the fatal can be timed against each action rather
+  than against the single resync line. One build; answers nothing alone, but removes the assumption
+  that the two actions are simultaneous.
+* **D2 — behavioural, decisive for the ACK.** Make the resync **skip `bam_dmux_pc_ack()`**, leaving
+  `pm_restart()` in place, and count `a2_power.c:2949` per resync. If A is right and the ACK is the
+  trigger, the signature disappears. **This is a probe, not a candidate fix** — the modem then never
+  receives its ACK and may fail differently — and it must be reverted after.
+* **D3 — the other half.** Skip `bam_dmux_pm_restart()` instead, keeping the ACK. D2 and D3 together
+  split Reading A into its two sub-cases.
+
+**Sequencing decision (recorded so it is not re-litigated).** D2/D3 must **not** be deployed inside
+the open §8.13 window: they change which fatals occur, and a reboot after the swap could not be
+attributed. But the window costs nothing to leave running and produces fatals *passively*, so the
+observational half is pre-registered now.
+
+**PRE-REGISTRATION (passive, on the running §8.13 window).**
+* **P1:** the next `a2_power.c:2949` fatal in this boot will be preceded by a `lost edge` resync
+  within 100 ms. (Currently 3/3; this tests for 4/4.)
+* **P2:** count the next 4 resyncs **not** followed by an `a2_power.c:2949` within 100 ms, to keep
+  the 3/8 sufficiency figure honest rather than letting the hits accumulate alone.
+* **FALSIFIER:** an `a2_power.c:2949` with **no** resync in the preceding 100 ms breaks the
+  association, and all three readings lose their AP-side handle.
+
+**What this does NOT claim.** It does not claim the resync causes the fatal — 3/8 is a correlation
+with a tight lag and a plausible mechanism, nothing more. It does not explain the
+`lte_ml1_sleepmgr_stm.c:4054` or `a2_power.c:1189` fatals, **neither of which has ever been seen with
+a resync in front of it**. Evidence: `V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`.
+
+---
+
 ## §9 Traps recorded this round
 
 1. **A patch that "cannot need a flash" is a property of the config, not of the bug.** The first
@@ -1259,19 +1467,59 @@ the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
     16:40:05, but it fires **8 times across the day** and does not align with the other controller
     episodes, so it was recorded as a **non-finding** rather than used.
 
+14. **A TIGHT LAG IS NOT A CAUSE, AND NECESSITY IS NOT SUFFICIENCY — report BOTH denominators
+    (§8.15).** The patch-808 "lost edge" resync sits **74–86 ms** in front of every `a2_power.c:2949`
+    fatal ever observed — 3 of 3, across three different boots, mean 78.074 ms with an **11.842 ms**
+    spread, the two closest **0.515 ms** apart. A lag that tight *feels* like a cause, and the
+    mechanism is plausible: the resync does two things the modem can see
+    (`bam_dmux_pm_restart()`, `bam_dmux_pc_ack()`). **The denominator is what stops it: 8 resyncs were
+    observed and only 3 were followed by that fatal within 100 ms.** So the honest pair of statements
+    is *"`a2_power.c:2949` ⇒ resync 3/3"* **and** *"resync ⇒ `a2_power.c:2949` 3/8"* — and the second
+    one is the one that decides whether a fix is possible.
+    **How to apply:** (a) when a candidate antecedent is found, **count its total occurrences**, not
+    just the hits — a log search that returns only the pairs you were looking for has a denominator of
+    one; (b) **tabulate the counter-examples next to the hits**, with what followed them instead
+    (boot R's resync was followed by a *different* fatal 73.47 s later; boot S's four resyncs had no
+    fatal before its log ended); (c) **state the instrument's reach** — boot S's "no fatal" is bounded
+    by a log that ends 119 s later, boot R's is not; (d) **check the sample's provenance before
+    counting it** — these samples came from `/overlay/q6trace.log`, which is an **append-across-boots**
+    file where `grep -c` returns **5** for **3 distinct events**, so each was cross-checked against the
+    independent ledger (6 of 6 match, 0–10 s lag) and the boots separated by their own `n = 1,2,3`
+    sequences and the ledger's monotonic `coredumps` column; (e) **do not choose between the readings
+    you have** — write all of them down with the observation that would separate them (here: a 100 ms
+    watchdog period makes "the gap should vary with the AP's detection delay" a *measurable* prediction
+    of one reading, and the 11.8 ms spread weakly disfavours it at roughly 4 % — **too weak to act on,
+    so it is recorded, not concluded**).
+
 ---
 
 ## §10 What's next
 
-* **RUNNING NOW: the §8.13 coredump-off experiment — 1 of 20 fatals scored, AP survived.** The bar is
+* **RUNNING NOW: the §8.13 coredump-off experiment — 2 of 20 fatals scored, AP survived.** The bar is
   **0 AP reboots across 20 fatals** (~5 h at the idle timer). **Fatal #3 (the first with the capture
   off) fired on schedule at AP 2718.436833 s, recovered fully (`t0..t9`, `rproc=running`), produced
   no coredump (count frozen at 18), and its recovery was 0.706 s shorter and one half-cycle pair
-  lighter than fatal #2's** (§8.13.1). Re-enable the capture with `touch /overlay/coredump_ENABLE`.
+  lighter than fatal #2's** (§8.13.1). **Fatal #4 (AP 3477.969305 s, `a2_power.c:2949`) reproduced it
+  exactly** — 1 half-cycle pair, no `port failed halt`, 0.130 s vs 0.825 s — so the A/B is now
+  **n = 2** and no longer rests on a single window (§8.13.2). Re-enable the capture with
+  `touch /overlay/coredump_ENABLE`.
   If it succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling
   it also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says
   whether the recovery had already passed the coredump step, which is itself informative.
-  **Remaining: 19 fatals (~4.8 h).**
+  **Remaining: 18 fatals (~4.5 h).**
+* **CHASE THE "LOST EDGE" PRECURSOR — it is the first AP-side handle on a modem fatal, and it needs no
+  flash (§8.15).** Every `a2_power.c:2949` ever observed (3/3, three boots) is preceded **74–86 ms**
+  earlier by the patch-808 RX-watchdog resync, which performs two **modem-visible** actions
+  (`bam_dmux_pm_restart()` and `bam_dmux_pc_ack()`). But only **3 of 8** resyncs are followed by that
+  fatal, so it is a correlation with a tight lag and a plausible mechanism — **not a cause**. Order:
+  **(1)** read `pc_timeout_count`'s definition (cheapest, no build — if it is the AP's own PC-handshake
+  timeout it measures the same window from the other side); **(2)** build **D1** (log either side of
+  each action — zero behaviour change); **(3)** only then **D2/D3** (skip the ACK, or skip the restart,
+  and count the signature per resync). **`qcom_bam_dmux` is a loadable module (241 KB `.ko`), so all
+  three are `.ko` swaps — no kernel flash** (`scratch/mkko823.sh` is the working recipe).
+  **D2/D3 must NOT run inside the open §8.13 window**: they change which fatals occur. The passive half
+  is pre-registered in §8.15 (P1: the next `a2_power.c:2949` will have a resync within 100 ms in front
+  of it; P2: keep counting resyncs with *no* fatal after them).
 * **Let §8.12's instruments catch a stall, then read the cause off it.** The reset is a **≥30 s global
   stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the per-boot
   rolling kernel log are both deployed and reboot-persistent, so the next stall yields the *when*
@@ -1365,8 +1613,19 @@ the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
     §8.11's rate and withdraws §8.10's verdict.** The host's USB controller instability by hour
     (48 xHCI re-registrations, 36 in the 16h hour), the 39 dongle re-enumerations vs ~19 AP
     uptime-decreases, the **hub installation at 17:03** that explains §8.10's reset, the 16:40–16:46
-    host-caused cluster, the bimodal outage durations (including 1641 s and 926 s), and the
-    19-outage classification table with raw host log extracts.
+    cluster (**entangled with the controller storm — direction not established**, retracted from
+    "host-caused"), the bimodal outage durations (including 1641 s and 926 s), the `procd`-kicked
+    watchdog proof that those two are not hangs, the SMC electrical signal as a deliberate
+    **non-finding**, and the 19-outage classification table with raw host log extracts.
+  * **`V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`** — **§8.13.2 + §8.15: two results
+    from fatal #4.** (1) The coredump-off A/B is **n = 2**: the full four-fatal comparison table, the
+    boot-wide counts (4 fatals / 5 `MBA booted` / 2 `port failed halt`), the ledger's independent
+    `coredumps` column (17, 18, 18, 18), and fatal #4's off-clock 759.53 s interval. (2) **The
+    "lost edge" precursor**: every `a2_power.c:2949` (3/3, three boots) preceded **74–86 ms** by a
+    patch-808 RX-watchdog resync, against **3 of 8** sufficiency, with all five counter-examples
+    tabulated, the six-of-six ledger provenance cross-check, the `q6trace.log` multi-boot count trap,
+    the three competing readings, the 100 ms watchdog-period argument that weakly disfavours one, and
+    the **D1/D2/D3 discriminator designs with the module-not-flash deployment note**.
   * `R_analyze_hang_sh.sh`, `P_dmesg_roll_sh_per_boot_kernel_log.sh`,
     `Q_dev_state_mon_sh_host_sampler.sh` — the §8.12/§8.13 instruments.
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.
