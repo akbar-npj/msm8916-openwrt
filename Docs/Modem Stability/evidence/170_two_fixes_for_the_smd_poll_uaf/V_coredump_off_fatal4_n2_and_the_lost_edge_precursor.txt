@@ -4922,6 +4922,14 @@ PART 32 -- ANDROID'S ONLY CONNECTIVITY OUTAGE IN 45 MINUTES IS A ~77 s DATA-CALL
            LOSS WHOSE WINDOW CONTAINS THE MODEM-RELATIVE 902 s POINT
 ================================================================================
 
+>>> RETRACTED IN PART -- READ PART 35 FIRST.  The device was on a MOVING BUS.
+    Reading A (s6) is RETRACTED as unsupported: mobility fully explains the
+    outage and removes the alignment's evidential weight.  The s1 differential
+    control (one modem boot in 2723 s) STANDS -- a network outage cannot cause a
+    modem fatal.  The empirical content of s2/s3 (the outage, its three agreeing
+    instruments, its 0.6 s logcat end, the ENETUNREACH mechanism) is unaffected;
+    only its INTERPRETATION changes.
+
 0. HOW THIS AROSE
 
    Parts 28-31 were about the pc-ack control and the RPM.  This PART is a
@@ -5360,6 +5368,236 @@ PART 33 -- CORRECTIONS: THE POOLED ANDROID PING IS ~2 % NOT 0.7 %, AND THE
     work's "0 % ping loss" line supports.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 36 -- SECOND-ANDROID-BOOT PRE-REGISTRATION, FILED BEFORE THE WINDOW OPENS
+================================================================================
+
+(NOTE ON ORDER: this PART was written into the file ahead of PART 35 because it
+had to be committed before its window opened; PART 35 follows immediately below
+and is the PART 32 correction.  Read 35 before 36 if reading in order.)
+
+Filed 2026-09-22 at device uptime 265 s, i.e. ~644 s BEFORE the window it
+predicts.  The whole point of a pre-registration is that it is on record before
+the result; this PART is committed before the window opens.
+
+1. THE BOOT-2 ANCHOR (measured, not assumed)
+
+   From `dmesg` on the new boot (first line `[0.000000]`, so full coverage):
+
+     [    5.974147] pil: MBA boot done
+     [    6.604624] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+     [    7.004389] apr_tal:Modem Is Up
+     [    8.298620] subsys-pil-tz a21b000.qcom,pronto: wcnss: Brought out of reset
+                                                                  (wcnss, not modem)
+
+   **MODEM BOOT ANCHOR = AP 6.604624 s.**  `Brought out of reset` count = 2, the
+   second being wcnss, exactly as on boot 1.
+
+   Boot-1 anchor for comparison: AP 7.214836 s.
+
+2. THE PREDICTION
+
+   The fatal clock is ~902.3 s of MODEM uptime, so on this boot it falls at
+
+     AP  6.604624 + 902.3  =  AP 908.9 s
+     pre-registered window  =  AP 868.9 -> 948.9 s   (+-40 s)
+
+   **UNDER READING A** (the ~902 s event happens on both stacks and OpenWrt
+   mishandles it): a bam_dmux silence of >= 30 s, OR a data-call
+   DISCONNECTED/CONNECTED pair, with ONSET inside AP 868.9-948.9 s.
+
+   **UNDER READING B** (coincidence; now the leading reading, and mobility makes
+   an outage at any given moment likely): no alignment in MODEM-RELATIVE time.
+   Outages may well occur -- the device is still on a bus -- but they should not
+   cluster at modem-relative 902.3 s.
+
+3. THE ASYMMETRY, STATED IN ADVANCE
+
+   * A RECURRENCE at AP 868.9-948.9 s is **STRONG** evidence for Reading A,
+     precisely BECAUSE the bus cannot produce an alignment in modem-relative
+     time: the bus's position at modem-relative 902.3 s is uncorrelated with
+     anything the modem does.
+   * A NON-RECURRENCE is **WEAK** evidence against A.  It is the expected outcome
+     under Reading B, but one boot is one bit, and A was already downgraded to
+     "unsupported" (PART 35 s1) rather than shown false.
+
+4. WHAT WILL *NOT* BE SCORED
+
+   * **The marginal statistic.**  "Did a connectivity outage occur?" is answered
+     by the bus, not by the modem.  It is not evidence either way and must not be
+     reported as such.
+   * **The pooled ping loss.**  Same reason (PART 35 s3).
+   * **The RPM series from this boot as a PART 31 baseline.**  Boot 2 is ALSO a
+     bus baseline.  PART 31's P1/P2/P3 need a STATIONARY Android baseline; two
+     bus boots do not make one.  Boot 2's RPM series is recorded for consistency
+     only.
+
+5. INSTRUMENTATION ACTUALLY RUNNING (verified, not intended)
+
+     logcat        adb logcat -v time                    (fresh buffer from boot)
+     bam_dmux      cat /d/ipc_logging/bam_dmux/log_cont
+     ping_plain    while true; do ping -c 3 -W 2 8.8.8.8; sleep 27; done
+     ping_iface    while true; do ping -c 3 -W 2 -I rmnet0 8.8.8.8; sleep 27; done
+     snapshot      10 s cadence: bam_dmux stats + rmnet counters + `ip route`
+     rpm           30 s cadence: MPSS/APSS/PRONTO numshutdowns
+
+   All six are supervised by `scratch/android_capture/boot2_supervisor.sh`, which
+   re-checks every 20 s and restarts any that died.  Two things this boot already
+   proved are necessary:
+
+   * **adbd restarts MORE THAN ONCE after the re-root.**  The first attempt
+     started six captures and THREE of them (the earliest three) were killed by a
+     second adbd restart; the two started 4-5 s later survived.  Order the
+     re-root strictly BEFORE any capture, and supervise afterwards.
+   * **`adb shell while true; do ...` MUST be single-quoted.**  Without the
+     quotes the HOST shell parses `while true` and chokes on `do`, so the process
+     dies instantly and a naive supervisor restart-loops forever.  (This cost one
+     cycle here.)
+
+   Also noted: boot 2 attached on a DIFFERENT network (`10.155.13.73/30` vs boot
+   1's `10.81.148.167/28`), consistent with a moving platform.
+
+--------------------------------------------------------------------------------
+
+
+
+================================================================================
+PART 35 -- PART 32 CORRECTION: THE DEVICE WAS ON A MOVING BUS.  READING A IS
+           RETRACTED, AND THE MOBILITY CONFOUND NOW BOUNDS EVERY ANDROID NUMBER
+================================================================================
+
+0. HOW THIS WAS FOUND, AND WHY IT SHOULD NOT HAVE NEEDED FINDING
+
+   PART 32 s6 built its whole case for Reading A on one alignment: Android's
+   only connectivity outage (AP 874.309 -> 951.518 s = modem-relative
+   867.1 -> 944.3 s) CONTAINS the modem-internal 902.3 s point.  That argument
+   assumed the outage's time was essentially arbitrary, so that a 77.209 s
+   window overlapping a fixed point was worth p ~ 4.8 %.
+
+   The operator has now stated the physical context: **the Android device was
+   travelling on a bus for the whole soak.**  Data outages are EXPECTED in that
+   condition.  I never asked for the physical context before building the
+   alignment argument; that is the error, and it is the same class as PART 25's
+   withdrawn ELF-header claim -- a conclusion drawn from a variable I had not
+   checked.
+
+--------------------------------------------------------------------------------
+
+1. READING A IS RETRACTED
+
+   The bus does not merely weaken the alignment, it removes the argument:
+
+   * On a moving platform, connectivity losses are (a) EXPECTED and (b) NOT
+     uniformly distributed in time -- they cluster wherever coverage is bad.
+     The 902.3 s point is fixed by the MODEM BOOT, not by anything the bus does.
+     So an outage overlapping it is exactly what one would see whenever the bus
+     happens to be in a poor stretch at that moment, and the overlap therefore
+     carries **no evidential weight at all**.  The p ~ 4.8 % figure of PART 32 s6
+     was computed under a uniformity assumption that the bus violates.
+   * The ENETUNREACH mechanism (PART 32 s3) is fully explained without the modem:
+     a coverage hole drops the data call, Android removes the default route,
+     `ping` falls through to `unreachable default dev lo table 0 ... error -101`,
+     and the call is rebuilt when coverage returns.
+   * The 77.209 s duration is a plausible coverage-hole duration, and the
+     `Network is unreachable` pair needs no modem-side story.
+   * The five `mobile: CONNECTED/CONNECTED` rebuilds in the logcat window
+     (PART 32 s4) are likewise explained: five re-attachments over 45 min on a
+     bus is unremarkable, and their irregular spacing (568/381/688/168 s) is
+     what mobility looks like.
+
+   **READING A ("the ~902 s event happens on BOTH stacks and OpenWrt
+   MISHANDLES it into the fatal") is RETRACTED as unsupported.**  READING B
+   (coincidence) is now the leading reading, and is in fact favoured rather than
+   merely permitted, because on a bus an outage at any given time is likely.
+
+--------------------------------------------------------------------------------
+
+2. WHAT IS *NOT* AFFECTED -- THE DIFFERENTIAL CONTROL STANDS
+
+   The PART 32 s1 control does not depend on mobility at all:
+
+     dmesg covers the full 2723 s with NO wrap, and shows exactly ONE modem
+     bring-up, zero SSRs, zero fatals.
+
+   **A network outage cannot produce a modem ERR_FATAL or an SSR.**  So the
+   central differential -- same byte-identical firmware, same device, no fatal on
+   Android while OpenWrt's deterministic idle fatal lands at ~902.3 s of modem
+   uptime -- is untouched by the bus and remains the strongest statement in the
+   corpus.  Only the "both stacks see the same 902 s event" rider is withdrawn.
+
+--------------------------------------------------------------------------------
+
+3. THE MOBILITY CONFOUND NOW BOUNDS EVERY ANDROID NUMBER IN PARTS 28-34
+
+   This is the part with reach.  The Android soak was run on a MOVING PLATFORM;
+   the OpenWrt soaks were run stationary.  Any Android-vs-OpenWrt comparison of a
+   NETWORK-SENSITIVE metric is therefore confounded by the platform difference,
+   and must be re-run or explicitly caveated:
+
+   * **PART 31's RPM power-collapse series (MPSS 1.580 /s, n=10, 1.82x spread).**
+     The modem's power-collapse cadence is driven by the paging/DRX cycle, which
+     the RF environment and cell re-selection directly change.  A 1.82x
+     per-interval spread on a bus is not necessarily the same 1.82x one would see
+     stationary.  **P1/P2/P3 are NOT retracted but they are now UNTESTABLE
+     against this baseline** -- the OpenWrt measurement must be compared against a
+     STATIONARY Android baseline, not this one.
+   * **The corpus's MCPM-cadence comparison (Android 1.88/s vs OpenWrt 0.83/s,
+     = 2.3x).**  Same problem, and it may explain why the corpus could not make
+     the gap behave: a moving Android will re-select cells and page differently.
+     The 2.3x gap is NOT evidence of an AP-side difference until both sides are
+     measured in a comparable RF environment.
+   * **The pooled ping loss (PART 33 s1: 87 bursts, 1.92 %).**  This is now
+     explained by mobility and is NOT a device finding.  It should not be cited
+     as Android baseline loss.
+   * **The 77.209 s outage and the ENETUNREACH event.**  Explained by mobility;
+     not a device finding.
+   * **NOT affected:** the pc-ack latency distribution (PART 28/30/33 s5 --
+     vote->ack max 2.291 ms, zero real timeouts).  That is a loop-back timing
+     between AP and modem over the same die, not an RF metric.  The conclusion
+     that OpenWrt's 250 ms budget is 100x+ the worst healthy ack stands.
+
+--------------------------------------------------------------------------------
+
+4. THE SECOND-BOOT TEST SURVIVES, BUT ONLY ON THE CONDITIONAL STATISTIC
+
+   The operator has authorised a second Android boot.  Mobility changes what that
+   boot can decide, and the pre-registration must say so:
+
+   * **The MARGINAL statistic is now uninformative.**  "Did a connectivity
+     outage occur?" is answered by the bus, not by the modem.  On a bus an outage
+     is likely; stationary it is not.  Do not score it.
+   * **The CONDITIONAL statistic survives.**  The bus is essentially RANDOM with
+     respect to MODEM-RELATIVE time (the modem clock restarts at each boot, and
+     the bus's position at modem-relative 902.3 s is not correlated with anything
+     the modem does).  So the question to score is:
+       **does an outage recur at the SAME MODEM-RELATIVE time on a second boot?**
+   * **The test is ASYMMETRIC and must be reported as such:**
+       - A RECURRENCE at modem-relative 902.3 +- 40 s is STRONG evidence for
+         Reading A, precisely BECAUSE the bus cannot produce an alignment in
+         modem-relative time.
+       - A NON-RECURRENCE is WEAK evidence against A: it is the expected outcome
+         under Reading B, but one boot is one bit, and Reading A was already
+         downgraded to "unsupported" rather than "false".
+   * **If the bus returns to a stationary environment, the marginal statistic
+     becomes scoreable again** and the original PART 32 s6 pre-registration
+     applies unchanged.  The operator should say which condition the second boot
+     is run under, and the answer must be recorded with the result.
+
+--------------------------------------------------------------------------------
+
+5. LESSON (also recorded in memory)
+
+   **Establish the PHYSICAL/ENVIRONMENTAL context of a capture BEFORE
+   interpreting its anomalies.**  A known confound -- mobility, RF environment,
+   thermal state, a concurrent host operation -- can fully explain an anomaly and
+   simultaneously drain an alignment argument of all its evidential weight, and
+   it is invisible in every log.  Asking "where was this device and what was it
+   doing?" is cheaper than any of the analysis it invalidates.
+
+--------------------------------------------------------------------------------
+
+
 
 ================================================================================
 PART 34 -- LEAD, NOT A FINDING: ANDROID RUNS A 1 Hz IDLE-TIMER SERVICE THAT

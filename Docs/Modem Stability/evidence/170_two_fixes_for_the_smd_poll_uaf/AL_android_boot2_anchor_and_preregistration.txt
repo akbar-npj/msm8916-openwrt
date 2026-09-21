@@ -1,0 +1,40 @@
+Second Android boot -- anchor and pre-registration (Doc 170 PART 35/36)
+
+=== boot-2 anchor (captured at host 20:05:24, device uptime 9.09 s) ===
+9.09 22.49
+Tue Sep 22 01:35:24 IST 2026
+
+
+=== boot-2 modem lifecycle (dmesg, first line [0.000000] = full coverage) ===
+632:<6>[    5.974147] pil: MBA boot done
+633:<6>[    6.604624] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+671:<6>[    7.004389] apr_tal:Modem Is Up
+760:<6>[    8.298620] subsys-pil-tz a21b000.qcom,pronto: wcnss: Brought out of reset
+
+=== boot-1 vs boot-2 anchors ===
+  boot 1  modem 'Brought out of reset'  AP  7.214836 s
+  boot 2  modem 'Brought out of reset'  AP  6.604624 s
+
+=== PREDICTION (filed at uptime 265 s, ~644 s before the window) ===
+  902.3 s of MODEM uptime  ->  AP 908.9 s
+  pre-registered window    ->  AP 868.9 - 948.9 s (+-40 s)
+
+  Reading A (recurrence): a >= 30 s bam_dmux silence OR a data-call
+    DISCONNECTED/CONNECTED pair with ONSET inside that window.
+  Reading B (coincidence, leading): no alignment in MODEM-RELATIVE time.
+
+  ASYMMETRY: recurrence = STRONG for A (the bus cannot align in modem-relative
+    time); non-recurrence = WEAK against A (expected under B, but one boot = one bit).
+
+  NOT SCORED: the marginal statistic (did an outage occur) -- the bus answers it.
+
+=== re-root and capture evidence ===
+uid=2000(shell) gid=2000(shell) groups=1004(input),1007(log),1011(adb),1015(sdcard_rw),1028(sdcard_r),3001(net_bt_admin),3002(net_bt),3003(inet),3006(net_bw_stats) context=u:r:shell:s0
+uid=0(root) gid=0(root) context=u:r:shell:s0
+-r--r--r-- root     root            0 1970-01-01 05:30 stats
+-r--r--r-- root     root            0 1970-01-01 05:30 log_cont
+-r--r--r-- root     root            0 1970-01-01 05:30 rpm_master_stats
+
+=== network changed between boots (moving platform) ===
+  boot 1: default via 10.81.148.168 dev rmnet0   src 10.81.148.167/28
+  boot 2: default via 10.155.13.74  dev rmnet0   src 10.155.13.73/30
