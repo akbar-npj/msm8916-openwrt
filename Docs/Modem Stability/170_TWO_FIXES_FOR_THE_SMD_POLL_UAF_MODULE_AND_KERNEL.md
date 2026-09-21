@@ -4,7 +4,9 @@
 **Predecessor:** Doc 169 (`169_THE_AP_RESET_IS_AN_SMD_POLL_USE_AFTER_FREE.md`)
 **Status:** **patch 823 is DEPLOYED and functionally clean** (§8.7); the control failed to reproduce, so
 §7's pre-registration is **withdrawn** (§8.2) and the fix stands on mechanism, not on a run count
-(§8.6); one unexplained boot is recorded and **not** exculpated (§8.8).
+(§8.6); one unexplained boot is recorded and **not** exculpated (§8.8); **and §8.10 records an AP
+reset that survived 823 — so 823 is a real fix for the UAF it targets but is NOT a complete fix for
+the production reset.**
 
 ---
 
@@ -20,6 +22,8 @@
 | Comparative ground truth | ✔ the pre-fix control is Doc 168 run B + Doc 169 run A (2/2 corruption + reset) — **and §8.1 records that it did NOT reproduce here, which is the honest headline of this round** |
 | One change per patch | ✔ 822 = one call in `qcom_smd.c`; 823 = one argument in `rpmsg_wwan_ctrl.c`, verified as an **18-line disassembly diff confined to one function** (§8.6) |
 | Nothing is a fact until measured | ✔ §2 is measurement; §3–§5 are mechanism, labelled as such; **§8.6's strip recipe is validated against the shipped baseline by size, and §8.9 records a case where a *tool failure* was nearly written up as a finding** |
+| Read the *branch conditions*, not the script's reputation | ✔ **§8.10**: `qcom-carrier-autocfg` was recorded in memory as "power-cycles the modem every 10 s"; reading its `while … sleep 10` body showed the power-cycle is inside the *operator-change / cache-mismatch* branch only. The script is exonerated as the 17:03 reset's cause, and the earlier claim is corrected in §9 trap 8 |
+| Make the instrument survive the failure it measures | ✔ **§8.10**: the beacon truncated its own files at every boot, destroying exactly the pre-reset tail it exists to capture. The reset-durable `BOOT`-marker form is now deployed. The gap was *in the instrument*, and only re-reading it against the failure it missed exposed that |
 
 ---
 
@@ -50,6 +54,11 @@ and then has to report that the reproduction it was going to be scored against d
 6. **A trap worth more than the verdict:** both `ssctl` and `pc-ack` lines were read as fault markers
     *because they are rare in the corpus* — and the corpus is dominated by boots that died before
     reaching them. **Establish a message's BASE RATE on a known-good run before calling it a fault.**
+7. **And the headline that matters for production: an AP reset occurred with 823 deployed** (§8.10) —
+    165 s after three natural fatals had each run a *complete* SSR and recovered. pstore was empty,
+    so it was not a trappable fault; no fourth coredump and no ledger row exist, so it is *not*
+    attributable to a fatal from this data. 823 fixes the UAF it was written for; it does **not** close
+    the coredump-reclaim hang that Doc 159 located. **This is why the round does not end with "fixed".**
 
 ---
 
@@ -349,17 +358,46 @@ returned in **37 s** at 15:41:45 and re-enumerated.
 Same presentation as Doc 168 §13f recorded after the 821 run B reset. **Recorded as a fact with an
 unresolved cause, not as a finding.**
 
-> **§8.3.1 A SECOND MANAGEMENT PATH EXISTS — the dongle runs its own WiFi AP.** Found while
-> recovering: `phy0-ap0` is UP, bridged into `br-lan` (192.168.8.1/24), and the SSID is **`OpenWrt`,
-> open (no encryption)**, from `wcn36xx` on `a204000.remoteproc`. So the "OpenWrt" SSID visible from
-> the build host is this device, not a neighbour. `CONFIG_QCOM_WCNSS_PIL` is unset in
+> **§8.3.1 A SECOND MANAGEMENT PATH EXISTS — the dongle runs its own WiFi AP, and it is now SET UP
+> AND VERIFIED.** `phy0-ap0` is UP, bridged into `br-lan` (192.168.8.1/24), SSID **`OpenWrt`, open
+> (no encryption)**, from `wcn36xx` on `a204000.remoteproc`. So the "OpenWrt" SSID visible from the
+> build host is this device, not a neighbour. `CONFIG_QCOM_WCNSS_PIL` is unset in
 > `target/linux/msm89xx/config-6.12` yet WiFi works, so the WCNSS firmware path is not the PIL one —
 > **do not conclude "no WiFi" from that config symbol again.**
 > **Why this matters:** the failure mode above kills the *USB gadget* while leaving the AP possibly
 > alive. Every time the dongle "disappears", the WiFi AP is the one remaining way in — and it is the
-> only way to distinguish "the AP hung" from "the gadget died". Attach over WiFi **before** concluding
-> the AP is dead. (Caveat: the build host's only WiFi radio `wld0` is also its uplink, so switching it
-> to the `OpenWrt` SSID drops the host's default route. Plan for that.)
+> only way to distinguish "the AP hung" from "the gadget died". (Honest limit: if the AP *itself*
+> hangs — the failure being chased — the WiFi AP dies with it. This is a **discriminator**, not a
+> guaranteed rescue.)
+>
+> **Now configured and verified (2026-09-21).** A second adapter — **RTL8188FTV on `rtl8xxxu`**, a
+> mainline in-kernel driver — shares the host's single USB port with the dongle via a 4-port hub:
+> ```
+> Bus 001 Port 001 -> Hub (4p)
+>     |-- Port 001 -> RTL8188FTV (rtl8xxxu)          -> wlu1u1
+>     |-- Port 002 -> HMU05 gadget (cdc_acm+cdc_ncm) -> enu1u2i2
+> Bus 002 (10000M) -> free
+> ```
+> ```
+> nmcli con add type wifi ifname wlu1u1 con-name hmu05-fallback ssid OpenWrt
+> nmcli con modify hmu05-fallback ipv4.never-default yes ipv6.never-default yes \
+>     ipv4.route-metric 5000 ipv6.route-metric 5000
+> nmcli con up hmu05-fallback          # may need a second `up` for the DHCPv4 lease
+> ```
+> **`never-default yes` is the critical setting** — without it this AP's DHCP gateway steals the
+> host's default route and the host loses its internet. **Verified both ways:**
+> `ssh -b 192.168.8.102 root@192.168.8.1` → `IPV4-WIFI-PATH-OK`, and `ssh root@fd85:138e:7d31::1`
+> (the dongle's IPv6 ULA) → `WIFI-PATH-OK`. Route metrics give **automatic failover with no script**:
+> `192.168.8.0/24 dev enu1u2i2 metric 2000` (preferred) and `dev wlu1u1 metric 5000` (fallback) — when
+> the USB interface disappears its route goes with it and `192.168.8.1` becomes reachable over WiFi.
+> `autoconnect: yes`, so it survives host reboots.
+>
+> **⚠ The dongle's host interface was RENAMED `enu1i2` → `enu1u2i2`** by moving it behind the hub. Any
+> script hardcoding the old name breaks; **address the dongle as `192.168.8.1`, never by interface
+> name.** Two smaller gotchas: the first `nmcli con up` brought up **IPv6 only** (a second `up` got
+> the DHCPv4 lease `192.168.8.102`), and the dongle's DHCP server also leases to `enu1u2i2`
+> (`192.168.8.132`), so both interfaces sit on 192.168.8.0/24 — harmless, and the metric ordering
+> above is what keeps the USB path preferred.
 
 ### §8.4 WHAT IS STILL SOLID AFTER THIS ROUND
 
@@ -448,7 +486,7 @@ boot after the deploy:
 | ping 8.8.8.8 | 4/4, 0% loss, 42.2/64.3/81.8 ms |
 | DNS | `nslookup openwrt.org 8.8.8.8` → `2a03:b0c0:3:d0::1a51:c001` |
 | **`echo stop` × 3** | **3 PASS / 0 FAIL / 0 SKIP** |
-| **a NATURAL fatal** (`a2_power.c:1189`, AP 381.485 **and again at 502.08**) | **2/2: `t0..t9` all present, 0 corruption, coredumps 14→15, AP survived, modem recovered, ping 2–3/3** |
+| **a NATURAL fatal** (`a2_power.c:1189` ×2 at AP 381.485 / 502.08; `a2_power.c:2949` at 896.52) | **3/3: `t0..t9` all present, 0 corruption, coredumps 14→16, AP survived, modem recovered, ping 2–3/3** |
 
 The `echo stop` runs (`bash scratch/qa.sh 3 post823`) are the *targeted scenario* — the trigger that
 produces the UAF — and they also exercise the one thing 823 could plausibly have broken: the poller's
@@ -602,6 +640,75 @@ aliased to `grep --color=auto`). **Never `bash grep`.** Two generalisable rules:
 
 ---
 
+### §8.10 AN UNEXPLAINED AP RESET WITH 823 DEPLOYED (2026-09-21 17:03) — 823 IS NOT A COMPLETE FIX
+
+While this round was being written up, the host-side liveness watcher
+(`evidence/164_q6v5_ssr_window_trace/host_hang_watch.log`) captured the boot that ran the §8.7
+`qa.sh` runs through to its end:
+
+```
+16:40:47 *** AP UNREACHABLE ***  -> 16:41:43 AP-BACK after 53s
+16:42:29 *** AP UNREACHABLE ***  -> 16:43:33 AP-BACK after 61s
+16:44:14 *** AP UNREACHABLE ***  -> 16:45:02 AP-BACK after 45s
+16:45:54 *** AP UNREACHABLE ***  -> 16:46:10 AP-BACK after 13s     <- deploy823.sh reboot + 3 more
+16:47 .. 17:03  stable (uptime 79 -> 1042)                         <- qa.sh 3x PASS + 3 natural fatals
+17:03:24 *** AP UNREACHABLE ***  -> 17:03:56 AP-BACK after 29s     <- AP uptime ~1061 s
+```
+
+The boot that reset at 17:03:24 is the **same boot** that produced §8.7's results. Its complete
+fatal record, from the two independent persistent instruments, is unambiguous:
+
+| instrument | record on that boot |
+|---|---|
+| `ssr_ledger.csv` rows 14/15/16 | `389.95 a2_power.c:1189` · `502.08 a2_power.c:1189` · `896.52 a2_power.c:2949` — **all with `t0..t9` present**, `0` corruption, `core=1` |
+| `coredump_watch.log` | `devcd1` @382.41 s · `devcd2` @496.01 s · `devcd3` @888.08 s — **three dumps, 85 398 475 B each**, then the next line is the *new* boot's watcher start at 17.90 s |
+
+So **three natural fatals ran their full SSR and all three recovered**, and then the AP reset
+**~165 s after the third fatal's teardown had already completed**.
+
+**What the evidence says — and what it does not.**
+
+1. **pstore is EMPTY** (`/sys/fs/pstore/` has no `dmesg-ramoops-0`), while `ramoops` is registered and
+   functional on this boot. A `list_del corruption` panics and *would* have left a record. Therefore
+   this was **not a trappable kernel fault** — consistent with a **global stall → PMIC watchdog
+   reset**, which is the Doc 159 picture ("stopped the whole AP"), not a fault the kernel could catch.
+2. **No fourth coredump, no ledger row 17.** Both instruments are userspace and die with the AP, so
+   this is *expected* if the AP hung during a fourth fatal's SSR — but it also means **the reset
+   cannot be attributed to a fourth fatal from this data**; "no fatal" and "a fatal that hung before
+   either instrument could record it" look identical here.
+3. **823 does not cover this path.** 823 removes the `qmi-proxy` poller's `poll_table_entry` from
+   `channel->fblockread_event`. The Doc 159 hang site is the **coredump-reclaim / `q6v5_rmb_mba_wait()`
+   / TrustZone `qcom_scm_assign_mem()`** window, which 823 does not touch. The qmi-proxy poller was
+   the **only** holder of a wwan fd at the time (`/proc/<pid>/fd/7 -> /dev/wwan0qmi0`, re-checked), so
+   823's target vector *was* present and the reset happened anyway — **consistent with the reset being
+   the other mechanism, but not proof of it.**
+
+**Why the beacon could not characterise it, and the fix.** `beacon.sh` ran `: > beacon_a.txt` at every
+boot, **destroying the previous boot's tail** — so the last advanced uptime before the reset, and the
+A-vs-B divergence that separates "the FS/writeback path wedged" from "a global stall", were lost.
+**Fixed this round:** `beacon.sh` now appends a `BOOT <uptime>s pid=… host=…` marker instead of
+truncating (`scratch/beacon.sh`), and the running instance was replaced on the device. The pre-reset
+tail will survive the next reset. The coredump watcher was **not** the gap — it is armed
+(`/sys/class/remoteproc/remoteproc0/coredump` = `enabled`) and captured all three dumps.
+
+**Confounders ruled out this round.**
+
+* `/overlay` was at **48 %** (1.6 G free) with 16 coredumps (1.3 G) — not full, so no write-failure path.
+* **`qcom-carrier-autocfg` did NOT reset the AP.** §9 trap #8's "power-cycles the modem every 10 s"
+  is an **overstatement and is corrected here**: its `while … sleep 10` loop only *polls* `mmcli -L`
+  in steady state. `mmcli --set-power-state-low/-on` (lines 268/270) runs only on an operator change,
+  the initial boot, or a **radio-cache mismatch**; `reboot` (lines 523/538) runs only on an **MBN
+  change**. At 17:03 there was no SIM swap and the boot-time provisioning had logged
+  "No reboot required" at 11:01:36.
+
+**Effect on the verdict.** Unchanged, and now stated with the caveat made concrete: **823 is
+substantially but not absolutely exonerated, and it is not a complete fix.** The four-reset cluster
+at 16:40–16:46 (only one of which the deploy script explains) plus the 17:03 reset show an
+**AP-reset path that survives 823**. That path is the production problem, and patch 822 — or a fix
+for the coredump-reclaim hang — is still required.
+
+---
+
 ## §9 Traps recorded this round
 
 1. **A patch that "cannot need a flash" is a property of the config, not of the bug.** The first
@@ -624,10 +731,13 @@ aliased to `grep --color=auto`). **Never `bash grep`.** Two generalisable rules:
    **relocation** and diff the disassembly (§8.6).
 7. **`bash grep` is not grep, and `2>/dev/null` turns its failure into a false negative.** A search
    that returns nothing is evidence only if the search tool ran — check a positive control (§8.9).
-8. **A device-specific script can power-cycle the modem every 10 s behind your back.**
-   `/usr/sbin/qcom-carrier-autocfg` drives `mmcli --set-power-state-low/-on/-e` in a loop and can
-   `reboot` the device. Catalogue the image's own automation before attributing modem state changes
-   to your experiment (§8.8).
+8. **A device-specific script can power-cycle the modem behind your back — but read the loop before
+   believing it does so constantly.** `/usr/sbin/qcom-carrier-autocfg` runs `while … sleep 10` and can
+   `reboot` the device (lines 523/538) and `mmcli --set-power-state-low/-on` (lines 268/270). **But it
+   only does either on an operator change, the initial boot, a radio-cache mismatch, or an MBN change
+   — in steady state it merely polls `mmcli -L`.** Catalogue the image's own automation before
+   attributing modem state changes to your experiment, *and read the branch conditions* before
+   concluding the automation is the cause (§8.10 corrects an earlier overstatement of this).
 9. **"Gone from the USB bus" and "attached but failing to enumerate" are different observations, and
    only the host kernel log distinguishes them.** `lsusb` shows neither. Read `dmesg`/`journalctl -k`
    on the host before writing "the device is gone" (§8.3).
@@ -639,6 +749,14 @@ aliased to `grep --color=auto`). **Never `bash grep`.** Two generalisable rules:
 
 ## §10 What's next
 
+* **FIRST: characterise the AP-reset path that survives 823 (§8.10).** The 17:03 reset is the live
+  production failure and 823 does not close it. The beacon is now reset-durable, so the *next* reset
+  will say whether the AP stalled globally (both `beacon_a` and `beacon_b` stop together) or only the
+  filesystem path wedged (`a` stops, `b` continues), and *when* the stall began. **Do not patch
+  anything until that record exists** — the whole point of §8.10 is that one unexplained reset was
+  inferred rather than measured.
+* **Re-check the 16:40–16:46 cluster.** Four resets in six minutes, only one explained by
+  `deploy823.sh`. The same instruments now cover it.
 * **Finish scoring 823.** It is deployed and functionally clean (§8.7) and passed the `echo stop`
   scenario (§8.8). What is still missing is the **control rate**: `echo stop` × n with the
   **unpatched** module (`bash scratch/deploy823.sh --revert`) under a *stated* condition, to see
@@ -651,8 +769,11 @@ aliased to `grep --color=auto`). **Never `bash grep`.** Two generalisable rules:
   device runs and survives routinely (§8.8 resolution box). The one remaining action is a controlled
   boot with the unpatched module to close it properly.
 * **Patch 822 via a flash** (`sysupgrade`, which preserves `/overlay`) — it is the only fix that
-  covers SMD pollers other than `qmi-proxy`.
-* **Question C** — is the corruption the reset's *only* cause?
+  covers SMD pollers other than `qmi-proxy`. **Note §8.10 lowers its expected value**: 822 fixes the
+  *UAF*, and §8.10's evidence points at a *different* (coredump-reclaim) hang. Flash 822 for the UAF;
+  do not expect it to stop the 17:03 class of reset on its own.
+* **Question C** — is the corruption the reset's *only* cause? **§8.10 has now answered "no" for at
+  least one reset**, which is the strongest reason to stop treating 823/822 as the whole fix.
 * **Then return to the ~902 s timer** — it is the *trigger* for the production path. Fixing the reset
   makes a fatal survivable; it does not stop the fatal. The standing user directive names both. Note
   the natural fatal in §8.8 was `a2_power.c:1189` at **71.76 s of modem uptime**, consistent with Doc
@@ -679,10 +800,19 @@ aliased to `grep --color=auto`). **Never `bash grep`.** Two generalisable rules:
     not ruled out (§8.8); **`H2_console-ramoops-0_823_first_boot_raw.txt`** — the raw 24155 B record.
   * **`I_tooling_trap_bash_grep.txt`** — `bash grep` is not grep (§8.9).
   * **`J_qa_post823_3runs.log`** — `echo stop` × 3 with 823: 3 PASS / 0 FAIL / 0 SKIP.
-  * **`K_qcom-carrier-autocfg_10s_modem_loop.sh`** — the image's own 10 s modem-cycling script (§8.8).
+  * **`K_qcom-carrier-autocfg_10s_modem_loop.sh`** — the image's own 10 s polling loop. **Its name is
+    misleading and §8.10 corrects it**: the loop only *polls* in steady state; it power-cycles the
+    modem only on an operator change / initial boot / radio-cache mismatch, and reboots only on an MBN
+    change.
   * **`L_8_8_RESOLVED_and_natural_fatal_with_823.txt`** — the base-rate measurement that resolves §8.8,
     plus the second natural-fatal data point with 823 deployed.
+  * **`M_post823_apreset_1703.txt`** — **the 17:03 AP reset with 823 deployed (§8.10): the full reset
+    record, the three recovered fatals that preceded it, the empty pstore, the two confounders ruled
+    out, the poller-identity re-check, and the beacon fix.**
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.
+* `scratch/beacon.sh` — the **reset-durable** liveness beacon (§8.10): appends a `BOOT <uptime>s` marker
+  instead of truncating, so the pre-reset tail survives the next reset. Copy kept at
+  `evidence/170_two_fixes_for_the_smd_poll_uaf/N_beacon_sh_reset_durable.sh`.
 * `scratch/mkko823.sh` — produces and self-validates the deployable stripped module.
 * `msm89xx/patches/822-rpmsg-smd-drain-pollers-before-free.patch` (md5 `2781b4bc2916dee0ae48dee1e7cf789a`, 85 lines)
 * `msm89xx/patches/823-rpmsg-wwan-ctrl-no-smd-poll-registration.patch` (md5 `23c6a7a3e1222a881858f5ea1b733727`)

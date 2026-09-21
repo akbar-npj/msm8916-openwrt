@@ -1,0 +1,147 @@
+M — THE 17:03 AP RESET WITH PATCH 823 DEPLOYED (Doc 170 §8.10)
+================================================================
+Captured 2026-09-21 ~17:07-17:15 +05:45 (device clock = UTC; device 11:2x = host 17:0x).
+Device: Melbon HMU05, OpenWrt 25.12.5 / Linux 6.12.94.
+Module on device: 6553acd4eb83fcf032c1cf0821f35f4d (patch 823).
+
+1. THE HOST-SIDE LIVENESS WATCHER (authoritative reset record)
+--------------------------------------------------------------
+Source: Docs/Modem Stability/evidence/164_q6v5_ssr_window_trace/host_hang_watch.log
+
+2026-09-21T16:40:47+05:45 *** AP UNREACHABLE *** (last ok 16:40:26)
+2026-09-21T16:41:43+05:45 AP-BACK after 53s unreachable
+2026-09-21T16:42:03+05:45 ok (uptime-check: 46)
+2026-09-21T16:42:29+05:45 *** AP UNREACHABLE *** (last ok 16:42:08)
+2026-09-21T16:43:33+05:45 AP-BACK after 61s unreachable
+2026-09-21T16:44:14+05:45 *** AP UNREACHABLE *** (last ok 16:43:53)
+2026-09-21T16:45:02+05:45 AP-BACK after 45s unreachable
+2026-09-21T16:45:02+05:45 ok (uptime-check: 38)
+2026-09-21T16:45:54+05:45 *** AP UNREACHABLE *** (last ok 16:45:33)
+2026-09-21T16:46:10+05:45 AP-BACK after 13s unreachable
+2026-09-21T16:47:00+05:45 ok (uptime-check: 79)
+   ... 16 minutes of stability (uptime 79 -> 1042) ...
+2026-09-21T17:03:02+05:45 ok (uptime-check: 1042)
+2026-09-21T17:03:24+05:45 *** AP UNREACHABLE *** (last ok 17:03:02)
+2026-09-21T17:03:56+05:45 AP-BACK after 29s unreachable
+2026-09-21T17:04:01+05:45 ok (uptime-check: 39)          <- uptime RESET => reboot, AP uptime ~1061 s
+
+NOTE the four-reset cluster at 16:40-16:46. `scratch/deploy823.sh` reboots exactly ONCE.
+The other three are unexplained by the deploy and are listed in Doc 170 §10 as follow-up.
+
+2. WHAT RAN ON THE BOOT THAT RESET AT 17:03
+-------------------------------------------
+Boot started ~16:45:41 (uptime 207.30 at 16:49:08 per scratch/qa_post823_run.log).
+
+(a) The three `echo stop` qa runs — 3 PASS / 0 FAIL / 0 SKIP (Doc 170 §8.7).
+    pre uptimes 207.30 / 245.89 / 285.95; each: survived, 0 list_del corruption,
+    teardown T9 stepped 1 -> 2 -> 3, restored rproc=running + qmi-proxy wwan fd.
+
+(b) THREE natural fatals, all fully recovered. Two independent instruments agree:
+
+  /overlay/ssr_ledger.csv (rows 14/15/16; columns = uptime,n,sig,t0..t9,core,devcd):
+    389.95,1,a2_power.c:1189,4,4,4,4,4,4,4,4,4,4,4,4,0,1,14
+    502.08,2,a2_power.c:1189,5,5,5,5,5,5,5,5,5,5,5,5,0,1,15
+    896.52,3,a2_power.c:2949,6,6,6,6,6,6,6,6,6,6,6,6,0,1,16
+    => t0..t9 ALL PRESENT on every row (full teardown), 0 corruption, core=1.
+
+  /overlay/coredump_watch.log:
+    [382.41s] dump device devcd1 ... -> modem_coredump_up382.41_devcd1.elf
+    [387.57s] captured 85398475 bytes from devcd1
+    [496.01s] dump device devcd2 ... -> modem_coredump_up496.01_devcd2.elf
+    [502.57s] captured 85398475 bytes from devcd2
+    [888.08s] dump device devcd3 ... -> modem_coredump_up888.08_devcd3.elf
+    [895.09s] captured 85398475 bytes from devcd3
+    [17.90s] === coredump_watch start pid=3260 ... ===   <- the NEW boot after the reset
+    => exactly THREE dumps; NO devcd4. The watcher is armed and working
+       (`cat /sys/class/remoteproc/remoteproc0/coredump` = `enabled`).
+
+So the reset came ~165 s AFTER the third fatal's SSR had completed (AP 896.52 -> ~1061).
+
+3. pstore IS EMPTY  => NOT A TRAPPABLE KERNEL FAULT
+---------------------------------------------------
+  # ls -la /sys/fs/pstore/
+  drwxr-x---    2 root     root            0 Sep 21 11:01 .
+  drwxr-xr-x    6 root     root            0 Jan  1  1970 ..
+
+  ramoops IS registered on this boot:
+  [    0.000000] OF: reserved mem: 0x...8db00000..0x...8dbfffff (1024 KiB) map non-reusable ramoops
+  [    0.236311] pstore: Using crash dump compression: deflate
+  [    0.246255] pstore: Registered ramoops as persistent store backend
+  [    0.250715] ramoops: using 0x100000@0x8db00000, ecc: 0
+
+A `list_del corruption` BUG()s/panics and WOULD leave a dmesg-ramoops-0 record.
+Its absence => the reset was NOT a trappable fault; a global stall + PMIC watchdog
+reset is the consistent reading (the Doc 159 "stopped the whole AP" picture).
+
+4. CONFOUNDERS CHECKED AND RULED OUT
+------------------------------------
+(a) /overlay space:  NOT full.
+    /dev/mmcblk0p15  3.2G  1.4G  1.6G  48%  /overlay
+    /overlay/coredump_live = 1.3G across 16 dumps.
+
+(b) qcom-carrier-autocfg:  did NOT reset the AP.  Doc 170 §9 trap 8 said it
+    "power-cycles the modem every 10 s" -- THAT WAS AN OVERSTATEMENT, corrected.
+    Its loop body (lines 470-563):
+        while true; do
+            MODEM_PATH=$(mmcli -L ...)
+            if [ -n "$MODEM_PATH" ]; then
+                ... read SIM operator/IMSI ...
+                if operator changed OR IMSI changed OR INITIAL_BOOT_PROVISION=1
+                   OR stored_imsi != IMSI; then
+                    provision...            # <- mmcli --set-power-state-low/-on
+                    if INITIAL_BOOT_PROVISION=1 && mbn_updated=1; then reboot; fi
+                    elif operator/IMSI changed && mbn_updated=1; then reboot; fi
+                fi
+            fi
+            sleep 10
+        done
+    i.e. `mmcli --set-power-state-low` (line 268) / `-on` (line 270) run only inside
+    the operator-change / initial-boot / radio-cache-mismatch branch; `reboot`
+    (lines 523/538) runs only on an MBN change.  In STEADY STATE the loop only polls.
+    At 17:03: no SIM swap, and boot-time provisioning logged at 11:01:36:
+        "Boot-time carrier provisioning completed successfully. No reboot required."
+
+5. THE POLLER WAS PRESENT, SO 823's TARGET VECTOR WAS COVERED
+-------------------------------------------------------------
+  # for p in /proc/[0-9]*/fd/*; do ... done
+  /proc/4619/fd/7 -> /dev/wwan0qmi0
+  => qmi-proxy is the ONLY holder of a wwan/rpmsg fd, exactly the poller 823 removes
+     from channel->fblockread_event.  The reset happened anyway.
+  Consistent with the reset being the OTHER (coredump-reclaim) mechanism, but NOT proof.
+
+6. WHY THE BEACON COULD NOT CHARACTERISE THE RESET -- AND THE FIX
+-----------------------------------------------------------------
+The old /overlay/beacon.sh began with:
+    : > "$OUTDIR/beacon_a.txt"
+    : > "$OUTDIR/beacon_b.txt"
+i.e. it TRUNCATED both files at every boot, destroying the previous boot's tail --
+the last advanced uptime before the reset, and the A-vs-B divergence that separates
+"the FS/writeback path wedged" from "a global stall".  The one event it existed to
+characterise was the one it could not.
+
+FIX (deployed this round; source kept at scratch/beacon.sh):
+    MARK="BOOT $(cut -d' ' -f1 /proc/uptime)s pid=$$ host=$(cat /proc/sys/kernel/hostname)"
+    printf '%s\n' "$MARK" >> "$OUTDIR/beacon_a.txt"
+    printf '%s\n' "$MARK" >> "$OUTDIR/beacon_b.txt"
+
+Verified live after restarting the instance:
+    --- beacon_a tail ---
+    BOOT 727.64s pid=1136 host=OpenWrt
+    727.64 1
+    729.66 2
+    --- beacon_b tail ---
+    BOOT 727.64s pid=1136 host=OpenWrt
+    727.64 1
+    729.65 2
+    --- beacon.log tail ---
+    [727.64s] beacon start: a=1144 (sync) b=1145 (nosync) outdir=/overlay
+
+7. VERDICT
+----------
+* 823 remains a real fix for the UAF it targets, and is non-regressed (§8.7).
+* 823 is NOT a complete fix for the production AP reset: one reset occurred with it
+  deployed, after three consecutive fully-recovered fatals.
+* The reset's cause is UNDETERMINED from this data. It is recorded, not explained.
+* The next reset WILL be characterisable: the beacon is now reset-durable.
+* Do not flash 822 expecting it to stop this class of reset -- 822 fixes the UAF,
+  and this reset's evidence points at the separate coredump-reclaim hang (Doc 159).

@@ -135,6 +135,60 @@ Note also the fatal rate: two `a2_power.c:1189` fatals inside ~120 s of each oth
 is activity/state-correlated and spans 68.5-941.3 s, NOT a ~902 s clock.
 
 ---------------------------------------------------------------------------
+3c. A THIRD NATURAL FATAL, WITH A DIFFERENT SIGNATURE -- a2_power.c:2949
+---------------------------------------------------------------------------
+The same boot continued and the ledger now ends:
+
+    389.95,1,a2_power.c:1189,4,...,14
+    502.08,2,a2_power.c:1189,5,...,15
+    896.52,3,a2_power.c:2949,6,6,6,6,6,6,6,6,6,6,6,6,0,1,16
+
+Third fatal, **signature `a2_power.c:2949`**, `t0..t9` ALL PRESENT again, coredump
+count 15 -> 16, and the device survived it (the dongle was then power-cycled by hand
+for the WiFi-adapter work, which is why this boot's dmesg no longer holds the lines --
+the LEDGER is the record that spans the reboot, which is exactly what it was built for).
+
+So with 823 deployed, **3/3 natural fatals ran the full teardown with 0 corruption and
+the AP survived**.  Worth noting for the corpus: `a2_power.c:2949` had been listed as
+"not observed" and then corrected to "observed (Doc 159)"; here it is observed again,
+and it is the signature that followed `a2_power.c:1189` in the same boot -- i.e. the
+`a2_power.c` family really does cover more than one site.
+
+---------------------------------------------------------------------------
+3d. THE SECOND MANAGEMENT PATH IS NOW REAL (verified this round)
+---------------------------------------------------------------------------
+The dongle's own WiFi AP (`phy0-ap0`, SSID `OpenWrt`, open) is now reachable from the
+build host through a second adapter, so "the USB gadget died" no longer means "no
+access":
+
+    RTL8188FTV on rtl8xxxu, on a 4-port hub sharing the host's single USB port
+    Bus 001 Port 001 -> Hub -> {Port 001: RTL8188FTV -> wlu1u1
+                                Port 002: HMU05 gadget -> enu1u2i2}
+
+    nmcli con add type wifi ifname wlu1u1 con-name hmu05-fallback ssid OpenWrt
+    nmcli con modify hmu05-fallback ipv4.never-default yes ipv6.never-default yes \
+        ipv4.route-metric 5000 ipv6.route-metric 5000
+    nmcli con up hmu05-fallback        # a SECOND `up` was needed for the DHCPv4 lease
+
+    ssh -b 192.168.8.102 root@192.168.8.1   -> IPV4-WIFI-PATH-OK
+    ssh root@fd85:138e:7d31::1              -> WIFI-PATH-OK   (dongle IPv6 ULA)
+
+    routes:  192.168.8.0/24 dev enu1u2i2 metric 2000   (preferred, USB)
+             192.168.8.0/24 dev wlu1u1  metric 5000    (fallback, WiFi)
+
+**`ipv4.never-default yes` is the load-bearing setting**: without it this AP's DHCP
+gateway takes the host's default route and the host loses its internet.  With the two
+metrics as above the failover is automatic and needs no script -- when `enu1u2i2`
+disappears its route goes with it and 192.168.8.1 is served over WiFi.
+
+**⚠ Side effect of the hub: the dongle's host interface was RENAMED
+`enu1i2` -> `enu1u2i2`.**  Address the dongle as `192.168.8.1`, never by interface name.
+
+Honest limit, so this is not oversold: if the AP itself hangs -- the failure being
+chased -- the WiFi AP dies with it.  This path distinguishes "AP hung" from "gadget
+died"; it does not rescue an AP hang.
+
+---------------------------------------------------------------------------
 4. THE TRAP THIS CREATED, AND THE LESSON
 ---------------------------------------------------------------------------
 `timeout waiting for ssctl service` and `modem pc-ack timeout during resume` were
