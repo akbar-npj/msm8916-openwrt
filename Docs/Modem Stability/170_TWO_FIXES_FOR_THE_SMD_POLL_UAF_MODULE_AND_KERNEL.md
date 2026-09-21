@@ -2160,36 +2160,49 @@ fatal #9** (`dmesg` 6360–6397 contains nothing but the fatal itself). So they 
 and **not** SSR outages: the data plane was silently dropping packets while the modem was already in
 the cascade. **A new, unexplained failure mode, recorded with n = 2.**
 
-**(d) THE CASCADE EXPERIMENT — FIRST RESULT: THE CASCADE STOPPED WHEN TRAFFIC WAS REMOVED, WHILE THE
-STORM KEPT RUNNING AT FULL RATE.** Traffic was stopped at **uptime 6600.88** (fatal count 10) and the
-marker `S2 STOP at uptime=6600.88 fatals=10` is appended to `/overlay/s2.log`. At **uptime 7035.44 —
-434.6 s later — there has been NO fatal #11**, against cascade intervals of 120.8 / 166.6 / 182.7 s.
-P(0 in 434.6 s │ mean 156.7 s) = e^(−2.77) ≈ **6 %**.
+**(d) ⚠ THE CASCADE IS BOUNDED — 3 BEATS — AND THE MODEM RETURNS TO THE 902 s CLOCK. AND MY FIRST
+READING OF THIS EXPERIMENT WAS CONFOUNDED AND IS WITHDRAWN.**
 
-**And in the same window the storm ran at full rate**, so this is a **clean separation of the cascade
-from the storm**:
+**The measurement that settles it:** fatal #11 fired at **AP 7483.839750**, signature
+**`lte_ml1_sleepmgr_stm.c:4054`** — the clock — **903.332309 s** after fatal #10. I predicted AP
+≈ 7482.8 s from fatal #10's modem boot; the miss is **1.04 s over a 902 s period**. Recovery:
+`SSR before shutdown` 7483.863268 → `MBA booted` 7483.983180 = **0.119912 s**, no `port failed halt`,
+patch 814's rebuild fired, AP survived ⇒ **§8.13 bar: 7 of 20 scored, 0 AP reboots** (boot-wide 11
+crashes / 12 `MBA booted` / 2 `port failed halt` / `cmd_open` 96 = 8 × 12).
+
+**⇒ THE CASCADE SELF-TERMINATED AFTER THREE BEATS (120.8 / 166.6 / 182.7 s) AND THE MODEM WENT BACK
+TO THE 902 s CLOCK.** Operationally this matters: the cascade is **not** a permanent degradation. And
+it means the "902 s clock" is really **"902 s of modem uptime"** — a cascade is a bounded departure
+from it, after which the next reload restarts the clock.
+
+**⚠ WHAT I FIRST CLAIMED, AND WHY IT WAS WRONG.** I stopped S2's traffic at **uptime 6600.88** and,
+seeing no fatal in the next 434.6 s against 120.8/166.6/182.7 s intervals, wrote that **"the cascade
+is traffic-dependent"** with P ≈ 6 %. **The cascade's last fatal was #10 at AP 6580.507441 — 20.4 s
+BEFORE I removed the traffic.** So the intervention was applied **after** the event it claimed to
+explain, and it can carry no weight. **An intervention applied after the event cannot explain the
+event.** (Trap 19.)
+
+**What actually survives from that window — and it is still worth having:** across 434.6 s with no
+traffic and no fatal, the storm ran at **full rate**:
 
 ```
 6600.88 -> 7035.44 (434.6 s), NO traffic:
   pc_resync_count      60 -> 70   (+10 = 1 per 30.6 s)
   pc_timeout_count     63 -> 70   (+7)
   pm_suspend_attempts 840 -> 879  (+39 = 1 per 7.8 s)
-  => failure rate 10/39 = 26 % resync, 7/39 = 18 % timeout  (the ~15-40 % post-onset band)
-  => 25 lost-edge / pc-ack lines in dmesg since 6600
+  => 26 % resync and 18 % timeout failure rates (the post-onset band, not the 5.2 % lifetime figure)
 ```
 
-**⇒ the cascade is traffic-dependent, and the storm is NOT sufficient for it.** That is a stronger
-statement than §8.17 could make, because it separates them by intervention rather than by correlation.
+So the storm is **not sufficient** for a fatal — which is the same conclusion §8.15.4 reached from the
+other direction, now with 434.6 s of concurrent observation rather than a 364 s window that happened
+to contain one.
 
-**⚠ THE AMBIGUITY THAT REMAINS, AND IT IS THE NEXT MEASUREMENT.** "No fatal in 434.6 s" is consistent
-with **two** different worlds: (i) removing traffic stopped the cascade, or (ii) **the cascade is
-self-limiting and the modem returned to the 902 s clock** — fatal #10's modem booted at ~6580.6, so a
-clock fatal is due at **AP ≈ 7482.8 s**, and we are at 7035.4. **The two are distinguishable only by
-waiting ~450 s more:** a fatal at ~7483 s means back on the clock; nothing past ~7500 s means both the
-cascade and the clock are gone. **Do not conclude before that.** The RPM capture (host bg task),
-`watch813.sh` and `storm_sampler.sh` all keep running, so the answer costs nothing but time — and the
-RPM capture is what makes fatal #11 interpretable at all (the ring turns over in ~6 s, so it must not
-be stopped).
+**⚠ THE ONE THING STILL NOT DISTINGUISHABLE.** The cascade's 4th beat would have been due at
+AP ≈ 6580.5 + ~199 ≈ **6779.5 s**, and the traffic was removed at 6600.9 — **174 s before that**. So
+"the cascade ended naturally at #10" and "the traffic removal suppressed a 4th beat" are **both
+consistent** with everything observed (the clock origin being fatal #10's boot does *not* discriminate,
+because with a suppressed beat there would be no reload to move the origin). **Stated, not resolved.**
+Distinguishing them needs a run where the traffic is removed *before* a cascade starts.
 
 ---
 
@@ -2370,6 +2383,23 @@ be stopped).
     each kernel line), **use that field, not the file order, for all cross-stream timing** — and state
     the limitation in the doc rather than leaving the next reader to discover it.
 
+19. **AN INTERVENTION APPLIED AFTER THE EVENT CANNOT EXPLAIN THE EVENT — timestamp the intervention
+    against the event before crediting one with the other (§8.19d).** I stopped the traffic at uptime
+    `6600.88` because a fatal was overdue, found **0 fatals in the next 434.6 s** against cascade
+    intervals of 120.8/166.6/182.7 s, computed P ≈ 6 %, and wrote *"the cascade is
+    traffic-dependent."* **The cascade's last fatal was #10 at AP `6580.507441` — 20.4 s BEFORE the
+    intervention.** The claim was withdrawn. The trap is not the arithmetic (which was fine) but the
+    **ordering**: a suppression experiment only tests a cause if the suppression precedes the effect it
+    is meant to prevent, and here the effect had already happened.
+    **How to apply:** before crediting an intervention with an outcome, **write the two timestamps side
+    by side** — intervention time and last-event time — and ask whether the intervention could
+    *plausibly* have acted first. Watch specifically for the case where the "effect" is a **rate**: with
+    a mean interval of ~157 s, stopping a process 20 s after the last event and then observing 435 s of
+    quiet looks exactly like suppression, and is not. **The clean design is to remove the suspected
+    cause BEFORE the next event is due, and to pre-register the expected beat times** — which is what
+    made this recoverable: fatal #11 was predicted at AP ≈ 7482.8 s and fired at `7483.839750`
+    (1.04 s), which is what proved the cascade had ended at #10 and the modem had returned to the clock.
+
 ---
 
 ## §10 What's next
@@ -2389,9 +2419,23 @@ be stopped).
   (gaps 0.35–0.59 s — it was *busy* logging the SSR). **One sample each way.** The discriminating
   question: **does a 13 s silence PRECEDE a fatal, or is it an independent recurring stall?** The
   capture is running across fatal #11 — **do not stop it; the ring turns over in ~6 s.**
-  **RUNNING NOW: the no-traffic cascade experiment** — traffic stopped at uptime **6600.88** (fatal
-  count 10). Does the cascade **continue** (cumulative modem degradation / an intrinsic post-clock-fatal
-  state) or **stop** (traffic-induced)? `watch813.sh`, `storm_sampler.sh` and `rpmring` all keep running.
+  **✅ RESOLVED — THE CASCADE IS BOUNDED (3 BEATS) AND THE MODEM RETURNED TO THE 902 s CLOCK.**
+  Fatal #11 fired at **AP 7483.839750**, signature **`lte_ml1_sleepmgr_stm.c:4054`**, **903.332309 s**
+  after fatal #10 — **predicted at AP ≈ 7482.8 s from fatal #10's modem boot, missed by 1.04 s** — and
+  recovered in **0.119912 s** with no `port failed halt` and patch 814's rebuild firing, AP survived.
+  **⇒ §8.13 bar: 7 of 20 scored, 0 AP reboots.** Operationally this matters: **the cascade is not a
+  permanent degradation**, and the "902 s clock" is really **"902 s of modem uptime"**, which the next
+  reload restarts. **⚠ AND MY FIRST READING OF THIS EXPERIMENT IS WITHDRAWN:** I stopped the traffic at
+  uptime 6600.88, saw 0 fatals in 434.6 s, and called the cascade "traffic-dependent" — but the
+  cascade's **last fatal was #10 at 6580.507441, 20.4 s BEFORE the intervention**, so it was applied
+  *after* the event it claimed to explain. **An intervention applied after the event cannot explain the
+  event (trap 19).** What survives is still useful: across those 434.6 s the storm ran at **full rate**
+  (resync +10 = 1/30.6 s, suspends +39 = 1/7.8 s, 26 %/18 % failure) with **no fatal** ⇒ the storm is
+  **not sufficient** for a fatal, now with concurrent observation rather than a window that happened to
+  contain one. **⚠ One thing remains undistinguishable:** the cascade's 4th beat was due at
+  ≈ 6779.5 s and the traffic was removed 174 s earlier, so "ended naturally" and "suppressed by the
+  removal" are both consistent — distinguishing them needs a run where traffic is removed *before* a
+  cascade starts.
 * **★ NEW AND UNEXPLAINED: SILENT DATA-PLANE LOSS WITH NO dmesg CORRELATE (§8.19c).** S2 finished at 56
   samples with **7 losses**; five are SSR outages but **two (6368.31, 6388.34) have no correlate at
   all** — `dmesg` 6360–6397 contains nothing but the fatal, no lost edge and no `pc-ack timeout`. So the
@@ -2403,19 +2447,20 @@ be stopped).
   samples 6119.3/6174.7 **is the maximum of the whole 33-sample series**, first reached in the two
   samples before fatal #8. **The pre-fatal window is the series maximum but is not separated from a
   value reached three times earlier — suggestive, not established (trap 17).**
-* **RUNNING NOW: the §8.13 coredump-off experiment — 6 of 20 fatals scored, AP survived.** The bar is
-  **0 AP reboots across 20 fatals**. **Fatal #9 (`a2_power.c:1189`, AP 6397.771058) gave 0.127579 s**,
-  inside the capture-OFF band, with **patch 814's rebuild firing and succeeding**
-  (`successfully reinitialized BAM channels and rings` → all 8 `CMD_OPEN`s). Six capture-OFF recoveries
-  now span **0.119170–0.130237 s** against **0.824902–0.831559 s** for the two capture-ON — two
-  non-overlapping populations ~7× apart, on **six signatures in six recoveries**.
-  ⚠ **The window now spans TWO regimes** (1 idle-clock fatal + 3 cascade fatals); say so whenever the
+* **RUNNING NOW: the §8.13 coredump-off experiment — 7 of 20 fatals scored, AP survived.** The bar is
+  **0 AP reboots across 20 fatals**. **Fatal #9 (`a2_power.c:1189`, AP 6397.771058) gave 0.127579 s**
+  and **fatal #11 (sleepmgr, AP 7483.839750) gave 0.119912 s**, both inside the capture-OFF band, with
+  **patch 814's rebuild firing and succeeding** in both
+  (`successfully reinitialized BAM channels and rings` → all 8 `CMD_OPEN`s). Seven capture-OFF
+  recoveries now span **0.119170–0.130237 s** against **0.824902–0.831559 s** for the two capture-ON —
+  two non-overlapping populations ~7× apart, on **seven signatures in seven recoveries**.
+  ⚠ **The window now spans TWO regimes** (2 idle-clock fatals + 3 cascade fatals); say so whenever the
   bar is quoted. ⚠ **Score on `SSR before shutdown`→`MBA booted`, NOT fatal→`is now up`.**
   Re-enable the capture with `touch /overlay/coredump_ENABLE`.
   If it succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling
   it also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says
   whether the recovery had already passed the coredump step, which is itself informative.
-  **Remaining: 14 fatals** — and the cascade makes them arrive in minutes, not 15.
+  **Remaining: 13 fatals (~3.3 h at the restored 902 s clock).**
 * **★ CHASE THE "LOST EDGE" STORM — but the question has CHANGED twice (§8.15 → §8.15.2 → §8.15.3).**
   The original question ("is a resync a poison pill 74 ms in front of a fatal?") is now **mostly
   answered NO**: 15 resyncs in this boot, only **1** preceded a fatal, and 8+ minutes of storm ran with

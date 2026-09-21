@@ -1604,38 +1604,64 @@ PART 11 -- THE FALSIFIER ANSWERED, THE CASCADE, AND THE 13.24 s RPM VOTE STALL
    pre-fatal window sits at the top of the observed range but is NOT separated
    from it.  NOT established as a precursor.
 
-7. THE CASCADE EXPERIMENT -- FIRST RESULT: THE CASCADE STOPPED WITHOUT TRAFFIC,
-   WHILE THE STORM KEPT RUNNING AT FULL RATE
+7. THE CASCADE IS BOUNDED -- 3 BEATS -- AND THE MODEM RETURNS TO THE CLOCK.
+   MY FIRST READING OF THIS EXPERIMENT WAS CONFOUNDED AND IS WITHDRAWN.
 
-   Traffic stopped at uptime 6600.88 (fatal count 10).
-   At uptime 7035.44 -- 434.6 s later -- there has been NO fatal #11, against
-   cascade intervals of 120.8 / 166.6 / 182.7 s.
-     P(0 in 434.6 s | mean 156.7 s) = exp(-2.77) ~ 6%
+   MEASUREMENT THAT SETTLES IT:
 
-   And the storm ran at FULL RATE in the same window:
+     [ 7483.839750] fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+     [ 7483.847914] handling crash #11
+
+     delta fatal #10 -> #11 = 7483.839750 - 6580.507441 = 903.332309 s
+     predicted from fatal #10's modem boot: AP ~7482.8 s  => miss 1.04 s
+     signature = the CLOCK one.
+
+   Recovery: `SSR before shutdown` 7483.863268 -> `MBA booted` 7483.983180
+             = 0.119912 s (inside the capture-OFF band 0.119170-0.130237 s)
+             no `port failed halt`; patch 814's rebuild fired
+             (`successfully reinitialized BAM channels and rings`)
+             AP survived.
+   => s8.13 bar: 7 of 20 scored, 0 AP reboots.
+      boot-wide: 11 crashes / 12 MBA booted / 2 port failed halt /
+                 cmd_open 96 = 8 x 12.
+
+   *** SO THE CASCADE SELF-TERMINATED AFTER THREE BEATS AND THE MODEM WENT
+   BACK TO THE 902 s CLOCK. ***  Operationally this matters: the cascade is
+   NOT a permanent degradation.  And it means the "902 s clock" is really
+   "902 s of MODEM UPTIME" -- a cascade is a bounded departure from it, and
+   the next reload restarts the clock.
+
+   *** THE CONFOUND -- MY OWN ERROR, WITHDRAWN ***
+   I stopped the traffic at uptime 6600.88 and, seeing 0 fatals in the next
+   434.6 s against cascade intervals of 120.8/166.6/182.7 s, wrote that "the
+   cascade is traffic-dependent" with P ~ 6%.
+   ** THE CASCADE'S LAST FATAL WAS #10 AT AP 6580.507441 -- 20.4 s BEFORE I
+   REMOVED THE TRAFFIC. **  The intervention was applied AFTER the event it
+   claimed to explain.  The claim is WITHDRAWN.  (Trap 19.)
+
+   WHAT SURVIVES, AND IS STILL WORTH HAVING -- the storm ran at FULL RATE
+   across the 434.6 s of no-traffic no-fatal:
 
      6600.88 -> 7035.44 (434.6 s), NO traffic:
        pc_resync_count      60 -> 70   (+10 = 1 per 30.6 s)
        pc_timeout_count     63 -> 70   (+7)
        pm_suspend_attempts 840 -> 879  (+39 = 1 per 7.8 s)
-       failure rate 10/39 = 26% resync, 7/39 = 18% timeout
-       (the ~15-40% post-onset band, NOT the 5.2% lifetime figure)
+       => 26% resync and 18% timeout failure rates
+          (the post-onset band, NOT the 5.2% lifetime figure)
        25 lost-edge / pc-ack lines in dmesg since 6600
 
-   => THE CASCADE IS TRAFFIC-DEPENDENT, AND THE STORM IS NOT SUFFICIENT FOR IT.
-   This is stronger than s8.17 could manage: it separates them by INTERVENTION
-   rather than by correlation.
+   => the storm is NOT SUFFICIENT for a fatal.  Same conclusion as s8.15.4
+   reached, now with 434.6 s of concurrent observation instead of a 364 s
+   window that happened to contain one.
 
-   *** THE AMBIGUITY THAT REMAINS -- AND IT IS THE NEXT MEASUREMENT ***
-   "No fatal in 434.6 s" fits TWO worlds:
-     (i)  removing traffic stopped the cascade; or
-     (ii) the cascade is SELF-LIMITING and the modem returned to the 902 s clock
-          -- fatal #10's modem booted at ~6580.6, so a clock fatal is due at
-          AP ~7482.8 s, and we are at 7035.4.
-   They are distinguishable only by waiting ~450 s more: a fatal at ~7483 s
-   means back on the clock; nothing past ~7500 s means both are gone.
-   DO NOT CONCLUDE BEFORE THAT.
-   `rpmring` (host bg task), `watch813.sh` and `storm_sampler.sh` all keep
-   running, so the answer costs nothing but time.
-   *** The RPM capture must not be stopped: the ring turns over in ~6 s, and
-   the whole point is to have it running ACROSS fatal #11. ***
+   *** THE ONE THING STILL NOT DISTINGUISHABLE ***
+   The cascade's 4th beat would have been due at AP ~6580.5 + ~199 ~ 6779.5 s,
+   and traffic was removed at 6600.9 -- 174 s BEFORE that.  So
+   "the cascade ended naturally at #10" and "the traffic removal suppressed a
+   4th beat" are BOTH consistent with everything observed.  (The clock origin
+   being fatal #10's boot does NOT discriminate: with a suppressed beat there
+   would be no reload to move the origin.)
+   STATED, NOT RESOLVED.  Distinguishing them needs a run where the traffic is
+   removed BEFORE a cascade starts.
+
+   *** The RPM capture must not be stopped: the ring turns over in ~6 s. ***
