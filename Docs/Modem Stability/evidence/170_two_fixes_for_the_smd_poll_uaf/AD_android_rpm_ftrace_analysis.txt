@@ -1,0 +1,57 @@
+file: scratch/android_capture/rpm_ftrace.txt
+rpm_send_message: 142   rpm_ack_recd: 142   other rpm events: 90
+window: 2040.228077 -> 2083.524037  (43.3 s)
+AP RPM send rate: 3.28/s (196.8/min)
+
+=== AP -> RPM ROUND TRIP (send -> ack), microseconds ===
+  n=142  unmatched=0
+  min     109.0 us
+  p50     139.5 us
+  p90     603.0 us
+  p99     614.0 us
+  max     617.0 us
+  mean     216.5 us
+  >      1000 us (     1.0 ms): 0   <-- NONE
+  >     10000 us (    10.0 ms): 0   <-- NONE
+  >    100000 us (   100.0 ms): 0   <-- NONE
+  >   1000000 us (  1000.0 ms): 0   <-- NONE
+
+=== AP RPM RESOURCE MIX ===
+      55  bslv     ids: 0x00(49),0x2d(2),0x84(2),0x18(2)
+      28  clk1     ids: 0x01(26),0x00(2)
+      25  clk2     ids: 0x00(25)
+      24  smpa     ids: 0x01(24)
+       6  bmas     ids: 0x1d(2),0x65(2),0x03(2)
+       4  ldoa     ids: 0x08(3),0x05(1)
+
+=== SENDER TASK ===
+      72  mdss_fb0
+      24  kworker/3:1
+      20  kworker/0:1
+       8  kworker/u8:3
+       8  kworker/u8:4
+       6  kworker/u8:1
+       4  irq/170-7824900
+
+=== CONTEXT / SET ===
+     142  ctx=sleep set=act
+
+=== BURSTINESS (sends per 100 ms bin) ===
+  bins=21  min=1  p50=8  max=24  mean=6.8
+  empty 100 ms bins: 412 of 432 (95.4%)
+
+=== INTER-SEND GAP (ms) ===
+  min 0.142  p50 0.285  p90 77.082  p99 12130.282  max 13378.270
+  longest 8 gaps (ms): 548.2, 551.9, 1854.5, 1861.9, 4461.2, 5452.0, 12130.3, 13378.3
+
+=== SLOWEST 10 AP->RPM ROUND TRIPS ===
+      617.0 us  id=28412 mdss_fb0(391) smpa rsc_id=0x1 at t=2082.891218
+      614.0 us  id=28422 mdss_fb0(391) smpa rsc_id=0x1 at t=2083.518942
+      612.0 us  id=28332 mdss_fb0(391) smpa rsc_id=0x1 at t=2059.838801
+      611.0 us  id=28392 mdss_fb0(391) smpa rsc_id=0x1 at t=2070.082388
+      610.0 us  id=28312 mdss_fb0(391) smpa rsc_id=0x1 at t=2045.754824
+      609.0 us  id=28402 mdss_fb0(391) smpa rsc_id=0x1 at t=2070.683600
+      609.0 us  id=28322 mdss_fb0(391) smpa rsc_id=0x1 at t=2046.382610
+      609.0 us  id=28342 mdss_fb0(391) smpa rsc_id=0x1 at t=2060.454529
+      607.0 us  id=28372 mdss_fb0(391) smpa rsc_id=0x1 at t=2067.541807
+      607.0 us  id=28362 mdss_fb0(391) smpa rsc_id=0x1 at t=2062.994976

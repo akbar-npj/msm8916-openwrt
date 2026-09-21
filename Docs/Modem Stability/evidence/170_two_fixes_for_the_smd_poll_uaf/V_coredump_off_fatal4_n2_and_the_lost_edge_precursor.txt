@@ -4419,3 +4419,291 @@ WHAT PART 28 DOES NOT CLAIM
     n >= 60 AP-hang soak.  Those are unaffected.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 29 -- ANDROID'S AP SIDE EXPOSES AN RPM OBSERVABILITY LAYER OPENWRT DOES NOT
+           BUILD -- INCLUDING A DIRECT, PER-SUBSYSTEM MEASUREMENT OF THE MODEM'S
+           OWN POWER-COLLAPSE RATE, WHICH WAS PREVIOUSLY ONLY ESTIMABLE BY
+           COUNTING DIAG MESSAGES ACROSS TWO INCOMPARABLE TRANSPORTS
+================================================================================
+
+0. WHY THIS PART EXISTS
+
+   PART 28 measured the bam_dmux handshake and closed that item.  The remaining
+   live question is the intersection of the two differentials: the failure needs
+   BOTH the OpenWrt AP AND the HMU05 modem.  The subsystem that connects them is
+   the RPM -- the modem's Q6 PC vote is the "rpm" LPR (q6pcvote = rpm LPR
+   +0x18) and the chain stalls in `rpm.sync` (0xc08bebd0), whose flush loops have
+   no timeout.  And the RPM's "client 0", which appears in a 1.3 s window at the
+   fatal (2/2), is not the modem.
+
+   So the AP's RPM behaviour is the thing to compare.  This PART records what the
+   Android AP side can observe that OpenWrt cannot, and the baseline it gives.
+
+   SOP COMPLIANCE (standing rule): EVIDENCE, not a patch.  Nothing was flashed;
+   no modem firmware was touched.  The Android measurements use only debugfs and
+   tracefs that were already present.  The comparative protocol is satisfied by
+   reading each driver's DEFINITION (rpm_master_stats.c, qcom_stats.c, rpm_log.c,
+   bam_dmux.c) before quoting any number, and by recording the OpenWrt side's
+   state as `not set` in the built .config rather than assuming.
+
+--------------------------------------------------------------------------------
+
+1. THE ROOT PRECONDITION: THE ANDROID SHELL IS uid 2000, NOT ROOT
+
+   This cost real time and is worth one paragraph.  `adb shell id` returns
+
+       uid=2000(shell) gid=2000(shell) ... context=u:r:shell:s0
+
+   and in that state most of what follows is invisible: `devmem` gives
+   "can't open '/dev/mem': Permission denied", ftrace `enable` files give
+   "can't create ...: Permission denied", and writing the SELinux knob gives
+   "Permission denied" -- all of which look like kernel policy but are simply
+   "you are not root".
+
+   `adb root` returned NO OUTPUT AND DID NOT WORK.  The recipe that does work is
+   the one already recorded in the corpus (Stock_Android_Live/01 s9):
+
+       adb shell 'setprop service.adb.root 1; busybox killall adbd'
+       sleep 6 && adb wait-for-device && adb shell id     # uid=0(root)
+
+   Consequence to remember: the recipe KILLS EVERY RUNNING CAPTURE (adbd
+   restarts).  The pre-root captures were preserved as
+   scratch/android_capture/*_pre_root.log before re-rooting.
+
+   SECOND TRAP, walked into again: `pkill -f "rpm_master_stats"` MATCHED ITS OWN
+   SHELL and killed it before the target.  The corpus already warns about
+   `pkill -f`; it is still true.  Kill by explicit PID from
+   `ps -eo pid,args | grep "[a]db shell"`.
+
+--------------------------------------------------------------------------------
+
+2. WHAT THE ANDROID AP SIDE EXPOSES
+
+   All of the following exist on the stock Android 4.4.4 (kernel 3.10.28) build
+   with NO instrumentation and NO kernel build:
+
+     /d/rpm_master_stats                     per-master APSS/MPSS/PRONTO stats
+     /d/rpm_stats                             RPM low-power MODE stats + votes
+     /d/rpm_send_msg/message                  a WRITE interface to the RPM
+     /d/rpm_log                               the RPM ulog, as a streaming reader
+     /sys/kernel/debug/tracing/events/rpm_smd/rpm_send_message
+     /sys/kernel/debug/tracing/events/rpm_smd/rpm_ack_recd
+     /sys/kernel/debug/tracing/events/rpm/*   device runtime-PM events
+     /sys/kernel/debug/clk/rpm_debug_mux
+     /sys/kernel/debug/ipc_logging/{smem,smp2p,smd,smd_pkt,ipc_router,...}
+     /d/bam_dmux/{stats,tbl,ul_pkt_cnt}       (PART 28)
+
+   The two ftrace tracepoints are the most valuable, because they are DECODED.
+   `rpm_send_message` (emitted at drivers/soc/qcom/rpm-smd.c:1141 and :433) prints
+
+     ctx:%s set:%s rsc_type:0x%08x(%s), rsc_id:0x%08x, id:%d
+
+   -- i.e. the resource NAME, not an opaque id -- and `rpm_ack_recd` prints the
+   matching `id`, so the AP->RPM ROUND TRIP is measurable per message.
+
+   OpenWrt's 6.12 kernel has NONE of the rpm_smd tracepoints (checked:
+   no TRACE_EVENT(rpm_send_message)/rpm_ack_recd in drivers/soc/qcom/, and
+   include/trace/events/ has only rpm.h).  So this tracepoint pair is an
+   Android-only instrument.
+
+--------------------------------------------------------------------------------
+
+3. MEASURED -- THE AP -> RPM ROUND TRIP ON ANDROID IS ALWAYS SUB-MILLISECOND
+
+   45 s window, both tracepoints enabled, n = 142 sends / 142 acks
+   (0 unmatched):
+
+     min   109.0 us
+     p50   139.5 us
+     p90   603.0 us
+     p99   614.0 us
+     MAX   617.0 us
+     mean  216.5 us
+
+     >  1 ms : 0
+     > 10 ms : 0
+     >100 ms : 0
+     >  1 s  : 0
+
+   **Zero events above 1 ms.**  The AP's RPM handshake never stalls in this
+   window.  (The 45 s window is short; a longer capture is running, and this
+   number is recorded as "n=142, one window", not as a stationary property.)
+
+   RATE AND SHAPE:
+     AP RPM send rate ...... 3.28/s (196.8/min)
+     burstiness ............ 95.4% of 100 ms bins are EMPTY (max 24 sends in one
+                             100 ms bin) -- the AP's RPM traffic is bursty, not
+                             continuous
+     inter-send gap ........ p50 0.285 ms, but max 13.378 s
+
+   RESOURCE MIX (the names are the tracepoint's own decode):
+
+       count  rsc_type   rsc_ids seen
+          55  bslv       0x00(49), 0x2d, 0x84, 0x18      (bus slave)
+          28  clk1       0x01(26), 0x00
+          25  clk2       0x00(25)
+          24  smpa       0x01(24)                        (SMPS regulator)
+           6  bmas       0x1d, 0x65, 0x03                (BAM slave)
+           4  ldoa       0x08(3), 0x05                   (LDO regulator)
+
+   SENDER TASK -- the dominant AP RPM client is the DISPLAY:
+
+       mdss_fb0        72   <- 51% of all AP RPM traffic
+       kworker/3:1     24
+       kworker/0:1     20
+       kworker/u8:*    22
+       irq/170-7824900  4
+
+   This matters for the comparison: OpenWrt is a headless router with no
+   `mdss_fb0`, so the AP's RPM resource mix on OpenWrt CANNOT be assumed similar.
+   The comparison has to be made, not inferred.
+
+--------------------------------------------------------------------------------
+
+4. THE DELIVERABLE -- THE MODEM'S OWN POWER-COLLAPSE RATE, IN ONE `cat`
+
+   `/d/rpm_master_stats` prints, per RPM master, the RPM firmware's own counters:
+
+     APSS  shutdown_req / wakeup_ind / bringup_req / bringup_ack /
+           last_sleep_transition_duration / last_wake_transition_duration /
+           wakeup_reason / numshutdowns / active_cores
+     MPSS      ... the same fields, for the MODEM
+     PRONTO    ... the same fields, for WiFi/BT
+
+   MEASURED on Android, two independent windows:
+
+     MPSS  numshutdowns  3104 -> 3252  in 113 s  =  1.310 /s
+     MPSS  numshutdowns  3024 -> 3103  in  52 s  =  1.523 /s
+     APSS  numshutdowns  35737 -> 35737 in 113 s =  0.000 /s
+     PRONTO numshutdowns    11 -> 11    in 113 s =  0.000 /s
+
+     MPSS  active_cores = 0x0   (the modem is power-collapsed at sample time)
+     APSS  active_cores = 0x1
+     MPSS  last_sleep_transition_duration 0x2fd8, last_wake_transition_duration 0x4f6a
+
+   Note the APSS/PRONTO counters are FLAT while the AP is awake with adb and the
+   display on -- only the modem's counter advances.  That is exactly the
+   quantity of interest, and it is now separable from the AP's own sleep.
+
+   WHY THIS IS THE DELIVERABLE AND NOT JUST ANOTHER COUNTER: the modem's
+   power-collapse cadence is the single most-cited number in this whole
+   investigation --
+
+       corpus (Doc 02 s2):   Android 916 MCPM cycles / 488 s = 1.88 /s
+                             OpenWrt 100 MCPM cycles / 121 s = 0.83 /s
+
+   -- and the corpus DISMISSED that 2.3x gap in the same paragraph it reported
+   it: "The lower OpenWrt rate is attributable to the 30x lower DIAG capture
+   rate (rpmsg vs USB transport), not a behavioural difference."
+
+   That dismissal is now testable rather than arguable.  Per DIAG RECORD the
+   two captures are 0.00154 (Android) and 0.0206 (OpenWrt) MCPM messages -- so
+   OpenWrt's capture carries 13x MORE MCPM per record, which is not what a
+   transport that merely drops frames would look like.  Whether the 2.3x rate
+   gap is real or an artefact has therefore been an open question this whole
+   time, and it is the one that decides whether the modem behaves differently
+   under the two AP stacks.
+
+   `rpm_master_stats` answers it directly, from the RPM's own counters, with the
+   SAME code path on both platforms, and needs no DIAG transport, no mask work,
+   and no interpretation of two different log formats.  Android's baseline is
+   now 1.31-1.52 /s (n=2 windows).
+
+--------------------------------------------------------------------------------
+
+5. THE OPENWRT GAP, AND HOW SMALL IT IS TO CLOSE
+
+   The driver IS IN THE OPENWRT TREE:
+
+     openwrt/build_dir/.../linux-6.12.94/drivers/soc/qcom/rpm_master_stats.c
+     drivers/soc/qcom/Makefile:21:  obj-$(CONFIG_QCOM_RPM_MASTER_STATS) += rpm_master_stats.o
+
+   but the build has it OFF:
+
+     .config:4069:  # CONFIG_QCOM_RPM_MASTER_STATS is not set
+
+   and it is **tristate**, so it can be built as a LOADABLE MODULE -- no kernel
+   flash, the same deployment class as patch 823.
+
+   WHAT ELSE IS NEEDED, and this is the only non-trivial part: a DT node.
+   `master_stats_probe()` (rpm_master_stats.c:68-135) does
+
+       count = of_property_count_strings(dev->of_node, "qcom,master-names");
+       msgram_np = of_parse_phandle(dev->of_node, "qcom,rpm-msg-ram", i);
+       of_address_to_resource(msgram_np, 0, &res);
+       data[i].base = devm_ioremap(dev, res.start, resource_size(&res));
+
+   and `master_stats_show()` then does
+
+       memcpy_fromio(&stat, data->base, sizeof(stat));      /* 80 bytes */
+
+   with NO per-master offset.  So the upstream driver wants ONE SRAM SLICE PER
+   MASTER, and the per-master stride that the downstream driver applied
+   internally must be expressed as three separate nodes.
+
+   THE ADDRESSES ARE KNOWN, from the Android DT
+   (GitIgnore/android_kernel_zte_msm8916/arch/arm/boot/dts/qcom/msm8916-pm.dtsi:332):
+
+       qcom,rpm-master-stats@60150 {
+               reg = <0x60150 0x2030>;
+               qcom,masters = "APSS", "MPSS", "PRONTO";
+               qcom,master-stats-version = <2>;
+               qcom,master-offset = <4096>;
+       };
+
+   => APSS @ 0x60150, MPSS @ 0x61150, PRONTO @ 0x62150, 80 bytes each
+      (sizeof(struct rpm_master_stats) = 4+4+8+8+8+8+4+4+4+4+8+8+8 = 80, __packed).
+
+   And the upstream msm8916.dtsi ALREADY HAS the enclosing region
+   (arch/arm64/boot/dts/qcom/msm8916.dtsi:541):
+
+       rpm_msg_ram: sram@60000 { compatible = "qcom,rpm-msg-ram";
+                                 reg = <0x00060000 0x8000>; };
+
+   -- 0x60000..0x68000 contains 0x60150/0x61150/0x62150.  So the enabler is a
+   small DT overlay plus CONFIG_QCOM_RPM_MASTER_STATS=m.
+
+   PARTIAL COVERAGE ALREADY EXISTS: `CONFIG_QCOM_STATS=y` IS set, and
+   qcom_stats.c handles `qcom,msm8916-rpm-stats` (upstream msm8916.dtsi
+   `sram@290000`).  That exposes `/sys/kernel/debug/qcom_stats/{vmin,xosd,...}`
+   with `Client Votes: %#x` -- the RPM low-power MODE stats, i.e. the equivalent
+   of Android's `/d/rpm_stats`.  What it does NOT expose is the PER-MASTER
+   `numshutdowns`, which is the number this PART is about.
+
+--------------------------------------------------------------------------------
+
+6. WHAT PART 29 CHANGES
+
+  - Records that the Android AP side has a full RPM observability layer that
+    needs no instrumentation, and that the two `rpm_smd` tracepoints are DECODED
+    (resource names) and give a per-message round trip.  OpenWrt has neither.
+  - MEASURED: the AP->RPM round trip on Android is 109-617 us, n=142,
+    ZERO events > 1 ms.  The AP's RPM traffic is bursty (95.4% of 100 ms bins
+    empty) at 3.28/s and is DOMINATED BY THE DISPLAY (mdss_fb0, 51%).
+  - MEASURED: the MODEM's own RPM power-collapse rate on Android is
+    **1.310 /s (113 s window) and 1.523 /s (52 s window)**, while APSS and
+    PRONTO are flat -- i.e. the counter isolates the modem cleanly.
+  - Identifies a concrete, no-flash OpenWrt enabler: CONFIG_QCOM_RPM_MASTER_STATS
+    (tristate) + a 3-slice DT node at 0x60150/0x61150/0x62150, with the
+    addresses and the 80-byte layout taken from the Android DT and the driver's
+    own DEFINITION.
+  - Re-frames the corpus's 1.88 vs 0.83 /s MCPM gap as TESTABLE rather than
+    dismissed, and notes the per-record arithmetic that argues the dismissal was
+    not soundly founded.
+
+WHAT PART 29 DOES NOT CLAIM
+
+  - It does NOT claim the RPM cadence difference is causal.  It says the
+    quantity can now be measured the same way on both platforms, and gives the
+    Android baseline.  The OpenWrt number is still the DIAG-derived 0.83 /s and
+    must be re-measured with this instrument.
+  - It does NOT claim the 45 s round-trip window is representative.  n=142 in
+    one window; a longer capture is running.
+  - It does NOT claim the AP's RPM behaviour is the cause of the fatal.  The
+    fatal is modem-internal and ~902 s periodic; this PART is about the AP-side
+    observability of the shared subsystem the modem's PC vote depends on.
+  - It does NOT touch PART 28's conclusion, the userspace bearer rebuild, or the
+    n >= 60 AP-hang soak.
+
+--------------------------------------------------------------------------------

@@ -1,0 +1,37 @@
+# Android rpm_master_stats raw samples (2026-09-22)
+# source: /d/rpm_master_stats on stock Android 4.4.4, kernel 3.10.28, adb root
+# APSS/MPSS/PRONTO per-master RPM sleep/wake counters
+
+=== up 2215 (first sample) ===
+=== up 2215 ===
+APSS
+	shutdown_req:0x78FFD159B
+	wakeup_ind:0x78FFE3907
+	bringup_req:0x78FFE3996
+	bringup_ack:0x78FFE39DE
+	last_sleep_transition_duration:0x174a
+	last_wake_transition_duration:0x3aa
+	wakeup_reason:0x1
+	numshutdowns:0x8b99
+	active_cores:0x1
+		core0
+MPSS
+	shutdown_req:0x9E8612843
+	wakeup_ind:0x9E8558CAC
+	bringup_req:0x9E8558D7D
+	bringup_ack:0x9E8558DC6
+	last_sleep_transition_duration:0x2fd8
+	last_wake_transition_duration:0x4f6a
+	wakeup_reason:0x0
+	numshutdowns:0xc1f
+	active_cores:0x0
+PRONTO
+	shutdown_req:0x17941BB6
+	wakeup_ind:0xEDAA3C0
+	bringup_req:0x17D3ECF6
+	bringup_ack:0x17D40CBB
+	last_sleep_transition_duration:0x14dd
+	last_wake_transition_duration:0x1b78
+	wakeup_reason:0x0
+	numshutdowns:0xb
+	active_cores:0x1
