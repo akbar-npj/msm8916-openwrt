@@ -2155,6 +2155,27 @@ checking it.
    window, which is what the claim rests on.  What was wrong was only the
    forward-looking statement about the instrument's availability.
 
+   *** CONFIRMED AT THE TASK LEVEL (not inferred from the file) ***
+   The launcher was still a live background task, and it reported its exit:
+
+     Command : ssh root@192.168.8.1 'echo "RPM9 START uptime=$(...) fatals=$(...)"
+               > /overlay/rpm9.txt; exec /overlay/rpmring -t -n 500000 -i 4
+               >> /overlay/rpm9.txt 2>&1'
+     Status  : completed
+     Duration: 35m 57s = 2157 s
+     Stdout  : (no output)      Stderr: (no output)
+
+   The arithmetic closes: the header reads `uptime=6343.17`, which is
+   13:04:05 UTC; + 2157 s = 13:40:02 UTC, and `ls -l /overlay/rpm9.txt` reports
+   mtime **13:40** -- to the minute.  So the run ended on its POLL BUDGET
+   (2157 s / 500 000 polls = **4.31 ms per poll**, against the `-i 4` nominal),
+   with **no error on either stream**.  It did not crash, and it was not killed.
+   Note also that this launcher was an ssh session held open as a background
+   task -- i.e. it was NOT daemonised, which is a second reason it could not
+   outlive its budget.  The replacement IS daemonised (`start-stop-daemon -b`),
+   and it has been re-verified alive and growing after a later ssh session
+   exited: pid 25898, `/overlay/rpm10.txt` 2 313 080 -> 2 663 140 bytes.
+
 --------------------------------------------------------------------------------
 2. RESTART -- AND A DEVICE QUIRK THAT MADE THE FIRST ATTEMPT SILENT
 --------------------------------------------------------------------------------
