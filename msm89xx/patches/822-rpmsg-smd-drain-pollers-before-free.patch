@@ -1,0 +1,82 @@
+--- a/drivers/rpmsg/qcom_smd.c
++++ b/drivers/rpmsg/qcom_smd.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+  */
+ 
++#include <linux/delay.h>
+ #include <linux/interrupt.h>
+ #include <linux/io.h>
+ #include <linux/mailbox_client.h>
+@@ -1532,6 +1533,63 @@
+ 	return 0;
+ }
+ 
++/*
++ * qcom_smd_drain_channel_pollers() - let outstanding pollers unlink first
++ *
++ * A task blocked in poll()/ppoll() on an rpmsg endpoint of this edge holds a
++ * poll_table_entry linked in channel->fblockread_event (see qcom_smd_poll()).
++ * That entry is only unlinked by poll_freewait(), i.e. once the woken task is
++ * scheduled again.  The device_for_each_child() call above wakes such a task
++ * (rpmsg_wwan_ctrl_remove() -> wwan_remove_port() -> wake_up_interruptible())
++ * but does not wait for it, while the edge release callback that frees the
++ * channels runs synchronously in this thread a few lines further down.
++ *
++ * Without this barrier the channel is freed while the poller still points into
++ * it, and poll_freewait() then walks a wait-queue head whose memory has been
++ * recycled by the slab allocator.  Observed on msm8916/HMU05 as
++ *
++ *   list_del corruption. prev->next should be <entry>, but was <freelist ptr>
++ *   WARNING: CPU: 1 PID: 4836 at lib/list_debug.c:62
++ *     __list_del_entry_valid_or_report
++ *     remove_wait_queue <- poll_freewait <- do_sys_poll <- __arm64_sys_ppoll
++ *
++ * followed by an AP reset.  The clobbered word is exactly
++ * &channel->fblockread_event.head.next, which for the kmalloc-192 object that
++ * holds struct qcom_smd_channel coincides with the SLUB freelist pointer.
++ *
++ * The wait is bounded so that a poller which somehow never wakes cannot hang
++ * the SSR teardown.
++ */
++static void qcom_smd_drain_channel_pollers(struct qcom_smd_edge *edge)
++{
++	struct qcom_smd_channel *channel;
++
++	list_for_each_entry(channel, &edge->channels, list) {
++		int retries;
++
++		if (!waitqueue_active(&channel->fblockread_event))
++			continue;
++
++		/*
++		 * The task is parked on this queue, so a wakeup guarantees it
++		 * runs poll_freewait() even if nothing else woke it.
++		 */
++		wake_up_all(&channel->fblockread_event);
++
++		/* Bounded at roughly 5 seconds. */
++		for (retries = 5000; retries > 0; retries--) {
++			if (!waitqueue_active(&channel->fblockread_event))
++				break;
++			msleep(1);
++		}
++
++		if (waitqueue_active(&channel->fblockread_event))
++			dev_warn(&edge->dev,
++				 "channel '%s' still has pollers after ~5s\n",
++				 channel->name);
++	}
++}
++
+ /**
+  * qcom_smd_unregister_edge() - release an edge and its children
+  * @edge:      edge reference acquired from qcom_smd_register_edge
+@@ -1548,6 +1606,7 @@
+ 	if (ret)
+ 		dev_warn(&edge->dev, "can't remove smd device: %d\n", ret);
+ 
++	qcom_smd_drain_channel_pollers(edge);
+ 	mbox_free_channel(edge->mbox_chan);
+ 	device_unregister(&edge->dev);
+ }
