@@ -1,0 +1,89 @@
+file: scratch/android_capture/bam_dmux_pre_root.log
+events: 3357   span 8.203 -> 1979.508 s
+soak regime: t >= 380.0 s   events 2834   span 389.883 -> 1979.508 s
+
+=== TOP 8 SILENCES ===
+    38.028 s     874.309 ->   912.336
+        after: ...<DMUX> drpa vuWa0 bam_dmux_smsm_ack_cb: 0x0800880b -> 0x08008009
+        next : ...32] <DMUX> drPa vuWA0 bam_dmux_smsm_cb: 0x08008009 -> 0x0800900b
+    37.183 s     914.335 ->   951.518
+        after: ...914.335354402] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....518248787] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.960 s     465.671 ->   491.631
+        after: ...465.671100950] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....630677905] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.945 s     640.514 ->   666.459
+        after: ...640.514289452] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....459000625] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.900 s    1483.464 ->  1509.364
+        after: ...483.464486138] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....364264915] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.898 s     669.661 ->   695.559
+        after: ...669.660912354] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....558722277] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.175 s     582.998 ->   608.173
+        after: ...<DMUX> drpa vuWa0 bam_dmux_smsm_ack_cb: 0x0800980b -> 0x08008009
+        next : ....173442114] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.162 s    1659.101 ->  1684.263
+        after: ...<DMUX> drpa vuWa0 bam_dmux_smsm_ack_cb: 0x0800880b -> 0x08009009
+        next : ....263162480] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+
+all gaps: n=2833 median=0.0001 mean=0.5611 p99=25.125 max=38.028
+
+=== HISTOGRAM ===
+     0-0.1 s : 2394
+     0.1-1 s : 325
+       1-5 s : 58
+      5-20 s : 9
+     20-26 s : 45
+     30-40 s : 2
+
+The ping cadence (ping -c 3 -W 2; sleep 27) puts the bulk of the gaps in 20-26 s.  A gap outside that bucket is a candidate outage; confirm it against the ping log and the driver counters.
+
+UL wakeups: 80  (3.02/min)
+disconnect/reconnect pairs: 73  (2.76/min)
+  NOTE: these should track 1:1.  The pair is the modem's SMSM_A2_POWER_CONTROL/SMSM_PROC_AWAKE sleep handshake, NOT an SSR (Doc 170 PART 33 s3).
+file: scratch/android_capture/bam_dmux.log
+events: 1609   span 1999.546 -> 3017.658 s
+soak regime: t >= 2110.0 s   events 1560   span 2110.318 -> 3017.658 s
+
+=== TOP 8 SILENCES ===
+    25.957 s    2200.822 ->  2226.779
+        after: ...200.821540305] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....778642937] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.477 s    2667.897 ->  2693.374
+        after: ...667.896666782] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....373602120] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.215 s    2347.228 ->  2372.444
+        after: ...347.228384815] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....443727443] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.196 s    2726.438 ->  2751.634
+        after: ...726.438384252] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....634248235] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.153 s    2113.318 ->  2138.471
+        after: ...113.318308216] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....471457615] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.146 s    2988.518 ->  3013.665
+        after: ...988.518294426] <DMUX> drpa vuWA0 release_wakelock: ref count = 1
+        next : ....664755753] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.137 s    2784.748 ->  2809.886
+        after: ...<DMUX> drpa vuWa0 bam_dmux_smsm_ack_cb: 0x0800980b -> 0x08008009
+        next : ....885736642] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+    25.135 s    2230.778 ->  2255.914
+        after: ...<DMUX> drpa vuWa0 bam_dmux_smsm_ack_cb: 0x0800880b -> 0x08008009
+        next : ....913707922] <DMUX> drpa vuWA0 ul_wakeup waiting for previous ack
+
+all gaps: n=1559 median=0.0001 mean=0.5820 p99=25.125 max=25.957
+
+=== HISTOGRAM ===
+     0-0.1 s : 1303
+     0.1-1 s : 194
+       1-5 s : 31
+      5-20 s : 2
+     20-26 s : 29
+
+The ping cadence (ping -c 3 -W 2; sleep 27) puts the bulk of the gaps in 20-26 s.  A gap outside that bucket is a candidate outage; confirm it against the ping log and the driver counters.
+
+UL wakeups: 41  (2.71/min)
+disconnect/reconnect pairs: 41  (2.71/min)
+  NOTE: these should track 1:1.  The pair is the modem's SMSM_A2_POWER_CONTROL/SMSM_PROC_AWAKE sleep handshake, NOT an SSR (Doc 170 PART 33 s3).

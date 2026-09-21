@@ -1,0 +1,50 @@
+Android dmesg, full-boot coverage check (Doc 170 PART 32 s1)
+captured: 2026-09-21T19:57:58Z  device uptime at capture: 2723+ s
+
+=== first 2 and last 3 lines (no wrap test) ===
+<6>[    0.000000] Booting Linux on physical CPU 0x0
+<6>[    0.000000] Initializing cgroup subsys cpu
+   ...
+<6>[ 2025.168042] android_work: android_work: sent uevent USB_STATE=CONFIGURED
+<6>[ 2040.067780] bridge1: port 2(rndis0) entered forwarding state
+<4>[ 2723.448156] htb: prio qdisc 10: is non-work-conserving?
+
+=== total lines: 1005 ===
+
+=== every modem / subsys lifecycle line ===
+305:<3>[    0.472886] subsys-restart: subsys_register(): subsys->restart_level 0
+308:<3>[    0.474344] pil-q6v5-mss 4080000.qcom,mss: [modem]: Error getting proxy unvoting gpio
+309:<6>[    0.474468] platform 4080000.qcom,mss: Driver pil-q6v5-mss requests probe deferral
+468:<3>[    0.681690] subsys-restart: subsys_register(): subsys->restart_level 0
+469:<3>[    0.682886] subsys-restart: subsys_register(): subsys->restart_level 1
+622:<6>[    6.542211] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x86800000 to 0x8ba00000
+623:<6>[    6.588171] pil: MBA boot done
+624:<6>[    7.214836] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+625:<6>[    7.319978] pil-q6v5-mss 4080000.qcom,mss: modem: Power/Clock ready interrupt received
+626:<6>[    7.320011] pil-q6v5-mss 4080000.qcom,mss: Subsystem error monitoring/handling services are up
+664:<6>[    7.643287] apr_tal:Modem Is Up
+751:<6>[    9.831959] subsys-pil-tz a21b000.qcom,pronto: wcnss: Brought out of reset
+
+count of 'Brought out of reset': 2
+  (2 = modem once + wcnss once; wcnss is a21b000.qcom,pronto at 9.83 s)
+
+=== grep -c for any SSR recovery wording ===
+  subsys-restart: Resetting    0
+  subsystem_restart            1
+  modem: restart               0
+  SSR                          8
+  fatal error received         0
+
+=== the non-zero greps explained (NOT SSR recovery) ===
+268:<6>[    0.455555] platform qcom,smp2pgpio-ssr-smp2p-1-in.12: Driver smp2pgpio requests probe deferral
+269:<6>[    0.455723] platform qcom,smp2pgpio-ssr-smp2p-1-out.13: Driver smp2pgpio requests probe deferral
+270:<6>[    0.456669] platform qcom,smp2pgpio-ssr-smp2p-4-in.18: Driver smp2pgpio requests probe deferral
+271:<6>[    0.456836] platform qcom,smp2pgpio-ssr-smp2p-4-out.19: Driver smp2pgpio requests probe deferral
+614:<11>[    6.536877] init: property 'persist.sys.ssr.enable_debug' doesn't exist while expanding '${persist.sys.ssr.enable_debug}'
+615:<11>[    6.536898] init: cannot expand '${persist.sys.ssr.enable_debug}' while writing to '/sys/module/subsystem_restart/parameters/enable_debug'
+642:<11>[    7.445363] init: cannot find '/system/bin/ssr_diag', disabling 'ssr_diag'
+650:<11>[    7.450096] init: cannot find '/system/bin/ssr_setup', disabling 'ssr_setup'
+
+  * 'SSR' x8 = the qcom,smp2pgpio-ssr-smp2p-* DT nodes (probe deferrals).
+  * 'subsystem_restart' x1 = init writing /sys/module/subsystem_restart/parameters/enable_debug.
+  * 'subsys-restart: Resetting' = 0  <-- the actual recovery message never appears.

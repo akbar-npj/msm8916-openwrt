@@ -4916,3 +4916,447 @@ WHAT PART 31 DOES NOT CLAIM
     number.
 
 --------------------------------------------------------------------------------
+
+================================================================================
+PART 32 -- ANDROID'S ONLY CONNECTIVITY OUTAGE IN 45 MINUTES IS A ~77 s DATA-CALL
+           LOSS WHOSE WINDOW CONTAINS THE MODEM-RELATIVE 902 s POINT
+================================================================================
+
+0. HOW THIS AROSE
+
+   Parts 28-31 were about the pc-ack control and the RPM.  This PART is a
+   by-product: while re-scoring the Android soak I tabulated the bam_dmux
+   SILENCE-GAP distribution instead of only the message census, and the two
+   largest gaps in the whole capture turned out to be adjacent, at the one
+   uptime the corpus cares about.
+
+   Everything below is from ONE boot of stock Android (the same boot as PART
+   28/29/30/31).  It is n = 1 and it is labelled as such throughout.
+
+--------------------------------------------------------------------------------
+
+1. THE CONTROL THAT MAKES THE COMPARISON MEANINGFUL: ANDROID HAD EXACTLY ONE
+   MODEM BOOT IN 2723 s
+
+   `adb shell dmesg` returns 1005 lines spanning `[ 0.000000]` to
+   `[ 2723.448156]` -- i.e. the ring buffer holds the ENTIRE boot, it has not
+   wrapped.  In it, for the modem (`4080000.qcom,mss`):
+
+     [    6.588171] pil: MBA boot done
+     [    7.214836] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+     [    7.643287] apr_tal:Modem Is Up
+
+   and `grep -c "Brought out of reset"` = 2, the second being
+   `a21b000.qcom,pronto: wcnss` at 9.831959 s (WiFi, not the modem).
+
+   So across 2723 s of Android uptime there is **exactly one modem bring-up,
+   zero `subsys-restart` recoveries, zero `pil` reloads, zero fatals.**
+
+   This is the cleanest possible statement of the differential, and it is
+   stronger than the DIAG-based one of Doc 170's Android differential because
+   dmesg is the AP's own view rather than an inference from modem DIAG density:
+   the SAME byte-identical firmware, on the SAME device, runs 2723 s on Android
+   without a single fatal, while OpenWrt's deterministic idle fatal lands at
+   ~902.3 s of modem uptime.
+
+   MODEM BOOT ANCHOR FOR THIS BOOT: AP 7.215 s.  (Used for every modem-relative
+   conversion below.)
+
+--------------------------------------------------------------------------------
+
+2. THE OUTAGE: THREE INDEPENDENT INSTRUMENTS AGREE
+
+   (a) bam_dmux SILENCE GAPS.  The pre-root `log_cont` capture holds 3357
+       events spanning AP 8.203 -> 1979.508 s.  Restricting to the soak regime
+       (t >= 380 s, i.e. after the ping loop started -- see the trap in s5), the
+       gap distribution is:
+
+         n = 2833 gaps   median 0.0001 s   mean 0.5611 s   p99 25.125 s
+         histogram:  0-0.1 s : 2394     5-20 s :   9
+                     0.1-1 s :  325    20-26 s :  45
+                     1-5 s   :   58    26-30 s :   0
+                                      30-40 s :   2   <-- the only two
+
+       The top two gaps, and nothing else is close:
+
+         38.028 s    AP  874.309 ->  912.336
+         37.183 s    AP  914.335 ->  951.518
+         25.960 s    AP  465.671 ->  491.631   (third; normal cadence)
+
+       **The two largest silences in 1600 s of soak are adjacent**, separated by
+       a 2.0 s blip of activity at 912.336-914.335.  Together they are one
+       episode: AP 874.309 -> 951.518 s, 77.209 s.
+
+       Note the cadence structure: the ping loop is `ping -c 3 -W 2; sleep 27`,
+       which produces a tight cluster of gaps at ~25.9 s (45 of them in
+       20-26 s).  The 26-30 s bucket is EMPTY.  So the normal cadence gap is
+       25.9 s and the two anomalous gaps are 1.47x that -- they are not an
+       extreme of the cadence distribution, they are outside it.
+
+   (b) PING.  Burst #19 of the pre-root soak (the 19th of 54, both loops
+       started together and both are ~30 s) reported:
+
+         3 packets transmitted, 0 received, 100% packet loss, time 2004ms
+
+       immediately preceded by TWO `connect: Network is unreachable` lines.
+       Burst #19 is at AP ~920 s, i.e. INSIDE the bam_dmux silence window.
+
+       `Network is unreachable` is ENETUNREACH from the routing-table lookup --
+       the AP could not even form the packet.  This is NOT a silent drop.
+
+   (c) DRIVER COUNTERS.  The 60 s snapshot loop froze:
+
+         uptime   skbRd   skbWr  rxq  ackOut  ackIn  pwrIn
+             891   10814   10748    0      62     68     62
+             921   10926   10748    0      64     68     64
+             951   10926   10748    0      64     68     64   <-- identical to 921
+             981   12632   13036    0      72     76     72
+
+       `skb write cnt` is frozen at 10748 for 60 s (891 -> 951) and `skb read
+       cnt` is frozen at 10926 for 30 s.  The `uptime` marker advanced 30 s
+       between samples, so the shell loop was running -- only the driver's
+       counters were not moving.  A stale-buffer artifact would have frozen the
+       uptime marker too.
+
+--------------------------------------------------------------------------------
+
+3. THE OUTAGE ENDS WITH A MOBILE-DATA REBUILD, CONFIRMED TO THE SECOND
+
+   `adb logcat -d -v time` retains 4403 lines; the oldest is
+   `09-22 00:52:52.395`.  The device wall clock is wrong for the first ~60-70 s
+   of a boot but is correct by this point, so wall<->uptime converts directly.
+   Anchoring on uptime 2704.06 <-> 01:22:14 IST:
+
+     00:53:02.037  ->  AP  952.1 s   modem-rel  944.8 s
+     01:02:29.967  ->  AP 1520.1 s   modem-rel 1512.8 s
+     01:08:50.607  ->  AP 1901.1 s   modem-rel 1893.8 s
+     01:20:18.907  ->  AP 2589.1 s   modem-rel 2581.8 s
+     01:23:06.577  ->  AP 2757.1 s   modem-rel 2749.8 s
+
+   The first of these is `ConnectivityChange for mobile: CONNECTED/CONNECTED` +
+   `handleConnect: E newNetType=0 thisIface=rmnet0`, and it is preceded in the
+   same second by
+
+     ConnectivityChange for mobile: CONNECTING/CONNECTING      (00:53:01.747)
+     handleConnect: E newNetType=5 thisIface=rmnet0 isFailoverfalse
+     newLp={InterfaceName: rmnet0 LinkAddresses: [10.81.148.167/28,]
+            Routes: [0.0.0.0/0 -> 10.81.148.168,] DnsAddresses: [49.45.0.1,]}
+     Adding 0.0.0.0/0 -> 10.81.148.168 for interface rmnet0    (00:53:02.017)
+
+   **AP 952.1 s (logcat) vs AP 951.518 s (the bam_dmux silence ending) -- a
+   0.6 s agreement between two unrelated instruments.**  The outage ended when
+   Android rebuilt the mobile data call and re-added the default route.
+
+   The mechanism of the ENETUNREACH is visible in the live routing state:
+
+     $ ip route show table all | grep -i unreachable
+     unreachable default dev lo  table 0  proto kernel  metric 4294967295
+                                 error -101
+
+     $ ip rule
+     0:     from all lookup local
+     98:    from 192.168.100.0/24 lookup 60
+     99:    from all to <various> lookup main
+     32766: from all lookup main
+     32767: from all lookup default
+
+   `error -101` IS ENETUNREACH.  With the network's table (60) and `main` both
+   consulted before the fallback, removing the data call's default route makes
+   traffic fall through to the kernel's `unreachable default` and fail fast --
+   which is exactly what `connect: Network is unreachable` reports.
+
+--------------------------------------------------------------------------------
+
+4. THE OUTAGE IS ONE-SHOT PER MODEM BOOT -- TWO PRE-REGISTERED NON-RECURRENCES
+
+   The modem-internal clock is ~902.3 s of MODEM uptime (Doc 148 s15, Doc 149
+   s22/s45).  With the modem booted at AP 7.215 s, the multiples fall at:
+
+     #1  modem-rel  902.3  ->  AP  909.5 s     <-- INSIDE the outage
+     #2  modem-rel 1804.6  ->  AP 1811.8 s
+     #3  modem-rel 2706.9  ->  AP 2714.1 s
+
+   #2 and #3 were both checked and produced NOTHING:
+
+     * AP 1811.8: the pre-root gap list in 1750-1880 s contains only the normal
+       ~25.1 s cadence gaps (25.117 at 1804.718->1829.835, 25.109 at
+       1775.608->1800.718, 25.147 at 1862.958->1888.105).  No silence.
+     * AP 2714.1: the post-root capture, taken with its soak start set from the
+       post-root snapshot's first uptime marker (`--soak-start 2110`, the
+       discipline of s5), gives n = 1559 gaps over AP 2110.318 -> 3017.658 s
+       with:
+
+         median 0.0001 s   mean 0.5820 s   p99 25.125 s   MAX 25.957 s
+         histogram:  0-0.1 s : 1303    5-20 s  :  2
+                     0.1-1 s :  194   20-26 s  : 29
+                     1-5 s   :   31   26-30 s  :  0    30-40 s : 0
+
+       **The 26-30 and 30-40 buckets are EMPTY over 907 s**, i.e. in this whole
+       regime the largest gap is the ordinary ping cadence (25.957 s).  No
+       silence at 2714.1, and none anywhere else either.
+       (Passing `--soak-start 1999` instead of 2110 exposes a 107.579 s gap at
+       AP 2001.746 -> 2109.325 -- that is the re-root RESTART ARTIFACT, not an
+       outage, and it is exactly the s5 trap: the post-root snapshot's first
+       marker is uptime 2110 while the bam_dmux capture opens at 1999.5.)
+
+   So the ~902 s alignment rests on ONE occurrence, and the event does NOT
+   recur at the next two multiples.  Whatever it is, it is not a free-running
+   902.3 s oscillator on this boot.
+
+   Corroborating the "not a period" reading from the other side: the logcat
+   window contains FIVE `ConnectivityChange for mobile: CONNECTED/CONNECTED`
+   events, at modem-relative 944.8 / 1512.8 / 1893.8 / 2581.8 / 2749.8 s, i.e.
+   intervals of 568 / 381 / 688 / 168 s.  **Data-call re-broadcasts are routine
+   and irregular on Android.**  Only the FIRST of the five coincided with a
+   bam_dmux silence, so "a data-call rebuild" by itself is not the signature --
+   the signature is the 77 s silence, and the rebuild is how it ended.
+
+--------------------------------------------------------------------------------
+
+5. TRAP FOUND WHILE DOING THIS: THE PRE-SOAK BUFFERED HISTORY IS NOT SOAK DATA
+
+   The first pass at the gap distribution produced a 111.684 s gap
+   (141.068 -> 252.752) and a 95.984 s gap (42.476 -> 138.460), both LARGER than
+   the event I was looking for.  They are an artifact of `log_cont`: it is a
+   CONTINUOUS reader, so the capture opens with whatever the ipc_logging ring
+   already held -- i.e. lines from BOOT, not from the capture's start.  The
+   bam_dmux capture therefore begins at AP 8.2 s while the snapshot and ping
+   loops in the same command block only begin at AP ~380 s (the snapshot's first
+   `=== uptime` marker is 379.99).
+
+   During AP 8-380 s the modem was idle because no ping soak was running yet, so
+   the gaps are large and meaningless.  **Always establish the soak regime's
+   start from an instrument that stamps its own start (here the snapshot's
+   uptime markers), never from the first line of a `log_cont` capture.**
+
+--------------------------------------------------------------------------------
+
+6. TWO READINGS, AND WHY NEITHER IS ESTABLISHED
+
+   READING A -- "the ~902 s event is not OpenWrt-specific".  The modem has a
+   periodic internal hiccup at ~902.3 s of modem uptime.  On Android the AP
+   survives it: the data path stops, Android's watchdog eventually tears the
+   call down and rebuilds it, and the user sees ~77 s of no connectivity.  On
+   OpenWrt the same event escalates to `ERR_FATAL a2_power.c:1189` plus an SSR,
+   and the user sees a 15-26 s bearer rebuild (Doc 170's userspace finding).
+   Under this reading the two stacks see the SAME event and differ only in
+   outcome, and the OpenWrt bug is a MISHANDLING, not a cause.
+
+   READING B -- "coincidence".  The Android outage is an ordinary Android/
+   network-side transient (a PDN conflict, a carrier detach, the provisioning
+   check) that happens to overlap 902.3 s.  The outage is 77.209 s wide out of
+   ~1600 s of soak, so a uniformly-timed unrelated event lands inside it with
+   p ~= 4.8 %.  That is suggestive but not significant on its own.
+
+   EVIDENCE THAT DOES NOT SEPARATE THEM:
+     * The bam_dmux log shows NOTHING anomalous at the onset.  The last events
+       before the silence are a textbook UL cycle: `ul_wakeup` at 870.310, three
+       `ul_timeout: pkt written 1` at 871.308/872.308/873.308 (a 4 s uplink
+       hold, the normal `(ticks+1) x 1.000 s` pattern), then a normal
+       `ul_powerdown` at 874.308 followed by the normal `disconnect_to_bam`.
+       So bam_dmux cannot distinguish "the AP had nothing to send" from "the
+       modem stopped servicing the path".
+     * The modem did NOT crash: no SSR in dmesg, one modem boot, and the SMSM
+       handshake continued normally DURING the outage (a `reconnect` at 912.336
+       and a `disconnect` at 914.335).  A dead modem cannot do that.
+     * The 77.209 s duration is consistent with the corpus's DcTracker 60 s
+       data-stall watchdog (60 s to detect + ~17 s to rebuild), which supports
+       Reading A's *mechanism* but says nothing about its *trigger*.
+
+   WHAT WOULD SEPARATE THEM: a second Android boot with
+     (i)  BOTH `ping 8.8.8.8` and `ping -I rmnet0 8.8.8.8` in parallel
+          (the second bypasses the routing table -- see PART 33 s2),
+     (ii) a PERSISTENT `logcat -b all -v time > file` started at boot, so the
+          DISCONNECTED event is retained instead of wrapping out, and
+     (iii) a 10 s snapshot cadence so the onset is bracketed to +-10 s rather
+          than +-30 s.
+   PRE-REGISTERED: under Reading A, a >= 30 s bam_dmux silence, or a data-call
+   DISCONNECTED/CONNECTED pair, occurs with onset at modem-relative
+   902.3 +- 40 s on the second boot.  Under Reading B it does not.
+
+--------------------------------------------------------------------------------
+
+7. WHAT PART 32 CLAIMS AND WHAT IT DOES NOT
+
+   CLAIMS
+   - Android ran 2723 s with exactly one modem boot, zero SSRs, zero fatals
+     (dmesg, full-boot coverage, no wrap).
+   - Android had exactly one connectivity outage in that window: AP
+     874.309 -> 951.518 s (77.209 s), modem-relative 867.1 -> 944.3 s.
+   - Three independent instruments agree (bam_dmux gaps, ping ENETUNREACH,
+     frozen driver counters), and its END is confirmed to 0.6 s by logcat.
+   - The modem-relative 902.3 s point falls INSIDE that window.
+   - The event did not recur at modem-relative 1804.6 or 2706.9 s.
+
+   DOES NOT CLAIM
+   - It does NOT claim the Android outage IS the 902 s event.  n = 1, the
+     window is 4.8 % of the soak, and Reading B is live.
+   - It does NOT claim Android is immune to the 902 s event, nor that OpenWrt's
+     fatal is caused by it.  The two remain connected only by a coincidence of
+     time.
+   - It does NOT change PART 28/30 (n = 117, zero ack-wait timeouts) or PART 31
+     (the RPM series), and it does NOT touch any OpenWrt number.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+PART 33 -- CORRECTIONS: THE POOLED ANDROID PING IS ~2 % NOT 0.7 %, AND THE
+           CORPUS'S "0 % PING LOSS" USED `ping -I rmnet0`, WHICH STRUCTURALLY
+           CANNOT SEE A ROUTE LOSS
+================================================================================
+
+1. THE POOLED PING, RE-SCORED AGAIN (PART 29's correction WAS ITSELF TOO LOW)
+
+   PART 29's correction replaced "0 % loss" with "44/45 bursts, ~0.7 %, one
+   ordinary-jitter loss".  Both files have grown since, and the pooled figure
+   is now (soak still running, so the denominator is a LOWER BOUND and the rate
+   an UPPER bound -- re-score at the end):
+
+     pre-root   54 bursts
+     post-root  33 bursts
+     POOLED     87 bursts, 261 tx, 256 rx  ->  1.92 % loss
+     (at the earlier scoring: 85 bursts, 1.96 %)
+
+   with THREE lossy bursts, not one:
+
+     pre-root  burst #1    3 tx / 2 rx   33 %   <-- first burst after start
+     pre-root  burst #19   3 tx / 0 rx  100 %   <-- the outage of PART 32
+     post-root             3 tx / 2 rx   33 %   <-- single-packet
+
+   So: **~2 %, driven by one total-loss burst, not ~0.7 % driven by one jitter
+   packet.**  The distinction matters because a 100 % burst is a categorical
+   event, not tail behaviour, and it is the thing PART 32 is about.  Note also
+   that the loss rate is NOT the interesting statistic here: 33 % and 100 % are
+   different KINDS of event, and pooling them into one percentage hides that.
+
+   (Same lesson as PART 30, one level down: a rate quoted from a file that is
+   still growing is a lower bound on the DENOMINATOR and an upper bound on the
+   loss.  PART 29's correction was made on a partially-read file for the second
+   time.  Re-score from the completed file.)
+
+2. THE CORPUS'S "0 % PING LOSS" IS WEAKER THAN IT READS -- `ping -I rmnet0`
+   CANNOT OBSERVE A ROUTE LOSS
+
+   `project_android_differential_900s` records "0 % ping loss (62 bursts x 3
+   pings each, all received)" and states the method: "Data interface: rmnet0,
+   `ping -I rmnet0 8.8.8.8`".
+
+   `-I rmnet0` BINDS the socket to the interface, which bypasses the
+   routing-table lookup entirely.  The failure PART 32 found -- ENETUNREACH
+   from the `unreachable default dev lo table 0` fallback -- is produced BY that
+   lookup.  **A soak using `ping -I rmnet0` therefore cannot, even in principle,
+   observe the outage PART 32 found, no matter how long it runs.**
+
+   This is not a contradiction between the two results; it is two different
+   questions:
+     `ping -I rmnet0 8.8.8.8`  asks "does the rmnet0 interface forward packets?"
+     `ping 8.8.8.8`            asks "is there working connectivity?"
+
+   The corpus's 0 % is a valid answer to the first.  It was read as an answer to
+   the second.  **Any future Android control must run BOTH, side by side, or it
+   will silently certify a connectivity outage as clean.**
+
+3. DE-CONFUSION: `disconnect_to_bam` IS NOT AN SSR
+
+   The Android bam_dmux log prints `disconnect_to_bam: disconnect tx / disconnect
+   rx / device reset` and `bam_dmux_smsm_cb: ... disconnect`.  Counted naively
+   these look alarming -- 86 cycles in the pre-root capture, 27 in the
+   post-root -- and "device reset" invites the reading "the modem reset 86
+   times".  It is nothing of the kind, and the decode is available from the
+   tree:
+
+     include/soc/qcom/smsm.h:44   #define SMSM_PROC_AWAKE         0x00001000
+     include/soc/qcom/smsm.h:56   #define SMSM_A2_POWER_CONTROL   0x00000002
+     bam_dmux.c:2509              smsm_state_cb_register_ptr(SMSM_MODEM_STATE,
+                                      SMSM_A2_POWER_CONTROL, bam_dmux_smsm_cb, ...)
+     bam_dmux.c:2435              bam_dmux_power_state =
+                                      new_state & SMSM_A2_POWER_CONTROL ? 1 : 0
+
+   The two words actually observed are `0x0800800b` and `0x08009009`.  They
+   differ in exactly two bits: bit 1 (`SMSM_A2_POWER_CONTROL`) and bit 12
+   (`SMSM_PROC_AWAKE`) trade places.  Everything else -- bit 0 `SMSM_INIT`,
+   bit 3 `SMSM_SMDINIT`, bit 15, bit 27 -- is identical.
+
+   So the transition is **the modem clearing `A2_POWER_CONTROL` and setting
+   `PROC_AWAKE`**: "I am going to sleep."  The callback is registered on
+   `SMSM_MODEM_STATE` (the MODEM's word), so the AP is reading the modem's own
+   announcement.  `disconnect_to_bam()` is the AP's correct response (tear the
+   BAM channels down); it is not a fault and not an SSR.
+
+   Corroboration that it is the normal per-burst power dance, not a fault:
+   the cycle count is 1:1 with the UL wakeup count in both windows --
+     pre-root   86 disconnect/reconnect pairs over 1971 s = 1 per 22.9 s
+                (95 UL wakeups over 1971 s = 1 per 20.7 s)
+     post-root  27 pairs over 698 s = 1 per 25.9 s
+                (26 UL wakeups over 694 s = 1 per 26.7 s)
+   **A real SSR storm would not track the ping cadence.**
+
+   And the state prefix is now pinned from the source (bam_dmux.c:320-337),
+   which is what the earlier parse trap was about:
+     D = a2_pc_disabled      V = bam_dmux_uplink_vote
+     R = in_global_reset     U = bam_is_connected
+     P = bam_dmux_power_state W = wait_for_ack
+     A = connection_is_active A = ul_wakeup_ack_completion.done
+     then one digit = the on-demand uplink vote.
+   The format string is `"<DMUX> %c%c%c%c %c%c%c%c%d "` -- TWO space-separated
+   tokens.  `drPA/VUwA` (449 occurrences) is the healthy active state;
+   `drpA vuWA0` is the state at the instant of a sleep announcement.
+
+4. THE RPM SERIES, EXTENDED: 300 s, MPSS 1.580 /s (n = 10)
+
+   PART 31's series was 240 s / 8 intervals at 1.600 /s.  The same sampler has
+   since produced a longer window:
+
+     uptime   APSS     MPSS    PRONTO
+     2389     35737     3338      11
+     2419     35737     3386      11
+     2449     35737     3448      11
+     2479     35737     3492      11
+     2509     35737     3538      11
+     2539     35737     3590      11
+     2569     35737     3637      11
+     2599     35737     3671      11
+     2629     35737     3722      11
+     2659     35737     3761      11
+     2689     35737     3812      11
+
+     300 s window:  MPSS 1.580 /s   APSS 0.000 /s   PRONTO 0.000 /s
+     intervals:     n = 10,  min 1.133,  max 2.067  (1.82x spread)
+
+   This supersedes PART 31's headline number (1.600 /s, n=8) as the current
+   Android baseline.  The interval spread is IDENTICAL (1.133-2.067), so the
+   1.82x noise floor of PART 31 s3 stands unchanged, as do pre-registrations
+   P1/P2/P3.
+
+5. THE bam_dmux POOL, EXTENDED: n = 121
+
+     pre-root   AP   8.2 -> 1979.5 s   n = 95
+     post-root  AP 1999.5 -> 2697.4 s   n = 26
+     POOLED                            n = 121
+
+   Still **zero** real ack-wait timeouts (the three strings at
+   bam_dmux.c:1917/1928/1936).  Latest post-root window: vote->ack n=26,
+   min 0.140, p50 1.876, max 2.291 ms -- 109x headroom against OpenWrt's 250 ms
+   wait.  The standing pre-registration is unchanged: n >= 300 for the 1 %
+   regime, so n = 121 still excludes 5.7 % decisively and 2 % only marginally.
+
+6. WHAT PART 33 CHANGES
+
+  - Corrects PART 29's correction: the pooled Android ping is **85 bursts /
+    1.96 %**, with one 100 % burst, not 44/45 at ~0.7 %.
+  - Records the `ping -I rmnet0` trap: it bypasses the routing table and
+    structurally cannot observe a route loss, so the corpus's Android "0 %
+    ping loss" is not evidence about connectivity.
+  - Decodes the bam_dmux `disconnect_to_bam` / `reconnect` pair from
+    `smsm.h` + the registration site: it is the modem's
+    `SMSM_A2_POWER_CONTROL` / `SMSM_PROC_AWAKE` sleep handshake, NOT an SSR.
+  - Extends the RPM series to 300 s (1.580 /s, n=10) and the bam_dmux pool to
+    n = 121.
+
+  DOES NOT CLAIM
+  - It does NOT change any OpenWrt number, the 902 s fatal, the bearer rebuild,
+    or the n >= 60 AP-hang soak.
+  - It does NOT retract the corpus's Android DIAG work; it narrows what that
+    work's "0 % ping loss" line supports.
+
+--------------------------------------------------------------------------------

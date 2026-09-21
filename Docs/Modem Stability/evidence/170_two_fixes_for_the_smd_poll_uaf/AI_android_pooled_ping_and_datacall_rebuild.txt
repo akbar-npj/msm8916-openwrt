@@ -1,0 +1,58 @@
+Android pooled ping + data-call rebuild timeline (Doc 170 PART 32 s2/s3, PART 33 s1)
+
+=== pooled ping, both files ===
+  scratch/android_capture/soak_ping_pre_root.log             54 bursts
+  scratch/android_capture/soak_ping.log                      33 bursts
+  POOLED: 87 bursts, 261 tx, 256 rx, loss = 1.92 %
+  lossy bursts:
+    ('soak_ping_pre_root.log', 3, 2, 33)
+    ('soak_ping_pre_root.log', 3, 0, 100)
+    ('soak_ping.log', 3, 2, 33)
+
+=== the 100 % burst in context (pre-root, lines 140-152) ===
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 46.827/108.696/193.681/62.141 ms
+connect: Network is unreachable
+connect: Network is unreachable
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2004ms
+
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=114 time=193 ms
+
+=== logcat: mobile data-call CONNECTED events, wall -> AP uptime ===
+  anchor: uptime 2704.06 <-> 01:22:14 IST
+    00:53:02.037 -> AP  952.1 s  modem-rel  944.8 s   <-- ends the PART 32 outage
+    01:02:29.967 -> AP 1520.1 s  modem-rel 1512.8 s
+    01:08:50.607 -> AP 1901.1 s  modem-rel 1893.8 s
+    01:20:18.907 -> AP 2589.1 s  modem-rel 2581.8 s
+    01:23:06.577 -> AP 2757.1 s  modem-rel 2749.8 s
+  intervals: 568 / 381 / 688 / 168 s  -> IRREGULAR, not a 902 s clock
+
+  bam_dmux silence ended at AP 951.518 s  => agreement to 0.6 s
+
+=== the rebuild, verbatim ===
+  00:53:01.697 ConnectivityChange for mobile_hipri: CONNECTING/CONNECTING
+  00:53:01.747 ConnectivityChange for mobile: CONNECTING/CONNECTING
+  00:53:02.017 Adding 0.0.0.0/0 -> 10.81.148.168 for interface rmnet0
+  00:53:02.037 ConnectivityChange for mobile: CONNECTED/CONNECTED
+
+=== the ENETUNREACH route (live) ===
+unreachable default dev lo  table 0  proto kernel  metric 4294967295  error -101
+unreachable default dev lo  table 0  proto kernel  metric 4294967295  error -101
+unreachable default dev lo  table 0  proto kernel  metric 4294967295  error -101
+--- ip rule ---
+0:	from all lookup local 
+98:	from 192.168.100.0/24 lookup 60 
+99:	from all to 10.118.238.60 lookup main 
+99:	from all to 20.157.85.5 lookup main 
+99:	from all to 20.47.89.121 lookup main 
+99:	from all to 10.81.148.168 lookup main 
+99:	from all to 20.47.89.120 lookup main 
+99:	from all to 49.45.0.1 lookup main 
+32766:	from all lookup main 
+32767:	from all lookup default 
