@@ -12,15 +12,19 @@ own first print (`qcom_bam_dmux.c:2238`) never appeared**, and **no coredump dev
 `rproc_stop()` never returned. Doc 164 §9's pre-registration is therefore **falsified in site**: the
 hang is not in the 23-step window and not in Doc 159's window either — it is **upstream of both**.
 
-**Two corrections were made to this document after its first draft, and they matter more than the
-original finding. Read §2.2b and §5.4 before citing anything here.** (i) The `pmsg` sink is fed by a
+**Three corrections were made to this document after its first draft, and they matter more than the
+original finding. Read §2.2b and §5.5 before citing anything here.** (i) The `pmsg` sink is fed by a
 **userspace** reader, so "no further line appeared" is *proven* only for `dev_err`-and-above — the
 missing `dev_info` line may simply never have been copied. (ii) `wwan0at0 disconnected` is an
-**rpmsg/SMD** line, not a bam_dmux one, so **three independent consumers stop within ~7 ms** — which
-a single driver mutex cycle cannot explain, and which points at the **logging/console path** as a
-live alternative. §8 nonetheless fixes **two provable deadlocks** — including a **true ABBA on one
+**rpmsg/SMD** line, not a bam_dmux one. (iii) **§5.4 — which proposed that the stall is in the
+logging/console path — is RETRACTED in §5.5**, because its mechanism was checked against this
+kernel's source and **does not exist in Linux 6.12**: the global `logbuf_lock` was removed in v5.10,
+`printk_ringbuffer.c` is explicitly lockless, and neither `/dev/kmsg` nor `dmesg` takes a global
+lock. A `/dev/kmsg` reader *sleeps on `log_wait`* when the ring is quiet, so its silence is expected,
+not diagnostic. §8 nonetheless fixes **two provable deadlocks** — including a **true ABBA on one
 mutex** — and ships five `dev_err` hand-off probes with a pre-registered decode table; it is
-justified on its own merits, but is **not claimed to be the cure**.
+justified on its own merits, and with §5.4 gone it is **again the leading explanation** for the hang,
+though still not proven to be it.
 
 ---
 
@@ -30,10 +34,10 @@ justified on its own merits, but is **not claimed to be the cure**.
 |---|---|
 | No baseband change; no firmware write | **Honoured.** Zero firmware bytes touched. Device-side writes this round: **none** (read-only probes). |
 | Dual-firmware comparative protocol | **Not applicable, and deliberately so** — same reasoning as Doc 164 §0 / Doc 165 §0. This is AP-side kernel instrumentation. There is no Android counterpart to compare against, and **no baseband hypothesis is advanced**. The comparative protocol exists to stop blind *baseband* patching; nothing here touches the baseband. |
-| Verify against ground truth before acting | **Honoured.** Every claim in §5 is read from the **live build tree** (`openwrt/build_dir/.../drivers/net/wwan/qcom_bam_dmux.c`), line-numbered. `queue_pm_work` was not assumed — it was resolved to `include/linux/pm_runtime.h:62`. The "read the definition, not the name" rule (memory `feedback_read_the_definition_not_the_name`) is what forced the `cancel_work_sync` analysis instead of accepting the function's apparent intent. |
-| Hash the artifact, verify it in situ | **Honoured.** Resident module md5 `79e7a858d41b6c9f7edf8b26b90c77f8`; the instrument **survived the reboot** (§11.2). |
+| Verify against ground truth before acting | **Honoured — and §5.5 is the strongest instance.** Every claim in §5 is read from the **live build tree** (`openwrt/build_dir/.../drivers/net/wwan/qcom_bam_dmux.c`), line-numbered. `queue_pm_work` was not assumed — it was resolved to `include/linux/pm_runtime.h:62`. The "read the definition, not the name" rule (memory `feedback_read_the_definition_not_the_name`) is what forced the `cancel_work_sync` analysis instead of accepting the function's apparent intent. And the §5.4 mechanism was not argued but **grep'd out of the kernel source** (`kernel/printk/printk.c`, `printk_ringbuffer.c`, `include/linux/printk.h`) in the same tree the module was built from — and found to be absent. `rx_telemetry_show` was likewise checked to take only `rx_lock`, not `state_lock`, before the CSV was accepted as a liveness witness. |
+| Hash the artifact, verify it in situ | **Honoured.** Resident **tracer** `qcom_q6v5_mss.ko` md5 `79e7a858d41b6c9f7edf8b26b90c77f8`; the instrument **survived the reboot** (§11.2). The **bam_dmux** module is a different artifact (`eca269f1…`, §11.1) — see the trap note there. |
 | Never classify a fatal by its `file:line` | **Honoured.** `lte_ml1_sleepmgr_stm.c:4054` is used only as an identity label (Doc 162 §7's refinement: ask what *this* signature's period is). The fatal is not the subject of this document — the **teardown** is. |
-| Do not treat corpus docs as fact | **Honoured, and this round retracts two of my own in-session findings.** (§7.1) the "stale `qcom-time-daemon` performing a periodic ATS_USER refresh" lead is **dead**, disproved by direct process inspection. (§2.2b, §5.4) this document's own first-draft claim that "no further line appeared" was **overstated** — the `pmsg` sink is userspace-fed — and the "five-line region" attribution is therefore **downgraded from a cause to a candidate**. Both corrections are recorded in place rather than silently rewritten. |
+| Do not treat corpus docs as fact | **Honoured, and this round retracts three of my own in-session findings.** (§7.1) the "stale `qcom-time-daemon` performing a periodic ATS_USER refresh" lead is **dead**, disproved by direct process inspection. (§2.2b, §5.4) this document's own first-draft claim that "no further line appeared" was **overstated** — the `pmsg` sink is userspace-fed — and the "five-line region" attribution is therefore **downgraded from a cause to a candidate**. (§5.5) **the §5.4 logging-path hypothesis is itself retracted**, after checking its mechanism against the kernel source: `logbuf_lock` does not exist in Linux 6.12. All three corrections are recorded in place rather than silently rewritten. |
 | Record what was done, the result, and what is next | This document, plus §12 and §13. |
 
 ---
@@ -150,6 +154,13 @@ userspace running on the other three CPUs and would let the other SSR consumers 
 **three independent things all stop within ~7 ms of the notifier callback**: the SMD/rpmsg teardown
 thread, bam_dmux's teardown work, and the userspace `/dev/kmsg` reader. §5.4 adds the competing
 hypothesis this implies.
+
+> **CORRECTED — see §5.5.** "Three independent things" is **one too many**. A `/dev/kmsg` reader
+> (`devkmsg_read()`, `printk.c:822`) **sleeps on `log_wait`** whenever the ring has no new records,
+> so its silence is not a third witness — it is the expected appearance of a healthy reader with
+> nothing to read. There are **two** print sites that never emitted, and **one** blocked step in the
+> `QCOM_SSR_BEFORE_SHUTDOWN` blocking-notifier chain explains both. §5.4's own mechanism is also
+> retracted there. The paragraph above is left as first written so the correction is auditable.
 
 ### 2.2c — `wwan0at0 disconnected` is not bam_dmux's line
 
@@ -333,7 +344,14 @@ boot's evidence alone. **(a) is the more likely reading** — `system_wq` is per
 and `register_netdev_work`, so wedging *all* workers would need a broader cause than this driver.
 **But it is a reading, not a measurement**, and §9 pre-registers the test that settles it.
 
-### 5.4 A third candidate this analysis does NOT exclude: the stall is in the *logging* path
+### 5.4 A third candidate: the stall is in the *logging* path — **RETRACTED in §5.5**
+
+> **This section is RETRACTED.** Its mechanism was checked against this kernel's source and is
+> **false for Linux 6.12**: there is no global log-buffer lock, so no stalled printk can silence a
+> `/dev/kmsg` reader or `dmesg`. §5.5 gives the verification and the corrected reading of the same
+> evidence. The section is kept verbatim below because the *reasoning error* — inferring a
+> mechanism from a pattern without checking that the mechanism exists in this kernel — is the
+> reusable lesson, and because §5.5's correction depends on knowing exactly what was claimed.
 
 §2.2b showed that `pmsg-ramoops-0` is fed by a userspace reader, and that three independent things —
 the SMD/rpmsg teardown, bam_dmux's teardown work, and that reader — all stop within ~7 ms of the
@@ -373,6 +391,65 @@ That single comparison separates §5.4 from everything else, and it needs no new
 the discipline of reading the CSV on a hang. **Add a second, independent beacon anyway** (§13
 item 3): a heartbeat that does not touch `printk` or `/dev/kmsg` at all, so "alive but silent" is
 distinguishable from "dead".
+
+### 5.5 §5.4 is RETRACTED — verified against this kernel's own source
+
+The §5.4 mechanism was checked by reading `kernel/printk/` **in the live build tree**
+(`openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/`), the same tree
+the running module was built from. **The mechanism does not exist in Linux 6.12.**
+
+| §5.4 claim | verification | verdict |
+|---|---|---|
+| "`printk` stores into the ring under the **logbuf lock**" | `grep -rn logbuf_lock kernel/printk/ include/linux/printk.h` → **no matches.** The global `logbuf_lock` was removed in v5.10, replaced by John Ogness's lockless ring. | **FALSE** |
+| "`/dev/kmsg` readers take the same lock" | `printk_ringbuffer.c` contains **no spinlock at all** — its own header says *"readers and writers to **locklessly** synchronize access to the data"*. `devkmsg_read()` (`printk.c:822`) takes only `mutex_lock_interruptible(&user->lock)`, a **per-file-descriptor** mutex. | **FALSE** |
+| "`dmesg` takes the same lock" | busybox `dmesg` = `syslog(2)` `SYSLOG_ACTION_READ_ALL` → `syslog_print_all()` (`printk.c:1684`). It takes `syslog_lock` **only inside `if (clear)`** — i.e. only for `dmesg -c`. The record walk is lockless. | **FALSE** |
+| "a wedged console lock blocks every subsequent printk" | `console_lock` gates **console output**, not the ring. `vprintk_store()` stores locklessly; the console flush falls back to deferral/kthread when `console_trylock()` fails. Stores continue. | **FALSE** |
+
+**What is still true:** the console (`ttyMSM0,115200`, ~8.3 ms per `dev_err` line) is a real
+single point of failure *for the console sink*, and it is still worth testing (§13 item 4). But a
+wedged console **cannot** stop a `/dev/kmsg` reader — so it cannot explain the pmsg mirror stopping.
+
+**The corrected reading of the evidence — and it is simpler, not more complicated.** `devkmsg_read()`
+does not poll: it **sleeps on `log_wait`** when the ring holds no new records
+(`wait_event_interruptible(log_wait, printk_get_next_message(...))`, `printk.c:848`). Therefore:
+
+* The pmsg filter going silent means **exactly one thing: nothing further was stored in the ring.**
+  It is *not* a stalled reader, and its silence is **not** independent evidence of a hang — it is
+  what a healthy `/dev/kmsg` reader *always* looks like when the kernel has nothing more to say.
+* So the "**three independent consumers stop within ~7 ms**" of §2.2b collapses to **two print sites
+  that never emitted** — bam_dmux's `:2238` and the rpmsg/SMD `wwan0at0 disconnected` — plus one
+  reader that simply had nothing to read. **Three witnesses were counted where there were two.**
+* And **one** blocked step in the SSR hand-off explains both missing lines, because the
+  `QCOM_SSR_BEFORE_SHUTDOWN` chain is a **blocking notifier chain**: if an entry after bam_dmux's
+  does not return, nothing downstream of it — including the SMD teardown that prints
+  `wwan0at0 disconnected` and `rproc_stop()`'s own trace steps — ever runs. **§5.4's premise, "a
+  single mutex cycle inside one driver cannot explain that", is therefore wrong: it can.**
+
+**Consequence for the rest of this document.** §5.4 was the only reason patch 820 was downgraded, and
+it is now gone. The three candidates in §5.1/§5.2/§5.3 stand as written, and **the `state_lock` ABBA
+(§8.2) and the unbounded `cancel_*_sync` waits (§8.1) are back to being the leading explanation** —
+not proven, but no longer competing with a hypothesis that this kernel cannot support.
+
+**Consequence for the discriminator — the CSV survives, with corrected semantics.** §5.4's table is
+right about *what to do* and wrong about *what it means*. `/overlay/q6trace.csv` is written by a loop
+that reads `/proc/uptime`, `dmesg`, `$TRACE` and the bam_dmux telemetry sysfs — **none of which takes
+`state_lock`** (`rx_telemetry_show()`, `qcom_bam_dmux.c:2116`, takes only `dmux->rx_lock` for a
+bounded loop). So the CSV is a valid **liveness** witness:
+
+| CSV vs last pmsg line | corrected meaning |
+|---|---|
+| CSV **continues** past it | the kernel and its userspace are **alive**; only the printing stopped ⇒ the stall is confined to the code path that stopped printing (a subsystem deadlock, **not** a global stall, and **not** a log-path lock) |
+| CSV **stops** at/before it | the AP genuinely stalled ⇒ global stall, and a watchdog reset is expected |
+
+Note this is the *opposite polarity* from §5.4's table for the "continues" row — §5.4 read "CSV alive"
+as exonerating the driver locks. It does not: it says the stall is **localised**, which is exactly
+what a driver-level deadlock on one thread looks like.
+
+**The beacon is still worth adding, for a different reason than §5.4 gave** (§13 item 3): the CSV
+depends on `dmesg`, sysfs and a shell loop; a heartbeat that touches **only `/proc/uptime` and a
+file** cannot be confounded by any of them. And a `/dev/kmsg`-based watcher — which is what both
+existing sinks are — **structurally cannot** serve as a liveness beacon, because it sleeps on
+`log_wait` precisely when the kernel stops printing.
 
 ---
 
@@ -678,22 +755,67 @@ This is the same discipline as Doc 164 §9, corrected for the two scope errors t
 
 | item | value |
 |---|---|
-| module md5 | `79e7a858d41b6c9f7edf8b26b90c77f8` |
+| **tracer** module md5 | `qcom_q6v5_mss.ko` = `79e7a858d41b6c9f7edf8b26b90c77f8` (Doc 164's patch 817) |
+| **bam_dmux** module md5 | `qcom_bam_dmux.ko` = `eca269f10a685a83a8b679bc7be38d1d` (239 464 B, **pre-820** — `strings \| grep -c "SSR teardown T"` = 0) |
 | `printk` | `6 4 1 7` (KERN_INFO suppressed on consoles — the trace is pmsg-only by design) |
 | `/overlay` | 229.0 M used of 3.2 G, **7 %** (Doc 163's 100 %-full hazard is clear) |
 | soak processes | 5 |
 | coredump watcher | running, pid 3746, `armed=disabled` at start (benign — dumps were still captured in boots A and B) |
 | coredump on disk | 1 × 85 398 475 B (`modem_coredump_up939.34_devcd1.elf`) |
 
+> **Trap fixed 2026-09-21.** This table originally carried a single unlabelled `module md5` row with
+> `79e7a858…`, and §11.2 said "the resident module is still `79e7a858…`". **That md5 is
+> `qcom_q6v5_mss.ko`, not `qcom_bam_dmux.ko`** — two different modules were conflated. §11.2's claim
+> (the instrument survives a reboot) is about the *tracer* and is correct as re-worded; but anyone
+> reading the old table as "bam_dmux is `79e7a858…`" would have deployed 820 against the wrong
+> baseline. **Always name the module alongside the hash.** Verified on boot C by
+> `md5sum /lib/modules/6.12.94/*.ko`: the bam_dmux module is `eca269f1…`, and `/rom`'s pristine copy
+> is `6ac66031…`.
+
 ### 11.2 The instrument survived the reboot
 
 Doc 164 §3 warned that the module must be re-copied after every reboot. **It must not.** The
 instrumented `.ko` lives in the overlay upperdir (`/overlay/upper/lib/modules/6.12.94/…`) while
-`/rom` holds the pristine `6ac6603141c25b1e3462615411e92f7c`. After the reboot the resident module
-is still `79e7a858…`, and boot C's `dmesg` shows it tracing a normal boot. **The warning was
-over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
+`/rom` holds the pristine copy. After the reboot the resident **tracer** (`qcom_q6v5_mss.ko`) is
+still `79e7a858…`, and boot C's `dmesg` shows it tracing a normal boot. **The warning was
+over-cautious; the correct rule is "verify the md5, don't re-copy blindly."** The same holds for
+`qcom_bam_dmux.ko` — the rule is generic, but the hash must be checked **per module** (§11.1's trap).
 
-### 11.3 Two probe mistakes worth recording
+### 11.3 The §5.4 discriminator now has a **healthy control**
+
+§5.4 proposes reading `/overlay/q6trace.csv`'s last timestamp against the last `pmsg` line on the
+next hang. That comparison is only meaningful if the CSV's first column really is AP uptime — so it
+was checked on a boot that did **not** hang.
+
+Boot C, probed at AP uptime **1518.90 s** (i.e. **~602 s after its fatal**, which it survived):
+
+| observation | value |
+|---|---|
+| `/overlay/q6trace.csv` | 304 rows, last row timestamp **1591.80** — and AP uptime at the *next* probe was ~1590 s |
+| `q6trace.csv` column 1 vs `/proc/uptime` | **equal to within the 5 s sampling period** ⇒ column 1 **is** AP uptime |
+| CSV liveness | **alive**, continuously written straight through and long past the fatal |
+| `/overlay/coredump_live/` | **2** dumps, `…up918.22_devcd1.elf` (boot C's fatal, +1.7 s) and `…up939.34_devcd1.elf` (boot B's crash #1) |
+| `/overlay` | 310.5 M of 3.2 G, **10 %** — the 163 MB of dumps account for the growth since §11.1 |
+
+**So the discriminator's *mechanics* are confirmed**: a healthy boot's CSV tracks AP uptime and keeps
+advancing across an SSR. Its **interpretation is corrected by §5.5** — §5.4's polarity was backwards
+for the "CSV continues" row. The corrected table:
+
+| CSV vs last `pmsg` line | meaning |
+|---|---|
+| CSV **continues** past it | kernel + userspace **alive**; only printing stopped ⇒ stall is **confined to the code path that stopped printing** — a subsystem deadlock, which is exactly what a driver-level lock cycle on one thread looks like. **Does NOT exonerate §8.** |
+| CSV **stops** at/before it | the AP genuinely stalled ⇒ global stall, watchdog reset expected |
+
+Also note boot C's fatal **did** produce a coredump, +1.7 s after the fatal time — the normal
+outcome, and the exact contrast with boot B's crash #2, which produced none (§2.3).
+
+**And the beacon's justification is now structural rather than speculative.** Both existing sinks are
+`/dev/kmsg` readers, and `devkmsg_read()` **sleeps on `log_wait`** whenever the ring is quiet
+(`printk.c:848`) — so *by construction* they cannot distinguish "the kernel has nothing to say" from
+"the AP is dead". A beacon built on `/proc/uptime` + a file can, and it also removes the CSV's
+dependencies on `dmesg`, on the bam_dmux telemetry sysfs and on a shell loop. **That is §13 item 3.**
+
+### 11.4 Two probe mistakes worth recording
 
 * `grep -c PATTERN /dev/kmsg` **never terminates** — `/dev/kmsg` is a stream with no EOF, so `-c`
   waits forever. (Distinct from, and in addition to, the already-recorded
@@ -710,13 +832,13 @@ over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
 | question | status |
 |---|---|
 | Where does the AP hang? | **Located to a region, not a line.** The stall is at or immediately after the `QCOM_SSR_BEFORE_SHUTDOWN` **hand-off** (`bam_dmux: SSR before shutdown`, `qcom_bam_dmux.c:2364` — the last line userspace copied) and is **upstream of both instrumented windows**. It blocks **three independent consumers at once**: bam_dmux's teardown work (`:2238` never copied), the **rpmsg/SMD** teardown (`wwan0at0 disconnected` — a `rpmsg_wwan_ctrl.c:145` line, not a bam_dmux one — never copied), and the userspace `/dev/kmsg` reader. `rproc_stop()` never returned (no coredump, watcher-corroborated). |
-| Why? | **Three candidates, none excluded.** (1) The teardown work hung in `:2233-:2237` — two unbounded `cancel_*_sync()` on works that touch runtime PM and `state_lock` (§5.2). (2) The work never got a `system_wq` worker (§5.3). (3) **The stall is in the logging/console path** (§5.4) — a `dev_err` console write serialises at 115200 baud, and a wedged console/logbuf lock would silence every sink and block every reader at once, which is what the evidence actually shows. **§2.2's original "nothing further happened" was overstated** — see §2.2b. |
+| Why? | **Two candidates, and one retracted.** (1) The teardown work hung in `:2233-:2237` — two unbounded `cancel_*_sync()` on works that touch runtime PM and `state_lock` (§5.2). (2) The work never got a `system_wq` worker (§5.3). ~~(3) The stall is in the logging/console path (§5.4)~~ — **RETRACTED in §5.5, verified against this kernel's source**: there is no `logbuf_lock` in Linux 6.12, `printk_ringbuffer.c` is lockless, `devkmsg_read()` takes only a per-fd mutex, and `syslog_print_all()` takes `syslog_lock` only when clearing. A wedged console cannot stop a `/dev/kmsg` reader. The "three independent consumers" of §2.2b were **two** print sites plus one reader that had nothing to read. **§2.2's original "nothing further happened" was still overstated** (§2.2b). |
 | Was the hang a panic? | **No** — no `Kernel panic` banner in the ramoops console, and the dmesg zone exists while holding no record. |
-| Reset mechanism | **Unresolved.** ~2–4 s, silent; **does not match** Doc 159's 30 s PM8916 PON WDT, so the two AP hangs do not share a reset path. A first `devmem` attempt at SMEM item 403 returned a **negative result** (§13 item 3). |
+| Reset mechanism | **Unresolved.** ~2–4 s, silent; **does not match** Doc 159's 30 s PM8916 PON WDT, so the two AP hangs do not share a reset path. A first `devmem` attempt at SMEM item 403 returned a **negative result** (§13 item 5). |
 | Doc 164 §9's prediction | **Falsified in site** (§3). |
 | Doc 165 §4.1's coverage gap | **Widened** — the blind spot is upstream of the window, not just inside it. |
 | Relation to Doc 151/157's `echo stop` hang | **This is one step EARLIER.** The `echo stop` hang ends on two lines (`SSR before shutdown` **and** `wwan0at0 disconnected`); this one ends on one. The region has **at least two adjacent hang points** (§2.2c). |
-| Fix | **Patch 820 built** — four hunks: both cancel sites made non-blocking (§8.1, §8.2) plus five `dev_err` hand-off probes T0–T4 (§9). It fixes **two provable deadlocks** (one of them a true ABBA, §8.2) and is worth shipping on those merits — **but it is no longer claimed to be the cause of this hang** (§5.4). Two further sites of the same class recorded and deliberately left out (§8.4). |
+| Fix | **Patch 820 built** — four hunks: both cancel sites made non-blocking (§8.1, §8.2) plus five `dev_err` hand-off probes T0–T4 (§9). It fixes **two provable deadlocks** (one of them a true ABBA, §8.2), and with §5.4 retracted (§5.5) it is **again the leading explanation** for the hang — though still not proven. Two further sites of the same class recorded and deliberately left out (§8.4). |
 | The `qcom-time-daemon` lead | **Dead** (§7.1). |
 
 ---
@@ -724,24 +846,24 @@ over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
 ## 13. Next
 
 1. **Deploy patch 820** (`820-bam-dmux-ssr-teardown-nonblocking-cancel.patch`) together with the
-   §9 five-point `dev_err` hand-off trace, as a loadable module, and soak. It is justified on its own
-   merits — it removes a **provable** ABBA (§8.2) and a provable unbounded wait (§8.1) — and it is
-   also the cheapest way to get the T0–T4 probes in. **It is not claimed to be the cure for this
-   hang** (§5.4).
-2. **On the next hang, read `/overlay/q6trace.csv` BEFORE anything else.** Its last timestamp versus
-   the last `pmsg` line is the single comparison that separates §5.4 (logging-path stall — userspace
-   alive while the log stops) from a driver stall (userspace dies with the log). Then score §9's
-   T0–T4 decode table.
-3. **Add a non-`printk` liveness beacon** — the instrument the evidence says is missing. A small
-   process that appends `date +%s` to a file on `/overlay` every 2 s, **and a second one that only
-   ever writes to a separate file**, so "the AP is alive but its logging path is wedged" is
-   distinguishable from "the AP is stalled". Without this, every future hang reproduces the same
-   ambiguity §2.2b exposed. **Cheap and independent of every sink used so far.**
-4. **Test the logging hypothesis directly, if a hang recurs:** the console is the one component whose
-   cost is already measured (1.03 ms + 0.0904 ms/char). Boot once with the serial console removed
-   from the kernel command line (or `console_loglevel = 1`) and soak. If the hang disappears, §5.4 is
-   the cause — and that is a far more consequential finding than any driver lock, because it applies
-   to every `dev_err` on the fatal path.
+   §9 five-point `dev_err` hand-off trace, as a loadable module, and soak. It removes a **provable**
+   ABBA (§8.2) and a provable unbounded wait (§8.1), and it carries the T0–T4 probes. With §5.4
+   retracted (§5.5) it is **again the leading explanation** for the hang — but it is not proven.
+2. **On the next hang, read `/overlay/q6trace.csv` BEFORE anything else**, and read it with §5.5's
+   corrected polarity: **CSV alive + `pmsg` silent ⇒ the AP is alive and the stall is localised**
+   (which is what a driver deadlock looks like, so §8 stays in play); **CSV stopped ⇒ global stall**.
+   Then score §9's T0–T4 decode table.
+3. **Add a non-`printk` liveness beacon** — now justified **structurally**, not speculatively (§5.5):
+   both existing sinks are `/dev/kmsg` readers, and `devkmsg_read()` **sleeps on `log_wait`** when the
+   ring is quiet, so they *cannot* distinguish "nothing to say" from "dead". A small process that
+   appends `/proc/uptime` to a file on `/overlay` every 2 s — **touching no `dmesg`, no `/dev/kmsg`,
+   no sysfs, no shell builtin beyond the loop itself** — is immune to every confound identified so
+   far. Two such processes writing to two separate files, so a single file's failure is not silent.
+4. **The logging hypothesis is retracted as a *mechanism* (§5.5), but the console is still worth one
+   cheap test.** It cannot silence a `/dev/kmsg` reader, but it remains the one component whose cost
+   is measured (1.03 ms + 0.0904 ms/char) and it is still the only sink that `dev_err` reaches.
+   Booting once with the serial console removed from the kernel command line (or
+   `console_loglevel = 1`) costs one boot and definitively closes it.
 5. **Close the reset question — first attempt returned a NEGATIVE result.** The AP's restart reason
    is plausibly in **SMEM item 403 (`SMEM_POWER_ON_STATUS_INFO`)** — the very item the driver's own
    comment at `:2250` warns must not be *written*. A read-only `devmem` walk was tried and

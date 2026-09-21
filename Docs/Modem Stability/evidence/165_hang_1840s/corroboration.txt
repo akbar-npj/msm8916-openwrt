@@ -277,3 +277,145 @@ ZERO-COST DISCRIMINATOR FOR THE NEXT HANG -- do this FIRST:
                                          => the LOGGING path is the stall, and
                                             the driver locks are innocent
     CSV stops BEFORE the pmsg line    -> a global/scheduling stall
+
+===========================================================================
+11.  §5.4 IS RETRACTED -- VERIFIED AGAINST THIS KERNEL'S SOURCE (2026-09-21)
+===========================================================================
+Section 10 above proposed that the stall is in the LOGGING/CONSOLE path, on the
+grounds that "a thread that dies holding the logbuf lock silences every sink and
+blocks every /dev/kmsg reader".  That mechanism was then checked by READING THE
+KERNEL SOURCE in the live build tree:
+
+    openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/
+        linux-6.12.94/
+
+i.e. the same tree the running qcom_bam_dmux.ko / qcom_q6v5_mss.ko were built
+from.  The mechanism DOES NOT EXIST in Linux 6.12.
+
+---------------------------------------------------------------------------
+11.1  The four checks, and what each returned
+---------------------------------------------------------------------------
+CLAIM: "printk stores into the ring under the logbuf lock."
+
+    $ grep -rn "logbuf_lock" kernel/printk/ include/linux/printk.h
+    (no output)
+
+    VERDICT: FALSE.  The global logbuf_lock was removed in v5.10 when the
+    ring buffer was replaced by John Ogness's lockless design.  The symbol
+    does not exist anywhere in this tree.
+
+CLAIM: "/dev/kmsg readers take the same lock."
+
+    $ grep -n "lock" kernel/printk/printk_ringbuffer.c
+    ... the file's OWN header comment says:
+        "readers and writers to locklessly synchronize access to the data"
+    $ grep -c "spin_lock" kernel/printk/printk_ringbuffer.c
+    0
+
+    $ sed -n '822,860p' kernel/printk/printk.c     # devkmsg_read()
+    ret = mutex_lock_interruptible(&user->lock);
+    ...
+    ret = wait_event_interruptible(log_wait,
+            printk_get_next_message(&pmsg, atomic64_read(&user->seq),
+                                    true, false));   /* LMM(devkmsg_read:A) */
+
+    VERDICT: FALSE.  printk_ringbuffer.c contains NO spinlock at all.  The
+    only lock devkmsg_read() takes is `user->lock`, a PER-FILE-DESCRIPTOR
+    mutex -- so one reader cannot block another.  And when the ring holds no
+    new records it does not poll: it SLEEPS on log_wait.
+
+CLAIM: "dmesg takes the same lock."
+
+    $ sed -n '1684,1730p' kernel/printk/printk.c   # syslog_print_all()
+    ...
+    if (clear) {
+            mutex_lock(&syslog_lock);
+            latched_seq_write(&clear_seq, seq);
+            mutex_unlock(&syslog_lock);
+    }
+
+    VERDICT: FALSE for plain `dmesg`.  busybox dmesg is syslog(2)
+    SYSLOG_ACTION_READ_ALL -> syslog_print_all(), which takes syslog_lock ONLY
+    inside `if (clear)` -- i.e. only for `dmesg -c`.  The record walk
+    (prb_for_each_record) is lockless.
+
+CLAIM: "a wedged console lock blocks every subsequent printk."
+
+    VERDICT: FALSE.  console_lock gates CONSOLE OUTPUT, not the ring.
+    vprintk_store() stores locklessly and console output defers to the printk
+    kthread when console_trylock() fails.  Stores continue either way.
+
+---------------------------------------------------------------------------
+11.2  What is still true (do not over-retract)
+---------------------------------------------------------------------------
+  * The console (ttyMSM0,115200, ~8.3 ms per dev_err line at the measured
+    1.03 ms + 0.0904 ms/char) IS a real single point of failure -- for the
+    CONSOLE sink.  Booting once with the console removed from the kernel
+    command line (or console_loglevel=1) still closes that question cheaply.
+  * But a wedged console CANNOT stop a /dev/kmsg reader, so it cannot explain
+    the pmsg mirror going silent.
+
+---------------------------------------------------------------------------
+11.3  The corrected reading of the evidence -- simpler, not more complicated
+---------------------------------------------------------------------------
+devkmsg_read() sleeps on log_wait when the ring has no new records.  Therefore:
+
+  * The pmsg filter going silent means EXACTLY ONE THING: nothing further was
+    STORED in the ring.  It is not a stalled reader, and its silence is NOT
+    independent evidence of a hang -- it is what a HEALTHY /dev/kmsg reader
+    always looks like when the kernel has nothing more to say.
+
+  * So "THREE independent consumers stop within ~7 ms" collapses to TWO print
+    sites that never emitted:
+        - bam_dmux's own  :2238  "executing serialized asynchronous SSR teardown"
+        - the rpmsg/SMD   "wwan0at0 disconnected"
+    plus ONE reader that simply had nothing to read.  Three witnesses were
+    counted where there were two.
+
+  * And ONE blocked step explains BOTH missing lines, because
+    QCOM_SSR_BEFORE_SHUTDOWN is a BLOCKING notifier chain: if an entry after
+    bam_dmux's does not return, nothing downstream of it -- including the SMD
+    teardown that prints `wwan0at0 disconnected`, and rproc_stop()'s own trace
+    steps -- ever runs.
+
+  => Doc 166 §5.4's premise, "a single mutex cycle inside one driver cannot
+     explain that", is WRONG.  It can.
+
+---------------------------------------------------------------------------
+11.4  Consequence for patch 820 and for the discriminator
+---------------------------------------------------------------------------
+  * §5.4 was the ONLY reason patch 820 was downgraded from "the cure" to "two
+    provable deadlocks fixed".  With it retracted, the state_lock ABBA (§8.2)
+    and the unbounded cancel_*_sync waits (§8.1) are AGAIN the leading
+    explanation -- still not proven, but no longer competing with a hypothesis
+    this kernel cannot support.
+
+  * The CSV discriminator SURVIVES, with CORRECTED POLARITY:
+        CSV CONTINUES past the last pmsg line
+            -> kernel + userspace are ALIVE; only printing stopped
+            => the stall is CONFINED to the code path that stopped printing.
+               That is exactly what a driver-level lock cycle on one thread
+               looks like.  It does NOT exonerate the driver locks.
+        CSV STOPS at/before it
+            -> the AP genuinely stalled => global stall, watchdog reset due.
+    (Section 10's table had this backwards for the "continues" row.)
+
+    The CSV was checked for confounds before being accepted as a liveness
+    witness: rx_telemetry_show() (qcom_bam_dmux.c:2116) takes only
+    dmux->rx_lock for a bounded loop -- NOT state_lock -- so a hung
+    state_lock holder cannot block the CSV's sysfs reads.
+
+  * The BEACON is now justified STRUCTURALLY, not speculatively: both existing
+    sinks are /dev/kmsg readers, and devkmsg_read() sleeps on log_wait, so BY
+    CONSTRUCTION they cannot distinguish "the kernel has nothing to say" from
+    "the AP is dead".  A beacon built on /proc/uptime + a file can.
+
+---------------------------------------------------------------------------
+11.5  THE REUSABLE LESSON
+---------------------------------------------------------------------------
+The error was NOT "wrong hypothesis" -- it was inferring a MECHANISM from a
+PATTERN without checking that the mechanism exists in THIS kernel.  A stall
+that silences several sinks "looks like" a log-lock stall; that lock was
+deleted from Linux four years before this kernel was cut.  Read the definition
+(memory feedback_read_the_definition_not_the_name), and for kernel claims read
+the SOURCE OF THE KERNEL YOU ARE RUNNING, not the one in your head.

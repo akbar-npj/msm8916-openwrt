@@ -67,3 +67,34 @@ Deploy procedure (module is a .ko; the device is rebooted to load it):
   4. reboot; then verify printk starts with 6, the 5 soak processes are up, the
      coredump watcher is armed, and df /overlay
   5. soak and wait for a fatal-triggered SSR to score Doc 166 §9
+
+---------------------------------------------------------------------------
+BASELINE RUN (boot C) -- the last PRE-820 boot, recorded before deploying
+---------------------------------------------------------------------------
+This is the run 820 must be compared against. It is a CLEAN, HANG-FREE,
+SINGLE-FATAL boot, and it is the third boot in a row whose fatal was the SHORT
+signature -- which is itself a data point for Doc 162/164's signature taxonomy.
+
+  AP uptime at probe ........ 1518.90 s (so the AP lived ~600 s PAST the fatal)
+  fatals ................... 1
+  fatal signature .......... lte_ml1_sleepmgr_stm.c:4054   (the SHORT band)
+  fatal AP time ............ 916.535985 s
+  hang ..................... none
+  printk ................... 6 4 1 7
+  qcom_bam_dmux.ko md5 ..... eca269f10a685a83a8b679bc7be38d1d  (pre-820)
+  "SSR teardown T" count ... 0   (as expected pre-deploy)
+  qcom_q6v5_mss.ko md5 ..... 79e7a858d41b6c9f7edf8b26b90c77f8  (patch-817 tracer)
+  soak processes ........... 5
+  coredump watcher ......... 1
+  /overlay ................. 310.5 M of 3.2 G, 10 %
+
+The ONLY other thing this boot establishes is negative: it is a second
+reproduction of the "single-fatal boot" already recorded (Doc 162 run 8's
+S,A,S,A,A cadence has a boot with no second fatal). Nothing here tests 820,
+because 820 is not deployed yet.
+
+MODULE-NAME TRAP (cost real time this round): Doc 166 §11.1 originally listed a
+single unlabelled "module md5 79e7a858..." row. That hash is qcom_q6v5_mss.ko
+(the Doc 164 tracer), NOT qcom_bam_dmux.ko. Two different modules. Verified on
+boot C with `md5sum /lib/modules/6.12.94/*.ko`. The table is fixed and now names
+each module beside its hash. /rom's pristine bam_dmux copy is 6ac6603141c25b1e3462615411e92f7c.
