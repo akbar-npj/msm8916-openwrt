@@ -1,0 +1,111 @@
+BOOT-2 RESULT -- non-recurrence (Doc 170 PART 37)
+scored against the PART 36 pre-registration, filed ~644 s before the window
+ALL NUMBERS FROM THE FROZEN COPIES -- scratch/android_capture/boot2/frozen_1232/
+  (committed alongside this file as AR_boot2_frozen_*.log.gz; reproduce with
+   python3 AQ_score_boot2.py <dir containing those .gz files>)
+
+  md5 2c3a70228a9f4641e9a67172649266ca  bam_dmux_boot2.log
+  md5 7fc370113fff4e0a4a591da8a71acbd8  ping_plain_boot2.log
+  md5 d41add1adac0f4a47bd4ec8fb704cf90  ping_iface_boot2.log
+  md5 547f9dc7c97e3a8963f38dde8f79b3d2  snapshot_boot2.log
+  md5 0e3778c398684c28b6c5c3d71b920579  logcat_boot2.log
+
+window: AP 868.9-948.9 s  (902.3 s modem-relative, anchor AP 6.604624)
+
+=== 1. bam_dmux silence gaps, AP >= 206 s ===
+events total 2471   span 0.821 -> 1260.448 s
+soak regime: t >= 206.0 s   events 2141   span 206.338 -> 1260.448 s
+events INSIDE window: 189
+gaps with ONSET inside window: 189   MAX 23.893 s
+MAX gap anywhere in soak:      24.941 s at AP 326.286
+
+=== 2. all gaps >= 20 s (to show the cadence and the absence of any real outage) ===
+   24.120 s   AP  210.338 ->  234.458
+   24.924 s   AP  238.659 ->  263.583
+   24.928 s   AP  267.794 ->  292.723
+   24.382 s   AP  297.718 ->  322.100
+   24.941 s   AP  326.286 ->  351.227
+   24.916 s   AP  355.421 ->  380.337
+   24.876 s   AP  384.561 ->  409.437
+   24.131 s   AP  414.438 ->  438.569
+   24.162 s   AP  443.568 ->  467.730
+   24.885 s   AP  471.936 ->  496.822
+   24.805 s   AP  501.152 ->  525.957
+   24.926 s   AP  530.184 ->  555.110
+   24.923 s   AP  559.317 ->  584.241
+   23.503 s   AP  589.853 ->  613.355
+   23.879 s   AP  618.554 ->  642.433
+   24.035 s   AP  705.766 ->  729.801
+   23.898 s   AP  764.145 ->  788.043
+   23.916 s   AP  793.250 ->  817.166
+   23.604 s   AP  822.681 ->  846.285
+   23.901 s   AP  851.503 ->  875.404
+   23.893 s   AP  880.632 ->  904.525
+   23.863 s   AP  938.841 ->  962.705
+   24.062 s   AP  967.766 ->  991.828
+   23.895 s   AP  997.051 -> 1020.946
+   23.902 s   AP 1026.121 -> 1050.024
+   23.918 s   AP 1055.230 -> 1079.148
+   23.888 s   AP 1114.218 -> 1138.106
+   22.266 s   AP 1144.947 -> 1167.213
+   22.871 s   AP 1173.440 -> 1196.311
+   24.734 s   AP 1202.618 -> 1227.352
+   24.651 s   AP 1231.797 -> 1256.448
+  gaps >= 26 s: 0
+  boot 1 window for contrast: 38.028 s and 37.183 s vs a ~25.9 s cadence
+
+=== 3. ping, BOTH variants (first time run side by side) ===
+  ping_plain_boot2.log     bursts=37  lossy=[(35, 3, 0, 100)]
+  ping_iface_boot2.log     bursts=37  lossy=[(31, 3, 1, 67), (33, 3, 2, 33)]
+  both: 1 x 'Network is unreachable', on line 1 (first invocation, AP ~22 s,
+        before the data call was up) -- not an in-run event.
+  cadence ~29.0 s from AP ~206 s => in-window bursts are #24,#25,#26 (AP ~873,~902,~931)
+        and the lossy ones are #31/#33/#35 at AP >= ~1076 s, >= 127 s AFTER the window
+  the two loops are NOT time-locked, so no lossy burst is attributed to the AP 1082.6 flap
+
+=== 4. logcat: connectivity changes, mapped to AP time ===
+  AP    21.328  mobile        CONNECTED/CONNECTED
+  AP    21.988  mobile_hipri  CONNECTING/CONNECTING
+  AP    22.048  mobile_hipri  CONNECTED/CONNECTED
+  AP    40.788  mobile_hipri  DISCONNECTED/DISCONNECTED
+  AP    43.918  mobile_hipri  CONNECTING/CONNECTING
+  AP    43.968  mobile_hipri  CONNECTED/CONNECTED
+  AP  1082.372  mobile_hipri  DISCONNECTED/DISCONNECTED
+  AP  1082.572  mobile        DISCONNECTED/DISCONNECTED
+  AP  1082.882  mobile_hipri  CONNECTED/CONNECTED
+  AP  1083.612  mobile        CONNECTED/CONNECTED
+  AP  1084.292  mobile_hipri  DISCONNECTED/DISCONNECTED
+  AP  1085.092  mobile        DISCONNECTED/DISCONNECTED
+  AP  1085.192  mobile_hipri  CONNECTED/CONNECTED
+  AP  1086.192  mobile        CONNECTED/CONNECTED
+  AP  1087.132  mobile_hipri  DISCONNECTED/DISCONNECTED
+  AP  1087.632  mobile        DISCONNECTED/DISCONNECTED
+  AP  1087.662  mobile_hipri  CONNECTED/CONNECTED
+  AP  1087.772  mobile        CONNECTED/CONNECTED
+  AP  1096.072  mobile_hipri  DISCONNECTED/DISCONNECTED
+  AP  1099.202  mobile_hipri  CONNECTING/CONNECTING
+  AP  1099.262  mobile_hipri  CONNECTED/CONNECTED
+  mobile: 7 events = 1 boot bring-up + a 3-beat flap at AP 1082.572-1087.772 (5.2 s)
+  THAT FLAP IS 133.7 s AFTER THE WINDOW CLOSED -- boot 2 was NOT outage-free.
+
+=== 5. counters: ZERO resets ===
+  samples 124   span AP 21 -> 1256 s
+  skb read  312 -> 26743
+  skb write 428 -> 27140   monotonic True
+  a2 pwr in 5 -> 105
+  COUNTER RESETS: 0   (a modem restart/SSR would reset these)
+  NOTE the AP 1082.6 flap does NOT reset them either.
+
+=== 6. LIMITATION OF THE PRIMARY INSTRUMENT ===
+  The AP 1082.6-1087.8 flap produced NO bam_dmux silence gap: the gap spanning it is
+  23.918 s (AP 1055.230 -> 1079.148), the ordinary cadence, and the modem is BUSY
+  through the flap.  So the gap instrument is BLIND to a userspace bearer flap.
+  'no gap in the window' is NOT by itself proof of 'no outage in the window' --
+  the in-window verdict rests on the pings (clean) and logcat (silent until AP 1082.4).
+
+=== 7. the two early gaps = the SUPERVISOR GAP, not an outage ===
+  93.724 s  AP  44.077 -> 137.801
+  65.308 s  AP 140.033 -> 205.341
+  adbd restarted a second time after the re-root and killed the earliest three
+  captures; the supervisor restarted the ping loops at AP ~206 s, exactly where
+  the gaps stop.  Both are excluded by --soak-start 206.

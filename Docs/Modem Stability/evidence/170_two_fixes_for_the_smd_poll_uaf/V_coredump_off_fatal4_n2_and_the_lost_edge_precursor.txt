@@ -5370,12 +5370,213 @@ PART 33 -- CORRECTIONS: THE POOLED ANDROID PING IS ~2 % NOT 0.7 %, AND THE
 --------------------------------------------------------------------------------
 
 ================================================================================
+PART 37 -- BOOT-2 RESULT: NON-RECURRENCE.  READING A NOW HAS NO SUPPORTING
+           OBSERVATION, AND THE DIFFERENTIAL CONTROL IS n = 2
+================================================================================
+
+Scored against the pre-registration filed in PART 36 (committed at uptime 265 s,
+~644 s before the window).  Window: AP 868.9 -> 948.9 s (modem-relative
+902.3 +- 40 s, modem boot anchor AP 6.604624 s).
+
+1. THE WINDOW WAS COVERED, AND IT WAS EMPTY
+
+   Every number in this PART comes from a FROZEN copy of the captures --
+   scratch/android_capture/boot2/frozen_1232/ -- taken at device uptime
+   1260.4 s, i.e. 311 s after the window closed.  See the note at the end of s2
+   for why freezing was not optional.
+
+   The primary instrument, bam_dmux silence gaps, restricted to AP >= 206 s
+   (see s4 for why 206):
+
+     events after AP 206 s: 2141      span 206.338 -> 1260.448 s
+     events INSIDE 868.9-948.9: 189
+     gaps with ONSET inside 868.9-948.9: 189,  MAX 23.893 s
+     MAX gap anywhere after AP 206 s:    24.941 s (at AP 326.286)
+
+   **The maximum silence inside the window is 23.893 s -- the ordinary ping
+   cadence.**  For comparison, boot 1's window contained 38.028 s and 37.183 s
+   gaps against the same ~25 s cadence.  The histogram has NO bucket at or
+   above 26 s anywhere in the whole 1054 s soak:
+
+     0-0.1 s: 1748   5-20 s: 7
+     0.1-1 s:  323   20-26 s: 31
+     1-5 s:     31   >=26 s: 0     <-- NOT ONE gap of 26 s or more
+
+   That last line is the strongest single statement in this PART: not one of
+   the 2140 gaps in the soak is as long as a single missed ping cycle.
+
+2. THE OTHER INSTRUMENTS -- AND ONE OF THEM NEEDED CORRECTING
+
+   All three were re-scored from the frozen copies.  **The first pass of this
+   section was WRONG, and the error changed a conclusion rather than a count.
+   See the note at the end.**
+
+   * **logcat: the mobile data call flapped THREE times, at AP 1082.6-1087.8 s
+     -- 133.7 s AFTER the window closed.**
+
+       AP    21.328  mobile  CONNECTED/CONNECTED      <- boot bring-up
+       AP  1082.572  mobile  DISCONNECTED/DISCONNECTED
+       AP  1083.612  mobile  CONNECTED/CONNECTED
+       AP  1085.092  mobile  DISCONNECTED/DISCONNECTED
+       AP  1086.192  mobile  CONNECTED/CONNECTED
+       AP  1087.632  mobile  DISCONNECTED/DISCONNECTED
+       AP  1087.772  mobile  CONNECTED/CONNECTED
+
+     Seven `mobile:` events = one boot bring-up plus a **3-beat flap inside
+     5.2 s**.  The `mobile_hipri:` network flaps on the same edges (AP 1082.372
+     -> 1099.262) and is otherwise silent after AP 44 s.
+
+     **SO BOOT 2 WAS NOT OUTAGE-FREE.**  The first pass said "exactly ONE
+     ConnectivityChange ... ZERO further rebuilds"; that was scored from a
+     logcat that was still being written, before AP 1082 existed in the file.
+     Corrected above, and see s5 -- this fact changes the weight of the result.
+
+   * **counters: 124 snapshot samples, AP 21 -> 1256 s, ZERO resets.**
+     `skb read cnt` 312 -> 26743, `skb write cnt` 428 -> 27140 (monotonic:
+     True), `a2 pwr cntl in` 5 -> 105.  A modem restart or SSR would reset
+     these, and the AP 1082.6 flap does NOT reset them.
+
+   * **ping, BOTH variants, 37 bursts each -- and they DISAGREE.**
+       ping_plain:  37 bursts, 1 lossy  (#35 = 3 sent / 0 recv = 100 %)
+       ping_iface:  37 bursts, 2 lossy  (#31 = 3/1 = 67 %, #33 = 3/2 = 33 %)
+     Each variant has exactly ONE `Network is unreachable`, and it is on line 1
+     of each file -- the first invocation, at AP ~22 s before the data call was
+     up.  Not an in-run event.
+     **This is the first time the two variants have been run side by side, and
+     the result is the OPPOSITE of what PART 33 s2 expected.**  PART 33 argued
+     that `-I rmnet0` is the BLIND one (it skips the routing lookup, so it
+     cannot see a route loss).  Here `-I` is the one that LOST packets while
+     plain `ping` lost fewer over the same period.  A plausible mechanism is
+     that `-I` pins the socket to the interface and its address, so it is
+     fragile to an interface-level rebind, whereas plain `ping` re-resolves the
+     route on each invocation -- but **the cause is NOT established and this is
+     recorded as an observation, not a finding.**
+     **It does weaken one thing PART 33 s2 implied:** two independent
+     `ping ... ; sleep 27` loops are NOT time-locked.  They drift apart by their
+     own per-iteration adb overhead, so "both variants agree" is only
+     approximate and a clean comparison needs them interleaved in ONE loop (or
+     timestamped).  **For that reason no lossy burst is attributed to the
+     AP 1082.6 flap**, even though the earliest candidate (iface #31) could land
+     within ~7 s of it: at a 29.0 s cadence from AP 206 the three losses fall at
+     AP ~1076, ~1134 and ~1192, spread over 116 s -- too wide to be one event.
+
+   **AND THE IN-WINDOW BURSTS ARE CLEAN IN BOTH VARIANTS.**  At that same
+   ~29.0 s cadence the bursts landing inside 868.9-948.9 s are #24, #25 and #26
+   (AP ~873, ~902, ~931), and the bam_dmux record independently shows exactly
+   four UL wakeup bursts inside the window -- AP 875.404, 904.525, 924.176 and
+   933.629.  None of the three in-window ping bursts is lossy in EITHER
+   variant.  The three lossy bursts are #31/#33/#35, all at AP >= ~1076 s,
+   i.e. **at least 127 s AFTER the window closed.**  The verdict of s1/s5 is
+   unchanged.
+
+   *** A REAL LIMITATION OF THIS PART'S PRIMARY INSTRUMENT, FOUND HERE ***
+
+   The AP 1082.6-1087.8 flap **produced NO bam_dmux silence gap.**  The gap that
+   spans it is AP 1055.230 -> 1079.148 = 23.918 s -- the ordinary cadence -- and
+   the modem is BUSY through the flap (a 16-event UL cluster, AP 1084.404 ->
+   1095.477).  So the silence-gap instrument, the primary evidence in s1, is
+   **structurally blind to a userspace/framework bearer flap**: the modem data
+   channel keeps running while the IP-layer network is torn down and rebuilt.
+   That is the same shape as the OpenWrt finding that the user-visible data
+   stall is a USERSPACE bearer rebuild rather than a kernel data-plane outage
+   -- and it is now seen on BOTH stacks.
+   **Consequence for s1:** "no gap in the window" is NOT by itself proof of
+   "no outage in the window".  The in-window verdict rests on the pings (clean)
+   and on logcat (silent until AP 1082.4), which together DO cover this class.
+
+   NOTE ON HOW THIS SECTION WAS SCORED -- **the fourth instance of the live-file
+   rule in this document, and the first one that reversed a conclusion.**  The
+   first pass read the ping files at 29 bursts and the logcat at a point before
+   AP 1082, and reported "29 bursts each, ZERO lossy" and "exactly ONE
+   ConnectivityChange ... ZERO further rebuilds".  By artifact-generation time
+   the pings were at 33-34 bursts with two `-I` losses; by the freeze they were
+   at 37 bursts with three losses, and the logcat had gained a 3-beat flap.
+   **The captures had live writers, and one of them falsified a sentence that
+   this PART was about to commit as a finding.**  Freeze first, then score.
+
+3. THE DIFFERENTIAL CONTROL IS NOW n = 2 BOOTS
+
+   Boot 2's kernel ring is COMPLETE and provably un-wrapped: its first line is
+   `[0.000000]` and the ring never filled, so it contains every kernel message
+   since boot -- and its LAST entry is `[  137.755410] diag: USB connected`.
+   **Therefore no kernel message of any kind occurred after 137.755 s**, which
+   includes any SSR or fatal.
+
+     "Brought out of reset" count:        2   (modem at 6.604624 s + wcnss at 8.298620 s)
+     "subsys-restart: Resetting" count:   0
+     [    5.974147] pil: MBA boot done
+     [    6.604624] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+     [    7.004389] apr_tal:Modem Is Up
+
+   So: **two independent Android boots have now each passed modem-relative
+   902.3 s with zero modem bring-ups, zero SSRs and zero fatals** (boot 1 to
+   2723 s, boot 2 to 1256 s and still running), against byte-identical firmware.
+   That is the corpus's central differential, now n = 2 on the AP side.
+
+4. THE TWO EARLY GAPS ARE A CAPTURE ARTIFACT, NOT AN OUTAGE
+
+   93.724 s (AP 44.077 -> 137.801) and 65.308 s (AP 140.033 -> 205.341) are the
+   two largest gaps in the raw boot-2 record, and BOTH sit before AP 206 s.
+   They are the supervisor gap: after the re-root, adbd restarted a second time
+   and killed the three earliest captures (PART 36 s5), so the ping loops did not
+   run between AP ~44 s and the supervisor's restart at host 20:08:41-42.  With
+   no ping there is no uplink traffic, hence no bam_dmux events.  Converting:
+   reboot at host 20:05, device back at uptime 9.09 s, so 20:08:41 ~= AP 206 s --
+   which is exactly where the gaps stop.
+
+   **Reported here because it is the same trap as PART 32 s5 in a new costume:
+   a gap in an instrument is evidence about the INSTRUMENT until proven
+   otherwise.**  A capture that dies and is restarted leaves a silence that looks
+   exactly like an outage.
+
+5. VERDICT, AGAINST THE PRE-REGISTERED ASYMMETRY
+
+   PART 36 s3 stated the asymmetry in advance:
+     * a RECURRENCE would be STRONG evidence for Reading A;
+     * a NON-RECURRENCE is WEAK evidence against it.
+
+   **The result is NON-RECURRENCE.**  Scored honestly:
+
+   * **Reading A is now unsupported by any observation.**  PART 35 retracted its
+     original support (the bus fully explained boot 1's outage), and boot 2 did
+     not reproduce it.  Reading B stands alone.
+   * **But the non-recurrence is WEAK, as pre-registered -- and s2 changed the
+     reason, so this is restated rather than left standing.**  Reading A's
+     Android manifestation was "the data path stalls and the call is rebuilt".
+     Boot 2 had no such event *inside the window* -- **but it DID have a 3-beat
+     `mobile` flap at AP 1082.6-1087.8, so the first pass's "boot 2 had NO
+     outage at all" is wrong.**  That cuts both ways, and both are worth
+     stating rather than picking the convenient one:
+       - it makes the "the bus was in better coverage" excuse WEAKER: the device
+         was still on the same bus and still received a network-induced flap,
+         just 133.7 s late, so an absent manifestation at 902.3 s is somewhat
+         more meaningful than the first pass claimed;
+       - but it is still n = 1 boot, the flap's timing is uncontrolled, and a
+         manifestation that requires a network perturbation to be present at a
+         *particular instant* can still be absent by luck.
+     **Net: this does not prove Reading A false; it removes its last support.**
+   * What is NOT weak is s3: the differential control is n = 2 and rests on a
+     complete, un-wrapped kernel ring plus zero counter resets over 105 samples.
+
+6. WHAT WOULD SETTLE IT
+
+   The same boot-2 instrumentation, run **STATIONARY**, on a boot that also
+   reaches the 902.3 s point.  That removes the confound in both directions and
+   would also produce the stationary RPM/MCPM baseline that PART 35 s3 says
+   PART 31's P1/P2/P3 need.  One run serves both purposes.
+
+--------------------------------------------------------------------------------
+
+
+
+================================================================================
 PART 36 -- SECOND-ANDROID-BOOT PRE-REGISTRATION, FILED BEFORE THE WINDOW OPENS
 ================================================================================
 
 (NOTE ON ORDER: this PART was written into the file ahead of PART 35 because it
 had to be committed before its window opened; PART 35 follows immediately below
-and is the PART 32 correction.  Read 35 before 36 if reading in order.)
+and is the PART 32 correction.  PART 37, the RESULT of this pre-registration,
+appears ABOVE this one.  Read 35 -> 36 -> 37.)
 
 Filed 2026-09-22 at device uptime 265 s, i.e. ~644 s BEFORE the window it
 predicts.  The whole point of a pre-registration is that it is on record before
