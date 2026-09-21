@@ -283,6 +283,91 @@ the wait-queue lifetime, not more work on `bam_dmux_power_off()`.
 
 ---
 
+### §2.4 The corruption's source-level mechanism — a userspace `poll()` left registered on a freed SMD channel
+
+**This section is a source reading, not a measurement.** It is written down because it
+predicts two cheap experiments that would settle it, and because it narrows three candidate
+wait-queue heads to one.
+
+`wwan_port_fops_poll()` (`drivers/net/wwan/wwan_core.c:772`) registers the caller's
+`poll_table_entry` in **two** wait queues, not one:
+
+```c
+static __poll_t wwan_port_fops_poll(struct file *filp, poll_table *wait)
+{
+	struct wwan_port *port = filp->private_data;
+	__poll_t mask = 0;
+
+	poll_wait(filp, &port->waitqueue, wait);          /* head #1 */
+	mutex_lock(&port->ops_lock);
+	if (port->ops && port->ops->tx_poll)
+		mask |= port->ops->tx_poll(port, filp, wait);  /* -> head #2 */
+	...
+```
+
+For the QMI port, `port->ops->tx_poll` is `rpmsg_wwan_ctrl_tx_poll()` and it chains straight
+through to the SMD channel (`drivers/net/wwan/rpmsg_wwan_ctrl.c:83`):
+
+```
+wwan_port_fops_poll
+  -> poll_wait(&port->waitqueue)                          # head #1  (wwan_core.c:776)
+  -> rpmsg_wwan_ctrl_tx_poll -> rpmsg_poll(ept)
+       -> ept->ops->poll = qcom_smd_poll
+            -> poll_wait(&channel->fblockread_event)      # head #2  (qcom_smd.c:998)
+```
+
+`CONFIG_RPMSG_QCOM_SMD=y` and **both** GLINK options are `#ifdef`-off in the running config, so
+the rpmsg backend here is SMD and this chain is the only one that can run.
+
+**The two heads have different lifetimes, and that is the whole point:**
+
+| head | owner | freed when |
+| :--- | :--- | :--- |
+| `port->waitqueue` | `struct wwan_port` (kzalloc) | `wwan_port_destroy()` → `kfree(port)` (`wwan_core.c:361`) |
+| `channel->fblockread_event` | `struct qcom_smd_channel` | **`qcom_smd_edge_release()` → `kfree(channel)` (`qcom_smd.c:1448`)** |
+
+**`port->waitqueue` cannot be the freed one.** `wwan_port_fops_open()` (`:663`) calls
+`wwan_port_get_by_minor()` → `class_find_device()` (`:380`), which takes a device reference,
+and `wwan_port_fops_release()` (`:683`) drops it with `put_device()`. So while qmi-proxy holds
+the fd open the port — and its wait queue — stay allocated.
+
+**`channel->fblockread_event` can be, and it is freed exactly when the corruption fires.** The
+SMD channel is allocated by `qcom_smd_create_channel()` (`:1130`) and freed only in
+`qcom_smd_edge_release()` (`:1440-1449`), which the source's own locking note says runs
+*after* the state worker is killed — i.e. during the SMD edge teardown, which is part of the
+SSR. And the corruption is detected **0.14 ms after `stopped remote processor`**, inside that
+window.
+
+**The use-after-free, stated plainly.** `poll()` registers `entry->wait` on
+`&channel->fblockread_event` and then **sleeps** (`do_sys_poll` → `poll_schedule_timeout`) with
+the entry still linked; it is unlinked only by `poll_freewait()` at the end of the syscall. So
+the registration window is the *entire blocking poll*, not an instant. If the SSR frees the
+channel inside that window, `remove_wait_queue()` walks freed memory — and because the freed
+`wait_queue_head`'s `next` is overwritten by whatever reuses the slab, the report is exactly
+`prev->next should be <the stack entry>, but was <garbage>` with `prev` = the head. That is
+the observed message, and `prev = ffff6ee6c4a07f60` is a linear-map heap address, consistent
+with a kzalloc'd `struct qcom_smd_channel`.
+
+**Two cheap experiments that would settle it, neither needing a build:**
+
+1. **Identify the poller.** `ls -l /proc/$(pidof qmi-proxy)/fd` says whether qmi-proxy holds
+   `/dev/wwan0qmi0` (→ the SMD chain above) or `/dev/rpmsg*` (→ `rpmsg_eptdev_poll` →
+   `eptdev->readq`, the *other* heap head with the same free-on-SSR lifetime, and the file
+   patch 819 already had to guard). `scratch/check_poller.sh` does this.
+2. **Remove the poller and re-run `echo stop`.** If the corruption disappears when qmi-proxy
+   is stopped, it is a poller-lifetime bug and head #2 (or `eptdev->readq`) is confirmed; if it
+   persists, the hypothesis is wrong and the corruption is something else entirely.
+
+**A candidate minimal fix, if experiment 1 lands on the SMD chain:** drop `tx_poll` from
+`rpmsg_wwan_pops` (`rpmsg_wwan_ctrl.c:96`). `wwan_port_fops_poll` falls back to
+`!is_write_blocked(port)` for `EPOLLOUT` when `tx_poll` is absent, so the only loss is
+`qcom_smd_get_tx_avail(channel) > 20` as an extra `EPOLLOUT` condition — a small functional
+regression in exchange for removing a use-after-free. **Do not write this patch until
+experiment 1 confirms the device**, because it fixes a different driver than the one the
+evidence currently points at.
+
+---
+
 ## §3 The measurement that explains the difference from boot C
 
 Pre-820 **boot C survived two consecutive fatals** (Doc 167 §1). The 820 module differs in
@@ -565,16 +650,19 @@ the ~900 s failure still happen?") still needs **n ≥ 60 SSRs** per Doc 167 §7
 
 ## §9 Next
 
-**Priority 1 — identify the poller in the wait-queue corruption (§2.3).** It is the only
-failure that is now *certainly* reproducible, and it has a named site. Two cheap steps, no
-build:
+**Priority 1 — identify the poller in the wait-queue corruption (§2.3, §2.4).** It is the only
+failure that is now *certainly* reproducible, and §2.4 has narrowed it to **one heap wait-queue
+head that is freed during the SSR** — `channel->fblockread_event`, reached through
+`wwan_port_fops_poll` → `rpmsg_wwan_ctrl_tx_poll` → `rpmsg_poll` → `qcom_smd_poll`. Two cheap
+steps, no build:
 
-1. On the device, `ls -l /proc/$(pidof qmi-proxy)/fd` and `/proc/$(pidof qmi-proxy)/task/*/stack`
-   — this settles whether the corrupted head is `port->waitqueue` (`/dev/wwan0qmi0`) or
-   `eptdev->readq` (`/dev/rpmsg*`), which is the whole question.
-2. Re-run `echo stop` with the corruption's *own* discriminator armed: read
-   `/proc/<pid>/fd` **and** the three candidate wait-queue heads' state. `CONFIG_DEBUG_LIST`
-   is already on (it produced the report), so a repeat is guaranteed to name the site again.
+1. `ls -l /proc/$(pidof qmi-proxy)/fd` (`scratch/check_poller.sh`) — settles whether the
+   poller is `/dev/wwan0qmi0` (the SMD chain in §2.4) or `/dev/rpmsg*`
+   (`rpmsg_eptdev_poll` → `eptdev->readq`, the other same-lifetime heap head, already the
+   subject of patch 819).
+2. **Stop qmi-proxy and re-run `echo stop`.** If the corruption disappears the poller
+   hypothesis is confirmed; if it persists, §2.4 is wrong and the corruption is something
+   else. This is the single most informative free experiment available.
 
 **Priority 2 — settle H3 vs H2 with `rx_telemetry`, no build.** Run `echo stop` with a
 sampler that reads **only** `rx_telemetry` in a tight loop (~10 ms period, far faster than the

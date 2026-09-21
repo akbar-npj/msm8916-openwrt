@@ -1345,6 +1345,28 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      and then unregisters the port (`:530`) in the same breath**, called from
      `rpmsg_wwan_ctrl_remove()` (`:145`) during the SSR. **That is a hypothesis, not a measurement —
      the poller's identity must be confirmed (`/proc/<qmi-proxy pid>/fd`) before it is claimed.**
+     **AND §2.4 NARROWS IT FROM SOURCE: `wwan_port_fops_poll()` registers the caller's
+     `poll_table_entry` in TWO queues, because it also calls `port->ops->tx_poll()` — which for
+     this port is `rpmsg_wwan_ctrl_tx_poll()` → `rpmsg_poll()` → `qcom_smd_poll()` →
+     `poll_wait(&channel->fblockread_event)` (`qcom_smd.c:998`); `CONFIG_RPMSG_QCOM_SMD=y` with BOTH
+     GLINK options off, so that chain is the only one that can run. The two heads differ in
+     lifetime: `port->waitqueue` **cannot** be the freed one, because `wwan_port_fops_open()`'s
+     `wwan_port_get_by_minor()` → `class_find_device()` holds a device reference that only
+     `wwan_port_fops_release()`'s `put_device()` drops — so the port stays allocated while
+     qmi-proxy holds the fd. `channel->fblockread_event` **can** be: the `struct qcom_smd_channel`
+     is freed ONLY in `qcom_smd_edge_release()` (`qcom_smd.c:1448`), which the source's own locking
+     note places *after* the state worker is killed — i.e. during the SMD edge teardown, and the
+     corruption fires **0.14 ms after `stopped remote processor`**. The registration window is the
+     ENTIRE blocking poll (`do_sys_poll` sleeps with the entry still linked; only `poll_freewait()`
+     unlinks it), so the SSR can free the head under a sleeping poller — a use-after-free that
+     reports exactly as observed. **Two free experiments settle it: (1) `ls -l
+     /proc/$(pidof qmi-proxy)/fd` to see whether the poller is `/dev/wwan0qmi0` (the SMD chain) or
+     `/dev/rpmsg*` (`rpmsg_eptdev_poll` → `eptdev->readq`, the other same-lifetime heap head,
+     already the subject of patch 819); (2) STOP qmi-proxy and re-run `echo stop` — if the
+     corruption disappears §2.4 is confirmed, if it persists §2.4 is wrong.** A candidate minimal
+     fix if it lands on the SMD chain is to drop `tx_poll` from `rpmsg_wwan_pops`
+     (`rpmsg_wwan_ctrl.c:96`), which removes the second registration at the cost of one `EPOLLOUT`
+     condition — **do not write it until experiment 1 confirms the device.**
      **Consequence: 821 is a net win but is NOT deployable as a fix** — it converts a ~50 % hang into
      a ~100 % reset, so the next work is the **wait-queue lifetime**, not more work on
      `bam_dmux_power_off()`. **Two traps this round records:** (a) **the evidence corpus had never
