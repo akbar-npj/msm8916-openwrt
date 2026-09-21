@@ -271,18 +271,42 @@ it produced them *without* 820.
    teardown work now complete?" (needs n = 1, because `T1..T4` appear or they do not) are different
    questions with wildly different costs. **The cheap one can be answered in one boot.**
 
-### 7.1 The obvious way to get power: force the SSR
+### 7.1 The obvious way to get power: force the SSR — **and 820 may have just unlocked it**
 
 The fatal rate is fixed by the modem (~1 per 900 s of modem uptime), so SSRs cannot be made cheaper
-by traffic. But **an SSR does not require a fatal** — `rproc_stop()` can be driven directly. Memory
-quirk 11 records that `echo stop > /sys/class/remoteproc/remoteproc0/state` **hangs the AP** on this
-device, and §3 now shows that hang is a **different** one (the teardown work, not the hand-off).
-That is a *separate* defect with its own value, but it is **not** a usable accelerator for this race —
-**and it must not be used as a soak loop**, because a hung AP ends the run.
+by traffic. But **an SSR does not require a fatal** — `rproc_stop()` can be driven directly by
+writing the remoteproc state.
 
-So the honest position is: **the race can only be sampled, not forced, with the instruments we have.**
-A forcing method (e.g. a kernel-side loop that raises the notifier under controlled conditions) is
-possible but is a bigger project than 820; it is recorded in §10 as an open option, not a plan.
+Memory quirk 11 records that `echo stop > /sys/class/remoteproc/remoteproc0/state` **hangs the AP** on
+this device. §3 now shows that hang is a **different** one — `rproc_stop()` *does* continue there
+(`wwan0at0 disconnected` prints) and only bam_dmux's **teardown work** fails to complete. That is
+**exactly the defect patch 820 fixes.**
+
+> **So 820 may make `echo stop` safe — and if it does, we get a *forcing function*: an SSR on demand,
+> with no 900 s wait.** That would turn the n ≥ 60 requirement from ~18 h into minutes, and it is the
+> single highest-leverage thing this deployment could buy.
+
+**How to test it, and the risk.** After the first post-820 fatal is scored (§7 item 3 — one SSR
+answers the cheap question), run **one** `echo stop`:
+
+```
+echo stop > /sys/class/remoteproc/remoteproc0/state
+```
+
+and watch `ssr_ledger.csv` / dmesg. Three outcomes:
+
+| outcome | meaning |
+|---|---|
+| `T0..T4` all appear and the modem comes back | **820 fixed the `echo stop` hang** ⇒ a forcing function exists ⇒ the n ≥ 60 protocol becomes cheap |
+| `T1..T3` appear but not `T4` | blocked on `state_lock` — the §8.2 ABBA survives; the forcing function needs the ABBA fixed too |
+| the AP hangs | the defect is not what 820 fixed; a reboot is needed, and **the run continues from the ledger** (that is what it is for) |
+
+**Do not run this as a loop before the first healthy SSR is scored**, because a hang ends the boot —
+and do not run it at all until the post-820 T0–T4 sequence has been seen once, so the healthy
+post-820 baseline exists first. **A hang here is not a failure of the experiment; it is a datapoint**,
+and it is recoverable because the ledger, the coredump watcher and the beacon all autostart.
+
+**Until that is tested, the honest position is: the race can only be sampled, not forced.**
 
 ---
 
@@ -324,9 +348,13 @@ decidable.
 ## 10. Next
 
 1. **Deploy patch 820 and pre-register the sample size** — a positive claim needs **≥ 60 SSRs with
-   zero hangs** (§7). Until then, report `SSRs recovered: n` and nothing stronger.
+   zero hangs** (§7). Until then, report `SSRs recovered: n` and nothing stronger. **DONE** — 820 was
+   deployed at the end of this round (§8 of the commit / `evidence/165_hang_1840s/deploy_820.txt`).
 2. **Score T0–T4 on every SSR**, healthy or not. One SSR settles "does the teardown work now
    complete?" (§7 item 3).
+3. **Then test whether 820 made `echo stop` safe (§7.1) — this is the highest-leverage experiment
+   left.** If it did, SSRs become on-demand and the n ≥ 60 requirement collapses from ~18 h to
+   minutes. **Only after the first healthy post-820 SSR is scored**, and expect it may hang the AP.
 3. **Score the signature hypothesis of §2** for free: every future fatal's signature is in dmesg.
    Record `(signature, recovered|hung)` for each.
 4. **Re-run 820 without the `dev_err` probes** before claiming the cancels fixed anything — Doc 166

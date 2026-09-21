@@ -1212,7 +1212,15 @@ soak cannot validate 820 — **n ≥ 60 SSRs**).
      deployed at the end of this round** (`qcom_bam_dmux.ko` md5 `e441491317f09e34a3e72dc15cdacd3c`,
      240 544 B, srcversion `F7405AD685715AEC3C274D9`, 5 T-strings, pre-820 backed up to
      `/overlay/modbackup/qcom_bam_dmux.ko.pre820`), and the post-reboot state is clean: `printk =
-     6 4 1 7`, 14 trace lines, 0 fatals, 5 soak procs + watcher + beacon. Evidence:
+     6 4 1 7`, 14 trace lines, 0 fatals, 5 soak procs + watcher + beacon. **HIGHEST-LEVERAGE NEXT
+     EXPERIMENT (§7.1): the `echo stop` hang is the *teardown work* blocking, which is exactly what 820
+     fixes — so 820 may make `echo stop` safe, and that would give an SSR *forcing function* and
+     collapse the n ≥ 60 requirement from ~18 h to minutes.** Test it **once**, **after** the first
+     healthy post-820 SSR is scored (a hang there is a datapoint, not a failure — the ledger,
+     watcher and beacon all autostart). New instrument: `ssr_ledger.sh` writes one persistent line per
+     fatal (`uptime,n,sig,t0..t4,exec,wwan,coredumps`) to `/overlay/ssr_ledger.csv`, because dmesg is
+     lost on every reboot and an 18 h soak spans reboots; **a hang produces NO line for that fatal, so
+     gaps are the signal**, cross-checked against `coredump_watch.log`. Evidence:
      `evidence/167_hang_not_deterministic/`.
 
 ## The steady-state symptom, measured (Doc 147 §5.4)
