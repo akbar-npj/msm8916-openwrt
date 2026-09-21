@@ -87,7 +87,20 @@ limitation into an on-the-critical-path perturbation, and raising an untested co
 hang; and that the Doc 159 window is **86.2 % a single *untraced* `q6v5_rmb_mba_wait()`** — all 23
 trace points together are **5.888 ms, 13.4 %** of the 43.968 ms window, correcting Doc 164 §4's model
 of what that span contained and recording, rather than patching, a **coverage gap in Doc 164 §9's
-pre-registration**) — see the sections
+pre-registration**), and a twenty-second by **Doc 166** (which **catches the AP hang** — on a
+*spontaneous* fatal, and in a place no instrument was looking: the last message the kernel ever
+emits is the SSR notifier's **hand-off**, `bam_dmux: SSR before shutdown: scheduling teardown work`,
+so the hang is in `qcom_bam_dmux.c:2233-2237` — the five-line region whose only unbounded waits are
+two `cancel_*_sync()` calls on works that themselves touch `pm_runtime` and `state_lock`, and which
+are **redundant** because the flag set one line earlier already makes both self-abort; it proves
+"nothing further happened" rather than merely "the console stopped" by using **two sinks whose
+union covers every expected next line**, corroborates the hang **without `printk` at all** via the
+coredump watcher's missing dump, records that **Doc 164 §9's prediction is falsified in site** —
+there is no `q6v5-trace` line in the hang, because the hang is **upstream of the entire window** —
+and shows the reset is **silent**: the ramoops DT node has `record-size` but no `max-reason`, so the
+dmesg zone exists and an oops or panic **would** have left a record, and none exists; also
+**retracts the `qcom-time-daemon` periodic-ATS_USER lead outright** and corrects the pstore-sink
+reading) — see the sections
 below.
 **Retraction 1 is scoped: read it before citing it.**
 
@@ -955,6 +968,96 @@ below.
      lines are our own instrument's leftovers** (720 lines of 120 × `X`, counters `SHORT79`…`SHORT85`,
      AP 405.46–496.01 s), because the ring wrapped and the capture *begins* mid-probe.
 
+## A twenty-second round — Doc 166, 2026-09-21: the AP hang is the SSR *teardown hand-off*, upstream of the instrumented window
+
+109. **The hang was caught — on a spontaneous fatal, and in a place no instrument was looking.**
+     Crash #2 at AP 1840.390 s (`lte_ml1_sleepmgr_stm.c:4054`) printed `recovering`, then
+     **`bam_dmux: SSR before shutdown: scheduling teardown work` at 1840.413105 — and that is the last
+     message the kernel ever emitted.** Two independent pstore sinks agree, and the second one makes
+     the claim provable rather than merely suggestive: `console-ramoops-0` is the **ramoops console**
+     (`dev_err` and above only, because `console_loglevel = 6`), while `pmsg-ramoops-0` is the soak's
+     **filtered `/dev/kmsg` mirror** whose filter (`*"SSR "*`, `*q6v5-trace:*`, `*"port failed halt"*`,
+     `*"MBA booted"*`, `*"Kernel panic"*`, `*"BUG:"*`, `*"Unable to handle"*`, `*"watchdog"*`, …)
+     **covers every expected next line and every kernel fault banner.** None of them fired. Both
+     zones use `PRZ_FLAG_ZAP_OLDEST` (they retain the *newest* data), and both end at the same instant.
+     So this is not "the console went quiet" — **the one sink that carries `dev_info` and is guaranteed
+     to capture the next expected line is silent too.**
+110. **A third, printk-independent line of evidence: the coredump watcher.** `coredump_watch.log`
+     shows boot B produced **exactly one** dump (crash #1's, at 939.34 s) and **none for crash #2**.
+     Since a coredump is created only after `rproc_stop()` returns (Doc 153 §4), **`rproc_stop()` did
+     not return.** This is a filesystem observation of a coredump device — no `printk` involved.
+111. **The hang is in the five-line region `qcom_bam_dmux.c:2233-2237`, and it is upstream of *both*
+     windows.** The teardown work's own first print (`:2238`, `executing serialized asynchronous SSR
+     teardown` — measured at +2.747 ms on the healthy crash #1) never appeared, so the hang is in
+     `:2233` (a `WRITE_ONCE`), `:2234` `cancel_delayed_work_sync(&tx_retry_work)`, `:2235`
+     `cancel_work_sync(&tx_wakeup_work)`, or `:2237` `mutex_lock(&state_lock)`. **The only unbounded
+     waits there are the two `cancel_*_sync()` calls — no timeout, not interruptible.** `tx_wakeup_work`
+     is not a leaf: its first two acts are `pm_runtime_resume_and_get()` (`:739`) and
+     `mutex_lock(&state_lock)` (`:758`), so it can be *running yet not finished* for as long as the PM
+     core or the mutex makes it wait — and `state_lock` is held across a **full `bam_dmux_power_on()`**
+     by the threaded `pc_irq` handler (`:1903`→`:1909`) and across `bam_dmux_power_off()` (`:1911`,
+     `:1934`), which is exactly what runs during an SSR. **Both cancels are also redundant:** `:2233`
+     sets `in_teardown` one line earlier, and both target works test it as their **first statement**
+     (`tx_wakeup_work:736`, `tx_retry_work:850`) and re-test under the lock (`:764`). **The cancels add
+     a wait, not a guarantee.** Patch 820 replaces them with the non-blocking `cancel_work()` /
+     `cancel_delayed_work()`; mutual exclusion is already provided by `state_lock` at `:2237`.
+112. **Doc 164 §9's pre-registration is FALSIFIED IN SITE — and Doc 165 §4.1's coverage gap was too
+     narrow.** §9 predicted the last trace line would be step **08, 20 or 21** (the traced
+     `qcom_scm_assign_mem()` sites). **There is no `q6v5-trace` line in the hang at all** — the last
+     line is the notifier's hand-off, ~10.9 ms *before* step 01 would have run. The SCM hypothesis is
+     not disproved; it was simply never reached. And §4.1 said a hang in the untraced 86.2 % would
+     leave the last line at step 23 — true *of a hang inside the window*, but this hang is **before the
+     window begins**, in the `rproc_stop()` → SSR-notifier → bam_dmux-teardown **hand-off**. **The
+     instrument's blind spot was therefore not just the inside of the window but the whole region
+     upstream of it** — the fifth time an instrument's *scope* has been the limiting factor. The
+     lesson to carry: **trace the hand-off, not the state machine** — the hang has now been found
+     twice, both times in the *gaps between* instrumented regions.
+113. **The reset is silent, and the two AP hangs do NOT share a reset mechanism.** The AP came back
+     ~2–4 s after the fatal (host arithmetic: boot B start 12:00:48 → fatal 12:31:28.4 → new boot
+     12:31:31), consistent with `kernel.panic = 3` — **but this round adds a fact that argues against a
+     panic:** the ramoops DT node is
+     `compatible console-size name pmsg-size record-size reg` — **`record-size` present, `max-reason`
+     absent**, so the **dmesg zone exists with the default `max_reason = KMSG_DUMP_OOPS`** and an oops
+     *or* a panic **would** leave a `dmesg-ramoops` record. There is none. Independently, a `panic()`
+     prints `Kernel panic - not syncing:` at `KERN_EMERG` into the **in-kernel** ramoops console,
+     which needs no userspace and cannot be bypassed — and that record's last line is `recovering`.
+     **So: not an oops, and not a panic.** Doc 159 recorded a 30 s PM8916 PON WDT for *its* hang;
+     ~2–4 s does not match, so **the two AP hangs do not share a reset path** even though they share a
+     site class. A panic whose console write was lost cannot be fully excluded (an invalid pstore
+     buffer is discarded silently). **New instrument proposed:** read the AP's restart reason from
+     **SMEM item 403 (`SMEM_POWER_ON_STATUS_INFO`)** — the very item the driver's own comment at
+     `:2250` warns must not be *written*.
+114. **RETRACTED: the "stale `qcom-time-daemon` performing a periodic ATS_USER refresh" lead is dead.**
+     Raised while auditing the remaining AP-side modem actors (Doc 164 §12 item 4) — the device's init
+     carries a stale comment claiming `-r 60` *"MUST stay > 0"*, and a log line looked like `ENABLED`.
+     Direct process inspection disproves it: **`/usr/sbin/qcom-time-daemon -r 0 -v` is what is
+     running**, and the daemon logs **`Periodic ATS_USER refresh: DISABLED (interval=0s)`**. There is
+     **no periodic ATS_USER re-anchor on this device.** The only residue is cosmetic — the deployed
+     init (`8cd979087ed55930c458911056d7258c`) is an older revision whose *comment* is wrong while its
+     *command* is right. **Do not carry this forward.**
+115. **Corrected: the two pstore sinks are not interchangeable.** Earlier this session
+     `console-ramoops-0` was treated as "the" dying-boot record. At `console_loglevel = 6` it holds
+     **only `dev_err` and above**; the instrument's entire output is `dev_info` and is *invisible*
+     there. **Corollary for every future hang: read both sinks, and read the filter that produced the
+     second one.** Also confirmed: pstore records **survive the reboot they cause** (boot C's
+     `console-ramoops-0` still holds boot B's dying log, same 179 975 B, same tail) — the constraint is
+     only that the *following* boot's traffic overwrites them. And **the instrumented `.ko` survives a
+     reboot too** (it lives in the overlay upperdir while `/rom` holds the pristine
+     `6ac6603141c25b1e3462615411e92f7c`), so **Doc 164 §3's "re-copy after every reboot" was
+     over-cautious — verify the md5, don't re-copy blindly.**
+116. **A secondary defect found while reading, recorded but deliberately not fixed by 820:** the *same*
+     work item is queued on **two different workqueues** — `queue_pm_work()` = `queue_work(pm_wq, work)`
+     (`include/linux/pm_runtime.h:62`, used at `:687` and `:1922`) and `queue_work(system_wq, …)`
+     (`:857`). A `work_struct` must not be queued to two queues: the second `queue_work()` sees
+     `WORK_STRUCT_PENDING` and **returns false**, so a `tx_retry_work`-initiated retry can be silently
+     **dropped** while the item is pending on `pm_wq`. **Lost-retry bug, not a hang** — separate patch,
+     so that 820 tests exactly one change.
+117. **Probe trap, in addition to round 21's:** `grep -c PATTERN /dev/kmsg` **never terminates** —
+     `/dev/kmsg` is a stream with no EOF, so `-c` waits forever (it cost a 20 s ssh timeout this
+     round). Use **`dmesg | grep -c`**, which returns because busybox `dmesg` reads via `syslog(2)`.
+     The device's `awk` also needs an **anchored** timestamp pattern (`/^\[ *1840\.3/`), not a bare
+     substring. Evidence: `evidence/165_hang_1840s/{dying_boot_tail,corroboration,source_region}.txt`.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -1032,6 +1135,7 @@ Also established and not to be re-litigated:
 | `163_ERRFATAL_DESCRIPTOR_IS_INLINE_AND_MATCHES_DMESG.md` | **The ERR_FATAL coredump descriptor carries a plaintext, INLINE filename, and its `file:line` matches that fatal's dmesg signature 11/11 across two boots.** Record at ELF VA `0xC35B1280`: `+0x10` line (u16), `+0x14`/`+0x18` words A/B, **`+0x24` filename, NUL-terminated, in the clear**. The corpus' *"obfuscated"* / *"no 16-byte filename table"* is true of the **ELF on disk** but not of the **runtime copy in a coredump** — the earlier reader followed the unrelated `+0x08` pointer instead of reading `+0x24`. Run 8's 5 dumps decode to `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `a2_power.c` 1189, exactly its 5 dmesg signatures; the earlier boot's 6 dumps all decode to `lte_ml1_common_timer.c` 390, matching Doc 149 §2's table (and covering **4** distinct fatals, not 6 — two were captured twice). Word B advances **+11/+12 per fatal**. **So Doc 149's "must not classify a fatal by its `file:line`" is a correct warning and a wrong conclusion** — the string does not name the root cause but it does name *which site tripped*, which is the modem RE's §5.2 exactly, and it closes the alternative reading of Doc 162 §3 (the signature cannot be stale). Also records that `/overlay` was at **100 % with 9.2 MB free** while the watcher writes an 85 MB dump per fatal; **all 36 dumps (2.9 GB) were copied to `scratch/coredump_live_full/` and verified byte-identical by md5 (36/36)** before `/overlay/coredump_live/` was cleared (**9.2 MB → 2.9 GB free**). Tool: `evidence/163_errfatal_descriptor/errfatal_descriptor.py`. |
 | `164_Q6V5_SSR_WINDOW_IS_NOW_OBSERVABLE.md` | **The Doc 159 hang window is instrumented (patch 817, 23 trace points), and the instrument was measured before it was trusted — it was 4.2× the phenomenon, and that was fixed.** The window re-measured independently from the previous boot's `console-ramoops-0`: **43.726–46.944 ms, n=5, mean 45.481 ms** (Doc 159's 43–47 ms reproduces exactly). The console costs **1.03 ms + 0.0904 ms/char** (a **4 %** match to the 115200-baud serialisation rate of 0.0868 ms/char), so an 80-char trace line is **≈ 8.3 ms** and 23 of them are **≈ 190 ms against a 45.481 ms window**; an independent bound from the cold-boot bring-up agrees (**113.8 ms ≈ 8.1 ms/line**). **Fixed by `console_loglevel = 6`** — KERN_INFO is suppressed on every console but still stored in the ring buffer, **11.87 → 0.37 ms/line (32×)**, verified that a suppressed line still reaches the ring, with `dev_err` reference points keeping a kernel-side sink; applied at runtime and persisted in `/etc/rc.local`. Records the **8/8 interval↔signature correlation** (short ≈900.7 s ⇒ `lte_ml1_sleepmgr_stm.c:4054`; long ≈942 s ⇒ `a2_power.c:1189`) that reframes Doc 162 §3's "alternation"; that **`/dev/pmsg0` survives a reboot** (verified) and that netconsole is impossible here; the **ramoops byte-corruption trap** (`received` → `rEceived`, so a plain `grep -c` undercounted 5 fatals as 4); the squashfs/staging-`.ko` deployment traps; and both pre-registrations. Tooling in `evidence/164_q6v5_ssr_window_trace/`. |
 | `165_ONE_FATAL_TWO_MBA_RELOADS_COREDUMP_IS_IN_THE_SSR_WINDOW.md` | **One fatal produces TWO `01..23` cycles, because the coredump reader is inside the recovery path.** `q6v5_mba_load()` has **two** callers: `q6v5_start()` (`:1585`) and **`q6v5_reload_mba()` (`:1323`), reached only from `qcom_q6v5_dump_segment()` (`:1544`)** — and `rproc_boot_recovery()` calls `rproc->ops->coredump()` **between `rproc_stop()` and `rproc_start()`**. The half-cycle order is therefore `01-09, 10-23, 01-09, 10-23`; the `dump_mba_loaded` flag (`mba_reclaim` clears at `:1246`, `mba_load` sets at `:1189`) is the mechanism; and **`port failed halt` is emitted by the *coredump's* reclaim, not the restart's** (it prints at the top of `q6v5_mba_reclaim()`, measured 0.180 ms before step 01). The coredump's synchronous segment copy (**85 398 475 B at 80.2 MB/s, 1.064182 s**, `RPROC_COREDUMP_ENABLED` → `vmalloc` → `dev_coredumpv`) **stalls the recovery path while the modem is held down** and adds an extra MBA boot/reclaim pair to every fatal — **Doc 153 §4 sharpened**: "created after `rproc_stop()` returns" is true, but it is *inside* `rproc_boot_recovery()`, on the critical path; `bam_dmux: refusing to queue command while modem is collapsed` falls inside the gap. **The Doc 159 window is 86.2 % one untraced wait**: 0.180 ms halt tail + **5.888 ms for all 23 steps (13.4 %)** + **37.900 ms `q6v5_rmb_mba_wait(qproc, 0, 5000)` (86.2 %)** = 43.968 ms, so **Doc 164 §4's "that span contains all 23 trace points plus the MBA firmware load" is literally true and materially misleading** (the wait is 6.4× the trace). `q6v5_rmb_mba_wait()` is **bounded** (`msleep(1)` + `time_after`, 5000 ms → `-ETIMEDOUT` → `MBA boot timed out`), so the 37.900 ms is real modem boot time; a hang showing `MBA boot timed out` would point at the untimed `readl()` of `RMB_MBA_STATUS_REG`. **Doc 164 §9's pre-registration stands as written, with its coverage gap recorded rather than patched** — a hang in the untraced 86.2 % leaves the last line at **step 23**, a third outcome §9 did not enumerate; and `q6v5_xfer_mem_ownership()` has **14 call sites, of which patch 817 traces 3**, the two untraced mpss transfers in `qcom_q6v5_dump_segment` (`:1547`, `:1570`) sitting in the dump path. Instrument validated live (**every inter-step delta 0.021–0.244 ms**, the ~0.1 ms/line predicted for `console_loglevel = 6`); telemetry holding across the fatal (`defer_q 178 == defer_sub 178`, `defer_wipe_live 0`, `guard_hits 0`, `pc_resync 0`, clean recovery `retries: 0`, 3/3 ICMP 0 % loss); `modem pc-ack timeout during resume` shown to be a **symptom, not a precursor** (inconsistent position vs the fatal in the previous boot). Two harness traps: **`cat /dev/kmsg \| grep PAT \| head -N` never terminates on this busybox** (block-buffered `grep` → no `SIGPIPE`; use `grep -m N`), and **killing the soak by pattern orphans its `cat /dev/kmsg` child** (one held a deleted log inode since AP 112 s). **Doc 164 §6's prediction is partially scored and its 940.2–947.0 s "long" band does NOT survive**: this fatal's ≈ 925.4 s of modem uptime (offset borrowed from the previous boot, since the ring had wrapped past the modem's initial boot) falls in neither band, contradicting Doc 162's own taxonomy (`a2_power.c:1189` n=7 spanning 68.5–941.3 s, *not* a clock) — what survives is the *directional* claim, since this boot's first fatal differs in both signature and AP time from the previous boot's. Tooling: `evidence/164_q6v5_ssr_window_trace/q6trace_analyse.py` + `window_analysis.txt`. |
+| `166_THE_HANG_IS_THE_SSR_TEARDOWN_HANDOFF.md` | **The AP hang is located, and it is upstream of every instrument so far.** Crash #2 at AP 1840.390 s (`lte_ml1_sleepmgr_stm.c:4054`) printed `recovering`, then **`bam_dmux: SSR before shutdown: scheduling teardown work` at 1840.413105 — the last message the kernel ever emitted.** Two pstore sinks agree and their **union covers every expected next line**: `console-ramoops-0` carries `dev_err`+ only (`console_loglevel = 6`), while `pmsg-ramoops-0` is the soak's **filtered `/dev/kmsg` mirror** whose filter (`*"SSR "*`, `*q6v5-trace:*`, `*"port failed halt"*`, `*"MBA booted"*`, `*"Kernel panic"*`, `*"BUG:"*`, `*"Unable to handle"*`, `*"watchdog"*`) matches the healthy path's every next step — **none fired**; both zones use `PRZ_FLAG_ZAP_OLDEST` and both end at the same instant, so this is *not* "the console went quiet". A **third, printk-independent** proof: `coredump_watch.log` shows boot B made **exactly one** dump (crash #1's) and **none for crash #2** ⇒ **`rproc_stop()` never returned** (Doc 153 §4). The hang is therefore in **`qcom_bam_dmux.c:2233-2237`** — the teardown work's own print at `:2238` (measured +2.747 ms on the healthy crash #1) never appeared, and the only unbounded waits in that five-line region are `cancel_delayed_work_sync(&tx_retry_work)` (`:2234`) and `cancel_work_sync(&tx_wakeup_work)` (`:2235`) — **no timeout, not interruptible**; `tx_wakeup_work` is not a leaf (`pm_runtime_resume_and_get()` at `:739`, `mutex_lock(&state_lock)` at `:758`) and `state_lock` is held across a full `bam_dmux_power_on()` by the threaded `pc_irq` handler (`:1903`→`:1909`), which is exactly what runs during an SSR. **Both cancels are redundant**: `:2233` sets `in_teardown` one line earlier and both works test it as their first statement (`:736`, `:850`) and re-test under the lock (`:764`) — so the cancels add a *wait*, not a guarantee; **patch 820** swaps them for the non-blocking forms (mutual exclusion is already `state_lock` at `:2237`). **Doc 164 §9's pre-registration is falsified in site** — there is **no `q6v5-trace` line in the hang at all**, because the hang is *before the window begins*, in the `rproc_stop()` → SSR-notifier → bam_dmux-teardown **hand-off**; Doc 165 §4.1's coverage gap was therefore **too narrow** (the blind spot is upstream of the window, not just inside it). **The reset is silent:** the ramoops DT node is `compatible console-size name pmsg-size record-size reg` — **`record-size` present, `max-reason` absent**, so the dmesg zone exists with the default `max_reason = KMSG_DUMP_OOPS` and an oops *or* panic **would** leave a record; there is none, and a panic's `KERN_EMERG` banner cannot escape the in-kernel ramoops console either ⇒ **not an oops, not a panic**; ~2–4 s does **not** match Doc 159's 30 s PM8916 PON WDT, so **the two AP hangs do not share a reset mechanism** (proposed instrument: SMEM item 403 `SMEM_POWER_ON_STATUS_INFO`, read-only). **RETRACTED: the "stale `qcom-time-daemon` / periodic ATS_USER refresh" lead is dead** — `ps` shows `/usr/sbin/qcom-time-daemon -r 0 -v` and the daemon logs `Periodic ATS_USER refresh: DISABLED (interval=0s)`; only a stale *comment* remains. Also: the **two sinks are not interchangeable** (read both, and read the second one's filter); **pstore records and the instrumented `.ko` both survive the reboot they cause** (Doc 164 §3's "re-copy after every reboot" was over-cautious — verify the md5); and a secondary defect recorded but **deliberately out of scope for 820**: the *same* work item is queued on **two workqueues** (`queue_pm_work()` = `queue_work(pm_wq, work)` at `:687`/`:1922` vs `queue_work(system_wq, …)` at `:857`), so a retry can be silently dropped while pending on `pm_wq` — a lost-retry bug, not a hang. New probe trap: **`grep -c PATTERN /dev/kmsg` never terminates** (no EOF); use `dmesg \| grep -c`. Evidence: `evidence/165_hang_1840s/{dying_boot_tail,corroboration,source_region}.txt`. |
 
 ## Sound but narrow (accurate, subordinate scope)
 

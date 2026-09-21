@@ -1,0 +1,4 @@
+-r--r--r--    1 root     root        179975 Sep 21 06:22 console-ramoops-0
+-r--r--r--    1 root     root         11094 Sep 21 06:22 pmsg-ramoops-0
+--- dmesg-ramoops present? ---
+NO dmesg-ramoops record (=> not a panic)

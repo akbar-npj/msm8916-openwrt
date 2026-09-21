@@ -1,0 +1,141 @@
+=== SOURCE REGION — bam_dmux SSR teardown hand-off (Doc 166 §4, §5, §8) ===
+File: openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/
+      linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.c
+Patch chain: 808 + 809 + 810 + 811 + 812 + 814 (+ 817 is q6v5, a different file).
+Both patch trees (msm89xx/patches/ and openwrt/target/linux/msm89xx/patches/) are
+IN SYNC for 814 (diff -q: identical), so the live file is the tracked state.
+
+-------------------------------------------------------------------------------
+A. THE HAND-OFF — the notifier that produced the LAST LINE EVER (line 2357)
+-------------------------------------------------------------------------------
+2357	static int bam_dmux_ssr_notifier_cb(struct notifier_block *this,
+2358					    unsigned long code, void *data)
+2359	{
+2360		struct bam_dmux *dmux = container_of(this, struct bam_dmux, ssr_nb);
+2361
+2362		switch (code) {
+2363		case QCOM_SSR_BEFORE_SHUTDOWN:
+2364			dev_info(dmux->dev, "bam_dmux: SSR before shutdown: scheduling teardown work\n");
+2365			WRITE_ONCE(dmux->in_teardown, true);
+2366			WRITE_ONCE(dmux->pc_state, false);
+2367			/* Every SSR gets a fresh powerup budget. */
+2368			dmux->ssr_powerup_retries = 0;
+2369			schedule_work(&dmux->ssr_teardown_work);
+2370			break;
+
+   :2364 IS the last line the kernel ever emitted.  So :2365-:2369 all ran and
+   the work was submitted.  :2364 is dev_info => absent from console-ramoops
+   (loglevel 6), present only in the pmsg mirror.
+
+-------------------------------------------------------------------------------
+B. THE FIVE-LINE REGION WHERE THE HANG IS (line 2228) — :2238 never printed
+-------------------------------------------------------------------------------
+2228	static void bam_dmux_ssr_teardown_work_func(struct work_struct *work)
+2229	{
+2230		struct bam_dmux *dmux = container_of(work, struct bam_dmux, ssr_teardown_work);
+2231		u32 *states;
+2232
+2233		WRITE_ONCE(dmux->in_teardown, true);
+2234		cancel_delayed_work_sync(&dmux->tx_retry_work);      <-- unbounded wait #1
+2235		cancel_work_sync(&dmux->tx_wakeup_work);             <-- unbounded wait #2
+2236
+2237		mutex_lock(&dmux->state_lock);
+2238		dev_info(dmux->dev, "bam_dmux: executing serialized asynchronous SSR teardown\n");
+2239		bam_dmux_ssr_teardown(dmux);
+...
+2256		mutex_unlock(&dmux->state_lock);
+...
+2263		disable_irq(dmux->pc_irq);
+2264		enable_irq(dmux->pc_irq);
+2265	}
+
+   Healthy crash #1 printed :2238 (+2.747 ms after the hand-off).  Crash #2 did
+   not.  So the hang is in :2233-:2237, which contains exactly two unbounded
+   waits -- both cancel_*_sync(), neither with a timeout.
+
+-------------------------------------------------------------------------------
+C. BOTH TARGET WORKS SELF-ABORT — so the cancels are redundant (Doc 166 §5.1)
+-------------------------------------------------------------------------------
+ 730	static void bam_dmux_tx_wakeup_work(struct work_struct *work)
+ 731	{
+ 732		struct bam_dmux *dmux = container_of(work, struct bam_dmux, tx_wakeup_work);
+ ...
+ 736		if (READ_ONCE(dmux->in_teardown))
+ 737			return;                                   <-- first statement
+ 738
+ 739		ret = pm_runtime_resume_and_get(dmux->dev);        <-- CAN BLOCK (PM core)
+ ...
+ 758		mutex_lock(&dmux->state_lock);                     <-- CAN BLOCK (mutex)
+ ...
+ 764		if (!READ_ONCE(dmux->pc_state) || READ_ONCE(dmux->in_teardown)) {
+ 765			mutex_unlock(&dmux->state_lock);
+ ...
+ 772			return;            /* nothing submitted */
+ 773		}
+
+ 845	static void bam_dmux_tx_retry_work(struct work_struct *work)
+ 846	{
+ ...
+ 850		if (READ_ONCE(dmux->in_teardown))
+ 851			return;                                   <-- first statement
+ ...
+ 857		queue_work(system_wq, &dmux->tx_wakeup_work);      <-- SEE E BELOW
+ 858	}
+
+   :2233 sets in_teardown ONE LINE BEFORE the cancels, so every future
+   invocation of either work returns immediately.  The cancels add a WAIT, not
+   a guarantee.
+
+-------------------------------------------------------------------------------
+D. WHO HOLDS state_lock DURING AN SSR (Doc 166 §5.2)
+-------------------------------------------------------------------------------
+  758  tx_wakeup_work              (wants it)
+ 1309  rx_watchdog_func            (takes it)
+ 1903  bam_dmux_pc_irq  (threaded)  takes it across a FULL bam_dmux_power_on() at :1909
+ 1911  ... and across bam_dmux_power_off() when power_on fails
+ 1934  ... and across bam_dmux_power_off() when in_teardown && line deasserted
+ 1994  runtime_suspend
+ 2025  runtime_resume
+ 2049  runtime_resume
+ 2237  ssr_teardown_work
+ 2334  ssr_powerup_work
+ 2490  remove
+ 2569  remove
+
+  bam_dmux_power_off() itself (1561) does, in order:
+    1576/1577  cancel_delayed_work_sync(&rx_rearm_work / &rx_watchdog_work)
+    1580       wait_event(rx_submit_wait,    rx_active_submitters == 0)
+    1593       wait_event(rx_callback_wait,  rx_active_callbacks == 0)
+    1621       cancel_delayed_work_sync(&tx_retry_work)
+
+-------------------------------------------------------------------------------
+E. SECONDARY DEFECT — the same work item on TWO workqueues (Doc 166 §8)
+-------------------------------------------------------------------------------
+  687   queue_pm_work(&dmux->tx_wakeup_work);     -> pm_wq
+ 1922   queue_pm_work(&dmux->tx_wakeup_work);     -> pm_wq
+  857   queue_work(system_wq, &dmux->tx_wakeup_work);  -> system_wq
+
+include/linux/pm_runtime.h:62:
+	static inline bool queue_pm_work(struct work_struct *work)
+	{
+		return queue_work(pm_wq, work);
+	}
+
+A work_struct must not be queued to two queues: the second queue_work() sees
+WORK_STRUCT_PENDING and returns false, so a tx_retry_work-initiated retry can be
+silently DROPPED while the item is pending on pm_wq.  Lost-retry bug, not a hang.
+Deliberately out of scope for patch 820 so that 820 tests exactly one change.
+
+-------------------------------------------------------------------------------
+F. WORKQUEUE REGISTRATION (line 2445)
+-------------------------------------------------------------------------------
+2445	INIT_WORK(&dmux->tx_wakeup_work, bam_dmux_tx_wakeup_work);
+2446	INIT_DELAYED_WORK(&dmux->tx_retry_work, bam_dmux_tx_retry_work);
+2447	INIT_WORK(&dmux->register_netdev_work, bam_dmux_register_netdev_work);
+2448	INIT_WORK(&dmux->ssr_teardown_work, bam_dmux_ssr_teardown_work_func);
+2449	INIT_DELAYED_WORK(&dmux->ssr_powerup_work, bam_dmux_ssr_powerup_work_func);
+2450	INIT_DELAYED_WORK(&dmux->rx_rearm_work, bam_dmux_rx_rearm_work_func);
+2451	INIT_DELAYED_WORK(&dmux->rx_watchdog_work, bam_dmux_rx_watchdog_func);
+
+No private workqueue is created (no alloc_workqueue / create_*workqueue in the
+file), so every schedule_* lands on system_wq unless queue_pm_work is used.

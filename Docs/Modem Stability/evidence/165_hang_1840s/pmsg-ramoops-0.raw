@@ -1,0 +1,127 @@
+14,230,1440498,-;init: - watchdog -
+14,258,7631883,-;procd: - watchdog -
+14,259,8214680,-;procd: - watchdog -
+6,278,9720940,-;remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+6,283,10790015,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+6,284,10794994,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+6,285,10803385,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+6,286,10809563,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+6,288,10817798,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+6,289,10831088,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+6,290,10838109,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+6,292,10845884,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+6,293,10861212,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+6,294,10868178,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+6,295,10875386,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+6,296,10882889,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+6,297,10890626,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+6,298,10898525,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+6,299,10949338,-;qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+6,300,11679145,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+6,301,11679265,-;remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+6,305,12356811,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+6,306,12369705,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+14,230,1440498,-;init: - watchdog -
+14,258,7631883,-;procd: - watchdog -
+14,259,8214680,-;procd: - watchdog -
+6,278,9720940,-;remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+6,283,10790015,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+6,284,10794994,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+6,285,10803385,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+6,286,10809563,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+6,288,10817798,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+6,289,10831088,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+6,290,10838109,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+6,292,10845884,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+6,293,10861212,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+6,294,10868178,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+6,295,10875386,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+6,296,10882889,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+6,297,10890626,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+6,298,10898525,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+6,299,10949338,-;qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+6,300,11679145,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+6,301,11679265,-;remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+6,305,12356811,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+6,306,12369705,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+14,230,1440498,-;init: - watchdog -
+14,258,7631883,-;procd: - watchdog -
+14,259,8214680,-;procd: - watchdog -
+6,278,9720940,-;remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+6,283,10790015,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+6,284,10794994,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+6,285,10803385,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+6,286,10809563,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+6,288,10817798,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+6,289,10831088,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+6,290,10838109,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+6,292,10845884,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+6,293,10861212,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+6,294,10868178,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+6,295,10875386,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+6,296,10882889,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+6,297,10890626,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+6,298,10898525,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+6,299,10949338,-;qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+6,300,11679145,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+6,301,11679265,-;remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+6,305,12356811,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+6,306,12369705,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+3,3250,937786016,-;qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+6,3254,937808624,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+6,3256,937811371,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: executing serialized asynchronous SSR teardown
+6,3259,937819568,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+6,3260,937819605,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+6,3261,937819628,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+6,3262,937819650,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+6,3263,937819710,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+6,3264,937819733,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+6,3265,937819788,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+6,3266,937819810,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+6,3267,937819832,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+6,3268,937821257,-;remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+6,3269,937852903,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+6,3270,937852946,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+6,3271,937854855,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+6,3272,937854889,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+6,3273,937854924,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+6,3274,937854950,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+6,3275,937854972,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+6,3276,937854993,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+6,3277,937855053,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+6,3278,937855099,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+6,3279,937855122,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+6,3280,937855144,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+6,3281,937855165,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+6,3282,937855186,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+3,3284,938919368,-;qcom-q6v5-mss 4080000.remoteproc: port failed halt
+6,3285,938919548,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 01 disable_qchannel mdm
+6,3286,938919595,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 02 disable_qchannel cx
+6,3287,938919637,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 03 disable_qchannel axi
+6,3288,938919680,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 04 reset_assert
+6,3289,938919773,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 05 clk_disable reset
+6,3290,938919818,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 06 clk_disable active
+6,3291,938920062,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 07 regulator_disable active
+6,3292,938920115,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+6,3293,938920158,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 09 qcom_q6v5_unprepare
+6,3294,938923089,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+6,3295,938923156,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+6,3296,938924841,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+6,3297,938924900,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+6,3298,938924961,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+6,3299,938925008,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+6,3300,938925051,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+6,3301,938925094,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+6,3302,938925188,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+6,3303,938925268,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+6,3304,938925312,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+6,3305,938925354,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+6,3306,938925395,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+6,3307,938925436,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+6,3308,938963336,-;qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+6,3309,939667289,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+6,3310,939667333,-;remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+6,3314,940313325,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+6,3315,940314932,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+3,3324,1840390188,-;qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+6,3328,1840413105,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work

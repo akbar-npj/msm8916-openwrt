@@ -1,0 +1,37 @@
+=== new boot: modem-up anchors ===
+[   10.894747] remoteproc remoteproc0: 4080000.remoteproc is available
+[   11.429921] remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+[   14.054303] remoteproc remoteproc0: powering up 4080000.remoteproc
+[   14.057897] remoteproc remoteproc0: Booting fw image mba.mbn, size 234176
+[   14.219402] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[   14.977701] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   14.977917] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[   15.764314] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 600 ms)
+[   15.765199] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+=== new boot full trace (trace log) ===
+14,230,1520628,-;init: - watchdog -
+14,259,8197735,-;procd: - watchdog -
+14,260,8806326,-;procd: - watchdog -
+6,279,11429921,-;remoteproc remoteproc1: remote processor a204000.remoteproc is now up
+6,284,14061175,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 10 qcom_q6v5_prepare
+6,285,14066411,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 11 pds_enable proxy
+6,286,14074445,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 12 regulator_enable fallback_proxy
+6,287,14080776,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 13 regulator_enable proxy
+6,288,14089544,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 14 clk_enable proxy
+6,289,14096597,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 15 regulator_enable active
+6,290,14103879,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 16 clk_enable reset
+6,291,14111737,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 17 reset_deassert
+6,293,14118682,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 18 clk_enable active
+6,294,14131448,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 19 enable_qchannel axi
+6,295,14138416,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 20 SCM mpss_perm (TrustZone)
+6,296,14145997,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 21 SCM mba_perm (TrustZone)
+6,298,14153626,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 22 pil_info_store + rmb writel
+6,299,14169858,-;qcom-q6v5-mss 4080000.remoteproc: q6v5-trace: 23 q6v5proc_reset
+6,300,14219402,-;qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+6,301,14977701,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+6,302,14977917,-;remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+6,306,15764314,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 600 ms)
+6,307,15765199,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+4,333,67675938,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+4,335,112416278,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+4,337,154247337,-;bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing

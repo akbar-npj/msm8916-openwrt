@@ -1,0 +1,156 @@
+=== CORROBORATION FOR DOC 166 ===
+Captured 2026-09-21 from the live device (read-only probes).
+
+-------------------------------------------------------------------------------
+1. THE SOAK'S FILTER — why "no further line" is provable (Doc 166 §2.2)
+-------------------------------------------------------------------------------
+Source: /overlay/q6trace_soak.sh, lines 91-100.
+
+	cat /dev/kmsg | while IFS= read -r line; do
+		case "$line" in
+		*q6v5-trace:*|*"fatal error received"*|*"port failed halt"*|\
+		*"MBA booted"*|*"is now up"*|*"stopped remote processor"*|\
+		*"SSR "*|*"SSR:"*|*"Unable to handle"*|*"Kernel panic"*|\
+		*"BUG:"*|*"watchdog"*|*"Watchdog"*)
+			printf '%s\n' "$line" >> "$TRACE"
+			printf '%s\n' "$line" >> /dev/pmsg0 2>/dev/null
+			;;
+		esac
+	done
+
+Every expected next line on the healthy crash #1 path is inside this filter:
+  - "bam_dmux: executing serialized asynchronous SSR teardown"  -> "SSR "      MATCH
+  - "q6v5-trace: 01 .. 23"                                      -> "q6v5-trace:" MATCH
+  - "port failed halt"                                          -> MATCH
+  - "MBA booted ..." / "is now up"                              -> MATCH
+  - "Kernel panic - not syncing:"                               -> MATCH
+  - "BUG:" / "Unable to handle" / "watchdog"                    -> MATCH
+Only "wwan wwan0: port wwan0at0 disconnected" is NOT covered (no keyword).
+
+=> The pmsg mirror's silence after the hand-off covers every instrumented step
+   AND every kernel fault-path banner.  It is not merely "the console went quiet".
+
+-------------------------------------------------------------------------------
+2. THE DYING BOOT'S LAST pmsg RECORD (verbatim, sequence + level + timestamp)
+-------------------------------------------------------------------------------
+Source: /sys/fs/pstore/pmsg-ramoops-0, last 5 records.
+
+6,3310,939667333,-;remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+6,3314,940313325,-;bam-dmux ...: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+6,3315,940314932,-;bam-dmux ...: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+3,3324,1840390188,-;qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+6,3328,1840413105,-;bam-dmux ...: bam_dmux: SSR before shutdown: scheduling teardown work
+
+Level 3 = KERN_ERR   (so ALSO in console-ramoops)
+Level 6 = KERN_INFO  (suppressed on the console at console_loglevel=6; pmsg only)
+Seq 3328 is the highest; ts 1840413105 us is the largest.  This IS the last record.
+
+Note: the pmsg zone uses PRZ_FLAG_ZAP_OLDEST, i.e. it retains the NEWEST data,
+so the file's end is the end of the dying boot's matching stream.
+
+-------------------------------------------------------------------------------
+3. console-ramoops-0 (dev_err+ only) ends at the same instant
+-------------------------------------------------------------------------------
+[ 1840.390188] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[ 1840.390276] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 1840.398357] remoteproc remoteproc0: handling crash #2 in 4080000.remoteproc
+[ 1840.406218] remoteproc remoteproc0: recovering 4080000.remoteproc      <- LAST LINE
+
+Absence of "Kernel panic - not syncing:" here is meaningful: the ramoops console
+is an IN-KERNEL sink and needs no userspace, so a panic cannot escape it.
+
+-------------------------------------------------------------------------------
+4. THE COREDUMP WATCHER — a third, printk-independent line of evidence
+-------------------------------------------------------------------------------
+Source: /overlay/coredump_watch.log
+
+[16.63s] === coredump_watch start pid=3252 out=/overlay/coredump_live armed=disabled ===   boot A
+[915.56s] dump device devcd1 at uptime 915.55s -> .../modem_coredump_up915.55_devcd1.elf
+[920.54s] captured 85398475 bytes from devcd1
+[1857.52s] dump device devcd2 at uptime 1857.52s -> ..._up1857.52_devcd2.elf
+[1867.26s] captured 85398475 bytes from devcd2
+[2760.09s] dump device devcd3 at uptime 2760.09s -> ..._up2760.09_devcd3.elf
+[2766.53s] captured 85398475 bytes from devcd3
+[3701.47s] dump device devcd4 at uptime 3701.47s -> ..._up3701.47_devcd4.elf
+[3709.76s] captured 85398475 bytes from devcd4
+[4649.09s] dump device devcd5 at uptime 4649.09s -> ..._up4649.09_devcd5.elf
+[4658.87s] captured 85398475 bytes from devcd5
+[16.27s] === coredump_watch start pid=3199 out=/overlay/coredump_live armed=disabled ===   boot B (THE HANG)
+[939.35s] dump device devcd1 at uptime 939.34s -> .../modem_coredump_up939.34_devcd1.elf
+[945.24s] captured 85398475 bytes from devcd1
+[31.35s] === coredump_watch start pid=3746 out=/overlay/coredump_live armed=disabled ===   boot C (current)
+
+Boot B: exactly ONE dump (crash #1's).  Crash #2 produced NONE.
+=> rproc_stop() did not return for crash #2 (Doc 153 §4).  No printk involved.
+
+/overlay/coredump_live contains exactly one file:
+-rw-r--r-- 1 root root 85398475 Sep 21 06:31 modem_coredump_up939.34_devcd1.elf
+
+-------------------------------------------------------------------------------
+5. ramoops DT node — the dmesg zone EXISTS (Doc 166 §6)
+-------------------------------------------------------------------------------
+$ ls /proc/device-tree/reserved-memory/ramoops@8db00000/
+compatible  console-size  name  pmsg-size  record-size  reg
+
+record-size present, max-reason ABSENT  ->  dmesg zone is created with the
+default max_reason = KMSG_DUMP_OOPS, so an oops OR a panic would leave a
+dmesg-ramoops record.  There is none.
+
+$ ls -la /sys/fs/pstore/
+-r--r--r-- 1 root root 179975 Sep 21 06:22 console-ramoops-0
+-r--r--r-- 1 root root  11094 Sep 21 06:22 pmsg-ramoops-0
+(no dmesg-ramoops)
+
+Kernel's own view of the backend:
+[    0.000000] OF: reserved mem: 0x8db00000..0x8dbfffff (1024 KiB) map non-reusable ramoops@8db00000
+[    0.239054] pstore: Using crash dump compression: deflate
+[    0.240289] printk: legacy console [ramoops-1] enabled
+[    0.246269] pstore: Registered ramoops as persistent store backend
+[    0.250716] ramoops: using 0x100000@0x8db00000, ecc: 0
+
+-------------------------------------------------------------------------------
+6. RETRACTION EVIDENCE — the qcom-time-daemon lead is DEAD (Doc 166 §7.1)
+-------------------------------------------------------------------------------
+$ ps w | grep '[q]com-time-daemon'
+ 2514 root  968 S  /usr/sbin/qcom-time-daemon -r 0 -v
+
+$ logread | grep -i 'Periodic\|software modem stability'
+Mon Sep 21 06:22:37 ... qcom-time-daemon[2514]: [QMI-TIME] Pure software modem stability mode active. Periodic ATS_USER refresh: DISABLED (interval=0s)
+Mon Sep 21 06:22:37 ... qcom-time-daemon[2514]: [QMI-TIME] Periodic ATS_TOD query: DISABLED (interval=60s)
+
+$ md5sum /etc/init.d/qcom-time-daemon
+8cd979087ed55930c458911056d7258c  /etc/init.d/qcom-time-daemon
+
+-r 0 is RUNNING and the daemon reports the feature DISABLED.  There is NO
+periodic ATS_USER re-anchor.  The deployed init is an older revision whose
+COMMENT is stale while its COMMAND is correct -> cosmetic only.
+
+-------------------------------------------------------------------------------
+7. BOOT C HEALTH (Doc 166 §10)
+-------------------------------------------------------------------------------
+$ cat /proc/uptime        ->  366.65 1156.48   (idle summed over 4 CPUs)
+$ dmesg | grep -c "fatal error received"  ->  0
+$ dmesg | grep -c "q6v5-trace"            ->  14   (the normal boot's single 10..23 half)
+$ cat /proc/sys/kernel/printk             ->  6 4 1 7
+$ df -h /overlay                          ->  3.2G 229.0M 2.8G 7% /overlay
+$ ps w | grep -c "[s]oak"                 ->  5
+$ cat /proc/sys/kernel/panic              ->  3
+$ cat /proc/sys/kernel/panic_on_oops      ->  0
+$ cat /sys/class/watchdog/watchdog0/timeout -> 30   state -> active
+
+Normal-boot trace sequence (dmesg):
+[   14.103879] q6v5-trace: 16 clk_enable reset
+[   14.111737] q6v5-trace: 17 reset_deassert
+[   14.169858] q6v5-trace: 23 q6v5proc_reset
+=> steps 10..23 only = q6v5_start() -> q6v5_mba_load().  No spurious 01..09.
+
+-------------------------------------------------------------------------------
+8. PROBE MISTAKES RECORDED (Doc 166 §11.3)
+-------------------------------------------------------------------------------
+* `grep -c PATTERN /dev/kmsg` NEVER terminates -- /dev/kmsg is a stream with no
+  EOF, so -c waits forever.  It cost a 20 s ssh timeout this round.
+  Use `dmesg | grep -c` (busybox dmesg uses syslog(2) and returns).
+  This is IN ADDITION to the already-recorded
+  `cat /dev/kmsg | grep PAT | head -N` trap.
+* The device's awk needs an anchored pattern for timestamps:
+  /^\[ *1840\.3/  (not a bare substring).

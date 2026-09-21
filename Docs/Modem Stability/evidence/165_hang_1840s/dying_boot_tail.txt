@@ -1,0 +1,56 @@
+=== THE HANG, verbatim ===
+Sources: /sys/fs/pstore/console-ramoops-0 (kernel console, dev_err only at
+console_loglevel=6) and /sys/fs/pstore/pmsg-ramoops-0 (the soak's filtered
+/dev/kmsg mirror, which DOES include dev_info).  Merged, in order:
+
+[  937.786016] fatal error received: a2_power.c:1189:                 crash #1
+[  937.786149] crash detected in 4080000.remoteproc: type fatal error
+[  937.793771] handling crash #1 in 4080000.remoteproc
+[  937.801171] recovering 4080000.remoteproc
+[  937.959319] bam_dmux: refusing to queue command while modem is collapsed
+[  938.919368] port failed halt
+[  938.963336] MBA booted without debug policy, loading mpss
+[  939.667333] remote processor 4080000.remoteproc is now up
+[  940.313325] bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+[  940.314932] bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+
+[ 1840.390188] fatal error received: lte_ml1_sleepmgr_stm.c:4054:     crash #2
+[ 1840.390276] crash detected in 4080000.remoteproc: type fatal error
+[ 1840.398357] handling crash #2 in 4080000.remoteproc
+[ 1840.406218] recovering 4080000.remoteproc                        <- last console-ramoops line
+[ 1840.413105] bam_dmux: SSR before shutdown: scheduling teardown work
+                                                                    <- LAST LINE, then nothing
+
+Expected next lines (measured on crash #1, healthy):
+[  937.810877] wwan wwan0: port wwan0at0 disconnected                (+2.253 ms)
+[  937.811371] bam_dmux: executing serialized asynchronous SSR teardown (+2.747 ms)
+[  937.813998] wwan wwan0: port wwan0at1 disconnected
+[  937.814998] wwan wwan0: port wwan0qmi0 disconnected
+[  937.819568] q6v5-trace: 01 disable_qchannel mdm                  (+10.944 ms)
+
+NONE of those appeared.  No coredump device was created either, so
+rproc_stop() never returned (Doc 153 §4).
+
+Derived:
+  crash #1 -> crash #2 interval        = 1840.390188 - 937.786016 = 902.604172 s
+  crash #2 modem uptime                = 1840.390188 - 939.667333 = 900.722855 s
+                                          (rproc-up anchor of crash #1's SSR)
+  recovering -> SSR before shutdown    = 6.887 ms   (healthy on crash #1: 7.453 ms)
+  hang window width (healthy)          = 2.253 ms   (to wwan0at0 disconnected)
+
+Host-clock arithmetic (the host watcher is the only trustworthy absolute clock):
+  12:31:00 +05:45, uptime-check 1812  -> dying boot started 12:00:48
+  fatal at AP 1840.390 s              -> 12:31:28.4
+  new boot (uptime 89 at 12:33:00)    -> 12:31:31
+  => the AP was reset ~2.6 s after the fatal.
+     That is consistent with kernel.panic = 3, and NOT with the 30 s
+     PM8916 PON WDT that Doc 159 recorded.  But pstore holds NO
+     dmesg-ramoops record, which is what a panic normally leaves (Doc 147
+     proved that path works).  RESET MECHANISM UNRESOLVED.
+
+Host watcher (evidence/164_q6v5_ssr_window_trace/host_hang_watch.log):
+  2026-09-21T12:31:00+05:45 ok (uptime-check: 1812)
+  2026-09-21T12:31:46+05:45 *** AP UNREACHABLE *** (3 consecutive failures; last ok 12:31:25)
+  2026-09-21T12:32:10+05:45 AP-BACK after 21s unreachable
+  2026-09-21T12:33:00+05:45 ok (uptime-check: 89)
+  (the 21 s is the NETWORK outage; the AP's own downtime was ~2.6 s)
