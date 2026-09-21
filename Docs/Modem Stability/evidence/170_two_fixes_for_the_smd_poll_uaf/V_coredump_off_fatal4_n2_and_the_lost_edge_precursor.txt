@@ -2869,3 +2869,266 @@ PART 18 -- USER CLUE CONFIRMED: THE BEARER IS ALWAYS NEW, NEVER REUSED
    pc_resync_count is still 81 (last lost edge [ 7417.446456]) -- resync silence
    2793.48 s at fatal #14, 3119.83 s at uptime 10537.28.  Only the TIMEOUT counter
    resumed.
+
+--------------------------------------------------------------------------------
+PART 19 -- BOOT A ENDED: 15 OF 20 POST-DISABLE FATALS, 0 AP REBOOTS, AND THE
+           END WAS A HOST POWER CYCLE, NOT AN AP RESET
+           (2026-09-21 ~20:47 local = 15:02 UTC)
+--------------------------------------------------------------------------------
+
+1. WHAT ENDED THE BOOT
+--------------------------------------------------------------------------------
+
+   The watcher's last good sample:
+
+     2026-09-21T20:47:10+05:45 up=13428s boot=a9fd907c fatals=17 dumps=18 \
+                                attr=disabled rproc=running
+
+   Three consecutive misses followed (20:47:43, 20:48:11, 20:48:39) and
+   watch813.sh exited with "AP UNREACHABLE x3 -- POSSIBLE RESET".
+
+   It was NOT a reset.  The authoritative source is the HOST kernel log:
+
+     20:47:16  usb 1-1:   USB disconnect, device number 4
+     20:47:16  usb 1-1.1: USB disconnect, device number 5
+     20:47:16  wlu1u1: deauthenticating from 02:00:c2:b9:10:3c by local choice
+                       (Reason: 3=DEAUTH_LEAVING)
+     20:47:16  usb 1-1.2: USB disconnect, device number 6
+     20:47:16  cdc_ncm 1-1.2:1.2 enu1u2i2: unregister 'cdc_ncm' (NO ZLP)
+     20:47:17  xhci-hcd xhci-hcd.2.auto: remove, state 4
+     20:47:17  xhci-hcd xhci-hcd.2.auto: USB bus 2 deregistered
+     20:47:17  xhci-hcd xhci-hcd.2.auto: USB bus 1 deregistered
+     20:47:26  systemd-logind[1060]: Lid closed.
+
+   Both xHCI controllers were REMOVED -- a controller-level removal, not a
+   peripheral disconnect -- and the host's own USB WiFi deauthenticated "by local
+   choice".  "Lid closed" names the cause.  /sys/bus/usb/devices/ was empty
+   afterwards (only the two root hubs returned, at 22:22:09, with no dongle).
+
+   The HMU05 is a USB-powered dongle, so it lost power: it was OFF, not hung.
+   A host power cycle is NOT an AP reboot and does NOT score against the bar.
+   This is the same mis-attribution trap s8.14 already records (s8.10's "reset
+   that survived 823" was the author's own USB-hub installation).
+
+2. FINAL SCORING FOR BOOT A
+--------------------------------------------------------------------------------
+
+   boot_id              a9fd907c  (constant across all 585 host samples)
+   boot began           ~17:03:21 local (uptime 1615.78 at the 17:30:17 first sample)
+   ran                  3 h 44 m
+   fatal error received 17        (dmesg, and dev_state_mon fatals=17)
+   capture-OFF fatals   15        (= fatal #17 - 2; the coredump was disabled before #3)
+   AP reboots            0
+   dumps                 18       (FROZEN -- no new dump after the disable)
+
+   The rule count = fatal# - 2 is verified five times in this file:
+
+      after fatal #4    2 of 20   (PART 1)
+      after fatal #5    3 of 20   (PART 6)
+      after fatal #7    5 of 20   (PART 10)
+      after fatal #10   8 of 20   (PART 13)
+      after fatal #12  10 of 20   (PART 18)
+
+   so fatal #17 is the 15th post-disable sample.
+
+   *** s8.13 BAR: 15 OF 20 POST-DISABLE FATALS SCORED, 0 AP REBOOTS. ***
+   Remaining: 5 fatals (~1.1 h at the ~13.2 min/fatal boot-A rate).
+
+   The capture-OFF population is unchanged in kind: no "port failed halt" in any of
+   the 15, against exactly 2 for the 2 capture-ON recoveries (13 MBA loads at the
+   PART-13 count = 1 cold boot + 12 recoveries).
+
+3. THE TRAP WAITING ON THE NEXT BOOT
+--------------------------------------------------------------------------------
+
+   The dongle will COLD BOOT when it is replugged -- new boot_id, uptime near zero.
+   A watcher that keys only on "uptime decreased" or "unreachable" will score that
+   as an AP reset and FALSELY FAIL the bar.
+
+   Rule for boot B: the first sample must establish a NEW baseline boot_id and
+   fatal count, and no reboot may be scored until a fatal has occurred after that
+   baseline.  A boot_id change with fatal count 0 is a host-induced power cycle,
+   never a scored reset.
+
+4. WHAT MUST BE PULLED BEFORE RE-ARMING (the device was OFF, so nothing was lost)
+--------------------------------------------------------------------------------
+
+   These live on /overlay (flash), keyed by boot_id, so the power loss did not
+   destroy them and the next boot cannot overwrite them:
+
+     /overlay/logroll_a9fd907c.log     <- unified logread -f + PMKNOB timeline
+     /overlay/dmesg_roll_a9fd907c.txt  <- the 5 s rolling dmesg tail
+     /overlay/ssr_ledger.csv           <- one row per SSR (a gap = a hang)
+     /overlay/beacon_a.txt, /overlay/beacon_b.txt
+     /overlay/coredump_watch.log
+
+   Pull these FIRST on the next boot, before re-arming anything.
+
+5. SCOPE NOTE
+--------------------------------------------------------------------------------
+
+   This PART records a boot boundary, not a result about the fix.  The bar is
+   unchanged and unmet: 15 of 20, 0 reboots.  It says only that the boot ended
+   without a scored failure and that the ending was external to the device.
+
+--------------------------------------------------------------------------------
+PART 20 -- BOOT B IS ARMED, THE POOLING IS PRE-REGISTERED HERE, AND THE DEVICE
+           CLOCK IS WRONG FOR THE FIRST MINUTE OF EVERY BOOT
+           (2026-09-21 ~16:40 UTC / 22:24 local)
+--------------------------------------------------------------------------------
+
+1. BOOT A's ARTIFACTS ARE OFF THE DEVICE (the device was OFF, so nothing was lost)
+--------------------------------------------------------------------------------
+
+   Pulled to scratch/bootA_a9fd907c/ before re-arming anything:
+
+     logroll_a9fd907c.log        1 732 948 B   unified logread -f + PMKNOB timeline
+     dmesg_roll_a9fd907c.txt        21 625 B   5 s rolling dmesg tail
+     ssr_ledger.csv                  2 059 B   one row per SSR (31 rows, multi-boot)
+     beacon_a.txt / beacon_b.txt    84 / 87 KB non-printk liveness beacons
+     coredump_watch.log             12 049 B
+     q6trace_trace.log / q6trace.csv
+
+   The three load-bearing ones are ALSO committed beside this file, so they survive
+   scratch/ being gitignored:
+
+     bootA_a9fd907c_logroll.log.gz     98 196 B   (1.73 MB raw, gzip -9, verified)
+     bootA_a9fd907c_dmesg_roll.txt.gz   2 577 B
+     bootA_a9fd907c_ssr_ledger.csv      2 059 B
+
+   The ledger INDEPENDENTLY confirms the scoring.  Its last column is the
+   cumulative coredump count, and it FREEZES at 18:
+
+     uptime   n  signature                     coredumps
+      919.62  1  lte_ml1_sleepmgr_stm.c:4054   17
+     1825.87  2  lte_ml1_sleepmgr_stm.c:4054   18   <- disable applied after this
+     2718.81  3  lte_ml1_sleepmgr_stm.c:4054   18
+     3480.91  4  a2_power.c:2949               18
+     4313.31  5  a2_power.c:1189               18
+     5218.41  6  lte_ml1_sleepmgr_stm.c:4054   18
+     6113.68  7  lte_ml1_sleepmgr_stm.c:4054   18
+     6235.66  8  a2_task.c:3179                18
+     6407.39  9  a2_power.c:1189               18
+     6589.79 10  a2_task.c:3179                18
+     7485.93 11  lte_ml1_sleepmgr_stm.c:4054   18
+     8390.05 12  lte_ml1_sleepmgr_stm.c:4054   18
+     9294.11 13  lte_ml1_sleepmgr_stm.c:4054   18
+    10218.62 14  a2_power.c:1189               18
+    11123.24 15  lte_ml1_sleepmgr_stm.c:4054   18
+    11907.13 16  a2_power.c:1189               18
+    12852.14 17  a2_power.c:1189               18
+
+   So the disable landed between fatal #2 and fatal #3 -- the device-side ledger
+   and the host-side "fatal# - 2" rule agree.  Boot A = 15 post-disable fatals.
+
+2. BOOT B BASELINE (measured, not assumed)
+--------------------------------------------------------------------------------
+
+   boot_id              ea6401be-0b62-4d78-ab8c-128e48f0d1a6
+   boot time            ~16:40:37Z (from clock 16:44:03Z at uptime 205.70)
+   fatal error received  0 at baseline
+   rproc                running
+   coredump attr        disabled
+   /overlay/coredump_ENABLE  ABSENT
+   dumps                18 (still frozen -- no new dump)
+   console loglevel     6 4 1 7   (KERN_INFO suppressed on console, ring buffer intact)
+
+   Boot B is the CLEANER regime: because coredump_ENABLE is absent, rc.local
+   disables the capture at boot, so EVERY fatal in boot B is post-disable.
+   Boot A had to exclude fatals #1 and #2; boot B excludes nothing.
+
+   Instruments confirmed running on the device (pidfiles present):
+     beacon 3275, ssr_ledger 3298, q6trace_soak 3266, dmesg_roll 3323, logroll 3339
+     coredump_watch: NOT running (correct -- capture is OFF)
+
+3. THE POOLING IS PRE-REGISTERED HERE, BEFORE THE RUN, WITH ITS REASON
+--------------------------------------------------------------------------------
+
+   The bar is "0 AP reboots across the next 20 fatals".  Boot A delivered 15 of
+   those and was ended by a HOST power cycle, which is not a scored failure.
+   Boot B supplies the remaining 5.
+
+     pooled score = 15 (boot A) + fatals_seen(boot B), bar at 20
+     => boot B needs 5 fatals, ~1.1 h at boot A's ~13.2 min/fatal
+
+   Why pooling is legitimate rather than convenient:
+     * Both counted sets are "the coredump was disabled at the time of the
+       fatal".  Boot A's two capture-ON fatals are EXCLUDED from the count, so
+       the two sets are identically treated.
+     * Each fatal-triggered SSR is an independent trial of the failure mode
+       (the AP hanging during the SSR teardown), and the pre-registration was
+       about the FIX, not about a boot.
+     * The bar's own justification is a rate argument: the pre-823 rate was
+       order 1 reboot per 1-3 SSRs, so an ineffective fix would be caught long
+       before 20.  Pooling does not weaken that.
+
+   Stated BEFORE the run so it cannot be fitted afterwards.  The alternative
+   (run boot B to 20 independently, ~4.4 h) is recorded here as the stronger
+   variant if the pooled bar is met and time allows.
+
+4. THE WATCHER WAS REDESIGNED, AND THE REASON MATTERS
+--------------------------------------------------------------------------------
+
+   watch813.sh had two defects that this round exposed:
+
+     (a) It BROKE on 3 consecutive misses, printing "POSSIBLE RESET".  But an
+         AP hang is followed by a PMIC PON watchdog reboot (30 s), so the
+         correct signal is a BOOT_ID CHANGE observed on a LATER poll.  Breaking
+         on the unreachable streak throws away the exact event being scored --
+         and it did: the 20:47 "POSSIBLE RESET" was a host power cycle.
+     (b) It treated ANY boot_id change as a failure, which is wrong when the
+         host itself power-cycles the dongle.
+
+   scratch/watch813_bootB.sh keeps polling through unreachable windows and
+   scores a failure ONLY when the boot_id changes AND the PREVIOUS sample had
+   already seen a fatal -- i.e. the AP died during a fatal-triggered SSR, which
+   is the phenomenon the bar is about.  A boot_id change with prev_fatals = 0 is
+   re-baselined as a host power cycle, never scored.
+
+5. HAZARD FOUND THIS ROUND: THE DEVICE CLOCK IS WRONG FOR THE FIRST MINUTE
+--------------------------------------------------------------------------------
+
+   Boot B's logroll header reads uptime=18.66 at 2026-09-21T12:56:55Z, but the
+   true time was 16:40:56Z -- the clock was 3 h 44 m BEHIND.
+
+   Measured from the PMKNOB lines (device clock vs uptime):
+
+     uptime  56.42   12:57:33Z     <- still wrong
+     uptime  68.58   16:41:46Z     <- corrected
+
+   so the jump is between uptime 57 and 69 s, and the offset is -3h44m01s
+   (= -13441 s).  The device has no RTC and syncs via sysfixtime / sysntpd /
+   qcom-time-daemon (all three are installed; qcom-time-daemon runs `-r 0`).
+
+   THIS IS NOT A BOOT-A PROBLEM.  Boot A's clock was CORRECT: its logroll
+   header is uptime=5895.82 at 12:56:37Z, and boot A booted at 11:18:21Z, so
+   uptime 5895.82 => 12:56:37Z exactly, and the clock tracked uptime to within
+   0.2 s over the following 7516 s.  The offset is boot-B-specific.
+
+   CONSEQUENCE FOR ANALYSIS: any wall-clock timestamp from the first ~70 s of a
+   boot on this device is wrong by an unknown amount.  Anchor on /proc/uptime,
+   which is monotonic and correct from t=0.  The §8.13 watcher already does
+   (it uses uptime + boot_id), so the bar is unaffected -- but the early logroll
+   timestamps for boot B must be corrected by +3h44m01s or read as uptime.
+
+6. DOCUMENTATION DRIFT FOUND AND FIXED
+--------------------------------------------------------------------------------
+
+   scratch/rc.local.device was STALE: it lacked the logroll block that the live
+   /etc/rc.local has (8 references).  A reader trusting the repo copy would
+   conclude logroll is not autostarted, and would then wonder how boot B has
+   logroll from uptime 18.66 -- when rc.local in fact starts it.
+
+   The live file was pulled and the repo copy resynced; both now hash
+   66864d9f8ddf3f233c07e8155d58980c.  This is the same class as Doc 160's
+   stale-live-tree incident: the repo copy is not the device.
+
+7. SCOPE NOTE
+--------------------------------------------------------------------------------
+
+   Boot B has 0 fatals at the time of writing.  Nothing about the fix is
+   claimed here; this PART records the baseline, the pre-registered pooling, the
+   watcher's redesign, and two hazards (clock, drift) that would otherwise be
+   discovered as anomalies later.
+
+--------------------------------------------------------------------------------
