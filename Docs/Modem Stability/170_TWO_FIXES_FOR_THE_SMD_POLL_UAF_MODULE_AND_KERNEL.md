@@ -1105,8 +1105,17 @@ the dongle rebooted as a consequence.**
 * **long mode (2 events):** **926 s** (15:44:42 — preceded by `error -71` ×6 and `attempt power
   cycle`, i.e. the gadget came back **broken**) and **1641 s** (14:39:38, 27 minutes).
 
-**A 1641 s outage cannot be a 30 s watchdog stall plus a boot.** §8.11 derived its mechanism from the
-short mode and did not notice that the distribution has a second mode the mechanism cannot reach.
+**A 1641 s outage cannot be a 30 s watchdog stall plus a boot — and the watchdog tells us what it
+IS.** The PON watchdog is **kicked by `procd`**, a userspace process: if the kernel/CPU stops, nothing
+kicks it and the SoC resets in **30 s**; if only the *network path* is broken while the CPU keeps
+running, `procd` keeps kicking and **no reset happens**. So **an unreachability longer than
+~30 s + a boot (~15–40 s) is not a hang** — the AP was alive. The **1641 s** and **926 s** outages
+therefore are **network-path failures with a running AP**, which is a *different failure mode* from
+everything §8.11 modelled, and one that matters directly for the "data stall" reports. (They also
+explain why the watcher recorded a *reboot* against them: the uptime decrease it sees is a reboot at
+the **end** of the window — the 14:39 outage ends with a re-enumeration at 15:06:48 and an AP uptime of
+34 s at 15:07:02 — not at its start. **The watcher attributes the reboot to the wrong end of the
+outage.**)
 
 **So the reboot rate is not an AP-hang rate.** Classifying all 19 outages by host-side context
 (±120 s), **at least 6 are not AP hangs**:
@@ -1241,8 +1250,11 @@ the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
   (1) with genuine AP reboots. **The new first step is a filter, not a rate:** for every outage, read
   the host's `journalctl -k` around it and classify it as *host-caused / manual / unexplained*. Only
   the **unexplained** ones are AP-hang candidates (13 today, and "no host trigger" is not proof). Then
-  count those per SSR, post-823, with no manual activity. **Also re-examine the two long outages
-  (1641 s, 926 s)** — they are outside every model in the corpus and have never been explained.
+  count those per SSR, post-823, with no manual activity. **Also chase the two long outages
+  (1641 s, 926 s)** — the 30 s watchdog proves they are **not hangs** (the watchdog is kicked by
+  `procd`, so a running CPU is never reset), which makes them **network-path failures with a live AP**:
+  a *different bug*, still unexplained, and one that bears directly on the "data stall" reports. Start
+  by asking whether the host's interface kept its address/config across the dongle's re-enumeration.
 * **The host's own USB controller is a live confounder and may itself be a defect.** 48 xHCI
   re-registrations and 12 root-hub disconnects in one day, **36 of them in the 16h hour**, with the
   16:40–16:46 AP reboot cluster sitting inside that hour. The host is an Asahi Fedora aarch64 machine

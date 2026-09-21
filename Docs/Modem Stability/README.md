@@ -1802,7 +1802,15 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      13–61 s windows" as `~30 s stall + ~15–40 s boot`; the full list is **16 short** (5–61 s) plus
      **two long: 926 s** (15:44:42 — preceded by `error -71` ×6 and `attempt power cycle`, i.e. the
      gadget came back **broken**) **and 1641 s** (14:39:38, 27 min). **A 1641 s outage cannot be a 30 s
-     watchdog stall plus a boot.**
+     watchdog stall plus a boot — and the watchdog tells us what it IS:** the PON watchdog is kicked by
+     **`procd`, a userspace process**, so a stopped kernel is reset in 30 s while a broken *network
+     path* with a running CPU is **never** reset. **An unreachability longer than ~30 s + a boot is
+     therefore not a hang — the AP was alive**, making the 1641 s and 926 s events **network-path
+     failures**, a failure mode §8.11 never modelled and one that bears directly on the "data stall"
+     reports. (It also exposes a watcher error: it attributes the reboot to the *start* of a long
+     outage, but the uptime decrease is a reboot at the **end** — the 14:39:38 outage ends with a
+     re-enumeration at 15:06:48 and an AP uptime of 34 s at 15:07:02, i.e. the AP rebooted at
+     ~15:06:28, so between 14:39 and 15:06 it was **up but unreachable for 27 minutes**.)
 
      **Classified: ≥6 of the 19 outages are not AP hangs** — 4 host-controller-caused (16:40:47,
      16:42:29, 16:44:14, 16:45:54), 1 USB-PHY (15:44:42), 1 manual (17:03:24). The remaining **13**

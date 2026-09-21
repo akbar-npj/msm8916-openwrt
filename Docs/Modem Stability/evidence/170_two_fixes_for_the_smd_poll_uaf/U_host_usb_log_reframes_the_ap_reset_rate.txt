@@ -105,6 +105,24 @@ OUTAGE-BY-OUTAGE HOST CONTEXT (+-120 s)
      candidates for genuine AP-side reboots -- but 'no host trigger' is not proof,
      because the host log only shows what the HOST observed.
 
+THE TWO LONG OUTAGES ARE *NOT* HANGS -- THE WATCHDOG PROVES IT, AND THE WATCHER
+MIS-ATTRIBUTES THE REBOOT
+------------------------------------------------------------------------------
+The PM8916 PON watchdog is kicked by procd, a USERSPACE process:
+  * kernel/CPU stops  => nothing kicks it => SoC resets in 30 s;
+  * only the NETWORK is broken while the CPU runs => procd keeps kicking => NO reset.
+So an unreachability longer than ~30 s + a boot (~15-40 s) is NOT a hang -- the AP
+was alive.  The 1641 s and 926 s outages are therefore NETWORK-PATH failures with a
+RUNNING AP, a failure mode §8.11 never modelled and one that matters directly for the
+"data stall" reports.
+
+It also explains the watcher's own error: it records a REBOOT against a long outage
+because it compares uptimes across the gap, but the decrease is a reboot at the END of
+the window.  Concretely, the 14:39:38 outage ends with a dongle re-enumeration at
+15:06:48 and an AP uptime of 34 s at 15:07:02 -- i.e. the AP rebooted at ~15:06:28, at
+the END, not at 14:39.  Between 14:39 and 15:06 the AP was up but unreachable for
+~27 minutes.
+
 CONSEQUENCE FOR THE s8.13 EXPERIMENT (its pre-registered bar)
 -------------------------------------------------------------
 The bar is '0 AP reboots across 20 fatals'.  A reboot during the window is a FAILURE
