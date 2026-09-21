@@ -5370,6 +5370,95 @@ PART 33 -- CORRECTIONS: THE POOLED ANDROID PING IS ~2 % NOT 0.7 %, AND THE
 --------------------------------------------------------------------------------
 
 ================================================================================
+PART 38 -- THE pc-ack CONTROL REPLICATES ON A SECOND ANDROID BOOT: n = 77,
+           ZERO TIMEOUTS, MAX 3.160 ms
+================================================================================
+
+PART 28/30/33 measured the Android AP-side pc-ack control at n = 121 handshakes,
+zero real ack-wait timeouts, max 6.340 ms.  That was all ONE boot.  The second
+Android boot (PART 36/37) ran the same instrumentation, so the control now has
+an INDEPENDENT REPLICATION in a different boot.  This PART records it.
+
+1. THE BOOT-2 RESULT
+
+   Source: scratch/android_capture/boot2/frozen_1746/bam_dmux_boot2.log,
+   md5 139fb57edf59f8c00e5067cbf265f47d, frozen at device uptime 1746 s (last
+   event AP 1728.078145374 s).  Full analyzer output in
+   AS_android_boot2_pcack_control.txt.
+
+     REAL ACK-WAIT TIMEOUTS (bam_dmux.c:1917/1928/1936) ... ZERO
+     vote->ack:  n=77  min 0.084  p50 1.956  p90 2.127  p99 2.859  max 3.160 ms
+                 > 250 ms: 0     > 50 ms: 0     > 10 ms: 0     > 5 ms: 0
+                 headroom vs OpenWrt's 250 ms  : 79.1x
+                 headroom vs Android's  2000 ms: 633x
+     previous-ack wait (serialize vs prior down-ack):
+                 n=76  min 0.020  p50 0.037  p99 0.163  max 0.379 ms
+     cadence:    77 UL wakeups over 1716 s = 2.69 /min  (p50 interval 29.09 s)
+
+   **This is a replication, not a marginal improvement.**  Two different boots,
+   two different networks (boot 1 `10.81.148.167/28`, boot 2 `10.155.13.73/30`),
+   the same byte-identical firmware, the same kernel build, and the same answer:
+   the ack always comes, in single-digit milliseconds.
+
+2. THE POOLED PICTURE, AND WHY IT IS REPORTED AS A REPLICATION
+
+     boot 1   n = 121   (pre-root 95 + post-root 26)   max 6.340 ms
+     boot 2   n =  77                                  max 3.160 ms
+     ----     -----
+     total    n = 198   over TWO boots                max 6.340 ms  -> 39.4x
+
+   **The worst healthy ack in 198 handshakes across two boots is 6.340 ms, so
+   OpenWrt's 250 ms wait is 39.4x the worst ack ever observed, and the 1 ms
+   region is not even populated.**  PART 28's original 39.4x figure therefore
+   survives the replication unchanged -- it was the conservative one.
+
+   **BUT this is deliberately NOT presented as a pooled n = 198.**  PART 30 s3
+   established that two windows may be pooled iff the KERNEL/PROCESS state did
+   not change; PART 30's own pool (95 + 26) was within ONE boot, which is why it
+   was legitimate.  Boot 2 is a DIFFERENT BOOT, so by that rule the two samples
+   are not poolable by default.  Two things make pooling defensible here anyway,
+   and they are stated rather than assumed:
+     - the quantity is a hardware round trip (AP vote -> modem ack) over the same
+       die, with byte-identical modem firmware (proven) and an identical kernel
+       build, so there is no boot-specific input to it;
+     - the two boots' distributions AGREE where they can be compared
+       (boot 1 p99 6.332 / max 6.340; boot 2 p99 2.859 / max 3.160 -- boot 2 is
+       TIGHTER, not different in shape).
+   **The conservative reading is the one to quote: an independent replication at
+   n = 77 confirming a result already established at n = 121.**  A reader who
+   insists on one-boot samples still gets 79.1x headroom from boot 2 alone.
+
+3. STATUS AGAINST THE STANDING PRE-REGISTRATION
+
+   PART 33 s5 pre-registered **n >= 300 for the 1 % regime**; n = 121 excluded
+   5.7 % decisively and 2 % only marginally.  At 198 handshakes (or 77 from boot
+   2 alone) the 1 % target is **NOT yet met** -- 102 more handshakes are needed
+   at ~2.69/min, i.e. roughly another 38 min of soak.
+   **What IS already settled and is not waiting on n = 300:** zero timeouts in
+   198 handshakes excludes a timeout rate above ~1.5 % at 95 % confidence, and
+   the headroom argument (39.4x) does not depend on n at all -- it is a statement
+   about the worst observed ack, and every observation is far from the budget.
+
+4. THE LIVE-FILE NOTE (again -- fifth time in this document)
+
+   The boot-2 captures were STILL GROWING when frozen.  This artifact is a
+   SNAPSHOT at uptime 1746 s, not a total: the analyzer had already reported
+   n = 76 a few minutes earlier and reports n = 77 here.  Safe for the
+   conclusion (which is about a maximum, and a maximum only grows), NOT safe for
+   a rate -- which is exactly why s3 does not claim a rate.
+
+5. WHAT PART 38 CHANGES
+
+  - The Android AP-side pc-ack control is no longer single-boot: it replicates.
+  - It does NOT change any OpenWrt number, the 902 s fatal, the bearer rebuild,
+    or the n >= 60 AP-hang soak.
+  - It does NOT deploy the 250 -> 2000 ms change.  That A/B is still blocked on
+    the HMU05 being flashed back to OpenWrt (Task 98), and PART 28's
+    pre-registered A/B remains the test that matters.
+
+--------------------------------------------------------------------------------
+
+================================================================================
 PART 37 -- BOOT-2 RESULT: NON-RECURRENCE.  READING A NOW HAS NO SUPPORTING
            OBSERVATION, AND THE DIFFERENTIAL CONTROL IS n = 2
 ================================================================================
