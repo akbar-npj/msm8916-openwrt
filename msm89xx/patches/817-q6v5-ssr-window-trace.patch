@@ -1,0 +1,171 @@
+--- a/drivers/remoteproc/qcom_q6v5_mss.c
++++ b/drivers/remoteproc/qcom_q6v5_mss.c
+@@ -1072,22 +1072,44 @@
+ 	return true;
+ }
+ 
++/*
++ * TEMPORARY DIAGNOSTIC -- Doc 159 §8.
++ *
++ * The AP can hang on a spontaneous fatal-triggered SSR. The console always ends
++ * on "port failed halt", and the next print normally follows 43-47 ms later, so
++ * the hang is bounded by two adjacent printk calls and its site is enumerable
++ * from source. This traces each step of that window so a hang names its own
++ * step: the LAST "q6v5-trace:" line printed is the call that never returned.
++ *
++ * One print per step, placed immediately BEFORE the call. The next step's print
++ * is itself proof the previous call returned, which halves the print volume --
++ * and print volume matters here, because the console is a 115200 baud serial
++ * line where a 40-character line costs ~3.5 ms of the 43-47 ms window.
++ *
++ * Remove this whole block once the hang site is known.
++ */
++#define Q6V5_TRACE(_q, _step) \
++	dev_info((_q)->dev, "q6v5-trace: " _step "\n")
++
+ static int q6v5_mba_load(struct q6v5 *qproc)
+ {
+ 	int ret;
+ 	int xfermemop_ret;
+ 	bool mba_load_err = false;
+ 
++	Q6V5_TRACE(qproc, "10 qcom_q6v5_prepare");
+ 	ret = qcom_q6v5_prepare(&qproc->q6v5);
+ 	if (ret)
+ 		return ret;
+ 
++	Q6V5_TRACE(qproc, "11 pds_enable proxy");
+ 	ret = q6v5_pds_enable(qproc, qproc->proxy_pds, qproc->proxy_pd_count);
+ 	if (ret < 0) {
+ 		dev_err(qproc->dev, "failed to enable proxy power domains\n");
+ 		goto disable_irqs;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "12 regulator_enable fallback_proxy");
+ 	ret = q6v5_regulator_enable(qproc, qproc->fallback_proxy_regs,
+ 				    qproc->fallback_proxy_reg_count);
+ 	if (ret) {
+@@ -1095,6 +1117,7 @@
+ 		goto disable_proxy_pds;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "13 regulator_enable proxy");
+ 	ret = q6v5_regulator_enable(qproc, qproc->proxy_regs,
+ 				    qproc->proxy_reg_count);
+ 	if (ret) {
+@@ -1102,6 +1125,7 @@
+ 		goto disable_fallback_proxy_reg;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "14 clk_enable proxy");
+ 	ret = q6v5_clk_enable(qproc->dev, qproc->proxy_clks,
+ 			      qproc->proxy_clk_count);
+ 	if (ret) {
+@@ -1109,6 +1133,7 @@
+ 		goto disable_proxy_reg;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "15 regulator_enable active");
+ 	ret = q6v5_regulator_enable(qproc, qproc->active_regs,
+ 				    qproc->active_reg_count);
+ 	if (ret) {
+@@ -1116,6 +1141,7 @@
+ 		goto disable_proxy_clk;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "16 clk_enable reset");
+ 	ret = q6v5_clk_enable(qproc->dev, qproc->reset_clks,
+ 			      qproc->reset_clk_count);
+ 	if (ret) {
+@@ -1123,12 +1149,14 @@
+ 		goto disable_vdd;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "17 reset_deassert");
+ 	ret = q6v5_reset_deassert(qproc);
+ 	if (ret) {
+ 		dev_err(qproc->dev, "failed to deassert mss restart\n");
+ 		goto disable_reset_clks;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "18 clk_enable active");
+ 	ret = q6v5_clk_enable(qproc->dev, qproc->active_clks,
+ 			      qproc->active_clk_count);
+ 	if (ret) {
+@@ -1136,6 +1164,7 @@
+ 		goto assert_reset;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "19 enable_qchannel axi");
+ 	ret = q6v5proc_enable_qchannel(qproc, qproc->halt_map, qproc->qaccept_axi);
+ 	if (ret) {
+ 		dev_err(qproc->dev, "failed to enable axi bridge\n");
+@@ -1146,6 +1175,7 @@
+ 	 * Some versions of the MBA firmware will upon boot wipe the MPSS region as well, so provide
+ 	 * the Q6 access to this region.
+ 	 */
++	Q6V5_TRACE(qproc, "20 SCM mpss_perm (TrustZone)");
+ 	ret = q6v5_xfer_mem_ownership(qproc, &qproc->mpss_perm, false, true,
+ 				      qproc->mpss_phys, qproc->mpss_size);
+ 	if (ret) {
+@@ -1154,6 +1184,7 @@
+ 	}
+ 
+ 	/* Assign MBA image access in DDR to q6 */
++	Q6V5_TRACE(qproc, "21 SCM mba_perm (TrustZone)");
+ 	ret = q6v5_xfer_mem_ownership(qproc, &qproc->mba_perm, false, true,
+ 				      qproc->mba_phys, qproc->mba_size);
+ 	if (ret) {
+@@ -1162,6 +1193,7 @@
+ 		goto disable_active_clks;
+ 	}
+ 
++	Q6V5_TRACE(qproc, "22 pil_info_store + rmb writel");
+ 	if (qproc->has_mba_logs)
+ 		qcom_pil_info_store("mba", qproc->mba_phys, MBA_LOG_SIZE);
+ 
+@@ -1171,6 +1203,7 @@
+ 		writel(qproc->dp_size, qproc->rmb_base + RMB_PMI_CODE_LENGTH_REG);
+ 	}
+ 
++	Q6V5_TRACE(qproc, "23 q6v5proc_reset");
+ 	ret = q6v5proc_reset(qproc);
+ 	if (ret)
+ 		goto reclaim_mba;
+@@ -1275,27 +1308,36 @@
+ 			dev_err(qproc->dev, "failed to enable crypto clock\n");
+ 	}
+ 
++	Q6V5_TRACE(qproc, "01 disable_qchannel mdm");
+ 	q6v5proc_disable_qchannel(qproc, qproc->halt_map, qproc->qaccept_mdm);
++	Q6V5_TRACE(qproc, "02 disable_qchannel cx");
+ 	q6v5proc_disable_qchannel(qproc, qproc->halt_map, qproc->qaccept_cx);
++	Q6V5_TRACE(qproc, "03 disable_qchannel axi");
+ 	q6v5proc_disable_qchannel(qproc, qproc->halt_map, qproc->qaccept_axi);
+ 
++	Q6V5_TRACE(qproc, "04 reset_assert");
+ 	q6v5_reset_assert(qproc);
+ 
++	Q6V5_TRACE(qproc, "05 clk_disable reset");
+ 	q6v5_clk_disable(qproc->dev, qproc->reset_clks,
+ 			 qproc->reset_clk_count);
++	Q6V5_TRACE(qproc, "06 clk_disable active");
+ 	q6v5_clk_disable(qproc->dev, qproc->active_clks,
+ 			 qproc->active_clk_count);
++	Q6V5_TRACE(qproc, "07 regulator_disable active");
+ 	q6v5_regulator_disable(qproc, qproc->active_regs,
+ 			       qproc->active_reg_count);
+ 
+ 	/* In case of failure or coredump scenario where reclaiming MBA memory
+ 	 * could not happen reclaim it here.
+ 	 */
++	Q6V5_TRACE(qproc, "08 SCM mba_perm reclaim (TrustZone)");
+ 	ret = q6v5_xfer_mem_ownership(qproc, &qproc->mba_perm, true, false,
+ 				      qproc->mba_phys,
+ 				      qproc->mba_size);
+ 	WARN_ON(ret);
+ 
++	Q6V5_TRACE(qproc, "09 qcom_q6v5_unprepare");
+ 	ret = qcom_q6v5_unprepare(&qproc->q6v5);
+ 	if (ret) {
+ 		q6v5_pds_disable(qproc, qproc->proxy_pds,
