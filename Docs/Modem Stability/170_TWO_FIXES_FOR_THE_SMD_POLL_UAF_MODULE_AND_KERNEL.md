@@ -30,7 +30,7 @@ so the reset rate is NOT an AP-hang rate and 823 is substantially rehabilitated.
 | Make the instrument survive the failure it measures | ✔ **§8.10**: the beacon truncated its own files at every boot, destroying exactly the pre-reset tail it exists to capture. The reset-durable `BOOT`-marker form is now deployed. The gap was *in the instrument*, and only re-reading it against the failure it missed exposed that |
 | Read the code that runs, not the code you remember | ✔ **§8.13**: the corpus said "there is NO per-device `disabled`" for the remoteproc coredump. `remoteproc_sysfs.c:73-127` accepts `"disabled"`, and `remoteproc_core.c:2426` installs the **default** `rproc_coredump` for the MSS because `q6v5_ops` has no `.coredump` member — so a one-line sysfs write removes a whole MBA load from the middle of every SSR recovery. **Both facts were only visible by grepping the running kernel's own source.** |
 | Pre-register before running | ✔ §7 — **and then withdrawn in §8.2 when the control invalidated it.** Registering is not the same as being entitled to the prediction. **§8.13 re-registers a bar (0 reboots / 20 fatals) for the coredump-off experiment *before* it runs.** |
-| Check the *other side* of an attribution before publishing it | ✔ **§8.14 (this round's biggest correction)**: §8.10 blamed the AP for a 17:03 reset. The **host kernel log** shows the dongle disconnecting from port `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and the dongle returning at `1-1.2` at `17:03:41` — a **physical intervention by me**. §8.10's verdict on 823 is withdrawn. The same log shows 48 host xHCI re-registrations (36 in one hour) and **39** dongle re-enumerations against ~19 AP uptime-decreases ⇒ *a device-side uptime decrease proves the device restarted, not that it restarted itself.* |
+| Check the *other side* of an attribution before publishing it | ✔ **§8.14 (this round's biggest correction)**: §8.10 blamed the AP for a 17:03 reset. The **host kernel log** shows the dongle disconnecting from port `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and the dongle returning at `1-1.2` at `17:03:41` — a **physical intervention by me**. §8.10's verdict on 823 is withdrawn. The same log shows **24 host xHCI remove/re-probe cycles** (18 in one hour) and **39** dongle re-enumerations against ~19 AP uptime-decreases ⇒ *a device-side uptime decrease proves the device restarted, not that it restarted itself.* **And the follow-up lesson: §8.14's own first draft labelled four more outages "host-caused" on a correlation; reading the ORDERING (mixed — the dongle usually disconnects first) forced that back to "entangled, direction not established". A correlation with a plausible upstream cause is still not a direction.** |
 | Read the guarded BRANCH, not the call graph | ✔ **§8.13/§8.13.1**: I argued from the call graph that `port failed halt` must survive the coredump being disabled (because `q6v5_mba_reclaim()` is also reached via `q6v5_stop()`). The measurement falsified it — `q6v5proc_halt_axi_port()` opens with `if (!ret && val) return;` and the port is idle in the STOP path but **live** in the DUMP path. **A call site being reached is not evidence its error branch executes** (§9 trap 11). |
 | Cross-check a rate against *every* instrument that could contradict it | ✔ **§8.14**: §8.11 fit its watchdog model to the 13–61 s outages and never noticed the distribution has a **second mode** — a **1641 s** and a **926 s** outage no 30 s stall can produce. Checking the durations for a second mode is now part of reading any rate. |
 
@@ -80,13 +80,17 @@ and then has to report that the reproduction it was going to be scored against d
     a reset-durable beacon plus a per-boot rolling kernel log, both reboot-persistent, so **the next
     stall will be characterised rather than merely counted.**
 9. **THE RATE ITSELF IS REFRAMED, AND §8.11's NUMBER IS WITHDRAWN (§8.14).** Reading the **host** kernel
-    log — the instrument nobody had checked — shows **error in both directions**. Of the 19 outages,
-    **4 are preceded by the host's own xHCI controller resetting** (the 16:40–16:46 cluster, where
-    **36 of the day's 48 xHCI re-registrations fall**), **1 is a USB-PHY failure** (15:44:42:
-    `error -71` ×6 + `attempt power cycle`, a **926 s** outage), and **1 is my hub installation**. And
-    the durations are **bimodal** — the 13–61 s mode §8.11 fit, plus a **1641 s** and a **926 s** mode
-    that no 30 s watchdog stall can produce. Conversely the host saw **39** dongle re-enumerations
-    against ~19 AP uptime-decreases, so *re-enumeration ≠ AP reboot*.
+    log — the instrument nobody had checked — shows **error in both directions**. **7 of the 19 outages
+    are not clean AP-hang data points**: **1 is certainly my hub installation** (17:03), **2 are
+    certainly not hangs by duration** (1641 s and 926 s — the PON watchdog is kicked by `procd`, so a
+    *stopped* kernel resets in 30 s while a broken *network path* never does; they are network-path
+    failures with a live AP), and **4 are entangled with a host USB-controller storm** (the 16:40–16:46
+    cluster, inside the hour holding **18 of the day's 24 xHCI remove/re-probe cycles** — and the
+    **direction of causation is NOT established**, since in most episodes the dongle disconnects first
+    while at 15:59:28 the controller is removed with no device disconnect at all). The remaining **12**
+    are the only AP-hang candidates. And the durations are **bimodal**, which §8.11's single-mode model
+    cannot cover. Conversely the host saw **39** dongle re-enumerations against ~19 AP uptime-decreases,
+    so *re-enumeration ≠ AP reboot*.
     **⇒ an AP-side uptime decrease proves the dongle restarted, NOT that it restarted itself.** The
     host log is now a required companion instrument for every reboot attributed to the AP.
 10. **AND THE ROUND'S OWN BEST SELF-CORRECTION IS §8.13.1.** The coredump capture is a step *inside*
@@ -1092,11 +1096,30 @@ at all, because the AP was never running the fatal path.** **Consequence: §8.10
 is incomplete, and 823 is substantially rehabilitated.** (The hub was separately recorded in memory as
 a device fact — but never connected to the reset it caused.)
 
-**The 16:40–16:46 "boot loop" is a host-controller episode, not a dongle loop.** The watcher saw
-uptime `2427 → 46 → 38 → 79` (three AP reboots in seven minutes) and §8.11 recorded it as boot loops;
-the host log shows **xHCI ×4 / ×12 / ×24 / ×16 and root-hub disconnects immediately before each one**,
-inside the hour that holds 36 of the day's 48 controller re-registrations. **The host reset the bus;
-the dongle rebooted as a consequence.**
+**The 16:40–16:46 "boot loop" is entangled with a host USB-controller storm — and the DIRECTION OF
+CAUSATION IS NOT ESTABLISHED.** The watcher saw uptime `2427 → 46 → 38 → 79` (three AP reboots in seven
+minutes) and §8.11 recorded it as boot loops. The host log shows the **xHCI platform driver being
+removed and re-probed 24 times on Sep 21, 18 of them inside the 16h hour**, each cycle deregistering
+`usb usb1`/`usb usb2` (the *root hubs*) and rebuilding them, with the dongle appearing and disappearing
+every ~30–60 s. **But the ordering is MIXED, so I cannot say the host caused the reboots:**
+
+* `10:31:46`, `15:06:03`, `16:40:30`, `16:41:14`, `16:42:11` — the **dongle disconnects first**, and the
+  controller is removed within ~1 s. A device disconnect does not normally unbind an HCD, so something
+  downstream of it does — but the *trigger* is the device.
+* `15:59:28` — the controller is removed with **no preceding device disconnect at all**, i.e. a
+  **host-initiated** teardown.
+
+**What is established either way: during those windows the dongle's USB link was being torn down and
+rebuilt repeatedly**, so the reboots there **cannot be cleanly attributed to an AP-side hang**. I
+initially labelled these four "host-caused"; **that is stronger than the evidence and is retracted to
+"entangled, direction not established".**
+
+**A first pass at the causal mechanism that I am NOT claiming:** the host SMC logs non-zero electrical
+events (`Elec Cause 0x200000` / `0x8020`, `Not charging:1002000`) at `16:40:05`, 25 s before that
+episode — but the base rate is **8 such events across the day** (01:32, 02:38, 10:18, 10:19, 14:07,
+15:46, 15:47, 16:40) against **47** `Elec Cause 0x0`, and they do **not** align with the other xHCI
+episodes (10:18→10:31 is 12 min; 15:46→15:59 is 12 min), so they are most likely the laptop's own
+**charger/battery** state. **Recorded as a non-finding, deliberately not used.**
 
 **The outage durations are BIMODAL, and §8.11's model fits only the short mode.** §8.11 explained
 "the 13–61 s unreachable windows" as `~30 s stall + ~15–40 s boot`. The full list is
@@ -1117,20 +1140,22 @@ the **end** of the window — the 14:39 outage ends with a re-enumeration at 15:
 34 s at 15:07:02 — not at its start. **The watcher attributes the reboot to the wrong end of the
 outage.**)
 
-**So the reboot rate is not an AP-hang rate.** Classifying all 19 outages by host-side context
-(±120 s), **at least 6 are not AP hangs**:
+**So the reboot rate is not an AP-hang rate.** Classifying all 19 outages, **7 are not clean AP-hang
+data points** — one certain, two certain-by-duration, four entangled:
 
-| outage | duration | host-side context | verdict |
+| outage | duration | evidence | verdict |
 |---|---|---|---|
-| 16:40:47 | 53 s | xHCI ×4, root-hub disc ×2 | **host-caused** |
-| 16:42:29 | 61 s | xHCI ×12, root-hub disc ×6 | **host-caused** |
-| 16:44:14 | 45 s | xHCI ×24, root-hub disc ×10 | **host-caused** |
-| 16:45:54 | 13 s | xHCI ×16, root-hub disc ×8 | **host-caused** |
-| 15:44:42 | 926 s | `error -71` ×6, `attempt power cycle` | **USB PHY** |
-| 17:03:24 | 29 s | **hub installed on port 1-1** | **manual** |
+| 17:03:24 | 29 s | **hub installed on port 1-1** (host log) | **certainly not an AP hang** |
+| 14:39:38 | **1641 s** | watchdog is kicked by `procd` ⇒ a stopped kernel resets in 30 s | **certainly not a hang** |
+| 15:44:42 | **926 s** | same, plus `error -71` ×6 + `attempt power cycle` | **certainly not a hang** (USB PHY) |
+| 16:40:47 | 53 s | xHCI controller removed/re-probed ×4 around it | **entangled — direction not established** |
+| 16:42:29 | 61 s | xHCI ×12 around it | **entangled** |
+| 16:44:14 | 45 s | xHCI ×24 around it | **entangled** |
+| 16:45:54 | 13 s | xHCI ×16 around it | **entangled** |
 
-The remaining **13** have no host-side trigger and stay candidates for genuine AP-side reboots — but
-**"no host trigger" is not proof**, because the host log only records what the *host* observed.
+The remaining **12** have no host-side trigger and no duration argument against them, and are the only
+AP-hang candidates — but **"no host trigger" is not proof**, because the host log only records what
+the *host* observed.
 
 **What this changes:**
 * **§8.10's verdict on 823 is withdrawn** (its single event was a manual intervention). 823 remains
@@ -1218,12 +1243,21 @@ the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
     **How to apply:** (a) for every reboot you attribute to the AP, `grep` the host's
     `journalctl -k` around it for `usb`, `xHCI Host Controller`, `USB disconnect`, `error -71`,
     `attempt power cycle`, and any *new* device (a hub appearing means a human moved something);
-    (b) check whether the host's own controller is flapping — 48 xHCI re-registrations in one day,
-    36 of them in a single hour, is a **host defect that power-cycles the dongle**; (c) **check the
-    outage-duration distribution for a second mode** before fitting a mechanism — §8.11 explained the
-    13–61 s events and never noticed a **1641 s** and a **926 s** one; (d) record **who did what
+    (b) check whether the host's own controller is flapping — **24 `xhci-hcd.2.auto: remove, state 4`
+    cycles in one day, 18 of them in a single hour**, each deregistering and rebuilding both root hubs.
+    **But do NOT assume that makes the host the cause:** the ordering is mixed (in most episodes the
+    dongle disconnects first, in at least one the controller is removed with no device disconnect), so
+    the honest verdict on those windows is **"the USB link was unstable; direction not established"** —
+    I labelled them "host-caused" first and had to retract it. **A correlation with a plausible
+    upstream cause is still not a direction.**
+    (c) **check the outage-duration distribution for a second mode** before fitting a mechanism — §8.11
+    explained the 13–61 s events and never noticed a **1641 s** and a **926 s** one, and the
+    `procd`-kicked watchdog **proves** those two are not hangs at all; (d) record **who did what
     when** (a physical hub install is an experiment, not an observation) — the hub was in memory as a
-    device fact and was never connected to the reset it caused.
+    device fact and was never connected to the reset it caused; (e) **beware a plausible mechanism with
+    a bad base rate** — the host SMC's `Elec Cause 0x200000`/`Not charging` looked like the trigger at
+    16:40:05, but it fires **8 times across the day** and does not align with the other controller
+    episodes, so it was recorded as a **non-finding** rather than used.
 
 ---
 
@@ -1255,13 +1289,15 @@ the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
   `procd`, so a running CPU is never reset), which makes them **network-path failures with a live AP**:
   a *different bug*, still unexplained, and one that bears directly on the "data stall" reports. Start
   by asking whether the host's interface kept its address/config across the dongle's re-enumeration.
-* **The host's own USB controller is a live confounder and may itself be a defect.** 48 xHCI
-  re-registrations and 12 root-hub disconnects in one day, **36 of them in the 16h hour**, with the
-  16:40–16:46 AP reboot cluster sitting inside that hour. The host is an Asahi Fedora aarch64 machine
-  and the dongle now sits **behind a hub** added at 17:03. **Before attributing any future reboot to
-  the AP, check the host.** If the host's controller is flapping, that is a separate bug to chase (and
-  it invalidates the §8.13 bar's reboot condition — which is why §8.14 writes the host-log filter into
-  it).
+* **The host's own USB controller is a live confounder and may itself be a defect.** **24
+  `xhci-hcd.2.auto: remove, state 4` cycles on Sep 21, 18 of them in the 16h hour**, each deregistering
+  and rebuilding both root hubs; the dongle now sits **behind a hub** added at 17:03 (and the host has
+  been USB-stable since — **zero** USB/xHCI events in the ~1 h after the hub install, so the current
+  experiment window is not at risk). **Before attributing any future reboot to the AP, check the host**
+  — and **check the ordering**, because "the host's controller reset near the outage" does **not**
+  establish that the host caused it (see §9 trap 13(b)). If the controller is genuinely flapping, that
+  is a separate bug on the Asahi host to chase, and it invalidates the §8.13 bar's reboot condition —
+  which is why §8.14 writes the host-log filter into it.
 * **Finish scoring 823.** It is deployed and functionally clean (§8.7) and passed the `echo stop`
   scenario (§8.8). What is still missing is the **control rate**: `echo stop` × n with the
   **unpatched** module (`bash scratch/deploy823.sh --revert`) under a *stated* condition, to see
