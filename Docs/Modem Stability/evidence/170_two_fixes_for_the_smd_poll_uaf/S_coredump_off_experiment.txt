@@ -1,0 +1,107 @@
+S — EXPERIMENT: the coredump capture disabled (Doc 170 §8.13)
+==============================================================
+Started 2026-09-21T11:58:41Z (device UTC) / 17:43:41 +05:45 (host).
+Device: Melbon HMU05, OpenWrt 25.12.5 / Linux 6.12.94, patch 823 deployed.
+
+HYPOTHESIS
+----------
+The AP hang happens inside the SSR recovery, and the COREDUMP CAPTURE is a step of
+that recovery.  Removing it removes the hang.
+
+THE CODE (read out of the live tree, not from memory)
+-----------------------------------------------------
+drivers/remoteproc/remoteproc_core.c:1792-1817
+    static int rproc_boot_recovery(struct rproc *rproc)
+    {
+            ret = rproc_stop(rproc, true);          /* 1. stop  */
+            if (ret) return ret;
+            rproc->ops->coredump(rproc);            /* 2. DUMP  <- between stop and start */
+            ret = request_firmware(&firmware_p, rproc->firmware, dev);
+            ret = rproc_start(rproc, firmware_p);   /* 3. start */
+    }
+
+drivers/remoteproc/remoteproc_core.c:2426
+    if (!rproc->ops->coredump)
+            rproc->ops->coredump = rproc_coredump;   /* the MSS supplies none */
+
+drivers/remoteproc/qcom_q6v5_mss.c:1728
+    static const struct rproc_ops q6v5_ops = {
+            .start = q6v5_start,
+            .stop = q6v5_stop,
+            .parse_fw = qcom_q6v5_register_dump_segments,
+            .load = q6v5_load,
+            .panic = q6v5_panic,
+    };                                    /* NO .coredump => the default runs */
+
+drivers/remoteproc/remoteproc_coredump.c:249
+    if (list_empty(&rproc->dump_segments) || dump_conf == RPROC_COREDUMP_DISABLED)
+            return;                        /* <- the early return the sysfs write buys */
+
+drivers/remoteproc/remoteproc_sysfs.c:73-127
+    rproc_coredump_str[] = { [DISABLED]="disabled", [ENABLED]="enabled", [INLINE]="inline" }
+    coredump_store(): accepts "disabled"/"enabled"/"inline"; refuses only while
+                      rproc->state == RPROC_CRASHED (-EBUSY).
+    => THERE IS a per-device "disabled" ON THE REMOTEPROC DEVICE.
+       CAREFUL -- there are TWO different sysfs locations and the corpus does not
+       distinguish them:
+         /sys/class/devcoredump/devcdN/            per-device attrs are ONLY "data"
+                                                   (corpus note "no per-device disabled"
+                                                    is about THIS one, and stays TRUE)
+         /sys/class/remoteproc/remoteproc0/coredump  accepts disabled/enabled/inline
+                                                   (THIS is the one we write)
+         /sys/class/devcoredump/disabled           CLASS-level, write-once GLOBAL
+                                                   lockdown -- kills every future dump.
+                                                   NEVER WRITE IT.
+       The remoteproc attribute selects whether a dump is PRODUCED AT ALL; the class-level
+       one is a global kill switch.  They are not the same thing.
+
+WHY THE SKIPPED STEP MATTERS
+----------------------------
+* qcom_q6v5_dump_segment() is the SECOND caller of q6v5_mba_load() (Doc 165) --
+  a whole extra MBA power-up/handshake per fatal, mid-recovery.
+* The dump reclaim is what emits "port failed halt"; Doc 159 put the AP hang 43-47 ms
+  AFTER that line.  Doc 165 measured the 85 398 475 B synchronous copy at 1.064 s ON
+  this path.
+* It writes 85 MB per fatal to /overlay -- 18 dumps = 1.5 GB of a 3.2 GB partition.
+
+DEPLOYED (survives reboot, trivially reversible)
+------------------------------------------------
+/etc/rc.local:
+    if [ -x /overlay/coredump_watch.sh ] && [ -f /overlay/coredump_ENABLE ]; then
+            ... start the watcher (it re-arms the attribute every 2 s) ...
+    else
+            echo disabled > /sys/class/remoteproc/remoteproc0/coredump 2>/dev/null
+            /usr/bin/logger -t coredump-watch "coredump capture DISABLED (Doc 170 s8.13)"
+    fi
+
+Verified at start:
+    cat /sys/class/remoteproc/remoteproc0/coredump  -> disabled
+    ps | grep -c coredump_watch                     -> 0
+    sh -n /etc/rc.local                             -> SYNTAX OK
+    grep -c coredump_ENABLE /etc/rc.local           -> 3
+    /overlay/coredump_ENABLE                        -> absent
+
+RE-ENABLE:  touch /overlay/coredump_ENABLE   (then reboot, or just start the watcher --
+            it re-arms the attribute to "enabled" within 2 s)
+
+PRE-REGISTRATION (written before the run)
+-----------------------------------------
+Prediction : if the coredump path is the hang, the AP reboot rate falls to ZERO.
+Bar        : 0 AP reboots across the next 20 fatals (~5 h at the ~902 s idle timer).
+Why n=20   : the pre-823 rate was of order 1 reboot per 1-3 SSRs, so 20 clean fatals is
+             decisive; if the true post-823 rate were as low as 1 in 4, 20 fatals still
+             gives ~99.7 % chance of seeing at least one.
+Control    : the pre-intervention series of §8.11 -- explicitly WEAK (confounded by
+             manual activity, boot loops, and pre-823).  This is a before/after, not an
+             A/B; an A/B (off -> on -> off) is the stronger design if device time allows.
+Falsified by: any reboot in the window, OR a dmesg_roll tail showing the recovery had
+             already passed the coredump step.
+Cost       : no coredump is captured during the window, so a fatal in this period cannot
+             be decoded via its ERR_FATAL descriptor (Doc 163).  The fatal SIGNATURE still
+             lands in dmesg_roll and the ledger still records the teardown stages, so the
+             loss is bounded.
+
+BASELINE AT START
+-----------------
+    /overlay/coredump_off_experiment.txt: EXPERIMENT START 2026-09-21T11:58:41Z (UTC)
+    uptime 2420 s; 2 fatals this boot (both with the coredump still ON)

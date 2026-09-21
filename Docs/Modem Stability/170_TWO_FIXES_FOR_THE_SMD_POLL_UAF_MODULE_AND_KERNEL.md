@@ -25,6 +25,8 @@ reboot rate the "1 in 20–40" model does not predict; §8.12 deploys the instru
 | Nothing is a fact until measured | ✔ §2 is measurement; §3–§5 are mechanism, labelled as such; **§8.6's strip recipe is validated against the shipped baseline by size, and §8.9 records a case where a *tool failure* was nearly written up as a finding** |
 | Read the *branch conditions*, not the script's reputation | ✔ **§8.10**: `qcom-carrier-autocfg` was recorded in memory as "power-cycles the modem every 10 s"; reading its `while … sleep 10` body showed the power-cycle is inside the *operator-change / cache-mismatch* branch only. The script is exonerated as the 17:03 reset's cause, and the earlier claim is corrected in §9 trap 8 |
 | Make the instrument survive the failure it measures | ✔ **§8.10**: the beacon truncated its own files at every boot, destroying exactly the pre-reset tail it exists to capture. The reset-durable `BOOT`-marker form is now deployed. The gap was *in the instrument*, and only re-reading it against the failure it missed exposed that |
+| Read the code that runs, not the code you remember | ✔ **§8.13**: the corpus said "there is NO per-device `disabled`" for the remoteproc coredump. `remoteproc_sysfs.c:73-127` accepts `"disabled"`, and `remoteproc_core.c:2426` installs the **default** `rproc_coredump` for the MSS because `q6v5_ops` has no `.coredump` member — so a one-line sysfs write removes a whole MBA load from the middle of every SSR recovery. **Both facts were only visible by grepping the running kernel's own source.** |
+| Pre-register before running | ✔ §7 — **and then withdrawn in §8.2 when the control invalidated it.** Registering is not the same as being entitled to the prediction. **§8.13 re-registers a bar (0 reboots / 20 fatals) for the coredump-off experiment *before* it runs.** |
 
 ---
 
@@ -824,6 +826,88 @@ the beacon gives the *when* and the A(sync)-vs-B(nosync) split, the rolling log 
 
 ---
 
+### §8.13 EXPERIMENT DEPLOYED — the coredump capture sits INSIDE the SSR recovery, so it is turned OFF
+
+While waiting for §8.12's instruments to catch a stall, reading the recovery path produced a
+**mechanism-backed, no-flash, reversible intervention**.
+
+**The code, read out of the live tree:**
+
+```c
+/* remoteproc_core.c:1792 */
+static int rproc_boot_recovery(struct rproc *rproc)
+{
+        ret = rproc_stop(rproc, true);          /* 1. stop   */
+        if (ret) return ret;
+        rproc->ops->coredump(rproc);            /* 2. DUMP   <-- between stop and start */
+        ret = request_firmware(...);
+        ret = rproc_start(rproc, firmware_p);   /* 3. start  */
+```
+
+* For the MSS, **`ops->coredump` is the DEFAULT `rproc_coredump`** — `remoteproc_core.c:2426`
+  installs it when the driver supplies none, and `q6v5_ops` (`qcom_q6v5_mss.c:1728`) has **no
+  `.coredump` member**. (Grep first: the driver does *not* define one, so the generic one runs.)
+* And `rproc_coredump()` **returns immediately** when the per-device attribute says disabled:
+  ```c
+  /* remoteproc_coredump.c:249 */
+  if (list_empty(&rproc->dump_segments) || dump_conf == RPROC_COREDUMP_DISABLED)
+          return;
+  ```
+* The per-device attribute **does accept `disabled`** (`remoteproc_sysfs.c:73-127`, `"disabled"` /
+  `"enabled"` / `"inline"`; it refuses only while `state == RPROC_CRASHED`).
+  **Two different sysfs locations — conflating them is easy and the corpus does not distinguish them.**
+  The corpus note *"there is NO per-device `disabled`"* is about the **devcoredump** device
+  (`/sys/class/devcoredump/devcdN/`, whose only per-device attribute is `data`) — **that remains
+  true**. The **remoteproc** device has its **own, different** attribute,
+  `/sys/class/remoteproc/remoteproc0/coredump`, which does accept `disabled`. They select different
+  things: the remoteproc one says whether a dump is **produced at all**; the class-level
+  `/sys/class/devcoredump/disabled` is a **write-once global lockdown** that kills every future dump
+  and must never be written.
+
+**Why this is the right thing to remove.** The step being skipped is not a passive copy:
+
+* `qcom_q6v5_dump_segment()` is the **second caller of `q6v5_mba_load()`** (Doc 165) — i.e. a whole
+  extra MBA power-up/handshake per fatal, in the middle of recovery;
+* the dump reclaim is what emits **`port failed halt`**, and Doc 159 put the AP hang **43–47 ms after
+  that line**; Doc 165 measured the 85 398 475 B synchronous copy at **1.064 s, on this path**;
+* and it writes **85 MB per fatal to `/overlay`** — 18 dumps is already 1.5 GB of a 3.2 GB partition.
+
+**Deployed** (`/etc/rc.local`, gated so it survives a reboot and is trivially reversible):
+
+```sh
+if [ -x /overlay/coredump_watch.sh ] && [ -f /overlay/coredump_ENABLE ]; then
+        ... start the watcher (which re-arms the attribute every 2 s) ...
+else
+        echo disabled > /sys/class/remoteproc/remoteproc0/coredump 2>/dev/null
+fi
+```
+
+Verified: `cat /sys/class/remoteproc/remoteproc0/coredump` → **`disabled`**; watcher procs **0**;
+`sh -n /etc/rc.local` → OK; **re-enable with `touch /overlay/coredump_ENABLE`** (plus a reboot, or
+just start the watcher — it re-arms within 2 s).
+
+**PRE-REGISTRATION (written before the run, per the standing SOP rule).**
+* **Prediction:** if the coredump path is the hang, the AP reboot rate falls to **zero**.
+* **Bar:** **0 AP reboots across the next 20 fatals.** At the idle timer's ~902 s that is ~5 h of
+  unattended running. *Justification for n=20:* the pre-823 rate was of order 1 reboot per 1–3 SSRs,
+  so 20 clean fatals would be decisive; if the true post-823 rate were as low as 1 in 4, 20 fatals
+  still gives a ~99.7 % chance of seeing at least one. **A single clean fatal proves nothing** — the
+  current boot already survived two with the coredump *on*.
+* **Control:** the pre-intervention series (§8.11) — explicitly **weak** (confounded by manual
+  activity, boot loops, and pre-823). This is a *before/after*, not an A/B; an A/B (off → on → off)
+  is the stronger design if the device time is available.
+* **What would falsify it:** any reboot during the 20 fatal window, or a stall whose `dmesg_roll`
+  tail shows the recovery had already passed the coredump step.
+* **Cost, stated plainly:** no coredump is captured during the window, so a fatal in this period
+  cannot be decoded via its ERR_FATAL descriptor (Doc 163). The fatal *signature* still lands in
+  `dmesg_roll`, and the ledger still records the teardown stages, so the loss is bounded.
+
+**Experiment start:** device UTC `2026-09-21T11:58:41Z`; marker at
+`/overlay/coredump_off_experiment.txt`; baseline at that moment: uptime 2420 s, 2 fatals this boot
+(both with the coredump still on).
+
+---
+
 ## §9 Traps recorded this round
 
 1. **A patch that "cannot need a flash" is a property of the config, not of the bug.** The first
@@ -864,12 +948,17 @@ the beacon gives the *when* and the A(sync)-vs-B(nosync) split, the rolling log 
 
 ## §10 What's next
 
-* **FIRST: let the new instruments catch a stall (§8.12), then read the cause off it.** The reset is a
-  **≥30 s global stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the
-  per-boot rolling kernel log are both deployed and reboot-persistent, so the next stall yields the
-  *when* (beacon, plus the A(sync)-vs-B(nosync) split that separates a wedged writeback path from a
-  global stall) and the *what* (the kernel's last lines). **Do not patch anything until that record
-  exists** — §8.10 exists precisely because one reset was inferred rather than measured.
+* **RUNNING NOW: the §8.13 coredump-off experiment.** The bar is **0 AP reboots across 20 fatals**
+  (~5 h at the idle timer). Re-enable the capture with `touch /overlay/coredump_ENABLE`. If it
+  succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling it
+  also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says whether
+  the recovery had already passed the coredump step, which is itself informative.
+* **Let §8.12's instruments catch a stall, then read the cause off it.** The reset is a **≥30 s global
+  stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the per-boot
+  rolling kernel log are both deployed and reboot-persistent, so the next stall yields the *when*
+  (beacon, plus the A(sync)-vs-B(nosync) split that separates a wedged writeback path from a global
+  stall) and the *what* (the kernel's last lines). **Do not patch anything until that record exists**
+  — §8.10 exists precisely because one reset was inferred rather than measured.
 * **Then settle §8.11's remaining rate question — but only after the stall is characterised.** The
   "reboot at the n-th idle-timer fatal" model is already **rejected** (2/15 fit, 6/15 impossible), so
   the reset is **not** a simple function of the idle timer. What is still unmeasured is the clean
@@ -934,6 +1023,10 @@ the beacon gives the *when* and the A(sync)-vs-B(nosync) split, the rolling log 
   * **`O_watchdog_reset_mechanism_and_rate.txt`** — **§8.11/§8.12: the reset mechanism (PMIC PON WDT,
     30 s, active), the 15-reboot-in-5 h rate with its pre/post-823 split, the two consecutive
     idle-timer fatals the current boot survived, and the rolling-kernel-log instrument.**
+  * **`S_coredump_off_experiment.txt`** — **§8.13: the recovery-path code, the per-device `disabled`
+    finding, the deployment, and the pre-registered bar (0 reboots / 20 fatals).**
+  * `R_analyze_hang_sh.sh`, `P_dmesg_roll_sh_per_boot_kernel_log.sh`,
+    `Q_dev_state_mon_sh_host_sampler.sh` — the §8.12/§8.13 instruments.
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.
 * `scratch/beacon.sh` — the **reset-durable** liveness beacon (§8.10): appends a `BOOT <uptime>s` marker
   instead of truncating, so the pre-reset tail survives the next reset. Copy kept at

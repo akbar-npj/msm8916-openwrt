@@ -1721,6 +1721,33 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      be CHARACTERISED, not merely counted:** the beacon gives the *when* and the A(sync)-vs-B(nosync)
      split, the rolling log gives the *what*.
 
+136. **EXPERIMENT DEPLOYED: the coredump capture sits INSIDE the SSR recovery, so it is turned OFF —
+     and the corpus claim "there is NO per-device `disabled`" is WRONG (Doc 170 §8.13).** Reading the
+     recovery path gave a mechanism-backed, no-flash, reversible intervention:
+     `rproc_boot_recovery()` (`remoteproc_core.c:1792-1817`) runs
+     `rproc_stop()` → **`rproc->ops->coredump(rproc)`** → `request_firmware()` → `rproc_start()` — the
+     dump is **between stop and start**. For the MSS that op is the **DEFAULT `rproc_coredump`**
+     (`remoteproc_core.c:2426` installs it when the driver supplies none, and `q6v5_ops`
+     (`qcom_q6v5_mss.c:1728`) has **no `.coredump` member**), and it **returns immediately** when the
+     per-device attribute is `disabled` (`remoteproc_coredump.c:249`). **`remoteproc_sysfs.c:73-127`
+     does accept `"disabled"` — and note there are TWO different sysfs locations, which the corpus does
+     not distinguish:** the note *"there is NO per-device `disabled`"* is about the **devcoredump**
+     device (`/sys/class/devcoredump/devcdN/`, only `data`) and **remains true**; the **remoteproc**
+     device has its **own** attribute `/sys/class/remoteproc/remoteproc0/coredump` that does accept it.
+     The remoteproc one controls whether a dump is **produced**; the class-level
+     `/sys/class/devcoredump/disabled` is a **write-once global lockdown** (never write it).
+     **Why removing it matters:** `qcom_q6v5_dump_segment()` is the **second caller of
+     `q6v5_mba_load()`** (Doc 165) — a whole extra MBA power-up mid-recovery; the dump reclaim is what
+     emits **`port failed halt`**, and Doc 159 put the hang **43–47 ms after that line**; Doc 165
+     measured the 85 MB synchronous copy at **1.064 s on this path**; and it writes **85 MB per fatal
+     to `/overlay`** (18 dumps = 1.5 GB of 3.2 GB). **Deployed** via `/etc/rc.local`, gated on
+     `/overlay/coredump_ENABLE` so it survives a reboot and re-enables with one `touch`. Verified:
+     attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
+     next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
+     per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20. **Stated
+     cost:** no coredump is captured in the window, so a fatal there cannot be decoded via its
+     ERR_FATAL descriptor (Doc 163) — though its *signature* still lands in `dmesg_roll`.
+
 ## A twenty-sixth round — Doc 170, 2026-09-21: two independent fixes for the SMD poll use-after-free (module 823, kernel 822)
 
 125. **THE UAF IS NOW FIXABLE WITHOUT A KERNEL FLASH, THE POLLER'S IDENTITY IS MEASURED, AND THE
