@@ -14,6 +14,12 @@ class is **not** an artefact of `echo stop`, it is reachable from the ordinary c
 The AP-side driver was **not changed** for this doc. The deployed module is the patch-814 production
 build, md5 `eca269f10a685a83a8b679bc7be38d1d`.
 
+**One open item, added the same day (§9):** the boot *after* the hang took four fatals and then
+**rebooted on its own**, with pstore coming back empty (`ramoops: found existing invalid buffer`) — so
+the reboot is **unexplained**, and it is probably *not* a second occurrence of this hang (the 4th
+fatal's coredump exists, which requires `rproc_stop()` to have returned). The soak harness also died
+silently in that boot; both are now instrumented.
+
 ---
 
 ## 1. Why this doc exists
@@ -231,21 +237,60 @@ module for 4.45 hours and 20 successful recoveries before hanging.
    what protects mpss (Doc 158); skipping it would be a security-relevant change and would very likely
    make the modem fail to load instead.
 
-## 9. Artifacts
+## 9. Open item, added the same day: an unexplained spontaneous reboot with NO evidence
+
+Recorded because it is unresolved and because it cost the evidence, not because it is understood.
+
+The boot **after** the hang (soak run 7's boot) took **four** fatals, all captured as coredumps
+(`coredump_watch.log`): `923.71 s`, `1827.23 s`, `2275.74 s`, `2389.74 s`. The device was verified
+healthy at uptime `2164 s` (default route present, `3/3` ping). It then **rebooted on its own** after
+`2395 s`, and came back at uptime ~224 s.
+
+**No cause could be established, because the console record was destroyed.** pstore is empty, and the
+new boot says why:
+
+```
+[    0.235938] ramoops: found existing invalid buffer, size 220, start 724
+```
+
+The dying boot's ramoops console buffer was **invalid** and the kernel discarded it. So the one
+instrument that survived the Doc 159 hang (§3) produced **nothing** this time. **`pstore` is not
+reliable**, and any plan that depends on it must be backed by something else.
+
+**What it is probably NOT.** The 4th fatal's coredump was created at `2395.10 s` — and a coredump is
+only created **after `rproc_stop()` returns** (Doc 153 §4). The Doc 159 hang is precisely a failure to
+get that far, so this reboot very likely happened *after* a **successful** recovery, from some other
+cause. It is recorded as **unexplained**, not as a second occurrence.
+
+**A second, separate problem in the same boot: the soak harness died.** Its CSV stops at `1833.07 s`
+and its log at the start lines — and nothing in either says why. The process died between the CSV
+append and the next `log` call, so it left no trace. This is **not** a device hang: the AP answered ssh
+and ping at `2164 s`, and the coredump watcher captured fatals at `2275.74 s` and `2389.74 s`, i.e. the
+AP ran normally for **560 s** after the sampler stopped. It is the third harness defect in this line of
+work and it is the same lesson each time — **when the harness reports nothing, verify the harness
+before believing the device.**
+
+**Hardened.** `soak814.sh` now (a) logs a **heartbeat** every 30 iterations (5 min) with uptime and the
+counters, so the log bounds the last known-good moment even if the process dies silently, and (b) keeps
+a **rolling dmesg snapshot** (`/overlay/soak814_dmesg_rolling.txt`, last 400 lines, every 2 min) —
+because pstore just demonstrated it cannot be relied on. Soak run 8 is live with both.
+
+## 10. Artifacts
 
 | file | what |
 | :-- | :-- |
 | `console-ramoops-0.hang_boot.txt` | the console of the boot that hung, verbatim (927 lines) |
+| `spontaneous_reboot_after_fatal4.txt` | §12 — the coredump watcher log, the empty pstore, the `invalid buffer` message |
 | `run6_dmesg_final.txt`, `run6_soak814.csv`, `run6_soak814.log` | the same boot's soak data (in `evidence/157_ssr_powerup_giveup/`) — 21 crashes, 538 samples |
 
-## 10. One line
+## 11. One line
 
 **A modem fatal on this device can hang the whole AP in the ~45 ms between `port failed halt` and
 `MBA booted` — the message is normal (21/21), the window contains three untimed TrustZone ownership
 transfers, and the hang is a production failure, not the `echo stop` testing hazard the corpus
 previously recorded.**
 
-## 11. Provenance
+## 12. Provenance
 
 * Observed: 2026-09-21, from the pstore console of the boot that ended at AP uptime 16030.9 s.
 * Device: HMU05, module `qcom_bam_dmux.ko` md5 `eca269f10a685a83a8b679bc7be38d1d` (patch-814

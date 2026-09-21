@@ -596,6 +596,21 @@ below.
     `probe_dataplane()` now logs a per-attempt trace (`route`/`NOroute`, `pc_state`, `pc_line_level`,
     `rx_slots_mapped`, `cmd_open`) so a bare "down" can be told apart from "route present but the modem
     is not passing packets".
+71. **`pstore` is NOT reliable — a spontaneous reboot can destroy its own evidence.** The boot after
+    the hang took four fatals (all coredumped: 923.71, 1827.23, 2275.74, 2389.74 s), was verified
+    healthy at 2164 s, and then **rebooted on its own** after 2395 s. pstore came back **empty**, and
+    the new boot says why: `ramoops: found existing invalid buffer, size 220, start 724` — the dying
+    boot's console buffer was invalid and the kernel discarded it. The one instrument that survived
+    Doc 159's hang produced nothing this time. **It is probably NOT a second hang**: the 4th fatal's
+    coredump was created at 2395.10 s, and a coredump only exists after `rproc_stop()` returns
+    (Doc 153 §4) — the Doc 159 hang is precisely a failure to get that far. **Recorded as unexplained.**
+72. **Harness death #3, and the same lesson.** In the same boot the soak sampler's CSV stopped at
+    1833.07 s and its log at the start lines, with **nothing saying why** — it died between the CSV
+    append and the next `log` call. It was **not** a device hang: the AP answered ssh and ping at
+    2164 s and the coredump watcher captured fatals at 2275.74 and 2389.74 s, i.e. the AP ran normally
+    for **560 s** after the sampler stopped. `soak814.sh` now logs a **heartbeat** every 5 min and keeps
+    a **rolling dmesg snapshot** (last 400 lines, every 2 min) to `/overlay/soak814_dmesg_rolling.txt`,
+    precisely because pstore proved it cannot be relied on.
 
 ## The steady-state symptom, measured (Doc 147 §5.4)
 

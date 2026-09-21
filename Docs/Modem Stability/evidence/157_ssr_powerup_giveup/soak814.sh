@@ -109,6 +109,7 @@ last_tx_up=""
 last_fatal=""
 last_ssr=""
 last_cmdopen=""
+it=0
 
 while true; do
 	up=$(cut -d' ' -f1 /proc/uptime)
@@ -201,6 +202,28 @@ while true; do
 		log "reached $fatal fatals; stopping soak"
 		dmesg > /overlay/soak814_dmesg_final.txt
 		break
+	fi
+
+	# --- Survivability instrumentation (added after run 7) -----------------
+	# Run 7's sampler wrote three CSV rows and then stopped, and NOTHING in
+	# the log said why: the process died between the CSV append and the next
+	# log call, so there was no trace.  Meanwhile the AP stayed alive for
+	# another 560 s and the coredump watcher kept working, so this was the
+	# harness dying, not the device hanging.  Two cheap guards:
+	#
+	#   * a heartbeat line every 30 iterations (5 min), so the log itself
+	#     bounds the last known-good moment even if the CSV is the only other
+	#     artifact; and
+	#   * a rolling dmesg snapshot every 12 iterations (2 min), because pstore
+	#     is NOT reliable here -- the boot after run 7 left an INVALID ramoops
+	#     buffer and its console was discarded, destroying the evidence for a
+	#     spontaneous reboot (Doc 159 open item).
+	it=$((it + 1))
+	if [ $((it % 30)) -eq 0 ]; then
+		log "heartbeat: uptime ${up}s fatal=$fatal ssr=$ssr retries=$retries rebuilds=$rebuilds tx=$tp rx=$rp"
+	fi
+	if [ $((it % 12)) -eq 0 ]; then
+		dmesg | tail -400 > /overlay/soak814_dmesg_rolling.txt 2>/dev/null
 	fi
 
 	sleep 10
