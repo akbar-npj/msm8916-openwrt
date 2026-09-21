@@ -3484,3 +3484,113 @@ PART 23 -- THE CORPUS'S ANDROID PARTITION MAP DOES NOT MATCH THE DEVICE'S GPT,
    must not be cited as authoritative for this device.
 
 --------------------------------------------------------------------------------
+PART 24 -- PART 23's OPEN QUESTION IS RESOLVED (lk2nd RE-PARTITIONS BUT CARRIES
+           THE STOCK EFS OVER), THE v2 DISCRIMINATOR PASSES ITS FIRST LIVE TEST,
+           AND THE DEVICE TIMEZONE CHANGED
+           (2026-09-21 ~23:45 local / 18:00 UTC; port design supplied by the user)
+--------------------------------------------------------------------------------
+
+1. RESOLUTION OF PART 23 -- THE GPT IS CHANGED **BY DESIGN**, AND THE STOCK EFS IS CARRIED OVER
+--------------------------------------------------------------------------------
+
+   User-supplied, and it settles the open question:
+
+     "as we port it from android to openwrt we use lk2nd bootloader ... so partition
+      table changes but required partitions are like EFS and other thing are taken
+      from original stock"   (postmarketOS wiki: Zhihe series LTE dongles (generic-zhihe))
+
+   So reading (a) of PART 23 §3 is the correct one, and PART 23's fear was too
+   pessimistic:
+
+     * the GPT IS rewritten by the port (lk2nd / the OpenWrt install) -- which is
+       exactly why it carries OpenWrt-specific names (`rootfs`, `rootfs_data`);
+     * **the required partitions (EFS and friends) are CARRIED OVER FROM STOCK**,
+       so the NV is NOT lost.
+
+   **This also reframes the Android doc rather than convicting it.** Its map
+   (`modem`=p1, `modemst1`=p13, `modemst2`=p14, `fsc`=p16, `fsg`=p20) is
+   presumably CORRECT **for the stock layout**, which no longer exists on the
+   device. The error is not the map; it is citing a pre-port map against a
+   post-port device. PART 23's correction block stands in substance -- locate NV
+   by NAME, never by index -- but "the doc is wrong" becomes "the doc is
+   describing a layout that has been replaced".
+
+   **CONSEQUENCE FOR THE ANDROID DIFFERENTIAL, AND IT IS A NEGATIVE RESULT:**
+   since the OpenWrt NV is *derived from* the stock NV by design, NV is not an
+   independent input and **is largely removed from the candidate list** for
+   "why does Android not crash". Step 0 shrinks from "compare two independently
+   evolved NVs" to "check whether the carry-over was faithful" -- worth one
+   cheap look (a lossy or partial copy would still be a finding), but it is no
+   longer the high-value check PART 23 assumed. **The remaining candidate is
+   the AP->modem control stream (Phase 3), not NV.**
+
+   Still unverified and stated as such: whether the carry-over was byte-exact.
+   The user's description is of the port's DESIGN; it has not been measured here.
+
+2. THE v2 DISCRIMINATOR PASSES ITS FIRST LIVE TEST
+--------------------------------------------------------------------------------
+
+   At 23:37:20 the host lost its USB controller again (third time), and at
+   23:38:19 the watcher saw the boot_id change and adjudicated it CORRECTLY
+   with no intervention:
+
+     --- boot_id changed: 48f567c0 -> a5af0fc8 (prev_fatals=4) ---
+     host-log discriminator since '2026-09-21 23:34:57': 6 controller/electrical event line(s)
+       EVIDENCE: 23:37:20 usb usb1: USB disconnect, device number 1
+       EVIDENCE: 23:37:20 xhci-hcd xhci-hcd.2.auto: USB bus 1 deregistered
+       EVIDENCE: 23:37:20 xhci-hcd xhci-hcd.2.auto: remove, state 4
+       EVIDENCE: 23:37:21 macsmc ... aceElec.cpp:711:  Elec: Elec Cause 0x0
+     *** POWER EVENT (host removed its xHCI controller / SMC electrical event) ***
+     *** NOT an AP hang: the dongle lost VBUS.  Re-baselining, NOT scored. ***
+     *** pooled score stays at 25/60 ***
+
+   **This is the first time the v2 rule ran against a live event, and it
+   converted what v1 would have scored as a SECOND false FAILURE into a
+   correctly-excluded power event.** The rule was pre-registered (PART 21 §2)
+   before this event, so this is a genuine test, not a fitted explanation.
+
+3. THREE HOST POWER EVENTS IN THREE HOURS -- A PATTERN, NOT AN ACCIDENT
+--------------------------------------------------------------------------------
+
+     20:47   lid closed          -> both xHCI buses removed, "Lid closed."
+     23:03   loose wire          -> SMC Elec Cause, controller re-probed
+     23:37   (cause not yet named) -> SMC Elec Cause x2, controller re-probed
+
+   The 23:37 event came ~34 minutes AFTER the user reseated the wire.  Either the
+   wire/connector is still intermittent, or something else is cutting VBUS.
+   **This matters beyond convenience**: if the cause is the dongle's own power
+   draw tripping the host's electrical protection, then the "power event" is
+   DEVICE-TRIGGERED, and it would be a real phenomenon rather than an artefact.
+   Not investigated; recorded so it is not mistaken for three unrelated accidents.
+
+   The s8.13 score is unaffected in all three cases -- none is an AP hang.
+
+4. THE DEVICE TIMEZONE CHANGED -- A NEW 15-MINUTE TRAP
+--------------------------------------------------------------------------------
+
+   The user changed the device from UTC to Asia/Kolkata.  Measured immediately
+   after:
+
+     HOST   Mon Sep 21 23:40:12 +0545   date -u = 2026-09-21T17:55:12Z
+     DEVICE Mon Sep 21 23:25:12 IST     date -u = 2026-09-21T17:55:12Z
+     /etc/TZ = IST-5:30
+
+   **UTC agrees to the second on both sides, so `date -u` and every `%FT%TZ`
+   timestamp remain safe.  LOCAL time now differs by 15 MINUTES** -- the host is
+   +05:45 (Nepal), the device is +05:30 (India).  So any log line carrying device
+   LOCAL time is 15 min BEHIND the host's local clock, on top of the existing
+   first-minute boot offset (PART 20 §5).
+
+   Practical rule, unchanged in spirit: **anchor on `/proc/uptime` or on explicit
+   UTC (`%FT%TZ`); never mix a device local timestamp with a host local
+   timestamp.** The logroll/beacon/dmesg_roll writers all use `date -u`, so the
+   existing evidence is unaffected.
+
+5. SCOPE NOTE
+--------------------------------------------------------------------------------
+
+   The bar stands at 21 of 20 for the s8.13 question (PART 22) and the n >= 60
+   counter is at 25/60 on the new boot `a5af0fc8`.  No fix is claimed, and no AP
+   hang has been observed: all three boot boundaries were host power events.
+
+--------------------------------------------------------------------------------

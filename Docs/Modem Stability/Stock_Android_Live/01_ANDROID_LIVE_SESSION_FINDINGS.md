@@ -256,20 +256,28 @@ pieces** flagged in §2.5.
 > "`modemst1` = p13" would have read the **boot** partition and "`modemst2` =
 > p14" the **squashfs rootfs**.
 >
-> Two readings are open and this correction does not choose between them:
-> **(a)** the GPT was rewritten after this session — it carries OpenWrt-specific
-> names (`rootfs`, `rootfs_data`) that stock Android would not have, so if the
-> OpenWrt install re-partitioned the device then the stock layout seen here is
-> gone and the stock NV may have been relocated or overwritten, which would make
-> a same-device NV comparison **impossible** rather than merely mis-indexed; or
-> **(b)** this map was recorded from a different msm8916 board or a stale source.
+> **RESOLVED (Doc 170 PART 24).** The table above is **correct for the STOCK
+> layout**, which no longer exists on the device. The OpenWrt port uses the
+> **`lk2nd`** bootloader and **re-partitions the device**, but **the required
+> partitions (EFS and friends) are CARRIED OVER FROM THE ORIGINAL STOCK** — so
+> the NV is not lost, it simply lives at different indices now. (Per the
+> postmarketOS wiki, *Zhihe series LTE dongles (generic-zhihe)*.) The error is
+> not the map; it is citing a **pre-port** map against a **post-port** device.
 >
 > **Action: locate NV by partition NAME on both sides, and re-read the GPT on
 > each side, before any comparison.** Also established at the same time:
 > `mmcblk0p4` is **not** empty — its header carries the ASCII magic `IMAGEFS1V`
 > at offset 40 (the QCOM EFS/FSG image format) and its first 1 MB holds ~1.6 M
 > non-zero bytes, as does `mmcblk0p5`. So "OpenWrt's NV is uninitialised" is
-> **dead**. See Doc 170 PART 23.
+> **dead**.
+>
+> **And the consequence is a NEGATIVE RESULT worth having:** because the OpenWrt
+> NV is *derived from* the stock NV by design, NV is **not an independent input**
+> and is largely **removed from the candidate list** for "why does Android not
+> crash". A faithful-carry-over check is still worth one cheap look (a lossy copy
+> would be a finding), but it is no longer the high-value check it appeared to
+> be. The remaining candidate is the **AP→modem control stream**. See Doc 170
+> PARTs 23–24.
 
 ---
 
