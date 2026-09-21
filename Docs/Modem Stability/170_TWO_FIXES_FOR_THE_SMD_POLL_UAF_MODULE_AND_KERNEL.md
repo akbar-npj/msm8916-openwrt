@@ -80,6 +80,10 @@ sufficient.** §8.19(c) also **CORRECTS S2 to 58 samples / 9 losses** (the silen
 predicted from fatal #11's modem boot and **missed by 1.64 s**, so **the modem is still on the clock**
 two fatals after the cascade ended; and the storm silence, still unbroken, now spans **TWO** modem
 reloads (§8.21 updated).**
+**§8.13.7 then adds fatal #13 (sleepmgr, AP `9286.716877`) — **n = 9**, recovery **`0.125060 s`**,
+**missed by 1.60 s**, the **THIRD consecutive clock fatal** after the cascade; it attracted **no**
+`pc-ack timeout` (so §8.21.1's class is **6 of 13**); and the storm silence, still unbroken, now spans
+**THREE** modem reloads at **2042.95 s** (§8.21 updated).**
 **§8.21.1 then explains the one counter that did move: a THIRD class of `pc-ack timeout` fires inside
 an SSR's own down-window (`stopped remote processor` → `is now up`), where the modem provably cannot
 ack — **6 of the 12 fatals produce one** (Δ from the fatal a tight **150 ms** band), so an increment is
@@ -1333,9 +1337,45 @@ new storm event. `pm_suspend_attempts` 1018 → 1050 (**+32**) across the same w
 storm nor to RESTART it.** The storm is therefore not a per-modem-boot state — which sharpens §8.21's
 open question (it began 81.5 ms before crash #4 and spanned seven modem reloads; it then ended on its own and
 survived two further reloads). The "third condition" is on the **AP** side or in a **pattern** of
-suspends, not in the modem's boot state.
+suspends, not in the modem's boot state. **(Extended to THREE reloads by fatal #13 — §8.13.7.)**
 
 **s8.13 bar: 8 of 20 post-disable fatals scored, 0 AP reboots.** Remaining: 12 fatals.
+
+---
+
+### §8.13.7 NINTH SAMPLE — fatal #13 is the **THIRD** consecutive clock fatal, and the storm silence now spans **THREE** modem reloads
+
+Fatal #13 is **`lte_ml1_sleepmgr_stm.c:4054`** at AP **9286.716877 s** — the clock again.
+
+```
+AP delta  fatal#12 -> fatal#13 = 9286.716877 - 8385.263928 = 901.452949 s
+modem uptime (from fatal #12's `is now up` 8385.966522)     = 900.750355 s
+predicted at AP 9288.32 (fatal #12's modem boot 8385.966522 + 902.35)  ->  MISSED BY 1.60 s
+SSR before shutdown 9286.740674  ->  MBA booted 9286.865734 = 0.125060 s
+```
+
+**`0.125060 s` lands INSIDE the capture-OFF band**, which stays `0.119170–0.130237 s` — now **n = 9,
+spread 11.1 ms** — against `0.824902–0.831559 s` for the two capture-ON: still non-overlapping, still
+**~7× apart**, now on **nine signatures in nine recoveries**. No `port failed halt` (still **2**, both
+capture-ON); patch 814's rebuild fired (`successfully reinitialized BAM channels and rings`, ports
+re-attached 9287.866/9288.060). `coredump` attribute still `disabled`; `rproc=running`.
+
+Boot-wide: **13 fatals / 14 `MBA booted`** (= cold boot + one per recovery) **/ 2 `port failed halt`
+/ 13 `SSR before shutdown` / 15 `is now up`** (cold boot contributes two).
+
+**⚠ NO `pc-ack timeout` IN THIS RECOVERY** — the last is still `[ 8385.704199]` — so fatal #13 is one
+of the **seven** fatals that attracted no runtime resume inside their down-window (§8.21.1's control
+group; the class is now **6 of 13**).
+
+**★ AND THE STORM IS STILL SILENT — NOW ACROSS A THIRD MODEM RELOAD.** `pc_resync_count` is **81**
+and the **last lost edge is STILL `[ 7417.446456]`**, so the silence stands at
+**2042.95 s** (7417.446456 → 9460.39) across **~126 further suspends** (`pm_suspend_attempts` 1050 →
+1176). **`pc_timeout_count` did not move either** (still 79), and its last line is fatal #12's
+SSR-window event. **So a modem reload is now three times demonstrated to be neither sufficient to END
+the storm nor to RESTART it** — §8.21's "most disfavoured candidate is the modem's own state" is
+disfavoured further, and the "third condition" is on the **AP** side or in a **pattern** of suspends.
+
+**§8.13 bar: 9 of 20 post-disable fatals scored, 0 AP reboots.** Remaining: 11 fatals.
 
 ---
 
@@ -2442,10 +2482,11 @@ that is neither the storm nor the silent data-plane loss**, and it is **fully ex
 the storm's silence stands (the lost-edge counter is still **81**, last line `[ 7417.446456]`) — but
 "**both counters froze**" was wrong as written, and only the resync counter froze.
 
-**⇒ THE STORM EPISODE IS AP 3477.894835 → 7417.446456 = 3939.55 s, AND IT HAS NOW BEEN SILENT FOR 968 s
-ACROSS ~126 SUSPENDS — INCLUDING ACROSS *TWO* FULL MODEM RELOADS** (fatal #11: ports re-attached
-7488.1; fatal #12 at 8385.264: ports re-attached 8386.407 — and `pc_resync_count` held at **81**
-through both). **Updated after fatal #12 (§8.13.6).**
+**⇒ THE STORM EPISODE IS AP 3477.894835 → 7417.446456 = 3939.55 s, AND IT HAS NOW BEEN SILENT FOR
+2042.95 s ACROSS ~252 SUSPENDS — INCLUDING ACROSS *THREE* FULL MODEM RELOADS** (fatal #11: ports
+re-attached 7488.1; fatal #12 at 8385.264: ports re-attached 8386.407; fatal #13 at 9286.717: ports
+re-attached 9287.866 — and `pc_resync_count` held at **81** through all three, with
+`pc_timeout_count` also unmoved at **79**). **Updated after fatal #13 (§8.13.7).**
 
 **⚠ THIS REFUTES "THE STORM IS AP-runtime-PM-GATED" AS §8.15.4 STATED IT.** §8.15.4's S1 showed that
 1 Hz traffic froze `pc_resync_count` **and** `pm_suspend_attempts` together for 364 s, and inferred the
@@ -2462,18 +2503,18 @@ direction.** This does test it: **the AP suspends 94 more times with zero resync
 **What is open instead — the storm needs a THIRD condition.** Candidates, none tested:
 1. **the modem's own state** — but the storm began 81.5 ms before crash #4 and **spanned SEVEN
    consecutive modem reloads** (#4 through #10 — the whole span from its onset to its end), so it is
-   *not* per-modem-boot; and **two further reloads (#11 and #12) did not restart it.** **This candidate
-   is now the most disfavoured of the three:** the storm was present across seven modem boots and
-   absent across the next two, so its state is not carried by a modem boot either way;
+   *not* per-modem-boot; and **three further reloads (#11, #12 and #13) did not restart it.** **This
+   candidate is now the most disfavoured of the three:** the storm was present across seven modem boots
+   and absent across the next three, so its state is not carried by a modem boot either way;
 2. **the cascade regime** — but the storm ran **836.9 s past** the cascade's last fatal (#10, 6580.507),
    so it is not the cascade either;
 3. **a specific PATTERN of suspends**, rather than their rate — untested, and the natural next
    instrument (log *which* suspends are followed by a resync, not how many).
 
-**⚠ AND A 968 s SILENCE IS NOT PROOF THE STORM IS *OVER*.** A lull cannot be distinguished from an end
-until a further onset is observed. The `storm_sampler` and `logroll.sh` are both still running and will
-catch a restart; **what the silence does prove is that the churn rate alone does not sustain the storm,
-and neither does a modem reload — in either direction.**
+**⚠ AND A 2042.95 s SILENCE IS NOT PROOF THE STORM IS *OVER*.** A lull cannot be distinguished from an
+end until a further onset is observed. The `storm_sampler` and `logroll.sh` are both still running and
+will catch a restart; **what the silence does prove is that the churn rate alone does not sustain the
+storm, and neither does a modem reload — in either direction.**
 
 ---
 
@@ -2856,11 +2897,13 @@ cannot be what separates the two populations — which stay separated (`0.119170
   If it succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling
   it also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says
   whether the recovery had already passed the coredump step, which is itself informative.
-  **Remaining: 12 fatals.** **Fatal #12 has since arrived** at AP **8385.263928 s**
+  **Remaining: 11 fatals.** **Fatal #12 has since arrived** at AP **8385.263928 s**
   (`lte_ml1_sleepmgr_stm.c:4054`, the clock) — **901.424178 s** after #11, predicted at AP ≈ 8386.9 s
   from #11's modem boot, **missed by 1.64 s**, i.e. **the modem is still on the clock two fatals after
-  the cascade ended** (§8.13.6). Fatal #13 is due at AP ≈ **9287.6 s** (fatal #12's modem boot
-  8385.966 + 902.35).
+  the cascade ended** (§8.13.6). **And fatal #13 arrived on prediction** at AP **9286.716877 s**
+  (`lte_ml1_sleepmgr_stm.c:4054` again) — **901.452949 s** after #12, **missed by 1.60 s** — the
+  **third consecutive clock fatal**, with **no** `pc-ack timeout` in its recovery (§8.13.7).
+  **Fatal #14 is due at AP ≈ 10189.8 s** (fatal #13's modem boot 9287.428024 + 902.35).
 * **★ CHASE THE "LOST EDGE" STORM — but the question has CHANGED twice (§8.15 → §8.15.2 → §8.15.3).**
   The original question ("is a resync a poison pill 74 ms in front of a fatal?") is now **mostly
   answered NO**: 15 resyncs in this boot, only **1** preceded a fatal, and 8+ minutes of storm ran with

@@ -2469,3 +2469,97 @@ PART 15 -- THE ONE POST-STORM COUNTER INCREMENT IS A THIRD CLASS OF
    * Section 8.16 / section 8.19(c): accounting extended to 79 = 77 + 2.
    * Section 8.13.6: reference points unified, fatal #9 added.
    * New section 8.21.1.
+
+
+================================================================================
+PART 16 -- FATAL #13: NINTH CAPTURE-OFF SAMPLE, THIRD CONSECUTIVE CLOCK FATAL,
+           AND THE STORM SURVIVES A THIRD MODEM RELOAD (Doc 170 section 8.13.7)
+================================================================================
+
+1. THE FATAL AND THE CLOCK CHECK
+--------------------------------------------------------------------------------
+
+   [ 9286.716877] qcom-q6v5-mss: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+
+     AP delta  fatal#12 -> fatal#13 = 9286.716877 - 8385.263928 = 901.452949 s
+     modem uptime (from fatal #12's "is now up" 8385.966522)    = 900.750355 s
+     predicted at AP 9288.32 (8385.966522 + 902.35)             -> MISSED BY 1.60 s
+
+   Third consecutive `lte_ml1_sleepmgr_stm.c:4054` after the cascade ended, and the
+   second consecutive miss of ~1.6 s.  The modem is on the clock.
+
+2. THE RECOVERY -- NINTH CAPTURE-OFF SAMPLE
+--------------------------------------------------------------------------------
+
+   [ 9286.716877] fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+   [ 9286.716947] remoteproc: crash detected ... type fatal error
+   [ 9286.725026] remoteproc: handling crash #13
+   [ 9286.732918] remoteproc: recovering 4080000.remoteproc
+   [ 9286.740674] bam-dmux: SSR before shutdown: scheduling teardown work      <-- START
+   [ 9286.740720] bam-dmux: SSR teardown T0 scheduled
+   [ 9286.746138] bam-dmux: SSR teardown T1 entry
+   [ 9286.753883] bam-dmux: SSR teardown T2 tx_retry cancelled
+   [ 9286.761547] bam-dmux: SSR teardown T3 tx_wakeup cancelled
+   [ 9286.770056] bam-dmux: SSR teardown T4 state_lock acquired
+   [ 9286.778640] bam-dmux: executing serialized asynchronous SSR teardown
+   [ 9286.778750] bam-dmux: bam-dmux T5 rx released
+   [ 9286.787264] bam-dmux: bam-dmux T6 tx released
+   [ 9286.794267] bam-dmux: bam-dmux T7 power_off returned
+   [ 9286.801305] bam-dmux: bam-dmux T8 work done
+   [ 9286.808373] bam-dmux: bam-dmux T9 flush returned
+   [ 9286.815678] wwan wwan0: port wwan0at0 disconnected
+   [ 9286.815877] wwan wwan0: port wwan0at1 disconnected
+   [ 9286.816196] wwan wwan0: port wwan0qmi0 disconnected
+   [ 9286.817580] remoteproc: stopped remote processor 4080000.remoteproc
+   [ 9286.865734] qcom-q6v5-mss: MBA booted without debug policy, loading mpss  <-- END
+   [ 9287.427992] bam-dmux: SSR after powerup: scheduling powerup work
+   [ 9287.428024] remoteproc: remote processor ... is now up
+   [ 9287.632343] bam-dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+   [ 9287.635680] bam-dmux: SSR powerup: successfully reinitialized BAM channels and rings
+   [ 9287.865769] wwan wwan0: port wwan0at0 attached
+   [ 9287.866900] wwan wwan0: port wwan0at1 attached
+   [ 9288.059590] wwan wwan0: port wwan0qmi0 attached
+
+   SSR before shutdown 9286.740674 -> MBA booted 9286.865734 = 0.125060 s
+
+   * INSIDE the capture-OFF band, which stays 0.119170-0.130237 s
+     (n = 9, spread 11.1 ms) vs 0.824902-0.831559 s for the two capture-ON.
+   * NO "port failed halt" (boot-wide count still 2 -- both capture-ON).
+   * patch 814's rebuild fired and succeeded.
+   * NO "pc-ack timeout" in this window: the last is still [ 8385.704199].
+     So fatal #13 joins section 8.21.1's CONTROL group -> the class is 6 of 13.
+
+   Boot-wide counts:
+     fatal error received        13
+     SSR before shutdown         13
+     MBA booted                  14   (= cold boot + one per recovery)
+     port failed halt             2
+     is now up                   15   (cold boot contributes two: 10.984, 12.924)
+
+3. THE STORM SURVIVES A THIRD MODEM RELOAD
+--------------------------------------------------------------------------------
+
+   $ cat .../bam-dmux/rx_telemetry | grep -E "resync|timeout|suspend"
+   pc_resync_count: 81
+   pc_timeout_count: 79
+   pm_suspend_attempts: 1176
+
+   $ dmesg | grep "lost edge" | tail -1
+   [ 7417.446456] ... (lost edge), resyncing
+   $ dmesg | grep "pc-ack timeout" | tail -1
+   [ 8385.704199] ... modem pc-ack timeout during resume
+
+   Silence = 7417.446456 -> 9460.39 (uptime at the reading) = 2042.95 s, across
+   ~252 further suspends (1050 -> 1176), spanning THREE full modem reloads
+   (#11 at 7483.840, #12 at 8385.264, #13 at 9286.717).
+
+   Both counters are unmoved; the only post-storm increment ever seen (78 -> 79)
+   is fatal #12's own SSR-window resume (PART 15).
+
+4. WHAT THIS CHANGES
+--------------------------------------------------------------------------------
+
+   * section 8.13.7 added; the A/B bar is 9 of 20, 0 AP reboots.
+   * section 8.21: silence 968 -> 2042.95 s, TWO -> THREE reloads, and the
+     "modem's own state" candidate is disfavoured further (present across seven
+     modem boots, absent across the next three).

@@ -1771,17 +1771,23 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
      per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20.
-     **Progress: 8 of 20 scored, AP survived.** **Fatal #12 (sleepmgr, AP `8385.263928`) recovers in
+     **Progress: 9 of 20 scored, AP survived.** **Fatal #13 (sleepmgr, AP `9286.716877`) recovers in
+     `0.125060 s`** — predicted at AP ≈ `9288.32 s` from fatal #12's modem boot and **missed by 1.60 s**,
+     so the modem is **still on the clock three fatals after the cascade ended**; and it attracted **no**
+     `pc-ack timeout`, so it joins §8.21.1's control group (the class is **6 of 13**).
+     **Fatal #12 (sleepmgr, AP `8385.263928`) recovers in
      `0.122951 s`** — predicted at AP ≈ `8386.9 s` from fatal #11's modem boot and **missed by 1.64 s**,
      so the modem is **still on the clock two fatals after the cascade ended**. Fatal #11 (sleepmgr, AP `7483.839750`) recovers in
      **`0.119912 s`** and fatal #9 (AP `6397.771058`, `a2_power.c:1189`) in **`0.127579 s`**, both with
      **patch 814's rebuild firing and succeeding**
      (`successfully reinitialized BAM channels and rings` → all 8 `CMD_OPEN`s), and fatal #7 (AP
-     `6110.407029 s`, sleepmgr) in **`0.119170 s`**, so the eight capture-OFF recoveries span
+     `6110.407029 s`, sleepmgr) in **`0.119170 s`**, so the nine capture-OFF recoveries span
      **`0.119170–0.130237 s`** against **`0.824902–0.831559 s`** for the two with the capture **on** —
-     two **non-overlapping** populations **~7× apart**, on eight signatures in eight recoveries.
-     ⚠ **The window now spans TWO regimes** (3 idle-clock fatals + 3 cascade fatals) — say so whenever
-     the bar is quoted. The fourth sample (fatal #6, AP `5208.721361 s`,
+     two **non-overlapping** populations **~7× apart**, on nine signatures in nine recoveries.
+     ⚠ **The window now spans TWO regimes** — the **idle 902 s clock** (`lte_ml1_sleepmgr_stm.c:4054`)
+     and the **cascade** (`a2_power.c` / `a2_task.c`) — so say which regime a quoted bar covers.
+
+     The fourth sample (fatal #6, AP `5208.721361 s`,
      `lte_ml1_sleepmgr_stm.c:4054`) recovers in **`0.127373 s`**. The third sample
      (fatal #5, AP `4304.991306 s`, `a2_power.c:1189`) reproduces it at `0.124531 s`. The second sample
      (fatal #4, AP `3477.969305 s`, `a2_power.c:2949`) reproduced fatal #3 to within 5 ms, so the A/B
@@ -1967,8 +1973,8 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      suggestive, not established), and **the direction is NOT established.**
      **(f) ★ THE STORM IS BOUNDED TOO (§8.21):** the episode is **AP 3477.894835 → 7417.446456 =
      3939.55 s**, after which `pc_resync_count` **81** stayed **FROZEN** while
-     `pm_suspend_attempts` climbed **924 → 1050 (+126)** with `runtime_status: active` — **968 s of
-     silence across ~126 suspends, INCLUDING across TWO full modem reloads (fatal #11 AND fatal #12).**
+     `pm_suspend_attempts` climbed **924 → 1176 (+252)** with `runtime_status: active` — **2042.95 s of
+     silence across ~252 suspends, INCLUDING across THREE full modem reloads (fatals #11, #12 AND #13).**
      ⚠ **`pc_timeout_count` did NOT stay frozen — it moved 78 → 79, and §8.21.1 shows the single
      increment is fatal #12's own SSR-window `pc-ack timeout`, a THIRD class of handshake event that is
      neither the storm nor the silent data-plane loss. So "both counters froze" was wrong as written;
@@ -1980,9 +1986,9 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      candidate is a specific *pattern* of suspends (the natural next instrument is to log **which**
      suspends are followed by a resync, not how many); **"the modem's own state" is now the most
      disfavoured**, because the storm was **present across SEVEN consecutive modem reloads (#4–#10)** and
-     then **absent across the next two** — so a modem boot carries the state neither way. §8.15.4's
+     then **absent across the next three** — so a modem boot carries the state neither way. §8.15.4's
      intact parts stand: traffic does suppress the storm in practice, and **idle-avoidance does not
-     suppress the fatals.** ⚠ A 968 s silence is a **lull** until a further onset is observed — the
+     suppress the fatals.** ⚠ A 2042.95 s silence is a **lull** until a further onset is observed — the
      sampler and `logroll.sh` are both still running.
      **(h) ★ NEW — A THIRD CLASS OF `pc-ack timeout`, AND IT IS INEVITABLE (§8.21.1):** **6 of the 12
      fatals** produce a `pc-ack timeout` **inside their own SSR down-window** (`stopped remote
