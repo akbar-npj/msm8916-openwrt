@@ -736,3 +736,168 @@ WHAT PART 6 DOES NOT CLAIM
     resyncs produced nothing.
   - It does not explain the `pm_suspend` deficit moving 7 -> 10.
 ================================================================================
+
+================================================================================
+PART 7 -- THE STORM KEEPS GOING WITH NO FATAL, IT PAIRS BOTH DIRECTIONS OF THE
+HANDSHAKE ~184 ms APART, IT HAS NO EXTERNAL TRIGGER, AND THE DATA PLANE IS FINE
+  measured 2026-09-21 18:22-18:40 host time, boot_id a9fd907c, uptime 4710 -> 4900
+================================================================================
+
+1. THE STORM OUTLIVES THE FATAL BY MINUTES, WITH NO SECOND FATAL
+
+Fatal #5 (`a2_power.c:1189`) fired at AP 4304.991306 s.  Fatals are STILL 5 at
+uptime 4814.48 and at 4900+.  Meanwhile the resync counter kept climbing:
+
+  uptime  4710.44   pc_resync_count 15
+  uptime  4814.48   pc_resync_count 18
+  uptime  4852.90   pc_resync_count 20
+
+  resync rate, storm window 4344.06 -> 4852.90 = 508.84 s, 14 resyncs = 1 per 36.3 s
+
+So the storm is a REGIME, not an event: ~1 handshake failure every 36 s sustained
+for 8+ minutes, with the modem running, the data plane up, and no fatal.
+
+2. THE COMPLETE DECOMPOSITION OF THIS BOOT'S TWO FAILURE DIRECTIONS
+
+The two messages are the two directions of ONE handshake.  Every line in this
+boot accounts for itself -- there is no residue:
+
+  LOST EDGE (modem asserted, AP missed the edge) -- 15 total
+     1  preceded a fatal            3477.894835  -> fatal a2_power.c:2949 +74.470 ms
+     5  paired with a pc-ack timeout  see the lag table below
+     9  unpaired                     4079.094133 4192.370087 4224.514264
+                                     4344.057823 4352.497742 4568.478005
+                                     4631.484390 4671.180806 4702.440699
+
+  PC-ACK TIMEOUT (AP voted, modem did not ACK within 250 ms) -- 14 total
+     3  post-fatal RECOVERY ARTEFACTS  914.071907 (+0.431112 after #1)
+                                       1816.628053 (+0.581419 after #2)
+                                       2718.871855 (+0.435022 after #3)
+     5  paired with a lost edge        see the lag table below
+     6  unpaired                       4297.231159 4304.244365 4376.591183
+                                       4416.404697 4528.431226 4663.257569
+
+3. THE FIVE PAIRED EVENTS -- A ~184 ms LAG THAT DOES NOT CLOSE ARITHMETICALLY
+
+  lost edge      pc-ack timeout   lag
+  4119.287485    4119.470945      +183.460 ms
+  4175.847548    4176.057624      +210.076 ms
+  4448.051188    4448.217985      +166.797 ms
+  4464.327857    4464.511287      +183.430 ms
+  4710.440616    4710.617254      +176.638 ms
+                                  mean 184.080 ms, spread 43.279 ms
+
+  With the storm firing an event every ~36 s, a pc-ack timeout landing within
+  250 ms of a resync by chance has probability ~0.7 %, so the coupling is REAL.
+
+  BUT THE MECHANISM DOES NOT CLOSE, AND THAT IS THE FINDING.  The only site that
+  prints "modem pc-ack timeout during resume" is `bam_dmux_runtime_resume()`:
+      reinit_completion(&dmux->pc_ack_completion);          <-- :1421
+      mutex_lock(&state_lock); bam_dmux_pc_vote(dmux, true); mutex_unlock();
+      ret = wait_for_completion_timeout(&dmux->pc_ack_completion,
+                                        msecs_to_jiffies(250));   <-- :1429
+      if (!ret) { atomic64_inc(&pc_timeout_count);
+                  dev_warn(dev, "bam_dmux: modem pc-ack timeout during resume\n"); }
+  so the log line is emitted exactly ~250 ms after that resume's vote.  A line at
+  T+184 ms therefore means the vote happened at T-66 ms -- i.e. BEFORE the resync
+  line at T.  But the resync itself calls `complete_all(&dmux->pc_ack_completion)`
+  (after `bam_dmux_pm_restart()` and `bam_dmux_pc_ack()`), which MUST have
+  satisfied that waiter.  So either
+    (i) the resync's `complete_all` is being undone by a later
+        `reinit_completion()` -- there are exactly two, `bam_dmux_power_on()`
+        :178 and `bam_dmux_runtime_resume()` :1421 -- or
+    (ii) the coupling runs through the MODEM's ACK timing, not the completion
+        object at all.
+  Both are testable with one instrument: log the ordering of reinit / complete /
+  the pc_ack IRQ.  That is what D1 should now be (see 8.15), NOT the original
+  "log either side of the two modem-visible actions".
+
+4. A CANDIDATE SECOND PRECURSOR, PRE-REGISTERED AT n = 1
+
+Fatal #5 (`a2_power.c:1189`, 4304.991306) has a `modem pc-ack timeout during
+resume` at 4304.244365 -- **746.941 ms BEFORE it**.  Fatal #4
+(`a2_power.c:2949`, 3477.969305) has none within +/-1 s (nearest are 2718.871855
+and 4119.470945).  So the antecedent is again SIGNATURE-SPECIFIC:
+    `a2_power.c:2949`  <- lost edge            74.470 ms before   (3/3 boots)
+    `a2_power.c:1189`  <- pc-ack timeout      746.941 ms before   (n = 1)
+  **P4 (pre-registered).** If the next `a2_power.c:1189` fatal also has a
+  `modem pc-ack timeout during resume` within +/-1 s before it, that is 2/2 and
+  the pairing becomes worth chasing.  **P4-FALSIFIER.** No such line, or one
+  after the fatal instead of before it.  Caveat that cuts against it: the storm
+  makes pc-ack timeouts dense (~1 per 40-90 s), so P(one within +/-1 s) is ~2-5 %
+  by chance -- low, but n = 1 with a 5 % base rate is exactly the shape of a
+  coincidence, so this is recorded and NOT acted on.
+
+5. THE STORM HAS NO EXTERNAL TRIGGER
+
+  - AP side: `dmesg` has ZERO lines in 3490.000 -> 4078.999 s, the 589 s between
+    fatal #4's recovery and the first storm resync.  Nothing announced the change.
+  - Host side: `journalctl -k` is silent -- its LAST entry before the storm is
+    17:34:12 host time, and the storm onset is ~18:11:20 host time.  Positive
+    control: `journalctl -k` does return entries (it returned the 17:04-17:34
+    lines), so this is a real negative, not a broken query.
+  - Therefore the storm onset is AP/modem-INTERNAL.  This is the opposite of the
+    s8.14 lesson in the useful direction: here the host was checked FIRST and
+    excluded cheaply, instead of being blamed.
+
+6. THE RUNTIME-PM RATE IS UNCHANGED ACROSS THE STORM ONSET
+
+  `pm_suspend_attempts` = 623 at uptime ~4720  => 0.132 /s averaged over the boot
+  measured during the storm:  7 per 55 s (18:15-18:18)  => 0.127 /s
+                              32 per 247 s (18:18-18:22) => 0.130 /s
+  So the AP is suspending and resuming at the SAME rate before and during the
+  storm.  The storm is not "more churn"; it is the same churn failing to complete
+  its handshake.
+
+7. CORRECTION TO PART 6 -- THE `pm_suspend` DEFICIT IS ACCOUNTING, NOT A DEFECT
+
+Part 6 recorded the `pm_suspend_attempts - pm_suspend_completions` deficit
+(7 -> 10) as "recorded, not explained".  Reading the definitions closes it:
+  - `pm_suspend_attempts` is incremented in `bam_dmux_runtime_suspend()` after the
+    three guards, immediately before `bam_dmux_pc_vote(dmux, false)` (:1389).
+  - `pm_suspend_completions` is incremented in exactly TWO places, both requiring
+    `pm_suspend_start_ns` to still be non-zero: the pc_irq deassert branch (:1326)
+    and `bam_dmux_pc_ack_irq()` (:1354).
+  - `pm_suspend_start_ns` is CLEARED by `bam_dmux_runtime_resume()` (:1417) and by
+    the RESYNC handler (:797).
+  So a suspend attempt that is pre-empted by a resume or by a resync before its
+  ACK lands can never increment the completion counter.  **The deficit is the
+  count of suspend/resume (and suspend/resync) races -- 11 of 623 = 1.8 % -- and
+  its growth is a churn proxy, not evidence of a lost ACK.**  Withdrawn as an
+  anomaly.
+
+8. THE DATA PLANE IS FULLY FUNCTIONAL DURING THE STORM
+
+  ip -br addr: wwan0 UP, 10.29.91.236/29, IPv6, default route present
+  ping -c 4 -I wwan0 8.8.8.8:  4 transmitted, 4 received, 0 % loss
+                               min/avg/max = 40.521 / 168.794 / 512.092 ms
+  and under 1 Hz traffic (S1, below) replies arrive 1:1.
+
+  The max RTT of 512 ms is high, but with n = 4 it is not evidence of anything.
+  **The storm is NOT the data stall.**  That is worth stating plainly because the
+  storm looks alarming and the stall is the user's actual complaint.
+
+9. WHAT THIS DOES TO THE THREE READINGS OF s8.15
+
+  Reading (A) -- "the resync is a poison pill, so a resync should precede a fatal
+  with a constant modem reaction gap" -- is now strongly DISFAVOURED: 15 resyncs
+  in this boot, only 1 preceded a fatal, and 8+ minutes of storm produced no
+  fatal at all with the data plane working.  Readings (B)/(C) -- a failing PC
+  handshake REGIME that the resyncs are symptoms of -- remain open and are the
+  better fit.  Necessity (3/3 for `a2_power.c:2949`) survives; sufficiency is
+  now 3/20 or worse as this boot's denominator grows.
+
+10. S1 -- PRE-REGISTERED, RUNNING: DOES 1 Hz TRAFFIC SUPPRESS THE STORM?
+
+  A lost edge requires `pc_state == 0` and the PC line asserted, i.e. it can only
+  happen on the way OUT of a quiesced state.  If that is the mechanism, then
+  traffic that keeps the modem awake should SUPPRESS the storm -- and the storm
+  and the data stall would be the same defect family (the idle->active handshake)
+  seen from two sides.  S1 = 600 consecutive 1 Hz pings with the two counters
+  sampled once a second (`/overlay/s1.track`), pre-registered as:
+    P5.  resync rate during S1 falls to <= 20 % of the 1-per-36 s pre-S1 rate.
+    P5-FALSIFIER.  resync rate stays within 2x of 1-per-36 s during S1.
+  Early indication (first ~20 s, NOT a result): resync went 18 -> 20 in 44 s, so
+  the storm was NOT immediately suppressed.  If P5 is falsified, the storm is
+  independent of quiescence and readings (B)/(C) get stronger still.
+================================================================================
