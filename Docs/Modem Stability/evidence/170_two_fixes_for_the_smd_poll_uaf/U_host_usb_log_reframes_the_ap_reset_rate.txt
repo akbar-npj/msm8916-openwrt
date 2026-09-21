@@ -1,0 +1,261 @@
+================================================================================
+U_host_usb_log_reframes_the_ap_reset_rate.txt
+Doc 170 s8.14 -- THE HOST KERNEL LOG REFRAMES THE AP-RESET RATE: at least 6 of 19
+'AP reboots' are host-caused or manual, NOT AP hangs.
+Captured 2026-09-21 17:5x on the build host (Asahi Fedora, 1d3h uptime).
+================================================================================
+
+WHY THIS FILE EXISTS
+--------------------
+s8.10 concluded from one event (an 'AP reset' at AP ~1061 s, 17:03:24) that patch 823
+is NOT a complete fix.  s8.11 then used the watcher's reboot count to argue the reset
+rate is ~1 in 1-3 SSRs.  Neither cross-checked the HOST kernel log, which is the only
+instrument that can say whether the DONGLE rebooted on its own or was reset BY THE HOST.
+
+The host log covers the whole day and shows BOTH error directions:
+  * 39 dongle re-enumerations, but only ~19 AP uptime-decreases  =>
+    re-enumeration is NOT an AP reboot (14:39 re-enumerated with no AP reboot);
+  * 48 xHCI controller re-registrations and 12 usb1 root-hub disconnects on Sep 21,
+    36 of the 48 inside the 16h hour alone => the HOST's own USB controller flaps.
+
+HOST USB CONTROLLER INSTABILITY BY HOUR (Sep 21)
+------------------------------------------------
+  xHCI re-registrations : 10h=4   15h=8   16h=36   (total 48)
+  usb1 root-hub disc    : 10h=1   15h=2   16h=9    (total 12)
+  'error -71'           :                  15h=6   (total 6)
+  'attempt power cycle' :                  15h=1   (total 1)
+
+THE DECISIVE EVENT -- s8.10's 'reset that survived 823' WAS MY OWN HUB INSTALLATION
+----------------------------------------------------------------------------------
+s8.10 recorded: 17:03:24 AP UNREACHABLE -> 17:03:56 AP-BACK after 29s, uptime ~1061 s.
+The host log for the same minutes:
+
+Sep 21 17:03:07 192.168.8.243 kernel: usb 1-1: USB disconnect, device number 3
+Sep 21 17:03:13 fedora kernel: usb 1-1: new high-speed USB device number 4 using xhci-hcd
+Sep 21 17:03:13 fedora kernel: usb 1-1: New USB device found, idVendor=214b, idProduct=7250, bcdDevice= 1.00
+Sep 21 17:03:13 fedora kernel: usb 1-1: New USB device strings: Mfr=0, Product=1, SerialNumber=0
+Sep 21 17:03:13 fedora kernel: usb 1-1: Product: USB2.0 HUB
+Sep 21 17:03:13 fedora kernel: hub 1-1:1.0: USB hub found
+Sep 21 17:03:13 fedora kernel: hub 1-1:1.0: 4 ports detected
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: new high-speed USB device number 5 using xhci-hcd
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: New USB device found, idVendor=0bda, idProduct=f179, bcdDevice= 0.00
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: Product: 802.11n
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: Manufacturer: Realtek
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: SerialNumber: 00e04c000001
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: RTL8188FU rev B (SMIC) romver 0, 1T1R, TX queues 2, WiFi=1, BT=0, GPS=0, HI PA=0
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: RTL8188FU MAC: 34:7d:e4:4e:42:0c
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: rtl8xxxu: Loading firmware rtlwifi/rtl8188fufw.bin
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: Firmware revision 4.0 (signature 0x88f1)
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: new high-speed USB device number 6 using xhci-hcd
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: New USB device found, idVendor=1d6b, idProduct=0104, bcdDevice= 1.00
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: Product: USB Gadget
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: Manufacturer: Linux
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: SerialNumber: 1789988476-5021
+
+  => at 17:03:07 the dongle DISCONNECTS from port 1-1 (it was device number 3 there);
+     at 17:03:13 a 'USB2.0 HUB' (214b:7250) appears ON PORT 1-1 FOR THE FIRST TIME;
+     at 17:03:41 the dongle re-appears as 1-1.2 BEHIND that hub.
+  => a hub cannot be added to port 1-1 without first removing the device on 1-1.
+     This is an unambiguous PHYSICAL INTERVENTION, not an AP hang.
+  => the 29 s outage s8.10 measured is exactly the unplug/replug window.
+
+THE 16:40-16:46 'BOOT LOOP' IS A HOST USB CONTROLLER EPISODE
+-----------------------------------------------------------
+watcher: 16:40:00 ok(2427) -> 16:40:47 UNREACHABLE -> 16:41:43 back(53s) ->
+         16:42:03 ok(46) -> 16:42:29 UNREACHABLE -> 16:43:33 back(61s) ->
+         16:44:14 UNREACHABLE -> 16:45:02 back(45s) -> 16:45:02 ok(38) -> ...
+         i.e. uptime 2427 -> 46 -> 38 -> 79: three AP reboots in seven minutes.
+host   : xHCI x4 / x12 / x24 / x16 and root-hub disconnects immediately before each,
+         and 36 of the day's 48 xHCI re-registrations fall in this one hour.
+
+OUTAGE DURATIONS ARE BIMODAL -- s8.11's '30 s stall + 15-40 s boot' FITS ONLY ONE MODE
+-----------------------------------------------------------------------------------
+  short mode : 5, 13, 13, 13, 13, 21, 21, 22, 29, 29, 29, 37, 37, 45, 53, 61 s
+  long mode  : 926 s (15:44:42, 'error -71' / 'attempt power cycle' -- gadget came
+               back BROKEN) and 1641 s (14:39:38, 27 min)
+  A 1641 s outage cannot be a 30 s watchdog stall plus a boot.
+
+OUTAGE-BY-OUTAGE HOST CONTEXT (+-120 s)
+--------------------------------------
+  outage      dur  host-side context
+  12:00:59    21   gadget-reenum x1 (the expected CONSEQUENCE of the dongle rebooting)
+  12:31:46    21   gadget-reenum x1
+  13:09:37    29   gadget-reenum x1
+  13:14:20    13   gadget-reenum x1
+  13:30:11    29   gadget-reenum x1
+  13:32:34    13   gadget-reenum x1
+  13:35:22     5   gadget-reenum x1
+  13:54:35    13   gadget-reenum x2
+  13:55:12    22   gadget-reenum x1
+  14:00:24    29   gadget-reenum x1
+  14:39:38  1641   NONE within +-120 s after (re-enum was 33 s BEFORE; 27 min outage)
+  15:13:25    37   gadget-reenum x1
+  15:41:05    37   gadget-reenum x1
+  15:44:42   926   err-71            <- USB PHY/gadget failure
+  16:40:47    53   xHCI x4,  roothub-disc x2   <- HOST-CAUSED
+  16:42:29    61   xHCI x12, roothub-disc x6   <- HOST-CAUSED
+  16:44:14    45   xHCI x24, roothub-disc x10  <- HOST-CAUSED
+  16:45:54    13   xHCI x16, roothub-disc x8   <- HOST-CAUSED
+  17:03:24    29   *** HUB INSTALLED ***       <- MANUAL
+
+  => at least 6 of the 19 outages are NOT AP hangs: 4 host-controller-caused,
+     1 USB-PHY-caused, 1 manual.  The other 13 have no host-side trigger and remain
+     candidates for genuine AP-side reboots -- but 'no host trigger' is not proof,
+     because the host log only shows what the HOST observed.
+
+CONSEQUENCE FOR THE s8.13 EXPERIMENT (its pre-registered bar)
+-------------------------------------------------------------
+The bar is '0 AP reboots across 20 fatals'.  A reboot during the window is a FAILURE
+ONLY IF the host log shows no host-side cause.  The host log must therefore be read
+for every reboot in the window, not just the watcher's uptime-decrease.  The dongle
+was moved onto a hub at 17:03 and the host's xHCI flapped at 16h, so the risk of a
+FALSE failure is real and must be checked before scoring one.
+
+================================================================================
+RAW HOST LOG EXTRACTS
+================================================================================
+
+### all 'Product: USB Gadget' re-enumerations (Sep 21)
+Sep 21 02:00:05 Gadget
+Sep 21 02:45:29 Gadget
+Sep 21 03:21:19 Gadget
+Sep 21 03:29:12 Gadget
+Sep 21 03:41:59 Gadget
+Sep 21 03:57:27 Gadget
+Sep 21 04:01:41 Gadget
+Sep 21 04:35:18 Gadget
+Sep 21 04:37:17 Gadget
+Sep 21 04:55:55 Gadget
+Sep 21 04:59:57 Gadget
+Sep 21 05:02:23 Gadget
+Sep 21 05:13:28 Gadget
+Sep 21 05:16:50 Gadget
+Sep 21 09:44:03 Gadget
+Sep 21 10:18:27 Gadget
+Sep 21 10:32:07 Gadget
+Sep 21 12:01:05 Gadget
+Sep 21 12:04:01 Gadget
+Sep 21 12:32:06 Gadget
+Sep 21 13:10:02 Gadget
+Sep 21 13:14:31 Gadget
+Sep 21 13:30:23 Gadget
+Sep 21 13:32:42 Gadget
+Sep 21 13:35:29 Gadget
+Sep 21 13:54:43 Gadget
+Sep 21 13:55:20 Gadget
+Sep 21 14:00:35 Gadget
+Sep 21 14:39:05 Gadget
+Sep 21 15:06:48 Gadget
+Sep 21 15:13:52 Gadget
+Sep 21 15:41:38 Gadget
+Sep 21 15:59:53 Gadget
+Sep 21 16:41:07 Gadget
+Sep 21 16:41:41 Gadget
+Sep 21 16:43:16 Gadget
+Sep 21 16:44:44 Gadget
+Sep 21 16:46:01 Gadget
+Sep 21 17:03:41 Gadget
+
+### all xHCI re-registrations (Sep 21), timestamp only
+10:31:47
+10:31:47
+10:31:47
+10:31:47
+15:06:27
+15:06:27
+15:06:27
+15:06:27
+15:59:31
+15:59:31
+15:59:31
+15:59:31
+16:40:42
+16:40:42
+16:40:42
+16:40:42
+16:41:15
+16:41:15
+16:41:15
+16:41:15
+16:42:29
+16:42:29
+16:42:29
+16:42:29
+16:42:52
+16:42:52
+16:42:52
+16:42:52
+16:42:56
+16:42:56
+16:42:56
+16:42:56
+16:43:54
+16:43:54
+16:43:54
+16:43:54
+16:43:57
+16:43:57
+16:43:57
+16:43:57
+16:43:58
+16:43:58
+16:43:58
+16:43:58
+16:44:23
+16:44:23
+16:44:23
+16:44:23
+
+### 15:44 broken-gadget sequence (the 926 s outage)
+Sep 21 15:44:25 192.168.1.8 kernel: usb 1-1: USB disconnect, device number 4
+Sep 21 15:44:25 192.168.1.8 kernel: cdc_ncm 1-1:1.2 enu1i2: unregister 'cdc_ncm' usb-xhci-hcd.2.auto-1, CDC NCM (NO ZLP)
+Sep 21 15:44:25 192.168.1.8 kernel: usb 1-1: new full-speed USB device number 5 using xhci-hcd
+Sep 21 15:44:25 192.168.1.8 kernel: usb 1-1: device descriptor read/64, error -71
+Sep 21 15:44:25 192.168.1.8 kernel: usb 1-1: device descriptor read/64, error -71
+Sep 21 15:44:26 192.168.1.8 kernel: usb 1-1: new full-speed USB device number 6 using xhci-hcd
+Sep 21 15:44:26 192.168.1.8 kernel: usb 1-1: device descriptor read/64, error -71
+Sep 21 15:44:26 192.168.1.8 kernel: usb 1-1: device descriptor read/64, error -71
+Sep 21 15:44:26 192.168.1.8 kernel: usb usb1-port1: attempt power cycle
+Sep 21 15:44:26 192.168.1.8 kernel: usb 1-1: new full-speed USB device number 7 using xhci-hcd
+Sep 21 15:44:26 192.168.1.8 kernel: usb 1-1: Device not responding to setup address.
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: Device not responding to setup address.
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: device not accepting address 7, error -71
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: WARN: invalid context state for evaluate context command.
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: new full-speed USB device number 8 using xhci-hcd
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: Device not responding to setup address.
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: Device not responding to setup address.
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: device not accepting address 8, error -71
+Sep 21 15:44:27 192.168.1.8 kernel: usb 1-1: WARN: invalid context state for evaluate context command.
+Sep 21 15:44:27 192.168.1.8 kernel: usb usb1-port1: unable to enumerate USB device
+
+### 17:03 hub installation (the s8.10 'reset')
+Sep 21 17:03:07 192.168.8.243 kernel: usb 1-1: USB disconnect, device number 3
+Sep 21 17:03:07 192.168.8.243 kernel: cdc_ncm 1-1:1.2 enu1i2: unregister 'cdc_ncm' usb-xhci-hcd.2.auto-1, CDC NCM (NO ZLP)
+Sep 21 17:03:13 fedora kernel: usb 1-1: new high-speed USB device number 4 using xhci-hcd
+Sep 21 17:03:13 fedora kernel: usb 1-1: New USB device found, idVendor=214b, idProduct=7250, bcdDevice= 1.00
+Sep 21 17:03:13 fedora kernel: usb 1-1: New USB device strings: Mfr=0, Product=1, SerialNumber=0
+Sep 21 17:03:13 fedora kernel: usb 1-1: Product: USB2.0 HUB
+Sep 21 17:03:13 fedora kernel: hub 1-1:1.0: USB hub found
+Sep 21 17:03:13 fedora kernel: hub 1-1:1.0: 4 ports detected
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: new high-speed USB device number 5 using xhci-hcd
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: New USB device found, idVendor=0bda, idProduct=f179, bcdDevice= 0.00
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: Product: 802.11n
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: Manufacturer: Realtek
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: SerialNumber: 00e04c000001
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: RTL8188FU rev B (SMIC) romver 0, 1T1R, TX queues 2, WiFi=1, BT=0, GPS=0, HI PA=0
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: RTL8188FU MAC: 34:7d:e4:4e:42:0c
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: rtl8xxxu: Loading firmware rtlwifi/rtl8188fufw.bin
+Sep 21 17:03:14 fedora kernel: usb 1-1.1: Firmware revision 4.0 (signature 0x88f1)
+Sep 21 17:03:15 fedora kernel: usbcore: registered new interface driver rtl8xxxu
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: new high-speed USB device number 6 using xhci-hcd
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: New USB device found, idVendor=1d6b, idProduct=0104, bcdDevice= 1.00
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: Product: USB Gadget
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: Manufacturer: Linux
+Sep 21 17:03:41 192.168.1.8 kernel: usb 1-1.2: SerialNumber: 1789988476-5021
+Sep 21 17:03:41 192.168.1.8 kernel: cdc_acm 1-1.2:1.0: ttyACM0: USB ACM device
+Sep 21 17:03:41 192.168.1.8 kernel: cdc_ncm 1-1.2:1.2 usb0: register 'cdc_ncm' at usb-xhci-hcd.2.auto-1.2, CDC NCM (NO ZLP), c6:1b:5e:c8:4a:5f
+Sep 21 17:03:41 192.168.1.8 kernel: cdc_ncm 1-1.2:1.2 enu1u2i2: renamed from usb0

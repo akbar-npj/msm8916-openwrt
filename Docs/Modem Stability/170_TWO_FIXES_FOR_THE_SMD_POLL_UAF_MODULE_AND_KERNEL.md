@@ -4,10 +4,13 @@
 **Predecessor:** Doc 169 (`169_THE_AP_RESET_IS_AN_SMD_POLL_USE_AFTER_FREE.md`)
 **Status:** **patch 823 is DEPLOYED and functionally clean** (§8.7); the control failed to reproduce, so
 §7's pre-registration is **withdrawn** (§8.2) and the fix stands on mechanism, not on a run count
-(§8.6); one unexplained boot is recorded and **not** exculpated (§8.8); **and §8.10 records an AP
-reset that survived 823 — so 823 is a real fix for the UAF it targets but is NOT a complete fix for
-the production reset.** §8.11 names the reset mechanism (**PMIC PON WDT, 30 s, active**) and reports a
-reboot rate the "1 in 20–40" model does not predict; §8.12 deploys the instrument that was missing.
+(§8.6); one unexplained boot is recorded and **not** exculpated (§8.8). §8.11 names the reset mechanism
+(**PMIC PON WDT, 30 s, active**) and §8.12 deploys the instrument that was missing.
+**§8.13 turns the coredump capture OFF — and §8.13.1's first fatal is a clean within-boot A/B that
+RETRACTS my own call-graph correction.** **⚠ §8.14 then withdraws §8.10's verdict and reframes §8.11's
+rate: §8.10's "reset that survived 823" was my own physical USB-hub installation, the 16:40–16:46
+"boot loop" is a host xHCI controller episode, and at least 6 of 19 outages are host-caused or manual —
+so the reset rate is NOT an AP-hang rate and 823 is substantially rehabilitated.**
 
 ---
 
@@ -27,6 +30,9 @@ reboot rate the "1 in 20–40" model does not predict; §8.12 deploys the instru
 | Make the instrument survive the failure it measures | ✔ **§8.10**: the beacon truncated its own files at every boot, destroying exactly the pre-reset tail it exists to capture. The reset-durable `BOOT`-marker form is now deployed. The gap was *in the instrument*, and only re-reading it against the failure it missed exposed that |
 | Read the code that runs, not the code you remember | ✔ **§8.13**: the corpus said "there is NO per-device `disabled`" for the remoteproc coredump. `remoteproc_sysfs.c:73-127` accepts `"disabled"`, and `remoteproc_core.c:2426` installs the **default** `rproc_coredump` for the MSS because `q6v5_ops` has no `.coredump` member — so a one-line sysfs write removes a whole MBA load from the middle of every SSR recovery. **Both facts were only visible by grepping the running kernel's own source.** |
 | Pre-register before running | ✔ §7 — **and then withdrawn in §8.2 when the control invalidated it.** Registering is not the same as being entitled to the prediction. **§8.13 re-registers a bar (0 reboots / 20 fatals) for the coredump-off experiment *before* it runs.** |
+| Check the *other side* of an attribution before publishing it | ✔ **§8.14 (this round's biggest correction)**: §8.10 blamed the AP for a 17:03 reset. The **host kernel log** shows the dongle disconnecting from port `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and the dongle returning at `1-1.2` at `17:03:41` — a **physical intervention by me**. §8.10's verdict on 823 is withdrawn. The same log shows 48 host xHCI re-registrations (36 in one hour) and **39** dongle re-enumerations against ~19 AP uptime-decreases ⇒ *a device-side uptime decrease proves the device restarted, not that it restarted itself.* |
+| Read the guarded BRANCH, not the call graph | ✔ **§8.13/§8.13.1**: I argued from the call graph that `port failed halt` must survive the coredump being disabled (because `q6v5_mba_reclaim()` is also reached via `q6v5_stop()`). The measurement falsified it — `q6v5proc_halt_axi_port()` opens with `if (!ret && val) return;` and the port is idle in the STOP path but **live** in the DUMP path. **A call site being reached is not evidence its error branch executes** (§9 trap 11). |
+| Cross-check a rate against *every* instrument that could contradict it | ✔ **§8.14**: §8.11 fit its watchdog model to the 13–61 s outages and never noticed the distribution has a **second mode** — a **1641 s** and a **926 s** outage no 30 s stall can produce. Checking the durations for a second mode is now part of reading any rate. |
 
 ---
 
@@ -57,11 +63,11 @@ and then has to report that the reproduction it was going to be scored against d
 6. **A trap worth more than the verdict:** both `ssctl` and `pc-ack` lines were read as fault markers
     *because they are rare in the corpus* — and the corpus is dominated by boots that died before
     reaching them. **Establish a message's BASE RATE on a known-good run before calling it a fault.**
-7. **And the headline that matters for production: an AP reset occurred with 823 deployed** (§8.10) —
-    165 s after three natural fatals had each run a *complete* SSR and recovered. pstore was empty,
-    so it was not a trappable fault; no fourth coredump and no ledger row exist, so it is *not*
-    attributable to a fatal from this data. 823 fixes the UAF it was written for; it does **not** close
-    the coredump-reclaim hang that Doc 159 located. **This is why the round does not end with "fixed".**
+7. ~~**And the headline that matters for production: an AP reset occurred with 823 deployed** (§8.10)~~
+    — **WITHDRAWN BY §8.14. That reset was my own physical installation of a USB hub** (host log: the
+    dongle leaves port `1-1` at `17:03:07`, a `USB2.0 HUB` appears on `1-1` for the first time at
+    `17:03:13`, the dongle returns at `1-1.2` at `17:03:41`). The 29 s outage **is** the unplug/replug.
+    **823 is substantially rehabilitated**, and §8.10's verdict on it is withdrawn.
 8. **The reset mechanism is now named, and the tidy explanation is REJECTED** (§8.11): the AP does not
     panic, it **stops**, and the **PM8916 PON watchdog (active, 30 s timeout)** resets the SoC — which is
     exactly "empty pstore + reboot" and explains the `~30 s stall + ~15–40 s boot` shape of every
@@ -73,6 +79,23 @@ and then has to report that the reproduction it was going to be scored against d
     or by something that is not a fatal. **The instrument that was missing is now deployed** (§8.12):
     a reset-durable beacon plus a per-boot rolling kernel log, both reboot-persistent, so **the next
     stall will be characterised rather than merely counted.**
+9. **THE RATE ITSELF IS REFRAMED, AND §8.11's NUMBER IS WITHDRAWN (§8.14).** Reading the **host** kernel
+    log — the instrument nobody had checked — shows **error in both directions**. Of the 19 outages,
+    **4 are preceded by the host's own xHCI controller resetting** (the 16:40–16:46 cluster, where
+    **36 of the day's 48 xHCI re-registrations fall**), **1 is a USB-PHY failure** (15:44:42:
+    `error -71` ×6 + `attempt power cycle`, a **926 s** outage), and **1 is my hub installation**. And
+    the durations are **bimodal** — the 13–61 s mode §8.11 fit, plus a **1641 s** and a **926 s** mode
+    that no 30 s watchdog stall can produce. Conversely the host saw **39** dongle re-enumerations
+    against ~19 AP uptime-decreases, so *re-enumeration ≠ AP reboot*.
+    **⇒ an AP-side uptime decrease proves the dongle restarted, NOT that it restarted itself.** The
+    host log is now a required companion instrument for every reboot attributed to the AP.
+10. **AND THE ROUND'S OWN BEST SELF-CORRECTION IS §8.13.1.** The coredump capture is a step *inside*
+    every SSR recovery, so it was turned off — and the first fatal with it off fired **on schedule
+    (predicted within 0.01 s)**, recovered fully, produced no dump, and gave a clean **within-boot A/B**
+    against the fatal before it: **`port failed halt` present → ABSENT, half-cycle pairs 2 → 1, recovery
+    0.8316 s → 0.1253 s.** That measurement **retracted my own call-graph correction** and produced the
+    round's sharpest transferable rule: **a call site being reached is not evidence that its error
+    branch executes.**
 
 ---
 
@@ -656,6 +679,18 @@ aliased to `grep --color=auto`). **Never `bash grep`.** Two generalisable rules:
 
 ### §8.10 AN UNEXPLAINED AP RESET WITH 823 DEPLOYED (2026-09-21 17:03) — 823 IS NOT A COMPLETE FIX
 
+> **⚠ THIS SECTION'S VERDICT IS WITHDRAWN — READ §8.14 FIRST.** The 17:03 reset it rests on was
+> **my own physical installation of a USB hub**: the host log shows the dongle disconnecting from port
+> `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and the
+> dongle re-appearing at `1-1.2` at `17:03:41` — and a hub cannot be added to a port without first
+> removing the device on it. The 29 s outage recorded below **is** that unplug/replug window. The
+> empty pstore / no-4th-coredump / no-ledger-row evidence is **exactly what a power cycle produces**,
+> and I read it as an AP hang. **So this section does NOT show that 823 is incomplete.** The rest of
+> the section is retained because the *record* is accurate — only the attribution was wrong. The
+> **16:40–16:46 cluster at the top of this section is likewise host-caused** (xHCI ×4/×12/×24 and
+> root-hub disconnects immediately before each outage; 36 of the day's 48 xHCI re-registrations fall
+> in that hour). See §8.14 for the full reframing and the 6-of-19 classification.
+
 While this round was being written up, the host-side liveness watcher
 (`evidence/164_q6v5_ssr_window_trace/host_hang_watch.log`) captured the boot that ran the §8.7
 `qa.sh` runs through to its end:
@@ -724,6 +759,17 @@ for the coredump-reclaim hang — is still required.
 ---
 
 ### §8.11 THE RESET MECHANISM IS THE PMIC PON WATCHDOG (30 s) — AND THE RATE IS NOT RARE
+
+> **⚠ THE RATE IN THIS SECTION IS NOT AN AP-HANG RATE — READ §8.14 FIRST.** The watchdog mechanism
+> itself stands (an empty pstore + a reboot *is* what a ≥30 s global stall looks like, and the PM8916
+> PON WDT is active with a 30 s timeout). But the **count** below mixes three different things:
+> **4 outages preceded by host xHCI controller resets** (the 16:40–16:46 cluster, where 36 of the
+> day's 48 xHCI re-registrations fall), **1 USB-PHY failure** (15:44:42, `error -71` ×6 +
+> `attempt power cycle`, a 926 s outage), and **1 manual hub installation** (17:03:24). **At least 6 of
+> the 19 outages are not AP hangs**, so "~1 in 1–3 SSRs" is unsupported. The `~30 s stall + ~15–40 s
+> boot` decomposition also fits **only the short mode**: the durations are **bimodal**, with a
+> **1641 s** and a **926 s** outage that no 30 s stall can produce. Re-derive the rate with the host
+> log as a filter. **The mechanism claim survives; the number does not.**
 
 Chasing §8.10's undetermined cause produced two hard facts, both read from the device rather than
 inferred, plus one measurement that is uncomfortable for the standing model.
@@ -991,8 +1037,10 @@ just start the watcher — it re-arms within 2 s).
 * **Control:** the pre-intervention series (§8.11) — explicitly **weak** (confounded by manual
   activity, boot loops, and pre-823). This is a *before/after*, not an A/B; an A/B (off → on → off)
   is the stronger design if the device time is available.
-* **What would falsify it:** any reboot during the 20 fatal window, or a stall whose `dmesg_roll`
-  tail shows the recovery had already passed the coredump step.
+* **What would falsify it:** any reboot during the 20 fatal window **whose host-side `journalctl -k`
+  shows no host cause** (§8.14 — a reboot the *host* caused, or a physical intervention, is not a
+  failure of this experiment), or a stall whose `dmesg_roll` tail shows the recovery had already
+  passed the coredump step.
 * **A second, independent reason to run it:** it stops **85 MB per fatal** being written to
   `/overlay` (18 dumps already = 1.5 GB of 3.2 GB), which removes a disk-fill hazard *and* a large
   synchronous write from the recovery window — either of which could matter on its own.
@@ -1003,6 +1051,93 @@ just start the watcher — it re-arms within 2 s).
 **Experiment start:** device UTC `2026-09-21T11:58:41Z`; marker at
 `/overlay/coredump_off_experiment.txt`; baseline at that moment: uptime 2420 s, 2 fatals this boot
 (both with the coredump still on).
+
+---
+
+### §8.14 THE HOST KERNEL LOG REFRAMES THE AP-RESET RATE — §8.10's "reset that survived 823" WAS MY OWN HUB INSTALLATION, AND §8.11's RATE IS NOT AN AP-HANG RATE
+
+§8.10 concluded that 823 is not a complete fix, from **one** event: an "AP reset" at 17:03:24 (AP
+uptime ~1061 s). §8.11 then used the host watcher's reboot count to argue the reset rate is
+**~1 in 1–3 SSRs**. **Neither checked the host kernel log.** It is the only instrument that can say
+whether the dongle rebooted *on its own* or was reset *by the host* — and it was already being
+written, covering the whole day.
+
+**The host log shows error in BOTH directions.**
+
+1. **39 dongle re-enumerations, but only ~19 AP uptime-decreases.** So a USB re-enumeration is **not**
+   an AP reboot: at **14:39:05** the dongle re-enumerated cleanly (`cdc_ncm … enu1i2` renamed, i.e.
+   fully registered) and the watcher's uptime kept climbing. *Counting re-enumerations would
+   over-count; counting only uptime-decreases under-counts relative to the host's view.*
+2. **The host's own USB controller flaps.** Sep 21: **48 `xHCI Host Controller` re-registrations** and
+   **12 `usb usb1: USB disconnect`** (the *root hub*, so the whole bus), of which **36 of the 48 fall
+   inside the 16h hour alone**; plus 6 × `device descriptor read/64, error -71` and one
+   `attempt power cycle` in the 15h hour.
+
+**§8.10's reset is explained, and it was mine.** The host log for those exact minutes:
+
+```
+17:03:07 usb 1-1: USB disconnect, device number 3
+17:03:13 usb 1-1: ... idVendor=214b, idProduct=7250 ... Product: USB2.0 HUB
+17:03:13 hub 1-1:1.0: USB hub found ; 4 ports detected
+17:03:41 usb 1-1.2: ... Product: USB Gadget
+```
+
+The dongle was on port **1-1**; at 17:03:13 a **USB2.0 HUB appears on 1-1 for the first time** and the
+dongle re-appears at **1-1.2** behind it. **A hub cannot be added to a port without first removing the
+device that was on it** — this is a physical intervention, and the 29 s outage §8.10 measured *is* the
+unplug/replug window. §8.10's three supporting observations (empty pstore, no 4th coredump, no ledger
+row) are **exactly what a power cycle produces**, and §8.10's reading of them ("a hung fatal and no
+fatal are indistinguishable") was true of the *instruments* but blind to the third option: **no fatal
+at all, because the AP was never running the fatal path.** **Consequence: §8.10 does NOT show that 823
+is incomplete, and 823 is substantially rehabilitated.** (The hub was separately recorded in memory as
+a device fact — but never connected to the reset it caused.)
+
+**The 16:40–16:46 "boot loop" is a host-controller episode, not a dongle loop.** The watcher saw
+uptime `2427 → 46 → 38 → 79` (three AP reboots in seven minutes) and §8.11 recorded it as boot loops;
+the host log shows **xHCI ×4 / ×12 / ×24 / ×16 and root-hub disconnects immediately before each one**,
+inside the hour that holds 36 of the day's 48 controller re-registrations. **The host reset the bus;
+the dongle rebooted as a consequence.**
+
+**The outage durations are BIMODAL, and §8.11's model fits only the short mode.** §8.11 explained
+"the 13–61 s unreachable windows" as `~30 s stall + ~15–40 s boot`. The full list is
+
+* **short mode (16 events):** 5, 13, 13, 13, 13, 21, 21, 22, 29, 29, 29, 37, 37, 45, 53, 61 s;
+* **long mode (2 events):** **926 s** (15:44:42 — preceded by `error -71` ×6 and `attempt power
+  cycle`, i.e. the gadget came back **broken**) and **1641 s** (14:39:38, 27 minutes).
+
+**A 1641 s outage cannot be a 30 s watchdog stall plus a boot.** §8.11 derived its mechanism from the
+short mode and did not notice that the distribution has a second mode the mechanism cannot reach.
+
+**So the reboot rate is not an AP-hang rate.** Classifying all 19 outages by host-side context
+(±120 s), **at least 6 are not AP hangs**:
+
+| outage | duration | host-side context | verdict |
+|---|---|---|---|
+| 16:40:47 | 53 s | xHCI ×4, root-hub disc ×2 | **host-caused** |
+| 16:42:29 | 61 s | xHCI ×12, root-hub disc ×6 | **host-caused** |
+| 16:44:14 | 45 s | xHCI ×24, root-hub disc ×10 | **host-caused** |
+| 16:45:54 | 13 s | xHCI ×16, root-hub disc ×8 | **host-caused** |
+| 15:44:42 | 926 s | `error -71` ×6, `attempt power cycle` | **USB PHY** |
+| 17:03:24 | 29 s | **hub installed on port 1-1** | **manual** |
+
+The remaining **13** have no host-side trigger and stay candidates for genuine AP-side reboots — but
+**"no host trigger" is not proof**, because the host log only records what the *host* observed.
+
+**What this changes:**
+* **§8.10's verdict on 823 is withdrawn** (its single event was a manual intervention). 823 remains
+  what §8.7 established: deployed, functionally clean, fixing the UAF it targets by mechanism.
+* **§8.11's "1 in 1–3 SSRs" is not supported** and must be re-derived with the host log as a filter.
+  The pre-823/post-823 split §8.11 offered as a caveat is not the main problem — the *denominator* is.
+* **§8.13's bar needs a filter, and this is now written into it:** a reboot during the 20-fatal window
+  counts as a failure **only if the host log shows no host-side cause**. With the dongle moved onto a
+  hub at 17:03 and the host's xHCI having flapped at 16h, the risk of scoring a **false failure** is
+  real. *(This is the same class of error as §8.10 itself — attributing a device event to the device
+  without checking the instrument that can see the other side.)*
+
+**The instrument lesson, stated generally: an AP-side uptime-decrease proves the dongle restarted; it
+does NOT prove the dongle restarted ITSELF.** The host kernel log is a required companion instrument
+for every reboot attributed to the AP, exactly as the DIAG capture is required for every claim about
+the modem. Evidence: `U_host_usb_log_reframes_the_ap_reset_rate.txt`.
 
 ---
 
@@ -1060,6 +1195,26 @@ just start the watcher — it re-arms within 2 s).
     #3) that corrected §8.13, because it is a per-boot rolling copy of the kernel's own last lines
     with **timestamps**. The `port failed halt` *count* (2 vs 3 fatals) and the trace-pair *count*
     (2 vs 1) were both visible only because the log was retained in full.
+13. **A DEVICE-side uptime decrease proves the device restarted — NOT that it restarted ITSELF. Read
+    the HOST kernel log before attributing any reboot to the device (§8.14).** This is the round's
+    most expensive error, because it produced a *published verdict*: §8.10 concluded "823 is NOT a
+    complete fix" from a single 17:03 reset. The host log shows the dongle disconnecting from port
+    `1-1` at `17:03:07`, a **`USB2.0 HUB` appearing on `1-1` for the first time at `17:03:13`**, and
+    the dongle re-appearing at `1-1.2` at `17:03:41` — **I had physically installed the hub**, and the
+    29 s outage *was* the unplug/replug. The three supporting observations (empty pstore, no 4th
+    coredump, no ledger row) are **exactly what a power cycle produces**; they are not specific to a
+    hang. **And the mirror error:** the host saw **39** dongle re-enumerations against ~19 AP
+    uptime-decreases, including a clean re-enumeration at 14:39 with **no** AP reboot — so
+    *re-enumeration ≠ AP reboot* and the two instruments disagree in **both** directions.
+    **How to apply:** (a) for every reboot you attribute to the AP, `grep` the host's
+    `journalctl -k` around it for `usb`, `xHCI Host Controller`, `USB disconnect`, `error -71`,
+    `attempt power cycle`, and any *new* device (a hub appearing means a human moved something);
+    (b) check whether the host's own controller is flapping — 48 xHCI re-registrations in one day,
+    36 of them in a single hour, is a **host defect that power-cycles the dongle**; (c) **check the
+    outage-duration distribution for a second mode** before fitting a mechanism — §8.11 explained the
+    13–61 s events and never noticed a **1641 s** and a **926 s** one; (d) record **who did what
+    when** (a physical hub install is an experiment, not an observation) — the hub was in memory as a
+    device fact and was never connected to the reset it caused.
 
 ---
 
@@ -1080,15 +1235,21 @@ just start the watcher — it re-arms within 2 s).
   (beacon, plus the A(sync)-vs-B(nosync) split that separates a wedged writeback path from a global
   stall) and the *what* (the kernel's last lines). **Do not patch anything until that record exists**
   — §8.10 exists precisely because one reset was inferred rather than measured.
-* **Then settle §8.11's remaining rate question — but only after the stall is characterised.** The
-  "reboot at the n-th idle-timer fatal" model is already **rejected** (2/15 fit, 6/15 impossible), so
-  the reset is **not** a simple function of the idle timer. What is still unmeasured is the clean
-  **post-823** per-SSR hang rate, and the pre-823 number is unusable for it (boot loops + manual
-  activity). Count it from the ledger's max-`n`-per-boot once a few more boots have run *without*
-  manual intervention.
-* **Re-check the boot loops.** Six of the fifteen reboots are at uptime <500 s, three of them a
-  three-reboots-in-five-minutes loop (13:31–13:36); 16:40–16:46 is another. A boot loop is a different
-  failure from a steady-state hang and deserves its own instrumentation window.
+* **Then settle §8.11's rate question — but the question has CHANGED (§8.14).** The old question
+  ("how often does the AP hang per SSR?") is not answerable from the data collected so far, because the
+  count mixes **host-caused USB resets** (4), a **USB-PHY failure** (1) and a **manual intervention**
+  (1) with genuine AP reboots. **The new first step is a filter, not a rate:** for every outage, read
+  the host's `journalctl -k` around it and classify it as *host-caused / manual / unexplained*. Only
+  the **unexplained** ones are AP-hang candidates (13 today, and "no host trigger" is not proof). Then
+  count those per SSR, post-823, with no manual activity. **Also re-examine the two long outages
+  (1641 s, 926 s)** — they are outside every model in the corpus and have never been explained.
+* **The host's own USB controller is a live confounder and may itself be a defect.** 48 xHCI
+  re-registrations and 12 root-hub disconnects in one day, **36 of them in the 16h hour**, with the
+  16:40–16:46 AP reboot cluster sitting inside that hour. The host is an Asahi Fedora aarch64 machine
+  and the dongle now sits **behind a hub** added at 17:03. **Before attributing any future reboot to
+  the AP, check the host.** If the host's controller is flapping, that is a separate bug to chase (and
+  it invalidates the §8.13 bar's reboot condition — which is why §8.14 writes the host-log filter into
+  it).
 * **Finish scoring 823.** It is deployed and functionally clean (§8.7) and passed the `echo stop`
   scenario (§8.8). What is still missing is the **control rate**: `echo stop` × n with the
   **unpatched** module (`bash scratch/deploy823.sh --revert`) under a *stated* condition, to see
@@ -1152,6 +1313,12 @@ just start the watcher — it re-arms within 2 s).
     the boot-wide counts (3 fatals / 4 `MBA booted` / 2 `port failed halt`), the full ledger, the
     guarded branch that retracted my correction, and the reason the `q6v5_rmb_mba_wait()` window
     still survives.
+  * **`U_host_usb_log_reframes_the_ap_reset_rate.txt`** — **§8.14: the host kernel log, which reframes
+    §8.11's rate and withdraws §8.10's verdict.** The host's USB controller instability by hour
+    (48 xHCI re-registrations, 36 in the 16h hour), the 39 dongle re-enumerations vs ~19 AP
+    uptime-decreases, the **hub installation at 17:03** that explains §8.10's reset, the 16:40–16:46
+    host-caused cluster, the bimodal outage durations (including 1641 s and 926 s), and the
+    19-outage classification table with raw host log extracts.
   * `R_analyze_hang_sh.sh`, `P_dmesg_roll_sh_per_boot_kernel_log.sh`,
     `Q_dev_state_mon_sh_host_sampler.sh` — the §8.12/§8.13 instruments.
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.
