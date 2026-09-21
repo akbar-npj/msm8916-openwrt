@@ -240,6 +240,37 @@ fsg      -> /dev/block/mmcblk0p20
 `modemst1/2`, `fsg`, `fsc` hold the NV/EFS state. **These are the un-hashed, potentially-differing
 pieces** flagged in §2.5.
 
+> ### ⚠ CORRECTION (2026-09-21, Doc 170 PART 23) — DO NOT USE THIS TABLE TO LOCATE NV
+>
+> The device's **actual GPT**, read from LBA 2 with `dd if=/dev/mmcblk0`, is:
+>
+> ```
+> p1 fsc   p2 fsg   p3 modem   p4 modemst1   p5 modemst2   p6 persist
+> p7 sec   p8 hyp   p9 rpm    p10 sbl1      p11 tz        p13 boot
+> p14 rootfs       p15 rootfs_data
+> ```
+>
+> OpenWrt's `/dev/block/by-name/` matches that GPT **exactly**, and the GPT has
+> **no p16 and no p20 at all** (it stops at p15). So the table above disagrees
+> with the device on every entry that matters: a dump taken from
+> "`modemst1` = p13" would have read the **boot** partition and "`modemst2` =
+> p14" the **squashfs rootfs**.
+>
+> Two readings are open and this correction does not choose between them:
+> **(a)** the GPT was rewritten after this session — it carries OpenWrt-specific
+> names (`rootfs`, `rootfs_data`) that stock Android would not have, so if the
+> OpenWrt install re-partitioned the device then the stock layout seen here is
+> gone and the stock NV may have been relocated or overwritten, which would make
+> a same-device NV comparison **impossible** rather than merely mis-indexed; or
+> **(b)** this map was recorded from a different msm8916 board or a stale source.
+>
+> **Action: locate NV by partition NAME on both sides, and re-read the GPT on
+> each side, before any comparison.** Also established at the same time:
+> `mmcblk0p4` is **not** empty — its header carries the ASCII magic `IMAGEFS1V`
+> at offset 40 (the QCOM EFS/FSG image format) and its first 1 MB holds ~1.6 M
+> non-zero bytes, as does `mmcblk0p5`. So "OpenWrt's NV is uninitialised" is
+> **dead**. See Doc 170 PART 23.
+
 ---
 
 ## 6. `Diag.cfg` mask file format — REVERSE-ENGINEERED

@@ -3396,3 +3396,91 @@ PART 22 -- *** THE s8.13 BAR IS MET: 21 OF 20 POST-DISABLE FATALS, 0 AP REBOOTS 
    parallel.
 
 --------------------------------------------------------------------------------
+PART 23 -- THE CORPUS'S ANDROID PARTITION MAP DOES NOT MATCH THE DEVICE'S GPT,
+           SO ANY NV COMPARISON BUILT ON IT WOULD READ THE WRONG PARTITIONS
+           (2026-09-21 23:35 local / 17:50 UTC)
+--------------------------------------------------------------------------------
+
+   Found while scoping the Android differential's Step 0 (hash modemst1/2, fsg,
+   fsc, mcfg on both sides).  This is exactly the check that is supposed to
+   invalidate the exercise before it is run, and it did.
+
+1. THE DEVICE'S ACTUAL GPT (read from LBA 2, names at entry+56, UTF-16LE)
+--------------------------------------------------------------------------------
+
+   Raw name bytes, first 24 per partition, read with `dd if=/dev/mmcblk0`:
+
+     p1    66 00 73 00 63 00 ...              -> "fsc"
+     p2    66 00 73 00 67 00 ...              -> "fsg"
+     p3    6d 00 6f 00 64 00 65 00 6d 00 ...  -> "modem"
+     p4    6d 00 6f 00 64 00 65 00 6d 00 73 00 74 00 31 00  -> "modemst1"
+     p5    6d 00 6f 00 64 00 65 00 6d 00 73 00 74 00 32 00  -> "modemst2"
+     p6    70 00 65 00 72 00 73 00 69 00 73 00 74 00        -> "persist"
+     p13   62 00 6f 00 6f 00 74 00              -> "boot"
+     p14   72 00 6f 00 6f 00 74 00 66 00 73 00  -> "rootfs"
+     p15   72 00 6f 00 6f 00 74 00 66 00 73 00 5f 00 64 00   -> "rootfs_data"
+
+   OpenWrt's `/dev/block/by-name/` matches this EXACTLY
+   (`modem`->p3, `modemst1`->p4, `modemst2`->p5, `persist`->p6, `sec`->p7,
+   `hyp`->p8, `rpm`->p9, `sbl1`->p10, `tz`->p11, `boot`->p13, `rootfs`->p14,
+   `rootfs_data`->p15).  So the kernel's view and the on-disk GPT agree.
+
+2. THE CORPUS'S ANDROID MAP (Stock_Android_Live/01_ANDROID_LIVE_SESSION_FINDINGS.md s5)
+--------------------------------------------------------------------------------
+
+     modem    -> mmcblk0p1
+     modemst1 -> mmcblk0p13
+     modemst2 -> mmcblk0p14
+     fsc      -> mmcblk0p16
+     fsg      -> mmcblk0p20
+
+   **These disagree with the GPT on every entry that matters, and the GPT has
+   no p16 or p20 at all** (it stops at p15).  On the GPT, p1/p2 are fsc/fsg,
+   p13/p14 are boot/rootfs -- so a dump taken from "modemst1 = p13" would have
+   read the boot partition, and "modemst2 = p14" the squashfs rootfs.
+
+3. WHY THIS MATTERS AND WHAT IT DOES *NOT* ESTABLISH
+--------------------------------------------------------------------------------
+
+   It does NOT establish that the Android session's reading was wrong at the
+   time.  Two readings remain open, and this PART does not choose between them:
+
+   (a) **The GPT was changed after the Android session.**  The GPT carries
+       OpenWrt-specific names (`rootfs`, `rootfs_data`) that stock Android would
+       not have, so the GPT HAS been modified for OpenWrt.  If the OpenWrt
+       install rewrote it, then the stock layout the Android session saw is gone,
+       and the stock Android NV partitions may have been relocated or
+       overwritten.  **This would make a same-device Android-vs-OpenWrt NV
+       comparison impossible, not merely mis-indexed.**
+   (b) **The doc's map was recorded from a different device or a stale source.**
+       The corpus covers more than one msm8916 board, and a p1-first layout is
+       characteristic of other QCOM boards.
+
+   Either way the ACTION is the same and is cheap.
+
+4. WHAT IS ESTABLISHED, AND WHAT TO DO
+--------------------------------------------------------------------------------
+
+   ESTABLISHED:
+     * the device's current GPT is p1=fsc, p2=fsg, p3=modem, p4=modemst1,
+       p5=modemst2, p6=persist, p13=boot, p14=rootfs, p15=rootfs_data;
+     * `/dev/block/by-name` agrees with it;
+     * the corpus's Android index map cannot be used to locate NV partitions;
+     * **p4 and p5 are NOT empty** -- p4's header reads `49 4d 41 47 45 46 53 31
+       56` = ASCII "IMAGEFS1V" at offset 40, the QCOM EFS/FSG image magic, and
+       the first 1 MB of each of p4 and p5 holds ~1.6 M non-zero bytes.  So the
+       "OpenWrt's NV is uninitialised" hypothesis is DEAD -- both are real,
+       populated EFS images.
+
+   TO DO, BEFORE ANY ANDROID FLASH:
+     * record the GPT by reading LBA 2 on BOTH sides (a 30-second check), and
+       locate NV **by name**, never by the doc's index table;
+     * establish whether the stock Android GPT survives anywhere -- if the
+       OpenWrt install rewrote it, Step 0 of the Android plan is not "compare NV"
+       but "recover or re-derive NV", which is a different and much larger task.
+
+   This is recorded as a CORPUS CORRECTION, not merely a run note: the Android
+   partition map in `Stock_Android_Live/01_ANDROID_LIVE_SESSION_FINDINGS.md` s5
+   must not be cited as authoritative for this device.
+
+--------------------------------------------------------------------------------
