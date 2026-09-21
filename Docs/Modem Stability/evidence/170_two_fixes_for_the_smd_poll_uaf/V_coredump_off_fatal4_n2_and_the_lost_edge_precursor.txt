@@ -2705,3 +2705,167 @@ PART 17 -- "DOES DATA STILL STALL?" YES, BUT IT IS THE USERSPACE BEARER REBUILD
    * NOT CLAIMED: this does not touch the 902 s fatal; it is an outage-DURATION
      finding; measured in ONE boot and only for the five fatals whose netifd
      pairs are inside the retained log.
+
+
+================================================================================
+PART 18 -- USER CLUE CONFIRMED: THE BEARER IS ALWAYS NEW, NEVER REUSED
+           (Doc 170 section 8.22.1)  +  FATAL #14 (section 8.13.8)
+================================================================================
+
+0. THE CLUE
+--------------------------------------------------------------------------------
+
+   User, from testing the data stall: "the data bearer which modemmanager tried
+   after data stall was the new bearer, not the old one".  Checked; it is exact.
+
+1. THE INVENTORY -- A NEW MODEM OBJECT AND A NEW BEARER EVERY TIME
+--------------------------------------------------------------------------------
+
+   $ grep -oE "Bearer/[0-9]+" $F | uniq -c
+        1 Bearer/16
+        1 Bearer/18
+        1 Bearer/20
+        1 Bearer/22
+        1 Bearer/24
+        1 Bearer/26
+        1 Bearer/28
+        1 Bearer/30
+
+   $ grep -oE "\[modem[0-9]+\]" $F | uniq -c
+        1 [modem6]
+       56 [modem7]   ...  59 [modem14]        (9 modem objects in ONE boot)
+
+   $ mmcli -L
+       /org/freedesktop/ModemManager1/Modem/14 [1] 0
+   $ mmcli -m any --output-keyvalue | grep bearers
+       modem.generic.bearers.length   : 1
+       modem.generic.bearers.value[1] : /org/freedesktop/ModemManager1/Bearer/30
+
+   => the bearer index advances by 2 on EVERY recovery and NEVER repeats; the old
+      objects are destroyed, so this is not a leak -- it is FULL RE-PROVISIONING.
+
+2. WHY IT CANNOT BE REUSED -- THE PROTO HANDLER IS STATELESS
+--------------------------------------------------------------------------------
+
+   /lib/netifd/proto/modemmanager.sh
+
+   setup (:762-767) requires EXACTLY ONE bearer:
+       bearercount=$(modemmanager_get_field "${modemstatus}" \
+                     "modem.generic.bearers.length")
+       [ -n "${bearercount}" ] && [ "$bearercount" -eq 1 ] || {
+               proto_notify_error "${interface}" INVALID_BEARER_LIST
+               return 1
+       }
+
+   teardown (:846-851) just disconnects when the path is gone:
+       bearerpath=$(modemmanager_get_field "${modemstatus}" \
+                     "modem.generic.bearers.value\[1\]")
+       [ -n "${bearerpath}" ] || {
+               echo "couldn't load bearer path: disconnecting anyway"
+               mmcli --modem="${device}" --simple-disconnect >/dev/null 2>&1
+               return
+       }
+
+   INVALID_BEARER_LIST occurrences in the whole boot: 0.  So the handler behaves
+   as designed -- the DESIGN is what costs the time.  After an SSR the modem's WDS
+   session is gone from its RAM, so the old bearer is CORRECTLY invalid; there is
+   simply no code path that resumes one.
+
+3. PHASE BREAKDOWN -- TWO INDEPENDENT REBUILDS, SAME SHAPE
+--------------------------------------------------------------------------------
+
+   fatal #13  13:53:08 -> 13:53:23  = 15 s
+     08  port 'wwan0qmi0' no longer controllable; hotplug remove;
+         netifd "couldn't find modem" / "couldn't load bearer path: disconnecting
+         anyway"; Interface 'modem' is now down
+     09  hotplug add wwan0qmi0
+     09  "last modem object creation in device 'qcom-soc' had failed, will retry"
+     10  "creating modem with plugin 'qcom-soc' and '9' ports"
+         -> "could not recreate modem: Unsupported device: at least a QMI port is
+            required"                                       <-- FIRST PROBE FAILS
+     11  [wwan0qmi0/probe] probe step: start / QMI / done
+     13  creating modem -> [modem13] created                <-- 5 s after the fatal
+     13  "running setup for device 'qcom-soc'..."
+     18  SIM hot swap setup succeeded; SIM ready; loaded IMSI; operator 405861 Jio;
+         loaded list of preferred networks (26 entries)      <-- 5 s of SIM re-read
+     19  state changed (unknown -> disabled); netifd "Interface 'modem' is setting
+         up now"; "modem available at .../Modem/13"; enable modem
+     19  enabled; modes set to '4g'; "starting connection with apn 'jionet'";
+         simple connect state (4/10) (5/10)
+     22  simple connect state (8/10): bearer
+         [modem13/bearer28] QMI IPv4 Settings: 10.114.175.212/29, gw .213,
+             DNS 49.45.0.1, MTU 1500
+         [modem13/bearer28] QMI IPv6 Settings: 2409:4071:e02:34e3:.../64
+     22  "successfully connected the modem at bearer .../Bearer/28"
+     23  Interface 'modem' is now up                        <-- OUTAGE ENDS
+
+   fatal #14  14:08:32 -> 14:08:50  = 18 s   -- identical phases:
+     32  teardown -> Interface down
+     33  hotplug add
+     34  "had failed, will retry" -> creating -> FAILS ("at least a QMI port is
+         required")
+     36  probe step QMI -> done
+     38  [modem14] created  ("running setup for device")
+     43  SIM hot swap / IMSI / operator Jio / preferred networks
+     49  [modem14/bearer30] QMI IPv4 Settings: 10.131.140.86/30, gw .85
+     49  "successfully connected ... /Bearer/30"
+     50  Interface 'modem' is now up
+
+   Phase table (seconds):
+
+     phase                                    #13    #14
+     port drop -> netifd teardown -> down      0      0
+     hotplug -> FAILED probe -> object creat.  5      6
+     "running setup" -> SIM re-read            5      5
+     enable -> modes -> connect -> bearer      4      5
+     netifd address + route                    1      2
+
+   => the cost is not ONE slow step: ALL FOUR provisioning stages are redone, and
+      TWO exist only because the object is new -- the FAILED FIRST PROBE (~2-4 s of
+      retry backoff) and the SIM RE-READ (~5 s).
+
+4. FATAL #14 -- AND THE TEST TRAFFIC SUBSTITUTED THE FATAL
+--------------------------------------------------------------------------------
+
+   [10210.922046] fatal error received: a2_power.c:1189:      <-- NOT the clock
+   SSR before shutdown 10210.944642 -> MBA booted 10211.063852 = 0.119210 s
+   (inside the capture-OFF band 0.119170-0.130237; n = 10; no "port failed halt")
+
+   Clock predicted AP ~10189.8 (fatal #13's modem boot 9287.428 + 902.35):
+   #14 arrived 21 s LATE and with a DIFFERENT signature.  Between #13 and #14 I ran
+   a burst of test traffic (3-round idle-then-ping defertest, 20 x 1 Hz pings, a
+   DNS query, stall probes).  E1 found that under 1 Hz traffic a2_power.c:1189
+   fires at 895.490 / 932.855 s and REPLACES the deterministic idle fatal.  That is
+   exactly what happened: the traffic I generated to test the data stall swapped the
+   idle timer for the activity-correlated fatal.  Cleanest confirmation of E1 so
+   far -- and a standing hazard: a soak that generates traffic is not measuring the
+   idle clock.
+
+   §8.13 bar: 10 of 20, 0 AP reboots.  Remaining: 10 fatals.
+
+5. CORRECTION -- pc_timeout_count IS NOT FROZEN (extends PART 15)
+--------------------------------------------------------------------------------
+
+   pc_timeout_count  79 -> 81
+   dmesg "pc-ack timeout"  77 -> 79   ;  "pc_state wait timeout"  2  (unchanged)
+   => 81 = 79 + 2, STILL EXACT.
+
+   But NEITHER new increment is an SSR-recovery event:
+     10083.374717   standalone -- no fatal, no resync near it
+     10210.200654   0.721392 s BEFORE fatal #14 (fatal at 10210.922046)
+
+   So section 8.21.1's class list gains a FOURTH entry: a plain runtime resume under
+   traffic whose 250 ms ack wait expires -- no resync, no SSR (the section 8.16
+   latency defect in normal operation).
+
+   And 10210.200654 is the SECOND pre-fatal timeout at delta -0.72/-0.75 s:
+     fatal #5   4304.991306  timeout 4304.244365  delta -0.746941   a2_power.c:1189
+     fatal #14 10210.922046  timeout 10210.200654 delta -0.721392   a2_power.c:1189
+   2 of the 3 a2_power.c:1189 fatals.  n = 2: a CANDIDATE antecedent, not
+   established.  Most economical reading: the modem stops answering ~0.72 s before
+   it declares that fatal, i.e. the timeout is a SYMPTOM of the modem already going
+   down, not a cause.
+
+   pc_resync_count is still 81 (last lost edge [ 7417.446456]) -- resync silence
+   2793.48 s at fatal #14, 3119.83 s at uptime 10537.28.  Only the TIMEOUT counter
+   resumed.

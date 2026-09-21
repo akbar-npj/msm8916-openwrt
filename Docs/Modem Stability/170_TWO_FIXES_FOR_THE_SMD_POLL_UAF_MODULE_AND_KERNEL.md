@@ -95,6 +95,17 @@ deliveries from `suspended`, plus 20/20 pings and DNS-after-idle), while `netifd
 **one `ifdown`/`ifup` pair per fatal with a 15–26 s outage** — against a kernel SSR recovery of
 **0.12 s**, i.e. **100–200× longer**. All 10 watchdog stall events fall inside the cascade window. The
 lever has moved from the baseband to ModemManager + netifd.**
+**§8.22.1 then confirms a FIELD OBSERVATION from the user — "the bearer after the stall was the NEW
+bearer, not the old one" — and it is exact: every SSR creates a new ModemManager object AND a new
+bearer (`16 18 … 30`), never reusing one, so all four provisioning stages are redone; the
+`modemmanager` proto handler is stateless and has no path that resumes an old bearer. The most
+concrete avoidable cost is a **failed first probe** (`at least a QMI port is required`) that waits on
+retry backoff while the port has already returned.**
+**§8.13.8 adds fatal #14 — `a2_power.c:1189`, NOT the clock (n = 10 of 20, 0 reboots, `0.119210 s`),
+21 s late and with a different signature because **the test traffic I generated to probe the data stall
+substituted the activity-correlated fatal for the idle clock** (E1 confirmed). It also **corrects
+§8.21.1: `pc_timeout_count` is NOT frozen** (79 → 81, neither increment an SSR event, one of them
+0.72 s *before* the fatal).**
 
 ---
 
@@ -1385,6 +1396,50 @@ disfavoured further, and the "third condition" is on the **AP** side or in a **p
 
 ---
 
+### §8.13.8 TENTH SAMPLE — fatal #14 is **`a2_power.c:1189`**, NOT the clock: my own test traffic substituted the activity-correlated fatal
+
+Fatal #14 at AP **10210.922046 s**, signature **`a2_power.c:1189`** — **not**
+`lte_ml1_sleepmgr_stm.c:4054`. It broke a run of three consecutive clock fatals.
+
+```
+SSR before shutdown 10210.944642  ->  MBA booted 10211.063852 = 0.119210 s
+```
+
+**`0.119210 s` is INSIDE the capture-OFF band** (`0.119170–0.130237 s`, n = 10, spread 11.1 ms,
+against `0.824902–0.831559 s` capture-ON), no `port failed halt` (still 2), patch 814's rebuild fired,
+`coredump` still `disabled`.
+
+**★ AND IT IS A PREDICTION CONFIRMED.** The clock predicted AP ≈ 10189.8 s; #14 arrived **21 s late**
+and with a **different signature**. In between I ran a burst of test traffic (a 3-round idle-then-ping
+defertest, 20 × 1 Hz pings, a DNS query, and the stall probes). **E1's finding was that under 1 Hz
+traffic the `a2_power.c:1189` fatal fires at 895.490 s / 932.855 s and *replaces* the deterministic
+idle-clock fatal** — which is exactly what happened: **the traffic I generated to test the data stall
+swapped the idle timer for the activity-correlated one.** This is the cleanest confirmation of E1 so
+far, and a standing hazard: **a soak that generates traffic is not measuring the idle clock.**
+
+**§8.13 bar: 10 of 20 post-disable fatals scored, 0 AP reboots.** Remaining: 10 fatals.
+
+**⇒ CORRECTION TO §8.21.1 — THE `pc_timeout_count` IS NOT FROZEN AFTER ALL.** It has moved
+**79 → 81**, and the accounting is still exact (`81 = 79` `pc-ack timeout` + `2` `pc_state wait`), but
+**neither of the two new increments is an SSR-recovery event**:
+
+```
+10083.374717   standalone -- no fatal, no resync near it
+10210.200654   0.721392 s BEFORE fatal #14 (fatal at 10210.922046)
+```
+
+So §8.21.1's class list gains a fourth entry: **a runtime resume, under traffic, whose 250 ms ack wait
+expires — with no resync and no SSR** (the §8.16 latency defect firing in normal operation). And
+`10210.200654` is the **second** instance of a *pre-fatal* timeout at **Δ −0.72/−0.75 s** — fatal #5
+had `Δ −0.746941` and is **also `a2_power.c:1189`**. **n = 2 of the 3 `a2_power.c:1189` fatals**, so
+this is a candidate *antecedent*, not an established one: the most economical reading is that the modem
+stops answering ~0.72 s before it declares that fatal, i.e. the timeout is a **symptom of the modem
+already going down**, not a cause. ⚠ Do not treat it as a precursor on n = 2.
+`pc_resync_count` remains **81** (last lost edge `[ 7417.446456]`), so the resync storm is still silent
+— **2793.48 s at fatal #14, and 3119.83 s at uptime 10537.28** — **only the timeout counter resumed.**
+
+---
+
 ### §8.14 THE HOST KERNEL LOG REFRAMES THE AP-RESET RATE — §8.10's "reset that survived 823" WAS MY OWN HUB INSTALLATION, AND §8.11's RATE IS NOT AN AP-HANG RATE
 
 §8.10 concluded that 823 is not a complete fix, from **one** event: an "AP reset" at 17:03:24 (AP
@@ -2486,7 +2541,8 @@ rproc            running
 single increment is **fatal #12's own SSR-window `pc-ack timeout`**, a **third class of handshake event
 that is neither the storm nor the silent data-plane loss**, and it is **fully explained** in §8.21.1. So
 the storm's silence stands (the lost-edge counter is still **81**, last line `[ 7417.446456]`) — but
-"**both counters froze**" was wrong as written, and only the resync counter froze.
+"**both counters froze**" was wrong as written, and only the resync counter froze. ⚠ **And the timeout
+counter later resumed as well (79 → 81, neither increment an SSR event) — see §8.13.8.**
 
 **⇒ THE STORM EPISODE IS AP 3477.894835 → 7417.446456 = 3939.55 s, AND IT HAS NOW BEEN SILENT FOR
 2042.95 s ACROSS ~252 SUSPENDS — INCLUDING ACROSS *THREE* FULL MODEM RELOADS** (fatal #11: ports
@@ -2528,7 +2584,9 @@ storm, and neither does a modem reload — in either direction.**
 
 Chasing the §8.21 correction above produced a finding that stands on its own. **`pc_timeout_count` has
 three sources, and one of them is a routine consequence of every SSR that happens to attract a PM
-resume.**
+resume.** ⚠ **Later extended: a FOURTH source was observed at fatals #14 — a plain runtime resume under
+traffic with no resync and no SSR, and a pre-fatal timeout at Δ −0.72 s; the counter moved 79 → 81 and
+is therefore NOT frozen (§8.13.8).**
 
 **First, the accounting is exact again at the new value** — verified against the driver's own two
 increment sites, both inside `bam_dmux_runtime_resume()`:
@@ -2671,6 +2729,78 @@ the interface *down* at all when the ports come back within a second.
 **⚠ SCOPE / NOT CLAIMED:** this does **not** touch the 902 s fatal or the §8.13 A/B bar; it is an
 *outage-duration* finding, not a stability one. It is measured in **one boot**, and only for the five
 fatals whose `netifd` pairs are in the ring — the earlier fatals' pairs are outside the retained log.
+
+---
+
+### §8.22.1 ★ CONFIRMED, FROM A FIELD OBSERVATION — the bearer is always **NEW**, never reused: ModemManager rebuilds the whole modem object on every SSR
+
+**The user supplied this clue from testing: *"the data bearer which modemmanager tried after data stall
+was the new bearer, not the old one"*. It is correct, it is measurable, and it is the reason the
+rebuild costs 15–26 s rather than ~1 s.**
+
+**Every SSR produces a brand-new ModemManager object AND a brand-new bearer, and the old ones are
+properly destroyed.** In this boot:
+
+```
+bearers referenced in the log, in order:  16  18  20  22  24  26  28  30   (8, one per rebuild)
+modem objects created:  modem6, then modem7 … modem14                    (9 in one boot)
+live MM objects right now:  /org/freedesktop/ModemManager1/Modem/14   with exactly 1 bearer = Bearer/30
+```
+
+So the bearer index **advances by 2 on every recovery** and **never repeats** — the observation is
+exact. `mmcli` confirms the steady state is clean (`modem.generic.bearers.length : 1`), so this is not
+a leak; it is a **full re-provisioning**.
+
+**The proto handler explains why it cannot be reused.** `/lib/netifd/proto/modemmanager.sh` is
+**stateless across a restart** — it re-reads the bearer from D-Bus every time and requires **exactly
+one**:
+
+```sh
+# setup (:762-767) — "we won't like it if there are more than one bearers"
+bearercount=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.length")
+[ -n "${bearercount}" ] && [ "$bearercount" -eq 1 ] || {
+        proto_notify_error "${interface}" INVALID_BEARER_LIST; return 1; }
+
+# teardown (:846-851) — no bearer path left, so it just disconnects
+bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[1\]")
+[ -n "${bearerpath}" ] || {
+        echo "couldn't load bearer path: disconnecting anyway"
+        mmcli --modem="${device}" --simple-disconnect >/dev/null 2>&1; return; }
+```
+
+**There is no path that resumes an old bearer** — because after an SSR the modem's WDS session is gone
+from its RAM, so the old bearer object is *correctly* invalid. `INVALID_BEARER_LIST` never fires
+(0 occurrences), so the handler is behaving as designed; the design is what costs the time.
+
+**Where the 15–26 s goes, phase by phase.** Two independent rebuilds, same shape:
+
+| phase | fatal #13 (13:53:08→23 = **15 s**) | fatal #14 (14:08:32→50 = **18 s**) |
+|---|---|---|
+| port drop → netifd teardown → `Interface down` | 0 s | 0 s |
+| hotplug add → **first modem creation FAILS** (`at least a QMI port is required`) → probe → modem object created | 5 s | 6 s |
+| `running setup for device` → **SIM hot swap + IMSI + operator + preferred networks** | 5 s | 5 s |
+| enable → set modes 4g → simple-connect 5/10 → **8/10: bearer created** → IPv4/IPv6 settings | 4 s | 5 s |
+| netifd applies the address/route | 1 s | 2 s |
+
+**⇒ the cost is not one slow step, it is that ALL FOUR provisioning stages are redone**, and two of
+them exist *only* because the object is new: the **failed first probe** (~2–4 s of retry backoff) and
+the **SIM re-read** (~5 s). **A new modem object cannot skip either.**
+
+**The levers this exposes, in order of expected value:**
+1. **the failed first probe** — `[base-manager] last modem object creation … had failed, will retry`
+   then `could not recreate modem: Unsupported device: at least a QMI port is required`, because the
+   QMI port is not ready when the first attempt runs. The port returns ~1 s after the fatal
+   (`hotplug: add wwan control port wwan0qmi0`) but the object is not created until ~5 s in. **This is
+   the single most concrete target** — it is a *timing* mismatch between ModemManager's retry backoff
+   and the port's reappearance, and it costs ~2–4 s per fatal.
+2. **the SIM re-read** (~5 s) — unavoidable while the modem object is new.
+3. **whether `netifd` must tear the interface down at all** when the ports return within a second.
+
+**⚠ SCOPE / NOT CLAIMED:** n = 2 rebuilds broken down in detail (5 pairs total); the bearer/modem-object
+inventory is the **whole boot**. This does **not** touch the 902 s fatal, and it does **not** change
+§8.13's A/B bar. It sharpens §8.22 from *"the userspace rebuild is slow"* to *"the userspace rebuild
+is slow because a new modem object must be fully re-provisioned, and one of its four stages is a
+retry-backoff mismatch that is plausibly avoidable"*.
 
 ---
 

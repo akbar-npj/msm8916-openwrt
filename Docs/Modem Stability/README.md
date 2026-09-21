@@ -1771,10 +1771,15 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
      per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20.
-     **Progress: 9 of 20 scored, AP survived.** **Fatal #13 (sleepmgr, AP `9286.716877`) recovers in
+     **Progress: 10 of 20 scored, AP survived.** **Fatal #14 (AP `10210.922046`) is
+     `a2_power.c:1189` — NOT the clock** — and recovers in **`0.119210 s`**. It arrived **21 s after**
+     the clock predicted (`10189.8 s`) and with a **different signature**, because **the test traffic I
+     generated to probe the data stall substituted the activity-correlated fatal for the idle clock**
+     (E1 confirmed — a soak that generates traffic is not measuring the idle clock).
+     **Fatal #13 (sleepmgr, AP `9286.716877`) recovers in
      `0.125060 s`** — predicted at AP ≈ `9288.32 s` from fatal #12's modem boot and **missed by 1.60 s**,
-     so the modem is **still on the clock three fatals after the cascade ended**; and it attracted **no**
-     `pc-ack timeout`, so it joins §8.21.1's control group (the class is **6 of 13**).
+     so the modem was **still on the clock three fatals after the cascade ended**; and it attracted **no**
+     `pc-ack timeout`, so it joins §8.21.1's control group.
      **Fatal #12 (sleepmgr, AP `8385.263928`) recovers in
      `0.122951 s`** — predicted at AP ≈ `8386.9 s` from fatal #11's modem boot and **missed by 1.64 s**,
      so the modem is **still on the clock two fatals after the cascade ended**. Fatal #11 (sleepmgr, AP `7483.839750`) recovers in
@@ -2018,6 +2023,22 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      since** (⚠ confound: the watchdog only fires when `TX > 0`). **The lever has moved from the
      baseband to ModemManager + netifd; do not chase the modem for this symptom.** ⚠ Measured in one
      boot, five fatals.
+     **(j) ★ CONFIRMED FROM A FIELD OBSERVATION — the bearer is always NEW (§8.22.1).** The user
+     reported that after a stall ModemManager tried the **new** bearer, not the old one. Measured: the
+     boot references bearers **`16 18 20 22 24 26 28 30`** (index advances by 2 per recovery, never
+     repeats) and creates modem objects **`modem6 … modem14`** — 9 in one boot — while `mmcli` shows a
+     clean steady state (`bearers.length : 1`, only `Modem/14` live). So it is **not a leak; it is full
+     re-provisioning**, and `/lib/netifd/proto/modemmanager.sh` is **stateless** — setup requires
+     **exactly one** bearer (`INVALID_BEARER_LIST` if not; 0 occurrences) and teardown just
+     `--simple-disconnect`s when the path is gone (`couldn't load bearer path: disconnecting anyway`).
+     **There is no path that resumes an old bearer** — after an SSR the modem's WDS session is gone, so
+     the old bearer is correctly invalid. **Phase breakdown (two rebuilds, same shape):** ~5–6 s
+     ModemManager re-probe/modem-object creation **including a FAILED first probe**
+     (`at least a QMI port is required`), ~5 s **SIM re-read**, ~4–5 s enable/register/simple-connect/
+     bearer creation, ~1–2 s netifd address+route. **Two of those four stages exist only because the
+     object is new**, and the **failed first probe is the most concrete avoidable cost** — the QMI port
+     returns ~1 s after the fatal but the object is not created until ~5 s in, a retry-backoff/port-
+     reappearance mismatch worth ~2–4 s per fatal.
      **(g) ⚠ CORRECTIONS:** S2 is **58 samples / 9 losses** (not 56/7), the **silent-loss class is n = 3**
      (not 2 — 6130.44 was misclassified as "ping crossed the ifup": fatal #7's SSR completed at
      `6111.927`, the ports attached by `6112.87`, and the ping fired **17.6 s later** then timed out for
