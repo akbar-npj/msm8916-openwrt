@@ -901,3 +901,119 @@ Part 6 recorded the `pm_suspend_attempts - pm_suspend_completions` deficit
   the storm was NOT immediately suppressed.  If P5 is falsified, the storm is
   independent of quiescence and readings (B)/(C) get stronger still.
 ================================================================================
+
+================================================================================
+PART 8 -- S1 IS SCORED AND P5 IS CONFIRMED: 1 Hz TRAFFIC SUPPRESSED THE STORM
+AND EVERY SUSPEND FOR 364 s -- AND A FATAL FIRED ANYWAY, ON THE CLOCK, INSIDE
+THAT WINDOW.  Plus fatal #6, which makes the s8.13 A/B n = 4.
+  measured 2026-09-21 18:24:06 -> 18:41 host time, boot a9fd907c, uptime 4844 -> 5503
+================================================================================
+
+1. S1 -- PRE-REGISTERED AS P5, AND IT IS CONFIRMED
+
+P5: "the resync rate during S1 falls to <= 20 % of the 1-per-36.3 s pre-S1 rate."
+P5-FALSIFIER: "the rate stays within 2x of 1 per 36.3 s during S1."
+
+S1 = 600 consecutive 1 Hz pings (`ping -i 1 -c 600 8.8.8.8`) with
+`rx_telemetry` sampled once a second into `/overlay/s1.track` (621 samples).
+
+  traffic window (S1 start 4844.38 -> the SSR killed the ping at 5208.72)
+    duration                        364.34 s
+    pc_resync_count                 20 -> 20      (0 new resyncs)
+    pm_suspend_attempts             636 -> 636    (0 new suspend attempts)
+    pc_timeout_count                19 -> 19      (0 new timeouts)
+    pc_state=0 samples              0 of 365      (pc_state=1 and quiesce_ms=0 throughout)
+    ping replies                    364 of 364    (0 % loss)
+
+  EXPECTED in that window at the pre-S1 rates:
+    resyncs  364.34 / 36.3 = 10.0    observed 0     Poisson p(0|10.0) = 4.5e-5
+    suspends 364.34 x 0.132 = 48.1   observed 0
+
+  post-traffic window (5209 -> 5502.90, 293.9 s, NO traffic because the ping had died)
+    resyncs  20 -> 27  = 7  => 1 per 42.0 s   (pre-S1: 1 per 36.3 s)
+    suspends 636 -> 673 = 37 => 0.126 /s      (pre-S1: 0.132 /s)
+
+  **So S1 is a clean A/B/A inside ONE run, and the two arms are the traffic and
+  the absence of traffic -- not any change I made.** The storm stopped for
+  exactly as long as the traffic ran and came back at the pre-S1 rate the moment
+  it stopped.
+
+2. THE CRITICAL READING, BECAUSE THE FIRST GLANCE AT THE TAIL LOOKS LIKE A FAILURE
+
+The final line of `/overlay/s1.track` reads
+   5502.90 replies=364 resync=27 pctimeout=24 pc_state=0 quiesce_ms=249 susp=673
+i.e. resync 20 -> 27 and susp 636 -> 673.  **Read carelessly that is "the storm
+came back, so P5 failed."** It is not: `ping -c 600 -i 1` was **killed at
+seq=363** by the fatal's SSR -- the last line of `/overlay/s1.ping` is
+`ping: sendto: Network unreachable` with **no summary**, and 364 packets at 1 Hz
+from 4844.38 ends at **5208.4**, i.e. 0.3 s before fatal #6 at 5208.721361.  The
+SSR re-established the bearer with a NEW IP (10.29.91.236/29 -> 10.132.56.209/30),
+so the ping's socket died.  **After that there was no traffic, and the storm
+returned.**  The 293.9 s post-traffic arm is the CONTROL arm of the A/B/A.
+
+**Lesson: read the counters AND the instrument's own health before scoring.** A
+tail that mixes a suppressed phase and an un-suppressed phase is not one sample.
+
+3. AND THE FATAL FIRED INSIDE THE SUPPRESSION WINDOW, WHICH SEPARATES TWO THINGS
+
+**Fatal #6 at AP 5208.721361 s -- INSIDE the traffic window, while
+`pm_suspend_attempts` had been frozen at 636 for 364 s.** So:
+
+  - the STORM  is AP-runtime-PM-GATED      (no suspends => no resyncs, 0/365 samples quiesced)
+  - the FATAL  is NOT AP-runtime-PM-gated  (it fired on schedule with the modem never suspended)
+
+**This is the cleanest separation the corpus has between the two, and it kills
+the idle-avoidance mitigation for the FATALS while keeping it for the STORM.**
+
+4. FATAL #6 -- AND THE CLOCK FITS TO 19 ms
+
+  [ 5208.721361] fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+  [ 5208.871637] MBA booted without debug policy, loading mpss
+  [ 5209.728398] remoteproc0: remote processor 4080000.remoteproc is now up
+
+  modem uptime at fatal = 5208.721361 - 4306.434988 (the previous "is now up")
+                        = 902.286373 s
+  Doc 162's clock figure is 902.267 s of modem uptime (112 ppm, n = 4).
+  **902.286373 is 19.4 ms from it.**  And the signature is the one Doc 164's
+  short band is ALWAYS paired with (`lte_ml1_sleepmgr_stm.c:4054`).
+
+  Modem-uptime periods for every fatal in this boot (fatal time - previous
+  "is now up"):
+     #1  900.717032   #2  901.003830   #3  900.981619
+     #4  758.672780   #5  826.311383   #6  902.286373
+  **The three sleepmgr beats are 900.717 / 901.004 / 900.982 / 902.286 -- three
+  of them within 0.29 s of each other and the fourth 1.3 s above.  Recorded as a
+  possible second clock mode, NOT concluded (n = 1 for the 902.29 mode in this
+  boot, and the modem-uptime figure depends on the `is now up` line, which is a
+  different instrument from the fatal line).**
+
+5. FATAL #6 SCORED AGAINST THE s8.13 BAR -- n = 4, AP SURVIVED, 4 of 20
+
+  fatal -> MBA booted windows: 0.824902 / 0.831559 (capture ON)
+                               0.125291 / 0.130237 / 0.124531 / 0.127373 (capture OFF)
+  four capture-OFF samples now span **0.124531-0.130237 s (spread 5.7 ms)**
+  against **0.824902-0.831559 s (spread 6.7 ms)** for the two capture-ON.
+  Still two non-overlapping populations, still ~6.6x apart.
+
+  boot-wide: **6 fatals / 7 `MBA booted` (cold boot + one per recovery) /
+  2 `port failed halt`** (still exactly the two capture-ON) / trace `01` x8,
+  `10` x9 / `cmd_open` 56 = 8 channels x 7 modem boots.  `rproc=running`,
+  attr `disabled`, and the ledger row is
+  `5218.41,6,lte_ml1_sleepmgr_stm.c:4054,6,6,6,6,6,6,6,6,6,6,6,6,0,1,18`
+  -- **t0..t9 all present, and `coredumps` STILL 18** (fatal #6 produced no dump).
+
+  **A CAVEAT THE DATA FORCES: the A/B is on the `SSR before shutdown` ->
+  `MBA booted` interval, NOT on fatal -> `is now up`.**  Fatal #5's full
+  fatal->up time was 1.443682 s -- as long as the capture-ON recoveries -- even
+  though its coredump-sensitive interval was 0.124531 s.  The extra time is the
+  mpss load AFTER `MBA booted` and it varies independently.  **Do not use
+  fatal->up as the A/B metric; use `SSR before shutdown`->`MBA booted`.**
+
+6. WHAT S1 DOES NOT ESTABLISH
+
+  - It does not show traffic suppresses the FATALS -- it shows the opposite.
+  - It does not establish the storm is HARMFUL.  364 pings at 1 Hz through the
+    storming regime had **0 % loss**; the storm is visible in the counters, not
+    in the data plane.
+  - One run, one boot.  The A/B/A is within-run, which is the strongest form
+    available, but n = 1 for the suppression event.

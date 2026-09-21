@@ -27,6 +27,13 @@ NO external trigger on either side — so it is a failing PC-handshake REGIME, n
 instrument (D1 = log the reinit/complete/IRQ ordering). S1 then tests whether 1 Hz traffic suppresses
 the storm — i.e. whether the storm, the data stall and the handshake failures are ONE defect family
 at the idle→active transition.**
+**§8.13.4 adds fatal #6 (n = 4, 4 of 20 scored, 0 reboots) and CORRECTS the A/B metric to
+`SSR before shutdown`→`MBA booted`. §8.15.4 then SCORES S1: P5 is CONFIRMED — 1 Hz traffic froze
+`pc_resync_count` AND `pm_suspend_attempts` for 364.34 s (0 resyncs against 10.0 expected, 364/364
+pings, 0 % loss) and the storm returned at the pre-S1 rate the moment the traffic stopped, a clean
+A/B/A inside one run — so the STORM is AP-runtime-PM-gated. ⚠ BUT THE SAME RUN REFUTES THE MITIGATION
+FOR THE FATALS: fatal #6 fired INSIDE the suppression window with the modem never suspended, on the
+clock (902.286373 s of modem uptime, 19.4 ms from Doc 162's figure).**
 
 ---
 
@@ -1147,7 +1154,8 @@ on the clock, so this is Doc 164's "two mechanisms with different periods compet
 with the `a2_power` one winning the race. The ledger independently agrees that this signature is not
 clock-locked: it appears at uptime **719.00 s** and **896.52 s** in two earlier boots.
 
-**Scored so far: 2 of 20 post-disable fatals, 0 AP reboots.** Evidence:
+**Scored so far: 2 of 20 post-disable fatals, 0 AP reboots** (superseded by §8.13.3 and §8.13.4 —
+the running total is **4 of 20**). Evidence:
 `V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`.
 
 ### §8.13.3 THIRD SAMPLE — fatal #5 makes it **n = 3** on a **third** signature, and the two populations are 6.6× apart and non-overlapping
@@ -1175,6 +1183,37 @@ and are 6.6× apart.** Boot-wide: **5 fatals, 6 `MBA booted`** (cold boot + one 
 **827.022001 s** — inside Doc 162's `a2_power` band (68.5–941.3 s) and off the 902.4 s clock, the same
 story as fatal #4's 759.53 s. One detail kept: `SSR powerup: modem pc_state=1 (waited 580 ms)`, against
 200 ms at fatal #4.
+
+---
+
+### §8.13.4 FOURTH SAMPLE — fatal #6 makes it **n = 4**, AP survived, and it forces a CORRECTION to the A/B metric
+
+Fatal #6 is **`lte_ml1_sleepmgr_stm.c:4054`** at AP **5208.721361 s** — the clock signature, and the
+first sleepmgr since fatal #3. `SSR before shutdown` **5208.744264** → `stopped remote processor`
+**5208.824496** → `MBA booted` **5208.871637** = **0.127373 s**, no `port failed halt`, no coredump.
+
+**Four capture-OFF samples now span `0.124531–0.130237 s` (spread 5.7 ms)** against
+`0.824902–0.831559 s` (spread 6.7 ms) for the two capture-ON — still two non-overlapping populations,
+still ~6.6× apart, now on **four signatures in four recoveries**. Boot-wide: **6 fatals / 7 `MBA booted`
+/ 2 `port failed halt`** (still exactly the two capture-ON) / trace `01` ×8, `10` ×9 / `cmd_open`
+**56 = 8 channels × 7 modem boots**; ledger row `5218.41,6,lte_ml1_sleepmgr_stm.c:4054,…,…,18` with
+**`t0..t9` all present and `coredumps` STILL 18**.
+
+**⚠ CORRECTION — the A/B metric is the `SSR before shutdown`→`MBA booted` interval, NOT fatal→`is now
+up`.** Fatal #5's full fatal→up time is **1.443682 s**, as long as the capture-ON recoveries, even
+though its coredump-sensitive interval is 0.124531 s — the extra time is the mpss load **after**
+`MBA booted` and it varies independently. **Anyone scoring this A/B on fatal→up would read fatal #5 as
+a failed removal.** Use the interval the coredump actually sits in.
+
+**And fatal #6 gives the clock its best fit yet:** modem uptime = 5208.721361 − 4306.434988 (the
+previous `is now up`) = **902.286373 s**, **19.4 ms from Doc 162's 902.267 s** clock figure, with the
+signature Doc 164's short band is always paired with. Full modem-uptime list for this boot:
+900.717032 / 901.003830 / 900.981619 (sleepmgr) / 758.672780 (`a2_power.c:2949`) / 826.311383
+(`a2_power.c:1189`) / **902.286373** (sleepmgr). **Recorded, not concluded: the fourth sleepmgr beat is
+1.3 s above the other three** — that could be a second clock mode or an artefact of using the
+`is now up` line (a different instrument from the fatal line) as the origin.
+
+**s8.13 bar: 4 of 20 post-disable fatals scored, 0 AP reboots.**
 
 ---
 
@@ -1639,14 +1678,71 @@ data plane working. Readings **(B)/(C)** — a failing PC-handshake *regime* of 
 symptoms — remain open and are the better fit. **Necessity survives (3/3 for `a2_power.c:2949`);
 sufficiency is now 3/20 or worse as this boot's denominator grows.**
 
-**10. S1 — pre-registered and RUNNING: does 1 Hz traffic suppress the storm?** A lost edge requires
-`pc_state == 0` **and** the line asserted, so it can only happen on the way **out of** a quiesced state.
-If that is the mechanism, traffic that keeps the modem awake should **suppress** the storm — and the
-storm and the data stall would be the **same defect family** (the idle→active handshake) seen from two
-sides. S1 = 600 consecutive 1 Hz pings with both counters sampled once a second
-(`X_storm_sampler_sh.sh` is the companion sampler). **P5:** resync rate during S1 falls to ≤ 20 % of
-the 1-per-36 s pre-S1 rate. **P5-FALSIFIER:** the rate stays within 2× of 1 per 36 s. *Early indication
-only (first ~20 s, NOT a result):* 18 → 20 in 44 s, so **not** immediately suppressed.
+**10. S1 — pre-registered as P5 and RUN: does 1 Hz traffic suppress the storm? ✅ CONFIRMED.** A lost
+edge requires `pc_state == 0` **and** the line asserted, so it can only happen on the way **out of** a
+quiesced state. S1 = 600 consecutive 1 Hz pings with both counters sampled once a second.
+
+**Independent corroboration, from the 60 s sampler that ran *before* S1** (`X_storm_sampler_sh.sh`):
+it caught **`pc_state=0` with `quiesce_ms` 2828–4566 in 6 of 10** pre-S1 samples, and
+`pm_suspend_attempts` climbing **570 → 636** (66 attempts in 499 s = **0.132/s**) — before S1 the modem
+really was quiescing and the AP really was suspending.
+
+**The result is a clean A/B/A inside ONE run** (§8.15.4), and the arms are the traffic and the absence
+of traffic — not any change I made.
+
+---
+
+### §8.15.4 ✅ S1 SCORED — P5 IS CONFIRMED: 1 Hz traffic suppressed the storm AND every suspend for 364 s, and a FATAL FIRED ANYWAY, ON THE CLOCK, INSIDE that window
+
+**A/B/A inside one run. Raw record: `V_…` PART 8.**
+
+| window | duration | `pc_resync_count` | `pm_suspend_attempts` | `pc_state=0` samples |
+|---|---|---|---|---|
+| **A — pre-S1 (storming)** | 499 s | 7 → 20 (**1 per 36.3 s**) | 570 → 636 (**0.132 /s**) | 6 of 10 |
+| **B — S1, 1 Hz traffic** | **364.34 s** | 20 → **20** (**0**) | 636 → **636** (**0**) | **0 of 365** |
+| **A′ — post-S1 (traffic stopped)** | 293.9 s | 20 → 27 (**1 per 42.0 s**) | 636 → 673 (**0.126 /s**) | — |
+
+**Expected in B at the A rates: 10.0 resyncs and 48.1 suspend attempts. Observed: 0 and 0**
+(Poisson p(0|10.0) = **4.5 × 10⁻⁵**). **P5 (≤ 20 % of the pre-S1 rate) is confirmed with a large
+margin; the P5-falsifier is not met.**
+
+**⚠ AND THE FIRST GLANCE AT THE TAIL LOOKS LIKE A FAILURE — it is not, and this is worth recording as
+a trap.** The final line reads `resync=27 … susp=673`, i.e. the counters *did* move. They moved in the
+**post-traffic** arm: `ping -c 600 -i 1` was **killed at seq=363** by fatal #6's SSR (last line of
+`/overlay/s1.ping` = `ping: sendto: Network unreachable`, **no summary**; 364 packets at 1 Hz from
+4844.38 ends at **5208.4**, 0.3 s before fatal #6 at 5208.721361). The SSR re-established the bearer
+with a **new IP** (10.29.91.236/29 → 10.132.56.209/30), so the ping's socket died and **the traffic
+stopped**. The storm returned at the pre-S1 rate the moment it did. **Read the instrument's own health
+before scoring it — a tail that mixes a suppressed and an un-suppressed phase is not one sample.**
+
+**★ AND THE FATAL FIRED INSIDE THE SUPPRESSION WINDOW, WHICH SEPARATES TWO THINGS THAT HAVE BEEN
+TANGLED FOR ROUNDS.** Fatal #6 fired at AP **5208.721361 s**, with `pm_suspend_attempts` frozen at
+**636** for 364 s and `pc_state = 1` in every sample:
+
+* **the STORM is AP-runtime-PM-GATED** — no suspends ⇒ no resyncs;
+* **the FATAL is NOT** — it fired on schedule with the modem never suspended.
+
+**This is the cleanest separation the corpus has between the two. It kills idle-avoidance as a
+mitigation for the FATALS while keeping it available for the STORM**, and it is consistent with the
+fatal being modem-internal. It also **contradicts a natural reading of Doc 162**: under sustained
+traffic the fatal was *not* suppressed and was *not* substituted — it was the **clock signature**
+(`lte_ml1_sleepmgr_stm.c:4054`) at **902.286373 s of modem uptime**, **19.4 ms from Doc 162's own
+902.267 s** figure (see §8.13.4).
+
+**What S1 does NOT establish.** It does not show traffic suppresses the fatals — it shows the
+opposite. It does not show the storm is **harmful**: **364 pings at 1 Hz through the storming regime
+had 0 % loss**, so the storm is visible in the counters, not in the data plane. And it is one run on one
+boot — the A/B/A is within-run, the strongest form available, but **n = 1** for the suppression event.
+
+**S2 — pre-registered, NOT yet run: does a low rate (which permits quiescence) cost packets or
+latency?** S1 shows the storm needs quiescence, so the storming regime is a **low-rate** one. S2 =
+**one ping every 15 s × 80**, recording each ping's uptime, RTT, and the resync/timeout counters
+**immediately before and after** it. **P6:** pings whose wake missed the edge (resync delta ≠ 0 across
+that ping) show an RTT spike of up to the **100 ms watchdog period**. **P6-FALSIFIER:** no RTT
+difference between pings with and without a lost edge. **S2 also doubles as a patch-812 regression
+check** — 15 s of idle is exactly the condition Doc 156 measured as `replies=0/1` before 812 and
+`dtx=1 drx=1` after it. (`/overlay/s2.sh` is written and syntax-checked; it must be launched with the
+ssh held open, because a backgrounded job inside a one-shot ssh dies at session exit.)
 
 ---
 
@@ -1739,10 +1835,12 @@ only (first ~20 s, NOT a result):* 18 → 20 in 44 s, so **not** immediately sup
     fatal ever observed — 3 of 3, across three different boots, mean 78.074 ms with an **11.842 ms**
     spread, the two closest **0.515 ms** apart. A lag that tight *feels* like a cause, and the
     mechanism is plausible: the resync does two things the modem can see
-    (`bam_dmux_pm_restart()`, `bam_dmux_pc_ack()`). **The denominator is what stops it: 8 resyncs were
-    observed and only 3 were followed by that fatal within 100 ms.** So the honest pair of statements
-    is *"`a2_power.c:2949` ⇒ resync 3/3"* **and** *"resync ⇒ `a2_power.c:2949` 3/8"* — and the second
-    one is the one that decides whether a fix is possible.
+    (`bam_dmux_pm_restart()`, `bam_dmux_pc_ack()`). **The denominator is what stops it: 20 resyncs
+    were observed and only 3 were followed by that fatal within 100 ms.** So the honest pair of
+    statements is *"`a2_power.c:2949` ⇒ resync 3/3"* **and** *"resync ⇒ `a2_power.c:2949` 3/20"* — and
+    the second one is the one that decides whether a fix is possible. **And §8.15.3 finished the job:
+    the storm ran 8+ minutes PAST the fatal with no second fatal and 0 % ping loss, so the antecedent
+    is not even on the path to the fatal.**
     **How to apply:** (a) when a candidate antecedent is found, **count its total occurrences**, not
     just the hits — a log search that returns only the pairs you were looking for has a denominator of
     one; (b) **tabulate the counter-examples next to the hits**, with what followed them instead
@@ -1757,27 +1855,46 @@ only (first ~20 s, NOT a result):* 18 → 20 in 44 s, so **not** immediately sup
     watchdog period makes "the gap should vary with the AP's detection delay" a *measurable* prediction
     of one reading, and the 11.8 ms spread weakly disfavours it at roughly 4 % — **too weak to act on,
     so it is recorded, not concluded**).
+15. **SCORE AN EXPERIMENT FROM ITS OWN HEALTH, NOT FROM ITS TAIL — and pick the interval the removed
+    code actually sits in (§8.13.4, §8.15.4).** Two scoring errors were caught in one round, both by
+    re-reading the instrument instead of the number:
+    **(a)** S1's last line reads `resync=27 … susp=673` against a starting `20 … 636`, which reads as
+    "the suppression failed". It did not: `ping -c 600 -i 1` was **killed at seq=363** by fatal #6's
+    SSR (`sendto: Network unreachable`, **no summary line**), so the traffic stopped at 5208.4 and the
+    counters moved in the **post-traffic control arm**. **The suppression held for 364 s of traffic —
+    0 resyncs against 10.0 expected — and the A/B/A is inside one run.** *An instrument that dies
+    mid-run leaves a tail that looks exactly like a failed hypothesis.*
+    **(b)** the §8.13 A/B was nearly scored on **fatal → `is now up`**, which for fatal #5 is
+    **1.443682 s** — as long as the capture-ON recoveries — even though its coredump-sensitive interval
+    (`SSR before shutdown` → `MBA booted`) is **0.124531 s**. **Score the interval the removed code
+    sits in, not a convenient longer one that adds a varying phase (the mpss load) on top.**
+    **How to apply:** before reading a result off a log, confirm (i) the producer was still running,
+    (ii) the run reached its planned end, and (iii) the metric's endpoints bracket the code you
+    changed and nothing else.
 
 ---
 
 ## §10 What's next
 
-* **RUNNING NOW: the §8.13 coredump-off experiment — 3 of 20 fatals scored, AP survived.** The bar is
+* **RUNNING NOW: the §8.13 coredump-off experiment — 4 of 20 fatals scored, AP survived.** The bar is
   **0 AP reboots across 20 fatals** (~5 h at the idle timer). **Fatal #3 (the first with the capture
   off) fired on schedule at AP 2718.436833 s, recovered fully (`t0..t9`, `rproc=running`), produced
   no coredump (count frozen at 18), and its recovery was 0.706 s shorter and one half-cycle pair
   lighter than fatal #2's** (§8.13.1). **Fatal #4 (AP 3477.969305 s, `a2_power.c:2949`) reproduced it
   exactly** — 1 half-cycle pair, no `port failed halt`, 0.130 s vs 0.825 s — so the A/B became
   **n = 2** (§8.13.2). **Fatal #5 (AP 4304.991306 s, `a2_power.c:1189`, a THIRD signature) reproduced
-  it again at 0.124531 s** (§8.13.3): three capture-OFF recoveries span **0.125291–0.130237 s** while
-  the two capture-ON span **0.824902–0.831559 s** — two **non-overlapping** populations **6.6× apart**,
-  confirmed independently by the SSR ledger's own `coredumps` column (17, 18, 18, 18, 18). Re-enable
-  the capture with `touch /overlay/coredump_ENABLE`.
+  it again at 0.124531 s** (§8.13.3), and **fatal #6 (AP 5208.721361 s, `lte_ml1_sleepmgr_stm.c:4054`)
+  at 0.127373 s makes it n = 4** (§8.13.4): four capture-OFF recoveries span **0.124531–0.130237 s**
+  while the two capture-ON span **0.824902–0.831559 s** — two **non-overlapping** populations **6.6×
+  apart**, confirmed independently by the SSR ledger's `coredumps` column (17, 18, 18, 18, 18, 18).
+  **⚠ Score this on `SSR before shutdown`→`MBA booted`, NOT on fatal→`is now up`** — fatal #5's full
+  fatal→up is 1.443682 s and would read as a failed removal (§8.13.4). Re-enable the capture with
+  `touch /overlay/coredump_ENABLE`.
   If it succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling
   it also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says
   whether the recovery had already passed the coredump step, which is itself informative.
-  **Remaining: 17 fatals (~4.5 h).** ⚠ **Generating traffic during the window is allowed but slows it**
-  (traffic suppresses the idle timer) — the S1 run below is bounded at 600 s for that reason.
+  **Remaining: 16 fatals (~4 h).** ⚠ **Generating traffic during the window slows it and can change
+  which fatal fires** — the S1 run below is why fatal #6 was a clock signature rather than an idle one.
 * **★ CHASE THE "LOST EDGE" STORM — but the question has CHANGED twice (§8.15 → §8.15.2 → §8.15.3).**
   The original question ("is a resync a poison pill 74 ms in front of a fatal?") is now **mostly
   answered NO**: 15 resyncs in this boot, only **1** preceded a fatal, and 8+ minutes of storm ran with
@@ -1798,19 +1915,27 @@ only (first ~20 s, NOT a result):* 18 → 20 in 44 s, so **not** immediately sup
   **`qcom_bam_dmux` is a loadable module (241 KB `.ko`), so all of this is a `.ko` swap — no kernel
   flash** (`scratch/mkko823.sh` is the working recipe). **D2/D3 must NOT run inside the open §8.13
   window**: they change which fatals occur.
-* **★ NEW, AND POSSIBLY THE MOST ACTIONABLE THING IN THIS ROUND: the storm is AP-runtime-PM-GATED, so
-  it may be suppressible without touching the modem.** A lost edge requires `pc_state == 0` **and** the
-  line asserted, so it can only happen on the way **out of** a quiesced state. S1 (600 s of 1 Hz pings,
-  §8.15.3 §10) tests exactly that, pre-registered as **P5**. **Interim, ~83 s in: `pc_resync_count`
-  frozen at 20 and `pm_suspend_attempts` frozen at 636 — zero new resyncs and zero new suspends against
-  a pre-S1 rate of 1 resync per 36.3 s.** If that holds for the full 600 s, then the storm, the
-  **data stall** (the first packet after idle) and the PC-handshake failures are **one defect family:
-  the idle→active transition**, seen from three sides — and an idle-avoidance policy (holding the
-  modem's runtime-PM awake, or raising its autosuspend delay) becomes a candidate **mitigation** that
-  needs no firmware change. **Caveat that must be checked before believing it:** traffic suppresses the
-  **idle** fatal but Doc 162 measured a **substituted** `a2_power.c:1189` at ~895 s under 1 Hz traffic,
-  so traffic is **not** expected to suppress the fatals — which is itself a clean separation between
-  the storm (AP-side, PM-gated) and the fatals (modem-internal).
+* **★ NEW: THE STORM IS AP-RUNTIME-PM-GATED — AND THE FATAL IS NOT. S1 IS DONE AND P5 IS CONFIRMED
+  (§8.15.4).** A lost edge requires `pc_state == 0` **and** the line asserted, so it can only happen on
+  the way **out of** a quiesced state. S1 = 600 consecutive 1 Hz pings with both counters sampled once
+  a second, and it is a **clean A/B/A inside one run**: pre-S1 the storm ran at **1 resync per 36.3 s**
+  with **0.132 suspends/s**; during **364.34 s of 1 Hz traffic** `pc_resync_count` and
+  `pm_suspend_attempts` were **both frozen** (**0 resyncs against 10.0 expected**, 0 suspends against
+  48.1 expected, `pc_state=1` in all 365 samples, **364/364 pings, 0 % loss**); after the traffic
+  stopped (fatal #6's SSR killed the ping) the storm **returned at the pre-S1 rate** (1 per 42.0 s,
+  0.126 suspends/s). **P5 confirmed with a large margin.** So the storm, the **data stall** and the
+  PC-handshake failures are **one defect family — the idle→active transition** — and an idle-avoidance
+  policy is a candidate mitigation **for the storm**.
+  **⚠ BUT THE SAME RUN REFUTES THE MITIGATION FOR THE FATALS: fatal #6 fired at AP 5208.721361 s
+  INSIDE the suppression window, with the modem never suspended, on the clock
+  (`lte_ml1_sleepmgr_stm.c:4054`, 902.286373 s of modem uptime, 19.4 ms from Doc 162's figure).**
+  **Idle-avoidance does not suppress the fatals, and it is now measured rather than inferred.**
+  **Next: S2** (`/overlay/s2.sh`, written and syntax-checked, **not yet run**) — one ping every 15 s ×
+  80, so the modem quiesces between pings and the storm returns, recording each ping's RTT and the
+  counters either side. **P6:** the pings whose wake missed the edge show an RTT spike up to the
+  **100 ms watchdog period**. **P6-FALSIFIER:** no RTT difference. S2 also regression-tests patch 812
+  at exactly the idle period Doc 156 measured as broken. **Launch it with the ssh held open** — a
+  backgrounded job inside a one-shot ssh dies at session exit.
 * **Let §8.12's instruments catch a stall, then read the cause off it.** The reset is a **≥30 s global
   stall that the PMIC PON WDT (30 s) turns into a reboot** (§8.11). The beacon and the per-boot
   rolling kernel log are both deployed and reboot-persistent, so the next stall yields the *when*
@@ -1908,15 +2033,26 @@ only (first ~20 s, NOT a result):* 18 → 20 in 44 s, so **not** immediately sup
     "host-caused"), the bimodal outage durations (including 1641 s and 926 s), the `procd`-kicked
     watchdog proof that those two are not hangs, the SMC electrical signal as a deliberate
     **non-finding**, and the 19-outage classification table with raw host log extracts.
-  * **`V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`** — **§8.13.2 + §8.15: two results
-    from fatal #4.** (1) The coredump-off A/B is **n = 2**: the full four-fatal comparison table, the
-    boot-wide counts (4 fatals / 5 `MBA booted` / 2 `port failed halt`), the ledger's independent
-    `coredumps` column (17, 18, 18, 18), and fatal #4's off-clock 759.53 s interval. (2) **The
-    "lost edge" precursor**: every `a2_power.c:2949` (3/3, three boots) preceded **74–86 ms** by a
-    patch-808 RX-watchdog resync, against **3 of 8** sufficiency, with all five counter-examples
-    tabulated, the six-of-six ledger provenance cross-check, the `q6trace.log` multi-boot count trap,
-    the three competing readings, the 100 ms watchdog-period argument that weakly disfavours one, and
-    the **D1/D2/D3 discriminator designs with the module-not-flash deployment note**.
+  * **`V_coredump_off_fatal4_n2_and_the_lost_edge_precursor.txt`** — **§8.13.2/§8.13.3/§8.13.4 +
+    §8.15/§8.15.1/§8.15.2/§8.15.3/§8.15.4: the coredump-off A/B taken to n = 4, and the whole
+    "lost edge" story from discovery to demotion.** (1) The four-fatal comparison table, the boot-wide
+    counts, the ledger's independent `coredumps` column frozen at 18, and the off-clock 759.53 / 827.02 s
+    intervals. (2) **The "lost edge" precursor**: every `a2_power.c:2949` (3/3, three boots) preceded
+    **74–86 ms** by a patch-808 RX-watchdog resync, against **3 of 20** sufficiency, with all
+    counter-examples tabulated, the six-of-six ledger provenance cross-check, the `q6trace.log`
+    multi-boot count trap, the three competing readings, the 100 ms watchdog-period argument that
+    weakly disfavours one, and the **D1/D2/D3 discriminator designs with the module-not-flash
+    deployment note**. (3) **P2/P3 scored** — the sufficiency falls 3/8 → 3/13 → 3/15 → 3/20, the rate
+    is non-stationary, and P3's signature prediction **failed**. (4) **PART 7**: the storm as a
+    REGIME — the exact 15/14 decomposition of both failure directions, the five ~184 ms pairings that
+    **do not close arithmetically** against the 250 ms wait (which redefines D1), P4, the
+    no-external-trigger evidence on **both** sides, the unchanged PM rate, and the `pm_suspend` deficit
+    withdrawn as accounting. (5) **PART 8**: **S1 scored — P5 CONFIRMED** as a within-run A/B/A
+    (0 resyncs and 0 suspends in 364.34 s of 1 Hz traffic, 364/364 pings), **and fatal #6 firing inside
+    that window on the clock**, which separates a PM-gated storm from a non-PM-gated fatal.
+  * **`W_watch_resync_sh.sh`** — the P1/P2 scorer, and **`X_storm_sampler_sh.sh`** — the 60-minute
+    sampler that makes the P3-falsifier branch scoreable and independently corroborated the PM-gating
+    (`pc_state=0` in 6 of 10 pre-S1 samples vs 0 of 365 during S1).
   * `R_analyze_hang_sh.sh`, `P_dmesg_roll_sh_per_boot_kernel_log.sh`,
     `Q_dev_state_mon_sh_host_sampler.sh` — the §8.12/§8.13 instruments.
   * `qa.sh`, `deploy823.sh`, `ssr_ledger_v2.sh`, **`mkko823.sh`** — the harnesses.
