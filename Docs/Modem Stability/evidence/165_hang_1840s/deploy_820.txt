@@ -1,0 +1,69 @@
+=== PATCH 820 — ARTIFACT AND DEPLOYMENT PLAN (Doc 166 §8) ===
+
+Patch (both trees, in sync, diff -rq clean):
+  msm89xx/patches/820-bam-dmux-ssr-teardown-nonblocking-cancel.patch
+  openwrt/target/linux/msm89xx/patches/820-bam-dmux-ssr-teardown-nonblocking-cancel.patch
+  md5 8e94dd68f6a973c50b4645a919557a35   (extended revision, 4 hunks, 118 lines)
+
+Contents -- four hunks, one idea ("never synchronously wait on a work that needs the
+lock you hold"), applied to two functions, plus five trace points:
+
+  @@ -1572,9 +1572,24 @@  bam_dmux_power_off()
+      cancel_delayed_work_sync(&dmux->rx_rearm_work);   [KEPT synchronous]
+  -   cancel_delayed_work_sync(&dmux->rx_watchdog_work);
+  +   cancel_delayed_work(&dmux->rx_watchdog_work);     [NON-BLOCKING]
+  @@ -1656,9 +1671,27 @@  bam_dmux_pm_quiesce()
+      cancel_delayed_work_sync(&dmux->rx_rearm_work);   [KEPT synchronous]
+  -   cancel_delayed_work_sync(&dmux->rx_watchdog_work);
+  +   cancel_delayed_work(&dmux->rx_watchdog_work);     [NON-BLOCKING]
+  @@ -2231,10 +2264,42 @@  bam_dmux_ssr_teardown_work_func()
+  -   cancel_delayed_work_sync(&dmux->tx_retry_work);
+  -   cancel_work_sync(&dmux->tx_wakeup_work);
+  +   cancel_delayed_work(&dmux->tx_retry_work);        [NON-BLOCKING]
+  +   dev_err(... "bam_dmux: SSR teardown T1 entry\n");
+  +   dev_err(... "bam_dmux: SSR teardown T2 tx_retry cancelled\n");
+  +   cancel_work(&dmux->tx_wakeup_work);               [NON-BLOCKING]
+  +   dev_err(... "bam_dmux: SSR teardown T3 tx_wakeup cancelled\n");
+  +   dev_err(... "bam_dmux: SSR teardown T4 state_lock acquired\n");
+  @@ -2367,6 +2432,13 @@  bam_dmux_ssr_notifier_cb()
+  +   dev_err(... "bam_dmux: SSR teardown T0 scheduled\n");
+
+Verification already done:
+  * patch -p1 --dry-run : OK
+  * applying it to the pre-820 file reproduces the live build-tree file BYTE-FOR-BYTE
+    (diff -q clean) -- so the patch and the tree cannot drift
+  * ./build.sh guard : "In sync: msm89xx/ and packages/ match the live OpenWrt tree"
+  * ./build.sh guard --deep : a re-prepare is PENDING, so the next kernel build wipes
+    build_dir and re-applies EVERY patch -- i.e. the build itself is the chain test
+
+THE ASYMMETRY THAT MAKES THE FIX SAFE (do not "simplify" it away):
+  rx_watchdog_work  -> bam_dmux_rx_watchdog_func() TAKES state_lock (:1309).
+                       Every caller of power_off/pm_quiesce HOLDS that lock, so the
+                       watchdog is already mutually excluded; the sync cancel added
+                       only the deadlock.  It re-checks pc_state, in_teardown and the
+                       real line level under the lock at :1315-:1317.
+  rx_rearm_work     -> bam_dmux_rx_rearm_work_func() does NOT take state_lock
+                       (no state_lock site between :1213 and :1261).  It submits RX
+                       buffers, so it MUST be drained synchronously before
+                       dmaengine_terminate_sync()/dma_release_channel() below.
+
+Pre-820 device module (for the diff after deploy):
+  /lib/modules/6.12.94/qcom_bam_dmux.ko
+  md5 eca269f10a685a83a8b679bc7be38d1d   239464 B   srcversion E0A5A5547D1088524B32D78
+  strings "SSR teardown T" count = 0     <- must become 5 after deploy
+
+Post-820 expectations on the device:
+  * md5 differs from eca269f10a685a83a8b679bc7be38d1d
+  * strings /lib/modules/6.12.94/qcom_bam_dmux.ko | grep -c "SSR teardown T" == 5
+  * after the reboot, dmesg shows the normal boot's single 10..23 half (14 q6v5-trace
+    lines) and ZERO "SSR teardown T" lines (no SSR yet)
+  * on the first SSR: T0 then T1,T2,T3,T4 in order
+
+Deploy procedure (module is a .ko; the device is rebooted to load it):
+  1. cp the current device .ko to /overlay/modbackup/qcom_bam_dmux.ko.pre820
+  2. scp build_dir/.../linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.ko to
+     /lib/modules/6.12.94/qcom_bam_dmux.ko
+  3. md5sum + strings verify ON THE DEVICE
+  4. reboot; then verify printk starts with 6, the 5 soak processes are up, the
+     coredump watcher is armed, and df /overlay
+  5. soak and wait for a fatal-triggered SSR to score Doc 166 §9

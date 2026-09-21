@@ -243,8 +243,12 @@ and no `_timeout` variant. Therefore:
   `cancel_work_sync()` at `:2235` **blocks indefinitely**;
 * and `state_lock` is held for long stretches by exactly the paths that run *during* an SSR:
   `bam_dmux_pc_irq()` holds it across a full `bam_dmux_power_on()` (`:1903` → `:1909`) and across
-  `bam_dmux_power_off()` (`:1911`, `:1934`); `bam_dmux_runtime_resume()` takes it (`:2025`,
-  `:2049`); `bam_dmux_runtime_suspend()` takes it (`:1994`).
+  `bam_dmux_power_off()` (`:1911`, `:1934`); **`bam_dmux_rx_watchdog_func()` holds it across
+  `bam_dmux_power_on()` (`:1309` → `:1335`) and `bam_dmux_pm_restart()` (`:1350`)**;
+  `bam_dmux_runtime_resume()` takes it (`:2025`, `:2049`); `bam_dmux_runtime_suspend()` takes it
+  (`:1994`). Three independent paths can therefore hold `state_lock` for the duration of a BAM
+  channel rebuild, and the watchdog only checks `in_teardown` at `:1292` — an invocation that passed
+  that test *before* the flag was set can still hold the lock.
 
 So the hang-by-construction is: **the teardown work synchronously waits for a work item whose
 progress depends on the PM core and on a mutex that the SSR path itself is busy holding.** This is
@@ -351,11 +355,16 @@ by the *following* boot's traffic.
 
 ---
 
-## 8. The fix — patch 820 (proposed, not yet built)
+## 8. The fix — patch 820 (built and ready to deploy)
 
-**Principle: a teardown path must never perform an unbounded synchronous wait on a work item whose
-progress depends on the PM core.** Replace the two unbounded cancels with their non-blocking forms
-and let the mutex + flag do the exclusion:
+**Principle: a teardown path must never perform a synchronous wait on a work item that needs the
+same lock the waiter holds.** Two sites violate it, and **820 fixes both**, because they are one
+defect expressed twice.
+
+### 8.1 Site 1 — the teardown work's two cancels (the `:2233-:2237` region)
+
+Replace the two unbounded cancels with their non-blocking forms and let the mutex + flag do the
+exclusion:
 
 ```c
  	WRITE_ONCE(dmux->in_teardown, true);
@@ -368,7 +377,7 @@ and let the mutex + flag do the exclusion:
 +	 * cancel here waits, without timeout, on a work item whose progress
 +	 * depends on pm_runtime_resume_and_get() (:739) and on state_lock (:758)
 +	 * -- both of which this very path is contending for.  Mutual exclusion
-+	 * is provided by state_lock at :2237, which any in-flight tx_wakeup_work
++	 * is provided by state_lock below, which any in-flight tx_wakeup_work
 +	 * must also hold.
 +	 */
 +	cancel_delayed_work(&dmux->tx_retry_work);
@@ -378,22 +387,116 @@ and let the mutex + flag do the exclusion:
 **Why this is safe — the three cases an in-flight `tx_wakeup_work` can be in:**
 
 1. **Not yet running** → `cancel_work()` removes it from the queue. Done.
-2. **Running, already holding `state_lock`** → the teardown blocks at `:2237` until it finishes.
-   Bounded, because the locked region (`:758-:825`) contains no unbounded wait.
-3. **Running, waiting for `state_lock`** → it acquires the lock *after* the teardown releases it at
-   `:2256`, sees `in_teardown` at `:764`, unlocks, and submits nothing. Its `pm_runtime` ref is
-   balanced (`:739` get / `:767` put). `in_teardown` stays true until `:2276`.
+2. **Running, already holding `state_lock`** → the teardown blocks at the `mutex_lock` until it
+   finishes. Bounded, because the locked region (`:758-:825`) contains no unbounded wait.
+3. **Running, waiting for `state_lock`** → it acquires the lock *after* the teardown releases it,
+   sees `in_teardown` at `:764`, unlocks, and submits nothing. Its `pm_runtime` ref is balanced
+   (`:739` get / `:767` put). `in_teardown` stays true until `bam_dmux_ssr_powerup_work_func()`
+   clears it.
 
 The same reasoning applies to `tx_retry_work`: it is a two-line function whose only action is
 `queue_work(system_wq, &dmux->tx_wakeup_work)` (`:857`), gated on `in_teardown` at `:850`.
 
-**A second, smaller defect found while reading — recorded, not fixed by 820:** the *same* work item
-is queued on **two different workqueues** — `queue_pm_work()` = `queue_work(pm_wq, work)`
-(`include/linux/pm_runtime.h:62`, used at `:687` and `:1922`) and `queue_work(system_wq, …)`
-(`:857`). A `work_struct` must not be queued to two queues; the second `queue_work()` sees
-`WORK_STRUCT_PENDING` and **returns false**, so a `tx_retry_work`-initiated retry can be silently
-dropped while the item is pending on `pm_wq`. That is a lost-retry bug, not a hang. **Flagged for a
-separate patch; it is deliberately out of scope here so that 820 tests exactly one change.**
+### 8.2 Site 2 — `power_off` / `pm_quiesce`, and this one is a *true* ABBA on a single mutex
+
+**This site was found only after the fix for site 1 was written, and it is the stronger of the two.**
+
+```c
+1645	static void bam_dmux_pm_quiesce(struct bam_dmux *dmux)
+...
+1660		cancel_delayed_work_sync(&dmux->rx_rearm_work);
+1661		cancel_delayed_work_sync(&dmux->rx_watchdog_work);
+...
+1561	static void bam_dmux_power_off(struct bam_dmux *dmux)
+...
+1576		cancel_delayed_work_sync(&dmux->rx_rearm_work);
+1577		cancel_delayed_work_sync(&dmux->rx_watchdog_work);
+```
+
+and the watchdog that is being cancelled:
+
+```c
+1283	static void bam_dmux_rx_watchdog_func(struct work_struct *work)
+...
+1304		if (!READ_ONCE(dmux->pc_state)) {
+1305			bool line = bam_dmux_pc_line_asserted(dmux);
+1308			if (line) {
+1309				mutex_lock(&dmux->state_lock);      <-- WANTS THE LOCK
+```
+
+**`bam_dmux_pm_quiesce()` has exactly ONE caller** — `bam_dmux_pc_irq()` at `:1936` — and that
+caller **holds `state_lock` from `:1903`**. `bam_dmux_power_off()` is reached under `state_lock`
+from `pc_irq` too (`:1911`, `:1934`), from the teardown work (`bam_dmux_ssr_teardown` → `:1883`),
+from the SSR powerup work, and from `bam_dmux_power_on()`'s error paths (`:1450`, `:1474`, `:1481`).
+
+So:
+
+> **pc_irq holds `state_lock` and waits for `rx_watchdog_work` to finish; `rx_watchdog_func` is
+> running and waits for `state_lock`. Neither can proceed.**
+
+That is a **true deadlock cycle on one mutex** — not a "the PM core might be slow" argument, and not
+dependent on any third party. It needs only that the watchdog be *already running and past `:1308`*
+when `pc_irq` reaches the cancel. And **it is exercised on every ordinary power collapse**: the
+telemetry shows `pc_irq` firing 327 times in 1353.6 s ≈ **7.3 collapses/min**, each one calling
+`pm_quiesce`. This is a far more frequently exercised instance of the defect than site 1, and it
+would explain an intermittent hang that only shows up after hours.
+
+**Fix (same shape):**
+
+```c
+ 	/* 2. Cancel periodic work. */
+ 	cancel_delayed_work_sync(&dmux->rx_rearm_work);
+-	cancel_delayed_work_sync(&dmux->rx_watchdog_work);
++	cancel_delayed_work(&dmux->rx_watchdog_work);
+```
+
+**Why `rx_watchdog_work` can be non-blocking but `rx_rearm_work` MUST stay synchronous** — this
+asymmetry is the whole reason the fix is safe:
+
+* `rx_watchdog_func` **takes `state_lock`** (`:1309`). Every caller of `power_off`/`pm_quiesce`
+  holds that lock, so the watchdog is *already mutually excluded* from the teardown body; the
+  synchronous cancel adds nothing but the deadlock. After the teardown releases the lock the
+  watchdog runs, re-checks `pc_state`, `in_teardown` and the actual line level **under the lock**
+  (`:1315-:1317`), and either does nothing or performs its documented rebuild — which is correct.
+* `rx_rearm_work` (`bam_dmux_rx_rearm_work_func`, `:1213`) **does NOT take `state_lock`** — there is
+  no `state_lock` site between `:1213` and `:1261`. It submits RX buffers, so an async cancel would
+  let it touch `dmux->rx` concurrently with the `dmaengine_terminate_sync()` / `dma_release_channel()`
+  below. It **must** be drained synchronously.
+
+**Both sites fixed in the same patch, deliberately.** They are the same rule violated in two
+functions, and fixing only site 1 would leave a known deadlock in the more frequently exercised
+path. The patch also adds **five `dev_err` hand-off trace points** (T0–T4, §9) so that a recurrence
+is diagnosable in one boot.
+
+### 8.3 Residual risk of site 1, accepted and recorded
+
+The synchronous cancel also guaranteed that no `tx_wakeup_work` was *past* `:739` when the teardown
+proceeded. With the non-blocking form, a `tx_wakeup_work` already inside
+`pm_runtime_resume_and_get()` (`:739`) can now race the teardown's `pm_runtime_set_suspended()`
+(`:2243`). The outcome is bounded and benign: the work reaches `:758`, takes `state_lock` *after* the
+teardown releases it, sees `in_teardown` at `:764`, unlocks, and does `pm_runtime_put_autosuspend()`
+(`:767`) — a spurious resume/autosuspend pair, no DMA submitted, no NULL deref (if the channels were
+released, `power_off` zeroed `tx_deferred_skb` and `bam_dmux_free_skbs` nulled every `skb_dma->skb`,
+so the loop at `:801` drops stale bits via the guard). **This trades an unbounded hang for a bounded
+PM blip** — the correct direction, but a real behavioural change, so watch `pm_resume_attempts` /
+`pm_suspend_attempts` telemetry on the next soak.
+
+### 8.4 Two more sites of the same class — recorded, NOT fixed by 820
+
+* **`bam_dmux_remove()`** (`:2582-2626`) holds `state_lock` and then synchronously cancels
+  `tx_wakeup_work` (`:2583`, `:2626`), `ssr_teardown_work` (`:2589`, `:2609`) and
+  `rx_watchdog_work` (`:2614`) — all three of which take `state_lock`. **The same ABBA.** Out of
+  scope here because it is reached only on module unload, and this device is rebooted rather than
+  unloaded — but **a future `rmmod qcom_bam_dmux` will hang**, and that is worth knowing before
+  someone tries it.
+* **`tx_wakeup_work` is queued on two different workqueues** — `queue_pm_work()` =
+  `queue_work(pm_wq, work)` (`include/linux/pm_runtime.h:62`, used at `:687` and `:1922`) vs
+  `queue_work(system_wq, …)` (`:857`). A `work_struct` must not be queued to two queues: the second
+  `queue_work()` sees `WORK_STRUCT_PENDING` and **returns false**, so a `tx_retry_work`-initiated
+  retry can be silently **dropped** while the item is pending on `pm_wq`. **Lost-retry bug, not a
+  hang.**
+
+Both are deliberately left out so that 820's effect is attributable.
 
 ---
 
@@ -403,23 +506,40 @@ Patch 820 **removes** the two calls the hang is attributed to, so a repeat canno
 between §5.3's candidates (a) and (b). The instrument must therefore be re-pointed at the hand-off,
 and it must survive `console_loglevel = 6` — i.e. it must use `dev_err`, not `dev_info`.
 
-**Prediction, stated in advance:** with 820 deployed, the teardown work will reach `:2238` and the
-AP will no longer hang at this site. **A falsification is equally informative:** if the AP hangs
-again *and* the last line is still the notifier's `SSR before shutdown`, then the work never ran and
-§5.3(b) — workqueue starvation — is the cause, not the cancels.
+**Prediction, stated in advance:** with 820 deployed, the teardown work will reach its `dev_info` and
+the AP will no longer hang at either site.
 
-**Instrument (4 lines, `dev_err` so it lands in `console-ramoops` as well as pmsg):**
+**Falsification is equally informative, and the five trace points decode it unambiguously:**
+
+| last line seen | meaning |
+|---|---|
+| the notifier's `SSR before shutdown` (no `T0`) | the notifier never reached `schedule_work` — an earlier fault |
+| `T0` but no `T1` | **the work never got a `system_wq` worker** — §5.3(b), workqueue starvation; the cancels were not the cause |
+| `T1` but no `T2` | hung in `cancel_delayed_work(&tx_retry_work)` — should be impossible now (non-blocking) |
+| `T2` but no `T3` | hung in `cancel_work(&tx_wakeup_work)` — should be impossible now |
+| `T3` but no `T4` | **blocked on `state_lock`** — an external holder, i.e. the §8.2 ABBA (or another long holder of the lock) |
+| `T4` but no `executing serialized…` | hung between the lock and the `dev_info` — should be impossible |
+
+The `T3`-without-`T4` row is the one that would confirm §8.2 as the real cause; the `T0`-without-`T1`
+row is the one that would confirm §5.3(b). **Either is a one-boot answer**, which is the point of
+placing probes on both sides of the hand-off.
+
+**Instrument (five lines, `dev_err` so they land in `console-ramoops` as well as pmsg):**
 
 ```
+T0  in the notifier, after schedule_work(&dmux->ssr_teardown_work)   -- the hand-off
 T1  entry to bam_dmux_ssr_teardown_work_func
 T2  after cancel_delayed_work(&tx_retry_work)
 T3  after cancel_work(&tx_wakeup_work)
-T4  after mutex_lock(&state_lock), before :2238
+T4  after mutex_lock(&state_lock), before the existing dev_info
 ```
 
-If a hang recurs, the last `T` line names the step, and T1-vs-nothing discriminates (a) from (b)
-**in one boot**. This is the same discipline as Doc 164 §9, corrected for the two scope errors this
-round exposed: **trace the hand-off, and use a level the dying console cannot suppress.**
+Every line contains the literal `SSR `, so the soak's existing `/dev/kmsg` filter (§2.2) picks them
+up with **no soak change**, and they do **not** match `q6v5-trace:`, so the existing trace counter is
+not polluted.
+
+This is the same discipline as Doc 164 §9, corrected for the two scope errors this round exposed:
+**trace the hand-off, and use a level the dying console cannot suppress.**
 
 ---
 
@@ -484,12 +604,12 @@ over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
 | question | status |
 |---|---|
 | Where does the AP hang? | **Located.** The `rproc_stop()` → SSR-notifier → bam_dmux-teardown **hand-off**, upstream of both instrumented windows. Last line = `SSR before shutdown: scheduling teardown work`; `rproc_stop()` never returned (no coredump, watcher-corroborated). |
-| Why? | **Attributed, not proven.** The five-line region `:2233-:2237` contains two unbounded `cancel_*_sync()` waits on works that touch runtime PM and `state_lock`. Competing candidate (workqueue starvation) cannot be excluded from this boot's evidence (§5.3). |
+| Why? | **Attributed, not proven.** The five-line region `:2233-:2237` contains two unbounded `cancel_*_sync()` waits on works that touch runtime PM and `state_lock`. **A second, stronger instance of the same defect was then found: `power_off`/`pm_quiesce` cancel `rx_watchdog_work` synchronously while holding `state_lock`, which is a true ABBA on one mutex (§8.2) and is exercised ~7×/min.** Competing candidate (workqueue starvation) cannot be excluded from this boot's evidence (§5.3). |
 | Was the hang a panic? | **No** — no `Kernel panic` banner in the ramoops console, and the dmesg zone exists while holding no record. |
-| Reset mechanism | **Unresolved.** ~2–4 s, silent; **does not match** Doc 159's 30 s PM8916 PON WDT, so the two AP hangs do not share a reset path. |
+| Reset mechanism | **Unresolved.** ~2–4 s, silent; **does not match** Doc 159's 30 s PM8916 PON WDT, so the two AP hangs do not share a reset path. A first `devmem` attempt at SMEM item 403 returned a **negative result** (§13 item 3). |
 | Doc 164 §9's prediction | **Falsified in site** (§3). |
 | Doc 165 §4.1's coverage gap | **Widened** — the blind spot is upstream of the window, not just inside it. |
-| Fix | **Designed, not built.** Patch 820 (§8). |
+| Fix | **Built** — patch 820, four hunks: both cancel sites made non-blocking (§8.1, §8.2) plus five `dev_err` hand-off trace points T0–T4 (§9). Two further sites of the same class recorded and deliberately left out (§8.4). |
 | The `qcom-time-daemon` lead | **Dead** (§7.1). |
 
 ---
@@ -500,10 +620,19 @@ over-cautious; the correct rule is "verify the md5, don't re-copy blindly."**
    with the §9 four-line `dev_err` hand-off trace, as a loadable module, and soak.
 2. **Score §9's pre-registration** on the next fatal-triggered SSR — the last `T` line, or its
    absence, settles (a) vs (b) in one boot.
-3. **Close the reset question.** The AP's restart reason is plausibly readable from
-   **SMEM item 403 (`SMEM_POWER_ON_STATUS_INFO`)** — the very item the driver's own comment at
-   `:2250` warns must not be written. A read-only probe of it, plus the PM8916 PON reason registers,
-   would turn "silent reset" into a named cause.
+3. **Close the reset question — first attempt returned a NEGATIVE result.** The AP's restart reason
+   is plausibly in **SMEM item 403 (`SMEM_POWER_ON_STATUS_INFO`)** — the very item the driver's own
+   comment at `:2250` warns must not be *written*. A read-only `devmem` walk was tried and
+   **does not work**: `/dev/mem` itself is fine (the control reads the ramoops `DBGC` console magic
+   at `0x8db00000`, and kernel text at `0x40000000` gives `Bus error`, i.e. the mapping is honest),
+   but **`smem@86300000` (DT `reg` = `0x86300000` + `0x100000`) has a zeroed base** — the legacy
+   `smem_heap_info` (`initialized`, `free_offset`, `heap_remaining`, `reserved`) reads
+   `0,0,0,0` — and a sparse scan of the whole region found only two non-zero words:
+   `0x86310000 = 0x10000004` and `0x863ff000 = 0x434F5424` (`"$TOC"`). So the layout is **not** the
+   legacy heap-header form a naive walk assumes. **This needs the real `qcom_smem` layout or an
+   in-kernel reader, not `devmem`.** Also unchecked: the PM8916 PON reason registers, and the
+   `pm8916-pon` node's sysfs (it exposes only `pwrkey`, `watchdog`, `driver`, `of_node`, … — no
+   reason attribute).
 4. **The `pm_wq` / `system_wq` double-queue of `tx_wakeup_work`** (§8) — separate patch, after 820.
 5. Still open from before: the failed modem restart (Doc 154 §6); the `echo stop` hang (n=2);
    patch 814's retry path still unobserved on a natural trigger (`retries: 0`); the harness gap that

@@ -154,3 +154,45 @@ Normal-boot trace sequence (dmesg):
   `cat /dev/kmsg | grep PAT | head -N` trap.
 * The device's awk needs an anchored pattern for timestamps:
   /^\[ *1840\.3/  (not a bare substring).
+
+-------------------------------------------------------------------------------
+9. RESET-REASON INSTRUMENT — NEGATIVE RESULT (Doc 166 §13 item 3)
+-------------------------------------------------------------------------------
+Probed 2026-09-21, read-only.  Goal: read SMEM item 403 (SMEM_POWER_ON_STATUS_INFO)
+to name the AP's restart reason.
+
+/dev/mem IS usable -- controls:
+  devmem 0x8db00000  ->  0x43474244   = "DBGC" (the ramoops console zone magic)
+  devmem 0x8db00010  ->  0x39383731
+  devmem 0x8db00020  ->  0x0A432D37
+  devmem 0x40000000  ->  Bus error    (kernel text; the mapping is honest, not
+                                        silently zeroed)
+  /proc/iomem: 80000000-85ffffff System RAM / 8bd00000-8dbfffff System RAM
+               8e800000-9fffffff System RAM
+
+SMEM does NOT read as a legacy heap:
+  DT reg smem@86300000     = base 0x0000000086300000  size 0x0000000000100000
+  devmem 0x86300000  ->  0x00000000   heap_info.initialized
+  devmem 0x86300004  ->  0x00000000   heap_info.free_offset
+  devmem 0x86300008  ->  0x00000000   heap_info.heap_remaining
+  devmem 0x8630000c  ->  0x00000000   heap_info.reserved
+  devmem 0x86301948  ->  0x00000000   (legacy heap_entry[403].allocated)
+  devmem 0x8630194c  ->  0x00000000   (legacy heap_entry[403].offset)
+  devmem 0x86301950  ->  0x00000000   (legacy heap_entry[403].size)
+
+Sparse scan of the whole 1 MiB region -- only TWO non-zero words found:
+  0x86310000  ->  0x10000004
+  0x863ff000  ->  0x434F5424   = "$TOC"  (little-endian bytes 24 54 4F 43)
+  (0x86300000, 0x86301000, 0x86320000, 0x86340000, 0x86380000, 0x863f0000,
+   0x86700000, 0x867e0000 all read 0x00000000)
+
+=> The layout is NOT the legacy smem_heap_info + heap_entry[] form a naive devmem
+   walk assumes.  Reading item 403 needs the real qcom_smem layout, or an in-kernel
+   reader.  NEGATIVE RESULT -- recorded so the next session does not repeat it.
+
+Also checked and absent: /sys/bus/platform/drivers/pm8916-pon/200f000.spmi:pmic@0:pon@800/
+contains only {pwrkey, watchdog, driver, driver_override, modalias, of_node, power,
+subsystem, uevent} -- no reason attribute.  The PM8916 PON reason registers remain
+unchecked (they would need an explicit PMIC register read).
+
+debugfs IS mounted (rw) -- available for a future in-kernel reader.

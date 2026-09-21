@@ -139,3 +139,27 @@ F. WORKQUEUE REGISTRATION (line 2445)
 
 No private workqueue is created (no alloc_workqueue / create_*workqueue in the
 file), so every schedule_* lands on system_wq unless queue_pm_work is used.
+
+-------------------------------------------------------------------------------
+G. state_lock IS HELD ACROSS LONG BAM REBUILDS — three independent holders
+-------------------------------------------------------------------------------
+The point of §5.2 is not that state_lock exists, it is that it can be held for the
+DURATION OF A BAM CHANNEL REBUILD by three different paths, all of which are live
+during an SSR.  So a synchronous wait on a work item that needs state_lock is, in
+practice, unbounded.
+
+  1903 -> 1909   bam_dmux_pc_irq()          holds it across bam_dmux_power_on()
+  1911 / 1934    bam_dmux_pc_irq()          holds it across bam_dmux_power_off()
+  1309 -> 1335   bam_dmux_rx_watchdog_func() holds it across bam_dmux_power_on()
+  1309 -> 1350   bam_dmux_rx_watchdog_func() holds it across bam_dmux_pm_restart()
+  1994           bam_dmux_runtime_suspend()
+  2025 / 2049    bam_dmux_runtime_resume()
+
+The watchdog only checks in_teardown at :1292, so an invocation that passed that
+test BEFORE :2233 set the flag can still be holding the lock.
+
+Verified by reading the live file: bam_dmux_rx_watchdog_func() does NOT increment
+rx_active_submitters and does NOT call bam_dmux_rx_slot_submit() inside the locked
+region (:1309-:1358), so it does not deadlock bam_dmux_power_off()'s
+wait_event(rx_submit_wait, rx_active_submitters == 0) at :1580.  That wait is
+therefore NOT a second cycle -- checked, and recorded so it is not re-suspected.
