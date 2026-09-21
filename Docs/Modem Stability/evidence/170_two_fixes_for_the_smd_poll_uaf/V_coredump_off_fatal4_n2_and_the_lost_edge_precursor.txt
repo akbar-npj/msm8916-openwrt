@@ -3593,4 +3593,265 @@ PART 24 -- PART 23's OPEN QUESTION IS RESOLVED (lk2nd RE-PARTITIONS BUT CARRIES
    counter is at 25/60 on the new boot `a5af0fc8`.  No fix is claimed, and no AP
    hang has been observed: all three boot boundaries were host power events.
 
+   *** CORRECTED IN PART 25 s6: the n >= 60 counter should read 21, not 25. ***
+
+
+PART 25 -- THE USER SUPPLIES THE POSTMARKETOS WIKI TEXT; IT CONFIRMS THE STOCK
+           PARTITION MAP AND EXPOSES A CANDIDATE THE CORPUS HAS NEVER EXAMINED:
+           THE TRUSTZONE FIRMWARE WAS REPLACED WITH DRAGONBOARD 410C's
+           (2026-09-21 23:55 local / 18:25 UTC)
+--------------------------------------------------------------------------------
+
+0. WHY THIS PART EXISTS
+--------------------------------------------------------------------------------
+
+   The user posted the full text of
+       https://wiki.postmarketos.org/wiki/Zhihe_series_LTE_dongles_(generic-zhihe)
+   after the assistant could not fetch it (WebFetch returned empty; a direct
+   curl hit an Anubis anti-bot challenge).  It is a PRIMARY source for this
+   device family and it settles PART 23 AND opens s3 below.
+
+1. IT CONFIRMS THE ANDROID DOC'S PARTITION MAP -- WHICH IS THE *STOCK* MAP
+--------------------------------------------------------------------------------
+
+   The wiki's "Partition layout" section lists the stock symlinks verbatim:
+
+       modem -> mmcblk0p1        sbl1 -> p2      sbl1bak -> p3
+       aboot -> p4               abootbak -> p5  rpm -> p6       rpmbak -> p7
+       tz -> p8                  tzbak -> p9     hyp -> p10      hypbak -> p11
+       pad -> p12                modemst1 -> p13 modemst2 -> p14 misc -> p15
+       fsc -> p16                ssd -> p17      splash -> p18   DDR -> p19
+       fsg -> p20                sec -> p21      boot -> p22     system -> p23
+       persist -> p24            cache -> p25    recovery -> p26 userdata -> p27
+
+   That is EXACTLY the map in `Stock_Android_Live/01_...FINDINGS.md` s5:
+   modem=p1, modemst1=p13, modemst2=p14, fsc=p16, fsg=p20.
+
+   So PART 23's finding stands but its VERDICT must be softened a second time:
+   the Android doc is not mis-indexed and never was -- it reproduces the
+   upstream wiki's stock layout.  What changed is the DEVICE.  The error is
+   citing a PRE-PORT map against a POST-PORT device.  (PART 24 reached the same
+   place from the user's description; the wiki is the citation it lacked.)
+
+2. THE POST-PORT PARTITION MAP, MEASURED (not inferred)
+--------------------------------------------------------------------------------
+
+   Read from /sys/class/block/mmcblk0p*/uevent PARTNAME on the live device:
+
+       p1  fsc          1 KB        p9   rpm          512 KB
+       p2  fsg          1.5 MB      p10  sbl1         512 KB
+       p3  modem        64 MB       p11  tz           1 MB
+       p4  modemst1     1.5 MB      p12  aboot        1 MB
+       p5  modemst2     1.5 MB      p13  boot         64 MB
+       p6  persist      32 MB       p14  rootfs       128 MB
+       p7  sec          16 KB       p15  rootfs_data  3.3 GB
+       p8  hyp          512 KB
+
+   Fifteen partitions, not twenty-seven.  `rootfs`/`rootfs_data` do not exist in
+   the stock table, so the GPT was REPLACED wholesale -- consistent with the
+   wiki's "replace the entire partition table" strategy.  The EFS partitions
+   (fsc/fsg/modemst1/modemst2) survive BY NAME with the same roles, which is
+   what the user described ("required partitions are like EFS ... taken from
+   original stock") and what PART 24 concluded.
+
+   NOTE the wiki's repartition warning is about `persist`, NOT about EFS:
+   "the WCNSS nv items file is stored in it, which needs to be loaded during
+   runtime for functionality of WCN36xx(WiFi)".  `persist` is present (p6,
+   32 MB) and WiFi works, so it was handled.
+
+3. *** THE FINDING: tz AND hyp ARE NOT THE STOCK FIRMWARE ***
+--------------------------------------------------------------------------------
+
+   The wiki, under "flash firmware and bootloader":
+
+       "The original Android image contains firmware starting the kernel in
+        32-bit mode.  In order to boot a mainline arm64 kernel, use firmwares
+        from Dragon Board 410c as replacement.  Also, you may need qhypstub as
+        well as lk1st ...
+        The minimum firmwares needed to be replaced are: for uz801, both sbl1
+        and tz; for other models, only tz.  It is also required to flash hyp."
+
+   MEASURED, and the measurement OVERTURNED the assistant's first reading.
+
+   (a) ELF headers -- they discriminate the 32-bit/64-bit question:
+
+       tz   (p11)  class=ELFCLASS64  e_machine=0x0028 (EM_ARM)  entry=0x86500000
+       hyp  (p8)   class=ELFCLASS64  e_machine=0x00B7 (EM_AARCH64) entry=0x86400000
+       sbl1 (p10)  class=ELFCLASS32  e_machine=0x0028 (EM_ARM)  entry=0x08006650
+
+       `tz` is 64-bit while `sbl1` is 32-bit.  This device is not a UZ801, so
+       the wiki's rule says sbl1 is untouched -- and sbl1 measures 32-bit.
+
+   (b) The assistant first compared the device's tz ELF header against the
+       DragonBoard 410c `tz.mbn` and found the first 0x30 bytes BYTE-IDENTICAL,
+       and concluded the substitution was confirmed.  **THAT CONCLUSION WAS
+       WRONG AND IS WITHDRAWN.**  A byte-level comparison shows **368,454 of
+       483,468 bytes differ (76.21 %), in 12,751 scattered regions** -- the
+       signature of a different build, not a different signature on the same
+       build.  Identical ELF headers here are a shared-layout coincidence.
+
+   (c) Build strings settle it.  Both images carry `QC_IMAGE_VERSION_STRING`:
+
+       device tz   : QC_IMAGE_VERSION_STRING=TZ.BF.3.0-00714
+                     build stamp 170920145236Z / 170920145237Z  (2017-09-20)
+                     also present: " Unknown chip_version", "WCN Version 0x%x",
+                     "*****Calling rfChIdToFreqCoversion***", "Fatal Error: TZ Abort"
+       DB410c 17.09: QC_IMAGE_VERSION_STRING=TZ.BF.3.0.R2-00068
+                     also present: "UIE: Calling TZBSP PIL Auth Reset",
+                     "counter: RPMB not prov, turning off version anti-rollback",
+                     "tzbsp_es_get_partition_hash", "tz_counter"
+
+       **Different branches (`TZ.BF.3.0` vs `TZ.BF.3.0.R2`).  The device is NOT
+       running the image the wiki recommends.**  The wiki warns about exactly
+       this class of error: "Please do NOT use a later release from linaro, the
+       tz firmware becomes too large to flash to tz partition."
+
+   (d) `hyp` IS qhypstub -- PROVEN, not inferred: the literal string
+       **`qhypstub`** is present in the device's hyp image and absent from the
+       DB410c `hyp.mbn`.  The device's hyp is 524,288 bytes against DB410c's
+       57,344, and its first 57,344 bytes do not match (3ef6bcd1... vs
+       1492b630...).  This matches the wiki's "qhypstub is strongly recommended
+       as a replacement instead of the hyp firmware from db410c".
+
+   (e) `sbl1` reports `QC_IMAGE_VERSION_STRING=BOOT.BF.3.0-00288` and is a
+       32-bit ELF -- consistent with the wiki's rule that sbl1 is NOT replaced
+       on non-UZ801 models, i.e. stock.
+
+   SUMMARY TABLE:
+
+       partition  on this device                stock?          verdict
+       ---------  ---------------------------   -------------   -------------------
+       sbl1       BOOT.BF.3.0-00288, 32-bit     likely STOCK    not a candidate
+       hyp        qhypstub (literal string)     REPLACED        ** non-stock **
+       tz         TZ.BF.3.0-00714 (2017-09-20)  UNKNOWN         ** non-DB410c **
+
+   **WHY THIS STILL MATTERS -- the candidate is real even though the provenance
+   is not yet pinned down:**
+
+   The corpus's AP-hang work (Doc 159) located the hang in the tens of ms after
+   `port failed halt`, and its leading-but-unproven candidate is **one of three
+   untimed TrustZone `qcom_scm_assign_mem()` transfers**.  `qcom_scm_*` calls
+   are served BY THE TZ FIRMWARE.  And `hyp` boots Linux in EL2, i.e. it is the
+   layer the SCM calls cross.
+
+   The stock Android device runs the **ZTE tz and the stock hyp**.  This OpenWrt
+   device runs **qhypstub (proven)** and a **TZ build that is demonstrably not
+   the DB410c 17.09 image**.  **Neither image has ever been examined anywhere in
+   this corpus.**  Both are AP-side, so both are consistent with (and do not
+   contradict) the byte-identical-modem result.
+
+   **IT IS ALSO A DIFFERENCE THE ANDROID DIFFERENTIAL WOULD AUTOMATICALLY
+   EXPOSE**, and unlike NV it is NOT derived from stock -- so it survives PART
+   24's negative result.  Candidate list after PART 24 + PART 25:
+
+       NV ................. REMOVED (derived from stock; not independent)
+       modem firmware ..... REMOVED (byte-identical, all 21 segments)
+       hyp firmware ....... ** CONFIRMED NON-STOCK (qhypstub) **
+       TZ firmware ........ ** NON-DB410c; stock-vs-not UNRESOLVED **
+       AP->modem control .. still open (PART 24's remaining candidate)
+
+   **WHAT IS STILL NEEDED, and it is one file:** whether the device's tz
+   (`TZ.BF.3.0-00714`) equals the STOCK ZTE tz.  That requires the stock image
+   -- from the user's EDL backup (`edl rl zhihe_backup`, which the wiki
+   recommends and whose existence is UNKNOWN -- asked, not assumed), or from a
+   stock firmware package.  **Until that comparison is made, the tz is
+   "different from the wiki's image", NOT "different from stock".**  The hyp
+   finding does not depend on it: qhypstub is non-stock by construction.
+
+   md5 of the on-device images, for a later comparison:
+       tz   = 1f5e33f0730add07c1be51ce25e96562   (whole 1 MB partition)
+       hyp  = 73326f4c54e86c55cf3beb779e2ea8d8   (whole 512 KB partition)
+       sbl1 = 6ca5bd8ce7e680ae4d6b1d3f624f10c7   (whole 512 KB partition)
+
+   The DB410c 17.09 zip was downloaded from the archive.org mirror the wiki
+   names and its MD5SUMS verified (tz.mbn aef2d23e..., hyp.mbn 1492b630...,
+   sbl1.mbn 6a9556a3...), so the reference side is trustworthy.
+
+4. THE WIKI CORROBORATES THE BEARER-REBUILD FINDING INDEPENDENTLY
+--------------------------------------------------------------------------------
+
+   The wiki, on this device family:
+
+       "This device also does not work with ModemManager, nor ofono, straight
+        up crashing the latter."
+
+   Measured here: **ModemManager IS running** on the OpenWrt port --
+   `/usr/sbin/ModemManager --log-level=INFO` (pid 2530), plus
+   `ModemManager-wrapper`, two `ModemManager-monitor` instances, `mmcli -M`, and
+   `modem-bearer-watchdog`.
+
+   This is an INDEPENDENT, EXTERNAL corroboration of the bearer-rebuild
+   finding: the userspace stack the port relies on is one the community
+   documents as unreliable on exactly this hardware.  It is not proof, but it
+   moves "the data stall is userspace" from a local inference to a documented
+   property of the family.
+
+   The wiki's qmicli notes are likewise consistent with the corpus's QMI work:
+   "qmicli seems to be randomly unable to receive status back from the modem
+   ... 'error: operation failed: Transaction timed out'", "--wds-go-dormant /
+   --wds-go-active doesn't do anything", "--wda-set-data-format=raw-ip ... It
+   falsely returns success".  The corpus independently recorded a QRTR
+   time-daemon blind spot and a DORMANT/quiesce question.
+
+5. A FALSE ALARM OF THE ASSISTANT'S OWN, RECORDED BECAUSE IT IS THE SAME TRAP
+--------------------------------------------------------------------------------
+
+   The assistant claimed "the dmesg_roll is broken -- 412 s stale" on boot
+   `a5af0fc8` (roll's last line at uptime 18.95 s, device at 430 s) and "571 s
+   stale" on boot `48f567c0`.  **BOTH CLAIMS WERE WRONG.**
+
+   The check that disproves them is one line: compare the roll's last line
+   against `dmesg`'s own last line.  On `a5af0fc8` both are
+   `[18.954173] br-lan: port 2(usb0) entered forwarding state`, and the ring
+   holds 332 lines while the roll holds its last 250.  **The writer is
+   faithful; the KERNEL simply emitted nothing after 18.95 s.**  The uptime gap
+   was kernel SILENCE, not writer staleness.
+
+   This is the "read the definition, not the name" trap in a new place: the
+   assistant inferred a broken writer from an uptime gap without reading the
+   thing the writer was copying.  Recorded rather than quietly dropped.
+
+   CONSEQUENCE FOR THE MID-SSR TEST: it is SOUND, for the reason that matters.
+   A hang inside a fatal-triggered SSR leaves the fatal as the last line with no
+   recovery after it, and the fatal is near the END of the ring, so it is always
+   within the roll's last 250 lines.  The earlier worry that the test could
+   silently excuse a hang does not apply.  (The roll's 250-line window IS a
+   real bound, but the fatal sits inside it.)
+
+   Also confirmed while checking: `printk` is `6 4 1 7`, so console_loglevel=6
+   is in force and KERN_INFO is stored-but-not-consoled, as intended.
+
+6. THE n >= 60 COUNTER IS CORRECTED FROM 25 TO 21 -- TWO BUGS OF OPPOSITE SIGN
+--------------------------------------------------------------------------------
+
+   PART 24 recorded "the n >= 60 counter is at 25/60".  **That was wrong.**  The
+   correct value is **21**, and the way it went wrong is worth recording because
+   the two errors CANCEL, which is the most dangerous way for a counter to be
+   wrong.
+
+   * Bug 1 (+4, over-count): the n >= 60 watcher was started as
+     `watch813_v2.sh 21 60 ...` while boot C (`48f567c0`) was still LIVE with 4
+     fatals.  But the 21 ALREADY INCLUDES boot C's 4 (PART 22: A 15 + B 2 + C 4
+     = 21).  So `pooled = 21 + 4 = 25` counted boot C twice.  The correct prior
+     was 17 -- which is exactly what the BAR watcher used ("pooled prior 17"),
+     and it is why the bar fired correctly at 21 while the n=60 counter read 25.
+
+   * Bug 2 (-4, under-count): on every re-baseline the watcher logs
+     `pooled score stays at $((POOL_PRIOR+prev_fatals))` but never assigns
+     `POOL_PRIOR`, so the next poll computes `pooled = POOL_PRIOR + 0` and the
+     dead boot's fatals vanish.  Observed live: it printed "stays at 25/60" and
+     the very next line read `pooled=21/60`.
+
+   The two cancel AT THIS MOMENT (25 - 4 = 21, which is the true value), so the
+   displayed 21 is RIGHT BY ACCIDENT.  They will not cancel in general: bug 1
+   is a one-time startup error and bug 2 recurs at every boot boundary, so the
+   count drifts DOWN from here.
+
+   Both are fixed in `scratch/watch813_v3.sh`: the prior is now persisted in a
+   state file so a restart cannot re-add a live boot's fatals, and every
+   re-baseline BANKS the dead boot's fatals before re-reading.
+
+   This is the standing statistics rule's failure mode in miniature: the number
+   the protocol reports was not the number the protocol had counted.
+
 --------------------------------------------------------------------------------
