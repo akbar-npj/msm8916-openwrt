@@ -1771,16 +1771,16 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      attribute `disabled`, watcher procs 0, `sh -n` OK. **PRE-REGISTERED BAR: 0 AP reboots across the
      next 20 fatals** (~5 h at the idle timer) — justified because the pre-823 rate was order 1 reboot
      per 1–3 SSRs, and even a true 1-in-4 rate gives ~99.7 % chance of seeing one in 20.
-     **Progress: 7 of 20 scored, AP survived — fatal #12 is due at AP ≈ `8386.9 s` (fatal #11's modem
-     boot `7484.542` + 902.35); at uptime `8156.67` it is ~230 s away and the AP is healthy, with
-     **673 s since #11 and no fatal**, consistent with the restored clock.** Fatal #11 (sleepmgr, AP `7483.839750`) recovers in
+     **Progress: 8 of 20 scored, AP survived.** **Fatal #12 (sleepmgr, AP `8385.263928`) recovers in
+     `0.122951 s`** — predicted at AP ≈ `8386.9 s` from fatal #11's modem boot and **missed by 1.64 s**,
+     so the modem is **still on the clock two fatals after the cascade ended**. Fatal #11 (sleepmgr, AP `7483.839750`) recovers in
      **`0.119912 s`** and fatal #9 (AP `6397.771058`, `a2_power.c:1189`) in **`0.127579 s`**, both with
      **patch 814's rebuild firing and succeeding**
      (`successfully reinitialized BAM channels and rings` → all 8 `CMD_OPEN`s), and fatal #7 (AP
-     `6110.407029 s`, sleepmgr) in **`0.119170 s`**, so the seven capture-OFF recoveries span
+     `6110.407029 s`, sleepmgr) in **`0.119170 s`**, so the eight capture-OFF recoveries span
      **`0.119170–0.130237 s`** against **`0.824902–0.831559 s`** for the two with the capture **on** —
-     two **non-overlapping** populations **~7× apart**, on seven signatures in seven recoveries.
-     ⚠ **The window now spans TWO regimes** (2 idle-clock fatals + 3 cascade fatals) — say so whenever
+     two **non-overlapping** populations **~7× apart**, on eight signatures in eight recoveries.
+     ⚠ **The window now spans TWO regimes** (3 idle-clock fatals + 3 cascade fatals) — say so whenever
      the bar is quoted. The fourth sample (fatal #6, AP `5208.721361 s`,
      `lte_ml1_sleepmgr_stm.c:4054`) recovers in **`0.127373 s`**. The third sample
      (fatal #5, AP `4304.991306 s`, `a2_power.c:1189`) reproduces it at `0.124531 s`. The second sample
@@ -1967,16 +1967,19 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      suggestive, not established), and **the direction is NOT established.**
      **(f) ★ THE STORM IS BOUNDED TOO (§8.21):** the episode is **AP 3477.894835 → 7417.446456 =
      3939.55 s**, after which `pc_resync_count` **81** and `pc_timeout_count` **78** both **FROZE** while
-     `pm_suspend_attempts` climbed **924 → 1018 (+94)** with `runtime_status: active` — **739 s of silence
-     across ~94 suspends, INCLUDING across fatal #11's full modem reload.** **This REFUTES "the storm is
-     AP-runtime-PM-gated" as §8.15.4 stated it:** freezing both counters under traffic is *equally*
-     consistent with "traffic suppresses suspends" and "traffic suppresses resyncs", and the AP now
-     suspends 94 more times with **zero** resyncs. **The churn is necessary but not sufficient** — the
-     storm needs a **third, unidentified condition** (candidates: the modem's own state, the cascade
-     regime, or a specific *pattern* of suspends; the natural next instrument is to log **which** suspends
-     are followed by a resync, not how many). §8.15.4's intact parts stand: traffic does suppress the
-     storm in practice, and **idle-avoidance does not suppress the fatals.** ⚠ A 739 s silence is a
-     **lull** until a further onset is observed — the sampler and `logroll.sh` are both still running.
+     `pm_suspend_attempts` climbed **924 → 1050 (+126)** with `runtime_status: active` — **968 s of
+     silence across ~126 suspends, INCLUDING across TWO full modem reloads (fatal #11 AND fatal #12).**
+     **This REFUTES "the storm is AP-runtime-PM-gated" as §8.15.4 stated it:** freezing both counters
+     under traffic is *equally* consistent with "traffic suppresses suspends" and "traffic suppresses
+     resyncs", and the AP now suspends 126 more times with **zero** resyncs. **The churn is necessary
+     but not sufficient** — the storm needs a **third, unidentified condition**. The strongest surviving
+     candidate is a specific *pattern* of suspends (the natural next instrument is to log **which**
+     suspends are followed by a resync, not how many); **"the modem's own state" is now the most
+     disfavoured**, because the storm was **present across SEVEN consecutive modem reloads (#4–#10)** and
+     then **absent across the next two** — so a modem boot carries the state neither way. §8.15.4's
+     intact parts stand: traffic does suppress the storm in practice, and **idle-avoidance does not
+     suppress the fatals.** ⚠ A 968 s silence is a **lull** until a further onset is observed — the
+     sampler and `logroll.sh` are both still running.
      **(g) ⚠ CORRECTIONS:** S2 is **58 samples / 9 losses** (not 56/7), the **silent-loss class is n = 3**
      (not 2 — 6130.44 was misclassified as "ping crossed the ifup": fatal #7's SSR completed at
      `6111.927`, the ports attached by `6112.87`, and the ping fired **17.6 s later** then timed out for

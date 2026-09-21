@@ -1968,3 +1968,150 @@ instrument RUNNING past the point where it had already produced a result.
      correction.
    * The silent data-plane loss (n = 3) has no instrument pointed at it yet.
 
+
+================================================================================
+PART 13 -- FATAL #12 (n = 8): STILL ON THE CLOCK, AND THE STORM SILENCE NOW
+           SURVIVES *TWO* MODEM RELOADS
+           (added 2026-09-21 ~19:30 local / 13:35 UTC, boot a9fd907c, AP 8426.16 s)
+================================================================================
+
+Fatal #12 arrived while PART 12 was being written.  It is the second consecutive
+clock fatal after the cascade, and it extends §8.21's storm silence across a
+second full modem reload.
+
+--------------------------------------------------------------------------------
+1. THE FATAL AND ITS RECOVERY
+--------------------------------------------------------------------------------
+
+   $ dmesg | grep "fatal error received" | tail -1
+   [ 8385.263928] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+
+     AP delta  fatal#11 -> fatal#12 = 8385.263928 - 7483.839750 = 901.424178 s
+     modem uptime (from fatal #11's `is now up` 7484.542307)      = 900.721621 s
+     predicted at AP 8386.9 (fatal #11's modem boot 7484.542 + 902.35)
+                                                    ->  MISSED BY 1.64 s
+     SSR before shutdown 8385.287675 -> MBA booted 8385.410626 = 0.122951 s
+
+   The recovery window (RX-watchdog / pc-ack lines filtered out):
+
+     [ 8385.263928] fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+     [ 8385.264036] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+     [ 8385.272813] remoteproc remoteproc0: handling crash #12 in 4080000.remoteproc
+     [ 8385.280004] remoteproc remoteproc0: recovering 4080000.remoteproc
+     [ 8385.287675] bam-dmux ...: SSR before shutdown: scheduling teardown work
+     [ 8385.287735] bam-dmux ...: SSR teardown T1 entry
+     [ 8385.293200] bam-dmux ...: SSR teardown T0 scheduled
+     [ 8385.300615] bam-dmux ...: SSR teardown T2 tx_retry cancelled
+     [ 8385.308431] bam-dmux ...: SSR teardown T3 tx_wakeup cancelled
+     [ 8385.316971] bam-dmux ...: SSR teardown T4 state_lock acquired
+     [ 8385.325541] bam-dmux ...: executing serialized asynchronous SSR teardown
+     [ 8385.325612] bam-dmux ...: bam-dmux T5 rx released
+     [ 8385.334240] bam-dmux ...: bam-dmux T6 tx released
+     [ 8385.341150] bam-dmux ...: bam-dmux T7 power_off returned
+     [ 8385.348133] bam-dmux ...: bam-dmux T8 work done
+     [ 8385.355428] bam-dmux ...: bam-dmux T9 flush returned
+     [ 8385.363705] wwan wwan0: port wwan0at0 disconnected
+     [ 8385.363883] wwan wwan0: port wwan0at1 disconnected
+     [ 8385.364343] wwan wwan0: port wwan0qmi0 disconnected
+     [ 8385.365497] q6v5-trace: 01 disable_qchannel mdm
+     [ 8385.365519] q6v5-trace: 02 disable_qchannel cx
+     [ 8385.365528] q6v5-trace: 03 disable_qchannel axi
+     [ 8385.365537] q6v5-trace: 04 reset_assert
+     [ 8385.365579] q6v5-trace: 05 clk_disable reset
+     [ 8385.365588] q6v5-trace: 06 clk_disable active
+     [ 8385.365625] q6v5-trace: 07 regulator_disable active
+     [ 8385.365635] q6v5-trace: 08 SCM mba_perm reclaim (TrustZone)
+     [ 8385.365644] q6v5-trace: 09 qcom_q6v5_unprepare
+     [ 8385.365728] remoteproc remoteproc0: stopped remote processor 4080000.remoteproc
+     [ 8385.366602] q6v5-trace: 10 qcom_q6v5_prepare
+     [ 8385.366625] q6v5-trace: 11 pds_enable proxy
+     [ 8385.368094] q6v5-trace: 12 regulator_enable fallback_proxy
+     [ 8385.368113] q6v5-trace: 13 regulator_enable proxy
+     [ 8385.368131] q6v5-trace: 14 clk_enable proxy
+     [ 8385.368143] q6v5-trace: 15 regulator_enable active
+     [ 8385.368152] q6v5-trace: 16 clk_enable reset
+     [ 8385.368160] q6v5-trace: 17 reset_deassert
+     [ 8385.368198] q6v5-trace: 18 clk_enable active
+     [ 8385.368223] q6v5-trace: 19 enable_qchannel axi
+     [ 8385.368232] q6v5-trace: 20 SCM mpss_perm (TrustZone)
+     [ 8385.368241] q6v5-trace: 21 SCM mba_perm (TrustZone)
+     [ 8385.368249] q6v5-trace: 22 pil_info_store + rmb writel
+     [ 8385.368257] q6v5-trace: 23 q6v5proc_reset
+     [ 8385.410626] MBA booted without debug policy, loading mpss
+     [ 8385.966467] bam-dmux ...: SSR after powerup: scheduling powerup work
+     [ 8385.966522] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+     [ 8386.170598] bam-dmux ...: SSR powerup: modem pc_state=1 (waited 200 ms)
+     [ 8386.170630] bam-dmux ...: SSR powerup: channels already active
+     [ 8386.407207] wwan wwan0: port wwan0at0 attached
+     [ 8386.407617] wwan wwan0: port wwan0at1 attached
+
+   *** CAPTURE-OFF SIGNATURE CONFIRMED: ONE half-cycle pair (01-09, 10-23), ONE
+       `MBA booted`, NO `port failed halt`, `0.122951 s` inside the capture-OFF
+       band.  patch 814's rebuild fired and succeeded. ***
+
+--------------------------------------------------------------------------------
+2. BOOT-WIDE COUNTS AFTER FATAL #12
+--------------------------------------------------------------------------------
+
+   $ for p in "fatal error received" "MBA booted" "port failed halt" \
+              "received CMD_OPEN" "SSR before shutdown"; do
+       printf "%-28s %s\n" "$p" "$(dmesg | grep -c "$p")"; done
+   fatal error received         12
+   MBA booted                   13     <- cold boot + one per recovery
+   port failed halt              2     <- exactly the two capture-ON recoveries
+   received CMD_OPEN           104     <- 8 channels x 13 modem boots
+   SSR before shutdown          12
+
+   $ ls /overlay/coredump_live/ | wc -l   ->  18     (FROZEN)
+   $ cat /sys/class/remoteproc/remoteproc0/coredump  ->  disabled
+   $ cat /sys/class/remoteproc/remoteproc0/state     ->  running
+
+   The host uptime watcher shows a monotonic 7418 -> 8382 with no reboot.
+
+   *** s8.13 BAR: 8 OF 20 POST-DISABLE FATALS SCORED, 0 AP REBOOTS. ***
+   The eight capture-OFF recoveries now span 0.119170-0.130237 s (n = 8, spread
+   11.1 ms) against 0.824902-0.831559 s for the two capture-ON -- still
+   non-overlapping, still ~7x apart.
+
+--------------------------------------------------------------------------------
+3. THE STORM SILENCE NOW SURVIVES *TWO* MODEM RELOADS
+--------------------------------------------------------------------------------
+
+   $ dmesg | grep "lost edge" | tail -1
+   [ 7417.446456] bam-dmux ...: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+
+   *** THE LAST LOST EDGE IS STILL 7417.446456. ***
+   Silence = 8385.263928 - 7417.446456 = 967.817 s.
+
+   $ cat .../rx_telemetry
+   pc_resync_count: 81        <- FROZEN (unchanged since 7449.4)
+   pc_timeout_count: 79       <- +1 only, and that increment IS the post-fatal
+                                 artefact below
+   pm_suspend_attempts: 1050  <- CLIMBING (1018 at 8156.67, 924 at 7394.0)
+   runtime_status: active
+
+   The ONLY new handshake event in the whole window:
+     [ 8385.704199] modem pc-ack timeout during resume
+   = +0.293573 s AFTER fatal #12's `MBA booted` -- a post-SSR recovery
+   artefact, exactly the pattern s8.18 recorded (prior: +0.431112 / +0.581419 /
+   +0.435022 / none / +0.302392).  It is NOT a storm event.
+
+   *** A MODEM RELOAD IS SUFFICIENT NEITHER TO END THE STORM NOR TO RESTART
+       IT. ***
+   Present across SEVEN consecutive modem reloads (#4-#10); absent across the
+   next two (#11, #12).  So the storm's state is not carried by a modem boot in
+   either direction -- which is why s8.21's candidate (a) ("the modem's own
+   state") is now the MOST DISFAVOURED of the three, and a specific PATTERN of
+   AP suspends is the strongest survivor.
+
+--------------------------------------------------------------------------------
+4. STILL RUNNING, STILL OWED
+--------------------------------------------------------------------------------
+
+   * rpmring (/overlay/rpm9.txt), storm_sampler, logroll.sh, host uptime watcher
+     -- all still running; none should be stopped.
+   * Fatal #13 due at AP ~9287.6 s (fatal #12's modem boot 8385.966 + 902.35).
+   * 12 fatals remain in the s8.13 bar.
+   * The silent data-plane loss (n = 3) still has no instrument pointed at it.
+
+

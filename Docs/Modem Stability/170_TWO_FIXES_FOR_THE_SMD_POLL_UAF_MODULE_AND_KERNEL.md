@@ -54,8 +54,8 @@ runtime-PM resume. **The falsifier stated before checking is NOT falsified and t
 measurement agree — giving up at 250 ms and proceeding IS the 416/551/398/431 ms RTT spike S2 measured.
 **Scoped honestly: a LATENCY defect, not a stability one — it does not touch the 902 s fatal, which
 §8.15.4 proved is not PM-gated.** §8.15.6 then locates the storm's onset exactly (**AP 3477.894835, the
-boot's FIRST lost edge — dmesg ring verified not wrapped — 0 in 3477 s then 39 in 2600 s, surviving
-four SSRs**) and shows the churn it rides on is Android-parity (Android suspends 1 per 3.5 s with 0 %
+boot's FIRST lost edge — dmesg ring verified not wrapped — 0 in 3477 s then 39 in 2600 s, spanning
+seven modem reloads**) and shows the churn it rides on is Android-parity (Android suspends 1 per 3.5 s with 0 %
 loss), so **the churn is not the defect; the 5 % handshake failure rate is.** §8.13.5 adds fatal #7
 (**n = 5**, new minimum 0.119170 s), §8.17 records a **new signature `a2_task.c:3179`** cascading at
 120.76 s with a **negative** antecedent and a storm-rate "jump" that is **not** a precursor, and §8.18
@@ -76,6 +76,10 @@ then **739 s silent across ~94 suspends INCLUDING across fatal #11's full modem 
 sufficient.** §8.19(c) also **CORRECTS S2 to 58 samples / 9 losses** (the silent class is **n = 3**, not
 2 — 6130.44 was misclassified) and makes the §8.16 counter accounting **EXACT at 100 %** (81 = 81;
 78 = 76 + 2).**
+**§8.13.6 then adds fatal #12 (sleepmgr, AP `8385.263928`) — **n = 8**, recovery **`0.122951 s`**,
+predicted from fatal #11's modem boot and **missed by 1.64 s**, so **the modem is still on the clock**
+two fatals after the cascade ended; and the storm silence, still unbroken, now spans **TWO** modem
+reloads (§8.21 updated).**
 
 ---
 
@@ -1285,6 +1289,48 @@ Boot-wide after fatal #7: **7 fatals / 8 `MBA booted` / 2 `port failed halt` / t
 
 ---
 
+### §8.13.6 EIGHTH SAMPLE — fatal #12 makes it **n = 8**, the modem is STILL ON THE CLOCK, and the storm silence has now survived **TWO** modem reloads
+
+Fatal #12 is **`lte_ml1_sleepmgr_stm.c:4054`** at AP **8385.263928 s** — the clock signature, and the
+**second consecutive clock fatal** after the cascade.
+
+```
+AP delta  fatal#11 -> fatal#12 = 8385.263928 - 7483.839750 = 901.424178 s
+modem uptime (from fatal #11's `is now up` 7484.542307)      = 900.721621 s
+predicted at AP 8386.9 (fatal #11's modem boot 7484.542 + 902.35)  ->  MISSED BY 1.64 s
+SSR before shutdown 8385.287675  ->  MBA booted 8385.410626  = 0.122951 s
+```
+
+**`0.122951 s` lands INSIDE the capture-OFF band**, which stays `0.119170–0.130237 s` — now **n = 8,
+spread 11.1 ms** — against `0.824902–0.831559 s` for the two capture-ON: still non-overlapping, still
+**~7× apart**, now on **eight signatures in eight recoveries**. No `port failed halt`. One half-cycle
+pair (`01-09, 10-23`), one `MBA booted`. `coredump_live` **frozen at 18**; `coredump` attribute still
+`disabled`; `rproc=running`; the host uptime watcher shows a monotonic **7418 → 8382** with no reboot.
+
+Boot-wide: **12 fatals / 13 `MBA booted`** (= cold boot + one per recovery) **/ 2 `port failed halt`**
+(exactly the two capture-ON) **/ `cmd_open` 104 = 8 channels × 13 modem boots / 12 `SSR before
+shutdown`**.
+
+Post-SSR artefact, 6th sample: `pc-ack timeout` at **8385.704199** = **+0.293573 s** after `MBA booted`
+(prior: +0.431112 / +0.581419 / +0.435022 / none / +0.302392). **It is the ONLY new handshake event in
+the whole window, and it is post-fatal** — the pattern §8.18 recorded holds.
+
+**★ AND THE STORM IS STILL SILENT — NOW ACROSS A SECOND MODEM RELOAD.** `pc_resync_count` is **81**
+and the **last lost edge in `dmesg` is STILL `[ 7417.446456]`**, so the silence stands at
+**967.817 s** (7417.446456 → 8385.263928), and **fatal #12's reload did not restart the storm either**.
+`pc_timeout_count` moved 78 → 79, and that single increment *is* the post-fatal artefact above — so no
+new storm event. `pm_suspend_attempts` 1018 → 1050 (**+32**) across the same window.
+
+**⇒ §8.21's finding is now TWO RELOADS DEEP, not one: a modem reload is sufficient neither to END the
+storm nor to RESTART it.** The storm is therefore not a per-modem-boot state — which sharpens §8.21's
+open question (it began 81.5 ms before crash #4 and spanned seven modem reloads; it then ended on its own and
+survived two further reloads). The "third condition" is on the **AP** side or in a **pattern** of
+suspends, not in the modem's boot state.
+
+**s8.13 bar: 8 of 20 post-disable fatals scored, 0 AP reboots.** Remaining: 12 fatals.
+
+---
+
 ### §8.14 THE HOST KERNEL LOG REFRAMES THE AP-RESET RATE — §8.10's "reset that survived 823" WAS MY OWN HUB INSTALLATION, AND §8.11's RATE IS NOT AN AP-HANG RATE
 
 §8.10 concluded that 823 is not a complete fix, from **one** event: an "AP reset" at 17:03:24 (AP
@@ -1870,7 +1916,8 @@ Within this boot:
 At ~1 suspend per 6.9 s (§8.15.4/s3) that is **0 failures in ~500 suspend cycles, then ~5 % forever**.
 P(0 in 504 │ p = 0.05) ≈ 10⁻¹¹ — a genuine step change, not a tail.
 
-**And the storm survives crashes #5, #6, #7 and #8 — four SSRs.** It is not created by an SSR and not
+**And the storm survives crashes #5, #6, #7 and #8 — four SSRs as of this writing; §8.21 later
+extended the span to SEVEN modem reloads (#4–#10) before the storm ended at AP 7417.446456.** It is not created by an SSR and not
 reset by one; it is a persistent AP-side/driver-side state established at AP 3477.89. Note the
 direction: the first storm event *precedes* fatal #4 by 81 ms, so the storm did not follow the fatal —
 the fatal's own antecedent is the storm's first member.
@@ -2220,7 +2267,8 @@ READING OF THIS EXPERIMENT WAS CONFOUNDED AND IS WITHDRAWN.**
 **`lte_ml1_sleepmgr_stm.c:4054`** — the clock — **903.332309 s** after fatal #10. I predicted AP
 ≈ 7482.8 s from fatal #10's modem boot; the miss is **1.04 s over a 902 s period**. Recovery:
 `SSR before shutdown` 7483.863268 → `MBA booted` 7483.983180 = **0.119912 s**, no `port failed halt`,
-patch 814's rebuild fired, AP survived ⇒ **§8.13 bar: 7 of 20 scored, 0 AP reboots** (boot-wide 11
+patch 814's rebuild fired, AP survived ⇒ **§8.13 bar: 7 of 20 scored, 0 AP reboots at that point
+(8 of 20 after fatal #12 — §8.13.6)** (boot-wide 11
 crashes / 12 `MBA booted` / 2 `port failed halt` / `cmd_open` 96 = 8 × 12).
 
 **⇒ THE CASCADE SELF-TERMINATED AFTER THREE BEATS (120.8 / 166.6 / 182.7 s) AND THE MODEM WENT BACK
@@ -2376,9 +2424,10 @@ fatals               11     <- fatal #11 (7483.840) came AND went inside the sil
 rproc            running
 ```
 
-**⇒ THE STORM EPISODE IS AP 3477.894835 → 7417.446456 = 3939.55 s, AND IT HAS NOW BEEN SILENT FOR 739 s
-ACROSS ~94 SUSPENDS — INCLUDING ACROSS FATAL #11'S FULL MODEM RELOAD** (ports re-attached 7488.1, 8
-`CMD_OPEN`s, then `runtime_status: active` with zero resyncs).
+**⇒ THE STORM EPISODE IS AP 3477.894835 → 7417.446456 = 3939.55 s, AND IT HAS NOW BEEN SILENT FOR 968 s
+ACROSS ~126 SUSPENDS — INCLUDING ACROSS *TWO* FULL MODEM RELOADS** (fatal #11: ports re-attached
+7488.1; fatal #12 at 8385.264: ports re-attached 8386.407 — and `pc_resync_count` held at **81**
+through both). **Updated after fatal #12 (§8.13.6).**
 
 **⚠ THIS REFUTES "THE STORM IS AP-runtime-PM-GATED" AS §8.15.4 STATED IT.** §8.15.4's S1 showed that
 1 Hz traffic froze `pc_resync_count` **and** `pm_suspend_attempts` together for 364 s, and inferred the
@@ -2393,16 +2442,20 @@ direction.** This does test it: **the AP suspends 94 more times with zero resync
   `pm_suspend_attempts` frozen, and **fatal #11 fired inside this silence**.
 
 **What is open instead — the storm needs a THIRD condition.** Candidates, none tested:
-1. **the modem's own state** — but the storm began 81.5 ms before crash #4 and **survived four SSRs**
-   (§8.15.6), so it is *not* purely per-modem-boot; and fatal #11's reload did not restart it;
+1. **the modem's own state** — but the storm began 81.5 ms before crash #4 and **spanned SEVEN
+   consecutive modem reloads** (#4 through #10 — the whole span from its onset to its end), so it is
+   *not* per-modem-boot; and **two further reloads (#11 and #12) did not restart it.** **This candidate
+   is now the most disfavoured of the three:** the storm was present across seven modem boots and
+   absent across the next two, so its state is not carried by a modem boot either way;
 2. **the cascade regime** — but the storm ran **836.9 s past** the cascade's last fatal (#10, 6580.507),
    so it is not the cascade either;
 3. **a specific PATTERN of suspends**, rather than their rate — untested, and the natural next
    instrument (log *which* suspends are followed by a resync, not how many).
 
-**⚠ AND A 739 s SILENCE IS NOT PROOF THE STORM IS *OVER*.** A lull cannot be distinguished from an end
+**⚠ AND A 968 s SILENCE IS NOT PROOF THE STORM IS *OVER*.** A lull cannot be distinguished from an end
 until a further onset is observed. The `storm_sampler` and `logroll.sh` are both still running and will
-catch a restart; **what the silence does prove is that the churn rate alone does not sustain the storm.**
+catch a restart; **what the silence does prove is that the churn rate alone does not sustain the storm,
+and neither does a modem reload — in either direction.**
 
 ---
 
@@ -2648,7 +2701,8 @@ catch a restart; **what the silence does prove is that the churn rate alone does
   Fatal #11 fired at **AP 7483.839750**, signature **`lte_ml1_sleepmgr_stm.c:4054`**, **903.332309 s**
   after fatal #10 — **predicted at AP ≈ 7482.8 s from fatal #10's modem boot, missed by 1.04 s** — and
   recovered in **0.119912 s** with no `port failed halt` and patch 814's rebuild firing, AP survived.
-  **⇒ §8.13 bar: 7 of 20 scored, 0 AP reboots.** Operationally this matters: **the cascade is not a
+  **⇒ §8.13 bar: 7 of 20 scored, 0 AP reboots at that point (8 of 20 after fatal #12 — §8.13.6).**
+  Operationally this matters: **the cascade is not a
   permanent degradation**, and the "902 s clock" is really **"902 s of modem uptime"**, which the next
   reload restarts. **⚠ AND MY FIRST READING OF THIS EXPERIMENT IS WITHDRAWN:** I stopped the traffic at
   uptime 6600.88, saw 0 fatals in 434.6 s, and called the cascade "traffic-dependent" — but the
@@ -2677,22 +2731,24 @@ catch a restart; **what the silence does prove is that the churn rate alone does
   samples 6119.3/6174.7 **is the maximum of the whole 33-sample series**, first reached in the two
   samples before fatal #8. **The pre-fatal window is the series maximum but is not separated from a
   value reached three times earlier — suggestive, not established (trap 17).**
-* **RUNNING NOW: the §8.13 coredump-off experiment — 7 of 20 fatals scored, AP survived.** The bar is
-  **0 AP reboots across 20 fatals**. **Fatal #9 (`a2_power.c:1189`, AP 6397.771058) gave 0.127579 s**
-  and **fatal #11 (sleepmgr, AP 7483.839750) gave 0.119912 s**, both inside the capture-OFF band, with
-  **patch 814's rebuild firing and succeeding** in both
-  (`successfully reinitialized BAM channels and rings` → all 8 `CMD_OPEN`s). Seven capture-OFF
-  recoveries now span **0.119170–0.130237 s** against **0.824902–0.831559 s** for the two capture-ON —
-  two non-overlapping populations ~7× apart, on **seven signatures in seven recoveries**.
-  ⚠ **The window now spans TWO regimes** (2 idle-clock fatals + 3 cascade fatals); say so whenever the
+* **RUNNING NOW: the §8.13 coredump-off experiment — 8 of 20 fatals scored, AP survived.** The bar is
+  **0 AP reboots across 20 fatals**. **Fatal #9 (`a2_power.c:1189`, AP 6397.771058) gave 0.127579 s**,
+  **fatal #11 (sleepmgr, AP 7483.839750) gave 0.119912 s** and **fatal #12 (sleepmgr, AP 8385.263928)
+  gave 0.122951 s**, all inside the capture-OFF band, with **patch 814's rebuild firing and succeeding**
+  in all three (`successfully reinitialized BAM channels and rings` → all 8 `CMD_OPEN`s). Eight
+  capture-OFF recoveries now span **0.119170–0.130237 s** against **0.824902–0.831559 s** for the two
+  capture-ON — two non-overlapping populations ~7× apart, on **eight signatures in eight recoveries**.
+  ⚠ **The window now spans TWO regimes** (3 idle-clock fatals + 3 cascade fatals); say so whenever the
   bar is quoted. ⚠ **Score on `SSR before shutdown`→`MBA booted`, NOT fatal→`is now up`.**
   Re-enable the capture with `touch /overlay/coredump_ENABLE`.
   If it succeeds, this is a **production-viable fix** — the coredump is a debug feature, and disabling
   it also stops 85 MB/fatal being written to `/overlay`. If it fails, the `dmesg_roll` tail says
   whether the recovery had already passed the coredump step, which is itself informative.
-  **Remaining: 13 fatals.** Fatal #12 is due at AP ≈ **8386.9 s** (fatal #11's modem boot 7484.542 +
-  902.35); at **uptime 8156.67** it is ~230 s away and the AP is healthy — **673 s since #11 with no
-  fatal**, consistent with the restored clock and not yet evidence of anything.
+  **Remaining: 12 fatals.** **Fatal #12 has since arrived** at AP **8385.263928 s**
+  (`lte_ml1_sleepmgr_stm.c:4054`, the clock) — **901.424178 s** after #11, predicted at AP ≈ 8386.9 s
+  from #11's modem boot, **missed by 1.64 s**, i.e. **the modem is still on the clock two fatals after
+  the cascade ended** (§8.13.6). Fatal #13 is due at AP ≈ **9287.6 s** (fatal #12's modem boot
+  8385.966 + 902.35).
 * **★ CHASE THE "LOST EDGE" STORM — but the question has CHANGED twice (§8.15 → §8.15.2 → §8.15.3).**
   The original question ("is a resync a poison pill 74 ms in front of a fatal?") is now **mostly
   answered NO**: 15 resyncs in this boot, only **1** preceded a fatal, and 8+ minutes of storm ran with
@@ -2823,7 +2879,8 @@ catch a restart; **what the silence does prove is that the churn rate alone does
   boot's FIRST lost edge.** The dmesg ring did **not** wrap (`[ 0.000000]` present, 889 lines, crashes
   #1–#8 all there), so this is real: **0 lost edges in 3477 s, then 39 in 2600 s**, a step change
   (P(0 in 504 │ p=0.05) ≈ 10⁻¹¹), starting **81.479 ms before crash #4**. **The storm then survives
-  crashes #5, #6, #7 and #8 — four SSRs.** And the churn it rides on is **Android-parity** (Android: 918
+  crashes #5, #6, #7 and #8 — four SSRs as of that writing; §8.21 later extended the span to SEVEN
+  modem reloads (#4–#10).** And the churn it rides on is **Android-parity** (Android: 918
   collapses in 54 min = 1 per 3.5 s, 0 % loss), so **the churn is not the defect — the handshake
   failure rate is.** S1 is independently corroborated by the second sampler: six consecutive samples
   (~332 s) with `dresync=0`, `dtimeout=0` and `susp` frozen at 636/625.
