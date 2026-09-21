@@ -65,16 +65,27 @@ probe_dataplane() {
 	tries="${PROBE_TRIES:-12}"
 	every="${PROBE_EVERY:-5}"
 	i=0
+	trace=""
 	while [ "$i" -lt "$tries" ]; do
 		route=$(ip route show default 2>/dev/null | head -1)
 		if [ -n "$route" ] && ping -c 1 -W 3 -q 8.8.8.8 >/dev/null 2>&1; then
 			log "DATA PLANE OK ($why): recovered after ~$((i * every))s; $route"
 			return 0
 		fi
+		# Record WHY this attempt failed.  A bare "down" cannot distinguish
+		# "no route yet" (netifd has not re-installed it) from "route present
+		# but the modem is not passing packets" -- and run 6 produced exactly
+		# that ambiguity for SSR #5 (see Doc 157 section 7.6).  One awk over
+		# the telemetry, not four greps, to keep the iteration short.
+		set -- $(awk -F: '/^(pc_state|pc_line_level|rx_slots_mapped|cmd_open):/ {
+				      gsub(/ /, "", $2); printf "%s ", $2 }' "$TEL" 2>/dev/null)
+		if [ -n "$route" ]; then r="route"; else r="NOroute"; fi
+		trace="$trace $((i * every))s[$r pc=$1 line=$2 rxmap=$3 open=$4]"
 		i=$((i + 1))
 		sleep "$every"
 	done
 	log "DATA PLANE DOWN ($why): NOT recovered after $((tries * every))s"
+	log "  trace:$trace"
 	log "  wwan0: $(ip link show wwan0 2>/dev/null | head -1)"
 	log "  telemetry: $(grep -E '^(pc_state|pc_line_level|pc_resync_count|rx_slots_mapped|cmd_open|rx_tearing_down):' "$TEL" | tr '\n' ' ')"
 	return 1

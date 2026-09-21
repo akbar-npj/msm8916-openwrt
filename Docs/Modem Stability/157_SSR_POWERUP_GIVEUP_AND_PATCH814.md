@@ -4,11 +4,12 @@
 syslog lines are converted to kernel time where both exist, and the conversion is stated.
 
 **Status:** **root cause found, mechanism source-verified and measured on the live device, fix written,
-built, deployed and running, and the recovery path proven.** Soak run 1 confirms the **normal** SSR path
-is intact with the patch deployed (§7.4); run 3 proves the retry rebuilds the channels **with the assert
-edge deliberately dropped**, i.e. in exactly the failure mode the patch exists for (§7.5). What is still
-missing is a *natural* occurrence of the trigger (a modem slower than 3.2 s) — soak run 4 is watching
-for one (§8.4).
+built, deployed and running, and both recovery paths proven.** Soak run 1 confirms the **normal** SSR
+path is intact with the patch deployed (§7.4); run 3 proves the retry rebuilds the channels **with the
+assert edge deliberately dropped**, i.e. in exactly the failure mode the patch exists for (§7.5); and
+run 6 shows the **watchdog rebuild firing naturally, twice** (§7.6). The only thing still missing is a
+*natural* occurrence of the **retry's** trigger (a modem slower than 3.2 s) — every modem in run 6 was
+ready in 540–580 ms. Soak run 7 is watching for one.
 
 Source changed in the **tracked** tree (`msm89xx/patches/814-bam-dmux-ssr-powerup-retry.patch`); the
 deployed `/lib/modules/6.12.94/qcom_bam_dmux.ko` was replaced (md5 `eca269f1…`, previous build backed
@@ -507,6 +508,53 @@ normal path again (`SSR powerup: modem pc_state=1 (waited 560 ms)`, `channels al
 **This closes the last verification gap on patch 814.** The recovery does not depend on ever receiving
 another interrupt.
 
+### 7.6 Run 6 — the watchdog rebuild fires **naturally**, twice, and a new stall is found
+
+Run 6 (`run6_soak814.csv`, `.log`, `run6_dmesg_final.txt`; 538 samples, 8 fatals in one boot) is the
+longest soak on the production module and it settles the remaining question in the other direction:
+
+```
+[2907.109701] RX watchdog: modem awake (pc line asserted) but no channels, rebuilding
+[3888.527634] RX watchdog: modem awake (pc line asserted) but no channels, rebuilding
+```
+
+**The §6.2 recovery path fired twice on its own**, with no test build, and both times the data plane
+came back (`DATA PLANE OK (SSR #4): recovered after ~25s`, `(SSR #6): recovered after ~10s`). The CSV's
+`rebuilds` column tracks it (`0` → `1` at SSR #4 → `2` at SSR #6). So **both** new recovery paths are
+now verified: the retry by the run-3 test build (§7.5), and the watchdog rebuild by a natural trigger
+here.
+
+`retries` stayed **0** for all 8 SSRs. Every modem in this run was ready within 540–580 ms, far inside
+the original 3.2 s window, so the retry had nothing to do — which is the expected result and confirms
+the patch is inert when it is not needed (§7.4, §8.4 item 1).
+
+**A new observation, and it is NOT explained.** SSR #5's recovery looks clean in dmesg —
+`successfully reinitialized BAM channels and rings` at `3819.105`, then all eight `CMD_OPEN`s at
+`3819.110` — but **no data flowed for ~68–85 s**. The harness probe made 12 attempts over 75 s and
+failed every one, and the telemetry agrees independently: across `3817.67 s → 3903.37 s` **`rx_pkts`
+advanced by 0 while `tx_pkts` advanced by 45**, against a healthy baseline of ~40 TX *and* ~40 RX per
+10 s sample. It recovered only when the *next* fatal's SSR (#6) tore the channels down and rebuilt
+them. This is a "recovered" SSR that did not pass data — a different failure from the one this doc is
+about (there, `wwan0` was DOWN and `cmd_open` was frozen; here the driver reported success).
+
+It is recorded as an **observation needing confirmation, not a finding**: n=1, and the probe's own
+`wwan0 … state DOWN` snapshot at 3893 s is contaminated by SSR #6's teardown at 3887 s. The harness has
+been changed to make the next occurrence decisive — `probe_dataplane()` now logs a per-attempt trace
+(`route`/`NOroute`, `pc_state`, `pc_line_level`, `rx_slots_mapped`, `cmd_open`) so a bare "down" can be
+told apart from "route present but the modem is not passing packets".
+
+**Harness lesson, for the third time in this line of work.** The same run's log made SSR #5 *look* like
+it had lost its `SSR after powerup` line — the teardown at `3809.637` was the last matching line and
+nothing followed it. It was not a defect: the block captures `dmesg | grep … | tail -8`, and it was
+written at 3818.16 s, i.e. **0.33 s before the modem finished coming up at 3818.489 s**. The full dmesg
+(`run6_dmesg_final.txt`) shows the cycle was completely normal. A bounded `tail` window is a
+measurement instrument with a blind spot, and the fix is always the same: check the raw log before
+believing the summary.
+
+**Also in this run, and it is a production failure, not a harness one:** the boot continued past the
+soak's 8-fatal limit, took 21 crashes in total, and **hung on the 21st**. That is a different defect at
+a different site and it has its own doc — **Doc 159**.
+
 
 ## 8. Scope, what this is not, and next
 
@@ -544,6 +592,14 @@ paths were therefore exercised by a **deliberately crippled test build** instead
 which turned out to be the better experiment anyway, because it isolates the poll path from the
 interrupt path (§7.5).
 
+**Update, same day — this is NOT the same hang as Doc 159.** Run 6's boot later hung on a *spontaneous*
+fatal (crash #21) and it landed at a **different site**: past `executing serialized asynchronous SSR
+teardown` and past `stopped remote processor`, on the line `port failed halt`. The `echo stop` hang
+lands *before* the teardown work even starts. Two distinct hangs, one a test-route hazard and one a
+production failure — see **Doc 159**. The practical consequence above is unchanged (still do not use
+`echo stop`), but the reason to care about this area is now much stronger than "a test route is
+unavailable".
+
 ### 8.3 Open questions
 
 1. **Why was the assert edge missed?** §5.1. The candidate is the direct write to the modem's SMEM
@@ -559,11 +615,13 @@ interrupt path (§7.5).
 
 ### 8.4 Next, in priority order
 
-1. **Keep `soak814.sh` running** (run 4 is live on the production module `eca269f1…`) and watch for a
+1. **Keep `soak814.sh` running** (run 7 is live on the production module `eca269f1…`) and watch for a
    **natural** `retry N/20` line followed by `DATA PLANE OK (SSR #n)`. The retry's own rebuild branch is
-   now proven by construction (§7.5), so this is no longer a correctness question — it is a
-   confirmation that the *trigger* occurs in the field. A run in which no retry fires is
-   **inconclusive, not negative** — say so, do not upgrade it.
+   now proven by construction (§7.5) and the *watchdog* rebuild has since fired naturally twice (§7.6),
+   so this is no longer a correctness question — it is a confirmation that the *retry's* trigger (a
+   modem slower than 3.2 s) occurs in the field at all. Run 6 produced 8 SSRs and **no** retry, every
+   modem being ready in 540–580 ms. A run in which no retry fires is **inconclusive, not negative** —
+   say so, do not upgrade it.
 2. **Amend memory quirk #9** — `auto` is not the whole story; see §8.1.
 3. **Instrument SMSM** for the missed-edge question (§8.3 item 1), if a third occurrence appears.
 4. **Do not** retry `echo stop` as a test route (§8.2).
@@ -607,13 +665,28 @@ interrupt path (§7.5).
 15. The run-3 test build is reproducible from the saved patch (`run3_test_edits.patch` → md5
     `5e26986d…`), and reverting it reproduces the production module byte-exactly
     (`eca269f10a685a83a8b679bc7be38d1d`), verified by rebuild. §7.5.
+16. **The §6.2 watchdog rebuild fires on a natural trigger.** In run 6 the modem asserted the pc line
+    while `pc_state` was 0 with no channels, twice (2907.1 s, 3888.5 s), the watchdog rebuilt, and the
+    data plane returned both times (`rebuilds` 0→1→2 in the CSV). §7.6.
+17. **Patch 814 is inert when unneeded, over 8 consecutive real SSRs.** Run 6: `retries 0` for all
+    eight, every modem ready in 540–580 ms, `oops 0`. §7.6.
+
+**Observed but NOT explained (n=1, needs confirmation):**
+
+* **SSR #5 in run 6 recovered the channels but passed no data for ~68–85 s.** The driver logged
+  `successfully reinitialized BAM channels and rings` and all eight `CMD_OPEN`s, yet `rx_pkts` advanced
+  by **0** while `tx_pkts` advanced 45 over `3817.67 s → 3903.37 s` (healthy baseline: ~40 TX and ~40 RX
+  per 10 s). It cleared only when the next fatal's SSR rebuilt the channels again. The harness probe
+  failed all 12 attempts over 75 s, but its `wwan0 … state DOWN` snapshot is contaminated by SSR #6's
+  teardown. §7.6 — recorded as an observation, not a finding.
 
 **Not established:**
 
 * **That a retry fires in the field on the production build.** The path is proven by construction
-  (§7.5) and inert when unneeded (§7.4), but no *natural* occurrence has been observed — the trigger is
-  a modem slower than 3.2 s. Soak run 4 is watching for one. This is now a question about the trigger,
-  not about the fix.
+  (§7.5) and inert when unneeded (§7.4, §7.6), but no *natural* occurrence has been observed — the
+  trigger is a modem slower than 3.2 s. Run 6 produced **8** real SSRs and none of them triggered it
+  (every modem ready in 540–580 ms); run 7 is watching. This is now a question about the trigger, not
+  about the fix.
 * **Why the assert edge was missed.** §5.1. The SMEM-write hazard is a candidate that does not fit the
   observed timing.
 * **Whether the 3.2 s budget is the only reason the first two SSRs succeeded** (they waited 200 ms;
@@ -639,6 +712,8 @@ interrupt path (§7.5).
 | `run3_test_edits.patch` | **not** part of patch 814: the two temporary test edits |
 | `qcom_bam_dmux.c.run3_testbuild` | the run-3 test source (rebuilds to `5e26986d…`) |
 | `run3_lost_edge_retry_rebuild.txt` | run 3 — the retry's own rebuild, with the edge dropped |
+| `run4_soak814.csv` / `.log` | run 4 — 58 clean samples, abandoned when the device was rebooted |
+| `run6_soak814.csv` / `.log` / `run6_dmesg_final.txt` | **run 6** — 538 samples, 8 fatals, the watchdog rebuild firing twice, the SSR #5 stall (§7.6). The full dmesg is the artifact that settled the `tail -8` ambiguity. |
 
 ## 11. One line
 

@@ -1,0 +1,101 @@
+[56.27s] started burst generator pid 6346 (6 s idle, then 40 x ping -c 1)
+[56.28s] === soak814 start; oops=0 module=eca269f10a685a83a8b679bc7be38d1d ===
+[927.72s] SSR #1 detected at sampler uptime 927.60s
+[   11.535024] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[   12.179252] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[   12.194903] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[  920.668906] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[  922.046708] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[  922.683475] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[  922.685733] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[945.83s] DATA PLANE OK (SSR #1): recovered after ~15s; default via 10.108.0.54 dev wwan0 proto static src 10.108.0.53 metric 10 
+[945.86s] FATAL #1 at AP 920.646994s (sampler saw it at 927.60s): a2_power.c:1189:
+[945.87s]   modem uptime at fatal = 909.111872s (modem up since 11.535122s)
+[1827.59s] SSR #2 detected at sampler uptime 1827.48s
+[  922.685733] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 1822.768666] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 1824.134380] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 1824.150273] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 1824.345518] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 1824.345601] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 1824.882220] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 1824.882319] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[1849.38s] DATA PLANE OK (SSR #2): recovered after ~15s; default via 10.95.101.88 dev wwan0 proto static src 10.95.101.87 metric 10 
+[1849.42s] FATAL #2 at AP 1822.745648s (sampler saw it at 1827.48s): lte_ml1_sleepmgr_stm.c:4054:
+[1849.43s]   modem uptime at fatal = 900.698804s (modem up since 922.046844s)
+[2731.53s] SSR #3 detected at sampler uptime 2731.39s
+[ 1824.345518] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 1824.345601] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 1824.882220] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 1824.882319] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 2726.122814] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 2727.636011] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 2728.265643] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[ 2728.269739] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[2754.70s] DATA PLANE OK (SSR #3): recovered after ~20s; default via 10.43.253.14 dev wwan0 proto static src 10.43.253.13 metric 10 
+[2754.74s] FATAL #3 at AP 2726.099816s (sampler saw it at 2731.39s): lte_ml1_sleepmgr_stm.c:4054:
+[2754.74s]   modem uptime at fatal = 901.965192s (modem up since 1824.134624s)
+[2906.91s] SSR #4 detected at sampler uptime 2906.76s
+[ 1824.882319] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 2726.122814] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 2727.636011] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 2728.265643] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[ 2728.269739] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 2905.629207] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 2906.981243] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 2906.997185] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[2935.05s] DATA PLANE OK (SSR #4): recovered after ~25s; default via 10.155.205.12 dev wwan0 proto static src 10.155.205.11 metric 10 
+[2935.09s] FATAL #4 at AP 2905.607245s (sampler saw it at 2906.76s): a2_power.c:1189:
+[2935.09s]   modem uptime at fatal = 177.971147s (modem up since 2727.636098s)
+[3818.16s] SSR #5 detected at sampler uptime 3817.67s
+[ 2906.981243] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 2906.997185] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 2907.109701] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: modem awake (pc line asserted) but no channels, rebuilding
+[ 2907.192609] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 2907.192691] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 2907.722570] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 2907.722648] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 3809.637526] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[3893.31s] DATA PLANE DOWN (SSR #5): NOT recovered after 60s
+[3893.31s]   wwan0: 2: wwan0: <POINTOPOINT,NOARP> mtu 1500 qdisc fq_codel state DOWN mode DEFAULT group default qlen 1000
+[3893.32s]   telemetry: rx_slots_mapped: 32 rx_tearing_down: 1 pc_state: 0 pc_resync_count: 2 pc_line_level: 0 cmd_open: 56 
+[3893.36s] FATAL #5 at AP 3887.013613s (sampler saw it at 3817.67s): a2_power.c:1189:
+[3893.36s]   modem uptime at fatal = 68.524379s (modem up since 3818.489234s)
+[3903.51s] SSR #6 detected at sampler uptime 3903.37s
+[ 3887.035567] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 3888.390634] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 3888.417936] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: channels not initialized after resume
+[ 3888.527634] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: modem awake (pc line asserted) but no channels, rebuilding
+[ 3888.604163] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 3888.604241] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 3889.154144] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 3889.154227] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[3916.64s] DATA PLANE OK (SSR #6): recovered after ~10s; default via 10.87.121.210 dev wwan0 proto static src 10.87.121.209 metric 10 
+[3916.69s] FATAL #6 at AP 3887.013613s (sampler saw it at 3903.37s): a2_power.c:1189:
+[3916.70s]   modem uptime at fatal = 68.524379s (modem up since 3818.489234s)
+[4800.11s] SSR #7 detected at sampler uptime 4799.96s
+[ 3888.604163] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 3888.604241] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 3889.154144] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 200 ms)
+[ 3889.154227] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: channels already active
+[ 4791.394823] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 4792.760566] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 4793.420732] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+[ 4793.424832] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[4828.29s] DATA PLANE OK (SSR #7): recovered after ~25s; default via 10.132.23.170 dev wwan0 proto static src 10.132.23.169 metric 10 
+[4828.33s] FATAL #7 at AP 4791.371829s (sampler saw it at 4799.96s): lte_ml1_sleepmgr_stm.c:4054:
+[4828.34s]   modem uptime at fatal = 902.981111s (modem up since 3888.390718s)
+[5702.38s] SSR #8 detected at sampler uptime 5701.68s
+[ 4791.394823] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 4792.760566] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 4793.420732] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 580 ms)
+[ 4793.424832] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[ 5694.107555] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR before shutdown: scheduling teardown work
+[ 5695.441642] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR after powerup: scheduling powerup work
+[ 5696.078345] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: modem pc_state=1 (waited 560 ms)
+[ 5696.080141] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: SSR powerup: successfully reinitialized BAM channels and rings
+[5720.55s] DATA PLANE OK (SSR #8): recovered after ~15s; default via 10.18.83.250 dev wwan0 proto static src 10.18.83.249 metric 10 
+[5720.60s] FATAL #8 at AP 5694.084551s (sampler saw it at 5701.68s): lte_ml1_sleepmgr_stm.c:4054:
+[5720.61s]   modem uptime at fatal = 901.323904s (modem up since 4792.760647s)
+[5720.61s] reached 8 fatals; stopping soak
+[5720.66s] === soak814 end; oops=0 fatal=8 retries=0 rebuilds=2 ===
