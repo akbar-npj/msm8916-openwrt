@@ -2003,6 +2003,21 @@ corruption in `qmi-proxy`'s `poll()` 0.14 ms after the teardown succeeds** (item
      so a 2000 ms window would cover this class, and `pc_timeout_count` should then stop rising by ~1
      per fatal. **It does NOT contaminate the §8.13 A/B bar** (the timeout lands *before* `MBA booted`
      for #1/#2 and *after* it for the rest).
+     **(i) ★★★ "DOES DATA STILL STALL?" — YES, BUT IT IS THE USERSPACE BEARER REBUILD, NOT THE DEFECT WE
+     ROOT-CAUSED (§8.22).** **The first-packet-after-idle stall NO LONGER REPRODUCES:** 3 rounds of
+     idle-then-one-ping against a device at `suspended / pc_state=0` gave **2/2 first-attempt deliveries
+     from the collapsed state** (round 3 took the direct path) against the recorded **5/5 failures**
+     pre-812, with `tx_defer_queued − tx_defer_submitted` **0** and `tx_defer_wiped_live` **0**
+     throughout; plus **20/20 sustained pings, 0 % loss** and **DNS after 20 s idle**. **What actually
+     stalls is the bearer:** `netifd`'s own log holds **one `ifdown`/`ifup` pair per fatal** with a
+     **15–26 s** outage (#9 **15 s**, #10 **18 s**, #11 **18 s**, #12 **26 s**, #13 **15 s**) — against a
+     **kernel SSR recovery of 0.12 s**, i.e. **100–200× longer**. The rebuild is a **ModemManager
+     re-probe + modem-object recreation**, and the first probe **fails**
+     (`could not recreate modem: Unsupported device: at least a QMI port is required`) before the retry
+     succeeds. **All 10 watchdog stall events fall inside the cascade window and none in the ~3260 s
+     since** (⚠ confound: the watchdog only fires when `TX > 0`). **The lever has moved from the
+     baseband to ModemManager + netifd; do not chase the modem for this symptom.** ⚠ Measured in one
+     boot, five fatals.
      **(g) ⚠ CORRECTIONS:** S2 is **58 samples / 9 losses** (not 56/7), the **silent-loss class is n = 3**
      (not 2 — 6130.44 was misclassified as "ping crossed the ifup": fatal #7's SSR completed at
      `6111.927`, the ports attached by `6112.87`, and the ping fired **17.6 s later** then timed out for

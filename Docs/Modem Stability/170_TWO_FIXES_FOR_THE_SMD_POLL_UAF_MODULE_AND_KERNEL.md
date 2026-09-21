@@ -89,6 +89,12 @@ an SSR's own down-window (`stopped remote processor` → `is now up`), where the
 ack — **6 of the 12 fatals produce one** (Δ from the fatal a tight **150 ms** band), so an increment is
 **not** storm evidence, and the §8.16 fix gains a falsifiable target. It also **corrects §8.13.6's
 mixed reference points and its omission of fatal #9**.**
+**§8.22 then answers "does data still stall" — YES, but it is the USERSPACE BEARER REBUILD, not the
+defect we root-caused: the first-packet-after-idle stall **no longer reproduces** (2/2 first-attempt
+deliveries from `suspended`, plus 20/20 pings and DNS-after-idle), while `netifd`'s own log shows
+**one `ifdown`/`ifup` pair per fatal with a 15–26 s outage** — against a kernel SSR recovery of
+**0.12 s**, i.e. **100–200× longer**. All 10 watchdog stall events fall inside the cascade window. The
+lever has moved from the baseband to ModemManager + netifd.**
 
 ---
 
@@ -2587,6 +2593,87 @@ cannot be what separates the two populations — which stay separated (`0.119170
 
 ---
 
+### §8.22 ★★ THE USER-VISIBLE DATA STALL IS THE **USERSPACE BEARER REBUILD** — 15–26 s per fatal, while the kernel's own SSR recovery is 0.12 s
+
+**Asked to check "does data still stall", the answer is YES — but not for the reason we had
+root-caused, and the number is now measured.**
+
+**First, the previously root-caused defect does NOT reproduce.** The `defertest` shape (idle, then one
+packet) was run 3× against a device sitting in `runtime_status: suspended / pc_state: 0`:
+
+```
+round 1 BEFORE pc_state=0 suspended  queued 1197 -> 1198  submitted 1197 -> 1198  wiped_live 0  ping 1/1  97.5 ms
+round 2 BEFORE pc_state=0 suspended  queued 1202 -> 1203  submitted 1202 -> 1203  wiped_live 0  ping 1/1 102.4 ms
+round 3 BEFORE pc_state=1 active     queued 1207 -> 1207  submitted 1207 -> 1207  wiped_live 0  ping 1/1  49.8 ms
+```
+
+**2/2 first-attempt deliveries from the collapsed state** (round 3 took the direct path, so no defer
+increment) — against the recorded **5/5 failures** pre-patch-812. `tx_defer_queued − tx_defer_submitted`
+is **0** and `tx_defer_wiped_live` is **0**, i.e. §8.16's stated invariant holds. A sustained test
+(**20 × 1 Hz pings, 20/20, 0 % loss, 41.8–88.1 ms**) and **DNS after 20 s idle (2 A records)** both pass,
+and `wwan0` rx/tx are balanced (48038/48243). **So the first-packet-after-idle stall is fixed.**
+
+**What actually stalls is the BEARER, and it stalls for 15–26 s on every fatal.** `netifd`'s own
+interface log in this boot contains **7 `ifdown`/`ifup` cycles, one per fatal**, and the outage is the
+interval between them:
+
+| fatal | AP fatal | `Interface 'modem' is now down` | `… is now up` | outage |
+|---|---|---|---|---|
+| #9  | 6397.771  | 13:05:00 | 13:05:15 | **15 s** |
+| #10 | 6580.507  | 13:08:02 | 13:08:20 | **18 s** |
+| #11 | 7483.840  | 13:23:05 | 13:23:23 | **18 s** |
+| #12 | 8385.264  | 13:38:07 | 13:38:33 | **26 s** |
+| #13 | 9286.717  | 13:53:08 | 13:53:23 | **15 s** |
+
+**The contrast is the finding: the kernel's SSR recovery is `0.119–0.130 s`, and the userspace bearer
+rebuild that follows it is 15–26 s — 100–200× longer.** The `SSR before shutdown` → `MBA booted` metric
+that §8.13 scores so carefully is measuring the *cheap* part of the outage. **A fatal costs the user
+15–26 s of connectivity, and essentially all of it is ModemManager + netifd, not the baseband.**
+
+**Where the time goes (fatal #12, the 26 s worst case):**
+
+```
+13:38:07  fatal -> SSR -> wwan0qmi0 disconnected
+13:38:07  netifd: "stopping network" / "couldn't find modem"
+          "couldn't load bearer path: disconnecting anyway"  -> Interface 'modem' is now down
+13:38:08  ModemManager hotplug add wwan0qmi0
+          "[base-manager] last modem object creation ... had failed, will retry"
+13:38:09  "creating modem with plugin 'qcom-soc' and '9' ports"
+          -> "could not recreate modem: Unsupported device: at least a QMI port is required"   <-- FAILS
+13:38:10  [wwan0qmi0/probe] probe step: QMI -> done
+13:38:12  "creating modem with plugin 'qcom-soc' and '9' ports" -> [modem12] created        <-- succeeds
+   ...    (qcom-time-daemon meanwhile hammers QMI TIME: txn 469..475+ in one second)
+13:38:33  Interface 'modem' is now up
+```
+
+**So the rebuild is a ModemManager re-probe and modem-object recreation**, and it fails at least once
+(`at least a QMI port is required`) before succeeding — the port is not ready when the first probe runs.
+
+**This also explains the watchdog's stall record, which is the only user-visible symptom we have.** All
+**10** `modem-stall-watchdog: Unbalanced traffic detected: TX+N, RX+0` events in this boot fall inside
+the **cascade window** (AP ~6222–6636), one escalating **10 → 20 → 30 → 40 s** before fatal #9 ended it:
+
+```
+13:02:04 13:02:34 13:04:25 13:04:35 13:04:45 13:04:55 13:05:16 13:06:26 13:07:57 13:08:58
+```
+
+**and there have been none in the ~3260 s since** — because the cascade's fatals are 120–183 s apart
+(so the outages are frequent and long), whereas the idle-clock fatals are 902 s apart with the same
+15–26 s rebuild. ⚠ **Confound, stated:** the watchdog only fires when `TX > 0`, so its silence is
+"no detected stall", not "no traffic".
+
+**⇒ THE LEVER HAS MOVED.** The remaining user-visible defect is not the baseband and not `bam_dmux` —
+it is **the AP's userspace bearer recovery path**, and it is where the next fix belongs. Two concrete
+targets: (a) the failed first `ModemManager` probe (`at least a QMI port is required`) — the rebuild
+appears to wait for a retry cycle rather than polling for the port; (b) whether `netifd` needs to tear
+the interface *down* at all when the ports come back within a second.
+
+**⚠ SCOPE / NOT CLAIMED:** this does **not** touch the 902 s fatal or the §8.13 A/B bar; it is an
+*outage-duration* finding, not a stability one. It is measured in **one boot**, and only for the five
+fatals whose `netifd` pairs are in the ring — the earlier fatals' pairs are outside the retained log.
+
+---
+
 ## §9 Traps recorded this round
 
 1. **A patch that "cannot need a flash" is a property of the config, not of the bug.** The first
@@ -2834,11 +2921,27 @@ cannot be what separates the two populations — which stay separated (`0.119170
 
 ## §10 What's next
 
-* **★★ HIGHEST PRIORITY — THE CASCADE, AND THE 13.24 s RPM VOTE STALL (§8.19).** **The modem left the
-  902 s clock at fatal #7 and has not returned:** #7 `lte_ml1_sleepmgr_stm.c:4054` (901.686 s, the
+* **★★★ NEW HIGHEST PRIORITY FOR THE USER-VISIBLE SYMPTOM — THE USERSPACE BEARER REBUILD (§8.22).**
+  **This is now the only defect that costs the user time, and it is not the baseband.** Every fatal
+  costs a **15–26 s** connectivity outage, because `netifd` tears the `modem` interface down and
+  ModemManager re-probes the device — against a **kernel SSR recovery of 0.12 s**, i.e. **100–200×
+  longer**. Measured pairs: #9 **15 s**, #10 **18 s**, #11 **18 s**, #12 **26 s**, #13 **15 s**.
+  **Two concrete targets, both userspace:**
+  **(a)** the first `ModemManager` probe **fails** (`could not recreate modem: Unsupported device: at
+  least a QMI port is required`) and the rebuild then **waits for a retry cycle** rather than polling
+  for the port — on fatal #12 that is 13:38:09 → 13:38:12 before it succeeds;
+  **(b)** whether `netifd` needs to take the interface **down at all** when the ports return within a
+  second. **Do not chase the baseband for this symptom** — the earlier first-packet-after-idle defect
+  is fixed and no longer reproduces (§8.22 §1). ⚠ Measured in **one boot**, five fatals; the fix is
+  testable without touching the modem at all.
+* **★ THEN — THE CASCADE, AND THE 13.24 s RPM VOTE STALL (§8.19).** **The modem left the
+  902 s clock at fatal #7:** #7 `lte_ml1_sleepmgr_stm.c:4054` (901.686 s, the
   clock) → #8 `a2_task.c:3179` (**120.763 s**) → #9 `a2_power.c:1189` (**166.602 s**) → #10
-  `a2_task.c:3179` (**182.729 s**), with `a2_task.c:3179` **repeating**. This is a different operating
-  regime. **And the RPM's own log shows the modem stalling:** `rpmring` captured the RPM writing
+  `a2_task.c:3179` (**182.729 s**), with `a2_task.c:3179` **repeating**.
+  **⚠ IT SELF-TERMINATED AFTER THREE BEATS AND THE MODEM RETURNED TO THE CLOCK** — #11 **903.332 s**,
+  #12 **901.424 s**, #13 **901.453 s**, all `lte_ml1_sleepmgr_stm.c:4054` (§8.19(c), §8.13.6/7). So
+  "the cascade" is a **bounded episode, not a new operating regime**, and any claim that the modem
+  "has not returned" to the clock is withdrawn. **And the RPM's own log shows the modem stalling:** `rpmring` captured the RPM writing
   **exactly ONE 9-record vote cycle in 13.26 s** (normally ~350) at AP 6469.8→6483.1, while the RPM's
   **own timestamp advanced 13.243 s** across the gap (`ee55a433`→`fd8610b1` = 254 266 494 ticks ÷
   19.2 MHz, agreeing with the 13.264 s wall gap to 21 ms). **⇒ the stall is upstream of the RPM — in
@@ -3188,12 +3291,16 @@ cannot be what separates the two populations — which stay separated (`0.119170
     withdrawn as accounting. (5) **PART 8**: **S1 scored — P5 CONFIRMED** as a within-run A/B/A
     (0 resyncs and 0 suspends in 364.34 s of 1 Hz traffic, 364/364 pings), **and fatal #6 firing inside
     that window on the clock**, which separates a PM-gated storm from a non-PM-gated fatal.
-    **(6) PARTs 12–15** close the round: §8.20's negative (the RPM stall does not precede a fatal, with
+    **(6) PARTs 12–17** close the round: §8.20's negative (the RPM stall does not precede a fatal, with
     the local-cadence and ring-turnover traps), §8.21's bounded storm, the `rpm9` capture's exit at its
-    poll budget (**35 m 57 s, 4.31 ms/poll**) and the `nohup`-absent relaunch, and **PART 15** =
+    poll budget (**35 m 57 s, 4.31 ms/poll**) and the `nohup`-absent relaunch, **PART 15** =
     **§8.21.1: the `79 = 77 + 2` accounting, the six-of-twelve SSR-window `pc-ack timeout` class with
     all six inside `stopped remote processor` → `is now up`, the correction to §8.13.6's mixed anchors
-    and its omission of fatal #9, and the §8.16 fix's countable prediction.**
+    and its omission of fatal #9, and the §8.16 fix's countable prediction**, **PART 16** = fatal #13
+    (ninth capture-off sample, third consecutive clock fatal, storm survives a third reload), and
+    **PART 17** = **§8.22: the stall re-test (2/2 first-attempt from `suspended`, 20/20 pings,
+    DNS-after-idle), the five `netifd` ifdown/ifup pairs with their 15–26 s outages, the ModemManager
+    re-probe sequence with its failed first probe, and the watchdog's 10-event cascade window.**
   * **`W_watch_resync_sh.sh`** — the P1/P2 scorer, and **`X_storm_sampler_sh.sh`** — the 60-minute
     sampler that makes the P3-falsifier branch scoreable and independently corroborated the PM-gating
     (`pc_state=0` in 6 of 10 pre-S1 samples vs 0 of 365 during S1).

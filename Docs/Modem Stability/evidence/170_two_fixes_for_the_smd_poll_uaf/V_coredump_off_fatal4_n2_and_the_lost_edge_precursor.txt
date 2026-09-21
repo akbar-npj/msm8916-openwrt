@@ -2563,3 +2563,145 @@ PART 16 -- FATAL #13: NINTH CAPTURE-OFF SAMPLE, THIRD CONSECUTIVE CLOCK FATAL,
    * section 8.21: silence 968 -> 2042.95 s, TWO -> THREE reloads, and the
      "modem's own state" candidate is disfavoured further (present across seven
      modem boots, absent across the next three).
+
+
+================================================================================
+PART 17 -- "DOES DATA STILL STALL?" YES, BUT IT IS THE USERSPACE BEARER REBUILD
+           (15-26 s per fatal), NOT THE DEFECT WE ROOT-CAUSED (Doc 170 section 8.22)
+================================================================================
+
+0. THE QUESTION
+--------------------------------------------------------------------------------
+
+   User: "so data still stalls".  Checked directly rather than assumed.
+
+1. THE ROOT-CAUSED DEFECT DOES **NOT** REPRODUCE
+--------------------------------------------------------------------------------
+
+   defertest shape: device sitting at runtime_status=suspended / pc_state=0,
+   idle, then ONE ping.  Three rounds:
+
+   START uptime=9793.15
+   round 1 BEFORE pc_state: 0 tx_sweep_guard_hits: 0 tx_defer_queued: 1197
+                 tx_defer_submitted: 1197 tx_defer_wiped: 0 tx_defer_wiped_live: 0
+                 runtime_status: suspended
+   round 1 ping: 64 bytes from 8.8.8.8: seq=0 ttl=113 time=97.462 ms
+                 1 packets transmitted, 1 packets received, 0% packet loss
+   round 1 AFTER  tx_defer_queued: 1198 tx_defer_submitted: 1198
+                  tx_defer_wiped_live: 0 runtime_status: active
+
+   round 2 BEFORE pc_state: 0 ... tx_defer_queued: 1202
+   round 2 ping: time=102.379 ms, 1/1, 0% loss
+   round 2 AFTER  tx_defer_queued: 1203 tx_defer_submitted: 1203
+
+   round 3 BEFORE pc_state: 1 ... tx_defer_queued: 1207
+   round 3 ping: time=49.849 ms, 1/1, 0% loss
+   round 3 AFTER  tx_defer_queued: 1207 (no defer increment -- direct path)
+
+   => 2/2 first-attempt deliveries FROM THE COLLAPSED STATE, against the
+      recorded 5/5 FAILURES pre-patch-812.  Round 3 took the direct path.
+      tx_defer_queued - tx_defer_submitted == 0 and tx_defer_wiped_live == 0
+      throughout: section 8.16's stated invariant holds.
+
+   Sustained + application-shaped tests:
+     20 x 1 Hz ping: 20 transmitted, 20 received, 0% loss, 41.795-88.121 ms
+     nslookup example.com 8.8.8.8 after 20 s idle: 2 A records returned
+     wwan0 rx_packets/tx_packets: 48038 / 48243 (balanced)
+
+2. WHAT ACTUALLY STALLS -- netifd's OWN ifdown/ifup PAIRS
+--------------------------------------------------------------------------------
+
+   F=/overlay/logroll_a9fd907c.log
+   grep -E "Interface .modem. is now|link is (up|down)" $F
+
+     Mon Sep 21 13:02:29  Interface 'modem' is now up
+     Mon Sep 21 13:05:00  Interface 'modem' is now down
+     Mon Sep 21 13:05:15  Interface 'modem' is now up
+     Mon Sep 21 13:08:02  Network device 'wwan0' link is down / Interface 'modem' is now down
+     Mon Sep 21 13:08:20  Interface 'modem' is now up
+     Mon Sep 21 13:23:05  link is down / Interface 'modem' is now down
+     Mon Sep 21 13:23:23  Interface 'modem' is now up
+     Mon Sep 21 13:38:07  Interface 'modem' is now down
+     Mon Sep 21 13:38:33  Interface 'modem' is now up
+     Mon Sep 21 13:53:08  link is down / Interface 'modem' is now down
+     Mon Sep 21 13:53:23  Interface 'modem' is now up
+
+   Counts: ifup=7 ifdown=7 linkup=7
+
+   Boot wall-clock = 11:18:22 UTC (derived: the rpm9 header recorded uptime
+   6343.17 at 13:04:05 UTC, so boot = 13:04:05 - 6343.17 s).
+
+   fatal    AP fatal    ifdown     ifup       outage
+   #9       6397.771    13:05:00   13:05:15   15 s
+   #10      6580.507    13:08:02   13:08:20   18 s
+   #11      7483.840    13:23:05   13:23:23   18 s
+   #12      8385.264    13:38:07   13:38:33   26 s
+   #13      9286.717    13:53:08   13:53:23   15 s
+
+   => the kernel SSR recovery is 0.119-0.130 s; the userspace bearer rebuild is
+      15-26 s.  100-200x longer.  The section 8.13 metric measures the CHEAP part.
+
+3. WHERE THE TIME GOES (fatal #12, the 26 s worst case)
+--------------------------------------------------------------------------------
+
+   $ grep -E "Sep 21 13:38:(0[7-9]|1[0-9]|2[0-9]|3[0-5])" $F | grep -v time-daemon
+
+   13:38:07  [modem11] port 'wwan0qmi0' no longer controllable, reprobing
+   13:38:07  ModemManager: hotplug: remove wwan control port wwan0qmi0
+   13:38:07  [base-manager] port wwan0qmi0 released by device 'qcom-soc'
+   13:38:07  netifd: modem: stopping network
+   13:38:07  netifd: modem: error: couldn't find modem
+   13:38:07  netifd: modem: couldn't load bearer path: disconnecting anyway
+   13:38:07  netifd: Interface 'modem' is now down                    <-- OUTAGE STARTS
+   13:38:08  ModemManager: hotplug: add wwan control port wwan0qmi0
+   13:38:08  [base-manager] additional port ... added after device probing finished
+   13:38:08  [base-manager] last modem object creation ... had failed, will retry
+   13:38:09  [device qcom-soc] creating modem with plugin 'qcom-soc' and '9' ports
+   13:38:09  -> could not recreate modem: Unsupported device: at least a QMI port is required   FAILS
+   13:38:10  [wwan0qmi0/probe] probe step: start / QMI / done
+   13:38:12  [device qcom-soc] creating modem with plugin 'qcom-soc' and '9' ports
+   13:38:12  [modem12] net/wwan0 .. net/wwan6 (data)                    <-- succeeds
+   ...       (qcom-time-daemon hammers QMI TIME: txn 469..475+ within one second)
+   13:38:33  Interface 'modem' is now up                              <-- OUTAGE ENDS (26 s)
+
+   The rebuild is a ModemManager re-probe + modem-object recreation, and it FAILS
+   at least once ("at least a QMI port is required") before succeeding -- the port
+   is not ready when the first probe runs.
+
+4. THE WATCHDOG'S STALL RECORD, AND ITS WINDOW
+--------------------------------------------------------------------------------
+
+   $ grep -iE "Unbalanced" $F
+   13:02:04  TX+5,  RX+0 (10s/60s)
+   13:02:34  TX+12, RX+0 (10s/60s)
+   13:04:25  TX+8,  RX+0 (10s/60s)
+   13:04:35  TX+11, RX+0 (20s/60s)
+   13:04:45  TX+10, RX+0 (30s/60s)
+   13:04:55  TX+11, RX+0 (40s/60s)     <-- escalates; fatal #9 at 13:04:59 ends it
+   13:05:16  TX+2,  RX+0 (10s/60s)
+   13:06:26  TX+9,  RX+0 (10s/60s)
+   13:07:57  TX+10, RX+0 (10s/60s)
+   13:08:58  TX+7,  RX+0 (10s/60s)
+
+   count = 10, ALL inside the cascade window (AP ~6222-6636; cascade fatals #8
+   6231.170, #9 6397.771, #10 6580.507), and NONE in the ~3260 s since.
+
+   CONFLICT: the watchdog only fires when TX > 0, so its silence means "no
+   DETECTED stall", not "no traffic".  The cascade's fatals are 120-183 s apart
+   (frequent, long outages) vs the idle clock's 902 s (same 15-26 s rebuild) --
+   which is why the events cluster there.
+
+5. WHAT THIS CHANGES
+--------------------------------------------------------------------------------
+
+   * The user-visible stall is NOT the baseband and NOT bam_dmux: it is the AP's
+     userspace bearer recovery (ModemManager re-probe + netifd ifdown/ifup).
+   * The section 8.13 A/B metric scores the cheap part of a fatal's cost; the
+     user pays 15-26 s.
+   * Two concrete next targets: (a) the failed first ModemManager probe
+     ("at least a QMI port is required") -- the rebuild waits for a retry cycle
+     instead of polling for the port; (b) whether netifd must tear the interface
+     down at all when the ports return within a second.
+   * NOT CLAIMED: this does not touch the 902 s fatal; it is an outage-DURATION
+     finding; measured in ONE boot and only for the five fatals whose netifd
+     pairs are inside the retained log.
