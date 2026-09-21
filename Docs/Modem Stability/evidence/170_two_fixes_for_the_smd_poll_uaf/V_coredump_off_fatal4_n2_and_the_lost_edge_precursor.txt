@@ -5370,6 +5370,121 @@ PART 33 -- CORRECTIONS: THE POOLED ANDROID PING IS ~2 % NOT 0.7 %, AND THE
 --------------------------------------------------------------------------------
 
 ================================================================================
+PART 39 -- THE OPERATOR PREDICTED THE OUTAGES WOULD STOP, AND THEY DID -- AND
+           THE MODEM NEVER NOTICED ANY OF THEM (4 of 4 flaps invisible to bam_dmux)
+================================================================================
+
+PART 35 retracted Reading A because the operator disclosed the device was on a
+moving bus, which explains the outages without invoking the modem.  That was an
+argument from plausibility.  This PART is the measurement that confirms it, and
+it comes from an INDEPENDENT source: the operator, mid-soak.
+
+1. THE PREDICTION, PRE-REGISTERED BEFORE SCORING
+
+   The operator, still on the bus but now in coverage:
+
+     "i expect the data to be contineous now as i am now in coverage area but
+      still on the bus"
+
+   Stated as a test before any of the data below was read:
+
+     **If the outages are coverage/mobility events, then from the coverage
+     recovery onward there should be ZERO ping losses and no bam_dmux gap
+     >= 26 s.**
+
+   This is a within-boot, same-kernel-state comparison, so it is a legitimate
+   one under the corpus's own pooling rule (PART 30 s3).
+
+2. THE RESULT: CONFIRMED
+
+   Frozen captures at device uptime 2452 s
+   (`scratch/android_capture/boot2/frozen_2452/`), plus live checks at AP ~2500 s.
+
+   **Ping, split at AP 2078 s** (the end of the last flap; cadence ~29.26 s, and
+   the ping logs carry NO timestamps, so AP positions are derived from burst
+   index and carry ~+-30 s):
+
+     ping_plain   77 bursts   lossy BEFORE AP 2078: 3  (#35 ~1201, #44 ~1464, #64 ~2050)
+                              lossy AFTER  AP 2078: 0
+     ping_iface   77 bursts   lossy BEFORE AP 2078: 4  (#31 ~1084, #33 ~1142, #40 ~1347, #64 ~2050)
+                              lossy AFTER  AP 2078: 1  (#65 ~2079 -- right at the boundary)
+
+   **Live check at AP ~2452-2500 s: five consecutive plain bursts, 15/15 packets
+   received, 0 % loss in every one.**  The last ping loss in either loop is the
+   burst that coincides with the AP 2068.9-2070.2 flap; after it, ~15 bursts per
+   loop (plus the 5 live) are 100 % clean.
+
+   So the prediction holds for everything after the final flap, and the operator
+   independently located the transition without seeing any log.
+
+3. THE MODEM NEVER NOTICED ANY OF IT -- 4 OF 4 FLAPS INVISIBLE TO bam_dmux
+
+   Boot 2 had **FOUR** separate data-call outage clusters, not one:
+
+     AP 1082.572 - 1087.772   3 DISCONNECTED/CONNECTED pairs (5.2 s)
+     AP 1405.772 - 1406.792   1 pair
+     AP 2063.403 - 2064.403   1 pair
+     AP 2068.863 - 2070.243   1 pair
+
+   (`mobile:` only.  `mobile_hipri:` churns on the same edges plus a few of its
+   own -- AP 1096.072-1099.262, 1420.142-1423.352, 2078.823-2082.033.)
+
+   **And the bam_dmux silence record shows NOTHING, through all four:**
+
+     events 4827   span 0.821 -> 2429.844 s
+     gaps >= 26 s:  **0**
+     MAX gap:       24.989 s   (the ordinary ping cadence)
+
+   PART 37 found this once, at the AP 1082.6 flap, and called it a limitation of
+   the instrument.  It is now **4 of 4 in a single boot** -- every userspace
+   bearer flap in 2429 s left the kernel data channel running, and every gap in
+   the record is shorter than one missed ping cycle.  The blindness is the RULE,
+   not an anecdote, and it is the same shape as the OpenWrt finding that the
+   user-visible data stall is a netifd/ModemManager rebuild rather than a kernel
+   data-plane outage.
+
+4. THE DIFFERENTIAL CONTROL, EXTENDED AGAIN
+
+   Boot 2, live dmesg at AP ~2500 s: **one modem bring-up** (`Brought out of
+   reset` at 6.604624 s, wcnss at 8.298620 s), **zero `subsys-restart:
+   Resetting`**, **zero fatals**.  Counters: 243 snapshot samples, AP 21 -> 2451 s,
+   `skb read` 312 -> 53373, `skb write` 428 -> 54964 (monotonic), `a2 pwr cntl in`
+   5 -> 206, **ZERO resets**.
+
+   So boot 2 now stands at **2451 s of modem uptime with 4 userspace network
+   flaps and not one modem event** -- while OpenWrt's deterministic idle fatal
+   lands at ~902.3 s of modem uptime on byte-identical firmware.  That is the
+   differential, and it is now unambiguous about WHICH side the flaps belong to.
+
+5. WHAT THIS CHANGES, AND WHAT IT DOES NOT
+
+  **Changes:**
+  - PART 35's retraction is no longer only a plausibility argument.  An
+    independent observer predicted where the outages would stop, from
+    information not present in any log, and the logs agree.  That is the
+    strongest available confirmation that the outages were mobility.
+  - The instrument-blindness finding goes from n = 1 to n = 4 within one boot.
+  - The differential control is now n = 2 boots, boot 2 to 2451 s.
+
+  **Does NOT change:**
+  - Any OpenWrt number, the 902.3 s fatal, or the n >= 60 AP-hang soak.
+  - It does NOT make the Android side usable as a STATIONARY baseline: the
+    device is **still on the bus**.  The operator's message says coverage is
+    good, not that the platform is stationary, and the collapse cadence is
+    driven by the paging/DRX cycle, which mobility perturbs.  **Task 101 still
+    needs a genuinely stationary run.**
+
+  **Honest limits:**
+  - The ping instrument has no timestamps, so no individual loss is attributed
+    to an individual flap; the alignment is only good to ~+-30 s.
+  - The operator's coverage report is a human observation, not an instrument,
+    and it carries no timestamp -- so the transition point is bounded by the
+    last flap (AP 2070.2) and the first clean burst, not measured directly.
+  - n = 1 boot for the transition itself.
+
+--------------------------------------------------------------------------------
+
+================================================================================
 PART 38 -- THE pc-ack CONTROL REPLICATES ON A SECOND ANDROID BOOT: n = 77,
            ZERO TIMEOUTS, MAX 3.160 ms
 ================================================================================

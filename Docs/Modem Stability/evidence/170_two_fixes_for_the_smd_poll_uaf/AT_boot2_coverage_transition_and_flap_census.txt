@@ -1,0 +1,103 @@
+PART 39 EVIDENCE -- the coverage transition, the four flaps, and the 4/4
+bam_dmux blindness (Doc 170 PART 39)
+
+Source: scratch/android_capture/boot2/frozen_2452/  (device uptime 2452 s)
+  md5 3bdd2d76d3fbd16cf0e4c802946f7671  bam_dmux_boot2.log   (last event AP 2429.844196316)
+  md5 71a85e6c3b712ec621fbdc45d68b3562  ping_plain_boot2.log
+  md5 52774bad043359b08c04691b2fd0fb52  ping_iface_boot2.log
+  md5 3fa18d4fab21932da5d4dddeaa0c0f7c  snapshot_boot2.log
+  md5 c9e3d8d38c7734b1fdd2b93a0907270c  logcat_boot2.log
+Plus live checks on the device at AP ~2452-2500 s (not from a frozen capture;
+recorded as live observations with their AP time).
+
+THE PREDICTION (operator, mid-soak, pre-registered before scoring):
+  "i expect the data to be contineous now as i am now in coverage area but
+   still on the bus"
+  => If the outages are coverage/mobility events, then from the coverage
+     recovery onward: ZERO ping losses and no bam_dmux gap >= 26 s.
+
+=== 1. bam_dmux silence gaps, whole boot (AP >= 206 s) ===
+  events total 4827   span 0.821 -> 2429.844 s
+  gaps >= 26 s :  0
+  MAX gap      :  24.989 s
+  (the 24-25 s band is the ordinary ping cadence; NOT ONE gap in 2429 s is as
+   long as a single missed ping cycle)
+
+=== 2. logcat `mobile:` connectivity changes, mapped to AP time ===
+  AP    21.328  CONNECTED/CONNECTED            <- boot bring-up
+  --- flap cluster 1 ---
+  AP  1082.572  DISCONNECTED/DISCONNECTED
+  AP  1083.612  CONNECTED/CONNECTED
+  AP  1085.092  DISCONNECTED/DISCONNECTED
+  AP  1086.192  CONNECTED/CONNECTED
+  AP  1087.632  DISCONNECTED/DISCONNECTED
+  AP  1087.772  CONNECTED/CONNECTED
+  --- flap cluster 2 ---
+  AP  1405.772  DISCONNECTED/DISCONNECTED
+  AP  1406.792  CONNECTED/CONNECTED
+  --- flap cluster 3 ---
+  AP  2063.403  DISCONNECTED/DISCONNECTED
+  AP  2064.403  CONNECTED/CONNECTED
+  --- flap cluster 4 ---
+  AP  2068.863  DISCONNECTED/DISCONNECTED
+  AP  2070.243  CONNECTED/CONNECTED
+
+  FOUR separate outage clusters.  NONE of them produced a bam_dmux gap (s1).
+  => the silence-gap instrument is blind to a userspace bearer flap: 4 of 4.
+  (mobile_hipri flaps on the same edges plus its own at AP 1096.072-1099.262,
+   1420.142-1423.352 and 2078.823-2082.033.)
+
+=== 3. ping, both variants, split at the end of the last flap ===
+  cadence ~29.26 s derived from 77 bursts starting AP ~206 s.
+  THE PING LOGS CARRY NO TIMESTAMPS -- AP positions come from burst index and
+  carry ~+-30 s.  No individual loss is attributed to an individual flap.
+
+  ping_plain_boot2.log   77 bursts
+    lossy BEFORE AP 2078:  3   #35 ~AP 1201 (100%)  #44 ~AP 1464 (67%)  #64 ~AP 2050 (33%)
+    lossy AFTER  AP 2078:  0
+  ping_iface_boot2.log   77 bursts
+    lossy BEFORE AP 2078:  4   #31 ~AP 1084 (67%)  #33 ~AP 1142 (33%)
+                               #40 ~AP 1347 (33%)  #64 ~AP 2050 (33%)
+    lossy AFTER  AP 2078:  1   #65 ~AP 2079 (67%)   <- right at the boundary
+  Each loop also has exactly ONE `Network is unreachable`, on line 1 (the first
+  invocation at AP ~22 s, before the data call was up) -- not an in-run event.
+
+  => every loss in the boot is at AP <= ~2079, and the last one coincides with
+     the AP 2068.9-2070.2 flap.
+
+=== 4. LIVE checks at AP ~2452-2500 s (not frozen; live observations) ===
+  Five consecutive plain bursts, 15/15 packets received, 0 % loss each:
+    341.6 / 112.9 / 94.1 / 66.4 / 71.8 ms mean RTT
+  Connectivity state: rmnet0 has IPv4 10.155.13.73/30 AND a global IPv6
+    (2409:4071:.../64), with `default via 10.155.13.74 dev rmnet0`.
+  Device clock now agrees with uptime (boot 01:35:14.91 IST; uptime 2452 ->
+    device 02:16:07 IST, consistent to the second).
+
+  => the prediction is CONFIRMED for everything after the final flap:
+     ~15 bursts per loop plus the 5 live bursts are 100 % clean.
+
+=== 5. the modem never noticed any of it (differential control, extended) ===
+  live dmesg at AP ~2500 s:
+    [    6.604624] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+    [    8.298620] subsys-pil-tz a21b000.qcom,pronto: wcnss: Brought out of reset
+    `subsys-restart: Resetting` : 0
+    fatals                      : 0
+  counters (frozen_2452/snapshot_boot2.log):
+    samples 243   AP 21 -> 2451 s
+    skb read  312 -> 53373
+    skb write 428 -> 54964   monotonic True
+    a2 pwr cntl in 5 -> 206
+    COUNTER RESETS: 0
+
+  => 2451 s of modem uptime, FOUR userspace network flaps, ZERO modem events,
+     on byte-identical firmware whose OpenWrt side fatals at ~902.3 s of modem
+     uptime.
+
+=== 6. what this does NOT establish ===
+  The device is STILL ON THE BUS.  Good coverage is not a stationary platform,
+  and the RPM collapse cadence is driven by the paging/DRX cycle, which mobility
+  perturbs.  Task 101 still requires a genuinely stationary Android run before
+  any OpenWrt-vs-Android RPM number can be compared.
+  The operator's report is a human observation with no timestamp, so the
+  transition point is bounded by the last flap (AP 2070.243) and the first clean
+  burst -- not measured directly.  n = 1 boot for the transition.
