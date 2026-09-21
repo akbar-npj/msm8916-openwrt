@@ -1128,3 +1128,488 @@ AUTOMATION. That is the same mistake s8.10 made about `qcom-carrier-autocfg`.
   -- which also means **P6 as pre-registered (pair on the resync delta) was the
   wrong predicate**; the analysis must pair on the timeout delta.
   n = 1 so far; S2 runs 80 pings and will be scored on completion.
+
+=============================================================================
+PART 10 -- FATAL #7 (n=5), THE STORM'S ONSET IS THE BOOT'S FIRST LOST EDGE,
+           AND THE ANDROID DRIVER IS THE GROUND TRUTH WE NEVER DIFFED
+=============================================================================
+
+1. s8.13 FIFTH SAMPLE -- fatal #7, AP survived, new minimum interval
+
+   Fatal #7: `[ 6110.407029] fatal error received: lte_ml1_sleepmgr_stm.c:4054:`
+   (the clock signature).  Predicted at AP 6111.007 from fatal #6 + 902.286;
+   observed 6110.407 -- a 600 ms miss over a 902 s period (665 ppm).
+
+     clock delta fatal#6 -> fatal#7 = 6110.407029 - 5208.721361 = 901.685668 s
+
+   Recovery (all lines present, none missing):
+
+     6110.407029  fatal error received
+     6110.415183  handling crash #7
+     6110.423287  recovering
+     6110.430574  SSR before shutdown: scheduling teardown work   <-- t0
+     6110.436413  SSR teardown T0 scheduled
+     6110.443982  T2 tx_retry cancelled
+     6110.451727  T3 tx_wakeup cancelled
+     6110.460920  T4 state_lock acquired
+     6110.468787  executing serialized asynchronous SSR teardown
+     6110.468863  T5 rx released
+     6110.477957  T6 tx released
+     6110.484535  T7 power_off returned
+     6110.491224  T8 work done
+     6110.498843  T9 flush returned
+     6110.505792  wwan0at0 disconnected   (at1, qmi0 follow)
+     6110.507386  q6v5-trace 01..09
+     6110.507629  stopped remote processor
+     6110.508508  q6v5-trace 10..23
+     6110.549744  MBA booted without debug policy, loading mpss  <-- t1
+     6110.852136  bam_dmux: modem pc-ack timeout during resume
+
+     t1 - t0 = 6110.549744 - 6110.430574 = **0.119170 s**
+
+   **That is a NEW MINIMUM for the capture-OFF population.**  Previous
+   capture-OFF span was 0.124531-0.130237 s (n=4, spread 5.7 ms); this is
+   5.4 ms below the old minimum.  The capture-ON population is
+   0.824902-0.831559 s.  Still two non-overlapping populations, still ~7x
+   apart, now **n = 5 on five signatures in five recoveries**.
+
+   No `port failed halt` -- confirming again that the two `port failed halt`
+   lines in this boot are exactly the two capture-ON recoveries.
+
+   Post-SSR recovery artefact, 5th sample: `pc-ack timeout` at
+   6110.852136 = **+0.302392 s** after `MBA booted`.  Prior samples:
+   +0.431112 / +0.581419 / +0.435022 / none.
+
+   Boot-wide after fatal #7: 7 fatals / 8 `MBA booted` / 2 `port failed halt`
+   / trace `01` x8, `10` x9 / `cmd_open` 64 = 8 channels x 8 modem boots /
+   `coredump_live` frozen at 18.
+
+   **s8.13 bar: 5 of 20 post-disable fatals scored, 0 AP reboots.**
+
+2. THE STORM'S ONSET -- AP 3477.894835 IS THE FIRST LOST EDGE *OF THE BOOT*
+
+   `dmesg | grep -c "lost edge"` = 39, `pc_resync_count` = 40 (one resync did
+   not log).  The FIRST one is
+
+     [ 3477.894835] bam-dmux: RX watchdog: PC line asserted while pc_state=0
+                   (lost edge), resyncing
+
+   and `handling crash #4` is at [ 3477.976314] -- **+81.479 ms later**, inside
+   the known 74-86 ms `a2_power.c:2949` antecedent band.
+
+   CONTROL, because "the first X in dmesg" is normally a ring-buffer artefact
+   (trap 16): `dmesg | wc -l` = 889 and the FIRST line is
+   `[ 0.000000] Booting Linux on physical CPU 0x0` -- **the ring did not wrap**.
+   `dmesg | grep "handling crash"` shows crashes #1..#8 all present, the
+   earliest at [ 913.648811].  So the absence of earlier lost edges is real.
+
+   Therefore, within this boot:
+
+     before AP 3477.894835 :  0 lost edges in 3477 s
+     after  AP 3477.894835 : 39 lost edges in 2600 s
+
+   At ~1 suspend per 6.9 s (see s3 below) that is roughly **0 failures in
+   ~500 suspend cycles, then ~5% forever**.  P(0 failures in 504 | p=0.05)
+   ~ 1e-11, so this is a genuine step change, not a tail.
+
+   **And the storm then survives crashes #5, #6, #7 AND #8** -- four SSRs.
+   It is not created by an SSR and not reset by one.  It is a persistent
+   AP-side/driver-side state established at AP 3477.89.
+
+   NOTE THE DIRECTION: the first storm event *precedes* fatal #4 by 81 ms.
+   So the storm did not follow the fatal; the fatal's own antecedent is the
+   storm's first member.  Both are downstream of whatever happened at 3477.89.
+
+3. THE PM CHURN ITSELF IS ANDROID-PARITY -- THE FAILURE RATE IS THE DEFECT
+
+   Telemetry at uptime 6118.48:
+     pm_suspend_attempts: 766     pm_resume_attempts: 766
+     pc_vote_tx_count: 766        pc_unvote_tx_count: 766
+     pc_resync_count: 40          pc_timeout_count: 44
+     pc_irq_count: 1514           pc_ack_irq_count: 1526
+
+   So the AP runtime-suspends bam-dmux **766 times in 6118 s = 1 per 8.0 s**
+   (instantaneous rate across samples: 1 per 6.9 s).  Each cycle is one
+   A2 power vote/unvote pair.
+
+   **Android does 918 modem power-collapses in 54 min = 1 per 3.5 s with 0%
+   ping loss and no fatal.**  So *suspending is not the defect*.  The defect
+   is that OpenWrt's handshake fails ~5% of the time:
+
+     pc_resync_count / suspend cycles = 40/766 = 5.2%
+     pc_timeout_count / suspend cycles = 44/766 = 5.7%
+
+   This is the reframe that makes the Android comparison the right next move.
+
+4. *** THE ANDROID GROUND TRUTH -- AND A SELF-CORRECTION ***
+
+   The Android driver is present in this tree at
+
+     GitIgnore/android_kernel_zte_msm8916/drivers/soc/qcom/bam_dmux.c   (2798 lines)
+     GitIgnore/android_kernel_zte_msm8916/drivers/soc/qcom/bam_dmux_private.h (182)
+
+   vs the OpenWrt driver
+     openwrt/build_dir/.../linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.c (2700)
+
+   *** SELF-CORRECTION, MADE IMMEDIATELY ***
+   My first reading was that Android uses SMSM and OpenWrt uses a GPIO IRQ.
+   **That is WRONG.**  The OpenWrt driver is *also* SMSM-based:
+
+     qcom_bam_dmux.c:102-103   struct qcom_smem_state *pc, *pc_ack;
+                               u32 pc_mask, pc_ack_mask;
+     qcom_bam_dmux.c:268       qcom_smem_state_update_bits(dmux->pc, ...)
+
+   Both sides drive the handshake through shared-memory state bits with an
+   IRQ notification.  Recorded here because it is exactly the "read the
+   definition, not the name" trap, and I walked into it in the first minute.
+
+   The ORDERING is also equivalent -- both clear the completion, then set the bit:
+
+     Android  ul_wakeup():       INIT_COMPLETION(ul_wakeup_ack_completion);
+                                 power_vote(1);
+     OpenWrt  bam_dmux_pc_vote(): reinit_completion(&dmux->pc_ack_completion);   :267
+                                 qcom_smem_state_update_bits(dmux->pc, ...);      :268
+
+   **FOUR STRUCTURAL DIFFERENCES REMAIN, and they are the deliverable:**
+
+   | | Android (bam_dmux.c) | OpenWrt (qcom_bam_dmux.c) |
+   |---|---|---|
+   | wakeup-ack wait | `UL_WAKEUP_TIMEOUT_MS = 2000` (:237, used :1913/:1925/:1933) | **250 ms** (:2052) |
+   | previous down-ack | `wait_for_ack` flag set in `ul_powerdown()` (:1700), waited in `ul_wakeup()` (:1912-1919) | **absent** |
+   | recovery timer | `UL_TIMEOUT_DELAY = 1000` (:235) + `ul_timeout_work` -> `ul_timeout()` (:1776) | **absent** |
+   | vote policy | reference-counted, on demand (`ul_ondemand_vote` :1743/:1747; up on TX, down 1 s after last TX) | **unconditional on every runtime-PM resume** |
+   | `a2_pc_disabled` path | `wait_for_dfab` + `vote_dfab`/`unvote_dfab` + wakelock (:1697, :1879) | `return -EBUSY` from suspend (:2010) -- never suspends |
+
+   The OpenWrt resume path, for the record (:2043-2060):
+
+     reinit_completion(&dmux->pc_ack_completion);
+     mutex_lock(&dmux->state_lock);
+     bam_dmux_pc_vote(dmux, true);          /* -> reinit_completion() AGAIN, :267 */
+     mutex_unlock(&dmux->state_lock);
+     ret = wait_for_completion_timeout(&dmux->pc_ack_completion, 250 ms);
+     if (!ret) { atomic64_inc(&dmux->pc_timeout_count);
+                 dev_warn("modem pc-ack timeout during resume"); }
+     if (!READ_ONCE(dmux->pc_state)) {
+             ret = wait_event_timeout(dmux->pc_wait, pc_state, 1000 ms);
+             if (!ret) { atomic64_inc(&dmux->pc_timeout_count);
+                         dev_warn("modem pc_state wait timeout during resume"); } }
+
+   Note `reinit_completion()` appears TWICE on this path (:2043 and :267).
+
+   **SCOPE THIS HONESTLY.**  OpenWrt *logs* the 250 ms timeout and then
+   *proceeds* -- the next step waits for `pc_state` for a further 1000 ms.  So
+   the 250 ms timeout may be benign noise.  This is a CANDIDATE with a stated
+   falsifier, not a proven root cause:
+
+     FALSIFIER: if the `pc_state wait timeout` string never appears in dmesg
+     while `pc_timeout_count` rises, the 250 ms ack wait is the only failing
+     wait, and widening it to Android's 2000 ms is the minimal comparative
+     test.  If BOTH strings appear, the fix is not a constant.
+
+   TO CHECK: `dmesg | grep -c "pc_state wait timeout"`.
+
+5. NEW SIGNATURE `a2_task.c:3179` -- A CASCADE AT 120.76 s
+
+     [ 6231.169902] fatal error received: a2_task.c:3179:
+     [ 6231.176595] handling crash #8
+
+     delta from fatal #7 = 6231.169902 - 6110.407029 = **120.762873 s**
+
+   Far outside the 902 s clock.  **The first non-clock fatal of this boot.**
+   `a2_task.c` is a THIRD `a2_*` file (previously only `a2_power.c`; the
+   corpus also has `lte_ml1_sleepmgr_stm.c`).
+
+   Its ANTECEDENT IS A NEGATIVE.  The window 6160 -> 6231.17 contains:
+
+     6166.025341  pc-ack timeout
+     6168.511911  lost edge
+     6168.745439  pc-ack timeout
+     6185.251889  pc-ack timeout
+     6190.905260  pc-ack timeout
+     6214.844986  lost edge
+     6218.398418  pc-ack timeout
+     6231.169902  FATAL a2_task.c:3179
+
+   Nearest PC event = 12.77 s before, NOT the 74-86 ms band.  So the tight
+   antecedent rule is signature-specific and `a2_task.c:3179` is 0/1:
+
+     sleepmgr                0/3
+     a2_power.c:2949         3/3
+     a2_power.c:1189         0/1
+     a2_task.c:3179          0/1   <-- new
+
+   The device was `runtime_status: active` across it -- consistent with the
+   fatal not being PM-gated (s8.15.4).
+
+   STORM DENSITY AROUND IT (telemetry 6118.48 -> 6278.00, dt=159.5 s):
+     pc_vote_tx  766 -> 789   +23  (1 per 6.9 s, unchanged)
+     pc_resync   40  -> 44    +4   = 17%   (baseline 5.2%)
+     pc_timeout  44  -> 51    +7   = 30%   (baseline 5.7%)
+
+   **A 6x jump -- but it does NOT survive as a precursor.**  See s7.
+
+6. S2 SCORED (partial, 41/80) -- EVERY LOSS IS AN SSR OUTAGE, NONE IS THE STORM
+
+     LOST at 6115.36   fatal #7 SSR (fatal 6110.407; wwan0 back 6129.51)
+     LOST at 6130.44   fatal #7 SSR (ping crossed the ifup)
+     LOST at 6226.85   fatal #8 SSR (fatal 6231.17; 5.0 s full timeout)
+     LOST at 6246.98   returned in 10 ms with `quiesce_ms=12594`
+                       -- impossible for a real timeout, so ping failed
+                       instantly: the interface was DOWN
+
+   **All four losses are SSR outages.**  Between SSRs, at 15 s idle, the data
+   plane is intact.  The storm's cost is LATENCY: 400-550 ms spikes
+   (416.227 / 551.417 / 398.144 / 431.556 ms) against a ~41-43 ms baseline,
+   each paired with a `pc_timeout_count` increment.
+
+   P6 PREDICATE, CONFIRMED WRONG AS PRE-REGISTERED: the 551.417 ms ping had
+   `pctimeout 33/34` (delta +1) and `resync 35/35` (delta 0).  **Pair on the
+   TIMEOUT delta.**
+
+   PATCH-812 REGRESSION CHECK: PASS.  At uptime 6278:
+     tx_defer_queued 771, tx_defer_submitted 771, tx_defer_preserved 751,
+     tx_defer_wiped 0, tx_defer_wiped_live 0, tx_sweep_guard_hits 0.
+   97.4% preserved, zero destroyed -- over 5 SSRs.
+
+7. NEGATIVE RESULT -- THE STORM RATE DOES NOT PREDICT THE FATAL
+
+   The storm_sampler's 55 s time series (uptime 4345.9 -> 6285.5) was reduced
+   to per-sample deltas.  Two things fall out:
+
+   (a) S1 IS INDEPENDENTLY CORROBORATED BY A SECOND INSTRUMENT.  Six
+       consecutive samples, 4900.0 -> 5177.6 (~332 s), have
+       `dresync=0, dtimeout=0` AND `susp` frozen at 636/625.  S1 ran 1 Hz
+       traffic for 364.34 s and froze the PM; a completely separate sampler
+       sees the same freeze.
+
+   (b) The pre-fatal-#8 elevation (4 timeouts per 55 s at samples 6119.3 and
+       6174.7) is **within the range seen elsewhere in the same series**:
+       dtimeout = 3 at 5675.8, 3 at 5897.8, 3 at 6063.9, 4 at 6119.3.
+       dresync never exceeds 3; dtimeout never exceeds 4, anywhere.
+
+   **So the elevated rate before fatal #8 is NOT distinctive, and the storm
+   rate does NOT predict the fatal.**  Recorded as a negative: the 6x figure
+   in s5 is real but is not a precursor signal.  (The 6119.3 sample also
+   straddles fatal #7's own SSR, which inflates it.)
+
+8. logroll.sh's FIRST CATCH -- AND ITS INSTRUMENT LIMITATION
+
+   logroll was deployed for exactly this and it worked: it captured the
+   userspace side of fatal #8's SSR on one file.
+
+     daemon.err  qcom-time-daemon: [QMI-TIME] Modem SSR / Disconnect detected
+                 (node=0 port=11). Resetting state machine.        x14 lines
+     daemon.notice ModemManager: [modem7] port 'wwan0qmi0' no longer controllable, reprobing
+     daemon.notice netifd: Network device 'wwan0' link is down
+     daemon.notice [2593]: [modem8] simple connect state (8/10): bearer
+     daemon.notice [2593]: [modem8/bearer18] address: 10.155.30.209/30
+     daemon.notice netifd: successfully connected the modem at Bearer/18
+     user.notice modem-blue-led: LTE interface up: blue IDLE (1000ms)
+
+   PMKNOB timeline across the fatal:
+     13:02:15Z uptime=6233.42  auto/1000/suspended (was active)
+     13:02:29Z uptime=6247.96  auto/1000/active    (was suspended)
+   **The autosuspend churn resumes ~19 s after the SSR.**
+
+   **It did NOT reveal a userspace trigger.**  No `Stage 1/2/3`, no
+   `modem-stall-watchdog`, no `keepalive` line in the window.  So s8.15.5's
+   "the trigger question is OPEN" stands -- but one candidate
+   (`modem-bearer-watchdog` acting in this window) is now a NEGATIVE observed
+   with the instrument in place.
+
+   *** INSTRUMENT LIMITATION -- STATED, NOT HIDDEN ***
+   The `logread -f` stream in the file is BATCHED, not interleaved in real
+   time with the PMKNOB stream.  In the head of the file, 40 consecutive
+   PMKNOB lines (12:56:37 -> 12:59:24) appear BEFORE the kernel lines from
+   12:56:38 -> 12:59:00.  **So the PMKNOB stream is real-time and the logread
+   stream lags in bursts; the two are NOT on one true timeline in the file.**
+   Cross-stream timing (e.g. "the watchdog wrote the knob 3 s before the
+   storm") must NOT be read off this file without first re-deriving the
+   logread lag from the `[ uptime]` field inside each kernel line, which IS
+   authoritative.
+
+9. OPEN, UNCHANGED
+
+   - s8.13 window: 5 of 20 scored, 0 reboots, 15 to go (~3.8 h).
+   - `logroll` must keep running to catch the NEXT storm onset.
+   - D1 (redefined): log the `reinit_completion()` / `complete_all()` / IRQ
+     ORDERING.  The Android diff above now supplies the mechanism to test.
+   - NEW: `rpmring -t -n 500000 -i 4` is CAPTURING across fatal #9
+     (predicted AP ~6231.3 + 902.3 = 7133.6 s) into `/overlay/rpm9.txt`.
+     The RE says the Q6 power-collapse vote chain stalls in `rpm.sync`
+     (0xc08bebd0) whose RPM flush loops have no timeout; this is the live
+     test of that claim at a fatal boundary.
+   - NEW: `dmesg | grep -c "pc_state wait timeout"` -- discriminates which of
+     the two waits in `bam_dmux_runtime_resume()` is failing (s4 FALSIFIER).
+
+=============================================================================
+PART 11 -- THE FALSIFIER ANSWERED, THE CASCADE, AND THE 13.24 s RPM VOTE STALL
+=============================================================================
+
+1. THE FALSIFIER IS ANSWERED -- AND IT POINTS AT THE 250 ms CONSTANT
+
+   dmesg | grep -c "modem pc-ack timeout during resume"        -> 51
+   dmesg | grep -c "modem pc_state wait timeout during resume" ->  2
+   dmesg | grep -c "channels not initialized after resume"     ->  2
+   pc_timeout_count                                            -> 53 = 51 + 2
+
+   **96.2% of the timeout events are the 250 ms wait for the modem's `pc-ack`
+   line, not the 1000 ms `pc_state` wait.**  So the comparative fix (Android's
+   `UL_WAKEUP_TIMEOUT_MS = 2000`) is a constant, not a redesign -- and the
+   falsifier I stated BEFORE checking is not falsified.
+
+2. THE WIRING, READ OUT OF THE PROBE (qcom_bam_dmux.c:2497-2521)
+
+   dmux->pc_irq = platform_get_irq_byname(pdev, "pc");        /* modem's A2 PC line */
+   pc_ack_irq   = platform_get_irq_byname(pdev, "pc-ack");    /* modem's ACK line  */
+   dmux->pc     = devm_qcom_smem_state_get(dev, "pc", &bit);      /* AP writes the vote */
+   dmux->pc_ack = devm_qcom_smem_state_get(dev, "pc-ack", &bit);  /* AP writes its ack  */
+   init_completion(&dmux->pc_ack_completion);
+   complete_all(&dmux->pc_ack_completion);                    /* :2521 -- starts COMPLETE */
+
+   and the SMSM decode at :2315-2316:
+     "SMEM item 85 is the legacy SMSM shared-state block: word 1 is
+      SMSM_MODEM_STATE, bit 1 is SMSM_A2_POWER_CONTROL."
+
+   So `modem pc-ack timeout during resume` means exactly: **the AP voted (wrote
+   the `pc` bit) and the modem did not assert its `pc-ack` line within 250 ms.**
+   Android gives that same ack 2000 ms.
+
+   Both handlers complete the same completion:
+     bam_dmux_pc_irq()     :1977  complete_all(&dmux->pc_ack_completion);
+     bam_dmux_pc_ack_irq() :1997  complete_all(&dmux->pc_ack_completion);
+
+3. FATAL #9 -- AND THE CASCADE
+
+   [ 6397.771058] fatal error received: a2_power.c:1189:
+   [ 6397.778302] handling crash #9
+
+   delta fatal #8 -> #9 = 6397.778302 - 6231.176595 = 166.601707 s
+
+   Recovery was clean and PATCH 814'S REBUILD FIRED AND SUCCEEDED:
+
+     6397.771058  fatal a2_power.c:1189
+     6397.793072  SSR before shutdown            <-- t0
+     6397.920651  MBA booted                     <-- t1  => t1-t0 = 0.127579 s
+     6398.492369  remote processor is now up
+     6398.694059  SSR powerup: modem pc_state=1 (waited 200 ms)
+     6398.695965  SSR powerup: successfully reinitialized BAM channels and rings
+     6399.041495  wwan0at0 attached
+     6399.111817  CMD_OPEN on channels 0..7
+
+   0.127579 s is INSIDE the capture-OFF band (0.119170-0.130237 s), no
+   `port failed halt`, AP survived.  **s8.13: 6 of 20 scored, 0 reboots.**
+   WARNING: the window now spans TWO regimes (1 idle-clock fatal + 3 cascade
+   fatals); that must be stated whenever the bar is quoted.
+
+   FATAL #10:
+   [ 6580.507441] fatal error received: a2_task.c:3179:
+   [ 6580.514178] handling crash #10
+   delta fatal #9 -> #10 = 182.729139 s
+
+   THE FULL SEQUENCE:
+
+     #6  5208.721361  lte_ml1_sleepmgr_stm.c:4054   +903.723
+     #7  6110.407029  lte_ml1_sleepmgr_stm.c:4054   +901.686   <-- the 902 s clock
+     #8  6231.169902  a2_task.c:3179                +120.763   <-- cascade begins
+     #9  6397.771058  a2_power.c:1189               +166.602
+     #10 6580.507441  a2_task.c:3179                +182.729
+
+   **After fatal #7 the modem has NOT returned to the 902 s clock**, and
+   `a2_task.c:3179` repeats (#8 and #10).  This is a different operating
+   regime.
+
+4. *** THE 13.24 s RPM VOTE STALL -- THE STRONGEST MODEM-SIDE EVIDENCE SO FAR ***
+
+   `rpmring -t -n 500000 -i 4` -> /overlay/rpm9.txt, pulled and analysed with
+   the tracked `rpm_track.py`:
+
+     blocks=910 records=40709 wall=172.300 s (236.3 rec/s)
+     measured RPM tick rate = 19.1998 MHz (vs 19.200 assumed; -0.00%)
+     resource names: ldoa 8124, bslv 3788, bmas 2866, req. 1478, clk1 1153,
+                     clk0 1127, smpa 1038, clk2 998, clka 856
+     deep-sleep / rail resources: NONE
+
+   The normal pattern is a 9-record vote cycle repeating ~26-34 times/s:
+
+     00000144
+     000000d0 00000001 000004f8        <- sequence number, increments every cycle
+     000000cb                          <- txn-open
+     000000d1 00000001 616f646c        <- req, resource "ldoa"
+     000000d4 / 000000d5 <same res>    <- res-request
+     000000d2 00000001 00716572        <- txn-begin, "req."
+     00000143 ffffffff fffff77d
+     000000cd                          <- txn-close
+
+   Then, at AP 6469.8 -> 6483.1, the RPM wrote EXACTLY ONE cycle in 13.26 s
+   (normally ~350).  THE RPM'S OWN TIMESTAMP PROVES THE RPM WAS ALIVE:
+
+     last record before : ee55a433
+     first record after : fd8610b1
+     delta = 254266494 ticks / 19.2e6 = 13.243 s
+     wall-clock gap                   = 13.264 s
+
+   The two agree to 21 ms.  So the RPM's clock ran while it logged nothing
+   => **the stall is UPSTREAM of the RPM, i.e. in the MODEM.**  This is the
+   live signature of the RE claim that the Q6 power-collapse vote chain
+   stalls in `rpm.sync` (0xc08bebd0), whose RPM flush loops have no timeout --
+   and here the stall RECOVERED.
+
+   The AP saw the same event from its side:
+
+     6469.070335  RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+     6469.330305  modem pc-ack timeout during resume
+     6478.290311  modem pc-ack timeout during resume
+     S2 6468.94   rtt = 911.398 ms  (LARGEST RTT of the whole S2 run; prior max 551.417)
+
+   One modem stall, seen as a 13.24 s RPM silence AND a 911 ms delayed ping --
+   two independent instruments, one event.
+
+   *** WHAT THIS DOES NOT ESTABLISH ***
+   The capture spans ONE stall, and it happened AFTER fatal #9.  **At fatal #9
+   itself the RPM did NOT go silent** -- the gaps around 6397.8 were
+   0.35-0.59 s (the RPM was BUSY, logging the SSR).  So it is NOT established
+   that this stall is the 902 s fatal's mechanism.  One sample each way.
+   The capture is still running across fatal #11; the discriminating question
+   is: does a 13 s silence PRECEDE a fatal, or is it an independent recurring
+   stall?
+
+   Multi-second RPM silences are not rare in this capture: 7.076, 3.890, 3.620,
+   2.529, 2.748, 3.020, 3.233, 4.241, 3.079, 5.794, 13.264, 3.086, 2.303,
+   3.230 s.  So the modem regularly stops voting for seconds at a time.
+
+5. S2 FINAL -- 56 SAMPLES, 7 LOSSES, TWO WITH NO dmesg CORRELATE AT ALL
+
+     6115.36, 6130.44  fatal #7's SSR
+     6226.85, 6246.98  fatal #8's SSR (one in flight, one interface-down)
+     6368.31, 6388.34  *** NO dmesg CORRELATE -- silent data-plane loss ***
+     6408.39           fatal #9's SSR (returned in 10 ms, quiesce_ms=7404)
+
+   dmesg 6360-6397 contains NOTHING but the fatal itself -- no lost edge, no
+   pc-ack timeout.  So the two unexplained losses are NOT storm events and NOT
+   SSR outages: the data plane was silently dropping packets while the modem
+   was already in the cascade.  **A new, unexplained failure mode, n = 2.**
+
+   Marker appended: "S2 STOP at uptime=6600.88 fatals=10"
+
+6. THE CORRECTION TO MY OWN s8.17 NEGATIVE
+
+   I first dismissed the pre-fatal-#8 elevation as "within range".  Two errors:
+   (i) the baseline 40/766 = 5.2% is a LIFETIME average, diluted by the 3477 s
+   before the storm existed; the per-sample rate is dresync 1-3 against
+   susp 7-9 per 55 s = ~15-40%.  (ii) `dtimeout = 4` at 6119.3 and 6174.7 IS
+   the maximum of the whole 33-sample series and is first reached exactly in
+   the two samples before fatal #8.
+   Corrected statement: the post-onset failure rate is ~15-40%, not 5%; the
+   pre-fatal window sits at the top of the observed range but is NOT separated
+   from it.  NOT established as a precursor.
+
+7. THE EXPERIMENT RUNNING NOW
+
+   Traffic stopped at uptime 6600.88 (fatal count 10).  With NO traffic:
+     - does the cascade CONTINUE (=> cumulative modem degradation, or an
+       intrinsic post-clock-fatal state), or STOP (=> traffic-induced)?
+   `rpmring` (host bg task), `watch813.sh` and `storm_sampler.sh` all keep
+   running, so the answer costs nothing but time.
+   *** The RPM capture must not be stopped: the ring turns over in ~6 s, and
+   the whole point is to have it running ACROSS fatal #11. ***
