@@ -1,0 +1,125 @@
+trace lines: 46
+half-cycles: [(1, 9, 9), (10, 23, 14), (1, 9, 9), (10, 23, 14)]
+full cycles: 2  (one fatal = 2 cycles = 4 halves; a cold boot = 1 cycle)
+
+===== HALF 1  01..09   [937.819568 .. 937.819832]  span    0.264 ms =====
+  caller: rproc_stop   -> q6v5_stop        -> q6v5_mba_reclaim   [teardown]
+    01 disable_qchannel mdm                 -> 02:     0.037 ms
+    02 disable_qchannel cx                  -> 03:     0.023 ms
+    03 disable_qchannel axi                 -> 04:     0.022 ms
+    04 reset_assert                         -> 05:     0.060 ms
+    05 clk_disable reset                    -> 06:     0.023 ms
+    06 clk_disable active                   -> 07:     0.055 ms
+    07 regulator_disable active             -> 08:     0.022 ms
+    08 SCM mba_perm reclaim (TrustZone)     -> 09:     0.022 ms
+  ** gap to next half (09 -> 10):    33.071 ms
+
+===== HALF 2  10..23   [937.852903 .. 937.855186]  span    2.283 ms =====
+  caller: coredump#1   -> q6v5_reload_mba  -> q6v5_mba_load      [dump forces a reload]
+    10 qcom_q6v5_prepare                    -> 11:     0.043 ms
+    11 pds_enable proxy                     -> 12:     1.909 ms
+    12 regulator_enable fallback_proxy      -> 13:     0.034 ms
+    13 regulator_enable proxy               -> 14:     0.035 ms
+    14 clk_enable proxy                     -> 15:     0.026 ms
+    15 regulator_enable active              -> 16:     0.022 ms
+    16 clk_enable reset                     -> 17:     0.021 ms
+    17 reset_deassert                       -> 18:     0.060 ms
+    18 clk_enable active                    -> 19:     0.046 ms
+    19 enable_qchannel axi                  -> 20:     0.023 ms
+    20 SCM mpss_perm (TrustZone)            -> 21:     0.022 ms
+    21 SCM mba_perm (TrustZone)             -> 22:     0.021 ms
+    22 pil_info_store + rmb writel          -> 23:     0.021 ms
+  ** gap to next half (23 -> 01):  1064.362 ms
+
+===== HALF 3  01..09   [938.919548 .. 938.920158]  span    0.610 ms =====
+  caller: coredump#last-> q6v5_mba_reclaim                        [dump releases MBA]
+    01 disable_qchannel mdm                 -> 02:     0.047 ms
+    02 disable_qchannel cx                  -> 03:     0.042 ms
+    03 disable_qchannel axi                 -> 04:     0.043 ms
+    04 reset_assert                         -> 05:     0.093 ms
+    05 clk_disable reset                    -> 06:     0.045 ms
+    06 clk_disable active                   -> 07:     0.244 ms
+    07 regulator_disable active             -> 08:     0.053 ms
+    08 SCM mba_perm reclaim (TrustZone)     -> 09:     0.043 ms
+  ** gap to next half (09 -> 10):     2.931 ms
+
+===== HALF 4  10..23   [938.923089 .. 938.925436]  span    2.347 ms =====
+  caller: rproc_start  -> q6v5_start       -> q6v5_mba_load      [the real restart]
+    10 qcom_q6v5_prepare                    -> 11:     0.067 ms
+    11 pds_enable proxy                     -> 12:     1.685 ms
+    12 regulator_enable fallback_proxy      -> 13:     0.059 ms
+    13 regulator_enable proxy               -> 14:     0.061 ms
+    14 clk_enable proxy                     -> 15:     0.047 ms
+    15 regulator_enable active              -> 16:     0.043 ms
+    16 clk_enable reset                     -> 17:     0.043 ms
+    17 reset_deassert                       -> 18:     0.094 ms
+    18 clk_enable active                    -> 19:     0.080 ms
+    19 enable_qchannel axi                  -> 20:     0.044 ms
+    20 SCM mpss_perm (TrustZone)            -> 21:     0.042 ms
+    21 SCM mba_perm (TrustZone)             -> 22:     0.041 ms
+    22 pil_info_store + rmb writel          -> 23:     0.041 ms
+
+===== EVENT ANCHORS (everything, in order) =====
+  [  937.786016] fatal      received: a2_power.c:1189:
+  [  937.786149] fatal     
+  [  937.819568] trace     disable_qchannel mdm
+  [  937.819605] trace     disable_qchannel cx
+  [  937.819628] trace     disable_qchannel axi
+  [  937.819650] trace     reset_assert
+  [  937.819710] trace     clk_disable reset
+  [  937.819733] trace     clk_disable active
+  [  937.819788] trace     regulator_disable active
+  [  937.819810] trace     SCM mba_perm reclaim (TrustZone)
+  [  937.819832] trace     qcom_q6v5_unprepare
+  [  937.821257] stopped   stopped remote processor
+  [  937.852903] trace     qcom_q6v5_prepare
+  [  937.852946] trace     pds_enable proxy
+  [  937.854855] trace     regulator_enable fallback_proxy
+  [  937.854889] trace     regulator_enable proxy
+  [  937.854924] trace     clk_enable proxy
+  [  937.854950] trace     regulator_enable active
+  [  937.854972] trace     clk_enable reset
+  [  937.854993] trace     reset_deassert
+  [  937.855053] trace     clk_enable active
+  [  937.855099] trace     enable_qchannel axi
+  [  937.855122] trace     SCM mpss_perm (TrustZone)
+  [  937.855144] trace     SCM mba_perm (TrustZone)
+  [  937.855165] trace     pil_info_store + rmb writel
+  [  937.855186] trace     q6v5proc_reset
+  [  938.919368] halt      port failed halt
+  [  938.919548] trace     disable_qchannel mdm
+  [  938.919595] trace     disable_qchannel cx
+  [  938.919637] trace     disable_qchannel axi
+  [  938.919680] trace     reset_assert
+  [  938.919773] trace     clk_disable reset
+  [  938.919818] trace     clk_disable active
+  [  938.920062] trace     regulator_disable active
+  [  938.920115] trace     SCM mba_perm reclaim (TrustZone)
+  [  938.920158] trace     qcom_q6v5_unprepare
+  [  938.923089] trace     qcom_q6v5_prepare
+  [  938.923156] trace     pds_enable proxy
+  [  938.924841] trace     regulator_enable fallback_proxy
+  [  938.924900] trace     regulator_enable proxy
+  [  938.924961] trace     clk_enable proxy
+  [  938.925008] trace     regulator_enable active
+  [  938.925051] trace     clk_enable reset
+  [  938.925094] trace     reset_deassert
+  [  938.925188] trace     clk_enable active
+  [  938.925268] trace     enable_qchannel axi
+  [  938.925312] trace     SCM mpss_perm (TrustZone)
+  [  938.925354] trace     SCM mba_perm (TrustZone)
+  [  938.925395] trace     pil_info_store + rmb writel
+  [  938.925436] trace     q6v5proc_reset
+  [  938.963336] mbabooted MBA booted
+  [  939.667333] up        rproc is now up
+
+===== Doc 159 hang window, decomposed =====
+  port failed halt        938.919368
+  step 01                 938.919548   (+  0.180 ms)   <- the tail of the halt_axi_port calls
+  step 23                 938.925436   (+  5.888 ms from 01)  <- all 23 driver steps
+  MBA booted              938.963336   (+ 37.900 ms)   <- q6v5_rmb_mba_wait(5000), untraced
+  ------------------------------------------------
+  TOTAL                    43.968 ms
+    driver steps 01-23      5.888 ms  (13.4 %)
+    MBA boot wait          37.900 ms  (86.2 %)
+    halt tail + pre-01      0.180 ms  (0.4 %)

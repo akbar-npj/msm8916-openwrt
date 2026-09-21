@@ -76,7 +76,18 @@ re-measured independently at **43.726–46.944 ms, n=5**; the fix is one sysctl,
 reference points a kernel-side sink; it also records an **8/8 correlation between a fatal's interval
 and its signature** — the short ≈900.7 s fatal is always `lte_ml1_sleepmgr_stm.c:4054` and the long
 ≈942 s fatal is always `a2_power.c:1189` — which **reframes Doc 162's "unexplained alternation" as two
-mechanisms with different periods competing inside one boot**) — see the sections
+mechanisms with different periods competing inside one boot**), and a twenty-first by **Doc 165**
+(which catches the first instrumented fatal and finds that **one fatal makes TWO MBA reloads, not
+one** — `q6v5_mba_load()` has two callers, and the second is the **remoteproc coredump reader**,
+which `rproc_boot_recovery()` calls *between* `rproc_stop()` and `rproc_start()`, so the trace shows
+`01-09, 10-23, 01-09, 10-23` and **`port failed halt` belongs to the coredump's reclaim, not the
+restart's**; that the coredump's synchronous 85 398 475 B copy **stalls the recovery path for
+1.064 s** and adds a whole extra MBA boot/reclaim pair to every fatal — sharpening Doc 153 §4 from a
+limitation into an on-the-critical-path perturbation, and raising an untested confound for Doc 159's
+hang; and that the Doc 159 window is **86.2 % a single *untraced* `q6v5_rmb_mba_wait()`** — all 23
+trace points together are **5.888 ms, 13.4 %** of the 43.968 ms window, correcting Doc 164 §4's model
+of what that span contained and recording, rather than patching, a **coverage gap in Doc 164 §9's
+pre-registration**) — see the sections
 below.
 **Retraction 1 is scoped: read it before citing it.**
 
@@ -861,6 +872,89 @@ below.
     run. **Always verify the process count after a restart** — `ps w | awk '/q6trace_soak/ && !/awk/'`
     must show exactly 5.
 
+## A twenty-first round — Doc 165, 2026-09-21: one fatal makes TWO MBA reloads, and the coredump reader is inside the window
+
+100. **The first instrumented fatal produced 46 trace lines — four half-cycles, two full `01..23`
+     cycles, not one.** `q6v5_mba_load()` has **two** callers, and the second is not a retry path:
+     `q6v5_reload_mba()` (`:1323`) is reached **only** from `qcom_q6v5_dump_segment()` (`:1544`), the
+     remoteproc coredump reader, which `rproc_boot_recovery()` calls **between `rproc_stop()` and
+     `rproc_start()`**. The execution order for one fatal is `stop→reclaim [01-09]`, `coredump#1 →
+     reload_mba → mba_load [10-23]`, `coredump#last → reclaim [01-09]`, `rproc_start → q6v5_start →
+     mba_load [10-23]`. The `dump_mba_loaded` flag is the mechanism: `mba_reclaim` clears it (`:1246`),
+     so the dump's first segment boots the MBA; `mba_load` sets it (`:1189`), so the dump's last
+     segment releases it. **Anyone reading the trace without this would count half 2 as a recovery
+     attempt and then be unable to explain the single `MBA booted`.** Also: **`port failed halt` is
+     emitted by the *coredump's* reclaim, not the restart's** — it prints at the top of
+     `q6v5_mba_reclaim()` (`:1249-1253`), before step 01, measured 0.180 ms earlier.
+101. **The coredump stalls the recovery path for 1.064 s and copies 85 398 475 B (80.2 MB/s).** With
+     `RPROC_COREDUMP_ENABLED`, `rproc_coredump()` copies every segment into a `vmalloc`'d buffer
+     *before* `dev_coredumpv()`, synchronously, while the modem is held down. Measured: step 23 of
+     half 2 (`937.855186`) → step 01 of half 3 (`938.919368`) = **1.064182 s**; corroborated by the
+     watcher (`captured 85398475 bytes`) and by `devcd1` appearing at 939.34 s, i.e. *after* the copy.
+     **Doc 153 §4 is sharpened, not retracted:** "the coredump is created only after `rproc_stop()`
+     returns" is true, but it is created **inside `rproc_boot_recovery()`, on the recovery critical
+     path**, adding one extra MBA boot/reclaim pair to every fatal. Second-order consequence visible in
+     the same capture: the stall is long enough for the AP's own stack to notice —
+     `bam_dmux: refusing to queue command while modem is collapsed` falls *inside* the 1.064 s gap.
+     **New confound, recorded not acted on:** Doc 159's hang was only ever observed *with the watcher
+     running*; whether the 1.064 s in-path stall changes the hang probability is untested.
+102. **The Doc 159 window is 86.2 % one *untraced* wait — the instrument covers 13.4 % of what it was
+     built to observe.** Decomposed: `port failed halt`→step 01 = **0.180 ms** (0.4 %); steps 01→23 =
+     **5.888 ms** (**13.4 %**), of which 2.931 ms is the `09→10` remoteproc-core hop, so the real
+     register/SCM/regulator/clock work is ≈ 3.0 ms; step 23→`MBA booted` = **37.900 ms** (**86.2 %**),
+     which is `q6v5_rmb_mba_wait(qproc, 0, 5000)`. Total 43.968 ms, reproducing Doc 164 §4's n=5 range.
+     **Doc 164 §4's "that span contains all 23 trace points plus the MBA firmware load" is literally
+     true and materially misleading** — the MBA *wait* is **6.4×** the trace. The blind spot is seven
+     times the coverage.
+103. **Doc 164 §9's pre-registration is left standing as written, with its coverage gap recorded
+     instead of patched.** The measurement adds a **third outcome the prediction did not enumerate**:
+     a hang inside the untraced `q6v5_rmb_mba_wait()` leaves the last line at **step 23**, which is
+     neither 08/20/21 nor a regulator/clock step. The candidate set is larger than §9 said:
+     `q6v5_xfer_mem_ownership()` has **14 call sites** in the file and patch 817 traces **three**
+     (steps 08/20/21); the **two untraced mpss transfers inside `qcom_q6v5_dump_segment`**
+     (`:1547`, `:1570`) sit in the dump path, one of them immediately before `port failed halt`.
+104. **`q6v5_rmb_mba_wait()` is bounded, so the 37.900 ms is real modem boot time.** Source-verified:
+     `msleep(1)` loop with `time_after(jiffies, timeout)` at `ms = 5000`; on expiry it returns
+     `-ETIMEDOUT` and `q6v5_mba_load()` prints **`MBA boot timed out`** before `halt_axi_ports`. Two
+     consequences: the window Doc 159 measured is *mostly the modem*, consistent with a handoff
+     hypothesis rather than AP driver work; and a hang with `MBA boot timed out` + a dead console would
+     point at the **untimed `readl()` of `RMB_MBA_STATUS_REG`** — a new, unproven candidate.
+105. **The instrument is validated on live data, not just in a probe.** All 46 lines in order, `01..23`
+     twice, **every inter-step delta 0.021–0.244 ms** — the ~0.1 ms/line predicted for
+     `console_loglevel = 6`, against ~8.3 ms/line at level 7 (Doc 164 §5.3 confirmed on real data).
+     `printk = 6 4 1 7`, so the rc.local persistence held across the boot. Telemetry: `defer_q 178 ==
+     defer_sub 178`, `defer_keep 163`, **`defer_wipe_live 0`**, `guard_hits 0`, `oops 0`,
+     `pc_resync 0` — patches 810/812/814 all holding across a real fatal. The recovery was clean
+     (43.968 ms window, ≈ 2.5 s outage, `retries: 0`, then 3/3 ICMP 0 % loss on `10.93.59.183/28`).
+     `pc_irq 327` in 1353.6 s = 14.5 edges/min ≈ **7.3 collapses/min, one per ~8.3 s**.
+106. **`modem pc-ack timeout during resume` is a symptom, not a precursor — do not build a trigger on
+     it.** 1× in this boot (1.5 s before the fatal), 6× in the previous boot, and its position relative
+     to the fatal is *inconsistent*: before it at 1854.87 s, **after** it at 2757.99 s, and twice
+     (4990.73, 5331.55) with no fatal at all.
+107. **Doc 164 §6's prediction is partially scored, and the partial result matters.** Its bands are in
+     *modem* uptime = `AP time of fatal − AP time of the previous modem-up` (verified against Doc 164
+     §6's own table). This boot's ring had wrapped past the modem's initial boot, so the offset must be
+     borrowed from the previous boot (`12.4 s`), giving **≈ 925.4 s** — in **neither** band. **The
+     940.2–947.0 s "long" band was a four-sample artefact** and is contradicted by Doc 162's own
+     taxonomy (`a2_power.c:1189` n=7 spanning 68.5–941.3 s, *not* a clock). **What survives without any
+     offset:** this boot's first fatal differs in **both** signature and AP time from the previous
+     boot's first fatal, which is what "two mechanisms competing" predicts and which reproduces Doc
+     162 §3's "on 2 of 5 boots the ≈901 s fatal did not fire at all". **A band that only holds at four
+     samples is not a band.** Also recorded: nothing measures the modem-up offset, so the next boot
+     needs one line added to the soak (§10 item 6).
+108. **Two leaked-process traps, found and cleaned.** (a) **`cat /dev/kmsg | grep PAT | head -N` never
+     terminates on this busybox** — `grep` block-buffers, `head` never gets N lines, never exits, and
+     `grep` never gets `SIGPIPE`, leaving a permanent 3-process pipeline holding a `/dev/kmsg` fd (the
+     broken `RINGCHECK` probe was still stuck 940 s later). Use **`grep -m N`** (busybox 1.37 supports
+     it — verified) or redirect to a file; `dmesg | grep -c` is safe because busybox `dmesg` reads via
+     `syslog(2)` and does return EOF. (b) **Killing the soak by pattern orphans its `cat /dev/kmsg`
+     child** — one such orphan still held an fd to `/overlay/q6trace_stream.log (deleted)` since AP
+     112 s, silently draining the ring into a deleted inode, which proves the earlier "kill the old
+     soak" cleanup was incomplete. **Kill the children too**, then re-check `ps w |
+     grep -c "[q]6trace_soak.sh"` = 5. Also a capture-hygiene trap: this capture's first **1322 of 1700
+     lines are our own instrument's leftovers** (720 lines of 120 × `X`, counters `SHORT79`…`SHORT85`,
+     AP 405.46–496.01 s), because the ring wrapped and the capture *begins* mid-probe.
+
 ## The steady-state symptom, measured (Doc 147 §5.4)
 
 **After the link has been idle, the first packet is always lost and the retry always
@@ -937,7 +1031,7 @@ Also established and not to be re-litigated:
 | `162_SOAK_RUN8_PATCH812_AT_SCALE_AND_FATAL_SIGNATURE_TAXONOMY.md` | **Run 8: the two AP-side data-plane fixes measured at scale, plus a quantified fatal-signature taxonomy.** 70 min, 4 fatals, 4 SSRs, same harness as run 6: **`tx_defer_queued 549` = `tx_defer_submitted 549`, gap 0, `tx_defer_wiped_live 0`, `tx_sweep_guard_hits 0`, 0 oopses, `cmd_open 40`** — against Doc 156's pre-fix **27/27 destroyed**; the data stall is gone at load, not just in the 3-packet repro. Patch 814 recovered the data plane on **4/4 natural SSR triggers** (~20/40/15/30 s) but **`retries: 0`**, so the *retry* path is still unvalidated on a natural trigger. **The run's four fatals alternate 900.965 / 941.288 / 900.662 / 940.238 s of modem uptime with the signature alternating `lte_ml1_sleepmgr_stm.c:4054` / `a2_power.c:1189` in lock-step** — on boots 2 and 4 the deterministic ~901 s fatal did not fire at all (SSR count 4 = fatal count 4, so nothing was missed); run 6 showed no such alternation under identical conditions, so it is a property of the boot, **unexplained, n=4**. And the taxonomy: `lte_ml1_common_timer.c:390` **n=11, 902.353 s, ±281 ppm** (the deterministic timer, matching `400 × 2.256 s`); `lte_ml1_sleepmgr_stm.c:4054` **n=10, 901.230 s, 4.6× the spread** (likely downstream); `a2_power.c:1189` **n=7, 68.5–941.3 s — not a clock**. **Refines Doc 149: the `file:line` does not identify *the* assert, but it *does* identify which mechanism fired — ask "what is this signature's period?"** |
 | `163_ERRFATAL_DESCRIPTOR_IS_INLINE_AND_MATCHES_DMESG.md` | **The ERR_FATAL coredump descriptor carries a plaintext, INLINE filename, and its `file:line` matches that fatal's dmesg signature 11/11 across two boots.** Record at ELF VA `0xC35B1280`: `+0x10` line (u16), `+0x14`/`+0x18` words A/B, **`+0x24` filename, NUL-terminated, in the clear**. The corpus' *"obfuscated"* / *"no 16-byte filename table"* is true of the **ELF on disk** but not of the **runtime copy in a coredump** — the earlier reader followed the unrelated `+0x08` pointer instead of reading `+0x24`. Run 8's 5 dumps decode to `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `lte_ml1_sleepmgr_stm.c` 4054 / `a2_power.c` 1189 / `a2_power.c` 1189, exactly its 5 dmesg signatures; the earlier boot's 6 dumps all decode to `lte_ml1_common_timer.c` 390, matching Doc 149 §2's table (and covering **4** distinct fatals, not 6 — two were captured twice). Word B advances **+11/+12 per fatal**. **So Doc 149's "must not classify a fatal by its `file:line`" is a correct warning and a wrong conclusion** — the string does not name the root cause but it does name *which site tripped*, which is the modem RE's §5.2 exactly, and it closes the alternative reading of Doc 162 §3 (the signature cannot be stale). Also records that `/overlay` was at **100 % with 9.2 MB free** while the watcher writes an 85 MB dump per fatal; **all 36 dumps (2.9 GB) were copied to `scratch/coredump_live_full/` and verified byte-identical by md5 (36/36)** before `/overlay/coredump_live/` was cleared (**9.2 MB → 2.9 GB free**). Tool: `evidence/163_errfatal_descriptor/errfatal_descriptor.py`. |
 | `164_Q6V5_SSR_WINDOW_IS_NOW_OBSERVABLE.md` | **The Doc 159 hang window is instrumented (patch 817, 23 trace points), and the instrument was measured before it was trusted — it was 4.2× the phenomenon, and that was fixed.** The window re-measured independently from the previous boot's `console-ramoops-0`: **43.726–46.944 ms, n=5, mean 45.481 ms** (Doc 159's 43–47 ms reproduces exactly). The console costs **1.03 ms + 0.0904 ms/char** (a **4 %** match to the 115200-baud serialisation rate of 0.0868 ms/char), so an 80-char trace line is **≈ 8.3 ms** and 23 of them are **≈ 190 ms against a 45.481 ms window**; an independent bound from the cold-boot bring-up agrees (**113.8 ms ≈ 8.1 ms/line**). **Fixed by `console_loglevel = 6`** — KERN_INFO is suppressed on every console but still stored in the ring buffer, **11.87 → 0.37 ms/line (32×)**, verified that a suppressed line still reaches the ring, with `dev_err` reference points keeping a kernel-side sink; applied at runtime and persisted in `/etc/rc.local`. Records the **8/8 interval↔signature correlation** (short ≈900.7 s ⇒ `lte_ml1_sleepmgr_stm.c:4054`; long ≈942 s ⇒ `a2_power.c:1189`) that reframes Doc 162 §3's "alternation"; that **`/dev/pmsg0` survives a reboot** (verified) and that netconsole is impossible here; the **ramoops byte-corruption trap** (`received` → `rEceived`, so a plain `grep -c` undercounted 5 fatals as 4); the squashfs/staging-`.ko` deployment traps; and both pre-registrations. Tooling in `evidence/164_q6v5_ssr_window_trace/`. |
-
+| `165_ONE_FATAL_TWO_MBA_RELOADS_COREDUMP_IS_IN_THE_SSR_WINDOW.md` | **One fatal produces TWO `01..23` cycles, because the coredump reader is inside the recovery path.** `q6v5_mba_load()` has **two** callers: `q6v5_start()` (`:1585`) and **`q6v5_reload_mba()` (`:1323`), reached only from `qcom_q6v5_dump_segment()` (`:1544`)** — and `rproc_boot_recovery()` calls `rproc->ops->coredump()` **between `rproc_stop()` and `rproc_start()`**. The half-cycle order is therefore `01-09, 10-23, 01-09, 10-23`; the `dump_mba_loaded` flag (`mba_reclaim` clears at `:1246`, `mba_load` sets at `:1189`) is the mechanism; and **`port failed halt` is emitted by the *coredump's* reclaim, not the restart's** (it prints at the top of `q6v5_mba_reclaim()`, measured 0.180 ms before step 01). The coredump's synchronous segment copy (**85 398 475 B at 80.2 MB/s, 1.064182 s**, `RPROC_COREDUMP_ENABLED` → `vmalloc` → `dev_coredumpv`) **stalls the recovery path while the modem is held down** and adds an extra MBA boot/reclaim pair to every fatal — **Doc 153 §4 sharpened**: "created after `rproc_stop()` returns" is true, but it is *inside* `rproc_boot_recovery()`, on the critical path; `bam_dmux: refusing to queue command while modem is collapsed` falls inside the gap. **The Doc 159 window is 86.2 % one untraced wait**: 0.180 ms halt tail + **5.888 ms for all 23 steps (13.4 %)** + **37.900 ms `q6v5_rmb_mba_wait(qproc, 0, 5000)` (86.2 %)** = 43.968 ms, so **Doc 164 §4's "that span contains all 23 trace points plus the MBA firmware load" is literally true and materially misleading** (the wait is 6.4× the trace). `q6v5_rmb_mba_wait()` is **bounded** (`msleep(1)` + `time_after`, 5000 ms → `-ETIMEDOUT` → `MBA boot timed out`), so the 37.900 ms is real modem boot time; a hang showing `MBA boot timed out` would point at the untimed `readl()` of `RMB_MBA_STATUS_REG`. **Doc 164 §9's pre-registration stands as written, with its coverage gap recorded rather than patched** — a hang in the untraced 86.2 % leaves the last line at **step 23**, a third outcome §9 did not enumerate; and `q6v5_xfer_mem_ownership()` has **14 call sites, of which patch 817 traces 3**, the two untraced mpss transfers in `qcom_q6v5_dump_segment` (`:1547`, `:1570`) sitting in the dump path. Instrument validated live (**every inter-step delta 0.021–0.244 ms**, the ~0.1 ms/line predicted for `console_loglevel = 6`); telemetry holding across the fatal (`defer_q 178 == defer_sub 178`, `defer_wipe_live 0`, `guard_hits 0`, `pc_resync 0`, clean recovery `retries: 0`, 3/3 ICMP 0 % loss); `modem pc-ack timeout during resume` shown to be a **symptom, not a precursor** (inconsistent position vs the fatal in the previous boot). Two harness traps: **`cat /dev/kmsg \| grep PAT \| head -N` never terminates on this busybox** (block-buffered `grep` → no `SIGPIPE`; use `grep -m N`), and **killing the soak by pattern orphans its `cat /dev/kmsg` child** (one held a deleted log inode since AP 112 s). **Doc 164 §6's prediction is partially scored and its 940.2–947.0 s "long" band does NOT survive**: this fatal's ≈ 925.4 s of modem uptime (offset borrowed from the previous boot, since the ring had wrapped past the modem's initial boot) falls in neither band, contradicting Doc 162's own taxonomy (`a2_power.c:1189` n=7 spanning 68.5–941.3 s, *not* a clock) — what survives is the *directional* claim, since this boot's first fatal differs in both signature and AP time from the previous boot's. Tooling: `evidence/164_q6v5_ssr_window_trace/q6trace_analyse.py` + `window_analysis.txt`. |
 
 ## Sound but narrow (accurate, subordinate scope)
 
