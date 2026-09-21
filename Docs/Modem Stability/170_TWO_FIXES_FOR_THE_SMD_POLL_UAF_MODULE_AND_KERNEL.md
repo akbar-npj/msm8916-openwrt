@@ -2677,6 +2677,21 @@ and neither does a modem reload — in either direction.**
     already running.** Corollary for this project: **do not stop a running instrument when its question
     is answered** — §8.20's answer came entirely from a capture that was left running across three
     further fatals after it had already produced one result.
+22. **"STILL RUNNING" IS AN OBSERVATION, NOT AN ASSUMPTION — AND A FAILED BACKGROUND LAUNCH LEAVES NO
+    TRACE AT ALL (§8.20, §10).** While writing §8.20 I asserted *"the capture is still running"*; it had
+    in fact **exited cleanly at its `-n 500000` sample limit** (660 382 records, last line a complete
+    vote cycle, AP ~8600 s) some time earlier. **Two separate traps in one:**
+    **(a)** `-n` counted **POLLS, not records**, so the run ended far sooner than "500 000 records"
+    implied — **read the tool's own units before reasoning about its lifetime**;
+    **(b)** I never checked, because an earlier `ps` had shown it and a long-lived instrument *feels*
+    like a fact. **`ps w | grep "[r]pmring"` costs one round trip — run it before every claim that an
+    instrument is live.** (This is the same shape as trap 16: a negative — or a positive — in one
+    instrument class is not a statement about the world.)
+    **And the recovery exposed a device quirk: `nohup` DOES NOT EXIST on this device** (only `setsid`
+    and `start-stop-daemon`), so `nohup <script> &` fails with **no output file created at all** —
+    indistinguishable from "the experiment ran and produced nothing". **`start-stop-daemon -S -b -x
+    <script>` is the working recipe**, and a launch is confirmed only by seeing **both** the process in
+    `ps` **and** the output file growing.
 
 ---
 
@@ -2696,7 +2711,8 @@ and neither does a modem reload — in either direction.**
   **⚠ NOT established:** the capture spans **one** stall, and **at fatal #9 the RPM did NOT go silent**
   (gaps 0.35–0.59 s — it was *busy* logging the SSR). **One sample each way.** The discriminating
   question: **does a 13 s silence PRECEDE a fatal, or is it an independent recurring stall?** The
-  capture is running across fatal #11 — **do not stop it; the ring turns over in ~6 s.**
+  capture is running across fatal #11 — **do not stop it; the ring turns over in ~6 s.** (It later
+  stopped on its own at its sample limit and has since been restarted — see the RPM bullet below.)
   **✅ RESOLVED — THE CASCADE IS BOUNDED (3 BEATS) AND THE MODEM RETURNED TO THE 902 s CLOCK.**
   Fatal #11 fired at **AP 7483.839750**, signature **`lte_ml1_sleepmgr_stm.c:4054`**, **903.332309 s**
   after fatal #10 — **predicted at AP ≈ 7482.8 s from fatal #10's modem boot, missed by 1.04 s** — and
@@ -2816,8 +2832,17 @@ and neither does a modem reload — in either direction.**
   **bursty** (so "quiet" ≠ "stall"; the cadence must be measured **per era**, and 50.5 % of the capture
   is inside a ≥ 0.5 s gap), and the capture has **49 ring overruns losing 22 664 records**, so any
   future *"the RPM wrote nothing here"* claim must clear `# TRACK OVERRUN` and the counter delta first.
-  **The capture is still running and should stay running** — it is now the instrument for a *different*
-  question: whether the stall's rate changes across the next cascade.
+  **⚠ BUT THE CAPTURE HAD ALREADY STOPPED WHEN THIS WAS WRITTEN, AND I DID NOT CHECK.** It exited
+  **cleanly at its `-n 500000` sample limit** (660 382 records, last line a complete vote cycle, AP
+  ~8600 s) — so the instrument was **not** running while §8.20/§8.21 were being written, and *"the
+  capture is still running"* was an assumption, not an observation. **`-n` counts POLLS, not records.**
+  It has been **restarted** as `/overlay/rpm10_launch.sh` → `/overlay/rpm10.txt` (`-n 2000000`,
+  pid 25898, started AP 8650.88). It is now the instrument for a *different* question: whether the
+  stall's rate changes across the next cascade.
+  **⚠ AND THE FIRST RESTART SILENTLY PRODUCED NOTHING — because `nohup` DOES NOT EXIST on this device.**
+  The recipe that works is **`start-stop-daemon -S -b -x <script>`** (`setsid` also exists; `nohup` does
+  not). A failed background launch here creates **no output file at all**, which reads exactly like
+  "the experiment produced nothing". **Trap 22.**
 * **`pc_state wait timeout` vs `pc-ack timeout` = 2 vs 76 (§8.16, re-measured on the full ring).** The
   §8.16 accounting is now **exact at 100 %**: `pc_resync_count` **81** = **81** `lost edge` lines;
   `pc_timeout_count` **78** = **76** `pc-ack timeout` + **2** `pc_state wait timeout`. The earlier

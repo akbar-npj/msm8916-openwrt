@@ -2115,3 +2115,120 @@ second full modem reload.
    * The silent data-plane loss (n = 3) still has no instrument pointed at it.
 
 
+================================================================================
+PART 14 -- CORRECTION: THE RPM CAPTURE WAS **NOT** RUNNING WHILE PART 12 WAS
+           WRITTEN, AND `nohup` DOES NOT EXIST ON THIS DEVICE
+           (added 2026-09-21 ~19:45 local / 13:45 UTC, boot a9fd907c, AP ~8660 s)
+================================================================================
+
+Part 12 section 8 said "LEAVE THE RPM CAPTURE RUNNING", and the Doc 170 section 10
+bullet said "the capture is still running and should stay running".  *** BOTH
+WERE WRONG: THE CAPTURE HAD ALREADY EXITED. ***  I asserted it instead of
+checking it.
+
+--------------------------------------------------------------------------------
+1. HOW IT ENDED
+--------------------------------------------------------------------------------
+
+   $ ps w | grep "[r]pmring"          -> (nothing)
+   $ ls -l /overlay/rpm9.txt
+   -rw-r--r--    1 root     root      49722962 Sep 21 13:40 /overlay/rpm9.txt
+   $ grep -c "^R " /overlay/rpm9.txt  ->  660382
+   $ tail -4 /overlay/rpm9.txt
+   R 00200000 ff53e444 00000025 000000db 00000001 616f646c 00000012 0000042d
+   R 00200000 ff53e49b 00000025 000000d2 00000001 00716572 00000000 00000000
+   R 00200000 ff53e856 00000025 000000ff 00000143 ffffffff fffff77d 00000000 00000000
+   R 00200000 ff53e912 00000025 000000cd 00000000 00000000 00000000 00000000
+
+   The last line is a COMPLETE 8-word record closing a vote cycle (0xcd
+   txn-close), so the run exited CLEANLY at its sample limit -- it did not crash.
+
+   *** THE UNITS TRAP: `-n` COUNTS POLLS, NOT RECORDS. ***
+   The header reads `samples=500000 interval=4ms`.  At ~4.5 ms per poll that is
+   ~2250 s of wall time; the capture started at AP 6343.17 and the file stops at
+   ~AP 8600 s.  So "500 000" was a poll budget, and the run ended roughly 2.3x
+   sooner than a reader would guess from "500 000 records" (it wrote 660 382
+   records).  *** Read the tool's own units before reasoning about its lifetime. ***
+
+   Consequence: the negative in Part 12 section 2 is UNAFFECTED -- all three
+   fatals (#9, #10, #11) and all three >= 8 s stalls were inside the captured
+   window, which is what the claim rests on.  What was wrong was only the
+   forward-looking statement about the instrument's availability.
+
+--------------------------------------------------------------------------------
+2. RESTART -- AND A DEVICE QUIRK THAT MADE THE FIRST ATTEMPT SILENT
+--------------------------------------------------------------------------------
+
+   First attempt (FAILED, and it failed SILENTLY):
+
+     $ setsid nohup /overlay/rpm10_launch.sh < /dev/null > /dev/null 2>&1 &
+     $ sleep 4; ps w | grep "[r]pmring"     -> (nothing)
+     $ head -4 /overlay/rpm10.txt
+     head: /overlay/rpm10.txt: No such file or directory
+
+   Diagnosis:
+
+     $ which nohup   -> (nothing)      *** nohup DOES NOT EXIST ON THIS DEVICE ***
+     $ which setsid  -> /usr/bin/setsid
+     $ which start-stop-daemon -> /sbin/start-stop-daemon
+
+   The script itself was fine -- run in the FOREGROUND it wrote 51 452 bytes in
+   3 s.  The failure was purely the launcher.
+
+   Working recipe:
+
+     $ start-stop-daemon -S -b -x /overlay/rpm10_launch.sh
+     $ sleep 5; ps w | grep "[r]pmring"
+     25898 root       240 S    /overlay/rpmring -t -n 2000000 -i 4
+     $ ls -l /overlay/rpm10.txt
+     -rw-r--r--    1 root     root        134601 Sep 21 13:42 /overlay/rpm10.txt
+     $ head -2 /overlay/rpm10.txt
+     RPM10 START uptime=8650.88 fatals=12
+     # rpmring ring=0x29dc58 words=2048 hdr=0x29dc00 hwords=22 samples=2000000 interval=4ms
+
+   *** A FAILED BACKGROUND LAUNCH HERE CREATES NO OUTPUT FILE AT ALL, WHICH IS
+       INDISTINGUISHABLE FROM "THE EXPERIMENT RAN AND PRODUCED NOTHING". ***
+   Confirm a launch by seeing BOTH the process in `ps` AND the output file
+   growing.  (`-n 2000000` at ~4.5 ms/poll is ~2.5 h and ~200 MB; /overlay had
+   1.4 G free, 55 % used.)
+
+--------------------------------------------------------------------------------
+3. WHAT WAS CHECKED, SO THE REST OF THE CLAIM IS NOT ALSO AN ASSUMPTION
+--------------------------------------------------------------------------------
+
+   Device-side, `ps w` at AP ~8665:
+
+     logroll.sh          RUNNING  (2 procs, 24478 / 24484)
+     beacon.sh           RUNNING
+     dmesg_roll.sh       RUNNING
+     ssr_ledger.sh       RUNNING
+     q6trace_soak.sh     RUNNING
+     rpmring             RUNNING  (restarted, pid 25898)
+
+   Host-side:
+
+     $ pgrep -af storm_sampler
+     1183644 bash scratch/storm_sampler.sh 60
+     $ tail -1 /tmp/storm_sampler2.log
+     2026-09-21T19:27:10+05:45 up=8628.96 fatals=12 resync=81 lostedge=81
+       pctimeout=79 quiesce_ms=657 pc_state=0 susp=1076/1042
+
+   So the Doc 170 section 10 statement "the `storm_sampler` and `logroll.sh` are
+   both still running" IS correct; only the RPM-capture claim was false.
+   The sampler independently confirms the silence: `resync=81` flat while
+   `susp` climbs 1043 -> 1076.
+
+--------------------------------------------------------------------------------
+4. THE STANDING RULE THIS PRODUCES (Doc 170 trap 22)
+--------------------------------------------------------------------------------
+
+   * **"Still running" is an observation, not an assumption.** `ps w | grep
+     "[r]pmring"` costs one round trip.  A long-lived instrument FEELS like a
+     fact, which is exactly why it gets asserted unchecked.
+   * **Read the tool's units.** `-n 500000` was polls, not records.
+   * **On this device use `start-stop-daemon -S -b -x <script>`** (or `setsid`);
+     `nohup` is absent, and its absence produces a silent no-op.
+   * Confirm any launch with **both** `ps` and a growing output file.
+
+
+
