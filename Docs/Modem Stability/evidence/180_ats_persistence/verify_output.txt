@@ -1,0 +1,138 @@
+== building the unit test (static, aarch64) ==
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c: In function 'qmi_encode_struct_elem':
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c:245:23: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  245 |         for (i = 0; i < elem_len; i++) {
+      |                       ^
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c: In function 'qmi_decode_struct_elem':
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c:520:23: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  520 |         for (i = 0; i < elem_len && decoded_bytes < tlv_len; i++) {
+      |                       ^
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c:520:51: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  520 |         for (i = 0; i < elem_len && decoded_bytes < tlv_len; i++) {
+      |                                                   ^
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c:530:46: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  530 |         if ((dec_level <= 2 && decoded_bytes != tlv_len) ||
+      |                                              ^~
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c:531:34: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  531 |             (dec_level > 2 && (i < elem_len || decoded_bytes > tlv_len))) {
+      |                                  ^
+openwrt/build_dir/target-aarch64_generic_musl/qrtr-0~5923eea9/lib/qmi.c:531:62: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  531 |             (dec_level > 2 && (i < elem_len || decoded_bytes > tlv_len))) {
+      |                                                              ^
+== running (natively) ==
+== 1. save / load round-trip ==
+ats-persist-test: [QMI-TIME] ATS state: loaded /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000000 rtc_ms=5000000 wall_ms=1758542400000 delta_ms=1758537400000 synced_at=1758542400
+  ok    save returns 0                                     
+  ok    save leaves no .tmp behind                         
+  ok    save creates the file                              
+  ok    load returns 0                                     
+  ok    load sets the loaded flag                          
+  ok    base round-trips                                   
+  ok    offset_ms round-trips                              
+  ok    rtc_ms round-trips                                 
+  ok    wall_ms round-trips                                
+  ok    delta_ms round-trips                               
+  ok    synced_at round-trips                              
+
+== 2. the file is self-describing ==
+  ok    declares its magic                                 
+  ok    declares its version                               
+  ok    declares its base                                  
+  ok    has exactly the 8 documented keys                  
+  ok    ends with a newline                                
+
+== 3. the signed field survives ==ats-persist-test: [QMI-TIME] ATS state: loaded /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000000 rtc_ms=1758542405000 wall_ms=1758542400000 delta_ms=-5000 synced_at=1758542400
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is empty or unreadable; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is not a complete qcom-ats-state v1 record for base 2; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is not a complete qcom-ats-state v1 record for base 2; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is not a complete qcom-ats-state v1 record for base 2; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is not a complete qcom-ats-state v1 record for base 2; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is not a complete qcom-ats-state v1 record for base 2; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats holds an implausible offset_ms=1000; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: /tmp/ats_persist_test/ats is not a complete qcom-ats-state v1 record for base 2; ignoring it
+ats-persist-test: [QMI-TIME] ATS state: no record at /tmp/ats_persist_test/ats (No such file or directory); modem reset status unknown until the first handshake
+
+  ok    negative delta_ms round-trips                      
+
+== 4. a bad record degrades to 'no record', never to a wrong offset ==
+  ok    empty file                                         
+  ok    not a record at all                                
+  ok    wrong magic                                        
+  ok    future version                                     
+  ok    wrong base (ATS_TOD)                               
+  ok    truncated (no delta_ms)                            
+  ok    implausible offset                                 
+  ok    negative offset                                    
+
+== 5. absent file ==
+  ok    missing file -> not loaded, no crash               
+
+== 6. the parent directory is created on demand ==
+  ok    save into a missing directory succeeds             
+
+== 7. -P none disables the whole path ==
+  ok    disabled: save writes nothing                      
+  ok    disabled: note_handshake writes nothing            
+  ok    disabled: load reads nothing                      ats-persist-test: [QMI-TIME] ATS state: loaded /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000000 rtc_ms=5000000 wall_ms=1758542400000 delta_ms=1758537400000 synced_at=1758542400
+ats-persist-test: [QMI-TIME] ATS state: loaded /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000000 rtc_ms=0 wall_ms=1758542400000 delta_ms=1758542400000 synced_at=1758542400
+ats-persist-test: [QMI-TIME] ATS state: no record at /tmp/ats_persist_test/ats (No such file or directory); modem reset status unknown until the first handshake
+ats-persist-test: [QMI-TIME] ATS state: no record at /tmp/ats_persist_test/ats (No such file or directory); modem reset status unknown until the first handshake
+ats-persist-test: [QMI-TIME] ATS state: loaded /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000000 rtc_ms=5000000 wall_ms=1758542400000 delta_ms=1758537400000 synced_at=1758542400
+ 
+
+== 8. verdict: the modem restarted ==
+  ok    reported as RESTARTED                              
+  ok    names the modem time lost                          
+  ok    does not claim survival                            
+
+== 9. verdict: the modem survived ==
+  ok    reported as SURVIVED                               
+  ok    names the elapsed modem time                       
+  ok    does not claim a restart                           
+
+== 10. the verdict is one-shot per boot ==
+  ok    first call logs                                    
+  ok    second call is silent                              
+
+== 11. verdict: no comparable RTC ==
+  ok    rtc_ms=0 -> UNKNOWN, not a guess                   
+  ok    no record -> UNKNOWN                               
+
+== 12. the AP-clock guards ==
+  ok    1970 is not a clock                                
+  ok    a 2025 clock is usable                             
+  ok    a clock behind the record is unusable              
+  ok    a clock ahead of the record is usable             ats-persist-test: [QMI-TIME] ATS state: no record at /tmp/ats_persist_test/ats (No such file or directory); modem reset status unknown until the first handshake
+ats-persist-test: [QMI-TIME] ATS state: persisted to /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000000 rtc_ms=1000000 wall_ms=1758542400000 delta_ms=1758541400000
+ats-persist-test: [QMI-TIME] ATS state: refresh offset unchanged (1444000000000 ms); not rewriting /tmp/ats_persist_test/ats
+ats-persist-test: [QMI-TIME] ATS state: persisted to /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000001 rtc_ms=3000000 wall_ms=1758542400000 delta_ms=1758539400000
+ats-persist-test: [QMI-TIME] ATS state: loaded /tmp/ats_persist_test/ats -- base=2 offset_ms=1444000000001 rtc_ms=3000000 wall_ms=1758542400000 delta_ms=1758539400000 synced_at=1790075107
+ 
+
+== 13. the restore candidate ==
+  ok    returns the persisted offset                       
+  ok    refuses when there is no record                    
+
+== 14. when the record is rewritten ==
+  ok    INITIAL always writes                              
+  ok    INITIAL records its own rtc_ms                     
+  ok    unchanged REFRESH does NOT rewrite                 
+  ok    unchanged REFRESH keeps the old rtc_ms             
+  ok    changed REFRESH writes                             
+  ok    changed REFRESH updates rtc_ms                     
+  ok    the rewritten record holds the new offset          
+
+== 15. the persisted offset is the one the modem accepted ==
+  ok    record offset fits the u64 TLV unchanged           
+
+RESULT: PASS  54 checks, 0 failed
+
+== smoke-testing the real daemon's -P wiring ==
+--- default path, with a prepared record ---
+qcom-time-daemon[2173654]: [QMI-TIME] Persistent ATS state: /tmp/qtest_ats_persist/ats_state
+qcom-time-daemon[2173654]: [QMI-TIME] ATS state: loaded /tmp/qtest_ats_persist/ats_state -- base=2 offset_ms=1474105307000 rtc_ms=5000000 wall_ms=1790075107000 delta_ms=1790070107000 synced_at=1790075107
+--- -P none (whole path DISABLED) ---
+qcom-time-daemon[2173657]: [QMI-TIME] Persistent ATS state: DISABLED (-P none)
+--- default path, no record present ---
+qcom-time-daemon[2173683]: [QMI-TIME] Persistent ATS state: /tmp/qtest_ats_persist/ats_state
+qcom-time-daemon[2173683]: [QMI-TIME] ATS state: no record at /tmp/qtest_ats_persist/ats_state (No such file or directory); modem reset status unknown until the first handshake

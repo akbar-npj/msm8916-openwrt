@@ -31,6 +31,7 @@
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <linux/rtc.h>
 #include <poll.h>
 
@@ -43,6 +44,24 @@
 #define QMI_SYNC_TIMEOUT_MS		5000
 #define SYNC_MARKER_FILE		"/var/run/qcom-time-synced"
 #define GPS_EPOCH_OFFSET_MS		315964800000ULL
+
+/*
+ * Persistent ATS state (Android parity).
+ *
+ * Stock Android's time_daemon keeps /data/time/ats_<N> -- the relation between
+ * the AP wall clock and the modem's own ATS_RTC counter -- so the modem's time
+ * bases can be restored after a reboot without waiting for NITZ.  This daemon
+ * had no equivalent: the only file it wrote was the tmpfs marker above, which
+ * does not survive a reboot (Doc 172).
+ *
+ * The store is deliberately NOT on tmpfs.  /etc is on the overlayfs upper
+ * layer on this port, so it survives both a reboot and a sysupgrade.
+ */
+#define DEFAULT_ATS_STATE_FILE		"/etc/qcom-time/ats"
+#define ATS_STATE_MAGIC			"qcom-ats-state"
+#define ATS_STATE_VERSION		1
+/* 2020-01-01T00:00:00Z.  A wall clock below this is not a clock. */
+#define AP_CLOCK_SANITY_FLOOR_MS	1577836800000ULL
 
 enum time_daemon_state {
 	STATE_DISCOVERING = 0,
@@ -59,11 +78,31 @@ struct qmi_header {
 	uint16_t msg_len;
 } __attribute__((packed));
 
+/*
+ * One persisted ATS record.  Text on disk (see ats_state_save), because the
+ * file is ours alone -- Android never reads it -- and this project reads its
+ * evidence with grep.
+ */
+struct ats_persist {
+	uint32_t base;		/* time base the offset belongs to (always ATS_USER here) */
+	uint64_t offset_ms;	/* the offset the modem ACCEPTED, ms since the GPS epoch */
+	uint64_t rtc_ms;	/* ATS_RTC (modem uptime) at the moment of that write */
+	uint64_t wall_ms;	/* AP wall clock at that moment */
+	int64_t  delta_ms;	/* wall_ms - rtc_ms; the relation Android persists */
+	uint64_t synced_at;	/* AP wall seconds, for humans */
+};
+
 static volatile sig_atomic_t running = 1;
 static bool verbose = false;
 static bool enable_periodic_get = false;
 static int poll_interval = DEFAULT_POLL_INTERVAL_SEC;
 static int refresh_interval = DEFAULT_REFRESH_INTERVAL_SEC;
+
+static const char *ats_state_file = DEFAULT_ATS_STATE_FILE;
+static bool ats_state_enabled = true;
+static bool ats_state_loaded = false;
+static bool ats_verdict_logged = false;
+static struct ats_persist ats_state;
 
 static uint32_t modem_node = 0;
 static uint32_t modem_port = 0;
@@ -81,6 +120,345 @@ static uint64_t get_monotonic_sec(void)
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (uint64_t)ts.tv_sec;
+}
+
+/* ======================================================================
+ * Persistent ATS state
+ * ======================================================================
+ *
+ * What the record buys, in order of value:
+ *
+ *   1. Modem-reset vs AP-reboot discrimination with NO wall clock in the
+ *      arithmetic.  ATS_RTC is the modem's own uptime counter and only ever
+ *      moves forwards while the modem runs.  If the RTC read at the first
+ *      handshake after a boot is LOWER than the RTC stored here, the modem
+ *      restarted; if it is HIGHER, the modem survived and the difference is
+ *      how much modem time elapsed across the AP's downtime.  That is the
+ *      question this project previously could only answer from the HOST's
+ *      journalctl (reference_hmu05_device_quirks.md).
+ *
+ *   2. Restoring the ATS_USER offset when the AP wall clock is manifestly
+ *      unusable.  See ap_clock_is_usable() for the two guards.  The estimate
+ *      is NEVER allowed to override a plausible AP clock: a legitimate NTP
+ *      step and a broken boot clock are indistinguishable in one sample.
+ *
+ * Wire neutrality.  This path adds NO QMI message.  It is populated from the
+ * ATS_RTC / ATS_TOD values the handshake already reads, and written to AP
+ * flash only.  The 0x0021 GET stays 14 bytes and the 0x0020 SET stays 25, so
+ * the read-only property established in Doc 173 is untouched.
+ */
+
+static bool ats_state_dir(char *out, size_t outsz)
+{
+	const char *slash = strrchr(ats_state_file, '/');
+	size_t len;
+
+	if (!slash || slash == ats_state_file)
+		return false;
+	len = (size_t)(slash - ats_state_file);
+	if (len + 1 > outsz)
+		return false;
+	memcpy(out, ats_state_file, len);
+	out[len] = '\0';
+	return true;
+}
+
+static void ats_state_ensure_dir(void)
+{
+	char dir[256];
+
+	if (ats_state_dir(dir, sizeof(dir)) && mkdir(dir, 0755) < 0 && errno != EEXIST)
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: cannot create %s: %s", dir, strerror(errno));
+}
+
+/* Find "key=value" on its own line and copy the value into out. */
+static bool kv_get(const char *buf, const char *key, char *out, size_t outsz)
+{
+	size_t klen = strlen(key);
+	const char *p = buf;
+
+	while (*p) {
+		const char *eol = strchr(p, '\n');
+		size_t len = eol ? (size_t)(eol - p) : strlen(p);
+
+		if (len > klen && !strncmp(p, key, klen) && p[klen] == '=') {
+			size_t vlen = len - klen - 1;
+
+			if (vlen >= outsz)
+				vlen = outsz - 1;
+			memcpy(out, p + klen + 1, vlen);
+			out[vlen] = '\0';
+			return true;
+		}
+		if (!eol)
+			break;
+		p = eol + 1;
+	}
+	return false;
+}
+
+static bool kv_u64(const char *buf, const char *key, uint64_t *out)
+{
+	char tmp[64], *end;
+
+	if (!kv_get(buf, key, tmp, sizeof(tmp)) || !tmp[0] || tmp[0] == '-')
+		return false;
+	errno = 0;
+	*out = (uint64_t)strtoull(tmp, &end, 10);
+	return errno == 0 && end != tmp;
+}
+
+static bool kv_i64(const char *buf, const char *key, int64_t *out)
+{
+	char tmp[64], *end;
+
+	if (!kv_get(buf, key, tmp, sizeof(tmp)) || !tmp[0])
+		return false;
+	errno = 0;
+	*out = (int64_t)strtoll(tmp, &end, 10);
+	return errno == 0 && end != tmp;
+}
+
+/*
+ * Load the record written by a previous boot.  Every failure is non-fatal and
+ * leaves ats_state_loaded false: an absent, empty, truncated or foreign file
+ * must degrade to "no record", never to a wrong offset.
+ */
+static int ats_state_load(void)
+{
+	char buf[1024], magic[32];
+	ssize_t n;
+	int fd;
+	uint64_t version = 0, base = 0;
+
+	ats_state_loaded = false;
+
+	if (!ats_state_enabled)
+		return -1;
+
+	fd = open(ats_state_file, O_RDONLY);
+	if (fd < 0) {
+		syslog(LOG_INFO, "[QMI-TIME] ATS state: no record at %s (%s); modem reset status unknown until the first handshake",
+		       ats_state_file, strerror(errno));
+		return -1;
+	}
+	n = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (n <= 0) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: %s is empty or unreadable; ignoring it", ats_state_file);
+		return -1;
+	}
+	buf[n] = '\0';
+
+	if (!kv_get(buf, "magic", magic, sizeof(magic)) || strcmp(magic, ATS_STATE_MAGIC) ||
+	    !kv_u64(buf, "version", &version) || version != ATS_STATE_VERSION ||
+	    !kv_u64(buf, "base", &base) || base != ATS_USER ||
+	    !kv_u64(buf, "offset_ms", &ats_state.offset_ms) ||
+	    !kv_u64(buf, "rtc_ms", &ats_state.rtc_ms) ||
+	    !kv_u64(buf, "wall_ms", &ats_state.wall_ms) ||
+	    !kv_i64(buf, "delta_ms", &ats_state.delta_ms) ||
+	    !kv_u64(buf, "synced_at", &ats_state.synced_at)) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: %s is not a complete %s v%d record for base %d; ignoring it",
+		       ats_state_file, ATS_STATE_MAGIC, ATS_STATE_VERSION, ATS_USER);
+		return -1;
+	}
+
+	ats_state.base = (uint32_t)base;
+
+	/*
+	 * This is the value that gets sent to the modem, so an implausible one
+	 * must not load.  The floor is the same instant as the AP clock floor,
+	 * expressed as ms since the GPS epoch.
+	 */
+	if (ats_state.offset_ms < AP_CLOCK_SANITY_FLOOR_MS - GPS_EPOCH_OFFSET_MS) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: %s holds an implausible offset_ms=%llu; ignoring it",
+		       ats_state_file, (unsigned long long)ats_state.offset_ms);
+		return -1;
+	}
+
+	ats_state_loaded = true;
+	syslog(LOG_NOTICE, "[QMI-TIME] ATS state: loaded %s -- base=%u offset_ms=%llu rtc_ms=%llu wall_ms=%llu delta_ms=%lld synced_at=%llu",
+	       ats_state_file, ats_state.base,
+	       (unsigned long long)ats_state.offset_ms,
+	       (unsigned long long)ats_state.rtc_ms,
+	       (unsigned long long)ats_state.wall_ms,
+	       (long long)ats_state.delta_ms,
+	       (unsigned long long)ats_state.synced_at);
+	return 0;
+}
+
+/*
+ * Write the record.  Temp file + fsync + rename, so a power loss leaves either
+ * the old record or the new one and never a half-written line.
+ */
+static int ats_state_save(const struct ats_persist *p)
+{
+	char tmp_path[288], dir[256], buf[512];
+	int fd, dirfd, len;
+
+	if (!ats_state_enabled)
+		return -1;
+	if (strlen(ats_state_file) + 5 > sizeof(tmp_path))
+		return -1;
+
+	ats_state_ensure_dir();
+	snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", ats_state_file);
+
+	len = snprintf(buf, sizeof(buf),
+		       "magic=%s\nversion=%d\n"
+		       "base=%u\noffset_ms=%llu\nrtc_ms=%llu\nwall_ms=%llu\n"
+		       "delta_ms=%lld\nsynced_at=%llu\n",
+		       ATS_STATE_MAGIC, ATS_STATE_VERSION, p->base,
+		       (unsigned long long)p->offset_ms,
+		       (unsigned long long)p->rtc_ms,
+		       (unsigned long long)p->wall_ms,
+		       (long long)p->delta_ms,
+		       (unsigned long long)p->synced_at);
+	if (len <= 0 || (size_t)len >= sizeof(buf))
+		return -1;
+
+	fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: cannot open %s: %s", tmp_path, strerror(errno));
+		return -1;
+	}
+	if (write(fd, buf, len) != len) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: short write to %s: %s", tmp_path, strerror(errno));
+		close(fd);
+		unlink(tmp_path);
+		return -1;
+	}
+	fsync(fd);
+	close(fd);
+
+	if (rename(tmp_path, ats_state_file) < 0) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: cannot rename %s -> %s: %s",
+		       tmp_path, ats_state_file, strerror(errno));
+		unlink(tmp_path);
+		return -1;
+	}
+
+	/* Make the rename itself durable, not just the file contents. */
+	if (ats_state_dir(dir, sizeof(dir))) {
+		dirfd = open(dir, O_RDONLY | O_DIRECTORY);
+		if (dirfd >= 0) {
+			fsync(dirfd);
+			close(dirfd);
+		}
+	}
+	return 0;
+}
+
+/*
+ * The one-shot boot verdict.  Called from the handshake, which has already
+ * read ATS_RTC -- so this costs no extra QMI traffic.
+ */
+static void ats_state_log_boot_verdict(uint64_t rtc_now_ms)
+{
+	if (ats_verdict_logged)
+		return;
+	ats_verdict_logged = true;
+
+	if (!ats_state_loaded) {
+		syslog(LOG_NOTICE, "[QMI-TIME] ATS state: no usable prior record, so modem reset vs AP reboot is UNKNOWN for this boot");
+		return;
+	}
+
+	/*
+	 * rtc_ms == 0 is the sentinel for "the ATS_RTC read failed when this
+	 * record was written".  ATS_RTC is the modem's uptime in ms, so a real
+	 * value is never 0 by the time a handshake can run.  Without it there
+	 * is nothing to compare, and guessing would invert the verdict.
+	 */
+	if (ats_state.rtc_ms == 0) {
+		syslog(LOG_NOTICE, "[QMI-TIME] ATS state: prior record carries no ATS_RTC reading, so modem reset vs AP reboot is UNKNOWN for this boot");
+		return;
+	}
+
+	if (rtc_now_ms < ats_state.rtc_ms) {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: MODEM RESTARTED -- ATS_RTC is %llu ms, below the %llu ms recorded at the last ATS_USER set (%llu ms of modem time lost). Its time bases were cleared and are being re-established.",
+		       (unsigned long long)rtc_now_ms,
+		       (unsigned long long)ats_state.rtc_ms,
+		       (unsigned long long)(ats_state.rtc_ms - rtc_now_ms));
+		return;
+	}
+
+	syslog(LOG_NOTICE, "[QMI-TIME] ATS state: MODEM SURVIVED -- ATS_RTC is %llu ms, %llu ms above the %llu ms recorded at the last ATS_USER set. That difference is modem time elapsed across the AP's downtime, measured with no AP wall clock in the arithmetic.",
+	       (unsigned long long)rtc_now_ms,
+	       (unsigned long long)(rtc_now_ms - ats_state.rtc_ms),
+	       (unsigned long long)ats_state.rtc_ms);
+}
+
+/*
+ * Is the AP wall clock usable as a time source?
+ *
+ * Two guards, both conservative.  A plausible clock is ALWAYS preferred: a
+ * legitimate NTP step and a broken boot clock look identical in a single
+ * sample, and overriding a good clock with a stale offset would be worse than
+ * doing nothing.
+ */
+static bool ap_clock_is_usable(uint64_t ap_wall_ms)
+{
+	if (ap_wall_ms < AP_CLOCK_SANITY_FLOOR_MS)
+		return false;
+	/* An AP reboot cannot move the wall clock backwards. */
+	if (ats_state_loaded && ats_state.wall_ms >= AP_CLOCK_SANITY_FLOOR_MS &&
+	    ap_wall_ms < ats_state.wall_ms)
+		return false;
+	return true;
+}
+
+static bool ats_state_restore_offset(uint64_t *out)
+{
+	if (!ats_state_loaded || ats_state.base != ATS_USER)
+		return false;
+	*out = ats_state.offset_ms;
+	return true;
+}
+
+/*
+ * Persist the outcome of a successful ATS_USER set.
+ *
+ * An INITIAL set (boot, or the first handshake after an SSR) always writes.
+ * A refresh writes only when the offset actually changed: re-deriving the same
+ * number tells a future boot nothing new, and every write costs a flash erase.
+ */
+static void ats_state_note_handshake(uint64_t rtc_ms, uint64_t wall_ms,
+				     uint64_t offset_ms, bool is_refresh)
+{
+	struct ats_persist rec;
+	bool changed;
+
+	if (!ats_state_enabled)
+		return;
+
+	changed = !ats_state_loaded || ats_state.offset_ms != offset_ms;
+	if (is_refresh && !changed) {
+		syslog(LOG_INFO, "[QMI-TIME] ATS state: refresh offset unchanged (%llu ms); not rewriting %s",
+		       (unsigned long long)offset_ms, ats_state_file);
+		return;
+	}
+
+	rec.base = ATS_USER;
+	rec.offset_ms = offset_ms;
+	rec.rtc_ms = rtc_ms;
+	rec.wall_ms = wall_ms;
+	rec.delta_ms = (int64_t)(wall_ms - rtc_ms);
+	rec.synced_at = (uint64_t)time(NULL);
+
+	if (ats_state_save(&rec) == 0) {
+		ats_state = rec;
+		ats_state_loaded = true;
+		syslog(LOG_NOTICE, "[QMI-TIME] ATS state: persisted to %s -- base=%u offset_ms=%llu rtc_ms=%llu wall_ms=%llu delta_ms=%lld",
+		       ats_state_file, rec.base,
+		       (unsigned long long)rec.offset_ms,
+		       (unsigned long long)rec.rtc_ms,
+		       (unsigned long long)rec.wall_ms,
+		       (long long)rec.delta_ms);
+	} else {
+		syslog(LOG_WARNING, "[QMI-TIME] ATS state: could not persist to %s; the record stays advisory only",
+		       ats_state_file);
+	}
 }
 
 static void sig_handler(int sig)
@@ -245,6 +623,8 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 	uint64_t tod_val = 0;
 	uint64_t rtc_val = 0;
 	uint64_t genoff = 0;
+	struct timeval tv;
+	uint64_t wall_ms;
 
 	if (!modem_connected || modem_port == 0)
 		return -1;
@@ -252,6 +632,16 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 	/* Query modem base 0 (ATS_RTC) and base 1 (ATS_TOD) */
 	int ret_tod = query_modem_ats_base(sock, ATS_TOD, &tod_val);
 	int ret_rtc = query_modem_ats_base(sock, ATS_RTC, &rtc_val);
+
+	gettimeofday(&tv, NULL);
+	wall_ms = ((uint64_t)tv.tv_sec * 1000ULL) + ((uint64_t)tv.tv_usec / 1000ULL);
+
+	/*
+	 * Free: the RTC read above is the only input this needs, so the
+	 * reset-vs-reboot verdict costs no extra QMI traffic.
+	 */
+	if (ret_rtc == 0)
+		ats_state_log_boot_verdict(rtc_val);
 
 	if (ret_tod == 0 && ret_rtc == 0 && tod_val > 0 && tod_val >= rtc_val) {
 		/*
@@ -263,12 +653,29 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 		       is_refresh ? "REFRESH" : "INITIAL",
 		       (unsigned long long)tod_val, (unsigned long long)rtc_val,
 		       (unsigned long long)genoff);
+	} else if (!ap_clock_is_usable(wall_ms)) {
+		/*
+		 * The AP wall clock is not a clock (unset, or it moved backwards
+		 * across a reboot).  Deriving an offset from it would underflow
+		 * the GPS-epoch subtraction and hand the modem a ~1.8e19 ms
+		 * ATS_USER -- a wrong offset is worse than none, so use the
+		 * persisted one if we have it and otherwise send nothing.
+		 */
+		uint64_t restored = 0;
+
+		if (ats_state_restore_offset(&restored)) {
+			genoff = restored;
+			syslog(LOG_WARNING, "[QMI-TIME] %s: AP wall clock (%llu ms) is unusable; restoring ATS_USER offset %llu ms from the persisted record instead",
+			       is_refresh ? "REFRESH" : "INITIAL",
+			       (unsigned long long)wall_ms, (unsigned long long)genoff);
+		} else {
+			syslog(LOG_ERR, "[QMI-TIME] %s: AP wall clock (%llu ms) is unusable and no persisted ATS record exists; REFUSING to derive an offset from it. Will retry.",
+			       is_refresh ? "REFRESH" : "INITIAL", (unsigned long long)wall_ms);
+			return -1;
+		}
 	} else {
 		/* Fallback to host AP time if network NITZ has not locked yet */
-		struct timeval tv;
-		gettimeofday(&tv, NULL);
-		uint64_t ap_time_ms = ((uint64_t)tv.tv_sec * 1000ULL) + ((uint64_t)tv.tv_usec / 1000ULL);
-		uint64_t gps_time_ms = ap_time_ms - GPS_EPOCH_OFFSET_MS;
+		uint64_t gps_time_ms = wall_ms - GPS_EPOCH_OFFSET_MS;
 		if (ret_rtc == 0 && gps_time_ms >= rtc_val) {
 			genoff = gps_time_ms - rtc_val;
 		} else {
@@ -325,6 +732,12 @@ static int send_ats_user_transaction(int sock, bool is_refresh)
 			(unsigned long long)genoff, time(NULL), is_refresh ? 1 : 0);
 		close(fd);
 	}
+
+	/*
+	 * The tmpfs marker above dies with the boot; this one does not.  Only
+	 * a modem-CONFIRMED offset is recorded -- the SET returned success.
+	 */
+	ats_state_note_handshake(ret_rtc == 0 ? rtc_val : 0, wall_ms, genoff, is_refresh);
 
 	return 0;
 }
@@ -487,6 +900,14 @@ static void handle_qrtr_packet(int sock, void *buf, size_t len,
 			unlink(SYNC_MARKER_FILE);
 			last_handshake_attempt = 0;
 			last_lookup_attempt = 0;
+			/*
+			 * Re-arm the verdict: the next handshake must report
+			 * whether the modem actually restarted, against the
+			 * record written before the SSR.  The record itself is
+			 * left alone -- it is a statement about the past, and it
+			 * is exactly what makes that comparison possible.
+			 */
+			ats_verdict_logged = false;
 			qrtr_new_lookup(sock, QMI_TIME_SERVICE_ID, 0, 0);
 		}
 	} else if (pkt.type == QRTR_TYPE_DATA) {
@@ -545,7 +966,7 @@ int main(int argc, char *argv[])
 	int sock;
 	int ret;
 
-	while ((opt = getopt(argc, argv, "vpr:i:")) != -1) {
+	while ((opt = getopt(argc, argv, "vpr:i:P:")) != -1) {
 		switch (opt) {
 		case 'v':
 			verbose = true;
@@ -575,10 +996,23 @@ int main(int argc, char *argv[])
 			if (poll_interval < 5)
 				poll_interval = 5;
 			break;
+		case 'P':
+			/*
+			 * Persistent ATS state path.  "none" disables the whole
+			 * path (no read, no write) -- for a soak that must not
+			 * touch flash, or for testing.
+			 */
+			if (!strcmp(optarg, "none")) {
+				ats_state_enabled = false;
+			} else if (optarg[0]) {
+				ats_state_file = optarg;
+			}
+			break;
 		default:
-			fprintf(stderr, "Usage: %s [-v] [-p] [-r <refresh_sec>] [-i <interval_sec>]\n", argv[0]);
+			fprintf(stderr, "Usage: %s [-v] [-p] [-r <refresh_sec>] [-i <interval_sec>] [-P <ats_state_file>]\n", argv[0]);
 			fprintf(stderr, "  -p  enable the READ-ONLY modem-uptime poll (0x0021 GET only; no 0x0020 write)\n");
 			fprintf(stderr, "  -r  enable the periodic ATS_USER WRITE (0x0020) every <refresh_sec>; 0 = off (Android parity)\n");
+			fprintf(stderr, "  -P  persistent ATS record path (default %s); \"none\" disables it\n", DEFAULT_ATS_STATE_FILE);
 			return 1;
 		}
 	}
@@ -589,6 +1023,15 @@ int main(int argc, char *argv[])
 	       refresh_interval > 0 ? "ENABLED" : "DISABLED", refresh_interval);
 	syslog(LOG_NOTICE, "[QMI-TIME] Read-only modem-uptime poll (ATS_RTC base 0 + ATS_TOD base 1, 0x0021 GET only): %s (interval=%ds)",
 	       enable_periodic_get ? "ENABLED" : "DISABLED", poll_interval);
+	syslog(LOG_NOTICE, "[QMI-TIME] Persistent ATS state: %s",
+	       ats_state_enabled ? ats_state_file : "DISABLED (-P none)");
+
+	/*
+	 * Load before the socket opens, so the record is in hand by the time
+	 * the first handshake needs it.  Failure is normal on a first run.
+	 */
+	if (ats_state_enabled)
+		ats_state_load();
 
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);

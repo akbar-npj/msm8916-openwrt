@@ -54,6 +54,30 @@ start_service() {
 	#   [QMI-TIME] MODEM-UPTIME rtc_ms=<n> tod_ms=<n> tod_minus_rtc_ms=<n>
 	#
 	#procd_append_param command -p
+	# -P: persistent ATS record (Doc 180), Android parity for /data/time/ats_N.
+	#
+	# Holds the last modem-CONFIRMED ATS_USER offset together with the ATS_RTC
+	# and AP wall readings from that moment.  Two uses:
+	#   1. Reset vs reboot, with no AP clock in the arithmetic.  ATS_RTC is the
+	#      modem's own uptime counter and only moves forwards while the modem
+	#      runs, so RTC_now < RTC_recorded proves the modem restarted, and
+	#      RTC_now > RTC_recorded measures how much modem time elapsed across
+	#      the AP's downtime.
+	#   2. Restoring the offset when the AP wall clock is manifestly unusable
+	#      (unset, or moved backwards across a reboot).  It never overrides a
+	#      plausible clock: a legitimate NTP step and a broken boot clock look
+	#      identical in one sample.
+	#
+	# /var/run is tmpfs, so the record lives on the overlay instead.  It adds
+	# NO QMI traffic -- it is filled from the ATS_RTC/ATS_TOD reads the
+	# handshake already performs -- and writes flash only on a boot or SSR
+	# handshake, plus a refresh that actually changes the offset.  The wire
+	# stays 14 bytes for the 0x0021 GET and 25 for the 0x0020 SET, so the
+	# read-only property of Doc 173 is untouched.
+	#
+	# Passed explicitly (rather than relying on the compiled-in default) so the
+	# path is visible in `ps`.  Use "-P none" to disable the path entirely.
+	procd_append_param command -P /etc/qcom-time/ats
 	procd_append_param command -v
 	procd_set_param respawn 30 5 0
 	procd_set_param stdout 1
