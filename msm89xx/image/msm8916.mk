@@ -4,6 +4,7 @@ ifeq ($(SUBTARGET),msm8916)
 
 define Build/generate-squashfs-gpt
 	chmod +x $(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh
+	TOT_SECTORS="$(GPT_TOT_SECTORS)" \
 	$(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh $@
 endef
 
@@ -20,6 +21,8 @@ endef
 
 define Device/msm8916
 	SOC := msm8916
+	# 4 GB eMMC fitted to the modem sticks; override per device when it differs.
+	GPT_TOT_SECTORS := 7569408
 	CMDLINE := "earlycon console=tty0 console=ttyMSM0,115200 root=/dev/mmcblk0p14 rootfstype=squashfs rootwait"
 	FEATURES := squashfs
 	IMAGE/system.img := append-rootfs | append-metadata
@@ -78,5 +81,20 @@ define Device/generic-hmu05
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg qcom-time-daemon
 endef
 TARGET_DEVICES += generic-hmu05
+
+define Device/generic-mf800b
+	$(Device/msm8916)
+	DEVICE_VENDOR := Generic
+	DEVICE_MODEL := MF800B
+	DEVICE_DTS := msm8916-generic-mf800b
+	SUPPORTED_DEVICES := mf800b,generic
+	FILESYSTEMS := squashfs
+	# Slightly larger eMMC than the sticks (cat /sys/block/mmcblk0/size).
+	GPT_TOT_SECTORS := 7634944
+	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg
+endef
+TARGET_DEVICES += generic-mf800b
 
 endif

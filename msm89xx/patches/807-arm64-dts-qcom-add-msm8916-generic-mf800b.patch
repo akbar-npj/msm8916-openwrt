@@ -1,0 +1,161 @@
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mf800b.dts
+@@ -0,0 +1,158 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "MF800B 4G MiFi";
++	compatible = "mf800b,generic", "qcom,msm8916";
++
++	/*
++	 * 2100 mAh 4.35 V LiPo cell, per the pack label. The 3.35 V minimum
++	 * is the stock qcom,v-cutoff-uv. No ocv-capacity-table: pm8916_bms_vm
++	 * exposes no CAPACITY property and reads none.
++	 */
++	battery: battery {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion-polymer";
++
++		voltage-min-design-microvolt = <3350000>;
++		voltage-max-design-microvolt = <4350000>;
++		charge-full-design-microamp-hours = <2100000>;
++
++		constant-charge-current-max-microamp = <1000000>;
++		constant-charge-voltage-max-microvolt = <4350000>;
++	};
++};
++
++/*
++ * Persistent kernel log, same region as the UFI001B and HMU05: the last
++ * megabyte of the 0x8bd00000-0x8dbfffff System RAM range.
++ */
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++		ecc-size = <16>;
++	};
++};
++
++/*
++ * Three bi-colour status LEDs on the SoC TLMM, active high:
++ *
++ *   Wi-Fi     green gpio73   red gpio84
++ *   Cellular  green gpio85   red gpio72
++ *   Battery   green gpio0    red gpio1
++ */
++&{/leds} {
++	/delete-node/ led-r;
++	/delete-node/ led-g;
++	/delete-node/ led-b;
++
++	led-wlan-green {
++		function = LED_FUNCTION_WLAN;
++		color = <LED_COLOR_ID_GREEN>;
++		gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
++	};
++
++	led-wlan-red {
++		function = LED_FUNCTION_WLAN;
++		color = <LED_COLOR_ID_RED>;
++		gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
++	};
++
++	led-wwan-green {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_GREEN>;
++		gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
++	};
++
++	led-wwan-red {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_RED>;
++		gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
++	};
++
++	/*
++	 * pm8916_bms_vm derives STATUS from power_supply_am_i_supplied() and
++	 * reports only CHARGING or DISCHARGING, never FULL, so the -full and
++	 * -charging-orange-full-green triggers never fire. Only the red half
++	 * is bound; the green half is left free for user space.
++	 */
++	led-charging-green {
++		function = LED_FUNCTION_CHARGING;
++		color = <LED_COLOR_ID_GREEN>;
++		gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>;
++	};
++
++	led-charging-red {
++		function = LED_FUNCTION_CHARGING;
++		color = <LED_COLOR_ID_RED>;
++		gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
++		linux,default-trigger = "pm8916-bms-vm-charging";
++	};
++};
++
++&gpio_leds_default {
++	pins = "gpio0", "gpio1", "gpio72", "gpio73", "gpio84", "gpio85";
++};
++
++/*
++ * Single "reset" button, from the stock devicetree (key_freset = gpio102,
++ * active low, KEY_RESTART). Not verified live.
++ */
++&button_restart {
++	gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++	pins = "gpio102";
++	bias-pull-up;
++};
++
++/*
++ * Battery charger and voltage-mode BMS. pm8916_charger and the
++ * pm8916_usbin extcon enabled by msm8916-ufi.dtsi both claim SPMI register
++ * 0x1300 and the usb_vbus interrupt (0x13:1), so only one can bind. Bind
++ * the charger: pm8916_lbc registers its own EXTCON_USB provider, so it
++ * supplies the session-valid signal the MSM HS PHY needs as well as
++ * driving charge.
++ */
++&pm8916_usbin {
++	status = "disabled";
++};
++
++&pm8916_charger {
++	monitored-battery = <&battery>;
++
++	qcom,fast-charge-safe-voltage = <4350000>;
++	qcom,fast-charge-safe-current = <1000000>;
++
++	status = "okay";
++};
++
++&pm8916_bms {
++	monitored-battery = <&battery>;
++	power-supplies = <&pm8916_charger>;
++
++	status = "okay";
++};
++
++/*
++ * Peripheral-only port. The gadget only enumerates when an extcon supplies
++ * session-valid to the MSM HS PHY.
++ */
++&usb {
++	dr_mode = "peripheral";
++	extcon = <&pm8916_charger>;
++};
++
++&usb_hs_phy {
++	extcon = <&pm8916_charger>;
++};

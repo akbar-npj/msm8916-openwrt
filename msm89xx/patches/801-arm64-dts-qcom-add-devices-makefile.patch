@@ -1,17 +1,19 @@
 From: OpenWrt MSM8916 Maintainers
 Subject: [PATCH] arm64: dts: qcom: Add generic MSM8916 devices to Makefile
 
-Add msm8916 generic modem sticks (hmu05, uf02, ufi001b) to qcom Makefile.
+Add msm8916 generic modem sticks (hmu05, uf02, ufi001b, mf800b) to
+the qcom Makefile.
 
 --- a/arch/arm64/boot/dts/qcom/Makefile
 +++ b/arch/arm64/boot/dts/qcom/Makefile
-@@ -50,6 +50,9 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsu
+@@ -50,6 +50,10 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsu
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-gt58.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-j3ltetw.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-j5.dtb
 +dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-hmu05.dtb
 +dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-uf02.dtb
 +dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-ufi001b.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-mf800b.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-j5x.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-rossa.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-serranove.dtb
