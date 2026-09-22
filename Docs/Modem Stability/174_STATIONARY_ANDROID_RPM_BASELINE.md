@@ -317,7 +317,14 @@ stationary exercise was for.
 
 ---
 
-## 9. Result 4 — the MCPM cadence is **duty-cycle dependent**, so the Android-vs-OpenWrt "2.3×" is NOT established
+## 9. Result 4 — the MCPM cadence is a **duty cycle set by TRAFFIC**, so the Android-vs-OpenWrt "2.3×" is NOT established
+
+**Read §9.7, §9.8 and §9.9 before quoting anything in §9.1–§9.4** — those early
+subsections are the *live record* of how the answer was found, and three of their
+readings were corrected later in the section. In one line: **the rate is
+reproducible to 2.6 % at a fixed traffic condition, ~20 % lower with no traffic,
+and is not a function of session time; the corpus's 2.3× compares two single
+windows whose traffic was never controlled or recorded.**
 
 `Stock_Android_Live/02_DIFFERENTIAL_DIAG_ANALYSIS.md` §2 is the origin of the corpus's
 "Android does 1.88 MCPM sleep/wake cycles per second, OpenWrt 0.83, a 2.3× gap"
