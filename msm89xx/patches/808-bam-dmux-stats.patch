@@ -1427,7 +1427,7 @@
 +
 +	/* Wait for vote ACK from modem before submitting any DMA */
 +	ret = wait_for_completion_timeout(&dmux->pc_ack_completion,
-+					  msecs_to_jiffies(250));
++					  msecs_to_jiffies(2000));
 +	if (!ret) {
 +		atomic64_inc(&dmux->pc_timeout_count);
 +		dev_warn(dev, "bam_dmux: modem pc-ack timeout during resume\n");
