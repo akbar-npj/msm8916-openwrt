@@ -1,20 +1,24 @@
-# Doc 174 evidence manifest -- regenerated 2026-09-22 after the s9.7/s9.8 replicate work.
+# Doc 174 evidence manifest -- regenerated 2026-09-22 after the s9.7/s9.8/s9.9 work.
 # Verify with: md5sum -c MANIFEST.md5
 #
-# The six qmdl captures are 83/54/101/99/93/101 MB and are NOT committed
+# The seven qmdl captures are 83/54/101/99/93/101/77 MB and are NOT committed
 # (they live in scratch/android_capture/stationary/).  Their hashes, for the record:
 #   d93b6f1033a523f71a46d50e3698678a  mcpm_stat/diag_log_20260922_043307.qmdl   (A, 300 s)
 #   d7a7d1a4c352f1a38834c61614d9c4ae  mcpm_stat/diag_log_20260922_045750.qmdl   (B, 120 s)
 #   93a8ee839a15da0d2f0eb3d370941efa  cap_C/mcpm_C/diag_log_20260922_051539.qmdl (C, base)
 #   0b070c39a9db553ab8c1f7c953880265  cap_D/mcpm_D/diag_log_20260922_052031.qmdl (D, base)
-#   0ffa8ad6bdee002a66cb61936f8d111d  cap_E/mcpm_E/diag_log_20260922_052524.qmdl (E, intended none)
-#   265da8ff354705e7144469902ba19408  cap_F/mcpm_F/diag_log_20260922_053017.qmdl (F, heavy)
+#   0ffa8ad6bdee002a66cb61936f8d111d  cap_E/mcpm_E/diag_log_20260922_052524.qmdl (E, base in fact)
+#   265da8ff354705e7144469902ba19408  cap_F/mcpm_F/diag_log_20260922_053017.qmdl (F, base in fact)
+#   02d0dd92e72adc156256acb5ec506a3c  cap_G/mcpm_G/diag_log_20260922_055424.qmdl (G, NO traffic)
+40e952982fbb7575e31728369bbca065  PREREG_cap_G.md
 82aee77901629a9a9f3eb8d46d333617  PREREG_mcpm_replicates.md
-22025bb5b22c14bad3a95b4a4e3f127f  mcpm_stationary.sh
+b4e7baa9b74bb64af3560af487e254cf  capture_G_run.log
+38703a68e7673231b6d6cfa2eaae8333  mcpm_stationary.sh
 3734f664d14aa4e6a2b4902e777e913c  ping_capC.txt.gz
 1f7370a380ad99d7b1343c351aa067a3  ping_capD.txt.gz
 e3c27c20d6b2ea93263b4079c53cdd80  ping_capE.txt.gz
 e8188c61e94796b4a17ceb4a85a84496  ping_capF.txt.gz
+cfdffe58b583659157f329d693eae6e0  ping_capG.txt.gz
 183938559c3929ddd414e67a81c5352a  ping_plain_stationary.txt.gz
 8c1825d9d19629515da21d56ea4e882f  probe_rpm_log_node.sh
 f196ac47dfaec10ad693db9b4c78b35a  rpm_ctr_long.txt.gz
@@ -32,11 +36,13 @@ ee714d5acbc42ccfa051295afb0843d6  rpm_ctr_rate2.txt.gz
 9ebb6fe81228e67cbb770411d436fedf  score_stationary_baseline.py
 dd9a817bdddb122cf063cab0e74d3538  stationary_baseline.sh
 a1c9cfda486a0b4bbf51d2b4931d26d7  verify_mcpm.txt
-5eecfec12f496a55a786c6708d56425d  verify_mcpm_replicates.txt
+71d649e327c6d57dd268fe2fae0dadb9  verify_mcpm_replicates.txt
 5ca4262653a15008574ee252762525dc  verify_output.txt
+b03d81ef3296c8ec2ae51eccee97672f  verify_traffic_launcher.txt
 d6f27fa55a1e8a2eabe9be7ab2dce343  window_120s.txt
 12c31eb57b288569f2f04bbf714602cd  window_300s.txt
 3db57ed9c5af6914fbbf957eafe8ecc1  window_capC_240s.txt
 5f4d525c695fc2b3c1a6736990c7da07  window_capD_240s.txt
 5a2f6c38f6228b07b13820559b428e46  window_capE_240s.txt
 474cb41ecc68d317a4ec4eee3383cc0f  window_capF_240s.txt
+952ddd6ed524d0c60514d207a03ed6c7  window_capG_240s.txt

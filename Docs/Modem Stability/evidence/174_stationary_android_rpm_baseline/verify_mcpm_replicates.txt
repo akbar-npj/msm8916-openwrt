@@ -2,12 +2,11 @@
 MCPM REPLICATE CAPTURES -- scoring PREREG_mcpm_replicates.md
 ==============================================================================
 cap  traffic  sleep  wake  ratio   span_s  rate/s  trim/s   modal  @mode     n
-A    ?         501   506  0.990    344.0   1.456   1.629   0.320  51.5%   505
-B    ?         291   295  0.986    136.3   2.136   2.165   0.320  60.2%   294
 C    base      530   537  0.987    254.5   2.083   2.075   0.320  56.2%   536
 D    base      528   535  0.987    289.3   1.825   2.071   0.320  58.8%   534
 E    none      525   538  0.976    255.4   2.055   2.100   0.320  58.1%   537
 F    heavy     540   554  0.975    291.3   1.854   2.125   0.320  62.2%   553
+G    base      438   447  0.980    255.0   1.717   1.683   0.320  53.6%   446
 
   'rate/s' = SLEEP_PWRDN_FULL / full modem-clock span (includes any
   pre-history).  'trim/s' = FW_WAKE-UP_Start in the final 240 s of the
@@ -15,58 +14,51 @@ F    heavy     540   554  0.975    291.3   1.854   2.125   0.320  62.2%   553
 
 --- interval histogram, as multiples of 0.320 s (bucketed +/-0.015 s) ---
 cap  1x0.32    2x0.32    3x0.32    4x0.32    5x0.32    6x0.32      other
-A          260        49         7       117         0         0      72
-B          177        25         4        20         0         0      68
 C          301        47         8        46         0         0     134
 D          314        37         5        45         0         0     133
 E          312        40         5        45         0         0     135
 F          344        24         7        42         0         0     136
+G          239        48         7        80         0         0      72
 
   fraction ON a multiple of 0.320 s (the quantization claim):
   cap    +/-5 ms  +/-15 ms
-  A        71.3%     85.7%
-  B        71.1%     76.9%
   C        70.5%     75.0%
   D        70.8%     75.1%
   E        71.5%     74.9%
   F        68.5%     75.4%
+  G        77.1%     83.9%
 
 --- PRE-REGISTERED READINGS ---
-FULL span (as measured): 1.456 .. 2.136 /s   spread = 46.6 %
-  => P2 HOLDS: the mean is NOT usable even at fixed conditions
-     (>30 %). Only the modal interval may be compared across
-     platforms; Doc 174 s9.5 O1 stands as the method.
-TRIMMED to final 240 s: 1.629 .. 2.165 /s   spread = 32.9 %
-  => P2 HOLDS: the mean is NOT usable even at fixed conditions
-     (>30 %). Only the modal interval may be compared across
-     platforms; Doc 174 s9.5 O1 stands as the method.
-  (n = 6 draws -- this bounds the spread, it does NOT
+FULL span (as measured): 1.717 .. 2.083 /s   spread = 21.3 %
+  => IN BETWEEN (10-30 %): neither pre-registered branch is met.
+     The rate is noisy; quote the range, not a point value.
+TRIMMED to final 240 s: 1.683 .. 2.125 /s   spread = 26.2 %
+  => IN BETWEEN (10-30 %): neither pre-registered branch is met.
+     The rate is noisy; quote the range, not a point value.
+  (n = 5 draws -- this bounds the spread, it does NOT
    characterise a distribution. Do not quote a mean or an SD.)
   NOTE the two rows above are the SAME data scored two ways. If the
   trimmed spread is much tighter, the full-span spread was dominated by
   pre-history (an unobserved idle interval), not by the cadence itself.
 
 P3 FALSIFIER -- modal interval must be 0.320 s +/- 5 % in ALL captures:
-  A: modal 0.320 s  OK   multiples>=2x carry 34.3% of intervals
-  B: modal 0.320 s  OK   multiples>=2x carry 16.7% of intervals
   C: modal 0.320 s  OK   multiples>=2x carry 18.8% of intervals
   D: modal 0.320 s  OK   multiples>=2x carry 16.3% of intervals
   E: modal 0.320 s  OK   multiples>=2x carry 16.8% of intervals
   F: modal 0.320 s  OK   multiples>=2x carry 13.2% of intervals
+  G: modal 0.320 s  OK   multiples>=2x carry 30.3% of intervals
   => P3 NOT falsified
 
 P4 -- no-traffic capture vs the rest (no direction pre-committed):
-  A (?    ) 1.456 /s  modal 0.320 s  @mode 51.5%
-  B (?    ) 2.136 /s  modal 0.320 s  @mode 60.2%
   C (base ) 2.083 /s  modal 0.320 s  @mode 56.2%
   D (base ) 1.825 /s  modal 0.320 s  @mode 58.8%
   E (none ) 2.055 /s  modal 0.320 s  @mode 58.1%
   F (heavy) 1.854 /s  modal 0.320 s  @mode 62.2%
+  G (base ) 1.717 /s  modal 0.320 s  @mode 53.6%
 
 P5 -- SLEEP_PWRDN_FULL : FW_WAKE-UP_Start must be ~0.99 : 1:
-  A: 501 : 506 = 0.990  OK
-  B: 291 : 295 = 0.986  OK
   C: 530 : 537 = 0.987  OK
   D: 528 : 535 = 0.987  OK
   E: 525 : 538 = 0.976  OK
   F: 540 : 554 = 0.975  OK
+  G: 438 : 447 = 0.980  OK

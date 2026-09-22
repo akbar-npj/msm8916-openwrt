@@ -1,0 +1,88 @@
+TRAFFIC-LOOP LAUNCHER TESTS -- Doc 174 s9.9
+2026-09-22, stock Android, adb root, device uptime ~7100-8000 s.
+
+PURPOSE: capture G ran with NO traffic although it was launched as traffic=base.
+This establishes WHY, and finds a launcher that works.
+
+===============================================================================
+1. THE SYMPTOM (capture G, 06:09-06:14)
+===============================================================================
+
+G run log   : --- traffic: BASE (3 pings / 30s, matched to the soak) ---
+              traffic check: ping processes running = 0
+                !! WARNING: expected a ping to be running
+at pull time: /system/bin/sh: cat: /data/ping.log: No such file or directory
+
+/data/ping.log was NEVER CREATED, so the loop never ran even once.
+
+===============================================================================
+2. THE LAUNCHER TESTS  (marker file written after a 5 s delay, checked at +10 s)
+===============================================================================
+
+  (a) sh -c "sleep 5; echo done > /data/t_marker.log" &          -> MARKER_MISSING
+  (b) busybox setsid sh -c "sleep 5; echo done > /data/t_marker2.log" \
+        >/dev/null 2>&1 < /dev/null &                            -> MARKER2_MISSING
+  (c) busybox setsid sh -c "while true; do echo hi >> /data/tA.log; sleep 1; done" \
+        >/dev/null 2>&1 < /dev/null &                            -> tA.log MISSING
+
+  => A background job launched from a short-lived `adb shell` does NOT survive
+     the shell's exit, and `setsid` does NOT rescue it.
+
+===============================================================================
+3. THE CONTROL -- `setsid` DOES work for diag_mdlog
+===============================================================================
+
+  (d) busybox setsid nohup diag_mdlog -o <dir> -s 5 -n 2 \
+        > /data/mdlog_t2.out 2>&1 < /dev/null &
+      in-shell procs: 1     after-exit procs (at +30 s): 1
+      -> qmdl files present and growing (5 274 395 B, 5 111 107 B)
+      (the output dir must EXIST first; without it the launch fails silently
+       and mdlog_t.out is 0 bytes -- that cost one retest)
+
+  (e) nohup diag_mdlog -o <dir> -s 5 -n 2 > /dev/null 2>&1 < /dev/null &
+      (NO setsid)                -> procs: 0,  0 files
+
+  => `setsid` is genuinely load-bearing for diag_mdlog, and genuinely
+     insufficient for the sh -c loop.  The mechanism is NOT established.
+     **Do not generalise: verify each long-running helper individually.**
+
+===============================================================================
+4. THE LAUNCHER THAT WORKS -- hold the connection open from the HOST
+===============================================================================
+
+  adb shell 'i=0; while [ $i -lt 6 ]; do echo hi >> /data/t_keep.log; sleep 1;
+             i=$((i+1)); done' >/dev/null 2>&1 &      # backgrounded on the HOST
+    lines after 4s: 4
+    lines after 9s: 6            <- all 6 iterations completed
+
+  The host-side `adb` process keeps the connection (and therefore the remote
+  shell) alive for the whole capture.  Stop it by killing the host-side adb pid.
+
+  ADOPTED IN mcpm_stationary.sh, and re-verified with a real 40 s capture:
+    [06:23:31] --- traffic: BASE (3 pings / 30s, matched to the soak) ---
+    [06:23:41] traffic check: /data/ping.log lines = 1 (traffic=base)
+    ... 4 rounds in mcpm_ping.log, ~29 s apart, 3 packets each
+    no WARNING; diag_mdlog procs 0 after teardown
+
+===============================================================================
+5. TWO `ps` TRAPS THAT COST TIME HERE
+===============================================================================
+
+  * `ps` renders the `sh -c` wrapper as plain **`sh`**, so
+    `ps | grep "while true"` returns 0 EVEN WHILE THE LOOP IS ALIVE.  A test
+    based on it is inconclusive, not negative.  (Seen directly: the loop's pid
+    was present in `ps` output as `sh`, while the name grep said 0.)
+  * A one-shot `ping` process count is the wrong verification for the base
+    pattern: `ping -c 3` is active only ~3 s in every 30 s, so a sample at t=8 s
+    lands in the idle phase and FALSE-ALARMS.  It did exactly that on G, after
+    the real failure had already occurred.  **Read the traffic LOG.**
+
+===============================================================================
+6. A STALE-PIDFILE HAZARD FOUND DURING CLEANUP
+===============================================================================
+
+  /data/pingloop.pid survived G holding pid **15341**, and the stop step is
+  `kill -9 $(cat /data/pingloop.pid)`.  Android RECYCLES pids, so a stale
+  pidfile can kill -9 an UNRELATED process.  The script now validates that the
+  pid is still the ping loop (/proc/<p>/cmdline contains "ping") before
+  signalling it, and the file is removed after each run.

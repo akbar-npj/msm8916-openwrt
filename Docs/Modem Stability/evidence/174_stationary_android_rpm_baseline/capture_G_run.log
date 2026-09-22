@@ -1,0 +1,39 @@
+[06:09:15] === stationary MCPM capture: duration 240s ===
+[06:09:15] id: uid=0(root) gid=0(root) context=u:r:shell:s0
+[06:09:15] modem anchor: <6>[    6.777977] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+[06:09:15] Diag.cfg present: 160b8fc6a2460579e336c7c6de1e5bc7  /sdcard/diag_logs/Diag.cfg
+[06:09:15] rmnet0: 6: rmnet0    inet 10.101.170.71/28 scope global rmnet0\       valid_lft forever preferred_lft forever
+[06:09:15] rsrp:     mSignalStrength=SignalStrength: 99 0 -120 -160 -120 -1 -1 25 -89 -10 218 2147483647 2147483647 gsm|lte
+[06:09:15] --- traffic: BASE (3 pings / 30s, matched to the soak) ---
+[06:09:23] traffic check: ping processes running = 0 (expect 0 for traffic=none)
+[06:09:23]   !! WARNING: expected a ping to be running
+[06:09:23] --- starting diag_mdlog (-s 100 -n 8) ---
+[06:09:39] mdlog procs:  1
+[06:09:40] mask-file logcat lines: 1
+[06:09:40] cannot-open errors:     0
+[06:09:40] capture start: kernel=7125s modem~=7118s
+[06:10:10]   elapsed=0s  qmdl=16128KB
+[06:10:40]   elapsed=30s  qmdl=25216KB
+[06:11:10]   elapsed=60s  qmdl=33796KB
+[06:11:40]   elapsed=90s  qmdl=41452KB
+[06:12:10]   elapsed=120s  qmdl=48592KB
+[06:12:40]   elapsed=150s  qmdl=55460KB
+[06:13:10]   elapsed=180s  qmdl=64156KB
+[06:13:40]   elapsed=210s  qmdl=74712KB
+[06:13:40] --- stopping capture: kernel=7365s modem~=7358s ---
+[06:13:46] subsys-restart count: 0
+[06:13:46] fatal markers:        0
+[06:13:46] --- pulling capture ---
+/sdcard/diag_logs/mcpm_G/: 1 file pulled, 0 skipped. 6.2 MB/s (76615980 bytes in 11.737s)
+kernel_start_s=7125
+kernel_end_s=7365
+modem_start_s=7118
+modem_end_s=7358
+wall_duration_s=258
+mdlog_size_mb=100
+mdlog_files=8
+mdlog_bytes_total=76615980
+mdlog_file_count=1
+bracket_delay_s=16
+traffic=base
+[06:14:02] === stationary MCPM capture: DONE ===

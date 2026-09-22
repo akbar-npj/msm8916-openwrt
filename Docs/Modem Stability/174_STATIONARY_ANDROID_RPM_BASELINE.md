@@ -1,4 +1,4 @@
-# 174 — The STATIONARY Android baseline: the modem collapses ~1.4×/s, the bus never confounded that, and the MCPM cadence turns out to be a duty cycle
+# 174 — The STATIONARY Android baseline: the modem collapses ~1.4×/s, the bus never confounded that, and the MCPM cadence is a duty cycle set by TRAFFIC
 
 **Date:** 2026-09-22
 **Device:** HMUF02-v5 ("hmu05"), stock Android `msm8916_32_512-userdebug 4.4.4 KTU84P`
@@ -11,6 +11,11 @@ NOT FLASHED** (Doc 171 / commit `3bd279b`).
 memory — see §3, which finds the bus did **not** move this metric. §9 additionally
 **withdraws** the corpus's "Android 1.88 /s vs OpenWrt 0.83 /s, 2.3×" MCPM claim as
 unsupported.
+**Corrects itself twice, deliberately:** §9.8's first draft blamed the MCPM spread on
+"session drift"; capture G (§9.9) falsified that, and the surviving explanation is the
+**traffic condition**. §9.7 also corrects its own table — F was never `heavy` and E was
+never `none`; **all four replicates ran the identical base pattern**. Both corrections are
+left in place rather than rewritten away.
 
 ---
 
@@ -27,6 +32,7 @@ unsupported.
 | Instrument verified before use | **Yes** — the RPM ring layout was checked against Doc 150's grammar on the live device before any census was taken (§2.2); and the §9 modem clock was verified two independent ways before it was used to time anything (§9.2) |
 | Negative controls | **Yes** — §4 is a self-caught false positive, §3's bus comparison is a negative control on the confound claim, and §9.3's second capture is the control that distinguished a clock error from buffered pre-history |
 | Denominator justified, not assumed | **Yes** — §9.3: the AP bracket and the modem clock disagree by 14 % on capture A, and the doc says which is right and why |
+| **Control verified to have TAKEN, not merely issued** | **NO — and this is the round's worst failure.** §9.7/§9.9: the traffic manipulation never held in **any** capture (F was never `heavy`, E was never `none`), and the check written to catch that was itself the wrong instrument (instantaneous process count, false-alarming). It was caught only by reading the **ping logs** afterwards. Rule added as **O6**. |
 
 **Skipped:** nothing that applies. The 250→2000 ms pc-ack A/B (Task #98) and the
 `FastDormancyService` falsifier (Task #103) remain blocked on OpenWrt and are not touched here.
@@ -443,16 +449,24 @@ Pre-registered for the OpenWrt side (Task #100/#101 remainder), **before** runni
   bracket **with the pre-history check of §9.3 applied**.
 * **O4.** The old 0.83 /s must be re-derived, not re-quoted: it was 100 cycles in an
   AP-bracketed 121 s, and §9.3 shows that denominator can be wrong by 14 %.
+* **O5** (added in §9.8), **O6** (added in §9.8), **O7** (added in §9.9) — read them
+  before running anything: O5 is the multi-window requirement, O6 is the
+  record-and-verify-the-traffic-condition rule, O7 is the no-traffic control window.
 
 ### 9.6 A tooling defect this round found and fixed (it cost a capture)
 
 `diag_mdlog` **dies the moment the launching `adb shell` disconnects, and `nohup`
 does not prevent it.** A `nohup … & sleep 8; ps` check *inside the same shell* sees
 `procs=1`, so the failure is silent and the run yields nothing. `busybox setsid`
-(new session) survives — verified `procs=1` at +45 s with the shell long gone.
+(new session) survives — verified `procs=1` at +45 s with the shell long gone, and
+**re-verified twice more on 2026-09-22** (at +30 s, with the qmdls growing).
 `mcpm_stationary.sh` now launches with `busybox setsid nohup … < /dev/null`,
 retries up to 3×, and **aborts loudly** if `procs` stays 0; that guard is what
 turned the failed attempt into a one-line diagnosis instead of an empty capture.
+
+**⚠ But this fix does NOT generalise.** The same launcher shape **fails** for a
+`sh -c "while true; …"` traffic loop (§9.9), so "wrap it in `setsid`" is not a
+general answer on this device — it must be verified per-program.
 
 ### 9.7 The pre-registered replicate run — and a correction to §9.4
 
@@ -483,19 +497,48 @@ reproducible thing measured in this section.
 
 **P5 — OK.** 0.975–0.987 in all four (Android's cycle-pair ratio is stable).
 
-**P4 — VOID. The traffic control did not hold, and that is a defect of this
-round.** `busybox killall ping` kills the `ping` **binary**, but the pattern is a
-`sh -c "while true; …"` **wrapper**; the wrapper survives, is orphaned to init
-(PPID 1), and keeps re-spawning pings. Measured afterwards: the capture intended
-as `traffic=none` still logged 9 ping rounds, and **one orphaned wrapper was
-still running 20 minutes later** (`sh` pid 9497, PPID 1, with a live `ping`
-child). So C, D and E all effectively ran the *base* pattern and F ran base +
-heavy — **the four captures do not differ in traffic, and P4 says nothing about
-whether traffic drives the duty cycle.** The script now tracks the wrapper by
-PID and **verifies the control took** (`ping` process count, with an explicit
-warning when `traffic=none` still has one).
+**P4 — VOID, and the traffic assignment in the table above is NOT what actually
+ran.** Two defects, and the second is the real one:
 
-### 9.8 Correction to §9.4 — the mean is more usable than §9.4 claimed
+1. `busybox killall ping` kills the `ping` **binary**, but the pattern is a
+   `sh -c "while true; …"` **wrapper**; the wrapper survives, is orphaned to init
+   (PPID 1), and keeps re-spawning pings. Measured: the capture intended as
+   `traffic=none` still logged ping rounds, and **one orphaned wrapper was still
+   running 20 minutes later** (`sh` pid 9497, PPID 1, with a live `ping` child).
+2. **A `sh -c` loop launched from `adb shell` does not survive the shell's exit**
+   (§9.9), so each capture's "start the traffic pattern" step usually did nothing
+   and the pings came from **one** surviving loop.
+
+**The ping logs settle what actually ran, and they contradict the table.**
+Per-capture ping logs (`ping_cap{C,D,E,F}.txt.gz`), all at `3 packets` and ~29 s
+apart, forming **one continuous series from uptime 4787 s to 5719 s**:
+
+| cap | intended | **actually ran** | ping rounds / 240 s |
+| :-- | :-- | :-- | --: |
+| C | base | base | 9 |
+| D | base | base | 9 |
+| E | **none** | **base** | 9 |
+| F | **heavy** | **base** | 9 |
+
+**F was never heavy** — the heavy pattern (1 ping/s, ~240 rounds) never ran, and
+my earlier reading of "F ran base + heavy" is **wrong**. So **C, D, E and F all
+ran the identical base pattern**: the four captures do not differ in traffic, and
+**P4 says nothing about whether traffic drives the duty cycle.**
+
+**Silver lining, and it is a real one:** because all four ran the *same* traffic,
+the 2.6 % trimmed spread of §9.7 is measured **at a constant condition** — which
+is a *stronger* statement than the pre-registration asked for, not a weaker one.
+The pre-registration wanted the traffic to vary; what it got was a clean
+repeatability measurement instead.
+
+The script now (a) tracks the wrapper by PID, (b) launches the loop with
+`busybox setsid`, and (c) **verifies the control by reading the ping LOG, not the
+instantaneous process count** — the process count is the wrong instrument twice
+over: for the base pattern `ping` is active only ~3 s out of every 30 s, so a
+one-shot sample false-alarms (it did, on capture G), and `ps` renders the wrapper
+as plain `sh`, so name-based greps are blind (§9.9).
+
+### 9.8 Correction to §9.4 — and a second correction, to §9.8's own first draft
 
 §9.4 concluded that the mean rate "is a duty-cycle measurement wearing a rate's
 clothes" and that the two captures "differ **only** in how many long idle gaps
@@ -508,29 +551,145 @@ they happened to contain". **That is too strong, and partly wrong:**
   A's per-60 s profile is **uniformly** low (0.87, 1.72, 1.43, 1.47, 1.67, 1.28),
   so this is not a head artifact and not pre-history.
 
+**⚠ AND THEN THE FIRST DRAFT OF THIS SECTION GOT IT WRONG TOO.** That draft read
+the six captures against AP uptime, saw A low at 37–42 min and the rest high at
+62–99 min, and called it *"a rise before ~60 min then a plateau, drifting ~30 %
+across a session"*. **"Drift" is the wrong word, and capture G (§9.9) kills it:**
+a seventh window at **116–120 min** — well past the supposed plateau — came in at
+**1.683 /s**, i.e. *low*. A monotone drift cannot fall back.
+
+What the seven windows actually say:
+
+| condition | captures | uptime | trimmed rate |
+| :-- | :-- | --: | --: |
+| **base traffic, verified** | C, D, E, F | 80–99 min | **2.071 – 2.125 /s** (2.6 % spread) |
+| **no traffic, verified** | **G** | 116–120 min | **1.683 /s** |
+| condition unrecorded | A | 37–42 min | 1.629 /s |
+| condition unrecorded | B | 62–64 min | 2.165 /s |
+
 So the defensible statement is:
 
-> the rate is `3.125 /s × (duty cycle)`, **reproducible to ~3 % within a fixed
-> condition and drifting ~30 % across a 65-minute session** (1.63 → 2.17 /s), with
-> no established driver for the drift.
+> the rate is `3.125 /s × (duty cycle)`; **at a fixed traffic condition it is
+> reproducible to ~3 %**, and **removing traffic lowers it by ~20 %**
+> (2.07–2.13 → 1.68 /s). The rate is **not** a function of session time.
+
+**This also explains A.** A is the other low capture (1.629), and A predates the
+traffic code entirely, so its condition was never recorded — a low-traffic A is
+the obvious reading, and it is now the *only* reading consistent with G. **A is
+not an early-boot transient.**
 
 **What this does to the withdrawal.** The withdrawal of the "2.3× vs OpenWrt"
-claim **stands**, but on a sharper reason than §9.1 gave. §9.1's reason — "two
-draws differ by 1.47×" — is now known to be *mostly a denominator artifact*
-(pre-history), not cadence variation. The reason that survives is: **the Android
-rate drifts ~30 % within one session with no established driver, and both sides
-of the corpus comparison are single windows.** Separately, the corpus's own
-1.88 /s was itself pre-history-depressed (§9.3), so a clean Android window is
-**~2.07–2.14 /s** and the gap is nearer **2.5×** than 2.3× — but it must not be
-quoted until OpenWrt is measured the same way.
+claim **stands**, and the reason is now sharper and simpler than either earlier
+draft:
 
-**Amendment to the OpenWrt pre-registration (§9.5).** O1–O4 stand, with one
-addition:
+* §9.1's reason ("two draws differ by 1.47×") was **mostly a denominator
+  artifact** — pre-history, not cadence.
+* §9.8's first-draft reason ("the rate drifts across a session") was **wrong**.
+* **The reason that survives is that the rate is a function of the TRAFFIC
+  CONDITION, and the corpus compared two single windows whose traffic conditions
+  were not controlled or recorded.** Both sides of that comparison are single
+  windows with unknown traffic — which is exactly the error §9.7 was designed to
+  avoid and, through the P4 defect, accidentally still made.
+
+A clean Android window is **~2.07–2.14 /s** (base traffic) and the corpus's own
+1.88 /s was pre-history-depressed (§9.3), so the gap is nearer **2.5×** than
+2.3× — but it **must not be quoted** until OpenWrt is measured the same way, with
+traffic recorded.
+
+**Amendment to the OpenWrt pre-registration (§9.5).** O1–O4 stand, with:
 
 * **O5.** Report a **session-level range across at least four windows**, each
   timed on the modem clock and trimmed to a common length — **not a single
   window.** A single window is exactly the error both sides of the corpus
   comparison made, and §9.7 shows it is worth 14 % on this metric.
+* **O6 (NEW — the one this section earned).** **Record the traffic condition of
+  every window, and verify it from the traffic log, not from the launch.** A
+  ~20 % swing rides on it (§9.9), and a launch that silently does nothing looks
+  identical to a launch that worked. OpenWrt has the same hazard: its soak
+  traffic is a shell loop, so it needs the same evidence.
+
+### 9.9 Capture G — the accidental no-traffic arm, and the tooling defect that produced it
+
+Pre-registered in `PREREG_cap_G.md` (written before the run) as a **plateau
+test**: one 240 s window at uptime ~116 min, `traffic=base`. The pre-registration
+committed to G1 (lands in [2.05, 2.15] ⇒ plateau holds, A is a lone outlier) with
+an explicit falsifier (G < 1.9).
+
+**Result: G1 is FALSIFIED.** G came in at **1.683 /s** (446 cycles over a 255.0 s
+modem span; trimmed 1.683). But **the falsifier fired for a reason the
+pre-registration did not anticipate — the traffic control never ran at all:**
+
+```
+G run log   : --- traffic: BASE (3 pings / 30s) ---
+              traffic check: ping processes running = 0
+                !! WARNING: expected a ping to be running
+at pull time: /system/bin/sh: cat: /data/ping.log: No such file or directory
+```
+
+`/data/ping.log` was **never created**. G ran with **no traffic** — so it is not
+a plateau test at all; it is an **unplanned no-traffic arm**, and it is the only
+verified no-traffic window in the set.
+
+**Why the loop did not run — measured, not inferred.** A loop launched as a
+**background job of a short-lived `adb shell` does not survive the shell's exit**,
+and `setsid` does **not** rescue it:
+
+| launcher | survives? |
+| :-- | :-- |
+| `sh -c "sleep 5; echo done > /data/m.log" &` | **NO** — marker never written |
+| `busybox setsid sh -c "…" … &` | **NO** — marker never written (2 attempts) |
+| `busybox setsid sh -c "while true; …" &` (G's actual code) | **NO** — `/data/ping.log` never created |
+| **`adb shell 'while true; …' &` from the HOST** (connection held open) | **YES** — verified 6/6 iterations, log grew 4 lines at 4 s and 6 at 9 s |
+
+but the **same `setsid` launcher shape DOES work for `diag_mdlog`** — re-verified
+three ways on 2026-09-22: `busybox setsid nohup diag_mdlog …` survived a shell
+exit twice (+30 s, qmdls growing), **`nohup diag_mdlog …` without setsid died**
+(procs 0, no files), and G's own capture proves the setsid path end-to-end
+(76.6 MB qmdl). **So this is not a general "background jobs die" rule and it is
+not explained by `setsid` alone. The mechanism is NOT established** — only the
+reproducible outcomes — and it is recorded as an open item rather than explained.
+
+**The fix that is verified, and it is now in the script:** run the traffic loop as
+a **foreground command in its own `adb` session, backgrounded on the HOST**, so
+the connection — and therefore the remote shell — stays open for the whole
+capture; stop it by killing the host-side `adb` pid. Verified with a 40 s
+`traffic=base` run: `traffic check: /data/ping.log lines = 1`, 4 rounds by the
+end. **The general lesson: on this device, verify each long-running helper
+individually — "wrap it in `setsid`" is not a portable answer.**
+
+**This also explains the C–F result.** If a capture's traffic launch usually does
+nothing, then the continuous 4787→5719 s ping series in §9.7 must come from a
+**single** surviving loop, and the per-capture launches were mostly no-ops. That
+is consistent with every fact: identical base cadence in all four, F not heavy,
+E not empty, and G — started after that survivor had exited — empty.
+
+**Two more `ps` traps, both of which cost time here:**
+* `ps` renders the wrapper as plain **`sh`**, so `ps | grep "while true"` finds
+  nothing even while the loop is alive. **Process-name greps are blind to shell
+  loops on this device.**
+* A one-shot `ping` process count is the wrong verification for the base pattern
+  (`ping -c 3` is active ~3 s in every 30 s), so sampling at t=8 s
+  **false-alarms** — which it did, on G, *after* the real failure had already
+  happened. **The check must read the traffic LOG.**
+
+**A stale-pidfile hazard, found during cleanup.** `/data/pingloop.pid` survived
+the run holding pid **15341**, and the script's stop step is
+`kill -9 $(cat /data/pingloop.pid)`. On Android **pids are recycled**, so a stale
+pidfile can `kill -9` an **unrelated process**. The file is now removed after
+each run and the stop step should validate the pid before signalling it.
+
+**What G is worth, despite all this.** It is the one window whose traffic
+condition is verified *absent*, and it sits **20 % below** the four verified-base
+windows — which is the P4 question answered by accident, in the opposite
+assignment to the pre-registration. **It is post-hoc, n = 1, and confounded with
+uptime**, so it is a **lead, not a finding**; the decisive test is a
+**no-traffic window at ~85 min** (matching C/D's uptime), which is cheap and is
+pre-registered here as **O7**:
+
+* **O7.** Before quoting any OpenWrt-vs-Android MCPM ratio, run **one no-traffic
+  window at the same uptime as the base-traffic windows.** Prediction: it lands
+  ~20 % below the base band. If it does *not*, G's low value is an uptime or
+  one-off effect and the traffic claim is dead.
 
 ## 10. Artifacts
 
@@ -558,7 +717,13 @@ addition:
 | `score_mcpm_replicates.py` | the §9.7 scorer — adds the **trimmed** rate (common final 240 s) to §9's output |
 | `verify_mcpm_replicates.txt` | the §9.7 scorer's output (the P1–P5 scorecard) |
 | `window_cap{C,D,E,F}_240s.txt` | the four §9.7 brackets (all `bracket_delay_s=15`–`16`) |
-| `ping_cap{C,D,E,F}.txt.gz` | the per-capture ping logs — **and the evidence that P4 is void** (§9.7: E was meant to be `traffic=none` and still shows ping rounds) |
+| `ping_cap{C,D,E,F}.txt.gz` | the per-capture ping logs — **and the evidence that the traffic assignment was not what the table said** (§9.7: all four ran the identical base pattern, so F was never heavy and E was never empty) |
+| `PREREG_cap_G.md` | the §9.9 pre-registration — written **before** capture G |
+| `window_capG_240s.txt` | capture G's bracket |
+| `verify_mcpm_replicates.txt` | the §9.7 + §9.9 five-capture scorecard (C, D, E, F, G) |
+| `ping_capG.txt.gz` | capture G's traffic log — **the evidence G ran with NO traffic** (one line, `/data/ping.log` never created) |
+| `capture_G_run.log` | capture G's run log, showing the traffic check firing and the empty ping log |
+| `verify_traffic_launcher.txt` | the §9.9 launcher tests: which launchers survive an `adb shell` exit, the `diag_mdlog` control, the two `ps` traps, and the stale-pidfile hazard |
 | `MANIFEST.md5` | hashes of the frozen set |
 
 **Reproduce the ring read with nothing but the device:**
@@ -578,16 +743,19 @@ python3 "$EV/score_mcpm_stationary.py" \
     <B>/diag_log_20260922_045750.qmdl --window "$EV/window_120s.txt"
 ```
 
-**Reproduce §9.7** (the four replicates in one pass; the qmdl files are ~100 MB each and are
-not committed):
+**Reproduce §9.7 and §9.9** (the five captures in one pass; the qmdl files are 77–101 MB each
+and are not committed). **The CLI is `label:qmdl:window` — three colon-separated fields, all
+positional:**
 
 ```sh
 EV="Docs/Modem Stability/evidence/174_stationary_android_rpm_baseline"
+S=scratch/android_capture/stationary
 python3 "$EV/score_mcpm_replicates.py" \
-    C:<C>/diag_log_*.qmdl --window "$EV/window_capC_240s.txt" \
-    D:<D>/diag_log_*.qmdl --window "$EV/window_capD_240s.txt" \
-    E:<E>/diag_log_*.qmdl --window "$EV/window_capE_240s.txt" \
-    F:<F>/diag_log_*.qmdl --window "$EV/window_capF_240s.txt"
+    "C:$S/cap_C/mcpm_C/diag_log_20260922_051539.qmdl:$EV/window_capC_240s.txt" \
+    "D:$S/cap_D/mcpm_D/diag_log_20260922_052031.qmdl:$EV/window_capD_240s.txt" \
+    "E:$S/cap_E/mcpm_E/diag_log_20260922_052524.qmdl:$EV/window_capE_240s.txt" \
+    "F:$S/cap_F/mcpm_F/diag_log_20260922_053017.qmdl:$EV/window_capF_240s.txt" \
+    "G:$S/cap_G/mcpm_G/diag_log_20260922_055424.qmdl:$EV/window_capG_240s.txt"
 ```
 
 **Note on a live file:** `rpm_stationary_boot2.csv` and `rpm_ctr_long.txt` were **still growing**
