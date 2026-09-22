@@ -1,0 +1,102 @@
+==============================================================================
+SOURCE
+==============================================================================
+file            : console_ramoops_prev.txt
+lines           : 1657
+fatal lines     : 17
+SSR powerup     : 18
+outcome A       : 4
+outcome B       : 14
+pc-ack timeouts : 4
+watchdog resync : 0
+watchdog quiesce: 186
+CMD_OPEN lines  : 142
+
+watchdog quiesce pc_state/pc_line census (H2 falsifier):
+  pc_state=0 pc_line=0 : 186
+  longest quiesce counter observed: 2820s
+
+==============================================================================
+THE TABLE  (paired by file order, not timestamp)
+==============================================================================
+  #       fatal t signature      pc_line waited outcome           A t     timeout t     dt
+  1             - -                    1    560       B     12.588222             -      -
+  2    524.211653 a2_power             1    200       A    525.323701    526.440017 1.116316
+  3   1427.099153 common_timer         1    200       B   1428.208378             -      -
+  4   2330.773740 common_timer         1    200       B   2331.883178             -      -
+  5             - common_timer         1    200       B   3235.554683             -      -
+  6   4138.119715 common_timer         1    200       B   4139.228567             -      -
+  7   5041.798167 common_timer         1    200       B   5042.911221             -      -
+  8   5949.210659 a2_power             1    200       A   5950.318477   5951.427446 1.108969
+  9   6852.985676 common_timer         1    200       B   6854.095494             -      -
+ 10   7756.662692 common_timer         1    200       B   7757.777552             -      -
+ 11   8719.020382 a2_power             1    200       A   8720.129599   8721.331363 1.201764
+ 12   9622.891300 common_timer         1    200       B   9624.003550             -      -
+ 13  10526.566407 common_timer         1    200       B  10527.684639             -      -
+ 14  11430.241652 common_timer         1    200       B  11431.358558             -      -
+ 15  12362.261426 a2_power             1    200       A  12363.367529  12364.614338 1.246809
+ 16  13265.751554 common_timer         1    200       B  13066.869437             -      -
+ 17  14169.427048 common_timer         1    200       B  14170.540316             -      -
+ 18  15073.101717 common_timer         1    560       B  15074.656623             -      -
+
+==============================================================================
+RESULT 1 -- the outcome is predicted by the fatal signature
+==============================================================================
+                    A    B
+a2_power.c:1189     4    0
+common_timer:390    0   13
+
+Fisher exact one-sided p = 0.00042017
+Fisher exact two-sided p = 0.00042017
+
+==============================================================================
+RESULT 2 -- the pc-ack timeout is a consequence of A
+==============================================================================
+            timeout   none
+A                 4      0
+B                 0     14
+
+Fisher exact one-sided p = 0.00032680
+
+delta(outcome A -> timeout), i.e. how long after the rebuild the wait expires:
+  fatal #2: A at 525.323701  timeout at 526.440017  dt = 1.116316 s
+  fatal #8: A at 5950.318477  timeout at 5951.427446  dt = 1.108969 s
+  fatal #11: A at 8720.129599  timeout at 8721.331363  dt = 1.201764 s
+  fatal #15: A at 12363.367529  timeout at 12364.614338  dt = 1.246809 s
+
+==============================================================================
+RESULT 3 -- the modem's CMD_OPEN burst does NOT separate A from B
+==============================================================================
+  row  2  outcome A  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row  3  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row  4  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row  5  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row  6  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 7
+  row  7  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row  8  outcome A  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row  9  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 10  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 11  outcome A  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 12  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 13  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 14  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 15  outcome A  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 16  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 8
+  row 17  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 7
+  row 18  outcome B  CMD_OPEN lines after the outcome, before the next fatal: 3
+
+Every fatal SSR is followed by a CMD_OPEN burst -- both A and B rows. The
+burst is therefore not the discriminator. On the A rows it also arrives
+*after* the 'successfully reinitialized' line (e.g. row 2: A at 525.323701,
+CMD_OPEN at 525.730), so it cannot be the rebuilder in those rows either.
+
+==============================================================================
+WHAT A DOES *NOT* YET SEPARATE
+==============================================================================
+Both print pc_state=1 (waited 200 ms), so the outcome alone cannot tell
+  (i)  the pc_irq assert edge was LOST (handler never ran), from
+  (ii) the edge was delivered but bam_dmux_power_on() failed in the handler.
+pc_irq_count across the SSR window separates them; it is incremented
+unconditionally as the first statement of bam_dmux_pc_irq().
+The RX watchdog is NOT the B-case rebuilder: it has two rebuild paths,
+both dev_warn, and this capture contains ZERO of them (pc_resync_count=0).
