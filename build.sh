@@ -127,6 +127,12 @@ run_openwrt_make() {
 
     msg "Running: $target"
 
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+        warn "DRY_RUN=1 -- not executing. Would run in the builder container:"
+        echo "    cd $CONTAINER_OPENWRT_DIR && $target"
+        return 0
+    fi
+
     if ! docker_exec bash -lc "
         cd $CONTAINER_OPENWRT_DIR
         $target
@@ -324,10 +330,80 @@ prepare_tree() {
 }
 
 ###############################################################################
+# BSP drift detection
+###############################################################################
+
+# Trees that sync_bsp() rewrites from a tracked repository source into the
+# prepared OpenWrt tree, as "tracked-source:live-destination".
+#
+# This matters because the kernel build reads the LIVE tree, not the tracked
+# one: PATCH_DIR resolves to openwrt/target/linux/msm89xx/patches
+# (include/kernel.mk:43), and that directory is part of the prepare stamp's md5
+# (include/kernel-build.mk:12-13). A live tree that is missing patches therefore
+# produces a kernel missing those patches -- silently. See Doc 160.
+BSP_MIRRORS=(
+    "msm89xx:target/linux/msm89xx"
+    "packages:package/msm8916"
+)
+
+# Compare every mirror. Returns 0 when all match, 1 on drift.
+# On drift, prints the differing paths.
+bsp_drift() {
+
+    local entry src rel out
+    local rc=0
+
+    for entry in "${BSP_MIRRORS[@]}"; do
+
+        src="${entry%%:*}"
+        rel="${entry##*:}"
+
+        if [ ! -d "$OPENWRT_DIR/$rel" ]; then
+
+            warn "Live tree is missing: openwrt/$rel"
+            rc=1
+            continue
+        fi
+
+        # Fails only when the two trees differ.
+        if out="$(diff -rq "$REPO_DIR/$src" "$OPENWRT_DIR/$rel" 2>&1)"; then
+            continue
+        fi
+
+        rc=1
+
+        echo "  drift: $src/  ->  openwrt/$rel"
+
+        # awk rather than head: head closes the pipe early, and `set -o pipefail`
+        # would turn the resulting SIGPIPE into a script failure.
+        printf '%s\n' "$out" | awk 'NR<=20 { print "    " $0 }'
+    done
+
+    return "$rc"
+}
+
+# The invariant every install path must leave behind: the live tree is exactly
+# what the tracked sources describe. Checked on both paths -- sync_bsp() (fast)
+# and scripts/openwrt-prepare.sh (fresh prepare).
+assert_bsp_synced() {
+
+    if ! bsp_drift; then
+        die "BSP verification FAILED: the live tree differs from the tracked sources."
+    fi
+}
+
+###############################################################################
 # BSP sync helpers
 ###############################################################################
 
 sync_bsp() {
+
+    # Report drift BEFORE healing it, so a live tree that diverged is never
+    # repaired silently. This is the state that produces a wrong kernel.
+    if ! bsp_drift; then
+        warn "The live OpenWrt tree differed from the tracked sources (listed above)."
+        warn "This normally means a build ran outside ./build.sh. Syncing now."
+    fi
 
     ok "Syncing BSP into prepared OpenWrt tree..."
 
@@ -384,6 +460,12 @@ sync_bsp() {
                 \"\$mm_proto\" 2>/dev/null || true
         fi
     "
+
+    # Assert the sync actually landed. A partial or failed copy would otherwise
+    # build a kernel from the wrong patch set without any error.
+    assert_bsp_synced
+
+    ok "BSP sync verified: live tree matches tracked sources."
 }
 
 ensure_prepared() {
@@ -407,6 +489,83 @@ ensure_prepared() {
     fi
 
     prepare_tree "$version"
+
+    # openwrt-prepare.sh installs the BSP from the same tracked sources; verify
+    # it, so both install paths are held to the same invariant.
+    assert_bsp_synced
+
+    ok "BSP install verified: live tree matches tracked sources."
+}
+
+###############################################################################
+# Guard
+###############################################################################
+
+# Ask make for its own STAMP_PREPARED: the stamp file that will exist once
+# build_dir is consistent with the current patch set. If it does not exist yet,
+# the next kernel build will wipe build_dir and re-prepare.
+#
+# Deliberately NOT a re-implementation of OpenWrt's find_md5. That hash covers
+# absolute paths, which differ between the host and the container, so a host
+# copy would compute a different value. make already knows the answer.
+#
+# TOPDIR is set by the top-level make and exported to sub-makes, so invoking the
+# target Makefile directly requires passing it. TARGET_BUILD must be exactly 1:
+# include/target.mk gates kernel-build.mk on `ifeq ($(TARGET_BUILD),1)`.
+#
+# Prints the stamp path (container-absolute), or nothing if undeterminable.
+deep_prepare_stamp() {
+
+    docker_exec bash -lc "
+        cd $CONTAINER_OPENWRT_DIR/target/linux/msm89xx || exit 1
+        make TOPDIR=$CONTAINER_OPENWRT_DIR TARGET_BUILD=1 -r -s --no-print-directory --eval='print-stamp: ; @printf \"%s\\n\" \"\$(STAMP_PREPARED)\"' print-stamp
+    " 2>/dev/null || true
+}
+
+guard_check() {
+
+    local deep=0
+    local stamp
+
+    if [ "${1:-}" = "--deep" ]; then
+        deep=1
+    fi
+
+    msg "Checking the live OpenWrt tree against the tracked sources..."
+
+    if ! bsp_drift; then
+        warn "DRIFT: the live OpenWrt tree does not match the tracked sources."
+        warn "Any ./build.sh build command re-syncs it; run './build.sh guard' again after."
+        return 1
+    fi
+
+    ok "In sync: msm89xx/ and packages/ match the live OpenWrt tree."
+
+    [ "$deep" -eq 1 ] || return 0
+
+    msg "Asking make whether a kernel re-prepare is pending..."
+
+    stamp="$(deep_prepare_stamp)"
+
+    if [ -z "$stamp" ]; then
+        warn "Could not determine STAMP_PREPARED. Verdict: UNKNOWN."
+        return 0
+    fi
+
+    echo "  expected stamp: ${stamp#"$CONTAINER_REPO_DIR"/}"
+
+    if [ -e "$REPO_DIR/${stamp#"$CONTAINER_REPO_DIR"/}" ]; then
+
+        ok "Kernel build_dir is consistent with the current patch set."
+        ok "No re-prepare pending -- the next kernel build is incremental."
+    else
+
+        warn "A re-prepare is PENDING."
+        warn "The next kernel build will wipe build_dir, re-extract linux-6.12.94 and"
+        warn "re-apply every patch. Expect a full kernel rebuild, not an incremental one."
+    fi
+
+    return 0
 }
 
 ###############################################################################
@@ -471,12 +630,42 @@ prepare_config() {
 
     msg "Preparing configuration for $board..."
 
-    docker_exec sh -c "
-        cd $CONTAINER_OPENWRT_DIR &&
-        cp $CONTAINER_REPO_DIR/diffconfigs/$board .config
-    "
+    # Guarded so DRY_RUN leaves the tree untouched: without it, a dry run would
+    # still replace .config with the bare diffconfig and, because the following
+    # `make defconfig` is skipped, leave the tree with an unexpanded config.
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+        warn "DRY_RUN=1 -- not copying diffconfigs/$board to openwrt/.config"
+    else
+        docker_exec sh -c "
+            cd $CONTAINER_OPENWRT_DIR &&
+            cp $CONTAINER_REPO_DIR/diffconfigs/$board .config
+        "
+    fi
 
     run_openwrt_make "make defconfig V=sc"
+}
+
+# Ensure a usable .config before a selective build.
+#
+# With a board, rewrite .config from that board's diffconfig -- the same thing
+# `build` does. Without one, reuse the .config already in the tree, which is what
+# makes single-target iteration fast (no diffconfig copy, no `make defconfig`).
+ensure_config() {
+
+    local board="${1:-}"
+
+    if [ -n "$board" ]; then
+        prepare_config "$board"
+        return
+    fi
+
+    if [ -f "$OPENWRT_DIR/.config" ]; then
+        ok "Using the existing .config (no board given)."
+        return
+    fi
+
+    die "No board given and openwrt/.config does not exist.
+Usage: ./build.sh <command> [board]   -- run './build.sh list' for boards."
 }
 
 
@@ -570,6 +759,213 @@ build_target() {
     run_openwrt_make "make -j\$((\$(nproc)+1)) V=sc"
 }
 
+###############################################################################
+# Selective builds (kernel / single package / single kernel module)
+###############################################################################
+
+# Resolve a package name -- or an explicit package/... or feeds/... path -- to a
+# make goal prefix, e.g. "package/msm8916/qrtr".
+resolve_package() {
+
+    local name="$1"
+    local hit
+
+    case "$name" in
+
+        package/*|feeds/*)
+            [ -d "$OPENWRT_DIR/$name" ] || return 1
+            echo "$name"
+            return 0
+            ;;
+
+    esac
+
+    # Project packages are installed under package/msm8916/<name>.
+    for hit in "package/$name" "package/msm8916/$name"; do
+        if [ -d "$OPENWRT_DIR/$hit" ]; then
+            echo "$hit"
+            return 0
+        fi
+    done
+
+    # Feed-installed symlinks, then the feed trees themselves.
+    # `|| true` because an unmatched glob makes ls exit non-zero, and
+    # `set -o pipefail` would otherwise abort the script. sed -n '1p' rather
+    # than head -1 for the same reason (head closes the pipe early).
+    hit="$( cd "$OPENWRT_DIR" && ls -d package/feeds/*/"$name" 2>/dev/null | sed -n '1p' || true )"
+    if [ -n "$hit" ]; then
+        echo "$hit"
+        return 0
+    fi
+
+    hit="$( cd "$OPENWRT_DIR" && find feeds -maxdepth 4 -type d -name "$name" 2>/dev/null | sed -n '1p' || true )"
+    if [ -n "$hit" ]; then
+        echo "$hit"
+        return 0
+    fi
+
+    # Base-tree packages nested below package/<name>, e.g.
+    # package/network/services/dnsmasq or package/kernel/mac80211.
+    hit="$( cd "$OPENWRT_DIR" && find package -maxdepth 4 -type d -name "$name" 2>/dev/null | sed -n '1p' || true )"
+    if [ -n "$hit" ]; then
+        echo "$hit"
+        return 0
+    fi
+
+    return 1
+}
+
+# Read file paths on stdin, print "  <md5>  <path>" for each, keeping only the
+# first path per distinct md5. A single build leaves identical copies in several
+# places (build_dir, .pkgdir, ipkg-*, root-*); one line each is enough.
+print_hashed_paths() {
+
+    while IFS= read -r f; do
+
+        [ -n "$f" ] || continue
+
+        printf '%s  %s\n' \
+            "$(md5sum "$f" | awk '{ print $1 }')" \
+            "${f#"$OPENWRT_DIR"/}"
+
+    done | awk '!seen[$1]++ { print "  " $0 }'
+}
+
+# Report what a selective build just produced, with md5 so the result can be
+# compared against the device immediately.
+report_new_artifacts() {
+
+    local since="$1"
+    local what="$2"
+    local pattern="$3"
+    local found
+
+    found="$(find "$OPENWRT_DIR/build_dir" "$OPENWRT_DIR/bin" \
+                  -name "$pattern" -newermt "@$since" 2>/dev/null || true)"
+
+    [ -n "$found" ] || return 0
+
+    echo
+    msg "Built $what:"
+
+    printf '%s\n' "$found" | print_hashed_paths
+}
+
+# Rebuild the kernel and its in-tree modules (target/linux/compile).
+# This is the workhorse for driver iteration: qcom_bam_dmux is in-tree, so
+# there is no narrower goal that rebuilds just it.
+build_kernel() {
+
+    local board="${1:-}"
+    local start
+
+    ensure_prepared
+    ensure_config "$board"
+
+    start="$(date +%s)"
+
+    run_openwrt_make "make target/linux/compile V=s"
+
+    report_new_artifacts "$start" "kernel modules" "*.ko"
+}
+
+# Build an already-resolved package path. Assumes ensure_prepared has run.
+build_package_path() {
+
+    local path="$1"
+    local board="$2"
+    local start
+
+    ensure_config "$board"
+
+    start="$(date +%s)"
+
+    run_openwrt_make "make $path/compile V=s"
+
+    report_new_artifacts "$start" "packages" "*.ipk"
+}
+
+# Rebuild one package: ./build.sh package <name|path> [board]
+build_package() {
+
+    local name="${1:-}"
+    local board="${2:-}"
+    local path
+    local cands
+
+    [ -n "$name" ] ||
+        die "No package given. Usage: ./build.sh package <name|path> [board]"
+
+    ensure_prepared
+
+    if ! path="$(resolve_package "$name")"; then
+
+        warn "Cannot resolve package '$name'."
+
+        cands="$( cd "$OPENWRT_DIR" &&
+                  find package -maxdepth 3 -type d -name "*${name}*" 2>/dev/null |
+                      sed -n '1,20p' || true )"
+
+        if [ -n "$cands" ]; then
+            echo
+            echo "Candidates under openwrt/package:"
+            printf '%s\n' "$cands" | sed 's/^/  /'
+        fi
+
+        die "Unknown package '$name'."
+    fi
+
+    ok "Resolved '$name' -> openwrt/$path"
+
+    build_package_path "$path" "$board"
+}
+
+# Rebuild one kernel module: ./build.sh kmod <name> [board]
+#
+# Two cases, and the difference matters:
+#   * an out-of-tree kmod package (package/kernel/<name> or a feed) -> build it
+#   * an in-tree module, generated from the kernel config (there is no package
+#     directory for it) -> only `target/linux/compile` can rebuild it, which
+#     rebuilds the kernel and every in-tree module.
+build_kmod() {
+
+    local name="${1:-}"
+    local board="${2:-}"
+    local path
+    local norm hit
+
+    [ -n "$name" ] ||
+        die "No module given. Usage: ./build.sh kmod <name> [board]"
+
+    ensure_prepared
+
+    if path="$(resolve_package "kmod-$name" 2>/dev/null)" ||
+       path="$(resolve_package "$name" 2>/dev/null)"; then
+
+        ok "Resolved kmod '$name' -> openwrt/$path"
+
+        build_package_path "$path" "$board"
+        return
+    fi
+
+    warn "'$name' has no package directory -- treating it as an in-tree kernel module."
+    warn "The narrowest goal OpenWrt offers for one in-tree module is the kernel"
+    warn "target, so this rebuilds the kernel and all in-tree modules."
+
+    build_kernel "$board"
+
+    # The file name rarely matches the module name (bam-dmux -> qcom_bam_dmux.ko).
+    norm="${name//-/_}"
+
+    hit="$(find "$OPENWRT_DIR/build_dir" -name "*${norm}*.ko" 2>/dev/null | sed -n '1,10p' || true)"
+
+    if [ -n "$hit" ]; then
+        echo
+        msg "Module(s) matching '$name':"
+        printf '%s\n' "$hit" | print_hashed_paths
+    fi
+}
+
 run_menuconfig() {
 
     ensure_prepared
@@ -600,6 +996,10 @@ force_prepare() {
     ensure_openwrt
 
     prepare_tree "$version"
+
+    assert_bsp_synced
+
+    ok "BSP install verified: live tree matches tracked sources."
 }
 
 ###############################################################################
@@ -706,10 +1106,35 @@ Commands
     menuconfig <board>
         Run menuconfig.
 
+    guard [--deep]
+        Verify the live OpenWrt tree matches the tracked sources
+        (msm89xx/, packages/). The kernel build reads the live tree,
+        so a mismatch means a build from the wrong patch set.
+        --deep also asks make whether the next kernel build will
+        re-prepare (wiping build_dir) or be incremental.
+
+    kernel [board]
+        Rebuild only the kernel and its in-tree modules.
+        Without a board, the existing .config is reused.
+
+    package <name|path> [board]
+        Rebuild only one package, e.g. "qrtr" or "package/msm8916/qrtr".
+
+    kmod <name> [board]
+        Rebuild only one kernel module. An out-of-tree kmod package is
+        built directly; an in-tree module (e.g. bam-dmux) has no
+        narrower goal than the kernel target.
+
     clean
     dirclean
     distclean
         Run the corresponding OpenWrt make target.
+
+Environment
+
+    DRY_RUN=1
+        Print the OpenWrt make command instead of executing it.
+        Works with every build command.
 
 EOF
 }
@@ -720,7 +1145,12 @@ EOF
 
 COMMAND="${1:-help}"
 
-check_requirements
+# `guard` is a host-side tree check, and is most useful precisely when the build
+# environment is not running, so it does not require Docker. `--deep` asks make
+# inside the container, so that form does.
+if [ "$COMMAND" != "guard" ] || [ "${2:-}" = "--deep" ]; then
+    check_requirements
+fi
 
 case "$COMMAND" in
 
@@ -782,6 +1212,17 @@ prepare)
 
     fi
     ;;
+
+###############################################################################
+# Guard
+###############################################################################
+
+guard)
+
+    shift
+    guard_check "$@"
+    ;;
+
 ###############################################################################
 # Shell
 ###############################################################################
@@ -811,6 +1252,25 @@ rebuild)
 
     shift
     run_builds 1 "$@"
+    ;;
+
+###############################################################################
+# Selective builds
+###############################################################################
+
+kernel)
+
+    timed build_kernel "${2:-}"
+    ;;
+
+package)
+
+    timed build_package "${2:-}" "${3:-}"
+    ;;
+
+kmod)
+
+    timed build_kmod "${2:-}" "${3:-}"
     ;;
 
 ###############################################################################
