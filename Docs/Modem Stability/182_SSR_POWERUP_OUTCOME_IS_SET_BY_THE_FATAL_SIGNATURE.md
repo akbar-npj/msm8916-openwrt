@@ -1,8 +1,10 @@
-# 182 — THE SSR POWERUP OUTCOME IS DETERMINED BY THE FATAL SIGNATURE, AND THE PC-ACK TIMEOUT IS A CONSEQUENCE OF IT
+# 182 — THE SSR POWERUP OUTCOME IS SET BY THE FATAL SIGNATURE; THE PC-ACK TIMEOUT IS **NOT** A CONSEQUENCE OF IT
 
 **Date:** 2026-09-22
 **Boots:** `eafa19f6-5a01-4ea8-b783-52e9f16bf862` (retrospective, 17 fatals) and
-`59d9c272-d87c-486a-9d6c-4fd93e02fc29` (live, 6 fatals — 4 `a2_power` → A, 2 `common_timer` → B)
+`59d9c272-d87c-486a-9d6c-4fd93e02fc29` (live, 7 fatals — 4 `a2_power.c:1189` → A, 2
+`common_timer.c:390` → B, and 1 **new** signature `lte_ml1_sm_conn_inter_freq_stm.c:712` → A
+**with no timeout**, which falsifies §6 — see §8.6)
 **Patch under test:** `msm89xx/patches/808-bam-dmux-stats.patch` (2000 ms pc-ack wait arm),
 plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 **Deployed module:** `qcom_bam_dmux.ko` md5 `982b633e2a682e21ad69b6e85d273941`
@@ -19,11 +21,19 @@ plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 * `pcfine_boot59d9c272.txt` — md5 `2c0bc63754bad0bda2bde42962ae62d5`, 45 records (earlier snapshot)
 * `dmesg_boot59d9c272_upto2590s.txt` — md5 `768b7c10de3fa8e0c544919c5b92f295`, 545 lines
 * `score_bam_reinit.py`, `score_h3.py`, `census_pc.py`, `calibrate_sampler_clock.py`,
-  `pcfine.sh`, `score_output.txt` (`census_pc.py` reproduces §8.4's pc-line / PM census and the
-  flatness check on any capture; `calibrate_sampler_clock.py` reproduces §8.5.1's sampler clock
-  error from three independent event types; both parse the sampler formats)
+  `score_resume_window.py`, `pcfine.sh`, `score_output.txt` (`census_pc.py` reproduces §8.4's
+  pc-line / PM census and the flatness check on any capture; `calibrate_sampler_clock.py`
+  reproduces §8.5.1's sampler clock error from three independent event types;
+  `score_resume_window.py` reproduces §8.6 — for each labelled window it reports the pre-event
+  PM state, whether a resume ran, whether a timeout followed, and the resume→timeout delay. All
+  three parse the sampler formats; `score_resume_window.py` imports `census_pc.py`'s parser)
 * `dmesg_boot59d9c272_full.txt` — md5 `81903ea91f010f8644a2b1618f5b776b`, 729 lines — the whole
   boot's ring, needed by `calibrate_sampler_clock.py`
+* `pcfine_f7_boot59d9c272.txt` — md5 `adeb90d0ffb658e6b9b6869d99a3b129`, 28548 records — the
+  later pull of the same sampler, covering **fatal #7** (§8.6) and everything after it. It
+  strictly contains `pcfine_v2_boot59d9c272.txt` (both start at uptime 3157.20 and log the same
+  tuple); the v2 copy was pulled earlier and stops inside fatal #6. Use the f7 copy for anything
+  at or after uptime 4811.
 
 ---
 
@@ -32,9 +42,9 @@ plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 | SOP step | done? |
 | :-- | :-- |
 | Comparative protocol against the stock-HMU05 ground truth | **YES** — every claim here is about the **OpenWrt port's own driver** (`qcom_bam_dmux.c`) and the modem's *reported* fatal site. No baseband was touched, and no firmware claim is made. |
-| Pre-register the prediction **before** the data exists | **PARTIAL, and the gaps are stated** — §3's shortcut invalidated the pre-registration I had intended for the A/B-vs-signature association: it was read out of a console that already existed. But **H3 (§9) was registered before any A case existed on the live boot and was then confirmed by the first one to arise (§8.1)** — P1–P4, all four. The association in §5 is retrospective; the mechanism in §8.1 is not. **§8.4 is EXPLORATORY, not pre-registered**: the orphan timeout was found by continuing to sample, and its mechanism was read off the capture after the fact. It is reported as a single occurrence for exactly that reason. |
+| Pre-register the prediction **before** the data exists | **PARTIAL, and the gaps are stated** — §3's shortcut invalidated the pre-registration I had intended for the A/B-vs-signature association: it was read out of a console that already existed. But **H3 (§9) was registered before any A case existed on the live boot and was then confirmed by the first one to arise (§8.1)** — P1–P4, all four. The association in §5 is retrospective; the mechanism in §8.1 is not. **§8.4 is EXPLORATORY, not pre-registered**: the orphan timeout was found by continuing to sample, and its mechanism was read off the capture after the fact. It is reported as a single occurrence for exactly that reason. **§8.6 is opportunistic, and this is the one place a pre-registration would have been worth having**: fatal #7 arrived while the sampler was running and was scored *after* it fired, so the §6 falsification is a post-hoc observation. What makes it credible rather than a fishing expedition is that it is a **falsification of a claim already written down** (this doc's own §6), the mechanism was then read from source (`pc_timeout_count` has exactly two writers, both inside `runtime_resume`), and the PM counters were **already in the sampler's change key** — so the discriminating measurement was not chosen after seeing the answer. |
 | Freeze the capture, hash it, score the frozen copy | **YES** — the pstore console was copied off the device and hashed before scoring; the scorer reads only the frozen copy. The live sampler was likewise pulled to a hashed file (§8.4's file is a **snapshot** taken while the sampler was still running, and the device copy keeps growing). |
-| Keep a control | **YES** — (a) the 13 `lte_ml1_common_timer.c:390` fatals *inside the same boot* are the control for the 4 `a2_power.c:1189` ones; (b) the 14 B outcomes are the control for the 4 A outcomes on the timeout claim; (c) the cold-boot powerup (row 1) is a no-fatal control; (d) **§8.4's orphan timeout is a control of a different kind — a timeout with no fatal at all**, which is what forced the §6 qualification. |
+| Keep a control | **YES** — (a) the 13 `lte_ml1_common_timer.c:390` fatals *inside the same boot* are the control for the 4 `a2_power.c:1189` ones; (b) the 14 B outcomes are the control for the A outcomes on the timeout claim; (c) the cold-boot powerup (row 1) is a no-fatal control; (d) **§8.4's orphan timeout is a control of a different kind — a timeout with no fatal at all**, which is what forced the §6 qualification. **(e) §8.6's fatal #7 is the strongest control of all: it is an A case *without* a timeout, and it is what finally falsified §6 rather than merely qualifying it — an A case that is not `a2_power` was the one measurement the earlier corpus could not supply.** |
 | Verify the instrument before resting a claim on it | **YES, and it changed four conclusions** — §7.1 (the RX watchdog *has* rebuild paths, so its silence had to be checked, not assumed), §7.2 (the modem's `CMD_OPEN` burst had to be ruled out as the rebuilder), §8.3 (the counter I had been reading as an *edge* count is a **thread-run** count), and §8.5.1 (the sampler's own timestamp is **~73 ms early**, calibrated against three independent event types — without which §8.2's table reads as a contradiction). |
 | State what is *not* established | **YES** — §11 |
 
@@ -188,6 +198,15 @@ they must for a perfect table.)
 **The association is perfect and the split is clean.** `a2_power.c:1189` → A, 4/4.
 `lte_ml1_common_timer.c:390` → B, 13/13. **Outcome C never occurred in this boot.**
 
+**⚠ The two-way split is a property of THIS boot's signature mix, not of the outcome rule.** The
+live boot has since produced a **third** signature — `lte_ml1_sm_conn_inter_freq_stm.c:712` at
+5709.425429 — and it is **A**, not B (§8.6). So the correct statement of Result 1 is *not*
+"`a2_power` means A and `common_timer` means B"; it is that **A and B are both reachable and the
+signature is only a correlate**. With fatal #7 the live boot's mix is 4 `a2_power` → A,
+2 `common_timer` → B, 1 `lte_ml1_sm_conn_inter_freq_stm` → A. The next signature that arises could
+fall either way, and §8.6 shows the *timeout* half of §6 was over-read from a corpus in which the
+two signatures happened never to cross over.
+
 ### 5.1 Two caveats
 
 * Row 18's `waited 560` is anomalous — it is the only **fatal** SSR that did not assert at the
@@ -198,10 +217,15 @@ they must for a perfect table.)
 
 ---
 
-## 6. Result 2 — the pc-ack timeout is a consequence of A, not an `a2_power` property
+## 6. Result 2 — the pc-ack timeout correlates with A, but is **not** caused by it (fatal #7)
 
 Doc 181 §6 established that the `pc-ack timeout` is `a2_power`-specific at 4/4 vs 0/10
-(p = 0.003497), and treated that as a property of the signature. This boot separates the two:
+(p = 0.003497), and treated that as a property of the signature. This boot appeared to separate
+the two — and then fatal #7 separated them a third way and falsified the separation. The section
+is kept in its original order so the falsification is visible as a correction rather than
+retrofitted.
+
+*The reading as first written (retrospective boot only), **before fatal #7 existed**:*
 
 | | timeout | no timeout |
 | :-- | --: | --: |
@@ -231,22 +255,43 @@ Across both boots, **8 A cases give Δ ∈ [1.109, 1.255] s** (range 146 ms), an
 0 timeouts in 17 outcomes** (13 fatal B + 1 cold-boot B from the retrospective boot, 2 fatal B
 + 1 cold-boot B from the live boot). Fatals #5 and #6 agree to **1 µs**; see §8.5.3.
 
-**Reading.** A precedes the timeout by ~1.17 s in every case, and the timeout count equals the A
-count exactly. So the timeout is **not** an independent `a2_power` signature property; it is a
-**downstream consequence of the A path**. §4.3 supplies the candidate mechanism: the A-branch
-does not `complete_all(&dmux->pc_ack_completion)`.
+### 6.1 Fatal #7 — the claim as originally written is FALSIFIED
 
-**Doc 181 §6 is therefore re-attributed, not withdrawn.** The measurement stands; the driver it
-was attributed to was the wrong one. The chain is
-`a2_power.c:1189` → **A** → pc-ack timeout, and `a2_power` correlates with A perfectly, which is
-why the two were indistinguishable from a single boot.
+The live boot then produced a **ninth A case with NO timeout**: fatal #7 at 5709.425429,
+signature `lte_ml1_sm_conn_inter_freq_stm.c:712`, outcome **A** at 5710.863153, and
+`pc_timeout_count` stayed **5**. §8.6 gives the measurement and the mechanism.
 
-**Qualified by §8.4.** A is not the *only* way to get a timeout. While this doc was being
-written the live boot produced a **fourth** timeout with **no fatal at all** — an 80 ms
-suspend/resume pair whose pc line never transitioned, so neither completion source ran and the
-2000 ms wait expired (§8.4). The correct reading of the table above is therefore "**A guarantees
-the timeout**", not "A is the timeout's only cause"; the general condition is H4's — the
-completion needs a line *transition*.
+So the table above is **incomplete**, and the corrected version is:
+
+| | timeout | no timeout |
+| :-- | --: | --: |
+| **A** | **8** | **1** |
+| **B** | 0 | 17 |
+
+Fisher exact one-sided p = **0.00000576** (it was 0.00000092 for the perfect table). The
+association survives — it is still very strong — but **"A guarantees the timeout" is dead**, and
+with it the re-attribution below. **Doc 181 §6's original `a2_power` attribution and this
+section's A-attribution were both reading a correlate**: the true antecedent is a
+`bam_dmux_runtime_resume()` whose wait is never completed (§8.6).
+
+### 6.2 What survives, and what does not
+
+**Withdrawn:** "the pc-ack timeout is a **consequence** of the A path", and "A **guarantees** the
+timeout". Fatal #7 is A and produced none.
+
+**Survives, as a correlate only:** A and B differ sharply in timeout rate (8/9 vs 0/17). The
+reason is now known and is not causal: an A fatal pins the pc line high, so **if** a resume
+occurs its vote cannot produce a transition. B pins it low, so the resume's own vote *is* the
+transition. A raises the *probability* of a timeout; it does not produce one.
+
+**Also withdrawn:** §4.3's "the A-branch does not `complete_all()`" as *the* explanation. It is
+still true and still a real asymmetry, but it cannot be the cause of the A→timeout correlation,
+because fatal #7 took the A branch and no wait was pending for it to fail to complete. The
+missing `complete_all()` is a **latent** defect (it would matter if a resume were ever waiting
+*through* the A rebuild), not the measured one.
+
+**Reading.** A precedes the timeout by ~1.17 s in every case where a timeout occurs, and in the
+one A case with no timeout **no resume occurred at all** (§8.6). That is the whole difference.
 
 ---
 
@@ -257,6 +302,12 @@ completion needs a line *transition*.
 `bam_dmux_rx_watchdog_func()` can rebuild `rx` (§4.2). It did not: this capture contains
 **zero** `rebuilding` / `resyncing` / `lost edge` lines, and the live telemetry reports
 `pc_resync_count: 0`. So the B-case rebuilder is `bam_dmux_pc_irq()`.
+
+**⚠ Corrected by §8.6.2.** The `pc_resync_count: 0` half of that sentence was true of *this
+capture* and is now stale: the live boot's watchdog fired the lost-edge path at **5726.582280**
+(`pc_resync_count` 0 → 1), 17.2 s after fatal #7. The conclusion of this section is unaffected —
+that resync is not the rebuilder for any of the 17 fatals scored here — but the *evidence* is a
+statement about a window, not about the path.
 
 ### 7.2 The modem's `CMD_OPEN` burst is not the rebuilder
 
@@ -390,8 +441,10 @@ the full-tuple key. The bug was fixed for the ongoing run (§13), which now keys
 | 4 | `a2_power.c:1189` | **high** | **one, falling only**, at the very end | A |
 
 **And the timeout follows A again**: fatal #4's A at 2976.800897 → `pc-ack timeout` at
-2978.056277, **Δ = 1.255380 s**. Together with the other A cases that makes the A → timeout
-association **8 of 8 across two boots, 0 of 17 for B** (§6).
+2978.056277, **Δ = 1.255380 s**. Together with the other A cases that made the A → timeout
+association **8 of 8 across two boots, 0 of 17 for B** at the time this was written. **It is now
+8 of 9: fatal #7 is the counter-example (§8.6), so read this paragraph as the correlation, not
+the rule (§6.2).**
 
 ### 8.2 Fatal #5 — H3 confirmed at n = 2, and the window exposes the real mechanism
 
@@ -506,13 +559,20 @@ Read out:
    (Δ = 2.18 s from the vote, matching the reported `pm_last_resume_ms: 2178`).
 
 **What this means for §6.** §6's claim — "the pc-ack timeout is a consequence of A" — is an
-association over the fatals, and it stands (A → timeout 7/7, B → 0/17). But this event shows A is
-**not the only way** to produce a timeout. The general condition is the one H4 names: **the
-completion is completed only by `bam_dmux_pc_irq()` (`:1977`) or `bam_dmux_pc_ack_irq()`
-(`:1997`), and both require a line *transition***. A fatal makes that condition *certain* (the
-line is pinned high and masked); an 80 ms suspend/resume pair makes it *possible* without any
-fatal at all. §6 should therefore be read as "A **guarantees** the timeout", not "A is the
-timeout's only cause".
+association over the fatals, and it stood at the time this was written (A → timeout 7/7 at that
+count, B → 0/17). But this event already showed A is **not the only way** to produce a timeout.
+The general condition is the one H4 names: **the completion is completed only by
+`bam_dmux_pc_irq()` (`:1977`) or `bam_dmux_pc_ack_irq()` (`:1997`), and both require a line
+*transition***. A fatal makes that condition *certain* (the line is pinned high and masked); an
+80 ms suspend/resume pair makes it *possible* without any fatal at all. The wording chosen here
+was "A **guarantees** the timeout" — **and §8.6 then killed even that**, because fatal #7 is A
+with no resume in its window and therefore no timeout. The correct statement, superseding both
+this paragraph and §6, is that **the timeout requires a `bam_dmux_runtime_resume()` and is
+completed only by a line transition; a fatal supplies the second half but not the first.**
+
+**This section is therefore also the first place the real antecedent was visible** — the orphan
+timeout has no fatal, so it was already proof that A was not necessary. What was still missing
+was proof that A was not *sufficient*, and fatal #7 supplied it.
 
 **What this means for H4.** This is an **independent, non-fatal confirmation of H4's core
 mechanism**, and it is the cleanest case in the corpus: no SSR, no teardown, no lock contention,
@@ -663,6 +723,132 @@ is the notifier's own reaction, ~73 ms after the fact in telemetry time. The tru
 record is `pc_state = 1, pc_line = 1`, so P1 was hit there too — it was my table's label that was
 wrong, not the prediction.
 
+### 8.6 Fatal #7 — a THIRD signature, outcome A, and **NO** timeout: §6 is falsified
+
+**Fatal #7 at 5709.425429 is a signature new to this boot** —
+`lte_ml1_sm_conn_inter_freq_stm.c:712` — and it is outcome **A** (`successfully reinitialized BAM
+channels and rings` at **5710.863153**). **It produced no pc-ack timeout.** The device reports
+`pc_timeout_count: 5` at uptime 6034.40, and the last `pc-ack timeout` line in the ring is the
+one belonging to fatal **#6** at 4810.361343 — **899 s earlier**. All five timeout lines on this
+boot are of the `pc-ack timeout during resume` kind; the second writer,
+`pc_state wait timeout during resume` (`:2078`), has never fired.
+
+| event | time |
+| :-- | --: |
+| fatal `lte_ml1_sm_conn_inter_freq_stm.c:712` | 5709.425429 |
+| `SSR before shutdown` (notifier, `pc_state=false`) | 5709.449091 (+23.7 ms) |
+| `T5 rx released` (`rx_tearing_down=true`) | 5709.505999 (+80.6 ms) |
+| `stopped remote processor` | 5709.625912 |
+| `SSR after powerup: scheduling powerup work` / `is now up` | 5710.643429 / 5710.643566 |
+| `SSR powerup: modem pc_state=1 (waited 200 ms)` | 5710.859068 |
+| **outcome A** `successfully reinitialized` | **5710.863153** |
+| *(no `pc-ack timeout`)* | — |
+
+The sampler window (`pcfine_f7_boot59d9c272.txt`, format
+`iq aq ps pl to rs ra td rc vt vu mra msa co|UP qm`; `<UP>` is ~73 ms early, §8.5.1):
+
+| record | `<UP>` | `pc_irq_count` | `pc_state` | `pc_line` | **`pc_timeout_count`** | **`pc_vote_tx`** | **`pc_unvote_tx`** | **`pm_resume`** | **`pm_suspend`** |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| last pre-fatal | 5709.11 | 491 | **1** | **1** | **5** | **282** | **281** | **282** | **281** |
+| notifier `pc_state=false` | 5709.39 | 491 | 0 | 1 | 5 | 282 | 281 | 282 | 281 |
+| T5 `rx_tearing_down=true` | 5709.45 | 491 | 0 | 1 | 5 | 282 | 281 | 282 | 281 |
+| line falls | 5709.47 | **491** | 0 | 0 | 5 | 282 | 281 | 282 | 281 |
+| line rises | 5710.72 | **491** | 0 | 1 | 5 | 282 | 281 | 282 | 281 |
+| work sets `pc_state` (A) | 5710.80 | **491** | **1** | 1 | **5** | 282 | 281 | 282 | 281 |
+| **suspend** | 5710.84 | 491 | 1 | 1 | **5** | 282 | **282** | 282 | **282** |
+| thread finally runs | 5710.88 | **492** | 0 | 0 | **5** | 282 | 282 | 282 | 282 |
+| | 5711.21 | 493 | 1 | 1 | **5** | 282 | 282 | 282 | 282 |
+| `CMD_OPEN` burst (co 56 → 64) | 5711.30 | 493 | 1 | 1 | **5** | 282 | 282 | 282 | 282 |
+| | 5713.22 | 494 | 0 | 0 | **5** | 282 | 282 | 282 | 282 |
+
+**P1 and P3 hold** — the last pre-fatal record is `pc_state = 1, pc_line = 1`, and
+`pc_irq_count` is flat at **491** from 5709.11 through the A outcome at 5710.863153 while the
+line moves 1 → 0 at 5709.47 and 0 → 1 at 5710.72. That is the fourth A case and the third
+measured with the fixed key, and it is the same signature as §8.2/§8.5.3: **two wire
+transitions, zero counter movement.** It is also the **first A case whose fatal is not
+`a2_power.c:1189`**.
+
+#### 8.6.1 The load-bearing column is the PM pair, not the outcome
+
+**`pc_timeout_count` has exactly two writers, and both are inside `bam_dmux_runtime_resume()`**
+— `:2069` (the 2000 ms `wait_for_completion_timeout`, logged as `pc-ack timeout during resume`)
+and `:2078` (the 1000 ms `wait_event_timeout`, logged as `pc_state wait timeout during resume`).
+There is no third writer anywhere in the driver. So:
+
+> **No `bam_dmux_runtime_resume()` ⇒ no possible timeout.**
+
+In fatal #7's window **no resume ran**. The evidence is the vote/resume pair: `pc_vote_tx` is
+**282** and `pm_resume_attempts` is **282** at 5709.11 and *still* 282 at 5711.30 — i.e. the
+device was **already runtime-ACTIVE** when the fatal arrived (`vt = 282 > vu = 281`,
+`mra = 282 > msa = 281`; the outstanding resume is the one from **5407.84**, 301.6 s earlier).
+The only PM transition in the window is a **suspend** at 5710.84 (`msa` 281 → 282, `vu`
+281 → 282), which is the autosuspend that follows the A branch's `pm_runtime_set_active()`
+(`:2413`) — not a resume. The tuple's PM fields are part of the sampler's change key, so a resume
+**cannot** have been missed: any `vt`/`mra` increment would have forced a record.
+
+Now the same read-out for every timeout the corpus has, plus fatal #7:
+
+| case | signature | outcome | PM pair at the last pre-event record | resume inside the window | Δ resume → timeout | timeout |
+| :-- | :-- | :-- | :-- | :-- | --: | :-- |
+| fatal #3 | `common_timer.c:390` | B | 82 / 82 — **suspended** | **yes**, 2339.52, line **low → high** | — | **no** |
+| fatal #4 | `a2_power.c:1189` | A | 94 / 93 — active | **yes** (`mra` 94 → 95; ≈2976.06 by the Δ) | — | yes @2978.06 |
+| fatal #5 | `a2_power.c:1189` | A | 140 / 140 — suspended | **yes**, 3884.75 | **2.04 s** | yes @3886.85 |
+| fatal #6 | `a2_power.c:1189` | A | 170 / 170 — suspended | **yes**, 4808.29 | **2.01 s** | yes @4810.36 |
+| orphan (§8.4) | *(no fatal)* | — | 155 / 155 — suspended | **yes**, 4184.14 | **2.18 s** | yes @4186.36 |
+| **fatal #7** | **`lte_ml1_sm_conn_inter_freq_stm.c:712`** | **A** | **282 / 281 — ACTIVE** | **NONE** | — | **NO** |
+
+`Δ resume → timeout` is ~2000 ms in all three cases where it can be measured, which is exactly
+the `msecs_to_jiffies(2000)` at `:2067`. (Fatal #4's resume time is bracketed only by the coarse
+v1 capture — `mra` is 94 at 2973.58 and 95 at 2979.23 — so it is inferred from the timeout, not
+observed; flagged as such.)
+
+**The corrected condition.** The pc-ack timeout is neither an `a2_power` property (Doc 181 §6)
+nor a consequence of A (this doc §6). It is a property of **a `bam_dmux_runtime_resume()` whose
+wait is not completed**, and the wait is completed only by a **pc-line transition**
+(`bam_dmux_pc_irq` `:1977`) or by the modem's ack (`bam_dmux_pc_ack_irq` `:1997`). A fatal
+supplies the *precondition* — it pins the line — but **not the trigger**: a resume must still
+happen. Fatal #7 shows an A case with no resume, and therefore no timeout; §8.4 shows a timeout
+with no fatal, and therefore no A.
+
+**This is the cleanest statement the corpus supports:**
+
+> **timeout ⟺ a `bam_dmux_runtime_resume()` runs while the pc line is already asserted.**
+
+* A fatal makes that *likely* (the line is pinned high for the whole SSR), which is why A
+  correlates 8/9 with timeouts.
+* A **B** fatal makes it *unlikely*, because the line is low and the resume's own vote is the
+  rising edge that completes the wait (fatal #3) — 0/17.
+* A fatal with **no resume** makes it *impossible* — fatal #7.
+
+**What is NOT established.** *Why* fatal #7 had no resume in its window is not determined. The
+pre-event PM state does not explain it: fatal #4 and fatal #7 had the **same** pre-event state
+(`vt = vu + 1`, one outstanding resume) and differed only in whether a *new* resume followed. The
+plausible reading — the resume is triggered by the SSR's own traffic/PM churn and its occurrence
+depends on load — is consistent with the data (fatal #7's `rx_callbacks` was climbing at
+~120/s right up to 5709.11, i.e. the device was genuinely busy) but is **not** tested here. The
+one thing that *is* established is the negative: no resume, so no timeout.
+
+#### 8.6.2 An addendum — the lost-edge resync is not dead, and it fired 17 s later
+
+§7.1 concluded that the RX watchdog was not the B-case rebuilder, partly on the evidence that
+`pc_resync_count` was 0. **That is no longer true on this boot.** At **5726.582280**, 17.2 s
+after fatal #7's A outcome, the watchdog fired the *lost-edge* path (`:1330`):
+
+```
+[ 5726.582280] bam-dmux 4080000.remoteproc:bam-dmux: bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge), resyncing
+```
+
+`pc_resync_count` went 0 → 1 (`rs` transitions at the record labelled 5726.67). It fired ~0.2 s
+after a **resume** at 5726.48 (`vt` 282 → 283) — i.e. a vote raised the line while `pc_state` was
+still 0, and the thread had not yet run. **This is exactly the condition §8.3's second
+observation predicted would exist** ("`pc_state` can disagree with the wire … while the only
+resync that exists returns early on `in_teardown` and runs on a ~60 s cadence"), and it is the
+first observed instance of that path in the corpus. It does not change §7.1's conclusion — the
+resync was not the rebuilder for any of the retrospective boot's 17 fatals — but §7.1's
+supporting sentence ("`pc_resync_count: 0`") is a statement about *that capture*, not about the
+path being unreachable. **A resync path that never fires and a resync path that has never been
+given the chance look identical from a counter.**
+
 ---
 
 ## 9. H3 — the refined hypothesis, pre-registered
@@ -701,15 +887,24 @@ roughly **1 in 4 fatals ≈ 1 per hour** at the 903.675 s beat. The split itself
 established at n = 17 (§5); H3 is a *within-A* claim, so **n = 2 A cases is the minimum that can
 falsify it, and n = 3–4 is needed before P1/P3 can be called supported.**
 
-**Status: P1–P4 confirmed at n = 3 A cases (§8.1 fatal #4, §8.2 fatal #5, §8.5.3 fatal #6).**
-Every A case to arise after registration confirmed all four predictions. **H3's mechanism
-wording is superseded by H4 (§8.3)**: `pc_irq_count` counts thread runs, not edges, so the
-measured fact is "the handler did not run in the window" rather than "no edge reached the
+**Status: P1–P4 confirmed at n = 4 A cases (§8.1 fatal #4, §8.2 fatal #5, §8.5.3 fatal #6,
+§8.6 fatal #7).** Every A case to arise after registration confirmed all four predictions, and
+the fourth is the **first whose fatal is not `a2_power.c:1189`** — so the A mechanism is not
+tied to the signature, which is the one generalisation the first three could not make. **H3's
+mechanism wording is superseded by H4 (§8.3)**: `pc_irq_count` counts thread runs, not edges, so
+the measured fact is "the handler did not run in the window" rather than "no edge reached the
 handler". **H4 has since gained an independent, non-fatal confirmation (§8.4)** — a resume whose
-line did not transition timed out exactly as H4 predicts, with no fatal involved. **The B side is
-still the weak one**: it rests on the v1 capture's 7.269 s lead (§8), which was taken with a key
-that could not see `ps`/`pl` moves between counter changes, and fatal #6 was another A rather
-than the B that would have closed it. The sampler is still running; fatal #7 is due ≈ 5712 s.
+line did not transition timed out exactly as H4 predicts, with no fatal involved — **and fatal #7
+supplies the converse control (§8.6): an A case with no resume and therefore no timeout, which
+shows the fatal supplies only the precondition and not the trigger.**
+
+**§9's falsifier list is untouched by fatal #7.** Neither falsifier fired: P1 held (`pc_line = 1`
+pre-fatal) and P3 held (`pc_irq_count` flat at 491). Fatal #7's contribution is to §6, not to H3.
+
+**The B side is still the weak one**: it rests on the v1 capture's 7.269 s lead (§8), which was
+taken with a key that could not see `ps`/`pl` moves between counter changes, and **four
+consecutive fatals have now been A rather than the B that would have closed it**. The sampler is
+still running; fatal #8 is due ≈ 6615 s.
 
 ---
 
@@ -726,17 +921,18 @@ an arbitrary later time.
 
 ## 11. What is NOT established
 
-1. **The A mechanism is confirmed at n = 3, but the masking is inferred, not directly
-   observed.** §8.1, §8.2 and §8.5.3 confirm P1–P4 on all three A cases. The claim that the
-   *line is masked* under `IRQF_ONESHOT` comes from reading the registration (§8.3) plus the
-   flat counter while the wire moved — the kernel's default primary handler is not instrumented,
-   so "the edge was consumed by the mask" and "the edge was never latched by the irqchip" are
-   **not separated**. Both produce the same observable: the thread does not run. What the outcome
-   depends on — that the interrupt path does not rebuild `rx` — is measured either way.
-   Note also the **asymmetry of the test**: the pc line is high a large fraction of the time
-   (the sampler shows it toggling every few seconds to ~100 s), so **a high pre-fatal line is
-   weak evidence on its own; P3 — that `pc_irq_count` does not move — is the load-bearing
-   prediction**, and it held on all three cases.
+1. **The A mechanism is confirmed at n = 4, but the masking is inferred, not directly
+   observed.** §8.1, §8.2, §8.5.3 and §8.6 confirm P1–P4 on all four A cases, and the fourth has
+   a *different* fatal signature from the first three, so the mechanism is not signature-bound.
+   The claim that the *line is masked* under `IRQF_ONESHOT` comes from reading the registration
+   (§8.3) plus the flat counter while the wire moved — the kernel's default primary handler is
+   not instrumented, so "the edge was consumed by the mask" and "the edge was never latched by
+   the irqchip" are **not separated**. Both produce the same observable: the thread does not run.
+   What the outcome depends on — that the interrupt path does not rebuild `rx` — is measured
+   either way. Note also the **asymmetry of the test**: the pc line is high a large fraction of
+   the time (the sampler shows it toggling every few seconds to ~100 s), so **a high pre-fatal
+   line is weak evidence on its own; P3 — that `pc_irq_count` does not move — is the load-bearing
+   prediction**, and it held on all four cases.
 2. **The sampler's `<UP>` label carries a ~73 ms systematic error (§8.5.1).** Measured on 10
    co-observed pairs of three independent event types: 0.0624 – 0.0806 s, mean 0.0729 s. So
    sampler timestamps may **not** be compared to dmesg timestamps at better than ~±60 ms, and
@@ -744,29 +940,49 @@ an arbitrary later time.
    table came to be misread. Relative ordering *within* the sampler is unaffected, which is why
    §8.4's analysis (which never crosses the two clocks) stands as written. A future version
    should read `/proc/uptime` **after** the telemetry, or read it twice and bracket.
-3. **The pc-ack timeout's mechanism is a candidate, not a proof.** §4.3's missing
-   `complete_all()` is consistent with §6's timing, but the timeout could equally be caused by
-   the modem not acking (Doc 181 §6's own alternative reading: "the modem did not ack" vs "the
-   vote produced no edge"). **§8.4 shows the two readings coincide in the windows measured** —
-   in both the A window and the orphan window *both* completion sources are flat
-   (`pc_irq_count` and `pc_ack_irq_count`), so there is no case here in which one ran and the
-   other did not. That does not identify the mechanism so much as show that the driver's two
-   completion paths are not independent enough to discriminate between the readings. The Δ is
-   now 1.109–1.255 s over 8 A cases, which bounds the mechanism but does not identify it.
-4. **No causal claim.** A and B both end with the channels rebuilt and the data plane restored.
-   The A/B split is a **symptom-level** discriminator between two fatal signatures. Nothing here
-   says the A/B outcome causes the fatal, or that the fatal is caused by the pc line.
-5. **Outcome C is unobserved, not excluded.** It did not occur in 19 fatal SSRs across two boots.
-   At the observed rate that bounds it below ~1 in 6 (rule of three, 95 %) — it is *rare*, not
-   impossible, and the ~77 s retry budget remains untested.
-6. **The signature mix is not explained.** Why `a2_power.c:1189` behaves differently at
-   the pc line is the open question; §9's P1 gives the first evidence about it.
+3. **The pc-ack timeout's *antecedent* is now established; its completion mechanism is still a
+   candidate.** §8.6 shows the timeout cannot occur without a `bam_dmux_runtime_resume()`
+   (both writers of `pc_timeout_count` are inside it) and that every measured timeout follows its
+   resume by ~2000 ms — the `msecs_to_jiffies(2000)` at `:2067`. What is **not** identified is
+   *which* of the two completion sources failed to fire: §4.3's missing `complete_all()` in the
+   A-branch is consistent, but so is Doc 181 §6's alternative ("the modem did not ack"). **§8.4
+   shows the two readings coincide in every window measured** — in the A windows *and* the orphan
+   window *both* completion sources are flat (`pc_irq_count` and `pc_ack_irq_count`), so there is
+   no case here in which one ran and the other did not. The driver's two completion paths are not
+   independent enough to discriminate between the readings. The Δ is 1.109–1.255 s over 8 A
+   cases, which bounds the mechanism but does not identify it.
+4. **No causal claim, in either direction.** A and B both end with the channels rebuilt and the
+   data plane restored. The A/B split is a **symptom-level** discriminator between two fatal
+   signatures. Nothing here says the A/B outcome causes the fatal, or that the fatal is caused by
+   the pc line — and §8.6 removes the last place where a causal reading of the timeout could have
+   survived, since A now demonstrably occurs without one.
+5. **Outcome C is unobserved, not excluded.** It did not occur in **24** fatal SSRs across two
+   boots (17 retrospective + 7 live). At the observed rate that bounds it below ~1 in 8 (rule of
+   three, 95 %) — it is *rare*, not impossible, and the ~77 s retry budget remains untested.
+6. **The signature mix is still not explained, and fatal #7 makes it worse.** Why
+   `a2_power.c:1189` leaves the pc line asserted while `common_timer.c:390` does not was the open
+   question; a **third** signature (`lte_ml1_sm_conn_inter_freq_stm.c:712`) now also leaves it
+   asserted, so the property is not unique to `a2_power` and the mix is at least 3-way. What the
+   three signatures have in common is not known.
 7. **`waited 560` in row 18 is unexplained** (§5.1).
 8. **The B case has never been measured with the fixed-key sampler.** Every A case now has a
    ~0.9–2.1 s lead; the single B case rests on a 7.269 s lead from a capture that could not see
    `ps`/`pl` moves between counter changes (§8). A `common_timer` → B with the fixed key is the
-   one remaining measurement that would close the asymmetry, and it has not arrived in three
+   one remaining measurement that would close the asymmetry, and it has not arrived in **four**
    consecutive A fatals.
+9. **What triggers the resume is not established — only that the timeout needs one.** §8.6
+   proves a timeout is impossible without a `bam_dmux_runtime_resume()`, but *why* fatal #7's
+   window contained none is open. The pre-event PM state does not predict it: fatal #4 and fatal
+   #7 had the **same** pre-event state (`vt = vu + 1`) and differed only in whether a new resume
+   followed. "The SSR's own traffic/PM churn triggers it, so its occurrence depends on load" is
+   consistent with the data but untested — and it would be a **testable** prediction: an A fatal
+   arriving while `rx_callbacks` is climbing fast should be less likely to produce a timeout than
+   one arriving during an idle window. That has not been tested and the corpus is too small
+   (n = 9 A cases) to test it retrospectively.
+10. **The lost-edge resync fired once, and what it was reacting to is not fully read out.**
+    §8.6.2 records it at 5726.582280 (`pc_resync_count` 0 → 1) ~0.2 s after a resume at 5726.48.
+    The sequence is consistent with the masked-line condition §8.3 describes, but it is a single
+    occurrence, it is 17 s outside fatal #7's window, and it was not pre-registered.
 
 ---
 
@@ -776,23 +992,30 @@ an arbitrary later time.
   promptly, the interrupt rebuilds the channels, and recovery is healthy. There is no hidden
   class of 77 s recovery failures. The ~77 s retry budget added by patch 814 has still never
   been exercised by a real fatal.
-* **Doc 181 §6 is re-attributed.** The pc-ack timeout belongs to the **A** path, and
-  `a2_power` is its proxy. Anyone re-opening the 250 → 2000 ms question should now condition on
-  A/B, not on the signature.
-* **…but the timeout is a *transition* defect, not a fatal defect (§8.4).** The same boot
-  produced a timeout with no fatal at all, from an 80 ms suspend/resume pair whose line never
-  moved. So the honest statement of the finding is that **A guarantees a pc-ack timeout**, and
-  the underlying condition — the completion needs a line transition, and the vote is a no-op
-  when the line is already high — is a **runtime-PM** property that the fatal merely forces.
-  That matters for anyone tempted to read "A → timeout" as "the timeout is a symptom of the
-  fatal": it is not, it is a symptom of a vote that changed nothing.
-* **`a2_power.c:1189` is a structurally distinct failure, and the mechanism is now identified.**
-  It is the only signature whose fatal leaves the pc line **already asserted**, the only one that
-  produces a pc-ack timeout, and §8.3 explains *why*: the pc irq is **threaded with
-  `IRQF_ONESHOT` and a NULL primary handler**, so an asserted line means a queued thread and a
-  **masked line** — the interrupt-driven recovery path is structurally unavailable and only the
-  powerup work's level-poll saves the data plane. That is the first **mechanistic** difference
-  found between the two fatals; every previous distinction between them was statistical.
+* **Doc 181 §6 is re-attributed — and this doc's own re-attribution is then withdrawn.**
+  The pc-ack timeout is **not** an `a2_power` property (Doc 181 §6) and **not** a consequence of
+  the A path (this doc §6): fatal #7 is A with no timeout, and the orphan timeout of §8.4 has no
+  fatal at all. The timeout's real antecedent is a **`bam_dmux_runtime_resume()` whose wait is
+  never completed**, and the wait is completed only by a pc-line transition. Anyone re-opening
+  the 250 → 2000 ms question should condition on **whether a resume ran and whether the line
+  transitioned**, not on the fatal signature and not on A/B. **This is a two-step correction of
+  the same error**: both earlier readings took a perfect correlation in a corpus where the two
+  signatures never crossed over and read it as a mechanism. Fatal #7 is the crossover.
+* **The timeout is a *transition* defect, not a fatal defect (§8.4 + §8.6).** The same boot
+  produced a timeout with **no fatal at all** (an 80 ms suspend/resume pair whose line never
+  moved) and an A fatal with **no timeout** (fatal #7, no resume in its window). So the
+  underlying condition — the completion needs a line transition, and the vote is a no-op when
+  the line is already high — is a **runtime-PM** property that the fatal can *force* but does not
+  *create*. That matters for anyone tempted to read "A → timeout" as "the timeout is a symptom of
+  the fatal": it is not, it is a symptom of a vote that changed nothing.
+* **`a2_power.c:1189` is a structurally distinct failure, but it is not alone.** It is **a**
+  signature whose fatal leaves the pc line **already asserted** — and §8.6 shows it is **not the
+  only one**, because `lte_ml1_sm_conn_inter_freq_stm.c:712` does too. §8.3 explains *why* that
+  matters: the pc irq is **threaded with `IRQF_ONESHOT` and a NULL primary handler**, so an
+  asserted line means a queued thread and a **masked line** — the interrupt-driven recovery path
+  is structurally unavailable and only the powerup work's level-poll saves the data plane. That
+  is still the first **mechanistic** difference found between the A and B classes; what fatal #7
+  removes is the claim that the difference is a property of one signature.
 * **The masking has a cost beyond the fatal.** §8.3's observation that `pc_state` can disagree
   with the wire for ~1 s before a fatal, while the only resync that exists returns early on
   `in_teardown` and runs on a ~60 s cadence, is a latent robustness gap in the port — not a
@@ -802,7 +1025,7 @@ an arbitrary later time.
   edge-driven. §8.1 shows a case where the edge path is structurally unavailable and the
   fallback is what recovers the data plane. That is a point in favour of patch 814's retry
   design, and it is worth remembering that the retry has still never been needed (§11.4).
-* **The instrument lessons — five of this doc's corrections are instrument errors, and all five
+* **The instrument lessons — six of this doc's corrections are reasoning errors, and all six
   were cheap to check.** §3 and §7.3 are cases of *looking in the wrong place for the right
   quantity*: the console was in pstore, and the watchdog is a quiesce instrument. §8.3 is a case
   of *reading a counter's name instead of its definition*: `pc_irq_count` counts thread runs, so
@@ -811,34 +1034,48 @@ an arbitrary later time.
   explained both timeout windows and is refuted by ordinary operation. §8.5.1 is a case of
   *trusting a timestamp without calibrating the instrument that produced it*: the sampler's
   `<UP>` is read before the telemetry it labels, so it is ~73 ms early, and that error is what
-  made §8.2's table look like it contradicted P1. The first two are in the corpus's existing trap
-  list; the last three were added to it (memory:
-  `feedback_read_the_definition_not_the_name.md` §7, and the coverage/alignment rule in
-  `feedback_scoring_live_captures.md`).
+  made §8.2's table look like it contradicted P1. **§8.6 is the same error as §6, one level up:
+  *reading a perfect correlation as a mechanism*.** `a2_power` → A → timeout was perfect in the
+  retrospective boot, so both Doc 181 and this doc attributed the timeout to whichever variable
+  came first in their own table. A perfect 2×2 in a corpus where the two predictors never cross
+  over cannot separate them, and **the fix is not more statistics on the same corpus — it is one
+  case where they do cross**. Fatal #7 was that case, and it took a *third signature* to
+  produce it. The first two lessons are in the corpus's existing trap list; the rest were added
+  to it (memory: `feedback_read_the_definition_not_the_name.md` §7, and the coverage/alignment
+  rule in `feedback_scoring_live_captures.md`).
 
 ---
 
 ## 13. Next actions
 
-1. The sampler is still running on boot `59d9c272`; fatal #7 is due ≈ 5712 s (the device was at
-   ~4812 s when the capture was last pulled, and `pc_timeout_count` was 5). H3 is settled at
-   n = 3 A cases, so further A fatals are **confirmatory only** — what is still missing is a
-   `common_timer` → **B** case measured with the fixed key (§11.8). Pull `/tmp/pcfine.txt` again
-   before any reboot; it holds §8.4's orphan timeout and §8.5's calibration pairs.
-2. **Fix the sampler's clock before the next long run** (§8.5.1): read `/proc/uptime` *after* the
+1. **The sampler is still running on boot `59d9c272`; fatal #8 is due ≈ 6615 s** (the device was
+   at 6034.40 s and `pc_timeout_count` 5 when this was written). Pull `/tmp/pcfine.txt` again
+   before any reboot; it holds §8.4's orphan timeout, §8.5's calibration pairs and §8.6's fatal
+   #7. H3 is settled at n = 4 A cases, so further A fatals are **confirmatory only** — what is
+   still missing is a `common_timer` → **B** case measured with the fixed key (§11.8).
+2. **★ The highest-value open question is now the resume trigger, and it is testable (§11.9).**
+   §8.6 reduced the timeout to "a resume whose vote changes nothing", but what makes a resume
+   occur is unknown. The prediction to test is that a resume is triggered by the SSR's own
+   traffic/PM churn, so **an A fatal arriving during a busy window should be less likely to time
+   out than one arriving during an idle window**. That is measurable from the capture already in
+   hand (the `rx_callbacks` slope in the seconds before each fatal), and it should be **scored on
+   the existing 9 A cases before** any new run — with the honest caveat that n = 9 is small and a
+   null result would not settle it.
+3. **Fix the sampler's clock before the next long run** (§8.5.1): read `/proc/uptime` *after* the
    telemetry file, or read it both before and after and record the bracket. That turns a ~73 ms
    systematic error into a ~22 ms bounded one and removes the ambiguity in "the last record
-   before X". This is a one-line change to `pcfine.sh` and it should be made before the next
-   A/B question is asked of the instrument.
-3. **The one thing that would sharpen H4**: instrument the *primary* handler. The kernel's
+   before X". The v3 script is written (`scratch/pcfine.sh`, which brackets the read with a third
+   field) but **the device is still running v2** — deploying it requires restarting the sampler,
+   which loses the in-flight capture, so it should be done at the next natural break.
+4. **The one thing that would sharpen H4**: instrument the *primary* handler. The kernel's
    default primary handler is not traceable, so "the edge was consumed by the `IRQF_ONESHOT`
    mask" and "the irqchip never latched the edge" remain unseparated (§11.1). A `dev_err` in a
    custom primary handler would distinguish them — but that requires a module rebuild, so it is
    only worth doing if the distinction ever becomes load-bearing. It currently is not: both
    readings predict "the thread does not run", which is what the A/B outcome depends on.
-4. Pull the full `dmesg` to the host **before** any reboot (memory RULE 6), and read
+5. Pull the full `dmesg` to the host **before** any reboot (memory RULE 6), and read
    `/sys/fs/pstore/` before concluding a ring is gone (§3).
-5. Not started, and untouched by this doc: the ~903.675 s always-on clock and its latched
+6. Not started, and untouched by this doc: the ~903.675 s always-on clock and its latched
    offset; the userspace bearer rebuild (fatal #2 on this boot cost **27 s**, of which an
    **18 s** ModemManager gap at 13:30:15 → 13:30:33 is avoidable, against a 0.70 s modem SSR);
    and the AP-side boot-firmware (`hyp`/`tz`) swap.
