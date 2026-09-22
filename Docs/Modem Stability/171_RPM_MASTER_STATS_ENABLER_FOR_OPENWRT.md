@@ -167,7 +167,7 @@ fixed interval and difference it, exactly as the Android side did — giving a
   `./build.sh guard` afterwards and `diff -r msm89xx openwrt/target/linux/msm89xx`
   to confirm the tree is consistent, per Doc 160.
 
-## 7. Known confound — the Android comparison is a BUS baseline
+## 7. The Android comparison — was a bus baseline, RESOLVED 2026-09-22
 
 > **✅ RESOLVED 2026-09-22 — this section is SUPERSEDED. The Android side is no
 > longer a bus baseline.** Doc 174 §3 measured the same metric with the device
