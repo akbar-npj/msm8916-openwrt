@@ -1,0 +1,28 @@
+### post-reboot state
+Linux OpenWrt 6.12.94 #0 SMP PREEMPT Mon Jun 29 12:59:20 2026 aarch64 GNU/Linux
+1610.40 6137.94
+
+### census: DIFFER (overlay shadows rom)
+DIFFER  /etc/apk/repositories.d/customfeeds.list
+DIFFER  /etc/apk/repositories.d/distfeeds.list
+DIFFER  /etc/apk/world
+DIFFER  /etc/config/uhttpd
+DIFFER  /etc/config/cpu-perf
+DIFFER  /etc/config/firewall
+DIFFER  /etc/config/luci
+DIFFER  /etc/config/dhcp
+DIFFER  /etc/inittab
+DIFFER  /lib/apk/db/installed
+DIFFER  /lib/apk/db/scripts.tar.gz
+
+### census: ONLY-UPPER count
+58
+
+### the two fixed files
+9c08871ff0d29f714acfa89b41893898  /lib/modules/6.12.94/qcom_bam_dmux.ko
+9714fb2f6a5adbfb53f73a24d49a1bb7  /etc/init.d/modemmanager
+A9AC55FEA83B66B8EC1DD97
+
+### modem
+running
+wwan0            UNKNOWN        <POINTOPOINT,NOARP,UP,LOWER_UP> 

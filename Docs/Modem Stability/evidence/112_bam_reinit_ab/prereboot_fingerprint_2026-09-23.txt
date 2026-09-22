@@ -1,0 +1,14 @@
+=== srcversion of the CURRENTLY LOADED module ===
+87BDBBC2A4B1754DED81D66
+
+=== srcversion of the on-disk files ===
+live(old) : rom(new)  : 
+=== patch-825 string present in each module? ===
+live(old) reconciling= 0
+rom(new)  reconciling= 1
+rom(new)  exact str  = bam_dmux: RX watchdog: pc_state=1 but pc line low (stale edge), reconciling
+
+=== pstore before reboot ===
+drwxr-x---    2 root     root             0 Sep 22 13:36 .
+drwxr-xr-x    6 root     root             0 Jan  1  1970 ..
+-r--r--r--    1 root     root        228315 Sep 22 13:36 console-ramoops-0

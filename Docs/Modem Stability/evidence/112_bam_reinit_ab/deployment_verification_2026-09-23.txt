@@ -1,0 +1,200 @@
+############ DEPLOYMENT VERIFICATION 2026-09-23 ############
+
+### module LIVE (post-reboot, un-shadowed) vs build artifacts
+
+=== /tmp/ko_live_patched.ko
+    vs openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/packages/ipkg-aarch64_generic/kmod-bam-dmux/lib/modules/6.12.94/qcom_bam_dmux.ko
+    (SHF_ALLOC sections (ET_REL: no program headers))
+  section .text                vaddr=0x0 size=0x3af0 md5=91329d0cba38e0f0 IDENTICAL
+  section .init.text           vaddr=0x0 size=0x24 md5=21a152bbe11eb8a9 IDENTICAL
+  section .exit.text           vaddr=0x0 size=0x1c md5=38908ea0ffda48d1 IDENTICAL
+  section .text.unlikely       vaddr=0x0 size=0x1a0 md5=e9df79f64dd9e8b0 IDENTICAL
+  section __bug_table          vaddr=0x0 size=0xc md5=79e3dc0f2e46e525 IDENTICAL
+  section .data                vaddr=0x10 size=0xe8 md5=cc6fad6f272d885f IDENTICAL
+  section .data..once          vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .data..read_mostly   vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .exit.data           vaddr=0x0 size=0x8 md5=7dea362b3fac8e00 IDENTICAL
+  section .init.data           vaddr=0x0 size=0x8 md5=7dea362b3fac8e00 IDENTICAL
+  section .gnu.linkonce.this_module vaddr=0x0 size=0x2c0 md5=96f036f7d9acf264 IDENTICAL
+  section .plt                 vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .init.plt            vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .text.ftrace_trampoline vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .rodata.str1.8       vaddr=0x0 size=0x10c5 md5=1b4e6061ff18520b IDENTICAL
+  section .rodata.str          vaddr=0x0 size=0x1c md5=f020afbb3dcf7f35 IDENTICAL
+  section .rodata              vaddr=0x0 size=0x508 md5=8d084df2d1d973a6 IDENTICAL
+  section .modinfo             vaddr=0x0 size=0x92 md5=a6bae4629b8030f6 IDENTICAL
+  section .note.Linux          vaddr=0x0 size=0x30 md5=4bc38def528711ba IDENTICAL
+  section .init.text.ftrace_trampoline vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+
+=== /tmp/ko_live_patched.ko
+    vs openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.ko
+    (SHF_ALLOC sections (ET_REL: no program headers))
+  unit count differs: 20 vs 21
+
+### module PRE-FIX shadowing copy vs the patched build
+
+=== /tmp/ko_live_overlay.ko
+    vs openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/net/wwan/qcom_bam_dmux.ko
+    (SHF_ALLOC sections (ET_REL: no program headers))
+  section .text                vaddr=0x0 size=0x3a70 md5=49167f127f77c35f DIFFERS
+    differing bytes: 11213 / 14960 (74.9532 %)
+    off 0x000a00..0x000a00 (1 B)  vaddr 0x00000a00
+      A: e009003460324039a000003760324039
+      B: 600900346032403940030036e00315aa
+    off 0x000a08..0x000a09 (2 B)  vaddr 0x00000a08
+      A: a0000037603240398003003660324039
+      B: 40030036e00315aa00000094603240f9
+    off 0x000a0b..0x000a11 (7 B)  vaddr 0x00000a0b
+      A: 37603240398003003660324039c00700
+      B: 36e00315aa00000094603240f9800c00
+    off 0x000a13..0x000a13 (1 B)  vaddr 0x00000a13
+      A: 3660324039c0070036e00315aa000000
+      B: 94603240f9800c00b4603640f9400c00
+    off 0x000a17..0x000a19 (3 B)  vaddr 0x00000a17
+      A: 39c0070036e00315aa00000094603240
+      B: f9800c00b4603640f9400c00b4e00315
+    off 0x000a1b..0x000a21 (7 B)  vaddr 0x00000a1b
+      A: 36e00315aa00000094603240f9000a00
+      B: b4603640f9400c00b4e00315aa000000
+    off 0x000a23..0x000a27 (5 B)  vaddr 0x00000a23
+      A: 94603240f9000a00b4603640f9c00900
+      B: b4e00315aa0000009420008052000000
+    off 0x000a29..0x000a29 (1 B)  vaddr 0x00000a29
+      A: 0a00b4603640f9c00900b4e00315aa00
+      B: 0000942000805200000094619b86d200
+    off 0x000a2b..0x000a31 (7 B)  vaddr 0x00000a2b
+      A: b4603640f9c00900b4e00315aa000000
+      B: 942000805200000094619b86d2000017
+    off 0x000a33..0x000a37 (5 B)  vaddr 0x00000a33
+      A: b4e00315aa0000009420008052000000
+      B: 94619b86d2000017cbc1f6baf241d0db
+    off 0x000a3a..0x000a43 (10 B)  vaddr 0x00000a3a
+      A: 00942000805200000094619b86d20000
+      B: 17cbc1f6baf241d0dbf26163e8f2007c
+    off 0x000a45..0x000a47 (3 B)  vaddr 0x00000a45
+      A: 9b86d2000017cbc1f6baf241d0dbf261
+      B: 63e8f2007cc19b00fc52d360ee04f960
+    off 0x000a49..0x000a5b (19 B)  vaddr 0x00000a49
+      A: 0017cbc1f6baf241d0dbf26163e8f200
+      B: 7cc19b00fc52d360ee04f960f204f9f3
+    off 0x000a5d..0x000a82 (38 B)  vaddr 0x00000a5d
+      A: fc52d360ee04f960f204f9f35341a900
+      B: 008052f55b42a9f76343a9fd7bc7a8c0
+    off 0x000a84..0x000a85 (2 B)  vaddr 0x00000a84
+      A: 942580d2e02301910100805200000094
+      B: 510080f9407c5fc800040091407c01c8
+    off 0x000a87..0x000aa2 (28 B)  vaddr 0x00000a87
+      A: d2e023019101008052000000941f2003
+      B: f9407c5fc800040091407c01c8a1ffff
+    off 0x000aa4..0x000aa4 (1 B)  vaddr 0x00000aa4
+      A: 42008052e00318aa0000009461324039
+      B: 00000094d9ffff1778a20091942580d2
+    off 0x000aa6..0x000aad (8 B)  vaddr 0x00000aa6
+      A: 8052e00318aa00000094613240399f02
+      B: 0094d9ffff1778a20091942580d2e023
+    off 0x000aaf..0x000acc (30 B)  vaddr 0x00000aaf
+      A: 94613240399f0200f1e2179f1ae00314
+      B: 91942580d2e023019101008052000000
+    off 0x000acf..0x000ae5 (23 B)  vaddr 0x00000acf
+      A: 54e00318aae123019100000094603240
+      B: 94613240399f0200f1e2179f1ae00314
+    ... and 810 more runs
+  section .init.text           vaddr=0x0 size=0x24 md5=21a152bbe11eb8a9 IDENTICAL
+  section .exit.text           vaddr=0x0 size=0x1c md5=38908ea0ffda48d1 IDENTICAL
+  section .text.unlikely       vaddr=0x0 size=0x1a0 md5=e9df79f64dd9e8b0 IDENTICAL
+  section __bug_table          vaddr=0x0 size=0xc md5=79e3dc0f2e46e525 IDENTICAL
+  section .data                vaddr=0x10 size=0xe8 md5=cc6fad6f272d885f IDENTICAL
+  section .data..once          vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .data..read_mostly   vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .exit.data           vaddr=0x0 size=0x8 md5=7dea362b3fac8e00 IDENTICAL
+  section .init.data           vaddr=0x0 size=0x8 md5=7dea362b3fac8e00 IDENTICAL
+  section .gnu.linkonce.this_module vaddr=0x0 size=0x2c0 md5=96f036f7d9acf264 IDENTICAL
+  section .plt                 vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .init.plt            vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .text.ftrace_trampoline vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
+  section .rodata.str1.8       vaddr=0x0 size=0x1075 md5=a9d9bdd398efd65f DIFFERS
+    differing bytes: 1378 / 4213 (32.7083 %)
+    off 0x000a5f..0x000abd (95 B)  vaddr 0x00000a5f
+      A: 6d6f64656d206177616b652028706320
+      B: 70635f73746174653d31206275742070
+    off 0x000abf..0x000ac1 (3 B)  vaddr 0x00000abf
+      A: 6173736572746564207768696c652070
+      B: 6c696e65206173736572746564292062
+    off 0x000ac3..0x000acc (10 B)  vaddr 0x00000ac3
+      A: 72746564207768696c652070635f7374
+      B: 2061737365727465642920627574206e
+    off 0x000ace..0x000adb (14 B)  vaddr 0x00000ace
+      A: 70635f73746174653d3020286c6f7374
+      B: 627574206e6f206368616e6e656c732c
+    off 0x000add..0x000add (1 B)  vaddr 0x00000add
+      A: 742065646765292c20726573796e6369
+      B: 2c2072656275696c64696e670a000000
+    off 0x000adf..0x000b0d (47 B)  vaddr 0x00000adf
+      A: 65646765292c20726573796e63696e67
+      B: 72656275696c64696e670a0000000000
+    off 0x000b0f..0x000b11 (3 B)  vaddr 0x00000b0f
+      A: 717569657363656420256c6c75732028
+      B: 6173736572746564207768696c652070
+    off 0x000b13..0x000b14 (2 B)  vaddr 0x00000b13
+      A: 7363656420256c6c7573202870635f73
+      B: 72746564207768696c652070635f7374
+    off 0x000b18..0x000b1c (5 B)  vaddr 0x00000b18
+      A: 256c6c7573202870635f73746174653d
+      B: 7768696c652070635f73746174653d30
+    off 0x000b1e..0x000b7d (96 B)  vaddr 0x00000b1e
+      A: 2870635f73746174653d302c2070635f
+      B: 70635f73746174653d3020286c6f7374
+    off 0x000b7f..0x000b8e (16 B)  vaddr 0x00000b7f
+      A: 6c756d732061676f292c20726561726d
+      B: 696e653d25642c2072783d25732c2072
+    off 0x000b92..0x000bab (26 B)  vaddr 0x00000b92
+      A: 0a00000000007278207761746368646f
+      B: 2064697361726d6564290a0000007278
+    off 0x000bad..0x000bbd (17 B)  vaddr 0x00000bad
+      A: 256420736c6f74730a000062616d5f64
+      B: 72696e6720647261696e656420287175
+    off 0x000bbf..0x000c2b (109 B)  vaddr 0x00000bbf
+      A: 783a2053535220706f77657275703a20
+      B: 65643d302c206c6173745f63623d256c
+    off 0x000c2d..0x000c2f (3 B)  vaddr 0x00000c2d
+      A: 7472792025752f257520696e20256420
+      B: 3d25642028776169746564202564206d
+    off 0x000c31..0x000c3e (14 B)  vaddr 0x00000c31
+      A: 25752f257520696e202564206d730a00
+      B: 28776169746564202564206d73290a00
+    off 0x000c79..0x000c7d (5 B)  vaddr 0x00000c79
+      A: 20616674657220257520726574726965
+      B: 2c2072657472792025752f257520696e
+    off 0x000c7f..0x000c86 (8 B)  vaddr 0x00000c7f
+      A: 20257520726574726965732c20676976
+      B: 792025752f257520696e202564206d73
+    off 0x000c88..0x000c95 (14 B)  vaddr 0x00000c88
+      A: 65732c20676976696e672075700a0000
+      B: 6e202564206d730a0000000000000000
+    off 0x000caf..0x000cb1 (3 B)  vaddr 0x00000caf
+      A: 696e746572727570746564206279206e
+      B: 6d6f64656d207063206c696e65206e6f
+    ... and 34 more runs
+  section .rodata.str          vaddr=0x0 size=0x1c md5=f020afbb3dcf7f35 IDENTICAL
+  section .rodata              vaddr=0x0 size=0x508 md5=8d084df2d1d973a6 IDENTICAL
+  section .modinfo             vaddr=0x0 size=0x92 md5=6a8d626ec53af316 DIFFERS
+    differing bytes: 20 / 146 (13.6986 %)
+    off 0x00001a..0x000021 (8 B)  vaddr 0x0000001a
+      A: 38374244424243324134423137353444
+      B: 41394143353546454138334236364238
+    off 0x000023..0x000029 (7 B)  vaddr 0x00000023
+      A: 34423137353444454438314436360064
+      B: 38334236364238454331444439370064
+    off 0x00002b..0x00002d (3 B)  vaddr 0x0000002b
+      A: 44383144363600646570656e64733d71
+      B: 43314444393700646570656e64733d71
+    off 0x00002f..0x000030 (2 B)  vaddr 0x0000002f
+      A: 363600646570656e64733d71636f6d5f
+      B: 393700646570656e64733d71636f6d5f
+  section .note.gnu.build-id   vaddr=0x0 size=0x24 md5=0b2cc84cce1985b3 DIFFERS
+    differing bytes: 20 / 36 (55.5556 %)
+    off 0x000010..0x000023 (20 B)  vaddr 0x00000010
+      A: 969d556bdab6c478659853937273ddb3
+      B: 79bbd7d7791e0da5a83a30ff97b1f80f
+  section .note.Linux          vaddr=0x0 size=0x30 md5=4bc38def528711ba IDENTICAL
+  section .init.text.ftrace_trampoline vaddr=0x0 size=0x1 md5=93b885adfe0da089 IDENTICAL
