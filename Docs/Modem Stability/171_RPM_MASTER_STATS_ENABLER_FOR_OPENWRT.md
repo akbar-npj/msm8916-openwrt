@@ -169,6 +169,27 @@ fixed interval and difference it, exactly as the Android side did — giving a
 
 ## 7. Known confound — the Android comparison is a BUS baseline
 
+> **✅ RESOLVED 2026-09-22 — this section is SUPERSEDED. The Android side is no
+> longer a bus baseline.** Doc 174 §3 measured the same metric with the device
+> **stationary** and found the bus **did not move it**: two independent stationary
+> boots give **1.3831 /s** (323.9 s, 448 collapses) and **1.5137 /s** (455.8 s,
+> 690 collapses) — a **9.4 %** gap, which the doc shows is *within* the natural
+> 50 s-window spread (1.09–1.92 /s) rather than a boot effect. Both values fall
+> **inside** the bus range (1.310–1.711 /s) rather than outside it. So step (2)
+> below is **DONE**, and the OpenWrt number can be compared directly against
+> **1.383–1.514 /s** — reported as a **range**, not a point value, since it is a
+> two-window estimate.
+>
+> **What still applies:** the *other* half of Doc 174's warning — that the rate is
+> a function of the **traffic condition** — is about the **MCPM cadence**, not
+> this RPM collapse rate (Doc 174 §9.7/§9.9). **Do not transfer that caution to
+> the RPM counter without measuring it**, and conversely do not assume this RPM
+> counter is traffic-independent merely because it was stationary when measured.
+> Also note Doc 174 §3's own limit: **0.66–0.72 s is NOT an LTE DRX value** (the
+> shortest LTE paging cycle is 1.28 s), so this cadence is not the paging cycle.
+
+The original text, kept for the record:
+
 Android's 1.310–1.711/s MPSS rate was measured **while the device was on a
 moving bus** (Doc 170 PART 35). The collapse cadence is driven by the
 paging/DRX cycle, which mobility perturbs, so **that number is a BUS baseline,
@@ -177,7 +198,7 @@ inherit both platforms' environments.
 
 The correct use of this enabler is therefore:
 1. measure OpenWrt's MPSS rate;
-2. re-measure Android **stationary**;
+2. re-measure Android **stationary**;  ← **DONE, Doc 174 §3: 1.3831 / 1.5137 /s**
 3. compare. Until (2) exists, an OpenWrt number can be compared only against
    itself over time (e.g. does the rate collapse before a fatal?).
 
