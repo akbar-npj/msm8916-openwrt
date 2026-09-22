@@ -132,10 +132,23 @@ were a fixed 902.3 s of modem uptime, R's 0.507 s drop would have moved the AP i
 * *What* the modem is waiting for. The modem RE's `FUN_c0ce7fe0` "sleep count not
   incrementing" finding (Doc 138-era) is untouched by this — this only says the *reference
   clock* is always-on, not what the counter counts.
-* That the corpus's `400 × 2.256 s = 902.4 s` model is wrong in mechanism — only that its
-  agreement was a coincidence of that boot's recovery time. **In the live boot
-  T = 902.775 s, which is 415 ppm from 902.4 s** — far outside any measurement spread, so
-  the agreement does not survive.
+* That the modem RE's **`400 × DRX` count is wrong — it is not.** It reconciles with the
+  **invariant**, not with `T`:
+
+  | | value | cycle = value / 400 | inside RE's `~2.25–2.28 s`? |
+  | :-- | --: | --: | :-- |
+  | corpus AP interval | 903.674618 s | **2.259187 s** | **yes** |
+  | live AP interval | 903.675206 s | **2.259188 s** | **yes** |
+  | corpus `T` (Doc 149's target) | 902.267398 s | 2.255669 s | yes, but `T` is not invariant |
+  | live `T` | 902.775332 s | 2.256938 s | yes, but `T` is not invariant |
+
+  So the count of 400 survives; what fails is Doc 149's **comparison target**. Matching
+  `400 × 2.256 = 902.4 s` against `T` tests a quantity that moves with the recovery time —
+  which is why the same model "agreed" in one boot (0.015 %) and is 415 ppm off in the next.
+  Against the invariant, the cycle is **2.25919 s**, a value the RE's own range already
+  contains. **The DRX-cycle model and the always-on-clock finding are compatible**: a DRX
+  cycle is a network-set wall-time period, so counting 400 of them produces a constant
+  wall-time interval — which is exactly what §3–§5 measure.
 
 ---
 

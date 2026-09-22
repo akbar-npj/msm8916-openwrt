@@ -1,0 +1,41 @@
+
+=== LIVE 2026-09-22 (fatal #10) ===
+  batches=819  span=404.5 s  (8410.6 -> 8815.1)
+  gap ms: median=104.0  p90=1264.7  p99=1311.9  max=25997.1
+  gaps >2 s: 7   total=76.9 s   (19.0 % of span)
+       25997.1 ms    8674.907 ->  8700.904 s
+       13402.3 ms    8700.904 ->  8714.306 s
+        9678.8 ms    8731.343 ->  8741.022 s
+        9370.7 ms    8663.515 ->  8672.886 s
+        8975.3 ms    8741.022 ->  8749.997 s
+        4937.2 ms    8714.306 ->  8719.243 s
+        4585.8 ms    8658.929 ->  8663.515 s
+
+=== CONTROL 2026-09-21 (rpm11) ===
+  batches=7627  span=1451.0 s  (6343.3 -> 7794.3)
+  gap ms: median=31.8  p90=287.9  p99=3204.6  max=13263.5
+  gaps >2 s: 161   total=564.5 s   (38.9 % of span)
+       13263.5 ms    6469.802 ->  6483.065 s
+       10879.8 ms    7044.160 ->  7055.040 s
+        8510.5 ms    6563.623 ->  6572.133 s
+        7075.6 ms    6357.088 ->  6364.164 s
+        6929.0 ms    7143.042 ->  7149.971 s
+        6827.9 ms    6938.471 ->  6945.299 s
+        6361.4 ms    6628.010 ->  6634.371 s
+        5992.1 ms    7221.856 ->  7227.848 s
+
+====================================================================
+FATAL #10 vs the Doc 177 clock
+  fatal #9              = 7756.662692   (common_timer)
+  predicted beat        = 8660.337898   (= #9 + 903.675206)
+  fatal #10             = 8719.020382   (a2_power.c:1189)  -> +58.682 s LATE
+  AP interval #9->#10   = 962.357690 s  (+58.682 s vs the clock)
+  RPM stall             = [8658.929, 8719.243]  = 60.314 s
+    stall_start - beat  = -1.409 s
+    fatal - stall_end   = -0.223 s
+  excess (58.682 s) vs stall (60.314 s): diff 1.632 s
+
+  => the stall begins AT the predicted beat and ends AT the fatal.
+     H1: the ~903.675 s timer expires on schedule; the a2_power.c:1189 assert
+     surfaces only when the RPM stall clears, so the dmesg time = beat + stall.
+     NOT established: n=1, and RPM stalls >2 s are routine (see CONTROL).
