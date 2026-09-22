@@ -21,8 +21,12 @@ of `adb` — the corpus documents that background jobs launched from a short-liv
 - `/etc/shadow`: a real `$1$…` hash (you had run `passwd root` at 01:07)
 - `/system/xbin/passwd` — a **standalone shadow-utils-style `passwd`** (not busybox),
   with `-d/--delete`, `-l/--lock`, `-u/--unlock`, `-S/--status`. **No `--stdin`.**
-- **`/system/bin/start-ssh` did not exist** and the init service
-  `service sshd /system/bin/start-ssh` is `disabled`, so sshd did **not** autostart.
+- **Autostart already existed, and it is the operator's.** `/system/etc/init.qcom.post_boot.sh:981`
+  runs `/system/xbin/sshd -p 22` inside a "Master Boot Trigger" block (after `sleep 15`),
+  reached from `/init.qcom.rc:714` — `on property:sys.boot_completed=1` → `start qcom-post-boot`
+  (`class late_start`, `user root`, `oneshot`). The ROM's *other* entry,
+  `service sshd /system/bin/start-ssh`, is `disabled`, has **no** trigger, and its target
+  `/system/bin/start-ssh` **does not exist** — dead code, left alone.
 - The device is **already root** (`adb shell id` → `uid=0(root)`) and `/system` was
   mounted **rw**.
 
@@ -33,8 +37,16 @@ of `adb` — the corpus documents that background jobs launched from a short-liv
 | change | detail |
 | :-- | :-- |
 | `/system/etc/ssh/sshd_config` | appended `PasswordAuthentication yes` and **`PermitEmptyPasswords yes`** (lines 136–137) |
-| `/system/bin/start-ssh` | **created** — `exec /system/xbin/sshd -p 22`; makes the ROM's own `service sshd` entry functional and `setprop ctl.start sshd` work |
-| `/system/etc/install-recovery.sh` | **created** — same one-liner; this is the ROM's unused `service flash_recovery` boot hook (`class main`, `oneshot`, not disabled), so sshd now starts at boot |
+
+**★ Nothing was added to autostart, and an earlier mistake of mine was reverted.** I first
+created `/system/bin/start-ssh` and `/system/etc/install-recovery.sh` (the latter wired to
+the ROM's unused `service flash_recovery` hook, `class main`). **That was wrong**, and the
+operator caught it: it **duplicated their existing `post_boot.sh` autostart**. Worse, since
+`flash_recovery` is `class main` and `qcom-post-boot` is `class late_start` (+15 s), mine
+would run **first**, win port 22, and make **the operator's mechanism fail** with
+`Address already in use`. Both files were **removed**, and sshd was restarted through the
+`post_boot` path. Verified afterwards: exactly one listener, and `post_boot.sh:981` is the
+**sole** remaining sshd autostart.
 
 Backups (on device): `/data/ssh_backup_2026-09-23/{sshd_config.bak,shadow.bak,passwd.bak}`.
 Original hashes: `sshd_config` `b3b534eea3deede7bb238bd8ac9b5399`, `shadow`
@@ -127,8 +139,7 @@ looks exactly like "passwd rejected the password".
 | :-- | :-- |
 | `sshd_config` edit | **yes** — written to the ext4 `/system` partition (mounted `ro` at boot, but the bytes persist) |
 | `/etc/shadow` | **yes** — on `/data` |
-| `/system/bin/start-ssh`, `/system/etc/install-recovery.sh` | **yes** |
-| sshd **running** | **yes** — via the `flash_recovery` boot hook (validated by killing sshd and re-triggering the service, **without** a reboot) |
+| sshd **running** | **yes** — via the operator's existing `post_boot.sh` hook, triggered by `sys.boot_completed=1` |
 
 `/fstab.qcom` mounts `/system` as `ro,barrier=1,discard`, so if the config ever needs
 editing again, `mount -o rw,remount /system` first.
@@ -148,3 +159,13 @@ editing again, `mount -o rw,remount /system` first.
   artefact, so it was re-run with `ssh -vv` — which showed the real mechanism (`none`),
   not a password comparison.
 - **No baseband involvement.** This is AP-side userspace/system configuration only.
+- **★ Error caught by the operator: I added an autostart without checking whether one
+  already existed.** I found the ROM's *unused* `service sshd` and *unused*
+  `flash_recovery` hook and wired up a boot script — never asking "does something already
+  start this?" A single `grep -rn sshd /system/etc/*.sh` would have shown
+  `init.qcom.post_boot.sh:981` immediately. The rule this reinforces: **before adding a
+  start-up path, enumerate the existing ones**; two hooks for one service is a race, and
+  because classes start in order the *earlier* class silently wins and the intended
+  mechanism fails. Also note the evidence was in the operator's own shell history
+  (`/data/local/.bash_history:282`), which is a cheap thing to check on a device someone
+  else has been configuring.
