@@ -1,0 +1,31 @@
+=== ANDROID SSH SETUP — FINAL STATE ===
+--- date/uptime ---
+Wed Sep 23 01:25:16 IST 2026
+1385.96 5377.29
+--- sshd version + process ---
+/system/xbin/sshd: unrecognized option: V
+root      4056  1     2412   476   c0103dac 00188c1c S sshd: /system/xbin/sshd -p 22 [listener] 0 of 10-100 startups
+--- listening ---
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      4056/sshd -p 22 [li
+tcp        0      0 :::22                   :::*                    LISTEN      4056/sshd -p 22 [li
+--- sshd_config auth lines ---
+28:PermitRootLogin yes
+55:#PasswordAuthentication yes
+56:#PermitEmptyPasswords no
+74:# PasswordAuthentication.  Depending on your PAM configuration,
+76:# the setting of "PermitRootLogin without-password".
+78:# PAM authentication, then enable this but set PasswordAuthentication
+120:PermitRootLogin yes
+136:PasswordAuthentication yes
+137:PermitEmptyPasswords yes
+--- shadow root ---
+root:$1$vTY0s.qE$626YraAKx1rS1j.RoUh2Z1:20718::::::
+--- passwd root ---
+root:x:0:0:root:/data/local:/system/xbin/bash
+--- autostart files ---
+-rwxr-xr-x root     root           46 2026-09-23 01:24 start-ssh
+-rwxr-xr-x root     root          122 2026-09-23 01:24 install-recovery.sh
+--- backups ---
+-rw-r--r-- root     root           94 2026-08-17 00:56 passwd.bak
+-rw------- root     root           71 2026-09-23 01:07 shadow.bak
+-rw-r--r-- root     root         3727 2026-08-17 01:04 sshd_config.bak
