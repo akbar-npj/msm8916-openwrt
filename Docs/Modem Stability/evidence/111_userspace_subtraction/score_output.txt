@@ -1,0 +1,28 @@
+file   : usub_samples.csv
+samples: 259   uptime 14626.6 .. 17267.9 s  (0.73 h)
+manip  : uptime 14660.08 .. 14682.95 s
+
+== the assertion that the manipulation TOOK ==
+  up= 14647.1  fatals= 16  votes= 270  unvotes= 269  resumes= 270  acks= 531  pc_irq= 609  mm=4  ifup=1
+  up= 14677.8  fatals= 16  votes= 273  unvotes= 273  resumes= 273  acks= 538  pc_irq= 616  mm=4  ifup=0
+  up= 15067.0  fatals= 16  votes= 273  unvotes= 273  resumes= 273  acks= 538  pc_irq= 616  mm=0  ifup=0
+  up= 15302.5  fatals= 17  votes= 273  unvotes= 273  resumes= 273  acks= 538  pc_irq= 618  mm=0  ifup=0
+  up= 16172.8  fatals= 17  votes= 273  unvotes= 273  resumes= 273  acks= 538  pc_irq= 618  mm=0  ifup=0
+  up= 17063.1  fatals= 17  votes= 273  unvotes= 273  resumes= 273  acks= 538  pc_irq= 618  mm=0  ifup=0
+  up= 17257.7  fatals= 17  votes= 273  unvotes= 273  resumes= 273  acks= 538  pc_irq= 618  mm=4  ifup=0
+
+== epochs after the manipulation ==
+  epoch 1: band 15071.4 .. 15132.4 s (beat 15073.102)  ->  FATAL at 15073.101717 s (d_beat -0.000331)
+  epoch 2: band 15975.1 .. 16036.1 s (beat 15976.777)  ->  CLEAN
+  epoch 3: band 16878.8 .. 16939.8 s (beat 16880.452)  ->  CLEAN
+
+== the counters across the fatal ==
+  before fatal #17   up= 15067.0  votes= 273  resumes= 273  pc_state=0  pc_line=0  runtime=suspended
+  after fatal #17    up= 15097.7  votes= 273  resumes= 273  pc_state=0  pc_line=0  runtime=suspended
+  end of window      up= 17257.7  votes= 273  resumes= 273  pc_state=0  pc_line=0  runtime=suspended
+
+== the confound ==
+  after fatal #17 the modem is running but UNREACHABLE:
+    MM_CONNECT_FAILED, wwan0 DOWN, pc_line_level 0, RX watchdog quiesced 2160s,
+    rx_rearm_count 0, pm_resume_attempts frozen at 273
+  => epochs 2 and 3 cannot be attributed to the manipulation
