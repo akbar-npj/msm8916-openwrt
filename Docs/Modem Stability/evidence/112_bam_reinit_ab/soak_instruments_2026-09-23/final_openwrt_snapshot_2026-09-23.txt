@@ -1,0 +1,64 @@
+=== FINAL OPENWRT SNAPSHOT before Android restore ===
+--- uptime ---
+2327.72
+--- remoteproc ---
+running
+--- srcversion (patch 825 canary) ---
+A9AC55FEA83B66B8EC1DD97
+--- fatal census this boot ---
+3
+--- fatal lines ---
+[  410.715449] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+[ 1312.014661] qcom-q6v5-mss 4080000.remoteproc: fatal error received: FW@lte_LL1_gap_rf_tune.c:351 Assertion (lte_LL1_get_cmd_proc_sys_pending_cmd_ca
+[ 1449.998991] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+--- pstore listing ---
+drwxr-x---    2 root     root             0 Sep 22 18:34 .
+drwxr-xr-x    6 root     root             0 Jan  1  1970 ..
+-r--r--r--    1 root     root         41586 Sep 22 18:34 console-ramoops-0
+--- console-ramoops size ---
+41586 /sys/fs/pstore/console-ramoops-0
+--- rx_telemetry ---
+rx_callbacks: 270707
+rx_last_callback_ms_ago: 228
+rx_submitted: 275347
+rx_submit_failed: 0
+rx_queued_buffers: 32
+rx_slots_mapped: 32
+rx_slots_free: 0
+rx_slots_submitting: 0
+rx_slots_submitted: 32
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 0
+rx_rearm_count: 0
+pc_state: 1
+pc_ack_state: 1
+pc_irq_count: 287
+pc_resync_count: 0
+pc_quiesce_ms: 0
+pc_line_level: 1
+pc_vote_tx_count: 151
+pc_unvote_tx_count: 150
+pc_ack_irq_count: 299
+pc_timeout_count: 1
+pm_suspend_attempts: 150
+pm_suspend_completions: 132
+pm_resume_attempts: 151
+pm_last_suspend_ms: 622
+pm_last_resume_ms: 3
+pm_last_handshake_ms: 3
+cmd_data: 270647
+cmd_open: 32
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+--- deployment md5s ---
+3231b1185e7ff67b24459ae6937ce5ac  /overlay/pcfine.sh
+3cd1748c033252f5668e9c830f61af5e  /overlay/logroll.sh
+7c334dfde6300464c843b0baa925b1ae  /overlay/soak_start.sh

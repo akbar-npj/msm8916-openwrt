@@ -176,3 +176,80 @@ not now.
   control (`rc.local`) is asserted untouched by md5.
 - **Not done, by instruction.** The soak was **not** started. No autostart was
   armed. No `rc.local` edit. No firmware change.
+
+---
+
+## 6. Final pre-wipe snapshot — and a fatal signature absent from the census
+
+The operator restored the stock Android image on the same unit (see §7), so a
+last snapshot was taken while OpenWrt was still up. Files:
+`final_openwrt_snapshot_2026-09-23.txt`, `final_dmesg_2026-09-23.txt` (520 lines,
+md5 `de053ffdd65e6bda82bdceebd839c6c4`),
+`final_console_ramoops_2026-09-23.txt` (542 lines, md5
+`9869b89d7646c1516a5af03318d1666a`).
+
+**This boot had three fatals in 2 327 s:**
+
+| uptime | signature |
+| --: | :-- |
+| 410.715 s | `a2_power.c:1189` |
+| **1 312.015 s** | **`FW@lte_LL1_gap_rf_tune.c:351 Assertion (lte_LL1_get_cmd_proc_sys_pending_cmd_ca…`** |
+| 1 449.999 s | `a2_power.c:1189` |
+
+**The middle one is not in the 36-dump census** (Doc 186), whose five labels were
+`lte_ml1_sleepmgr_stm.c:4054`, `a2_power.c:1189`, `lte_ml1_common_timer.c:390`,
+`a2_power.c:2949`, `a2_taskq.c:759`. Note its shape: the `FW@` prefix and the
+`Assertion (<text>)` suffix, i.e. the **second class of report** — the same class
+as `lte_ml1_common_timer.c:390`, which Doc 186 found in **none** of the seven
+registered `{line;flag}` tables. So this is an independent, unplanned
+corroboration of Doc 186's key negative: *there is a class of fatal report that
+does not go through the line-table mechanism.*
+
+**It fired on the ~902 s clock.** The nearest preceding `CMD_OPEN` burst is at
+**412.241 s**, and `1312.015 − 412.241 = 899.77 s`. That is the always-on-clock
+beat again (Doc 177), now with a signature from the other report class — which
+means the clock is not tied to any one signature.
+
+**The ramoops is the pre-fix control boot.** Its two fatals —
+`lte_ml1_sleepmgr_stm.c:4054` @ **1 144.736 s** and `a2_power.c:2949` @
+**1 983.653 s** — are exactly two of the three in the frozen control
+(`../control_boot_postflash_oldmodule.txt`). That is an independent confirmation
+that the pre-fix control boot's fatal set is what it was recorded to be.
+
+**Caveat.** `console-ramoops-0` is the *previous* boot's console, not this one's;
+the 542 lines are a partial window, so absence of a line there is not evidence of
+absence. It is byte-corrupted in places (as documented), so events are paired by
+order, not by timestamp.
+
+---
+
+## 7. Device identity — why this is a re-flash, not a side-by-side move
+
+The Android unit and the OpenWrt unit are **the same physical device**:
+
+- `adb devices` is empty; no Android USB device is attached; a `/24` sweep finds
+  only `192.168.8.1`.
+- The OpenWrt device's `device-tree/serial-number` is **`c2b9103c`**, which is
+  exactly the Android adb serial recorded in the corpus
+  (`reference_android_device_access`: *"Device: adb serial `c2b9103c`"*). Its
+  LAN MAC `02:00:c2:b9:10:3c` encodes the same serial.
+- No stock-Android image exists anywhere in this tree, and the port
+  **re-partitioned** the eMMC — the pre-port stock map
+  (`modemst1=p13`, `modemst2=p14`, `fsg=p20`, `fsc=p16`) is now
+  `p4/p5/p2/p1`, with `p15` as `/overlay`.
+
+So the Android-side experiment (R5b) requires a **full EDL re-flash of the only
+unit**, which destroys the OpenWrt deployment and defers the soak. The operator
+elected to do that. **What was preserved first:** the sampler and launcher are
+tracked here (`pcfine_v4.sh`, `soak_start.sh`) and are byte-identical to what was
+deployed, so the OpenWrt deployment is fully reproducible from this directory
+after a re-flash — no instrument state is lost.
+
+**Before re-flashing, weigh this.** The corpus already localizes the
+Android-vs-OpenWrt differential to the AP-side **kernel**: Android's `bam_dmux`
+gives the modem a **2000 ms** pc-ack timeout where OpenWrt gives **250 ms**
+(`reference_android_bam_dmux_comparison`), and the pre-stated falsifier was *not*
+falsified (`51 × 250 + 2 × 1000 = pc_timeout_count 53`, 96.2 %). Stopping Android
+*userspace* applications does not change the kernel driver, so that experiment
+tests a **different** hypothesis — modem sensitivity to the AP userspace stack
+going quiet — than the sharpest existing lead.
