@@ -20,6 +20,20 @@
 # Logs a full record only when a tracked field changes, plus a heartbeat, so
 # the file stays small.
 #
+# *** KNOWN CLOCK ERROR -- READ THIS BEFORE COMPARING <UP> TO dmesg ***
+# /proc/uptime is read in awk's BEGIN block, i.e. BEFORE the telemetry file, so
+# the <UP> a record carries is a LOWER BOUND on when its values were sampled.
+# Calibrated in Doc 182 sec.8.5.1 against three independent co-observed event
+# types (cmd_open vs the CMD_OPEN lines; pc_state 1->0 vs "SSR before shutdown",
+# set by bam_dmux_ssr_notifier_cb() at :2435; rx_tearing_down 0->1 vs "T5 rx
+# released", set by bam_dmux_power_off() at :1572):
+#     n = 10 pairs, 0.0624 - 0.0806 s, mean 0.0729 s
+# So <UP> is ~73 ms EARLY.  Relative ordering WITHIN the sampler is unaffected
+# (<UP> is monotonic), but do NOT compare <UP> to a dmesg timestamp at better
+# than ~60 ms, and treat "the last record before X" as ambiguous at that scale.
+# The captures in this directory were taken with this version; the fix (read
+# /proc/uptime AFTER the telemetry, or bracket it) is in scratch/pcfine.sh.
+#
 # usage: pcfine.sh <outfile> [max_iters]
 
 TEL=/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/rx_telemetry

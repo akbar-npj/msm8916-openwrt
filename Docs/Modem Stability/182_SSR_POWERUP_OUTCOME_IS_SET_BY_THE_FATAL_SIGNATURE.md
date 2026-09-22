@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-22
 **Boots:** `eafa19f6-5a01-4ea8-b783-52e9f16bf862` (retrospective, 17 fatals) and
-`59d9c272-d87c-486a-9d6c-4fd93e02fc29` (live, 5 fatals — 3 `a2_power` → A, 2 `common_timer` → B)
+`59d9c272-d87c-486a-9d6c-4fd93e02fc29` (live, 6 fatals — 4 `a2_power` → A, 2 `common_timer` → B)
 **Patch under test:** `msm89xx/patches/808-bam-dmux-stats.patch` (2000 ms pc-ack wait arm),
 plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 **Deployed module:** `qcom_bam_dmux.ko` md5 `982b633e2a682e21ad69b6e85d273941`
@@ -10,14 +10,20 @@ plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 * `console_ramoops_prev.txt` — md5 `c6253e4bf582b889f73829c278a0c0fc`, 1655 lines / 146379 B
 * `pcfine_v1_boot59d9c272.txt` — md5 `01168319e64bbfca417499008d99acaa`, 71 records — the
   A-case proof of §8.1 (key = `pc_irq_count` only; see §8.1)
-* `pcfine_v2_boot59d9c272.txt` — md5 `ad02ab23a44e775e8b165e5f79996544`, 10893 records — the
-  fixed-key capture covering §8.2 (fatal #5) and §8.4 (the orphan timeout). **Snapshot** taken at
-  device uptime ≈ 4240 s while the sampler was still running; the device copy keeps growing.
+* `pcfine_v2_boot59d9c272.txt` — md5 `e2645f89bcd01f8f4bf1c5a2240d4791`, 16775 records — the
+  fixed-key capture covering §8.2 (fatal #5), §8.4 (the orphan timeout) and §8.5.3 (fatal #6).
+  **A growing snapshot, not a finished capture**: the sampler was still running when it was
+  pulled, and the §8.2/§8.4 analyses were scored against an earlier 10893-record copy
+  (md5 `ad02ab23a44e775e8b165e5f79996544`) that this one strictly contains. Reproduce against
+  whichever copy; the records are append-only.
 * `pcfine_boot59d9c272.txt` — md5 `2c0bc63754bad0bda2bde42962ae62d5`, 45 records (earlier snapshot)
 * `dmesg_boot59d9c272_upto2590s.txt` — md5 `768b7c10de3fa8e0c544919c5b92f295`, 545 lines
-* `score_bam_reinit.py`, `score_h3.py`, `census_pc.py`, `pcfine.sh`, `score_output.txt`
-  (`census_pc.py` reproduces §8.4's pc-line / PM census and the flatness check on any capture,
-  and parses both sampler formats)
+* `score_bam_reinit.py`, `score_h3.py`, `census_pc.py`, `calibrate_sampler_clock.py`,
+  `pcfine.sh`, `score_output.txt` (`census_pc.py` reproduces §8.4's pc-line / PM census and the
+  flatness check on any capture; `calibrate_sampler_clock.py` reproduces §8.5.1's sampler clock
+  error from three independent event types; both parse the sampler formats)
+* `dmesg_boot59d9c272_full.txt` — md5 `81903ea91f010f8644a2b1618f5b776b`, 729 lines — the whole
+  boot's ring, needed by `calibrate_sampler_clock.py`
 
 ---
 
@@ -29,7 +35,7 @@ plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 | Pre-register the prediction **before** the data exists | **PARTIAL, and the gaps are stated** — §3's shortcut invalidated the pre-registration I had intended for the A/B-vs-signature association: it was read out of a console that already existed. But **H3 (§9) was registered before any A case existed on the live boot and was then confirmed by the first one to arise (§8.1)** — P1–P4, all four. The association in §5 is retrospective; the mechanism in §8.1 is not. **§8.4 is EXPLORATORY, not pre-registered**: the orphan timeout was found by continuing to sample, and its mechanism was read off the capture after the fact. It is reported as a single occurrence for exactly that reason. |
 | Freeze the capture, hash it, score the frozen copy | **YES** — the pstore console was copied off the device and hashed before scoring; the scorer reads only the frozen copy. The live sampler was likewise pulled to a hashed file (§8.4's file is a **snapshot** taken while the sampler was still running, and the device copy keeps growing). |
 | Keep a control | **YES** — (a) the 13 `lte_ml1_common_timer.c:390` fatals *inside the same boot* are the control for the 4 `a2_power.c:1189` ones; (b) the 14 B outcomes are the control for the 4 A outcomes on the timeout claim; (c) the cold-boot powerup (row 1) is a no-fatal control; (d) **§8.4's orphan timeout is a control of a different kind — a timeout with no fatal at all**, which is what forced the §6 qualification. |
-| Verify the instrument before resting a claim on it | **YES, and it changed three conclusions** — §7.1 (the RX watchdog *has* rebuild paths, so its silence had to be checked, not assumed), §7.2 (the modem's `CMD_OPEN` burst had to be ruled out as the rebuilder), and §8.3 (the counter I had been reading as an *edge* count is a **thread-run** count). |
+| Verify the instrument before resting a claim on it | **YES, and it changed four conclusions** — §7.1 (the RX watchdog *has* rebuild paths, so its silence had to be checked, not assumed), §7.2 (the modem's `CMD_OPEN` burst had to be ruled out as the rebuilder), §8.3 (the counter I had been reading as an *edge* count is a **thread-run** count), and §8.5.1 (the sampler's own timestamp is **~73 ms early**, calibrated against three independent event types — without which §8.2's table reads as a contradiction). |
 | State what is *not* established | **YES** — §11 |
 
 ---
@@ -212,17 +218,18 @@ near-constant latency:
 | 11 | 8720.129599 | 8721.331363 | **1.201764 s** |
 | 15 | 12363.367529 | 12364.614338 | **1.246809 s** |
 
-The live boot adds three more, all `a2_power` → A:
+The live boot adds four more, all `a2_power` → A:
 
 | fatal | A ("successfully reinitialized") | pc-ack timeout | Δ |
 | --: | --: | --: | --: |
 | 1 | 533.185843 | 534.360805 | **1.174962 s** |
 | 4 | 2976.800897 | 2978.056277 | **1.255380 s** |
 | 5 | 3885.730123 | 3886.848426 | **1.118303 s** |
+| 6 | 4809.243040 | 4810.361343 | **1.118303 s** |
 
-Across both boots, **7 A cases give Δ ∈ [1.109, 1.255] s** (range 146 ms), and **B has produced
+Across both boots, **8 A cases give Δ ∈ [1.109, 1.255] s** (range 146 ms), and **B has produced
 0 timeouts in 17 outcomes** (13 fatal B + 1 cold-boot B from the retrospective boot, 2 fatal B
-+ 1 cold-boot B from the live boot).
++ 1 cold-boot B from the live boot). Fatals #5 and #6 agree to **1 µs**; see §8.5.3.
 
 **Reading.** A precedes the timeout by ~1.17 s in every case, and the timeout count equals the A
 count exactly. So the timeout is **not** an independent `a2_power` signature property; it is a
@@ -383,20 +390,20 @@ the full-tuple key. The bug was fixed for the ongoing run (§13), which now keys
 | 4 | `a2_power.c:1189` | **high** | **one, falling only**, at the very end | A |
 
 **And the timeout follows A again**: fatal #4's A at 2976.800897 → `pc-ack timeout` at
-2978.056277, **Δ = 1.255380 s**. Together with fatal #1 (Δ = 1.174962 s) that makes the
-A → timeout association **6 of 6 across two boots, 0 of 14 for B** (§6).
+2978.056277, **Δ = 1.255380 s**. Together with the other A cases that makes the A → timeout
+association **8 of 8 across two boots, 0 of 17 for B** (§6).
 
 ### 8.2 Fatal #5 — H3 confirmed at n = 2, and the window exposes the real mechanism
 
 **Fatal #5 at 3884.610521 is `a2_power.c:1189` → outcome A** (reinitialized at 3885.730123),
-timeout at 3886.848426 (**Δ = 1.118303 s**). The fixed sampler key gives a lead time of
-**0.001 s** on the last pre-fatal record — versus 2.105 s in the v1 run — because the full-tuple
-key logs at ~17 records/s.
+timeout at 3886.848426 (**Δ = 1.118303 s**).
 
 | record | uptime | `pc_irq_count` | `pc_state` | `pc_line` | `rx_tearing_down` |
 | :-- | --: | --: | --: | --: | --: |
-| **last before the fatal** | 3884.61 | 269 | **0** | **1** | 1 |
+| **last pre-fatal record** | 3883.53 | 269 | **1** | **1** | 0 |
 | (fatal) | 3884.610521 | | | | |
+| notifier `pc_state = false` (`:2435`) | 3884.57 | 269 | **0** | **1** | 0 |
+| T5 `rx_tearing_down = true` (`:1572`) | 3884.61 | 269 | 0 | 1 | **1** |
 | line falls | 3884.64 | **269** | 0 | 0 | 1 |
 | | 3884.75 | **269** | 0 | 0 | 1 |
 | line rises | 3885.54 | **269** | 0 | 1 | 1 |
@@ -409,6 +416,23 @@ key logs at ~17 records/s.
 cases could not: **the line moved 1 → 0 at 3884.64 and 0 → 1 at 3885.54 with `pc_irq_count`
 completely flat at 269.** Two wire transitions, zero counter movement. That is only possible if
 `pc_irq_count` does not count edges — and it does not (§8.3).
+
+**Two corrections to how this table was first read** (both found on fatal #6, §8.5):
+
+* The record at **3884.57 is NOT pre-fatal.** The sampler's `<UP>` label is **~73 ms earlier
+  than the telemetry it carries** (§8.5.1), so that record's values were read at ≈3884.64 —
+  after the fatal — and they are the *first driver reaction* to it: `bam_dmux_ssr_notifier_cb()`
+  sets `WRITE_ONCE(dmux->pc_state, false)` at **`:2435`**, in the `QCOM_SSR_BEFORE_SHUTDOWN`
+  case, ~22 ms after the fatal and ~57 ms before the teardown work sets `rx_tearing_down`. The
+  earlier reading of this row as "the last pre-fatal record, with `pc_state = 0`" was therefore
+  wrong, and it was the reason P1 looked inconsistent with the row above it. **The last
+  genuinely pre-fatal record is 3883.53, where `pc_state = 1` and `pc_line = 1`** — which is
+  what P1 predicted. The "lead time" of this case is therefore **≈0.92 s** (3884.610521 −
+  3883.53), not 0.001 s.
+* `pc_state = 0` **before** `rx_tearing_down = 1` is not an anomaly and not a driver bug: it is
+  the designed order, because the notifier reacts to the SSR announcement while
+  `rx_tearing_down` is only set later, inside `bam_dmux_power_off()` on the teardown work's
+  thread (`:1918` → `:1572`).
 
 ### 8.3 Correction — `pc_irq_count` counts THREAD RUNS, not edges
 
@@ -537,6 +561,108 @@ separated. (c) Whether the 80 ms suspend/resume pair is itself abnormal is not a
 155 suspend attempts against 143 completions there is PM churn on this boot, but no baseline for
 what is normal.
 
+### 8.5 Fatal #6, the sampler's clock error, and the `pc_state = 0 / rx_tearing_down = 0` puzzle
+
+Fatal #6 at **4808.139745** is `a2_power.c:1189` → **A** (reinitialized at 4809.243040), timeout
+at 4810.361343 (**Δ = 1.118303 s** — *identical to fatal #5 to the microsecond*). Scoring it
+required resolving a state the source said was impossible, and that turned up a clock error in
+the instrument.
+
+#### 8.5.1 The sampler's `<UP>` label is ~73 ms EARLIER than the telemetry it carries
+
+`pcfine.sh` reads `/proc/uptime` in awk's `BEGIN` block and **then** reads the telemetry file, so
+the `<UP>` it prints is a **lower bound** on when the telemetry values were actually sampled.
+The magnitude is measured, not guessed, using **three independent co-observed event types**
+(`calibrate_sampler_clock.py`):
+
+| pairing | how the two sides are identified | pairs | skew (dmesg − sampler `<UP>`) |
+| :-- | :-- | --: | --: |
+| `cmd_open` counter ↔ `received CMD_OPEN (1) on channel N` | the counter and the print are 1:1 | 6 | 0.0681 – 0.0806 s |
+| `pc_state` 1→0 ↔ `SSR before shutdown` | `bam_dmux_ssr_notifier_cb()` sets it at **`:2435`**, on that print | 2 | 0.0624 – 0.0716 s |
+| `rx_tearing_down` 0→1 ↔ `T5 rx released` | `bam_dmux_ssr_teardown()` → `bam_dmux_power_off()` sets it at **`:1572`**, before T5 prints | 2 | 0.0685 – 0.0793 s |
+
+**All 10 pairs: 0.0624 – 0.0806 s, mean 0.0729 s.** The three event types are independent, and
+they agree, so this is a property of the sampler and not of one code path.
+
+**Consequences, and they are the reason this matters:**
+
+* **Relative ordering inside the sampler is unaffected.** `<UP>` is monotonic across records, so
+  "A came before B" claims between two sampler records still stand — including §8.4's whole
+  analysis, which never compares a sampler timestamp to a dmesg one.
+* **Absolute alignment to dmesg is not good to better than ~±60 ms**, and every claim of the form
+  "the last record *before* the fatal" is ambiguous at that scale. §8.2's table was read wrongly
+  for exactly this reason (§8.5.3).
+* The direction is structural, not a fluke: the `BEGIN`-block read guarantees the label is early.
+  The magnitude varies with loop cost under load, so the correct statement is a **range**, not a
+  constant.
+
+#### 8.5.2 The `pc_state = 0 / rx_tearing_down = 0` state is real, and it is the notifier
+
+The sampler shows a record with `pc_state = 0` while `rx_tearing_down = 0`, then the next with
+`pc_state = 0` and `rx_tearing_down = 1` — in **both** fatal #5 and fatal #6. Reading only the
+teardown work (`bam_dmux_ssr_teardown_work_func()`, `:2264-2334`) that state looks impossible:
+the work sets `rx_tearing_down` via `bam_dmux_power_off()` (`:1918` → `:1572`) *before* it sets
+`pc_state = false` (`:2308`).
+
+**It is not impossible — `pc_state = false` is written earlier, in the SSR *notifier*:**
+
+```c
+case QCOM_SSR_BEFORE_SHUTDOWN:
+        dev_info(dmux->dev, "bam_dmux: SSR before shutdown: scheduling teardown work\n");
+        WRITE_ONCE(dmux->in_teardown, true);
+        WRITE_ONCE(dmux->pc_state, false);          /* :2435 */
+        dmux->ssr_powerup_retries = 0;
+        schedule_work(&dmux->ssr_teardown_work);
+```
+
+So the order is `pc_state = false` (notifier, on the modem's crash notification) → *then* the
+teardown work runs → *then* `rx_tearing_down = true`. The measured offsets are extremely stable
+across all six fatals on this boot:
+
+| fatal | `fatal error received` | `SSR before shutdown` (ps=false) | `T5 rx released` (td=true) | Δ notifier | Δ T5 |
+| --: | --: | --: | --: | --: | --: |
+| 1 | 532.081043 | 532.102979 | 532.159879 | +21.9 ms | +78.8 ms |
+| 2 | 1434.938927 | 1434.961891 | 1435.018706 | +23.0 ms | +79.8 ms |
+| 3 | 2338.609206 | 2338.632036 | 2338.688922 | +22.8 ms | +79.7 ms |
+| 4 | 2975.685045 | 2975.706874 | 2975.763879 | +21.8 ms | +78.8 ms |
+| 5 | 3884.610521 | 3884.632369 | 3884.689285 | +21.8 ms | +78.8 ms |
+| 6 | 4808.139745 | 4808.161574 | 4808.218511 | +21.8 ms | +78.8 ms |
+
+**So `ps = 0` with `td = 0` is a designed 57 ms window**, and the sampler resolves it because the
+two transitions are 57 ms apart — comfortably wider than the ~22 ms loop.
+
+#### 8.5.3 Fatal #6 — a third A case, and P1/P3 hold
+
+| record | uptime | `pc_irq_count` | `pc_state` | `pc_line` | `rx_tearing_down` |
+| :-- | --: | --: | --: | --: | --: |
+| **last pre-fatal record** | 4807.09 | 317 | **1** | **1** | 0 |
+| (fatal) | 4808.139745 | | | | |
+| notifier `pc_state = false` (`:2435`) | 4808.09 | 317 | **0** | **1** | 0 |
+| T5 `rx_tearing_down = true` (`:1572`) | 4808.15 | 317 | 0 | 1 | **1** |
+| line falls | 4808.17 | **317** | 0 | 0 | 1 |
+| | 4808.29 | **317** | 0 | 0 | 1 |
+| line rises | 4809.08 | **317** | 0 | 1 | 1 |
+| work sets pc_state (`:2410`) | 4809.17 | **317** | 1 | 1 | 0 |
+| (`successfully reinitialized`) | 4809.243040 | | | | |
+| (timeout) | 4810.361343 | | | | |
+
+**P1 HIT** (last pre-fatal record: `pc_state = 1`, `pc_line = 1`), **P3 HIT** (`pc_irq_count` flat
+at 317 from 4805.91 through the A outcome). This is the **third** A case and the second scored
+with the fixed key, and it reproduces §8.3 exactly: the line moved **1 → 0 at 4808.17 and 0 → 1
+at 4809.08 with the counter flat at 317** — two wire transitions, zero counter movement.
+
+**The identical Δ is worth one line.** Fatal #5 and fatal #6 have A→timeout intervals that agree
+to **1 µs** (1.118303 s) while their fatal→notifier and fatal→T5 offsets agree only to ~1 ms and
+their absolute SSR durations differ by ~16 ms. That is a strong hint the interval is set by a
+deterministic quantized pair (the 2000 ms `wait_for_completion_timeout` against a fixed poll
+offset) rather than by the SSR's own timing — but **two cases is not enough to claim that**, and
+it is recorded as an observation, not a result.
+
+**And the §8.2 misreading is corrected above**: the record I had labelled "last before the fatal"
+is the notifier's own reaction, ~73 ms after the fact in telemetry time. The true pre-fatal
+record is `pc_state = 1, pc_line = 1`, so P1 was hit there too — it was my table's label that was
+wrong, not the prediction.
+
 ---
 
 ## 9. H3 — the refined hypothesis, pre-registered
@@ -575,13 +701,15 @@ roughly **1 in 4 fatals ≈ 1 per hour** at the 903.675 s beat. The split itself
 established at n = 17 (§5); H3 is a *within-A* claim, so **n = 2 A cases is the minimum that can
 falsify it, and n = 3–4 is needed before P1/P3 can be called supported.**
 
-**Status: P1–P4 confirmed at n = 2 A cases (§8.1 fatal #4, §8.2 fatal #5).** Both A cases to
-arise after registration confirmed all four predictions, the second with a lead time of 0.001 s.
-**H3's mechanism wording is superseded by H4 (§8.3)**: `pc_irq_count` counts thread runs, not
-edges, so the measured fact is "the handler did not run in the window" rather than "no edge
-reached the handler". **H4 has since gained an independent, non-fatal confirmation (§8.4)** — a
-resume whose line did not transition timed out exactly as H4 predicts, with no fatal involved.
-The sampler is still running; fatal #6 is due ≈ 4788 s.
+**Status: P1–P4 confirmed at n = 3 A cases (§8.1 fatal #4, §8.2 fatal #5, §8.5.3 fatal #6).**
+Every A case to arise after registration confirmed all four predictions. **H3's mechanism
+wording is superseded by H4 (§8.3)**: `pc_irq_count` counts thread runs, not edges, so the
+measured fact is "the handler did not run in the window" rather than "no edge reached the
+handler". **H4 has since gained an independent, non-fatal confirmation (§8.4)** — a resume whose
+line did not transition timed out exactly as H4 predicts, with no fatal involved. **The B side is
+still the weak one**: it rests on the v1 capture's 7.269 s lead (§8), which was taken with a key
+that could not see `ps`/`pl` moves between counter changes, and fatal #6 was another A rather
+than the B that would have closed it. The sampler is still running; fatal #7 is due ≈ 5712 s.
 
 ---
 
@@ -598,18 +726,25 @@ an arbitrary later time.
 
 ## 11. What is NOT established
 
-1. **The A mechanism is confirmed at n = 2, but the masking is inferred, not directly
-   observed.** §8.1 and §8.2 confirm P1–P4 on both A cases. The claim that the *line is masked*
-   under `IRQF_ONESHOT` comes from reading the registration (§8.3) plus the flat counter while
-   the wire moved — the kernel's default primary handler is not instrumented, so "the edge was
-   consumed by the mask" and "the edge was never latched by the irqchip" are **not separated**.
-   Both produce the same observable: the thread does not run. What the outcome depends on — that
-   the interrupt path does not rebuild `rx` — is measured either way.
+1. **The A mechanism is confirmed at n = 3, but the masking is inferred, not directly
+   observed.** §8.1, §8.2 and §8.5.3 confirm P1–P4 on all three A cases. The claim that the
+   *line is masked* under `IRQF_ONESHOT` comes from reading the registration (§8.3) plus the
+   flat counter while the wire moved — the kernel's default primary handler is not instrumented,
+   so "the edge was consumed by the mask" and "the edge was never latched by the irqchip" are
+   **not separated**. Both produce the same observable: the thread does not run. What the outcome
+   depends on — that the interrupt path does not rebuild `rx` — is measured either way.
    Note also the **asymmetry of the test**: the pc line is high a large fraction of the time
    (the sampler shows it toggling every few seconds to ~100 s), so **a high pre-fatal line is
    weak evidence on its own; P3 — that `pc_irq_count` does not move — is the load-bearing
-   prediction**, and it held on both cases.
-2. **The pc-ack timeout's mechanism is a candidate, not a proof.** §4.3's missing
+   prediction**, and it held on all three cases.
+2. **The sampler's `<UP>` label carries a ~73 ms systematic error (§8.5.1).** Measured on 10
+   co-observed pairs of three independent event types: 0.0624 – 0.0806 s, mean 0.0729 s. So
+   sampler timestamps may **not** be compared to dmesg timestamps at better than ~±60 ms, and
+   any "the last record before X" claim is ambiguous at that scale — which is exactly how §8.2's
+   table came to be misread. Relative ordering *within* the sampler is unaffected, which is why
+   §8.4's analysis (which never crosses the two clocks) stands as written. A future version
+   should read `/proc/uptime` **after** the telemetry, or read it twice and bracket.
+3. **The pc-ack timeout's mechanism is a candidate, not a proof.** §4.3's missing
    `complete_all()` is consistent with §6's timing, but the timeout could equally be caused by
    the modem not acking (Doc 181 §6's own alternative reading: "the modem did not ack" vs "the
    vote produced no edge"). **§8.4 shows the two readings coincide in the windows measured** —
@@ -617,16 +752,21 @@ an arbitrary later time.
    (`pc_irq_count` and `pc_ack_irq_count`), so there is no case here in which one ran and the
    other did not. That does not identify the mechanism so much as show that the driver's two
    completion paths are not independent enough to discriminate between the readings. The Δ is
-   now 1.109–1.255 s over 7 A cases, which bounds the mechanism but does not identify it.
-3. **No causal claim.** A and B both end with the channels rebuilt and the data plane restored.
+   now 1.109–1.255 s over 8 A cases, which bounds the mechanism but does not identify it.
+4. **No causal claim.** A and B both end with the channels rebuilt and the data plane restored.
    The A/B split is a **symptom-level** discriminator between two fatal signatures. Nothing here
    says the A/B outcome causes the fatal, or that the fatal is caused by the pc line.
-4. **Outcome C is unobserved, not excluded.** It did not occur in 18 fatal SSRs across two boots.
+5. **Outcome C is unobserved, not excluded.** It did not occur in 19 fatal SSRs across two boots.
    At the observed rate that bounds it below ~1 in 6 (rule of three, 95 %) — it is *rare*, not
    impossible, and the ~77 s retry budget remains untested.
-5. **The 4 : 13 signature mix is not explained.** Why `a2_power.c:1189` behaves differently at
-   the pc line is the open question; §9's P1 would give the first evidence about it.
-6. **`waited 560` in row 18 is unexplained** (§5.1).
+6. **The signature mix is not explained.** Why `a2_power.c:1189` behaves differently at
+   the pc line is the open question; §9's P1 gives the first evidence about it.
+7. **`waited 560` in row 18 is unexplained** (§5.1).
+8. **The B case has never been measured with the fixed-key sampler.** Every A case now has a
+   ~0.9–2.1 s lead; the single B case rests on a 7.269 s lead from a capture that could not see
+   `ps`/`pl` moves between counter changes (§8). A `common_timer` → B with the fixed key is the
+   one remaining measurement that would close the asymmetry, and it has not arrived in three
+   consecutive A fatals.
 
 ---
 
@@ -662,36 +802,43 @@ an arbitrary later time.
   edge-driven. §8.1 shows a case where the edge path is structurally unavailable and the
   fallback is what recovers the data plane. That is a point in favour of patch 814's retry
   design, and it is worth remembering that the retry has still never been needed (§11.4).
-* **The instrument lessons — four of this doc's corrections are instrument errors, and all four
+* **The instrument lessons — five of this doc's corrections are instrument errors, and all five
   were cheap to check.** §3 and §7.3 are cases of *looking in the wrong place for the right
   quantity*: the console was in pstore, and the watchdog is a quiesce instrument. §8.3 is a case
   of *reading a counter's name instead of its definition*: `pc_irq_count` counts thread runs, so
   a flat counter is not a statement about edges. §8.4 is a case of *writing a causal gloss for an
   anomaly without checking it against the baseline*: "the ack path is downstream of the pc irq"
-  explained both timeout windows and is refuted by ordinary operation. The first two are in the
-  corpus's existing trap list; the second two were added to it (memory: `feedback_read_the_definition_not_the_name.md`
-  §7).
+  explained both timeout windows and is refuted by ordinary operation. §8.5.1 is a case of
+  *trusting a timestamp without calibrating the instrument that produced it*: the sampler's
+  `<UP>` is read before the telemetry it labels, so it is ~73 ms early, and that error is what
+  made §8.2's table look like it contradicted P1. The first two are in the corpus's existing trap
+  list; the last three were added to it (memory:
+  `feedback_read_the_definition_not_the_name.md` §7, and the coverage/alignment rule in
+  `feedback_scoring_live_captures.md`).
 
 ---
 
 ## 13. Next actions
 
-1. The sampler is still running on boot `59d9c272`; fatal #6 is due ≈ 4788 s (the device was at
-   ~4240 s when the capture was last pulled, and `pc_timeout_count` was 4). H3 is settled at
-   n = 2 A cases, so further fatals are now **confirmatory only** — but a `common_timer` → B case
-   with the fixed key would be the first B case measured at 0.001 s lead time, which would close
-   the last asymmetry in the evidence (the B case in §8 rests on the v1 capture's 7.269 s lead).
-   Pull `/tmp/pcfine.txt` again before any reboot; it now has the fixed key and is the only
-   record of the §8.4 orphan timeout.
-2. **The one thing that would sharpen H4**: instrument the *primary* handler. The kernel's
+1. The sampler is still running on boot `59d9c272`; fatal #7 is due ≈ 5712 s (the device was at
+   ~4812 s when the capture was last pulled, and `pc_timeout_count` was 5). H3 is settled at
+   n = 3 A cases, so further A fatals are **confirmatory only** — what is still missing is a
+   `common_timer` → **B** case measured with the fixed key (§11.8). Pull `/tmp/pcfine.txt` again
+   before any reboot; it holds §8.4's orphan timeout and §8.5's calibration pairs.
+2. **Fix the sampler's clock before the next long run** (§8.5.1): read `/proc/uptime` *after* the
+   telemetry file, or read it both before and after and record the bracket. That turns a ~73 ms
+   systematic error into a ~22 ms bounded one and removes the ambiguity in "the last record
+   before X". This is a one-line change to `pcfine.sh` and it should be made before the next
+   A/B question is asked of the instrument.
+3. **The one thing that would sharpen H4**: instrument the *primary* handler. The kernel's
    default primary handler is not traceable, so "the edge was consumed by the `IRQF_ONESHOT`
    mask" and "the irqchip never latched the edge" remain unseparated (§11.1). A `dev_err` in a
    custom primary handler would distinguish them — but that requires a module rebuild, so it is
    only worth doing if the distinction ever becomes load-bearing. It currently is not: both
    readings predict "the thread does not run", which is what the A/B outcome depends on.
-3. Pull the full `dmesg` to the host **before** any reboot (memory RULE 6), and read
+4. Pull the full `dmesg` to the host **before** any reboot (memory RULE 6), and read
    `/sys/fs/pstore/` before concluding a ring is gone (§3).
-4. Not started, and untouched by this doc: the ~903.675 s always-on clock and its latched
+5. Not started, and untouched by this doc: the ~903.675 s always-on clock and its latched
    offset; the userspace bearer rebuild (fatal #2 on this boot cost **27 s**, of which an
    **18 s** ModemManager gap at 13:30:15 → 13:30:33 is avoidable, against a 0.70 s modem SSR);
    and the AP-side boot-firmware (`hyp`/`tz`) swap.
