@@ -454,6 +454,84 @@ does not prevent it.** A `nohup … & sleep 8; ps` check *inside the same shell*
 retries up to 3×, and **aborts loudly** if `procs` stays 0; that guard is what
 turned the failed attempt into a one-line diagnosis instead of an empty capture.
 
+### 9.7 The pre-registered replicate run — and a correction to §9.4
+
+Design fixed in advance in `PREREG_mcpm_replicates.md`. Four **240 s** captures,
+back to back, same device, same boot, traffic as the controlled variable. Each
+capture gets its own output dir, so nothing clobbers.
+
+| cap | traffic (intended) | `SLEEP` | `WAKE` | ratio | span | rate (full span) | **rate (final 240 s)** | modal | @mode |
+| :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
+| C | base | 530 | 537 | 0.987 | 254.5 s | 2.083 | **2.075** | 0.320 s | 56.2 % |
+| D | base | 528 | 535 | 0.987 | 289.3 s | 1.825 | **2.071** | 0.320 s | 58.8 % |
+| E | none | 525 | 538 | 0.976 | 255.4 s | 2.055 | **2.100** | 0.320 s | 58.1 % |
+| F | heavy | 540 | 554 | 0.975 | 291.3 s | 1.854 | **2.125** | 0.320 s | 62.2 % |
+
+**P1 / P2.** Full span: 1.825–2.083 /s, spread **14.1 %** — *between* the two
+pre-registered branches, so neither is met. Trimmed to a **common final 240 s of
+the modem clock**: 2.071–2.125 /s, spread **2.6 %** → **P1 HOLDS**.
+
+The entire 14.1 % was **pre-history**: D carried **+32.3 s** and F **+36.3 s**
+(C and E none). The per-60 s profiles confirm it — F's *first* bin is **0.88 /s**
+against 2.0–2.2 /s for the rest of that same capture. **Pre-history is a
+low-rate idle interval, and including it is what moves the average.**
+
+**P3 — NOT falsified.** The modal interval is **0.320 s in all six captures**
+(A–F), and the fraction landing on a multiple within ±5 ms is **68.5–71.5 %** —
+a **3 pp** spread over six independent windows. The quantization is the most
+reproducible thing measured in this section.
+
+**P5 — OK.** 0.975–0.987 in all four (Android's cycle-pair ratio is stable).
+
+**P4 — VOID. The traffic control did not hold, and that is a defect of this
+round.** `busybox killall ping` kills the `ping` **binary**, but the pattern is a
+`sh -c "while true; …"` **wrapper**; the wrapper survives, is orphaned to init
+(PPID 1), and keeps re-spawning pings. Measured afterwards: the capture intended
+as `traffic=none` still logged 9 ping rounds, and **one orphaned wrapper was
+still running 20 minutes later** (`sh` pid 9497, PPID 1, with a live `ping`
+child). So C, D and E all effectively ran the *base* pattern and F ran base +
+heavy — **the four captures do not differ in traffic, and P4 says nothing about
+whether traffic drives the duty cycle.** The script now tracks the wrapper by
+PID and **verifies the control took** (`ping` process count, with an explicit
+warning when `traffic=none` still has one).
+
+### 9.8 Correction to §9.4 — the mean is more usable than §9.4 claimed
+
+§9.4 concluded that the mean rate "is a duty-cycle measurement wearing a rate's
+clothes" and that the two captures "differ **only** in how many long idle gaps
+they happened to contain". **That is too strong, and partly wrong:**
+
+* At fixed conditions the rate is reproducible to **2.6 %** (§9.7), so it *is* a
+  usable statistic within a condition.
+* But **capture A does not fit.** Trimmed to its own final 240 s it is still
+  **1.629 /s** — 23 % below the C–F band (2.071–2.125) and 25 % below B (2.165).
+  A's per-60 s profile is **uniformly** low (0.87, 1.72, 1.43, 1.47, 1.67, 1.28),
+  so this is not a head artifact and not pre-history.
+
+So the defensible statement is:
+
+> the rate is `3.125 /s × (duty cycle)`, **reproducible to ~3 % within a fixed
+> condition and drifting ~30 % across a 65-minute session** (1.63 → 2.17 /s), with
+> no established driver for the drift.
+
+**What this does to the withdrawal.** The withdrawal of the "2.3× vs OpenWrt"
+claim **stands**, but on a sharper reason than §9.1 gave. §9.1's reason — "two
+draws differ by 1.47×" — is now known to be *mostly a denominator artifact*
+(pre-history), not cadence variation. The reason that survives is: **the Android
+rate drifts ~30 % within one session with no established driver, and both sides
+of the corpus comparison are single windows.** Separately, the corpus's own
+1.88 /s was itself pre-history-depressed (§9.3), so a clean Android window is
+**~2.07–2.14 /s** and the gap is nearer **2.5×** than 2.3× — but it must not be
+quoted until OpenWrt is measured the same way.
+
+**Amendment to the OpenWrt pre-registration (§9.5).** O1–O4 stand, with one
+addition:
+
+* **O5.** Report a **session-level range across at least four windows**, each
+  timed on the modem clock and trimmed to a common length — **not a single
+  window.** A single window is exactly the error both sides of the corpus
+  comparison made, and §9.7 shows it is worth 14 % on this metric.
+
 ## 10. Artifacts
 
 `Docs/Modem Stability/evidence/174_stationary_android_rpm_baseline/`
@@ -475,6 +553,12 @@ turned the failed attempt into a one-line diagnosis instead of an empty capture.
 | `verify_mcpm.txt` | the §9 scorer's output for both captures |
 | `window_300s.txt`, `window_120s.txt` | the per-capture brackets (incl. `bracket_delay_s`) the §9 scorer consumes |
 | `mcpm_stationary.sh` | the §9 capture driver (capture A is the 300 s run) |
+| `PREREG_mcpm_replicates.md` | the §9.7 pre-registration — written **before** the C–F captures |
+| `run_mcpm_replicates.sh` | the §9.7 driver: C(base) D(base) E(none) F(heavy), 240 s each |
+| `score_mcpm_replicates.py` | the §9.7 scorer — adds the **trimmed** rate (common final 240 s) to §9's output |
+| `verify_mcpm_replicates.txt` | the §9.7 scorer's output (the P1–P5 scorecard) |
+| `window_cap{C,D,E,F}_240s.txt` | the four §9.7 brackets (all `bracket_delay_s=15`–`16`) |
+| `ping_cap{C,D,E,F}.txt.gz` | the per-capture ping logs — **and the evidence that P4 is void** (§9.7: E was meant to be `traffic=none` and still shows ping rounds) |
 | `MANIFEST.md5` | hashes of the frozen set |
 
 **Reproduce the ring read with nothing but the device:**
@@ -492,6 +576,18 @@ EV="Docs/Modem Stability/evidence/174_stationary_android_rpm_baseline"
 python3 "$EV/score_mcpm_stationary.py" \
     <A>/diag_log_20260922_043307.qmdl --window "$EV/window_300s.txt" \
     <B>/diag_log_20260922_045750.qmdl --window "$EV/window_120s.txt"
+```
+
+**Reproduce §9.7** (the four replicates in one pass; the qmdl files are ~100 MB each and are
+not committed):
+
+```sh
+EV="Docs/Modem Stability/evidence/174_stationary_android_rpm_baseline"
+python3 "$EV/score_mcpm_replicates.py" \
+    C:<C>/diag_log_*.qmdl --window "$EV/window_capC_240s.txt" \
+    D:<D>/diag_log_*.qmdl --window "$EV/window_capD_240s.txt" \
+    E:<E>/diag_log_*.qmdl --window "$EV/window_capE_240s.txt" \
+    F:<F>/diag_log_*.qmdl --window "$EV/window_capF_240s.txt"
 ```
 
 **Note on a live file:** `rpm_stationary_boot2.csv` and `rpm_ctr_long.txt` were **still growing**

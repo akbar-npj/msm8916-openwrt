@@ -1,0 +1,11 @@
+kernel_start_s=4800
+kernel_end_s=5040
+modem_start_s=4793
+modem_end_s=5033
+wall_duration_s=262
+mdlog_size_mb=100
+mdlog_files=8
+mdlog_bytes_total=101044750
+mdlog_file_count=1
+bracket_delay_s=16
+traffic=base

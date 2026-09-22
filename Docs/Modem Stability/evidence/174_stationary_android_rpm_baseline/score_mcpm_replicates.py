@@ -31,6 +31,9 @@ TOL = 0.05
 # neighbours) gives 85.7 % and 76.9 %.  Both are reported -- an earlier draft of
 # Doc 174 s9.4 said "~90 %", which is wrong and was corrected.
 BUCKET_TOL = 0.015
+# Common final window (seconds) used for the TRIMMED rate.  Set to the bracket
+# length so every capture is compared over the same span.
+TRIM_S = 240.0
 
 
 def score(label, qmdl, window):
@@ -78,9 +81,27 @@ def score(label, qmdl, window):
                 default=(0, 0))
     on_tight = sum(1 for g in gaps
                    if min(abs(g - k * MODE_S) for k in range(1, 9)) <= 0.005)
+    # --- TRIMMED rate ------------------------------------------------------
+    # Captures D and F carry ~32-36 s of PRE-HISTORY (records buffered while no
+    # diag_mdlog was attached), and pre-history is an UNOBSERVED, likely-idle
+    # interval -- so including it lowers the average.  Trimming every capture to
+    # the SAME final window makes them comparable and removes the head.
+    # FW_WAKE-UP_Start is the marker here because it is the only cycle event
+    # that carries a timestamp (SLEEP_PWRDN_FULL has none); the two agree to
+    # 0.98-0.99 : 1, so this is not a different quantity.
+    trimmed = None
+    if len(wake_start) >= 2:
+        un, _ = mcpm.unwrap(wake_start)
+        t_end = un[-1]
+        # If the capture is shorter than TRIM_S, use its whole span -- dividing by
+        # TRIM_S would then understate the rate.
+        win = min(TRIM_S, (un[-1] - un[0]) / mcpm.MODEM_TICK_HZ)
+        t0 = t_end - win * mcpm.MODEM_TICK_HZ
+        n_in = sum(1 for t in un if t >= t0)
+        trimmed = n_in / win
     return dict(label=label, traffic=traffic, n_sleep=n_sleep, n_wake=n_wake,
                 dur_ap=dur_ap, dur_modem=dur_modem, delay=delay, gaps=gaps,
-                hist=hist, modal=modal, on_tight=on_tight,
+                hist=hist, modal=modal, on_tight=on_tight, trimmed=trimmed,
                 rate=(n_sleep / dur_modem) if dur_modem else None)
 
 
@@ -98,14 +119,18 @@ def main():
     print("MCPM REPLICATE CAPTURES -- scoring PREREG_mcpm_replicates.md")
     print("=" * 78)
     print(f"{'cap':<4} {'traffic':<6} {'sleep':>6} {'wake':>5} {'ratio':>6} "
-          f"{'span_s':>8} {'rate/s':>7}  {'modal':>6} {'@mode':>6} {'n':>5}")
+          f"{'span_s':>8} {'rate/s':>7} {'trim/s':>7}  {'modal':>6} {'@mode':>6} {'n':>5}")
     for r in rows:
         ratio = r["n_sleep"] / max(1, r["n_wake"])
         modal_s = r["modal"][0] * MODE_S
         pct_mode = 100.0 * r["modal"][1] / max(1, len(r["gaps"]))
         print(f"{r['label']:<4} {r['traffic']:<6} {r['n_sleep']:>6} {r['n_wake']:>5} "
-              f"{ratio:>6.3f} {r['dur_modem'] or 0:>8.1f} {r['rate'] or 0:>7.3f}  "
-              f"{modal_s:>6.3f} {pct_mode:>5.1f}% {len(r['gaps']):>5}")
+              f"{ratio:>6.3f} {r['dur_modem'] or 0:>8.1f} {r['rate'] or 0:>7.3f} "
+              f"{r['trimmed'] or 0:>7.3f}  {modal_s:>6.3f} {pct_mode:>5.1f}% "
+              f"{len(r['gaps']):>5}")
+    print(f"\n  'rate/s' = SLEEP_PWRDN_FULL / full modem-clock span (includes any")
+    print(f"  pre-history).  'trim/s' = FW_WAKE-UP_Start in the final {TRIM_S:.0f} s of the")
+    print(f"  modem clock, so every capture is compared over the SAME window.")
 
     print("\n--- interval histogram, as multiples of 0.320 s (bucketed +/-0.015 s) ---")
     print(f"{'cap':<4} " + "".join(f"{k}x0.32{'':<4}" for k in range(1, 7)) + "  other")
@@ -120,11 +145,15 @@ def main():
         print(f"  {r['label']:<4} {100.0*r['on_tight']/n:>8.1f}% {100.0*wide/n:>8.1f}%")
 
     rates = [r["rate"] for r in rows if r["rate"]]
+    trims = [r["trimmed"] for r in rows if r["trimmed"]]
     print("\n--- PRE-REGISTERED READINGS ---")
-    if rates:
-        lo, hi = min(rates), max(rates)
+    for name, vals in (("FULL span (as measured)", rates),
+                       (f"TRIMMED to final {TRIM_S:.0f} s", trims)):
+        if not vals:
+            continue
+        lo, hi = min(vals), max(vals)
         spread = 100.0 * (hi - lo) / lo
-        print(f"P1/P2 rate range: {lo:.3f} .. {hi:.3f} /s   spread = {spread:.1f} %")
+        print(f"{name}: {lo:.3f} .. {hi:.3f} /s   spread = {spread:.1f} %")
         if spread < 10:
             print("  => P1 HOLDS: the rate is stable at fixed conditions (<10 %).")
         elif spread > 30:
@@ -134,8 +163,11 @@ def main():
         else:
             print("  => IN BETWEEN (10-30 %): neither pre-registered branch is met.")
             print("     The rate is noisy; quote the range, not a point value.")
-        print(f"  (n = {len(rates)} draws -- this bounds the spread, it does NOT")
-        print("   characterise a distribution. Do not quote a mean or an SD.)")
+    print(f"  (n = {len(rates)} draws -- this bounds the spread, it does NOT")
+    print("   characterise a distribution. Do not quote a mean or an SD.)")
+    print("  NOTE the two rows above are the SAME data scored two ways. If the")
+    print("  trimmed spread is much tighter, the full-span spread was dominated by")
+    print("  pre-history (an unobserved idle interval), not by the cadence itself.")
 
     print("\nP3 FALSIFIER -- modal interval must be 0.320 s +/- 5 % in ALL captures:")
     ok_all = True
