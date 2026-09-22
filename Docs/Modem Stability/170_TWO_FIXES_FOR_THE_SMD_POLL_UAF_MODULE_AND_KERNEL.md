@@ -2139,6 +2139,34 @@ full 250 ms and delay one packet by 250–550 ms; Android's 2000 ms window would
 closes. Falsifier for the fix: the 416–551 ms spikes vanish **and** `pc_timeout_count` stops rising,
 with `pc_resync_count` unchanged.
 
+**★ THE CONTROL ARM IS NOW POWERED — n = 911, ZERO TIMEOUTS (PART 40, 2026-09-22).** The
+pre-registration (§8.16 / PART 33 §5) set the bar at **n ≥ 300** for the 1 % regime; PART 28 had
+n = 56 and PART 38 n = 77. The boot-2 Android capture was left running, and a frozen copy taken at
+uptime **7142.7 s** carries **n = 911 from a single boot** — 3.0× the bar, needing no pooling:
+
+```
+vote->ack: n=911  min=0.042  p50=0.699  p90=2.093  p99=2.526  max=3.160 ms
+    > 250 ms: 0     > 50 ms: 0     > 10 ms: 0     > 5 ms: 0
+ZERO real ack-wait timeouts across 7141 s
+```
+
+**The max is the load-bearing number and it is SATURATED**: 3.160 ms in the n=204 snapshot and
+3.160 ms in the n=911 copy, i.e. 707 further handshakes produced no new extreme — a stable statistic
+in one homogeneous regime. So the 250 ms wait is **79.1×** the worst healthy ack, and the OpenWrt
+failures are **categorical, not a tail**: there is no overlap to argue about.
+
+**⚠ But the TAIL IS NOT BOOT-INVARIANT — state both figures.** PART 28's separate boot gave
+p99 = 6.332, **max = 6.340 ms** (headroom **39.4×**) where this boot gives max 3.160 ms (79.1×). So
+the headroom is **boot-dependent in the range 39–79×**, and the honest claim is "**at least 39×**",
+not 79×. Both are far below 250 ms, so the conclusion is unaffected — but the number quoted should
+be the conservative one. **The p50 is also not comparable across windows** (1.891 → 0.699 ms as the
+wakeup rate rose 3.15 → 7.67/min): report the maximum and the tail counts, not the median.
+
+**What this does NOT do.** Android has **0 fatals**, so this control is silent on the post-fatal
+regime where OpenWrt actually fails — it bounds the *healthy* cost of a handshake. It does not prove
+the 250 ms constant is wrong; only the A/B (Task #98) tests that, and it remains pre-registered as a
+**PARTIAL drop only**. Evidence: `evidence/170_.../AV_android_pcack_control_n911.txt`.
+
 ---
 
 ### §8.17 NEW SIGNATURE `a2_task.c:3179` — a CASCADE at 120.76 s, with a **negative** antecedent, and the storm rate does **not** predict it

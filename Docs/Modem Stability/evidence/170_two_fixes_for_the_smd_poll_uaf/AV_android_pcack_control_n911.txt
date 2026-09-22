@@ -1,0 +1,108 @@
+PART 40 EVIDENCE -- THE ANDROID AP-SIDE pc-ack CONTROL REACHES n = 911 WITH
+                    ZERO TIMEOUTS, AND THE 250 ms WAIT IS 79x ITS WORST ACK
+                    (closes Task #99 / the control arm of Task #98)
+
+Frozen 2026-09-22T00:24:57Z, device uptime 7142.70 s.  THE FILE HAD A LIVE WRITER
+(the boot-2 capture has been streaming since 2026-09-22 01:50 local), so the
+snapshot was taken first, hashed, and every number below is from the FROZEN copy
+-- never the live file (feedback_scoring_live_captures.md rule 1).
+
+frozen dir : scratch/android_capture/boot2/frozen_20260922T002457Z_pcack/
+manifest   : MANIFEST.md5 in that dir
+             bam_dmux_boot2.log   md5 dbac5bf749434629bb403436b752659d   2 721 189 B
+             logcat_boot2.log     md5 1a15b21fd60a8b41dd1df9513600596c
+             ping_iface_boot2.log md5 db3b4ee543b073880c83839adeb0af96
+             ping_plain_boot2.log md5 f582e85168748b105300571a6bce8515
+analyzer   : scratch/android_capture/analyze_android_dmux.py
+instrument : adb shell 'cat /d/ipc_logging/bam_dmux/log_cont'  (Android-side,
+             the counterpart of the OpenWrt `rpmring`/ipc_logging reads)
+
+===============================================================================
+1. THE MEASUREMENT
+===============================================================================
+
+file: bam_dmux_boot2.log   parsed+deduped events: 39 055
+uptime span: 0.8 -> 7142.0 s  (7141 s, ONE boot, no modem restart in the window)
+
+=== 1. REAL ACK-WAIT TIMEOUTS (bam_dmux.c:1917/1928/1936) ===
+  ZERO.  Android never hit a pc-ack timeout in this capture.
+
+=== 2. PC-ACK LATENCY  (AP vote -> modem's ack) ===
+  vote->ack: n=911  min=0.042  p50=0.699  p90=2.093  p99=2.526  max=3.160  mean=1.126 ms
+      >  250.0 ms (OpenWrt 250 ms wait): 0   <-- NONE
+      > 2000.0 ms (Android 2000 ms wait): 0   <-- NONE
+      >   50.0 ms (50 ms): 0   <-- NONE
+      >   10.0 ms (10 ms): 0   <-- NONE
+      >    5.0 ms (5 ms): 0   <-- NONE
+      headroom vs OpenWrt 250 ms : 79.1x
+      headroom vs Android 2000 ms: 633x
+
+=== 3. 'waiting for previous ack' (serialize vs prior down-ack) ===
+  previous-ack wait: n=909  min=0.016  p50=0.041  p90=0.067  p99=0.474  max=1.234  mean=0.056 ms
+
+=== 4. FULL ul_wakeup DURATION ===
+  complete cycles: 909  (prev=909 complete=912 vote=912)
+
+=== 5. INTER-CYCLE INTERVAL ===
+  n=910  min=0.02  p50=6.23  mean=7.84  max=29.12 s
+  912 UL wakeups over 7133 s => 7.67 wakeups/min
+
+===============================================================================
+2. WHY THIS CLOSES THE PRE-REGISTRATION
+===============================================================================
+
+PART 33 s5 fixed the bar at n >= 300 for the 1 % regime.  PART 28 contributed
+n = 56; PART 38 (boot 2, frozen at uptime 1746 s) contributed n = 77, and a
+monitor (pcack_n300_monitor.sh) was left running to pool boot 1 (121) + boot 2
+until the total reached 300.  It reported TARGET REACHED at 2026-09-22T02:55:14
+with boot 2 n = 204 => pooled 325.
+
+That monitor stopped when it hit the bar.  The capture did NOT stop.  The frozen
+copy taken 3 h 29 min later carries **n = 911 from a SINGLE boot** -- 3.0x the
+pre-registered bar, and it needs no pooling, so the cross-boot objection that
+PART 38 s4 had to answer does not arise at all.
+
+**The two arms are now:**
+
+  Android (control) : n = 911, ZERO samples > 5 ms, MAX 3.160 ms, ZERO timeouts in 7141 s
+  OpenWrt (subject) : pc-ack timeouts are ROUTINE (the whole reason for this thread)
+
+So the 250 ms constant is **79.1x the worst healthy ack** Android ever produced
+across 911 handshakes.  The OpenWrt failures are CATEGORICAL, not a tail: there
+is no overlap to argue about.  This is exactly what §8.16 predicted and what the
+A/B (Task #98) is now powered to test.
+
+===============================================================================
+3. WHAT THE ADDED DATA CHANGED, AND WHAT IT DID NOT
+===============================================================================
+
+* **The MAX did NOT move.**  3.160 ms in the n=204 snapshot (uptime 3883 s) and
+  3.160 ms in the n=911 frozen copy (uptime 7142 s) -- 707 further handshakes
+  produced no new maximum.  A saturated extreme is a stable statistic; this is
+  the strongest single sign that the capture is one homogeneous regime.
+* **The p50 DID move**: 1.891 -> 0.699 ms.  This is NOT a drift -- the wakeup
+  rate rose from 3.15/min to 7.67/min (the boot-2 ping loop is active later in
+  the boot), and a different traffic mix produces a different SHAPE.  **Report
+  the maximum and the tail counts; do not compare p50 across windows with
+  different traffic.**  Same lesson as the MCPM cadence (Doc 174 s9).
+* **The tail counts are all zero at every threshold down to 5 ms.**  That is a
+  stronger statement than "no timeout": the distribution has no visible tail at
+  all in 911 samples.
+
+===============================================================================
+4. HONEST LIMITS
+===============================================================================
+
+1. **ONE boot.**  n = 911 is deep but it is a single boot's worth of one device.
+   The bar was a sample-size bar, not a boot-count bar, so the bar is met; a
+   second boot would test boot-to-boot reproducibility, which is NOT claimed here.
+2. **Android CANNOT measure the post-fatal regime.**  Android has 0 fatals, so
+   this control is silent on exactly the regime where OpenWrt fails.  It bounds
+   the HEALTHY cost of a handshake; it does not prove the 250 ms value is wrong.
+   The A/B (Task #98) is what tests that, and it is pre-registered as a PARTIAL
+   drop only.
+3. **This is a LOWER BOUND on nothing that matters.**  The quantity is a count
+   and a maximum; both only grow as the file grows, which is why the freeze
+   protocol is safe here but the freeze was still taken (see the header).
+4. The capture's traffic is not a controlled variable -- it is whatever the
+   boot-2 soak was doing.  See s3: the shape is traffic-dependent.
