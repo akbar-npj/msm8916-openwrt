@@ -34,13 +34,19 @@ modemmanager_cleanup_connection() {
 
 	# do nothing if no bearers reported
 	[ -n "${bearercount}" ] && [ "$bearercount" -ge 1 ] && {
-		# explicitly disconnect just in case
-		mmcli --modem="${device}" --simple-disconnect >/dev/null 2>&1
+		# Explicitly disconnect just in case.
+		#
+		# Bound every mmcli call.  After an SSR the modem object is
+		# destroyed and re-created, so this runs against a modem that may
+		# already be gone; an unbounded mmcli then blocks the whole proto
+		# setup until the D-Bus call gives up on its own.  That block is
+		# part of the 15-26 s userspace stall after every fatal.
+		mmcli --modem="${device}" --timeout 10 --simple-disconnect >/dev/null 2>&1
 		# and remove all bearer objects, if any found
 		idx=1
 		while [ $idx -le "$bearercount" ]; do
 			bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[$idx\]")
-			mmcli --modem "${device}" --delete-bearer="${bearerpath}" >/dev/null 2>&1
+			mmcli --modem "${device}" --timeout 10 --delete-bearer="${bearerpath}" >/dev/null 2>&1
 			idx=$((idx + 1))
 		done
 	}
@@ -598,9 +604,23 @@ proto_modemmanager_setup() {
 		return 1
 	}
 
-	# validate that ModemManager is handling the modem at the sysfs path
-	modemstatus=$(mmcli --modem="${device}" --output-keyvalue)
-	modempath=$(modemmanager_get_field "${modemstatus}" "modem.dbus-path")
+	# Validate that ModemManager is handling the modem at the sysfs path.
+	#
+	# Poll briefly instead of failing the whole proto on the first miss.
+	# After an SSR the modem object is destroyed and re-created, and a
+	# netifd restart can land before ModemManager has re-probed it.  The
+	# alternatives both cost far more than 5 s of polling: a failed setup
+	# followed by netifd's retry backoff, or a 120 s block on --enable
+	# below.  The port is normally back within a second or two.
+	modempath=""
+	mm_poll=0
+	while [ "$mm_poll" -lt 20 ]; do
+		modemstatus=$(mmcli --modem="${device}" --timeout 10 --output-keyvalue 2>/dev/null)
+		modempath=$(modemmanager_get_field "${modemstatus}" "modem.dbus-path")
+		[ -n "${modempath}" ] && break
+		mm_poll=$((mm_poll + 1))
+		sleep 0.25
+	done
 	[ -n "${modempath}" ] || {
 		echo "Device not managed by ModemManager"
 		proto_notify_error "${interface}" DEVICE_NOT_MANAGED
@@ -841,17 +861,24 @@ proto_modemmanager_teardown() {
 
 	echo "stopping network"
 
-	# load connected bearer information, just the first one should be ok
-	modemstatus=$(mmcli --modem="${device}" --output-keyvalue)
+	# Load connected bearer information, just the first one should be ok.
+	#
+	# Every mmcli call in this function is bounded.  Teardown runs after the
+	# interface has already gone away, so it is routinely issued against a
+	# modem object that no longer exists; an unbounded mmcli then blocks on
+	# D-Bus until the call gives up, which is part of the 15-26 s userspace
+	# stall after every fatal.  A short timeout makes the no-such-modem case
+	# return immediately, which is the common case here.
+	modemstatus=$(mmcli --modem="${device}" --timeout 10 --output-keyvalue 2>/dev/null)
 	bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[1\]")
 	[ -n "${bearerpath}" ] || {
 		echo "couldn't load bearer path: disconnecting anyway"
-		mmcli --modem="${device}" --simple-disconnect >/dev/null 2>&1
+		mmcli --modem="${device}" --timeout 10 --simple-disconnect >/dev/null 2>&1
 		return
 	}
 
 	# load bearer connection methods
-	bearerstatus=$(mmcli --bearer "${bearerpath}" --output-keyvalue)
+	bearerstatus=$(mmcli --bearer "${bearerpath}" --timeout 10 --output-keyvalue 2>/dev/null)
 	bearermethod_ipv4=$(modemmanager_get_field "${bearerstatus}" "bearer.ipv4-config.method")
 	[ -n "${bearermethod_ipv4}" ] &&
 		echo "IPv4 connection teardown required in interface ${interface}: ${bearermethod_ipv4}"
@@ -863,21 +890,21 @@ proto_modemmanager_teardown() {
 	[ "${bearermethod_ipv4}" = "ppp" ] && modemmanager_disconnected_method_ppp_ipv4 "${interface}"
 
 	# disconnect
-	mmcli --modem="${device}" --simple-disconnect ||
+	mmcli --modem="${device}" --timeout 10 --simple-disconnect ||
 		proto_notify_error "${interface}" DISCONNECT_FAILED
 
 	# Variable is set to '1' if modem should be disabled on ifdown,
 	# default is 0 so the modem remains enabled for rapid reconnection.
 	local disable="$(uci_get network "$interface" disable_modem "0")"
 	if [ "${disable}" -eq 1 ]; then
-		mmcli --modem="${device}" --disable
+		mmcli --modem="${device}" --timeout 10 --disable
 	else
 		echo "Skipping modem disable"
 	fi
 
 	# low power, only if requested
 	[ "${lowpower:-0}" -lt 1 ] ||
-		mmcli --modem="${device}" --set-power-state-low
+		mmcli --modem="${device}" --timeout 10 --set-power-state-low
 }
 
 [ -n "$INCLUDE_ONLY" ] || {

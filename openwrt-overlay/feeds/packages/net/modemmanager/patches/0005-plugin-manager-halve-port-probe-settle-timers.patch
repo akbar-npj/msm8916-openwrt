@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: msm8916-openwrt-clean <dev@localhost>
+Date: Tue, 22 Sep 2026 00:00:00 +0000
+Subject: [PATCH] plugin-manager: halve the port-probe settle timers
+
+ModemManager will not complete a device support check until two fixed
+timers have expired, even when every port has already been probed:
+
+  MIN_WAIT_TIME_MSECS      2000  -- delay before the first port is probed
+  MIN_PROBING_TIME_MSECS   4000  -- floor on the whole probing phase
+  EXTRA_PROBING_TIME_MSECS 2000 WITH_UDEV / 4000 without
+
+device_context_complete() returns early while either of the last two is
+still pending, so on a platform that reports ports through hotplug
+scripts -- OpenWrt builds ModemManager with -Dudev=false -- the support
+check takes at least 4 s even when the QMI probe itself is sub-second.
+
+Measured on a Qualcomm MSM8916 modem whose 9 wwan ports are all
+re-enumerated in one burst after a remoteproc restart: the QMI probe
+starts at +2000 ms and the modem object is created at +4000 ms, in 9 of
+11 consecutive restarts, while the probe step itself (start/QMI/done)
+completes inside one second. That is 4 s of every post-restart recovery
+spent waiting on a timer, not on the modem.
+
+Halve all three, preserving the existing relationships (MIN_PROBING stays
+above MIN_WAIT, and the non-udev extra wait stays twice the udev one).
+
+The late-port safety net is unchanged in kind: device_context_port_added()
+still restarts the extra probing timer for every port that arrives after
+the check began, and device_context_complete() still refuses to finish
+while that timer is pending.
+
+Signed-off-by: msm8916-openwrt-clean <dev@localhost>
+---
+ src/mm-plugin-manager.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/mm-plugin-manager.c b/src/mm-plugin-manager.c
+index f8cf009..f5983f2 100644
+--- a/src/mm-plugin-manager.c
++++ b/src/mm-plugin-manager.c
+@@ -715,20 +715,20 @@ port_context_new (MMPluginManager *self,
+ /* Device context */
+ 
+ /* Time to wait for ports to appear before starting to probe the first one */
+-#define MIN_WAIT_TIME_MSECS 2000
++#define MIN_WAIT_TIME_MSECS 1000
+ 
+ /* Time to wait for other ports to appear once the first port is exposed
+  * (needs to be > MIN_WAIT_TIME_MSECS!!) */
+-#define MIN_PROBING_TIME_MSECS 4000
++#define MIN_PROBING_TIME_MSECS 2000
+ 
+ /* Additional time to wait for other ports to appear after the last port is
+  * exposed in the system. Longer time when not using udev, as we rely on
+  * mmcli --report-kernel-event events to report new port additions, e.g.
+  * via openwrt hotplug scripts. */
+ #if defined WITH_UDEV
+-# define EXTRA_PROBING_TIME_MSECS 2000
++# define EXTRA_PROBING_TIME_MSECS 1000
+ #else
+-# define EXTRA_PROBING_TIME_MSECS 4000
++# define EXTRA_PROBING_TIME_MSECS 2000
+ #endif
+ 
+ /* The wait time we define must always be less than the probing time */
+-- 
+2.43.0
+
