@@ -6,6 +6,10 @@
 `common_timer.c:390` → B, 2 **new** signature `lte_ml1_sm_conn_inter_freq_stm.c:712` → A **with
 no timeout**, and 1 **new** signature `a2_taskq.c:759` → A **with** a timeout at Δ = 18.7 s).
 The two timeout-free A cases falsify §6; the 18.7 s Δ kills its latency argument — see §8.6–§8.8.
+**§8.9 then replaces the explanation**: a census of **all 230 resumes** in the live capture shows
+that **every A fatal does resume** (~15–17 s later, 0/5 timing out), so §8.6/§8.7's "no resume"
+was a **window-length artifact**; only **4 of 230** resumes time out, and all four are within
+**1.22 s** of a suspend.
 **Patch under test:** `msm89xx/patches/808-bam-dmux-stats.patch` (2000 ms pc-ack wait arm),
 plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 **Deployed module:** `qcom_bam_dmux.ko` md5 `982b633e2a682e21ad69b6e85d273941`
@@ -22,12 +26,16 @@ plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 * `pcfine_boot59d9c272.txt` — md5 `2c0bc63754bad0bda2bde42962ae62d5`, 45 records (earlier snapshot)
 * `dmesg_boot59d9c272_upto2590s.txt` — md5 `768b7c10de3fa8e0c544919c5b92f295`, 545 lines
 * `score_bam_reinit.py`, `score_h3.py`, `census_pc.py`, `calibrate_sampler_clock.py`,
-  `score_resume_window.py`, `pcfine.sh`, `score_output.txt` (`census_pc.py` reproduces §8.4's
+  `score_resume_window.py`, `resume_trigger.py`, `pcfine.sh`, `score_output.txt`
+  (`census_pc.py` reproduces §8.4's
   pc-line / PM census and the flatness check on any capture; `calibrate_sampler_clock.py`
   reproduces §8.5.1's sampler clock error from three independent event types;
   `score_resume_window.py` reproduces §8.6 — for each labelled window it reports the pre-event
-  PM state, whether a resume ran, whether a timeout followed, and the resume→timeout delay. All
-  three parse the sampler formats; `score_resume_window.py` imports `census_pc.py`'s parser)
+  PM state, whether a resume ran, whether a timeout followed, and the resume→timeout delay;
+  **`resume_trigger.py` reproduces §8.9 — it censuses *every* `pm_resume_attempts` increment in a
+  capture, with the state at each resume, the time since the previous suspend, whether a
+  completion event followed, and the exact Fisher tests.** All
+  parse the sampler formats; both window scorers import `census_pc.py`'s parser)
 * `dmesg_boot59d9c272_full.txt` — md5 `81903ea91f010f8644a2b1618f5b776b`, 729 lines — the whole
   boot's ring, needed by `calibrate_sampler_clock.py`
 * `pcfine_f9_boot59d9c272.txt` — md5 `4aae3807d80eee91a35be48fa29d3ba9`, 38548 records — the
@@ -797,7 +805,16 @@ There is no third writer anywhere in the driver. So:
 
 > **No `bam_dmux_runtime_resume()` ⇒ no possible timeout.**
 
-In fatal #7's window **no resume ran**. The evidence is the vote/resume pair: `pc_vote_tx` is
+> **⚠ CORRECTION (2026-09-22) — this paragraph's headline is a WINDOW-LENGTH ARTIFACT.**
+> As first written it read "in fatal #7's window **no resume ran**", and §8.7 repeated the claim.
+> The window used here is 5709.4 – 5713.5, i.e. **4.1 s**. With a 25 s window a resume **does**
+> run, at **5726.48 (+17.08 s)**; fatal #8 is the same (+17.01 s). The full census is §8.9. The
+> load-bearing fact is therefore **not** "no resume" but **"the resume that ran did not time
+> out"** — and §8.9 identifies what makes the difference. Everything else in this paragraph (the
+> PM pair, the suspend at 5710.84, the change-key argument that a resume cannot be missed *inside
+> a window*) is unaffected, and the change-key argument is what makes §8.9's census exact.
+
+Within the 4.1 s window, **no resume ran**. The evidence is the vote/resume pair: `pc_vote_tx` is
 **282** and `pm_resume_attempts` is **282** at 5709.11 and *still* 282 at 5711.30 — i.e. the
 device was **already runtime-ACTIVE** when the fatal arrived (`vt = 282 > vu = 281`,
 `mra = 282 > msa = 281`; the outstanding resume is the one from **5407.84**, 301.6 s earlier).
@@ -815,7 +832,7 @@ Now the same read-out for every timeout the corpus has, plus fatal #7:
 | fatal #5 | `a2_power.c:1189` | A | 140 / 140 — suspended | **yes**, 3884.75 | **2.04 s** | yes @3886.85 |
 | fatal #6 | `a2_power.c:1189` | A | 170 / 170 — suspended | **yes**, 4808.29 | **2.01 s** | yes @4810.36 |
 | orphan (§8.4) | *(no fatal)* | — | 155 / 155 — suspended | **yes**, 4184.14 | **2.18 s** | yes @4186.36 |
-| **fatal #7** | **`lte_ml1_sm_conn_inter_freq_stm.c:712`** | **A** | **282 / 281 — ACTIVE** | **NONE** | — | **NO** |
+| **fatal #7** | **`lte_ml1_sm_conn_inter_freq_stm.c:712`** | **A** | **282 / 281 — ACTIVE** | **NONE within 4.1 s**; **+17.08 s** with a 25 s window (§8.9) | — | **NO** |
 
 `Δ resume → timeout` is ~2000 ms in all three cases where it can be measured, which is exactly
 the `msecs_to_jiffies(2000)` at `:2067`. (Fatal #4's resume time is bracketed only by the coarse
@@ -827,26 +844,28 @@ nor a consequence of A (this doc §6). It is a property of **a `bam_dmux_runtime
 wait is not completed**, and the wait is completed only by a **pc-line transition**
 (`bam_dmux_pc_irq` `:1977`) or by the modem's ack (`bam_dmux_pc_ack_irq` `:1997`). A fatal
 supplies the *precondition* — it pins the line — but **not the trigger**: a resume must still
-happen. Fatal #7 shows an A case with no resume, and therefore no timeout; §8.4 shows a timeout
-with no fatal, and therefore no A.
+happen, and it must fail to be completed. §8.4 shows a timeout with no fatal, and therefore no A.
 
 **This is the cleanest statement the corpus supports:**
 
 > **timeout ⟺ a `bam_dmux_runtime_resume()` runs while the pc line is already asserted.**
 
 * A fatal makes that *likely* (the line is pinned high for the whole SSR), which is why A
-  correlates 8/9 with timeouts.
+  correlates 9/11 with timeouts.
 * A **B** fatal makes it *unlikely*, because the line is low and the resume's own vote is the
   rising edge that completes the wait (fatal #3) — 0/17.
-* A fatal with **no resume** makes it *impossible* — fatal #7.
+* **A resume is nonetheless not *sufficient*** — only **4 of 230** resumes in this boot timed
+  out (1.7 %), and §8.9 shows the extra condition. The three bullets above are necessary
+  conditions, not a mechanism.
 
-**What is NOT established.** *Why* fatal #7 had no resume in its window is not determined. The
-pre-event PM state does not explain it: fatal #4 and fatal #7 had the **same** pre-event state
-(`vt = vu + 1`, one outstanding resume) and differed only in whether a *new* resume followed. The
-plausible reading — the resume is triggered by the SSR's own traffic/PM churn and its occurrence
-depends on load — is consistent with the data (fatal #7's `rx_callbacks` was climbing at
-~120/s right up to 5709.11, i.e. the device was genuinely busy) but is **not** tested here. The
-one thing that *is* established is the negative: no resume, so no timeout.
+**What is NOT established, and one thing that is now WITHDRAWN.** The original text read: *"Why
+fatal #7 had no resume in its window is not determined … the one thing that is established is the
+negative: no resume, so no timeout."* The second half is **withdrawn** — the "no resume" premise
+was a window artifact (correction above), so it supports nothing. The pre-registered reading
+("the resume is triggered by the SSR's own traffic/PM churn and its occurrence depends on load")
+is **falsified in its mechanism**: §8.9 shows that **all five A fatals get a resume** at
++14.85 … +17.46 s, busy or idle. Load did not suppress the resume; it only changed *which* resume
+was the dangerous one.
 
 #### 8.6.2 An addendum — the lost-edge resync is not dead, and it fired 17 s later
 
@@ -860,7 +879,10 @@ after fatal #7's A outcome, the watchdog fired the *lost-edge* path (`:1330`):
 
 `pc_resync_count` went 0 → 1 (`rs` transitions at the record labelled 5726.67). It fired ~0.2 s
 after a **resume** at 5726.48 (`vt` 282 → 283) — i.e. a vote raised the line while `pc_state` was
-still 0, and the thread had not yet run. **This is exactly the condition §8.3's second
+still 0, and the thread had not yet run. **This paragraph is what refutes §8.6.1's headline**: the
+"resume at 5726.48" written here *is* fatal #7's +17.08 s resume, and it was already in the
+capture when §8.6.1 said no resume ran. The two statements sat 60 lines apart and contradicted
+each other; the resolution is the §8.6.1 correction and §8.9. **This is exactly the condition §8.3's second
 observation predicted would exist** ("`pc_state` can disagree with the wire … while the only
 resync that exists returns early on `in_teardown` and runs on a ~60 s cadence"), and it is the
 first observed instance of that path in the corpus. It does not change §7.1's conclusion — the
@@ -889,10 +911,16 @@ whole SSR.
 
 **P1 and P3 hold again** (pre-fatal `pc_state = 1, pc_line = 1`; counter flat at 507 across both
 wire transitions), and the device was **ACTIVE** at the fatal (`vt = 292 > vu = 291`,
-`mra = 292 > msa = 291`) with **`pm_resume_attempts` flat at 292 for the whole window** — no
-resume, so no timeout, exactly as §8.6 predicts. **This is the rule's first replication**: two
-independent A cases (§8.6, §8.7), two different fatals, same signature, both ACTIVE-at-fatal,
-both resume-free, both timeout-free.
+`mra = 292 > msa = 291`) with `pm_resume_attempts` flat at 292 for the 2.5 s window. **This is the
+rule's first replication**: two independent A cases (§8.6, §8.7), two different fatals, same
+signature, both ACTIVE-at-fatal, both timeout-free.
+
+> **⚠ CORRECTION (2026-09-22).** The original text continued "…flat at 292 for the whole window —
+> no resume, so no timeout, exactly as §8.6 predicts." **Both halves are wrong.** A resume *does*
+> run, at **6628.01 (+17.01 s)** — 2.5 s windows cannot see it (the table above stops at 6612.56).
+> The replication that survives is **"same signature, same outcome, and timeout-free"**; the
+> explanation is §8.9, not "no resume". The same correction applies to §8.6.1's table row for
+> fatal #7 and to §8.8.2's closing sentence.
 
 A second lost-edge resync followed at **6628.743817** (`pc_resync_count` 1 → 2) — the same
 pattern as §8.6.2, again ~17 s after the A outcome.
@@ -930,6 +958,17 @@ The window (format `iq aq ps pl to rs ra td rc vt vu mra msa co|UP`):
 * **Resume #303** at 6712.11 — `pc_irq_count` **flat at 525** and `pc_ack_irq_count` **flat at
   591**. Neither completion source ran, so the 2000 ms wait expired → the timeout at **6714.14**,
   **resume → timeout = 2.03 s**, matching `msecs_to_jiffies(2000)` at `:2067`.
+
+> **⚠ HONEST BOUND ON #302's EVIDENCE (2026-09-22).** The `524 → 525` transition is **not a
+> separate record**: `iq` is 524 at 6697.39 and 525 at 6710.46, in the *same* record that carries
+> `mra` 301 → 302. The sampler therefore **cannot order** the pc_irq run against the resume. What
+> *is* observed, and is enough for the conclusion, is the **outcome**: `to` is flat at 5 through
+> 6712.11, so #302's deadline (6712.46) passed without an increment, while #303's (6714.11)
+> produced one recorded at 6714.14. #302 did not time out and #303 did. **The mechanism attributed
+> to #302 — "a completion source ran" — is an inference from the fact that it did not time out,
+> not an independent observation of the ordering.** (A timeout increments the counter *at* its
+> deadline, so an increment first seen at 6714.14 cannot belong to a deadline of 6712.46 — that
+> part is sound.)
 
 **This is the strongest single measurement in this document.** It is a *within-window* control:
 the fatal, the signature, the outcome (A), the pc-line state, and the device's PM state are all
@@ -971,8 +1010,138 @@ with a 15 s resume delay broke it.
 | **B** | 0 | 17 |
 
 Fisher exact one-sided p = **0.00000796**. The correlation is still strong — A really does make a
-timeout likely — but the two counter-examples are both A cases with **no resume in the window**,
-which is the variable that actually decides it.
+timeout likely — but the two counter-examples were described here as "both A cases with **no
+resume in the window**". **That description is withdrawn**: both do resume, at +17.08 s and
++17.01 s (§8.9). The variable that actually decides it is §8.9's, not the absence of a resume.
+
+### 8.9 What triggers a resume — and the extra condition that makes one time out
+
+§8.6–§8.8 read the resume out of **five hand-picked windows**. That is the wrong instrument for
+this question, and it produced the window-length artifact corrected above. The right one is a
+**census of every resume in the capture**, which the sampler supports exactly because
+`pm_resume_attempts` (`mra`) is part of its change key: any `mra` increment forces a record.
+
+**First, the source — the SSR path never triggers a resume.** `bam_dmux_ssr_powerup_work_func()`
+calls only `pm_runtime_set_active()` (`:2413`) and `bam_dmux_ssr_teardown_work_func()` only
+`pm_runtime_set_suspended()` (`:2311`); neither invokes the resume callback. Every actual resume
+comes from outside the SSR path:
+
+| site | caller | trigger |
+| :-- | :-- | :-- |
+| `:501` | `bam_dmux_send_cmd()` | `CMD_OPEN` / `CMD_CLOSE` — netdev open/stop |
+| `:559` | `bam_dmux_netdev_open()` | userspace bringing `wwan0` up |
+| `:667` | `bam_dmux_netdev_start_xmit()` | an AP TX packet |
+| `:739` | `bam_dmux_tx_wakeup_work()` | draining deferred TX |
+
+All four are **traffic or userspace** events. So the resume is not an SSR mechanism at all: the
+fatal supplies the *precondition* (it pins the pc line), and an unrelated, later packet supplies
+the *trigger*.
+
+**The census** (`resume_trigger.py`, capture `pcfine_f9_boot59d9c272.txt`):
+
+| | |
+| :-- | --: |
+| capture span | 3157.2 – 6978.2 s (3821 s) |
+| resumes (`mra++`) | **230** — one per **16.6 s** |
+| suspends (`msa++`) | 230 |
+| timeouts (`to++`) | **4** = **1.7 %** of resumes |
+
+230 resume/suspend pairs in 3821 s is an ordinary **autosuspend duty cycle**: idle → autosuspend,
+a packet arrives → resume. Nothing about the SSR is needed to explain the rate.
+
+All four timeouts are the **2000 ms** wait. The ring names them, and **none** is the second site:
+
+```
+[ 3886.848426] bam-dmux …: modem pc-ack timeout during resume      <- :2069
+[ 4186.364155] bam-dmux …: modem pc-ack timeout during resume
+[ 4810.361343] bam-dmux …: modem pc-ack timeout during resume
+```
+
+`pc_state wait timeout during resume` (`:2078`) **never fires on this boot**. So the second wait is
+ruled out as a confound, and every timeout is the pc-ack wait at `:2069`.
+
+**The four, with the state at the resume:**
+
+| resume `<UP>` | `pl` | `ps` | `td` | `rx`/s (−10 s) | s since last suspend | completion event | delay |
+| --: | --: | --: | --: | --: | --: | :-- | --: |
+| 3884.750 (fatal #5) | **0** | **0** | **1** | 0.7 | 1.220 | NONE | +2.040 s |
+| 4184.140 (orphan §8.4) | 1 | 1 | 0 | **116.3** | **0.080** | NONE | +2.180 s |
+| 4808.290 (fatal #6) | **0** | **0** | **1** | 0.0 | 1.200 | NONE | +2.010 s |
+| 6712.110 (fatal #9, #303) | 1 | 1 | 0 | 0.0 | **0.410** | NONE | +2.030 s |
+
+Every delay is ~2000 ms, i.e. `msecs_to_jiffies(2000)` at `:2067`. **None of the four had a
+completion event** (a `pc_irq` or `pc-ack irq` increment) at or within 3 s; **all 226 clean
+resumes had one** — 226/226 vs 0/4. That 2×2 is *not* a discovery, though: `to` increments
+exactly when the wait expires, so it restates the code's own logic. It is a **consistency check on
+the instrument**, and it passes, which is what licenses the rest.
+
+**★ The correction: every A fatal DOES resume, ~15–17 s later — and that resume never times out.**
+
+| fatal | resumes in a 25 s window (`*` = timed out) |
+| :-- | :-- |
+| #5 | +0.15 s\*, **+14.85 s** |
+| #6 | +0.19 s\*, **+16.32 s** |
+| #7 | **+17.08 s** |
+| #8 | **+17.01 s** |
+| #9 | **+17.46 s**, +19.11 s\*, +23.17 s |
+
+**All five A fatals have a resume in the +14.85 … +17.46 s band, and 0 of 5 timed out.** That is
+the recovery resume (it lands 0.2–0.7 s before the lost-edge resync of §8.6.2/§8.7, and it is
+what §8.6.2 had already recorded at 5726.48 without noticing it contradicted §8.6.1). So the
+correct reading of fatal #7 and fatal #8 is **not** "no resume, so no timeout" but **"the resume
+that ran was not the dangerous kind"**.
+
+**What distinguishes the dangerous resumes? Time since the last suspend.** All four timeouts
+resumed within **1.22 s** of a suspend; **0 of the 137 resumes later than 1.25 s after a suspend
+timed out** (95 % upper bound ≈ 2.2 % by the rule of three). Inside the band it is 4/93 = 4.3 %:
+
+| `since_susp` | timeouts | clean |
+| :-- | --: | --: |
+| ≤ 1.25 s | **4 / 4** | 89 / 226 |
+| > 1.25 s | **0 / 4** | 137 / 226 |
+
+Fisher exact one-sided **p = 0.0257**. **The 1.25 s cut is data-chosen, so this is exploratory,
+not a pre-registered result** — it is a lead, and §13 pre-registers the confirmatory run.
+
+`pl = 0` is the only other near-miss, and it is **not** a substitute: 2/4 of the timeouts had
+`pl = 0` but so do 11 clean resumes, and the split is not clean in either direction —
+
+| | `pl = 0` | `pl = 1` |
+| :-- | --: | --: |
+| `since_susp ≤ 1.25 s` | **2 T / 2 C** | **2 T / 87 C** |
+| `since_susp > 1.25 s` | 0 T / 9 C | 0 T / 128 C |
+
+Both fast cells contain timeouts, and both slow cells contain none. **The band, not `pl`, is the
+separator.**
+
+Two mechanisms are visible in the four, and they are not the same:
+
+1. **Teardown-window** (fatal #5 @3884.750, fatal #6 @4808.290): `td = 1, ps = 0, pl = 0` — the
+   resume runs while the modem is still being reset, so the pc line is **low** and there is
+   nothing to ack. These are the early resumes, +0.15/+0.19 s after the fatal.
+2. **Suspend/resume race** (orphan @4184.140, fatal #9 #303 @6712.110): `td = 0, ps = 1, pl = 1` —
+   the modem is **healthy**, and the resume simply follows a suspend too closely (80 ms, 410 ms).
+   The orphan is the cleanest case in the corpus: at 4184.06 the device autosuspends
+   (`vu` 154 → 155, `msa` 154 → 155); `rx_callbacks` advances 62172 → 62183 across that suspend,
+   i.e. **a packet arrived**; the resume follows at 4184.14, 80 ms later; the vote-off/vote-on
+   pair is too fast for the modem to ack, and the wait expires at 4186.32.
+
+**The pre-registered prediction is FALSIFIED in its mechanism.** §11.9 predicted that *"an A
+fatal arriving in a BUSY window should be LESS likely to time out than one arriving in an IDLE
+window"*, on the reasoning that a busy device is already runtime-ACTIVE and needs no resume. The
+census kills the reasoning: **all five A fatals resume**, busy or idle. And at the resume level
+the busy cut points the **wrong way** — the single busy resume that timed out is the orphan
+(1/4 vs 0/226, p = 0.017, i.e. *busy* is associated with the timeout, not protected from it).
+The prediction's *conclusion* (idle fatals #5/#6/#9 timed out, busy #7/#8 did not) holds in this
+sample, but for a different reason and at n = 5 it is not evidence of anything.
+
+**What is not established.** *Why* a resume within ~1.25 s of a suspend fails to be acked is not
+determined. The driver-side reading — the vote-off and the vote-on reach the RPM too close
+together to produce two distinct modem responses — is consistent with the two healthy cases (80 ms
+and 410 ms) but is **not** measured; the modem's side of the handshake is not observable from the
+AP. The 1.25 s cut is also unexplained: 80 ms and 410 ms look like a race, 1.20 s does not, and
+the two 1.2 s cases are the teardown-window class, which has a different explanation. The band may
+be covering two mechanisms rather than one.
 
 ---
 
@@ -1060,7 +1229,7 @@ an arbitrary later time.
    either way. Note also the **asymmetry of the test**: the pc line is high a large fraction of
    the time (the sampler shows it toggling every few seconds to ~100 s), so **a high pre-fatal
    line is weak evidence on its own; P3 — that `pc_irq_count` does not move — is the load-bearing
-   prediction**, and it held on all four cases.
+   prediction**, and it held on all six cases.
 2. **The sampler's `<UP>` label carries a ~73 ms systematic error (§8.5.1).** Measured on 10
    co-observed pairs of three independent event types: 0.0624 – 0.0806 s, mean 0.0729 s. So
    sampler timestamps may **not** be compared to dmesg timestamps at better than ~±60 ms, and
@@ -1068,16 +1237,23 @@ an arbitrary later time.
    table came to be misread. Relative ordering *within* the sampler is unaffected, which is why
    §8.4's analysis (which never crosses the two clocks) stands as written. A future version
    should read `/proc/uptime` **after** the telemetry, or read it twice and bracket.
-3. **The pc-ack timeout's *antecedent* is now established; its completion mechanism is still a
-   candidate.** §8.6 shows the timeout cannot occur without a `bam_dmux_runtime_resume()`
+3. **The pc-ack timeout's *antecedent* is established; what makes the antecedent dangerous is a
+   lead, not a finding.** §8.6 shows the timeout cannot occur without a `bam_dmux_runtime_resume()`
    (both writers of `pc_timeout_count` are inside it) and that every measured timeout follows its
    resume by ~2000 ms — the `msecs_to_jiffies(2000)` at `:2067` (2.04 / 2.01 / 2.18 / **2.03** s).
-   What is **not** identified is *which* of the two completion sources failed to fire: §4.3's
-   missing `complete_all()` in the A-branch is consistent, but so is Doc 181 §6's alternative
-   ("the modem did not ack"). **§8.8.1 narrows it but does not close it** — in that window resume
-   #302 completed via `pc_irq_count` moving (524 → 525) while #303 had *both* counters flat, so
-   the two readings still coincide. What §8.8.1 *does* establish is that the deciding variable is
-   a property of the individual resume, not of the fatal, the signature or the outcome.
+   §8.9 adds that **`pc_state wait timeout` (`:2078`) never fires**, so the second wait is ruled
+   out, and that `pc_ack_completion` has **three** completers — the pc-irq handler (`:1977`), the
+   pc-ack irq handler (`:1997`, the only one that bumps `pc_ack_irq_count`), and the watchdog
+   resync (`:1361`) — so `aq` alone is **not** a valid completion instrument (47 clean resumes had
+   no `aq` increment). What is **not** identified is *which* of the three failed: §4.3's missing
+   `complete_all()` in the A-branch is consistent, but so is Doc 181 §6's alternative ("the modem
+   did not ack"). **§8.8.1 narrows it but does not close it** — resume #302 completed while #303
+   did not, with the fatal, signature, outcome and PM state identical, and §8.8.1 now carries an
+   explicit bound: the `524 → 525` transition is co-recorded with the resume, so the *ordering* is
+   inferred from #302's non-timeout, not observed. What §8.8.1 *does* establish is that the
+   deciding variable is a property of the individual resume call, not of the fatal, the signature
+   or the outcome. §8.9's `since_susp` band is the best candidate for that property and is
+   **exploratory**.
 4. **No causal claim, in either direction.** A and B both end with the channels rebuilt and the
    data plane restored. The A/B split is a **symptom-level** discriminator between fatal
    signatures. Nothing here says the A/B outcome causes the fatal, or that the fatal is caused by
@@ -1098,17 +1274,17 @@ an arbitrary later time.
    `ps`/`pl` moves between counter changes (§8). A `common_timer` → B with the fixed key is the
    one remaining measurement that would close the asymmetry, and it has not arrived in **six**
    consecutive A fatals.
-9. **What triggers the resume is still not established, but fatal #9 is the first case that
-   constrains it.** §8.6 proves a timeout is impossible without a `bam_dmux_runtime_resume()`,
-   but *why* fatal #7's and fatal #8's windows contained none is open, and the pre-event PM state
-   does not predict it: fatals #4, #7, #8 and #9 were all **ACTIVE** at the fatal (`vt = vu + 1`),
-   and two of them produced no resume while two produced one or two. Fatal #9 is the useful one —
-   it produced **two** resumes 1.65 s apart after ~17 s of quiet, i.e. the device was being
-   brought up and down repeatedly, which is consistent with "the resume is driven by traffic/PM
-   churn" but does not test it. The pre-registered form of that test — *an A fatal arriving
-   during a busy window should be less likely to time out than one arriving during an idle
-   window* — is now scorable on **nine** A cases across the two boots, and should be scored
-   before any new run. n = 9 remains small: a null result would not settle it.
+9. **~~What triggers the resume is still not established.~~ RESOLVED by §8.9, and the
+   pre-registered busy/idle test is FALSIFIED in its mechanism.** The census answers the question
+   and corrects this item's premise: **all five A fatals resume** (at +14.85 … +17.46 s, 0/5
+   timing out), so "fatal #7's and fatal #8's windows contained none" was a window-length
+   artifact, and the count "two produced no resume" was wrong. The trigger is not an SSR
+   mechanism at all — the four call sites are `send_cmd`/`netdev_open`/`start_xmit`/
+   `tx_wakeup_work`, i.e. traffic and userspace. The busy/idle prediction's *reasoning* ("busy ⇒
+   already ACTIVE ⇒ no resume") is dead, and at the resume level busy points the wrong way
+   (1/4 vs 0/226). What replaces it is **`since_susp ≤ 1.25 s`**, which is 4/4 vs 0/137 but is a
+   **data-chosen cut and therefore exploratory** — it needs the confirmatory run §13 pre-registers
+   before it may be called a finding.
 10. **The lost-edge resync has now fired twice, and what it reacts to is still not fully read
     out.** §8.6.2 records the first at 5726.582280 and §8.7 the second at 6628.743817
     (`pc_resync_count` 0 → 1 → 2), both ~17 s after an A outcome and shortly after a resume. The
@@ -1116,6 +1292,18 @@ an arbitrary later time.
     the same ~17 s offset after two different fatals makes it look systematic rather than
     incidental** — but it is two occurrences, both outside their fatal's window, and neither was
     pre-registered. The ~17 s offset is a hypothesis to test, not a finding.
+    **§8.9 sharpens this**: the resync follows a resume that §8.9 now shows is present after
+    **all five** A fatals at +14.85 … +17.46 s, which makes "the ~17 s event" a *resume*, with the
+    resync trailing it by 0.2–0.7 s. The offset is therefore a property of whatever schedules the
+    recovery resume, not of the resync.
+11. **The resume census is one boot, and its central number is a single-digit count.** §8.9's
+    230 resumes and 4 timeouts are from **one** capture (boot `59d9c272`, 3821 s); the 4/4 vs
+    0/137 split rests on **four** events, and the 1.25 s cut was chosen *after* seeing them. Two
+    of the four are explained by a different mechanism (the teardown window) than the other two
+    (the suspend race), so the band may be covering two things rather than one. A 4-event
+    separation with a data-chosen threshold is a **lead**, and the honest bound is the negative
+    half: **0 of 137 late resumes timed out, i.e. the rate outside the band is < 2.2 % (95 %,
+    rule of three)**. Nothing here says the band *causes* the timeout.
 
 ---
 
@@ -1136,13 +1324,14 @@ an arbitrary later time.
   signatures never crossed over and read it as a mechanism. Fatals #7–#9 are the crossover, and
   fatal #9 also removes the supporting argument — **the Δ(A → timeout) is 1.118 s, 1.118 s and
   18.703 s, because it is the *resume's* delay, not A's** (§8.8.2).
-* **The timeout is a *transition* defect, not a fatal defect (§8.4 + §8.6).** The same boot
-  produced a timeout with **no fatal at all** (an 80 ms suspend/resume pair whose line never
-  moved) and an A fatal with **no timeout** (fatal #7, no resume in its window). So the
-  underlying condition — the completion needs a line transition, and the vote is a no-op when
-  the line is already high — is a **runtime-PM** property that the fatal can *force* but does not
-  *create*. That matters for anyone tempted to read "A → timeout" as "the timeout is a symptom of
-  the fatal": it is not, it is a symptom of a vote that changed nothing.
+* **The timeout is a *transition* defect, not a fatal defect (§8.4 + §8.9).** The same boot
+  produced a timeout with **no fatal at all** (the §8.4 orphan: an 80 ms suspend/resume pair
+  whose line never moved) and A fatals with **no timeout** (fatal #7 and #8, whose only resume is
+  the ordinary ~17 s recovery resume). So the underlying condition — the completion needs a
+  **line transition or an ack**, and the vote is a no-op when the line is already high — is a
+  **runtime-PM** property that the fatal can *force* but does not *create*. That matters for
+  anyone tempted to read "A → timeout" as "the timeout is a symptom of the fatal": it is not.
+  **§8.9 puts a number on it: 4 of 230 resumes time out (1.7 %).**
 * **`a2_power.c:1189` is a structurally distinct failure, but it is not alone.** It is **a**
   signature whose fatal leaves the pc line **already asserted** — and §8.6–§8.8 show it is **not
   the only one**, because `lte_ml1_sm_conn_inter_freq_stm.c:712` (×2) and `a2_taskq.c:759` do too.
@@ -1164,7 +1353,7 @@ an arbitrary later time.
   edge-driven. §8.1 shows a case where the edge path is structurally unavailable and the
   fallback is what recovers the data plane. That is a point in favour of patch 814's retry
   design, and it is worth remembering that the retry has still never been needed (§11.4).
-* **The instrument lessons — six of this doc's corrections are reasoning errors, and all six
+* **The instrument lessons — seven of this doc's corrections are reasoning errors, and all seven
   were cheap to check.** §3 and §7.3 are cases of *looking in the wrong place for the right
   quantity*: the console was in pstore, and the watchdog is a quiesce instrument. §8.3 is a case
   of *reading a counter's name instead of its definition*: `pc_irq_count` counts thread runs, so
@@ -1183,7 +1372,15 @@ an arbitrary later time.
   §6's attribution feel mechanistic was itself an artefact — the resume's timing, not A's — and
   it took one fatal with a 15 s resume delay to expose it. **A stable latency is not evidence of
   a causal link; it is a second correlation, and it can be even more misleading than the first
-  because it *feels* like a mechanism.** The first two lessons are in the corpus's existing trap
+  because it *feels* like a mechanism.** **★ §8.9 adds the seventh, and it is the cheapest of
+  all: *a negative result is only as wide as the window you looked in*.** "No resume in the
+  window" was true of a 2.5 s window and false of a 25 s one, and the two statements sat in the
+  same document 60 lines apart (§8.6.1 vs §8.6.2) without anyone noticing. **The window is part
+  of the claim, and a claim about absence must state its window — and then be re-run at a window
+  chosen for the mechanism's expected timescale, not for convenience.** The fix here was not a
+  better reading of the same records; it was a **census** — count every event in the capture
+  instead of inspecting five hand-picked intervals. **When the question is "how often", do not
+  answer it from windows.** The first two lessons are in the corpus's existing trap
   list; the rest were added to it (memory: `feedback_read_the_definition_not_the_name.md` §7–§8,
   and the coverage/alignment rule in `feedback_scoring_live_captures.md`).
 
@@ -1193,19 +1390,34 @@ an arbitrary later time.
 
 1. **The sampler is still running on boot `59d9c272`; fatal #10 is due ≈ 7519 s** (the device was
    at 6964.89 s and `pc_timeout_count` 6 when this was written). Pull `/tmp/pcfine.txt` again
-   before any reboot; it holds §8.4's orphan timeout, §8.5's calibration pairs and §8.6–§8.8's
-   fatals #7–#9. H3 is settled at n = 6 live-boot A cases, so further A fatals are **confirmatory
-   only** — what is still missing is a `common_timer` → **B** case measured with the fixed key
-   (§11.8).
-2. **★ The highest-value open question is now the resume trigger, and fatal #9 makes it
-   scorable (§11.9).** §8.6–§8.8 reduced the timeout to "a resume whose vote changes nothing",
-   but what makes a resume occur is unknown. Four A fatals (#4, #7, #8, #9) were ACTIVE at the
-   fatal and they split two ways on whether a resume followed. The prediction to test is that a
-   resume is triggered by the SSR's own traffic/PM churn, so **an A fatal arriving during a busy
-   window should be less likely to time out than one arriving during an idle window**. That is
-   measurable from the captures already in hand (the `rx_callbacks` slope in the seconds before
-   each fatal) and should be **scored on the existing nine A cases before** any new run — with
-   the honest caveat that n = 9 is small and a null result would not settle it.
+   before any reboot; it holds §8.4's orphan timeout, §8.5's calibration pairs, §8.6–§8.8's
+   fatals #7–#9 **and §8.9's 230-resume census**. H3 is settled at n = 6 live-boot A cases, so
+   further A fatals are **confirmatory only** — what is still missing is a `common_timer` → **B**
+   case measured with the fixed key (§11.8).
+2. **★ §8.9's `since_susp` band is the new highest-value question, and it must be CONFIRMED, not
+   re-tuned.** §8.6–§8.8 reduced the timeout to "a resume whose wait is not completed"; §8.9 then
+   measured *which* resumes those are — 4 of 230 — and the only clean separator found is the time
+   since the previous suspend: **4/4 timeouts at ≤ 1.22 s, 0/137 above 1.25 s**. That cut was
+   chosen **from this boot's data**, so it is exploratory and must be tested against a fixed
+   threshold. Pre-registration, before the next capture is scored:
+
+   * **P-R1.** With the cut **fixed at 1.25 s**, a resume with `since_susp ≤ 1.25 s` is more
+     likely to time out than one with `since_susp > 1.25 s`. Score every resume in the capture,
+     not just the fatal windows. The informative half is the **negative**: at ~1 resume / 16.6 s,
+     **300 late resumes needs ~5000 s (~83 min)**, which is what it takes to bound the
+     outside-band rate below 1 % (rule of three). One more boot of this length should supply it.
+   * **P-R2.** Report the two classes **separately**, because §8.9's four events are not one
+     mechanism: `pl = 0` / `td = 1` (the teardown window — the line is low, so nothing can ack)
+     versus `pl = 1` / `td = 0` (the suspend race — the modem is healthy). A band that spans both
+     is a coincidence until they are separated. **P-R2 is the more likely of the two to be
+     falsified**, and it should be scored first.
+   * **P-R3.** The **~15–17 s recovery resume** is present after all five A fatals here
+     (+14.85 … +17.46 s) and never times out (0/5). Test it on the retrospective boot's 17
+     fatals and on every new A fatal: **it should be present in ≥ 90 % of them**. If it is, then
+     "the ~17 s event" of §8.6.2/§8.7 is a **resume**, and the resync trailing it is downstream.
+
+   The prediction this **replaces** — the busy/idle cut of §11.9 — is already falsified in its
+   mechanism and should not be scored again as if it were live.
 3. **Fix the sampler's clock before the next long run** (§8.5.1): read `/proc/uptime` *after* the
    telemetry file, or read it both before and after and record the bracket. That turns a ~73 ms
    systematic error into a ~22 ms bounded one and removes the ambiguity in "the last record
