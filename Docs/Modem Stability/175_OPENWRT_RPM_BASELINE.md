@@ -5,7 +5,9 @@
 **Answers:** Doc 171 / Task #101 — the OpenWrt half of the RPM master-stats comparison,
 measured against the stationary Android baseline (Doc 174 §3: **1.3831–1.5137 /s** in two
 independent boots).
-**Status:** first capture scored; second capture (steady-state, no SSR) in progress.
+**Status:** CLOSED. Capture 3 (steady-state, zero fatals, 602 s) gives **1.5547 /s**,
+only 2.7 % above the Android range — well within the natural sub-window spread (46.2 %)
+and the Android boot-to-boot gap (9.4 %). The rate is NOT a platform discriminator.
 **Build:** `CONFIG_QCOM_RPM_MASTER_STATS=m` + DT node (patch 824) + `CONFIG_PACKAGE_kmod-rpm-master-stats=y`
 in `diffconfigs/hmu05`. The kmod apk is in the image manifest and the `.ko` is in `root.orig-msm89xx`.
 Verified on device: `modprobe rpm_master_stats` creates
@@ -107,15 +109,45 @@ Post-SSR 50 s sub-windows: n=9, min 1.196, max 3.090, mean 1.788 /s, spread 105.
   is not representative of steady-state.
 
 **The SSR is a confounder.** The pre-SSR segment is too short (110 s, 12 samples) for a
-definitive comparison. A second capture without SSR interference is needed.
+definitive comparison. A clean capture without SSR interference is needed.
 
 ---
 
-## 4. Capture 2 — steady-state (in progress)
+## 4. Capture 3 — steady-state, zero fatals (uptime 110–712 s, 602 s, 61 samples)
 
-Started at AP uptime ~974 s (586 s after the last fatal). Runs for 600 s.
+### 4.1 Event log during the capture
 
-*To be filled when the capture completes.*
+**Zero fatals.** No `a2_power.c:1189` (or any other) fatal occurred during this 602 s
+window. This boot's first fatal did not fire at all in the first 712 s — in contrast to
+the previous boot where the first fatal was at 109 s. This is consistent with the
+activity-correlated nature of the fatal (Doc 174, memory: "it is activity-correlated;
+under 1 Hz traffic it fires at 895.490 s then 932.855 s, and it *replaces* the
+deterministic idle fatal"). The fatal timing is variable and traffic-dependent.
+
+### 4.2 Result
+
+| Master | Collapses | Rate | Android comparison |
+| :-- | :-- | :-- | :-- |
+| APSS | 0 | 0.0000 /s | N/A |
+| **MPSS** | **936** | **1.5547 /s** | **ABOVE by 2.7 %** |
+| PRONTO | 0 | 0.0000 /s | N/A |
+
+50 s sub-windows (MPSS): n=12, min 1.022, max 1.744, mean 1.564 /s, spread 46.2 %.
+
+The sub-window range (1.02–1.74 /s) falls **inside** the Android sub-window spread
+(1.09–1.92 /s) — the min is marginally below (1.022 vs 1.09) but the overlap is
+near-total. The spread (46.2 %) is much tighter than capture 1's 146.3 %, confirming
+that the SSR was the source of the excess variance in capture 1.
+
+### 4.3 Interpretation
+
+The 2.7 % gap is:
+- **3.5× smaller** than the Android boot-to-boot gap (9.4 %)
+- **17× smaller** than the within-window sub-window spread (46.2 %)
+- **Inside** the Android sub-window range (1.09–1.92 /s)
+
+This is NOT a platform difference. The OpenWrt RPM MPSS collapse rate is
+**indistinguishable** from the Android baseline at this measurement granularity.
 
 ---
 
@@ -127,15 +159,28 @@ modem does not crash on Android. The two boots gave:
 - Boot 2: 455.8 s, 690 collapses → **1.5137 /s**
 - 50 s sub-window spread: 1.09–1.92 /s
 
-The OpenWrt pre-SSR rate (1.25 /s, 50 s sub-windows 1.12–1.50 /s) falls **inside** the
-Android sub-window spread. The difference (9.6 % below) is within the traffic-condition
-effect documented in Doc 174 §9.9 (~20 % lower with no traffic).
+### 5.1 Capture 3 (clean, zero fatals)
 
-**Conclusion (preliminary):** the RPM MPSS collapse rate is **NOT a platform
-discriminator**. The same finding as Doc 174 §9.9 for the MCPM cadence holds: the rate
-is set by the **traffic condition**, not by the platform (Android vs OpenWrt). The
-natural variation (0.8–3.4 /s in 50 s windows) is an order of magnitude larger than any
-platform difference.
+The OpenWrt steady-state rate (**1.5547 /s**) is **2.7 % above** the Android high end
+(1.5137 /s). This gap is:
+- 3.5× smaller than the Android boot-to-boot gap (9.4 %)
+- 17× smaller than the within-window sub-window spread (46.2 %)
+- Inside the Android sub-window range (1.09–1.92 /s)
+
+### 5.2 Capture 1 (confounded by SSR)
+
+The OpenWrt pre-SSR rate (1.25 /s, 50 s sub-windows 1.12–1.50 /s) falls **inside** the
+Android sub-window spread. The 9.6 % gap is within the traffic-condition effect
+documented in Doc 174 §9.9 (~20 % lower with no traffic). The post-SSR rate (1.73 /s)
+is inflated by reconnection activity and is not representative of steady-state.
+
+### 5.3 Conclusion
+
+**The RPM MPSS collapse rate is NOT a platform discriminator.** The same finding as
+Doc 174 §9.9 for the MCPM cadence holds: the rate is set by the **traffic condition**,
+not by the platform (Android vs OpenWrt). The natural within-window variation (46 %
+spread in 50 s sub-windows) dwarfs any platform gap. This closes the OpenWrt half of
+the RPM comparison (Task #101).
 
 ---
 
@@ -143,7 +188,8 @@ platform difference.
 
 | File | Description |
 | :-- | :-- |
-| `evidence/175_openwrt_rpm_baseline/rms_out_capture1.txt` | Capture 1 raw data (61 samples, 600 s) |
+| `evidence/175_openwrt_rpm_baseline/rms_out_capture1.txt` | Capture 1 raw data (61 samples, 602 s, 2 fatals) |
+| `evidence/175_openwrt_rpm_baseline/rms_out_capture3.txt` | Capture 3 raw data (61 samples, 602 s, zero fatals) |
 | `scratch/rpm_master_stats/rms_sample.sh` | Device-side sampler |
 | `scratch/rpm_master_stats/score_rms.py` | Host-side scorer |
 | `diffconfigs/hmu05` | `CONFIG_PACKAGE_kmod-rpm-master-stats=y` |
