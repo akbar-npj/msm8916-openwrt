@@ -252,12 +252,20 @@ registration has never been measured *without* MM gating it, so it is possible t
    unidentified. The lead is `src/mm-shared-qmi.c:4108` (`setup_sim_hot_swap_step`), a chain of
    QMI UIM requests each issued with a **10-second** timeout
    (`qmi_client_uim_register_events`, `qmi_client_uim_get_slot_status`,
-   `qmi_client_uim_refresh_register_all`), any of which could be expiring or being retried. This
+   `qmi_client_uim_refresh_register_all`), any of which could be expiring or being retried.    This
    is a lead, not a mechanism — the step-level logging is at `mm_obj_dbg`, which INFO suppresses.
    The build therefore adds a **file-gated `LOG_LEVEL`** to the init script
-   (`/etc/modemmanager-log-level`, default INFO) so DEBUG can be enabled on the device for the
-   soak without a rebuild. `/var` is a symlink to `/tmp` (verified on the device), so the DEBUG
+   (`/etc/modemmanager-log-level`, default INFO) so DEBUG can be enabled on the device
+   **without a rebuild**. `/var` is a symlink to `/tmp` (verified on the device), so the DEBUG
    log file is tmpfs-backed and cannot fill the overlay.
+
+   **⚠ DEBUG must NOT be enabled during the timing soak.** ModemManager's logging is not free,
+   and enabling it would perturb the very intervals P-MM1 and P-MM3 measure — the test would
+   then differ from its control in two ways at once. The ordering is therefore: **soak at INFO
+   first** (matching the pre-fix control exactly, so the timing comparison has no confound), and
+   only afterwards enable DEBUG for one **bounded window** to catch the `setup_sim_hot_swap`
+   steps. That second run is a separate measurement and must be labelled as one; it does not
+   contribute to P-MM1/P-MM2/P-MM3.
 2. **The SSR 6 GNSS stall.** One occurrence in 11, correlating exactly with an 11-second gap. Not
    a mechanism at n = 1, and it is the sole reason the pre-fix `add → Interface up` distribution
    has a 25 s tail. Do not generalise it.
@@ -298,8 +306,14 @@ registration has never been measured *without* MM gating it, so it is possible t
 2. **Verify the patch actually landed** before flashing — read the built
    `build_dir/.../modemmanager-1.24.0/src/mm-plugin-manager.c` and confirm the four constants.
    A package patch that silently does not apply is the failure mode this corpus has hit before.
-3. Soak, then score **P-MM1/P-MM2/P-MM3** from the MM INFO log at **n ≥ 11 SSRs** (P-MM2 needs the
-   full count; P-MM1 is informative at 5) and **P-W1/P-W2/P-W3** from the sampler at the pre-registered
-   n. Report the two parts separately.
-4. With DEBUG enabled, identify the 5-second `setup_sim_hot_swap` step from the step-numbered
-   `mm_obj_dbg` lines, then decide whether it is a second patch or a redesign.
+3. Soak **at the default INFO level** — so the test differs from its control in exactly one way —
+   then score **P-MM1/P-MM2/P-MM3** with
+   `evidence/112_bam_reinit_ab/score_mm_phases.py` at **n ≥ 11 SSRs** (P-MM2 needs the full count;
+   P-MM1 is informative at 5) and **P-W1/P-W2/P-W3** from the sampler at the pre-registered n.
+   Report the two parts separately. The scorer is already calibrated: run against the **pre-fix**
+   capture it reproduces every frozen number (medians 4/5/2/5/16 s, the SSR-6 11 s and 25 s
+   outliers, 9/9 ports) and returns P-MM1 FALSIFIED / P-MM2 CONFIRMED / P-MM3 FALSIFIED, which is
+   the correct verdict set for an unpatched boot.
+4. **Only then**, in a separate bounded window, enable DEBUG (`/etc/modemmanager-log-level`) to
+   identify the 5-second `setup_sim_hot_swap` step from the step-numbered `mm_obj_dbg` lines, and
+   decide whether it is a second patch or a redesign. Do not mix this window into step 3.
