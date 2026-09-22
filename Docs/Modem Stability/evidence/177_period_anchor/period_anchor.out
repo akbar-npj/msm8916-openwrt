@@ -1,0 +1,37 @@
+
+=== CORPUS boot 2026-09-20 (Doc 149 s2, n=3) ===
+     fatal_i  R=boot-fatal_i  T=fatal_next-boot       AP=R+T
+ 1818.443149        1.364016         902.310822   903.674838
+ 2722.117987        1.393326         902.281493   903.674819
+ 3625.792806        1.464316         902.209880   903.674196
+  n=3
+     R recov: mean=1.407219  sd=0.051573  spread=0.100300  ppm=36648.99
+   T modemup: mean=902.267398  sd=0.051926  spread=0.100942  ppm=57.55
+      AP int: mean=903.674618  sd=0.000365  spread=0.000642  ppm=0.40
+  corr(R,T) = -1.00000
+  T-invariant would predict sd(AP)=sd(R)=0.051573  -> observed sd(AP)=0.000365  (ratio 0.007)
+  AP-invariant would predict sd(T)=sd(R)=0.051573  -> observed sd(T)=0.051926  (ratio 1.007)
+
+=== LIVE boot 2026-09-22 (n=5) ===
+     fatal_i  R=boot-fatal_i  T=fatal_next-boot       AP=R+T
+ 1427.099153        0.898477         902.776110   903.674587
+ 2330.773740        0.900766         902.774262   903.675028
+ 3234.448768        0.902016         902.768931   903.670947
+ 4138.119715        0.897244         902.781208   903.678452
+ 6852.985676        0.900868         902.776148   903.677016
+  n=5
+     R recov: mean=0.899874  sd=0.001952  spread=0.004772  ppm=2169.13
+   T modemup: mean=902.775332  sd=0.004414  spread=0.012277  ppm=4.89
+      AP int: mean=903.675206  sd=0.002845  spread=0.007505  ppm=3.15
+  corr(R,T) = -0.88205
+  T-invariant would predict sd(AP)=sd(R)=0.001952  -> observed sd(AP)=0.002845  (ratio 1.457)
+  AP-invariant would predict sd(T)=sd(R)=0.001952  -> observed sd(T)=0.004414  (ratio 2.261)
+
+=== CROSS-BOOT (same modem firmware, 2 days apart, kernel changed) ===
+  AP interval  : corpus 903.674618 s  live 903.675206 s  -> 0.65 ppm
+  T (modem up) : corpus 902.267398 s  live 902.775332 s  -> 563 ppm
+  R (recovery) : corpus 1.407219 s  live 0.899874 s  -> delta +0.507345 s
+
+  The AP interval is a ~1 ppm physical constant across the two boots.
+  The 'modem-uptime period' moves by 563 ppm -- it is exactly 903.675 - R.
+  => Doc 149 s2 ('the period is MODEM uptime, not AP uptime') is INVERTED.
