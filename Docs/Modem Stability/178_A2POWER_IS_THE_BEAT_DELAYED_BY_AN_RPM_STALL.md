@@ -4,9 +4,11 @@
 **Device:** HMUF02-v5 ("hmu05"), OpenWrt 6.12.94, stock HMU05 modem firmware
 **Answers:** Doc 177 §7 **P1** (pre-registered: the next fatal lands at
 `prev_fatal + 903.675 ± 0.005 s`) — and **P1 was NOT met**.
-**Status:** MEASURED, n = 1. A striking, exact correlation with a plausible mechanism,
-**not** an established result: the control shows RPM-log stalls are routine, and the
-instrument cannot be fully cleared of causing the regime change.
+**Status:** MEASURED, n = 1. A striking, exact correlation — and a **rate-based control that
+finds nothing like it** (the control never drops below **3 637 words/s** in 1 451 s; this
+capture drops to **22**). Not an established *mechanism*: n = 1, and the direction (cause vs
+consequence) is undetermined. Doc 170 §8.20's contrary conclusion is addressed in §4 — it
+rested on a gap-based measure that §8.20(b) itself declared invalid for this bursty log.
 
 ---
 
@@ -81,36 +83,48 @@ not fit, so H1 cannot be the whole story — but the positive end does.
 
 ---
 
-## 4. The control, and why this is not yet established
+## 4. The control — and why the *rate* measure, not the *gap* measure, is the right one
 
-A second capture (`rpm11`, 2026-09-21, 1451 s, same analyser) shows **RPM-log stalls > 2 s
-are routine**:
+**Doc 170 §8.20 ran this experiment before me and concluded the opposite:** *"the RPM stall is
+an independent, recurring, self-recovering modem-side event … NOT the fatal's mechanism."*
+It reached that from **gap** statistics — the nearest preceding quiet ≥ 1 s before each of its
+fatals #9/#10/#11 was **1.268 / 1.145 / 3.141 s**, i.e. that era's normal cadence.
 
-| capture | batches | span | median gap | gaps > 2 s | time in >2 s gaps | max gap |
-| :-- | --: | --: | --: | --: | --: | --: |
-| LIVE (fatal #10) | 819 | 404.5 s | 104.0 ms | **7** | 76.9 s (**19.0 %**) | **25 997 ms** |
-| CONTROL (rpm11) | 7627 | 1451.0 s | 31.8 ms | **161** | 564.5 s (**38.9 %**) | 13 264 ms |
+**But Doc 170 §8.20(b) itself warns that this measure is invalid:** *"the RPM's log is
+**BURSTY** (so 'quiet' ≠ 'stall'; the cadence must be measured per era, and **50.5 % of the
+capture is inside a ≥ 0.5 s gap**)."* A "nearest quiet period" test cannot see a *rate*
+collapse, and a bursty log manufactures large gaps as a matter of course.
 
-So a multi-second RPM quiet period is **normal**, and the control is *more* stalled overall
-than the live capture. What is **not** normal in the live capture is the **concentration**:
+The burstiness-robust measure is the **write rate from the ring's own counter** (header
+`+0x38`), which is authoritative and immune to ring overruns — the live capture logs
+**26 `# TRACK OVERRUN` lines**, yet the counter still counts every write. Rate = Δcounter / Δt
+over 30 s bins:
 
-* **78 % of the live capture's stall time sits in the single 60 s window that brackets the
-  fatal** (58.3 s of 76.9 s).
-* The control's largest stalls are **spread** (6469.8, 7044.2, 6563.6, 6357.1, 7143.0,
-  6938.5 s — no two adjacent).
-* The live's 25 997 ms gap is **2.0× the control's maximum** (13 264 ms), on 3.6× less span.
+| capture | usable 30 s bins | median | p5 | **min** | bins < 200 words/s |
+| :-- | --: | --: | --: | --: | --: |
+| LIVE (fatal #10) | 14 | 5 081 | **22** | **22** | **1 / 14** |
+| CONTROL (`rpm11`, 2026-09-21) | 48 | 9 513 | 6 529 | **3 637** | **0 / 48** |
 
-**Two things this does NOT establish, and they matter:**
+**The control never drops below 3 637 words/s in 1 451 s. The live capture drops to
+22 words/s — a 165× lower floor — in exactly one bin, the one containing the fatal.** On the
+*gap* measure the control looks *more* stalled (38.9 % of its span in >2 s gaps, max 13 264 ms,
+vs the live's 19.0 % and 25 997 ms); on the *rate* measure it is nowhere near.
 
-1. **n = 1.** One fatal with one stall. The correlation is exact to ~1.4 s and ~0.2 s, which
-   is why it is worth recording — but a single instance cannot separate "the stall causes the
-   delay" from "the stall is part of the same failure".
-2. **The instrument is not cleared.** The capture reads `/dev/mem` every 50 ms for 404 s, and
-   the modem woke at 8543.6 — **133 s into the capture**. The wake is not at the capture's
-   start, which argues against a start transient, but a sustained-polling effect is not
-   excluded. **A capture that runs the identical instrument through an idle window with NO
-   fatal is the control that would settle it** (the control here used a different poll
-   interval, 4 ms, and a different boot).
+**So Doc 170 §8.20's negative is not confirmed by a better version of its own test — it is
+replaced by one that can see the event.** (Its fatals were also not clean clock beats: #10
+landed **182.736 s** after #9, mid-cascade, so H1 predicts *no* stall for them either.)
+
+### What still does NOT follow
+
+1. **n = 1.** One fatal, one collapse. The rate control is decisive that the collapse is
+   *anomalous*; it is **not** evidence about *direction* — cause, consequence, or common cause.
+2. **The instrument is not formally cleared.** The live capture polled `/dev/mem` every 50 ms;
+   the control every 4 ms — so the *less* intrusive capture is the one that collapsed, which
+   argues the polling is not the cause. But they are also different boots. **P3′ (a 50 ms
+   capture through a window with NO fatal) is the clean control**, and is running.
+3. **A competing reading of the same numbers.** The collapse could be the *consequence* of the
+   failing assert path rather than its cause. H1 does not require a direction; P2′ tests the
+   *correlation* (`excess ≈ stall`), which is what the data can actually decide.
 
 ---
 

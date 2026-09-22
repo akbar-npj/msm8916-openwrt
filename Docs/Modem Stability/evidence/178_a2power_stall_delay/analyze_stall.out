@@ -10,6 +10,11 @@
         8975.3 ms    8741.022 ->  8749.997 s
         4937.2 ms    8714.306 ->  8719.243 s
         4585.8 ms    8658.929 ->  8663.515 s
+  RATE 30s bins: n=14  median=5081  p5=22  min=22 words/s   bins<200: 1
+     lowest:       22 words/s  bin t=8680.6 s
+     lowest:     4503 words/s  bin t=8530.6 s
+     lowest:     4629 words/s  bin t=8650.6 s
+     lowest:     4989 words/s  bin t=8410.6 s
 
 === CONTROL 2026-09-21 (rpm11) ===
   batches=7627  span=1451.0 s  (6343.3 -> 7794.3)
@@ -23,6 +28,11 @@
         6827.9 ms    6938.471 ->  6945.299 s
         6361.4 ms    6628.010 ->  6634.371 s
         5992.1 ms    7221.856 ->  7227.848 s
+  RATE 30s bins: n=48  median=9513  p5=6529  min=3637 words/s   bins<200: 0
+     lowest:     3637 words/s  bin t=6613.3 s
+     lowest:     5525 words/s  bin t=6343.3 s
+     lowest:     6529 words/s  bin t=6463.3 s
+     lowest:     7400 words/s  bin t=7573.3 s
 
 ====================================================================
 FATAL #10 vs the Doc 177 clock

@@ -48,10 +48,32 @@ def report(name, n, thresh_s=2.0):
     return gaps
 
 
+def rate_profile(name, n, binw=30.0, mincov=0.5):
+    """Burstiness-robust: RPM write rate = dcounter/dt per bin (counter is authoritative
+    even across ring overruns -- Doc 170 s8.20(b) declares the GAP measure invalid)."""
+    t0 = n[0][0] / 1e9
+    bins = {}
+    for i in range(1, len(n)):
+        dt = (n[i][0] - n[i - 1][0]) / 1e9
+        dc = (n[i][1] - n[i - 1][1]) & 0xffffffff
+        b = int((n[i][0] / 1e9 - t0) // binw)
+        a, w = bins.get(b, [0, 0.0])
+        bins[b] = [a + dc, w + dt]
+    rates = [(a / w, t0 + b * binw) for b, (a, w) in sorted(bins.items()) if w > binw * mincov]
+    r = sorted(x[0] for x in rates)
+    print(f"  RATE {binw:.0f}s bins: n={len(r)}  median={st.median(r):.0f}  p5={r[int(.05*len(r))]:.0f}"
+          f"  min={r[0]:.0f} words/s   bins<200: {sum(1 for x in r if x < 200)}")
+    for rate, t in sorted(rates)[:4]:
+        print(f"     lowest: {rate:8.0f} words/s  bin t={t:.1f} s")
+    return rates
+
+
 live = load(os.path.join(HERE, "rpm_track_fatal10.txt.gz"))
 ctrl = load(os.path.join(HERE, "rpm_control_rpm11.txt.gz"))
 report("LIVE 2026-09-22 (fatal #10)", live)
+rate_profile("LIVE 2026-09-22 (fatal #10)", live)
 report("CONTROL 2026-09-21 (rpm11)", ctrl)
+rate_profile("CONTROL 2026-09-21 (rpm11)", ctrl)
 
 print("\n" + "=" * 68)
 print("FATAL #10 vs the Doc 177 clock")
