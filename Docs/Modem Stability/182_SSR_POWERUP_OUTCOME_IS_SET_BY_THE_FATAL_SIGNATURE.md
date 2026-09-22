@@ -10,6 +10,13 @@ The two timeout-free A cases falsify §6; the 18.7 s Δ kills its latency argume
 that **every A fatal does resume** (~15–17 s later, 0/5 timing out), so §8.6/§8.7's "no resume"
 was a **window-length artifact**; only **4 of 230** resumes time out, and all four are within
 **1.22 s** of a suspend.
+**⚠ SUPERSEDED IN PART BY DOC 183** (`183_PR1_CONFIRMED_PR2_PR3_FALSIFIED_AND_THE_PREDICTORS_SCORE_18_OF_19.md`),
+which pulls the same boot again 4413 s later and scores §13's three pre-registered predictions.
+**P-R1's direction replicates** (19/25 at 76.0 % vs 6/25 at 24.0 %, p = 0.000280) but its strong
+form fails; **P-R2 and P-R3 are falsified**. The outcome table's perfect split collapses
+(**p = 0.00042 → 0.153846**), the A/B → timeout correlation weakens (**p = 0.00000796 → 0.012384**),
+and P1/P3 score **18/19** each, failing on different cases. **Every affected section below carries
+an inline ⚠ correction block; read those before citing a number from this doc.**
 **Patch under test:** `msm89xx/patches/808-bam-dmux-stats.patch` (2000 ms pc-ack wait arm),
 plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 **Deployed module:** `qcom_bam_dmux.ko` md5 `982b633e2a682e21ad69b6e85d273941`
@@ -207,6 +214,20 @@ common_timer:390    0   13
 **Fisher exact, one-sided p = 0.00042017; two-sided p = 0.00042017.** (The two coincide, as
 they must for a perfect table.)
 
+**⚠ CORRECTION (Doc 183 §4) — the split does not survive a longer run.** The same boot, pulled
+again 4413 s later (21 fatals instead of 17, with the two new signatures), gives:
+
+```
+                    A    B
+a2_power.c:1189    11    1     <- the 1 is fatal #23 (11276.393334)
+common_timer:390    0    1
+```
+
+**Fisher p = 0.153846.** `a2_power.c:1189` produced a **B**, and `a2_task.c:3179` — a signature that
+did not exist when this section was written — produced **B 3/3**. The paragraph below ("the
+signature is only a correlate") was right; this capture supplies the counter-example it was
+missing. **Do not cite 0.00042.** See Doc 183 §4 for the full 21-fatal table.
+
 **The association is perfect and the split is clean.** `a2_power.c:1189` → A, 4/4.
 `lte_ml1_common_timer.c:390` → B, 13/13. **Outcome C never occurred in this boot.**
 
@@ -291,6 +312,7 @@ Fisher exact one-sided p = **0.00000796** (it was 0.00000092 for the perfect tab
 association survives — it is still very strong — but **"A guarantees the timeout" is dead**, and
 with it the re-attribution below. **Doc 181 §6's original `a2_power` attribution and this
 section's A-attribution were both reading a correlate**: the true antecedent is a
+
 `bam_dmux_runtime_resume()` whose wait is never completed (§8.6), and §8.8.1 demonstrates it
 *within a single window*.
 
@@ -315,6 +337,21 @@ resume were ever waiting *through* the A rebuild), not the measured one.
 the A line (#5, #6) — **and by 18.7 s in the one case where it happened after (#9)**, which is
 why the Δ is not a property of A at all (§8.8.2). In the two A cases with no timeout, **no resume
 occurred anywhere in the window** (§8.6, §8.7). That is the whole difference.
+
+**⚠ CORRECTION (Doc 183 §4.1) — the sentence above about #7/#8 is a window-length artifact.**
+Every A fatal in the extended capture **does** resume, at **+14.85 … +19.34 s**; #7 and #8 are no
+exception (§8.9's correction block, and Doc 183 §7). And the correlation weakens further on the
+longer run:
+
+```
+A: timeout 11   none 5
+B: timeout  0   none 5
+Fisher one-sided p = 0.012384
+```
+
+**p = 0.012384**, against the 0.00000796 quoted above. The direction survives — no B fatal has ever
+produced a timeout, in either boot — but this is now a **weak correlation**, not a near-perfect one.
+**Do not cite 0.00000796.** The `9/11 vs 0/17` in §6.2 should be read as `11/16 vs 0/5`.
 
 ---
 
@@ -1230,6 +1267,15 @@ an arbitrary later time.
    the time (the sampler shows it toggling every few seconds to ~100 s), so **a high pre-fatal
    line is weak evidence on its own; P3 — that `pc_irq_count` does not move — is the load-bearing
    prediction**, and it held on all six cases.
+   **⚠ EXTENDED AND QUALIFIED (Doc 183 §8).** P1 and P3 have now been scored over **all 19**
+   in-capture fatals (15 A, 4 B) with `score_p1p3.py`. **Both score 18/19, and they fail on
+   different cases:** P1's violation is fatal #23 (`a2_power.c:1189` → B from a HIGH line) and
+   P3's is fatal #21 (`a2_task.c:3179` → B with a FLAT counter). P3 is **15/15 on the A side**
+   (the load-bearing half holds) but is **not sufficient** for A. P4 is only **2/4**. So the
+   mechanism survives as a **correlate at 18/19**, not as the confirmed rule this item states.
+   §11.8's "the B case has never been measured with the fixed key" is also closed — four B cases
+   now exist, and they falsify **P2's `pc_state = 0` clause**: `pc_state` was 1 before all 19
+   fatals. The discriminator is the **line**, not the driver's cached state.
 2. **The sampler's `<UP>` label carries a ~73 ms systematic error (§8.5.1).** Measured on 10
    co-observed pairs of three independent event types: 0.0624 – 0.0806 s, mean 0.0729 s. So
    sampler timestamps may **not** be compared to dmesg timestamps at better than ~±60 ms, and
@@ -1274,6 +1320,13 @@ an arbitrary later time.
    `ps`/`pl` moves between counter changes (§8). A `common_timer` → B with the fixed key is the
    one remaining measurement that would close the asymmetry, and it has not arrived in **six**
    consecutive A fatals.
+   **⚠ CLOSED (Doc 183 §8.1) — and closing it broke P2.** The extended capture supplies **four** B
+   cases with the fixed key (fatal #16 `a2_task.c:3179`, #18 `a2_task.c:3179`, #21
+   `a2_task.c:3179`, #23 `a2_power.c:1189`). None is a `common_timer` case, so the *original*
+   asymmetry is still unmeasured — but the four that arrived falsify **P2's `pc_state = 0` clause**:
+   `pc_state` was **1 in the last pre-fatal record of all 19 fatals**, A and B alike, so no
+   in-capture B fatal could satisfy it. P2's `pc_line = 0` half holds **3 of 4**; the exception is
+   fatal #23. P2's only hit remains this item's stale v1 record. See Doc 183 §8.1/§11.5.
 9. **~~What triggers the resume is still not established.~~ RESOLVED by §8.9, and the
    pre-registered busy/idle test is FALSIFIED in its mechanism.** The census answers the question
    and corrects this item's premise: **all five A fatals resume** (at +14.85 … +17.46 s, 0/5
@@ -1296,6 +1349,11 @@ an arbitrary later time.
     **all five** A fatals at +14.85 … +17.46 s, which makes "the ~17 s event" a *resume*, with the
     resync trailing it by 0.2–0.7 s. The offset is therefore a property of whatever schedules the
     recovery resume, not of the resync.
+    **⚠ CORRECTED (Doc 183 §10) — the resync does not trail the recovery resume.** With **83**
+    resyncs now in the capture (was 2), only **2 of 19** fatals have a resync within 0.2 s of their
+    recovery resume (+0.19 s and +0.11 s); the other 17 are **12 s to 1827 s** later. §8.6.2's
+    0.10 s pairing was a coincidence, and this removes one of the two supports for the §8.9
+    hypothesis in the paragraph above. The resume and the ~15 s quiet period are unaffected.
 11. **The resume census is one boot, and its central number is a single-digit count.** §8.9's
     230 resumes and 4 timeouts are from **one** capture (boot `59d9c272`, 3821 s); the 4/4 vs
     0/137 split rests on **four** events, and the 1.25 s cut was chosen *after* seeing them. Two
@@ -1304,6 +1362,15 @@ an arbitrary later time.
     separation with a data-chosen threshold is a **lead**, and the honest bound is the negative
     half: **0 of 137 late resumes timed out, i.e. the rate outside the band is < 2.2 % (95 %,
     rule of three)**. Nothing here says the band *causes* the timeout.
+    **⚠ SUPERSEDED (Doc 183 §5/§6) — the census has been extended and the two-mechanism story is
+    falsified.** The same boot now supplies **717 resumes and 25 timeouts** over 8234 s. P-R1 was
+    scored against the **fixed** 1.25 s cut: **19/25 (76.0 %) vs 6/25 (24.0 %), p = 0.000280** —
+    the direction replicates, but **6 of 25 timeouts are outside the band**, so this is a **rate,
+    not a boundary**. P-R2 is **falsified**: the teardown class covers 4 of 25 and the race class
+    13, leaving **8 of 25 outside both**, and the race class has **no signal** (p = 0.997023). The
+    negative half is now **measured, not bounded**: 6 of 426 late resumes timed out = **1.41 %**,
+    95 % CI **[0.65 %, 3.04 %]** — a *looser* upper bound than the rule-of-three 2.2 % above,
+    because this run observed six events where the earlier one observed none.
 
 ---
 
@@ -1387,6 +1454,16 @@ an arbitrary later time.
 ---
 
 ## 13. Next actions
+
+**⚠ SCORED (Doc 183) — the three predictions below were scored against the extended capture, and
+two of them failed.** Results, in the order they were pre-registered: **P-R1 direction CONFIRMED**
+(19/25 at 76.0 % vs 6/25 at 24.0 %, p = 0.000280) but its strong form **FALSIFIED** (6 of 25
+timeouts outside the band); **P-R2 FALSIFIED** (8 of 25 timeouts outside both classes; the race
+class p = 0.997023); **P-R3 FALSIFIED as pre-registered** (11/19 = 58 % against a ≥ 90 % bar;
+post-hoc `+14..+25 s` gives 19/19 but is exploratory). Item 2's cut was **not** re-tuned, which is
+the only reason the P-R1 replication means anything. See Doc 183 §5–§7 for the scoring and §13 for
+what to pre-register next. The items are kept below as written, so the prediction and its result sit
+next to each other.
 
 1. **The sampler is still running on boot `59d9c272`; fatal #10 is due ≈ 7519 s** (the device was
    at 6964.89 s and `pc_timeout_count` 6 when this was written). Pull `/tmp/pcfine.txt` again
