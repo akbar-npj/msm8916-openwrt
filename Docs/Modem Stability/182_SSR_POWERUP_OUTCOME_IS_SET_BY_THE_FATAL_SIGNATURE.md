@@ -26,10 +26,10 @@ plus the patch-814 SSR-powerup retry that produces the A/B outcome line
 | SOP step | done? |
 | :-- | :-- |
 | Comparative protocol against the stock-HMU05 ground truth | **YES** — every claim here is about the **OpenWrt port's own driver** (`qcom_bam_dmux.c`) and the modem's *reported* fatal site. No baseband was touched, and no firmware claim is made. |
-| Pre-register the prediction **before** the data exists | **PARTIAL, and the gap is stated** — §3's shortcut invalidated the pre-registration I had intended for the A/B-vs-signature association: it was read out of a console that already existed. But **H3 (§9) was registered before any A case existed on the live boot and was then confirmed by the first one to arise (§8.1)** — P1–P4, all four. The association in §5 is retrospective; the mechanism in §8.1 is not. |
-| Freeze the capture, hash it, score the frozen copy | **YES** — the pstore console was copied off the device and hashed before scoring; the scorer reads only the frozen copy. The live sampler was likewise pulled to a hashed file. |
-| Keep a control | **YES** — (a) the 13 `lte_ml1_common_timer.c:390` fatals *inside the same boot* are the control for the 4 `a2_power.c:1189` ones; (b) the 14 B outcomes are the control for the 4 A outcomes on the timeout claim; (c) the cold-boot powerup (row 1) is a no-fatal control. |
-| Verify the instrument before resting a claim on it | **YES, and it changed two conclusions** — §7.1 (the RX watchdog *has* rebuild paths, so its silence had to be checked, not assumed) and §7.2 (the modem's `CMD_OPEN` burst had to be ruled out as the rebuilder). |
+| Pre-register the prediction **before** the data exists | **PARTIAL, and the gaps are stated** — §3's shortcut invalidated the pre-registration I had intended for the A/B-vs-signature association: it was read out of a console that already existed. But **H3 (§9) was registered before any A case existed on the live boot and was then confirmed by the first one to arise (§8.1)** — P1–P4, all four. The association in §5 is retrospective; the mechanism in §8.1 is not. **§8.4 is EXPLORATORY, not pre-registered**: the orphan timeout was found by continuing to sample, and its mechanism was read off the capture after the fact. It is reported as a single occurrence for exactly that reason. |
+| Freeze the capture, hash it, score the frozen copy | **YES** — the pstore console was copied off the device and hashed before scoring; the scorer reads only the frozen copy. The live sampler was likewise pulled to a hashed file (§8.4's file is a **snapshot** taken while the sampler was still running, and the device copy keeps growing). |
+| Keep a control | **YES** — (a) the 13 `lte_ml1_common_timer.c:390` fatals *inside the same boot* are the control for the 4 `a2_power.c:1189` ones; (b) the 14 B outcomes are the control for the 4 A outcomes on the timeout claim; (c) the cold-boot powerup (row 1) is a no-fatal control; (d) **§8.4's orphan timeout is a control of a different kind — a timeout with no fatal at all**, which is what forced the §6 qualification. |
+| Verify the instrument before resting a claim on it | **YES, and it changed three conclusions** — §7.1 (the RX watchdog *has* rebuild paths, so its silence had to be checked, not assumed), §7.2 (the modem's `CMD_OPEN` burst had to be ruled out as the rebuilder), and §8.3 (the counter I had been reading as an *edge* count is a **thread-run** count). |
 | State what is *not* established | **YES** — §11 |
 
 ---
@@ -662,9 +662,15 @@ an arbitrary later time.
   edge-driven. §8.1 shows a case where the edge path is structurally unavailable and the
   fallback is what recovers the data plane. That is a point in favour of patch 814's retry
   design, and it is worth remembering that the retry has still never been needed (§11.4).
-* **The instrument lesson.** Two of this doc's three corrections (§3, §7.3) are cases of
-  *looking in the wrong place for the right quantity*: the console was in pstore, and the
-  watchdog is a quiesce instrument. Both were cheap to check and both had been assumed.
+* **The instrument lessons — four of this doc's corrections are instrument errors, and all four
+  were cheap to check.** §3 and §7.3 are cases of *looking in the wrong place for the right
+  quantity*: the console was in pstore, and the watchdog is a quiesce instrument. §8.3 is a case
+  of *reading a counter's name instead of its definition*: `pc_irq_count` counts thread runs, so
+  a flat counter is not a statement about edges. §8.4 is a case of *writing a causal gloss for an
+  anomaly without checking it against the baseline*: "the ack path is downstream of the pc irq"
+  explained both timeout windows and is refuted by ordinary operation. The first two are in the
+  corpus's existing trap list; the second two were added to it (memory: `feedback_read_the_definition_not_the_name.md`
+  §7).
 
 ---
 
