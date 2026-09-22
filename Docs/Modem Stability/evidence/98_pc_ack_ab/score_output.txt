@@ -1,0 +1,69 @@
+file   : pc_ack_ab_frozen_20260922_170554.csv
+samples: 1143   uptime 108.4 .. 11584.3 s  (11475.9 s, 3.19 h)
+final  : pc_timeout_count=3 pm_resume_attempts=185
+
+== per-fatal table (2000 ms arm) ==
+ #     fatal t                  signature  resumes  timeout   delta
+ 1     524.212            a2_power.c:1189        2      YES   2.228
+ 2    1427.099 lte_ml1_common_timer.c:390        1        -     nan
+ 3    2330.774 lte_ml1_common_timer.c:390        1        -     nan
+ 4    3234.449 lte_ml1_common_timer.c:390        1        -     nan
+ 5    4138.120 lte_ml1_common_timer.c:390        1        -     nan
+ 6    5041.798 lte_ml1_common_timer.c:390        1        -     nan
+ 7    5949.211            a2_power.c:1189        2      YES   2.217
+ 8    6852.986 lte_ml1_common_timer.c:390        1        -     nan
+ 9    7756.663 lte_ml1_common_timer.c:390        1        -     nan
+10    8719.020            a2_power.c:1189        3      YES   2.311
+11    9622.891 lte_ml1_common_timer.c:390        1        -     nan
+12   10526.566 lte_ml1_common_timer.c:390        1        -     nan
+13   11430.242 lte_ml1_common_timer.c:390        1        -     nan
+
+fatals=13  resume-attracting=13  with a pc-ack timeout=3
+
+== the wait's start offset is invariant across the two arms ==
+250 ms arm  deltas ['0.431112', '0.581419', '0.435022', '0.445107', '0.439598', '0.440271']
+            implied wait start = delta - 250ms : 0.181 .. 0.331 s
+2000 ms arm deltas ['2.228364', '2.216787', '2.310981']
+            implied wait start = delta - 2000ms : 0.217 .. 0.311 s
+
+== significance ==
+counts      : baseline 6/13  vs  now 3/13
+Fisher exact: one-sided p=0.2055  two-sided p=0.4110  -> NOT significant
+signature   : a2_power.c:1189 3/3  vs  lte_ml1_common_timer.c:390 0/10
+Fisher exact: one-sided p=0.003497  two-sided p=0.003497  -> SIGNIFICANT
+
+== rates ==
+fatal   13/11476 s = 4.08 /h
+timeout 3/11476 s = 0.94 /h
+
+== the down-window is SHORTER than the 2000 ms wait ==
+ #       fatal     stopped          up  down(s)     timeout  d_fatal  d_after_up
+ 1     524.212     524.409     525.111 0.701875     526.440    2.228    1.328927
+ 2    1427.099    1427.298    1427.998 0.699816         nan      nan         nan
+ 3    2330.774    2330.972    2331.675 0.702067         nan      nan         nan
+ 4    3234.449    3234.648    3235.351 0.703220         nan      nan         nan
+ 5    4138.120    4138.318    4139.017 0.698639         nan      nan         nan
+ 6    5041.798    5041.997    5042.699 0.702010         nan      nan         nan
+ 7    5949.211    5949.409    5950.115 0.705928    5951.427    2.217    1.312539
+ 8    6852.986    6853.184    6853.887 0.702267         nan      nan         nan
+ 9    7756.663    7756.861    7757.567 0.705050         nan      nan         nan
+10    8719.020    8719.218    8719.917 0.698266    8721.331    2.311    1.414817
+11    9622.891    9623.090    9623.789 0.698714         nan      nan         nan
+12   10526.566   10526.765   10527.471 0.705600         nan      nan         nan
+13   11430.242   11430.440   11431.144 0.703878         nan      nan         nan
+n=13  down-window 0.698266 .. 0.705928 s  (spread 7.662 ms)
+wait = 2000 ms  ->  the wait covers the outage 2.83x over
+  fatal 524.212: timeout expires +1.328927 s AFTER `is now up`
+  fatal 5949.211: timeout expires +1.312539 s AFTER `is now up`
+  fatal 8719.020: timeout expires +1.414817 s AFTER `is now up`
+
+== the acks are ABSENT, not late ==
+frozen      (to 11584 s): votes 217 + unvotes 217 = 434 sent, 428 acks -> deficit 6  (2 x 3 timeouts = 6)
+post-freeze (to 13176 s): votes 254 + unvotes 254 = 508 sent, 500 acks -> deficit 8  (2 x 4 timeouts = 8)
+pc_ack_irq_count is incremented unconditionally at the top of
+bam_dmux_pc_ack_irq(), so a late ack WOULD be counted.
+
+== post-freeze confirmation (not in the frozen window) ==
+fatal #14 12362.261426 a2_power.c:1189
+  down-window 0.704651 s   timeout 12364.614338  d_fatal +2.352912  d_after_up +1.450558
+  -> a2_power.c:1189 with a timeout: 4 of 4; common_timer.c:390: 0 of 10
