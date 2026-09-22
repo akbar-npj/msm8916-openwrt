@@ -606,19 +606,23 @@ proto_modemmanager_setup() {
 
 	# Validate that ModemManager is handling the modem at the sysfs path.
 	#
-	# Poll briefly instead of failing the whole proto on the first miss.
-	# After an SSR the modem object is destroyed and re-created, and a
-	# netifd restart can land before ModemManager has re-probed it.  The
-	# alternatives both cost far more than 5 s of polling: a failed setup
-	# followed by netifd's retry backoff, or a 120 s block on --enable
-	# below.  The port is normally back within a second or two.
+	# Poll instead of failing the whole proto on the first miss.  netifd
+	# normally reaches here only after ModemManager has announced the modem
+	# ("state available"), so the first iteration usually succeeds and the
+	# loop is a safety net for the window where the object exists but is not
+	# yet exported.
+	#
+	# The poll is bounded in WALL TIME, not in iterations: a per-call timeout
+	# multiplied by an iteration count can add up to minutes if D-Bus itself
+	# is unresponsive (ModemManager hung), which would be worse than the
+	# single unbounded call this replaces.  Five seconds is generous -- the
+	# measured port return is ~1 s and the object is created ~4 s after it.
 	modempath=""
-	mm_poll=0
-	while [ "$mm_poll" -lt 20 ]; do
-		modemstatus=$(mmcli --modem="${device}" --timeout 10 --output-keyvalue 2>/dev/null)
+	mm_deadline=$(( $(cut -d. -f1 /proc/uptime) + 5 ))
+	while [ "$(cut -d. -f1 /proc/uptime)" -lt "$mm_deadline" ]; do
+		modemstatus=$(mmcli --modem="${device}" --timeout 2 --output-keyvalue 2>/dev/null)
 		modempath=$(modemmanager_get_field "${modemstatus}" "modem.dbus-path")
 		[ -n "${modempath}" ] && break
-		mm_poll=$((mm_poll + 1))
 		sleep 0.25
 	done
 	[ -n "${modempath}" ] || {
