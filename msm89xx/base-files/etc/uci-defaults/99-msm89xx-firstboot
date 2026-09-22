@@ -81,6 +81,17 @@ https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_ge
 https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
 EOF
 
+# Ensure repository signing key for akbar-npj custom feeds exists
+if [ ! -f /etc/apk/keys/akbar-npj-v25.12.5.pem ]; then
+    mkdir -p /etc/apk/keys
+    cat << 'EOF' > /etc/apk/keys/akbar-npj-v25.12.5.pem
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEK+SNVTAtRP8S5xvsdJmyapEXwKs3
+MbL1qmuaNhSkaa/yEzgRH5H13aplJ+F62VEBIC+TJkggJ6LNNQ0ypZ2Xjw==
+-----END PUBLIC KEY-----
+EOF
+fi
+
 ###############################################################################
 # Configure LAN IP Subnet (192.168.8.1 to prevent home Wi-Fi 192.168.1.x conflict)
 ###############################################################################

@@ -61,8 +61,14 @@ jobs:
             openwrt-cache-
 
       - name: Build Docker Builder Image & Prepare OpenWrt Tree
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
         run: |
           ./build.sh prepare
+          if [ -n "$APK_SIGNING_KEY" ]; then
+            echo "$APK_SIGNING_KEY" > openwrt/private-key.pem
+            echo "Injected persistent private signing key."
+          fi
 
       - name: Compile All Firmware Images (hmu05, ufi001b, uz801, uf02)
         run: |
@@ -80,10 +86,10 @@ jobs:
         run: |
           cd openwrt/bin/targets/msm89xx/msm8916
           tar -czvf kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz packages/
-          sha256sum openwrt-msm89xx-msm8916-generic-hmu05-* \
-                    openwrt-msm89xx-msm8916-generic-ufi001b-* \
-                    openwrt-msm89xx-msm8916-yiming-uz801v3-* \
-                    openwrt-msm89xx-msm8916-generic-uf02-* \
+          sha256sum openwrt-msm89xx-msm8916-*-squashfs-boot.img \
+                    openwrt-msm89xx-msm8916-*-squashfs-system.img \
+                    openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin \
+                    openwrt-msm89xx-msm8916-*-firmware.zip \
                     kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
           cat sha256sums
 
@@ -93,6 +99,7 @@ jobs:
           mkdir -p /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages
           cp -a openwrt/bin/targets/msm89xx/msm8916/packages /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/targets/msm89xx/msm8916/
           cp -a openwrt/bin/packages/aarch64_generic /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages/
+          [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/public-key.pem || true
 
       - name: Deploy Package Feeds to GitHub Pages (gh-pages branch)
         uses: peaceiris/actions-gh-pages@v4
