@@ -1,0 +1,31 @@
+=== Docs/Modem Stability/evidence/170_two_fixes_for_the_smd_poll_uaf/bootA_a9fd907c_logroll.log.gz ===
+SSRs found: 11
+
+  #      add  probe  creat   SIM  disab    up  a->c  c->s  s->d  d->u  a->u ports   n
+-------------------------------------------------------------------------------------
+  1    46814      2      4     9     11    16    4s    5s    2s    5s   16s     9   2
+  2    46934      2      4     9     11    15    4s    5s    2s    4s   15s     9   2
+  3    47100      3      5    10     12    15    5s    5s    2s    3s   15s     9   2
+  4    47284      2      4     9     11    16    4s    5s    2s    5s   16s     9   2
+  5    48186      2      4    10     12    17    4s    6s    2s    5s   17s     9   2
+  6    49088      2      4     9     20    25    4s    5s   11s    5s   25s     9   2
+  7    49989      2      4     9     10    14    4s    5s    1s    4s   14s     9   2
+  8    50913      3      5    10     12    17    5s    5s    2s    5s   17s     9   2
+  9    51817      2      4     9     10    15    4s    5s    1s    5s   15s     9   2
+ 10    52602      2      4     9     10    14    4s    5s    1s    4s   14s     9   2
+ 11    53547      2      4    10     12    17    4s    6s    2s    5s   17s     9   2
+
+  add -> created         n=11  median=4s  min=4  max=5   pre-fix median=4s  delta=+0s
+  created -> SIM         n=11  median=5s  min=5  max=6   pre-fix median=5s  delta=+0s
+  SIM -> disabled        n=11  median=2s  min=1  max=11   pre-fix median=2s  delta=+0s
+  disabled -> up         n=11  median=5s  min=3  max=5   pre-fix median=5s  delta=+0s
+  add -> up              n=11  median=16s  min=14  max=25   pre-fix median=16s  delta=+0s
+  ports                  min=9 max=9
+
+  --- pre-registered verdicts ---
+  P-MM1  FALSIFIED   (median 4s > 2.5s)
+  P-MM2  CONFIRMED   (9/9 ports in all 11 SSRs)
+  P-MM3  FALSIFIED   (median 16s, delta +0s vs pre-fix 16s)
+
+  REPORT n = 11 SSRs.  P-MM1 needs n>=5, P-MM2 needs n>=11, P-MM3 needs n>=10.
+

@@ -1,0 +1,184 @@
+2026-09-23T09:38:14Z monitor start: max=1 sleep=2s dev=root@192.168.8.1
+2026-09-23T09:38:14Z iter 1: boot=b08763ad up=801.36s records=3362 logroll=45 fatals=1 instruments_running=2
+      resumes   : 28   (one per 7.7 s)
+      timeouts  : 0  = 0.00 % of resumes
+      class     meaning                                       resumes  timeouts     rate
+      race      pl=1 td=0  wire HIGH, driver awake                 27         0     0.0 %
+      race_td   pl=1 td=1  wire HIGH while tearing down             1         0     0.0 %
+      teardown  pl=0 td=1  wire LOW, driver agrees collapsed        0         0     nan %
+      stale     pl=0 td=0  wire LOW, driver believes AWAKE          0         0     nan %
+      P-W1  STALE rate nan % (0/0)  target < 5.0 %   [UNDERPOWERED (n=0 < 20)]
+      P-W2  overall rate 0.00 % (0/28)  target < 2.0 %   [UNDERPOWERED (n=28 < 500)]
+      P-W3  race rate 0.0 % (0/27)  band 0.8-3.8 %   [UNDERPOWERED (n=27)]
+2026-09-23T09:38:14Z     n: resumes=28/500  stale=0/20
+2026-09-23T09:38:16Z monitor end: iteration cap reached without meeting the thresholds
+2026-09-23T09:39:03Z monitor start: max=1 sleep=2s dev=root@192.168.8.1
+2026-09-23T09:39:03Z iter 1: boot=b08763ad up=850.22s fatals=1 running=2 captures=2 | n: resumes=/500 stale=/20
+2026-09-23T09:39:05Z monitor end: iteration cap reached without meeting the thresholds
+2026-09-23T09:39:23Z monitor start: max=1 sleep=2s dev=root@192.168.8.1
+2026-09-23T09:39:24Z iter 1: boot=b08763ad up=871.03s fatals=1 running=2 captures=1 | n: resumes=37/500 stale=0/20
+2026-09-23T09:39:26Z monitor end: iteration cap reached without meeting the thresholds
+2026-09-23T09:39:32Z monitor start: max=60 sleep=300s dev=root@192.168.8.1
+2026-09-23T09:39:32Z iter 1: boot=b08763ad up=879.40s fatals=1 running=2 captures=1 | n: resumes=37/500 stale=0/20
+2026-09-23T09:44:33Z iter 2: boot=b08763ad up=1180.12s fatals=4 running=2 captures=1 | n: resumes=66/500 stale=3/20
+2026-09-23T09:49:34Z iter 3: boot=b08763ad up=1481.16s fatals=7 running=2 captures=1 | n: resumes=85/500 stale=6/20
+2026-09-23T09:54:35Z iter 4: boot=b08763ad up=1782.26s fatals=9 running=2 captures=1 | n: resumes=111/500 stale=7/20
+2026-09-23T09:59:36Z iter 5: boot=b08763ad up=2083.20s fatals=9 running=2 captures=1 | n: resumes=141/500 stale=7/20
+2026-09-23T10:04:37Z iter 6: boot=b08763ad up=2384.19s fatals=9 running=2 captures=1 | n: resumes=167/500 stale=7/20
+2026-09-23T10:09:38Z iter 7: boot=b08763ad up=2685.29s fatals=10 running=2 captures=1 | n: resumes=180/500 stale=7/20
+2026-09-23T10:10:24Z monitor start: max=1 sleep=2s dev=root@192.168.8.1
+2026-09-23T10:10:25Z iter 1: boot=b08763ad up=2731.73s fatals=10 running=2 | Part A: resumes=181/500 stale=7/20 | Part B: ssrs=9/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 9 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:10:27Z monitor end: iteration cap reached without both thresholds being met
+2026-09-23T10:10:32Z monitor start: max=60 sleep=300s dev=root@192.168.8.1
+2026-09-23T10:10:33Z iter 1: boot=b08763ad up=2739.52s fatals=10 running=2 | Part A: resumes=182/500 stale=7/20 | Part B: ssrs=9/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 9 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:15:34Z iter 2: boot=b08763ad up=3040.94s fatals=10 running=2 | Part A: resumes=216/500 stale=7/20 | Part B: ssrs=9/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 9 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:20:36Z iter 3: boot=b08763ad up=3342.57s fatals=10 running=2 | Part A: resumes=226/500 stale=7/20 | Part B: ssrs=9/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 9 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:25:38Z iter 4: boot=b08763ad up=3644.18s fatals=11 running=2 | Part A: resumes=233/500 stale=7/20 | Part B: ssrs=10/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 10 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:30:40Z iter 5: boot=b08763ad up=3945.98s fatals=11 running=2 | Part A: resumes=243/500 stale=7/20 | Part B: ssrs=10/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 10 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:35:41Z iter 6: boot=b08763ad up=4247.79s fatals=11 running=2 | Part A: resumes=257/500 stale=7/20 | Part B: ssrs=10/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 10 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:40:43Z iter 7: boot=b08763ad up=4549.62s fatals=12 running=2 | Part A: resumes=274/500 stale=7/20 | Part B: ssrs=11/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 11 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:45:45Z iter 8: boot=b08763ad up=4851.68s fatals=12 running=2 | Part A: resumes=299/500 stale=7/20 | Part B: ssrs=11/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 11 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:50:48Z iter 9: boot=b08763ad up=5153.80s fatals=12 running=2 | Part A: resumes=324/500 stale=7/20 | Part B: ssrs=11/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 11 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T10:55:50Z iter 10: boot=b08763ad up=5456.05s fatals=13 running=2 | Part A: resumes=342/500 stale=7/20 | Part B: ssrs=12/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 12 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:00:52Z iter 11: boot=b08763ad up=5758.34s fatals=13 running=2 | Part A: resumes=371/500 stale=7/20 | Part B: ssrs=12/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 12 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:05:55Z iter 12: boot=b08763ad up=6060.81s fatals=13 running=2 | Part A: resumes=394/500 stale=7/20 | Part B: ssrs=12/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 12 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:10:58Z iter 13: boot=b08763ad up=6363.48s fatals=14 running=2 | Part A: resumes=410/500 stale=7/20 | Part B: ssrs=13/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 13 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:16:00Z iter 14: boot=b08763ad up=6666.19s fatals=14 running=2 | Part A: resumes=424/500 stale=7/20 | Part B: ssrs=13/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 13 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:21:03Z iter 15: boot=b08763ad up=6968.82s fatals=14 running=2 | Part A: resumes=438/500 stale=7/20 | Part B: ssrs=13/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 13 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:26:06Z iter 16: boot=b08763ad up=7271.58s fatals=15 running=2 | Part A: resumes=460/500 stale=7/20 | Part B: ssrs=14/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 14 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:31:09Z iter 17: boot=b08763ad up=7574.59s fatals=15 running=2 | Part A: resumes=471/500 stale=7/20 | Part B: ssrs=14/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 14 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:36:12Z iter 18: boot=b08763ad up=7877.57s fatals=16 running=2 | Part A: resumes=486/500 stale=7/20 | Part B: ssrs=15/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 15 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:41:15Z iter 19: boot=b08763ad up=8180.70s fatals=16 running=2 | Part A: resumes=496/500 stale=7/20 | Part B: ssrs=15/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 15 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:46:18Z iter 20: boot=b08763ad up=8483.92s fatals=16 running=2 | Part A: resumes=501/500 stale=7/20 | Part B: ssrs=15/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 15 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:51:22Z iter 21: boot=b08763ad up=8787.17s fatals=16 running=2 | Part A: resumes=507/500 stale=7/20 | Part B: ssrs=15/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 15 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:53:16Z monitor start: max=120 sleep=300s dev=root@192.168.8.1
+2026-09-23T11:53:18Z iter 1: boot=b08763ad up=8903.49s fatals=17 running=2 | Part A: resumes=513/500 stale=7/20 | Part B: ssrs=16/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 16 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T11:58:21Z iter 2: boot=b08763ad up=9206.85s fatals=17 running=2 | Part A: resumes=515/500 stale=7/20 | Part B: ssrs=16/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 16 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:03:25Z iter 3: boot=b08763ad up=9510.23s fatals=17 running=2 | Part A: resumes=520/500 stale=7/20 | Part B: ssrs=16/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 16 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:08:28Z iter 4: boot=b08763ad up=9813.61s fatals=18 running=2 | Part A: resumes=528/500 stale=7/20 | Part B: ssrs=17/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 17 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:13:32Z iter 5: boot=b08763ad up=10117.13s fatals=18 running=2 | Part A: resumes=536/500 stale=7/20 | Part B: ssrs=17/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 17 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:18:35Z iter 6: boot=b08763ad up=10420.66s fatals=18 running=2 | Part A: resumes=540/500 stale=7/20 | Part B: ssrs=17/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 17 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:23:39Z iter 7: boot=b08763ad up=10724.26s fatals=19 running=2 | Part A: resumes=549/500 stale=7/20 | Part B: ssrs=18/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 18 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:28:42Z iter 8: boot=b08763ad up=11027.97s fatals=20 running=2 | Part A: resumes=557/500 stale=7/20 | Part B: ssrs=19/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 19 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:33:46Z iter 9: boot=b08763ad up=11331.53s fatals=20 running=2 | Part A: resumes=571/500 stale=7/20 | Part B: ssrs=19/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 19 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:38:50Z iter 10: boot=b08763ad up=11635.17s fatals=20 running=2 | Part A: resumes=576/500 stale=7/20 | Part B: ssrs=19/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 19 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:43:54Z iter 11: boot=b08763ad up=11938.82s fatals=21 running=2 | Part A: resumes=588/500 stale=7/20 | Part B: ssrs=20/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 20 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:48:58Z iter 12: boot=b08763ad up=12242.74s fatals=21 running=2 | Part A: resumes=593/500 stale=7/20 | Part B: ssrs=20/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 20 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:54:01Z iter 13: boot=b08763ad up=12546.67s fatals=21 running=2 | Part A: resumes=600/500 stale=7/20 | Part B: ssrs=20/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 20 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T12:59:07Z iter 14: boot=b08763ad up=12850.83s fatals=22 running=2 | Part A: resumes=607/500 stale=7/20 | Part B: ssrs=21/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 21 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T13:04:14Z iter 15: boot=b08763ad up=13156.13s fatals=22 running=2 | Part A: resumes=632/500 stale=7/20 | Part B: ssrs=21/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 21 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+2026-09-23T13:09:21Z iter 16: boot=b08763ad up=13465.05s fatals=22 running=2 | Part A: resumes=649/500 stale=7/20 | Part B: ssrs=21/11
+      P-MM1  CONFIRMED   (median 2s <= 2.0s)
+      P-MM2  CONFIRMED   (9/9 ports in all 21 SSRs)
+      P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)

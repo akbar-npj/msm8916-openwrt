@@ -1,0 +1,46 @@
+=== /tmp/soak_p825_caps/logroll_b08763ad.log ===
+SSRs found: 21
+
+  #      add  probe  creat   SIM  disab    up  a->c  c->s  s->d  d->u  a->u ports   n
+-------------------------------------------------------------------------------------
+  1    34864      1      2     6      7    11    2s    4s    1s    4s   11s     9   2
+  2    34973      1      2     7      8    12    2s    5s    1s    4s   12s     9   3
+  3    35060      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+  4    35121      1      2     7      8     0    2s    5s    1s     -     -     9   2   <-- SUPERSEDED (no Interface-up line)
+  5    35140      2      3     7      8    12    3s    4s    1s    4s   12s     9   1
+  6    35285      1      2     6      7    13    2s    4s    1s    6s   13s     9   2
+  7    35435      1      2     7      8    13    2s    5s    1s    5s   13s     9   2
+  8    35508      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+  9    36526      1     11    16     18    23   11s    5s    2s    5s   23s     9   2
+ 10    37430      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 11    38332      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 12    39233      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 13    40135      1      2     6      7    11    2s    4s    1s    4s   11s     9   2
+ 14    41090      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 15    41628      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 16    42721      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 17    43625      1     11    16     18    23   11s    5s    2s    5s   23s     9   2
+ 18    44529      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 19    44773      2      3     7      8    12    3s    4s    1s    4s   12s     9   2
+ 20    45677      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 21    46582      1      2     7      8    14    2s    5s    1s    6s   14s     9   2
+
+  NOTE: SSR(s) [4] carry no `Interface 'modem' is now up` line.
+        Their recovery was cut short by the NEXT fatal (a double fatal).
+        They are excluded from `add -> up` by construction, but they are
+        NOT excluded from P-MM2 below -- see the note under the verdicts.
+
+  add -> created         n=21  median=2s  min=2  max=11   pre-fix median=4s  delta=+2s
+  created -> SIM         n=21  median=5s  min=4  max=5   pre-fix median=5s  delta=+0s
+  SIM -> disabled        n=21  median=1s  min=1  max=2   pre-fix median=2s  delta=+1s
+  disabled -> up         n=20  median=4s  min=4  max=6   pre-fix median=5s  delta=+1s
+  add -> up              n=20  median=12s  min=11  max=23   pre-fix median=16s  delta=+4s
+  ports                  min=9 max=9
+
+  --- pre-registered verdicts ---
+  P-MM1  CONFIRMED   (median 2s <= 2.0s)
+  P-MM2  CONFIRMED   (9/9 ports in all 21 SSRs)
+  P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
+
+  REPORT n = 21 SSRs.  P-MM1 needs n>=5, P-MM2 needs n>=11, P-MM3 needs n>=10.
+

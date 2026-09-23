@@ -1,0 +1,20 @@
+Docs/Modem Stability/evidence/112_bam_reinit_ab/pcfine_final_boot59d9c272.txt
+  capture   : 3157.2 .. 15884.2 s (12727 s)
+  resumes   : 1078   (one per 11.8 s)
+  timeouts  : 36  = 3.34 % of resumes
+
+  == the four classes ==
+  class     meaning                                       resumes  timeouts     rate
+  race      pl=1 td=0  wire HIGH, driver awake                838        19     2.3 %
+  race_td   pl=1 td=1  wire HIGH while tearing down           174         0     0.0 %
+  teardown  pl=0 td=1  wire LOW, driver agrees collapsed       41         7    17.1 %
+  stale     pl=0 td=0  wire LOW, driver believes AWAKE         25        10    40.0 %
+
+  == CALIBRATION vs the frozen control ==
+  race      expected  838/19   got  838/19   OK 
+  race_td   expected  174/0    got  174/0    OK 
+  teardown  expected   41/7    got   41/7    OK 
+  stale     expected   25/10   got   25/10   OK 
+  totals    expected 1078/36  got 1078/36   OK  OK 
+
+  CALIBRATION REPRODUCES the frozen control

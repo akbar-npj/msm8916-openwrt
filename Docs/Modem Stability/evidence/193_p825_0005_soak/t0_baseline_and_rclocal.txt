@@ -1,0 +1,60 @@
+=== telemetry t0 ===
+rx_callbacks: 89448
+rx_last_callback_ms_ago: 619
+rx_submitted: 90824
+rx_submit_failed: 0
+rx_queued_buffers: 32
+rx_slots_mapped: 32
+rx_slots_free: 0
+rx_slots_submitting: 0
+rx_slots_submitted: 32
+rx_slots_completing: 0
+rx_slots_handled: 0
+rx_duplicate_submissions: 0
+rx_negative_queue_count: 0
+rx_active_submitters: 0
+rx_active_callbacks: 0
+rx_tearing_down: 0
+rx_rearm_count: 0
+pc_state: 1
+pc_ack_state: 1
+pc_irq_count: 83
+pc_resync_count: 0
+pc_quiesce_ms: 0
+pc_line_level: 1
+pc_vote_tx_count: 54
+pc_unvote_tx_count: 53
+pc_ack_irq_count: 107
+pc_timeout_count: 0
+pm_suspend_attempts: 53
+pm_suspend_completions: 39
+pm_resume_attempts: 54
+pm_last_suspend_ms: 266
+pm_last_resume_ms: 1
+pm_last_handshake_ms: 1
+cmd_data: 89418
+cmd_open: 16
+cmd_close: 0
+cmd_status: 0
+cmd_open_no_a2_pc: 0
+cmd_unknown: 0
+a2_pc_disabled: 0
+tx_sweep_guard_hits: 0
+tx_defer_queued: 103
+tx_defer_submitted: 103
+tx_defer_preserved: 68
+tx_defer_wiped: 0
+tx_defer_wiped_live: 0
+tx_submit_ok: 23374
+tx_complete: 23374
+runtime_status: active
+pm_usage_count: 0
+=== rc.local before ===
+6f8bfdaf36d3ec4aa9be6e96fa61d32b  /etc/rc.local
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+exit 0
+=== df overlay ===
+Filesystem                Size      Used Available Use% Mounted on
+/dev/mmcblk0p15           3.2G     45.4M      3.0G   1% /overlay
