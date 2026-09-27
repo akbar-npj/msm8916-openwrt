@@ -1,0 +1,75 @@
+#!/bin/sh
+# diag-bind-watch - keep the SMD DIAG <-> rpmsg_chrdev bridge alive.
+#
+# Part of the `diag-bind` OpenWrt package. Run by /etc/init.d/diag-bind.
+#
+# Binds once at start, then polls. The modem on this platform restarts (SSR)
+# roughly every 900 s; each SSR destroys and re-creates the rpmsg DIAG device,
+# which drops the rpmsg_chrdev binding and removes /dev/rpmsg0 + /dev/rpmsg1.
+# This loop re-runs the idempotent `diag-bind` whenever the device is present
+# but not bound, so an unattended capture survives every restart.
+#
+# It only acts when the device is UNBOUND, so a capture that holds /dev/rpmsg0
+# open is never disturbed. /usr/sbin/diag-bind is itself idempotent, so a call
+# while already bound is a no-op.
+
+BUS=/sys/bus/rpmsg
+DRV=rpmsg_chrdev
+DIAG=remoteproc0:smd-edge.DIAG.-1.-1
+CNTL=remoteproc0:smd-edge.DIAG_CNTL.-1.-1
+STATUS=/root/diag-bind.status
+INTERVAL="${DIAG_BIND_INTERVAL:-2}"
+
+log() { logger -t diag-bind "$1"; }
+
+# Wait (up to 60 s) for the SMD DIAG device to appear at boot.
+wait_dev() {
+    i=0
+    while [ ! -d "$BUS/devices/$DIAG" ] && [ "$i" -lt 60 ]; do
+        sleep 1
+        i=$((i+1))
+    done
+    [ -d "$BUS/devices/$DIAG" ]
+}
+
+# True when $1 exists and is bound to rpmsg_chrdev.
+bound() {
+    d=$BUS/devices/$1
+    [ -d "$d" ] || return 1
+    cur=$(basename "$(readlink "$d/driver" 2>/dev/null)" 2>/dev/null)
+    [ "$cur" = "$DRV" ]
+}
+
+rebind() {
+    out=$(/usr/sbin/diag-bind 2>&1)
+    rc=$?
+    ts=$(date +%Y-%m-%dT%H:%M:%S)
+    if [ "$rc" -eq 0 ]; then
+        log "bridge (re)established: $(echo "$out" | tr '\n' ' ')"
+        { echo "state=bound"; echo "time=$ts"; echo "$out"; } > "$STATUS"
+    else
+        log "diag-bind failed (rc=$rc): $(echo "$out" | tr '\n' ' ')"
+        { echo "state=failed"; echo "time=$ts"; echo "$out"; } > "$STATUS"
+    fi
+}
+
+# --- start ---
+if wait_dev; then
+    if bound "$DIAG"; then
+        ts=$(date +%Y-%m-%dT%H:%M:%S)
+        { echo "state=bound"; echo "time=$ts"; echo "(already bound at start)"; } > "$STATUS"
+        log "bridge already bound at start"
+    else
+        rebind
+    fi
+else
+    log "SMD DIAG device never appeared; will keep watching"
+fi
+
+# --- watch for the next SSR ---
+while :; do
+    sleep "$INTERVAL"
+    if [ -d "$BUS/devices/$DIAG" ]; then
+        bound "$DIAG" || rebind
+    fi
+done
