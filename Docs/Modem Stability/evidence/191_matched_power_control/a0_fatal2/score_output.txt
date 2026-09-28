@@ -1,0 +1,59 @@
+==============================================================================
+Doc 191 -- ANDROID MODEM FATAL SCORER
+==============================================================================
+samples : Docs/Modem Stability/evidence/191_matched_power_control/a0_fatal2/samples.csv
+rows    : 7517   coverage: up 5298.6 .. 44688.7 (10.94 h)
+expected rows at 5.24 s : 7518  => actual/expected 0.9998
+observed mean interval            : 5.241 s (the sampler's effective cadence)
+  coverage: CONTINUOUS (no gaps) -- scorable
+dumps   : 2 in Docs/Modem Stability/evidence/191_matched_power_control/a0_fatal2/dumps
+
+fatal increments: 2   modem bring-up increments: 2
+
+------------------------------------------------------------------------------
+FATAL #1   (CSV row 5015, ap_uptime 31525.35, wall 1790137055)
+------------------------------------------------------------------------------
+  modem_up at the fatal edge (CSV) : 31518.74 s  [sampled up to ~5.24 s late => reads high]
+  modem_up from dmesg timestamps   : 31517.536 s  [fatal 31524.147021 - bringup 6.610988]  <-- USE THIS
+  CSV minus dmesg                  : +1.20 s
+  SIGNATURE (reason string)        : ps_icmp6_msg.c:938:
+  beat vs clock P=903.675206    : beat  35  residual   -111.1 s  (dmesg)
+  beat vs taxonomy P=902.353    : beat  35  residual    -64.8 s  (dmesg)
+  state2 (pc) entry rate:
+     pre-fatal 900 s      : 18.13 /s
+     preceding 900 s      : 1.67 /s
+     ratio (last/preceding): 10.87x
+  rild        : min=1 max=1 (OK)
+  qmuxd       : min=1 max=1 (OK)
+  netmgrd     : min=1 max=1 (OK)
+  rmt_storage : min=1 max=1 (OK)
+  time_daemon : min=1 max=1 (OK)
+  himi_conn   : min=0 max=0  OK (no admin-UI poller)
+
+------------------------------------------------------------------------------
+FATAL #2   (CSV row 7182, ap_uptime 42928.45, wall 1790148458)
+------------------------------------------------------------------------------
+  modem_up at the fatal edge (CSV) : 11402.03 s  [sampled up to ~5.24 s late => reads high]
+  modem_up from dmesg timestamps   : 11401.837 s  [fatal 42928.256422 - bringup 31526.419651]  <-- USE THIS
+  CSV minus dmesg                  : +0.19 s
+  SIGNATURE (reason string)        : lte_ml1_common_dump.c:217:
+  beat vs clock P=903.675206    : beat  13  residual   -345.9 s  (dmesg)
+  beat vs taxonomy P=902.353    : beat  13  residual   -328.8 s  (dmesg)
+  state2 (pc) entry rate:
+     pre-fatal 900 s      : 63.68 /s
+     preceding 900 s      : 68.22 /s
+     ratio (last/preceding): 0.93x
+  rild        : min=1 max=1 (OK)
+  qmuxd       : min=1 max=1 (OK)
+  netmgrd     : min=1 max=1 (OK)
+  rmt_storage : min=1 max=1 (OK)
+  time_daemon : min=1 max=1 (OK)
+  himi_conn   : min=0 max=0  OK (no admin-UI poller)
+
+==============================================================================
+P-A7b (latched offset): residuals against P=903.675206
+   fatal #1:   -111.1 s   [ps_icmp6_msg.c:938:]
+   fatal #2:   -345.9 s   [lte_ml1_common_dump.c:217:]
+   spread = 234.8 s  ->  P-A7b (tolerance 60 s): FALSIFIED
+
+NOTE: P-A7b is falsifiable by a legitimate a2_power offset jump (Doc 179), so a FALSIFIED verdict must be read against the signature.

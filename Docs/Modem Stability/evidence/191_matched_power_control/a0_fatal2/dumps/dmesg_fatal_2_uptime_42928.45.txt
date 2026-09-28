@@ -1,0 +1,2458 @@
+[    0.000000] Booting Linux on physical CPU 0x0
+[    0.000000] Initializing cgroup subsys cpu
+[    0.000000] Initializing cgroup subsys cpuacct
+[    0.000000] Linux version 3.10.28 (HiMI@HiMI) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Thu Aug 28 15:04:41 CST 2025
+[    0.000000] CPU: ARMv7 Processor [410fd030] revision 0 (ARMv7), cr=10c5387d
+[    0.000000] CPU: PIPT / VIPT nonaliasing data cache, VIPT aliasing instruction cache
+[    0.000000] Machine: Qualcomm Technologies, Inc. MSM 8916 (Flattened Device Tree), model: Qualcomm Technologies, Inc. MSM 8916 512MB MTP
+[    0.000000] Node qcom,mdss_fb_primary memblock_reserve memory 83200000-841a0000
+[    0.000000] cma: Found external_image__region@0, memory base 0x86000000, size 8 MiB, limit 0xffffffff
+[    0.000000] cma: Found modem_adsp_region@0, memory base 0x86800000, size 85 MiB, limit 0xffffffff
+[    0.000000] cma: Found pheripheral_region@0, memory base 0x8bd00000, size 6 MiB, limit 0xffffffff
+[    0.000000] cma: Found venus_qseecom_region@0, memory base 0x00000000, size 6 MiB, limit 0x90000000
+[    0.000000] cma: Found audio_region@0, memory base 0x00000000, size 3 MiB, limit 0xffffffff
+[    0.000000] cma: CMA: reserved 8 MiB at 0x86000000 for external_image_mem
+[    0.000000] cma: CMA: reserved 85 MiB at 0x86800000 for modem_adsp_mem
+[    0.000000] cma: CMA: reserved 6 MiB at 0x8bd00000 for peripheral_mem
+[    0.000000] cma: CMA: reserved 8 MiB at 0x8f800000 for venus_qseecom_mem
+[    0.000000] cma: CMA: reserved 4 MiB at 0x9fc00000 for audio_mem
+[    0.000000] cma: CMA: reserved 8 MiB at 0x9f400000 for default region
+[    0.000000] Memory policy: ECC disabled, Data cache writealloc
+[    0.000000] On node 0 totalpages: 105728
+[    0.000000] free_area_init_node: node 0, pgdat c0c48e00, node_mem_map c10ff000
+[    0.000000]   Normal zone: 1024 pages used for memmap
+[    0.000000]   Normal zone: 0 pages reserved
+[    0.000000]   Normal zone: 105728 pages, LIFO batch:31
+[    0.000000] PERCPU: Embedded 10 pages/cpu @c153e000 s17664 r8192 d15104 u40960
+[    0.000000] pcpu-alloc: s17664 r8192 d15104 u40960 alloc=10*4096
+[    0.000000] pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+[    0.000000] Built 1 zonelists in Zone order, mobility grouping on.  Total pages: 104704
+[    0.000000] Kernel command line: console=ttyHSL0,115200,n8 androidboot.console=ttyHSL0 androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x237 ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci androidboot.emmc=true androidboot.serialno=c2b9103c androidboot.baseband=msm mdss_mdp.panel=1:spi:0:qcom,mdss_spi_st7735s_128160_cmd
+[    0.000000] PID hash table entries: 2048 (order: 1, 8192 bytes)
+[    0.000000] Dentry cache hash table entries: 65536 (order: 6, 262144 bytes)
+[    0.000000] Inode-cache hash table entries: 32768 (order: 5, 131072 bytes)
+[    0.000000] Memory: 364172K/422912K available (8168K kernel code, 709K rwdata, 3328K rodata, 369K init, 4786K bss, 58740K reserved)
+[    0.000000] Virtual kernel memory layout:
+[    0.000000]     vector  : 0xffff0000 - 0xffff1000   (   4 kB)
+[    0.000000]     fixmap  : 0xfff00000 - 0xfffe0000   ( 896 kB)
+[    0.000000]     vmalloc : 0xe0800000 - 0xff000000   ( 488 MB)
+[    0.000000]     lowmem  : 0xc0000000 - 0xe0000000   ( 512 MB)
+[    0.000000]     modules : 0xbf000000 - 0xc0000000   (  16 MB)
+[    0.000000]       .text : 0xc0008000 - 0xc0b42394   (11497 kB)
+[    0.000000]       .init : 0xc0b43000 - 0xc0b9f500   ( 370 kB)
+[    0.000000]       .data : 0xc0ba0000 - 0xc0c5151c   ( 710 kB)
+[    0.000000]        .bss : 0xc0c515e0 - 0xc10fe154   (4787 kB)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] Preemptible hierarchical RCU implementation.
+[    0.000000] 	RCU dyntick-idle grace-period acceleration is enabled.
+[    0.000000] NR_IRQS:16 nr_irqs:16 16
+[    0.000000] Architected cp15 and mmio timer(s) running at 19.20MHz (virt/virt).
+[    0.000000] sched_clock: 56 bits at 19MHz, resolution 52ns, wraps every 3579139424256ns
+[    0.000000] Switching to timer-based delay loop
+[    0.000000] sched_clock: 32 bits at 19MHz, resolution 52ns, wraps every 223696213963ns
+[    0.000000] Console: colour dummy device 80x30
+[    0.000634] Calibrating delay loop (skipped), value calculated using timer frequency.. 38.40 BogoMIPS (lpj=192000)
+[    0.000646] pid_max: default: 32768 minimum: 301
+[    0.000801] Security Framework initialized
+[    0.000813] SELinux:  Initializing.
+[    0.000837] SELinux:  Starting in permissive mode
+[    0.000884] Mount-cache hash table entries: 512
+[    0.001710] Initializing cgroup subsys debug
+[    0.001721] Initializing cgroup subsys freezer
+[    0.001751] CPU: Testing write buffer coherency: ok
+[    0.002124] CPU0: thread -1, cpu 0, socket 0, mpidr 80000000
+[    0.002191] Setting up static identity map for 0xc07bce68 - 0xc07bcec0
+[    0.002219] Configuring XPU violations to be fatal errors
+[    0.002960] ftrace: Allocated trace_printk buffers
+[    0.003728] MSM Memory Dump base table set up
+[    0.003750] MSM Memory Dump apps data table set up
+[    0.005022] CPU1: thread -1, cpu 1, socket 0, mpidr 80000001
+[    0.005955] CPU2: thread -1, cpu 2, socket 0, mpidr 80000002
+[    0.006853] CPU3: thread -1, cpu 3, socket 0, mpidr 80000003
+[    0.006955] Brought up 4 CPUs
+[    0.006976] SMP: Total of 4 processors activated (153.60 BogoMIPS).
+[    0.006982] CPU: All CPU(s) started in SVC mode.
+[    0.019578] pinctrl core: initialized pinctrl subsystem
+[    0.019897] regulator-dummy: no parameters
+[    0.020683] NET: Registered protocol family 16
+[    0.022589] DMA: preallocated 256 KiB pool for atomic coherent allocations
+[    0.060777] msm_watchdog b017000.qcom,wdt: MSM Watchdog Initialized
+[    0.063781] spmi_pmic_arb 200f000.qcom,spmi: PMIC Arb Version-2 0x20010000
+[    0.066023] spmi spmi-0: of_spmi modalias failure on /soc/qcom,spmi@200f000/qcom,pm8916@0/qcom,leds@a100
+[    0.066036] spmi spmi-0: of_spmi_walk_slave_container: unable to create device for node /soc/qcom,spmi@200f000/qcom,pm8916@0/qcom,leds@a100
+[    0.067321] cma: Assigned CMA region at 0 to 1de0000.qcom,venus device
+[    0.067722] cma: Assigned CMA region at 0 to 4080000.qcom,mss device
+[    0.067983] cma: Assigned CMA region at 0 to a21b000.qcom,pronto device
+[    0.068337] ACC: mem_acc_efuse_init: efuse_addr = 0x00058000 (len=0x1000)
+[    0.068377] ACC: mem_acc_fuse_is_setting_expected: [row:0] = 0x4826008000d00705 @52:1 == 1 ?: no
+[    0.068465] mem_acc_corner: 0 <--> 0 mV 
+[    0.077642] KPI: Bootloader start count = 14386
+[    0.077651] KPI: Bootloader end count = 39477
+[    0.077658] KPI: Bootloader display count = 29855
+[    0.077664] KPI: Bootloader load kernel count = 1654
+[    0.077672] KPI: Kernel MPM timestamp = 55748
+[    0.077678] KPI: Kernel MPM Clock frequency = 32768
+[    0.077697] socinfo_print: v8, id=206, ver=1.0, raw_id=1797, raw_ver=0, hw_plat=8, hw_plat_ver=65536
+[    0.077697]  accessory_chip=0, hw_plat_subtype=0, pmic_model=65547, pmic_die_revision=131072
+[    0.078243] msm_smd: Missing required property - label. Using legacy parsing
+[    0.078298] smd_channel_probe_worker: allocation table not initialized
+[    0.078356] msm_smd: Missing required property - label. Using legacy parsing
+[    0.078394] smd_channel_probe_worker: allocation table not initialized
+[    0.078448] msm_smd: Missing required property - label. Using legacy parsing
+[    0.083052] msm_mpm_dev_probe(): Cannot get clk resource for XO
+[    0.083073] platform 601d0.qcom,mpm: Driver mpm-v2 requests probe deferral
+[    0.084061] 8916_s1_corner: 0 <--> 0 mV at 0 mV normal idle 
+[    0.084435] 8916_s1_corner_ao: 0 <--> 0 mV at 0 mV normal idle 
+[    0.084793] 8916_s1_floor_corner: 0 <--> 0 mV at 0 mV normal idle 
+[    0.085177] 8916_s3: 1200 <--> 1300 mV at 1200 mV normal idle 
+[    0.085555] 8916_s4: 1800 <--> 2100 mV at 1800 mV normal idle 
+[    0.085884] 8916_l1: 1225 mV normal idle 
+[    0.086229] 8916_l2: 1200 mV normal idle 
+[    0.086566] 8916_l3: 500 <--> 1287 mV at 0 mV normal idle 
+[    0.086901] 8916_l3_corner_ao: 0 <--> 0 mV at 0 mV normal idle 
+[    0.087232] 8916_l3_corner_so: 0 <--> 0 mV at 0 mV normal idle 
+[    0.087569] 8916_l4: 2050 mV normal idle 
+[    0.087927] 8916_l5: 1800 mV normal idle 
+[    0.088269] 8916_l6: 1800 mV normal idle 
+[    0.088674] 8916_l7: 1800 mV normal idle 
+[    0.089021] 8916_l7_ao: 1800 mV normal idle 
+[    0.089338] 8916_l7_so: 1800 mV normal idle 
+[    0.089700] 8916_l8: 2850 <--> 2900 mV at 2850 mV normal idle 
+[    0.090055] 8916_l9: 3300 mV normal idle 
+[    0.090415] 8916_l10: 2700 <--> 2800 mV at 2700 mV normal idle 
+[    0.090784] 8916_l11: 1800 <--> 2950 mV at 1800 mV normal idle 
+[    0.091156] 8916_l12: 1800 <--> 2950 mV at 1800 mV normal idle 
+[    0.091529] 8916_l13: 3075 mV normal idle 
+[    0.091904] 8916_l14: 1800 <--> 3300 mV at 1800 mV normal idle 
+[    0.092260] 8916_l15: 1800 <--> 3300 mV at 1800 mV normal idle 
+[    0.092645] 8916_l16: 1800 <--> 3300 mV at 1800 mV normal idle 
+[    0.093009] 8916_l17: 2850 mV normal idle 
+[    0.093393] 8916_l18: 2700 mV normal idle 
+[    0.093846] 8916_s2: 1050 <--> 1350 mV at 1150 mV 
+[    0.093954] spm_regulator_probe: name=8916_s2, range=MV, voltage=1150000 uV, mode=PWM, step rate=1200 uV/us
+[    0.094453] cpr_efuse_init: apc_corner: efuse_addr = 0x00058000 (len=0x1000)
+[    0.094495] cpr_parse_speed_bin_fuse: apc_corner: [row: 1]: 0x12125418245, speed_bits = 0
+[    0.094512] cpr_parse_pvs_version_fuse: apc_corner: [row: 0]: 0x4826008000d00705, pvs_version = 0
+[    0.094603] cpr_pvs_init: apc_corner: pvs voltage: [1050000 1100000 1250000] uV
+[    0.094613] cpr_pvs_init: apc_corner: ceiling voltage: [1050000 1150000 1350000] uV
+[    0.094623] cpr_pvs_init: apc_corner: floor voltage: [1050000 1050000 1162500] uV
+[    0.094796] cpr_init_cpr_efuse: apc_corner: [row:27] = 0xa08d1a034699156b
+[    0.094817] cpr_init_cpr_efuse: apc_corner: CPR disable fuse = 0
+[    0.094831] cpr_init_cpr_efuse: apc_corner: Corner[1]: ro_sel = 2, target quot = 838
+[    0.094843] cpr_init_cpr_efuse: apc_corner: Corner[2]: ro_sel = 2, target quot = 838
+[    0.094854] cpr_init_cpr_efuse: apc_corner: Corner[3]: ro_sel = 2, target quot = 1109
+[    0.094913] cpr_get_corner_quot_adjustment: apc_corner: fuse corner 2 quotient adjustment scaling factor: 0.000
+[    0.094923] cpr_get_corner_quot_adjustment: apc_corner: fuse corner 3 quotient adjustment scaling factor: 0.650
+[    0.094937] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[1] = 838
+[    0.094945] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[2] = 838
+[    0.094953] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[3] = 838
+[    0.094961] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[4] = 838
+[    0.094969] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[5] = 972
+[    0.094977] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[6] = 1035
+[    0.094985] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[7] = 1072
+[    0.094993] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[8] = 1109
+[    0.095001] cpr_get_corner_quot_adjustment: apc_corner: adjusted quotient[9] = 1109
+[    0.095050] cpr_populate_opp_table: apc_corner: adding OPP entry failed - OPP may not be enabled, rc=-22
+[    0.095087] cpr_init_cpr_parameters: apc_corner: up threshold = 0, down threshold = 2
+[    0.095116] cpr_init_cpr_parameters: apc_corner: CPR is enabled by default.
+[    0.095127] cpr_config: apc_corner: Timer count: 0x17700 (for 5000 us)
+[    0.095384] apc_corner: 0 <--> 0 mV 
+[    0.097628] msm-thermal qcom,msm-thermal.56: msm_thermal:Failed reading node=/soc/qcom,msm-thermal, key=qcom,rpm-phase-resource-type err=-22. KTM continues
+[    0.097644] msm-thermal qcom,msm-thermal.56: msm_thermal:Failed reading node=/soc/qcom,msm-thermal, key=qcom,gfx-phase-warm-temp. err=-22. KTM continues
+[    0.097661] msm-thermal qcom,msm-thermal.56: probe_therm_reset:Failed reading node=/soc/qcom,msm-thermal, key=qcom,therm-reset-temp err=-22. KTM continues
+[    0.097676] msm-thermal qcom,msm-thermal.56: probe_vdd_mx:Failed reading node=/soc/qcom,msm-thermal, key=qcom,mx-restriction-temp. KTM continues
+[    0.097691] msm-thermal qcom,msm-thermal.56: probe_psm:Failed reading node=/soc/qcom,msm-thermal, key=qcom,pmic-sw-mode-temp. err=-22. KTM continues
+[    0.097939] msm_thermal:vdd_restriction_reg_init Defer vdd rstr freq init.
+[    0.097958] msm-thermal qcom,msm-thermal.56: probe_ocr:Failed reading node=/soc/qcom,msm-thermal, key=qcom,pmic-opt-curr-temp err:-22. KTM continues
+[    0.098745] sps:sps is ready.
+[    0.104513] qcom,rpmcc-8916 1800000.qcom,rpmcc: Registered RPM clocks.
+[    0.111359] qcom,gcc-8916 1800000.qcom,gcc: Registered GCC clocks
+[    0.112908] clock-a7 b011050.qcom,clock-a7: Speed bin: 0 PVS Version: 1
+[    0.133618] bio: create slab <bio-0> at 0
+[    0.135244] SCSI subsystem initialized
+[    0.135370] usbcore: registered new interface driver usbfs
+[    0.135425] usbcore: registered new interface driver hub
+[    0.135519] usbcore: registered new device driver usb
+[    0.135615] media: Linux media interface: v0.10
+[    0.135659] Linux video capture interface: v2.00
+[    0.135794] BATTERY: batterydata_init: Battery-data device created!
+[    0.137091] cma: Assigned CMA region at 0 to 1b.qcom,ion-heap device
+[    0.137218] cma: Assigned CMA region at 0 to 1c.qcom,ion-heap device
+[    0.137349] cma: Assigned CMA region at 0 to 17.qcom,ion-heap device
+[    0.137473] cma: Assigned CMA region at 0 to 1a.qcom,ion-heap device
+[    0.137632] ION heap system created
+[    0.137716] ION heap kmalloc created
+[    0.137736] ION heap qsecom created at 0x8f800000 with size 600000
+[    0.137751] ION heap audio created at 0x9fc00000 with size 314000
+[    0.137765] ION heap pil_1 created at 0x8bd00000 with size 600000
+[    0.137779] ION heap pil_2 created at 0x86800000 with size 5500000
+[    0.137892] msm_bus_fabric_init_driver
+[    0.138067] msm_bus_device 580000.ad-hoc-bus: Dev 1024
+[    0.138136] msm_bus_device 580000.ad-hoc-bus: Dev 0
+[    0.138189] msm_bus_device 580000.ad-hoc-bus: Dev 4096
+[    0.140021] msm_bus_init_clk: Valid node clk node 1024 ctx 0
+[    0.140029] msm_bus_init_clk: Valid node clk node 1024 ctx 1msm_bus_init_clk: Valid node clk node 0 ctx 0
+[    0.140104] msm_bus_init_clk: Valid node clk node 0 ctx 1msm_bus_init_clk: Valid node clk node 4096 ctx 0
+[    0.140172] msm_bus_init_clk: Valid node clk node 4096 ctx 1<6>[    0.146655] gdsc_venus: no parameters
+[    0.146922] gdsc_mdss: no parameters
+[    0.147160] gdsc_jpeg: no parameters
+[    0.147369] gdsc_vfe: no parameters
+[    0.147620] gdsc_oxili_gx: no parameters
+[    0.148573] msm_iommu 1f00000.qcom,iommu: device gfx_iommu (model: 500) mapped at e08c0000, with 2 ctx banks
+[    0.152449] msm_iommu 1e00000.qcom,iommu: device apps_iommu (model: 500) mapped at e0e80000, with 20 ctx banks
+[    0.153543] msm_iommu_ctx 1f09000.qcom,iommu-ctx: context gfx3d_user using bank 1
+[    0.153667] msm_iommu_ctx 1f0a000.qcom,iommu-ctx: context gfx3d_priv using bank 2
+[    0.153771] msm_iommu_ctx 1e22000.qcom,iommu-ctx: context jpeg_enc0 using bank 2
+[    0.153871] msm_iommu_ctx 1e23000.qcom,iommu-ctx: context vfe using bank 3
+[    0.153961] msm_iommu_ctx 1e24000.qcom,iommu-ctx: context mdp_0 using bank 4
+[    0.154050] msm_iommu_ctx 1e25000.qcom,iommu-ctx: context venus_ns using bank 5
+[    0.154138] msm_iommu_ctx 1e26000.qcom,iommu-ctx: context cpp using bank 6
+[    0.154233] msm_iommu_ctx 1e27000.qcom,iommu-ctx: context mDSP using bank 7
+[    0.154327] msm_iommu_ctx 1e28000.qcom,iommu-ctx: context gss using bank 8
+[    0.154417] msm_iommu_ctx 1e29000.qcom,iommu-ctx: context a2 using bank 9
+[    0.154513] msm_iommu_ctx 1e32000.qcom,iommu-ctx: context mdp_1 using bank 18
+[    0.154606] msm_iommu_ctx 1e33000.qcom,iommu-ctx: context venus_sec_pixel using bank 19
+[    0.154698] msm_iommu_ctx 1e34000.qcom,iommu-ctx: context venus_sec_bitstream using bank 20
+[    0.154790] msm_iommu_ctx 1e35000.qcom,iommu-ctx: context venus_sec_non_pixel using bank 21
+[    0.154881] msm_iommu_ctx 1e36000.qcom,iommu-ctx: context venus_fw using bank 22
+[    0.154972] msm_iommu_ctx 1e37000.qcom,iommu-ctx: context periph_rpm using bank 23
+[    0.155067] msm_iommu_ctx 1e38000.qcom,iommu-ctx: context periph_CE using bank 24
+[    0.155177] msm_iommu_ctx 1e39000.qcom,iommu-ctx: context periph_BLSP using bank 25
+[    0.155267] msm_iommu_ctx 1e3a000.qcom,iommu-ctx: context periph_SDC1 using bank 26
+[    0.155360] msm_iommu_ctx 1e3b000.qcom,iommu-ctx: context periph_SDC2 using bank 27
+[    0.155449] msm_iommu_ctx 1e3c000.qcom,iommu-ctx: context periph_audio using bank 28
+[    0.155540] msm_iommu_ctx 1e3d000.qcom,iommu-ctx: context periph_USB_HS1 using bank 29
+[    0.156307] Advanced Linux Sound Architecture Driver Initialized.
+[    0.156777] Bluetooth: Core ver 2.16
+[    0.156822] NET: Registered protocol family 31
+[    0.156829] Bluetooth: HCI device and connection manager initialized
+[    0.156843] Bluetooth: HCI socket layer initialized
+[    0.156854] Bluetooth: L2CAP socket layer initialized
+[    0.156877] Bluetooth: SCO socket layer initialized
+[    0.157129] cfg80211: Calling CRDA to update world regulatory domain
+[    0.157154] cfg80211: World regulatory domain updated:
+[    0.157161] cfg80211:   (start_freq - end_freq @ bandwidth), (max_antenna_gain, max_eirp)
+[    0.157170] cfg80211:   (2402000 KHz - 2472000 KHz @ 40000 KHz), (300 mBi, 2000 mBm)
+[    0.157179] cfg80211:   (2457000 KHz - 2482000 KHz @ 40000 KHz), (300 mBi, 2000 mBm)
+[    0.157188] cfg80211:   (2474000 KHz - 2494000 KHz @ 20000 KHz), (300 mBi, 2000 mBm)
+[    0.157197] cfg80211:   (5170000 KHz - 5250000 KHz @ 80000 KHz), (300 mBi, 2000 mBm)
+[    0.157206] cfg80211:   (5250000 KHz - 5330000 KHz @ 80000 KHz), (300 mBi, 2000 mBm)
+[    0.157215] cfg80211:   (5490000 KHz - 5710000 KHz @ 80000 KHz), (300 mBi, 2000 mBm)
+[    0.157224] cfg80211:   (5735000 KHz - 5835000 KHz @ 80000 KHz), (300 mBi, 2000 mBm)
+[    0.157232] cfg80211:   (57240000 KHz - 63720000 KHz @ 2160000 KHz), (N/A, 0 mBm)
+[    0.158016] Switching to clocksource arch_sys_counter
+[    0.184925] mdss_pll_probe: MDSS pll label = MDSS DSI 0 PLL
+[    0.188967] dsi_pll_clock_register_lpm: Registered DSI PLL clocks successfully
+[    0.189877] NET: Registered protocol family 2
+[    0.190395] TCP established hash table entries: 4096 (order: 3, 32768 bytes)
+[    0.190479] TCP bind hash table entries: 4096 (order: 3, 32768 bytes)
+[    0.190555] TCP: Hash tables configured (established 4096 bind 4096)
+[    0.190594] TCP: reno registered
+[    0.190606] UDP hash table entries: 256 (order: 1, 8192 bytes)
+[    0.190630] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes)
+[    0.190868] NET: Registered protocol family 1
+[    0.191354] gcc-mdss-8916 qcom,gcc-mdss.28: Registered GCC MDSS clocks.
+[    0.192189] Trying to unpack rootfs image as initramfs...
+[    0.227840] Freeing initrd memory: 524K (c2000000 - c2083000)
+[    0.231681] hw perfevents: enabled with ARMv8 Cortex-A53 PMU driver, 7 counters available
+[    0.234518] audit: initializing netlink socket (disabled)
+[    0.234558] type=2000 audit(0.199:1): initialized
+[    0.451256] fuse init (API version 7.22)
+[    0.451630] msgmni has been set to 753
+[    0.451679] SELinux:  Registering netfilter hooks
+[    0.453832] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 249)
+[    0.453841] io scheduler noop registered
+[    0.453849] io scheduler deadline registered
+[    0.453867] io scheduler row registered
+[    0.454031] io scheduler cfq registered (default)
+[    0.456348] platform qcom,smp2pgpio-ssr-smp2p-1-in.12: Driver smp2pgpio requests probe deferral
+[    0.456514] platform qcom,smp2pgpio-ssr-smp2p-1-out.13: Driver smp2pgpio requests probe deferral
+[    0.457463] platform qcom,smp2pgpio-ssr-smp2p-4-in.18: Driver smp2pgpio requests probe deferral
+[    0.457632] platform qcom,smp2pgpio-ssr-smp2p-4-out.19: Driver smp2pgpio requests probe deferral
+[    0.458262] mdss_mdp_probe: MDSS HW Base phy_Address=0x1a00000 virt=0xe1500000
+[    0.458281] mdss_mdp_probe: MDSS VBIF HW Base phy_Address=0x1ac8000 virt=0xe0878000
+[    0.458357] mdss_mdp_pipe_addr_setup: type:1 ftchid:1 xinid:0 num:0 ndx:0x1 prio:0
+[    0.458376] mdss_mdp_pipe_addr_setup: type:2 ftchid:7 xinid:1 num:3 ndx:0x8 prio:1
+[    0.458386] mdss_mdp_pipe_addr_setup: type:2 ftchid:8 xinid:5 num:4 ndx:0x10 prio:2
+[    0.458405] mdss_mdp_pipe_addr_setup: type:3 ftchid:4 xinid:2 num:6 ndx:0x40 prio:3
+[    0.458434] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-pipe-sw-reset-off : u32 array read
+[    0.458691] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-ib-factor-overlap : u32 array read
+[    0.458699] mdss_mdp_parse_dt_fudge_factors: err reading qcom,mdss-ib-factor-overlap
+[    0.458713] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-ib-factor-cmd : u32 array read
+[    0.458720] mdss_mdp_parse_dt_fudge_factors: err reading qcom,mdss-ib-factor-cmd
+[    0.458744] mdss_mdp_parse_dt_prop_len: prop qcom,mdss-clk-levels : doesn't exist in device tree
+[    0.458772] mdss_mdp_parse_dt_prop_len: prop qcom,mdss-ad-off : doesn't exist in device tree
+[    0.459055] mdss_mdp_irq_clk_register: unable to get clk: lut_clk
+[    0.460710] mdss_dsi_ctrl_probe: SPI is primary
+[    0.461012] mdss_dsi_status_init: DSI status check interval:5000
+[    0.461358] mdss_spi_panel_probe start 
+[    0.461369] mdss_spi_panel_probe: Ctrl name = mdss spi panel
+[    0.461650] mdss_spi_find_panel_of_node: invalid pan node, selecting prim panel
+[    0.461665] mdss_spi_panel_init: Panel Name = st7735s 128128 command mode spi panel
+[    0.461755] mdss_spi_panel_init: Continuous splash disabled
+[    0.461909] spi_panel_device_register:1583, TE gpio not specified
+[    0.461941] spi_panel_device_register:1595, SPI bl gpio not specified
+[    0.462073] mdss_register_panel: adding framebuffer device qcom,mdss_spi.23
+[    0.462914] mdss_fb_alloc_fbmem: no fb memory allocator function defined
+[    0.462922] mdss_fb_register: unable to allocate fb memory in fb register
+[    0.463077] mdss_fb_register: FrameBuffer[0] 480x854 registered successfully!
+[    0.463119] mdss_mdp_overlay_init: mdss_mdp_overlay_init: unable to add event timer
+[    0.463239] mdss_mdp_splash_parse_dt: mdss_mdp_splash_parse_dt due to spi
+[    0.465808] mdss_mdp_splash_init: splash memory reserve failed
+[    0.467760] msm_ipc_router_smd_driver_register Already driver registered IPCRTR
+[    0.469207] msm_rpm_log_probe: OK
+[    0.472562] In memshare_probe, Memshare probe success
+[    0.473780] subsys-restart: subsys_register(): subsys->restart_level 0
+[    0.474092] subsys-pil-tz a21b000.qcom,pronto: [wcnss]: Error getting proxy unvoting gpio
+[    0.474151] platform a21b000.qcom,pronto: Driver subsys-pil-tz requests probe deferral
+[    0.475250] pil-q6v5-mss 4080000.qcom,mss: [modem]: Error getting proxy unvoting gpio
+[    0.475375] platform 4080000.qcom,mss: Driver pil-q6v5-mss requests probe deferral
+[    0.507226] sps: BAM device 0x07884000 is not registered yet.
+[    0.507244] sps:BAM 0x07884000 is registered.
+[    0.509718] 78af000.uart: ttyHS5 at MMIO 0x78af000 (irq = 139) is a MSM HS UART
+[    0.512138] msm_serial_hsl_probe: detected port #0 (ttyHSL0)
+[    0.512182] AXI: get_pdata(): Error: Client name not found
+[    0.512190] AXI: msm_bus_cl_get_pdata(): client has to provide missing entry for successful registration
+[    0.512197] msm_serial_hsl_probe: Bus scaling is disabled
+[    0.512274] 78b0000.serial: ttyHSL0 at MMIO 0x78b0000 (irq = 140) is a MSM
+[    0.512721] msm_serial_hsl_init: driver initialized
+[    0.522455] kgsl kgsl-3d0: Initialized kgsl-3d0: mmu=on
+[    0.530312] brd: module loaded
+[    0.533409] loop: module loaded
+[    0.533809] QSEECOM: qseecom_probe: Device does not support FDE
+[    0.533818] QSEECOM: qseecom_probe: Device does not support PFEQSEECOM: qseecom_probe: Device does not support PFE/FDE
+[    0.533830] QSEECOM: qseecom_probe: qsee-ce-hw-instance=0x0QSEECOM: qseecom_probe: secure app region addr=0x86000000 size=0x300000
+[    0.535792] i2c-core: driver [tabla-i2c-core] using legacy suspend method
+[    0.535801] i2c-core: driver [tabla-i2c-core] using legacy resume method
+[    0.535908] i2c-core: driver [wcd9xxx-i2c-core] using legacy suspend method
+[    0.535915] i2c-core: driver [wcd9xxx-i2c-core] using legacy resume method
+[    0.536453] SCSI Media Changer driver v0.25 
+[    0.537666] sps:BAM 0x07884000 (va:0xe09c0000) enabled: ver:0x18, number of pipes:16
+[    0.540639] mdss_spi_client_probe cs[0] CPHA[0] CPOL[0] CS_HIGH[0] Max_speed[16000000]
+[    0.543160] tun: Universal TUN/TAP device driver, 1.6
+[    0.543168] tun: (C) 1999-2004 Max Krasnyansky <maxk@qualcomm.com>
+[    0.545548] PPP generic driver version 2.4.2
+[    0.545657] PPP BSD Compression module registered
+[    0.545665] PPP Deflate Compression module registered
+[    0.545673] NET: Registered protocol family 24
+[    0.546346] wcnss_wlan probed in built-in mode
+[    0.547081] usb_rtl8152_init
+[    0.547154] usbcore: registered new interface driver sr9900
+[    0.548409] msm_otg 78d9000.usb: msm_otg probe
+[    0.548680] exvbus_gpio set to 0
+[    0.550795] msm_otg 78d9000.usb: OTG regs = e08e6000
+[    0.552583] ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+[    0.552591] ehci-msm: Qualcomm On-Chip EHCI Host Controller
+[    0.552865] ehci-msm2: Qualcomm EHCI Host Controller
+[    0.553359] usbcore: registered new interface driver ccid_bridge
+[    0.553469] ccid_bridge_init: success
+[    0.553537] usbcore: registered new interface driver usb-storage
+[    0.553583] usbcore: registered new interface driver ums-alauda
+[    0.553620] usbcore: registered new interface driver ums-cypress
+[    0.553656] usbcore: registered new interface driver ums-datafab
+[    0.553693] usbcore: registered new interface driver ums-freecom
+[    0.553728] usbcore: registered new interface driver ums-isd200
+[    0.553765] usbcore: registered new interface driver ums-jumpshot
+[    0.553801] usbcore: registered new interface driver ums-karma
+[    0.553837] usbcore: registered new interface driver ums-onetouch
+[    0.553879] usbcore: registered new interface driver ums-sddr09
+[    0.553919] usbcore: registered new interface driver ums-sddr55
+[    0.553955] usbcore: registered new interface driver ums-usbat
+[    0.553999] usbcore: registered new interface driver usb_ehset_test
+[    0.555918] msm_otg 78d9000.usb: phy_reset: success
+[    0.556170] mousedev: PS/2 mouse device common for all mice
+[    0.556478] usbcore: registered new interface driver xpad
+[    0.556834] qcom,qpnp-rtc qpnp-rtc-de70ce00: rtc core: registered qpnp_rtc as rtc0
+[    0.557067] i2c /dev entries driver
+[    0.558915] platform 1d00000.qcom,vidc: Driver msm_vidc_v4l2 requests probe deferral
+[    0.560306] msm_cci_probe: pdev de701600 device id = -1
+[    0.563898] msm_flash_lm3642_init entry
+[    0.564348] MSM-SENSOR-INIT msm_sensor_init_module:143 MSM_SENSOR_INIT_MODULE   (null)
+[    0.565138] MSM-CPP cpp_probe:2373 Bus master 0 
+[    0.579601] MSM-CPP cpp_init_hardware:921 CPP HW Version: 0x40010000
+[    0.579613] MSM-CPP cpp_init_hardware:931 stream_cnt:0
+[    0.583244] BMS: bms_get_adc: vadc not found - defer probe rc=-517
+[    0.583254] BMS: qpnp_vm_bms_probe: Failed to get adc rc=-517
+[    0.583273] spmi qpnp-vm-bms-de70d800: Driver qcom,qpnp-vm-bms requests probe deferral
+[    0.583458] CHG: qpnp_lbc_probe: Failed to read DT properties rc=-517
+[    0.583476] spmi qpnp-linear-charger-de70d600: Driver qcom,qpnp-linear-charger requests probe deferral
+[    0.584082] unable to find DT imem DLOAD mode node
+[    0.584453] unable to find DT imem EDLOAD mode node
+[    0.602609] device-mapper: ioctl: 4.24.0-ioctl (2013-01-15) initialised: dm-devel@redhat.com
+[    0.602804] cpuidle: using governor ladder
+[    0.602812] cpuidle: using governor menu
+[    0.602847] sdhci: Secure Digital Host Controller Interface driver
+[    0.602854] sdhci: Copyright(c) Pierre Ossman
+[    0.602860] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.608277] mmc0: no vqmmc regulator found
+[    0.608290] mmc0: no vmmc regulator found
+[    0.640101] mmc0: SDHCI controller on 7824900.sdhci [7824900.sdhci] using 32-bit ADMA
+[    0.643233] QCE50: __qce_get_device_tree_data: bam_pipe_pair=0x1
+[    0.643242] QCE50: __qce_get_device_tree_data: ce-device =0x0QCE50: __qce_get_device_tree_data: ce_phy_reg_base=0x720000  
+[    0.643264] QCE50: __qce_get_device_tree_data: ce_virt_reg_base=0xe0e40000
+[    0.643272] QCE50: __qce_get_device_tree_data: ce_bam_phy_reg_base=0x704000  
+[    0.643279] QCE50: __qce_get_device_tree_data: CRYPTO BAM IRQ = 239.
+[    0.644176] qce 720000.qcedev: Qualcomm Crypto 5.3.1 device found @0x720000
+[    0.644193] qce 720000.qcedev: CE device = 0x0
+[    0.644193] , IO base, CE = 0xe0e40000
+[    0.644193] , Consumer (IN) PIPE 2,    Producer (OUT) PIPE 3
+[    0.644193] IO base BAM = 0x0
+[    0.644193] BAM IRQ 239
+[    0.644193] Engines Availability = 0x2010853
+[    0.644233] sps:BAM 0x00704000 is registered.
+[    0.644539] sps:BAM 0x00704000 (va:0xe0fc0000) enabled: ver:0x25, number of pipes:8
+[    0.644887] QCE50: qce_sps_init:  Qualcomm MSM CE-BAM at 0x0000000000704000 irq 239
+[    0.646043] usbcore: registered new interface driver usbhid
+[    0.646050] usbhid: USB HID core driver
+[    0.646502] zram: Created 1 device(s) ...
+[    0.646994] ashmem: initialized
+[    0.647135] logger: created 256K log 'log_main'
+[    0.647260] logger: created 256K log 'log_events'
+[    0.647389] logger: created 256K log 'log_radio'
+[    0.647514] logger: created 256K log 'log_system'
+[    0.648304] sps:BAM 0x078c4000 is registered.
+[    0.648314] usb_bam_ipa_create_resources: Failed to create USB_PROD resource
+[    0.648663] qcom,qpnp-power-on qpnp-power-on-de70c800: PMIC@SID0 Power-on reason: Triggered from Hard Reset and 'warm' boot
+[    0.648686] qcom,qpnp-power-on qpnp-power-on-de70c800: PMIC@SID0: Power-off reason: Triggered from PS_HOLD (PS_HOLD/MSM controlled shutdown)
+[    0.648924] input: qpnp_pon as /devices/virtual/input/input0
+[    0.649280] irq 0, desc: dec03000, depth: 1, count: 0, unhandled: 0
+[    0.649287] ->handle_irq():  c0066284, handle_bad_irq+0x0/0x20c
+[    0.649303] ->irq_data.chip(): c0bb8754, no_irq_chip+0x0/0x60
+[    0.649316] ->action():   (null)
+[    0.649323]    IRQ_NOPROBE set
+[    0.649328]  IRQ_NOREQUEST set
+[    0.650554] PMIC@SID0: PM8916 v2.0 options: 2, 2, 0, 0
+[    0.652367] devfreq qcom,cpubw.29: Couldn't update frequency transition information.
+[    0.653628] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.653660] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.665027] msm-pcm-lpa msm-pcm-lpa: msm_pcm_probe: dev name msm-pcm-lpa
+[    0.665839] platform qcom,msm-voip-dsp.39: Driver msm-voip-dsp requests probe deferral
+[    0.666255] platform qcom,msm-pcm-voice.40: Driver msm-pcm-voice requests probe deferral
+[    0.670759] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.671482] msm8x16-asoc-wcd msm-snd-card.0: ASoC: platform msm-pcm-voice not registered
+[    0.671516] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.671564] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.672207] Mirror/redirect action on
+[    0.672217] u32 classifier
+[    0.672223]     Actions configured
+[    0.672233] Netfilter messages via NETLINK v0.30.
+[    0.672289] nf_conntrack version 0.5.0 (6276 buckets, 25104 max)
+[    0.672822] ctnetlink v0.93: registering with nfnetlink.
+[    0.672860] sysctl could not get directory: /net//netfilter -20
+[    0.672878] CPU: 0 PID: 1 Comm: swapper/0 Not tainted 3.10.28 #1
+[    0.672908] [<c00136c4>] (unwind_backtrace+0x0/0xe0) from [<c0011470>] (show_stack+0x10/0x14)
+[    0.672931] [<c0011470>] (show_stack+0x10/0x14) from [<c0144d54>] (__register_sysctl_table+0x424/0x470)
+[    0.672953] [<c0144d54>] (__register_sysctl_table+0x424/0x470) from [<c0145040>] (__register_sysctl_paths+0xd0/0x17c)
+[    0.672975] [<c0145040>] (__register_sysctl_paths+0xd0/0x17c) from [<c0b7ea44>] (nf_conntrack_sip_init+0x1c/0x1b8)
+[    0.672994] [<c0b7ea44>] (nf_conntrack_sip_init+0x1c/0x1b8) from [<c00087c8>] (do_one_initcall+0x90/0x140)
+[    0.673013] [<c00087c8>] (do_one_initcall+0x90/0x140) from [<c0b43bac>] (kernel_init_freeable+0xf4/0x1c0)
+[    0.673032] [<c0b43bac>] (kernel_init_freeable+0xf4/0x1c0) from [<c07a91a8>] (kernel_init+0x8/0xe4)
+[    0.673050] [<c07a91a8>] (kernel_init+0x8/0xe4) from [<c000dab8>] (ret_from_fork+0x14/0x3c)
+[    0.673095] NF_TPROXY: Transparent proxy support initialized, version 4.1.0
+[    0.673101] NF_TPROXY: Copyright (c) 2006-2007 BalaBit IT Ltd.
+[    0.673502] xt_time: kernel timezone is -0000
+[    0.673857] ip_tables: (C) 2000-2006 Netfilter Core Team
+[    0.674004] arp_tables: (C) 2002 David S. Miller
+[    0.674050] TCP: cubic registered
+[    0.674057] Initializing XFRM netlink socket
+[    0.674598] NET: Registered protocol family 10
+[    0.675469] mip6: Mobile IPv6
+[    0.675502] ip6_tables: (C) 2000-2006 Netfilter Core Team
+[    0.675641] sit: IPv6 over IPv4 tunneling driver
+[    0.676192] NET: Registered protocol family 17
+[    0.678391] Bridge firewalling registered
+[    0.678405] Ebtables v2.0 registered
+[    0.678568] Bluetooth: RFCOMM TTY layer initialized
+[    0.678601] Bluetooth: RFCOMM socket layer initialized
+[    0.678608] Bluetooth: RFCOMM ver 1.11
+[    0.678616] Bluetooth: BNEP (Ethernet Emulation) ver 1.3
+[    0.678622] Bluetooth: BNEP filters: protocol multicast
+[    0.678635] Bluetooth: BNEP socket layer initialized
+[    0.678642] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
+[    0.678655] Bluetooth: HIDP socket layer initialized
+[    0.680889] NET: Registered protocol family 27
+[    0.683122] subsys-restart: subsys_register(): subsys->restart_level 0
+[    0.686252] subsys-restart: subsys_register(): subsys->restart_level 1
+[    0.690955] BMS: qpnp_vm_bms_probe: VMBMS disabled (disable-bms = 1)
+[    0.736445] himisn:E<<<<<<<<>?H=<GEH><BI><C
+[    0.747832] mmc0: BKOPS_EN bit = 0
+[    0.765628] mmc0: new HS200 MMC card at address 0001
+[    0.766171] mmcblk0: mmc0:0001 H4G2a 3.64 GiB 
+[    0.766507] mmcblk0rpmb: mmc0:0001 H4G2a partition 3 4.00 MiB
+[    0.769603]  mmcblk0: p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 p16 p17 p18 p19 p20 p21 p22 p23 p24 p25 p26 p27 p28
+[    0.794009] CHG: qpnp_lbc_probe: Probe chg_dis=1 bpd=1 usb=1 batt_pres=1 batt_volt=3438881 soc=50
+[    0.794093] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.794145] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.796782] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.797652] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.797687] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.797736] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.797804] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.797853] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.798581] VFP support v0.3: implementor 41 architecture 3 part 40 variant 3 rev 0
+[    0.798616] Registering SWP/SWPB emulation handler
+[    0.930178] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.931060] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.931095] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.931146] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.931230] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.931281] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.932040] file system registered
+[    0.932102] mbim_init: initialize 1 instances
+[    0.932172] mbim_init: Initialized 1 ports
+[    0.933279] rndis_qc_init: initialize rndis QC instance
+[    0.933725] android_usb gadget: Mass Storage Function, version: 2009/09/11
+[    0.933735] android_usb gadget: Number of LUNs=2
+[    0.933744]  lun0: LUN: removable file: (no medium)
+[    0.933752]  lun1: LUN: removable file: (no medium)
+[    0.934072] android_usb gadget: android_usb ready
+[    0.934086] msm_hsusb msm_hsusb: [ci13xxx_start] hw_ep_max = 16
+[    0.935157] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.935653] set L6 1V8 
+[    0.936070] enable L6 1V8 <3>[    0.936210] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.936242] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.936295] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.936379] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.936431] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.936585] input: gpio-keys as /devices/soc.0/gpio_keys.62/input/input1
+[    0.937050] qcom,qpnp-rtc qpnp-rtc-de70ce00: setting system clock to 1970-01-01 11:48:45 UTC (42525)
+[    0.937709] battery_current_limit qcom,bcl.57: battery_current_limit:probe_btm_properties Error reading key:qcom,ibat-monitor. ret = -19
+[    0.937733] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.938764] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.938796] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.938847] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.938939] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.938998] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.939934] msm_thermal:interrupt_mode_init Interrupt mode init
+[    0.940042] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.940994] /soc/qcom,lpm-levels/qcom,pm-cluster@0: No CPU phandle, assuming single cluster
+[    0.941218] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.941252] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.941304] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.941394] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.941445] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.942368] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.943375] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.943406] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.943457] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.943551] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.943608] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.944522] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.945380] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.945410] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.945460] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.945491] qcom,cc-debug-8916 1874000.qcom,cc-debug: Registered Debug Mux successfully
+[    0.945620] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    0.945680] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    0.946690] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    0.946885] clock_late_init: Removing enables held for handed-off clocks
+[    0.947588] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    0.947620] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    0.947670] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    0.951295] ALSA device list:
+[    0.951304]   No soundcards found.
+[    0.951425] Warning: unable to open an initial console.
+[    0.951868] Freeing unused kernel memory: 368K (c0b43000 - c0b9f000)
+[    0.958376] msm_otg 78d9000.usb: Avail curr from USB = 1200
+[    0.959207] CHG: qpnp_lbc_charger_enable: don,t start charging ,reason=4 requested_enable=1 disabled_status=1
+[    0.959651] SELinux: 512 avtab hash slots, 1340 rules.
+[    0.960598] SELinux: 512 avtab hash slots, 1340 rules.
+[    0.960622] SELinux:  1 users, 2 roles, 292 types, 1 bools, 1 sens, 1024 cats
+[    0.960634] SELinux:  84 classes, 1340 rules
+[    0.961779] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_RESET_EVENT received
+[    0.962056] SELinux:  Permission attach_queue in class tun_socket not defined in policy.
+[    0.962069] SELinux: the above unknown classes and permissions will be denied
+[    0.962104] SELinux:  Completing initialization.
+[    0.962111] SELinux:  Setting up existing superblocks.
+[    0.962133] SELinux: initialized (dev sysfs, type sysfs), uses genfs_contexts
+[    0.962152] SELinux: initialized (dev rootfs, type rootfs), uses genfs_contexts
+[    0.962216] SELinux: initialized (dev bdev, type bdev), not configured for labeling
+[    0.962230] SELinux: initialized (dev proc, type proc), uses genfs_contexts
+[    0.962253] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+[    0.962280] SELinux: initialized (dev debugfs, type debugfs), uses genfs_contexts
+[    0.968415] SELinux: initialized (dev sockfs, type sockfs), uses task SIDs
+[    0.968435] SELinux: initialized (dev pipefs, type pipefs), uses task SIDs
+[    0.968449] SELinux: initialized (dev anon_inodefs, type anon_inodefs), not configured for labeling
+[    0.968465] SELinux: initialized (dev devpts, type devpts), uses transition SIDs
+[    0.968494] SELinux: initialized (dev selinuxfs, type selinuxfs), uses genfs_contexts
+[    0.968557] SELinux: initialized (dev configfs, type configfs), not configured for labeling
+[    0.968568] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+[    0.968605] SELinux: initialized (dev sysfs, type sysfs), uses genfs_contexts
+[    1.193806] type=1403 audit(42525.749:2): policy loaded auid=4294967295 ses=4294967295
+[    1.193963] SELinux: Loaded policy from /sepolicy
+[    5.258455] init: /init.qcom.rc: 488: user option requires a user id
+[    5.262385] init (1): /proc/1/oom_adj is deprecated, please use /proc/1/oom_score_adj instead.
+[    5.265317] init: invalid uid 'fm_radio'
+[    5.648879] init: cannot open '/initlogo.rle'
+[    5.649619] SELinux: initialized (dev cgroup, type cgroup), uses genfs_contexts
+[    5.649991] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+[    5.652156] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+[    5.652391] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+[    5.653926] SELinux: initialized (dev cgroup, type cgroup), uses genfs_contexts
+[    5.658041] SELinux: initialized (dev functionfs, type functionfs), not configured for labeling
+[    5.753626] EXT4-fs (mmcblk0p23): mounted filesystem with ordered data mode. Opts: barrier=1,discard
+[    5.753655] SELinux: initialized (dev mmcblk0p23, type ext4), uses xattr
+[    5.754377] EXT4-fs (mmcblk0p28): Ignoring removed nomblk_io_submit option
+[    5.805090] EXT4-fs (mmcblk0p28): mounted filesystem with ordered data mode. Opts: nomblk_io_submit,errors=remount-ro
+[    5.805113] SELinux: initialized (dev mmcblk0p28, type ext4), uses xattr
+[    5.806277] fs_mgr: Running /system/bin/e2fsck on /dev/block/bootdevice/by-name/userdata
+[    5.838108] e2fsck: e2fsck 1.41.14 (22-Dec-2010)
+[    5.838162] e2fsck: /dev/block/bootdevice/by-name/userdata: clean, 542/102544 files, 48929/409600 blocks
+[    5.842412] EXT4-fs (mmcblk0p28): mounted filesystem with ordered data mode. Opts: barrier=1,noauto_da_alloc,discard
+[    5.842439] SELinux: initialized (dev mmcblk0p28, type ext4), uses xattr
+[    5.856621] Adding 196604k swap on /dev/block/zram0.  Priority:-1 extents:1 across:196604k SS
+[    5.861224] EXT4-fs (mmcblk0p25): mounted filesystem with ordered data mode. Opts: barrier=1
+[    5.861252] SELinux: initialized (dev mmcblk0p25, type ext4), uses xattr
+[    5.865507] EXT4-fs (mmcblk0p24): mounted filesystem with ordered data mode. Opts: barrier=1
+[    5.865527] SELinux: initialized (dev mmcblk0p24, type ext4), uses xattr
+[    5.872701] SELinux: initialized (dev mmcblk0p1, type vfat), uses genfs_contexts
+[    5.912843] init: himi_config_sys_init ret = -1init: config prop read curr_sim = 30
+[    5.915573] init: config prop read f_flags = 75 , file exist = 0
+[    5.915616] init: config prop read len = 1024
+[    5.915687] init: config init set 
+[    5.916010] init: persist.himi.sim.user = 0
+[    5.918863] init: Detected MSM SOC ID=206 SOC VER=65536 BOARD TYPE=MTP
+[    5.919102] init: failed to open '/sys/class/graphics/fb1/msm_fb_type'
+[    5.919131] init: failed to open '/sys/class/graphics/fb2/msm_fb_type'
+[    5.931271] init: property 'persist.sys.ssr.enable_debug' doesn't exist while expanding '${persist.sys.ssr.enable_debug}'
+[    5.931292] init: cannot expand '${persist.sys.ssr.enable_debug}' while writing to '/sys/module/subsystem_restart/parameters/enable_debug'
+[    5.931314] init: property 'persist.sys.mba_boot_timeout' doesn't exist while expanding '${persist.sys.mba_boot_timeout}'
+[    5.931327] init: cannot expand '${persist.sys.mba_boot_timeout}' while writing to '/sys/module/pil_msa/parameters/pbl_mba_boot_timeout_ms'
+[    5.931345] init: property 'persist.sys.modem_auth_timeout' doesn't exist while expanding '${persist.sys.modem_auth_timeout}'
+[    5.931359] init: cannot expand '${persist.sys.modem_auth_timeout}' while writing to '/sys/module/pil_msa/parameters/modem_auth_timeout_ms'
+[    5.931377] init: property 'persist.sys.pil_proxy_timeout' doesn't exist while expanding '${persist.sys.pil_proxy_timeout}'
+[    5.931390] init: cannot expand '${persist.sys.pil_proxy_timeout}' while writing to '/sys/module/peripheral_loader/parameters/proxy_timeout_ms'
+[    5.934745] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x86800000 to 0x8ba00000
+[    5.980963] pil: MBA boot done
+[    6.610988] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+[    6.716320] pil-q6v5-mss 4080000.qcom,mss: modem: Power/Clock ready interrupt received
+[    6.716357] pil-q6v5-mss 4080000.qcom,mss: Subsystem error monitoring/handling services are up
+[    6.716703] spmi wcd-spmi-de70e000: Driver wcd-spmi-core requests probe deferral
+[    6.716763] spmi wcd-spmi-de70e200: Driver wcd-spmi-core requests probe deferral
+[    6.717032] M-Notify: General: 7
+[    6.718150] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    6.719089] msm8x16-asoc-wcd msm-snd-card.0: ASoC: CODEC msm8x16_wcd_codec not registered
+[    6.719122] msm8x16-asoc-wcd msm-snd-card.0: snd_soc_register_card failed (-517)
+[    6.719177] platform msm-snd-card.0: Driver msm8x16-asoc-wcd requests probe deferral
+[    6.721611] type=1400 audit(42531.279:3): avc:  denied  { entrypoint } for  pid=186 comm="init" path="/sbin/healthd" dev="rootfs" ino=5578 scontext=u:r:healthd:s0 tcontext=u:object_r:rootfs:s0 tclass=file
+[    6.723756] healthd: BatteryTechnologyPath not found
+[    6.723807] binder: 186:186 transaction failed 29189, size 0-0
+[    6.730890] init: cannot find '/system/etc/install-recovery.sh', disabling 'flash_recovery'
+[    6.733636] init: cannot find '/system/bin/usb_uicc_client', disabling 'usb_uicc_daemon'
+[    6.734892] init: cannot find '/system/bin/imsqmidaemon', disabling 'imsqmidaemon'
+[    6.741881] warning: `qrngd' uses 32-bit capabilities (legacy support in use)
+[    6.825135] init: cannot find '/system/bin/loc_launcher', disabling 'loc_launcher'
+[    6.827256] init: cannot find '/system/bin/ssr_diag', disabling 'ssr_diag'
+[    6.830069] init: cannot find '/system/bin/mm-pp-daemon', disabling 'ppd'
+[    6.832353] init: property 'sys.powerctl' doesn't exist while expanding '${sys.powerctl}'
+[    6.832374] init: powerctl: cannot expand '${sys.powerctl}'
+[    6.832430] init: property 'sys.sysctl.extra_free_kbytes' doesn't exist while expanding '${sys.sysctl.extra_free_kbytes}'
+[    6.832448] init: cannot expand '${sys.sysctl.extra_free_kbytes}' while writing to '/proc/sys/vm/extra_free_kbytes'
+[    6.832480] init: property 'sys.sysctl.tcp_def_init_rwnd' doesn't exist while expanding '${sys.sysctl.tcp_def_init_rwnd}'
+[    6.832497] init: cannot expand '${sys.sysctl.tcp_def_init_rwnd}' while writing to '/proc/sys/net/ipv4/tcp_default_init_rwnd'
+[    6.832747] init: cannot find '/system/bin/ssr_setup', disabling 'ssr_setup'
+[    7.019807] SELinux: initialized (dev fuse, type fuse), uses genfs_contexts
+[    7.034108] enable_store: android_usb: already disabled
+[    7.036603] msm8x16-asoc-wcd msm-snd-card.0: default codec configured
+[    7.054514] msm-pcm-routing msm-pcm-routing: ASoC: no dapm match for VOICE2_STUB_DL --> Voice2 Stub --> INTERNAL_BT_SCO_RX_Voice Mixer
+[    7.054539] msm-pcm-routing msm-pcm-routing: ASoC: Failed to add route VOICE2_STUB_DL -> Voice2 Stub -> INTERNAL_BT_SCO_RX_Voice Mixer
+[    7.055331] diag: In diag_send_msg_mask_update, invalid status 0
+[    7.055342] diag: In diag_send_log_mask_update, invalid status 0<6>[    7.059092] read descriptors
+[    7.059112] read strings
+[    7.061638] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_CONNECT_EVENT received
+[    7.070574] apr_tal:Modem Is Up
+[    7.089756] msm-pcm-routing msm-pcm-routing: ASoC: mux SLIM_0_RX AANC MUX has no paths
+[    7.092372] wcd-spmi-core msm8x16_wcd_codec: ASoC: mux RX3 MIX1 INP3 has no paths
+[    7.092580] wcd-spmi-core msm8x16_wcd_codec: ASoC: mux RX2 MIX1 INP3 has no paths
+[    7.104145] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia1 mapping ok
+[    7.105612] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia2 mapping ok
+[    7.107245] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> CS-VOICE mapping ok
+[    7.108650] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> VoIP mapping ok
+[    7.110853] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia3 mapping ok
+[    7.113414] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> PRI_MI2S_RX_HOSTLESS mapping ok
+[    7.115198] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> INT_FM_HOSTLESS mapping ok
+[    7.117033] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-dev.241 mapping ok
+[    7.118922] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-tx <-> msm-dai-q6-dev.240 mapping ok
+[    7.121225] compress asoc: snd-soc-dummy-dai <-> MultiMedia4 mapping ok
+[    7.123222] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> AUXPCM_HOSTLESS mapping ok
+[    7.125321] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> TERT_MI2S_TX_HOSTLESS mapping ok
+[    7.127543] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia5 mapping ok
+[    7.129681] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> Voice2 mapping ok
+[    7.132264] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia9 mapping ok
+[    7.134343] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> VoLTE mapping ok
+[    7.136397] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> VoWLAN mapping ok
+[    7.138324] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> INT_HFP_BT_HOSTLESS mapping ok
+[    7.141244] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia6 mapping ok
+[    7.143472] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> LSM1 mapping ok
+[    7.145711] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> LSM2 mapping ok
+[    7.147696] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> LSM3 mapping ok
+[    7.149809] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> LSM4 mapping ok
+[    7.151569] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> LSM5 mapping ok
+[    7.153301] msm8x16-asoc-wcd msm-snd-card.0:  snd-soc-dummy-dai <-> MultiMedia7 mapping ok
+[    7.155278] wcd-spmi-core msm8x16_wcd_codec: ASoC: unknown pin Digital Mic1
+[    7.155320] wcd-spmi-core msm8x16_wcd_codec: ASoC: unknown pin Digital Mic2
+[    7.155532] wcd_program_btn_threshold: course: 0 fine: 2 reg_addr: 153 reg_val: 8
+[    7.155550] wcd_program_btn_threshold: course: 0 fine: 4 reg_addr: 154 reg_val: 10
+[    7.155567] wcd_program_btn_threshold: course: 0 fine: 6 reg_addr: 155 reg_val: 18
+[    7.155583] wcd_program_btn_threshold: course: 1 fine: 1 reg_addr: 156 reg_val: 24
+[    7.155599] wcd_program_btn_threshold: course: 1 fine: 3 reg_addr: 157 reg_val: 2c
+[    7.155730] msm8x16-asoc-wcd msm-snd-card.0:  msm8x16_wcd_i2s_rx1 <-> msm-dai-q6-mi2s.0 mapping ok
+[    7.157372] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-mi2s.1 mapping ok
+[    7.159332] msm8x16-asoc-wcd msm-snd-card.0:  msm8x16_wcd_i2s_tx1 <-> msm-dai-q6-mi2s.2 mapping ok
+[    7.161157] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-dev.12288 mapping ok
+[    7.162945] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-tx <-> msm-dai-q6-dev.12289 mapping ok
+[    7.164536] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-dev.12292 mapping ok
+[    7.166211] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-tx <-> msm-dai-q6-dev.12293 mapping ok
+[    7.167984] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-dev.224 mapping ok
+[    7.168736] android_work: android_work: did not send uevent (0 0   (null))
+[    7.169859] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-tx <-> msm-dai-q6-dev.225 mapping ok
+[    7.171796] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-tx <-> msm-dai-q6-dev.32772 mapping ok
+[    7.173767] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-tx <-> msm-dai-q6-dev.32771 mapping ok
+[    7.175845] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-dev.32773 mapping ok
+[    7.177807] msm8x16-asoc-wcd msm-snd-card.0:  msm-stub-rx <-> msm-dai-q6-dev.32770 mapping ok
+[    7.207253] input: msm8x16-snd-card-mtp Button Jack as /devices/soc.0/msm-snd-card.0/sound/card0/input2
+[    7.208657] input: msm8x16-snd-card-mtp Headset Jack as /devices/soc.0/msm-snd-card.0/sound/card0/input3
+[    7.232230] msm_thermal:set_enabled enabled = 0
+[    7.279629] android_work: android_work: sent uevent USB_STATE=CONNECTED
+[    7.283296] android_work: android_work: sent uevent USB_STATE=DISCONNECTED
+[    7.306804] QSEECOM: qseecom_load_app: App (keymaste) does'nt exist, loading apps for first time
+[    7.313363] QSEECOM: qseecom_load_app: App with id 2 (keymaste) now loaded
+[    7.353343] failed: s_ctrl   (null) for camera_id 1
+[    7.353359] MSM-SENSOR-INIT msm_sensor_driver_cmd:87 failed: msm_sensor_driver_probe rc -22
+[    7.357121] msm_vfe40_init_qos_parms: NO D/S entries found
+[    7.357135] msm_vfe40_init_vbif_parms: NO VBIF entries found
+[    7.373793] MSM-CPP cpp_init_hardware:921 CPP HW Version: 0x40010000
+[    7.373809] MSM-CPP cpp_init_hardware:931 stream_cnt:0
+[    7.397785] MSM-CPP cpp_load_fw:1076 MC Bootloader Version: 0x312e3176
+[    7.402561] android_work: android_work: sent uevent USB_STATE=CONNECTED
+[    7.403903] MSM-CPP cpp_load_fw:1089 CPP FW Version: 0x10040005
+[    7.418886] android_usb gadget: high-speed config #1: 86000c8.android_usb
+[    7.419050] diag: USB connected
+[    7.419730] gbam_connect_work: Bam channel is not ready
+[    7.478326] android_work: android_work: sent uevent USB_STATE=CONFIGURED
+[    7.608045] sps:BAM 0x04044000 is registered.
+[    7.608189] sps:BAM 0x04044000 (va:0xe2da0000) enabled: ver:0x25, number of pipes:6
+[    7.737499] MSM-SENSOR-INIT msm_sensor_wait_for_probe_done:54 msm_cam_get_module_init_status -2
+[    7.737499] 
+[    7.789161] msm_qti_pp_get_rms_value_control, back not active to query rms
+[    7.790403] core_get_license_status: module_id 0x1
+[    7.790534] core_get_license_status: cmdrsp_license_result.result = 0x15 for module 0x1
+[    7.790648] msm_dolby_dap_param_to_get_control_get, port_id not set, do not query ADM
+[    7.838749] mdss_hw_rev_init: MDP Rev=10060000
+[    8.103311] core_get_license_status: module_id 0x1
+[    8.103430] core_get_license_status: cmdrsp_license_result.result = 0x15 for module 0x1
+[    8.103526] core_set_license: error getting metainfo size, err:0x0, size:0
+[    8.122316] SELinux: initialized (dev tmpfs, type tmpfs), uses transition SIDs
+[    8.246317] wcnss_wlan triggered by userspace
+[    8.246999] wcnss_pm_qos_add_request: add request
+[    8.247017] wcnss_pm_qos_update_request: update request 100<6>[    8.247495] wcnss_notif_cb: wcnss notification event: 2
+[    8.250908] subsys-pil-tz a21b000.qcom,pronto: wcnss: loading from 0x8bd00000 to 0x8c2ff000
+[    8.251207] wcnss_notif_cb: wcnss notification event: 6
+[    8.253082] wcnss: IRIS Reg: 51120004
+[    8.374846] diag: USB disconnected
+[    8.375608] init: untracked pid 545 exited
+[    8.431860] subsys-pil-tz a21b000.qcom,pronto: wcnss: Brought out of reset
+[    8.806269] subsys-pil-tz a21b000.qcom,pronto: wcnss: Power/Clock ready interrupt received
+[    8.806564] wcnss_notif_cb: wcnss notification event: 7
+[    8.814030] subsys-pil-tz a21b000.qcom,pronto: Subsystem error monitoring/handling services are up
+[    8.814259] wcnss_notif_cb: wcnss notification event: 3
+[    8.814287] wcnss_pm_qos_update_request: update request -1
+[    8.814299] wcnss_pm_qos_remove_request: remove requestdiag: In diag_send_msg_mask_update, invalid status 0
+[    8.815987] diag: In diag_send_log_mask_update, invalid status 0<6>[    8.946355] wcnss_wlan_ctrl_probe: SMD ctrl channel up
+[    8.946688] wcnss: version 01050102
+[    8.946703] wcnss: schedule dnld work for pronto
+[    8.817312] wcnss: user cal written
+[    8.946713] wcnss: cal download, using user cal<3>[    8.946745] wcnss: no space available for smd frame
+[    8.947462] wcnss: build version CNSS-PR-1-4-2-c4-00084
+[    8.968289] wcnss: no space available for smd frame
+[    8.998173] wcnss: NV download
+[    9.004161] wcnss: NV bin size: 29812, total_fragments: 10
+[    9.004201] wcnss: no space available for smd frame
+[    9.028147] wcnss: no space available for smd frame
+[    9.058154] wcnss: no space available for smd frame
+[    9.088166] wcnss: no space available for smd frame
+[   12.044190] read descriptors
+[   12.044213] read strings
+[   12.044318] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_CONNECT_EVENT received
+[   12.047372] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_SUSPEND_EVENT received
+[   12.047408] android_work: android_work: did not send uevent (1 1   (null))
+[   12.152696] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_RESUME_EVENT received
+[   12.152890] android_work: android_work: sent uevent USB_STATE=DISCONNECTED
+[   12.263391] android_work: android_work: sent uevent USB_STATE=CONNECTED
+[   12.266864] android_work: android_work: sent uevent USB_STATE=DISCONNECTED
+[   12.387338] android_work: android_work: sent uevent USB_STATE=CONNECTED
+[   12.398877] android_usb gadget: high-speed config #1: 86000c8.android_usb
+[   12.399032] diag: USB connected
+[   12.458236] android_work: android_work: sent uevent USB_STATE=CONFIGURED
+[   14.793160] lowmemorykiller: lowmem_shrink: convert oom_adj to oom_score_adj:
+[   14.793176] lowmemorykiller: oom_adj 0 => oom_score_adj 0
+[   14.793183] lowmemorykiller: oom_adj 1 => oom_score_adj 58
+[   14.793191] lowmemorykiller: oom_adj 2 => oom_score_adj 117
+[   14.793198] lowmemorykiller: oom_adj 3 => oom_score_adj 176
+[   14.793205] lowmemorykiller: oom_adj 9 => oom_score_adj 529
+[   14.793212] lowmemorykiller: oom_adj 15 => oom_score_adj 1000
+[   15.273154] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.ip
+[   15.273405] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.netmask
+[   15.273622] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.dhcp.type
+[   15.273800] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.ipstart
+[   15.273974] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.ipend
+[   15.274162] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.iptimer
+[   15.274307] init: sys_prop: permission denied uid:1000  name:persist.himi.gw.eth.type
+[   15.302422] acc_open
+[   15.302448] acc_release
+[   15.372599] mdss_spi_panel_bl_ctrl: BL_WLED bl_level 102,bl_ness 15
+[   15.398165] ------------[ cut here ]------------
+[   15.398194] WARNING: at /workspace/work/code/msm8916_xg_ufi/msm8916_kk_4530/kernel/sound/soc/codecs/wcd-mbhc-v2.c:666 wcd_mbhc_find_plug_and_report+0x40/0x1c0()
+[   15.398202] wcd_mbhc_find_plug_and_report: BCL should have acquired
+[   15.398208] Modules linked in:
+[   15.398221] CPU: 1 PID: 26 Comm: kworker/1:1 Not tainted 3.10.28 #1
+[   15.398234] Workqueue: events wcd_correct_swch_plug
+[   15.398260] [<c00136c4>] (unwind_backtrace+0x0/0xe0) from [<c0011470>] (show_stack+0x10/0x14)
+[   15.398281] [<c0011470>] (show_stack+0x10/0x14) from [<c0021688>] (warn_slowpath_common+0x4c/0x6c)
+[   15.398304] [<c0021688>] (warn_slowpath_common+0x4c/0x6c) from [<c0021728>] (warn_slowpath_fmt+0x2c/0x3c)
+[   15.398330] [<c0021728>] (warn_slowpath_fmt+0x2c/0x3c) from [<c05d3458>] (wcd_mbhc_find_plug_and_report+0x40/0x1c0)
+[   15.398354] [<c05d3458>] (wcd_mbhc_find_plug_and_report+0x40/0x1c0) from [<c05d396c>] (wcd_correct_swch_plug+0x394/0x3dc)
+[   15.398379] [<c05d396c>] (wcd_correct_swch_plug+0x394/0x3dc) from [<c003b360>] (process_one_work+0x258/0x44c)
+[   15.398397] [<c003b360>] (process_one_work+0x258/0x44c) from [<c003b9f4>] (worker_thread+0x204/0x348)
+[   15.398415] [<c003b9f4>] (worker_thread+0x204/0x348) from [<c0040a28>] (kthread+0xa0/0xb0)
+[   15.398433] [<c0040a28>] (kthread+0xa0/0xb0) from [<c000dab8>] (ret_from_fork+0x14/0x3c)
+[   15.398442] ---[ end trace ee167a7b69bfb5fa ]---
+[   15.398449] ------------[ cut here ]------------
+[   15.398461] WARNING: at /workspace/work/code/msm8916_xg_ufi/msm8916_kk_4530/kernel/sound/soc/codecs/wcd-mbhc-v2.c:546 wcd_mbhc_report_plug+0x44/0x6f8()
+[   15.398467] wcd_mbhc_report_plug: BCL should have acquired
+[   15.398473] Modules linked in:
+[   15.398484] CPU: 1 PID: 26 Comm: kworker/1:1 Tainted: G        W    3.10.28 #1
+[   15.398495] Workqueue: events wcd_correct_swch_plug
+[   15.398513] [<c00136c4>] (unwind_backtrace+0x0/0xe0) from [<c0011470>] (show_stack+0x10/0x14)
+[   15.398532] [<c0011470>] (show_stack+0x10/0x14) from [<c0021688>] (warn_slowpath_common+0x4c/0x6c)
+[   15.398550] [<c0021688>] (warn_slowpath_common+0x4c/0x6c) from [<c0021728>] (warn_slowpath_fmt+0x2c/0x3c)
+[   15.398568] [<c0021728>] (warn_slowpath_fmt+0x2c/0x3c) from [<c05d2c1c>] (wcd_mbhc_report_plug+0x44/0x6f8)
+[   15.398586] [<c05d2c1c>] (wcd_mbhc_report_plug+0x44/0x6f8) from [<c05d3548>] (wcd_mbhc_find_plug_and_report+0x130/0x1c0)
+[   15.398604] [<c05d3548>] (wcd_mbhc_find_plug_and_report+0x130/0x1c0) from [<c05d396c>] (wcd_correct_swch_plug+0x394/0x3dc)
+[   15.398627] [<c05d396c>] (wcd_correct_swch_plug+0x394/0x3dc) from [<c003b360>] (process_one_work+0x258/0x44c)
+[   15.398647] [<c003b360>] (process_one_work+0x258/0x44c) from [<c003b9f4>] (worker_thread+0x204/0x348)
+[   15.398664] [<c003b9f4>] (worker_thread+0x204/0x348) from [<c0040a28>] (kthread+0xa0/0xb0)
+[   15.398682] [<c0040a28>] (kthread+0xa0/0xb0) from [<c000dab8>] (ret_from_fork+0x14/0x3c)
+[   15.398689] ---[ end trace ee167a7b69bfb5fb ]---
+[   16.598033] type=1400 audit(1789919361.504:4): avc:  denied  { read } for  pid=693 comm="netd" name="mmcblk0p12" dev="tmpfs" ino=9286 scontext=u:r:netd:s0 tcontext=u:object_r:block_device:s0 tclass=blk_file
+[   16.598173] type=1400 audit(1789919361.514:5): avc:  denied  { open } for  pid=693 comm="netd" path="/dev/block/mmcblk0p12" dev="tmpfs" ino=9286 scontext=u:r:netd:s0 tcontext=u:object_r:block_device:s0 tclass=blk_file
+[   17.417561] calling msm_rng_bus_scale(LOW)
+[   17.611246] diag: USB disconnected
+[   17.612670] diag: USB connected
+[   17.405456] Boot completed init: untracked pid 1227 exited
+[   17.871141] wlan: loading driver v3.2.3.172
+[   17.877736] wlan: [901:E :HDD] hdd_parse_config_ini: qcom_cfg.ini Size 7416
+[   17.878352] wlan: [901:E :HDD] hdd_apply_cfg_ini: Reg Parameter gApKeepAlivePeriod > allowed Maximum [30 > 20]. Enforcing Default= 5
+[   17.879386] wlan: [901:E :HDD] hdd_is_5g_supported: Hardware doesn't supports 5Ghz
+[   17.879417] wlan: [901:E :HDD] hdd_is_5g_supported: Hardware doesn't supports 5Ghz
+[   17.879435] wlan: [901:E :HDD] wlan_hdd_cfg80211_init: wiphy->bands[i] is NULL, i = 1
+[   17.879450] wlan: [901:E :HDD] wlan_hdd_cfg80211_init: wiphy->bands[i] is NULL, i = 2
+[   17.903626] wlan: [901:E :VOS] INFO: NV version = 2 is loaded, driver supports NV version = 3
+[   17.903669] wlan: [901:E :VOS] INFO: Driver supports NV3 CH144 by default, NV2 is currently loaded, NV2 will be used.
+[   17.903766] error: wiphy->bands[i] is NULL, i = 1
+[   17.903775] error: wiphy->bands[i] is NULL, i = 2
+[   17.928342] wlan: [901:E :HDD] hdd_wlan_startup: WLAN Mac Addr: 00:90:4a:13:a0:72
+[   17.928377] wlan: [901:E :HDD] hdd_generate_iface_mac_addr_auto: Derived Mac Addr: 00:90:4a:e4:40:f0
+[   17.928394] wlan: [901:E :HDD] hdd_generate_iface_mac_addr_auto: Derived Mac Addr: 00:90:4a:e4:40:f1
+[   17.928411] wlan: [901:E :HDD] hdd_generate_iface_mac_addr_auto: Derived Mac Addr: 00:90:4a:e4:40:f2
+[   18.067866] wlan: [1237:E :WDA] Update channel list capability Not Supported
+[   18.067895] wlan: WCNSS WLAN version 1.5.1.2
+[   18.067907] wlan: WCNSS software version CNSS-PR-1-4-2-c4-00084
+[   18.067920] wlan: WCNSS hardware version WCN v2.0 RadioPhy vUnknown with 19.2MHz XO
+[   18.067945] wlan: [901:E :CTL] Host caps b4c001ff 6 0 80000000
+[   18.067957] wlan: [901:E :CTL] Host Capability
+[   18.067980] wlan: [901:E :CTL] 		MCC, P2P, DOT11AC, SLM_SESSIONIZATION, DOT11AC_OPMODE, SAP32STA, TDLS, P2P_GO_NOA_DECOUPLE_INIT_SCAN, WLANACTIVE_OFFLOAD, WOW, WLAN_ROAM_SCAN_OFFLOAD, , , , FW_IN_TX_PATH, CH_SWITCH_V1, HT40_OBSS_SCAN, 
+[   18.068026] DefaultCountry is US
+[   18.068300] wlan: [1237:E :WDA] Update channel list capability Not Supported
+[   18.069471] cfg80211: Calling CRDA for country: US
+[   18.069650] wlan: [1237:E :CTL] FW caps fdf877fb 2003f 0 0
+[   18.069662] wlan: [1237:E :CTL] Firmware Capability
+[   18.069695] wlan: [1237:E :CTL] 		MCC, P2P, SLM_SESSIONIZATION, DOT11AC_OPMODE, SAP32STA, TDLS, P2P_GO_NOA_DECOUPLE_INIT_SCAN, WLANACTIVE_OFFLOAD, BEACON_OFFLOAD, SCAN_OFFLOAD, BCN_MISS_OFFLOAD, STA_POWERSAVE, , BCN_FILTER, RTT, RATECTRL, WOW, WLAN_ROAM_SCAN_OFFLOAD, , , , , , , FW_IN_TX_PATH, EXTENDED_NSOFFLOAD_SLOT, CH_SWITCH_V1, HT40_OBSS_SCAN, , , , 
+[   18.069823] wlan: [26:E :VOS] error: wiphy->bands is NULL, i = 2
+[   18.069847] cfg80211: Regulatory domain changed to country: US
+[   18.069857] cfg80211:   (start_freq - end_freq @ bandwidth), (max_antenna_gain, max_eirp)
+[   18.069866] cfg80211:   (2402000 KHz - 2472000 KHz @ 40000 KHz), (300 mBi, 2700 mBm)
+[   18.069875] cfg80211:   (5170000 KHz - 5250000 KHz @ 80000 KHz), (300 mBi, 1700 mBm)
+[   18.069883] cfg80211:   (5250000 KHz - 5330000 KHz @ 80000 KHz), (300 mBi, 2300 mBm)
+[   18.069892] cfg80211:   (5490000 KHz - 5600000 KHz @ 80000 KHz), (300 mBi, 2300 mBm)
+[   18.069900] cfg80211:   (5650000 KHz - 5730000 KHz @ 40000 KHz), (300 mBi, 2300 mBm)
+[   18.069909] cfg80211:   (5735000 KHz - 5835000 KHz @ 80000 KHz), (300 mBi, 3000 mBm)
+[   18.069917] cfg80211:   (57240000 KHz - 63720000 KHz @ 2160000 KHz), (N/A, 4000 mBm)
+[   18.083756] wlan: [901:E :HDD] wlan_hdd_tdls_init TDLS not enabled (0) or FW doesn't support (1)!
+[   18.095960] wlan: [901:E :HDD] wlan_hdd_tdls_init TDLS not enabled (0) or FW doesn't support (1)!
+[   18.106181] wlan_logging_sock_activate_svc: Initalizing FEConsoleLog = 1 NumBuff = 32
+[   18.121381] wlan_logging_sock_activate_svc: Activated wlan_logging svc
+[   18.121958] wlan: driver loaded
+[   18.199351] type=1400 audit(1790105548.114:6): avc:  denied  { open } for  pid=693 comm="netd" path="/data/hostapd/hostapd.accept" dev="mmcblk0p28" ino=23668 scontext=u:r:netd:s0 tcontext=u:object_r:system_data_file:s0 tclass=file
+[   18.371335] init: sys_prop: permission denied uid:1013  name:service.bootanim.exit
+[   18.484675] wlan: [1269:E :HDD] wlan_hdd_tdls_exit: 786: pHddTdlsCtx is NULL
+[   18.610855] wlan: [1269:E :HDD] wlan_hdd_tdls_exit: 786: pHddTdlsCtx is NULL
+[   18.738481] wlan: [0:E :TL ] WLAN TL:Station was not previously registered on WLANTL_STAPktPending
+[   18.827739] device bridge1 entered promiscuous mode
+[   18.876455] wlan: [1237:E :PE ] limMlmAddBss: 1711: TRYING TO HIDE SSID 0
+[   18.876541] wlan: [1237:E :PE ] mlm_add_sta: 1608: GF: 0, ChnlWidth: 0, MimoPS: 3, lsigTXOP: 0, dsssCCK: 0, SGI20: 1, SGI401
+[   18.931051] wlan(0) 00:00:00:00:00:00 Standalone
+[   18.931070] AP(3) 00:90:4a:13:a0:72<6>[   18.977037] device wlan0 entered promiscuous mode
+[   19.088285] bridge1: port 1(wlan0) entered forwarding state
+[   19.088425] bridge1: port 1(wlan0) entered forwarding state
+[   20.099881] HTB: quantum of class 10001 is big. Consider r2q change.
+[   20.114252] HTB: quantum of class 10010 is big. Consider r2q change.
+[   20.176991] diag: USB disconnected
+[   20.185976] enable_store: android_usb: already disabled
+[   20.192261] read descriptors
+[   20.192295] read strings
+[   20.192362] rndis_function_bind_config: rndis_function_bind_config MAC: 02:53:01:01:39:31
+[   20.192465] android_usb gadget: using random self ethernet address
+[   20.192501] android_usb gadget: using random host ethernet address
+[   20.195566] rndis0: MAC 96:7a:92:a6:97:bf
+[   20.195599] rndis0: HOST MAC 0e:07:54:6e:7b:54
+[   20.195931] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_CONNECT_EVENT received
+[   20.199011] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_SUSPEND_EVENT received
+[   20.199060] android_work: android_work: did not send uevent (1 1   (null))
+[   20.324661] msm_hsusb msm_hsusb: CI13XXX_CONTROLLER_RESUME_EVENT received
+[   20.325051] android_work: android_work: sent uevent USB_STATE=DISCONNECTED
+[   20.444465] android_work: android_work: did not send uevent (0 0   (null))
+[   20.559323] android_work: android_work: sent uevent USB_STATE=CONNECTED
+[   20.566777] android_usb gadget: high-speed config #1: 86000c8.android_usb
+[   20.599892] NOHZ: local_softirq_pending 08
+[   20.622591] android_work: android_work: sent uevent USB_STATE=CONFIGURED
+[   20.627096] device rndis0 entered promiscuous mode
+[   20.701250] NOHZ: local_softirq_pending 08
+[   21.188188] bridge1: port 2(rndis0) entered forwarding state
+[   21.188261] bridge1: port 2(rndis0) entered forwarding state
+[   21.600093] NOHZ: local_softirq_pending 08
+[   22.600261] NOHZ: local_softirq_pending 08
+[   23.371557] NOHZ: local_softirq_pending 08
+[   23.401563] NOHZ: local_softirq_pending 08
+[   32.110210] diag: USB disconnected
+[   32.111691] diag: USB connected
+[   32.866710] sshd (1511): undefined instruction: pc=000d0f08
+[   32.866729] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[   32.866757] sshd (1511): undefined instruction: pc=000d0ef0
+[   32.866769] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[   32.866785] sshd (1511): undefined instruction: pc=000d0ef8
+[   32.866798] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[   32.866813] sshd (1511): undefined instruction: pc=000d0f00
+[   32.866825] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[   32.919408] init: untracked pid 1512 exited
+[   32.923486] init: untracked pid 1229 exited
+[   34.108100] bridge1: port 1(wlan0) entered forwarding state
+[   35.593039] NOHZ: local_softirq_pending 08
+[   35.763012] NOHZ: local_softirq_pending 08
+[   36.228141] bridge1: port 2(rndis0) entered forwarding state
+[   38.619120] NOHZ: local_softirq_pending 08
+[   38.781360] NOHZ: local_softirq_pending 08
+[   49.622358] core_set_dolby_manufacturer_id: manufacturer_id :0
+[   63.059327] sshd (1894): undefined instruction: pc=000d0f08
+[   63.059347] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[   63.059381] sshd (1894): undefined instruction: pc=000d0ef0
+[   63.059394] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[   63.059410] sshd (1894): undefined instruction: pc=000d0ef8
+[   63.059422] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[   63.059436] sshd (1894): undefined instruction: pc=000d0f00
+[   63.059448] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[   78.748578] init: untracked pid 1228 exited
+[   91.713645] init: untracked pid 1895 exited
+[   93.296861] sshd (2071): undefined instruction: pc=000d0f08
+[   93.296879] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[   93.296906] sshd (2071): undefined instruction: pc=000d0ef0
+[   93.296918] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[   93.296935] sshd (2071): undefined instruction: pc=000d0ef8
+[   93.296947] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[   93.296963] sshd (2071): undefined instruction: pc=000d0f00
+[   93.296975] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[  126.917001] init: untracked pid 2072 exited
+[  137.671750] diag: USB disconnected
+[  137.674201] diag: USB connected
+[   32.111708] diag: unable to alloc USB req on legacy ch, err: -19
+[  137.674221] diag: unable to alloc USB req on legacy ch, err: -19<7>[  137.674613] diag: USB disconnected
+[  137.676758] diag: USB connected
+[  244.804924] EXT4-fs (mmcblk0p23): re-mounted. Opts: (null)
+[  273.170580] sshd (2324): undefined instruction: pc=000d0f08
+[  273.170599] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[  273.170626] sshd (2324): undefined instruction: pc=000d0ef0
+[  273.170639] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[  273.170654] sshd (2324): undefined instruction: pc=000d0ef8
+[  273.170666] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[  273.170681] sshd (2324): undefined instruction: pc=000d0f00
+[  273.170693] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[  284.659371] init: untracked pid 2325 exited
+[  319.339762] sshd (2392): undefined instruction: pc=000d0f08
+[  319.339785] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[  319.339816] sshd (2392): undefined instruction: pc=000d0ef0
+[  319.339828] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[  319.339844] sshd (2392): undefined instruction: pc=000d0ef8
+[  319.339856] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[  319.339872] sshd (2392): undefined instruction: pc=000d0f00
+[  319.339884] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[  678.911690] htb: prio qdisc 10: is non-work-conserving?
+[  972.507557] sshd (3227): undefined instruction: pc=000d0f08
+[  972.507580] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[  972.507625] sshd (3227): undefined instruction: pc=000d0ef0
+[  972.507638] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[  972.507663] sshd (3227): undefined instruction: pc=000d0ef8
+[  972.507675] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[  972.507694] sshd (3227): undefined instruction: pc=000d0f00
+[  972.507706] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[  972.518788] sshd (3229): undefined instruction: pc=000d0f08
+[  972.518812] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[  972.518837] sshd (3229): undefined instruction: pc=000d0ef0
+[  972.518849] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[  972.518865] sshd (3229): undefined instruction: pc=000d0ef8
+[  972.518877] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[  972.518892] sshd (3229): undefined instruction: pc=000d0f00
+[  972.518904] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1008.680047] sshd (3301): undefined instruction: pc=000d0f08
+[ 1008.680072] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1008.680101] sshd (3301): undefined instruction: pc=000d0ef0
+[ 1008.680114] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1008.680130] sshd (3301): undefined instruction: pc=000d0ef8
+[ 1008.680143] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1008.680157] sshd (3301): undefined instruction: pc=000d0f00
+[ 1008.680170] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1008.829961] init: untracked pid 3302 exited
+[ 1040.323777] sshd (1513): undefined instruction: pc=000d0f08
+[ 1040.323798] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1040.323828] sshd (1513): undefined instruction: pc=000d0ef0
+[ 1040.323842] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1040.323858] sshd (1513): undefined instruction: pc=000d0ef8
+[ 1040.323871] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1040.323887] sshd (1513): undefined instruction: pc=000d0f00
+[ 1040.323899] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1040.361802] init: untracked pid 1513 exited
+[ 1040.361900] init: untracked pid 3367 exited
+[ 1079.682700] sshd (3428): undefined instruction: pc=000d0f08
+[ 1079.682721] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1079.682751] sshd (3428): undefined instruction: pc=000d0ef0
+[ 1079.682764] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1079.682780] sshd (3428): undefined instruction: pc=000d0ef8
+[ 1079.682792] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1079.682808] sshd (3428): undefined instruction: pc=000d0f00
+[ 1079.682820] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1079.839372] init: untracked pid 3429 exited
+[ 1079.843877] sshd (3430): undefined instruction: pc=000d0f08
+[ 1079.843895] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1079.843920] sshd (3430): undefined instruction: pc=000d0ef0
+[ 1079.843932] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1079.843948] sshd (3430): undefined instruction: pc=000d0ef8
+[ 1079.843960] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1079.843975] sshd (3430): undefined instruction: pc=000d0f00
+[ 1079.843987] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1080.001345] init: untracked pid 3431 exited
+[ 1080.676174] init: untracked pid 3390 exited
+[ 1158.612175] init: untracked pid 3524 exited
+[ 1159.613243] init: untracked pid 3522 exited
+[ 1159.613388] init: untracked pid 3523 exited
+[ 1176.294863] sshd (3368): undefined instruction: pc=000d0f08
+[ 1176.294882] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1176.294905] sshd (3368): undefined instruction: pc=000d0ef0
+[ 1176.294918] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1176.294934] sshd (3368): undefined instruction: pc=000d0ef8
+[ 1176.294946] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1176.294962] sshd (3368): undefined instruction: pc=000d0f00
+[ 1176.294974] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1176.331888] init: untracked pid 3368 exited
+[ 1176.331956] init: untracked pid 3597 exited
+[ 1177.338688] sshd (3602): undefined instruction: pc=000d0f08
+[ 1177.338706] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1177.338732] sshd (3602): undefined instruction: pc=000d0ef0
+[ 1177.338744] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1177.338761] sshd (3602): undefined instruction: pc=000d0ef8
+[ 1177.338774] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1177.338789] sshd (3602): undefined instruction: pc=000d0f00
+[ 1177.338801] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1194.871158] init: untracked pid 3634 exited
+[ 1194.883688] init: untracked pid 3641 exited
+[ 1200.970677] init: untracked pid 3657 exited
+[ 1220.711779] sshd (3693): undefined instruction: pc=000d0f08
+[ 1220.711797] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1220.711827] sshd (3693): undefined instruction: pc=000d0ef0
+[ 1220.711840] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1220.711855] sshd (3693): undefined instruction: pc=000d0ef8
+[ 1220.711868] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1220.711883] sshd (3693): undefined instruction: pc=000d0f00
+[ 1220.711895] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1220.926827] sshd (3696): undefined instruction: pc=000d0f08
+[ 1220.926845] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1220.926870] sshd (3696): undefined instruction: pc=000d0ef0
+[ 1220.926883] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1220.926900] sshd (3696): undefined instruction: pc=000d0ef8
+[ 1220.926912] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1220.926928] sshd (3696): undefined instruction: pc=000d0f00
+[ 1220.926941] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1221.075299] init: untracked pid 3697 exited
+[ 1221.081909] sshd (3698): undefined instruction: pc=000d0f08
+[ 1221.081926] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1221.081950] sshd (3698): undefined instruction: pc=000d0ef0
+[ 1221.081963] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1221.081978] sshd (3698): undefined instruction: pc=000d0ef8
+[ 1221.081991] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1221.082006] sshd (3698): undefined instruction: pc=000d0f00
+[ 1221.082018] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1221.230259] init: untracked pid 3699 exited
+[ 1241.024546] sshd (3734): undefined instruction: pc=000d0f08
+[ 1241.024564] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1241.024592] sshd (3734): undefined instruction: pc=000d0ef0
+[ 1241.024605] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1241.024621] sshd (3734): undefined instruction: pc=000d0ef8
+[ 1241.024633] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1241.024649] sshd (3734): undefined instruction: pc=000d0f00
+[ 1241.024662] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1241.226416] sshd (3737): undefined instruction: pc=000d0f08
+[ 1241.226434] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1241.226460] sshd (3737): undefined instruction: pc=000d0ef0
+[ 1241.226472] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1241.226489] sshd (3737): undefined instruction: pc=000d0ef8
+[ 1241.226501] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1241.226517] sshd (3737): undefined instruction: pc=000d0f00
+[ 1241.226529] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1251.079796] sshd (3761): undefined instruction: pc=000d0f08
+[ 1251.079814] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1251.079840] sshd (3761): undefined instruction: pc=000d0ef0
+[ 1251.079853] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1251.079869] sshd (3761): undefined instruction: pc=000d0ef8
+[ 1251.079881] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1251.079897] sshd (3761): undefined instruction: pc=000d0f00
+[ 1251.079909] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1251.284291] sshd (3764): undefined instruction: pc=000d0f08
+[ 1251.284310] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1251.284335] sshd (3764): undefined instruction: pc=000d0ef0
+[ 1251.284348] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1251.284364] sshd (3764): undefined instruction: pc=000d0ef8
+[ 1251.284377] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1251.284391] sshd (3764): undefined instruction: pc=000d0f00
+[ 1251.284403] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1251.484659] sshd (3767): undefined instruction: pc=000d0f08
+[ 1251.484677] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1251.484702] sshd (3767): undefined instruction: pc=000d0ef0
+[ 1251.484715] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1251.484731] sshd (3767): undefined instruction: pc=000d0ef8
+[ 1251.484743] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1251.484758] sshd (3767): undefined instruction: pc=000d0f00
+[ 1251.484771] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1251.674449] sshd (3770): undefined instruction: pc=000d0f08
+[ 1251.674467] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1251.674493] sshd (3770): undefined instruction: pc=000d0ef0
+[ 1251.674506] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1251.674522] sshd (3770): undefined instruction: pc=000d0ef8
+[ 1251.674534] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1251.674550] sshd (3770): undefined instruction: pc=000d0f00
+[ 1251.674562] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1251.867165] sshd (3773): undefined instruction: pc=000d0f08
+[ 1251.867183] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1251.867209] sshd (3773): undefined instruction: pc=000d0ef0
+[ 1251.867221] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1251.867237] sshd (3773): undefined instruction: pc=000d0ef8
+[ 1251.867250] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1251.867265] sshd (3773): undefined instruction: pc=000d0f00
+[ 1251.867277] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1265.187239] sshd (3598): undefined instruction: pc=000d0f08
+[ 1265.187268] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1265.187299] sshd (3598): undefined instruction: pc=000d0ef0
+[ 1265.187312] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1265.187328] sshd (3598): undefined instruction: pc=000d0ef8
+[ 1265.187340] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1265.187355] sshd (3598): undefined instruction: pc=000d0f00
+[ 1265.187367] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1265.224174] init: untracked pid 3598 exited
+[ 1265.224516] init: untracked pid 3797 exited
+[ 1267.195071] sshd (3804): undefined instruction: pc=000d0f08
+[ 1267.195089] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1267.195116] sshd (3804): undefined instruction: pc=000d0ef0
+[ 1267.195129] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1267.195145] sshd (3804): undefined instruction: pc=000d0ef8
+[ 1267.195158] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1267.195173] sshd (3804): undefined instruction: pc=000d0f00
+[ 1267.195186] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1267.378398] sshd (3807): undefined instruction: pc=000d0f08
+[ 1267.378425] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1267.378465] sshd (3807): undefined instruction: pc=000d0ef0
+[ 1267.378478] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1267.378494] sshd (3807): undefined instruction: pc=000d0ef8
+[ 1267.378506] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1267.378522] sshd (3807): undefined instruction: pc=000d0f00
+[ 1267.378534] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1267.565175] sshd (3810): undefined instruction: pc=000d0f08
+[ 1267.565193] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1267.565218] sshd (3810): undefined instruction: pc=000d0ef0
+[ 1267.565231] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1267.565247] sshd (3810): undefined instruction: pc=000d0ef8
+[ 1267.565259] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1267.565274] sshd (3810): undefined instruction: pc=000d0f00
+[ 1267.565286] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1280.292148] sshd (3831): undefined instruction: pc=000d0f08
+[ 1280.292208] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1280.292288] sshd (3831): undefined instruction: pc=000d0ef0
+[ 1280.292337] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1280.292398] sshd (3831): undefined instruction: pc=000d0ef8
+[ 1280.292445] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1280.292504] sshd (3831): undefined instruction: pc=000d0f00
+[ 1280.292551] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1290.343550] sshd (3851): undefined instruction: pc=000d0f08
+[ 1290.343567] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1290.343594] sshd (3851): undefined instruction: pc=000d0ef0
+[ 1290.343606] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1290.343622] sshd (3851): undefined instruction: pc=000d0ef8
+[ 1290.343634] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1290.343648] sshd (3851): undefined instruction: pc=000d0f00
+[ 1290.343660] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1297.577911] sshd (3798): undefined instruction: pc=000d0f08
+[ 1297.577938] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1297.577960] sshd (3798): undefined instruction: pc=000d0ef0
+[ 1297.577973] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1297.577989] sshd (3798): undefined instruction: pc=000d0ef8
+[ 1297.578002] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1297.578017] sshd (3798): undefined instruction: pc=000d0f00
+[ 1297.578029] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1297.615522] init: untracked pid 3798 exited
+[ 1297.615870] init: untracked pid 3878 exited
+[ 1299.585911] sshd (3881): undefined instruction: pc=000d0f08
+[ 1299.585929] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1299.585957] sshd (3881): undefined instruction: pc=000d0ef0
+[ 1299.585970] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1299.585987] sshd (3881): undefined instruction: pc=000d0ef8
+[ 1299.586000] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1299.586015] sshd (3881): undefined instruction: pc=000d0f00
+[ 1299.586028] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1299.748636] init: untracked pid 3882 exited
+[ 1306.147349] sshd (3891): undefined instruction: pc=000d0f08
+[ 1306.147371] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1306.147400] sshd (3891): undefined instruction: pc=000d0ef0
+[ 1306.147413] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1306.147429] sshd (3891): undefined instruction: pc=000d0ef8
+[ 1306.147441] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1306.147456] sshd (3891): undefined instruction: pc=000d0f00
+[ 1306.147468] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1306.360227] sshd (3894): undefined instruction: pc=000d0f08
+[ 1306.360246] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1306.360269] sshd (3894): undefined instruction: pc=000d0ef0
+[ 1306.360282] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1306.360297] sshd (3894): undefined instruction: pc=000d0ef8
+[ 1306.360310] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1306.360325] sshd (3894): undefined instruction: pc=000d0f00
+[ 1306.360338] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1306.509721] init: untracked pid 3895 exited
+[ 1313.559906] sshd (3879): undefined instruction: pc=000d0f08
+[ 1313.559933] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1313.559978] sshd (3879): undefined instruction: pc=000d0ef0
+[ 1313.559992] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1313.560013] sshd (3879): undefined instruction: pc=000d0ef8
+[ 1313.560025] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1313.560039] sshd (3879): undefined instruction: pc=000d0f00
+[ 1313.560051] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1313.596999] init: untracked pid 3879 exited
+[ 1313.597407] init: untracked pid 3918 exited
+[ 1315.573748] sshd (3921): undefined instruction: pc=000d0f08
+[ 1315.573771] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1315.573801] sshd (3921): undefined instruction: pc=000d0ef0
+[ 1315.573814] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1315.573830] sshd (3921): undefined instruction: pc=000d0ef8
+[ 1315.573842] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1315.573857] sshd (3921): undefined instruction: pc=000d0f00
+[ 1315.573869] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1369.853652] init: untracked pid 3919 exited
+[ 1371.899856] sshd (4054): undefined instruction: pc=000d0f08
+[ 1371.899887] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1371.899915] sshd (4054): undefined instruction: pc=000d0ef0
+[ 1371.899927] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1371.899943] sshd (4054): undefined instruction: pc=000d0ef8
+[ 1371.899956] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1371.899971] sshd (4054): undefined instruction: pc=000d0f00
+[ 1371.899984] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1371.937891] init: untracked pid 4055 exited
+[ 1374.942914] sshd (4062): undefined instruction: pc=000d0f08
+[ 1374.942933] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1374.942961] sshd (4062): undefined instruction: pc=000d0ef0
+[ 1374.942974] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1374.942991] sshd (4062): undefined instruction: pc=000d0ef8
+[ 1374.943004] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1374.943019] sshd (4062): undefined instruction: pc=000d0f00
+[ 1374.943032] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1374.980292] init: untracked pid 4063 exited
+[ 1374.981021] init: untracked pid 4064 exited
+[ 1376.979360] sshd (4073): undefined instruction: pc=000d0f08
+[ 1376.979378] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1376.979410] sshd (4073): undefined instruction: pc=000d0ef0
+[ 1376.979423] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1376.979439] sshd (4073): undefined instruction: pc=000d0ef8
+[ 1376.979451] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1376.979467] sshd (4073): undefined instruction: pc=000d0f00
+[ 1376.979479] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1379.992807] sshd (4083): undefined instruction: pc=000d0f08
+[ 1379.992826] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1379.992854] sshd (4083): undefined instruction: pc=000d0ef0
+[ 1379.992867] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1379.992883] sshd (4083): undefined instruction: pc=000d0ef8
+[ 1379.992896] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1379.992910] sshd (4083): undefined instruction: pc=000d0f00
+[ 1379.992923] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1380.030588] init: untracked pid 4084 exited
+[ 1380.031144] init: untracked pid 4085 exited
+[ 1384.041773] sshd (4086): undefined instruction: pc=000d0f08
+[ 1384.041791] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1384.041819] sshd (4086): undefined instruction: pc=000d0ef0
+[ 1384.041832] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1384.041847] sshd (4086): undefined instruction: pc=000d0ef8
+[ 1384.041860] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1384.041875] sshd (4086): undefined instruction: pc=000d0f00
+[ 1384.041888] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1384.079749] init: untracked pid 4087 exited
+[ 1384.080285] init: untracked pid 4088 exited
+[ 1385.997977] sshd (4093): undefined instruction: pc=000d0f08
+[ 1385.997999] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1385.998039] sshd (4093): undefined instruction: pc=000d0ef0
+[ 1385.998051] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1385.998156] sshd (4093): undefined instruction: pc=000d0ef8
+[ 1385.998187] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1385.998209] sshd (4093): undefined instruction: pc=000d0f00
+[ 1385.998225] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1389.092054] sshd (4110): undefined instruction: pc=000d0f08
+[ 1389.092071] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1389.092100] sshd (4110): undefined instruction: pc=000d0ef0
+[ 1389.092112] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1389.092127] sshd (4110): undefined instruction: pc=000d0ef8
+[ 1389.092140] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1389.092156] sshd (4110): undefined instruction: pc=000d0f00
+[ 1389.092168] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1389.129832] init: untracked pid 4111 exited
+[ 1389.130296] init: untracked pid 4112 exited
+[ 1394.142388] sshd (4120): undefined instruction: pc=000d0f08
+[ 1394.142412] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1394.142441] sshd (4120): undefined instruction: pc=000d0ef0
+[ 1394.142453] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1394.142469] sshd (4120): undefined instruction: pc=000d0ef8
+[ 1394.142482] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1394.142497] sshd (4120): undefined instruction: pc=000d0f00
+[ 1394.142510] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1394.180146] init: untracked pid 4121 exited
+[ 1394.180672] init: untracked pid 4122 exited
+[ 1399.192736] sshd (4133): undefined instruction: pc=000d0f08
+[ 1399.192755] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1399.192782] sshd (4133): undefined instruction: pc=000d0ef0
+[ 1399.192795] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1399.192811] sshd (4133): undefined instruction: pc=000d0ef8
+[ 1399.192823] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1399.192838] sshd (4133): undefined instruction: pc=000d0f00
+[ 1399.192850] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1399.230528] init: untracked pid 4134 exited
+[ 1399.231727] init: untracked pid 4135 exited
+[ 1404.244461] sshd (4137): undefined instruction: pc=000d0f08
+[ 1404.244494] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1404.244534] sshd (4137): undefined instruction: pc=000d0ef0
+[ 1404.244546] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1404.244563] sshd (4137): undefined instruction: pc=000d0ef8
+[ 1404.244575] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1404.244590] sshd (4137): undefined instruction: pc=000d0f00
+[ 1404.244602] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1404.282467] init: untracked pid 4138 exited
+[ 1404.283686] init: untracked pid 4139 exited
+[ 1409.294751] sshd (4152): undefined instruction: pc=000d0f08
+[ 1409.294771] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1409.294798] sshd (4152): undefined instruction: pc=000d0ef0
+[ 1409.294811] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1409.294828] sshd (4152): undefined instruction: pc=000d0ef8
+[ 1409.294841] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1409.294856] sshd (4152): undefined instruction: pc=000d0f00
+[ 1409.294868] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1409.332449] init: untracked pid 4153 exited
+[ 1409.333039] init: untracked pid 4154 exited
+[ 1414.344764] sshd (4160): undefined instruction: pc=000d0f08
+[ 1414.344784] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1414.344811] sshd (4160): undefined instruction: pc=000d0ef0
+[ 1414.344824] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1414.344841] sshd (4160): undefined instruction: pc=000d0ef8
+[ 1414.344855] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1414.344870] sshd (4160): undefined instruction: pc=000d0f00
+[ 1414.344883] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1414.382394] init: untracked pid 4161 exited
+[ 1414.382950] init: untracked pid 4162 exited
+[ 1419.401110] sshd (4169): undefined instruction: pc=000d0f08
+[ 1419.401143] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1419.401187] sshd (4169): undefined instruction: pc=000d0ef0
+[ 1419.401212] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1419.401243] sshd (4169): undefined instruction: pc=000d0ef8
+[ 1419.401268] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1419.401297] sshd (4169): undefined instruction: pc=000d0f00
+[ 1419.401321] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1419.447383] init: untracked pid 4170 exited
+[ 1419.448720] init: untracked pid 4171 exited
+[ 1424.461195] sshd (4179): undefined instruction: pc=000d0f08
+[ 1424.461214] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1424.461242] sshd (4179): undefined instruction: pc=000d0ef0
+[ 1424.461254] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1424.461270] sshd (4179): undefined instruction: pc=000d0ef8
+[ 1424.461282] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1424.461298] sshd (4179): undefined instruction: pc=000d0f00
+[ 1424.461310] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1424.499063] init: untracked pid 4180 exited
+[ 1424.500270] init: untracked pid 4181 exited
+[ 1429.512644] sshd (4188): undefined instruction: pc=000d0f08
+[ 1429.512663] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1429.512691] sshd (4188): undefined instruction: pc=000d0ef0
+[ 1429.512704] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1429.512720] sshd (4188): undefined instruction: pc=000d0ef8
+[ 1429.512733] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1429.512749] sshd (4188): undefined instruction: pc=000d0f00
+[ 1429.512761] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1429.550287] init: untracked pid 4189 exited
+[ 1429.551511] init: untracked pid 4190 exited
+[ 1434.568842] sshd (4196): undefined instruction: pc=000d0f08
+[ 1434.568874] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1434.568919] sshd (4196): undefined instruction: pc=000d0ef0
+[ 1434.568944] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1434.568976] sshd (4196): undefined instruction: pc=000d0ef8
+[ 1434.568999] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1434.569029] sshd (4196): undefined instruction: pc=000d0f00
+[ 1434.569053] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1434.611326] init: untracked pid 4197 exited
+[ 1434.612521] init: untracked pid 4198 exited
+[ 1439.629081] sshd (4207): undefined instruction: pc=000d0f08
+[ 1439.629113] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1439.629159] sshd (4207): undefined instruction: pc=000d0ef0
+[ 1439.629184] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1439.629214] sshd (4207): undefined instruction: pc=000d0ef8
+[ 1439.629238] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1439.629267] sshd (4207): undefined instruction: pc=000d0f00
+[ 1439.629291] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1439.671963] init: untracked pid 4208 exited
+[ 1439.672684] init: untracked pid 4209 exited
+[ 1444.685007] sshd (4211): undefined instruction: pc=000d0f08
+[ 1444.685026] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1444.685054] sshd (4211): undefined instruction: pc=000d0ef0
+[ 1444.685067] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1444.685083] sshd (4211): undefined instruction: pc=000d0ef8
+[ 1444.685096] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1444.685110] sshd (4211): undefined instruction: pc=000d0f00
+[ 1444.685122] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1444.722563] init: untracked pid 4212 exited
+[ 1444.723625] init: untracked pid 4213 exited
+[ 1449.736033] sshd (4220): undefined instruction: pc=000d0f08
+[ 1449.736053] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1449.736082] sshd (4220): undefined instruction: pc=000d0ef0
+[ 1449.736095] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1449.736110] sshd (4220): undefined instruction: pc=000d0ef8
+[ 1449.736122] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1449.736136] sshd (4220): undefined instruction: pc=000d0f00
+[ 1449.736148] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1449.773998] init: untracked pid 4221 exited
+[ 1449.775176] init: untracked pid 4222 exited
+[ 1454.789965] sshd (4234): undefined instruction: pc=000d0f08
+[ 1454.789984] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1454.790010] sshd (4234): undefined instruction: pc=000d0ef0
+[ 1454.790024] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1454.790040] sshd (4234): undefined instruction: pc=000d0ef8
+[ 1454.790052] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1454.790068] sshd (4234): undefined instruction: pc=000d0f00
+[ 1454.790080] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1454.827428] init: untracked pid 4235 exited
+[ 1454.828708] init: untracked pid 4236 exited
+[ 1459.845955] sshd (4243): undefined instruction: pc=000d0f08
+[ 1459.845974] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1459.846015] sshd (4243): undefined instruction: pc=000d0ef0
+[ 1459.846033] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1459.846058] sshd (4243): undefined instruction: pc=000d0ef8
+[ 1459.846070] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1459.846085] sshd (4243): undefined instruction: pc=000d0f00
+[ 1459.846097] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1459.883970] init: untracked pid 4244 exited
+[ 1459.885234] init: untracked pid 4245 exited
+[ 1460.902189] wlan: [1237:E :PE ] limProcessAssocReqFrame: 659: RSN enabled auth, Re/Assoc req from STA: 9a:f2:39:18:0b:93
+[ 1460.902234] wlan: [1237:E :PE ] limProcessAssocReqFrame: 1010: Received Assoc Req  successful from 9a:f2:39:18:0b:93
+[ 1461.979973] wlan: [1237:E :PE ] limProcessAddBaInd: 5636: BA setup for staId = 2, TID: 0, SSN: 46
+[ 1461.980123] wlan: [1237:E :PE ] limProcessAddBaInd: 5636: BA setup for staId = 2, TID: 4, SSN: 18
+[ 1461.984122] wlan: [1237:E :PE ] __limProcessAddBARsp: 1467: dialogueToken in received addBARsp did not match with outstanding requests
+[ 1462.979664] wlan: [1237:E :PE ] limProcessAddBaInd: 5636: BA setup for staId = 2, TID: 4, SSN: 23
+[ 1464.896935] sshd (4250): undefined instruction: pc=000d0f08
+[ 1464.896954] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1464.896984] sshd (4250): undefined instruction: pc=000d0ef0
+[ 1464.896997] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1464.897013] sshd (4250): undefined instruction: pc=000d0ef8
+[ 1464.897026] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1464.897040] sshd (4250): undefined instruction: pc=000d0f00
+[ 1464.897053] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1464.934317] init: untracked pid 4251 exited
+[ 1464.934854] init: untracked pid 4252 exited
+[ 1469.946458] sshd (4261): undefined instruction: pc=000d0f08
+[ 1469.946476] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1469.946504] sshd (4261): undefined instruction: pc=000d0ef0
+[ 1469.946516] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1469.946533] sshd (4261): undefined instruction: pc=000d0ef8
+[ 1469.946545] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1469.946561] sshd (4261): undefined instruction: pc=000d0f00
+[ 1469.946573] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1469.984865] init: untracked pid 4262 exited
+[ 1469.985432] init: untracked pid 4263 exited
+[ 1470.979718] wlan: [1237:E :PE ] limProcessAddBaInd: 5636: BA setup for staId = 2, TID: 1, SSN: 19
+[ 1475.000774] sshd (4269): undefined instruction: pc=000d0f08
+[ 1475.000799] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1475.000835] sshd (4269): undefined instruction: pc=000d0ef0
+[ 1475.000855] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1475.000879] sshd (4269): undefined instruction: pc=000d0ef8
+[ 1475.000897] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1475.000920] sshd (4269): undefined instruction: pc=000d0f00
+[ 1475.000938] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1475.041100] init: untracked pid 4270 exited
+[ 1475.042048] init: untracked pid 4271 exited
+[ 1479.053142] sshd (4278): undefined instruction: pc=000d0f08
+[ 1479.053170] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1479.053217] sshd (4278): undefined instruction: pc=000d0ef0
+[ 1479.053230] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1479.053248] sshd (4278): undefined instruction: pc=000d0ef8
+[ 1479.053260] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1479.053280] sshd (4278): undefined instruction: pc=000d0f00
+[ 1479.053292] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1479.091723] init: untracked pid 4279 exited
+[ 1479.092264] init: untracked pid 4280 exited
+[ 1484.101645] sshd (4284): undefined instruction: pc=000d0f08
+[ 1484.101671] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1484.101716] sshd (4284): undefined instruction: pc=000d0ef0
+[ 1484.101730] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1484.101746] sshd (4284): undefined instruction: pc=000d0ef8
+[ 1484.101758] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1484.101773] sshd (4284): undefined instruction: pc=000d0f00
+[ 1484.101785] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1484.139854] init: untracked pid 4285 exited
+[ 1484.140427] init: untracked pid 4286 exited
+[ 1489.152839] sshd (4293): undefined instruction: pc=000d0f08
+[ 1489.152857] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1489.152885] sshd (4293): undefined instruction: pc=000d0ef0
+[ 1489.152898] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1489.152914] sshd (4293): undefined instruction: pc=000d0ef8
+[ 1489.152927] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1489.152942] sshd (4293): undefined instruction: pc=000d0f00
+[ 1489.152955] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1489.195166] init: untracked pid 4294 exited
+[ 1489.195966] init: untracked pid 4295 exited
+[ 1494.207614] sshd (4303): undefined instruction: pc=000d0f08
+[ 1494.207635] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1494.207663] sshd (4303): undefined instruction: pc=000d0ef0
+[ 1494.207676] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1494.207692] sshd (4303): undefined instruction: pc=000d0ef8
+[ 1494.207705] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1494.207720] sshd (4303): undefined instruction: pc=000d0f00
+[ 1494.207732] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1494.248945] init: untracked pid 4304 exited
+[ 1494.249484] init: untracked pid 4305 exited
+[ 1499.261223] sshd (4312): undefined instruction: pc=000d0f08
+[ 1499.261242] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1499.261270] sshd (4312): undefined instruction: pc=000d0ef0
+[ 1499.261282] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1499.261297] sshd (4312): undefined instruction: pc=000d0ef8
+[ 1499.261310] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1499.261324] sshd (4312): undefined instruction: pc=000d0f00
+[ 1499.261336] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1499.299462] init: untracked pid 4313 exited
+[ 1499.300617] init: untracked pid 4314 exited
+[ 1504.312586] sshd (4316): undefined instruction: pc=000d0f08
+[ 1504.312606] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1504.312634] sshd (4316): undefined instruction: pc=000d0ef0
+[ 1504.312646] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1504.312663] sshd (4316): undefined instruction: pc=000d0ef8
+[ 1504.312675] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1504.312691] sshd (4316): undefined instruction: pc=000d0f00
+[ 1504.312703] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1504.350412] init: untracked pid 4317 exited
+[ 1504.350950] init: untracked pid 4318 exited
+[ 1506.135371] sshd (4320): undefined instruction: pc=000d0f08
+[ 1506.135394] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1506.135431] sshd (4320): undefined instruction: pc=000d0ef0
+[ 1506.135444] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1506.135460] sshd (4320): undefined instruction: pc=000d0ef8
+[ 1506.135472] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1506.135487] sshd (4320): undefined instruction: pc=000d0f00
+[ 1506.135499] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1509.362743] sshd (4340): undefined instruction: pc=000d0f08
+[ 1509.362761] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1509.362790] sshd (4340): undefined instruction: pc=000d0ef0
+[ 1509.362803] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1509.362818] sshd (4340): undefined instruction: pc=000d0ef8
+[ 1509.362832] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1509.362847] sshd (4340): undefined instruction: pc=000d0f00
+[ 1509.362859] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1509.400522] init: untracked pid 4341 exited
+[ 1509.401040] init: untracked pid 4342 exited
+[ 1514.414136] sshd (4350): undefined instruction: pc=000d0f08
+[ 1514.414159] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1514.414203] sshd (4350): undefined instruction: pc=000d0ef0
+[ 1514.414216] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1514.414232] sshd (4350): undefined instruction: pc=000d0ef8
+[ 1514.414244] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1514.414259] sshd (4350): undefined instruction: pc=000d0f00
+[ 1514.414271] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1514.452663] init: untracked pid 4351 exited
+[ 1514.453149] init: untracked pid 4352 exited
+[ 1516.589393] sshd (4354): undefined instruction: pc=000d0f08
+[ 1516.589425] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1516.589469] sshd (4354): undefined instruction: pc=000d0ef0
+[ 1516.589493] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1516.589524] sshd (4354): undefined instruction: pc=000d0ef8
+[ 1516.589549] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1516.589579] sshd (4354): undefined instruction: pc=000d0f00
+[ 1516.589603] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1519.464917] sshd (4378): undefined instruction: pc=000d0f08
+[ 1519.464934] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1519.464962] sshd (4378): undefined instruction: pc=000d0ef0
+[ 1519.464976] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1519.464991] sshd (4378): undefined instruction: pc=000d0ef8
+[ 1519.465004] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1519.465020] sshd (4378): undefined instruction: pc=000d0f00
+[ 1519.465032] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1519.502515] init: untracked pid 4379 exited
+[ 1519.503034] init: untracked pid 4380 exited
+[ 1524.514807] sshd (4384): undefined instruction: pc=000d0f08
+[ 1524.514825] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1524.514854] sshd (4384): undefined instruction: pc=000d0ef0
+[ 1524.514867] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1524.514882] sshd (4384): undefined instruction: pc=000d0ef8
+[ 1524.514895] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1524.514910] sshd (4384): undefined instruction: pc=000d0f00
+[ 1524.514923] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1524.553161] init: untracked pid 4385 exited
+[ 1524.554405] init: untracked pid 4386 exited
+[ 1529.566125] sshd (4393): undefined instruction: pc=000d0f08
+[ 1529.566144] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1529.566171] sshd (4393): undefined instruction: pc=000d0ef0
+[ 1529.566184] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1529.566200] sshd (4393): undefined instruction: pc=000d0ef8
+[ 1529.566213] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1529.566228] sshd (4393): undefined instruction: pc=000d0f00
+[ 1529.566240] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1529.604040] init: untracked pid 4394 exited
+[ 1529.604575] init: untracked pid 4395 exited
+[ 1534.621708] sshd (4401): undefined instruction: pc=000d0f08
+[ 1534.621740] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1534.621786] sshd (4401): undefined instruction: pc=000d0ef0
+[ 1534.621811] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1534.621842] sshd (4401): undefined instruction: pc=000d0ef8
+[ 1534.621866] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1534.621897] sshd (4401): undefined instruction: pc=000d0f00
+[ 1534.621922] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1534.667953] init: untracked pid 4402 exited
+[ 1534.668578] init: untracked pid 4403 exited
+[ 1536.978141] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1539.680222] sshd (4410): undefined instruction: pc=000d0f08
+[ 1539.680242] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1539.680270] sshd (4410): undefined instruction: pc=000d0ef0
+[ 1539.680283] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1539.680299] sshd (4410): undefined instruction: pc=000d0ef8
+[ 1539.680311] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1539.680326] sshd (4410): undefined instruction: pc=000d0f00
+[ 1539.680339] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1539.717946] init: untracked pid 4411 exited
+[ 1539.719564] init: untracked pid 4412 exited
+[ 1544.731360] sshd (4416): undefined instruction: pc=000d0f08
+[ 1544.731378] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1544.731409] sshd (4416): undefined instruction: pc=000d0ef0
+[ 1544.731422] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1544.731437] sshd (4416): undefined instruction: pc=000d0ef8
+[ 1544.731449] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1544.731465] sshd (4416): undefined instruction: pc=000d0f00
+[ 1544.731478] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1544.768953] init: untracked pid 4417 exited
+[ 1544.769518] init: untracked pid 4418 exited
+[ 1549.781211] sshd (4425): undefined instruction: pc=000d0f08
+[ 1549.781229] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1549.781257] sshd (4425): undefined instruction: pc=000d0ef0
+[ 1549.781270] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1549.781287] sshd (4425): undefined instruction: pc=000d0ef8
+[ 1549.781299] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1549.781314] sshd (4425): undefined instruction: pc=000d0f00
+[ 1549.781327] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1549.818518] init: untracked pid 4426 exited
+[ 1549.819480] init: untracked pid 4427 exited
+[ 1554.831237] sshd (4435): undefined instruction: pc=000d0f08
+[ 1554.831257] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1554.831285] sshd (4435): undefined instruction: pc=000d0ef0
+[ 1554.831298] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1554.831315] sshd (4435): undefined instruction: pc=000d0ef8
+[ 1554.831328] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1554.831344] sshd (4435): undefined instruction: pc=000d0f00
+[ 1554.831357] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1554.868785] init: untracked pid 4436 exited
+[ 1554.869354] init: untracked pid 4437 exited
+[ 1557.018181] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1559.881014] sshd (4444): undefined instruction: pc=000d0f08
+[ 1559.881033] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1559.881061] sshd (4444): undefined instruction: pc=000d0ef0
+[ 1559.881074] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1559.881090] sshd (4444): undefined instruction: pc=000d0ef8
+[ 1559.881102] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1559.881118] sshd (4444): undefined instruction: pc=000d0f00
+[ 1559.881130] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1559.918627] init: untracked pid 4445 exited
+[ 1559.919306] init: untracked pid 4446 exited
+[ 1564.931132] sshd (4448): undefined instruction: pc=000d0f08
+[ 1564.931149] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1564.931177] sshd (4448): undefined instruction: pc=000d0ef0
+[ 1564.931189] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1564.931205] sshd (4448): undefined instruction: pc=000d0ef8
+[ 1564.931217] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1564.931232] sshd (4448): undefined instruction: pc=000d0f00
+[ 1564.931244] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1564.968705] init: untracked pid 4449 exited
+[ 1564.969284] init: untracked pid 4450 exited
+[ 1569.983518] sshd (4457): undefined instruction: pc=000d0f08
+[ 1569.983544] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1569.983581] sshd (4457): undefined instruction: pc=000d0ef0
+[ 1569.983600] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1569.983623] sshd (4457): undefined instruction: pc=000d0ef8
+[ 1569.983642] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1569.983665] sshd (4457): undefined instruction: pc=000d0f00
+[ 1569.983684] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1570.022618] init: untracked pid 4458 exited
+[ 1570.023202] init: untracked pid 4459 exited
+[ 1572.048173] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1575.034804] sshd (4467): undefined instruction: pc=000d0f08
+[ 1575.034823] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1575.034850] sshd (4467): undefined instruction: pc=000d0ef0
+[ 1575.034862] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1575.034878] sshd (4467): undefined instruction: pc=000d0ef8
+[ 1575.034890] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1575.034905] sshd (4467): undefined instruction: pc=000d0f00
+[ 1575.034918] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1575.072265] init: untracked pid 4468 exited
+[ 1575.073440] init: untracked pid 4469 exited
+[ 1580.085184] sshd (4476): undefined instruction: pc=000d0f08
+[ 1580.085203] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1580.085232] sshd (4476): undefined instruction: pc=000d0ef0
+[ 1580.085245] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1580.085261] sshd (4476): undefined instruction: pc=000d0ef8
+[ 1580.085274] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1580.085290] sshd (4476): undefined instruction: pc=000d0f00
+[ 1580.085302] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1580.123023] init: untracked pid 4477 exited
+[ 1580.123560] init: untracked pid 4478 exited
+[ 1585.135493] sshd (4482): undefined instruction: pc=000d0f08
+[ 1585.135511] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1585.135539] sshd (4482): undefined instruction: pc=000d0ef0
+[ 1585.135553] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1585.135569] sshd (4482): undefined instruction: pc=000d0ef8
+[ 1585.135583] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1585.135598] sshd (4482): undefined instruction: pc=000d0f00
+[ 1585.135611] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1585.173334] init: untracked pid 4483 exited
+[ 1585.173902] init: untracked pid 4484 exited
+[ 1587.082085] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1590.185566] sshd (4492): undefined instruction: pc=000d0f08
+[ 1590.185586] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1590.185615] sshd (4492): undefined instruction: pc=000d0ef0
+[ 1590.185627] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1590.185644] sshd (4492): undefined instruction: pc=000d0ef8
+[ 1590.185656] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1590.185671] sshd (4492): undefined instruction: pc=000d0f00
+[ 1590.185683] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1590.223028] init: untracked pid 4493 exited
+[ 1590.223962] init: untracked pid 4494 exited
+[ 1595.235571] sshd (4500): undefined instruction: pc=000d0f08
+[ 1595.235589] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1595.235617] sshd (4500): undefined instruction: pc=000d0ef0
+[ 1595.235630] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1595.235646] sshd (4500): undefined instruction: pc=000d0ef8
+[ 1595.235659] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1595.235674] sshd (4500): undefined instruction: pc=000d0f00
+[ 1595.235687] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1595.273343] init: untracked pid 4501 exited
+[ 1595.273879] init: untracked pid 4502 exited
+[ 1600.292669] sshd (4509): undefined instruction: pc=000d0f08
+[ 1600.292687] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1600.292715] sshd (4509): undefined instruction: pc=000d0ef0
+[ 1600.292728] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1600.292745] sshd (4509): undefined instruction: pc=000d0ef8
+[ 1600.292758] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1600.292773] sshd (4509): undefined instruction: pc=000d0f00
+[ 1600.292785] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1600.330501] init: untracked pid 4510 exited
+[ 1600.331474] init: untracked pid 4511 exited
+[ 1602.108116] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1605.343150] sshd (4515): undefined instruction: pc=000d0f08
+[ 1605.343169] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1605.343198] sshd (4515): undefined instruction: pc=000d0ef0
+[ 1605.343211] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1605.343227] sshd (4515): undefined instruction: pc=000d0ef8
+[ 1605.343240] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1605.343255] sshd (4515): undefined instruction: pc=000d0f00
+[ 1605.343268] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1605.381495] init: untracked pid 4516 exited
+[ 1605.382059] init: untracked pid 4517 exited
+[ 1610.394296] sshd (4524): undefined instruction: pc=000d0f08
+[ 1610.394315] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1610.394343] sshd (4524): undefined instruction: pc=000d0ef0
+[ 1610.394356] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1610.394374] sshd (4524): undefined instruction: pc=000d0ef8
+[ 1610.394386] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1610.394401] sshd (4524): undefined instruction: pc=000d0f00
+[ 1610.394413] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1610.433994] init: untracked pid 4526 exited
+[ 1610.434698] init: untracked pid 4527 exited
+[ 1615.447019] sshd (4534): undefined instruction: pc=000d0f08
+[ 1615.447038] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1615.447066] sshd (4534): undefined instruction: pc=000d0ef0
+[ 1615.447078] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1615.447095] sshd (4534): undefined instruction: pc=000d0ef8
+[ 1615.447107] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1615.447122] sshd (4534): undefined instruction: pc=000d0f00
+[ 1615.447134] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1615.485180] init: untracked pid 4535 exited
+[ 1615.485872] init: untracked pid 4536 exited
+[ 1618.097067] sshd (4543): undefined instruction: pc=000d0f08
+[ 1618.097085] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1618.097112] sshd (4543): undefined instruction: pc=000d0ef0
+[ 1618.097125] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1618.097141] sshd (4543): undefined instruction: pc=000d0ef8
+[ 1618.097153] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1618.097168] sshd (4543): undefined instruction: pc=000d0f00
+[ 1618.097180] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1620.497761] sshd (4557): undefined instruction: pc=000d0f08
+[ 1620.497781] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1620.497809] sshd (4557): undefined instruction: pc=000d0ef0
+[ 1620.497822] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1620.497838] sshd (4557): undefined instruction: pc=000d0ef8
+[ 1620.497850] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1620.497865] sshd (4557): undefined instruction: pc=000d0f00
+[ 1620.497878] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1620.534976] init: untracked pid 4558 exited
+[ 1620.535697] init: untracked pid 4559 exited
+[ 1625.547283] sshd (4561): undefined instruction: pc=000d0f08
+[ 1625.547302] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1625.547330] sshd (4561): undefined instruction: pc=000d0ef0
+[ 1625.547344] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1625.547361] sshd (4561): undefined instruction: pc=000d0ef8
+[ 1625.547374] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1625.547389] sshd (4561): undefined instruction: pc=000d0f00
+[ 1625.547401] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1625.584588] init: untracked pid 4562 exited
+[ 1625.585303] init: untracked pid 4563 exited
+[ 1630.597131] sshd (4570): undefined instruction: pc=000d0f08
+[ 1630.597152] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1630.597180] sshd (4570): undefined instruction: pc=000d0ef0
+[ 1630.597193] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1630.597209] sshd (4570): undefined instruction: pc=000d0ef8
+[ 1630.597222] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1630.597237] sshd (4570): undefined instruction: pc=000d0f00
+[ 1630.597249] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1630.634854] init: untracked pid 4571 exited
+[ 1630.635632] init: untracked pid 4572 exited
+[ 1632.168125] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1635.647362] sshd (4580): undefined instruction: pc=000d0f08
+[ 1635.647381] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1635.647410] sshd (4580): undefined instruction: pc=000d0ef0
+[ 1635.647422] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1635.647438] sshd (4580): undefined instruction: pc=000d0ef8
+[ 1635.647450] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1635.647465] sshd (4580): undefined instruction: pc=000d0f00
+[ 1635.647477] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1635.689199] init: untracked pid 4581 exited
+[ 1635.689913] init: untracked pid 4582 exited
+[ 1640.702197] sshd (4591): undefined instruction: pc=000d0f08
+[ 1640.702219] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1640.702257] sshd (4591): undefined instruction: pc=000d0ef0
+[ 1640.702270] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1640.702289] sshd (4591): undefined instruction: pc=000d0ef8
+[ 1640.702301] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1640.702318] sshd (4591): undefined instruction: pc=000d0f00
+[ 1640.702330] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1640.740354] init: untracked pid 4592 exited
+[ 1640.741150] init: untracked pid 4593 exited
+[ 1645.752960] sshd (4595): undefined instruction: pc=000d0f08
+[ 1645.752982] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1645.753015] sshd (4595): undefined instruction: pc=000d0ef0
+[ 1645.753027] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1645.753044] sshd (4595): undefined instruction: pc=000d0ef8
+[ 1645.753056] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1645.753072] sshd (4595): undefined instruction: pc=000d0f00
+[ 1645.753084] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1645.790562] init: untracked pid 4596 exited
+[ 1645.791370] init: untracked pid 4597 exited
+[ 1650.801850] sshd (4604): undefined instruction: pc=000d0f08
+[ 1650.801869] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1650.801896] sshd (4604): undefined instruction: pc=000d0ef0
+[ 1650.801909] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1650.801926] sshd (4604): undefined instruction: pc=000d0ef8
+[ 1650.801939] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1650.801954] sshd (4604): undefined instruction: pc=000d0f00
+[ 1650.801967] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1650.839099] init: untracked pid 4605 exited
+[ 1650.839892] init: untracked pid 4606 exited
+[ 1652.208134] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1655.851643] sshd (4612): undefined instruction: pc=000d0f08
+[ 1655.851662] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1655.851689] sshd (4612): undefined instruction: pc=000d0ef0
+[ 1655.851702] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1655.851717] sshd (4612): undefined instruction: pc=000d0ef8
+[ 1655.851730] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1655.851745] sshd (4612): undefined instruction: pc=000d0f00
+[ 1655.851758] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1655.890311] init: untracked pid 4613 exited
+[ 1655.891060] init: untracked pid 4614 exited
+[ 1660.902847] sshd (4622): undefined instruction: pc=000d0f08
+[ 1660.902868] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1660.902898] sshd (4622): undefined instruction: pc=000d0ef0
+[ 1660.902910] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1660.902927] sshd (4622): undefined instruction: pc=000d0ef8
+[ 1660.902939] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1660.902954] sshd (4622): undefined instruction: pc=000d0f00
+[ 1660.902966] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1660.941585] init: untracked pid 4623 exited
+[ 1660.942306] init: untracked pid 4624 exited
+[ 1665.951033] sshd (4628): undefined instruction: pc=000d0f08
+[ 1665.951051] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1665.951079] sshd (4628): undefined instruction: pc=000d0ef0
+[ 1665.951092] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1665.951109] sshd (4628): undefined instruction: pc=000d0ef8
+[ 1665.951121] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1665.951137] sshd (4628): undefined instruction: pc=000d0f00
+[ 1665.951149] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1665.998690] init: untracked pid 4629 exited
+[ 1665.999738] init: untracked pid 4630 exited
+[ 1671.006964] sshd (4639): undefined instruction: pc=000d0f08
+[ 1671.006983] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1671.007013] sshd (4639): undefined instruction: pc=000d0ef0
+[ 1671.007026] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1671.007042] sshd (4639): undefined instruction: pc=000d0ef8
+[ 1671.007054] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1671.007069] sshd (4639): undefined instruction: pc=000d0f00
+[ 1671.007081] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1671.044956] init: untracked pid 4640 exited
+[ 1671.045759] init: untracked pid 4641 exited
+[ 1672.248119] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1675.056523] sshd (4647): undefined instruction: pc=000d0f08
+[ 1675.056542] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1675.056568] sshd (4647): undefined instruction: pc=000d0ef0
+[ 1675.056581] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1675.056596] sshd (4647): undefined instruction: pc=000d0ef8
+[ 1675.056608] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1675.056623] sshd (4647): undefined instruction: pc=000d0f00
+[ 1675.056635] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1675.094168] init: untracked pid 4648 exited
+[ 1675.094918] init: untracked pid 4649 exited
+[ 1680.104813] sshd (4656): undefined instruction: pc=000d0f08
+[ 1680.104832] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1680.104860] sshd (4656): undefined instruction: pc=000d0ef0
+[ 1680.104873] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1680.104890] sshd (4656): undefined instruction: pc=000d0ef8
+[ 1680.104902] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1680.104918] sshd (4656): undefined instruction: pc=000d0f00
+[ 1680.104930] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1680.142746] init: untracked pid 4657 exited
+[ 1680.143539] init: untracked pid 4658 exited
+[ 1685.155782] sshd (4660): undefined instruction: pc=000d0f08
+[ 1685.155800] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1685.155827] sshd (4660): undefined instruction: pc=000d0ef0
+[ 1685.155840] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1685.155856] sshd (4660): undefined instruction: pc=000d0ef8
+[ 1685.155868] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1685.155884] sshd (4660): undefined instruction: pc=000d0f00
+[ 1685.155896] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1685.198853] init: untracked pid 4661 exited
+[ 1685.199613] init: untracked pid 4662 exited
+[ 1686.043140] sshd (4663): undefined instruction: pc=000d0f08
+[ 1686.043158] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1686.043186] sshd (4663): undefined instruction: pc=000d0ef0
+[ 1686.043198] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1686.043214] sshd (4663): undefined instruction: pc=000d0ef8
+[ 1686.043226] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1686.043240] sshd (4663): undefined instruction: pc=000d0f00
+[ 1686.043252] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1690.209342] sshd (4678): undefined instruction: pc=000d0f08
+[ 1690.209361] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1690.209389] sshd (4678): undefined instruction: pc=000d0ef0
+[ 1690.209401] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1690.209417] sshd (4678): undefined instruction: pc=000d0ef8
+[ 1690.209429] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1690.209444] sshd (4678): undefined instruction: pc=000d0f00
+[ 1690.209457] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1690.251120] init: untracked pid 4679 exited
+[ 1690.251874] init: untracked pid 4680 exited
+[ 1691.332745] sshd (4681): undefined instruction: pc=000d0f08
+[ 1691.332763] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1691.332791] sshd (4681): undefined instruction: pc=000d0ef0
+[ 1691.332804] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1691.332821] sshd (4681): undefined instruction: pc=000d0ef8
+[ 1691.332834] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1691.332849] sshd (4681): undefined instruction: pc=000d0f00
+[ 1691.332861] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1695.263977] sshd (4697): undefined instruction: pc=000d0f08
+[ 1695.263996] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1695.264023] sshd (4697): undefined instruction: pc=000d0ef0
+[ 1695.264036] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1695.264052] sshd (4697): undefined instruction: pc=000d0ef8
+[ 1695.264065] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1695.264080] sshd (4697): undefined instruction: pc=000d0f00
+[ 1695.264092] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1695.302808] init: untracked pid 4698 exited
+[ 1695.303600] init: untracked pid 4699 exited
+[ 1697.647717] sshd (4706): undefined instruction: pc=000d0f08
+[ 1697.647735] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1697.647763] sshd (4706): undefined instruction: pc=000d0ef0
+[ 1697.647775] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1697.647791] sshd (4706): undefined instruction: pc=000d0ef8
+[ 1697.647803] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1697.647818] sshd (4706): undefined instruction: pc=000d0f00
+[ 1697.647830] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1700.311445] sshd (4718): undefined instruction: pc=000d0f08
+[ 1700.311463] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1700.311491] sshd (4718): undefined instruction: pc=000d0ef0
+[ 1700.311504] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1700.311519] sshd (4718): undefined instruction: pc=000d0ef8
+[ 1700.311531] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1700.311546] sshd (4718): undefined instruction: pc=000d0f00
+[ 1700.311558] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1700.349120] init: untracked pid 4719 exited
+[ 1700.349869] init: untracked pid 4720 exited
+[ 1705.362779] sshd (4722): undefined instruction: pc=000d0f08
+[ 1705.362797] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1705.362824] sshd (4722): undefined instruction: pc=000d0ef0
+[ 1705.362837] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1705.362853] sshd (4722): undefined instruction: pc=000d0ef8
+[ 1705.362866] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1705.362881] sshd (4722): undefined instruction: pc=000d0f00
+[ 1705.362894] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1705.401240] init: untracked pid 4723 exited
+[ 1705.401817] init: untracked pid 4724 exited
+[ 1710.413666] sshd (4744): undefined instruction: pc=000d0f08
+[ 1710.413690] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1710.413718] sshd (4744): undefined instruction: pc=000d0ef0
+[ 1710.413731] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1710.413747] sshd (4744): undefined instruction: pc=000d0ef8
+[ 1710.413760] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1710.413775] sshd (4744): undefined instruction: pc=000d0f00
+[ 1710.413787] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1710.451078] init: untracked pid 4745 exited
+[ 1710.451820] init: untracked pid 4746 exited
+[ 1715.464531] sshd (4752): undefined instruction: pc=000d0f08
+[ 1715.464549] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1715.464578] sshd (4752): undefined instruction: pc=000d0ef0
+[ 1715.464590] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1715.464606] sshd (4752): undefined instruction: pc=000d0ef8
+[ 1715.464618] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1715.464633] sshd (4752): undefined instruction: pc=000d0f00
+[ 1715.464645] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1715.505153] init: untracked pid 4753 exited
+[ 1715.505612] init: untracked pid 4754 exited
+[ 1718.455497] sshd (4761): undefined instruction: pc=000d0f08
+[ 1718.455515] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1718.455543] sshd (4761): undefined instruction: pc=000d0ef0
+[ 1718.455555] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1718.455571] sshd (4761): undefined instruction: pc=000d0ef8
+[ 1718.455583] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1718.455598] sshd (4761): undefined instruction: pc=000d0f00
+[ 1718.455610] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1720.526123] sshd (4770): undefined instruction: pc=000d0f08
+[ 1720.526141] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1720.526168] sshd (4770): undefined instruction: pc=000d0ef0
+[ 1720.526181] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1720.526196] sshd (4770): undefined instruction: pc=000d0ef8
+[ 1720.526208] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1720.526224] sshd (4770): undefined instruction: pc=000d0f00
+[ 1720.526236] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1720.563859] init: untracked pid 4771 exited
+[ 1720.564690] init: untracked pid 4772 exited
+[ 1725.584707] sshd (4776): undefined instruction: pc=000d0f08
+[ 1725.584728] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1725.584756] sshd (4776): undefined instruction: pc=000d0ef0
+[ 1725.584768] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1725.584784] sshd (4776): undefined instruction: pc=000d0ef8
+[ 1725.584796] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1725.584811] sshd (4776): undefined instruction: pc=000d0f00
+[ 1725.584823] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1725.625574] init: untracked pid 4777 exited
+[ 1725.626959] init: untracked pid 4778 exited
+[ 1730.638633] sshd (4811): undefined instruction: pc=000d0f08
+[ 1730.638652] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1730.638680] sshd (4811): undefined instruction: pc=000d0ef0
+[ 1730.638693] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1730.638710] sshd (4811): undefined instruction: pc=000d0ef8
+[ 1730.638722] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1730.638737] sshd (4811): undefined instruction: pc=000d0f00
+[ 1730.638749] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1730.676604] init: untracked pid 4812 exited
+[ 1730.677352] init: untracked pid 4813 exited
+[ 1733.509198] init: untracked pid 4056 exited
+[ 1735.511395] init: cannot find '/system/bin/start-ssh', disabling 'sshd'
+[ 1735.541559] sshd (4849): undefined instruction: pc=000d0f08
+[ 1735.541577] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1735.541602] sshd (4849): undefined instruction: pc=000d0ef0
+[ 1735.541615] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1735.541631] sshd (4849): undefined instruction: pc=000d0ef8
+[ 1735.541644] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1735.541659] sshd (4849): undefined instruction: pc=000d0f00
+[ 1735.541671] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1735.582198] init: untracked pid 4850 exited
+[ 1743.139636] sshd (4868): undefined instruction: pc=000d0f08
+[ 1743.139655] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1743.139682] sshd (4868): undefined instruction: pc=000d0ef0
+[ 1743.139695] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1743.139711] sshd (4868): undefined instruction: pc=000d0ef8
+[ 1743.139724] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1743.139740] sshd (4868): undefined instruction: pc=000d0f00
+[ 1743.139752] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1747.215096] init: untracked pid 4545 exited
+[ 1786.979668] wlan: [1237:E :PE ] limProcessAddBaInd: 5636: BA setup for staId = 2, TID: 3, SSN: 23
+[ 1802.508131] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1822.548125] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1832.568164] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1857.618146] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1872.648129] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1887.678140] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1912.728121] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1922.748123] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1942.788200] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 1943.508917] sshd (5109): undefined instruction: pc=000d0f08
+[ 1943.508935] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 1943.508963] sshd (5109): undefined instruction: pc=000d0ef0
+[ 1943.508975] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 1943.508991] sshd (5109): undefined instruction: pc=000d0ef8
+[ 1943.509004] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 1943.509019] sshd (5109): undefined instruction: pc=000d0f00
+[ 1943.509031] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 1962.828142] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2022.248667] sshd (5321): undefined instruction: pc=000d0f08
+[ 2022.248685] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 2022.248713] sshd (5321): undefined instruction: pc=000d0ef0
+[ 2022.248725] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 2022.248741] sshd (5321): undefined instruction: pc=000d0ef8
+[ 2022.248754] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 2022.248769] sshd (5321): undefined instruction: pc=000d0f00
+[ 2022.248781] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 2032.998049] sshd (5358): undefined instruction: pc=000d0f08
+[ 2032.998111] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 2032.998140] sshd (5358): undefined instruction: pc=000d0ef0
+[ 2032.998153] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 2032.998168] sshd (5358): undefined instruction: pc=000d0ef8
+[ 2032.998180] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 2032.998195] sshd (5358): undefined instruction: pc=000d0f00
+[ 2032.998207] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 2183.230414] init: untracked pid 6099 exited
+[ 2574.048130] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2609.118152] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2644.188148] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2664.228122] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2679.258140] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2689.278195] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2739.378160] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2754.408165] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2769.438142] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2794.488136] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2814.528127] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2939.778331] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 2984.868159] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 3275.458145] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 3345.598124] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 3706.328143] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 3771.458166] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 3791.768274] sshd (8263): undefined instruction: pc=000d0f08
+[ 3791.768292] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 3791.768318] sshd (8263): undefined instruction: pc=000d0ef0
+[ 3791.768331] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 3791.768347] sshd (8263): undefined instruction: pc=000d0ef8
+[ 3791.768360] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 3791.768375] sshd (8263): undefined instruction: pc=000d0f00
+[ 3791.768388] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 3802.518119] init: untracked pid 8300 exited
+[ 3847.010613] sshd (8353): undefined instruction: pc=000d0f08
+[ 3847.010637] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 3847.010672] sshd (8353): undefined instruction: pc=000d0ef0
+[ 3847.010691] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 3847.010714] sshd (8353): undefined instruction: pc=000d0ef8
+[ 3847.010731] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 3847.010753] sshd (8353): undefined instruction: pc=000d0f00
+[ 3847.010771] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 3867.910794] sshd (8410): undefined instruction: pc=000d0f08
+[ 3867.910813] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 3867.910840] sshd (8410): undefined instruction: pc=000d0ef0
+[ 3867.910853] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 3867.910868] sshd (8410): undefined instruction: pc=000d0ef8
+[ 3867.910881] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 3867.910896] sshd (8410): undefined instruction: pc=000d0f00
+[ 3867.910908] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 3876.668145] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 3902.933984] init: untracked pid 8413 exited
+[ 3904.954790] init: untracked pid 8681 exited
+[ 3911.738161] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4052.018204] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4072.058176] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4186.652370] sshd (9150): undefined instruction: pc=000d0f08
+[ 4186.652388] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 4186.652416] sshd (9150): undefined instruction: pc=000d0ef0
+[ 4186.652428] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 4186.652444] sshd (9150): undefined instruction: pc=000d0ef8
+[ 4186.652456] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 4186.652471] sshd (9150): undefined instruction: pc=000d0f00
+[ 4186.652483] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 4247.408198] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4362.638150] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4427.768130] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4492.908152] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4527.978199] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4537.998196] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4548.018158] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4558.038172] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4593.108137] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4608.138128] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4623.168171] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4636.317103] sshd (9645): undefined instruction: pc=000d0f08
+[ 4636.317121] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[ 4636.317148] sshd (9645): undefined instruction: pc=000d0ef0
+[ 4636.317161] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[ 4636.317177] sshd (9645): undefined instruction: pc=000d0ef8
+[ 4636.317190] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[ 4636.317205] sshd (9645): undefined instruction: pc=000d0f00
+[ 4636.317217] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[ 4638.659754] EXT4-fs (mmcblk0p23): re-mounted. Opts: (null)
+[ 4648.218174] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4913.748140] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4928.778178] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4968.858146] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 4988.898144] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5008.938309] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5018.958173] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5059.038138] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5084.088144] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5109.138138] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5124.168135] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5154.228188] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5164.248133] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5174.268207] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5184.288141] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5228.073289] EXT4-fs (mmcblk0p23): re-mounted. Opts: discard,data=ordered
+[ 5234.534254] EXT4-fs (mmcblk0p23): re-mounted. Opts: discard,data=ordered
+[ 5234.574960] init: untracked pid 1515 exited
+[ 5279.478186] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5280.053952] init: untracked pid 10484 exited
+[ 5280.054020] init: untracked pid 10551 exited
+[ 5314.548164] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5364.648150] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5374.668154] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5389.698154] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5419.758341] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5459.838145] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5494.908142] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5504.928235] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5681.249781] init: untracked pid 13216 exited
+[ 5795.508177] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 5880.678145] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6005.928248] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6051.018239] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6066.048133] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6096.108158] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6111.138201] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6141.198349] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6186.288154] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6236.388172] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6266.448310] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6276.468150] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6286.488202] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6346.608138] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6386.688195] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6406.728159] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6426.768158] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6436.788148] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6451.818150] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6486.888556] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6506.928160] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6536.988150] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6572.058155] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6592.098176] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6627.168171] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6667.248148] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6697.308171] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6737.388151] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6757.428192] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6797.508154] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6807.528192] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6827.568151] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6852.618173] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6887.688189] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6917.748158] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6947.808150] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 6972.858142] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 7108.128162] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 7188.288191] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 7308.528438] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 7664.238160] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 8024.958165] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 8325.558153] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 8686.278142] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 8866.638146] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 9046.998433] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 9407.718161] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[ 9768.448181] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[10124.158169] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[10459.828159] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[10484.878159] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[10845.598186] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[11206.318264] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[11567.038205] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[11927.758178] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[12288.478352] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[12649.198181] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[12944.788178] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[13305.508172] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[13365.628195] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[13440.778164] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[13666.228178] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[13726.348191] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[14026.948238] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[14087.068174] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[14297.488416] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[14387.668200] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[14447.788183] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[14808.518584] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[15104.108173] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[15464.828201] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[15524.948184] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[15825.548190] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[15885.668178] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16186.268243] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16216.328179] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16246.388172] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16546.988190] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16607.108230] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16707.318235] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16907.718205] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[16967.838193] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[17268.438276] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[17669.238183] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[17984.878194] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[18345.598308] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[18405.718217] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[18706.318213] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[18766.438225] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[19067.038798] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[19127.158231] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[19427.768211] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[19788.488208] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[20504.918294] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[20565.038238] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[20865.638297] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[20925.758187] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[21106.118228] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[21226.358319] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[21587.078207] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[21647.198232] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[21947.798231] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[22308.528208] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[22468.858236] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[22664.248223] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[22724.368260] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[23024.968214] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[23385.688229] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[23445.808273] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[23746.408226] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[23806.528240] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[24107.128352] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[24167.248270] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[24407.728215] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[24768.448264] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[25124.168257] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[25484.898219] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[25845.618226] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[25905.738237] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[26206.338218] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[26266.458228] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[26567.058251] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[26627.178279] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[26927.778224] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[27288.498275] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[27644.208255] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[28004.928236] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[28365.648230] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[28425.768221] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[28726.368234] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[28786.488206] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[29026.968229] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[29147.208231] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[29387.688221] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[29748.408223] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[30104.118240] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[30464.838237] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[30830.578228] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[30945.808261] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[31186.288257] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[31306.528259] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[  137.676771] diag: unable to alloc USB req on legacy ch, err: -19
+[31524.147021] 
+[31524.147021] SMSM: Modem SMSM state changed to SMSM_RESET.<3>[31524.147075] Fatal error on the modem.
+[31524.147089] modem subsystem failure reason: ps_icmp6_msg.c:938:.
+[31524.147099] subsys-restart: subsystem_restart_dev(): Restart sequence requested for modem, restart_level = RELATED.
+[31524.147609] subsys-restart: subsystem_shutdown(): [c1816900]: Shutting down modem
+[31524.147624] Ramdump disable gpio value is 0
+[31524.247659] pil-q6v5-mss 4080000.qcom,mss: Port e0b38000 halt timeout
+[31524.247959] memshare: Modem Restart has happened
+[31524.374189] type=1400 audit(1790137054.423:7): avc:  denied  { module_request } for  pid=693 comm="netd" kmod="netdev-rmnet0" scontext=u:r:netd:s0 tcontext=u:r:kernel:s0 tclass=system
+[31524.375401] type=1400 audit(1790137054.423:8): avc:  denied  { sys_module } for  pid=693 comm="netd" capability=16  scontext=u:r:netd:s0 tcontext=u:r:netd:s0 tclass=capability
+[31525.277465] smd_pkt_read notifying reset for smd_pkt_dev id:5
+[31525.277497] M-Notify: General: 4
+[31525.277509] Ramdump(ramdump_smem): No consumers. Aborting..
+[31525.277516] restart_notifier_cb: unable to dump smem -32
+[31525.277629] smd_pkt_read notifying reset for smd_pkt_dev id:0
+[31525.277698] smd_pkt_read notifying reset for smd_pkt_dev id:7
+[31525.277806] smd_pkt_read notifying reset for smd_pkt_dev id:1
+[31525.278159] smd_pkt_read notifying reset for smd_pkt_dev id:6
+[31525.278611] smd_pkt_read notifying reset for smd_pkt_dev id:4
+[31525.278987] smd_pkt_read notifying reset for smd_pkt_dev id:3
+[31525.279294] smd_pkt_read notifying reset for smd_pkt_dev id:2
+[31525.343173] binder: 801:1054 transaction failed 29189, size 184-0
+[31525.374904] pil: MBA boot done
+[31525.375025] Ramdump(ramdump_modem): No consumers. Aborting..
+[31525.375037] Unable to dump modem fw memory (rc = -32).
+[31525.475504] pil-q6v5-mss 4080000.qcom,mss: Port e0b36000 halt timeout
+[31525.476160] subsys-restart: subsystem_ramdump(): modem[c1816900]: Ramdump failed.
+[31525.476484] subsys-restart: subsystem_powerup(): [c1816900]: Powering up modem
+[31525.486400] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x86800000 to 0x8ba00000
+[31525.487410] M-Notify: General: 6
+[31525.536730] pil: MBA boot done
+[31526.419651] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+[31526.525850] pil-q6v5-mss 4080000.qcom,mss: Subsystem error monitoring/handling services are up
+[31526.525857] pil-q6v5-mss 4080000.qcom,mss: modem: Power/Clock ready interrupt received
+[31526.526595] M-Notify: General: 7
+[31526.710126] diag: In diag_send_msg_mask_update, invalid status 0
+[31526.710446] diag: In diag_send_log_mask_update, invalid status 0<3>[31526.727945] modem_state_callback: DSP is ready
+[31526.740739] core_get_license_status: module_id 0x1
+[31526.740889] core_get_license_status: cmdrsp_license_result.result = 0x15 for module 0x1
+[31526.741080] core_set_license: error getting metainfo size, err:0x0, size:0
+[31526.744284] wcd_program_btn_threshold: course: 0 fine: 2 reg_addr: 153 reg_val: 8
+[31526.744309] wcd_program_btn_threshold: course: 0 fine: 4 reg_addr: 154 reg_val: 10
+[31526.744326] wcd_program_btn_threshold: course: 0 fine: 6 reg_addr: 155 reg_val: 18
+[31526.744343] wcd_program_btn_threshold: course: 1 fine: 1 reg_addr: 156 reg_val: 24
+[31526.744359] wcd_program_btn_threshold: course: 1 fine: 3 reg_addr: 157 reg_val: 2c
+[31526.744443] subsys-restart: subsystem_restart_wq_func(): [c1816900]: Restart sequence for modem completed.
+[31529.928575] binder: 801:912 transaction failed 29189, size 172-0
+[31529.928770] binder: 801:912 transaction failed 29189, size 172-0
+[31532.971090] HTB: quantum of class 10001 is big. Consider r2q change.
+[31532.989064] HTB: quantum of class 10010 is big. Consider r2q change.
+[31607.128250] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[31967.848255] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[32328.568583] wlan: [1237:E :HDP] hdd_tx_rx_pkt_cnt_stat_timer_handler: Disable split scan
+[34509.367094] wlan: [1237:E :SME] csrRoamCheckForLinkStatusChange: 9249: DISASSOCIATION Indication from MAC for session 0 
+[34509.367123] wlan: [1237:E :SME] csrRoamCheckForLinkStatusChange: 9252: DISASSOCIATION from peer =9a:f2:39:18:0b:93  reason = 8 status = 8 
+[35368.308781] init: untracked pid 15898 exited
+[35368.308898] init: untracked pid 15899 exited
+[35368.308996] init: untracked pid 15900 exited
+[35368.309093] init: untracked pid 15901 exited
+[42159.215945] sshd (28465): undefined instruction: pc=000d0f08
+[42159.215963] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[42159.215990] sshd (28465): undefined instruction: pc=000d0ef0
+[42159.216003] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[42159.216018] sshd (28465): undefined instruction: pc=000d0ef8
+[42159.216030] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[42159.216044] sshd (28465): undefined instruction: pc=000d0f00
+[42159.216056] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[42206.740899] sshd (29019): undefined instruction: pc=000d0f08
+[42206.740917] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+[42206.740943] sshd (29019): undefined instruction: pc=000d0ef0
+[42206.740955] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+[42206.740971] sshd (29019): undefined instruction: pc=000d0ef8
+[42206.740983] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+[42206.740998] sshd (29019): undefined instruction: pc=000d0f00
+[42206.741010] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+[42928.256422] 
+[42928.256422] SMSM: Modem SMSM state changed to SMSM_RESET.
+[42928.256472] Fatal error on the modem.
+[42928.256487] modem subsystem failure reason: lte_ml1_common_dump.c:217:.
+[42928.256497] subsys-restart: subsystem_restart_dev(): Restart sequence requested for modem, restart_level = RELATED.
+[42928.257244] subsys-restart: subsystem_shutdown(): [d0675e80]: Shutting down modem
+[42928.257260] Ramdump disable gpio value is 0
+[42928.357343] pil-q6v5-mss 4080000.qcom,mss: Port e0b38000 halt timeout
+[42928.357903] memshare: Modem Restart has happened
+[42928.358747] [RMNET:HI] rmnet_config_notify_cb(): Kernel is trying to unregister rmnet0

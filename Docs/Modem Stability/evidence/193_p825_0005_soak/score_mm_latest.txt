@@ -1,5 +1,5 @@
 === /tmp/soak_p825_caps/logroll_b08763ad.log ===
-SSRs found: 21
+SSRs found: 33
 
   #      add  probe  creat   SIM  disab    up  a->c  c->s  s->d  d->u  a->u ports   n
 -------------------------------------------------------------------------------------
@@ -24,23 +24,35 @@ SSRs found: 21
  19    44773      2      3     7      8    12    3s    4s    1s    4s   12s     9   2
  20    45677      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
  21    46582      1      2     7      8    14    2s    5s    1s    6s   14s     9   2
+ 22    47484      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 23    47867      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 24    48771      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 25    49746      1     11    16     18    23   11s    5s    2s    5s   23s     9   2
+ 26    50650      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 27    51552      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 28    51860      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 29    51915      2      3     7      8    12    3s    4s    1s    4s   12s     9   2
+ 30    51963      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
+ 31    52001      1      2     7      8    12    2s    5s    1s    4s   12s     9   3
+ 32    52038      1      2     7      8    13    2s    5s    1s    5s   13s     9   1
+ 33    52941      1      2     7      8    12    2s    5s    1s    4s   12s     9   2
 
   NOTE: SSR(s) [4] carry no `Interface 'modem' is now up` line.
         Their recovery was cut short by the NEXT fatal (a double fatal).
         They are excluded from `add -> up` by construction, but they are
         NOT excluded from P-MM2 below -- see the note under the verdicts.
 
-  add -> created         n=21  median=2s  min=2  max=11   pre-fix median=4s  delta=+2s
-  created -> SIM         n=21  median=5s  min=4  max=5   pre-fix median=5s  delta=+0s
-  SIM -> disabled        n=21  median=1s  min=1  max=2   pre-fix median=2s  delta=+1s
-  disabled -> up         n=20  median=4s  min=4  max=6   pre-fix median=5s  delta=+1s
-  add -> up              n=20  median=12s  min=11  max=23   pre-fix median=16s  delta=+4s
+  add -> created         n=33  median=2s  min=2  max=11   pre-fix median=4s  delta=+2s
+  created -> SIM         n=33  median=5s  min=4  max=5   pre-fix median=5s  delta=+0s
+  SIM -> disabled        n=33  median=1s  min=1  max=2   pre-fix median=2s  delta=+1s
+  disabled -> up         n=32  median=4s  min=4  max=6   pre-fix median=5s  delta=+1s
+  add -> up              n=32  median=12s  min=11  max=23   pre-fix median=16s  delta=+4s
   ports                  min=9 max=9
 
   --- pre-registered verdicts ---
   P-MM1  CONFIRMED   (median 2s <= 2.0s)
-  P-MM2  CONFIRMED   (9/9 ports in all 21 SSRs)
+  P-MM2  CONFIRMED   (9/9 ports in all 33 SSRs)
   P-MM3  CONFIRMED   (median 12s, delta +4s vs pre-fix 16s)
 
-  REPORT n = 21 SSRs.  P-MM1 needs n>=5, P-MM2 needs n>=11, P-MM3 needs n>=10.
+  REPORT n = 33 SSRs.  P-MM1 needs n>=5, P-MM2 needs n>=11, P-MM3 needs n>=10.
 

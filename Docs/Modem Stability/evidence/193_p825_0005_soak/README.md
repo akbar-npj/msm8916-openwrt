@@ -350,3 +350,56 @@ for the recovery-window inflation (0.333 s at level 7 vs a recorded 0.119–0.13
 "deterministic" claim was already FALSIFIED in the project record. The 3–5 % hang rate needs
 n ≥ 60 SSRs to say anything, so the post-flash soak must run to that bar before any "no hangs"
 statement.
+
+---
+
+## 10. WINDOW CLOSED 2026-09-23 17:28Z — closed by reflash, NOT by reaching n
+
+**How it ended.** The monitor's last iteration was **iter 36 at 14:51:07Z** (`up = 19 570.86 s`,
+`fatals = 22`, `ssrs = 33`); the last scorer write was **15:06Z**. At **17:28Z** no
+`monitor_soak.sh` process was alive and no `ssh` poller was running — **the monitor died ~2.4 h
+before the window was closed**, so the soak was not collecting at close. The window is closed by the
+reflash to the §9 three-change firmware, not by the pre-registration being satisfied.
+
+**Final scored state — `score_pw_latest.txt` / `score_mm_latest.txt` at close.** Part A capture
+`pcfine_b08763ad.txt`, window **584.1 .. 19 552.2 s**, boot `b08763ad`, no reboot.
+
+| id | verdict | final evidence | required n |
+| :-- | :-- | :-- | :-- |
+| **P-W1** | **CLOSED — UNSCORED (UNDERPOWERED)** | STALE 9/11 = **81.8 %** vs control 40.0 % (10/25), target < 5 % | 20 STALE → got **11** |
+| **P-W2** | **CONFIRMED** | overall 15/888 = **1.69 %** vs control 3.34 % (36/1078), target < 2.0 % | 500 → got 888 |
+| **P-W3** | **FALSIFIED** | race 1/729 = **0.1 %**, pre-registered band 0.8–3.8 % (control 2.3 % = 19/838) | ~838 → got 729 |
+| **P-MM1** | **CONFIRMED** | `add → created` median **2 s** ≤ 2.0 s | 5 → got 33 |
+| **P-MM2** | **CONFIRMED** | **9/9 ports in all 33 SSRs** | 11 → got 33 |
+| **P-MM3** | **CONFIRMED** | `add → up` median **12 s**, delta **+4 s** vs pre-fix 16 s | 10 → got 32 (1 excluded: double fatal) |
+
+**P-W1 is recorded as UNDERPOWERED, and its threshold is NOT re-tuned.** Per the standing rule, a
+post-hoc band would be EXPLORATORY and cannot rescue a pre-registration. What may be reported is
+**n and count, never "it stopped happening"**: the class held **11** events (9 timeouts) at close,
+against a required 20. The direction is unambiguous and **negative** — 81.8 % at n = 11 versus a
+40.0 % control and a < 5 % target — and it continued *away* from the target as the window grew
+(§8.3 had it at 71.4 %, 5/7). Reaching n = 20 would have needed roughly another **~4.5 h**
+(STALE accrues at 11/888 ≈ 1.24 % of resumes; 888 resumes took ≈ 5.4 h), i.e. ~2× the run. **So
+patch 825's STALE claim is unresolved-but-failing: it must not be quoted as a fix.**
+
+**P-W3's FALSIFIED verdict is the one that constrains interpretation.** The race-class rate fell
+19/838 (2.3 %) → 1/729 (0.1 %), outside the pre-registered band. §8.3's two unresolved candidates
+stand unchanged (the patch's RX-watchdog path; `pl` being a quantised live wire sample). The class
+*split* still must not be quoted as a mechanism — only the **total (P-W2)**, which is
+counter-verified against `pc_timeout_count` itself, is a mechanism-independent result.
+
+**Scope, unchanged and re-confirmed by the fatal count.** **21** `crash detected` lines in `dmesg`
+at close (`fatals = 22` in the monitor's own count). Neither part claims the 903 s fatal; the
+post-burst spacing in §8.3 was 898 / 904 / 902 / 901 / 902 s. **No statement about the fatal may be
+drawn from this window.**
+
+**What this window did buy, stated plainly.**
+1. **Patch 0005's rebuild improvement is CONFIRMED** — 16 s → 12 s median, all three P-MM verdicts,
+   n = 33 vs a bar of 11. This is the durable result of the soak.
+2. **Patch 825's overall timeout rate improvement is CONFIRMED** (P-W2) and its class-level
+   mechanism is **NOT** (P-W1 unscored, P-W3 falsified).
+3. **A monitor that dies silently is the failure mode of this instrument.** The soak ran ~2.4 h
+   unattended after the last write with no alarm. Any future soak must either be supervised or
+   write a liveness heartbeat that something checks — the same class of defect as
+   `reference_hmu05_platform_quirks.md`'s "a `/dev/kmsg` watcher can never be a liveness beacon".
+

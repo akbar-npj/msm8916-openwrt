@@ -1,0 +1,69 @@
+==============================================================================
+Doc 191 sec.6 -- MATCHED POWER-CONTROL / RPM COMPARISON  (P-A13a-d)
+==============================================================================
+
+[Android PRE-REGISTERED window]  ap_uptime 44146.60 -> 44266.73 = 120.13 s
+   MPSS numshutdowns   : 11918 -> 11918   delta     0   0.0000 /s
+   a2 ack out cnt      : 6057 -> 6065   delta     8   0.0666 /s
+   a2 ack in cnt       : 6480 -> 6488   delta     8   0.0666 /s
+   a2 pwr cntl in      : 6058 -> 6066   delta     8   0.0666 /s
+   RPM ring (bytes)    : 0x27101860 -> 0x271d7080   delta 874528 B = 27329 rec   227.5 rec/s
+
+------------------------------------------------------------------------------
+P-A13d  (positive control: RPM record rate reproduces the established match)
+------------------------------------------------------------------------------
+   Android measured        : 227.5 rec/s
+   Android idle reference  : 226.8 rec/s (Doc 190 sec.4)  -> 1.0031x
+   OpenWrt idle reference  : 224.2 rec/s (Doc 150)
+   ratio vs OpenWrt ref    : 1.0147x   (established 1.012x, +0.27%)
+   => P-A13d CONFIRMED  (tolerance 2x)
+
+------------------------------------------------------------------------------
+OpenWrt modem PC-collapse rate (MPSS num_shutdowns, Doc 175)
+------------------------------------------------------------------------------
+   capture1: up 275.0->877.1  collapses 1011  rate 1.6793 /s
+   capture3: up 110.2->712.2  collapses 936  rate 1.5547 /s
+
+------------------------------------------------------------------------------
+P-A13b  (modem PC-collapse rate within 2x)
+------------------------------------------------------------------------------
+   OpenWrt 1.6793 /s  vs  Android 0.0000 /s  -> ratio infx  => FALSIFIED
+   OpenWrt 1.5547 /s  vs  Android 0.0000 /s  -> ratio infx  => FALSIFIED
+
+------------------------------------------------------------------------------
+OpenWrt AP vote rate (pc_vote_tx_count) -- all committed sources
+------------------------------------------------------------------------------
+   phase5 deadlock_run         : up 547.6->1721.3 (1174 s)  votes +221  rate 0.1883 /s
+   phase5 soak                 : up 1140.2->1198.0 (58 s)  votes +8  rate 0.1384 /s
+   usub (userspace-subtracted) : up 14626.6->17267.9 (2641 s)  votes +5  rate 0.0019 /s  fatals +1
+
+------------------------------------------------------------------------------
+P-A13a  (vote rate within 2x)
+------------------------------------------------------------------------------
+   Android a2 ack out rate : 0.0666 /s
+   OpenWrt spread          : 0.0019 .. 0.1883 /s (99.5x within-platform)
+     vs phase5 deadlock_run         : 2.827x  => FALSIFIED
+     vs phase5 soak                 : 2.078x  => FALSIFIED
+     vs usub (userspace-subtracted) : 0.028x  => FALSIFIED
+   NOTE: the pre-registered comparison needs a MATCHED OpenWrt window; none of
+these is matched (different builds, traffic, and dates).
+
+------------------------------------------------------------------------------
+P-A13c  (ratio AP_votes / modem_collapses within 2x)
+------------------------------------------------------------------------------
+   Android: 0.0666 / 0.0000 = UNDEFINED (0 collapses)
+   OpenWrt (1.6793 /s collapses): 0.1121 (vs phase5 deadlock_run), 0.0824 (vs phase5 soak), 0.0011 (vs usub (userspace-subtracted))
+   OpenWrt (1.5547 /s collapses): 0.1211 (vs phase5 deadlock_run), 0.0890 (vs phase5 soak), 0.0012 (vs usub (userspace-subtracted))
+   => UNSCOREABLE: the Android denominator is zero in the pre-registered window.
+
+------------------------------------------------------------------------------
+Android 600 s EXTENSION (20 samples, up 44611.5 -> 45183.0 = 571.5 s)
+------------------------------------------------------------------------------
+   MPSS numshutdowns   : 0x2e8e -> 0x2e8e   delta     0   0.0000 /s
+   a2 ack out cnt      : 6087 -> 6125   delta    38   0.0665 /s
+   a2 ack in cnt       : 6510 -> 6548   delta    38   0.0665 /s
+   a2 pwr cntl in      : 6088 -> 6126   delta    38   0.0665 /s
+   RPM ring (bytes)    : 0x27439b80 -> 0x27847900   delta 4251008 B = 132844 rec   232.5 rec/s
+   rmnet1 rx_bytes     : 9637 -> 9709  (FROZEN = the Doc 190 sec.6 wedged-data-path confound)
+   rmnet1 tx_bytes     : 19052 -> 24532
+   load1               : 3.43 .. 3.26

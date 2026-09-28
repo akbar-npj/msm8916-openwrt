@@ -1,5 +1,11 @@
 # Modem Stability — corpus index and TRUST INDEX
 
+> **★ LIVING LEDGER + MANDATORY SOP (from 2026-09-26).** For the UZ801-on-HMU05 port the single source
+> of truth for current status, achieved-vs-expected, and the bootloop fallback is
+> **`197_UZ801_PORT_LEDGER_AND_MANDATORY_SOP.md`**. **Every document written from 197 onward must
+> reference it, carry an "Achieved vs Expected" table, and carry an SOP-compliance statement** — see
+> Doc 197 §1. Update the ledger in the same session as any change it describes.
+
 **Read this before citing anything in this directory.** The corpus grew to 105 files
 across many sessions, and a full trust audit on **2026-09-20** found that a large
 fraction of it rests on three premises that have since been **measured to be false**.
@@ -2410,3 +2416,197 @@ record. **Do not treat any of them as a current finding.**
 in `_QUARANTINE/README.md`. Categories: fabricated patch recipes; the fixed-900 s-timer
 law; the backwards autosuspend conclusion; fast-dormancy-as-cause; false
 "deployed and verified" claims; and false RF/attach claims on a modem with no RF driver.
+
+## Premise retracted 2026-09-26 (Doc 206) — the `cmmsc_auto` identification was wrong
+
+**Do not cite `FUN_c06928a8` (or the GROUP 11 patch target `0xc0691950` inside `FUN_c06917f0`) as
+`cmmsc_auto`.** Both functions are **`cmcc.c`** (CM Call Control), proven two independent ways: every log
+descriptor they pass resolves to a `cmcc.c:` format string (`=CM= MMGSDI EPS mmgsdi_status=%d` at UZ801
+L3081, `… srv_available=%d, cm_mmgsdi_acl_availability=%d` at L3115; `=CM= CC: app_type=%d` at L1266), and
+their embedded symbols are `s_cmcc_service_available_cb` / `s_cmcc_call_control_processing_lte`. Stock's
+**runtime** capture confirms the mapping (the same formats at stock L3062/L3096, a uniform **+19** revision
+shift). Consequences: the deployed **v14/v19 GROUP 11 patch has never touched `cmmsc_auto.c`**; the
+"no static caller ⇒ never invoked" inference is **falsified by stock's own behaviour** (stock runs `cmcc.c`
+with no static caller in the image); and the literal-reference census is **retired** as a code-presence test
+(`wmssim.c` emits 14 records with 0 references). Affected: `201 §5.3`, `202 §7`, `204 §6`, `205 §7` — each
+now carries a retraction banner. **Also do not cite `scratch/desc.py`** (wrong entry model; use
+`scratch/desc_table.py`). Full record: `206_FUN_c06928a8_IS_cmcc_NOT_cmmsc_auto_AND_THE_WMS_INPUT_PATH_IS_INTACT.md`.
+
+## Premise corrected + axis closed 2026-09-26 (Doc 207) — the descriptor model, and the death of `cmcc.c`
+
+**Three things to carry forward.**
+
+1. **The F3 descriptor model was half right.** `{u32 packed; u32 word1}` with `packed=(line<<16)|level` is
+   correct, but **`word1` is a seg25 string pointer for only ~8 % of sites; for ~92 % it is a 32-bit hash**
+   (`< 0xc0000000`). `scratch/desc_table.py entries` filters on `word1 ∈ seg25`, so **it silently keeps
+   ~8 % of the table** — any count taken from it is a lower bound of unknown size. It also has a
+   **crash-to-empty-output bug** (an unguarded `off2va` returning `None` raises inside a `%08x` format, so
+   under `2>/dev/null` a wide range prints `0` while a narrow range inside it prints `149`). The hash is
+   **build-independent** — 10 039 of UZ801's 11 200 hash keys (89.6 %) are shared with HMU05 — so it is a
+   valid cross-build statement key.
+2. **New instrument: `scratch/logsite.py`** maps a decompiled function's log calls to `file:line` (it reads
+   `packed` from the ELF at each **literal descriptor VA**). UZ801 69 775 sites, HMU05 68 186. Its token
+   pattern **must** cover every image-base prefix — a first version using `c16[0-9a-f]{5}` produced a
+   confident zero on the stock arm. Companions: `scratch/immbase.py`, `scratch/va2func.py`.
+3. **★★★ The `cmcc.c` axis is CLOSED — do not deploy GROUP 11 again.** `cmcc.c` is reachable **identically**
+   in both builds (UZ801 13 functions / 90 sites vs HMU05 12 / 89, with 1:1 site counts), and the sole entry
+   `FUN_c06928a8` is referenced only at its own definition **in UZ801 and in stock alike** — so the
+   no-static-caller property is not a build difference. Worse for the patch line: `FUN_c06928a8` (UZ801) and
+   `FUN_c066fa30` (stock) are **structurally identical**, so GROUP 11's target sits inside a chain that is
+   already stock-equivalent ⇒ **inert by construction**, exactly as v14/v19 measured.
+
+**Also corrected:** `re_index.py --callers` matches only `SYM(` and is **blind to function-pointer
+arguments** (`…, 0x456, FUN_c0691d9c, iVar2)`) — use a raw symbol grep for caller censuses.
+**Still open but bounded:** the `cmmsc_auto.c` descriptors are referenced by **no literal and no `immext` in
+either build**, so the static descriptor route cannot reach that module; the four descriptor VAs for both
+builds are recorded in Doc 207 §7.2. Full record:
+`207_THE_DESCRIPTOR_MODEL_CORRECTED_THE_DESCRIPTOR_TO_CODE_INSTRUMENT_AND_THE_DEATH_OF_THE_CMCC_AXIS.md`.
+
+---
+
+## Instrument + blocker 2026-09-26 (Doc 208) — the dispatcher is identical, `code` is not the mask, and the F3 burst class is gone
+
+Three results and one blocker. Full record:
+`208_THE_IDENTICAL_CM_DISPATCHER_THE_CODE_FIELD_IS_NOT_THE_MASK_AND_THE_LOSS_OF_THE_F3_BURST_CLASS.md`.
+
+1. **★★★ The CM dispatcher is the same program in both builds.** UZ801 `FUN_c067cd2c` @ `0xc067cd2c` vs
+   stock `FUN_c0659ef0` @ `0xc0659ef0` (located by grepping the stock decompile for the switch constant
+   `0x100006a`, not by an address guess): 1096 normalised lines each. Raw `fdiff` similarity is **83.49 %**
+   with 115 differing blocks — and **every one of them is a `unaff_GP + 0x…` global-layout offset**. After
+   normalising GP offsets, **2 blocks remain, both the same `int *piVar;` declaration move**. ⇒ "the CM code
+   differs" is **closed**; the `dcc` command's 0.66 ms drop must be command-content or CM-state.
+   **Read every future `fdiff` verdict with GP offsets normalised** — a GP-blind diff reports two identical
+   programs as 83.49 % similar.
+2. **★★★ The two F3 arms used the IDENTICAL instrument, so their masks are matched.** The stock capture's own
+   log (`scratch/hmu05_stock_boot.log`) opens `--- cntl-enable 64 SSIDs at uptime=12.98 ---` with 64
+   `F3_MASK` packets `ssid_first=ssid_last=0…63`, from the same script at the same uptime as the UZ801 arm.
+   ⇒ the campaign's file-set differentials are **mask-controlled**, and the load-bearing negative is
+   **strengthened**: stock's boot chunk carries `cmss.c` 18, `cmmsc_auto.c` 3, `mmoc.c` 4, `cmlog.c` 6,
+   `cmregprx.c` 7, `sdss.c` 6, `sdcmd.c` 5; UZ801's burst boot chunk carries **0** of them while delivering
+   the same adjacent layers (`mmocdbg.c` 60, `cmdbg.c` 14, `mmocmmgsdi.c` 62, `a2_power.c` 8).
+3. **★★★ The F3 record's `code` field is NOT the AP-selected SSID — stop reading masks off it.**
+   `cntl-enable N` provably sweeps SSIDs `0..N-1` (source- and wire-verified), yet on one boot `code` is
+   **4772 for N = 1, 4, 64 and 256**; it varies only across **boots** (`4756 … 4772`, `40240`, `41261`,
+   `42100`, `42140`, `0`) ⇒ a modem-assigned per-boot subsystem id. **A capture's mask is read from its own
+   `diagboot.log`, never from the F3 record.** Doc 203 §3.1's `code` column is not mask information.
+4. **★★★ BLOCKER — the F3 burst-capture class is gone.** Doc 203 §3.2's admissibility rule says a negative is
+   scorable only on a **burst** capture (`mmocdbg.c` > 0). **20 consecutive boots are blind**, across three
+   masks (sweep-256; a new one-packet `cntl-enable-range` 256; and the original sweep-64) and a fresh
+   redeploy of the identical v19 set. Falsified as causes: the **sweep width** (the sweep-64 control blinded
+   4/4 too — my own "a wide mask blinds" hypothesis died to its own control), the **enable speed**, the
+   **firmware bytes**, and the **modem's persistent partitions** (`modemst1`/`modemst2`/`fsg`/`fsc`
+   byte-identical across a boot). The class flips in **blocks** (5 burst, then 20 blind) with no deploy,
+   revert or manual reset near the flip. The blind class is missing exactly the **UIM/SIM-Toolkit bring-up**
+   (`estk_bip.c`, `gstk*`, `nvruim.c`, `mcfg_uim.c`, `mmgsdi_session.c`, `mmocdbg.c`) while the card reads
+   `present` / `usim (2) ready`. **No further F3-scored CM-layer work is possible until the class returns.**
+   Leading hypothesis for the fix: an **AP-side timing window** (the class is a race between the modem's UIM
+   bring-up and CM's first command; the AP controls the EFS window through `rmtfs`).
+
+**Also corrected:** Doc 203 §3.2's evidence for retiring the sweep dimension was **inadequate** — it compared
+two captures that were **both blind**, and a blind-vs-blind comparison cannot detect a sweep effect on the
+burst class. The conclusion happens to survive (Doc 208 §6.1 shows the sweep is not the cause) but on a
+different argument. **A dimension can only be retired by varying it inside the class you intend to score.**
+**New tool:** `diag_logtool cntl-enable-range [dev] [nssid] [span]` — one `F3_MASK` packet per `span` SSIDs
+(`span == 1` reproduces the original packet byte-for-byte).
+
+---
+
+## The burst class restored, then the parser corrected and the first clean differential (Docs 210 + 211, 2026-09-27)
+
+Full records: `210_THE_BOOT_CAPTURE_CLASS_RESTORED_THE_REFUTED_CM_NEGATIVES_AND_THE_POLICYMAN_RAT_MASK_ZERO.md`
+and `211_THE_ARGS_SHIFT_PARSER_DEFECT_AND_THE_FIRST_CLEAN_SAME_WINDOW_DIFFERENTIAL.md`.
+
+**Doc 210 restored the burst class and refuted five load-bearing negatives.** The class was lost to a
+**1-second-granularity DIAG-device poll**: `cntl-enable` fired at ~13.18 s. Polling at `sleep 0.05` fires it
+at **12.3–13.1 s** and catches the modem's cold boot — **verified 4/4** against the campaign's 20/20 blind.
+The class is a **race on the `cntl-enable` time, not on the sweep width.** The restored class is *deeper*
+than the campaign's "burst" class — `rcinit_init.c` = **76–171** vs **0** — so `cmss.c` / `cmmsc_auto.c` /
+`cmregprx.c` / `sdss.c` / `sdcmd.c` / `mmoc.c` all **run**, `cmmsc_auto` emits the exact stock sequence
+including `updating op_mode`, and **"the CM serving-system layer genuinely never runs" is RETRACTED** as a
+coverage artifact. Doc 210's new lead was the **policyman end state** (`Filtered RAT mask 0 based on HW
+capabilities 544`) and a census-invisible `MSC_AUTO` divergence (`0x220` vs `0xebe`).
+
+**Doc 211 falsified both leads and found a second parser defect.** A stock boot on the **restored**
+instrument (`stock_boot_211.bin`, `admissible=yes`, `rcinit_init.c` = 76) reaches the policyman block and
+emits the **identical** `Filtered RAT mask 0 … 544` sequence — while **registering on JIO 4G**
+(`Mode: 'online'`, MCC 405 / MNC 861). **A filtered RAT mask of 0 is not why UZ801 stays offline.**
+
+Chasing that lead exposed the real problem: **`f3parse.py` read `args` at `k+20` while the Doc-210-era
+`extra` pad sits *before* the args, so every affected record's arguments were scaled by `256^extra`.** Raw
+proof (`stock_boot_211.bin off=0x30d33`, `na=2`, `extra=1`): `args@k+20 = [9728, 0]` vs `args@k+20+1 =
+[38, 0]` for `=CM= mode_pref %d, pref_term %d`. That is exactly why `mode_pref` appeared to read **9728** on
+stock and **38** on UZ801. With the fix it is **38 in every arm**, and so is everything else:
+
+| quantity | stock | UZ801 | note |
+| :-- | :-- | :-- | :-- |
+| `=CM= mode_pref %d, pref_term %d` | **38** | **38** | was read as 9728 / 2490368 |
+| `=CM= old_op_mode:%d new_op_mode:%d` | **10 → 11** | **10 → 11** | was read as 2560 / 2816 |
+| `=CM= NV hybr pref set to %d` | **1** | **1** | was read as 256 |
+| `MSC_AUTO: 0x%x & 0x%x = 0x%x` | `0x200 & 0xebe`, later `0x200 & 0x220` | `0x200 & 0xebe` | **stock emits both**; `0x220`-vs-`0xebe` is *which invocation the capture caught* |
+| `Filtered RAT mask %d … %d` | `[0, 544]` | `[0, 544]` | shared with stock |
+
+⇒ **The CM *inputs* are byte-identical between the two firmwares; the divergence is entirely downstream.**
+Fixed parser: `scratch/f3parse.py` md5 **`9f9d6edf15d64faf3b47897f7838c9ac`** (pre-fix kept as
+`f3parse.py.pre211`). **Do NOT take an `args` value from any older parser.**
+
+**The first same-window differential the campaign has ever had** — one device, one EFS, one instrument, one
+240 s window, only the firmware differing:
+
+| axis | stock | UZ801 v19 |
+| :-- | :-- | :-- |
+| CM serving-system (`cmss.c` / `cmlog.c`) | **18 / 6** | **0 / 0** |
+| SD name-select | `sdcmd_name_sel3()` | `hybr_name_sel()` + **`ssscr_user_offline_cdma`** |
+| MMOC session-open source | `sess opn cnf: …card=%` | `…card_1=%` + `card_2 %` |
+| UIM / SIM-Toolkit stack | *(absent)* | `mcfg_uim.c` ×9, `uimsub_manager.c` ×5, `uimgen.c`, `gstkutil.c` ×3, incl. a **failing** `UIM_%d: Read to NV active slot configuration unsuccessful` |
+| MMOC `Prot_state` | `0(NULL)` only | `0(NULL)` → **`7(OFFLINE)`** |
+
+**The sharpest single event** (delivery order, `num_args = 0`, so **untouched by the parser defect**): both
+firmwares receive `=MMOC= Recvd command 2(OPRT_MODE_CHGD)` and log an identical sequence up to
+`Trans_state 0(NULL)`; stock then emits **`=MMOC= New transaction : 2(ONLINE)`**, UZ801 emits
+**`=MMOC= New transaction : 3(OFFLINE)`**. The command is the same and CM's op mode is byte-identical, so
+**the decision is made inside MMOC** on inputs the CM log does not expose.
+
+**Also recorded:** the F3 `ts` field is **per-`code`** (the `code` field partitions a capture into
+independent clocks — never order F3 messages by `ts` across codes); `comm` is **not in the OpenWrt busybox**,
+so a restore script that used it aborted after extraction and left a **partial** firmware set (use `awk`);
+and UZ801 v19 was restored and verified (68/68 manifest, `offline`, guard clean).
+
+---
+
+## The DIAG tooling shipped as packages — `diag-bind`, `diag-efs` (with a guarded write), `diag-logtool` (Doc 219, 2026-09-28)
+
+Full record: `219_DIAG_TOOLING_PACKAGES_DIAG_BIND_DIAG_EFS_AND_DIAG_LOGTOOL.md`.
+
+The campaign's DIAG instruments existed only as loose scripts under `scratch/`, which `.gitignore` excludes.
+They are now three OpenWrt packages under `packages/` (all `GPL-2.0-only`, `1.0-r1`), so
+`scripts/openwrt-prepare.sh:189-200` copies them into `openwrt/package/msm8916/` and they install normally:
+
+| Package | Depends | Provides |
+| :-- | :-- | :-- |
+| `diag-bind` | `+kmod-qcom-rproc-modem` | `/usr/sbin/diag-bind` (the SMD DIAG → `rpmsg_chrdev` bridge), `/usr/sbin/diag-bind-watch` + a procd service (re-binds across an SSR), `/etc/uci-defaults/95-diag-bind` |
+| `diag-efs` | `+diag-bind` | `/usr/bin/diag_efs` — read the modem's EFS **decrypted on the fly** over EFS2 (`0x13`), plus a guarded `put` |
+| `diag-logtool` | `+diag-bind` | `/usr/bin/diag_logtool` — the F3/log-mask/capture instrument of Doc 196 |
+
+**The auto-bind service is the point of `diag-bind`.** The binding lives on an rpmsg device object that an
+**SSR destroys** — and the modem here restarts roughly every 900 s — so a one-shot boot bind goes **silent** at
+the first restart, with no error at the point of use. The watcher polls every 2 s and re-binds only when the
+device is present but **unbound**, so a capture holding `/dev/rpmsg0` open is never disturbed; every (re)bind
+is logged and written to `/root/diag-bind.status`. **Verified: manual unbind → re-bound in ~6 s.** (The re-bind
+re-opens the `rpmsg_ept_cb` `priv == NULL` window guarded by kernel patch 819, which is present.)
+
+**`diag_efs` gained a write path, reverse-engineered live.** The header documented `WRITE=5` but the code
+defined `EFS_READ5 5` — there was no write at all. Measured: the request is
+**`4b 13 05 00 │ fdata(u32) offset(u32) │ data[…]` with NO `nbytes` field** (the length is the message length;
+sending `nbytes` makes the modem read it as the *offset*), the write commits on **CLOSE**, and the open flags
+are the POSIX values (`O_WRONLY 0x1 O_RDWR 0x2 O_CREAT 0x40 O_TRUNC 0x200 O_APPEND 0x400`; `0x241` =
+create+truncate = the `put` default; `0x240` → err 9). `put` refuses `/rfnv/` and `/mcs/` without `--force`,
+backs up an existing target to `<sanitised>.bak.<epoch>`, writes in ≤1024 B chunks, and always verifies by
+read-back (`MATCH`/`MISMATCH`). **Validated by a modify → MATCH → restore → MATCH cycle ending byte-identical**
+(`conf/hdrmac_config_info.conf`, md5 `50724a0a183e3190bf4c465549e3fa64`).
+
+**Also recorded:** **EFS2 `REMOVE` is sub-command `8`** (`4b 13 08 00 │ path\0`) — found by probing, used only
+via a raw `diag_logtool` exchange to clean up the 13 write-test files, and **deliberately not implemented**
+(a destructive verb next to the `path_is_cal()` guard needs a re-scope). And a build trap:
+`make package/<name>/compile` can print *"Nothing to be done for 'compile'"* when a stale `$(STAMP_BUILT)`
+exists and `$(PKG_BUILD_DIR)` is gone — that line is **not** evidence the package built; use
+`make package/<name>/{clean,compile}`.

@@ -1,0 +1,71 @@
+# Android low-power-state evidence -- captured 2026-09-22T20:12:33Z
+# serial c2b9103c, uptime 2423.50 9281.24
+
+== uptime ==
+2423.52 9281.29
+up time: 00:40:23, idle time: 02:34:41, sleep time: 00:00:00
+
+== [system] suspend ==
+[system] suspend:
+  success count:       0
+  total success time: 0.000000000
+	<     1.000000000:       0 (0-0)
+	<     4.000000000:       0 (0-0)
+	<    16.000000000:       0 (0-0)
+	<    64.000000000:       0 (0-0)
+	<   256.000000000:       0 (0-0)
+	<  1024.000000000:       0 (0-0)
+	<  4096.000000000:       0 (0-0)
+	< 16384.000000000:       0 (0-0)
+	< 65536.000000000:       0 (0-0)
+	>=65536.000000000:       0 (0-0)
+
+== cpu0 states ==
+--- wfi ---
+[cpu0] wfi:
+  success count:  407033
+  total success time: 1750.057205011
+	<     0.000062500:  119879 (312-62448)
+--- pc ---
+[cpu0] pc:
+  success count:   39664
+  total success time: 522.685784325
+  failed count:    8866
+--- standalone_pc ---
+[cpu0] standalone_pc:
+  success count:     654
+  total success time: 0.480726377
+  failed count:     147
+
+== l2 states ==
+--- l2-cache-active ---
+[system] l2-cache-active:
+  success count:       0
+  total success time: 0.000000000
+--- l2-gdhs ---
+[system] l2-gdhs:
+  success count:   51555
+  total success time: 496.510102423
+--- l2-pc ---
+[system] l2-pc:
+  success count:       0
+  total success time: 0.000000000
+
+== suspend entry count in dmesg ==
+0
+
+== modem subsystem state ==
+venus: state=OFFLINE
+wcnss: state=ONLINE
+modem: state=ONLINE
+
+== fatal/SSR count in dmesg ==
+12
+
+== CORRECTED fatal accounting (the loose grep above matched boot-time registration) ==
+actual modem fatals  ('Fatal error on the modem'): 0
+actual subsystem restarts ('subsys-restart: <func>():'): 3  <- all 3 are boot-time subsys_register()
+
+== NOTE: 'subsys-restart: subsys_register():' lines are BOOT-TIME, not restarts ==
+== TRAP: Android has no remoteproc; the fatal marker is pr_err("Fatal error on the modem")
+==       from drivers/soc/qcom/pil-q6v5-mss.c, NOT OpenWrt's 'fatal error received:' ==

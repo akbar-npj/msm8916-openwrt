@@ -1,0 +1,6 @@
+UPTIME 44146.60 44266.73
+MPSS_NUMSHUTDOWNS 	numshutdowns:0x2e8e | 	numshutdowns:0x2e8e
+A2OUT a2 ack out cnt:  6057 | a2 ack out cnt:  6065
+A2IN a2 ack in cnt:   6480 | a2 ack in cnt:   6488
+A2PWR a2 pwr cntl in:  6058 | a2 pwr cntl in:  6066
+RPMRING 0x27101860 0x271D7080

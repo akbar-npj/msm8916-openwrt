@@ -133,13 +133,21 @@ def main(paths):
         print("-" * len(hdr))
 
         a_to_c, c_to_s, s_to_d, d_to_u, a_to_u, nports = [], [], [], [], [], []
+        incomplete = []
         for i, r in enumerate(recs, 1):
-            ac = d(r["add"], r["created"])
-            cs = d(r["created"], r["sim"])
-            sd = d(r["sim"], r["disabled"])
-            du = d(r["disabled"], r["up"])
-            au = d(r["add"], r["up"])
+            # Every phase is optional: a DOUBLE FATAL (the next SSR lands before
+            # this one finished recovering) leaves an SSR with `add` and some
+            # later phases but NO `Interface 'modem' is now up`.  d() returns
+            # None for a missing endpoint, so such an SSR drops out of that
+            # phase's statistics instead of crashing the scorer.
+            ac = d(r.get("add"), r.get("created"))
+            cs = d(r.get("created"), r.get("sim"))
+            sd = d(r.get("sim"), r.get("disabled"))
+            du = d(r.get("disabled"), r.get("up"))
+            au = d(r.get("add"), r.get("up"))
             np_ = len(r["ports"])
+            if r.get("up") is None:
+                incomplete.append(i)
             for lst, v in ((a_to_c, ac), (c_to_s, cs), (s_to_d, sd),
                            (d_to_u, du), (a_to_u, au), (nports, np_)):
                 if v is not None:
@@ -150,11 +158,18 @@ def main(paths):
             print(f"{i:>3} {r['add']:>8} "
                   f"{(d(r['add'], r.get('probe')) if r.get('probe') else 0):>6} "
                   f"{(ac if ac is not None else 0):>6} "
-                  f"{(d(r['add'], r['sim']) if r.get('sim') else 0):>5} "
-                  f"{(d(r['add'], r['disabled']) if r.get('disabled') else 0):>6} "
+                  f"{(d(r['add'], r.get('sim')) if r.get('sim') else 0):>5} "
+                  f"{(d(r['add'], r.get('disabled')) if r.get('disabled') else 0):>6} "
                   f"{(au if au is not None else 0):>5} "
                   f"{f(ac):>5} {f(cs):>5} {f(sd):>5} {f(du):>5} {f(au):>5} "
-                  f"{np_:>5} {len(r.get('attempts', [])):>3}")
+                  f"{np_:>5} {len(r.get('attempts', [])):>3}"
+                  + ("   <-- SUPERSEDED (no Interface-up line)" if r.get("up") is None else ""))
+
+        if incomplete:
+            print(f"\n  NOTE: SSR(s) {incomplete} carry no `Interface 'modem' is now up` line.")
+            print("        Their recovery was cut short by the NEXT fatal (a double fatal).")
+            print("        They are excluded from `add -> up` by construction, but they are")
+            print("        NOT excluded from P-MM2 below -- see the note under the verdicts.")
 
         def summary(name, lst, pre=None):
             if not lst:
@@ -195,6 +210,12 @@ def main(paths):
             print(f"  P-MM2  FALSIFIED   (SSRs with <9 ports: {bad}; missing-net-port: {miss})")
         else:
             print(f"  P-MM2  CONFIRMED   (9/9 ports in all {len(recs)} SSRs)")
+        superseded_bad = [i for i in bad if i in incomplete]
+        if superseded_bad:
+            print(f"        NOTE: SSR(s) {superseded_bad} are SUPERSEDED (no Interface-up line),")
+            print("        so a <9-port list there is an artifact of the recovery being cut")
+            print("        short, not a missing port.  The pre-registered rule is unchanged;")
+            print("        this is disclosed so the falsification can be judged, not re-tuned.")
 
         med_au = statistics.median(a_to_u) if a_to_u else None
         if med_au is None:

@@ -1,0 +1,32 @@
+#!/bin/sh /etc/rc.common
+# modem-guard — bootloop safety net for the UZ801-on-HMU05 modem port.
+#
+# Runs at START=01 so the boot counter is updated (and, past the threshold, the
+# stock firmware restored) BEFORE the kernel deferred-probes remoteproc0.
+# See /root/modem_guard.sh for the logic and Doc 197 for the design.
+
+START=01
+STOP=01
+USE_PROCD=1
+
+start_service() {
+    /root/modem_guard.sh boot
+
+    # A boot only counts as "good" once the AP has stayed up for GOOD_AFTER s.
+    # The watcher clears the counter then; it also clears it if procd signals
+    # it during a clean shutdown. A watchdog reset gives no signal, so the
+    # counter keeps climbing — which is exactly the bootloop signal.
+    procd_open_instance watch
+    procd_set_param command /root/modem_guard.sh watch
+    procd_set_param respawn 0 0 0
+    procd_close_instance
+}
+
+stop_service() {
+    # STOP=01 is deliberate: shutdown runs the K scripts in ascending order, so
+    # K01 runs BEFORE umount (K90) and umount-overlay (K98) remount the overlay
+    # read-only. At K99 the write silently failed; at K01 it lands. This is what
+    # tells a user `reboot` (counter cleared) from a watchdog reset (counter
+    # kept). The watcher's SIGTERM trap is a redundant second attempt.
+    /root/modem_guard.sh clean-shutdown
+}

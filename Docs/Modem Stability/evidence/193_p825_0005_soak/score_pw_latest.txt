@@ -1,20 +1,20 @@
-  pcfine_b08763ad.txt: 584.1..13459.7 s  resumes 649  timeouts 8
+  pcfine_b08763ad.txt: 584.1..19552.2 s  resumes 888  timeouts 15
 
-pooled: 1 capture(s), 649 resumes, 8 timeouts = 1.23 %
+pooled: 1 capture(s), 888 resumes, 15 timeouts = 1.69 %
 
   == the four classes ==
   class     meaning                                       resumes  timeouts     rate
-  race      pl=1 td=0  wire HIGH, driver awake                538         1     0.2 %
-  race_td   pl=1 td=1  wire HIGH while tearing down            55         0     0.0 %
-  teardown  pl=0 td=1  wire LOW, driver agrees collapsed       49         2     4.1 %
-  stale     pl=0 td=0  wire LOW, driver believes AWAKE          7         5    71.4 %
+  race      pl=1 td=0  wire HIGH, driver awake                729         1     0.1 %
+  race_td   pl=1 td=1  wire HIGH while tearing down            76         0     0.0 %
+  teardown  pl=0 td=1  wire LOW, driver agrees collapsed       72         5     6.9 %
+  stale     pl=0 td=0  wire LOW, driver believes AWAKE         11         9    81.8 %
 
   == frozen predictions ==
 
-  P-W1  STALE rate 71.4 % (5/7)  target < 5.0 %   [UNDERPOWERED (n=7 < 20)]
-  P-W2  overall rate 1.23 % (8/649)  target < 2.0 %   [SCORED]
+  P-W1  STALE rate 81.8 % (9/11)  target < 5.0 %   [UNDERPOWERED (n=11 < 20)]
+  P-W2  overall rate 1.69 % (15/888)  target < 2.0 %   [SCORED]
         VERDICT: CONFIRMED  (control 3.3 % = 36/1078)
-  P-W3  race rate 0.2 % (1/538)  band 0.8-3.8 %   [SCORED]
+  P-W3  race rate 0.1 % (1/729)  band 0.8-3.8 %   [SCORED]
         VERDICT: FALSIFIED  (control 2.3 % = 19/838)
 
   NOTE: this file scores the pc-ack TIMEOUT only. Patch 825 is not
