@@ -1,0 +1,107 @@
+#!/bin/sh
+# diag-bind - (re)establish the Qualcomm SMD DIAG <-> rpmsg_chrdev bridge.
+#
+# Part of the `diag-bind` OpenWrt package. Run it ON THE DEVICE, immediately
+# before any DIAG capture (or let /etc/init.d/diag-bind keep it bound for you).
+#
+# WHY THIS IS NEEDED
+# ------------------
+# The modem hits a firmware fatal error at ~900 s of modem uptime and the AP
+# recovers it with an SSR (remoteproc crash #N).  The SSR tears down and
+# re-creates every qcom_smd channel, which destroys the rpmsg device object the
+# binding lived on -- so `driver_override` and the rpmsg_chrdev binding are both
+# lost, and /dev/rpmsg0 + /dev/rpmsg1 disappear.  The same loss happens on every
+# AP reboot.  See Docs/Modem Stability/196 (DIAG bridge reference) and 197.
+#
+# Idempotent: re-running when already bound is a no-op.
+#
+# Prints, on stdout, the node names actually in use:
+#     DIAG=/dev/rpmsgN
+#     CNTL=/dev/rpmsgM
+# Exits non-zero if either endpoint could not be created and opened.
+#
+# Safety: rebinding re-opens the rpmsg_ept_cb window in which `priv == NULL`.
+# The kernel guard patch (rpmsg-char-guard-null-eptdev) protects that and IS in
+# the running kernel -- verified: the built source has `if (!eptdev) return 0;`.
+
+set -u
+BUS=/sys/bus/rpmsg
+DRV=rpmsg_chrdev
+DIAG=remoteproc0:smd-edge.DIAG.-1.-1
+CNTL=remoteproc0:smd-edge.DIAG_CNTL.-1.-1
+
+bind_one() {
+    dev=$1
+    d=$BUS/devices/$dev
+    if [ ! -d "$d" ]; then
+        echo "ERROR: no such rpmsg device: $dev" >&2
+        return 1
+    fi
+    cur=$(basename "$(readlink "$d/driver" 2>/dev/null)" 2>/dev/null)
+    if [ "$cur" = "$DRV" ]; then
+        return 0
+    fi
+    if [ -n "$cur" ]; then
+        echo "$dev" > "$BUS/drivers/$cur/unbind" 2>/dev/null
+    fi
+    echo "$DRV" > "$d/driver_override" 2>/dev/null || return 1
+    echo "$dev" > "$BUS/drivers/$DRV/bind" 2>/dev/null || return 1
+    return 0
+}
+
+# The eptdev is created as a child of the smd rpmsg device, named rpmsg<id>.
+node_of() {
+    d=$BUS/devices/$1
+    for p in "$d"/rpmsg/rpmsg*; do
+        [ -e "$p" ] || continue
+        basename "$p"
+        return 0
+    done
+    return 1
+}
+
+# mdev normally creates /dev/<name>; fall back to mknod using the real devt
+# (the name index and the minor come from two *different* ida allocations in
+# rpmsg_char.c, so assuming minor == name index would be wrong).
+ensure_dev() {
+    name=$1
+    [ -n "$name" ] || return 1
+    [ -c "/dev/$name" ] && return 0
+    devt=$(cat "/sys/class/rpmsg/$name/dev" 2>/dev/null)
+    [ -n "$devt" ] || return 1
+    mknod "/dev/$name" c "${devt%:*}" "${devt#*:}" 2>/dev/null || return 1
+    chmod 600 "/dev/$name"
+    return 0
+}
+
+bind_one "$DIAG" || exit 1
+bind_one "$CNTL" || exit 1
+
+i=0
+while [ "$i" -lt 10 ]; do
+    D0=$(node_of "$DIAG"); D1=$(node_of "$CNTL")
+    [ -n "${D0:-}" ] && [ -n "${D1:-}" ] && break
+    sleep 1
+    i=$((i+1))
+done
+
+D0=$(node_of "$DIAG"); D1=$(node_of "$CNTL")
+if [ -z "${D0:-}" ]; then echo "ERROR: DIAG bound but produced no rpmsg node" >&2; exit 1; fi
+if [ -z "${D1:-}" ]; then echo "ERROR: DIAG_CNTL bound but produced no rpmsg node" >&2; exit 1; fi
+
+ensure_dev "$D0" || { echo "ERROR: cannot create /dev/$D0" >&2; exit 1; }
+ensure_dev "$D1" || { echo "ERROR: cannot create /dev/$D1" >&2; exit 1; }
+
+# Prove the data channel really opens read-write.  /dev/rpmsg0 is
+# exclusive-open, so this must be a single read-write descriptor.
+if ! ( exec 3<>"/dev/$D0" ) 2>/dev/null; then
+    echo "ERROR: /dev/$D0 will not open read-write" >&2
+    exit 1
+fi
+if ! ( exec 3<>"/dev/$D1" ) 2>/dev/null; then
+    echo "ERROR: /dev/$D1 will not open read-write" >&2
+    exit 1
+fi
+
+echo "DIAG=/dev/$D0"
+echo "CNTL=/dev/$D1"

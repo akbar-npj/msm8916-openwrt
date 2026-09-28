@@ -1,0 +1,8 @@
+#!/bin/sh
+# First-boot setup for the diag-bind service: enable it so the SMD DIAG bridge
+# is kept alive across modem SSRs, and start it now.
+
+/etc/init.d/diag-bind enable
+/etc/init.d/diag-bind start
+
+exit 0
