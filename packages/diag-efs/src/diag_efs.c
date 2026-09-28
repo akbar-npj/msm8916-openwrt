@@ -124,7 +124,43 @@ static int read_msg(unsigned char *buf, int bufsz, int timeout_ms) {
 static int efs_txn(const unsigned char *req, int n, unsigned char *resp, int timeout_ms) {
     if (open_dev() < 0) return -1;
     if (write(g_fd, req, n) != n) { fprintf(stderr, "write: %s\n", strerror(errno)); return -1; }
-    return read_msg(resp, BUFSZ, timeout_ms);
+    /* Doc 224: this channel also carries a CONTINUOUS spontaneous F3 (0x79)
+     * stream -- measured at ~1 message per read, so a single read() almost
+     * always returns an F3 record, never our reply.  Read until the wall-clock
+     * budget is spent, discarding everything that is not the EFS2 reply whose
+     * byte 2 echoes THIS request's sub-command.
+     *
+     * NOTE: do NOT try to silence the F3 stream with `diag_logtool cntl-disable`
+     * -- that stops the flood but leaves the channel UNRESPONSIVE, so the EFS2
+     * replies stop too.  The skip loop is not equivalent to disabling. */
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    long long budget_ns = (long long)timeout_ms * 1000000LL;
+    int skipped = 0;
+    for (;;) {
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        long long used = (t1.tv_sec - t0.tv_sec) * 1000000000LL + (t1.tv_nsec - t0.tv_nsec);
+        long long left_ns = budget_ns - used;
+        if (left_ns <= 0) break;
+        int left_ms = (int)(left_ns / 1000000LL);
+        if (left_ms < 1) left_ms = 1;
+        if (left_ms > 250) left_ms = 250;
+        int r = read_msg(resp, BUFSZ, left_ms);
+        if (r < 0) return -1;
+        if (r == 0) continue;
+        if (r >= 4 && resp[0] == 0x4b && resp[1] == req[1] && resp[2] == req[2]) {
+            if (getenv("EFS_DUMP")) {
+                fprintf(stderr, "REQ :"); for (int i=0;i<n && i<24;i++) fprintf(stderr," %02x",req[i]);
+                fprintf(stderr, "\nRESP(%d):", r); for (int i=0;i<r && i<64;i++) fprintf(stderr," %02x",resp[i]);
+                fprintf(stderr, "\n");
+            }
+            return r;
+        }
+        skipped++;
+    }
+    if (skipped && getenv("EFS_DEBUG"))
+        fprintf(stderr, "efs_txn: gave up after skipping %d non-matching message(s)\n", skipped);
+    return 0;
 }
 
 static const char *efs_err_str(uint32_t e) {
