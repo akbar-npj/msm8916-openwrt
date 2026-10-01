@@ -121,6 +121,14 @@ same tool does emit `FUN_c0ce7fe0`, `FUN_c08bd220`, `FUN_c08be030`, `FUN_c128064
 
 ## 2. The exact crash branch
 
+> **⚠ SCOPE CORRECTION (2026-09-29) — see §11.** This section is an accurate *decode* of the MCPM
+> `system_sleep_check` fatal packet, but the layer it lives in (`mcpm_drv.c` +
+> `mcpm_ut_superset.c`) shows **no runtime activity in any of the 43 coredumps**: the per-tech
+> request counter `DAT_c30f7080`, the per-tech index array `DAT_c30fd828`, the per-tech state
+> pointers `DAT_c30fdcb8` and the ~180 log-format scratch buffers of this layer all read **zero**,
+> and the whole 64 KiB block that holds them is zero in every dump. Read §2 as "the fatal branch of
+> *this* layer", not as "the branch that fires at 900 s".
+
 `FUN_c0ce7fe0` @ `0xc0ce7fe0` is the MCPM `system_sleep_check`. The fatal decision is a
 two-instruction packet:
 
@@ -631,14 +639,18 @@ twiddles or bounded list walks, and `cpu_vdd` (which is *last* in the chain, not
 
 ### 6.6 What is *not* yet proven
 
-**1. Which mode is actually selected at runtime.** Modes 0–5 include `rpm.sync`; modes 6–7 exclude
-it. If the framework were selecting mode 6 or 7, the `rpm` counter could never advance *by
-construction* and the 400-cycle check would fire on every boot regardless of any stall. Static
-analysis now proves that **all 8 modes are registered** (§6.1: `FUN_c1281800` requires `nmode == 8`
-and parses all of them), so the choice is made dynamically — it is the *policy* that is unknown, not
-the existence of the modes. It is cheap to settle: enable the F3 message group that emits
-`Mode entering (lpr: %s) (lprm: %s) (Enter Time 0x%llx)` (`0xc1855461`, logged at `0xc12813b8` by
-the walker `FUN_c12812c0`) and read the mode from the first sleep cycle.
+**1. Which mode is actually selected at runtime — RESOLVED 2026-09-29, it is `mode[1]` (see §10).**
+Modes 0–5 include `rpm.sync`; modes 6–7 exclude it. If the framework were selecting mode 6 or 7,
+the `rpm` counter could never advance *by construction* and the 400-cycle check would fire on every
+boot regardless of any stall. Static
+analysis proves that **all 8 modes are registered** (§6.1: `FUN_c1281800` requires `nmode == 8`
+and parses all of them), so the choice is made dynamically. **That choice has now been read
+directly out of 43 coredumps** (§10): it is `mode[1]`
+(`npa_scheduler.fork + CLM.disable + l2.ret + tcm.ret + cxo.shutdown + rpm.sync + cpu_vdd.pc_l2_tcm_ret`),
+which **contains `rpm.sync`**, in 1179 of 1186 records. The `rpm.sync_only` modes (4/5) are never
+selected. The F3-mask route originally proposed here (enable
+`Mode entering (lpr: %s) (lprm: %s) (Enter Time 0x%llx)` `0xc1855461` @ `0xc12813b8`) is therefore
+unnecessary — and was in any case void, since the mask was already all-enabled (§9.1).
 
 **Note on reaching the walker.** `FUN_c12812c0` / `FUN_c1281440` have **no direct code references** —
 they are reached through a jump table at `0xc08bc060`–`0xc08bc0b4` (a series of `immext` + `jump`
@@ -749,10 +761,14 @@ is corroboration of the *static data structures and the crash function*, not of 
 
 ## 7. Remaining open questions
 
-1. **Which sleep mode is selected at runtime, and does it contain `rpm.sync`?** Modes 0–5 do;
-   modes 6–7 do not. Settle it by enabling the F3 group for
-   `Mode entering (lpr: %s) (lprm: %s) (Enter Time 0x%llx)` (`0xc1855461` @ `0xc12813b8`) and
-   `Mode exiting ...` (`0xc1855498` @ `0xc12814b8`).
+1. **~~Which sleep mode is selected at runtime, and does it contain `rpm.sync`?~~ ANSWERED OFFLINE
+   (2026-09-29) — see §10. It is `mode[1]`, and it contains `rpm.sync`.** Measured from the
+   coredumps, not from DIAG: the framework logs every selection through
+   `Mode chosen: ("%s")` (`0xc1854b07`), and the record's argument is the mode's name pointer.
+   Across **43 coredumps / 1186 records: `mode[1]` ×1151, `mode[3]` ×28, `mode[7]` ×6.** Modes 1
+   and 3 both contain `rpm.sync`; the `rpm.sync_only` variants (modes 4/5) are **never** selected.
+   ⇒ The `FUN_c08b9690(1)` / `(2)` churn loops of §6.4 are on the live code path. The F3-mask
+   route to this answer (intervention 0 in §8) is now unnecessary and was in any case void (§9.1).
 2. **Why does the RPM churn queue stop draining after ~400 cycles?** Q6-side bookkeeping vs
    RPM-side service stall — see §6.6. Same F3 mask plus the `rpm_force_sync` (`0xc185403b`),
    `rpm_churn_queue` (`0xc18540bb`), `churning` (`0xc18540dc`) and `rpm_flushed` (`0xc1854094`)
@@ -777,7 +793,7 @@ Ordered by cost, cheapest and least invasive first.
 | 2 | Raise the 400 threshold | `0xc0ce81cc` / immediate `0x190` | Buys time, does not fix. |
 | 3 | Set the MCVS bypass flag bit | MCPM driver struct `+0x178` bit 0 | Suppresses all MCVS checks. |
 | 4 | **Bound the `rpm.sync` waits** — add a retry/timeout to the churn loops at `0xc08b96f4` and `0xc08b988c` so a stalled RPM returns an error instead of parking the Q6. | `0xc08b96f4`, `0xc08b988c` | Correct-shaped fix, but the loops have no free register for a counter and the enclosing frame is 0x10/0x18 bytes — needs a real code cave. |
-| 5 | Force a mode without `rpm.sync` | mode table `0xc1d464f8` (`count` / `lprm_array`) | Removes the Q6 PC vote entirely — the modem would stop power-collapsing on that rail. Also blocked on the §6.1 caveat: the mode table may not be live. Untested. |
+| 5 | Force a mode without `rpm.sync` | mode table `0xc1d464f8` (`count` / `lprm_array`) | Removes the Q6 PC vote entirely — the modem would stop power-collapsing on that rail. The "may not be live" caveat is now **resolved**: the table is live and the selected mode is `mode[1]` (§10), so this lever is mechanically real. Untested, and the `mode[7]` transient (§10.3) suggests the framework only tolerates a no-rpm chain briefly. |
 | 6 | **Suppress the AP-side RPM traffic that starves the RPM** (if §6.6 branch (b) is confirmed). | AP kernel/userspace | Needs the culprit identified first; see `project_root_cause_q6pc_vote_failure`. |
 
 Per the project's **dual-firmware comparative protocol**, none of the patches may be flashed until
@@ -908,3 +924,375 @@ On the real clock the largest MCPM PC inter-event gap is only **6.63 s, starting
   `sleep_active` state at the moment of collapse. Decoding them is task #26.
 
 
+
+---
+
+## 10. §7.1 SETTLED OFFLINE — the selected mode is `mode[1]`, and it contains `rpm.sync`
+
+**Result (2026-09-29).** Across **43 HMU05 coredumps / 1186 `Mode chosen` records**:
+
+| mode | n | chain |
+|---|---|---|
+| **`mode[1]`** | **1151** | `npa_scheduler.fork + CLM.disable + l2.ret + tcm.ret + cxo.shutdown + rpm.sync + cpu_vdd.pc_l2_tcm_ret` |
+| `mode[3]` | 28 | `CLM.disable + l2.ret + tcm.ret + cxo.shutdown + rpm.sync + cpu_vdd.pc_l2_tcm_ret` |
+| `mode[7]` | 6 | `CLM.disable + l2.ret + tcm.ret + cpu_vdd.pc_l2_tcm_ret` (no rpm step) |
+
+The two `rpm.sync_only` modes (4 and 5) are **never selected**. Every selection except `mode[7]`
+contains `rpm.sync`.
+
+⇒ **The §6.4 blocking analysis is on the live path.** The `rpm.sync` step (`enter 0xc08bebd0`)
+really is walked, its two churn loops (`0xc08b96f4`, `0xc08b988c`, no retry counter, no timeout)
+really are the ones that park the Q6, and the §6.6 caveat 1 — "if the framework selected mode 6 or
+7 the counter could never advance by construction" — is now **excluded**. The remaining branch of
+§6.6 is (a) Q6-side vs (b) RPM-side, not mode selection.
+
+### 10.1 How it was measured (no device, no DIAG)
+
+The framework logs every mode selection through the format string
+
+```
+Mode chosen: ("%s")            @ ELF VA 0xc1854b07
+```
+
+written into a **packed ring buffer** of records
+
+```
+[u16 0x0001][u16 len][u32 ts][u32 x][u32 fmt_ptr][u32 arg_ptr]
+```
+
+so the **chosen mode's name pointer sits exactly 4 bytes after the `fmt_ptr`**. The 8 candidate
+name pointers are constants in the mode table at `0xc1d464f8` (stride 0x0C, §6.1), so the
+histogram is exact — no string matching, no heuristic.
+
+Coredump mapping is the usual `dump_va = elf_va - 0x39800000` (`scratch/coredump_live/vadump.py`).
+Tools written for this: `scratch/coredump_live/lprtable.py` (table + refs + string reader) and
+`scratch/coredump_live/modechosen.py` (the histogram).
+
+### 10.2 The mode table, fully decoded
+
+`0xc1d464f8`, 8 entries × 0x0C = `{u32 name_va; u32 nlpr; u32 lpr_array_va}`. The name strings are
+self-describing concatenations, so each array slot maps 1:1 onto a named LPR object:
+
+| object VA | name | short name |
+|---|---|---|
+| `0xc1d46ca8` | `npa_scheduler.fork` | `fork` |
+| `0xc1d46bf8` | `CLM.disable` | `disable` |
+| `0xc1d47008` | `l2.ret` | `ret` |
+| `0xc1d47168` | `tcm.ret` | `ret` |
+| `0xc1d47228` | `cxo.shutdown` | `shutdown` |
+| **`0xc1d47318`** | **`rpm.sync`** | `sync` |
+| `0xc1d47388` | `rpm.sync_only` | `sync_only` |
+| `0xc1d47508` | `mcpm_lpr.power_debug` | `power_debug` |
+| `0xc1d46ea8` | `cpu_vdd.pc_l2_tcm_ret` | `pc_l2_tcm_ret` |
+
+Object layout is 0x40 bytes: `+0x00` name_va, `+0x04` type (2 for `fork`, else 1), `+0x08` fn,
+`+0x10` list head, `+0x14`/`+0x18` enter/exit fns, `+0x20` second list head.
+
+`0xc1d46558` = `{name="synth", 8, 0xc1d464f8}` — the mode-**set** descriptor, and the only data
+reference to the table. Each of the 8 modes also has a **runtime** record (e.g. `mode[0]` at
+`0xc45e1f38`) of the form `{name_va, <ptr to the all-modes array 0x8ade1ee0>, 1, lpr_array_va, nlpr, …}`.
+
+### 10.3 A real mode TRANSITION exists (and it is not the crash)
+
+The records are a ring, so file order ≠ time order. Sorted by the record's own `ts`, one boot
+(`modem_coredump_up3888.64_devcd6.elf`, the one capture in the set that is *not* a ~902 s fatal)
+reads:
+
+```
+ts 0x1f919f15 … 0x2b8cc6cf   mode[3]   (early, ~529M–730M)
+ts 0x2cdc1df1                mode[7]   (transient, once)
+ts 0x2decd9f2 … 0x2f63c98f   mode[1]   (steady state, ~770M onward)
+```
+
+i.e. the chain gains **`npa_scheduler.fork`** and settles as `mode[1]`. The `mode[7]` record is a
+single transient during the switch. Coredumps taken late (e.g. `up915.44`, all 28 records
+`mode[1]`) have already rolled past the `mode[3]` phase — which is why a per-file histogram alone
+would have been misleading. `mode[7]` also appears 4× in the stock capture, so it is **not** an
+HMU05/UZ801 difference.
+
+### 10.4 What this does NOT settle
+
+* **§7.2 (why the churn never drains)** is untouched: the loop exits when its pending list is empty
+  (`FUN_c08ba950` returns a pointer or 0), so the question is still *why entries stay pending* —
+  §6.6 (a) Q6-side vs (b) RPM-side.
+* It does **not** re-open the "which mode" question as a fix lever. §8 intervention 5 ("force a
+  mode without `rpm.sync`") is *mechanically* available — modes 6/7 exist and are registered — but
+  it removes the Q6 PC vote entirely, and the `mode[7]` transient shows the framework itself will
+  only hold such a chain briefly.
+
+### 10.5 Attempt to evaluate the MCPM fatal condition offline — the per-tech arrays read ALL ZERO (open)
+
+With the mode question settled (§10), the next offline target was the **fatal condition itself**:
+`system_sleep_check` (`FUN_c0ce7fe0`) compares the current `q6pcvote` against `DAT_c30fd9a8[tech]`
+and only falls into the fatal block when `q6pcvote <= DAT_c30fd9a8[tech]` (§2). Both operands are
+readable in principle:
+
+| operand | ELF VA | how |
+|---|---|---|
+| `q6pcvote` | `0xc1d47410` = the `rpm` LPR descriptor `0xc1d473f8` `+0x18` | confirmed by the LPR registry at `0xc1d464b0` (`[6] name="rpm" desc=0xc1d473f8`) |
+| `DAT_c30fd9a8[tech]` | `0xc30fd9a8` | confirmed by the disassembly, **not** the decompiler |
+| `DAT_c30fda28[tech]` (the sleep counts) | `0xc30fda28` | same |
+
+The disassembly is unambiguous about the bases — at `0xc0ce8050`–`0xc0ce805c`:
+
+```
+c0ce8050  immext(#0xc30fd980)
+c0ce8054  r25 = ##-0x3cf02658        ; r25 = 0xc30fd9a8
+c0ce8058  immext(#0xc30fda00)
+c0ce805c  r24 = ##-0x3cf025d8        ; r24 = 0xc30fda28
+c0ce8078  r5 = memw(r25+r16<<#0x2)   ; DAT_c30fd9a8[tech]
+c0ce806c  r6 = memw(r24+r16<<#0x2)   ; DAT_c30fda28[tech]
+```
+
+**Result — the attempt FAILED, and the reason is itself informative.**
+
+* `q6pcvote` reads **0x428 (1064)** in `modem_coredump_up915.44_devcd1.elf` — a sane value.
+* `DAT_c30fd9a8[0..15]` and `DAT_c30fda28[0..15]` read **all zero**, and they read all zero in
+  **all 42 coredumps** examined (including routine captures at modem uptime 15 982 s).
+* This is **not** a whole-segment capture gap: segment [15] (`0xc2070000..0xc3c08840`) is live —
+  **239 of 442 64-KiB blocks differ** between `up915.44` and `up15982.84`, and the RPM driver
+  struct at `0xc2c65fc8` in the *same* segment reads sensible values.
+* The zero is **localised**: the four pages `0xc30f0000`–`0xc3100000` are entirely zero and
+  byte-identical between the two boots, while the immediately adjacent pages (`0xc30f5000`,
+  `0xc30f6000`, `0xc3101000`–`0xc3103000`, …) are non-zero and **do** differ between boots.
+
+**Two readings, and the coredump alone cannot separate them:**
+
+1. **The arrays are genuinely zero at crash time.** Then guard 2 of §2.1
+   (`FUN_c0ce7f98() > 400`, the min over active techs of `DAT_c30fda28`) **cannot hold**, and the
+   MCPM `system_sleep_check` fatal branch is **not** what fires in any of these crashes. That is
+   consistent with the observed site being the ML1 timer callback (Doc 231 §13/§35), and it would
+   mean the MCPM check is a *guard that never passes* rather than the fatal itself.
+2. **The array is cleared by the crash/reset path** (the ramdump is taken by the AP after the modem
+   faults and is reset), so the captured value is a dump-time artefact and says nothing about
+   crash-time state.
+
+**Status: SUPERSEDED by §11 (2026-09-29).** Reading 2 is **confirmed in a stronger form than
+proposed**: the firmware itself zeroes the block — `FUN_c0ce7fe0` on its `param_3 == 1` tail
+(§11.1) and the per-tech teardown `FUN_c0cf4168` (§11.2). Reading 1 is therefore **unsound as
+stated**: a zero at dump time is the normal quiescent state, and guard 2 is evaluated at the instant
+the record is written, not later. §11 also widens the observation — the zero covers the whole
+`0xc30f7000`–`0xc3101000` range, including ~180 log-format scratch buffers and the per-tech request
+counter — and shows that zero is a *genuine* runtime state (the dump is verifiably faithful).
+
+---
+
+## 11. The MCPM per-tech state block is ZERO in all 43 coredumps — a §10.5 resolution, a §2 scope correction, and the answer to "why no MCPM fatal message ever reaches DIAG"
+
+**Date:** 2026-09-29. **Method:** offline only — 43 coredumps (42 live-capture + stock), the rejoined
+`GitIgnore/compare/hmu05_combined.elf`, and `llvm-objdump -d --triple=hexagon`. No device.
+
+### 11.1 `FUN_c0ce7fe0` zeroes its own inputs (the §10.5 resolution)
+
+The §10.5 premise was that `DAT_c30fd9a8[tech]` / `DAT_c30fda28[tech]` are *inputs* whose zero would
+mean the guard cannot hold. They are not inputs — **`system_sleep_check` clears them itself.** The
+tail of `FUN_c0ce7fe0`, in the disassembly (`param_3` is the third argument, held at `[r29+0x2c]`):
+
+```
+c0ce842c: { r0 = memw(r29+#0x2c)
+c0ce8430:   if (!cmp.eq(r0.new,#0x1)) jump:t 0xc0ce8448 }   ; if (param_3 != 1) return
+c0ce8434: { r0 = #0x0
+c0ce8438:   memw(r25+#0x0) = #0x0 }     ; DAT_c30fd9a8[tech] = 0   (r25 = 0xc30fd9a8 + tech*4)
+c0ce843c:   memw(r24+#0x0) = #0x0 }     ; DAT_c30fda28[tech] = 0   (r24 = 0xc30fda28 + tech*4)
+c0ce8440: { immext(#0xc30fd9c0)
+c0ce8444:   memw(r16<<#0x2 + ##0xc30fd9e8) = r0 }   ; DAT_c30fd9e8[tech] = 0
+```
+
+`r25`/`r24` are exactly the bases §10.5 identified at `0xc0ce8050`–`0xc0ce805c`. The `param_3 == 1`
+entry point is the exported wrapper **`FUN_c02a42e8` → `FUN_c0ce7fe0(tech, …, 1)`** (`0xc02a42e8`), and
+its callers are:
+
+* the per-tech **sleep-completion** block at `0xc0cee5f8` (line 2383408 ff. of the decompilation) —
+  which writes `DAT_c30fda28[tech] = FUN_c0cf4e60(...)`, `DAT_c30fd9a8[tech] = q6pcvote`,
+  `DAT_c30fdaa8[tech] = FUN_c0ce24dc(tech)`, then calls the check with `param_3 = 0`
+  (`FUN_c0ce7fe0(tech, DAT_c30f7080[tech], 0)`), then calls it again with `param_3 = 1`
+  (`thunk_FUN_c02a42e8`) — **zeroing the record it just wrote** — then clears the tech's active bit
+  and zeroes `DAT_c30fdb28[tech]` / `DAT_c30fdaa8[tech]`;
+* the teardown-adjacent call at line 2386518.
+
+**⇒ The per-tech record is a SCRATCH slot: populated, checked, cleared, all inside one tech's
+sleep-completion.** A zero in a dump is therefore the *designed quiescent state*, and §10.5's
+reading 1 ("genuinely zero ⇒ guard 2 can never hold") is **unsound** — the guard is evaluated at the
+instant of the write, not later. Reading 2 is right, but for a cleaner reason than "the crash path
+cleared it".
+
+### 11.2 A second zeroing path: the per-tech teardown `FUN_c0cf4168`
+
+`FUN_c0cf4168` (`0xc0cf4168`) is a per-tech **teardown** (it *destroys*: `FUN_c0cf4df0`,
+`FUN_c0cea650`, frees the `DAT_c30fdb68[tech]` pending list), guarded by `*(sbyte*)(gp+0xdab) != 2`.
+It zeroes the entire per-tech block. The disassembly of the loop body:
+
+```
+c0cf44c0: immext(#0xc30fd800)
+c0cf44c4:   memb(r23<<#0x0 + ##0xc30fd828) = r23     ; DAT_c30fd828[tech] = (sbyte)tech  <-- the 0..14 index
+c0cf44e0: immext(#0xc30fd7c0)
+c0cf44e4:   memw(r23<<#0x2 + ##0xc30fd7d8) = r22     ; = 0
+c0cf44ec: immext(#0xc30fdd00)
+c0cf44f0:   memb(r23<<#0x0 + ##0xc30fdd38) = r22     ; = 0
+c0cf4504:   memb(r23<<#0x0 + ##0xc30fdd48) = r22     ; = 0
+c0cf450c:   memw(r23<<#0x2 + ##0xc30fdbe8) = r22     ; = 0
+c0cf4514:   memw(r23<<#0x2 + ##0xc30fd798) = r22     ; = 0
+c0cf451c:   memw(r23<<#0x2 + ##0xc30fd9e8) = r22     ; = 0   (rpm vdd min)
+c0cf4524:   memw(r23<<#0x2 + ##0xc30fd9a8) = r22     ; = 0   (q6pcvote snapshot)
+c0cf452c:   memd(r23<<#0x3 + ##0xc30fdaa8) = r21:20  ; tick array
+c0cf4534:   memw(r23<<#0x2 + ##0xc30fda68) = r22     ; = 0
+c0cf453c:   memw(r23<<#0x2 + ##0xc30fda28) = r22     ; = 0   (sleep count)
+c0cf4544:   memw(r23<<#0x2 + ##0xc30fdb28) = r22     ; = 0
+```
+
+Note the first store: if this teardown ran, `DAT_c30fd828[0..14]` would read **`00 01 02 … 0e`**, not
+zero. This is the control §10.5 asked for.
+
+### 11.3 The zero is much wider than the four arrays
+
+A union scan of every byte in `0xc30f0000`–`0xc3101000` over **all 43 dumps** finds only **120
+non-zero bytes**, all inside a single small island `0xc30f5990`–`0xc30f6c3c`. Everything else is zero
+in every dump — including:
+
+| Global | What it is | Expected if the layer ran |
+|---|---|---|
+| `DAT_c30f7080[tech]` (`0xc30f7080`) | the MCPM **per-tech request counter** | ≥ 1 (incremented at `0xc0cea168+0x3bc` line 2381524 and in `FUN_c0ce64b0` line 2379449, unconditionally for tech ≤ 14) |
+| `DAT_c30fd828[tech]` (`0xc30fd828`) | per-tech index array | `00 01 02 … 0e` after `FUN_c0cf4168` |
+| `DAT_c30fdcb8[tech]` (`0xc30fdcb8`) | per-tech **state pointers** | non-NULL objects |
+| `DAT_c30fd758[tech]`, `DAT_c30fd798[tech]`, `DAT_c30fd7d8[tech]`, `DAT_c30fdd38`, `DAT_c30fdd48`, `DAT_c30fdb68` | per-tech objects / pending-list heads | live |
+| `0xc30fe018` … `0xc3100xxx` (~180 slots, stride 0x40) | **log-format scratch buffers** written by `FUN_c12063e0` immediately before every `FUN_c1284180` in this layer | the last formatted prefix (e.g. `"…:…"`) |
+| `DAT_c30f7100` | the layer's lock | — |
+
+### 11.4 The dump is verifiably faithful — the zero is real
+
+This is the part that matters, because "the region was not captured" would destroy the conclusion.
+Four independent checks say the capture is faithful:
+
+1. **The island is live and varies.** `0xc30f6b98` holds two 32-bit counters that **differ between
+   boots** (`06 86 41 b8 06 86 52 af` at 915 s vs `07 af e3 09 07 af f5 ce` at 426 s), while
+   `0xc30f5990`, `0xc30f5a00`, `0xc30f5b38`, `0xc30f5dd8` are identical boot statics. So the block
+   carries both static and runtime-written data — the dump reads it.
+2. **Cross-segment pointer check.** The struct at `0xc2c65fc8` (same segment [15]) holds five
+   pointers — `0x8ad7ee90`, `0x8af27a40`, `0x8ad7fd70`, `0x8ad7fe2c`, `0x8ad7fdc0` — that all land in
+   the log-ring VA ranges (`0xc457xxxx` / `0xc472xxxx`) once `ELF_BIAS = 0x39800000` is applied. A
+   wrong bias for segment [15] could not do that.
+3. **The ELF↔dump VA mapping is exact.** Seven format strings resolve byte-for-byte to the
+   decompiler's symbols: `0xc1a77637` = `"%s handleSleepReq[%u]: sysSlpTime %u, …"`, `0xc1a7738b` =
+   `"%s #%u[%u] system sleep check TIS 0x%x …"`, `0xc1a77422` = `"… HARD_FAIL #%u[%u] sleep count not
+   incrmnt …"`, `0xc1a7361f` = `"%s:%u "`, `0xc1854b07` = `'Mode chosen: ("%s")'`, `0xc185403b` =
+   `"rpm_force_sync (set: %d) (dirty: %d,%d,%d)"`, `0xc1a774c9` = `"… check rpm vdd min count …"`.
+4. **The firmware is the one that was analysed.** Every dump carries
+   `MPSS.DPM.1.0.C7-00193`, `HIMI_U01_MODEM_V1.0`, `…/modem8916_1605/…`, build
+   `MPSS.DPM.1.0.c7-00193-M8916EAAAANVZM-1_20150909_103440` — the stock HMU05 image.
+
+### 11.5 What this means
+
+**The `mcpm_ut_superset.c` / `mcpm_drv.c` per-tech request-and-`sleep_count` layer does not execute
+on this device.** Six of its globals read zero in 43/43 dumps, and the one that would carry a
+distinctive non-zero pattern (`DAT_c30fd828` = `0..14`) is zero too.
+
+This is **not** the same as "MCPM does not run". §9.3 recorded, from live DIAG captures,
+`MCPM 2 step FW PC FW_SLEEP_PWRDN_FULL` ×100, `MCPM FW_WAKE-UP_Start` ×101,
+`MCPM: tech wakeup_req- …` ×29, `MCPM_NPA: ldo17 freq CB …` ×101 and `A2 power req from client=3[…]`
+×402 in a 121 s window — but those come from `mcpm.c`, `mcpm_saw.c`, `mcpm_npa.c` and
+`mcpm_nv_cfg.c`. **MCPM is several layers; the layers that issue the power collapse run, and the
+layers that do the per-tech request accounting and the `sleep_count` watchdog show no activity.**
+
+**Consequences**
+
+* **§2 is a scope correction, not a decode correction.** The packet at `0xc0ce81d0` is decoded
+  correctly, but it belongs to a layer with no observed runtime activity ⇒ it is very unlikely to be
+  the 900 s fatal. That is *consistent* with the site Doc 231 §13/§35 found (the ML1 timer callback).
+* **This answers the standing question "why do the MCPM fatal messages never reach DIAG?"** (open
+  task #25). §9.2 already established that `HARD_FAIL` / `sleep count not incrmnt` /
+  `Q6 PC Voting failure` were emitted **zero** times in both 121 s captures. The reason is not a mask
+  and not the sink: **the branch does not execute.** The same explanation covers the absence of
+  `handleSleepReq`, `tech %u stopping for %u msecs` and `no sleep tech running` records.
+* **§6 and §10 stand.** They are about the **LPR framework**, which demonstrably runs: the dump's own
+  packed record ring (`0xc4554000`–`0xc45d6000`, 5 544 records, 138 distinct formats, content
+  differing between boots) holds `Mode entering` ×93, `Mode exiting` ×98, `Mode chosen` ×28,
+  `Sleep entry` ×15, `Solver entry/exit` ×28, `Short SWFI (reason: RPM message in flight)` ×17 and
+  `WARNING … "Late sleep exit"` ×5. **The `rpm.sync` blocking hypothesis (§6.4) remains live; only its
+  former *detector* is gone** — a `rpm.sync` park would now be expected to present as a hang rather
+  than as an MCPM `HARD_FAIL`.
+* **Any patch aimed at the MCPM branch is inert.** That includes the §8 interventions that target
+  `0xcaf1d0` / `0xcaf1d4` in `modem.b16`.
+
+### 11.6 How to falsify this in one command
+
+Absence-of-evidence over 43 dumps is strong but not proof. On the device, with an attached bearer:
+
+```
+# after ~120 s of attached traffic
+devmem <DAT_c30f7080 phys> 32      # or read via the coredump path
+```
+
+If `DAT_c30f7080[tech] != 0` for any tech, this section is wrong and the layer does run. The
+equivalent offline check is to find any dump in which `DAT_c30fd828` reads `00 01 02 … 0e`.
+
+### 11.7 Tooling
+
+* `scratch/coredump_live/zeromap.py` — per-4-KiB-page and per-0x40-slot zero/identity map over a
+  chosen ELF-VA range for one or more dumps.
+* The union-of-43-dumps scan and the record-ring histogram are one-off `python3 -c` snippets whose
+  recipes are in this section (record layout `[u16 0x0001][u16 len][u32 ts][u32 x][u32 fmt_ptr][u32
+  arg_ptr]`, `fmt_ptr` at +0x0C, `arg_ptr` at +0x10; a record is valid when `fmt_ptr` resolves to a
+  ≥3-char NUL-terminated string).
+* **Trap confirmed again:** the ring's `ts` field is **not** a simple 32-bit wrapping counter — the
+  largest gap in the sorted `ts` list is not at a `2^32` boundary, so "sort by ts" gives the order but
+  not the elapsed time.
+
+---
+
+## 12. The `system_sleep_check` operand and its evaluation point — §2/§6.5/§11.1 refined (2026-09-30)
+
+**Ledger item 49; memory §39.** Trigger: after the Android sleep measurement falsified the sleep
+hypothesis, the operand of the fatal had to be pinned exactly.
+
+### 12.1 `FUN_c0cd3384()` is a plain read of the `rpm` LPR's `+0x18`
+
+```
+c0cd3390  r0 = memw(gp+#0x3d48)      ; the cached lpr_get("rpm")  (set at c0cd3038 from "rpm" @ 0xc1848058)
+c0cd3398  call 0xc08bd290            ; buf[0x10] = *(u32*)(handle + 0x18)
+c0cd339c  jump 0xc08372d8
+c0cd33a0  r0 = memw(r16+#0x10)
+```
+
+`FUN_c08bd290(handle,buf)` is `*(u32*)(buf+0x10) = *(u32*)(handle+0x18)`. `FUN_c08372d8` is
+`immext(#0xff7f8dc0); jump 0xc0030098`, and **`0xc0030098` = `{ r17:16 = memd(r30+#-0x8); dealloc_return }`
+— a bare epilogue**, so the value passes through unchanged.
+
+**⇒ `FUN_c0cd3384()` = `*(u32*)(lpr_get("rpm") + 0x18)`; the descriptor is `0xc1d473f8`, so the field is
+`0xc1d47410`.** The gate at `0xc0ce81d0`–`0xc0ce81d4` is `if (r19 > r2) OK else HARD_FAIL`, where
+`r19 = FUN_c0cd3384()` and `r2 = DAT_c30fd9a8[tech]`.
+
+### 12.2 ★ The fatal is evaluated at sleep **EXIT**, not entry
+
+§11.1 described the record as "populated, checked, cleared, all inside one tech's sleep-completion". The
+check is real but the **entry-site call cannot fire**:
+
+* At the entry site (`0xc0cee5f8`) the timestamp `DAT_c30fdaa8[tech]` is written by `FUN_c0ce24dc()` =
+  **the current time** (`c0ce24dc`: timer service at `*(gp+0x3eb8)`, callback `+0x44`). `FUN_c0ce7e58()`
+  returns the **min** elapsed-msec over active techs ⇒ ≈ 0 ⇒ the `400 <` guard at `0xc0ce81cc` is false
+  ⇒ the HARD_FAIL block is unreachable from there.
+* The **real** evaluation is `FUN_c0cf4d84` @ `0xc0cf4d84`, reached from a **per-tech trampoline table**
+  at `0xc0ce5b20` (`r0 = #<tech>; jump 0xc0cf4d84`, tech 0x0–0xa). It calls
+  `thunk_FUN_c02a42e8(tech, DAT_c30f7080[tech])` = `FUN_c0ce7fe0(tech, …, 1)` **without refreshing the
+  snapshot**. (Sibling `FUN_c0cf4dc4` sets `DAT_c30fdd28[tech]=1` and does not check.)
+
+**⇒ §6.5's semantic is right — "did `q6pcvote` advance since this tech last entered sleep?" — but the
+evaluation point is the sleep EXIT callback, and the entry-site call is a guard that cannot fire.**
+
+### 12.3 ★★ `q6pcvote` ≠ the RPM's `numshutdowns`
+
+`q6pcvote` is `0xc1d47410` — a field in the **modem's own** data segment, owned by the Q6 LPR framework.
+`numshutdowns` is in the **RPM** master-stats block, owned by the RPM firmware. **Different memory,
+different owners ⇒ not the same counter** (a correlation is plausible but unevidenced). This matters
+because a later Android measurement sampled `numshutdowns` and is therefore **not** a measurement of this
+gate; the firmware counter remains **unmeasured**.
+
+### 12.4 Still open
+
+* **The writer of `+0x18`.** The LPR-list walker `FUN_c12812c0` increments `entry+0x48` (and *reads*
+  `(*(entry+0x60))+0x18`), not `+0x18`. There is **no literal xref** to `0xc1d47410` (`3e2b8bf0` → 0 hits):
+  it is a computed pointer. Trace the `rpm` LPR's `+0x10` callback `0xc08bebc0` and the registry walker's
+  per-LPR exit.
+* **Disassembly trap.** `scratch/firmware/modem.asm` (text renderer) has **two undecoded packets** at
+  `0xc0ce8190` / `0xc0ce81b8`. `llvm-objdump -d --triple=hexagon` on `GitIgnore/compare/hmu05_combined.elf`
+  resolves them (`0x70604014` = `r20 = r0`; `0xc0ce81b8` = `r17 = #0x190`). Prefer `llvm-objdump` for
+  this region.

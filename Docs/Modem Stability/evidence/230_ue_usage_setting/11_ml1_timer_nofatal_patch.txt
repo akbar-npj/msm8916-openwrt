@@ -1,0 +1,333 @@
+================================================================================
+11 - THE ML1 COMMON-TIMER CALLBACK IS THE CRASH SITE; A VERIFIED
+     "ERROR PATH RETURNS INSTEAD OF ASSERTING" PATCH IS DEPLOYED
+     2026-09-28  (continues evidence/230_ue_usage_setting/10_*)
+================================================================================
+
+SOP: VAs, disassembly and hashes verified against the deployed stock HMU05 image
+before any baseband byte was written.  No byte was patched on an unverified
+attribution.  Full stock backup taken on-device first.  Endpoint pre-registered
+(§6).  Achieved-vs-expected table in §7.
+
+--------------------------------------------------------------------------------
+1. THE CLOCK, n=7  (was n=6 in Doc 230 / evidence 10)
+--------------------------------------------------------------------------------
+The k=7 beat fired as predicted.  Observed fatal (dmesg):
+  [ 6445.342225] qcom-q6v5-mss 4080000.remoteproc: fatal error received:
+                 lte_ml1_common_timer.c:390:
+
+  k  predicted        observed         residual
+  2  1926.966244      1926.966036      -0.2078 ms
+  3  2830.641453      2830.641649      +0.1958 ms
+  4  3734.316663      3734.316776      +0.1134 ms
+  5  4637.991872      4637.991885      +0.0130 ms
+  6  5541.667081      5541.666965      -0.1164 ms
+  7  6445.342291      6445.342225      -0.0658 ms
+
+Least-squares refit over k=2..7 (six points, span 4518.376 s):
+  A = 119.615856 s     P = 903.6752001 s
+  residuals (ms): -0.220 +0.193 +0.120 +0.029 -0.091 -0.031
+=> six points inside 0.22 ms across 4518 s.  The clock is unchanged.
+
+--------------------------------------------------------------------------------
+2. THE ANCHOR IS ABSOLUTE (AP/AON) TIME, NOT MODEM UPTIME -- RE-DERIVED
+   FROM AN INDEPENDENT QUANTITY
+--------------------------------------------------------------------------------
+Raw AP-side events pulled from the live dmesg:
+
+  fatal AP        modem "now up" AP   recovery (s)   modem uptime at NEXT fatal
+  1023.608588     1024.311654         0.703066       902.654382  (k=1, a2_power.c:1189)
+  1926.966036     1927.670021         0.703985       902.971628
+  2830.641649     2831.351967         0.710318       902.964809
+  3734.316776     3735.022279         0.705503       902.969606
+  4637.991885     4638.705273         0.713388       902.961692
+  5541.666965     5542.374464         0.707499       902.967761
+
+  modem-uptime-at-fatal spread (k=2..7): 902.971628 - 902.961692 =  9.936 ms
+  inter-fatal AP-delta spread:           903.675613 - 903.675080 =  0.533 ms
+
+If the fatal fired at a fixed *modem uptime*, the AP delta would equal
+(recovery + const) and would inherit the recovery spread (9.4 ms).  It does not
+(0.53 ms).  The SSR recovery time (0.703-0.713 s) and the modem uptime at fatal
+(902.962-902.972 s) vary *inversely* and their sum is the constant AP delta.
+
+NOTE ON A TRAP I FELL INTO AND CORRECTED: "recovery + uptime = constant" is a
+TAUTOLOGY (it is just fatal_k - fatal_k-1), so it is NOT evidence.  The evidence
+is the 19x tighter variance of the AP delta vs the modem-uptime spread.
+
+CONSEQUENCE: the trigger is an absolute, free-running (AON-domain, SSR-surviving)
+time source that the modem reads.  A modem-side uptime counter cannot explain it.
+
+--------------------------------------------------------------------------------
+3. THE CRASH SITE -- ANATOMY  (this is the attribution the patch rests on)
+--------------------------------------------------------------------------------
+Crash-log facts (evidence/227_ap_side_stock_restore/02_natural_fatal_crash_log.txt):
+  file/line : lte_ml1_common_timer.c:390   REX task: tmr_slave3
+  LR = 0xc0879164 (inside ERR_FATAL 0xc0879150), SP = 0x8ad52160
+  stack @0x8ad52174 = 0xc02d7bd0   <- the callback's entry address
+  stack @0x8ad5217c = 0xc02d7d8c   <- return address of the ERR_FATAL call
+
+=> the fatal ERR_FATAL call is the 12-byte packet at ELF VA 0xc02d7d80, inside
+   the function at 0xc02d7bd0.
+
+Corroboration from the coredump corpus (scratch/coredump_live/): the ERR_FATAL
+record at ELF VA 0xC35B1280 has +0x10 = 0x0186 = 390 in *every* dump
+(fatal_fields.py), and the callback address 0xc02d7bd0 is stored as a *native*
+ELF VA in modem memory (191 occurrences).
+
+The function 0xc02d7bd0 is NOT in modem_full_decompiled.c because it is only
+ever reached as a *registered callback pointer*: FUN_c02d7b80 @0xc02d7b80 does
+  thunk_FUN_c0b61cc0(param_1, puVar1, &UNK_c02d7bd0, param_1);
+i.e. a REX timer registration.  Hence the decompiler marked it UNK_ and never
+emitted it -- which is why this site was previously unattributed.
+
+Structure of 0xc02d7bd0 (verified by disassembly, scratch/hmu05_stock_elf/
+disasm_b16.txt lines 81333-81570):
+    call 0xc02d1140 ; r16 = r0 ; allocframe(#0xb0)
+    r1 = memub(r16+#0x38)            ; a STATE byte of the 0x168-byte object
+    r2 = memw(gp+#0xba64)            ; jump table
+    r2 = memw(r2+r1<<#0x2) ; jumpr r2 ; SWITCH(state)
+  ... case bodies at 7bf0, 7c60, 7cac, 7cd4, 7cfc, 7d20 ... each does
+      call 0xc02871ac(...) ; call 0xc0287198(...,state) ; store state
+      p0 = cmp.eq(r0,#0x0) ; if (p0) jump:t 0xc02d7df8   ; r0==0 -> CLEAN EXIT
+      call 0xc0879150  (ERR_FATAL)                        ; r0!=0 -> DIE
+  0xc02d7df8 is the function's ONLY epilogue: r17:16 = memd(r29+#0xa8); dealloc_return
+
+The object is the per-index ML1 "UE mobility" object: FUN_c02d7e20 allocates it
+with FUN_c02d11a0(index, 0x168, s_lte_ml1_common_uemob_c_c1a86250, 0x14d) and
+keeps it in DAT_c312b9e4[index]; FUN_c02d7b80 reads memb(obj+0x38)==0x13.
+
+=> The crash is NOT the MCPM supervisor.  It is the FAILURE PATH of a resource
+   check inside a registered ML1 timer callback: a call (0xc0287198) returned
+   non-zero and the code asserted.  There are TEN such ERR_FATAL sites in this
+   one function:
+     0xc02d7c18 0xc02d7c4c 0xc02d7c90 0xc02d7cb8 0xc02d7ce0
+     0xc02d7d14 0xc02d7d48 0xc02d7d80 0xc02d7dd8 0xc02d7de4
+
+This CONFIRMS evidence 10 §6's tentative conclusion (the fatal is the assert at
+the reported site, not the MCPM supervisor) and makes the ranked firmware
+interventions of 900S_CRASH_LPR_FRAMEWORK_RE.md §8 (patch 0xc0ce81d4, raise the
+400 threshold, MCVS bypass) INAPPLICABLE -- they all target the MCPM gate, which
+is NV-gated and CLOSED (mcpm_nv_cfg_src absent, all three mcpm NV reads ENOENT,
+zero HARD_FAIL hits in the fatal-spanning DIAG capture).
+
+--------------------------------------------------------------------------------
+4. WHY THE PREVIOUS (Doc 229) 3-SITE PATCH FAILED -- AND WHY THIS ONE DIFFERS
+--------------------------------------------------------------------------------
+Doc 229 §5 replaced the same 12-byte fatal packets with three nops.  A nop lets
+execution FALL THROUGH to the next packet, which was written on the assumption
+that the ERR_FATAL never returns (the very next thing after 7c18 is the *next
+case body* at 7c24).  That is a broken continuation, and it is the most likely
+cause of the "early fatal" and the relocation to a2_task.c:1184/:3179.
+
+This patch does NOT use nops.  Each of the 10 sites becomes
+    jump 0xc02d7df8  ; nop ; nop
+i.e. an unconditional jump to the function's real epilogue, preserving the frame
+teardown and never falling into the neighbouring case.  The case body's work
+(the two calls + the store) still executes before the exit; only the DIE is
+replaced by a RETURN.
+
+--------------------------------------------------------------------------------
+5. THE PATCH -- BUILD AND VERIFICATION
+--------------------------------------------------------------------------------
+Target      : modem.b16, segment 16 (ELF VA base 0xc0287000, ELF file offset
+              0x24e000).  b16 offset = VA - 0xc0287000.
+Sites       : the ten addresses in §3, each a 12-byte packet
+              { call 0xc0879150 ; immext(...) ; r0 = ##... }
+Replacement : jump 0xc02d7df8 + 2 x nop  (12 bytes exactly)
+
+Encoding    : llvm-mc -triple=hexagon (llvm 22.1.8); `jump N` is the PC-relative
+              form, N = target - instruction address.  Each site was re-checked
+              by disassembling the patched image with llvm-objdump:
+                c02d7c18: jump 0xc02d7df8   c02d7cb8: jump 0xc02d7df8
+                c02d7c4c: jump 0xc02d7df8   c02d7ce0: jump 0xc02d7df8
+                c02d7c90: jump 0xc02d7df8   c02d7d14: jump 0xc02d7df8
+                c02d7d48: jump 0xc02d7df8   c02d7d80: jump 0xc02d7df8
+                c02d7dd8: jump 0xc02d7df8   c02d7de4: jump 0xc02d7df8
+              and `call 0xc0879150` count in 0xc02d7bd0..0xc02d7dfc == 0.
+
+Ground truth chain (all four links verified, not assumed):
+  a) ELF seg16 md5                       = 57fef19de7178fb732c8b2edc40bc9dc
+  b) deployed /lib/firmware/modem.b16 md5= 57fef19de7178fb732c8b2edc40bc9dc   (a==b)
+  c) sha256(ELF seg16) = sha256(deployed b16) = ab795bf0...f137... 8c60
+  d) modem.b01[0x228:0x248] = ab795bf0... (c==d)  => slot(seg n) = 0x028 + n*32
+     second independent confirmation: b01[0x248:0x268] == sha256(modem.b17) OK
+
+Artefacts built (scratch/hmu05_patch_test/):
+  patched/modem.b16  md5 b7b799693bba0373b6825418ae8af68b
+                     sha256 7d2baf5113d2ec616b20d86200fb37aefa067344a135b31cb62024ae30f13720
+  patched/modem.b01  md5 71148482f9c7c5a501c44591a8592ca6   (slot 16 updated)
+  patched/modem.mdt  md5 0e3257cb4ceb4de59f4d932f6608acf2   (== b00 + new b01)
+  bytes differing from stock b16: 98 (10 sites x 12 bytes, less 22 bytes that
+  were already 00 c0 00 7f nop padding)
+
+Deployment (2026-09-28, AP uptime 7150.89 s):
+  stock backup : /root/fwbackup_stock_20260928/{modem.b16,modem.b01,modem.mdt}
+                 (md5s re-verified on-device: 57fef19d / b85b86ce / 1a6f9507)
+  installed    : /lib/firmware/{modem.b16,modem.b01,modem.mdt}; sync; md5s and
+                 the live 12 bytes at b16:0x50d80 re-read and confirmed.
+  The k=8 SSR (AP 7349.017) is the first boot on the patched image.
+
+--------------------------------------------------------------------------------
+6. PRE-REGISTRATION (fixed before the outcome is known)
+--------------------------------------------------------------------------------
+Endpoints, in order:
+  E1  modem boots on the patched image: NO "MPSS authentication failed" and a
+      "remote processor 4080000.remoteproc is now up" line at ~AP 7349-7350.
+  E2  NO "fatal error received" at the k=9 beat (AP 8252.692 +/- 0.05 s).
+  E3  NO "fatal error received" anywhere in AP 7349 .. 8400.
+  E4  modem stays functional: wwan0 has an IPv4 address, a default route exists,
+      and ping -I wwan0 8.8.8.8 succeeds.
+  E5  the modem's OWN uptime (QMI TIME / ATS_RTC, svc 22 node 0 port 11,
+      GENOFF_GET 0x0021) exceeds 902.97 s -- i.e. past the old fatal point.
+
+Decision rule (pre-registered):
+  E1 fail                          -> the patch is unbootable; RESTORE STOCK and
+                                      treat the hash fix as unproven.
+  E1 pass, E2/E3 fail              -> the fatal RELOCATES; the invalid state is
+                                      genuinely propagated, not caused here.
+                                      Record the new file:line; this is the
+                                      cascade evidence Doc 229 §5 claimed.
+  E1+E2+E3 pass, E4/E5 fail        -> the assert is swallowed but the callback's
+                                      work is lost; the modem is degraded.
+  E1..E5 pass                      -> the crash is MITIGATED.  Not a root fix:
+                                      the underlying invalid state still occurs;
+                                      the callback now returns instead of dying.
+  Refutation band: if a fatal appears within +/- 0.05 s of 7349.017 + 903.675
+  (= 8252.692) the beat is untouched and the patch did nothing.
+
+--------------------------------------------------------------------------------
+7. ACHIEVED vs EXPECTED
+--------------------------------------------------------------------------------
+| # | item                                   | expected            | achieved |
+|---|----------------------------------------|---------------------|----------|
+| 1 | k=7 beat confirmed                     | 6445.342291         | 6445.342225 (res -0.066 ms) |
+| 2 | clock refit n=7                        | stable              | P=903.6752001, 6 pts in 0.22 ms |
+| 3 | anchor is absolute, not modem uptime    | uptime spread >> AP delta spread | 9.936 ms vs 0.533 ms (19x) |
+| 4 | crash site identified                  | 0xc02d7d80 in 0xc02d7bd0 | confirmed by stack RA + coredump line 390 |
+| 5 | MCPM supervisor is NOT the fatal        | doubtful            | confirmed (NV gate closed, 0 HARD_FAIL) |
+| 6 | patch built + disassembly-verified      | 10/10 sites         | 10/10; 0 ERR_FATAL left in the function |
+| 7 | stock backup on-device                 | 3 files + md5s      | done, md5s match |
+| 8 | deployed + verified in place            | md5 + live bytes    | done |
+| 9 | E1 modem boots on patched image         | expected pass       | PENDING (AP 7349) |
+| 10| E2 no fatal at k=9 (AP 8252.692)        | expected pass       | PENDING |
+| 11| E4/E5 modem still functional past 902 s | expected pass       | PENDING |
+
+--------------------------------------------------------------------------------
+8. WHAT THIS IS AND IS NOT
+--------------------------------------------------------------------------------
+IS   : the first intervention that targets the *verified* crash instruction
+       rather than a config lever, with a correct (jump, not nop) replacement.
+IS NOT: a root-cause fix.  §3 shows the trigger is a failing call (0xc0287198)
+       inside a timer callback whose state lives in a 0x168-byte ML1 object; the
+       reason that call fails after an absolute 903.675 s is still unknown, and
+       the absolute (AON) anchor of §2 is unexplained.  Every config/NV/RAT/
+       AP-side lever remains falsified (Docs 230 + evidence 05/07/10).
+NEXT (if E2 fails): the relocation target becomes the new lead, and the same
+       "error path returns" treatment can be extended to that function -- but
+       only after the same byte-level verification.
+
+--------------------------------------------------------------------------------
+9. E1 RESULT -- PASSED (recorded before E2/E3 are known)
+--------------------------------------------------------------------------------
+The k=8 fatal fired on the STOCK image as scheduled:
+  [ 7349.016726] fatal error received: lte_ml1_common_timer.c:390
+  predicted (n=7 fit): 119.615856 + 8*903.6752001 = 7349.017457
+  residual: -0.73 ms   <-- NOTE: 3x the +/-0.22 ms band of k=2..7.  The residuals
+  k=2..7 (-0.22 +0.19 +0.12 +0.03 -0.09 -0.03) already show a slow modulation,
+  so this is a drift of the beat, not a break of the model.  Flagged, not
+  explained.
+
+The k=8 SSR then loaded the PATCHED image and it came up clean:
+  [ 7349.168323] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug
+                 policy, loading mpss
+  [ 7349.725511] remoteproc remoteproc0: remote processor 4080000.remoteproc
+                 is now up
+  NO "MPSS authentication failed" anywhere  => the sha256 slot fix is correct
+  and the patched segment 16 is accepted by the modem's own authenticator.
+
+  /sys/class/remoteproc/remoteproc0/state = running
+  wwan0 = 10.19.12.176/27 (a NEW bearer, rebuilt after the SSR)
+
+=> E1 PASS.  The patched modem boots, authenticates, attaches and obtains an IP.
+   (This also independently confirms Doc 229's hash recipe on HMU05: a 3-site
+   patch booted there too, but that patch was nop-based; this one is jump-based.)
+
+The decisive test is now E2: the k=9 beat at AP 8252.692 (= 7349.017 + 903.675).
+The patched modem must pass its own 902.97 s uptime point with no fatal.
+Watcher task ExRQH3 reports at AP 8400.
+
+**Deliberate non-action (recorded so it is not mistaken for an oversight):** no
+DIAG/F3 capture was bound for the k=9 beat.  `/dev/rpmsg0` is not present
+(only `/dev/rpmsg_ctrl*`), and the corpus records that a raw 1-byte rpmsg write
+RESET the AP once.  Binding DIAG to prove the assert was *hit and swallowed*
+(rather than the fault not occurring) is worth doing, but on a **second** soak —
+not by risking the decisive one.  E2/E3/E5 are sufficient: the fault is
+deterministic at n=8, so "passes 902.97 s of modem uptime with no fatal" is
+already a strong result.
+
+--------------------------------------------------------------------------------
+10. ROOT-CAUSE PROGRESS -- THE FAILING CALL IS AN F3 LOG-EMIT, NOT A DATA-PATH CALL
+--------------------------------------------------------------------------------
+(This narrows the "not a root fix" gap.  It is a hypothesis with a strong static
+basis, NOT yet a verified mechanism.)
+
+The failing call is the thunk at `0xc0287198` -> `r1 = #0x18 ; jump 0xc0b62f10`.
+The *other* call in every case body, `0xc02871ac` -> `jump 0xc0b63880`, is
+**an F3 log-record initialiser**, and it proves what the pair is for:
+
+  c0b63880(r0=rec, r1=line, r2=(line<<16)|code):
+      if (rec == 0) jump 0xc0b638d4          ; NULL -> 0xc0b63b40 (alloc path)
+      r3 = ##0x31415926 ; memd(rec+0x8)=0 ; memd(rec+0x0)=0
+      memw(rec+0x0) = r2                     ; rec+0x00 = the packed descriptor
+      r4 = memw(0xc2fe7220)                  ; the subsystem magic
+      if (r4 != 0x31415926) skip
+          r1 = memub( memw(0xc2fe722c) + memw(0xc2fe7234)*16 )   ; per-site byte
+      memb(rec+0x7)=0 ; memb(rec+0x8)=0x7f ; memb(rec+0xa)=0
+      memb(rec+0x6)=r1 ; memb(rec+0x9)=0
+      dealloc_return
+
+  i.e. it fills a 12-byte log record: +0 = (line<<16)|code, +6 = the per-site
+  enable/level byte from a 16-byte-stride table at 0xc2fe722c, +8 = 0x7f.
+
+`0xc0b62f10(rec, index=0x18)` then: validates the same magic at `0xc2fe7220`,
+rejects `rec == NULL` and `index <= 0xf`, **atomically increments a global
+counter at `0xc3c0e83c`** (`memw_locked`), walks the same 16-byte-stride table,
+does an indirect `callr` through `memw(0xc2fe7224)`, and **returns a status that
+the caller tests against 0**.  Caller counts in b16: `0xc02871ac` **259**,
+`0xc0287198` **77**.
+
+=> **The fatal is "the modem failed to EMIT an F3 log record, and the ML1 timer
+   callback asserts on that failure"** — reported against
+   `lte_ml1_common_timer.c:390`, in REX task `tmr_slave3`.
+
+WHY THIS IS THE RIGHT SHAPE OF ANSWER: it is a *diagnostic-pipeline* failure, not
+a data-path or RF failure.  That is consistent with (a) the fatal needing no
+bearer and no AP data path (Doc 229 §2), (b) the fault being LTE-stack-gated
+(`offline` suppresses it — no ML1 activity, so no log traffic), and (c) the
+OpenWrt-vs-Android rate differential (25x): **Android runs a DIAG consumer; the
+OpenWrt and pmOS ports do not.**
+
+TWO THINGS IT DOES NOT EXPLAIN YET, stated so they are not glossed over:
+  1. **The absolute-AON anchor (§2).**  A log ring filling would be *modem-uptime*
+     based, and §2 shows it is not.  The remaining candidate that is both
+     absolute-time-based and able to fail an emit is a **timestamp field**: if the
+     record carries a free-running counter that wraps, an emit-time validation
+     could reject it at the wrap.  `P = 903.6752001 s` implies a 32-bit counter at
+     **4,752,349.94 Hz** — not a standard msm8916 clock (XO/4 = 4.8 MHz gives
+     894.785 s, 1.0 % away; 19.2e6/4.04 gives 903.651 s, 26 ppm away).  **Not
+     resolved.**
+  2. Whether the emit fails because of a *backlog* (nothing draining DIAG) or
+     because of a *validation* (timestamp/wrap).  The discriminator is cheap and
+     safe: a backlog would fail **from boot**, a validation fails **only at the
+     wrap** — and we observe a clean 902.97 s of successful operation first.
+     ⇒ **the validation/wrap reading is favoured, the backlog reading is
+     disfavoured.**  (The corpus capture that spans a fatal WAS draining DIAG and
+     still fataled, which independently disfavours "backlog".)
+
+NEXT TEST (designed, not run): on a **stock** firmware soak, bind a DIAG drain for
+the whole epoch.  If the fatal still fires at the beat, the backlog reading is
+dead and the emit failure is a *symptom*.  If the fatal stops, the log pipeline
+IS the mechanism and the fix is AP-side (drain DIAG).  This is a one-line
+prediction with a falsifiable outcome and it does not need the baseband patch.
+================================================================================

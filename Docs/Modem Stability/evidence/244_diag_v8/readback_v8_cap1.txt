@@ -1,0 +1,144 @@
+coredump : scratch/android_dump/v8_cap1.elf  (85443284 B, 21 phdrs)
+ring VA  : 0xc1455000  ->  phys 0x87c55000
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  +0x00 magic = 0xc1455000   (expect 0xc1455000)
+  +0x04 count = 2804
+
+  === 128 entries in the ring: 0 ARM, 128 CALLBACK ===
+   seq      kind  detail
+   2677     CB    ctx=0xc2176878 state=1   expiry_lo=0x4e2c9e07
+   2678     CB    ctx=0xc21768b8 state=13  expiry_lo=0x4e2c9eea
+   2679     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e2d0b73
+   2680     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4e33f9be
+   2681     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4e51459d
+   2682     CB    ctx=0xc21768f8 state=14  expiry_lo=0x4e6736c9
+   2683     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4e6e91a1
+   2684     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e82014e
+   2685     CB    ctx=0xc2176878 state=1   expiry_lo=0x4e848209
+   2686     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e84ef4b
+   2687     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e87dd4a
+   2688     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e8acb49
+   2689     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4e8bdd9f
+   2690     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e8db945
+   2691     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e90a744
+   2692     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e939539
+   2693     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e9683eb
+   2694     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e99713a
+   2695     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e9c5f37
+   2696     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4e9f4d38
+   2697     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4ea23b32
+   2698     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4ea52934
+   2699     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4ea81733
+   2700     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4ea929b0
+   2701     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4eab0533
+   2702     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4eadf333
+   2703     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4eb0e135
+   2704     CB    ctx=0xc21768f8 state=14  expiry_lo=0x4ebf1ab9
+   2705     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4ec675a4
+   2706     CB    ctx=0xc2176878 state=1   expiry_lo=0x4edc6604
+   2707     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4ee3c1a5
+   2708     CB    ctx=0xc212f550 state=12  expiry_lo=0x4ef1d8e2
+   2709     CB    ctx=0xc21768b8 state=13  expiry_lo=0x4ef9b261
+   2710     CB    ctx=0xc2176938 state=15  expiry_lo=0x4ef9b346
+   2711     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4f010da5
+   2712     CB    ctx=0xc21768f8 state=14  expiry_lo=0x4f16febc
+   2713     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4f1e55c6
+   2714     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f28ff57
+   2715     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f2bed46
+   2716     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f2edb50
+   2717     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f31c94e
+   2718     CB    ctx=0xc2176878 state=1   expiry_lo=0x4f344a07
+   2719     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f34b752
+   2720     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f37a54d
+   2721     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f3a9350
+   2722     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4f3ba5a3
+   2723     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f3d8151
+   2724     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f406f51
+   2725     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f435d44
+   2726     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f464b48
+   2727     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f493947
+   2728     CB    ctx=0xc211cc28 state=3   expiry_lo=0x4f4c2747
+   2729     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4f58f1c6
+   2730     CB    ctx=0xc21768f8 state=14  expiry_lo=0x4f6ee2b3
+   2731     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4f763da3
+   2732     CB    ctx=0xc2176878 state=1   expiry_lo=0x4f8c2e05
+   2733     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4f9389a4
+   2734     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4fb0d5a3
+   2735     CB    ctx=0xc21768b8 state=13  expiry_lo=0x4fc6c66b
+   2736     CB    ctx=0xc21768f8 state=14  expiry_lo=0x4fc6c767
+   2737     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4fce21a2
+   2738     CB    ctx=0xc2176878 state=1   expiry_lo=0x4fe41203
+   2739     CB    ctx=0xc2176938 state=15  expiry_lo=0x4fe412e7
+   2740     CB    ctx=0xc210edd0 state=0   expiry_lo=0x4feb6da3
+   2741     CB    ctx=0xc210edd0 state=0   expiry_lo=0x5008b9a3
+   2742     CB    ctx=0xc212f550 state=12  expiry_lo=0x5016d0e2
+   2743     CB    ctx=0xc21768f8 state=14  expiry_lo=0x501eaaba
+   2744     CB    ctx=0xc210edd0 state=0   expiry_lo=0x502605a2
+   2745     CB    ctx=0xc2176878 state=1   expiry_lo=0x503bf604
+   2746     CB    ctx=0xc210edd0 state=0   expiry_lo=0x504351a2
+   2747     CB    ctx=0xc210edd0 state=0   expiry_lo=0x50609da4
+   2748     CB    ctx=0xc21768f8 state=14  expiry_lo=0x50768eba
+   2749     CB    ctx=0xc210edd0 state=0   expiry_lo=0x507de9a5
+   2750     CB    ctx=0xc2176878 state=1   expiry_lo=0x5093da07
+   2751     CB    ctx=0xc21768b8 state=13  expiry_lo=0x5093daf8
+   2752     CB    ctx=0xc210edd0 state=0   expiry_lo=0x509b359f
+   2753     CB    ctx=0xc211cc28 state=3   expiry_lo=0x509ffe8b
+   2754     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50a2ec8b
+   2755     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50a5da88
+   2756     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50a8c884
+   2757     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50abb68c
+   2758     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50aea488
+   2759     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50b19288
+   2760     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50b48165
+   2761     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50b76e86
+   2762     CB    ctx=0xc210edd0 state=0   expiry_lo=0x50b881a5
+   2763     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50ba5c82
+   2764     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50bd4a84
+   2765     CB    ctx=0xc211cc28 state=3   expiry_lo=0x50c03885
+   2766     CB    ctx=0xc21768f8 state=14  expiry_lo=0x50ce72d8
+   2767     CB    ctx=0xc2176938 state=15  expiry_lo=0x50ce745f
+   2768     CB    ctx=0xc210edd0 state=0   expiry_lo=0x50d5cdc0
+   2769     CB    ctx=0xc2176878 state=1   expiry_lo=0x50ebbe1e
+   2770     CB    ctx=0xc210edd0 state=0   expiry_lo=0x50f319bf
+   2771     CB    ctx=0xc210edd0 state=0   expiry_lo=0x511065c0
+   2772     CB    ctx=0xc21768f8 state=14  expiry_lo=0x512656d5
+   2773     CB    ctx=0xc210edd0 state=0   expiry_lo=0x512db1bf
+   2774     CB    ctx=0xc212f550 state=12  expiry_lo=0x513bc8fd
+   2775     CB    ctx=0xc2176878 state=1   expiry_lo=0x5143a1ff
+   2776     CB    ctx=0xc210edd0 state=0   expiry_lo=0x514afdc2
+   2777     CB    ctx=0xc21768b8 state=13  expiry_lo=0x5160ee7c
+   2778     CB    ctx=0xc210edd0 state=0   expiry_lo=0x516849bf
+   2779     CB    ctx=0xc21768f8 state=14  expiry_lo=0x517e3ad5
+   2780     CB    ctx=0xc210edd0 state=0   expiry_lo=0x518595c0
+   2781     CB    ctx=0xc2176878 state=1   expiry_lo=0x519b861b
+   2782     CB    ctx=0xc210edd0 state=0   expiry_lo=0x51a2e1a9
+   2783     CB    ctx=0xc2176938 state=15  expiry_lo=0x51b8d31e
+   2784     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51b93e40
+   2785     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51bc2c3a
+   2786     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51bf1a3a
+   2787     CB    ctx=0xc210edd0 state=0   expiry_lo=0x51c02d9c
+   2788     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51c20848
+   2789     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51c4f64b
+   2790     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51c7e447
+   2791     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51cad248
+   2792     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51cdc050
+   2793     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51d0ae48
+   2794     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51d39c43
+   2795     CB    ctx=0xc21768f8 state=14  expiry_lo=0x51d61ec0
+   2796     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51d68a40
+   2797     CB    ctx=0xc211cc28 state=3   expiry_lo=0x51d97840
+   2798     CB    ctx=0xc210edd0 state=0   expiry_lo=0x51dd79bf
+   2799     CB    ctx=0xc2176878 state=1   expiry_lo=0x51f36a1e
+   2800     CB    ctx=0xc210edd0 state=0   expiry_lo=0x51fac59c
+   2801     CB    ctx=0xc210edd0 state=0   expiry_lo=0x521811bd
+   2802     CB    ctx=0xc21768b8 state=13  expiry_lo=0x522e027f
+   2803     CB    ctx=0xc21768f8 state=14  expiry_lo=0x522e0412
+   2804     CB    ctx=0xc210edd0 state=0   expiry_lo=0x52355dc2
+
+  seq span in ring: 2677 .. 2804
+
+  === ARM -> following CALLBACKs (state-20 == the ctx0 watchdog) ===
+   arm_seq  caller                     #CB_after  #state20_after   first state20 at
+
+  callback state histogram (in ring): 0:36, 1:12, 3:55, 12:3, 13:6, 14:12, 15:4

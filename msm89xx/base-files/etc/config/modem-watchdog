@@ -28,3 +28,13 @@ config keepalive 'keepalive'
 # the modem state frozen for post-mortem analysis instead of recovering.
 config recovery 'recovery'
 	option ssr_enabled '1'
+	# Preemptive SSR — the ~902.7 s firmware deadline (Model M3, Doc 236).
+	# A WARM modem restart ARMS the deadline and anchors it to that restart's
+	# epoch; a cold power-up does not.  So a clean restart every
+	# preemptive_ssr_interval (< ~902 s) re-arms the clock before it can expire
+	# and the ERR_FATAL never fires.  The check runs regardless of the bearer
+	# state (the deadline needs no data path), and costs a controlled ~10-15 s
+	# bearer rebuild in exchange for an uncontrolled crash every ~15 min.
+	# Set preemptive_ssr_enabled=0 to disable (the fatal then returns).
+	option preemptive_ssr_enabled '1'
+	option preemptive_ssr_interval '800'

@@ -1,0 +1,5 @@
+=== both fatals ===
+[  535.831136] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_task.c:1184:
+[ 1428.509089] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_task.c:3179:
+=== uptime ===
+1457.98

@@ -1,0 +1,17 @@
+[+] ARM cave: 76 B  VA 0xc003054c..0xc0030598
+    4055140c05c0007800c585a127c0859127c007b001c785a148c0859128c008b002c885a1e6cf077646c4068c06c506f306c806b000c786a101df86a102c286a16a7f020c06c2007800c08652
+[+] CB  cave: 100 B  VA 0xc0030598..0xc00305fc
+    4055140c05c0007800c585a127c0859127c007b001c785a168c0859128c008b003c885a101c7209181fde1bf00c1817516c0005ce6cf077646c4068c06c506f306c806b008dfc78c00c886a101c086a102c186a108c1809103c886a100c0007800c09f52
+[+] ring: 128 entries, save 0xc1455000..0xc1455840 (poison guard at +0xd58 -> margin 0x518)
+[+] pristine image copied -> scratch/diag_patch_v9/image_patched
+[+] b16 ARM site A @0x9f874 (VA 0xc0326874): 0e79fa5b -> 6c4ea15b
+[+] b16 ARM site B @0xb50f4 (VA 0xc033c0f4): ceccf85b -> 2ce29e5b
+[+] b16 CB  site CB @0x50bd0 (VA 0xc02d7bd0): b84aff5b -> e444ab5b
+[+] b05 ARM cave @0x54c (VA 0xc003054c): wrote 76B
+[+] b05 CB cave @0x598 (VA 0xc0030598): wrote 100B
+[+] b01 seg16 @0x228: ab795bf097be.. -> 827bbf730c96..
+[+] b01 seg5 @0xc8: 6cada5c9c025.. -> 1c21ef2e4058..
+[+] rebuilt modem.mdt (8220 B)
+[+] hash re-verify: PASS
+[+] modem.b16: 9 differing bytes
+[+] modem.b05: 148 differing bytes

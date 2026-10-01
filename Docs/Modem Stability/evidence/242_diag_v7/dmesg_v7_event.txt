@@ -1,0 +1,140 @@
+<6>[64506.817579] sshd (31446): undefined instruction: pc=000d0ef0
+<6>[64506.817592] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64506.817607] sshd (31446): undefined instruction: pc=000d0ef8
+<6>[64506.817619] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64506.817634] sshd (31446): undefined instruction: pc=000d0f00
+<6>[64506.817647] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64507.266666] sshd (31452): undefined instruction: pc=000d0f08
+<6>[64507.266684] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64507.266710] sshd (31452): undefined instruction: pc=000d0ef0
+<6>[64507.266722] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64507.266738] sshd (31452): undefined instruction: pc=000d0ef8
+<6>[64507.266750] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64507.266765] sshd (31452): undefined instruction: pc=000d0f00
+<6>[64507.266777] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64507.725753] sshd (31460): undefined instruction: pc=000d0f08
+<6>[64507.725771] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64507.725796] sshd (31460): undefined instruction: pc=000d0ef0
+<6>[64507.725808] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64507.725824] sshd (31460): undefined instruction: pc=000d0ef8
+<6>[64507.725836] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64507.725851] sshd (31460): undefined instruction: pc=000d0f00
+<6>[64507.725864] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64508.184339] sshd (31468): undefined instruction: pc=000d0f08
+<6>[64508.184357] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64508.184382] sshd (31468): undefined instruction: pc=000d0ef0
+<6>[64508.184394] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64508.184409] sshd (31468): undefined instruction: pc=000d0ef8
+<6>[64508.184422] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64508.184436] sshd (31468): undefined instruction: pc=000d0f00
+<6>[64508.184448] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64508.624268] sshd (31476): undefined instruction: pc=000d0f08
+<6>[64508.624287] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64508.624312] sshd (31476): undefined instruction: pc=000d0ef0
+<6>[64508.624325] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64508.624341] sshd (31476): undefined instruction: pc=000d0ef8
+<6>[64508.624353] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64508.624368] sshd (31476): undefined instruction: pc=000d0f00
+<6>[64508.624380] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64509.068585] sshd (31482): undefined instruction: pc=000d0f08
+<6>[64509.068607] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64509.068638] sshd (31482): undefined instruction: pc=000d0ef0
+<6>[64509.068650] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64509.068665] sshd (31482): undefined instruction: pc=000d0ef8
+<6>[64509.068677] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64509.068691] sshd (31482): undefined instruction: pc=000d0f00
+<6>[64509.068703] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64509.507452] sshd (31494): undefined instruction: pc=000d0f08
+<6>[64509.507470] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64509.507495] sshd (31494): undefined instruction: pc=000d0ef0
+<6>[64509.507507] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64509.507522] sshd (31494): undefined instruction: pc=000d0ef8
+<6>[64509.507534] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64509.507549] sshd (31494): undefined instruction: pc=000d0f00
+<6>[64509.507561] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64551.866300] sshd (31833): undefined instruction: pc=000d0f08
+<6>[64551.866318] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64551.866344] sshd (31833): undefined instruction: pc=000d0ef0
+<6>[64551.866356] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64551.866373] sshd (31833): undefined instruction: pc=000d0ef8
+<6>[64551.866385] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64551.866400] sshd (31833): undefined instruction: pc=000d0f00
+<6>[64551.866413] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64553.210235] sshd (31857): undefined instruction: pc=000d0f08
+<6>[64553.210252] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64553.210279] sshd (31857): undefined instruction: pc=000d0ef0
+<6>[64553.210291] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64553.210307] sshd (31857): undefined instruction: pc=000d0ef8
+<6>[64553.210319] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64553.210333] sshd (31857): undefined instruction: pc=000d0f00
+<6>[64553.210345] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64553.584880] sshd (31880): undefined instruction: pc=000d0f08
+<6>[64553.584897] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64553.584922] sshd (31880): undefined instruction: pc=000d0ef0
+<6>[64553.584934] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64553.584951] sshd (31880): undefined instruction: pc=000d0ef8
+<6>[64553.584963] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64553.584978] sshd (31880): undefined instruction: pc=000d0f00
+<6>[64553.584991] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64553.820990] sshd (31889): undefined instruction: pc=000d0f08
+<6>[64553.821009] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64553.821035] sshd (31889): undefined instruction: pc=000d0ef0
+<6>[64553.821047] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64553.821063] sshd (31889): undefined instruction: pc=000d0ef8
+<6>[64553.821075] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64553.821091] sshd (31889): undefined instruction: pc=000d0f00
+<6>[64553.821103] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<6>[64563.973884] sshd (31978): undefined instruction: pc=000d0f08
+<6>[64563.973906] Code: f2000c40 e12fff1e f3000c40 e12fff1e (f2a00e00) 
+<6>[64563.973935] sshd (31978): undefined instruction: pc=000d0ef0
+<6>[64563.973948] Code: f2200150 e12fff1e ec510f1e e12fff1e (f3b00300) 
+<6>[64563.973964] sshd (31978): undefined instruction: pc=000d0ef8
+<6>[64563.973976] Code: ec510f1e e12fff1e f3b00300 e12fff1e (f2000c40) 
+<6>[64563.973991] sshd (31978): undefined instruction: pc=000d0f00
+<6>[64563.974004] Code: f3b00300 e12fff1e f2000c40 e12fff1e (f3000c40) 
+<3>[65373.792724] 
+<3>[65373.792724] SMSM: Modem SMSM state changed to SMSM_RESET.
+<3>[65373.792777] Fatal error on the modem.
+<3>[65373.792793] modem subsystem failure reason: lte_ml1_common_timer.c:390:.
+<6>[65373.792802] subsys-restart: subsystem_restart_dev(): Restart sequence requested for modem, restart_level = RELATED.
+<6>[65373.793525] subsys-restart: subsystem_shutdown(): [c3ed5e80]: Shutting down modem
+<4>[65373.793542] Ramdump disable gpio value is 0
+<4>[65373.893611] pil-q6v5-mss 4080000.qcom,mss: Port e0b38000 halt timeout
+<3>[65373.894123] memshare: Modem Restart has happened
+<3>[65373.894801] [RMNET:HI] rmnet_config_notify_cb(): Kernel is trying to unregister rmnet0
+<5>[65374.135908] type=1400 audit(1790830962.064:30): avc:  denied  { module_request } for  pid=684 comm="netd" kmod="netdev-rmnet1" scontext=u:r:netd:s0 tcontext=u:r:kernel:s0 tclass=system
+<5>[65374.136460] type=1400 audit(1790830962.064:31): avc:  denied  { sys_module } for  pid=684 comm="netd" capability=16  scontext=u:r:netd:s0 tcontext=u:r:netd:s0 tclass=capability
+<3>[65375.190183] M-Notify: General: 4
+<3>[65375.190199] Ramdump(ramdump_smem): No consumers. Aborting..
+<3>[65375.190207] restart_notifier_cb: unable to dump smem -32
+<3>[65375.190442] smd_pkt_read notifying reset for smd_pkt_dev id:7
+<3>[65375.190647] smd_pkt_read notifying reset for smd_pkt_dev id:0
+<3>[65375.191486] smd_pkt_read notifying reset for smd_pkt_dev id:6
+<3>[65375.191822] smd_pkt_read notifying reset for smd_pkt_dev id:1
+<3>[65375.192098] smd_pkt_read notifying reset for smd_pkt_dev id:2
+<3>[65375.192297] smd_pkt_read notifying reset for smd_pkt_dev id:5
+<3>[65375.192431] smd_pkt_read notifying reset for smd_pkt_dev id:4
+<3>[65375.192552] smd_pkt_read notifying reset for smd_pkt_dev id:3
+<6>[65375.246568] pil: MBA boot done
+<11>[65385.897735] init: untracked pid 31896 exited
+<4>[65385.997326] pil-q6v5-mss 4080000.qcom,mss: Port e0b36000 halt timeout
+<6>[65385.999274] subsys-restart: subsystem_powerup(): [c3ed5e80]: Powering up modem
+<6>[65386.002016] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x86800000 to 0x8ba00000
+<3>[65386.003412] M-Notify: General: 6
+<6>[65386.048682] pil: MBA boot done
+<6>[65386.658481] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+<6>[65386.764403] pil-q6v5-mss 4080000.qcom,mss: Subsystem error monitoring/handling services are up
+<6>[65386.764561] pil-q6v5-mss 4080000.qcom,mss: modem: Power/Clock ready interrupt received
+<3>[65386.765817] M-Notify: General: 7
+<3>[65386.982936] modem_state_callback: DSP is ready
+<3>[65386.963779] diag: In diag_send_log_mask_update, invalid status 0
+<6>[65387.002479] core_get_license_status: module_id 0x1<6>[65387.002729] core_get_license_status: cmdrsp_license_result.result = 0x15 for module 0x1
+<3>[65387.002848] core_set_license: error getting metainfo size, err:0x0, size:0
+<3>[65387.006593] wcd_program_btn_threshold: course: 0 fine: 2 reg_addr: 153 reg_val: 8
+<3>[65387.006613] wcd_program_btn_threshold: course: 0 fine: 4 reg_addr: 154 reg_val: 10
+<3>[65387.006631] wcd_program_btn_threshold: course: 0 fine: 6 reg_addr: 155 reg_val: 18
+<3>[65387.006648] wcd_program_btn_threshold: course: 1 fine: 1 reg_addr: 156 reg_val: 24
+<3>[65387.006665] wcd_program_btn_threshold: course: 1 fine: 3 reg_addr: 157 reg_val: 2c
+<6>[65387.006749] subsys-restart: subsystem_restart_wq_func(): [c3ed5e80]: Restart sequence for modem completed.
+<6>[65390.571714] binder: 796:809 transaction failed 29189, size 172-0
+<6>[65390.571904] binder: 796:809 transaction failed 29189, size 172-0

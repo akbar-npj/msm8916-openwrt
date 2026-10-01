@@ -1,0 +1,65 @@
+# 01_post_restore_verification — device /lib/firmware inventory, 2026-09-28
+# boot_id 6c19817a-d969-4138-a1e1-c7efd24f0d86, AP uptime 668 s, modem mode online
+#
+# 51/51 stock-manifest files present and byte-identical (md5 join, 0 MISMATCH).
+# 5 device-only files, all expected and NOT UZ801 residue:
+#   DUMPED, MCFG_SW.MBN, mcfg_sw.mbn (0be0d361 = package carrier cfg), regulatory.db,
+#   wlan/prima/WCNSS_qcom_wlan_nv.bin (untouched by the swap)
+# UZ801-only residue absent: modem_pr/ (gone), isdbtmm.* (gone)
+#
+d41d8cd98f00b204e9800998ecf8427e  DUMPED
+0be0d361224873be71e012637e04b3e4  MCFG_SW.MBN
+2f9b3a333a6eb3afd300de273d74fdbd  cmnlib.b00
+d49ca06aa3fb5752a7a14634720c7947  cmnlib.b01
+483abc330f38c4a638ff59a00e17e1c6  cmnlib.b02
+6767a5714929e9021bed93126c4c68be  cmnlib.b03
+78752167469a6b0d981765445fbb235e  cmnlib.mdt
+a0151461e4f30599dbd8df9550a9e214  keymaste.b00
+1105e91fa4ce630dd75b5a2bc1040d27  keymaste.b01
+7d23e617568e4581a832cc3b9cabc919  keymaste.b02
+5b2152a952aad477d98164c9cee38099  keymaste.b03
+907006be3febbda61061ebbd1fac0d17  keymaste.mdt
+dcc67421780587c5b0e25cb6c99cb35f  mba.mbn
+0be0d361224873be71e012637e04b3e4  mcfg_sw.mbn
+d8e7e61274655ae9410190dad757bd9b  modem.b00
+b85b86cec95bc250d753fe3eca016dc9  modem.b01
+3c7951f66107029a8577d1ef313be0db  modem.b02
+c4ca1e4b64dadd773d546a6e920e56ec  modem.b03
+9a5bcdad67ac4b03fd880578d44eeaaa  modem.b04
+332f000baa2522e8bc01f3240115d316  modem.b05
+6d79875856844b311918c2c3dde7dc04  modem.b08
+364885a87e3a1ff5ba240d4f472ecd22  modem.b10
+b9603328201da63e99a3b179b8d7f921  modem.b11
+1555f1fb15446582177480112ee85f6d  modem.b13
+646b9b0f262acc4d390d035e6c458e46  modem.b14
+1d0a8e74cad0cde5d6cb0cef735e0664  modem.b15
+57fef19de7178fb732c8b2edc40bc9dc  modem.b16
+a820e73be4a1571d1215951fca7e6e91  modem.b17
+43434a4053ca82c3c33581c41e5c2cc5  modem.b18
+4ec32d29fb549740b12820bd7d211fde  modem.b19
+f6b55594039f86800fce20cfb63b0d5a  modem.b22
+ddc7cdf384a1dbc7a8a08f973675fe4d  modem.b23
+e24c5cfa7642ea84de20ebec09ac299d  modem.b24
+365a660c8cb0f6af6bae8d5855497d8b  modem.b25
+1a6f9507e03d4ddbbf1977af81ecdbd7  modem.mdt
+1aed7812ff812828b67221f5b8b2657e  playread.b00
+484aeed3e96cb5e11741254afdd8aeb4  playread.b01
+e6e0b686259bb3af8eaef13e9dbadcef  playread.b02
+6fa8580c4d6cb1d544c7029e1b5ede36  playread.b03
+f347672bc7e61d6ef3c09954178f87d4  playread.mdt
+deea4c02b2bdff10acc1cc2f1f422e9f  regulatory.db
+dae514d982835c3e7026791a9735e7fb  wcnss.b00
+d4981b78c07fb9bbab57ad1733b1de38  wcnss.b01
+d6ec7ed16bd2ff88498ff9f9f3bbb7a7  wcnss.b02
+a9458ed7d6dae0ec242034c0b608f25d  wcnss.b04
+be3612f82b68fdbc23a51fe99725515c  wcnss.b06
+469aa816010c9c8639a9176f625189af  wcnss.b09
+157e39521e47ad1c923a94edd69ad59c  wcnss.b10
+eb75550b89cef38a36e4e2c1e14ae956  wcnss.b11
+62bb56b2bfd0a1aa1ef57ec44b51a396  wcnss.mdt
+64aa66c6cdce820a780a12c4e012073f  widevine.b00
+c0c560298feabe7063f950e475fa1574  widevine.b01
+8611d2dd47172097a68b54ec20bc06eb  widevine.b02
+af643fe6df0141e5d6c0c0de5c15dfc7  widevine.b03
+3cbc580a356e910c41b83c8efeb5c3ff  widevine.mdt
+aaabf2532b560602d8ec375b17502dc9  wlan/prima/WCNSS_qcom_wlan_nv.bin

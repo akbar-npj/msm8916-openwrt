@@ -1,0 +1,57 @@
+# ERR_FATAL descriptor census across every coredump on the host, 2026-09-28
+# tool: Docs/Modem Stability/evidence/163_errfatal_descriptor/errfatal_descriptor.py
+# record: ELF VA 0xC35B1280, dump_va = elf_va - 0x39800000
+#         +0x10 u16 line, +0x14 u32 A, +0x18 u32 B, +0x24 char[] filename (inline)
+# B is a GLOBAL fatal counter (monotone across the corpus); it advances ~+11 per period.
+#
+# "AP up" is the AP uptime in the dump filename, NOT modem uptime.
+AP up     file                           line   A           B           dump
+426.20    a2_power.c                     1189   0x06df307a 0x01128cc2 modem_coredump_up426.20_devcd1.elf
+913.64    lte_ml1_sleepmgr_stm.c         4054   0x0ff767fc 0x01128ce2 modem_coredump_up913.64_devcd1.elf
+915.42    lte_ml1_common_timer.c         390    0x97b628c7 0x01128cb9 modem_coredump_up915.42_devcd1.elf
+915.44    lte_ml1_common_timer.c         390    0x342f3f0c 0x01128c90 modem_coredump_up915.44_devcd1.elf
+915.44    lte_ml1_common_timer.c         390    0x342f3f0c 0x01128c90 modem_coredump_up915.44_devcd1.elf
+915.55    lte_ml1_sleepmgr_stm.c         4054   0xf473a7c3 0x01128de5 modem_coredump_up915.55_devcd1.elf
+919.52    lte_ml1_common_timer.c         390    0xb7bb76cf 0x01128bfc modem_coredump_up919.52.elf
+923.12    a2_power.c                     1189   0x2066b2b2 0x01128cff modem_coredump_up923.12_devcd1.elf
+923.71    a2_power.c                     1189   0xdeab4e0b 0x01128dc2 modem_coredump_up923.71_devcd1.elf
+1328.04   lte_ml1_sleepmgr_stm.c         4054   0x0ab44f3f 0x01128ccd modem_coredump_up1328.04_devcd2.elf
+1406.94   a2_power.c                     1189   0x01b29569 0x01128cce modem_coredump_up1406.94_devcd3.elf
+1818.92   lte_ml1_common_timer.c         390    0x3a18b11d 0x01128c9b modem_coredump_up1818.92_devcd2.elf
+1818.92   lte_ml1_common_timer.c         390    0x3a18b11d 0x01128c9b modem_coredump_up1818.92_devcd2.elf
+1822.52   lte_ml1_common_timer.c         390    0xbffa3d53 0x01128c07 modem_coredump_up1822.52.elf
+1824.57   lte_ml1_sleepmgr_stm.c         4054   0x260d53d9 0x01128d0a modem_coredump_up1824.57_devcd2.elf
+1827.23   lte_ml1_sleepmgr_stm.c         4054   0xe447b03f 0x01128dcd modem_coredump_up1827.23_devcd2.elf
+1857.52   a2_power.c                     1189   0x747f0b8f 0x01128df1 modem_coredump_up1857.52_devcd2.elf
+2275.74   a2_taskq.c                     759    0x62bc7e12 0x01128dd3 modem_coredump_up2275.74_devcd3.elf
+2389.74   a2_power.c                     2949   0xc45e1aa7 0x01128dd4 modem_coredump_up2389.74_devcd4.elf
+2723.69   lte_ml1_common_timer.c         390    0xc778be62 0x01128c12 modem_coredump_up2723.69.elf
+2728.06   lte_ml1_sleepmgr_stm.c         4054   0x2adc269c 0x01128d15 modem_coredump_up2728.06_devcd3.elf
+2760.09   lte_ml1_sleepmgr_stm.c         4054   0x78be09dc 0x01128dfc modem_coredump_up2760.09_devcd3.elf
+2906.94   a2_power.c                     1189   0x5e155c75 0x01128d17 modem_coredump_up2906.94_devcd4.elf
+3629.79   lte_ml1_common_timer.c         390    0xce3f7ed6 0x01128c1d modem_coredump_up3629.79.elf
+3701.47   a2_power.c                     1189   0xf7e7abcb 0x01128e07 modem_coredump_up3701.47_devcd4.elf
+3810.44   lte_ml1_sleepmgr_stm.c         4054   0x649e0000 0x01128d22 modem_coredump_up3810.44_devcd5.elf
+3888.64   a2_power.c                     1189   0x56459f02 0x01128d23 modem_coredump_up3888.64_devcd6.elf
+4649.09   a2_power.c                     1189   0x8bd30603 0x01128e13 modem_coredump_up4649.09_devcd5.elf
+4792.50   lte_ml1_sleepmgr_stm.c         4054   0x62b36483 0x01128d2e modem_coredump_up4792.50_devcd7.elf
+5696.69   lte_ml1_sleepmgr_stm.c         4054   0x654f3d52 0x01128d39 modem_coredump_up5696.69_devcd8.elf
+6619.26   a2_power.c                     1189   0xaaf850b3 0x01128d44 modem_coredump_up6619.26_devcd9.elf
+7196.86   a2_power.c                     2949   0xb6d859d4 0x01128d4b modem_coredump_up7196.86_devcd10.elf
+8238.92   a2_power.c                     1189   0x740879ab 0x01128d58 modem_coredump_up8238.92_devcd11.elf
+9143.88   lte_ml1_sleepmgr_stm.c         4054   0x7cd61027 0x01128d63 modem_coredump_up9143.88_devcd12.elf
+10044.62  lte_ml1_sleepmgr_stm.c         4054   0x7f66918d 0x01128d6e modem_coredump_up10044.62_devcd13.elf
+10946.58  lte_ml1_sleepmgr_stm.c         4054   0x8065bb16 0x01128d79 modem_coredump_up10946.58_devcd14.elf
+11849.71  lte_ml1_sleepmgr_stm.c         4054   0x837c8ad4 0x01128d84 modem_coredump_up11849.71_devcd15.elf
+12753.29  lte_ml1_sleepmgr_stm.c         4054   0x8d661658 0x01128d8f modem_coredump_up12753.29_devcd16.elf
+13656.59  lte_ml1_sleepmgr_stm.c         4054   0x942d9a23 0x01128d9a modem_coredump_up13656.59_devcd17.elf
+14559.07  lte_ml1_sleepmgr_stm.c         4054   0x959f8592 0x01128da5 modem_coredump_up14559.07_devcd18.elf
+15079.78  a2_power.c                     2949   0xf51f4359 0x01128dab modem_coredump_up15079.78_devcd19.elf
+15982.84  lte_ml1_sleepmgr_stm.c         4054   0xfa2e19ca 0x01128db6 modem_coredump_up15982.84_devcd20.elf
+
+=== signature histogram (42 dumps) ===
+  lte_ml1_sleepmgr_stm.c           :4054  x18
+  a2_power.c                       :1189  x11
+  lte_ml1_common_timer.c           :390   x9
+  a2_power.c                       :2949  x3
+  a2_taskq.c                       :759   x1

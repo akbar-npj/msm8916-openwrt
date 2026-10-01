@@ -1,0 +1,58 @@
+# ue_usage_setting 0x00 -> 0x01 : the write, the SSR, and the persistence proof
+# Device: HMU05 OpenWrt, serial c2b9103c, pristine stock firmware
+# 2026-09-28
+
+=== BEFORE THE WRITE (AP uptime 574.89 s, 0 fatals) ===
+== /nv/item_files/modem/mmode/ue_usage_setting mode=0000e1ff size=1 ==
+00
+
+=== THE WRITE (AP uptime 574.89 s) ===
+$ printf "\001" > /tmp/ue1.bin
+$ /root/diag_efs_skip put /tmp/ue1.bin /nv/item_files/modem/mmode/ue_usage_setting
+/nv/item_files/modem/mmode/ue_usage_setting exists (1 bytes); backing up -> _nv_item_files_modem_mmode_ue_usage_setting.bak.1790592546
+/nv/item_files/modem/mmode/ue_usage_setting mode=0000e1ff size=1 -> _nv_item_files_modem_mmode_ue_usage_setting.bak.1790592546
+/nv/item_files/modem/mmode/ue_usage_setting: read 1/1 bytes
+/nv/item_files/modem/mmode/ue_usage_setting: wrote 1 bytes; read-back 1 bytes -> MATCH
+
+=== READ-BACK (same boot) ===
+== /nv/item_files/modem/mmode/ue_usage_setting mode=0000e1ff size=1 ==
+01
+
+=== QMI, SAME BOOT (the change did NOT take effect live) ===
+[28 Sep 2026, 10:46:23]
+	Mode preference: 'lte'
+	Service domain preference: 'cs-ps'
+	Usage preference: 'voice-centric'          <-- unchanged
+	Voice domain preference: 'cs-preferred'
+=> the modem reads ue_usage_setting at NAS init; a modem restart is required.
+
+=== THE NATURAL FATAL + SSR ===
+FATAL1 at AP 1027.98 (dmesg [ 1023.608588])
+[ 1023.608588] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_power.c:1189:
+modem powered up at AP [11.207878]  =>  modem uptime at the fatal = 1012.40 s
+   (the a2_power.c:1189 signature is the ACTIVITY-CORRELATED one, Doc 162 mean 695 s
+    spread 872 s - it is NOT the tight 902.6 s clock, so this boot's 1012 s is
+    unremarkable and NOT evidence of suppression)
+
+=== AFTER THE SSR (AP uptime 1075.77 s) ===
+$ sh /root/diag_bind.sh          # the SSR destroyed /dev/rpmsg0/1 - re-bind
+DIAG=/dev/rpmsg0
+CNTL=/dev/rpmsg1
+
+$ /root/diag_efs_skip get /nv/item_files/modem/mmode/ue_usage_setting
+== /nv/item_files/modem/mmode/ue_usage_setting mode=0000e1ff size=1 ==
+01                                <-- PERSISTED ACROSS THE MODEM RESTART
+
+$ qmicli -d /dev/wwan0qmi0 --nas-get-system-selection-preference
+	Mode preference: 'lte'
+	Service domain preference: 'cs-ps'
+	Usage preference: 'data-centric'           <-- THE CHANGE TOOK EFFECT
+	Voice domain preference: 'cs-preferred'    <-- unchanged (needs voice_domain_pref)
+
+=== modem health after the SSR (AP 1094.85 s) ===
+state: connected   power state: on   access tech: lte
+signal quality: 88% (recent)   registration: home   packet service state: attached
+
+=== WATCHERS ARMED ===
+/tmp/watch2.sh     - detects FATAL2 and appends to /tmp/ue_watch2.log
+/tmp/report_at.sh  - writes /tmp/ue_report.log at AP 2400 s (modem ~1376 s)

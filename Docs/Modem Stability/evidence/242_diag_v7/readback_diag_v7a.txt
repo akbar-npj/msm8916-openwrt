@@ -1,0 +1,49 @@
+coredump : scratch/android_dump/diag_v7a.elf  (85443284 B, 21 phdrs)
+ring VA  : 0xc1455000  ->  phys 0x87c55000
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  +0x00 magic = 0xc0030560   (expect 0xc0030560)
+  +0x04 count = 30
+  +0x08 idx   = 30
+
+  === 30 recorded calls, chronological ===
+   seq      caller_r31            r2               r0(inst)
+   1        A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   2        A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   3        A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   4        A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   5        A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   6        A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   7        A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   8        A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   9        A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   10       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   11       A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   12       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   13       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   14       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   15       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   16       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   17       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   18       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   19       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   20       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   21       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   22       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   23       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   24       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   25       A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   26       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   27       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   28       A(FUN_c032685c mobility) 0 -> 0x4070210   0x00000000
+   29       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   30       A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+
+  histogram (of the 30 in the ring):
+    caller A (mobility) : 30
+    caller B (ACQ)      : 0
+    r2 == 1 (0x408020d) : 22
+    r2 == 0 (0x4070210) : 8
+
+  seq span in ring: 1 .. 30
+  last call       : caller A(FUN_c032685c mobility), selector 1 -> 0x408020d

@@ -1,0 +1,80 @@
+# ARM 1 RESULT — `ue_usage_setting` 0x00 -> 0x01 (data-centric)
+# Device: HMU05 OpenWrt, serial c2b9103c, pristine stock firmware (b16 57fef19d…)
+# 2026-09-28
+#
+# PRE-REGISTERED CRITERION (Doc 230 §7, fixed BEFORE the write):
+#   "zero fatals for > 1200 s of modem uptime with the modem still connected on LTE.
+#    One fatal falsifies it."
+#
+# VERDICT:  *** FALSIFIED ***
+# ---------------------------------------------------------------------------
+
+=== THE ARM-1 EPOCH (the modem boot that read data-centric) ===
+
+  modem up (dmesg)      [ 1024.311654] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+  fatal (dmesg)         [ 1926.966036] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+  epoch length          1926.966036 - 1024.311654 = 902.654382 s
+  site                  lte_ml1_common_timer.c:390   <-- THE TIGHT-CLOCK SITE
+  attach state          wwan0 10.155.71.113/30 + default route present (LTE attached)
+
+  902.654 s  <  1200 s   =>  criterion NOT MET.  FALSIFIED.
+
+The QMI value was verified in THIS epoch's predecessor:
+  Usage preference: 'data-centric'      (was 'voice-centric' on stock)
+
+=== WHY THIS IS NOT A MEASUREMENT ARTEFACT ===
+
+The site is `lte_ml1_common_timer.c:390` — the tight-clock signature (Doc 162: n=11,
+mean 902.353 s, spread 0.508 s), NOT the activity-correlated `a2_power.c:1189`
+(mean 695.068 s, spread 872.764 s). So the epoch did not merely die "somewhere"; it
+died at the exact site the clock predicts.
+
+=== BONUS: an INDEPENDENT confirmation that the clock is AP/AON-ANCHORED ===
+
+Two consecutive fatals in this AP boot:
+
+  #1  AP 1023.608588   a2_power.c:1189          (the LATE-firing site)
+  #2  AP 1926.966036   lte_ml1_common_timer.c:390
+
+  fatal-to-fatal AP interval = 1926.966036 - 1023.608588 = 903.357448 s
+
+Doc 177/179's free-running clock is P = 903.675206 s (AP wall time). Subtract one period
+from #2:
+
+  predicted beat          = 1926.966036 - 903.675206 = 1023.290830 s
+  #1 residual vs the beat = 1023.608588 - 1023.290830 = +0.317758 s   (a2_power is the
+                          late site; Doc 179 residuals for a2_power were +0.788/+3.735/+62.520)
+  #2 residual             = 0.000000 s (exact)
+  boot phase              = 1023.290830 - 903.675206 = 119.615624 s
+
+  => beats at 119.615624 + k * 903.675206  reproduce BOTH fatals.
+
+*** THE DISCRIMINATOR *** — the modem restarted at AP 1024.311654, i.e. the beat that
+produced fatal #2 (1023.290830) was scheduled **1.021 s BEFORE this modem epoch existed**.
+A modem-anchored counter cannot have a deadline that precedes its own boot. Therefore the
+time base is the AP always-on (AON/XO/RPM) domain — a fresh, independent confirmation of
+Doc 177 §3.1, obtained here from a MODEM restart (not an AP reboot).
+
+Note the beat at 119.615624 s was survived; the modem did not assert at the first beat after
+its boot. So the condition is not "assert at the first beat"; it is an accumulated one.
+
+=== NOTE ON THE PREVIOUS EPOCH (fatal #1) ===
+
+Epoch 1: modem up AP 11.207878 -> fatal AP 1023.608588 = 1011.61 s of modem uptime, site
+`a2_power.c:1189` (the variable signature). That is the pre-existing stock behaviour and is
+NOT evidence about arm 1 — arm 1's epoch is epoch 2, which is the one that booted with
+`data-centric`.
+
+=== ARM 2 (pre-registered, applied at AP 2083 s) ===
+
+  /nv/item_files/modem/mmode/voice_domain_pref  = 0x01  (PS_ONLY)
+      QmiNasVoiceDomainPreference: 0x00 CS_ONLY, 0x01 PS_ONLY, 0x02 CS_PREFERRED, 0x03 PS_PREFERRED
+      stock effective value was 0x02 (cs-preferred); the item was ABSENT (ENOENT, defaulted).
+      read-back -> MATCH.   Single variable.
+
+  CRITERION (fixed BEFORE the write): the epoch that boots with voice_domain_pref=0x01 must
+  survive > 1200 s with ZERO fatals AND still be attached on LTE. One fatal falsifies it.
+  CONFOUND GUARD: if PS_ONLY stops the modem attaching, the timer will not run (P-PMOS3) and
+  a "no fatal" result would be a FALSE POSITIVE — so LTE attach is part of the criterion.
+  NOTE: the arm-2 script originally staged `voice_domain_pref = 0x04`, which is NOT a valid
+  enum value (the enum ends at 0x03). Caught before running; corrected to 0x01.

@@ -1,0 +1,55 @@
+== 1. build (static, aarch64, -Wall -Wextra) ==
+PASS  built clean (libqrtr's own -Wsign-compare warnings only)
+
+== 2. shape: runs and emits the documented line without a modem ==
+--- file(1) ---
+/tmp/ats_probe_verify/ats-probe: ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), statically linked, with debug_info, not stripped
+--- usage (-h) ---
+Usage: /tmp/ats_probe_verify/ats-probe [-i interval_ms] [-n count] [-o file] [-q]
+  -i  sampling interval in ms (default 1000)
+  -n  stop after this many samples (default 0 = until signalled)
+  -o  append-safe output file (default stdout)
+  -q  suppress the human-readable startup banner
+
+Reads the modem's own ATS_RTC uptime over QMI TIME (service 22) and
+stamps each read with the AP's CLOCK_BOOTTIME. Sends only the 14-byte
+0x0021 GET; never writes to the modem.
+--- 5 s run, no modem present (SIGTERM ends it) ---
+# ATS-PROBE v1 interval_ms=200 service=22 started_wall_ms=1790753674038
+# ATS-PROBE-EVENT what=exit samples=0 ap_boot_ms=58634155
+PASS  startup header has the documented shape
+PASS  exits cleanly on signal (exit event emitted)
+
+== 3. provenance: descriptor file is byte-identical to the daemon's ==
+PASS  qmi_time.c identical (268ae392d703dbab5a9bceaaebdb21a9)
+PASS  qmi_time.h identical (ecd285c4e69124ca526c0e4c97c16010)
+
+== 4. read-only: no path in ats-probe.c can encode a 0x0020 SET ==
+PASS  every qmi_encode_message() call uses QMI_TIME_GENOFF_GET_REQ
+PASS  no reference to write path in code: time_genoff_set_req_ei
+PASS  no reference to write path in code: QMI_TIME_GENOFF_SET_REQ
+PASS  no reference to write path in code: send_ats_user
+PASS  no reference to write path in code: 0x0020
+--- negative control: the check above must be able to FAIL ---
+PASS  negative control fired (injection detected in code)
+
+== 5. encoder: the linked descriptor reproduces the captured wire ==
+== what the READ-ONLY poll sends (ATS_RTC, base 0) ==
+  GET  (14 bytes): 00 2f 00 21 00 07 00 01 04 00 00 00 00 00
+         header: type=0x00 txn=47 msg=0x0021 msg_len=7
+         TLV type=0x01 len=4  <- `base` (u32) = 0
+  qmi_encode_message() -> 14   [captured wire length: 14]
+
+== what the periodic WRITE sends (ATS_USER, base 2) ==
+  SET  (25 bytes): 00 30 00 20 00 12 00 01 04 00 02 00 00 00 02 08 00 a0 8a 5b 29 57 01 00 00
+         header: type=0x00 txn=48 msg=0x0020 msg_len=18
+         TLV type=0x01 len=4  <- `base` (u32) = 2
+         TLV type=0x02 len=8  <- `offset` (u64)  *** THIS IS THE WRITE ***
+  qmi_encode_message() -> 25   [captured wire length: 25]
+
+difference = 11 bytes = TLV header (3) + u64 offset (8)
+
+RESULT: PASS -- encoder reproduces the captured wire lengths
+PASS  GET=14 bytes, SET=25 bytes -- the GET has no room for a value
+
+RESULT: ALL CHECKS PASSED

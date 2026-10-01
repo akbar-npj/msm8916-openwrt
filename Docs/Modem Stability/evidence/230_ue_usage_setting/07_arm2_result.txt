@@ -1,0 +1,70 @@
+# ARM 2 RESULT — `voice_domain_pref` = 0x01 (PS_ONLY)
+# Device: HMU05 OpenWrt, serial c2b9103c, pristine stock firmware (b16 57fef19d…)
+# 2026-09-28
+#
+# PRE-REGISTERED CRITERION (Doc 230 §7.4, fixed BEFORE the write):
+#   "the epoch booting with voice_domain_pref=0x01 must survive > 1200 s with zero fatals
+#    AND still be attached on LTE.  One fatal falsifies it."
+#   CONFOUND GUARD: if PS_ONLY stopped the modem attaching, the timer would not run
+#   (P-PMOS3) and "no fatal" would be a FALSE POSITIVE - hence attach is part of it.
+#
+# VERDICT:  *** FALSIFIED ***
+# ---------------------------------------------------------------------------
+
+=== THE ARM-2 EPOCH ===
+
+  modem up (dmesg)   [ 2831.351967] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+  fatal (dmesg)      [ 3734.316776] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+  epoch length       3734.316776 - 2831.351967 = 902.964809 s
+  site               lte_ml1_common_timer.c:390        <-- the TIGHT-CLOCK site
+  attach             wwan0 10.33.127.161/30 + default route, verified mid-epoch
+                     => the CONFOUND GUARD is satisfied: the modem WAS attached, so the
+                        timer was running and the negative is not an attach artefact.
+
+  902.964809 s  <  1200 s   =>  criterion NOT MET.  FALSIFIED.
+
+  The NV values were verified in the epoch's own boot:
+    /nv/item_files/modem/mmode/voice_domain_pref  = 01   (PS_ONLY)
+    /nv/item_files/modem/mmode/ue_usage_setting   = 01   (data-centric, from arm 1)
+
+=== ★ THE CLOCK FIT, TIGHTENED AGAIN — FOUR consecutive fatals, one AP boot ===
+
+  fatal #1  AP 1023.608588  a2_power.c:1189             (the LATE-firing site)
+  fatal #2  AP 1926.966036  lte_ml1_common_timer.c:390
+  fatal #3  AP 2830.641649  lte_ml1_common_timer.c:390
+  fatal #4  AP 3734.316776  lte_ml1_common_timer.c:390
+
+  model:  beat(k) = 119.615624 + k * 903.675206
+
+  | k | predicted     | observed      | residual   |
+  |--:|--------------:|--------------:|-----------:|
+  | 1 | 1023.290830   | 1023.608588   | +0.317758  (a2_power is the late site) |
+  | 2 | 1926.966036   | 1926.966036   |  0.000000  |
+  | 3 | 2830.641242   | 2830.641649   | +0.000407  |
+  | 4 | 3734.316448   | 3734.316776   | +0.000328  |
+
+  Three exact points (k = 2, 3, 4) at <= 0.4 ms over a 3 734 s span, with the ONLY large
+  residual on the one fatal whose signature is the known-late `a2_power.c:1189`.
+
+=== WHAT THIS CLOSES ===
+
+The CS/voice-domain family is now CLOSED as a suppression lever:
+  * arm 1  `ue_usage_setting` = data-centric   -> FALSIFIED (902.654382 s, Doc 230 §7.1)
+  * arm 2  `voice_domain_pref` = PS_ONLY       -> FALSIFIED (902.964809 s, this file)
+
+Both were applied, verified by read-back, persisted across modem SSRs, and confirmed
+effective at the QMI level. Neither gates the fault.
+
+=== ARM 3 (pre-registered, applied at AP ~3960) ===
+
+Targets the CDMA/1x stack rather than the voice domain (Doc 230 §7.6): `FUN_c0ce7fe0` is
+PER-TECH, and the stall that reaches 400 ticks (400 x 2.259187 s = 903.675 s) is at the
+tech/RAT level, not the SoC level (the Q6 PC itself is healthy: 1.6 cycles/s).
+
+  /nv/item_files/modem/mmode/c2k_switch_2_srlte = 0x00     (was ABSENT / defaulted; MATCH)
+
+  CRITERION (fixed BEFORE the write): the epoch booting with `c2k_switch_2_srlte=0x00` must
+  survive > 1200 s with zero fatals AND still be attached on LTE.  One fatal falsifies it.
+  EPOCH NOTE: the write landed at AP ~3960, AFTER epoch 5 booted (AP 3735.022279), so epoch 5
+  still has the default.  The arm-3 epoch is epoch 6, which begins after the k=5 beat at
+  AP 4637.991654.  Report armed at AP 5950.

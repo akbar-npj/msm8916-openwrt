@@ -1,0 +1,29 @@
+# mmode NV reads, 2026-09-28 (via /root/diag_efs_skip)
+--- /nv/item_files/modem/mmode/ue_usage_setting ---
+== /nv/item_files/modem/mmode/ue_usage_setting mode=0000e1ff size=1 ==
+01 
+--- /nv/item_files/modem/mmode/device_mode ---
+== /nv/item_files/modem/mmode/device_mode mode=0000e1ff size=1 ==
+00 
+--- /nv/item_files/modem/mmode/sms_domain_pref ---
+== /nv/item_files/modem/mmode/sms_domain_pref mode=0000e1ff size=1 ==
+01 
+--- /nv/item_files/modem/mmode/sms_mandatory ---
+== /nv/item_files/modem/mmode/sms_mandatory mode=0000e1ff size=1 ==
+01 
+--- /nv/item_files/modem/mmode/sms_only ---
+== /nv/item_files/modem/mmode/sms_only mode=0000e1ff size=1 ==
+00 
+--- /sd/rat_acq_order ---
+== /sd/rat_acq_order mode=0000e1ff size=9 ==
+03 e7 00 05 09 05 03 02 04 
+--- absent (ENOENT) ---
+open(/nv/item_files/modem/mmode/c2k_switch_2_srlte): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/voice_domain_pref): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/supplement_service_domain_pref): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/allow_csfb_upon_ims_reg): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/lte_do_irat_duration): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/3gpp2_ps_call_optimization): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/sxlte_timers): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/allow_sms_in_ecbm): err 0x00000002 (?)
+open(/nv/item_files/modem/mmode/sms_over_s102): err 0x00000002 (?)

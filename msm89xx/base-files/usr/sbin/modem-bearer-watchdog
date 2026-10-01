@@ -32,6 +32,7 @@ RECOVERY_ATTEMPTS=0
 MAX_RECOVERY_ATTEMPTS=1
 EXTENDED_COOLDOWN_SECS=300
 RECOVERY_FAILED=0
+MU_UNKNOWN=0            # set while get_modem_uptime() cannot determine the anchor
 
 # Connectivity verification: standard DNS query to carrier/configured DNS.
 #
@@ -79,6 +80,141 @@ verify_rx_connectivity() {
     return 1
 }
 
+# --- Preemptive modem SSR: prevent the ~902.7s firmware ERR_FATAL --------------
+#
+# Model M3 (Doc 236; ledger items 45-48) — the current, measured model:
+#
+#   * The ~902.7 s deadline is armed by a WARM modem restart (a crash-recovery
+#     SSR or a deliberate clean one) and is anchored to THAT restart's
+#     power-on epoch.  A COLD power-up (an AP reboot) does not arm it.
+#   * After any warm restart the modem fatals at epoch + ~902.7 s, then the
+#     crash-recovery restart re-arms it: a self-sustaining ~905 s limit cycle.
+#     Measured live on the Android arm: epoch->fatal 902.63/902.63/902.73/
+#     902.80 s over four consecutive fatals, period 904.955 s.
+#   * The fatal itself is a SYMPTOM, not the disease.  At ~902 s the ML1 stops
+#     making progress ("an ML1-wide stall", items 84-86): a routine idle-mode
+#     serving-measurement request gets no reply, and the 50 ms state-20
+#     watchdog (`lte_ml1_common_timer.c:390`) is simply the TIGHTEST tripwire on
+#     the stall.  Extending the deadline only RELOCATES the fatal to the next
+#     tripwire (Doc 231 §19.4; items 85/86: 50 ms -> 902.1 s, 500 ms -> 902.5 s,
+#     5000 ms -> the idle-SM assert at 903.6 s).  Patching the asserts is NOT a
+#     fix and was abandoned as one.
+#   * The cause is MODEM-INTERNAL, not an AP-stack property: the identical
+#     ~902.7 s clock reproduces on pmOS with the mainline (no QCOM SSR) stack
+#     (A16), and Android itself fatals — just far more rarely (pooled MTTF
+#     ~37 500 s vs OpenWrt ~900 s).  So "an AP-side driver change" is NOT the
+#     root-cause fix; the root cause remains OPEN.
+#
+# The robust, reversible mitigation is therefore to cleanly restart the modem
+# subsystem BEFORE the deadline.  A restart re-arms the clock at a fresh epoch
+# (M3), so a restart every PREEMPTIVE_SSR_INTERVAL < ~902 s keeps the deadline
+# from ever expiring and the ERR_FATAL never fires.  This is a MITIGATION that
+# trades a controlled ~10-15 s bearer rebuild for an uncontrolled crash; it is
+# not a root-cause fix.
+#
+# ⚠ The deadline needs NO data path (P-PMOS2; ledger item 78: a no-traffic boot
+# still fataled at 900.8 s), so this check must NOT be gated on the bearer being
+# up — see the placement at step 1b below.
+
+# Seconds since the modem subsystem last came up, or empty on failure.
+#
+# Anchor is the kernel's own modem-up line, printed by remoteproc_core.c on every
+# modem start — both the boot and each crash-recovery restart:
+#     remoteproc0: remote processor 4080000.remoteproc is now up
+# ⚠ The SAME message is printed for wcnss (`a204000.remoteproc`) and venus, so
+# the grep MUST name the modem's node (or the word "modem"); a bare
+# `grep "is now up" | tail -1` picks whichever remoteproc came up last and
+# silently mis-anchors the deadline (the class of defect Doc 157 §7.4 found in
+# the harness).  If dmesg is unreadable or the line has been evicted from the
+# ring, fall back to the last anchor we saw (persisted in /tmp), and only then
+# give up.  Never silently returns a wrong small value: an over-estimate makes us
+# restart early, which is safe; the caller treats an empty result as "unknown"
+# and says so.
+get_modem_uptime() {
+    _ku=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+    [ -z "$_ku" ] && return 1
+    _up=$(dmesg 2>/dev/null | \
+          grep -E "remote processor (4080000\.remoteproc|modem) is now up" | \
+          tail -1 | sed -n 's/^\[ *\([0-9][0-9]*\)\..*/\1/p')
+    if [ -n "$_up" ]; then
+        echo "$_up" > /tmp/modem_up_anchor 2>/dev/null
+    else
+        _up=$(cat /tmp/modem_up_anchor 2>/dev/null)
+    fi
+    [ -z "$_up" ] && return 1
+    echo $(( _ku - _up ))
+}
+
+# Android-parity clean-restart node (kernel patch 826). Writing "restart" runs
+# the stop -> power-up pair on a workqueue and returns immediately -- exactly
+# what Android's subsystem_restart framework does for
+# /sys/kernel/debug/msm_subsys/modem. Preferred over the synchronous
+# remoteproc0/state lever below, where a writer blocked inside the q6v5
+# force-stop handshake can be caught by the PMIC watchdog (ledger items
+# 45/47/48: the stop handshake bit the modem's own watchdog, and one such
+# restart reset the AP).
+MSM_SUBSYS_RESTART="/sys/kernel/debug/msm_subsys/modem"
+
+# Restart the modem subsystem. Return 0 once it is running again, 1 if it
+# could not be restarted. Prefers the asynchronous Android-parity node and
+# falls back to the synchronous remoteproc0/state stop/start on a kernel
+# without patch 826.
+modem_restart() {
+    if [ -w "$MSM_SUBSYS_RESTART" ]; then
+        # The node counts COMPLETED restarts, and the write returns before the
+        # workqueue has even run -- so wait for the counter to move instead of
+        # waiting for the state to read "running" (it still is, right now).
+        _before=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
+        echo restart > "$MSM_SUBSYS_RESTART" 2>/dev/null || return 1
+        _k=0
+        while [ "$_k" -lt 60 ]; do
+            _now=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
+            [ -n "$_now" ] && [ "$_now" != "$_before" ] && break
+            sleep 1
+            _k=$((_k + 1))
+        done
+        [ "$_k" -lt 60 ] || return 1
+        return 0
+    fi
+
+    [ -f "$RPROC_STATE" ] || return 1
+    echo stop > "$RPROC_STATE" 2>/dev/null || true
+    _k=0
+    while [ "$_k" -lt 10 ]; do
+        [ "$(cat "$RPROC_STATE" 2>/dev/null)" != "running" ] && break
+        sleep 1
+        _k=$((_k + 1))
+    done
+    echo start > "$RPROC_STATE" 2>/dev/null || true
+    _k=0
+    while [ "$_k" -lt 20 ]; do
+        [ "$(cat "$RPROC_STATE" 2>/dev/null)" = "running" ] && break
+        sleep 1
+        _k=$((_k + 1))
+    done
+    return 0
+}
+
+# Clean modem SSR: restart the subsystem, then restore the data bearer to the
+# state it was in beforehand.  The preemptive path can fire with the bearer
+# DOWN (the deadline needs no data path), so an intentionally-down interface
+# must be left down rather than forced up.
+do_modem_ssr() {
+    _was_up=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)
+    modem_restart || return 1
+    sleep 10
+    [ "$_was_up" = "true" ] || return 0
+    ubus call network.interface.modem up 2>/dev/null || true
+    _k=0
+    while [ "$_k" -lt 25 ]; do
+        _st=$(ubus call network.interface.modem status 2>/dev/null)
+        _u=$(echo "$_st" | jsonfilter -e '@.up' 2>/dev/null)
+        [ "$_u" = "true" ] && break
+        sleep 1
+        _k=$((_k + 1))
+    done
+}
+
 logger -t modem-stall-watchdog "Started modem bearer stall watchdog (Android-equivalent passive mode)"
 # Configure ModemManager for 0s signal polling (unsolicited only, matching Android RIL)
 mmcli -m any --signal-setup=0 >/dev/null 2>&1 || true
@@ -105,6 +241,46 @@ while true; do
         STALL_COUNT=0
         sleep "$CHECK_INTERVAL"
         continue
+    fi
+
+    # 1b. Preemptive SSR — restart the modem subsystem before the ~902.7 s
+    # firmware ERR_FATAL threshold (Model M3: the deadline is armed by a warm
+    # restart and anchored to that restart's epoch, so a restart well under it
+    # re-arms the clock and the fatal never fires).
+    #
+    # ⚠ Deliberately placed BEFORE every bearer check (steps 2/3/5): the deadline
+    # needs NO data path (P-PMOS2; item 78 — a no-traffic boot still fataled at
+    # 900.8 s), so gating this on `IF_UP` would leave a bearer-down modem
+    # unprotected, which is exactly the regime that still fataled.
+    #
+    # Enabled by default: the alternative is a guaranteed crash every ~15 min.
+    #   uci set modem-watchdog.recovery.preemptive_ssr_interval=800
+    #   uci set modem-watchdog.recovery.preemptive_ssr_enabled=0   # disable
+    PREEMPTIVE_SSR_ENABLED=$(uci -q get modem-watchdog.recovery.preemptive_ssr_enabled || echo 1)
+    PREEMPTIVE_SSR_INTERVAL=$(uci -q get modem-watchdog.recovery.preemptive_ssr_interval || echo 800)
+    if [ "$PREEMPTIVE_SSR_ENABLED" = "1" ]; then
+        MU=$(get_modem_uptime)
+        if [ -z "$MU" ]; then
+            # Anchor unknown (dmesg unreadable/evicted and no saved anchor). Warn
+            # once per unknown episode instead of either spamming or skipping
+            # silently — an un-anchored preemptive SSR is a real safety gap.
+            if [ "$MU_UNKNOWN" != "1" ]; then
+                logger -t modem-stall-watchdog "PREEMPTIVE SSR: modem uptime UNKNOWN (no 'is now up' line and no saved anchor); the ~902.7s deadline cannot be pre-empted until this is fixed."
+                MU_UNKNOWN=1
+            fi
+        elif [ "$MU" -ge "$PREEMPTIVE_SSR_INTERVAL" ]; then
+            logger -t modem-stall-watchdog "PREEMPTIVE SSR: modem uptime ${MU}s >= ${PREEMPTIVE_SSR_INTERVAL}s; restarting modem to prevent the ~902.7s ERR_FATAL."
+            MU_UNKNOWN=0
+            do_modem_ssr
+            LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
+            LAST_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+            STALL_COUNT=0
+            PROBE_FAILS=0
+            sleep "$CHECK_INTERVAL"
+            continue
+        else
+            MU_UNKNOWN=0
+        fi
     fi
 
     # 2. Ensure BAM-DMUX maintains 1000ms autosuspend (Phase 5 dynamic DRX power collapse)
@@ -408,27 +584,13 @@ while true; do
                         # resets the modem instead. Without that, the modem's sleep chain
                         # stalls in rpm.sync and the firmware's own watchdog kills it with
                         # "UT detects Q6 PC Voting failure" (surfaced as a2_power.c:1189).
-                        if [ "$(uci -q get modem-watchdog.recovery.ssr_enabled || echo 1)" = "1" ] && [ -f "$RPROC_STATE" ]; then
-                            logger -t modem-stall-watchdog "Stage 3 recovery: remoteproc SSR (stop -> start)..."
-                            echo stop > "$RPROC_STATE" 2>/dev/null || true
-                            i=0
-                            while [ "$i" -lt 10 ]; do
-                                [ "$(cat "$RPROC_STATE" 2>/dev/null)" != "running" ] && break
-                                sleep 1
-                                i=$((i + 1))
-                            done
-                            logger -t modem-stall-watchdog "Remoteproc stopped (state=$(cat "$RPROC_STATE" 2>/dev/null)); restarting..."
-                            echo start > "$RPROC_STATE" 2>/dev/null || true
-                            i=0
-                            while [ "$i" -lt 20 ]; do
-                                [ "$(cat "$RPROC_STATE" 2>/dev/null)" = "running" ] && break
-                                sleep 1
-                                i=$((i + 1))
-                            done
-                            logger -t modem-stall-watchdog "Remoteproc SSR complete (state=$(cat "$RPROC_STATE" 2>/dev/null)); waiting for modem services..."
+                        if [ "$(uci -q get modem-watchdog.recovery.ssr_enabled || echo 1)" = "1" ] && { [ -w "$MSM_SUBSYS_RESTART" ] || [ -f "$RPROC_STATE" ]; }; then
+                            logger -t modem-stall-watchdog "Stage 3 recovery: modem restart (stop -> start)..."
+                            modem_restart
+                            logger -t modem-stall-watchdog "Modem restart complete (state=$(cat "$RPROC_STATE" 2>/dev/null)); waiting for modem services..."
                             sleep 10
                         else
-                            logger -t modem-stall-watchdog "Stage 3 SSR disabled (modem-watchdog.recovery.ssr_enabled=0 or $RPROC_STATE missing); preserving state."
+                            logger -t modem-stall-watchdog "Stage 3 SSR disabled (modem-watchdog.recovery.ssr_enabled=0 or no restart lever present); preserving state."
                         fi
 
                         # Bring the bearer back up explicitly (the interface was taken down above).

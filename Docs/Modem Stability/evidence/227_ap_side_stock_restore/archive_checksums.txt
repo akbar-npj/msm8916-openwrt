@@ -1,0 +1,2 @@
+9ade395009dc241dfbe9b1c5da5e0de7c52ec7f2209c7fbebb5279e66509db83  scratch/pre_state_firmware_227.tar.gz
+bc48529cda6772c4956f66a72a5a38a6c5c47ce80ba0df057750bafd70fd5699  scratch/stock_set_227.tar.gz

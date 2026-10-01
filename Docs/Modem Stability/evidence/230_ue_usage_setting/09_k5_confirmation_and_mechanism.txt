@@ -1,0 +1,142 @@
+================================================================================
+09 — THE k=5 BEAT CONFIRMATION, THE DECODED CRASH STRINGS, AND THE COUNTER MODEL
+     (Doc 230 §7.9; 2026-09-28)
+================================================================================
+
+CONTEXT
+-------
+This file records (a) the fifth consecutive confirmation of the AP-anchored clock,
+(b) the *first* decoding of the modem's own crash strings for the MCPM supervisor
+that produces this fault, and (c) the resulting counter model — which changes what
+counts as a "fix".
+
+All of (a)–(c) were obtained WITHOUT touching the modem firmware (pristine stock)
+and without a kernel rebuild.  The only device action was passive observation plus
+the already-deployed arm-3 NV write.
+
+--------------------------------------------------------------------------------
+1. FATAL #5 — THE CLOCK, FIFTH CONFIRMATION
+--------------------------------------------------------------------------------
+
+AP uptime of every fatal in this boot (dmesg, `qcom-q6v5-mss ... fatal error received`):
+
+  #1  1023.608588   a2_power.c:1189              (the "late" site)
+  #2  1926.966036   lte_ml1_common_timer.c:390
+  #3  2830.641649   lte_ml1_common_timer.c:390
+  #4  3734.316776   lte_ml1_common_timer.c:390
+  #5  4637.991885   lte_ml1_common_timer.c:390   <-- NEW (this file)
+
+Free-running clock:  beat(k) = 119.615624 + k * 903.675206   s
+
+  k   predicted          observed          residual
+  --  -----------------  ----------------  ---------
+  1   1023.290830        1023.608588       +0.317758   (a2_power = a DIFFERENT site)
+  2   1926.966036        1926.966036        0.000000
+  3   2830.641242        2830.641649       +0.000407
+  4   3734.316448        3734.316776       +0.000328
+  5   4637.991654        4637.991885       +0.000231   <-- NEW
+
+=> FOUR exact points (k=2..5) within 0.41 ms across a 2711 s span.  The clock is
+   AP/AON-anchored and is now confirmed at n=5.  Re-solving P from k=2..5 gives
+   903.6752 s (agreement with the established value < 1 ppm).
+
+--------------------------------------------------------------------------------
+2. THE MODEM'S OWN CRASH STRINGS (decoded from the stock ELF, seg b16)
+--------------------------------------------------------------------------------
+
+`strings modem_hmu05_stock.elf` yields the MCPM/UT supervisor's own messages.
+These had not previously been resolved to their branch sites:
+
+  "%s HARD_FAIL #%u[%u] sleep count not incrmnt, tis 0x%x NStis 0x%x TTR 0x%x
+      sysAslp %u slptime %u slpcnt l:%u c:%u"
+  "%s Current time %lx: UT detects Q6 PC Voting failure"          <-- OUR fault
+  "%s #%u[%u] check rpm vdd min count, tis 0x%x NStis 0x%x TTR 0x%x sysAslp %u
+      slptime %u vminslpcnt l:%u c:%u"
+  "%s #%u[%u] RPM vdd min fails %u, check for issues on RPM"
+  "%s Current time %lx: UT detected RPM VDD MIN failure!"
+  "%s Sending vdd min debug interrupt to RPM!"
+  "%s #%u[%u] RPM Stats: vdd min count %u, xosd count %u"
+  "0x%x%08x  ::::UT flags 0x%x/0x%x/0x%x, techs executed 0x%x,
+      counts: Q6 PC %u RPM Vddmin %u"
+
+=> There is ONE supervisor ("UT") with TWO supervised counters:
+     (i)  the modem's own per-tech **sleep count**   -> "Q6 PC Voting failure"
+     (ii) the RPM's **vdd min count**                -> "RPM VDD MIN failure"
+   Our fault is (i).  `slpcnt l:%u c:%u` = last vs current sleep count; the failure
+   condition is literally "current did not advance past last".
+
+`FUN_c0ce7fe0` @ 0xc0ce7fe0 (seg b16) is the checker.  Threshold constants seen in
+its branch logic: 0x1c3 = 451 (twice) on the soft/vdd-min path; the crash branch is
+reached via the min-over-active-techs helper and the min-elapsed-since-sleep helper.
+The per-tech counters are:
+    DAT_c30fda28[tech]  <- written from FUN_c0ce7a50()   (the sleep count)
+    DAT_c30fda68[tech]  <- written from a scaled time value
+    DAT_c30fdaa8[tech]  <- 64-bit "last sleep timestamp" (read by FUN_c0ce7e58)
+and the ACTIVE-tech mask is `gp+0x3e80 | gp+0x3e84`.
+
+--------------------------------------------------------------------------------
+3. THE COUNTER MODEL — and what it implies for "a fix"
+--------------------------------------------------------------------------------
+
+Modem uptime at each fatal (fatal AP time minus the PREVIOUS "MBA booted" AP time):
+
+  #2  1926.966036 - 1023.750671 = 903.215365 s
+  #3  2830.641649 - 1927.113304 = 903.528345 s
+  #4  3734.316776 - 2830.788737 = 903.528039 s
+  #5  4637.991885 - 3734.464778 = 903.527107 s
+                                   ^^^^^^^^^^  #3/#4/#5 agree to 1.2 ms
+
+=> The modem's own counter needs **~903.527 s of unbroken uptime**.  It is reset by
+   re-initialising the modem (each SSR gives exactly one fresh interval — this is
+   also why hongho55's controlled `remoteproc0` restart "reset the failure epoch").
+
+CONSEQUENCE (important, and it bounds what an AP-side fix can be):
+
+  * A modem re-init BEFORE ~903.5 s provably prevents the fatal (the counter never
+    reaches threshold).  This is the ONLY mechanism-grounded AP-side prevention.
+  * BUT the crash itself already performs exactly that re-init at the deadline, at a
+    measured cost of ~16 s of data outage (the userspace bearer rebuild, patch 0005).
+    A scheduled re-init at 800 s gives 800/903.5 = 88.5 % modem-up time; the crash
+    gives 903.5/(903.5+16) = 98.3 %.  **So a same-cost scheduled re-init is WORSE
+    for uptime than the crash it prevents.**
+  * => An AP-side fix is only an improvement if the re-init is CHEAPER than the
+    crash's ~16 s.  That is the open question tested by arm 5 (`--dms-set-operating-
+    mode=reset`): does a QMI DMS reset re-arm the counter, and at what cost?
+
+--------------------------------------------------------------------------------
+4. RULED OUT THIS SESSION (do not re-open)
+--------------------------------------------------------------------------------
+
+  * **AT command path is dead on this modem.**  `/root/at_cfun.log` (pre-existing):
+        AT+CFUN=1  ->  +CME ERROR: phone failure     (twice)
+    So the standard reversible `CFUN=0/1` lever is NOT available.  Do not retry AT.
+  * **The RPM's VDD-MIN / XOSD path is not a differential.**  Measured on the live
+    device: `struct rpm_master_stats` `xo_count` is at +0x34 (from
+    `drivers/soc/qcom/rpm_master_stats.c`), and
+        APSS   0x60150: num_shutdowns 0, xo_count 0, every field 0
+        MPSS   0x61150: num_shutdowns 0x1ADC (6876), xo_count 0x1885 (6277)
+        PRONTO 0x62150: num_shutdowns 0x0E (14),  xo_count 0x0E (14)
+    The APSS-never-sleeps result looks dramatic but is **already known dead**: the
+    Android control shows `/d/rpm_stats` `xosd count:0, vmin count:0` as well
+    (`project_android_ap_is_an_rpm_client.md` §"CLOSED as a negative").  Neither
+    platform ever enters VMIN/XOSD.  Not a differential; do not re-open.
+  * **CONFIG_INTERCONNECT_QCOM is unset and msm8916.dtsi has no CPU `interconnects`.**
+    Verified in the tree (`# CONFIG_INTERCONNECT_QCOM is not set`;
+    `cpu@0` has no `interconnects`; the providers `bimc`/`pcnoc`/`snoc` DO exist with
+    `#interconnect-cells = <1>`).  This confirms the P-B1 precondition exactly: the
+    providers exist but there is no consumer, so enabling the config alone is inert.
+  * **The 902.470 s "epoch gap" is not a period** (already recorded): it is
+    lifetime-to-fatal + post-fatal tail; the modem's RTC stops with the modem.
+
+--------------------------------------------------------------------------------
+5. NEXT
+--------------------------------------------------------------------------------
+
+  * arm 3 (`c2k_switch_2_srlte = 0x00`) — epoch 6, booted AP 4638.146758; verdict at
+    the k=6 beat AP 5541.666860, or "> 1200 s + still attached" at AP ~5838.
+  * arm 4 (`/sd/rat_acq_order` minus CDMA) — staged, not applied.
+  * arm 5 (`--dms-set-operating-mode=reset`) — NEW; tests whether a QMI reset re-arms
+    the counter at a cost below the crash's ~16 s.
+  * P-B1 — still the last untested structural axis; needs a kernel build.
+
+================================================================================

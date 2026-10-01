@@ -1,0 +1,35 @@
+Verifying: scratch/diag_patch/image_patched
+  e_phnum=27  b00_size=916  mdt=b00+b01 ✓
+
+  Seg   b01_off   mdt_off  Status
+  -----------------------------------------------------------------
+    0  0x000028  0x0003bc  MATCH ✓
+    1  0x000048  0x0003dc  ZERO (BSS/no file)
+    2  0x000068  0x0003fc  MATCH ✓
+    3  0x000088  0x00041c  MATCH ✓
+    4  0x0000a8  0x00043c  MATCH ✓
+    5  0x0000c8  0x00045c  MATCH ✓
+    6  0x0000e8  0x00047c  ZERO (BSS/no file)
+    7  0x000108  0x00049c  ZERO (BSS/no file)
+    8  0x000128  0x0004bc  MATCH ✓
+    9  0x000148  0x0004dc  ZERO (BSS/no file)
+   10  0x000168  0x0004fc  MATCH ✓
+   11  0x000188  0x00051c  MATCH ✓
+   12  0x0001a8  0x00053c  ZERO (BSS/no file)
+   13  0x0001c8  0x00055c  MATCH ✓
+   14  0x0001e8  0x00057c  MATCH ✓
+   15  0x000208  0x00059c  MATCH ✓
+   16  0x000228  0x0005bc  MATCH ✓
+   17  0x000248  0x0005dc  MATCH ✓
+   18  0x000268  0x0005fc  MATCH ✓
+   19  0x000288  0x00061c  MATCH ✓
+   20  0x0002a8  0x00063c  ZERO (BSS/no file)
+   21  0x0002c8  0x00065c  ZERO (BSS/no file)
+   22  0x0002e8  0x00067c  MATCH ✓
+   23  0x000308  0x00069c  MATCH ✓
+   24  0x000328  0x0006bc  MATCH ✓
+   25  0x000348  0x0006dc  MATCH ✓
+   26  0x000368  0x0006fc  ZERO (BSS/no file)
+
+  Results: 19 MATCH  8 ZERO/BSS  0 MISSING  0 MISMATCH
+  Overall: PASS ✓

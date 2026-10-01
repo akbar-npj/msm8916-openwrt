@@ -1,0 +1,274 @@
+coredump : scratch/android_dump/v9_event.elf  (66760704 B, 21 phdrs)
+ring VA  : 0xc1455000  ->  phys 0x87c55000
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  +0x00 magic     = 0xc1455000   (expect 0xc1455000)
+  +0x04 count     = 11322
+  +0x08 arm_total = 565
+  +0x0c cb_total  = 10757   (ALL callbacks, filtered or not)
+
+  === 128 entries in the ring: 127 ARM, 1 CALLBACK ===
+  filter selectivity: 1 recorded CB of 10757 total = 0.01%  (the ring holds the last 128)
+   seq      kind  detail
+   4602     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   5977     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9162     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9369     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9383     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9436     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9457     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9486     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9548     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9628     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9715     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9760     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9797     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9834     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9863     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9893     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9936     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9952     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   9959     ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10025    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10039    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10092    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10100    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10107    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10114    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10129    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10136    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10143    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10157    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10173    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10180    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10194    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10210    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10217    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10297    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10328    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10335    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10350    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10364    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10371    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10378    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10416    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10432    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10439    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10453    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10461    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10468    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10497    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10505    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10512    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10519    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10526    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10534    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10542    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10549    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10556    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10563    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10571    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10579    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10608    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10616    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10623    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10630    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10645    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10667    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10674    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10689    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10696    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10703    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10710    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10726    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10742    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10765    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10772    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10786    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10794    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10801    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10808    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10815    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10830    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10839    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10846    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10853    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10861    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10869    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10877    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10884    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10891    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10898    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10906    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10913    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10920    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10927    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10934    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10942    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10950    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10957    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10964    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10971    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10979    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10987    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   10994    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11001    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11008    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11016    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11023    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11030    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11037    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11044    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11052    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11060    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11067    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11074    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11081    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11089    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11098    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11105    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11112    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11119    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11127    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11134    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11141    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11148    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11155    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11163    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11171    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11315    ARM   caller=A(mobility FUN_c032685c)   r2=1
+   11322    CB    ctx=0xc2150f38 state=20  expiry_lo=0x6bd284e6
+
+  seq span in ring: 4602 .. 11322
+
+  === ARM -> following CALLBACKs (any recorded CB is an ML1 ctx, state 20..28) ===
+   arm_seq  caller                     #CB_after  first CB at   first state-20 at
+   4602     A(mobility FUN_c032685c)   30         -             -
+   5977     A(mobility FUN_c032685c)   30         -             -
+   9162     A(mobility FUN_c032685c)   30         -             -
+   9369     A(mobility FUN_c032685c)   30         -             -
+   9383     A(mobility FUN_c032685c)   30         -             -
+   9436     A(mobility FUN_c032685c)   30         -             -
+   9457     A(mobility FUN_c032685c)   30         -             -
+   9486     A(mobility FUN_c032685c)   30         -             -
+   9548     A(mobility FUN_c032685c)   30         -             -
+   9628     A(mobility FUN_c032685c)   30         -             -
+   9715     A(mobility FUN_c032685c)   30         -             -
+   9760     A(mobility FUN_c032685c)   30         -             -
+   9797     A(mobility FUN_c032685c)   30         -             -
+   9834     A(mobility FUN_c032685c)   30         -             -
+   9863     A(mobility FUN_c032685c)   30         -             -
+   9893     A(mobility FUN_c032685c)   30         -             -
+   9936     A(mobility FUN_c032685c)   30         -             -
+   9952     A(mobility FUN_c032685c)   30         -             -
+   9959     A(mobility FUN_c032685c)   30         -             -
+   10025    A(mobility FUN_c032685c)   30         -             -
+   10039    A(mobility FUN_c032685c)   30         -             -
+   10092    A(mobility FUN_c032685c)   30         -             -
+   10100    A(mobility FUN_c032685c)   30         -             -
+   10107    A(mobility FUN_c032685c)   30         -             -
+   10114    A(mobility FUN_c032685c)   30         -             -
+   10129    A(mobility FUN_c032685c)   30         -             -
+   10136    A(mobility FUN_c032685c)   30         -             -
+   10143    A(mobility FUN_c032685c)   30         -             -
+   10157    A(mobility FUN_c032685c)   30         -             -
+   10173    A(mobility FUN_c032685c)   30         -             -
+   10180    A(mobility FUN_c032685c)   30         -             -
+   10194    A(mobility FUN_c032685c)   30         -             -
+   10210    A(mobility FUN_c032685c)   30         -             -
+   10217    A(mobility FUN_c032685c)   30         -             -
+   10297    A(mobility FUN_c032685c)   30         -             -
+   10328    A(mobility FUN_c032685c)   30         -             -
+   10335    A(mobility FUN_c032685c)   30         -             -
+   10350    A(mobility FUN_c032685c)   30         -             -
+   10364    A(mobility FUN_c032685c)   30         -             -
+   10371    A(mobility FUN_c032685c)   30         -             -
+   10378    A(mobility FUN_c032685c)   30         -             -
+   10416    A(mobility FUN_c032685c)   30         -             -
+   10432    A(mobility FUN_c032685c)   30         -             -
+   10439    A(mobility FUN_c032685c)   30         -             -
+   10453    A(mobility FUN_c032685c)   30         -             -
+   10461    A(mobility FUN_c032685c)   30         -             -
+   10468    A(mobility FUN_c032685c)   30         -             -
+   10497    A(mobility FUN_c032685c)   30         -             -
+   10505    A(mobility FUN_c032685c)   30         -             -
+   10512    A(mobility FUN_c032685c)   30         -             -
+   10519    A(mobility FUN_c032685c)   30         -             -
+   10526    A(mobility FUN_c032685c)   30         -             -
+   10534    A(mobility FUN_c032685c)   30         -             -
+   10542    A(mobility FUN_c032685c)   30         -             -
+   10549    A(mobility FUN_c032685c)   30         -             -
+   10556    A(mobility FUN_c032685c)   30         -             -
+   10563    A(mobility FUN_c032685c)   30         -             -
+   10571    A(mobility FUN_c032685c)   30         -             -
+   10579    A(mobility FUN_c032685c)   30         -             -
+   10608    A(mobility FUN_c032685c)   30         -             -
+   10616    A(mobility FUN_c032685c)   30         -             -
+   10623    A(mobility FUN_c032685c)   30         -             -
+   10630    A(mobility FUN_c032685c)   30         -             -
+   10645    A(mobility FUN_c032685c)   30         -             -
+   10667    A(mobility FUN_c032685c)   30         -             -
+   10674    A(mobility FUN_c032685c)   30         -             -
+   10689    A(mobility FUN_c032685c)   30         -             -
+   10696    A(mobility FUN_c032685c)   30         -             -
+   10703    A(mobility FUN_c032685c)   30         -             -
+   10710    A(mobility FUN_c032685c)   30         -             -
+   10726    A(mobility FUN_c032685c)   30         -             -
+   10742    A(mobility FUN_c032685c)   30         -             -
+   10765    A(mobility FUN_c032685c)   30         -             -
+   10772    A(mobility FUN_c032685c)   30         -             -
+   10786    A(mobility FUN_c032685c)   30         -             -
+   10794    A(mobility FUN_c032685c)   30         -             -
+   10801    A(mobility FUN_c032685c)   30         -             -
+   10808    A(mobility FUN_c032685c)   30         -             -
+   10815    A(mobility FUN_c032685c)   30         -             -
+   10830    A(mobility FUN_c032685c)   30         -             -
+   10839    A(mobility FUN_c032685c)   30         -             -
+   10846    A(mobility FUN_c032685c)   30         -             -
+   10853    A(mobility FUN_c032685c)   30         -             -
+   10861    A(mobility FUN_c032685c)   30         -             -
+   10869    A(mobility FUN_c032685c)   30         -             -
+   10877    A(mobility FUN_c032685c)   30         -             -
+   10884    A(mobility FUN_c032685c)   30         -             -
+   10891    A(mobility FUN_c032685c)   30         -             -
+   10898    A(mobility FUN_c032685c)   30         -             -
+   10906    A(mobility FUN_c032685c)   30         -             -
+   10913    A(mobility FUN_c032685c)   30         -             -
+   10920    A(mobility FUN_c032685c)   30         -             -
+   10927    A(mobility FUN_c032685c)   30         -             -
+   10934    A(mobility FUN_c032685c)   30         -             -
+   10942    A(mobility FUN_c032685c)   30         -             -
+   10950    A(mobility FUN_c032685c)   30         -             -
+   10957    A(mobility FUN_c032685c)   30         -             -
+   10964    A(mobility FUN_c032685c)   30         +358          +358
+   10971    A(mobility FUN_c032685c)   29         +351          +351
+   10979    A(mobility FUN_c032685c)   28         +343          +343
+   10987    A(mobility FUN_c032685c)   27         +335          +335
+   10994    A(mobility FUN_c032685c)   26         +328          +328
+   11001    A(mobility FUN_c032685c)   25         +321          +321
+   11008    A(mobility FUN_c032685c)   24         +314          +314
+   11016    A(mobility FUN_c032685c)   23         +306          +306
+   11023    A(mobility FUN_c032685c)   22         +299          +299
+   11030    A(mobility FUN_c032685c)   21         +292          +292
+   11037    A(mobility FUN_c032685c)   20         +285          +285
+   11044    A(mobility FUN_c032685c)   19         +278          +278
+   11052    A(mobility FUN_c032685c)   18         +270          +270
+   11060    A(mobility FUN_c032685c)   17         +262          +262
+   11067    A(mobility FUN_c032685c)   16         +255          +255
+   11074    A(mobility FUN_c032685c)   15         +248          +248
+   11081    A(mobility FUN_c032685c)   14         +241          +241
+   11089    A(mobility FUN_c032685c)   13         +233          +233
+   11098    A(mobility FUN_c032685c)   12         +224          +224
+   11105    A(mobility FUN_c032685c)   11         +217          +217
+   11112    A(mobility FUN_c032685c)   10         +210          +210
+   11119    A(mobility FUN_c032685c)   9          +203          +203
+   11127    A(mobility FUN_c032685c)   8          +195          +195
+   11134    A(mobility FUN_c032685c)   7          +188          +188
+   11141    A(mobility FUN_c032685c)   6          +181          +181
+   11148    A(mobility FUN_c032685c)   5          +174          +174
+   11155    A(mobility FUN_c032685c)   4          +167          +167
+   11163    A(mobility FUN_c032685c)   3          +159          +159
+   11171    A(mobility FUN_c032685c)   2          +151          +151
+   11315    A(mobility FUN_c032685c)   1          +7            +7
+
+  callback state histogram (in ring): 20:1

@@ -1,0 +1,128 @@
+# qcom_bam_dmux A2/PC telemetry across the AP 2830.641649 beat (fatal #3)
+# Sampled every 5 s by scratch/arm2/telemetry_log.sh on the device.
+# Window: AP 2740 -> 2965 (the fatal at AP 2830.641649, dmesg [ 2830.641649]).
+
+AP   2740.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=54579 timeout=1 susp=88/91 suspended
+AP   2745.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=59587 timeout=1 susp=88/91 suspended
+AP   2750.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=64596 timeout=1 susp=88/91 suspended
+AP   2755.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=69605 timeout=1 susp=88/91 suspended
+AP   2760.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=74615 timeout=1 susp=88/91 suspended
+AP   2765.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=79624 timeout=1 susp=88/91 suspended
+AP   2770.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=84637 timeout=1 susp=88/91 suspended
+AP   2775.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=89646 timeout=1 susp=88/91 suspended
+AP   2780.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=94655 timeout=1 susp=88/91 suspended
+AP   2785.7  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=99663 timeout=1 susp=88/91 suspended
+AP   2790.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=104675 timeout=1 susp=88/91 suspended
+AP   2795.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=109683 timeout=1 susp=88/91 suspended
+AP   2800.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=114695 timeout=1 susp=88/91 suspended
+AP   2805.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=119703 timeout=1 susp=88/91 suspended
+AP   2810.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=124714 timeout=1 susp=88/91 suspended
+AP   2815.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=129723 timeout=1 susp=88/91 suspended
+AP   2820.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=134731 timeout=1 susp=88/91 suspended
+AP   2825.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=139740 timeout=1 susp=88/91 suspended
+AP   2830.8  pc_state=0 line=0 irq=186 ack=180 quiesce_ms=144748 timeout=1 susp=88/91 other
+AP   2835.8  pc_state=0 line=0 irq=188 ack=182 quiesce_ms=1969 timeout=1 susp=89/92 suspended
+AP   2840.8  pc_state=0 line=0 irq=188 ack=182 quiesce_ms=6978 timeout=1 susp=89/92 suspended
+AP   2845.8  pc_state=0 line=0 irq=188 ack=182 quiesce_ms=11989 timeout=1 susp=89/92 suspended
+AP   2850.9  pc_state=0 line=0 irq=188 ack=182 quiesce_ms=16998 timeout=1 susp=89/92 suspended
+AP   2855.9  pc_state=0 line=0 irq=188 ack=182 quiesce_ms=22006 timeout=1 susp=89/92 suspended
+AP   2860.9  pc_state=0 line=0 irq=188 ack=182 quiesce_ms=27015 timeout=1 susp=89/92 suspended
+AP   2865.9  pc_state=1 line=1 irq=189 ack=184 quiesce_ms=0 timeout=1 susp=89/93 suspended
+AP   2870.9  pc_state=0 line=0 irq=190 ack=184 quiesce_ms=4361 timeout=1 susp=90/93 suspended
+AP   2875.9  pc_state=0 line=0 irq=190 ack=184 quiesce_ms=9370 timeout=1 susp=90/93 suspended
+AP   2880.9  pc_state=0 line=0 irq=190 ack=184 quiesce_ms=14379 timeout=1 susp=90/93 suspended
+AP   2885.9  pc_state=0 line=0 irq=192 ack=186 quiesce_ms=2582 timeout=1 susp=91/94 suspended
+AP   2890.9  pc_state=0 line=0 irq=192 ack=186 quiesce_ms=7590 timeout=1 susp=91/94 suspended
+AP   2895.9  pc_state=1 line=1 irq=193 ack=188 quiesce_ms=0 timeout=1 susp=91/95 suspended
+AP   2900.9  pc_state=0 line=0 irq=194 ack=188 quiesce_ms=4624 timeout=1 susp=92/95 suspended
+AP   2906.0  pc_state=0 line=0 irq=194 ack=188 quiesce_ms=9632 timeout=1 susp=92/95 suspended
+AP   2911.0  pc_state=0 line=0 irq=194 ack=188 quiesce_ms=14641 timeout=1 susp=92/95 suspended
+AP   2916.0  pc_state=0 line=0 irq=194 ack=188 quiesce_ms=19649 timeout=1 susp=92/95 suspended
+AP   2921.0  pc_state=0 line=0 irq=194 ack=188 quiesce_ms=24658 timeout=1 susp=92/95 suspended
+AP   2926.0  pc_state=1 line=1 irq=195 ack=189 quiesce_ms=0 timeout=1 susp=92/95 active
+AP   2931.0  pc_state=0 line=0 irq=196 ack=190 quiesce_ms=3387 timeout=1 susp=93/96 suspended
+AP   2936.0  pc_state=0 line=0 irq=196 ack=190 quiesce_ms=8395 timeout=1 susp=93/96 suspended
+AP   2941.0  pc_state=0 line=0 irq=196 ack=190 quiesce_ms=13404 timeout=1 susp=93/96 suspended
+AP   2946.0  pc_state=0 line=0 irq=198 ack=192 quiesce_ms=202 timeout=1 susp=94/97 suspended
+AP   2951.0  pc_state=0 line=0 irq=198 ack=192 quiesce_ms=5211 timeout=1 susp=94/97 suspended
+AP   2956.1  pc_state=0 line=0 irq=198 ack=192 quiesce_ms=10219 timeout=1 susp=94/97 suspended
+AP   2961.1  pc_state=0 line=0 irq=198 ack=192 quiesce_ms=15228 timeout=1 susp=94/97 suspended
+
+=== the recurring quiesce structure (whole capture) ===
+# long freezes (>45 s) and resets, to show that a 145 s collapse is NOT unique to the fatal
+AP   2244.7 quiesce=  47698 LONG_FREEZE
+AP   2249.7 quiesce=  52705 LONG_FREEZE
+AP   2254.7 quiesce=  57714 LONG_FREEZE
+AP   2259.7 quiesce=  62723 LONG_FREEZE
+AP   2264.7 quiesce=  67731 LONG_FREEZE
+AP   2269.8 quiesce=  72741 LONG_FREEZE
+AP   2274.8 quiesce=  77754 LONG_FREEZE
+AP   2279.8 quiesce=  82763 LONG_FREEZE
+AP   2284.8 quiesce=  87774 LONG_FREEZE
+AP   2289.8 quiesce=  92783 LONG_FREEZE
+AP   2294.8 quiesce=  97794 LONG_FREEZE
+AP   2299.8 quiesce= 102803 LONG_FREEZE
+AP   2304.8 quiesce= 107812 LONG_FREEZE
+AP   2309.8 quiesce= 112824 LONG_FREEZE
+AP   2314.8 quiesce= 117833 LONG_FREEZE
+AP   2319.8 quiesce= 122844 LONG_FREEZE
+AP   2324.9 quiesce= 127853 LONG_FREEZE
+AP   2329.9 quiesce=    173 reset
+AP   2359.9 quiesce=      0 reset
+AP   2405.0 quiesce=      0 reset
+AP   2420.0 quiesce=      0 reset
+AP   2470.1 quiesce=  48753 LONG_FREEZE
+AP   2475.2 quiesce=  53761 LONG_FREEZE
+AP   2480.2 quiesce=  58771 LONG_FREEZE
+AP   2485.2 quiesce=  63780 LONG_FREEZE
+AP   2490.2 quiesce=  68788 LONG_FREEZE
+AP   2495.2 quiesce=  73799 LONG_FREEZE
+AP   2500.2 quiesce=  78808 LONG_FREEZE
+AP   2505.2 quiesce=  83816 LONG_FREEZE
+AP   2510.2 quiesce=  88824 LONG_FREEZE
+AP   2515.2 quiesce=  93833 LONG_FREEZE
+AP   2520.2 quiesce=  98841 LONG_FREEZE
+AP   2525.2 quiesce= 103849 LONG_FREEZE
+AP   2530.2 quiesce= 108858 LONG_FREEZE
+AP   2535.2 quiesce= 113866 LONG_FREEZE
+AP   2540.3 quiesce= 118878 LONG_FREEZE
+AP   2545.3 quiesce= 123889 LONG_FREEZE
+AP   2550.3 quiesce= 128897 LONG_FREEZE
+AP   2555.3 quiesce= 133908 LONG_FREEZE
+AP   2560.3 quiesce= 138917 LONG_FREEZE
+AP   2565.3 quiesce= 143926 LONG_FREEZE
+AP   2570.3 quiesce= 148936 LONG_FREEZE
+AP   2575.3 quiesce= 153945 LONG_FREEZE
+AP   2580.3 quiesce= 158955 LONG_FREEZE
+AP   2585.3 quiesce= 163964 LONG_FREEZE
+AP   2590.4 quiesce= 168973 LONG_FREEZE
+AP   2595.4 quiesce=      0 reset
+AP   2625.4 quiesce=      0 reset
+AP   2665.5 quiesce=      0 reset
+AP   2685.6 quiesce=      0 reset
+AP   2735.7 quiesce=  49570 LONG_FREEZE
+AP   2740.7 quiesce=  54579 LONG_FREEZE
+AP   2745.7 quiesce=  59587 LONG_FREEZE
+AP   2750.7 quiesce=  64596 LONG_FREEZE
+AP   2755.7 quiesce=  69605 LONG_FREEZE
+AP   2760.7 quiesce=  74615 LONG_FREEZE
+AP   2765.7 quiesce=  79624 LONG_FREEZE
+AP   2770.7 quiesce=  84637 LONG_FREEZE
+AP   2775.7 quiesce=  89646 LONG_FREEZE
+AP   2780.7 quiesce=  94655 LONG_FREEZE
+AP   2785.7 quiesce=  99663 LONG_FREEZE
+AP   2790.8 quiesce= 104675 LONG_FREEZE
+AP   2795.8 quiesce= 109683 LONG_FREEZE
+AP   2800.8 quiesce= 114695 LONG_FREEZE
+AP   2805.8 quiesce= 119703 LONG_FREEZE
+AP   2810.8 quiesce= 124714 LONG_FREEZE
+AP   2815.8 quiesce= 129723 LONG_FREEZE
+AP   2820.8 quiesce= 134731 LONG_FREEZE
+AP   2825.8 quiesce= 139740 LONG_FREEZE
+AP   2830.8 quiesce= 144748 LONG_FREEZE
+AP   2835.8 quiesce=   1969 reset
+AP   2865.9 quiesce=      0 reset
+AP   2885.9 quiesce=   2582 reset
+AP   2895.9 quiesce=      0 reset
+AP   2926.0 quiesce=      0 reset
+AP   2946.0 quiesce=    202 reset

@@ -1,0 +1,217 @@
+================================================================================
+ARM 5 (QMI DMS reset) and ARM 3 (c2k_switch_2_srlte=0) — BOTH FALSIFIED
+plus: the n=6 clock fit, the AP-PM closure, and a NEW contradiction in the
+      current crash-path attribution
+================================================================================
+Date:        2026-09-28
+Device:      HMU05 serial c2b9103c, OpenWrt 25.12.5, kernel 6.12.94 aarch64
+Evidence by: evidence/230_ue_usage_setting/09_k5_confirmation_and_mechanism.txt
+             (the k=5 confirmation + the counter model this file extends)
+
+--------------------------------------------------------------------------------
+1. ARM 5 — QMI DMS `reset` — **FALSIFIED**
+--------------------------------------------------------------------------------
+Pre-registration (verbatim, scratch/arm2/arm5_reset.sh):
+  "H3 the fatal is SKIPPED at the beat predicted from the pre-reset modem boot
+   (predicted AP = 119.615624 + k*903.675206 for the next k), and the next fatal
+   lands ~903.675 s after the reset instead. ... FALSIFIER: a fatal at the
+   originally-predicted beat => the reset did NOT re-arm the counter."
+
+Applied at AP 5069 (epoch 6 booted AP 4638.147):
+    [/dev/wwan0qmi0] Operating mode set successfully
+    reset rc=0 at AP=5070
+    t+2s AP=5072  |  packet service state: attached
+    reset-to-attached = 3 s
+    Mode: 'online'
+
+Predicted k=6 beat (AP clock model):      5541.666860
+Observed fatal (dmesg):                   5541.666965   lte_ml1_common_timer.c:390
+Residual:                                 +0.000105 s
+
+VERDICT: **FALSIFIED.** The QMI DMS `reset` did NOT re-arm the modem's stall
+counter. Corroborating evidence that it never re-initialised the modem: NO
+`remoteproc0: recovering` and NO `MBA booted` line appeared at AP 5069 — the
+modem's AP-visible boot epoch was untouched. (A full SSR *does* reset the epoch;
+the earlier counter model was derived from SSRs only.)
+
+--------------------------------------------------------------------------------
+2. ARM 3 — `c2k_switch_2_srlte = 0x00` — **FALSIFIED**
+--------------------------------------------------------------------------------
+Arm 3 was read back as `00` at the start of epoch 6 and was in effect for the
+whole epoch. The epoch-6 fatal fired at the predicted beat (above).
+=> the CDMA/SRLTE tech is NOT the stalling tech. The "CDMA/1x is the never-
+   sleeping tech" lead is dead in this form.
+
+--------------------------------------------------------------------------------
+3. THE CLOCK — n=6
+--------------------------------------------------------------------------------
+Fatal AP times (dmesg `fatal error received`):
+  k=1  1023.608588   a2_power.c:1189
+  k=2  1926.966036   lte_ml1_common_timer.c:390
+  k=3  2830.641649   lte_ml1_common_timer.c:390
+  k=4  3734.316776   lte_ml1_common_timer.c:390
+  k=5  4637.991885   lte_ml1_common_timer.c:390
+  k=6  5541.666965   lte_ml1_common_timer.c:390
+
+Least-squares fit of t(k) = A + k*P over k=2..6 (the lte_ml1 site):
+    A = 119.615825 s      P = 903.6752094 s
+    residuals:  -0.000207 / +0.000196 / +0.000114 / +0.000013 / -0.000116 s
+    => five points within 0.21 ms across a 3614 s span.
+
+Inter-fatal deltas (s):
+    k=1->2  903.357448   <-- the a2_power.c:1189 site fires 0.318 s EARLY
+    k=2->3  903.675613
+    k=3->4  903.675127
+    k=4->5  903.675109
+    k=5->6  903.675080
+
+=> P converges to ~903.6751 s. The a2_power.c:1189 fatal is a distinct, ~0.318 s
+   EARLIER event on the same clock — the two reported sites are not simultaneous.
+
+Period decomposition (informational, not proven):
+    903.6751 / 400  = 2.25919 s      (the LPR doc's "400 cycles" reading)
+    903.6751 / 353  = 2.5600  s      (353 = one LTE DRX 2.56 s cycle count)
+    903.6751 / 1412 = 0.64000 s
+    903.68 = 353 x 2.56 = 1412 x 0.64 ; observed P is 903.68 - 4.79 ms (-5.3 ppm)
+
+--------------------------------------------------------------------------------
+4. AP-SIDE POWER MANAGEMENT — measured, and CLOSED
+--------------------------------------------------------------------------------
+Deployed runtime PM (live):
+    bam-dmux  power/control = auto    power/autosuspend_delay_ms = 1000
+    bam-dmux  power/runtime_status = suspended
+    remoteproc0 power/control = auto
+Source: msm89xx/base-files/etc/init.d/hmu05-modem-pm (control=auto, delay=1000)
+Watchdog re-asserts the same on every interval:
+    msm89xx/base-files/usr/sbin/modem-bearer-watchdog:110-117
+    ("Restored BAM-DMUX control=auto (Phase 5 dynamic power collapse)")
+
+The driver link is real and confirmed in code:
+    openwrt/build_dir/.../drivers/net/wwan/qcom_bam_dmux.c:709-715
+        bam_dmux_runtime_suspend() -> bam_dmux_pc_vote(dmux, false)
+        bam_dmux_pc_vote() -> qcom_smem_state_update_bits(dmux->pc, dmux->pc_mask, 0)
+    i.e. AP runtime-suspend RELEASES the modem's power-collapse vote.
+
+Measured AP suspend rate (rx_telemetry, counters reset at the epoch-7 SSR):
+    AP 5788: pm_suspend_attempts=123   AP 5848: 124   => 1 suspend / 60 s
+    epoch-7 total: 124 in 305.6 s      => 0.406 /s  (~2.46 s period)
+    (an earlier 1.56/s estimate in this session was WRONG — it assumed a read
+     time that was never measured; this 60 s pair is the controlled one)
+    pm_suspend_attempts 122 vs completions 119 ; pc_timeout_count 1
+=> the AP's suspend cadence is DRX-driven (~2.46 s), NOT the 903.675 s beat.
+
+**OPTION A (lock `control=on` + `autosuspend_delay_ms=-1`) IS CLOSED — it is
+ BACKWARDS, and this was already established before this session:**
+  - Docs/Modem Stability/_QUARANTINE/README.md section 3 ("The backwards
+    autosuspend conclusion"): the `control=on`/`autosuspend=-1` "fix" is marked
+    backwards; Doc 140 section 6; Doc 140 section 2 — **Android itself clears
+    `SMSM_A2_POWER_CONTROL` 1 s after the last TX (918 power-collapse shutdowns
+    in 53.8 min measured live)**. Android power-collapses; OpenWrt not doing so
+    is not the defect.
+  - Doc 140 section 10.4 / `PHASE_5_PERSISTENT_CHANNEL_TRANSPORT_SPEC.md`:
+    **the fault time is INVARIANT to AP voting** (1 vote -> 910 s;
+    311 votes -> 912.6 s).
+  - pmOS (A16) reproduces the fatal at 902.7 s with mainline bam-dmux, which has
+    no A2/SSR handling at all => the AP's A2 behaviour is not the driver.
+Do NOT re-open. Arm 3/arm 5 were the last live AP-side arms; both are now dead.
+
+--------------------------------------------------------------------------------
+5. THE AUTHORITATIVE MODEL (for the record) — Docs/.../Modem RE/hmu05/
+   900S_CRASH_LPR_FRAMEWORK_RE.md
+--------------------------------------------------------------------------------
+  - `q6pcvote` = `*(u32*)(0xc1d473f8 + 0x18)` — the **`rpm` Low Power Resource
+    descriptor's +0x18 counter** (not an opaque counter).
+  - The LPR chain: npa_scheduler -> CLM -> l2 -> tcm -> cxo -> rpm -> mcpm_lpr
+    -> cpu_vdd. The reported blocker is inside `rpm.sync` (`0xc08bebd0`) ->
+    `FUN_c08b9690(1)` -> `FUN_c08b9820` "churning" loop, which has NO retry
+    counter and NO timestamp comparison.
+  - The crash packet: `0xc0ce81d0` `r2 = memw(r25+#0x0)` (DAT_c30fd9a8[tech],
+    the q6pcvote snapshot taken at that tech's last sleep entry) and
+    `0xc0ce81d4` `if (cmp.gtu(r19,r2.new)) jump:t 0xc0ce82b8`. Falling through =
+    "the counter did not advance since this tech last slept".
+  - 400 x 2.256 s = 902.4 s (the doc's measured deltas: 902.169/902.394/902.395/
+    902.395/902.394 s — NOTE these are ~1.28 s shorter than this session's
+    converged P of 903.6751 s, i.e. the period appears to have MOVED by about one
+    DRAM/DRX cycle between then and now; unexplained, worth re-checking).
+
+--------------------------------------------------------------------------------
+6. *** NEW CONTRADICTION — the current crash-path attribution is DOUBTFUL ***
+--------------------------------------------------------------------------------
+Two independent observations, both made this session, argue that the
+`FUN_c0ce7fe0` -> `FUN_c0879150(&DAT_c3c68290)` path is NOT what kills the modem.
+
+(a) The MCPM crash call is gated on an NV item, and that item is ABSENT.
+    Decompile (Modem RE/hmu05/modem_full_decompiled.c:2378869 / 2378962 /
+    2379992 / 2380386):
+        FUN_c0ce57dc() reads /nv/item_files/modem/utils/mcpm/mcpm_nv_cfg_src
+        (0x10 bytes) into DAT_c3968654; on read failure it executes
+            DAT_c3968660 = 0; _DAT_c396865c = 0; DAT_c3968658 = 0; _DAT_c3968654 = 0;
+        and the fatal call is gated:
+            if ((DAT_c1e0a5dc._3_1_ & 0x02) != 0 && (DAT_c396865c & 0x04) != 0)
+                FUN_c0879150(&DAT_c3c68290);          /* non-returning */
+    (instruction-level: `0xc0ce82ac r0 = memub(r22+#0x6)` / `0xc0ce82b0
+     p0 = !tstbit(r0,#0x2)` / `0xc0ce82b4 if (!p0.new) jump:nt 0xc0ce844c`)
+
+    LIVE READ OF THE EFS (diag-efs over /dev/rpmsg0, control item verified):
+        /nv/item_files/modem/utils/mcpm/mcpm_nv_cfg_src   err 0x00000002 (ENOENT)
+        /nv/item_files/modem/utils/mcpm/mcpm_nv_pwrdbg_cfg err 0x00000002
+        /nv/item_files/modem/utils/mcpm/mcpm_nv_pwr_opt_cfg err 0x00000002
+        list /nv/item_files/modem/utils                    err 0x00000002
+        (control: /nv/item_files/modem/mmode/ue_usage_setting -> 01, size=1, OK)
+    `/nv/item_files/modem/utils/` does not exist as a directory at all. What DOES
+    exist is /nv/item_files/conf/mcpm.conf (154 B), which is only a MANIFEST:
+        /nv/item_files/modem/utils/mcpm/mcpm_nv_cfg_src\r\n
+        /nv/item_files/modem/utils/mcpm/mcpm_nv_pwrdbg_cfg\r\n
+        /nv/item_files/modem/utils/mcpm/mcpm_nv_pwr_opt_cfg\r\n
+    (likewise /nv/item_files/conf/lte_a2.conf (348 B) lists a2_dbg_assert_masks,
+     a2_dbg_debug_masks, a2_pc, ... — all also absent)
+    => the NV read fails => DAT_c396865c = 0 => `(DAT_c396865c & 4) == 0`
+       => **the MCPM Q6-PC crash gate is CLOSED in the deployed configuration.**
+       The HARD_FAIL *log* is unconditional, but the crash call is not taken.
+
+(b) The existing DIAG capture that spans the fatal window contains no HARD_FAIL.
+    900S_CRASH_LPR_FRAMEWORK_RE.md section 9.3/9.6: capture 1 (14,058,851 B,
+    modem 848->969 s, i.e. across the ~902 s fatal) is rich in MCPM messages
+    (MCPM 2 step FW PC x100, FW_WAKE-UP_Start x101, A2 power req x402, ...) but
+    `HARD_FAIL`, `sleep count not incrmnt` and `Q6 PC Voting failure` return
+    ZERO hits. The doc flags this as its own open question.
+
+=> TENTATIVE CONCLUSION (NOT yet proven): the fatal is an ASSERT at the reported
+   site (`lte_ml1_common_timer.c:390`, and the k=1 variant `a2_power.c:1189`),
+   not the MCPM supervisor. `FUN_c0879150` appears to be a generic error-fatal
+   reporter that formats whatever reason struct it is handed, which would also
+   explain why the reported file:line VARIES between fatals.
+=> CONSEQUENCE FOR THE FIX: the ranked firmware interventions in the LPR doc
+   section 8 (patch `0xc0ce81d4`, raise the 400 threshold, MCVS bypass) all
+   target the MCPM supervisor. If (a)+(b) are right, patching them would do
+   NOTHING. The crash path must be identified before any baseband patch is
+   designed. SOP forbids patching on an unverified attribution.
+
+--------------------------------------------------------------------------------
+7. DEPLOYED FIRMWARE IS STOCK (verified this session)
+--------------------------------------------------------------------------------
+    /lib/firmware/modem.b16  md5 57fef19de7178fb732c8b2edc40bc9dc  = STOCK
+    /lib/firmware/modem.b01  md5 b85b86cec95bc250d753fe3eca016dc9  = STOCK
+    /lib/firmware/modem.mdt  md5 1a6f9507e03d4ddbbf1977af81ecdbd7  = STOCK
+(reference: GitIgnore/hmu05_stock_local/, GitIgnore/MelbonWhiteStock_Dump/
+ modem_extracted/image/ — identical hashes). The Sep 28 10:35 mtimes on b01/b16
+ are a byte-identical re-deploy; the content is stock. So no prior experiment is
+ confounding the current soaks.
+
+--------------------------------------------------------------------------------
+8. WHAT REMAINS
+--------------------------------------------------------------------------------
+AP-side stability levers: EXHAUSTED (arms 1,2,3,5 falsified; CFUN/AT dead;
+power-voting invariant; offline is one-way; NV writes do not survive an AP
+reboot; pmOS reproduces).
+Next candidates, in order of cost:
+  A. Identify the real fatal path. The MCPM supervisor is now doubtful (section 6).
+     Needs a capture that actually contains the crash record — see the open
+     question in section 9.6 of the LPR doc.
+  B. AP-side RPM parity (the LPR doc section 6.6 branch (b) / caveat 1: the
+     runtime-selected sleep mode may be one that excludes rpm.sync by
+     construction, which would explain the sub-millisecond determinism).
+  C. A verified baseband patch — BLOCKED until A is resolved (SOP).
+  D. A scheduled modem restart before 903 s — proven to prevent the crash, but
+     the only AP-side restart paths (`echo stop`, synthetic crash) are known
+     AP-hang hazards.

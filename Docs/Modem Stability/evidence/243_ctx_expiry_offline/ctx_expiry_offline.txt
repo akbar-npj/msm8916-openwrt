@@ -1,0 +1,18 @@
+dump                                 ctx0 state    expiry(+0x20)       arm(+0x28)    +0x30  verdict  nctx
+cw1_cold                                -     -                -                -        -   no ctx  0
+cw1_cold_run1                           -     -                -                -        -   no ctx  0
+cw1_warm                       0xc2150f38    20 0x0000000000000000 0x00000007b5ea13c4 0xac     cleared  9
+cw1_warm_run1                  0xc2150f38    20 0x0000000000000000 0x00000007b5ea13c4 0xac     cleared  9
+diag_v4                        0xc2150f38    20 0x0000000d6356d049 0x0000000d634829ff 0xab       ARMED  9
+diag_v5                        0xc2150f38    20 0x0000000000000000 0x00000055c9dbd4c7 0xac     cleared  9
+diag_v6                        0xc2150f38    20 0x0000000000000000 0x000000640249de46 0xac     cleared  9
+diag_v7_event                  0xc2150f58    20 0x00000124401e5b32 0x00000124400fb4e8 0xab       ARMED  9
+diag_v7_traffic                0xc2150f58    20 0x0000000000000000 0x00000130099f3f84 0xac     cleared  9
+diag_v7a                       0xc2150f58    20 0x0000000000000000 0x0000012028b4171d 0xac     cleared  9
+excep_239                      0xc2150f38    20 0x0000000000000000 0x0000000000000000 0xa9     cleared  9
+excep_240                      0xc2150f38    20 0x0000000000000000 0x0000000000000000 0xa9     cleared  9
+modem_20260930T052551Z         0xc2150f38    20 0x000000b6cc928964 0x000000b6cc83e31d 0xab       ARMED  9
+warm_restart_41431             0xc2150f38    20 0x0000000000000000 0x000000b9382381a5 0xac     cleared  9
+
+ARMED (expiry != 0): 3  -> ['diag_v4', 'diag_v7_event', 'modem_20260930T052551Z']
+cleared            : 9  -> ['cw1_warm', 'cw1_warm_run1', 'diag_v5', 'diag_v6', 'diag_v7_traffic', 'diag_v7a', 'excep_239', 'excep_240', 'warm_restart_41431']

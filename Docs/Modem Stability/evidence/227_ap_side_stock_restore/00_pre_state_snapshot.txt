@@ -1,0 +1,256 @@
+=== identity ===
+boot_id: 1cd22c6b-43e6-4ca4-b21a-df6a1e295920
+uptime : 4967 s
+date   : 2026-06-29T21:00:31Z
+
+=== modem opmode ===
+[/dev/wwan0qmi0] Operating mode retrieved:
+	Mode: 'offline'
+	HW restricted: 'no'
+
+=== module fingerprints ===
+9c08871ff0d29f714acfa89b41893898  /lib/modules/6.12.94/qcom_bam_dmux.ko
+8182d40d91396df70e3f02ca91ab7a6b  /usr/sbin/ModemManager
+
+=== /lib/firmware inventory (md5) ===
+d41d8cd98f00b204e9800998ecf8427e  ./DUMPED
+830c13a6c02e0c2fc837005a01344dd5  ./MCFG_SW.MBN
+0c94134d0081e5e527215baf92b5413d  ./cmnlib.b00
+0d9d6dfdb24b8aa85d5dbabc283c650f  ./cmnlib.b01
+a673842ae24c6e571c1f7edc5e8b420a  ./cmnlib.b02
+6767a5714929e9021bed93126c4c68be  ./cmnlib.b03
+dec6fdd2544aac29f119d44e229f1108  ./cmnlib.mdt
+2b274a28bb4c83695ed7282e699c9e5b  ./keymaste.b00
+b2773789832b6f57efab83ea3c541361  ./keymaste.b01
+77f48636747d93a5f15b141ea0e696ce  ./keymaste.b02
+5c2960a23c90aec8b8cf0d112bae74cb  ./keymaste.b03
+f52717124695d3ad27c86e089c5e45c8  ./keymaste.mdt
+4869138c24f4fda3903efc78060c275c  ./mba.mbn
+830c13a6c02e0c2fc837005a01344dd5  ./mcfg_sw.mbn
+b83653c3fa91a7a12f47f7ab6918a2a7  ./modem.b00
+5e232a09e369b43a6748b21d75481cc9  ./modem.b01
+db3075891d55787ca88d5e31200b687a  ./modem.b02
+c4ca1e4b64dadd773d546a6e920e56ec  ./modem.b03
+9a5bcdad67ac4b03fd880578d44eeaaa  ./modem.b04
+78d3dc815fb44635bc0d73205f0214d6  ./modem.b05
+ce5b4059b4d51ea5a52dafd129652aff  ./modem.b08
+999e93478f42d39fbd5a18ba657b3910  ./modem.b10
+a9e9221b9f0b9c9f205dc38c98b384a1  ./modem.b11
+8d7560582d01fbf424297a9c513a946c  ./modem.b13
+7c5f0fe4f78206ea1709b10e1119c88e  ./modem.b14
+0cf3dc1d6767ed38a94c22c1393049cf  ./modem.b15
+f6f9900ea3845a1cdab67f6a3c0f1e26  ./modem.b16
+a820e73be4a1571d1215951fca7e6e91  ./modem.b17
+29e777da91697e8b88c9c1a57d43578c  ./modem.b18
+6a45b7fb3ccec054cbe34275451d3580  ./modem.b19
+d368cd7c47ad4c00582e79704195a890  ./modem.b22
+82f4bab6727934a7d77b9904b98acbc9  ./modem.b23
+8b0162c1428033c51dde9b486616448b  ./modem.b24
+668f07d2b7ec55f58153f731861df000  ./modem.b25
+c132421fe6d7766b012f59d3f851db87  ./modem.mdt
+5881375b3fcf7010ec0a5b455a84ccca  ./modem_pr/mcfg/configs/mcfg_sw/generic/apac/airtel/commerci/mcfg_sw.mbn
+c2b522009b4e43e5c082024c49c1dc76  ./modem_pr/mcfg/configs/mcfg_sw/generic/apac/dcm/commerci/mcfg_sw.mbn
+d838d6e4296ec5d58ab07daf77da89b6  ./modem_pr/mcfg/configs/mcfg_sw/generic/apac/kddi/commerci/mcfg_sw.mbn
+830c13a6c02e0c2fc837005a01344dd5  ./modem_pr/mcfg/configs/mcfg_sw/generic/apac/reliance/commerci/mcfg_sw.mbn
+6caaea6cc9870ccd681c2935eff53237  ./modem_pr/mcfg/configs/mcfg_sw/generic/apac/sbm/commerci/mcfg_sw.mbn
+0127d409dd243ffa7f85ebbc5b11d9a1  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/comb_att/mcfg_sw.mbn
+c1f9251a058e5448c739c0d37adf1e4d  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/eps_only/mcfg_sw.mbn
+df69cd815ff4c14e6b6d5120083f729c  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/lab_conf/mcfg_sw.mbn
+016d33a48f465918fe5ce16961a052e8  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/lab_nsio/mcfg_sw.mbn
+48ec31d64e4d7e3c9e9516bdbb89c567  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss/comb_att/mcfg_sw.mbn
+9b0ee68ac5ac26ff956cd2ab48b8c93e  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss/commerci/mcfg_sw.mbn
+d7fca9cc8d63f20a6fcbed128fd410a6  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss/eps_only/mcfg_sw.mbn
+0fb37ffa923965e796b022d65bd64810  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/com_atta/mcfg_sw.mbn
+684963d8666d2bb11dc8be18069d0adc  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/comb_att/mcfg_sw.mbn
+4438828b6ac09f3339a74f3a67f46dd6  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/eps_only/mcfg_sw.mbn
+e76a5c4970bc949c461503186bd8c12f  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/lab_conf/mcfg_sw.mbn
+3836946a18b7a9e34b8fc58124f8ed95  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/lab_nsio/mcfg_sw.mbn
+61df3f2f727745feaa9fb2108432674e  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/com_atta/mcfg_sw.mbn
+d74499517ac4fc1d509d272c728e9434  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/comb_att/mcfg_sw.mbn
+f80d30559392c0b73ca341cd31717d6a  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/commerci/mcfg_sw.mbn
+ab2570b311d0ce69ff7c285c9ea3e73f  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/eps_only/mcfg_sw.mbn
+6cf9ee4af60526169acd720bccba93e4  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/com_atta/mcfg_sw.mbn
+fe7db95a3c94bac3150114feecca44d4  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/comb_att/mcfg_sw.mbn
+6537720b3744c828beed74b0a290216d  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/commerci/mcfg_sw.mbn
+27a1d8393c8049503cdbec5c6eac832e  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/eps_only/mcfg_sw.mbn
+472d6e5ece3552d5aa9aca9b4714d1f1  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/com_atta/mcfg_sw.mbn
+592755c14e644be14cdad58322666f6d  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/comb_att/mcfg_sw.mbn
+62b1393d9b53aee0672a23f2606e75cb  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/commerci/mcfg_sw.mbn
+c673241fdaaf7036b4468cee72b99c21  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/eps_only/mcfg_sw.mbn
+4a12cfb6ceb255509fc952d0d072ebff  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/3g/ss/commerci/mcfg_sw.mbn
+d7e14fbba5b436970c85fd807771998d  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg/dsda/commerci/mcfg_sw.mbn
+4d8ce43c3f4ea93c99d0232c882e0234  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg/dsds/commerci/mcfg_sw.mbn
+00394183df96f165be438441010a3d22  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/commerci/mcfg_sw.mbn
+0bd24b2e183e6f678f1d1041c1aa4a1d  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/test/mcfg_sw.mbn
+9b122f2d5f7d9ea9ca50263981a96ae1  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/test_eps/mcfg_sw.mbn
+15ff0ee19d84914ee662b8eef0dcae33  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/test_no_/mcfg_sw.mbn
+c1169181837fe4e1c5b536e1b1c1f40f  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/ss/commerci/mcfg_sw.mbn
+01f4f827ebc1082f02ea9762a0cb00e2  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srte/dsds/cta/mcfg_sw.mbn
+f37fbcdad63727a4ba506f783c8377e2  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/commerci/mcfg_sw.mbn
+5291e4c74f1264077cb4cfea1a3eae12  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/test/mcfg_sw.mbn
+10ed47401ce087cc864381633e234115  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/test_eps/mcfg_sw.mbn
+0a20427bfe519f514f6649e20b86c10f  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/test_no_/mcfg_sw.mbn
+633c7016b6f43f3d60326f209d6187f3  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/ss/commerci/mcfg_sw.mbn
+9bebfb0e212732642a612c4f171eadaf  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/drds/commerci/mcfg_sw.mbn
+dc38d3f665d7baada786cedc294a12ff  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/dsda/commerci/mcfg_sw.mbn
+8078086175a58e350f66420c2ab663af  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/dsds/commerci/mcfg_sw.mbn
+a133d69e53e9f7e967016522cf35ab2f  ./modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/ss/commerci/mcfg_sw.mbn
+380cb5791c3fabbf7e2e208c99e6c833  ./modem_pr/mcfg/configs/mcfg_sw/generic/common/default/default/mcfg_sw.mbn
+8194dea68422973f24051007439e4297  ./modem_pr/mcfg/configs/mcfg_sw/generic/common/row/gen_3gpp/mcfg_sw.mbn
+2b2d3bb0ad9b22b2f24e8c6685cd80eb  ./modem_pr/mcfg/configs/mcfg_sw/generic/common/us_cellu/commerci/mcfg_sw.mbn
+ef8edd6f919852d5adf055ffeda37159  ./modem_pr/mcfg/configs/mcfg_sw/generic/common/w_one/commerci/mcfg_sw.mbn
+489de0f3496a91b996e59604d1d1d131  ./modem_pr/mcfg/configs/mcfg_sw/generic/eu/ee/commerci/mcfg_sw.mbn
+a1c6c9c233f00afbcea9dd972bcc8df1  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/amx/non_volt/mcfg_sw.mbn
+5942f363284936bbfa0b85b66edc77be  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/att/3g/mcfg_sw.mbn
+56c03186f51c33f5c05156f33b7d75ab  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/att/volte/mcfg_sw.mbn
+9ff59929b4cb27fa015a4d44f03276b2  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/sprint/ecsfb/mcfg_sw.mbn
+ab3b1053675a188541027a170fa3d297  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/tmo/nov_comm/mcfg_sw.mbn
+57986eed331e974e70f928484489ad2b  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/tmo/volte_co/mcfg_sw.mbn
+8a8e176b2ff975c97d3df7726584e377  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon/1xsrlte/mcfg_sw.mbn
+6d6dcf4ccf7e1b72772532ea83b347dd  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon/hvolte/mcfg_sw.mbn
+bf40f346fafa58e7f5ae611afb8bfb3d  ./modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon/svlte/mcfg_sw.mbn
+b72620decccf49c727aabda27267ef5b  ./modem_pr/mcfg/configs/mcfg_sw/generic/sa/brazil/commerci/mcfg_sw.mbn
+69e8c1ae91fab20f3aa9d9611ec83155  ./modem_pr/mcfg/configs/mcfg_sw/generic/sea/smartfre/commerci/mcfg_sw.mbn
+deea4c02b2bdff10acc1cc2f1f422e9f  ./regulatory.db
+391df4415ac228a69172dbd70d5d0fda  ./wcnss.b00
+4bbca10b82edbfe007e04fa6e11c6142  ./wcnss.b01
+ca0fee05f7dacc1eec55ac85a5c25bd8  ./wcnss.b02
+9a6f0a39e5b13acf604a5b8f268a4b51  ./wcnss.b04
+98f9b96c3ea875597def8b8ef30a2d5c  ./wcnss.b06
+469aa816010c9c8639a9176f625189af  ./wcnss.b09
+157e39521e47ad1c923a94edd69ad59c  ./wcnss.b10
+f801fe7cd7aee556b26f009307137324  ./wcnss.b11
+3d028c77ebe034d7fe25d5033cccb5bf  ./wcnss.mdt
+aaabf2532b560602d8ec375b17502dc9  ./wlan/prima/WCNSS_qcom_wlan_nv.bin
+
+=== /lib/firmware dirs ===
+/lib/firmware
+/lib/firmware/modem_pr
+/lib/firmware/modem_pr/mcfg
+/lib/firmware/modem_pr/mcfg/configs
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/airtel
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/airtel/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/dcm
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/dcm/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/kddi
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/kddi/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/reliance
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/reliance/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/sbm
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/apac/sbm/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/comb_att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/eps_only
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/lab_conf
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/dsds/lab_nsio
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss/comb_att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/3csfb/ss/eps_only
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/com_atta
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/comb_att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/eps_only
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/lab_conf
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/dsds/lab_nsio
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/com_atta
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/comb_att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/csfb/ss/eps_only
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/com_atta
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/comb_att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/dsda/eps_only
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/com_atta
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/comb_att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cmcc/sglte/ss/eps_only
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/3g
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/3g/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/3g/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg/dsda
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg/dsda/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg/dsds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/cg/dsds/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/test
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/test_eps
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/dsds/test_no_
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srlte/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srte/dsds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/srte/dsds/cta
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/test
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/test_eps
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/dsda/test_no_
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/ct/svlte/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/drds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/drds/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/dsda
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/dsda/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/dsds
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/dsds/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/ss
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/china/cu/csfb/ss/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/default
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/default/default
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/row
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/row/gen_3gpp
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/us_cellu
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/us_cellu/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/w_one
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/common/w_one/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/eu
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/eu/ee
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/eu/ee/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/amx
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/amx/non_volt
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/att
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/att/3g
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/att/volte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/sprint
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/sprint/ecsfb
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/tmo
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/tmo/nov_comm
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/tmo/volte_co
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon/1xsrlte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon/hvolte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/na/verizon/svlte
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/sa
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/sa/brazil
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/sa/brazil/commerci
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/sea
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/sea/smartfre
+/lib/firmware/modem_pr/mcfg/configs/mcfg_sw/generic/sea/smartfre/commerci
+/lib/firmware/wlan
+/lib/firmware/wlan/prima
+
+=== overlay free ===
+/dev/mmcblk0p15           3.2G    101.2M      2.9G   3% /overlay

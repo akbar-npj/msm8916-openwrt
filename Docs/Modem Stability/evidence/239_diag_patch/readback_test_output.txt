@@ -1,0 +1,30 @@
+=== NEGATIVE control: stock dump (cave absent) ===
+coredump : scratch/android_dump/modem_20260930T052551Z.elf  (85443284 B, 21 phdrs)
+save VA  : 0xc14408f0  ->  phys 0x87c408f0
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  offset  value       field
+  +0x00   0x00000000  r0  (timer ctx)
+  +0x04   0x00000000  r1  (dispatch idx)
+  +0x08   0x00000000  r31 (return marker)
+  +0x0c   0x00000000  r29 (frame)
+  +0x10   0x00000000  counter
+
+  marker r31 = 0x00000000 != 0xc02d7bdc  -> CAVE NEVER RAN (or the callback entry differs)
+  counter = 0  -> the callback was never entered this power cycle
+
+=== POSITIVE control: synthetic injection ===
+coredump : /tmp/fake_export.elf  (85443284 B, 21 phdrs)
+save VA  : 0xc14408f0  ->  phys 0x87c408f0
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  offset  value       field
+  +0x00   0xc3a1b2c0  r0  (timer ctx)
+  +0x04   0x0000001d  r1  (dispatch idx)
+  +0x08   0xc02d7bdc  r31 (return marker)
+  +0x0c   0xc1f23450  r29 (frame)
+  +0x10   0x0001a2b3  counter
+
+  marker r31 = 0xc02d7bdc == 0xc02d7bdc  -> the cave RAN (sanity OK)
+  counter = 107187  -> the callback ran 107187x since power-on
+  ctx = 0xc3a1b2c0  (the ML1 timer-context object the callback received)

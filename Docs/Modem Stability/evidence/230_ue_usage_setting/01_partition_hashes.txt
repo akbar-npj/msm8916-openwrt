@@ -1,0 +1,11 @@
+# device vs stock partition hashes, 2026-09-28
+## stock dump (GitIgnore/MelbonWhiteStock_Dump)
+4201f7f39557578e1c8904e11c5529a4  /home/shaanair/Projects/msm8916-openwrt-clean/GitIgnore/MelbonWhiteStock_Dump/fsg.bin
+0f343b0931126a20f133d67c2b018a3b  /home/shaanair/Projects/msm8916-openwrt-clean/GitIgnore/MelbonWhiteStock_Dump/fsc.bin
+68ac92ff347b9fb45d46848b608d2ca5  /home/shaanair/Projects/msm8916-openwrt-clean/GitIgnore/MelbonWhiteStock_Dump/modemst1.bin
+0e04025c4946e4ce66a6734ec6cde4d3  /home/shaanair/Projects/msm8916-openwrt-clean/GitIgnore/MelbonWhiteStock_Dump/modemst2.bin
+## device (full partition, md5)
+p1 fsc       0f343b0931126a20f133d67c2b018a3b
+p2 fsg       4201f7f39557578e1c8904e11c5529a4
+p4 modemst1  8f09b6e4d0331b6755a0e678281662c4
+p5 modemst2  3dc0a1b4b63ebd1bee0908d53999274d

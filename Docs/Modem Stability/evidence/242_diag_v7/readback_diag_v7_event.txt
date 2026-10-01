@@ -1,0 +1,147 @@
+coredump : scratch/android_dump/diag_v7_event.elf  (85443284 B, 21 phdrs)
+ring VA  : 0xc1455000  ->  phys 0x87c55000
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  +0x00 magic = 0xc0030560   (expect 0xc0030560)
+  +0x04 count = 674
+  +0x08 idx   = 34
+
+  === 128 recorded calls, chronological ===
+   seq      caller_r31            r2               r0(inst)
+   547      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   548      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   549      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   550      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   551      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   552      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   553      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   554      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   555      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   556      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   557      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   558      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   559      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   560      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   561      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   562      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   563      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   564      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   565      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   566      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   567      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   568      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   569      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   570      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   571      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   572      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   573      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   574      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   575      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   576      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   577      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   578      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   579      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   580      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   581      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   582      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   583      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   584      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   585      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   586      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   587      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   588      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   589      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   590      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   591      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   592      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   593      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   594      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   595      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   596      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   597      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   598      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   599      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   600      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   601      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   602      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   603      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   604      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   605      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   606      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   607      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   608      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   609      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   610      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   611      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   612      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   613      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   614      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   615      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   616      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   617      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   618      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   619      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   620      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   621      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   622      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   623      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   624      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   625      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   626      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   627      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   628      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   629      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   630      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   631      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   632      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   633      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   634      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   635      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   636      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   637      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   638      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   639      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   640      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   641      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   642      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   643      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   644      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   645      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   646      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   647      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   648      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   649      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   650      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   651      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   652      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   653      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   654      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   655      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   656      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   657      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   658      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   659      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   660      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   661      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   662      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   663      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   664      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   665      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   666      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   667      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   668      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   669      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   670      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   671      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   672      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   673      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+   674      A(FUN_c032685c mobility) 1 -> 0x408020d   0x00000000
+
+  histogram (of the 128 in the ring):
+    caller A (mobility) : 128
+    caller B (ACQ)      : 0
+    r2 == 1 (0x408020d) : 128
+    r2 == 0 (0x4070210) : 0
+
+  seq span in ring: 547 .. 674
+  last call       : caller A(FUN_c032685c mobility), selector 1 -> 0x408020d

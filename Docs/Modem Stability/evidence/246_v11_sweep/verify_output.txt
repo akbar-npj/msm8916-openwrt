@@ -1,0 +1,22 @@
+coredump: scratch/android_dump/v11_event.elf (85443284 B)
+
+=== V-S5: the patch ===
+  modem VA 0xc02fbc40 word   : 81fe0078   (expect 81fe0078 = `r1 = #0x1f4` = 500 ms)
+  packet window (3 instrs)      : 3c4cf55b006530b081fe0078   (expect 3c4cf55b 006530b0 81fe0078)
+
+=== the nine ML1 ctx objects (state = +0x38) ===
+  ctx0 0xc2150f38 state=20  +0x20=0x1c208a0fa6 delta=500.0037 ms  <-- ARMED
+  ctx1 0xc2150f78 state=21  +0x20=0x0 delta=-
+  ctx2 0xc2150fb8 state=22  +0x20=0x0 delta=-
+  ctx3 0xc2150ff8 state=23  +0x20=0x0 delta=-
+  ctx4 0xc2151038 state=24  +0x20=0x0 delta=-
+  ctx5 0xc2151078 state=25  +0x20=0x0 delta=-
+  ctx6 0xc21510b8 state=26  +0x20=0x0 delta=-
+  ctx7 0xc21510f8 state=27  +0x20=0x0 delta=-
+  ctx8 0xc2151138 state=28  +0x20=0x0 delta=-
+
+=== V-S6: the real ctx0 TIMER entry (found via the ctx0 pointer) ===
+  entry @modemVA 0xc454e09c
+  words: c2150f38 00000004 00000000 208a0f4a 0000001c 00000000 00000000 1ff7934a 0000001c 00000000 00000000 000001f4 00000000 00927c00 00000000 00000000
+  deadline field (+0x2c) = 0x1f4 = 500 ms
+  u64 stamp A = 0x1c208a0f4a   B = 0x1c1ff7934a   delta = -9600000 ticks = -500.0000 ms

@@ -1,0 +1,16 @@
+coredump : scratch/android_dump/diag_v4.elf  (85443284 B, 21 phdrs)
+save VA  : 0xc14408f0  ->  phys 0x87c408f0
+segment  : phdr 11  pa=0x87c40000 fsz=0x000a2000
+
+  offset  value       field
+  +0x00   0xc2150f38  r31  caller return address  ** which caller **
+  +0x04   0xc02d7bd0  r0   inst
+  +0x08   0xc02d7bdc  r1   arg2
+  +0x0c   0x8ad52180  r2   arg3  ** message selector **
+  +0x10   0x00002a54  r3   arg4
+  +0x14   0x00000000  r4   arg5
+  +0x18   0x00000000  r29  caller frame pointer
+  +0x1c   0x00000000  ctr  counter
+  +0x20   0x00000000  mag  magic (expect 0xc0030560)
+
+  magic = 0x00000000 != 0xc0030560  -> NOT a v5 export (wrong image, or the cave never ran)
