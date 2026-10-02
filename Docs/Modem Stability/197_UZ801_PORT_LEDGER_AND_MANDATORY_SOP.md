@@ -13331,3 +13331,89 @@ status fields have **no writer in the export**, so the modem only reads them.
 own §112.20(E) with the falsifying evidence (the n=5 table) rather than quietly edited. The value is a
 *ground-truth* extraction (the modem's own snapshot), not an inference. The exact hardware meaning of
 "state 1" remains **OPEN**.
+
+---
+
+## §112.21(J) ★★★★ WHAT THE `0xec320b80` BLOCK **IS** — the modem's "A2" shared-data-path hardware (2026-10-03)
+
+The §112.21(I) open question ("what is `_DAT_ec320bac`?") is answered at the **subsystem** level. The
+method is ground-truth-only (offline stock firmware + AP-side Android/OpenWrt trees + the modem's own
+descriptor DB); no device write, no patch.
+
+### (A) The block is touched **exclusively** by the modem's `a2_*` module — PROVEN
+
+Enumerating every `_DAT_ec32xxxx` reference in `modem_full_decompiled.c` and attributing each to its
+enclosing function: `0xec320b80..0xec320be0` is referenced by **only seven functions, all in the
+`0xc050xxxx`/`0xc051xxxx` range** (`FUN_c0504ccc`, `FUN_c0504fc8`, `FUN_c0505308`, `FUN_c0505e04`,
+`FUN_c0506224`, `FUN_c050a22c`, `FUN_c050a410`). By contrast the wider `0xec320000` region is touched by
+**699** functions — so `0xec320b80` is a **sub-block** of a large shared register file, and that
+sub-block belongs to the `a2` module. The wider `0xec32` region is used firmware-wide (clock/reset/power
+housekeeping); only `0xec320b80` is A2.
+
+### (B) "A2" is a named Qualcomm MSS subsystem — AP-side ground truth
+
+* `GitIgnore/android_kernel_zte_msm8916/arch/arm/boot/dts/qcom/msm8916-pm.dtsi:204` →
+  `/* mss_a2_bam_irq */` — the A2 block owns a **BAM** in the MSS.
+* `drivers/soc/qcom/bam_dmux.c:174-177` → `A2_NUM_PIPES 6`, `A2_SUMMING_THRESHOLD 4096`,
+  `A2_PHYS_BASE 0x124C2000`, `A2_PHYS_SIZE 0x2000` — the AP drives an **A2 BAM** (a data mover).
+* The modem's own `a2_power.c` client map (`a2_power.c:2652`, decoded from the descriptor DB) names the
+  A2 power clients: **`(0,1)=INT, (2,4,7,9)=L/W/TD/DO UL, (3,5,8,10)=L/W/TD/DO DL, (11)=APPS,
+  (12,13)=A2PER, (14)=DL_INACT`**.
+
+⇒ **"A2" is the modem's shared packet-data-path hardware** — a BAM-based block used by *every* RAT
+(WCDMA/LTE/EV-DO/TD-SCDMA uplink+downlink) plus the router-side APPS client. It is **not** an
+RF/ML1 block and **not** the AP↔modem SMSM logic itself; it is the data highway those clients share.
+The module family (`a2_dl_phy.c`, `a2_ul_phy_hspa.c`, `a2_hdlc.c`, `a2_sio.c`, `a2_ipfilter.c`,
+`a2_frag_dispenser.c`, `a2_taskq.c`, `a2_hal.c` (a clock HAL, 4 clients, 19.2 MHz XO), `a2_platform.c`
+(DAL)) confirms a data-path + PHY stack.
+
+### (C) The power-cycle state machine — the crash sits in a power-DOWN→power-UP gap
+
+* **Power-DOWN** (`FUN_c0505308`): resets the timeout counter `DAT_c28602fc`, waits for `_DAT_ec320b94`
+  (low byte) `== 0`, clears the request bits (`_DAT_ec320808/80c/810/814 &= ~1`, `_DAT_ec320a98 &= ~3`),
+  waits for `(_DAT_ec320404 & 0x1e) == 0`, then sets `DAT_c285ebc8 = 0`. **It never checks the five
+  `ba4/ba8/bac/bd8/be0` quiesce fields.**
+* **The gate** (`FUN_c0505d90`): on an "A2 shut down" request it clears bit 16 of the request bitmask
+  `DAT_c285ebcc` and calls the power-down **only if the bitmask has reached 0** — i.e. *all* clients
+  released. So the A2 power-collapses whenever the last client lets go.
+* **Power-UP init** (`FUN_c0504ccc`, called from `FUN_c0505208`): asserts `DAT_c285ebc8 == 1`, then
+  **`FUN_c0504fc8` waits for the five `ba4/ba8/bac/bd8/be0 & 7 == 0`** ← **the `a2_power.c:1189` site**,
+  then more waits on `b98/b9c/ba0 & 3`, `bbc == 0`, `b94 & 0x3000`, `b94 >> 0xe & 7`, `404 & 0x10`.
+
+⇒ The fatal is a **power-down → power-up gap**: the down path does not verify the quiesce, the up path
+does, and `bac` is left non-zero across the gap. The F3 capture (§112.21(F)) shows the full A2 on/off
+handshake and **no missing step** ⇒ the fault is *below* the F3-logged layer, consistent with this.
+
+### (D) The firmware's own "a2 hw state" diagnostic — but it logs a cached global, not the register
+
+The ELF carries `"A2 PC current state-II smsm state modem smsm nak bit = %d, apps smsm ack PENDING = %d,
+a2 hw state = %d, request bitmask = %x, SMSM ACK pending for APPS pc req = %d"` (`a2_power.c:4921`),
+emitted by `FUN_c05066bc` (disasm `c05066bc`). Tracing the args: they are read from the a2 state struct
+at `0xC285EA84` — i.e. **cached globals** (`DAT_c285ebb8/bb4/bac/…`, `DAT_c285ebc8`), **not** a live read
+of `_DAT_ec320bac`. So this diagnostic cannot substitute for the hardware register. **⚠ It is also NOT
+present in the F3 capture** (`c000111_up00586.raw`, 0 hits) ⇒ `FUN_c05066bc` did not run in the capture
+window (it is not a free-running heartbeat).
+
+### (E) The register-trace ring is not enable-able — a data-pointer search is decisive
+
+`FUN_c050a22c` (the ring writer) has **no direct caller**; searching the whole ELF for a 4-byte pointer
+to `0xc050a22c` (or to the ring globals `0xc2872bb8`/`0xc2872bb4`) returns **zero occurrences**. So it
+is not reached via a function-pointer table ⇒ §112.21(G)'s "enable-able if the indirect entry is found"
+is, for practical purposes, **dead** — there is no indirect entry. A live register history is therefore
+**not** obtainable without a firmware patch.
+
+| Claim | Status |
+|---|---|
+| `0xec320b80` is touched only by the `a2_*` module (7 fns), vs 699 fns for the wider `0xec32` region | **PROVEN** (enclosing-function census) |
+| "A2" = the MSS shared data-path block with its own BAM (`mss_a2_bam_irq`, `A2_PHYS_BASE`) | **PROVEN** (AP tree) |
+| A2 power clients = INT / L/W/TD/DO UL+DL / APPS / A2PER / DL_INACT | **PROVEN** (descriptor DB) |
+| The power-down (`FUN_c0505308`) does **not** check the five quiesce fields; the power-up does | **PROVEN** (source) |
+| The fatal is a power-down→power-up gap on the A2 block | **PROVEN** (mechanism) |
+| The exact hardware meaning of `bac` state **1** (which sub-block, what clears it) | **OPEN** |
+| Whether the AP can influence the A2 quiesce (APPS client / BAM) | **OPEN** |
+
+**SOP note.** Read-only (offline stock firmware, the modem's own descriptor DB, and the AP-side Android
++ OpenWrt trees). No device write, no patch, no baseband. The block identification is filed as a
+*ground-truth* attribution (an enclosing-function census + AP device-tree symbols), not an inference.
+The negative (the ring is unenable-able) is filed with its falsifying search (zero pointer hits). The
+"state 1" semantics remain **OPEN** and are explicitly *not* guessed.
