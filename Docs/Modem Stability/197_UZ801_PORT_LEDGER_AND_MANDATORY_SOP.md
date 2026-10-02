@@ -12794,3 +12794,129 @@ Earlier, *identical* SSRs in the same boot show `PS3b → T5` (`2288.473636 → 
 **Pre-registration (P-SLEEP1).** Over the next ≥20 SSRs, count `Device not managed by ModemManager` occurrences in `logread`. Expected: **strictly fewer than the pre-fix rate** (the pre-fix rate is to be measured from the archived logs before scoring; a per-SSR count of 0-1 is expected, vs a busy-loop-inflated rate before). Scored when ≥20 SSRs have accumulated. This is an **exploratory** count, not a gate on the §112.18.15 recovery fix.
 
 **SOP note.** Separate change from §112.18.15 (one change at a time: the watchdog recovery was deployed and verified *before* this trigger-reduction change). Ground-truth-first (the busybox behaviour was measured on the device, not assumed). Reversible (one-line script swap; the pre-fix copy is the overlay's previous revision, recoverable via the build tree / a fresh build). The change is a **latency-neutral** pacing fix, not a behaviour change; the recovery fix (§112.18.15) remains the load-bearing one.
+
+---
+
+## §112.19 ★★★ THE ~900 s FATAL — F3 PER-FILE RE-ANALYSIS (2026-10-03): the modem's periodic timers are EXACT round-hex tick counts (new reference), the CM/NAS cell-update cadence is exactly **2.24 s** (new), the pre-fatal window is a NORMAL IDLE profile, and **NO round-tick timer explains the fatal** (clean negative)
+
+**Scope & method.** Offline, on the archived capture `scratch/f3_soak/cap_fatal.bin` (the OpenWrt ML1 fatal, §112.13): 31 252 F3 records, 88 155 408 ts-ticks ⇒ **430.446 s**. New tools: `scratch/f3_rf_cadence.py`, `f3_rf_bins.py`, `f3_final_window.py`, `f3_periods.py`, `f3_ticks.py`, `f3_roundscan.py`, `f3_plmn.py`, `f3_cellinfo.py`. No device access, no patch (read-only).
+
+**(A) ★ The F3 clock is EXACTLY 204800 Hz — proved by round-hex tick periods.** The modal inter-arrival of several periodic records is an **exact multiple of 0x400 ticks**:
+
+| record | modal gap (ticks) | hex | @204800 Hz | n |
+| :-- | --: | :-- | --: | --: |
+| `DalVAdc.c:1257` (VADC) | 204 800 | **0x32000** | **1.000000 s** | 183 |
+| `mcpm.c:3109` (tech wakeup_req) | 262 144 | **0x40000** | **1.280000 s** | 91 |
+| `cmlog.c:1831` / `qmi_mmode_task.c:363` | 458 752 | **0x70000** | **2.240000 s** | 3 |
+| `cmlog.c:1831` / `qmi_nas.c` / `cmss.c` (2nd cadence) | 614 400 | **0x96000** | **3.000000 s** | 4 |
+| `rflte_mc_meas.c:1943` (IRAT GRFC) | 8 192 | **0x2000** | **40 ms** | — |
+| `cfm_cpu_monitor.c:308` (heartbeat) | 10 256 | 0x2810 | 50.078 ms | 3745 |
+
+The exactness (0x40000 → 1.280000 s, 0x70000 → 2.240000 s, 0x32000 → 1.000000 s) **confirms the 204800 Hz calibration independently** and turns the F3 ts into a calibrated modem-internal stopwatch. **New reference fact.**
+
+**(B) ★ NEW: a 2.24 s CM/NAS "cell-update" cadence.** Every exactly 2.24 s the modem runs `qmi_nas_check_and_update_cell_id` and logs a triple (`cmlog.c:1831 '=CM= plmn_identity: id %d'` with ids **4, 21, 104**; `qmi_nas.c:4335/4344/4349/4355/4359`; `cmss.c:9270 '=CM= fmode:%d,Roaming Ind:%d'`), all at the *same* ts. The args are **constant for the entire capture** (PLMN `{4,21,104}`, TAC `231`, `fmode=1 roaming=0`, `sys_mode (0,9)`) ⇒ **the modem never loses the serving cell** right up to the fatal. (This is a NAS-layer housekeeping timer, not a DRX cycle — 2.24 s is not a standard DRX/paging period.)
+
+**(C) ★★ Re-confirmed: NO precursor, and the pre-fatal RF silence is IDLE, not death.** 20-s bins (`f3_rf_bins.py`): the RF/measurement layer (`rflte_core_rxctl`, `rflte_mc_meas`, `rfmeas_mc`) is **bursty (traffic-driven)** — bursts at 0–20/40–100/260–280/320–360 s, silent gaps elsewhere (incl. a 160 s gap mid-capture). The **final 70 s (360–430 s) is RF-silent but the profile is IDENTICAL to the mid-capture idle gap** (CFM 20 Hz heartbeat + A2 ON/OFF client-3 + MCPM FW PC + `pgi_msgr WWAN_TECH_MSG from CXM` + the 2.24 s CM/NAS cell-update) ⇒ it is the modem's **normal idle state**, not an RF death. This **corrects** any reading of item 71's "`rflte_*` 353→0" as "the RF died 78 s early": in an idle capture the RF layer is *supposed* to be silent (item 104 §105.8, extended). §112.13's "no precursor" stands, now at per-file resolution.
+
+**(D) ★★ CLEAN NEGATIVE: no round-tick timer quantizes the fatal.** If the fatal were a periodic-timer count (the "400 × ~2.26 s" / DRX model, Doc 140 §10.6), the fatal time would be quantized to the timer period. It is **not**:
+
+| fatal (s) | source | mod 1.28 | mod 2.24 | mod 3.0 |
+| --: | :-- | --: | --: | --: |
+| 902.745538 | Android n=46 | 0.346 | 2.266 | 2.746 |
+| 902.592 | OpenWrt | 0.192 | 2.112 | 2.592 |
+| 902.685 | pmOS | 0.285 | 2.205 | 2.685 |
+| 902.959 | pmOS | 0.559 | 2.479 | 2.959 |
+| 902.722588 | pmOS | 0.323 | 2.243 | 2.723 |
+| 900.928 | v6 | 1.088 | 0.448 | 0.928 |
+| 900.811 | v6 | 0.971 | 0.331 | 0.811 |
+
+The residuals **vary by ~0.9 / ~2.0 / ~2.0 s** — far more than the fatal's own spread — ⇒ the fatal is **event-driven, not a timer phase**. (The coincidence `902.7 / 2.24 = 403.0` is therefore just that.) The trigger is an *event* at ~900 s, consistent with the standing ML1-wide-stall model; the F3 does not name it.
+
+**(E) ⚠ Current device state (same session).** The 600 s pre-emptive SSR is doing its job against the ML1 fatal (**0** `lte_ml1_common_timer`/`sleepmgr` fatals in the current boot), but the **dominant crash is now `a2_power.c:1189`** — **2 in ~63 min** (AP 561.9, 1456.2), the known restart-triggered A2 assert (§112.18.2/§112.18.11). Also observed: early in the boot the modem restarted **every ~125.6 s** (AP 686.7→1188.6), each preceded by `bam_dmux: RX watchdog: quiesced 60s` — i.e. the **data-stall recovery churn** (§ Doc 185), not the pre-emptive SSR; it settled to the configured ~600 s afterwards. ⇒ the highest-value next work is the **`a2_power.c:1189` assert condition** (the dominant, restart-triggered crash), not a further F3 hunt.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved | verdict |
+|---|---|---|---|
+| F3 clock | ~204800 Hz (estimated) | **exactly 204800 Hz**, proved by round-hex periods | **MET** (upgraded) |
+| A modem-internal periodic cadence matching the fatal | a ~2.26 s timer (the "400 cycles" model) | a **2.24 s** CM/NAS cell-update exists, but **does not quantize the fatal** | **FALSIFIED** as the trigger |
+| The pre-fatal window has a precursor | (seek one) | **none** — normal idle profile; cell identity constant | **NEGATIVE** (re-confirmed at per-file resolution) |
+| The RF layer dies ~78 s early (this capture) | (item-71-style reading) | **FALSIFIED here** — RF silence = the idle profile (same as the mid-capture gap); item 71's *traffic*-case result is untouched | **CORRECTED (scoped)** |
+| Root cause of the ~900 s fatal | identify the trigger | **STILL OPEN** — event-driven, unnamed by the F3 | **OPEN** |
+
+**SOP note.** Read-only (archived capture + offline parsing; no device write, no patch, no baseband). The one *corrective* result (the RF-silence-is-idle correction) is filed with its falsifying comparison (the mid-capture idle gap). The "no round-tick timer" result is a **pre-committed** form of the Doc-140 §10.6 model, and it is reported as falsified rather than re-tuned. The current-crash observation (E) is recorded so the next session does not re-hunt the 900 s trigger while the `a2_power` mode is the dominant live failure.
+
+---
+
+## §112.20 ★★★★★ THE `a2_power.c:1189` ASSERT — THE CONDITION IS FOUND: a DETERMINISTIC a2-power-sequence WAIT-LOOP TIMEOUT (`(_DAT_ec320bac & 7) == 0` NEVER CLEARS) (2026-10-03)
+
+§112.19(E) flagged "work the `a2_power.c:1189` assert condition" as the highest-value next step (the dominant, restart-triggered live crash; the coredump carries no F3 ring and the assert text is generic). This section closes it: the condition, the exact stuck register, and the determinism are now **PROVEN** from the four `a2_power` coredumps already on disk.
+
+### (A) ★★★★ NEW INSTRUMENT — decompressing the modem's ERR descriptor database resolves ANY assert to its file:line
+
+The `FUN_c0879150(descr)` assert path decompresses `descr` into `DAT_c35b1384` via `FUN_c0879590`→`FUN_c087a170`, a zlib `inflate` (`s_err_decompress_c_c1849b40`, version string `"1.2.7"`). The descriptors are **offsets into a compressed database**, which is why a raw read of `&DAT_c3c1f4b0` is high-entropy (NOT stale garbage). The database is the **live-state segment [17]** of the coredump:
+
+* `PTR_DAT_c1d445e4 = PTR_DAT_c1d445e8 = 0xc3c1c000` (virtual base = data base); `DAT_c1d445ec = 0xc3c9703f` (end) ⇒ section = segment [17] (`dumpVA 0x8a41c000`, `filesz 0x7b03f`).
+* It is a **standard zlib stream** (`78 9c`); `zlib.decompress(seg, 15)` → **2 697 893 B**.
+* A descriptor is 16 B: `{u32 packed=(id<<16)|line, u32 size=0x10, u32 msg_ptr, u32 file_ptr}`; `file_ptr` is a real runtime VA (`cstr()` it from the coredump). Read at **uncompressed offset = `descr_va − 0xc3c1c000`**.
+
+This is a **patch-free, offline instrument**: given a coredump + the descriptor VA from a register (R16 at an assert), it yields the source `file:line` for any `FUN_c0879150` assert. (Tool: `scratch/a2_descr.py`.)
+
+### (B) ★★★★★ THE SITE AND THE CONDITION
+
+The crash report (all four dumps) reads `Error in file a2_power.c, line 1189` / `Error message: A2 Assertion Failed`; register **R16 = `0xc3c1f3a0`** — and the descriptor at VA `0xc3c1f3a0` decompresses to exactly `packed=0x004004a5` (**line = 0x4a5 = 1189**), `file_ptr=0xc170a248` = `"a2_power.c"`. **The assert site is the function whose descriptor is `0xc3c1f3a0`**:
+
+* **`DAT_c3c1f3a0` is referenced by exactly ONE function: `FUN_c05042c8` @ `0xc05042c8`** (the only function in the whole 77 067-function export).
+* `FUN_c05042c8` is the a2 power-sequence **spin/wait helper**:
+
+```c
+DAT_c28602f8 = DAT_c28602f8 + 1;            // per-spin counter (reset to 0 before each wait loop)
+if (DAT_c28602f8 % 0x32 == 0) {             // every 50th spin
+    FUN_c0887450(1);                        // one delay/back-off unit
+    DAT_c28602fc = DAT_c28602fc + 1;        // timeout units (NOT reset per loop)
+} else if (900 < DAT_c28602fc) {            // ★ THE CONDITION: timeout counter > 900
+    FUN_c0506938();                         // log/flush
+    FUN_c0879150(&DAT_c3c1f3a0);            // ASSERT a2_power.c:1189
+}
+```
+
+⇒ **`a2_power.c:1189` = "the a2 power sequence waited too long"** — a *timeout*, not a state/consistency assert. `DAT_c28602fc` is reset only in the a2 power-DOWN path `FUN_c0505308` (`DAT_c28602fc = 0;` at entry), so it is **cumulative across one whole power-up sequence**.
+
+### (C) ★★★★★ WHICH WAIT STALLED — `(_DAT_ec320bac & 7) == 0` NEVER CLEARS
+
+Disassembly of the caller chain (coredump segment [10], `scratch/hexdec/r2hx/hxdis`) pins the **exact call site** from the on-stack return address:
+
+* The a2 task call chain (FP-chain, deepest first): `FUN_c0879150` ← `FUN_c05042c8` ← **`FUN_c0504fc8` (ret `0xc0505078`)** ← `FUN_c0504ccc` (ret `0xc0504d50`) ← `FUN_c04ffd50` ← `FUN_c04ff5d0` ← `FUN_c04ffe80` ← `FUN_c0505584` ← `FUN_c0500014`.
+* `0xc0505078` is **immediately after the `call` at `0xc0505074`** — the **3rd** of `FUN_c0504fc8`'s five spin loops. `FUN_c0504fc8` waits, in order, for `(_DAT_ec320ba4 & 7)`, `(_DAT_ec320ba8 & 7)`, **`(_DAT_ec320bac & 7)`**, `(_DAT_ec320bd8 & 7)`, `(_DAT_ec320be0 & 7)` to all reach 0.
+* ⇒ **the stuck condition is `(_DAT_ec320bac & 7) != 0`** — the a2 hardware handshake register at offset +8 of the `0xec320b80` block (an MSS power/A2 register block; `FUN_c050a410` snapshots `0xec320af0…0xec328808` as one contiguous block).
+
+### (D) ★★★★ DETERMINISM — the wait NEVER progresses (it is a STUCK handshake, not a slow one)
+
+All **four** `a2_power` dumps (`dump_devcd3/4/5/6`) are **byte-identical in every a2 counter**:
+
+| field | value (all 4) | meaning |
+|---|---|---|
+| `DAT_c28602f8` | `0xaffb` = **45 051** | spins = 50·901 + 1 |
+| `DAT_c28602fc` | `0x385` = **901** | timeout units = 900 + 1 ⇒ assert fires on the first unit past 900 |
+| `DAT_c285ebc8` | 1 | a2 flag "up" |
+| `DAT_c285eb80` | 0 | worst-case-timeout record never updated (fresh boot) |
+| `DAT_c1d1cdb4` | 2 | (gates two other a2_power asserts) |
+| `DAT_c1d1cd8c` | `0x122a` = 4650 | |
+
+The **identical spin count 45 051** across boots means the register **never transitions** — a longer timeout cannot help (it would only delay the assert); the handshake is *dead*, not *slow*. Uptime at assert: **18 / 27 / 17 / 28 s** (post-restart, early).
+
+### (E) SCOPE / OPEN
+
+* **PROVEN:** the site (`FUN_c05042c8`), the condition (`DAT_c28602fc > 900`), the stuck register (`_DAT_ec320bac & 7`), the call path, and the determinism.
+* **NOT YET KNOWN:** *why* `_DAT_ec320bac` never clears after a warm restart — i.e. which subsystem's handshake bit it is, and whether the AP drives it (SMSM/A2 power-control line) or it is modem-internal. This decides the fix: AP-side handshake completion vs. modem-firmware tolerance.
+* The a2 register-trace ring (`DAT_c2872bb8`, 256 × 0x5c, `FUN_c050a22c`) was **empty** (`DAT_c2872bb4 = 0`) in all four dumps ⇒ the trace gate `FUN_c0505d24()` was off; the register *value* is not recoverable from these dumps (it is a hardware register, unreadable from the AP — §1 of the platform quirks).
+
+| Claim | Status |
+|---|---|
+| `a2_power.c:1189` = a wait-loop **timeout** (`DAT_c28602fc > 900`) | **PROVEN** (only fn referencing the descriptor `0xc3c1f3a0`) |
+| The stuck wait = `(_DAT_ec320bac & 7) == 0` (3rd loop of `FUN_c0504fc8`) | **PROVEN** (return addr `0xc0505078` after the `call` at `0xc0505074`) |
+| The stall is deterministic (spin = 45 051 in all 4 dumps) | **PROVEN** |
+| The ERR descriptor DB is a zlib stream decodable offline | **PROVEN** (new instrument) |
+| Root cause of the stuck register (AP-driven vs modem-internal) | **OPEN** |
+
+**SOP note.** Read-only (archived coredumps + offline decompilation/disassembly; no device write, no patch, no baseband). The descriptor-decode is a *ground-truth* extraction (zlib inflate of the modem's own DB), not an inference. The "stuck, not slow" verdict is filed with its falsifying comparison (the four byte-identical spin counts). The §112.19(E) "next work" item is hereby closed at the *condition* level and re-opened one level down (which subsystem's handshake bit `0xec320bac` is).
