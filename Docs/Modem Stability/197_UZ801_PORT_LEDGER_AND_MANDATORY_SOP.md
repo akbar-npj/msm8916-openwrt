@@ -13090,3 +13090,95 @@ the count (the wrap-proof method used above).
 F3 records are the modem's own ground truth. The AP reboot is reported as an unexplained
 observation with both candidate causes named, not attributed. No patch, no baseband. The coredump
 gap is left OPEN rather than papered over.
+
+### (F) ★★★★★ THE FAILING CYCLE'S F3 IS CLEAN — §112.21(C)'s HOPE IS **FALSIFIED**
+
+§112.21(C) predicted the F3 stream would show *which handshake step is missing or repeated* in a
+failing cycle. The 2026-10-02 assert at AP **up=9589.18** (+17.6 s after the restart at 9570.68)
+**was** captured; its pre-assert window (`c000054..059_up09564..9596.raw`, 6 chunks, ~11 MB,
+**3 910 records**, 777 `a2_*`/`mcpm_*`) was analysed (tool `scratch/f3_a2diff.py`). **No step is
+missing and none is repeated — the failing cycle's handshake is indistinguishable from the clean
+baseline.**
+
+1. **The full 16-record sequence is present.** The first post-restart chunk `c000055_up09573.raw`
+   holds, in order, the same steps as the §112.21(C) baseline: `a2_power.c:1490` (Apps SMSM
+   requested shut down) → `:1313`/`:3765` (client 11) → `:1889` (Modem SMSM ack bit OFF) → `:3765`
+   (client 14) → `:2582` (Keep A2 ON PC_PENDING_TEMP) → `:1830` (Modem SMSM bit OFF) →
+   `a2_task.c:1368` (waiting `A2_NOTIFY_PC_CNF`) → `a2_task.c:2871` (blocked pending) → **`:1583`
+   (Apps SMSM acked the modem SMSM request)** → `:1313`/`:3765` (client 11 req=2) →
+   `a2_dl_per.c:9158`/`a2_ul_per.c:3764`/`:9224`/`:3806` (PER HW reset+init) → `:4031` (Voted A2
+   shutdown) → `mcpm_drv.c:3356`/`:2992` → `:2463` (A2 turned OFF).
+2. **Every key site fires in the window** (counts): `:1313` 143, `:3765` 151, **`:1583` 7** (the AP
+   ack), `:2463` 12, `:2262` 11, `a2_task.c:2871` 9, `:1830` 3, `mcpm_saw.c:393` 29, `:591` 31.
+3. **No error record.** A regex sweep for `assert|fail|error|timeout|retry|abort|stuck|unable|
+   crash|fatal` over all 3 910 records returns only normal traffic (`MCPM MCDMA … # times stuck: 0`,
+   `a2_task.c:2871 blocked` — the routine pending-wait, `mmgsdi_refresh retry_req`,
+   `WAIT_PH_STAT_CNF` transitions, `resetCounter`). Nothing a2-handshake-related.
+4. **The pre-fatal chunk `c000057_up09584.raw` is a normal steady state** — power-collapse cycles
+   (client 2/3 req 0/1/4, `FW_SLEEP_PWRDN_FULL`, `FW_WAKE-UP_Start`) and RF activity
+   (`rflte_core_rxctl.c:403`, `rflte_mc_meas.c:1943`), no anomaly, to the end.
+
+**Why.** The stall is `FUN_c0504fc8` (below) — a **register spin with no logging**; it calls only
+`FUN_c05042c8()` (counter/delay) and reads hardware. A stall there is *silent in F3 by
+construction*. The AP↔modem handshake the F3 *does* log completed normally; the stall is one layer
+below it. ⇒ **the F3 instrument cannot localise this fault.**
+
+| Claim | Status |
+|---|---|
+| The failing cycle's F3 handshake is complete (no missing/repeated step) | **PROVEN** (16/16 steps, all sites present) |
+| The failing cycle's F3 has no error/timeout/assert record | **PROVEN** (regex sweep over 3 910 records) |
+| §112.21(C)'s "the F3 stream shows which step is missing" | **FALSIFIED** — no step is missing |
+| The stall is silent in F3 (a register spin, no log) | **PROVEN** (source, §G) |
+
+### (G) ★★★★ THE STALL FUNCTION DECOMPILED — `FUN_c0504fc8` = the a2 task's 5-register hardware-quiesce wait; and a CORRECTION to §112.20(E)
+
+The decompiled stock firmware (`Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c`, which
+uses **modem VAs, not −0x100000**) gives `FUN_c0504fc8` verbatim:
+
+```c
+void FUN_c0504fc8(void) {
+  puVar1 = prolog_save_regs_c0030010();
+  if (((((_DAT_ec320ba4 & 7) != 0) || ((_DAT_ec320ba8 & 7) != 0)) || ((_DAT_ec320bac & 7) != 0)) ||
+     (((_DAT_ec320bd8 & 7) != 0 || ((_DAT_ec320be0 & 7) != 0)))) {
+    FUN_c0508c30();                       // ★ EMPTY function (body is just `return;`)
+  }
+  DAT_c28602f8 = 0; while ((_DAT_ec320ba4 & 7) != 0) { FUN_c05042c8(); }
+  DAT_c28602f8 = 0; while ((_DAT_ec320ba8 & 7) != 0) { FUN_c05042c8(); }
+  DAT_c28602f8 = 0; while ((_DAT_ec320bac & 7) != 0) { FUN_c05042c8(); }   // ★ the stuck one
+  DAT_c28602f8 = 0; while ((_DAT_ec320bd8 & 7) != 0) { FUN_c05042c8(); }
+  DAT_c28602f8 = 0; while ((_DAT_ec320be0 & 7) != 0) { FUN_c05042c8(); }
+  ...
+}
+```
+
+* **Five sequential 3-bit state-field waits** on the A2 hardware block `0xec320b80`
+  (+0x24/0x28/0x2c/0x58/0x60). The stuck one is the **3rd** (`_DAT_ec320bac & 7`) — matching
+  §112.20(C)'s return address `0xc0505078`.
+* **`DAT_c28602f8` is reset before each loop but `DAT_c28602fc` (the timeout) is NOT** — the counter
+  accumulates across all five waits *and* the further waits in the caller. The assert is "the whole
+  quiesce sequence took > 900 delay units"; it coincides with "the 3rd register stuck" only because
+  that is the one that never clears.
+* The pre-check calls **`FUN_c0508c30()`, which is EMPTY** (`{ return; }`) — a vestigial hook.
+* The caller **`FUN_c0504ccc`** is the a2 task **power-up init**: it asserts `DAT_c285ebc8 == 1`,
+  zeroes a 0xebb0-byte struct, runs `FUN_c0504fc8`, then waits further on `_DAT_ec320b98 & 3`,
+  `_DAT_ec320b9c & 3`, `_DAT_ec320ba0 & 3`, `_DAT_ec320bbc`, `_DAT_ec320b94 & 0x3000`, and a
+  queue-depth equality loop — i.e. the a2 task waits for the A2 hardware to reach a clean, quiescent
+  state before it starts.
+
+⇒ **the `a2_power.c:1189` assert = "the A2 hardware did not reach its quiescent state within the
+a2-task init budget".** The five `& 7` fields are **hardware status** (the only writes to this block
+in the export are `FUN_c050ff54`, which sets a `48000` constant in the *config* sub-block at
+`0xec320b60..b70` — a divider/frequency — not the *status* fields at `0xec320ba4..be0`).
+
+**★ CORRECTION to §112.20(E).** §112.20(E) attributed the empty a2 register-trace ring to "the trace
+gate `FUN_c0505d24()` was off". That is **WRONG**: `FUN_c0505d24()` is `return DAT_c285ebc8;`, which
+§112.20(D) records as **1** in all four dumps — the gate was **ON**. The ring (`DAT_c2872bb8`,
+counter `DAT_c2872bb4`) is empty because **`FUN_c050a22c` (the ring writer) has no direct caller in
+the 77 067-function export** — it is dispatched indirectly, and that dispatch did not run. So the
+ring is *enable-able* (the gate is already on) if the indirect entry is found; it is not
+"off by a gate". (Read-only: stock decompilation; no device write.)
+
+**Net.** The F3 instrument is now *bounded*: it captures the whole a2 power handshake, but the
+`a2_power.c:1189` stall is **below** the F3-logged layer, in the A2 hardware's own state fields. The
+root-cause question narrows to **why `_DAT_ec320bac & 7` fails to clear after a warm restart** — a
+modem-internal hardware/init question, not an AP-handshake-step question.
