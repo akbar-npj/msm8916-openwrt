@@ -12920,3 +12920,105 @@ The **identical spin count 45 051** across boots means the register **never tran
 | Root cause of the stuck register (AP-driven vs modem-internal) | **OPEN** |
 
 **SOP note.** Read-only (archived coredumps + offline decompilation/disassembly; no device write, no patch, no baseband). The descriptor-decode is a *ground-truth* extraction (zlib inflate of the modem's own DB), not an inference. The "stuck, not slow" verdict is filed with its falsifying comparison (the four byte-identical spin counts). The §112.19(E) "next work" item is hereby closed at the *condition* level and re-opened one level down (which subsystem's handshake bit `0xec320bac` is).
+
+---
+
+## §112.21 ★★★★★ THE F3 CAPTURE INSTRUMENT ACROSS AN SSR — AND THE A2 POWER HANDSHAKE IT REVEALS
+
+§112.20 closed the `a2_power.c:1189` assert at the *condition* level and re-opened it at the
+question **"which subsystem's handshake bit is `_DAT_ec320bac & 7`, and who drives it?"** The
+coredump cannot answer that (the register is AP-unreadable, §1 of the platform quirks; the a2
+trace ring was empty). The documented next step (§112.18.11) was to capture the **modem's own F3
+log across an assert**. This section records that instrument and its first result.
+
+### (A) THE INSTRUMENT — continuous F3 capture across modem restarts
+
+The existing `diag_logtool capture` (`packages/diag-logtool/src/diag_logtool.c:337`) is unusable
+as-is for this: it `open()`s `/dev/rpmsg0` **once** and `O_TRUNC`s its output, so it cannot span
+an SSR — the rpmsg DIAG endpoint is destroyed and re-created on every modem restart. The harness
+`/root/f3cap.sh` (local copy `scratch/f3cap.sh`, gitignored) fixes both:
+
+* **Chunked capture.** It runs `diag_logtool capture 5 cNNNNNN_upNNNNN.raw` in a loop. A chunk
+  that straddles an SSR dies at the restart; the next chunk starts within ≤5 s, so the
+  post-restart window (where the assert fires at **+17…28 s**) is bracketed. 5 s × ~18 KB/s ⇒
+  ~90 KB/chunk; capped at 800 chunks (~66 min) ⇒ bounded overlay use.
+* **Re-arm on every re-bind.** The F3/log/event masks are **modem runtime state and are lost on
+  every SSR**; the harness re-sends them (`diag_logtool cntl-enable-range /dev/rpmsg1 256`) the
+  instant the DIAG bridge comes back. It does this **only on a fresh bind**, not on a timer,
+  because each enable flushes the modem's F3 history (Doc 203 / Doc 226). Re-enabling on a timer
+  would destroy the boot-time records we want.
+
+A companion `/root/dmesgtap.sh` appends the AP-side event timeline (stale/lost edge, pc-ack
+timeout, `a2_*`/`a2_power.c:1189`, `restarting 4080000`) and `dumpwatch.sh` captures the
+coredump, so a failing cycle yields F3 **and** the a2 counters. All three are started from
+`/etc/rc.local` (clearly-marked `BEGIN/END f3cap` block) so the capture survives an AP reboot.
+
+### (B) VERIFICATION — it brackets a real SSR
+
+On 2026-10-02 the harness was launched at AP up=6672. The next pre-emptive SSR fired at
+**up=6916.8** (`dmesg: restarting 4080000.remoteproc`); the harness logged:
+
+```
+20:24:12Z up=6918 bridge lost (SSR)
+20:24:13Z up=6920 mask armed
+```
+
+i.e. it detected the bridge loss, waited for the re-bind, and re-armed the mask **+3 s after the
+restart** — then captured the post-restart boot flood as `c000050_up06920.raw` (**354 KB**, ~4× a
+steady chunk). Steady chunks before and after are ~18–22 KB. The F3 record `ts` is a
+**free-running** clock (it does **not** reset per SSR — observed ~3.67e9 ticks, ≈ the device's
+power-on age, *not* the modem's ~5 s uptime), so records must be ordered by **(chunk, offset)**,
+not by `ts`; `scratch/f3cap_analyze.py` does this.
+
+### (C) ★★★★★ THE F3 STREAM CARRIES THE COMPLETE A2 POWER HANDSHAKE
+
+The point of the exercise. The all-SSID F3 mask exposes the a2 subsystem's own log — the exact
+code path that **stalls** in the assert. The post-restart chunk `c000050` contains, in order:
+
+| # | site | message |
+|---|---|---|
+| 1 | `a2_power.c:3765` | `Process A2 power req from client=14[…(14)=DL_INACT], req=0` |
+| 2 | `a2_power.c:2582` | `Keep A2 ON with PC_PENDING_TEMP client orig_client=14, req_bmask=0x10000` |
+| 3 | `a2_power.c:1830` | `A2 Modem SMSM bit turned OFF client=14, apps_smsm_vote_bit=0` |
+| 4 | `a2_task.c:1368` | `A2 has finished resetting sps pipes, waiting for A2_REMOTE_EVENT_A2_NOTIFY_PC_CNF now state=3` |
+| 5 | `a2_task.c:2871` | `A2 task blocked in wakeup/sleep pending state. counter=13, state=3` |
+| 6 | **`a2_power.c:1583`** | **`Apps SMSM acked the modem SMSM request a2_state=1, req_bmask=0x10000, modem_smsm_a2_state_bit=0, modem_smsm_ack_bit=0`** |
+| 7 | `a2_power.c:1313` | `A2 power req from client=11[…(11)=APPS], req=2` |
+| 8 | `a2_power.c:3765` | `Process A2 power req from client=11[…], req=2` |
+| 9 | `a2_dl_per.c:9158` | `A2 DL PER HW is reset num_dl_per_reset=1, num_dl_per_init_from_reset=0` |
+| 10 | `a2_ul_per.c:3764` | `A2 UL PER HW is reset num_ul_per_reset=1, …` |
+| 11 | `a2_dl_per.c:9224` | `A2 DL PER HW is init from reset …=1` |
+| 12 | `a2_ul_per.c:3806` | `A2 UL PER HW is init from reset …=1` |
+| 13 | `a2_power.c:4031` | `Voted for A2 shutdown for PC_PENDING_TEMP client req_bmask=0x0` |
+| 14 | `mcpm_drv.c:3356` | `caller priority 135, bumped up priority 24` |
+| 15 | `mcpm_drv.c:2992` | `MCPM MCDMA debug counter decrement … 1, # times stuck: 0` |
+| 16 | `a2_power.c:2463` | `A2 turned OFF by client=11[…], req_bmask=0x0, num_shutdowns=1` |
+
+Record 6 is the **AP's SMSM ack** and records 4–5 are the task's pending-wait — precisely the
+handshake whose non-completion is asserted at `a2_power.c:1189`. The clean cycle above completed
+all 16 steps. **This is the first instrument that can show *which step is missing or repeated* in
+a failing cycle** — the §112.20 open question is now *empirically answerable*.
+
+### (D) SCOPE / OPEN
+
+* **PROVEN:** the harness brackets an SSR and re-arms the mask (+3 s); the F3 stream exposes the
+  full a2 power handshake (16-record baseline above).
+* **OPEN:** no `a2_power.c:1189` assert occurred during the verified cycle (the current boot's
+  three were at AP 561.9 / 1456.2 / 3883.5; the last ~5 cycles were clean), so the *failing*
+  cycle's F3 delta is **not yet captured**. The harness now runs continuously (persisted in
+  `rc.local`) and will capture the next one.
+
+| Claim | Status |
+|---|---|
+| `diag_logtool capture` cannot span an SSR (one `open`, `O_TRUNC`) | **PROVEN** (source) |
+| The harness detects the SSR and re-arms the mask +3 s after the restart | **PROVEN** (`bridge lost` up=6918 → `mask armed` up=6920) |
+| The F3 mask is modem runtime state, lost on SSR | **PROVEN** (no records between the restart and the re-arm; 354 KB boot flood *after*) |
+| The F3 stream carries the complete a2 power handshake | **PROVEN** (16 records, table C) |
+| Which handshake step is missing in a failing cycle | **OPEN** (no failing cycle captured yet) |
+
+**SOP note.** Recon read-only; the only device *writes* are the F3 mask enable (documented,
+idempotent, modem-runtime) and the `/etc/rc.local` block (clearly-marked, reversible, `sh -n`
+validated). The instrument is validated by its **first bytes** (F3 records), not by md5 (the
+`f3live` lesson). No patch, no baseband. The 16-record baseline is ground truth from the modem's
+own log, not an inference. This closes the *instrumentation* half of §112.20(E); the *causal*
+half awaits a failing cycle.
