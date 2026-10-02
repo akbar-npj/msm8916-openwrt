@@ -11478,6 +11478,82 @@ result.
 the `ats-probe` package the stale live tree was missing. **Recovery if it breaks the modem: reflash OpenWrt
 without 827, or `fastboot flash modem hmu05_modem.bin` (§112.9.6).**
 
+### §112.11 — The 827 image BUILT and the config CHECKED: BIT(8) is in the image; ⚠ the pre-emptive SSR will MASK the test unless disabled
+
+**Build (2026-10-02 12:38→12:46, 480 s, `./build.sh build hmu05`, log `scratch/reply_inject/build_827.log`).**
+The BSP re-sync ran ("Syncing BSP into prepared OpenWrt tree… / BSP sync verified"). The kernel re-prepared
+from scratch with 827 in `PATCH_DIR`, then compiled. Fresh artifacts in `openwrt/bin/targets/msm89xx/msm8916/`
+(2026-10-02T12:45:40–54), version `r33051-f5dae5ece4`:
+
+| image | sha256 |
+| :-- | :-- |
+| `…-generic-hmu05-squashfs-boot.img` | `6a500bfd17420f7780bcac4057911e2b5c132f5828e55d25a954d766cd437c8c` |
+| `…-generic-hmu05-squashfs-system.img` | `7c1efd85930b06b86fed91fbe3435abc0a4a6b9fbdc746fdfa63a4dc8f974861` |
+| `…-generic-hmu05-squashfs-sysupgrade.bin` | `85e9e1fdb4f59252f10c6314593c6cf6bc0b0edd3837c967afb1cbbe10065e65` |
+| `…-generic-hmu05-squashfs-gpt_both0.bin` | `bac38328b666b15dc396c9f4542fc8bd4220d6a0eb8fca89fdbf0ff67e0241ee` |
+
+**★ Config check 1 — patch 827 IS in the image (byte-verified, not inferred).** The driver is a MODULE
+(`CONFIG_QCOM_Q6V5_MSS=m`), so it is **NOT** in `vmlinux`/`System.map`; it ships as
+`lib/modules/6.12.94/qcom_q6v5_mss.ko`. Extracted that file **from the built `system.img`** with `unsquashfs`
+(squashfs at offset 0, 256 KiB blocks, comp 4 = zstd) and disassembled it:
+
+```
+2b90: bl   _dev_info                      ; dev_info(dev, "GFMUX_CTL pre-write: %#010x", val)
+2b98: mov  w1, #0x102                     ; Q6SS_CLK_ENABLE | Q6SS_CLK_SRC_SWITCH_CLK_OVR
+2b9c: orr  w21, w21, w1                   ; val |= BIT(1)|BIT(8)
+2ba0: add  x0, x0, #0x20                  ; QDSP6SS_GFMUX_CTL_REG offset
+2ba8: str  w21, [x0]                      ; writel(val, GFMUX_CTL)
+```
+
+`strings` finds `GFMUX_CTL pre-write: %#010x`; the `#0x102` immediate occurs exactly once in the module.
+In-image module md5 **`f786067f0a0a91c553f525f67de8732a`** (54 592 B, stripped) == the `TARGET_DIR` copy
+(`build_dir/…/root-msm89xx/…`); the unstripped build output is `dbec49ef…` (211 912 B). `kmod-qcom-rproc-modem`
+is in the manifest. **⇒ the flashed kernel WILL set BIT(8) and WILL print the pre-write value.**
+⚠ Note the size trap: the 54 592 B stripped copy and the 211 912 B unstripped build output have **different
+md5s** — hashing the build output and calling it "the image" would be wrong; only the `unsquashfs` extraction
+is the shipped artifact.
+
+**⚠ Config check 2 — the delivered image ENABLES the pre-emptive SSR at 800 s ⇒ it would MASK the fatal.**
+The BSP re-sync delivered `msm89xx/base-files/etc/config/modem-watchdog` with
+`option preemptive_ssr_enabled '1'` / `option preemptive_ssr_interval '800'`; the built rootfs ships it
+verbatim (verified: the rootfs copy is byte-identical to the BSP source, 8 `preemptive_ssr` hits) and the
+watchdog IS enabled (`/etc/rc.d/S96modem-bearer-watchdog` in the built rootfs). The loop re-reads the uci
+value each iteration and restarts the modem when `modem_uptime ≥ 800` (§112.7). **An 800 s restart means the
+~902.7 s deadline is never reached ⇒ a soak on the stock config cannot distinguish "BIT(8) fixed it" from
+"the watchdog masked it".** (`modem-common-timer.sh`, a stale `package/base-files/files` leftover that
+`exec`s a non-existent `modem-bearer-watchdog.real`, is **absent from the rootfs** — not a confound.)
+
+**⇒ Test protocol for a clean single-variable BIT(8) result:**
+1. Flash the image (user does this).
+2. Read the pre-write value: `dmesg | grep "GFMUX_CTL pre-write"`. If it already shows `0x102` (bit 8 set),
+   the bootloader set it and 827 is a **no-op** — a null soak then proves nothing about BIT(8). If it shows
+   only `0x2`, the patch is the sole source of BIT(8) and the test is meaningful.
+3. **Disable the masking lever** before soaking: `uci set modem-watchdog.recovery.preemptive_ssr_enabled=0;
+   uci commit modem-watchdog` (takes effect next watchdog iteration, ≤10 s; no reboot needed). ⚠ This removes
+   the only mitigation — the ~902.7 s fatal is expected to return if BIT(8) does not fix it. Re-enable it
+   (`…=1`) if the fatal recurs.
+4. Soak ≥ 1000 s of **modem** uptime and watch for `modem subsystem failure reason` / `ERR_FATAL` / a coredump.
+   * **no fatal ⇒ BIT(8) is (at least a necessary part of) the fix** — the first root-cause candidate to survive.
+   * **fatal at ~902.7 s ⇒ BIT(8) is NOT the arming switch** (§112.9.5 already predicted this is likely,
+     since Android sets BIT(8) in both the clean and armed states); the pre-emptive SSR remains the mitigation.
+
+**Recovery:** `adb reboot bootloader` → `fastboot flash modem GitIgnore/compare/modem_hmu05_extracted/hmu05_modem.bin`
+→ `fastboot reboot` (§112.9.6). Reflashing OpenWrt without 827 also reverts.
+
+**Achieved vs expected:**
+
+| item | expected | achieved |
+| :-- | :-- | :-- |
+| image builds with 827 | kernel re-prepares, module carries BIT(8) | ✅ 480 s; byte-verified in the shipped `system.img` |
+| config is a clean BIT(8) test | no masking lever | ❌ pre-emptive SSR (800 s) is ON by default — must be disabled post-flash |
+| pre-write log gives an interpretable result | dev_info prints the bootloader value | ✅ present in the module; unread until the device boots |
+
+**SOP compliance.** Taken: VAs/offsets verified against the **built** tree, not assumed; the patch verified in
+the **loadable image** (unsquashfs extraction + disassembly), not by md5 of an intermediate; the confound
+(pre-emptive SSR) found by reading the **delivered** config, not the source comment; no irreversible action
+(the build is reversible; recovery documented). Skipped: none. Pre-registration: the BIT(8) hypothesis and its
+weak prior were pre-registered in §112.10 **before** the build.
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
