@@ -11267,6 +11267,17 @@ in the AP's *boot sequence* that differs between the QCOM stack (Android) and th
   in `GitIgnore/`; the comparison is static. **OPEN.**
 * **Also falsified as the *sole* candidate:** the Android PIL's IMEM image-info table (`qcom,msm-imem-pil`,
   `peripheral-loader.c:950`) is a debug table, not obviously read by the modem.
+* **A second, VOLATILE-vs-PERSISTENT candidate (untested):** the SMEM candidate above is weakened by Android's
+  own behaviour — `log_modem_sfr()` clears the reason **before** `subsystem_restart_dev()`, so the restarted
+  modem sees an **empty** reason yet M3 says it still **arms** ⇒ the crash-reason string is probably not the
+  mechanism. A better-fitting class is a **persistent** marker in the modem's **NV/EFS** (a "last shutdown was
+  unclean" flag): it survives an AP reboot (so OpenWrt's cold boot can arm) and is cleared only by a **clean**
+  modem shutdown — which Android's power-off sequence performs and mainline/OpenWrt may not. This would also
+  explain why OpenWrt arms on its *first* boot (the flash/EDL left the flag dirty). **Not tested.** It is
+  *viable*: Doc 230 §2/§3 show the modem's **own** runtime EFS writes to `modemst1`/`modemst2` **do**
+  persist (the two partitions diverge from the stock dump, and `rmtfs` `fdatasync`s every write) — so a
+  persistent "last shutdown was unclean" flag has a real storage path. ⚠ Distinguish that from the DIAG-EFS2
+  write path, which Doc 226 reports does **not** survive an AP reboot; the two must not be conflated.
 
 ### 112.7 Run-2 (64-word window) — the AP-side negative is CONFIRMED at 4× the width
 
@@ -11285,6 +11296,54 @@ Transition: `cc` 14 → 15, ONLINE → **OFFLINE**, `s1` `0x08008009` → `0x080
   second fatal (run 1's was 902.4 s).
 
 **Tools (run 2):** `scratch/android_dump/smsm_sampler2.sh`, `scratch/android_dump/smsm_log2.txt` (875 samples).
+
+#### §112.7 — Pre-emptive-SSR DEMO (Android arm, 5 h, 23 restarts, ZERO fatals)
+
+`scratch/android_dump/preemptive_ssr.sh` on the Android arm: `INTERVAL=800`, anchored on the modem's
+`dmesg "Brought out of reset"` line. **23 pre-emptive restarts over ~5 h (AP t=42733→60725), zero natural
+fatals.** Each cycle ~810 s run + ~120 s recovery; modem uptime at trigger = 806-809 s (below the 902.7 s
+deadline). The last natural fatal was t=41922.868570; none after. **First long-running kill of the 902.7 s
+fatal on this hardware** — but a mitigation, not a cure (the stall mechanism is untouched; the bearer
+rebuild cost repeats every ~930 s). Log: `/data/local/tmp/preemptive_ssr.log`.
+
+#### §112.8 — The SMEM-stale-crash-marker hypothesis (item 421 / item 79) — FALSIFIED
+
+**Hypothesis:** Android's `log_modem_sfr()` (`pil-q6v5-mss.c:46-67`) reads and **clears** SMEM item 79
+(`SMEM_SSR_REASON_MSS0`) on every fatal (`smem_reason[0]='\0'; wmb();` line 65). Mainline's
+`q6v5_fatal_interrupt` (`qcom_q6v5.c:115-134`) reads item **421** (`MPSS_CRASH_REASON_SMEM`) and **never
+clears** it. A stale "I crashed before" marker, surviving the reboot in reserved SMEM RAM, could be the
+signal the modem uses to arm the 902.7 s deadline. This would explain why OpenWrt's cold boot is armed
+(marker stale, never cleared) while Android's is not (cleared by `log_modem_sfr`).
+
+**Test (Android arm, 2026-10-02):** read both SMEM items via `devmem` (SMEM RAM = `0x86300000`,
+`smem_shared` header = 208 B, `heap_toc[512]` stride 16 B; item 79 TOC at `0x863005c0`, item 421 at
+`0x86301b20`):
+
+1. **Mid-cycle (armed):** item 421 holds `SFR Init: wdog or kernel error suspected.` (offset `0x104F8`,
+   size 80 B); item 79 holds structured binary.
+2. **Cleared item 421** (wrote 0 × 80 B), rebooted the dongle (**cold boot**), read item 421 fresh.
+3. **Result:** item 421 is **re-populated** with `SFR Init: wdog or kernel error suspected.` on the cold
+   boot (uptime 110 s, **zero** fatals). The modem firmware **writes this string at boot time** — it is not
+   a stale leftover. Android's kernel never touches item 421 (no call site); the string is firmware-authored.
+4. **Item 79 is also populated on the cold boot** — and `log_modem_sfr` has **not** cleared it (it only runs
+   in the crash-recovery path `restart_modem`, which a clean cold boot does not enter). So both markers are
+   present on a clean Android cold boot, yet Android stays clean past 902 s.
+
+**Verdict: FALSIFIED.** The stale SMEM crash marker is **not** the arming cause. The modem writes "SFR Init"
+at every boot regardless of whether the fatal will later arm; neither Android nor mainline feeds the SMEM
+crash-reason string back to the modem; and a clean Android cold boot has both markers populated yet does not
+fatal. The arming asymmetry between Android and OpenWrt is **elsewhere**.
+
+**What this rules out:** any hypothesis of the form "OpenWrt fails to clear a SMEM flag that Android
+clears, and the modem reads it at boot and arms." The two candidates (item 79, item 421) are both populated
+on a clean Android cold boot.
+
+**Next lead:** the arming is set by the **AP boot sequence** (§112.6), not by SMEM state. The candidates
+that remain are (a) a QCOM-vs-mainline difference in the **PIL modem boot handshake** itself (the
+`pil-q6v5-mss` powerup sequence, proxy-unvote timing, or the SMSM/SMP2P negotiation), or (b) a mainline
+driver that does something during modem boot that Android does not (e.g. the `qcom_q6v5_mss.c` boot path
+differs structurally from Android's `pil-q6v5-mss.c`). A static side-by-side of the two powerup functions
+is the next step.
 
 ---
 
