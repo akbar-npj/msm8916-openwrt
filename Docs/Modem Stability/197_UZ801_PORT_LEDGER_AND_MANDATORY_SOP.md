@@ -11450,6 +11450,34 @@ cold-boot OpenWrt gap, testable on the OpenWrt arm.
   producer's slot is valid but the consumer's readiness counter never advances). ⇒ back to the two-regime
   arming lever (§112.9.5) and the OpenWrt `BIT(8)` test.
 
+
+### §112.10 — OpenWrt arm: patch 827 (GFMUX_CTL BIT(8)) — the Android-vs-OpenWrt powerup register gap
+
+**Context.** After §112.9.6 closed the reply-injection line, the remaining lever is the two-regime arming
+model (§112.9.5): Android cold boot is CLEAN, OpenWrt cold boot is ARMED. The one concrete powerup-register
+difference found by the PIL comparison is `QDSP6SS_GFMUX_CTL` (`0x04080020`).
+
+**The gap (re-verified in both trees, 2026-10-02):**
+* Android `pil-q6v5.c:252-264`: `val |= Q6SS_CLK_ENA` (BIT(1)); `if (qdsp6v5_2_0) val |= Q6SS_CLK_SRC_SEL_C`
+  (BIT(3)); **`if (qdsp6v56) val |= Q6SS_CLK_SRC_SWITCH_CLK_OVR` (BIT(8))**.
+* Mainline `qcom_q6v5_mss.c:852-855` (`q6v5proc_reset`): `val |= Q6SS_CLK_ENABLE` (BIT(1)) **only**.
+* Live Android read of `0x04080020` = `0x00000102` = BIT(1)|BIT(8) ⇒ the device IS `q6v56`, NOT `v5.2.0`.
+
+**Patch 827** (`msm89xx/patches/827-remoteproc-q6v5-mss-gfmux-clk-src-switch-ovr.patch`; applies cleanly on top
+of 826 — dry-run verified): defines `Q6SS_CLK_SRC_SWITCH_CLK_OVR BIT(8)` and ORs it into the core-clock write
+in `q6v5proc_reset()`. It **also adds a `dev_info` logging the PRE-write GFMUX value**, so the bootloader's
+contribution is visible and a null soak result is interpretable.
+
+⚠ **Honest caveat — the hypothesis is weak:** §112.9.5 records that Android sets BIT(8) in BOTH the clean
+(cold) and armed (post-SSR) states ⇒ BIT(8) cannot be the whole arming switch. The test asks only whether
+BIT(8) is *necessary* (Android has it + something else; OpenWrt has neither). If the pre-write log already
+shows BIT(8) set, the bootloader sets it and the patch is a no-op — which would immediately explain a null
+result.
+
+**Build:** `./build.sh build hmu05` — re-syncs the BSP first, which also delivers the preemptive-SSR config and
+the `ats-probe` package the stale live tree was missing. **Recovery if it breaks the modem: reflash OpenWrt
+without 827, or `fastboot flash modem hmu05_modem.bin` (§112.9.6).**
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
