@@ -11811,6 +11811,308 @@ The 600 s pre-emptive SSR fired **3× cleanly** and then a 4th cycle fataled **b
 `scratch/crashloop/window_2280_2530.txt`, `scratch/crashloop/window_2480_3010.txt`,
 `scratch/crashloop/soak_baseline.sh` + `.log`.
 
+---
+
+### §112.15 — Pre-registration P-PA1: pin the bam-dmux runtime-PM ACTIVE (a zero-code test of the AP-driven-collapse mechanism)
+
+**Why this section exists.** §112.14 leaves the A2 burst as the residual of the 600 s mitigation, with a
+*model* (post-restart handshake phase desync) but no mechanism test. The antecedent in **4 of the 7** fatal
+cases is `bam_dmux: modem pc-ack timeout during resume` — i.e. an **AP-initiated resume** that the modem did
+not ack within 2000 ms (`qcom_bam_dmux.c:2083-2087`). The OpenWrt driver is **AP-driven** (the AP's vote bit
+drives the collapse; A15), whereas Android is **modem-driven** and level/dedup-based with an explicit
+init-time resync. The cheapest test of whether the AP-initiated collapse cycle is the *source* of the desync
+is to stop initiating it — which needs **no code**.
+
+**Android ground truth read this session (`GitIgnore/android_kernel_zte_msm8916/drivers/soc/qcom/bam_dmux.c`).**
+Android registers **level/state-change callbacks**, not edge IRQs:
+`smsm_state_cb_register_ptr(SMSM_MODEM_STATE, SMSM_A2_POWER_CONTROL, bam_dmux_smsm_cb, NULL)` (`:2514`).
+`bam_dmux_smsm_cb` (`:2430`) dedups on a `static last_processed_state` (`:2439`), and at init (`:2751-2754`)
+it **synthesizes** `bam_dmux_smsm_cb(NULL, 0, current_state)` when the modem bit is already set — an explicit
+resync. `toggle_apps_ack()` (`:2412`) uses a `static clear_bit` and **skips entirely during SSR**
+(`if (in_global_reset) return;`). ⇒ Android cannot lose an edge and cannot get out of phase; OpenWrt can
+(`pc_ack_state` is a toggle reset only in the SSR teardown, `:2349`). This is the structural asymmetry.
+
+**Intervention (fully reversible).**
+```
+D=/sys/bus/platform/devices/4080000.remoteproc:bam-dmux
+echo on > $D/power/control        # revert:  echo auto > $D/power/control
+```
+Pre-intervention state at T0: `control=auto`, `runtime_status=suspended`, `autosuspend_delay_ms=1000`,
+`pc_vote_tx_count = pc_unvote_tx_count = 304`, `pm_suspend_attempts=304` / `completions=254`,
+`pc_timeout_count=8`, `pc_resync_count=17`, `a2_pc_disabled=0`.
+
+**Mechanism.** With runtime suspend disabled the PM core never calls `bam_dmux_runtime_suspend()`, so
+`bam_dmux_pc_vote(dmux, false)` (`:2052`) never runs, so the AP's `pc` vote bit stays set and the modem never
+receives an AP-initiated collapse request. The `pc-ack timeout during resume` (`:2083-2087`) then cannot
+fire, and the RX-watchdog `stale edge` reconcile (`:1315`) loses its usual cause.
+
+**Predictions (pre-registered, cut fixed).**
+| # | prediction | falsified by |
+|---|---|---|
+| P-PA1a | `pc_vote_tx_count` / `pc_unvote_tx_count` **stop** incrementing | either keeps rising ⇒ the lever did not take |
+| P-PA1b | `pc_timeout_count` **stops** incrementing (stays 8) | it rises ⇒ resume timeouts persist |
+| P-PA1c | over **≥ 11** pre-emptive cycles (≈ 110 min) **zero** `a2_task.c:3179` fatals | any `a2_task.c:3179` ⇒ the resume/vote path is not the sole mechanism |
+
+Under the §112.14 baseline P(fatal-cycle) ≈ 25 %, P(0 fatals in 11 cycles) ≈ 0.75¹¹ ≈ **4.2 %**, so P-PA1c is
+a real test. **n = 11 is the pre-registered cut and is not to be re-tuned.**
+
+**Controls / guards.** (1) Confirm the lever took (P-PA1a) before scoring P-PA1c. (2) The 600 s pre-emptive
+SSR stays enabled — this tests the **A2 burst only**, not the ML1 clock (Doc 140 §10.4: the ~910 s fault is
+invariant to AP voting). (3) **Auto-revert guard:** if ≥ 3 `a2_task.c:3179` land within 15 min, revert
+`power/control=auto` automatically and log (bounds the blast radius). (4) The baseline soak
+(`scratch/crashloop/soak_baseline.sh`) continues; the T0 marker segments its log so the pre-intervention
+cycles stay usable as baseline.
+
+**Risk (stated).** The modem may assert if it wants to collapse and the AP refuses — `a2_pc_disabled` is
+normally **modem-requested** via `CMD_OPEN_NO_A2_PC` (`:1170-1172`), and this experiment forces the same state
+from the AP side *without* the modem's consent. That is the main hazard and is exactly what P-PA1c measures.
+Power draw rises (the modem stays awake). Each SSR carries the standing ~3–5 % AP-hang risk, so a cascade is
+the tail risk; the guard in (3) is the mitigation.
+
+**Achieved vs Expected.**
+| item | expected | achieved |
+|---|---|---|
+| lever present & reversible (`on`→`auto`) | yes | **yes** — `…/4080000.remoteproc:bam-dmux/power/control` exists, `control=auto` |
+| P-PA1a vote counters freeze | yes | **FAILED — the lever did not hold** |
+| P-PA1b timeout counter freezes | — | _not reached_ |
+| P-PA1c zero a2 fatals / 11 cycles | yes (model) | _not reached_ |
+
+**★★★★ RESULT — P-PA1 ABORTED INVALID (the lever is reverted by the project's own watchdog).**
+`echo on > …/power/control` took at **T0 = 2026-10-02T09:17:33Z** (up 6901, `cr`=10, a2=8; verified
+`control=on`, `runtime_status=active`, `pc_state` 0→1, `pc_vote_tx_count` 304→305). **Within ~5 s it was back
+to `auto` and the device re-suspended** (`rt=suspended`, `pc_unvote_tx_count` 304→305, `pc_ack_state` 1→0).
+`/usr/sbin/modem-bearer-watchdog:289-292` **unconditionally** re-writes `control=auto` +
+`autosuspend_delay_ms=1000` on **every** loop:
+```
+# 2. Ensure BAM-DMUX maintains 1000ms autosuspend (Phase 5 dynamic DRX power collapse)
+if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL")" != "auto" ]; then echo auto > "$BAM_CTRL"; fi
+```
+⇒ the arm is **un-runnable as designed**; the lever is only holdable by stopping that one service first.
+
+**⚠⚠ THIS WAS ALREADY KNOWN AND I FAILED TO GREP THE ARCHIVE FIRST (SOP lapse, recorded honestly).** The
+ledger already carries the identical finding — **§36 item (2026-09-28, Doc 231 §15.4 correction)**: *"the §15.4
+lever 'revert' is SELF-INFLICTED — the project's own watchdog enforces it… `modem-bearer-watchdog:169-177`
+unconditionally re-writes `power/control = auto` on every loop… the lever is holdable by stopping that one
+service first"* — **and the clean arm was then RUN and the hypothesis FALSIFIED**: §36 item (Doc 231 §16),
+*"clean A2-pin arm: `H-A2b` FALSIFIED… fatal #13 at AP 14183.215848, `lte_ml1_common_timer.c:390`, only 814.2 s
+after the pin… the Regime-A fatal fires with the AP's A2 vote pinned on and the modem never power-collapsed."*
+⇒ **P-PA1 is a re-run of an already-falsified lever**; only the metric differs (the a2 burst rather than the
+ML1 clock). **Do not re-run it.** The failure mode was a missing grep of the ledger before building an
+instrument (`feedback_measurement_discipline` RULE: *grep the archive before building an instrument*). The
+intervention was still safe (one reversible sysfs write, no firmware/overlay change, auto-reverted in ~5 s)
+and nothing was lost — the device was left in its normal state (watchdog restored `auto`, verified).
+
+**SOP compliance.** Ground truth first, but **incomplete**: the Android `bam_dmux.c` and the live driver were
+read directly, yet the *ledger archive* was not grepped before intervening — the one step that would have shown
+the lever was already falsified. Honest status: **ABORTED / SUPERSEDED.**
+
+**Artifacts:** `scratch/crashloop/dumpwatch.sh` (device watcher), `scratch/crashloop/dmesg_6741.txt` (§112.14
+addendum: the exact fatal-10 window), device `/root/dumps/telemetry.log` (driver counters),
+`/root/dumps/p_pa1_transition.txt` (T0), `/root/pa1_monitor.sh` (telemetry + guard).
+
+---
+
+### §112.16 — ★★★★ THE SSR LEAVES THE AP's A2 **VOTE BIT** SET (Android clears it): a concrete AP-side defect in the post-SSR A2 re-handshake
+
+**Why this section exists.** §36's open lead (Doc 231 §14.3) is *"fixing the AP `qcom_bam_dmux` A2
+re-handshake after SSR could make the SSR actually work"*, and the ledger's own H4 observation (Doc 231 §15.5)
+is that `pc-ack timeout during resume` fires **~2 s after a fatal's crash-recovery, i.e. on the AP's first
+`runtime_resume()` after that SSR**. This section names a concrete, minimal, Android-parity defect that
+produces exactly that.
+
+**The DT ground truth (`msm8916.dtsi:2009-2019`).**
+```
+bam_dmux: bam-dmux {
+        compatible = "qcom,bam-dmux";
+        interrupt-parent = <&hexagon_smsm>;
+        qcom,smem-states = <&apps_smsm 1>, <&apps_smsm 11>;
+        qcom,smem-state-names = "pc", "pc-ack";
+};
+```
+⇒ `dmux->pc` = **`apps_smsm` bit 1** = `SMSM_APPS_STATE & SMSM_A2_POWER_CONTROL` = **the AP's own A2
+power-control VOTE**; `dmux->pc_ack` = `apps_smsm` bit 11 = the AP's ack. The IRQs come from `hexagon_smsm`
+(the modem's bits).
+
+**The defect.** `bam_dmux_pc_vote()` is called from **exactly two** sites — `bam_dmux_runtime_suspend()`
+(`:2052`, `false`) and `bam_dmux_runtime_resume()` (`:2079`, `true`). **The SSR teardown never calls it.**
+`bam_dmux_ssr_teardown_work_func()` (`:2344-2364`) clears `pc_state`, sets `pc_ack_state = 0`, writes the
+**ack** bit to 0 (`:2350`), calls `pm_runtime_set_suspended()` (`:2351`), and clears the **modem's** state bit
+(`states[1] &= ~BIT(1)`, `:2362`) — but leaves the AP's **vote** bit untouched.
+
+**The mechanism (a guaranteed desync whenever the SSR catches the device ACTIVE).**
+1. The device was `runtime_status=active` ⇒ the wire vote bit is **1**.
+2. Fatal → SSR teardown runs. `pm_runtime_set_suspended()` marks the device **suspended**, but the wire vote
+   is still **1** ⇒ **PM status and wire now disagree.**
+3. The AP's first post-SSR `pm_runtime_get()` → `runtime_resume()` → `pc_vote(true)` →
+   `qcom_smem_state_update_bits(pc, mask, mask)` writes the **same** value ⇒ **no 0→1 edge on the wire** ⇒ the
+   modem never acks ⇒ `wait_for_completion_timeout(pc_ack_completion, 2000)` expires ⇒
+   **`bam_dmux: modem pc-ack timeout during resume`** (`:2085-2087`).
+4. The A2 handshake is left out of phase; the modem's a2_task blocks (`a2_task.c:2871 A2 task blocked in
+   wakeup/sleep pending state`, already captured in F3 by §36) and eventually asserts `a2_task.c:3179`.
+
+**Android does exactly the missing step.** `restart_notifier_cb()` (`android …/bam_dmux.c:2137`) on
+`SUBSYS_AFTER_SHUTDOWN` (`:2169-2189`) runs:
+```c
+/* if modem crash during ul_wakeup(), power_vote is 1, needs to be reset to 0.
+   harmless if bam_is_connected check above passes */
+power_vote(0);          /* :2182 -> smsm_change_state(SMSM_APPS_STATE, 0, SMSM_A2_POWER_CONTROL) */
+```
+i.e. Android **clears the AP's vote bit on every SSR**. It does **not** force the ack bit (that is OpenWrt's
+addition; Android's `toggle_apps_ack()` merely *skips* during SSR, `:2416-2419`). ⇒ **OpenWrt clears the bit
+Android leaves alone (the ack) and leaves alone the bit Android clears (the vote).**
+
+**Proposed fix (P-VOTE1), 1–2 lines, Android parity.** In `bam_dmux_ssr_teardown_work_func()`, beside the ack
+clear at `:2350`:
+```c
+/* Android parity (bam_dmux.c restart_notifier_cb:2182): reset the AP's A2
+ * power-control VOTE.  pm_runtime_set_suspended() below marks the device
+ * suspended but does not touch the wire, so a vote left set would make the
+ * first post-SSR runtime_resume()'s pc_vote(true) a no-op -- no 0->1 edge, no
+ * modem ack, a pc-ack timeout, and an A2 handshake left out of phase. */
+qcom_smem_state_update_bits(dmux->pc, dmux->pc_mask, 0);
+```
+and, so the wire always agrees with the PM status, in `bam_dmux_ssr_powerup_work_func()` where the device is
+marked **active** (`:2451-2453`, the `!dmux->rx` branch) re-assert it as a real edge (`qcom_smem_state_update_bits(dmux->pc,
+dmux->pc_mask, dmux->pc_mask)`). The "channels already active" branch (`:2461`) deliberately leaves the PM
+status **suspended**, so leaving the vote at 0 there is *consistent* — no change needed.
+
+**Pre-registration P-VOTE1 (cut fixed before deploy).**
+| # | prediction | falsified by |
+|---|---|---|
+| P-VOTE1a | the H4 signature stops: **no** `pc-ack timeout during resume` within ~5 s of a crash-recovery | a timeout still fires within 5 s of a crash-recovery |
+| P-VOTE1b | over **≥ 11** pre-emptive cycles **zero** `a2_task.c:3179` | any `a2_task.c:3179` in the window |
+| P-VOTE1c (guard) | data path survives: wwan0 up and `ping -I wwan0` succeeds across every SSR | wwan0 down > 1 cycle, or an AP hang (boot_id change) |
+
+Baseline for b: §112.14 P(fatal-cycle) ≈ 25 % ⇒ P(0 in 11) ≈ 4.2 %. **n = 11 is the cut; not to be re-tuned.**
+**Revert:** reload the stock `qcom_bam_dmux.ko` (module-only; no flash).
+
+**Honest scope / what this is NOT.** (a) It does **not** touch the ~902.7 s ML1 clock (Doc 140 §10.4) — the
+600 s pre-emptive SSR remains that mitigation. (b) §112.14's fatal-10 antecedent (`pc-ack timeout`
+**mid-cycle**, 9.9 s before the fatal) is **not** explained directly by this mechanism; the proposal is that it
+is a *downstream* consequence of an earlier post-SSR desync that persisted — that is part of what P-VOTE1b
+tests. (c) The ledger (§36, Doc 231 §15.5) previously called the resume path *"a symptom … not a fixable AP
+defect"*; this section **contests that** on the ground that Android's SSR path *does* clear the vote, so the
+OpenWrt omission is a real parity-breaking difference rather than a downstream symptom. **Status: proposed;
+not yet built or deployed.**
+
+**SOP compliance.** Ground truth first: the DT node, the live driver, the Android driver, and the ledger's own
+H4/§14.3 records were read directly; the bit identity is established from the DT, not from names. The
+pre-registration is written **before** the build. Module-only driver change (no firmware, no flash, no
+overlay), reverted by reloading the stock module. Risk stated in the predictions. **Artifacts (to be
+filled):** the tracked patch, the built `qcom_bam_dmux.ko` md5, the deploy/verify log.
+
+---
+
+### §112.17 — ★★★★★ THE STALE-EDGE RECONCILE NEVER ACKS THE MISSED DEASSERT — and **8/8** `a2_task.c:3179` fatals follow a `stale edge` by **~15 s**
+
+**The observation (`scratch/crashloop/dmesg_6741.txt`: the whole boot, every pc event classified and aligned
+to every `is now up`).** This is the strongest antecedent in the project for the a2 class.
+
+| fatal | site | the preceding `stale edge` | Δ |
+|---|---|---|---|
+| 1668.710 | `a2_task.c:3179` | 1653.701 | **+15.0** |
+| 1698.764 | `a2_task.c:3179` | 1673.060 | +25.7 |
+| 2590.249 | `a2_task.c:3179` | 2575.264 | **+15.0** |
+| 2722.489 | `a2_task.c:3179` | 2707.008 | +15.5 |
+| 2744.116 | `a2_task.c:3179` | 2726.115 | +18.0 |
+| 2813.370 | `a2_task.c:3179` | 2798.305 | **+15.1** |
+| 2958.431 | `a2_task.c:3179` | 2943.444 | **+15.0** |
+| 5882.597 | `a2_task.c:3179` | 5867.527 | **+15.1** |
+
+**8 of 8 `a2_task.c:3179` fatals are preceded by a `stale edge` ~15 s earlier** (6 of 8 at **15.0–15.1 s** — a
+tight, modem-side timeout signature, not a random correlation). The only three `stale edge` events with **no**
+fatal are at **restart instants** (4166.083, 4774.354, 6484.808 — each ~0.2–0.5 s before an `is now up`),
+which §112.14 already records as benign. ⇒ the antecedent is not "a pc anomaly" in general; it is **the missed
+DEASSERT**, and the ~15 s is the modem a2_task's handshake timeout.
+
+**Why the missed deassert is never acked — the code asymmetry (`qcom_bam_dmux.c:1315-1373`).**
+`bam_dmux_pc_irq()` acks **both** transitions (`:1972` assert, `:1990` deassert), and Android does too
+(`reconnect_to_bam()` → `toggle_apps_ack()` `:1990`; `disconnect_to_bam()` → `toggle_apps_ack()` `:2055`). The
+watchdog's two recovery paths are **not** symmetric:
+
+| recovery path | condition | action |
+|---|---|---|
+| **LOST** (`:1321-1373`) | `pc_state==0` but line **high** (missed ASSERT) | `bam_dmux_pm_restart()` **+ `bam_dmux_pc_ack()`** (`:1368`) |
+| **STALE** (`:1315-1319`) | `pc_state==1` but line **low** (missed DEASSERT) | clears `pc_state` only — **no ack** |
+
+⇒ a missed deassert leaves the AP's ack toggle **one short** — exactly the phase error §112.14's "stuck state"
+describes. The modem deasserts (collapses), never sees the ack, and its a2_task times out ~15 s later and
+asserts. **This is a one-line asymmetry and it is the mechanism.** (Patch 825, `pc-state-reconcile`, added the
+STALE branch but only for `pc_state`; the ack half was missed — so this is an **extension of 825**, not a new
+mechanism.)
+
+**Proposed fix (P-ACK1).** In `bam_dmux_rx_watchdog_func()`, ack the recovered deassert under `state_lock`,
+re-checking the wire (mirroring the LOST path's double-check):
+```c
+if (READ_ONCE(dmux->pc_state) && !bam_dmux_pc_line_asserted(dmux)) {
+        dev_warn(dmux->dev, "… (stale edge), reconciling\n");
+        mutex_lock(&dmux->state_lock);
+        if (READ_ONCE(dmux->pc_state) && !bam_dmux_pc_line_asserted(dmux)) {
+                WRITE_ONCE(dmux->pc_state, false);
+                /* The deassert really happened; pc_irq() would have acked it.
+                 * Without this the ack toggle is one short and the modem's
+                 * a2_task times out ~15 s later (a2_task.c:3179). */
+                bam_dmux_pc_ack(dmux);
+        }
+        mutex_unlock(&dmux->state_lock);
+}
+```
+
+**Pre-registration P-ACK1.**
+| # | prediction | falsified by |
+|---|---|---|
+| P-ACK1a | no `a2_task.c:3179` follows a `stale edge` within 20 s | any fatal still follows a stale edge within 20 s |
+| P-ACK1b | over **≥ 11** pre-emptive cycles **zero** `a2_task.c:3179` | any `a2_task.c:3179` in the window |
+| P-ACK1c (guard) | wwan0 stays up and `ping -I wwan0` succeeds across every SSR | wwan0 down > 1 cycle, or an AP hang (boot_id change) |
+
+Baseline: §112.14 P(fatal-cycle) ≈ 25 % ⇒ P(0 in 11) ≈ 4.2 %. **n = 11 is the cut; not to be re-tuned.**
+**Revert:** reload the stock `qcom_bam_dmux.ko` (module-only; no flash).
+
+**Honest scope.** (a) It does **not** touch the ~902.7 s ML1 clock; the 600 s pre-emptive SSR remains that
+mitigation. (b) The ~15 s figure is inferred from 8 samples and could be watchdog-poll + a shorter modem
+timeout; the falsifier is the *timing*, not the constant. (c) The §112.16 vote-bit omission is a **separate,
+weaker** defect (it explains 1 of the 8 timeouts — the +1.47 s post-SSR one at 736.808) and is **not** part of
+P-ACK1; do not bundle it. (d) §112.14's "storm is a stuck regime" reading is consistent with a missing ack
+toggle (a phase error persists until a restart clears it).
+
+**SOP compliance.** Ground truth: the boot's own event table (8/8, computed, not asserted), the live driver's
+two recovery paths read side by side, and the Android `reconnect_to_bam`/`disconnect_to_bam` ack sites.
+Pre-registered **before** the build. Module-only driver change, reverted by reloading the stock module.
+**Artifacts (to be filled):** the tracked patch, the built `qcom_bam_dmux.ko` md5, the deploy/verify log.
+
+---
+
+### §112.14 addendum — the exact fatal-10 window, and the coredump watcher armed
+
+Pulled from the live ring (`scratch/crashloop/dmesg_6741.txt`, ring spans `[0.000000]`→`[6741.105538]`):
+
+```
+[ 5867.527441] bam_dmux: RX watchdog: pc_state=1 but pc line low (stale edge), reconciling
+[ 5872.744258] bam_dmux: modem pc-ack timeout during resume
+[ 5882.596659] qcom-q6v5-mss 4080000.remoteproc: fatal error received: a2_task.c:3179:
+[ 5882.596725] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[ 5882.603420] remoteproc remoteproc0: handling crash #10 in 4080000.remoteproc
+[ 5882.611673] remoteproc remoteproc0: recovering 4080000.remoteproc
+[ 5882.618825] bam_dmux: SSR before shutdown: scheduling teardown work
+... T0..T9 teardown, stopped remote processor @5882.698289 ...
+[ 5883.414380] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+[ 5883.423476] qcom-q6v5-mss 4080000.remoteproc: GFMUX_CTL pre-write: 0x00000100
+[ 5883.463883] qcom-q6v5-mss 4080000.remoteproc: MBA booted without debug policy, loading mpss
+[ 5884.018400] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+```
+⇒ the antecedent is **exactly** §112.14's: `stale edge` (**+15.1 s**) → `pc-ack timeout` (**+9.9 s**) →
+fatal, with **9.9 s of total AP silence** between the timeout and the assert. The AP did **not** hang
+(`port failed halt` present, then a second MBA load — hang site B survived again, n=2).
+
+**The fatal is the SMEM `crash_reason` string.** `qcom_q6v5.c:124-131`: `q6v5_fatal_interrupt()` reads
+`qcom_smem_get(crash_reason)` and `dev_err("fatal error received: %s")`, then `rproc_report_crash()`. The
+coredump is taken by the remoteproc core **before** the recovery stop, so the SSR notifier (and patch 821's
+synchronous `flush_work`) runs *after* the dump ⇒ **a natural fatal should produce a coredump**.
+`remoteproc0/coredump = enabled`, `/sys/class/devcoredump/disabled = 0`, and a device-local watcher
+(`/root/dumpwatch.sh`, md5 `cb8e5fd174d19a7e80be7c6f631236aa`) is running that copies `devcd*/data` to
+`/root/dumps/dump_<uptime>.bin` (overlay, 2.9 G free) before the 5-min devcoredump timeout. No dump has been
+produced yet (no fatal since the enable).
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
@@ -12155,3 +12457,340 @@ The 600 s pre-emptive SSR fired **3× cleanly** and then a 4th cycle fataled **b
 | **`scratch/crashloop/soak_baseline.sh`**, **`soak_baseline.log`** | **new (§112.14)** — the 4 h baseline soak (15 s poll): `AP/cr/up/lost/stale/to/w0`. Sizes the post-restart storm + `a2_task.c:3179` rate so a fix can be scored. Restart #2 clean at +227 s is the first datum |
 | **`/proc/interrupts` (live, device)** | **new evidence (§112.14 ★★)** — `50: smsm 1 Edge` (pc) and `51: smsm 11 Edge` (pc-ack): both **EDGE**-triggered, requested `IRQF_ONESHOT` threaded (`qcom_bam_dmux.c:2616`, `:2621`) ⇒ lost edges are **structural**, not a race |
 | **`GitIgnore/MelbonWhiteStock_Dump/modem_extracted/image/modem.elf`** | **re-examined (§112.14)** — the `a2_task.c` / `a2_power.c` / `lte_ml1_common_timer.c` literals sit in a **16-byte-padded constant pool** (`0xc17099a8`+) with **no adjacent line numbers**; a `(line<<16)` descriptor scan returns 53 false hits. ⇒ the modem-side assert text is **not** recoverable this way; a coredump is required |
+
+---
+
+## §112.18 — ★★★★★ Patch 828 DEPLOYED: the stale-edge ack. Plus a fresh `a2_power.c:1189` coredump, the SSR-instant/steady-state separation, and the disk-fill trap
+
+**Date 2026-10-02. AP uptime ~8 700–9 300 s, boot_id `aefc9dc1-a90e-4f94-8629-9df7489341db` (unchanged all session).**
+Build `a0ab4e3373e120d40f1baa1a825ea72b` (patch 828 in tree, `srcversion 179B1165840CDD691424CCC`), deployed by module swap; revert target `/root/kobak/qcom_bam_dmux.stock.ko` md5 `9c08871ff0d29f714acfa89b41893898`.
+
+### §112.18.1 The full 14-stale-edge table — the classes SEPARATE PERFECTLY by SSR-window
+
+§112.17 claimed "8/8 `a2_task.c:3179` fatals follow a `stale edge`". Pulling the WHOLE boot shows the statement was right about the fatals but incomplete about the denominators: **there are 14 stale edges, 8 fatal and 6 benign.** The 6 benign ones are all at a **pre-emptive-SSR teardown instant**; the 8 fatal ones are all in steady state.
+
+| # | stale edge @AP | in SSR teardown window? | outcome |
+|---|---|---|---|
+| 1 | 1653.701 | no | fatal #3 `a2_task.c:3179` @1668.710 (+15.0) |
+| 2 | 1673.060 | no | fatal #4 @1698.764 (+25.7) |
+| 3 | 2575.264 | no | fatal #5 @2590.249 (+15.0) |
+| 4 | 2707.008 | no | fatal #6 @2722.489 (+15.5) |
+| 5 | 2726.115 | no | fatal #7 @2744.116 (+18.0) |
+| 6 | 2798.305 | no | fatal #8 @2813.370 (+15.1) |
+| 7 | 2943.444 | no | fatal #9 @2958.431 (+15.0) |
+| 8 | 4166.083 | **YES** (notifier 4165.923 → powerup 4166.641) | benign |
+| 9 | 4774.354 | **YES** (4774.197 → 4774.887) | benign |
+| 10 | 5867.527 | no | fatal #10 @5882.597 (+15.1) |
+| 11 | 6484.808 | **YES** (6484.641 → 6485.332) | benign |
+| 12 | 7092.941 | **YES** (7092.779 → 7093.503) | benign |
+| 13 | 7701.924 | **YES** (7701.762 → 7702.463) | benign |
+| 14 | 8312.514 | **YES** (8312.357 → 8313.068) | benign (no fatal; next event is fatal #11, a DIFFERENT site, +38.6 s) |
+
+**The SSR-teardown window is `[QCOM_SSR_BEFORE_SHUTDOWN, bam_dmux_ssr_powerup_work_func:in_teardown=false]`** — i.e. `dmux->in_teardown == true`. It separates the two classes **8/8 vs 6/6, no exceptions.** So the benign stale edge is simply "the AP deasserts the line during teardown and the edge handler is not running" — routine. The fatal stale edge is a *steady-state* missed deassert, exactly the case §112.17's ack addresses.
+
+**Consequence for the fix:** patch 828 acks in BOTH classes (the reconcile runs whenever the outer condition holds; `in_teardown` is not re-tested). That is *correct* in both — the ack mirrors `bam_dmux_pc_irq()`'s own deassert ack at `:2008` — and the teardown resets `pc_ack_state = 0` + clears the ack bit at `:2367-2368` every cycle, bounding any effect to one cycle. It only *matters* in steady state, which is where the fatal class lives. **The deploy was made with that reasoning stated before the fact.**
+
+### §112.18.2 A fresh `a2_power.c:1189` coredump — the modem's own report
+
+The fixed watcher caught **crash #12** (`dump_devcd3_9217.bin`, 85 398 475 B, md5 `94f9d771ccefcae32c7e18c063750fce`, pulled byte-exact in 3.9 s). `read_crash_report.py` gives:
+
+```
+Error in file a2_power.c, line 1189
+Error message: A2 Assertion Failed
+Uptime (h:m:s): 0:00:18        <-- the MODEM's own uptime
+tcb.task_name: a2
+QDSP6_PC : 0xc087a804   QDSP6_LR : 0xc0879164   SSR : 0   BADVA : 0
+Dog Report: [5] a2  Is_Blocked=1 ;  [6] DSMSGR RECV  Timeout=60 Count=57 Is_Blocked=0
+```
+
+**The modem's `a2` task asserts 18 s after it boots.** AP view: modem up 9198.304 → fatal 9216.828 = 18.52 s. **No stale edge, no lost edge, no pc-ack timeout precedes it** — so crash #12 is **NOT** a stale-edge event and patch 828 is **not** implicated (crash #11, at 8351.116 / 38.0 s post-restart, fired **before** 828 was deployed, same site).
+
+**This is the known SSR-induced A2 desync, now with the modem's own report attached.** Archive item 46 / Doc 231 §14.3 already names it: *"each SSR appears to leave the A2 handshake more desynced"*, and the F3 desync is `req_bmask=0x0` (wake request, `a2_power.c:1470`) vs `req_bmask=0x800` (ack, `a2_power.c:12033`). The 18 s figure is a **modem-local** timeout after a warm restart, not the 902.7 s ML1 beat.
+
+⚠ **Rate changed:** a2_power fatals are #1 (734.6, cold, modem-uptime 722.7 s), #11 (8351.1, +38 s post-restart), #12 (9216.8, +18.5 s post-restart) ⇒ **2 in ~900 s**, after one in the preceding ~7 600 s. Not yet attributable; recorded as the dominant open failure mode.
+
+**★ The archive already explains this death — §48.2: a FIRMWARE-WATCHDOG death, not an AP desync.** §48.2's AP-side log for the same site reads `Watchdog bite received from modem software!` (+391 ms after `modem_shutdown(force_stop=true)`), then `modem subsystem failure reason: SFR Init: wdog or kernel error suspected..`, then `Timed out on stop ack from modem` (+1002 ms). Verbatim from §48.2: *"the modem did not ack the force-stop; its own firmware watchdog expired instead… the KNOWN firmware-watchdog death, the same class the OpenWrt watchdog script already documents ('the modem's sleep chain stalls in `rpm.sync` and the firmware's own watchdog kills it'), surfaced on OpenWrt as the SSR-induced `a2_power.c:1189` fatal"*, and *"the workaround's own lever can trigger it"*. §48.3's unification: **"a restart breaks the modem's power collapse"** is the single phenomenon behind both the warm-arm clock and this fatal. ⇒ the 18 s `a2` assertion is a *consequence* of a stalled sleep chain after the restart, and the pre-emptive SSR is the lever that arms it — which is why the a2_power rate rose to 2/900 s once we began cycling the modem. **This is the leading open failure mode and is NOT addressed by patch 828.**
+
+**★★ §112.16 DOWNGRADED with a live negative (the SSR does NOT leave a stale AP vote).** §112.16 hypothesised that OpenWrt's SSR never clears the AP's own A2 VOTE bit (`dmux->pc`, `apps_smsm` bit 1) though Android's `restart_notifier_cb:2182` calls `power_vote(0)`. A live counter read (`rx_telemetry`) shows `pc_vote_tx_count: 12 == pc_unvote_tx_count: 12` (balanced, net 0), `pc_state: 0`, `pc_ack_state: 0`, `pc_line_level: 0`, `pc_timeout_count: 1`, `pm_suspend_attempts: 12` vs `pm_suspend_completions: 11` ⇒ at that instant the SSR is **not** leaving a standing vote. §112.16 is therefore removed as the obvious standing cause of the a2_power mode; the sleep-chain stall (§48.2) remains the candidate.
+
+### §112.18.3 The disk-fill trap in our own watcher (fixed)
+
+The first `dumpwatch.sh` re-read the SAME `/sys/class/devcoredump/devcdN/data` every 2 s loop — **reading `data` does NOT remove the node** (it lingers for the 5-min devcd timeout) — producing **23 byte-identical 85 MB copies = 1.8 GB**, overlay to **63 %**, and one **truncated** 39 MB file when the node expired mid-copy. Fixed (`scratch/crashloop/dumpwatch.sh`): track read node names in `.seen`, prune entries whose node has disappeared (the kernel devcd ida can REUSE an index), copy to `.part` and promote only if `>= 80 MB`, cap at 6 dumps. Re-verified: crash #12 captured **once**. **Lesson (fits feedback_measurement_discipline RULE 11): validate a capture against its own declared total — a short file is not a dump.**
+
+### §112.18.4 P-ACK1 pre-registration (carried from §112.17) and the soak
+
+| # | PASS | FAIL |
+|---|---|---|
+| P-ACK1a | no `a2_task.c:3179` within 20 s of a `stale edge` | any fatal still follows a stale edge within 20 s |
+| P-ACK1b | over **≥ 11** pre-emptive cycles, **zero** `a2_task.c:3179` | any `a2_task.c:3179` in the window |
+| P-ACK1c (guard) | wwan0 stays up and ping succeeds across every SSR | wwan0 down > 1 cycle, or an AP hang (boot_id change) |
+
+Soak started 2026-10-02T09:57:08Z (uptime 9 277) — `scratch/crashloop/soak_828.sh` (device `/root/soak_828.sh`), a 30 s poll logging `se/le/pt/fa/a2/ap/rc/st/w0/ip/ping` to `/root/dumps/soak828.log` plus an event tap to `/root/dumps/soak828_events.log`, with a light 2-packet ping each cycle to keep the data path from idling. Scorer: `scratch/crashloop/ack1_score.py`.
+
+**Deploy-time recovery note (not a regression):** the module swap at 8959 triggered a modem restart; the bearer watchdog then took `wwan0` down and its Stage-3 recovery left the teardown ladder stalled after `T7 power_off returned` (no T8) with `wwan0` absent. A clean write to `/sys/kernel/debug/msm_subsys/modem` (`restart`, counter 10→11) restored the modem; `ubus call network.interface.modem up` restored the bearer; ping 0 % loss at ~80 ms. ⚠ busybox has **no `timeout`**; the restart-node write is non-blocking by design (it counts COMPLETED restarts), so it needs no guard.
+
+**Soak progress + the P-ACK1a testability caveat (recorded live).** The pre-emptive SSR is driven by `/usr/sbin/modem-bearer-watchdog` (pid 3973, reads `modem-watchdog` UCI: `preemptive_ssr_enabled=1`, `preemptive_ssr_interval=600`), not by cron. **Cycle #1 post-828 completed cleanly at AP 9820.699** (`is now up`; modem up 9218.45 + 602 s) — `rc` 11→12, one **SSR-instant** stale edge at 9820.699 handled by the new module (no fatal, no `a2_task.c:3179`), bearer rebuilt to a new IP, `ping` OK. ⚠ **Caveat for P-ACK1a:** the *steady-state* stale edge is the event P-ACK1a needs, and **none has occurred since 5867.527** (all six stale edges after it — 6484.8, 7092.9, 7701.9, 8312.5, 8959.9, 9820.7 — are SSR-teardown-instant and benign). The storm regime (steady-state stale edge → `a2_task.c:3179` +15 s) ran 1653→5882 and has not recurred in ~4 000 s. So **P-ACK1b (11 clean pre-emptive cycles, ~100 min) is the primary scoreable test**; P-ACK1a can only be scored if a steady-state stale edge reappears, which is itself the open question (whether the storm regime is re-enterable, and whether 828 prevents entry).
+
+### §112.18.5 The `a2_power.c:1189` mode — crash #11 has NO AP precursor, and the code ground truth for the §112.16 vote-bit lead
+
+**Crash #11 (`8313.07` up → fatal `8351.12` = +38.05 s) has ~37.4 s of TOTAL AP-side dmesg silence before the assert** — after the channel `CMD_OPEN`s at 8313.69, the next line in the window is the fatal itself. No `stale edge`, no `lost edge`, no `pc-ack timeout`. Crash #12 is the same (+18.5 s, §112.18.2). ⇒ the a2_power mode is **not** an AP-handshake event; the AP is a bystander.
+
+**★ The vote polarity is now code-grounded (`qcom_bam_dmux.c:574-578`).** `SMSM_A2_POWER_CONTROL` **high = the AP PERMITS the modem to power collapse**; `power_vote(0)` clears it = *"the AP does NOT permit collapse"*. Android's `ul_powerdown()→power_vote(0)` clears it 1000 ms after the last TX and `ul_wakeup()→power_vote(1)` re-arms it. In the driver: `bam_dmux_pc_vote(dmux, true/false)` sets/clears `dmux->pc` (the AP's vote bit) and is called **only** from `bam_dmux_runtime_resume()` (`:2097`) / `bam_dmux_runtime_suspend()` (`:2070`).
+
+**★ The SSR teardown resets the ack + the MODEM's bit but NOT the AP's vote bit (`:2362-2382`).** Verbatim: `WRITE_ONCE(dmux->pc_state, false)`; `dmux->pc_ack_state = 0`; `qcom_smem_state_update_bits(dmux->pc_ack, …, 0)`; `pm_runtime_set_suspended()`; then `states = qcom_smem_get(…, 85, …)` and `states[1] &= ~BIT(1)` (the **modem's** `SMSM_MODEM_STATE` bit). The AP's own vote (`dmux->pc`, a separate `devm_qcom_smem_state_get(dev, "pc", …)`) is untouched, while Android's `restart_notifier_cb:2182` explicitly calls `power_vote(0)`. ⚠ **But the live counter is balanced (`pc_vote_tx_count: 38 == pc_unvote_tx_count: 38`, `runtime_status: suspended`, `pc_state: 1`, `pc_line_level: 1`, `pm_suspend_attempts: 38` vs `completions: 36`)** ⇒ at rest the net vote is 0, so a *standing* stale vote is not visible; the exposure is only the window between `pm_runtime_set_suspended()` and the first post-restart `runtime_resume` (which re-votes 1). **The §112.16 fix (clear the vote bit in the teardown) is code-ready and Android-parity, but the evidence is circumstantial — it must be its own patch (829) with its own pre-registration, NOT bundled into the 828 soak.**
+
+**⚠⚠ P-ACK1b POWER CAVEAT (found while scoring, recorded BEFORE the cut — honesty duty).** The pre-registration (§112.17) set the baseline at "§112.14 P(fatal-cycle) ≈ 25 %". Recomputing from the whole boot's own event table **the storm's rate collapsed at 5883 and the baseline is stale**: cycles (`is now up`) after 5883 are 6485, 7094, 7702, 8313, 8353, 8960, 9198, 9218, 9821 = **9 cycles, 0 `a2_task.c:3179`**. Pooled over everything after 3562 it is **1 a2 fatal / 13 cycles ≈ 8 %**, not 25 %. ⇒ **P(11 clean cycles | 828 does nothing) ≈ 0.92¹¹ ≈ 40 % — the rate test is weak.** The **per-event test P-ACK1a is the load-bearing one** (8/8 steady-state stale edges → fatal pre-828; a single post-828 steady-state stale edge with no fatal is a strong point), but it is **event-gated**: no steady-state stale edge has occurred since 5867.527. **The soak therefore delivers (a) no-regression evidence, (b) the SSR-instant case handled cleanly (9820.1), and (c) a2_power data — and can only *confirm* 828 if a steady-state stale edge reappears. Efficacy rests primarily on the code mechanism (the LOST path and `bam_dmux_pc_irq():2008` both ack; the STALE path did not) — which is why the fix was made at all.**
+
+### §112.18.6 The A2 handshake OBSERVED live at 1 Hz — the vote→echo→ack cycle (`scratch/crashloop/vote_sampler.sh`)
+
+A **no-patch** 1 Hz sampler of the exported `rx_telemetry` fields (single `awk` pass; 18 greps/s would perturb the AP-idle meter). Deployed `/root/vote_sampler.sh` md5 `24f159448ffaa615876999c1b1b23ce1`, log `/root/dumps/vote.log`. The transitions over one idle→burst→idle cycle:
+
+```
+  10238  vt=43 ut=43 ps=0 as=0 ll=0 rs=suspended   <- idle, balanced, modem bit low
+  10261  vt=44 ut=43 ps=1 as=1 ll=1 rs=active      <- burst -> runtime_resume -> vote(1); modem ECHOES (its bit rises)
+  10263  vt=44 ut=44 ps=1 as=1 ll=1 rs=suspended   <- autosuspend -> vote(0); modem bit still high
+  10264  vt=44 ut=44 ps=0 as=0 ll=0 rs=suspended   <- modem bit falls (the deassert edge)
+  10293  vt=45 ut=44 ps=1 as=1 ll=1 rs=active      <- next burst, repeat
+```
+
+**⇒ the cycle is: AP `pc_vote(1)` → modem echoes by asserting its `SMSM_MODEM_STATE` bit → `pc_irq` → `bam_dmux_pc_ack()`; then AP `pc_vote(0)` → modem deasserts → `pc_irq` → `bam_dmux_pc_ack()`.** `pc_state`/`pc_line_level` are the **modem's** bit (the AP reads it through `irq_get_irqchip_state(pc_irq, …LINE_LEVEL)`), and they follow the AP's vote with a ~1–3 s lag. The counts are balanced every cycle (`vt` = `ut` at rest). ⇒ **the steady-state handshake is healthy**; the `a2_power.c:1189` mode is **not** this path (no stale/lost edge or pc-ack timeout precedes it — §112.18.5). The sampler runs alongside the soak and will capture the vote state across the next restart (~10420).
+
+**★ Cycle #2 (`10423.59` SSR → `10424.27` up; clean) captured across the restart — the §112.16 exposure is REAL but NOT sufficient:**
+
+```
+  10420  vt=49 ut=48 ps=1 as=1 ll=1 rs=active     <- pre-restart burst, vote(1)
+  10423  vt=49 ut=49 ps=0 as=0 ll=0 rs=suspended  <- vote(0), modem bit low
+  10424  vt=50 ut=49 ps=0 as=0 ll=0 rs=other      <- ★ RESTART INSTANT: AP vote bit SET (net +1), status transient
+  10425  vt=50 ut=49 ps=1 as=1 ll=1 rs=active     <- modem echoes after powerup
+  10426  vt=50 ut=50 ps=1 as=1 ll=1 rs=suspended  <- vote(0)
+  10427  vt=50 ut=50 ps=0 as=0 ll=0 rs=suspended  <- modem bit low
+```
+
+**The AP's vote bit is SET (net +1) at the restart instant and the SSR teardown does not clear it (§112.18.5) ⇒ §112.16's exposure is not merely theoretical.** **But cycle #2 was CLEAN** (no `a2_power.c:1189`) ⇒ a set vote at the restart is **not sufficient** for the a2_power assert. ⚠ The 1 Hz sampler cannot separate "left over by the teardown" from "set fresh by the post-restart resume" — resolving that needs a driver-side log at `:2366` (a diagnostic patch). **Recorded as: §112.16 real, causal role UNPROVEN; do not patch on it yet.**
+
+### §112.18.7 ★★★★ SOAK INTERIM (rc 11→16, 5 of 11 cycles) — **THE PRE-EMPTIVE SSR ITSELF TRIGGERS `a2_power.c:1189` ~40 % OF THE TIME**
+
+Scored with `ack1_score.py` on the event tap (the live `grep -c` counters in `soak_828.sh` are **not monotonic once the dmesg ring wraps** — `fa`/`ap` fell 14→13/5→4 at `11699`; score from the append-only `/root/dumps/soak828_events.log`, deduped).
+
+| # | SSR | `is now up` | `a2_power.c:1189`? |
+|---|---|---|---|
+| (deploy) | 8959.758 | 8960.479 | — |
+| recovery | 9197.585 | 9198.304 | **9216.828 (+18.5 s)** |
+| c1 | 9819.978 | 9820.699 | no |
+| c2 | 10423.594 | 10424.269 | **10452.103 (+27.8 s)** |
+| c3 | 11057.106 | 11057.780 | **11075.045 (+17.3 s)** |
+| c4 | 11680.330 | 11681.005 | no |
+| c5 | 12282.878 | 12283.562 | no |
+
+**⇒ 3 of 6 restarts since the deploy (2 of 5 pre-emptive cycles) produced an `a2_power.c:1189` fatal 17–28 s later; 0 `a2_task.c:3179`.** Pooled with the pre-deploy cycles (8312 → 8351 fatal; 6484/7094/7702 clean) that is **3/9 ≈ 33 %**. **This is the cost of the ML1 mitigation: the 600 s pre-emptive restart that dodges the ~902.7 s ML1 fatal itself triggers the a2_power fatal roughly one cycle in three.** Net rate: ~0.3–0.5 a2_power fatals/h vs ~4 ML1 fatals/h unmitigated ⇒ **still net-positive, but the a2_power mode is now the dominant crash and is *caused by the mitigation*.**
+
+**P-ACK1 interim score (not the cut):** P-ACK1a **PASS** (0 violations — but there are 0 `a2_task` fatals, so it is untested, not confirmed); P-ACK1b **UNDECIDED** (5/11 cycles, `a2` delta 0); P-ACK1c **PASS** (6/99 ping samples fail, all rebuild transients with **longest outage 34 s** ≪ one 600 s cycle, `st=running` at every sample, `ip` never absent). ⚠ All 6 stale edges since the deploy (9820.1, 10423.8, 11057.3, 11680.5, 12283.0 + the 8959.9 deploy pair) are **SSR-instant**, handled by 828 with no fatal — the **steady-state** stale edge P-ACK1a needs has still not recurred (§112.18.4 caveat).
+
+### §112.18.8 ★★★★★ RESTART-INSTANT STALE-EDGE HANDLING — VERIFIED, byte-level, in the LOADED image
+
+Requested verification. Three independent legs, all PASS:
+
+**(1) The LOADED module is 828 — checked from sysfs, not the on-disk file.** `/sys/module/qcom_bam_dmux/srcversion` = **`179B1165840CDD691424CCC`** (= the 828 build). ⚠ **The on-disk `/lib/modules/6.12.94/qcom_bam_dmux.ko` is STOCK** (md5 `9c08871f…`, srcversion `A9AC55FE…`, dated Jun 29) — by design: `deploy_828.sh` loads 828 from **`/root/kobak/qcom_bam_dmux.828.ko`** (md5 `a0ab4e33…`) and never touches `/lib/modules`. **⇒ the fix is NOT persistent across a reboot; a reboot silently reverts to stock. The soak must not span a reboot** (boot_id `aefc9dc1…` unchanged ✓). This is a real deployment hazard and is recorded as such.
+
+**(2) The stale branch in the LOADED image calls `bam_dmux_pc_ack` — and the stock one does not.** Disassembled both (`aarch64-linux-gnu-objdump`), located `bam_dmux_rx_watchdog_func` in each:
+
+| | stock (`9c08871f…`) | 828 (`a0ab4e33…`, LOADED) |
+|---|---|---|
+| stale branch | `0x27e8 bl _dev_warn` → `0x27ec strb wzr,[x20,#1420]` (clear `pc_state`) → `0x27f0 b 2728` | `0x27f4 bl _dev_warn` → `0x2808 bl mutex_lock` → `0x2810 ldrb` (re-check) → `0x2818 bl bam_dmux_pc_line_asserted` → `0x2824 strb wzr` (clear) → **`0x282c bl bam_dmux_pc_ack`** → `0x2834 bl mutex_unlock` |
+| lock / re-check | **none** | `state_lock` + wire re-check (mirrors LOST) |
+| ack | **absent** | **present** |
+
+⇒ the delta is exactly the fix: **stock clears `pc_state` and returns without acking; 828 locks, re-checks the wire, clears, and acks.** This is the §112.17 mechanism confirmed in the running binary.
+
+**(3) Every restart-instant stale edge since the deploy was handled — no fatal, handshake converged.** From the 1 Hz sampler (`vote.log`), state at +5 s and +15 s after each edge (`converged` = `vt==ut` and `pc_state==pc_line_level`, i.e. no stale cached state):
+
+```
+  edge 10423.8:  +5s conv=True   +15s conv=True
+  edge 11057.3:  +5s conv=True   +15s conv=True
+  edge 11680.5:  +5s conv=True   +15s conv=True
+  edge 12283.0:  +5s conv=True   +15s conv=True      (9820.1: sampler had not started yet)
+```
+
+**5/5 restart-instant stale edges → clean powerup, no fatal, `wwan0` rebuilt; 4/4 verifiable converged within 5 s.** ⚠ **Honest scope:** the *individual* effect of the added ack at the restart instant cannot be isolated (the driver does not log the ack; the teardown resets `pc_ack_state=0` and the modem's own echo edge also toggles it, and 1 Hz sampling cannot resolve sub-second ordering). What is proven is that the branch is present in the loaded image and that its presence does **not** break the restart-instant case — which is exactly what §112.18.1 argued pre-deploy. **The restart-instant case was benign in stock too, so this leg is a no-regression proof, not an efficacy proof.**
+
+### §112.18.9 ★★★★ PERSISTENT MODULE DEPLOYMENT — installed at the canonical path and verified (the pre-existing deploy was RAM-ONLY)
+
+**⚠ The hazard found in §112.18.8 leg (1): before this step the fix was NOT persistent.** `deploy_828.sh` insmods `/root/kobak/qcom_bam_dmux.828.ko` and never touches `/lib/modules`, so **an accidental reboot would have silently reverted to stock** and invalidated the whole soak. Fixed by installing 828 at the canonical path.
+
+**The install and its verification (all PASS):**
+
+| check | result |
+|---|---|
+| `/lib/modules/6.12.94/qcom_bam_dmux.ko` md5 | **`a0ab4e3373e120d40f1baa1a825ea72b`** (= 828; was `9c08871f…` stock) |
+| embedded / `modinfo` srcversion | **`179B1165840CDD691424CCC`** (= the running module) |
+| `modinfo` vermagic | `6.12.94 SMP preempt mod_unload aarch64` (matches `uname -r`) |
+| ELF magic | `7f 45 4c 46` (valid); 243 352 B; `depends: qcom_common` |
+| persistence | the file is now in **`/overlay/upper/lib/modules/6.12.94/qcom_bam_dmux.ko`** ⇒ on the **ext4 overlay upper** (`/dev/mmcblk0p15`), so it survives a reboot |
+| boot load path | `/etc/modules.d/bam-dmux` lists `qcom_bam_dmux`; **there is NO `modules.dep`/index** — `kmodloader` resolves by **scanning `/lib/modules/<ver>/`**, so the canonical file is what boots |
+| bootloop guard | **absent** (`/root/modem_guard.sh`, `/etc/init.d/modem-guard`, `/overlay/modem_guard/` all do not exist) ⇒ nothing will auto-revert it |
+| samplers | unaffected (`dumpwatch` 4206, `soak_828` 10502, `vote_sampler` 32682 all still alive; boot_id unchanged) |
+
+**⚠ Revert procedure (unchanged, still module-only):** `cp /root/kobak/qcom_bam_dmux.stock.ko /lib/modules/6.12.94/qcom_bam_dmux.ko; sync` (plus `rmmod`/`insmod` to take effect immediately). The stock original is preserved at `/root/kobak/qcom_bam_dmux.stock.ko` (md5 `9c08871f…`) **and** in the read-only squashfs lower.
+
+**Remaining gap (stated honestly):** the only thing not yet exercised is the **actual boot-time load** — i.e. that `kmodloader` picks the file up on the next power cycle. The static chain above is strong (right path, right bytes, no index, no guard), but the definitive confirmation is **one deliberate reboot**. That costs the in-flight soak's dmesg/vote state (the samplers are `setsid` SSH children, not procd services, so they die and must be relaunched) — the pre-registered cut counts *cycles*, not boots, so the test is not invalidated, only restarted.
+
+### §112.18.10 ★★★★★ SOAK CUT SCORED (rc 11→22, 11 cycles) + BOOT PERSISTENCE CONFIRMED + the restart-cause ruling
+
+**(A) P-ACK1 scored at the pre-registered cut (rc=22 = 11 pre-emptive cycles since the deploy at rc=11).** Scored from the **deduped** fatal set (the live `grep -c` counters are non-monotonic after the dmesg ring wraps — `a2` delta came out **negative**, −4, proving it).
+
+| test | result | basis |
+|---|---|---|
+| **P-ACK1a** | **PASS** | 0 `a2_task` fatals ⇒ 0 violations — but **untested**: no *steady-state* stale edge recurred (§112.18.4 caveat); all post-deploy stale edges are SSR-instant |
+| **P-ACK1b** | **PASS** | **0 `a2_task.c:3179` with uptime > 8959** over 11 cycles |
+| **P-ACK1c** | **PASS** | 12/204 ping≠ok samples, **longest outage 34 s**, `st=running` at every sample, `ip` never absent |
+
+**Post-deploy fatals (uptime > 8959) = 4, ALL `a2_power.c:1189`** (9216.828, 10452.103, 11075.045, 13516.882); **zero `a2_task.c:3179`**. The last `a2_task.c:3179` in the boot is **5882.597 — pre-deploy** (the storm). ⚠ **P-ACK1b is a weak test** (post-3562 baseline 1/13 ≈ 8 %/cycle ⇒ P(11 clean | no effect) ≈ 0.92¹¹ ≈ 40 %); the load-bearing evidence remains the **code mechanism** (§112.17) + the restart-instant byte-level verification (§112.18.8). Archive: `scratch/crashloop/evidence_828_cut/` (6 files, md5s in session).
+
+**(B) BOOT PERSISTENCE CONFIRMED — the §112.18.9 gap is now closed.** Deliberate reboot executed; **boot_id `aefc9dc1…` → `0cbfeaf4-6e14-47bb-a505-1a1b51c990be`**; the running module after boot is **`srcversion=179B1165840CDD691424CCC`** (= 828), canonical file still md5 `a0ab4e33…`. **Proof it loaded from the canonical path and not a stray insmod:** `grep -rn "kobak\|828" /etc/init.d/ /etc/modules.d/ /etc/rc.local /lib/preinit/` = **no references**; the only `qcom_bam_dmux.ko` on a load path is `/lib/modules/6.12.94/qcom_bam_dmux.ko` (the kobak copies are under `/root`, not a module dir). Boot dmesg shows `bam_dmux` live at 12–13 s (`SSR powerup: modem pc_state=1`, `CMD_OPEN` ×8). **⇒ the fix survives a power cycle; revert is still one `cp` + `rmmod`/`insmod`.** Tool: `scratch/crashloop/verify_boot_persistence.sh` (dry-run by default, `--reboot` to execute).
+
+**(C) RESTART-CAUSE RULING (operator asked: loose cable?).** **The AP never restarted** — boot_id unchanged all soak, uptime monotonic to 16 185 s, pstore an ordinary boot-console ramoops (no panic), syslog with **no reboot/shutdown/power record**. All **22 restarts were MODEM-ONLY SSR** (`msm_subsys: restarting 4080000.remoteproc`): ~17 pre-emptive (~602–635 s apart) + 4 fatal-driven. **A cable cannot trigger these** — they are AP-initiated remoteproc restarts. USB evidence: `usb0` (the host-facing gadget, the LAN uplink alongside `phy0-ap0`) shows **0 errors / 0 dropped / 0 missed** over 3.7 M RX + 4.0 M TX; the **only** USB event in the whole boot is a `usb0` bounce at **15418.66** (down→up ~250 ms) which caused **no** restart and had **no UDC/`ci_hdrc`/extcon/VBUS log**. A true loose cable on this bus-powered stick would drop VBUS → power-cycle → **boot_id change** — not observed. ⇒ **no evidence of a cable-caused restart**; if a network drop was seen, the candidate is that single `usb0` blip or the SSR bearer churn. The cut SSR left `wwan0` down/no-route (a data outage, not a restart); the reboot restored it — `wwan0` `10.98.141.19/29`, default via `.20`, `ping -I wwan0 1.1.1.1` **0 % loss @ 57 ms**.
+
+**⚠ Post-reboot state:** the three soak samplers (`soak_828`, `vote_sampler`, `dumpwatch`) are `setsid` SSH children, **not procd services** ⇒ they are **gone** and must be relaunched before any further soak. The next target remains the **`a2_power.c:1189`** mode (4 in 11 cycles) — candidate fix §112.16 (clear the AP vote bit in the SSR teardown) as its **own patch 829 with its own pre-registration**, not bundled.
+
+**(D) A FULL AP REBOOT ALSO TRIGGERS THE `a2_power.c:1189` MODE — the first post-reboot minutes.** The old pre-828 baseline soak (`scratch/crashloop/soak_baseline.sh`, 4 h 05 m, log preserved at `scratch/crashloop/evidence_828_cut/soak_baseline_4h.log`) happened to be running across the reboot and **independently confirms it** (`11:52:27 UNREACHABLE (1/3)`, `(2/3)`, then `11:53:04 cr=0 up=12.4`). Its post-reboot rows exposed a pattern worth recording: with 828 loaded, **2 `a2_power.c:1189` fatals in the first ~6 min** (AP 289.84 / 371.12; modem-uptime 290.55 / 371.82, i.e. **+277 s and +81 s after modem-up**), then **quiet through the normal 600 s cadence** (pre-emptive SSRs at 971.4 / 1573.9 / 2178.2, each with one **SSR-instant stale edge** handled cleanly, **0 `a2_task.c:3179`**). ⇒ (i) the a2_power mode is **restart-triggered in general**, not SSR-specific — consistent with §48.3 *"a restart breaks the modem's power collapse"*; (ii) a deliberate reboot is therefore **not** a clean way to "reset" the a2_power hazard (it re-arms it); (iii) ⚠ this post-reboot cluster is a **confound** for any future soak that starts right after a reboot — **discard the first ~400 s** when scoring a2_power rate. Not yet explained: why the first fatal lands at +277 s (not the 600 s watchdog interval and not the 902 s ML1 beat).
+
+### §112.18.11 ★★★★★ THE `a2_power.c:1189` COREDUMPS ANALYSED — a DETERMINISTIC assert, and the a2 module is a HANDSHAKE module
+
+**Method:** pulled all four a2_power coredumps (`devcd3/4/5/6`, 85 398 475 B each) to `scratch/crashloop/r2/`; `read_crash_report.py` + a direct scan of the filled `ERR crash log report` block. The dump is **ELF32**, 21 LOAD segments; `modem_va = dump_va + 0x39800000` is CONFIRMED (the a2 TCB `0xc3c0bba4` lands at file offset `0x3b7f094` inside seg `0x8a409000`). ⚠ The decompiled `modem_full_decompiled.c` uses **REAL VAs** (not `−0x100000`).
+
+**(A) All four are the SAME deterministic crash — only SP and uptime differ:**
+
+| dump | uptime | task | TCB | PC | LR | file:line | message | SSR | BADVA |
+|---|---|---|---|---|---|---|---|---|---|
+| devcd3 (9217) | 0:00:18 | `a2` | `0xc3c0bba4` | `0xc087a804` | `0xc0879164` | `a2_power.c:1189` | `A2 Assertion Failed` | 0 | 0 |
+| devcd4 (10453) | 0:00:27 | `a2` | same | same | same | same | same | 0 | 0 |
+| devcd5 (11076) | 0:00:17 | `a2` | same | same | same | same | same | 0 | 0 |
+| devcd6 (13518) | 0:00:28 | `a2` | same | same | same | same | same | 0 | 0 |
+
+⇒ **It is NOT a race or a memory fault** (`SSR=0`, `BADVA=0`): the `a2` task reaches a **repeatable assert at one site**. PC `0xc087a804` = `FUN_c087a76c+0x98` (the assert/print stub); LR `0xc0879164` = `FUN_c0879150+0x14` (the ERR_FATAL wrapper). The crash PC being *inside* the handler is EXPECTED — the real site is the caller.
+
+**(B) The message is the module's GENERIC `A2_ASSERT` text — it carries NO condition.** `"A2 Assertion Failed"` occurs **30+ times** in the pool (vs the module's *descriptive* asserts, which embed their condition). So `a2_power.c:1189`'s condition is **not recoverable from the crash record** — it needs the source (not in the tree) or the modem's F3 log (⚠ **the coredump carries NO F3 ring**, the Redundancy Rule). The file:line descriptor is the literal `'MPSS a2_power.c         01189'` (VA `0x8920d8a8`); ⚠ **no plain u32 pointer references it** in ANY segment (Hexagon GP-relative addressing) ⇒ a naive string-xref will find nothing.
+
+**(C) ★★★★ THE a2 MODULE'S ENTIRE ASSERT/DIAGNOSTIC FAMILY IS THE APPS↔MODEM A2 WAKEUP/SLEEP HANDSHAKE.** The strings around the descriptor are decisive: `A2 DL PER deadlock timer expired waiting for Apps ACK`; `A2 task blocked in wakeup/sleep pending state counter=%d, state=%d`; `A2 task blocked in wakeup/sleep/apps action pending state`; `Voted for A2 wake up and blocked the current task counter=%d, state=%d`; `Apps SMSM requested for A2 wake up a2_state=%d,req_bmask=0x%x,modem_smsm_a2_state_bit=%d,modem_smsm_ack_bit=…`; `A2 Modem SMSM ack bit turned ON/OFF client=%d, apps_smsm_vote_bit=%d`; `A2 received wakeup req from apps wakeup_counter=%d`; `A2 APPS BAM link is ready for data transfer`. ⇒ **the `a2` task's job is to vote for A2 wake/sleep and then block waiting for the Apps (AP) ACK**; its asserts fire when that handshake goes wrong. **This is the SAME protocol family as the `a2_task.c:3179` crash (§112.17)** — a *different* assert in the same handshake. It is **circumstantial** support that the a2_power fatal is an A2-handshake-state failure, and it **revives the §112.16 lead as plausible** — but the specific condition is still unidentified, so **§112.16 remains unproven; do not patch on it.**
+
+**(D) Dog Report (filled) at file offset `0x3521fb0`** — `[ 5] a2  Pri 0  Timeout 0  Count -1  Is_Blocked 1`; the only non-blocked tasks are `DSMSGR RECV`, `tc`, `hdrsrch`, `pgi`, `mgpmc`, `cd` (`Timeout 60, Count 57/58, Is_Blocked 0`). ⚠ `Is_Blocked=1` is the NORMAL state for an event-driven REX task (most of the 100+ tasks show it) ⇒ it does **not** by itself say "a2 is stuck"; do not over-read it.
+
+**(E) Next step (highest value, no patch): capture the modem's F3 log ACROSS an a2_power assert** (the live `f3live`/`diagboot` instrument) to get the *descriptive* diagnostic the module logs next to the assert — the coredump cannot supply it. Cheaper alternative: resolve `a2_power.c:1189` by disassembling the a2 module region (`0xc050xxxx`, which calls `FUN_c0879150`) with `llvm-objdump` (hexagon target available, `/usr/bin/llvm-objdump-22`).
+
+---
+
+### §112.18.12 ★★★★★ THE AP HUNG NATURALLY AT THE SSR-TEARDOWN T4→T5 WINDOW — the pre-emptive SSR (our own mitigation) can trigger it
+
+**Observed 2026-10-02.** boot_id `0cbfeaf4…` (post-persistence) → `5948eaf0-d150-46f7-bda6-1c4d5eaba387`. The previous boot's `console-ramoops-0` (pulled to `scratch/crashloop/evidence_hang_T4/console-ramoops-prev.txt`, 379 lines) **ends mid-SSR-teardown**:
+
+```
+[ 4156.834533] bam-dmux …: SSR teardown T0 scheduled
+[ 4156.834772] bam-dmux …: SSR teardown T1 entry
+[ 4156.841486] bam-dmux …: SSR teardown T2 tx_retry cancelled
+[ 4156.848903] bam-dmux …: SSR teardown T3 tx_wakeup cancelled
+[ 4156.857346] bam-dmux …: SSR teardown T4 state_lock acquired     <-- LAST LINE EVER
+```
+No `T5 rx released`, no `T6`, no `T7`, no `T8`, no `T9 flush returned`, **no panic, no Oops, no RCU stall, no hung-task report** — the console just stops and the AP resets.
+
+**(A) This was a PRE-EMPTIVE SSR, not a fatal.** The hung boot had **7 SSRs, ZERO `modem subsystem failure reason`** (all pre-emptive, 600 s cadence: 526, 1135, 1737, 2342, 2946, 3551, 4156). The **first six completed the full T0…T9 sequence**; only the **7th** hung. ⇒ **the T4 hang fired on our own 902 s mitigation**, at ~1 in 7 pre-emptive cycles in this boot (small n; the standing estimate is ~3–5 % per SSR, n ≥ 60 for "zero hangs").
+
+**(B) WHERE it is stuck — deterministically narrowed.** `T4` is printed in `bam_dmux_ssr_teardown_work_func()` immediately **after** `mutex_lock(&state_lock)`; `T5 ("bam-dmux T5 rx released")` is printed at the **end of step 4** of `bam_dmux_power_off()` (`qcom_bam_dmux.c:1641`). So the teardown work is blocked in ONE of, in order:
+1. `cancel_delayed_work_sync(&dmux->rx_rearm_work)` (`:1626`) — **RULED OUT**: `bam_dmux_rx_rearm_work_func()` returns at its first statement when `!pc_state`, and the notifier set `pc_state=false` before scheduling the teardown (telemetry confirms `pc_state=0` throughout the 600 s quiesce).
+2. `wait_event(dmux->rx_submit_wait, atomic_read(&rx_active_submitters) == 0)` (`:1630`).
+3. `dmaengine_terminate_sync(dmux->rx)` + `dma_release_channel` (`:1637`).
+
+The submit accounting is **balanced** on inspection (inc at `:954`; every exit decrements at `:1010` or `:1031`), so a leak is not obvious — but a submitter that **blocks inside a BAM register access** (`dmaengine_prep_slave_single`/`dmaengine_submit` at `:988`/`:1003`) on a BAM that the A2 collapse has powered down would leave `rx_active_submitters != 0` forever, which reproduces exactly this hang.
+
+**(C) Patch 828 is EXONERATED (no ABBA).** 828 adds `mutex_lock(&state_lock)` to the watchdog stale/lost paths (`:1330`/`:1344`). But **T4 printed**, i.e. the teardown *holds* `state_lock`; if the watchdog held it the teardown would block *before* T4. The teardown's only cancels are `cancel_delayed_work_sync(rx_rearm_work)` (which never takes `state_lock`) and `cancel_delayed_work(rx_watchdog_work)` (NON-blocking). ⇒ no single-mutex ABBA. Independently, `scratch/hang_probe.sh` documents the identical T4-terminal signature from **2026-09-21** (patch-821 era, pre-828) ⇒ **pre-existing, NOT a regression from 828.**
+
+**(D) ★★★ THE HOST JOURNAL IS THE AUTHORITATIVE REBOOT CLOCK — and the AP IS rebooting.** The dongle's own wall clock is offset from the host (device ≈15:35 vs host ≈21:18 on 2026-10-02), so use `journalctl -k` on the Fedora host: a USB disconnect → "new high-speed USB device … idVendor=1d6b, idProduct=0104, Product: USB Gadget" **21–39 s later** is an AP reset+reboot (the gadget re-enumerates ~18 s into boot). Observed AP reboots (host time): **13:06:19, 13:07:24, 17:37:18, 19:44:40, 20:53:59** — plus an *instant* same-second re-enumeration at 17:24:30 (a gadget re-bind, **not** a reboot — a trap). The boot `19:45:01 → 20:53:59` = 4138 s is **exactly the T4-hang boot**: its last console line (uptime 4156.857) lands on the 20:53:59 disconnect. ⇒ **at least one AP reboot is a confirmed T4 hang, not a loose cable.** ⚠ The 12:18–12:35 `05c6:9091/9024/9008` + `18d1:d00d` churn is EDL/fastboot flashing, not reboots.
+
+**(E) Instrument deployed (no patch, reversible).** `scratch/crashloop/hang_probe_t4.sh` → `/root/hang_probe_t4.sh`, started via `start-stop-daemon` (pidfile `/var/run/hangprobe.pid`), logging to the **persistent** `/root/dumps/hangprobe_t4.log`. Every 1 s it appends a heartbeat `H n up T0 T4 T5 T9` (a stopped file ⇒ a **global stall**, not a blocked path); on two consecutive samples with `T4>T5` (a healthy teardown finishes in ~70 ms, so this trigger is specific) it dumps `rx_telemetry`, every task's `wchan`, and every non-empty `/proc/<pid>/stack` — the blocked kworker's stack names the exact function. **Next hang is localised on the next boot.** Soak samplers relaunched: `soak_828.sh`, `vote_sampler.sh`, `dumpwatch.sh` (all `start-stop-daemon`, logs under `/root/dumps/`). ⚠ `/root/dumps` is on the overlay (persistent, 2.6 G free) so it survives the reset; `/sys/class/devcoredump/disabled` is `0` (capture enabled).
+
+**(F) ★★★★ THE RESET IS IMMEDIATE (~0–2 s), NOT A WATCHDOG — so a software timeout CANNOT save it.** The device clock is NTP-synced to the host (both read epoch `1790955379` at measurement), so the reset can be dated exactly. The hung boot's kernel started at host **19:44:42** (its uptime-0); the gadget came up **19 s** into boot (measured on the current boot: uptime-0 `20:54:01` → USB reconnect `20:54:20`). The hang/T4 is at host **20:53:59** (= that boot's uptime 4156.857), and the **next kernel started at host 20:54:01** ⇒ the AP reset **≤ 2 s** after T4 (≈0–1 s net of bootloader time). ⚠ `/sys/class/watchdog/watchdog0` = **`QCOM PM8916 PON WDT`, `timeout=30`, `state=active`** ⇒ the 30 s WDT did **not** cause this reset; and with `CONFIG_SOFTLOCKUP_DETECTOR`/`HARDLOCKUP_DETECTOR`/`DETECT_HUNG_TASK` all **compiled out** (only `CONFIG_RCU_CPU_STALL_TIMEOUT=21` exists, and no stall printed) there is no software detector in the window either. `/proc/sys/kernel/panic = 3`. ⇒ **the T4 event escalates to a hard AP reset in ~1 s** (candidates: a synchronous external abort / SError from a BAM register access in the A2-collapsed power domain, an SError→`panic`→3 s reboot whose message the wedged console never printed, or a PMIC/secure reset). **Consequence for the fix: bounding `flush_work()` or adding a timeout in `bam_dmux_power_off()` cannot help — there is no time for it to fire. The fix must PREVENT the fault (do not touch the BAM DMA once the A2 collapse has powered it down).** ⚠ This also means the standing "reset = PMIC PON WDT STOP, empty pstore" model (§ top of this file) does **not** describe this class: the pstore here was **non-empty** and the reset was **~1 s**, not ~30 s.
+
+**(G) ★★★★ ACCELERATED REPRO + UPGRADED INSTRUMENT (2026-10-02, in flight).** To localise the T4→T5 fault fast:
+- **`preemptive_ssr_interval` 600 → 120 s** (committed). Verified live: `PREEMPTIVE SSR: modem uptime 125s >= 120s`. ⇒ **~30 SSRs/hour** (was ~6). Faithful (same `msm_subsys/modem` `restart` path, patch 826); still far below the 902 s fatal.
+- **`hang_probe_t4.sh` v2** (`scratch/crashloop/hang_probe_t4.sh` → `/root/hang_probe_t4.sh`, `start-stop-daemon`, pidfile `/var/run/hangprobe.pid`): samples every **400 ms**; on two consecutive samples with `T4>T5` (a healthy teardown is ~70 ms, so the trigger is specific) it fires **`sysrq l` + `w` + `t`** — a KERNEL-side dump written to the **console**, which ramoops persists (region `console_size=262144`; `printk` = `6 4 1 6` so the level-4 sysrq output passes) ⇒ **it lands in `/sys/fs/pstore/console-ramoops-0` on the NEXT boot even though the AP hard-resets ~1–3 s later**. It also appends `rx_telemetry` + every `wchan`/`/proc/<pid>/stack` to the persistent overlay as a secondary. ⚠ sysrq is CONFIRMED working (`echo l > /proc/sysrq-trigger` dumps all CPUs).
+- **Reboot-persistent**: a marked, reversible block in `/etc/rc.local` (backup `/root/dumps/rc.local.bak`) re-starts the probe and re-arms `oops_all_cpu_backtrace=1` + `panic_print=64` (runtime-only knobs) each boot — otherwise the first hang would kill the probe and the capture would be lost.
+- **Monitor**: `scratch/crashloop/watch_hang.sh` (task `NSkxcR`) polls every ~45 s and reports a boot_id change or a new `HANG SUSPECT`.
+
+**SOP note:** no kernel/baseband change yet — every step here is a reversible runtime/config diagnostic. The next ledger entry will name the exact faulting call and carry the fix.
+
+### §112.18.13 ★★★★★ THE FAULTING CALL IS `dma_release_channel()` — PROVEN BY THE PS SUB-STAGE PROBE; FIX (patch 831) DEPLOYED
+
+**(A) The probe.** Patch 830 (`830-bam-dmux-teardown-substage-probe.patch`) adds five `dev_err` probes inside `bam_dmux_power_off()`: **PS0** entry, **PS1** after `cancel_delayed_work_sync(&rx_rearm_work)`, **PS2** after `wait_event(rx_submit_wait, …)`, **PS3a** before `dmaengine_terminate_sync(dmux->rx)`, **PS3b** after it and before `dma_release_channel(dmux->rx)`. Built (`c4f3a869…`), verified by `strings` (all five messages present), deployed as a module swap (canonical `/lib/modules/6.12.94/qcom_bam_dmux.ko`, boot-persistent), and **proven to fire on a healthy SSR** (`PS0→PS1→PS2→PS3a→PS3b→T5→T6→T7→T8→T9`).
+
+**(B) ★★★★★ THE RESULT (hang #4, previous boot `bbc68949` → `a1587cba`, console archived `scratch/crashloop/evidence_hang_T4/console-ramoops-hang4_PS3b.txt`).** The console ends at uptime **2417.027931** on:
+
+```
+[ 2417.020393] bam-dmux … PS3a terminating rx
+[ 2417.027931] bam-dmux … PS3b rx terminated, releasing      ← LAST LINE EVER
+```
+
+Earlier, *identical* SSRs in the same boot show `PS3b → T5` (`2288.473636 → 2288.480756`). ⇒ the AP wedges **inside `dma_release_channel(dmux->rx)`**, i.e. after `dmaengine_terminate_sync()` returned and before the next `dev_err` could print. **`dmaengine_terminate_sync()` is EXONERATED** (PS3b proves it returned; and `bam_dmux_pm_quiesce()` runs it ~7×/min on a collapsed BAM without faulting). ⇒ **the faulting call is `dma_release_channel()` → `bam_free_chan()` → `bam_reset_channel()`, which writes `BAM_P_RST` (and `BAM_IRQ_SRCS_MSK_EE`, `BAM_P_IRQ_EN`, `BAM_CTRL`/`BAM_SW_RST`) to the BAM — and the BAM is `qcom,powered-remotely`, i.e. in the MODEM's power domain.** This is exactly the mechanism §112.18.12(B)(F) predicted: **a BAM register access in the A2-collapsed power domain faults, and the fault escalates to a hard AP reset in ~1 s.**
+
+**(C) Why it is a RACE (~1/7), not deterministic.** The `BEFORE_SHUTDOWN` notifier clears `pc_state = false` (`:2499`) *before* scheduling the teardown, so `bam_dmux_power_off()` **always** runs with the modem's A2 line deasserted. Whether the BAM is still powered at the instant `bam_reset_channel()` writes is a race against the modem's power-down; patch 821's `flush_work()` only serialises the teardown against `q6v5_stop()`, **not** against the modem-initiated A2 collapse (which has already happened — the console shows `RX watchdog: quiesced 60/120 s (pc_state=0, …)` immediately before every hang). Confirmed on four independent hangs (`0cbfeaf4`, `03ff176c`, the `33081664`-preceding boot, and `bbc68949`).
+
+**(D) ★★★★ THE FIX — patch 831 (`831-bam-dmux-defer-dma-release-to-powered-modem.patch`).** `bam_dmux_power_off()` **no longer calls `dma_release_channel()`**. It terminates the channel and stashes it in a new `dmux->rx_deferred`/`tx_deferred`; `bam_dmux_power_on()` releases the stashed channel first, then re-requests. `bam_dmux_power_on()` is only ever reached with the modem awake (every caller — `pc_irq`, the RX watchdog, `ssr_powerup`, `probe` — gates on the power-control line), so the BAM is powered and `bam_free_chan()`'s register writes are safe. This is the **same "release on the wake path" pattern `bam_dmux_pm_restart()` already uses safely** (`:1871` → `bam_dmux_dma_release()`), now applied to the SSR path. `bam_dmux_remove()` releases the deferred channels only if `bam_dmux_pc_line_asserted()` (never touching an unpowered BAM); on a collapsed modem it deliberately leaves them allocated (the module is going away; a register write there would wedge the AP). Built `98d532def3b3c7efbcf1c241725ed999`, **deployed 2026-10-02 23:17** as the canonical module (boot-persistent; 830 backed up at `/root/kobak/qcom_bam_dmux.830.ko`, 828 at `…/qcom_bam_dmux.828.ko`).
+
+**(E) Verification status.** Post-deploy boot `611d7ef6` (up 60 s): module loaded, **`wwan0` up and `ping -I wwan0 8.8.8.8` = 3/3, 0 % loss**. ⏳ **SOAK OPEN** — the fix must be scored over **n ≥ 30 SSRs at the 120 s cadence** (baseline hang rate ≈ 1/7; a clean run of 30 has P(clean | unfixed) = (6/7)^30 ≈ 0.9 %). The 830 probes are retained in 831 (PS3b reworded to "release deferred"), so a residual hang still names its sub-stage. Revert = `cp /root/kobak/qcom_bam_dmux.830.ko /lib/modules/6.12.94/qcom_bam_dmux.ko && rmmod/insmod`.
+
+**SOP note:** patch 830 was a reversible, no-behaviour-change diagnostic (deployed → confirmed → the faulting call is now a *measured* fact, not a hypothesis). Patch 831 is the fix, built against the 830 base, deployed as a module swap only (no flash, no baseband, no overlay change beyond the module), with 828/830 retained for one-command revert. The fix is **not yet scored** — §112.18.14 will carry the soak result.
+
+### §112.18.14 ★★★★★ SOAK VERDICT: PATCH 831 FIXES THE T4 HANG — 30/30 SSRs, ZERO HANGS
+
+**(A) Result.** Boot `611d7ef6` (patch 831 canonical), 30 pre-emptive SSRs at the 120 s cadence (`scratch/crashloop/soak_831.sh`, task `TbC9RO`, 51 min): **T0 = T9 = 30 at every sample, `boot_id` unchanged, zero hangs.** Baseline was ≈1/7 ⇒ **P(30 clean | unfixed) = (6/7)^30 ≈ 0.9 %** ⇒ the fix is confirmed. Every teardown shows `PS3b rx terminated, release deferred → T5 → … → T9`, and every powerup rebuilds (`SSR powerup: successfully reinitialized BAM channels and rings`, or a preceding `pc_irq` rebuild → `channels already active`); **0** `Failed to request RX/TX DMA` over the whole run ⇒ the deferred release executes in `bam_dmux_power_on()` with the modem awake, and no BAM channel leaks.
+
+**(B) ⚠ DATA-PATH OBSERVATION (separate from the freeze; NOT a 831 regression).** Immediately after the 30 back-to-back SSRs the link was **down**: `wwan0` administratively DOWN, no default route, `ping -I wwan0` = *Network unreachable*; `ifup modem` and `echo restart > …/msm_subsys/modem` did **not** recover it. A **reboot restored it fully** (boot `ed5d444d`: `wwan0` up, `default via 10.100.177.240 dev wwan0`, `ping` 3/3 0 % loss). The driver state was healthy throughout (`T0=T9`, no hang, `rx_slots_free: 32`, channels rebuilt); the down state is the **userspace/bearer layer** (`logread`: `Device not managed by ModemManager` → `Interface 'modem' is now down`), i.e. the **known "data stall" class** (§ Doc 185 / Doc 190), not the AP freeze. Whether 30 SSRs at 120 s simply exhausted the bearer-rebuild path, or this is the standing ~16 s stall, is **OPEN** — it needs a fresh boot + a controlled SSR cadence to separate. **This does not diminish the 831 result: the AP never hung.** ⇒ **RESOLVED by §112.18.15** (the down state is the *stuck bearer*: `available=0` with an unchanged modem object, and nothing re-arms it).
+
+**(C) Cleanup.** `preemptive_ssr_interval` restored **120 → 600 s** (the standing mitigation value; the 120 s cadence existed only to accelerate the repro). The 830 PS probes and the `/etc/rc.local` probe block are **still in place** (harmless `dev_err`, and the probe is the safety net if 831 regresses) — a follow-up cleanup patch will fold the probe removal into 831; not urgent.
+
+**SOP note:** the fix is now **scored and PASSED** on a pre-registered n (≥30) against a measured baseline (≈1/7). The remaining work is explicitly re-scoped: (1) the data-stall/bearer layer, and (2) the **original ~900 s modem fatal, which is still unfixed** — the pre-emptive SSR is still the only working lever against it.
+
+### §112.18.15 ★★★★★ THE STUCK BEARER — ROOT CAUSE (netifd `available`) AND FIX (watchdog re-drive); the §112.18.14(B) down state RESOLVED
+
+**(A) The mechanism — netifd gates bring-up on `available`; `up` is a NO-OP while it is clear.** In `netifd-2026.02.26`:
+`interface_set_available(iface,false)` → `__interface_set_down(iface,true)` (`interface.c:487-500`), and `interface_set_up()` — the `ubus call network.interface.<if> up` handler (`ubus.c` `netifd_handle_up`) — sets `autostart=true` and then **refuses to start when `!iface->available`, recording only `NO_DEVICE`** (`interface.c:1149-1162`). `interface_set_down()` (the `down` handler) clears `autostart` (`interface.c:1175`). For this interface the flag can only go **0 → 1** via `interface_set_available(iface,true)`; the *only* runtime caller that matters here is **ModemManager-monitor** (`openwrt/feeds/…/usr/sbin/ModemManager-monitor:84-88`), which on a ModemManager `(+)` add event runs `mm_get_modem_config` and then `proto_set_available "${cfg}" 1`. The `modemmanager` proto itself **only ever sets it to 0** (`lib/netifd/proto/modemmanager.sh:603,631`). The interface is `no_device=1`, so `interface_main_dev_cb` `DEV_EVENT_ADD` (the other `available=true` path, `interface.c:440`) never fires. The proto state survives teardown (freed only by `interface_cleanup`/replacement, `interface.c:680`), so `notify_proto` stays usable while down.
+
+**(B) The trigger — `DEVICE_NOT_MANAGED` clears `available` while the modem object is UNCHANGED.** `proto_modemmanager_setup()` polls `mmcli --modem=qcom-soc` for **5 s wall-clock** (`modemmanager.sh:620-633`); on expiry it prints `Device not managed by ModemManager`, calls `proto_set_available 0`, and returns 1. If MM was merely *momentarily busy* while the modem object **already existed**, there is **no future `(+)` event** (the object does not change) ⇒ the flag is never re-armed and the interface stays down forever. Contributing defect: the poll's `sleep 0.25` is **invalid in busybox** (`sleep: invalid number '0.25'`) ⇒ the 5 s poll is a **tight busy-loop** that hammers `mmcli`/D-Bus, which is itself what makes the poll likely to time out. (This is the same class as the 16 s post-SSR stall of Doc 185 — but that one is *transient* because MM creates a **new** object and the monitor re-arms it; here the object is unchanged, so recovery never comes.)
+
+**(C) Deterministic reproduction (2026-10-03, controlled — preemptive SSR disabled).** From a stable `up=true available=true` with `Modem/0` present, `ubus call network.interface.modem notify_proto '{"action":5,"available":false}'` reproduces the stuck state exactly (it is the same action the proto's `set_available 0` takes), with the modem object unchanged:
+`up=false available=false autostart=true errors=[{interface,NO_DEVICE}]`, `mmcli -L` still `Modem/0`. After **45 s**: still stuck. `ubus call network.interface.modem up` (the watchdog's only retry) → **still stuck** (NO_DEVICE). Then `up` **+** `notify_proto '{"action":5,"available":true}'` → **recovered** (`up=true available=true`, `wwan0` re-addressed). ⇒ the stuck state is real, reproducible, and *only* re-arming `available` clears it.
+
+**(D) The fix — the watchdog re-drives a down bearer (userspace, reversible).** `msm89xx/base-files/usr/sbin/modem-bearer-watchdog` step 3 previously did `IF_UP != true → sleep; continue` (idle forever — it never retried). It now counts `BEARER_DOWN_SECS`; once the interface has been down ≥ `modem-watchdog.recovery.bearer_down_recover_secs` (default **30 s** — comfortably above the ~16 s normal rebuild / 25 s outlier), `autostart` is **true** (so an intentional `ubus … down`, which clears autostart, is respected — the proto's `set_available 0` does *not* clear it), **and** `mmcli -L` shows a `/Modem/` object, it logs `Bearer STUCK: … re-driving` and runs **`ubus … up` + `ubus … notify_proto '{"action":5,"available":true}'`** (the same action the monitor uses). A 60 s cooldown bounds churn; with no modem object it only logs `waiting for MM to re-probe`. The counter resets whenever the interface is sampled UP (`BEARER_DOWN_SECS=0` after the branch). Deployed to `/usr/sbin/modem-bearer-watchdog` (md5 `4bdd301eb4fb4b048ffe7e059756e616`), service restarted, build-tree copy synced.
+
+**(E) Verification (same controlled setup, preemptive SSR disabled so only the fix can act).** Synthesized `set_available 0` → `up/available = false/false`; the watchdog logged `Bearer STUCK: netifd interface down 30s with a modem present; re-driving (up + re-arm availability).` and the interface returned to **`true/true`** within ~25 s. Three independent confirmations: (1) the counter **resets** when the interface is sampled UP, so the 30 s threshold is enforced (logged exactly `30s`); (2) an intentional `ubus call network.interface.modem down` (`autostart=false`) is **NOT** re-driven over 55 s — the autostart gate works; (3) a 6-minute watch over normal 120 s SSR cycles shows the fix does **not** false-fire on the ~16 s rebuild. ⚠ The fix **bounds** the outage to ~30 s; the trigger (the proto's 5 s poll + busy-loop) is addressed separately in §112.18.16 (done). The standing config was restored to `preemptive_ssr_interval=600`.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved | verdict |
+|---|---|---|---|
+| Root cause of the §112.18.14(B) stuck bearer | an unidentified userspace/bearer failure | netifd `available=0` with an **unchanged** modem object; only the monitor `(+)` re-arms it | **MET** (code + deterministic repro) |
+| `ubus up` recovers a stuck interface | (watchdog's assumption) | **NO** — `NO_DEVICE`, no-op while `available=false` | **FALSIFIED** |
+| `up` + re-arm `available` recovers | recovers | recovers (`false/false` → `true/true`) | **MET** |
+| Watchdog re-drive does not false-fire on normal SSR | no spurious re-drive | no `Bearer STUCK` over 6 min of 120 s SSRs | **MET** |
+| Root trigger removed | — | **NOT** — the proto's 5 s poll + invalid `sleep 0.25` busy-loop remains; follow-up | **OPEN** |
+
+**SOP note.** Ground-truth-first (read netifd 2026.02.26 `interface.c`/`proto-shell.c`/`ubus.c` + ModemManager-monitor, not names), **reproduced before fixing** (the stuck state was synthesized deterministically, then confirmed to survive `ubus up`), one change at a time (watchdog only; the proto `sleep` fix is deliberately deferred and pre-registered), reversible (a base-files script swap with the prior copy recoverable; no flash, no baseband, no kernel change), and the result is recorded here and in memory in the same session. The fix is **bounded-outage**, not root-cause: it does not touch the ~900 s fatal (the preemptive SSR remains the only lever there).
+
+### §112.18.16 ★★★★ THE `set_available 0` TRIGGER, part 2 — the proto's 5 s poll is an UNTHROTTLED `mmcli` loop (`sleep 0.25` is invalid in busybox); paced with `sleep 1`
+
+**The defect.** `proto_modemmanager_setup()`'s MM-presence poll (§112.18.15(B)) ends each iteration with `sleep 0.25` (`lib/netifd/proto/modemmanager.sh:626`). On this image `/bin/sleep` is **busybox** with no fractional support (`FEATURE_FANCY_SLEEP` off): `sleep 0.25` prints `sleep: invalid number '0.25'` and returns **1 immediately**. The 5 s wall-clock poll therefore never sleeps — when MM answers in milliseconds it issues **hundreds of `mmcli --timeout 2` D-Bus round-trips in five seconds**, saturating the very service it is waiting on. That makes the poll **more likely to time out**, which is the `proto_set_available 0` trigger of §112.18.15(B) — and, when the modem object is unchanged, the stuck bearer.
+
+**The fix.** Replace `sleep 0.25` with `sleep 1` (busybox-compatible), with the reasoning inline. The **fast path is unaffected**: the poll runs only after the ModemManager-monitor's `(+)` has already set `available`, so the first `mmcli` call normally succeeds and never reaches the sleep. Deployed to `/lib/netifd/proto/modemmanager.sh` (md5 `7ae256d82da6b655a1eb1cc0dc72fbee`); the tracked copy is `openwrt-overlay/feeds/packages/net/modemmanager/files/lib/netifd/proto/modemmanager.sh` (build.sh `cp -a`s the overlay onto the tree).
+
+**Verification.** Syntax OK on-device; a triggered `echo restart > /sys/kernel/debug/msm_subsys/modem` rebuilt the bearer **normally in 16 s** (`false/false` → `false/true` @+10 s → `true/true` @+16 s) with **no** `Device not managed by ModemManager` and a clean `successfully connected the modem at bearer …` / `Interface 'modem' is now up`.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved | verdict |
+|---|---|---|---|
+| `sleep 0.25` is a no-op on this image | (assumed paced) | **FALSIFIED** — busybox rejects it (rc=1) | **MET** (measured) |
+| The poll was paced | 0.25 s between attempts | unthrottled retry loop | **FALSIFIED** |
+| `sleep 1` keeps the fast path fast | no added latency | first `mmcli` succeeds; sleep not reached; rebuild 16 s | **MET** |
+| Trigger frequency drops | fewer `Device not managed` per SSR | **OPEN** — needs a soak count (pre-registered, see below) | **OPEN** |
+
+**Pre-registration (P-SLEEP1).** Over the next ≥20 SSRs, count `Device not managed by ModemManager` occurrences in `logread`. Expected: **strictly fewer than the pre-fix rate** (the pre-fix rate is to be measured from the archived logs before scoring; a per-SSR count of 0-1 is expected, vs a busy-loop-inflated rate before). Scored when ≥20 SSRs have accumulated. This is an **exploratory** count, not a gate on the §112.18.15 recovery fix.
+
+**SOP note.** Separate change from §112.18.15 (one change at a time: the watchdog recovery was deployed and verified *before* this trigger-reduction change). Ground-truth-first (the busybox behaviour was measured on the device, not assumed). Reversible (one-line script swap; the pre-fix copy is the overlay's previous revision, recoverable via the build tree / a fresh build). The change is a **latency-neutral** pacing fix, not a behaviour change; the recovery fix (§112.18.15) remains the load-bearing one.

@@ -623,7 +623,18 @@ proto_modemmanager_setup() {
 		modemstatus=$(mmcli --modem="${device}" --timeout 2 --output-keyvalue 2>/dev/null)
 		modempath=$(modemmanager_get_field "${modemstatus}" "modem.dbus-path")
 		[ -n "${modempath}" ] && break
-		sleep 0.25
+		# ⚠ busybox `sleep` here has NO fractional-second support
+		# (FEATURE_FANCY_SLEEP is off): `sleep 0.25` fails INSTANTLY with
+		# "invalid number '0.25'", turning this wall-clock poll into an
+		# UNTHROTTLED mmcli retry loop.  When MM answers in milliseconds that
+		# issued hundreds of D-Bus round-trips in five seconds, saturating the
+		# very service the poll waits on -- which makes the poll itself more
+		# likely to time out.  A timeout here clears `available`; with an
+		# UNCHANGED modem object no ModemManager `(+)` event follows to re-arm
+		# it, so the bearer is stranded (Doc 197 §112.18.15).  Pace with an
+		# integer second: the fast path is unaffected, because the FIRST mmcli
+		# call normally succeeds and never reaches this sleep.
+		sleep 1
 	done
 	[ -n "${modempath}" ] || {
 		echo "Device not managed by ModemManager"

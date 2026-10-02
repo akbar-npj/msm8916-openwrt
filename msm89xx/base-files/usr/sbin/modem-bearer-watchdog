@@ -34,6 +34,12 @@ EXTENDED_COOLDOWN_SECS=300
 RECOVERY_FAILED=0
 MU_UNKNOWN=0            # set while get_modem_uptime() cannot determine the anchor
 
+# Stuck-bearer re-drive (see the note at step 3).  A bearer that is DOWN in
+# netifd for longer than this is not a transient rebuild; re-arm it.
+BEARER_DOWN_SECS=0
+BEARER_REARM_COOLDOWN=60
+LAST_BEARER_REARM=0
+
 # Connectivity verification: standard DNS query to carrier/configured DNS.
 #
 # RETRYING IS MANDATORY. The modem drops the FIRST uplink packet after it has been
@@ -234,6 +240,7 @@ while true; do
     KEEPALIVE_ENABLED=$(uci -q get modem-watchdog.keepalive.enabled || echo 1)
     KEEPALIVE_INTERVAL=$(uci -q get modem-watchdog.keepalive.interval || echo 10)
     KEEPALIVE_TARGET=$(uci -q get modem-watchdog.keepalive.target || echo "1.1.1.1")
+    BEARER_DOWN_RECOVER_SECS=$(uci -q get modem-watchdog.recovery.bearer_down_recover_secs || echo 30)
 
     # 1. Check if modem remoteproc is running
     RPROC=$(cat "$RPROC_STATE" 2>/dev/null)
@@ -294,13 +301,52 @@ while true; do
         echo 1000 > "$BAM_DELAY" 2>/dev/null || true
     fi
 
-    # 3. Check if wwan0 interface is up in netifd
+    # 3. Check if the netifd interface is up.
+    #
+    # ⚠ A down interface is NOT always transient.  netifd gates bring-up on the
+    # interface's `available` flag (`interface_set_available()`): an explicit
+    # `ubus ... up` on an UNAVAILABLE interface is a NO-OP that only records a
+    # NO_DEVICE error, and the flag is re-armed ONLY by a ModemManager `(+)`
+    # event (ModemManager-monitor -> proto_set_available 1).  If the
+    # modemmanager proto clears the flag (its `DEVICE_NOT_MANAGED` path, taken
+    # when its 5 s `mmcli` poll expires because MM is momentarily busy) while
+    # the modem OBJECT is unchanged, no further `(+)` will ever arrive and the
+    # interface stays down until something re-arms it.  Measured 2026-10-03:
+    # with the modem object present, `set_available 0` + `ubus up` leaves
+    # `up=false available=false NO_DEVICE` indefinitely (reproduced, 45 s).
+    #
+    # The normal post-SSR userspace rebuild is ~16 s (25 s outlier), so a bearer
+    # that is still down after BEARER_DOWN_RECOVER_SECS is STUCK, not transient.
+    # Re-drive it: `up` restores autostart, then re-arm `available` (the same
+    # action ModemManager-monitor uses) so netifd actually starts the proto.
+    # Only act when MM reports a modem object -- re-arming with no modem just
+    # makes the proto fail and clear the flag again (churn).  Cooldown-bounded.
     IF_UP=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)
     if [ "$IF_UP" != "true" ]; then
         STALL_COUNT=0
+        BEARER_DOWN_SECS=$((BEARER_DOWN_SECS + CHECK_INTERVAL))
+        NOW=$(date +%s)
+        # Only re-drive an interface that is SUPPOSED to be up.  `ubus ...
+        # down` clears autostart, so gating on autostart respects an
+        # intentional ifdown while still catching the stuck case -- the proto's
+        # `set_available 0` does NOT clear autostart.
+        IF_AUTO=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.autostart' 2>/dev/null)
+        if [ "$IF_AUTO" = "true" ] && \
+           [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
+           [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ]; then
+            if mmcli -L 2>/dev/null | grep -q '/Modem/'; then
+                logger -t modem-stall-watchdog "Bearer STUCK: netifd interface down ${BEARER_DOWN_SECS}s with a modem present; re-driving (up + re-arm availability)."
+                ubus call network.interface.modem up 2>/dev/null || true
+                ubus call network.interface.modem notify_proto '{"action":5,"available":true}' 2>/dev/null || true
+                LAST_BEARER_REARM=$NOW
+            else
+                logger -t modem-stall-watchdog "Bearer down ${BEARER_DOWN_SECS}s and ModemManager reports no modem object; waiting for MM to re-probe."
+            fi
+        fi
         sleep "$CHECK_INTERVAL"
         continue
     fi
+    BEARER_DOWN_SECS=0
 
     # 4. Initialize counters on first run; do not poll QMI WDS during idle to preserve DRX sleep
     NOW=$(date +%s)
