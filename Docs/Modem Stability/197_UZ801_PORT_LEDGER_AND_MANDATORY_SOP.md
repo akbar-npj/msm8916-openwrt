@@ -12953,6 +12953,15 @@ timeout, `a2_*`/`a2_power.c:1189`, `restarting 4080000`) and `dumpwatch.sh` capt
 coredump, so a failing cycle yields F3 **and** the a2 counters. All three are started from
 `/etc/rc.local` (clearly-marked `BEGIN/END f3cap` block) so the capture survives an AP reboot.
 
+**Defect found and fixed during setup (2026-10-02).** `diag_logtool`'s read loops did
+`if (r <= 0) continue`, so once an SSR destroyed the rpmsg endpoint `read()` returned `-1`
+(EPIPE) and `capture` **busy-spun** printing `read: Broken pipe` for the whole remaining window —
+**197 k lines in a 5 s straddle**, i.e. a tight CPU loop during the modem boot (a confound for the
+very handshake we want to observe, and ~26 MB/h of log). Fixed to `r < 0 → break` (device gone) /
+`r == 0 → continue` (timeout) in `capture`, `listen` and `cntl-dump`
+(`packages/diag-logtool/src/diag_logtool.c`, commit `72af9dd`). Verified across the up=7529 SSR:
+**1** error line, harness log **10 KB** (vs 3.5 MB).
+
 ### (B) VERIFICATION — it brackets a real SSR
 
 On 2026-10-02 the harness was launched at AP up=6672. The next pre-emptive SSR fired at
