@@ -11585,6 +11585,58 @@ observe. **Prediction: the ~902.7 s fatal RECURS** (a no-op cannot change the ou
 would mean the fresh BSP re-sync changed something else and must be investigated. The mitigation is
 **re-enabled after the single observation** (leaving it off would fatal every ~15 min).
 
+### §112.13 — ★★★★ The OpenWrt F3 capture across the fatal: NO precursor; the cold-boot deadline is 722.7 s (not 902.7 s); a post-fatal `a2_task.c:3179` burst; mitigation lowered 800 → 600 s
+
+**Instrument.** The BIT(8)-control soak (mitigation OFF) was left running to harvest the pre-fatal history. A fresh
+`/usr/bin/diag_logtool capture 2400 /root/f3_soak.raw` (device, over `/dev/rpmsg0`) captured the whole pre-fatal
+window; the capture **stopped at the SSR** (the DIAG rpmsg binding is torn down) ⇒ the file tail IS the pre-fatal
+window. Pulled byte-exact: **`scratch/f3_soak/cap_fatal.bin`, 64 885 372 B, md5 `d20ae6241df91a28fd9337a8843053c0`**,
+**31 252 F3 records**, two subsystems (`code` `0x12bb` = 4795, `0xbbad` = 48045).
+
+**Calibration.** In **file order** the F3 `ts` is monotonic (83 non-monotonic steps of 31 251 — wrap/out-of-order);
+span 88 155 408 ticks over the capture's ~430 s of modem time ⇒ **≈204 800 Hz** (matches the corpus). `cfm_cpu_monitor.c`
+is a **20 Hz heartbeat** (10 250 ticks) and is the *only* log that survives the final ~1 s.
+
+**★ The fatal (measured).** `dmesg`: `[1637.928462] fatal error received: lte_ml1_common_timer.c:390`. The post-SSR
+modem epoch was `[735.335842]` ⇒ **modem uptime = 902.592 s**. This is the classic Model-M3 deadline, confirmed on
+the OpenWrt arm with the full DIAG chain.
+
+**★★★★ NO F3 PRECURSOR (a clean negative, extends item 72 §72.10 to OpenWrt).** 1-second bins over the final 60 s:
+total **41–65 rec/s** (steady), `cfm` **19–20/s** (perfect 20 Hz), `a2_power` 6/s, `pgi_msgr` 4/s, `mcpm_*` 8–10/s —
+right up to the **last full second**. Only the final ~1 s is `cfm`-only (the modem halting). The `rflte_core_rxctl`
+RF records track **traffic** (0/s idle, 70–78/s in bursts), not the fatal. The one apparent anomaly — the
+`a2_power.c:2463` OFF-client alternating `2` ↔ `3` — is a **repeating cycle** across the whole 430 s
+(`…3[342..170] 2[167..158] 3[156..110] 2[107..98] 2[96..82] 3[81..2]`), **not** a precursor. ⇒ **the fatal is
+SUDDEN and internal; the F3 stream does not reveal the trigger.**
+
+**★★★★ The COLD-BOOT first fatal is at 722.7 s — the 800 s interval does NOT protect the first cycle.** On the same
+sysupgrade boot (one powerup, AP 11.16 s; no boot-time restart) the **first** fatal was
+`[734.639355] fatal error received: a2_power.c:1189` ⇒ **modem uptime 722.727 s**, i.e. **180 s BEFORE** the 902.7 s
+clock and **before** the 800 s pre-emptive restart. The next (warm) cycle fataled at 902.592 s.
+
+**★ The modem's own clock confirms the anchor is correct (the "persisted RTC" hypothesis is FALSIFIED).** `ats-probe`
+(`ATS_RTC`, read-only QMI TIME GET): `ap_boot_ms=1958930` vs `rtc_ms=259496`, and the kernel-line anchor gives
+`AP − epoch = 259 s` ⇒ **`rtc_ms` ≈ the kernel "is now up" uptime to <1 s**. So the modem RTC **resets** at every PIL
+restart; the 722.7 s cold-boot uptime is **real**, not a mis-anchor. (This also validates
+`modem-bearer-watchdog`'s `get_modem_uptime()` kernel-line anchor.)
+
+**★★ A post-fatal `a2_task.c:3179` BURST (new class, ~30 s period).** After the 902.6 s ML1 fatal the recovery is NOT
+clean: `crash #2` 1637.928 (`lte_ml1_common_timer.c:390`) → up 1638.66 → **`crash #3` 1668.710 (`a2_task.c:3179`) =
++30.05 s** → up 1669.49 → **`crash #4` 1698.764 (`a2_task.c:3179`) = +30.05 s** → up 1699.54 → stable (≥ 300 s, no
+further crash). Preceding the burst: `bam_dmux: RX watchdog: pc_state=1 but pc line low (stale edge), reconciling`
+(1653.7, 1673.1) and `bam_dmux: modem pc-ack timeout during resume` (1656.0, **12.7 s** before crash #3). ⇒ an
+ML1-fatal-triggered SSR leaves a **~60 s / 2-crash instability window**; a **clean** pre-emptive restart does not
+(the 5 h §112.7 demo: 23 clean restarts, 0 fatals).
+
+**Mitigation change (this session).** `uci set modem-watchdog.recovery.preemptive_ssr_enabled=1` +
+`preemptive_ssr_interval=600` (was 800), committed live **and** in the tracked
+`msm89xx/base-files/etc/config/modem-watchdog`. **Reason:** 600 s < the 722.7 s cold-boot deadline by a 122 s margin,
+so the first cycle is protected too. Soak `scratch/f3_soak/soak_mitigation.log` (0 fatals expected; each clean
+restart recorded).
+
+**Artifacts:** `scratch/f3_soak/cap_fatal.bin` (md5 `d20ae624…`), `scratch/f3_soak/chunk_a.bin`,
+`scratch/f3_soak/monitor.sh`, `scratch/f3_soak/monitor.log`, `scratch/f3_soak/soak_mitigation.sh`.
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
@@ -11919,3 +11971,8 @@ would mean the fresh BSP re-sync changed something else and must be investigated
 | **`scratch/sm_table.py`** | **new (item 97 ★★★★)** — decodes an ML1 state-machine table straight from the stock ELF: header (`+0x04` name ptr · `+0x14` NS · `+0x18` state table · `+0x1c` NE · `+0x20` event table · `+0x24` matrix), per-state activity fns, the full NS×NE transition matrix, and `--cell-of <code>` → the (state × event) cell enclosing a code address. Defaults to `LTE_ML1_SM_ACQ_STM` @ `0xc1a8f2f0` and `LTE_ML1_SM_IDLE_STM` @ `0xc1a8fde0`. ⚠ the ACQ header is `…f2f0`, not `…f2f4`; self-check `+0x00 == H+0x10` |
 | **`scratch/sm_table_output.txt`** | **new (item 97)** — the saved decode of both SMs (11×28 ACQ, **9×57 IDLE**), incl. the per-state activity fns and every transition cell; the evidence for the 10-site map |
 | **stock disasm `scratch/hmu05_stock_elf/disasm_b16.txt`** | **ground truth (item 97 §97.4)** — `grep "call 0xc032642c"` returns **exactly 10** sites (all in `0xc0355xxx–0xc0358xxx`); `grep "call 0xc02fda90"` returns **exactly 2** (`0xc0326874` in `FUN_c032685c`; `0xc033c0f4` in `FUN_c033bfc8` = ACQ `PLMN_ACQ`, state 9) |
+| **`scratch/f3_soak/cap_fatal.bin`** (md5 `d20ae6241df91a28fd9337a8843053c0`) | **new (§112.13 ★★★★)** — the OpenWrt **F3 capture across the fatal** (64 885 372 B, 31 252 records, 2 subsystems `0x12bb`/`0xbbad`); the capture **stopped at the SSR** so the tail IS the pre-fatal window. Establishes **NO F3 precursor** (steady 45 rec/s + 20 Hz `cfm` heartbeat to the last second) and the 902.592 s ML1 fatal. Pulled byte-exact from device `/root/f3_soak.raw` |
+| **`scratch/f3_soak/chunk_a.bin`** | **new (§112.13)** — the first 8 MB of the above (healthy baseline, 3 189 records) used to calibrate the F3 clock (≈204 800 Hz) and to build the file/line histograms |
+| **`scratch/f3_soak/monitor.sh`**, **`scratch/f3_soak/monitor.log`** | **new (§112.13)** — the fatal monitor (modem uptime from the dmesg "is now up" anchor; ⚠ **not** `ats-probe`, which streams forever). Caught the fatal at AP 1637.928 (`crashes=2`) |
+| **`scratch/f3_soak/soak_mitigation.sh`**, **`scratch/f3_soak/soak_mitigation.log`** | **new (§112.13)** — the post-change soak: baseline `crash_count`, per-15 s poll, records each clean (pre-emptive) restart epoch change, stops on any new `crash detected`. Verifies the 600 s mitigation |
+| **`msm89xx/base-files/etc/config/modem-watchdog`** | **UPDATED (§112.13)** — `preemptive_ssr_interval` **800 → 600** with the 722.7 s cold-boot rationale; committed live via `uci` on the device as well |

@@ -36,5 +36,14 @@ config recovery 'recovery'
 	# state (the deadline needs no data path), and costs a controlled ~10-15 s
 	# bearer rebuild in exchange for an uncontrolled crash every ~15 min.
 	# Set preemptive_ssr_enabled=0 to disable (the fatal then returns).
+	#
+	# ⚠ 2026-10-02 — interval lowered 800 -> 600 s.  A fresh sysupgrade
+	# (cold-boot) cycle fataled at modem-uptime **722.7 s** (`a2_power.c:1189`)
+	# BEFORE the 800 s pre-emptive restart could fire, then at 902.6 s
+	# (`lte_ml1_common_timer.c:390`) on the next (warm) cycle.  The modem's own
+	# RTC (`ats-probe` rtc_ms) tracks the kernel "is now up" anchor exactly, so
+	# the 722.7 s cold-boot deadline is real and the 800 s interval does NOT
+	# protect the first cycle.  600 s gives a 122 s margin below the earliest
+	# observed cold-boot fatal.  See ledger §112.13.
 	option preemptive_ssr_enabled '1'
-	option preemptive_ssr_interval '800'
+	option preemptive_ssr_interval '600'
