@@ -13253,3 +13253,81 @@ the §112.21 window (an earlier boot) ran ~`4.2e9` — so the F3 `ts` **resets o
 though it is continuous across an SSR within a boot (§112.21(B)). Its exact rate is therefore not
 established by the two windows; do **not** use `ts` as an absolute clock across boots. (Records are
 ordered by (chunk, offset) in `scratch/f3_a2diff.py`, so this does not affect the analysis above.)
+
+### (I) ★★★★★ THE STUCK REGISTER IS RECOVERED FROM THE COREDUMP — `_DAT_ec320bac & 7 == 1` (n=5, unanimous); §112.20(E) is CORRECTED A SECOND TIME
+
+§112.20(E) said the stuck register's *value* "is not recoverable from these dumps (it is a hardware
+register, AP-unreadable)". **That is WRONG.** The modem copies the whole A2 register block into RAM
+itself, and the coredump carries it.
+
+**The instrument (from the stock decompile).** `FUN_c0509b98(p1,p2,p3,p4)` defaults its destination to
+a global and snapshots the block:
+
+```c
+void FUN_c0509b98(undefined4 p1, undefined4 p2, undefined *p3, uint p4) {
+  ...
+  if (p3 == (undefined *)0x0) p3 = &DAT_c2871234;          // ★ the default destination (a GLOBAL)
+  ...
+  if (FUN_c0505d24() == 1) {                               // == DAT_c285ebc8 == 1 (all dumps)
+    ...
+    if (FUN_c0505d24() == 1) {
+      *(uint *)(p3 + 0x7594) = _DAT_ec328808 & 0x7ffffff;
+      if ((DAT_c1d1cd8c & 2) != 0) {                       // == 0x122a & 2 == 2 -> TRUE
+        FUN_c0509eac(p3,1,1); ... FUN_c0509eac(p3+0xb0,3,4);
+        FUN_c0509f84(p3+0xdc,0); FUN_c0509f84(p3+0x104,1);
+        FUN_c050a048(p3+300);
+        FUN_c050a410(p3 + 0x1c0);                          // ★ copies the A2 register block here
+        FUN_c050a618(p3 + 0x1930);
+      }
+    }
+  }
+}
+void FUN_c050a410(undefined4 *param_1) {                   // param_1 is undefined4*
+  param_1[0x24] = _DAT_ec320ba4;  param_1[0x25] = _DAT_ec320ba8;  param_1[0x26] = _DAT_ec320bac;
+  ... param_1[0x37] = _DAT_ec320bd8;  param_1[0x39] = _DAT_ec320be0; ...   // ★ all five wait regs
+}
+```
+
+So the five `FUN_c0504fc8` wait registers sit at **`snap = DAT_c2871234 + 0x1c0`**:
+`+0x24*4` (ba4), `+0x25*4` (ba8), **`+0x26*4` (bac)**, `+0x37*4` (bd8), `+0x39*4` (be0). The snapshot
+runs because `(DAT_c1d1cd8c & 2) == 2` (and `DAT_c1d1cd8c = 0x122a` in every dump), and its call
+counter `+0x7588` is **1** in every dump. Tool: **`scratch/a2_regsnap.py <dump>…`** (ELF32,
+`modem_va = dump_va + 0x39800000`).
+
+**★ RESULT — all five `a2_power` dumps (the four §112.20 ones + the §112.21(H) natural one):**
+
+| dump | `_DAT_ec320ba4` | `_DAT_ec320ba8` | **`_DAT_ec320bac`** | `_DAT_ec320bd8` | `_DAT_ec320be0` |
+|---|---|---|---|---|---|
+| devcd1_590 (natural, cold) | 0 | 0 | **`0x00e1a061` → &7 = 1** | 0 | 0 |
+| devcd3/4/5/6 | 0 | 0 | **`0x00e28361` → &7 = 1** | 0 | 0 |
+
+⇒ **The 3rd wait register is the ONLY one stuck, and its low-3-bit field is stuck at 1 — unanimously
+across 5 independent dumps.** The other four are 0 (so their `while ((reg & 7) != 0)` loops exit
+immediately). This is the *exact* condition §112.20(C) predicted from the return address, now
+**confirmed from the register itself**.
+
+**The value is live, not a constant.** `0x00e28361` (4 dumps) vs `0x00e1a061` (1) differ in upper bits
+(new sets bit 16; old sets bits 8/9/17) but share `&7 = 1` and bits 5,6,15,21,22,23. The snapshot's own
+timestamp (`+0x7594 = _DAT_ec328808`) differs between dumps (68642891 vs 113239221), so the register is
+sampled at *different* times yet keeps `&7 = 1` ⇒ the field is **persistently stuck**, not a transient.
+(Decompose `0x00e28361`: set bits 0,5,6,8,9,15,17,21,22,23 — i.e. low field [0:2] = 1; bits 5,6 = 3;
+bits 21-23 = 7; the rest are other live fields.)
+
+**What this changes.** §112.20(E)'s "not recoverable" is retracted; the root-cause question is now
+*sharper*: not "which bit" but **"why does the low-3-bit state field of `0xec320bac` sit at 1 and never
+reach 0?"** — an A2-hardware FSM state (value 1 of 8), reproducible in every dump. The block's
+`0xec320b6x` config part is written by `FUN_c050ff54` (a `48000` divider constant); the `0xec320ba4..be0`
+status fields have **no writer in the export**, so the modem only reads them.
+
+| Claim | Status |
+|---|---|
+| The A2 register block is snapshotted into RAM by `FUN_c050a410` (called from `FUN_c0509b98`) | **PROVEN** (source) |
+| The stuck register's value is recoverable from a coredump | **PROVEN** (n=5) |
+| `_DAT_ec320bac & 7 == 1`; the other four wait regs are 0 | **PROVEN** (n=5 unanimous) |
+| The field is persistently stuck (not a transient) | **PROVEN** (different snapshot times, same `&7`) |
+| §112.20(E)'s "the value is not recoverable" | **FALSIFIED** |
+
+**SOP note.** Read-only (archived coredumps + stock decompilation). The correction is filed against our
+own §112.20(E) with the falsifying evidence (the n=5 table) rather than quietly edited. The value is a
+*ground-truth* extraction (the modem's own snapshot), not an inference. The exact hardware meaning of
+"state 1" remains **OPEN**.
