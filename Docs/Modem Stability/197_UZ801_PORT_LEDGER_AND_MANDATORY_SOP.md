@@ -11426,6 +11426,30 @@ cold-boot OpenWrt gap, testable on the OpenWrt arm.
 
 ---
 
+
+**§112.9.6 — OUTCOME (2026-10-02): variant A was DEPLOYED and it BOOTLOOPED. FALSIFIED, device recovered.**
+
+* **Deployed** variant A (gate cond-B NOP, `0xcc978` `2202e112`→`7f00c000`) via `scratch/reply_inject/deploy.sh A`;
+  on-device md5 verified `8c2a3f1a244eec315ade5f81de10de46`; byte read back `00 c0 00 7f`.
+* **Result: the AP bootlooped** (~60–70 s cycle, `sys.boot_completed` never set, boot_id changed 3×; the device
+  sat in the Android boot gadget `05c6:9091` and never brought up the RNDIS netdev, so no SSH). ⇒ **forcing the
+  gate to consume unconditionally breaks the modem at BOOT** — condition (B) is load-bearing backpressure, not a
+  spurious check. The "make the gate pass" reply-injection is **FALSIFIED**. (AB was not tried: A alone already
+  fails. B alone was rejected a priori — with the gate not consuming, `slot[+0x30]` stays 0, which trips
+  `FUN_c01c1820`'s own assert.)
+* **Recovery (NEW, and much simpler than the EDL route): `adb reboot bootloader` → `fastboot flash modem <img>`.**
+  ⚠ **`fastboot oem device-info` reports `Device unlocked: false`, yet the `modem` partition IS flashable** —
+  `fastboot flash modem` wrote 65 536 KB OKAY and the device booted clean. No EDL, no root, no module needed.
+  `adb reboot bootloader` works even while the AP bootloops (adbd is up in the boot-gadget phase).
+  **Recovery image: `GitIgnore/compare/modem_hmu05_extracted/hmu05_modem.bin`** (64 MiB FAT16 raw partition
+  image; verified: its `/image/modem.b15` md5 = `1d0a8e74cad0cde5d6cb0cef735e0664` = stock).
+* **Post-recovery state:** stock `modem.b15` restored (`0xcc978` = `12 e1 02 22`), `rmnet0` up with a default
+  route, **0** `modem subsystem failure reason`, modem brought out of reset at AP 6.59 s, boot_id `48f5c393-…`.
+* **What this changes:** the reply-injection line (§112.9.1–.3) is **CLOSED empirically**, not just
+  structurally. The gate's (B) check is a real readiness gate; the ML1-wide stall is **upstream** of it (the
+  producer's slot is valid but the consumer's readiness counter never advances). ⇒ back to the two-regime
+  arming lever (§112.9.5) and the OpenWrt `BIT(8)` test.
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
