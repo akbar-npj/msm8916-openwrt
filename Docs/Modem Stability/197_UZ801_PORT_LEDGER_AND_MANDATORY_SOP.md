@@ -13182,3 +13182,74 @@ ring is *enable-able* (the gate is already on) if the indirect entry is found; i
 `a2_power.c:1189` stall is **below** the F3-logged layer, in the A2 hardware's own state fields. The
 root-cause question narrows to **why `_DAT_ec320bac & 7` fails to clear after a warm restart** — a
 modem-internal hardware/init question, not an AP-handshake-step question.
+
+### (H) ★★★★★ THE COMBINED CAPTURE IS VERIFIED — and it happened NATURALLY (cold boot)
+
+§112.21(E)'s open gap ("the coredump half needs a re-run at a gentler restart rate") is **CLOSED**,
+and it needed **no forced restart at all**. On 2026-10-02 the coredump was enabled
+(`echo enabled > /sys/class/remoteproc/remoteproc0/coredump`, reset to `disabled` on every boot) and
+the device was left to run. A **natural** fatal fired at **AP 589.02** — the first fatal of the boot,
+**no restart before it** (dmesg shows only the boot-time `is now up` at 10.8/12.7 s), i.e. a
+**cold-boot** event:
+
+```
+[ 589.020472] fatal error received: a2_power.c:1189:
+[ 589.020668] crash detected in 4080000.remoteproc: type fatal error
+[ 591.305905] bam_dmux: modem pc-ack timeout during resume
+[ 592.516065] remote processor 4080000.remoteproc is now up
+```
+
+All three instruments caught it **simultaneously**:
+* **coredump** — `dumpwatch.sh` promoted `/root/dumps/dump_devcd1_590.bin`, **85 398 475 B**
+  (md5 `7f2a5a099d2276c74c25a3544e923290`); `watcher.log` `21:26:38Z up=590 … bytes=85398475`.
+* **F3** — `c000111_up00586.raw` (1 154 868 B) brackets the fatal (up 586→591).
+* **dmesg tap** — the four-line sequence above.
+
+**The dump is the SAME crash — determinism now n=5.** `read_crash_report.py` →
+`Task a2`, `PC 0xc087a804`, `LR 0xc0879164`, `SSR 0`, `BADVA 0`, `Uptime 0:09:36` (= 576 s =
+589.02 − 12.67 modem boot ✓), `TCB 0xc3c0bba4` — identical to the four §112.20 dumps. And the a2
+counters are **byte-identical** (`scratch/f3_soak/nat589/dump_devcd1_590.bin`; ELF32, base 0x86800000,
+`modem_va = dump_va + 0x39800000`):
+
+| field | this dump | §112.20 (×4) |
+|---|---|---|
+| `DAT_c28602f8` (spins) | `0xaffb` = 45 051 | 45 051 |
+| `DAT_c28602fc` (timeout) | `0x385` = 901 | 901 |
+| `DAT_c285ebc8` (gate) | **1** | 1 |
+| `DAT_c2872bb4` (ring count) | **0** | 0 |
+| `DAT_c1d1cdb4` / `DAT_c1d1cd8c` | 2 / 0x122a | 2 / 0x122a |
+
+**★ Two new facts.**
+1. **The `a2_power.c:1189` fatal is NOT restart-only** — it fires on a **cold boot** too (here at
+   modem-uptime **576 s**, well before the 600 s pre-emptive SSR), with the **identical** counters. ⇒
+   the cold-boot regime and the post-restart regime share the *same* deterministic wait-loop timeout;
+   only *when* the a2 task's first A2 power-up init runs differs.
+2. **`gate=1` with `ringcount=0`** is the direct, independent confirmation of the §112.21(G)
+   correction to §112.20(E): the ring gate was **ON**; the ring is empty because its writer is never
+   invoked.
+
+**The F3 is again CLEAN.** The bracketing chunk `c000111_up00586.raw` (244 records) holds only normal
+steady-state A2 power-collapse cycles (client 2/3, `FW_SLEEP_PWRDN_FULL`, `FW_WAKE-UP_Start`) — the
+error sweep returns **0/244**. ⇒ §112.21(F)'s negative reproduces on a second, independent
+(non-restart) event.
+
+| Claim | Status |
+|---|---|
+| The coredump is captured together with the F3 + dmesg (the §112.21(E) gap) | **PROVEN** (devcd1_590.bin + c000111 + dmesg) |
+| No forced restart is needed (a natural event suffices) | **PROVEN** (cold-boot fatal, no prior restart) |
+| The dump is the same crash (determinism) | **PROVEN** — n=5, counters byte-identical |
+| The `a2_power.c:1189` fatal also fires on cold boot | **PROVEN** (modem-uptime 576 s) |
+| The F3 has no precursor (reproduced) | **PROVEN** (0/244 suspicious) |
+| §112.20(E)'s "ring gate was off" | **FALSIFIED** (gate=1, count=0) |
+
+**SOP note.** Read-only on the host (archived dump + F3 chunk). The one device *write* was the
+documented, reversible coredump enable; the event was **natural** (no provocation), so the §112.21(E)
+AP-reboot confound does not arise. The `find -newer` watcher fix (the `.seen` file resets on boot)
+was what let the new dump be distinguished from the four archived ones. The F3 clock observation is
+recorded below, not chased.
+
+**⚠ F3 clock note (unresolved, recorded not chased).** This boot's F3 `ts` runs ~`1.43e8` ticks while
+the §112.21 window (an earlier boot) ran ~`4.2e9` — so the F3 `ts` **resets on an AP reboot** even
+though it is continuous across an SSR within a boot (§112.21(B)). Its exact rate is therefore not
+established by the two windows; do **not** use `ts` as an absolute clock across boots. (Records are
+ordered by (chunk, offset) in `scratch/f3_a2diff.py`, so this does not affect the analysis above.)
