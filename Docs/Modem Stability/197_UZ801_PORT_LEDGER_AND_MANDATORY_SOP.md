@@ -13031,3 +13031,62 @@ validated). The instrument is validated by its **first bytes** (F3 records), not
 `f3live` lesson). No patch, no baseband. The 16-record baseline is ground truth from the modem's
 own log, not an inference. This closes the *instrumentation* half of §112.20(E); the *causal*
 half awaits a failing cycle.
+
+### (E) ★★★★★ VERIFICATION (2026-10-02) — THE ASSERT **IS** CAUGHT
+
+The §112.21(D) open item ("no failing cycle captured yet") is **CLOSED**. A bounded provocation
+produced a live `a2_power.c:1189` and the instrument captured it.
+
+**Provocation lever.** `echo restart > /sys/kernel/debug/msm_subsys/modem` — the watchdog's *own*
+preferred restart path (`modem-bearer-watchdog` :162/:174; the fallback is the synchronous
+`remoteproc0/state` stop/start). Run in a loop with a 33 s settle (the assert fires at boot
+**+17…28 s**). With the data bearer up (LTE, `jionet`) and a light ping trickle, the
+**steady-state stale-edge regime returned** (up 9003→9216, every ~26–52 s), after which:
+
+```
+[ 9570.682325] msm_subsys: restarting 4080000.remoteproc          <- forced restart
+[ 9571.608680] remote processor 4080000.remoteproc is now up
+[ 9589.178995] fatal error received: a2_power.c:1189:             <- +17.6 s after "is now up"
+[ 9589.179070] crash detected in 4080000.remoteproc: type fatal error
+[ 9589.967836] remote processor 4080000.remoteproc is now up
+[ 9591.614196] bam_dmux: modem pc-ack timeout during resume
+```
+
+**What was captured.**
+* **dmesg tap** — the full crash sequence above (fatal → crash detected → recovery → pc-ack timeout).
+* **F3** — `c000057_up09584.raw` (**3.2 MB**, the pre-assert window, AP 9584→9589) and
+  `c000058_up09590.raw` (post-crash). A comparable live window (up 9004, a collapse cycle) holds
+  **376 `a2_*`/`mcpm_*` records**, including the full sequence: `a2_power.c:1313/3765` (power req,
+  clients 2/3) → `mcpm_saw.c:393` (`FW_SLEEP_PWRDN_FULL`) → `a2_power.c:2463` (A2 turned OFF) →
+  `mcpm_saw.c:591` (`FW_WAKE-UP_Start`) → `a2_power.c:2262` (A2 turned ON), plus the stall
+  indicator `a2_task.c:2871` ("A2 task blocked in wakeup/sleep pending state", counter 53→73) and
+  its **resolution** `a2_task.c:1830` ("A2 APPS BAM link is ready for data transfer"). The F3
+  record `ts` is a **free-running** clock, so order by **(chunk, offset)**.
+
+**Gap — the coredump was OFF.** `/sys/class/remoteproc/remoteproc0/coredump` read **`disabled`**,
+so the 9589 assert produced **no** devcd node (the earlier `dump_devcd3..6` were from a boot where
+it was enabled). It was enabled by hand (`echo enabled > …/coredump`), but a further forced-restart
+run (~17 restarts in ~15 min total) drove a **clean AP reboot** during an SSR teardown
+(`console-ramoops-0` ends at `10062.396500 SSR teardown T4 state_lock acquired`, **no panic**;
+the host monitor reported `hang_count=0`). Cause not isolated — the forced-restart *rate* and the
+coredump enablement are both candidate contributors. The coredump resets to `disabled` on boot.
+**The F3 + dmesg half of the capture is verified; the coredump half needs a re-run at a gentler
+restart rate.**
+
+**Trap (re-confirmed).** `dmesg | grep -c "a2_power.c:1189"` is **unreliable**: the ring wrapped
+and the count *dropped* 3→2. Detect a new assert by comparing the **newest** matching line, not
+the count (the wrap-proof method used above).
+
+| Claim | Status |
+|---|---|
+| A live `a2_power.c:1189` is captured by the F3 harness + dmesg tap | **PROVEN** (up=9589.18) |
+| The assert fires at modem-boot +17…28 s after a restart | **PROVEN** (here +17.6 s) |
+| The F3 stream exposes the a2 power-collapse sequence + the stall indicator | **PROVEN** (376 records) |
+| The coredump half captured the assert | **NO** — the coredump was `disabled` |
+| Enabling the coredump is safe at a high forced-restart rate | **OPEN** (coincided with a clean AP reboot) |
+
+**SOP note.** The provocation uses the daemon's own documented lever (`echo restart`), not the
+`echo stop` hazard. The assert was caught by the instrument built earlier in this session; the
+F3 records are the modem's own ground truth. The AP reboot is reported as an unexplained
+observation with both candidate causes named, not attributed. No patch, no baseband. The coredump
+gap is left OPEN rather than papered over.
