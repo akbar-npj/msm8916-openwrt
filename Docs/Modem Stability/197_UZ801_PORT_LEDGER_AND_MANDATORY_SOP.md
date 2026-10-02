@@ -11768,6 +11768,45 @@ soak silently aborts (or, worse, records `UNREACHABLE`). Fix: **pipe the probe t
 still matches `case "$R" in AP=*)`, so a "break on unreachable" guard written that way **never fires**.
 Both are fixed in `scratch/crashloop/soak_baseline.sh`.
 
+**★★★★ SOAK RESULTS (2026-10-02, 08:29→09:08+ UTC, AP 4014→6333, ~39 min, `scratch/crashloop/soak_baseline.log`).**
+The 600 s pre-emptive SSR fired **3× cleanly** and then a 4th cycle fataled **before the timer could fire**:
+
+| restart | AP | modem uptime reached | outcome | trigger |
+|---|---|---|---|---|
+| #2 | 3562.004 | 604.6 s | **clean** (`cr` 9→9) | pre-emptive |
+| #3 | 4166.641 | 608.2 s | **clean** | pre-emptive |
+| #4 | 4774.887 | 608.8 s | **clean** | pre-emptive |
+| #5 | 5383.683 | **498.9 s** | **FATAL #10** | pre-emptive, but the modem died first |
+| #6 | 5884.018 | ≥470 s, clean so far | — | fatal-driven |
+
+* **★★★ The pre-emptive SSR itself is reliable and cheap**: 3/3 clean, `cr` unchanged, interval **604.6 / 608.2 / 608.8 s**
+  (600 s timer + ~5–9 s loop latency), bearer rebuilt in ~10–15 s. ⇒ the mechanism works exactly as designed.
+* **★★★★ But the protection is INCOMPLETE — the modem can die EARLIER than 600 s.** Fatal #10 is
+  `[5882.596659] fatal error received: a2_task.c:3179` at **modem uptime 498.9 s**, i.e. **101 s before** the
+  pre-emptive restart was due. ⇒ **600 s is not a safe upper bound on the A2 hazard**; the interval cannot be
+  tuned to cover it.
+* **★★★★ The §112.14 antecedent REPRODUCED on an independent cycle (this is the confirmation that matters).**
+  The window is a **mid-cycle** anomaly, not a restart-adjacent one:
+  `[5867.527441] stale edge, reconciling` (**+15.1 s**) → `[5872.744258] pc-ack timeout during resume`
+  (**+9.9 s**) → `[5882.596659] FATAL a2_task.c:3179`. Same signature, same 6–18 s band, a fresh cycle.
+  ⚠ Contrast: a `stale edge` landing **at the instant of the restart** is benign — restarts #3 (4166.083) and
+  #4 (4774.354) both logged one ~0.4–0.5 s *before* the restart and both ran their full ~608 s clean.
+* **★★★ The ssctl lead is DEAD (RETRACTED).** `timeout waiting for ssctl service` occurs **once** in the whole
+  boot (restart #1, 2304.765). Restarts #2/#3/#4 (clean) and **#5 (which fataled)** all went through
+  `msm_subsys: restarting` with **no** ssctl timeout ⇒ ssctl is neither necessary nor sufficient. n=1 was noise.
+* **★ Rate estimate.** Post-3562: 4 completed cycles, 3 clean, 1 fatal ⇒ **P(fatal-cycle) ≈ 25 %** (95 % CI
+  ≈ 0.6–80 % — n is small). Folding in the earlier era, if the contiguous 5-crash burst is treated as ONE
+  correlated event, it is also 2/8 ≈ 25 %. Fatal times **relative to the preceding restart** are spread —
+  20.8 / 21.6 / 30.1 / 30.8 / 68.5 / 131.5 / 144.3 / 284.8 / 498.9 s — i.e. a **short transient at +20–30 s
+  plus a roughly uniform background hazard**, NOT a fixed deadline.
+* **Cost/benefit (the decision input).** At 600 s the modem cycles ~6×/h; at P ≈ 25 % that is **~1.5 fatal-cycles/h**
+  (each usually 1 crash, occasionally a cascade of up to 5) against **~3.9 fatals/h** with the mitigation OFF
+  (the deterministic ~902 s ML1 clock). ⇒ **the mitigation is net-positive, but the margin is modest and the
+  cascade tail is the risk** — it is worth keeping, not a cure.
+* **★ The natural-fatal path hit hang site B and SURVIVED.** `[5883.414380] port failed halt` then a second
+  `GFMUX_CTL pre-write` and a second MBA load ("one fatal makes TWO MBA reloads") — the AP did **not** hang.
+  So `port failed halt` is present but is not sufficient for the ~3–5 % AP hang.
+
 **Artifacts:** `scratch/crashloop/state_*.txt` (state + full pc-event timeline),
 `scratch/crashloop/window_2280_2530.txt`, `scratch/crashloop/window_2480_3010.txt`,
 `scratch/crashloop/soak_baseline.sh` + `.log`.
