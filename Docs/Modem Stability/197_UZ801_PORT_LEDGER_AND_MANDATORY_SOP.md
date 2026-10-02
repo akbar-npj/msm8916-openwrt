@@ -11637,6 +11637,141 @@ restart recorded).
 **Artifacts:** `scratch/f3_soak/cap_fatal.bin` (md5 `d20ae624…`), `scratch/f3_soak/chunk_a.bin`,
 `scratch/f3_soak/monitor.sh`, `scratch/f3_soak/monitor.log`, `scratch/f3_soak/soak_mitigation.sh`.
 
+---
+
+### §112.14 — ★★★★ The `a2_task.c:3179` burst is a POST-SSR A2 power-handshake failure: it is PRE-EXISTING (not patch 825), it follows a `pc-ack timeout` / `stale edge` by 6–18 s, and it is PROBABILISTIC per restart
+
+**Why this section exists.** §112.13 recorded the first `a2_task.c:3179` burst after the 902.6 s ML1 fatal and
+concluded "a **clean** pre-emptive restart does not do this". The 600 s mitigation was then left running. It
+produced a **second, larger burst after a clean pre-emptive restart**, which **FALSIFIES that conclusion** and
+forced this investigation. This section is the consolidated record.
+
+**The full crash/restart timeline of the boot under study (sysupgrade, AP uptime in s).**
+
+| # | fatal site | AP time | restart ("is now up") | Δ from previous restart |
+|---|---|---|---|---|
+| — | (boot) | — | 11.912 | — |
+| 1 | `a2_power.c:1189` | 734.639 | 735.336 | cold-boot; modem uptime **722.7 s** |
+| 2 | `lte_ml1_common_timer.c:390` | 1637.928 | 1638.660 | modem uptime **902.6 s** |
+| 3 | `a2_task.c:3179` | 1668.710 | 1669.489 | +30.8 |
+| 4 | `a2_task.c:3179` | 1698.764 | 1699.543 | +30.1 |
+| — | *(clean pre-emptive SSR, `cr` unchanged)* | — | **2305.475** | — |
+| 5 | `a2_task.c:3179` | 2590.249 | 2591.038 | **+284.8** |
+| 6 | `a2_task.c:3179` | 2722.489 | 2723.352 | +132.2 |
+| 7 | `a2_task.c:3179` | 2744.116 | 2744.888 | +21.6 |
+| 8 | `a2_task.c:3179` | 2813.370 | 2814.146 | +69.3 |
+| 9 | `a2_task.c:3179` | 2958.431 | 2959.544 | +145.1 |
+| — | *(clean pre-emptive SSR, `cr` unchanged)* | — | **3562.004** | interval **602.5 s** ✅ |
+
+⚠ The pre-emptive SSR works as designed (`cr` 9→9 both times; interval 602.5 s ≈ 600), **but restart #1 was
+followed by a 5-crash burst spanning 653 s**, so §112.13's "clean restart does not do this" is **WITHDRAWN**.
+
+**★★★★ THE BURST IS NOT A PATCH-825 REGRESSION (SOP: check the archive before blaming a recent change).**
+`a2_task.c:3179` appears in `scratch/bootA_a9fd907c/ssr_ledger.csv` and `scratch/bootC_48f567c0/ssr_ledger.csv`,
+both dated **2026-09-21**. `825-bam-dmux-pc-state-reconcile.patch` is dated **2026-09-22 23:18** (commit
+`990c645`). ⇒ the signature **predates patch 825 by a day**; 825 is **not** its cause. (The `stale edge,
+reconciling` *message* is 825's, but the *fatal* is not.)
+
+**★★★★ THE ANTECEDENT IS A PC-HANDSHAKE ANOMALY 6–18 s BEFORE THE FATAL (this is the new, load-bearing result).**
+Every `a2_task.c:3179` in this boot is preceded by a `pc-ack timeout during resume` **or** a `stale edge /
+lost edge` reconcile:
+
+| fatal | preceding event | Δ |
+|---|---|---|
+| #3 1668.710 | `pc-ack timeout` 1656.014 / `stale edge` 1653.701 | **+12.7 / +15.0** |
+| #4 1698.764 | `stale edge` 1673.060 | +25.7 |
+| #5 2590.249 | `stale edge` 2575.264 | **+15.0** |
+| #6 2722.489 | `pc-ack timeout` 2716.095 | **+6.4** |
+| #7 2744.116 | `stale edge` 2726.115 | **+18.0** |
+| #8 2813.370 | `pc-ack timeout` 2800.575 | **+12.8** |
+| #9 2958.431 | `pc-ack timeout` 2951.188 | **+7.2** |
+
+⚠ This **extends** Doc 170's "the antecedent is a negative" (which used a tight 74–86 ms band): the antecedent is
+real but lives in a **6–25 s** band, not the tight band. Doc 170's "the storm does not survive as a precursor"
+should now be read as *"the storm is not in the 74–86 ms band"*.
+
+**★★★★ THE STORM IS A DISTINCT REGIME, NOT RANDOM NOISE.** All pc events in the boot:
+
+```
+quiet  1964.45 → 2527.94   (563 s, ZERO pc events)
+STORM  2527.94 → 2958.43   (431 s, ~20 events: 13 lost/stale edge + 4 pc-ack timeout)
+        └─ contains crashes #5 #6 #7 #8 #9
+quiet  3035.09 → 3516.34   (481 s, 6 events, all isolated)
+```
+
+So the handshake does not fail at a constant low rate — it enters a **persistent failure regime** in which
+*nearly every* collapse/wake cycle produces an anomaly, and it stays there until a modem restart clears it.
+This is the shape of a **stuck state** (e.g. a toggle-bit phase error in the A2 handshake), not of independent
+lost edges. ⇒ **A fix that only reduces churn (e.g. a longer autosuspend delay) is unlikely to clear a stuck
+state; the state has to be re-initialised.**
+
+**★★ The AP-side `pc`/`pc-ack` IRQs are EDGE-triggered and the handlers are `IRQF_ONESHOT` threaded — lost edges
+are structural.** `/proc/interrupts`: `50: smsm 1 Edge 4080000.remoteproc:bam-dmux` (`pc`) and
+`51: smsm 11 Edge 4080000.remoteproc:bam-dmux` (`pc-ack`). Both are requested via `devm_request_threaded_irq(...,
+NULL, handler, IRQF_ONESHOT, ...)` (`qcom_bam_dmux.c:2616`, `:2621`). An edge IRQ whose line is masked while a
+threaded handler runs **loses edges by construction**; the driver's whole `lost edge` / `stale edge` /
+`pc_resync` / RX-watchdog apparatus exists to paper over exactly that. `pc_ack_state` is a **toggle** bit
+(`bam_dmux_pc_ack()` flips it and rewrites the SMEM bit); it is reset to 0 **only** in the SSR teardown
+(`:2349`) and implicitly at probe — **there is no runtime resync for it**, unlike `pc_state` (which the RX
+watchdog re-derives from the wire every 100 ms via `bam_dmux_pc_line_asserted()`).
+
+**Telemetry (AP 3660, after restart #2).** `pc_irq_count 382`, `pc_ack_irq_count 434`, `pc_resync_count 17`,
+`pc_timeout_count 7`, `pm_suspend_attempts 219` / `completions 175` (44 never completed),
+`pm_resume_attempts 219`, `cmd_open 96`, `a2_pc_disabled 0`, `pm_usage_count 0`, `runtime_status suspended`.
+Note `pc_ack_irq_count` (434, ≈2 per ack) **exceeds** `pc_irq_count` (382, ≈2 per transition) by ~52 — i.e.
+~26 pc-line edges were not seen by the edge handler and were recovered by the watchdog, consistent with the
+lost-edge structure above.
+
+**★★ A correlate at the BAD restart, absent at the GOOD one (n=1 vs n=1 — a lead, not a proof).** The restart
+mechanism differs by trigger: a fatal uses `remoteproc` crash recovery; the pre-emptive SSR writes
+`/sys/kernel/debug/msm_subsys/modem` → `msm_subsys: restarting 4080000.remoteproc` → an **ssctl** graceful-shutdown
+request. At the **bad** restart only:
+
+```
+[ 2304.262309] qcom-q6v5-mss 4080000.remoteproc: msm_subsys: restarting 4080000.remoteproc
+[ 2304.765043] qcom-q6v5-mss 4080000.remoteproc: timeout waiting for ssctl service   ← ONLY here
+```
+
+The **good** restart (`[3561.096466] msm_subsys: restarting …`) logged **no** ssctl timeout. Mechanistically
+sensible: if the graceful-shutdown handshake times out, the modem is restarted **without** a clean A2 reset, and
+the fresh boot starts from stale A2 state. ⚠ The fatal path also produced bad boots (#3/#4), so ssctl is **not**
+the sole cause.
+
+**★★★★ THE NATURAL EXPERIMENT — the burst is PROBABILISTIC per restart, not deterministic.** The 600 s
+pre-emptive SSR fired again at **AP 3562.004** (modem uptime 602.5 s) with `cr` unchanged. Restart #1's storm
+began at **+222 s**; restart #2 at **+227 s** had **ZERO** new lost/stale edges and **ZERO** new pc-ack timeouts
+(counts frozen at 17 / 7 / 7). ⇒ the same clean-restart procedure produced a storm once and not the other time.
+**The burst is a race, not a property of the restart.** A baseline soak (`scratch/crashloop/soak_baseline.sh`,
+4 h, 15 s poll) is running to size the rate.
+
+**Working model (stated as a model, not a result).** A modem restart can leave the A2 power-control handshake
+**out of phase** (the AP's toggle `pc_ack_state` / SMEM `pc`/`pc_ack` bits vs. the fresh modem's). Because the
+`pc`/`pc-ack` IRQs are edge-triggered, the AP cannot observe the phase; `pc_state` is resynced from the wire but
+`pc_ack_state` is not. The modem's `a2_task` then times out on the handshake and asserts (`a2_task.c:3179`),
+which restarts it and clears the state — usually (5/6) the next boot is clean, but the burst can repeat a few
+times first. **Status: MODEL — no coredump was captured (coredump was `disabled`; now `enabled`), so the
+modem-side assert text is unconfirmed.** The modem's own assert string is not recoverable from the ELF string
+pool (the `a2_task.c` literals are in a 16-byte-padded constant pool with no adjacent line numbers).
+
+**Rejected / not pursued (honest).** (a) "Patch 825 causes it" — **FALSIFIED** (predates it). (b) "Raise the
+autosuspend delay" (`pm_runtime_set_autosuspend_delay(dev, 1000)`, `:2612`) — **not pursued**: the storm is a
+stuck regime, and the suspend rate is only 219/3660 s ≈ 3.6/min, so a delay change buys ≤ a few ×, not a clear.
+(c) "Disable runtime PM entirely (Android parity)" — considered; Doc 140 §10.4 already measured that the ~910 s
+fault is **invariant** to AP voting (1 vote → 910 s; 311 → 912.6 s), so it cannot fix the ML1 clock, and Doc 140's
+pre-fix pinned-active state still fataled (at 1084 s).
+
+**⚠⚠ MEASUREMENT TRAP (new, cost a false "device unreachable").** A multi-line remote command passed as
+`ssh root@host 'printf … \` + continuations makes the remote **ash** fail with
+`syntax error: unexpected "(" (expecting ")")`; the empty stdout is indistinguishable from a dead host, so a
+soak silently aborts (or, worse, records `UNREACHABLE`). Fix: **pipe the probe to the remote shell** —
+`ssh root@host sh <<'EOS' … EOS` — which has no cross-shell quoting. Also: an `AP=? UNREACHABLE` sentinel
+still matches `case "$R" in AP=*)`, so a "break on unreachable" guard written that way **never fires**.
+Both are fixed in `scratch/crashloop/soak_baseline.sh`.
+
+**Artifacts:** `scratch/crashloop/state_*.txt` (state + full pc-event timeline),
+`scratch/crashloop/window_2280_2530.txt`, `scratch/crashloop/window_2480_3010.txt`,
+`scratch/crashloop/soak_baseline.sh` + `.log`.
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
@@ -11976,3 +12111,8 @@ restart recorded).
 | **`scratch/f3_soak/monitor.sh`**, **`scratch/f3_soak/monitor.log`** | **new (§112.13)** — the fatal monitor (modem uptime from the dmesg "is now up" anchor; ⚠ **not** `ats-probe`, which streams forever). Caught the fatal at AP 1637.928 (`crashes=2`) |
 | **`scratch/f3_soak/soak_mitigation.sh`**, **`scratch/f3_soak/soak_mitigation.log`** | **new (§112.13)** — the post-change soak: baseline `crash_count`, per-15 s poll, records each clean (pre-emptive) restart epoch change, stops on any new `crash detected`. Verifies the 600 s mitigation |
 | **`msm89xx/base-files/etc/config/modem-watchdog`** | **UPDATED (§112.13)** — `preemptive_ssr_interval` **800 → 600** with the 722.7 s cold-boot rationale; committed live via `uci` on the device as well |
+| **`scratch/crashloop/state_*.txt`** | **new (§112.14 ★★★★)** — device state + the **full pc-event timeline** for the boot under study; the source of the "quiet 1964→2527 (563 s, zero events) / STORM 2527→2958 / quiet 3035→3516" finding and of the 6–18 s antecedent table |
+| **`scratch/crashloop/window_2280_2530.txt`**, **`window_2480_3010.txt`** | **new (§112.14)** — raw dmesg slices (QRTR noise filtered) around the storm onset and the burst; contain the `timeout waiting for ssctl service` correlate and the T0–T9 SSR teardown ladder |
+| **`scratch/crashloop/soak_baseline.sh`**, **`soak_baseline.log`** | **new (§112.14)** — the 4 h baseline soak (15 s poll): `AP/cr/up/lost/stale/to/w0`. Sizes the post-restart storm + `a2_task.c:3179` rate so a fix can be scored. Restart #2 clean at +227 s is the first datum |
+| **`/proc/interrupts` (live, device)** | **new evidence (§112.14 ★★)** — `50: smsm 1 Edge` (pc) and `51: smsm 11 Edge` (pc-ack): both **EDGE**-triggered, requested `IRQF_ONESHOT` threaded (`qcom_bam_dmux.c:2616`, `:2621`) ⇒ lost edges are **structural**, not a race |
+| **`GitIgnore/MelbonWhiteStock_Dump/modem_extracted/image/modem.elf`** | **re-examined (§112.14)** — the `a2_task.c` / `a2_power.c` / `lte_ml1_common_timer.c` literals sit in a **16-byte-padded constant pool** (`0xc17099a8`+) with **no adjacent line numbers**; a `(line<<16)` descriptor scan returns 53 false hits. ⇒ the modem-side assert text is **not** recoverable this way; a coredump is required |
