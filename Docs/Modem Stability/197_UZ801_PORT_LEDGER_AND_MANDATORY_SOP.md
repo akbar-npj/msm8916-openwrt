@@ -11347,6 +11347,85 @@ is the next step.
 
 ---
 
+
+### §112.9 — Reply injection: the LL1 CNF drain topology VERIFIED, the (b) forced-CNF patch built, (a) closed
+
+**Context.** User request (2026-10-02): build two reply-injection patches — (a) ML1-side "pretend the reply
+arrived" (one site), (b) LL1-side forced-CNF — and test (b) on the Android arm first. All offline; **nothing
+deployed**.
+
+**§112.9.1 — the drain topology, verified from the primary disasm + the Ghidra export** (this refines §107).
+The CNF `0x4080805` (`LTE_ML1_SM_STM_SERV_MEAS_RSP`) is produced and sent by the LL1 serving-meas scheduler:
+
+| VA | role | callers |
+| :-- | :-- | :-- |
+| `FUN_c01dc5d0` | STI handler (`lte_LL1_schdr_main.c`) | `c01dfbb4` (sole) |
+| `FUN_c01bc934` | the **gate** (per carrier) | `c01dda28` (STI), `c01e3a88` (ODRX) |
+| `FUN_c01c1968` | the **compute** (serving-meas payload) | `c01bc980` (gate, sole) |
+| `FUN_c01c1820` | the **send/flush** (`lte_LL1_schdr_dl.c`) | `c01ddb5c` (STI), `c01e3aa4` (ODRX) |
+
+STI per subframe: (1) per carrier, if `FUN_c00394e0(carrier,0)` **and** `FUN_c020b3f0(carrier)` → gate; (2)
+`r16 = AND over carriers of entry[+0xbe]`; (3) `if (r16==0) skip` (`c01ddb54`–`c01ddb58`); (4) `FUN_c01c1820()`
+builds `0x4080805` and dispatches (`thunk_FUN_c0b62f10`). The gate:
+
+```
+slot = entry + 0x10 + entry[+0xb9]*0x38 ; slot[+0x30]=0
+if (slot[+0x00]==1) {                       # (A) slot valid
+  if (entry[+0x02] <= slot[+0x01]) {        # (B) ready
+    FUN_c01c1968();  slot[+0x00]=0; slot[+0x30]=1; slot[+0x01]=0; entry[+0xbe]=1 } }
+```
+Producer `FUN_c01bc7f0` (`lte_LL1_meas_ttl_ftl_main.c`) sets `slot[+0x00]=1` + bumps `entry[+0xb8]`;
+`FUN_c01bc8e0` bumps `slot[+0x01]`; the send calls `FUN_c01bc8b0` which advances `entry[+0xb9]` (all mod 3).
+
+**⇒ THE FAILING LINK IS CONDITION (B).** At the idle-fatal `slot[+0x00]=1` (A passes) but
+`entry[+0x02]=1 > slot[+0x01]=0` (B fails) ⇒ the gate never consumes ⇒ `entry[+0xbe]` stays 0 ⇒ the STI's AND
+is 0 ⇒ the send is skipped ⇒ the ML1 never gets its CNF ⇒ the 50 ms state-20 watchdog expires ⇒ assert. §107's
+"gate → send `FUN_c01c1820`" is **indirect**: the gate sets `+0xbe`; the STI's send is gated on the AND of it.
+
+**§112.9.2 — the (b) patch (built, byte-verified, NOT deployed).**
+
+| # | VA | off (`modem.b15`) | stock word | → patched | effect |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| A | `0xc01bc978` | `0xcc978` | `2202e112` (`if (cmp.gtu(r1,r2)) jump:t`) | `7f00c000` (`nop`) | (B) always passes |
+| B | `0xc01ddb58` | `0xedb58` | `5c00c814` (`if (p0.new) jump:nt`) | `7f00c000` (`nop`) | send guard never skips |
+
+`modem.b15` = PT_LOAD **phdr idx 15** (VA base `0xc00f0000`, filesz `0x1963d8`); file off = VA − `0xc00f0000`.
+Stock md5 `1d0a8e74cad0cde5d6cb0cef735e0664` — **host and device identical** (re-verified 2026-10-02; device
+bytes at both offsets match). Variant **A** md5 `8c2a3f1a244eec315ade5f81de10de46`; **AB** md5
+`1d8e421e829067cfcc872533505f1541`. Files `scratch/reply_inject/modem.b15.{A,AB}`; backup
+`scratch/reply_inject/backup/modem.b15.device`; deployer `scratch/reply_inject/deploy.sh {A|AB|stock}`.
+**Why A first, B only as escalation:** A also sets `slot[+0x30]=1` and `slot[+0x00]=0`, which **defuses the
+send's own assert** (`FUN_c01c1820`: `if (+0xb9 != +0xb8 && slot[+0x30]!=1 && slot[+0x00]!=0) abort`). B alone
+would force a send with the slot un-consumed and could relocate the assert into `FUN_c01c1820`.
+
+**§112.9.3 — the (a) ML1-side is NOT independently implementable as "reply injection".** The reply is a
+*dispatched bus message* (`0x4080805`), not a call site. The state-20 timer callback `FUN_c02d7bd0` dispatches
+on `obj[+0x38]` through the jump table at `0xc1a861d4` (read from the ELF: indices **20..28 → `0xc02d7d54`**,
+which is a **bare `call 0xc0879150` reporter at `c02d7d80`** — an unconditional abort; the DIAG gate at
+`c02d7d54` only selects the descriptor). Replacing that abort is **assert-suppression**, which the project
+already falsified as a *relay* (anatomy §21–44). ⇒ the only true "pretend the reply arrived" is to **deliver
+the real reply**, i.e. patch (b). (a) is **closed as not-separable**, not built.
+
+**§112.9.4 — TEST PROTOCOL (Android arm; NOT yet run).** ⚠ **The device is currently in the CLEAN regime**
+(AP uptime 4226 s, boot_id `d075142a-…`, modem brought out of reset at AP 6.62 s, **no**
+`modem subsystem failure reason`, `rmnet0` up with a default route). A cold boot is clean, so the patch
+**cannot be validated without inducing a crash** — and inducing one arms the ~902.7 s limit cycle if the patch
+fails. Protocol: (1) `./deploy.sh A`; (2) `adb reboot` → regression check; (3) induce a crash (the §105.8
+control restart); (4) soak ≥ 2 × 902.7 s — **success = no `modem subsystem failure reason` AND a working data
+path** (a no-fatal-but-dead `rmnet0` is a ZOMBIE, not a fix — the §61/§71 criterion); (5) revert
+`./deploy.sh stock`; **recovery if the modem bootloops: EDL reflash of the `modem` partition ONLY** (item 88).
+⚠ **Honest expected outcome:** if the ~900 s event is an RF-layer death *upstream* of the ML1 stall (§71:
+`rflte_*` 353→0), forcing the CNF will **not** restore the data path — it converts the fatal into a zombie.
+The patch tests the "reply is the failing link" model; it is not a promised cure.
+
+**§112.9.5 — the better-odds lead unchanged.** The two-regime model (cold clean / warm armed) is the real
+lever; `QDSP6SS_GFMUX_CTL` (`0x04080020`) `BIT(8)` (`Q6SS_CLK_SRC_SWITCH_CLK_OVR`) is the one concrete
+Android-vs-OpenWrt powerup register difference (Android `0x00000102`; mainline sets only `BIT(1)`).
+⚠ BIT(8) is set on Android in both clean and armed boots ⇒ it cannot be the whole switch; it is the
+cold-boot OpenWrt gap, testable on the OpenWrt arm.
+
+---
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
