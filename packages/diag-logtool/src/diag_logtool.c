@@ -315,7 +315,8 @@ static int cmd_listen(int seconds) {
 
     while ((now_s() - t0) < seconds) {
         int r = read_msg(buf, sizeof(buf), 500);
-        if (r <= 0) continue;
+        if (r < 0) break;            /* device gone (EPIPE after an SSR) */
+        if (r == 0) continue;        /* timeout */
         total += r;
         msgs++;
         printf("[%8.3f] RX %d bytes: ", now_s() - t0, r);
@@ -345,7 +346,8 @@ static int cmd_capture(int seconds, const char *path) {
 
     while ((now_s() - t0) < seconds) {
         int r = read_msg(buf, sizeof(buf), 500);
-        if (r <= 0) continue;
+        if (r < 0) break;            /* device gone (EPIPE after an SSR) */
+        if (r == 0) continue;        /* timeout */
         unsigned char hdr[4] = {
             (unsigned char)(r & 0xFF), (unsigned char)((r >> 8) & 0xFF),
             (unsigned char)((r >> 16) & 0xFF), (unsigned char)((r >> 24) & 0xFF)
@@ -533,7 +535,8 @@ static int cmd_cntl_dump(const char *path) {
     long msgs = 0;
     while ((now_s() - t0) < 5.0) {
         int r = read_msg(resp, sizeof(resp), 500);
-        if (r <= 0) continue;
+        if (r < 0) break;            /* device gone */
+        if (r == 0) continue;        /* timeout */
         msgs++;
         printf("CNTL RX (%d bytes): ", r);
         hexdump_ascii(resp, r);
