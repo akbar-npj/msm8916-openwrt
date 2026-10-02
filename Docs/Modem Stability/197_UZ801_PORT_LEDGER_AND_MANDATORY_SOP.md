@@ -11554,6 +11554,37 @@ the **loadable image** (unsquashfs extraction + disassembly), not by md5 of an i
 (the build is reversible; recovery documented). Skipped: none. Pre-registration: the BIT(8) hypothesis and its
 weak prior were pre-registered in §112.10 **before** the build.
 
+### §112.12 — ★★★ THE BIT(8) HYPOTHESIS IS FALSIFIED: patch 827 is a RUNTIME NO-OP (the bootloader already sets BIT(8))
+
+**Flash verified (2026-10-02, sysupgrade; device is up at `192.168.8.1`).** `DISTRIB_REVISION='r33051-f5dae5ece4'`
+= the built image; `qcom_q6v5_mss` loaded; `remoteproc0` = `running`; `wwan0` up with IPv4 `10.34.164.204/29`
++ IPv6; bearer `up:true` (proto `modemmanager`). **The flash is correct.** ⚠ The device's LAN is `192.168.8.0/24`
+(gw `192.168.8.1`), not the `192.168.100.1` in older notes.
+
+**★★★ The decisive line (`dmesg | grep GFMUX`):**
+```
+[   11.160705] qcom-q6v5-mss 4080000.remoteproc: GFMUX_CTL pre-write: 0x00000100
+```
+`0x100` = **BIT(8) only** — the bootloader (or the HW reset state) **already leaves `Q6SS_CLK_SRC_SWITCH_CLK_OVR`
+set**. Therefore:
+* **unpatched** mainline `val |= Q6SS_CLK_ENABLE` (BIT(1)) ⇒ `0x100 | 0x2` = **`0x102`**
+* **patched (827)** `val |= BIT(1)|BIT(8)` ⇒ `0x100 | 0x102` = **`0x102`**
+
+**Identical.** Both stacks write `0x102` — exactly the live Android value. ⇒ **the Android-vs-OpenWrt `GFMUX_CTL`
+gap DOES NOT EXIST; BIT(8) is NOT the arming lever; patch 827 changes NOTHING at runtime.** This is precisely the
+outcome §112.10's caveat pre-registered ("If the pre-write log already shows BIT(8) set, the bootloader sets it
+and the patch is a no-op — which would immediately explain a null result"). **The BIT(8) axis is CLOSED.**
+
+**Consequence.** The flashed image is behaviourally identical to unpatched OpenWrt w.r.t. the modem powerup
+register ⇒ a soak can only test the fresh BSP re-sync, not BIT(8). The pre-emptive SSR remains the only
+working lever.
+
+**Pre-registered baseline control (this session).** Disable the mitigation
+(`uci set modem-watchdog.recovery.preemptive_ssr_enabled=0; uci commit`), soak ≥ 1000 s of **modem** uptime,
+observe. **Prediction: the ~902.7 s fatal RECURS** (a no-op cannot change the outcome). A *no-fatal* result
+would mean the fresh BSP re-sync changed something else and must be investigated. The mitigation is
+**re-enabled after the single observation** (leaving it off would fatal every ~15 min).
+
 ## 8. Evidence inventory
 
 | artifact | what it is |
