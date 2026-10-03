@@ -14771,3 +14771,121 @@ mutation, no patch, no baseband change. The negative (no new root) is stated, no
 **Tools / evidence:** `modem_full_decompiled.c` (lines above), the inline coredump reader (bias
 `0x39800000`), `scratch/firmware/modem.asm` (`call 0xc01bc8e0` at `0xc01df174`/`0xc01e4304`); ledger
 §84, §102, §105-109.
+
+## §112.42 ★★★★ PHASE 3 — THE ML1 MEAS-TABLE "PRE-CRASH FLAG" IS NOT A FATAL PRECURSOR: §112.41's `slot[+0x01]=0` evidence is non-discriminating (§105.2 already falsified it), the flag tracks `d2`, and the decisive `d2=0` healthy control (§105.5) has still never been captured (2026-10-03)
+
+**Instruction.** From the approved sequenced plan, phase 3: *"a new live instrument for the
+ML1-side counter — design + pre-register + deploy a purpose-built sampler (ctx0 watchdog state +
+SERV-MEAS CNF-pending flags) at high rate."* **Outcome: the instrument design was replaced by a
+measurement-control audit, because the target "counter" is not a valid observable.** The audit is
+read-only/offline; the live control is **pre-registered** (`P-IDLECTRL2`) but could **not** be run
+cleanly this session (§112.42.5).
+
+### §112.42.1 Why a high-rate RAM sampler cannot exist (the design constraint)
+
+The modem's memory is unreadable from the AP by **any** route — `/dev/mem`→`EFAULT`, `mmap`→`SIGBUS`,
+`ioremap()`/`memremap`→a synchronous external abort — because of TrustZone (§1,
+`reference_hmu05_platform_quirks`). The measurement table `DAT_c36b82d0` is **BSS**. Therefore a
+"high-rate sampler" of `slot[+0x01]` / `entry[+0xbe]` **cannot exist on the AP side**; the only two
+readers are the **coredump** (a crash-time snapshot) and the **F3 log** — and the F3 does **not**
+carry these fields (§112.13/§112.40: no precursor). The plan's "DIAG/RPM-ring **or**
+coredump-on-trigger" therefore collapses to **coredump-on-trigger only**.
+
+### §112.42.2 The decisive re-analysis — 38 OpenWrt dumps
+
+Re-ran `scratch/hexdec/slot2.py` on the 36 `scratch/coredump_live_full/coredump_live/*.elf` plus the
+two §112.32 `a2pin` cores. Each dump classified by its **own** crash report (`read_crash_report.py`,
+which gives the modem's uptime) × `d2`:
+
+| dump class | n | `d2` | flag present¹ |
+| :-- | --: | :-- | :-- |
+| fatal, modem-up ~900–947 s | 33 | **1** | **0 / 33** |
+| fatal, modem-up ~902 s | 3 | **0** | **3 / 3** |
+| healthy forced capture (`d2=1`) | 1 (a2pin COLD, §112.32) | 1 | 0 / 1 |
+| healthy forced capture (`d2=0`, `e02=0`) | 1 (a2pin WARM, §112.32) | 0 | **0 / 1** |
+
+¹ flag = *a slot has `+0x00=1`* **and** `b8=(b9+1) mod 3` **and** that slot's data (`+0x08`) is 0
+**and** `cons=0` — i.e. §105.4's discriminator. In every `d2=1` dump the table is **balanced**
+(`b8==b9`) with exactly one **consumed** slot (`cons=1`, data ≠ 0).
+
+⇒ **The flag is predicted by `d2`, not by the fatal** (`3/3` vs `0/34`; the lone `d2=0` exception is
+the §112.32 WARM core, which uniquely has `e02=0`, so the gate condition (B) `e02 ≤ +0x01` passes and
+the drain completes — a different configuration, not a counter-example).
+
+### §112.42.3 §112.41 is unsupported (the correction)
+
+§112.41 (committed `adb9706`) concluded *"the producer never ran"* from **`slot[+0x01]=0` in 7/7**
+fatal dumps. Two independent problems:
+
+* **§105.2 had already falsified that evidence** (Android arm, 29 dumps): *"`slot[+0x01]` is 0 in
+  ALL 29 dumps — controls included … the honest conclusion is that `slot[+0x01]` **cannot
+  discriminate the fatal**."* §112.41 re-used exactly the value §105.2 had retired.
+* Re-confirmed here: `slot[+0x01]=0` in **every** healthy `d2=1` dump (it is the **resting** value —
+  the writer increments `+0x01` and the gate clears it on consume, so at rest it is 0). It
+  discriminates nothing.
+* The **only** real discriminator is the §105.4 flag. §112.41's own table already shows it: its
+  `slot[+0x00]` = 1 rows (2/7) **are** the `d2=0` dumps; the other 5/7 (`d2=1`) show a normally
+  **consumed** measurement. So §112.41's *"the reply is never produced because the producer never
+  ran"* is supported **only** for the 2 `d2=0` dumps — and even there it is indistinguishable from
+  the idle state (no healthy `d2=0` control exists).
+
+**⇒ §112.41's phase-2 conclusion is RETRACTED.** (Its *direction* — the reply path is downstream of
+the ML1-wide stall — is not contradicted; what fails is the *evidence* and the specific
+"producer-never-ran" claim.)
+
+### §112.42.4 §105.8's defect (why the gap is still open)
+
+§105.8 claimed to execute §105.5 (the `d2=0` idle control) and to resolve §105.4's confound in
+favour of *"about to die, NOT idle"*. But **all four of its controls read `d2=1`** (bearer-up /
+bearer-down / detached) — i.e. **none was in the `d2=0` state §105.5 required** (the `svc data
+disable` did not take; §112.5's trap). So §105.8 never tested the confound it claimed to resolve,
+and its conclusion is **UNSUPPORTED**. §105.5 remains **genuinely unexecuted**.
+
+### §112.42.5 The live control — pre-registered, not run
+
+`scratch/a2pin/PREREG_idlectrl2.md` — **P-IDLECTRL2**: capture a healthy **`d2=0`, `e02=1`**
+coredump (LTE-attached, idle, crashed short of 902 s, §6.2a). Pre-registered decision rule:
+
+* flag **present** ⇒ §105.4's flag is a normal **idle** feature ⇒ **§105.4 FALSIFIED**, the
+  meas-table axis is **EXHAUSTED** as a fatal lead, **§112.41 RETRACTED**;
+* flag **absent** ⇒ the flag **is** the idle-arm fatal signature ⇒ **§105.4 CONFIRMED**.
+
+**Not run cleanly at first.** The device was in a **degraded** state — ModemManager's daemon absent
+from the bus (`mmcli -L` → *"couldn't find the ModemManager process"*), bearer down 3280 s, `wwan0`
+DOWN — so the modem's **LTE-attach state was ambiguous**, and a capture would have been a
+**confounded** control (it could not be certified "attached + connected + idle" per §105.5). The gate
+result is required *before* reading the flag, so the run is gated rather than fudged.
+
+**Then launched as an idle-survival run (the §112.34/35 route).** Because the modem is currently
+**idle** (no bearer), the §112.34/35 "idle → no assert" result lets it be driven **past 902 s**
+without fataling. The pre-emptive SSR was temporarily raised 800 → 1500 s so the idle modem can cross
+the 902 s boundary, and `scratch/a2pin/idlectrl2.sh` waits for modem-uptime ≥ 950 s, then forces the
+§6.2a capture. **Gate:** the capture is a valid control only if `d2=0` **and** `e02=1`; if the modem
+instead fataled (AP reboot ⇒ SSH lost), the idle hypothesis is falsified for this state and that is
+itself recorded. **Result: pending at the time of writing** — to be appended here when the dump lands.
+
+### §112.42.6 Verdict + Achieved vs Expected
+
+**The ML1 meas-table axis is NOT a valid fatal observable.** Its "pre-crash flag" tracks the `d2`
+state; its headline counter (`slot[+0x01]`) is the table's resting value; and the decisive healthy
+`d2=0` control has never been captured. The ML1-wide-stall *model* (§84/§112.41) is not refuted —
+only its **meas-table measurement** is retired.
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| A high-rate ML1-counter sampler | design + deploy | **IMPOSSIBLE** — TrustZone blocks AP RAM reads (§112.42.1) |
+| Confirm the §112.41 "producer never ran" | yes/no | **NO** — its evidence (`+01=0`) is non-discriminating (§105.2) |
+| Does the flag mark the fatal? | yes/no | **NO** — it tracks `d2` (3/3 vs 0/34); no healthy `d2=0` control |
+| Run the decisive control | yes/no | **NO** — device degraded (MM absent, bearer down) ⇒ deferred, pre-registered |
+
+### SOP
+
+Read-only/offline for the correction (§112.42.1–4): existing coredumps + existing tools
+(`slot2.py`, `read_crash_report.py`); no device mutation. The control is **pre-registered before
+any capture** (`PREREG_idlectrl2.md`, written 2026-10-03 before touching the device). The negative
+(§112.41 unsupported; §105.8's confound not actually closed) is stated, not hidden. A prior
+conclusion of our own is retracted. Ledger + memory updated in the same session.
+
+**Tools / evidence:** `scratch/hexdec/slot2.py`, `scratch/diag_patch_v12/read_crash_report.py`,
+`scratch/coredump_live_full/coredump_live/*.elf` (36), `scratch/a2pin/dump_devcd{1_872,2_1743}.bin`,
+`scratch/a2pin/PREREG_idlectrl2.md` (new); ledger §105.2/§105.4/§105.5/§105.8, §112.32, §112.41.
