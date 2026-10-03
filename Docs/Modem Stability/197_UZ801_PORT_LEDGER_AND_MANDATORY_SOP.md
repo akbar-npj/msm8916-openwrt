@@ -15692,19 +15692,16 @@ a **different** fatal (the cold-boot `a2_power.c:1189`, §112.23); it does **not
 division of labour — §112.24's "0 fatals / 1612 s" was with the pre-emptive SSR ON, so that result
 does not credit the pin with suppressing the 900 s event.)
 
-**★ The site label is a SHARED DESCRIPTOR — it does NOT reopen the MCPM/`rpm` lead.** The dmesg
-`file:line` is the **fixed shared ERR_FATAL descriptor** (ledger §21–44), not the real site. This was
-confirmed live: `lte_ml1_sleepmgr_stm.c:4054` is the ledger's label for the MCPM system-sleep
-watchdog `FUN_c0ce7fe0` (§112.38), which §112.38/39 found **INERT**. Reading **my** coredump
-reproduces that inert guard exactly — the two MCPM snapshot arrays `DAT_c30fd9a8`/`DAT_c30fda28` are
-**all zero**, and the LPR at `0xc1d473f8` is confirmed `"rpm"` (`+0x00 → 0xc1848058` = `"rpm"`). ⇒ my
-run reproduces the known *family* label and does **not** revive the closed `rpm.sync` LPR park
-(§112.39: `q6pcvote` LIVE). The task `slpc` (the firmware's sleep-duration controller —
-`"Error %u when setting slpc duration, sleep skipped!"`) and the coredump's A2 strings
-(`"A2 task blocked in wakeup/sleep/apps action pending state counter=%d, state=%d"`) do show the
-crash path touches the sleep/wakeup machinery, but the **surviving root-cause candidate is
-unchanged**: the **ML1-wide stall** that stops the SERV-MEAS-RSP reply path (items 84–86/100/102;
-§112.38 "the one thing that is genuinely OPEN"). Recorded as an observation, **not** a reopened lead.
+**★ The site label RESOLVES to a specific assert — corrected, see §112.51.** I first wrote here that the
+dmesg `file:line` is "the fixed shared ERR_FATAL descriptor, not the real site" and that this did not
+reopen the MCPM/`rpm` lead. **That was wrong.** Resolving the descriptor in my coredump (the record at
+the hard-coded address `0xc35b1384`, ledger §52) gives
+`{u16 line = 0x0fd6 (4054), u16 0x2525, u32 0x10, ptr 0xc35b1394, ptr 0xc177cd48}`, where
+`0xc35b1394` = `"Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM ) == SLEEP failed: "` and
+`0xc177cd48` = `"lte_ml1_sleepmgr_stm.c"`. So the fatal **is** a sleep-manager **state** assert at
+`sleepmgr:4054`, and it **agrees** with the dmesg. (§52's "not a site discriminator" means the record's
+*content* is a **runtime-populated BSS record** whose address is hard-coded — not that it is generic in
+any one dump.) See **§112.51** for what this assert means and its tension with §112.38.
 
 **Achieved vs Expected.**
 
@@ -15775,3 +15772,165 @@ fatals are reported (a fatal that predates the watchdog run is history, not a fr
 (`67136b8b…`) before the change, so no device-local edit was clobbered; backed up before deploy;
 source committed (`fa47a85`, `9a31d83`); no firmware change. Reversible: restore the backup, or set
 `preemptive_ssr_enabled=0`. Ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.51 ★★★★ THE FATAL ASSERT, NAMED — `ASSERT(stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP)` at `lte_ml1_sleepmgr_stm.c:4054` (2026-10-04)
+
+**How.** The dmesg gives only a `file:line`, and ledger §52 established that the ERR_FATAL descriptor's
+address is **hard-coded** (`0xc35b1384`) with a **runtime-populated** content. Resolving that record in
+the §112.49 coredump (`scratch/wedge_run_20261003/dump_devcd1_3334.bin`) yields the **full assert**, not
+just a location.
+
+**The descriptor record** (modem VAs; `dump_va = modem_va − 0x39800000`; segment-mapped read):
+
+| field | value |
+| :-- | :-- |
+| word0 | `0x25250fd6` → `u16 line = 0x0fd6` = **4054**; `u16 = 0x2525` (constant, matches §52.12) |
+| word1 | `0x00000010` (constant) |
+| word2 | `0xc35b1394` → the message |
+| word3 | `0xc177cd48` → the filename |
+| **message** | **`"Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM ) == SLEEP failed: "`** |
+| **filename** | **`"lte_ml1_sleepmgr_stm.c"`** |
+
+⇒ **the fatal is `ASSERT(stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP)`** — the LTE ML1 **sleep-manager
+state machine's state was checked against `SLEEP`, and the check failed.**
+
+**Why this matters — it corrects a §112.49.1 over-claim and re-opens a lead.** The ledger had only the
+`file:line` and mapped it (§112.38) to the MCPM system-sleep watchdog `FUN_c0ce7fe0`, whose guard reads
+`min_sleep_count > 400 AND min_elapsed_since_sleep > 400`, and found that guard **INERT** (its scratch
+arrays are zeroed by design; §112.39 confirmed 0/0 in 7/7, and this dump agrees: `DAT_c30fd9a8`/
+`DAT_c30fda28` = 0). The named assert is **not** that count guard — it is a **state** check. ⇒
+**§112.38's "the `sleepmgr:4054` guard is INERT" does NOT dispose of this fatal**: the INERT verdict is
+about the *count* guard, and a *different* assert at the same `file:line` is what fired. **Recorded
+OPEN.** (My §112.49.1 note calling the label a generic "shared descriptor" is corrected there.)
+
+**The state machine.** `LTE_ML1_SLEEPMGR_STM` is the sleep manager STM's name; it is present in the
+firmware image (`modem.b18`, 2×, the STM-name table used to format the message). The expression string
+`"stm_get_state ( LTE_ML1_SLEEPMGR_STM ) == SLEEP"` appears **6×** in the coredump (static + runtime
+copies). The fatal task is `slpc` (the firmware's sleep-duration controller:
+`"Error %u when setting slpc duration, sleep skipped!"`).
+
+**What it means physically (HYPOTHESIS, not a result).** The sleep manager was expected to be in `SLEEP`
+and was not — i.e. a **sleep/wake transition did not complete** at ~900 s. This is consistent with the
+wedge's "staged shutdown" F3 signature (§112.48.2) and with the event being a **sleep-path failure**,
+but it does **not** yet say which transition, or why.
+
+**Next steps (read-only first).**
+1. Locate the code at `lte_ml1_sleepmgr_stm.c:4054` (the assert's enclosing function) in the
+   decompilation and read the surrounding transition.
+2. Enumerate the `LTE_ML1_SLEEPMGR_STM` states; find which transition sets/expects `SLEEP`.
+3. Reconcile with §112.38's `FUN_c0ce7fe0` mapping — is the state assert inside that function, or a
+   sibling at the same line?
+
+**SOP.** Offline, read-only: one existing coredump + segment-mapped reads; no device write, no patch.
+A negative of our own (§112.49.1's "shared descriptor") is corrected in the open. Ledger + CHANGELOG +
+memory updated in the same session.
+
+---
+
+## §112.52 ★★★★ THE ASSERT SITE LOCATED — `FUN_c039ef80` (`lte_ml1_sleepmgr_stm.c`), reached via a state precondition `stm_get_state(LTE_ML1_SLEEPMGR_STM) != SLEEP` (2026-10-04)
+
+**Instruction.** Continue §112.51's read-only next step 1 — *"locate the code at
+`lte_ml1_sleepmgr_stm.c:4054`"*.
+
+**Method — from descriptor to code, exactly.** The ERR/assert descriptors live in a zlib database
+(seg17, base `0xc3c1c000`; `scratch/a2_descr.py`). I resolved the descriptor for **line 4054**:
+
+| descriptor VA | line | file |
+| :-- | :-- | :-- |
+| **`0xc3c81a40`** | **4054** | `lte_ml1_sleepmgr_stm.c` |
+| `0xc3c81a50` | 4089 | `lte_ml1_sleepmgr_stm.c` |
+| `0xc3c81a60` | 2199 | `lte_ml1_sleepmgr_stm.c` |
+| `0xc3c81a70` | 4584 | `lte_ml1_sleepmgr_stm.c` |
+
+(`scratch/descr_scan.py` scans the decompressed DB by file string.) The descriptor VA is the *call
+argument*, so searching the HMU05 stock disassembly (`scratch/hmu05_stock_elf/disasm_full.txt`) for the
+exact 32-bit constant `0xc3c81a40` (`r0 = ##-0x3c37e5c0`) finds its **unique** code load site:
+
+```
+c039f7b8: { call 0xc0879150            ; assert
+c039f7bc:   immext(#0xc3c81a40)
+c039f7c0:   r0 = ##-0x3c37e5c0 }      ; r0 = 0xc3c81a40  (line 4054)
+c039f7c4: { call 0xc0879150            ; assert  ← THE FATAL
+c039f7c8:   immext(#0xc3c81a40)
+c039f7cc:   r0 = ##-0x3c37e5b0 }      ; r0 = 0xc3c81a50  (line 4089)
+c039f7d0: jump 0xc039f7dc
+```
+
+**The fatal stack confirms it.** The fatal task's stack (SP `0x8ae992d8` → modem VA `0xc46992d8`;
+segment-mapped read, `scratch/read_stack.py`) is:
+
+| offset | value | note |
+| :-- | :-- | :-- |
+| +0x000 | `0xc35b1384` | the decompressed ERR_FATAL record (arg to the handler) |
+| +0x00c | `0xc08791a8` | code inside `FUN_c0879150` |
+| **+0x01c** | **`0xc039f7c4`** | **return address of the line-4054 assert call** |
+| +0x024 | `0xc312db4c` | the sleepmgr **context-table base** spilled by the caller |
+| +0x028 | `0x00000017` | a caller local (23) |
+
+⇒ the fatal assert is issued from **`FUN_c039ef80`**, exactly at the line-4054 call. **The site, the
+function and the call are now exact — not inferred.**
+
+**The enclosing function.** `FUN_c039ef80` (`c039ef80: { call 0xc0030000; allocframe(#0x88) }`) is a
+`lte_ml1_sleepmgr_stm.c` function. It is registered as a sleepmgr **handler**:
+`c0396fc0: r1:0 = combine(##-0x3fc61080,#0x4); call 0xc0b663e0` stores `0xc039ef80` next to
+`0xc039eec0` (the module's handler table). It is reached **indirectly** (no `call 0xc039ef80` exists).
+
+**The two conditions that reach the assert block.** Both are *inside* `FUN_c039ef80`:
+
+| branch | condition | target |
+| :-- | :-- | :-- |
+| `c039efec` | `if (FUN_c03a0c20(...) != 3)` | `c039f7b8` → **line 4054** |
+| `c039f098` | `if (FUN_c037121c(...) == 0)` | `c039f7c4` → line 4089 |
+
+**Which one fired — the line-4054 one, so `FUN_c03a0c20(...) != 3`.** The stack return address
+`c039f7c4` is the address *after the packet* that contains the `c039f7b8` call — i.e. the fired call is
+the one whose descriptor is `0xc3c81a40` (line 4054). The only way r0 holds `0xc3c81a40` at that call
+is if the `c039f7bc/c039f7c0` load executed, i.e. the block was entered at `c039f7b8`, which only
+`c039efec` reaches. (A direct jump to `c039f7c4` from `c039f098` would leave r0 = the
+`FUN_c037121c` result, not `0xc3c81a40`, and would raise line 4089, not 4054.)
+
+⇒ **the fatal condition is `FUN_c03a0c20(...) != 3`.** Since the assert text is
+`stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP`, the natural reading is
+`FUN_c03a0c20(...) = stm_get_state(LTE_ML1_SLEEPMGR_STM)` and **`SLEEP` = 3** (HYPOTHESIS — the
+getter's identity is not yet proven; see "Open").
+
+**The context is live and readable.** The stack spills the sleepmgr context-table base `0xc312db4c`.
+Reading the table (`psVar2 = table[0]`) gives `0xc20f1680`; its live fields at the fatal:
+
+| field | value | | field | value |
+| :-- | :-- | :- | :-- | :-- |
+| `+0x2c4` | `0x2b` (43) | | `+0x394` | `0x00` |
+| `+0x2c8` | `0x01` | | `+0x3e0` | `0x1af4` |
+| `+0x5b0` | `0x7d` (125) | | `+0x5b8` | `0x00` |
+
+⚠ The ctx index is **assumed 0** (`psVar2 = table[0]`); the caller's `iVar24` is not independently
+recovered, so treat the table→struct link as *probable*, not proven.
+
+**What this ADDS.**
+1. The fatal is a **state-machine precondition** in a specific sleepmgr handler — **not** the MCPM
+   count guard `FUN_c0ce7fe0` (§112.38), confirming §112.51's re-open.
+2. The exact site (`c039f7c4` in `FUN_c039ef80`), the two entry conditions, and the fact the block is
+   **shared** with the line-4089 assert.
+3. `FUN_c037121c` is a table getter (`p = table[idx]; if (p==0) assert(lte_ml1_mdb.c:2213); return
+   p->field_0x24`) — i.e. an *object lookup that can fail*; its `== 0` result is the late condition.
+
+**What this does NOT add — the root cause is still OPEN.**
+- It does **not** say *why* the STM was not in SLEEP. The assert fires because the precondition
+  `state == SLEEP` failed at the top of a sleepmgr handler.
+- `FUN_c03a0c20`'s identity (candidate: the STM state getter — it thunks to a `p->field_4` getter) and
+  `FUN_c039ef80`'s role (a sleepmgr state/transition handler) remain **inferred, not proven**.
+- This is consistent with the §112.48.2 "staged shutdown" signature and the §112.51 sleep-path
+  reading, but does not yet identify the transition that left the STM awake.
+
+**Next steps (read-only first).**
+1. Identify `FUN_c03a0c20` exactly — is it `stm_get_state`, and what is `0xc1655ec0`? (Resolve its
+   thunk chain `c03a0c20 → c02d9f94 → c0fe1960` and the argument.)
+2. Read the **sleepmgr STM state** at a fatal (which state, not merely "not SLEEP").
+3. Find what *enters* `FUN_c039ef80` (the registered handler id) and what transition sets SLEEP.
+
+**SOP.** Offline, read-only: one existing coredump (`scratch/wedge_run_20261003/dump_devcd1_3334.bin`,
+md5 `580be11b…`) + the stock disassembly; no device write, no patch. A new tool
+(`scratch/descr_scan.py`) and a stack reader (`scratch/read_stack.py`) were added. Ledger + CHANGELOG +
+memory updated in the same session.

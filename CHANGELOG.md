@@ -72,6 +72,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.52 (the assert SITE located — `FUN_c039ef80`, `lte_ml1_sleepmgr_stm.c`)** — continuing §112.51's
+  read-only next step. Resolving the ERR/assert descriptor for line 4054 in the zlib descriptor DB gives
+  **`0xc3c81a40`** (`lte_ml1_sleepmgr_stm.c`), and searching the stock disassembly for that exact
+  constant finds its **unique** code load site: `c039f7c0` (`r0 = ##-0x3c37e5c0`), assert call
+  `c039f7b8`/`c039f7c4`. The fatal task's stack (SP `0x8ae992d8` → modem VA `0xc46992d8`) carries the
+  return address **`c039f7c4`** ⇒ the assert is issued from **`FUN_c039ef80`** (`c039ef80:
+  {call 0xc0030000; allocframe(#0x88)}`), a sleepmgr handler registered at `c0396fc0`. The block is
+  **shared** (packet `c039f7b8` → line 4054; packet `c039f7c4` → line 4089) and is reached from two
+  in-function branches: `c039efec` (`if (FUN_c03a0c20(...) != 3)`) and `c039f098`
+  (`if (FUN_c037121c(...) == 0)`). The return address `c039f7c4` pins the fired call to the **line-4054**
+  one, so the fatal condition is **`FUN_c03a0c20(...) != 3`** = (hypothesis) `stm_get_state(
+  LTE_ML1_SLEEPMGR_STM) != SLEEP` with `SLEEP = 3`. The stack also spills the live ctx
+  (`table 0xc312db4c → 0xc20f1680`). **Adds:** the fatal is a **state-machine precondition** in a named
+  sleepmgr handler (NOT the MCPM count guard of §112.38) — site, function, conditions, call all exact.
+  **Does NOT add:** the root cause — why the STM was not in SLEEP is still OPEN, and `FUN_c03a0c20`'s
+  identity / `FUN_c039ef80`'s role remain inferred. New tools `scratch/descr_scan.py`,
+  `scratch/read_stack.py`. Offline, read-only; no device write, no patch.
+- **§112.51 (the fatal assert, NAMED)** — resolving the hard-coded ERR_FATAL descriptor `0xc35b1384` in
+  the §112.49 coredump gives `{line = 4054, msg_ptr → "Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM ) ==
+  SLEEP failed: ", file → "lte_ml1_sleepmgr_stm.c"}` ⇒ the fatal is **`ASSERT(stm_get_state(
+  LTE_ML1_SLEEPMGR_STM) == SLEEP)`** — a sleep-manager **state** check, **not** the MCPM count guard
+  `FUN_c0ce7fe0` that §112.38 found INERT. ⇒ §112.38's "the `sleepmgr:4054` guard is INERT" does **not**
+  dispose of this fatal; the sleepmgr lead is **re-opened**. (Corrects my own §112.49.1 over-claim that
+  the label was a generic "shared descriptor".)
 - **§112.50 (mitigation hardening — fail-safe fallback anchor + fatal observer)** — audit of
   `modem-bearer-watchdog` found two real gaps, both fixed and deployed. **(1)** When `get_modem_uptime()`
   could not read the kernel's "is now up" line (dmesg evicted + no saved anchor), the old loop only
