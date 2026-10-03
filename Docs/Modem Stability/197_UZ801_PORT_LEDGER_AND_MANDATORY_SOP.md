@@ -13942,3 +13942,75 @@ coredump test must use the **on-demand trigger** instead: `rmmod qcom_bam_dmux` 
 
 **Achieved vs Expected.** Expected: resolve whether a graceful restart re-arms. Achieved: **YES**
 (901.799 s). Also surfaced a natural-fatal AP reboot. **Open:** the cold-boot coredump comparison.
+
+## §112.32 ★★★ THE COLD-BOOT COREDUMP PAIR — the modem's RAM carries a cold↔warm fingerprint, but the ARMED state is NOT in it (2026-10-03)
+
+**Question (§112.29 #3 / §112.31).** OpenWrt's **single cold start IS armed** (§112.6(b): one modem start,
+first fatal `lte_ml1_common_timer.c:390` at modem-uptime **901.84 s**) and a **graceful SSR re-arms**
+(§112.31: **901.799 s**). Android's cold start is **not** armed (MTTF 37 493 s) while its warm restart **is**.
+Does a cold-boot modem's RAM distinguish the two regimes, and does OpenWrt's cold core match Android's cold
+or its warm?
+
+**Method.** On-demand coredump trigger (§6.2a): `rmmod qcom_bam_dmux` → `echo enabled > …/coredump` →
+`echo 1 > /sys/kernel/debug/remoteproc/remoteproc0/crash` (with the module loaded the AP hangs; unloaded it
+dumps and stays alive). Two cores at **matched modem age** (the CW-1 age, 850 s):
+
+| core | boot | modem-uptime at capture | bytes | md5 | meas table (§105.4) | file |
+| :-- | :-- | --: | --: | :-- | :-- | :-- |
+| **COLD** | cold boot — one start (`is now up` @ AP 12.78 s), `msm_subsys/modem`=0 | **858.79 s** (AP 871.57) | 85 398 475 | `bc62d05de4694ef04cd8c4bd96ee016e` | `v=000 rdy=000 b8=1 b9=1 d2=1` | `scratch/a2pin/dump_devcd1_872.bin` |
+| **WARM** | after **1 restart** (crash-trigger @ AP 884.36 s) | **858.6 s** (AP 1743) | 85 398 475 | `8ac64c655c13e1f77fef673b82f268da` | `v=000 rdy=000 b8=0 b9=0 d2=0` | `scratch/a2pin/dump_devcd2_1743.bin` |
+
+Both dumps md5-verified device==local; the AP stayed alive after each (the crash trigger restarts the modem
+~12 s later — the dump is pre-recovery). New tools: `scratch/a2pin/cw_batch.py` (amortised separator scorer:
+loads the 4 Android refs once, scores many targets) and `scratch/a2pin/cw_pair.py` (raw pairwise 32-bit-word
+agreement over the 8 dynamic segments, independent of the separator set).
+
+**Classifier** (`cw_cross.py`/`cw_batch.py`; separator = a word whose Android COLD values agree (X), Android
+WARM values agree (Y), X≠Y, over the 8 dynamic segments; **54 444** separators):
+
+| target | arm | regime | cold-like | warm-like | other |
+| :-- | :-- | :-- | --: | --: | --: |
+| **OpenWrt COLD** | OpenWrt | cold boot | **50.48 %** | 28.48 % | 21.03 % |
+| **OpenWrt WARM** | OpenWrt | 1 restart | **27.15 %** | **52.25 %** | 20.60 % |
+| OpenWrt `crashloop/r2/devcd3..6` (×4) | OpenWrt | crashloop (`d2=1`) | 15.08–16.71 % | 56.30–58.20 % | ~27 % |
+| OpenWrt `coredump_live/up2723.69` | OpenWrt | fatal | 19.96 % | 53.66 % | 26.38 % |
+| OpenWrt `coredump_live/up915.44` | OpenWrt | control | 35.75 % | 32.76 % | 31.49 % |
+| Android `warm_restart_41431` | Android | warm | 8.85 % | 73.48 % | 17.67 % |
+| Android `diag_v7_traffic` | Android | traffic | 28.32 % | 45.99 % | 25.70 % |
+| Android `idle_ctrl_1` | Android | **clean/unarmed, 8.7 h** | **64.32 %** | 11.13 % | 24.54 % |
+
+**Result — the classifier generalises across arms.** The cold and warm OpenWrt cores are separated by a
+**~48 pp swing** (cold: +22 pp cold-lean; warm: +25 pp warm-lean) using **Android-derived** separators. Raw
+pairwise agreement agrees in sign and magnitude: the cold core is **0.14 pp** more like Android-cold
+(87.81/87.71 % vs 87.67/87.54 %); the warm core is **0.40 pp** more like Android-warm (88.28 % vs 87.88 %).
+
+**★★★ The key negative.** The cold core is **cold-like (50.5 %)** — it resembles Android's **unarmed** cold
+modem — yet **the same OpenWrt cold boot IS armed** (§112.6). ⇒ **the RAM regime fingerprint tracks the
+modem's BOOT STATE (cold-start vs restart), NOT the arming.** The arming is set by the **AP boot sequence**
+(§112.6/§112.8) and is **invisible in the modem's memory**. This is exactly the §112.29 #2 model, now with a
+validated instrument: on Android the RAM regime and the arming **coincide**; on OpenWrt they are
+**decoupled** (cold-start RAM, armed modem).
+
+**Confounds / controls.**
+* The cold core is `d2=1` (traffic) and the warm core `d2=0` (idle) — but the direction is **anti-traffic**
+  (cold=traffic→cold-like; warm=idle→warm-like), so traffic is not the driver. The **traffic-matched control**
+  is the crashloop cores (all `d2=1`, all restarted): cold(`d2=1`) 50.5 % cold-like vs crashloop(`d2=1`)
+  56–58 % warm-like ⇒ the difference is **regime, not traffic**.
+* The §105.4 "about to die" flag is **absent** in both (`v=000`); the cold core was captured **43 s before**
+  its fatal, so the pre-crash flag flips on later (§105.8's model).
+* Cross-arm noise: 50.5 % is only 22 pp above the warm tally, and the raw-agreement spread is ~1 pp —
+  the separator score is the stronger of the two metrics.
+
+**Verdict.** The coredump pair **localises the question**: the arming is **not** a modem-RAM state — do not
+look for it in a coredump. The remaining target is the **AP boot sequence** — §112.8's named next step, a
+static side-by-side of the modem powerup path: mainline `q6v5_start()`/`q6v5_mba_load()`
+(`qcom_q6v5_mss.c:1594`) vs Android `modem_powerup()`→`pil_boot()` (`pil-q6v5-mss.c:120`) and the
+proxy-vote / regulator (`vreg_mx`) / PD sequencing around it.
+
+**Achieved vs Expected.** Expected: decide whether a cold-boot coredump reveals the arming variable.
+Achieved: captured a **matched cold/warm pair**, **validated the cross-arm classifier** (~48 pp separation),
+and **closed the coredump avenue** (the arming is not in modem RAM). **Open:** the AP boot sequence.
+
+**Tools / evidence:** `scratch/a2pin/{coldcap.sh,warmcap.sh,cw_batch.py,cw_pair.py,cw_cross.py}`,
+`scratch/a2pin/{coldcap.log,warmcap.log,cw_batch*.out,cw_coldwarm.out,cw_pair*.out}`,
+`scratch/a2pin/dump_devcd{1_872,2_1743}.bin`, `scratch/android_dump/cw_diff.py`.
