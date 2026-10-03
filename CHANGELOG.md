@@ -72,6 +72,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.57.6 (v13 — the corrected STM-state-writer ring, BUILT + offline-verified)** — with the
+  §112.57.5 correction restoring the premise, the v12 ring is rebuilt as **v13** with the hook on
+  the **whole packet at `0xc0fe174c`** (12 bytes → `{jump tramp; nop; nop}`, parse bits 01/01/11,
+  hand-built because the target is out of assembler range), trampoline `0xc0dedc08` → cave
+  `0xc003054c` (136 B) that filters `r16 == 0xc1e158d0`, logs, then **replays the packet exactly**
+  and branches to `0xc0fe1758`/`0xc0fe1764`. Register safety **proven** (the engine uses no r6–r15).
+  Save area `0xc1455000`: marker + seq + `first_seq[0..11]` (ring-wrap insurance, sentinel-guarded) +
+  a 128-entry `{seq,r31,old,new}` ring. **Disassembly-verified** (`scratch/_verify_v13.py`); hash
+  re-verify PASS. **NOT deployed** (dongle offline this session). Builder
+  `scratch/diag_patch_v13/build_diag_patch_v13.py`; deploy = copy `modem.mdt`/`b01`/`b05`/`b16`
+  into `/lib/firmware/` + reboot. See ledger §112.57.6.
+
 - **§112.57.5 (CORRECTION to §112.57.3 — `0xc0fe1754` IS the general STM state writer)** — a
   **same-session self-correction**. §112.57.3 wrongly concluded the store `memw(r16+#0x4) = r18`
   at `0xc0fe1754` is skipped when the packet's conditional jump is taken. In Hexagon a packet

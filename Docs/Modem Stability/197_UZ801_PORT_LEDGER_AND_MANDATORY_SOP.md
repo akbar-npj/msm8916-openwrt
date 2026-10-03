@@ -16667,3 +16667,53 @@ Decompilation via Ghidra headless (`DecompRange.java`), cross-checked against th
 packet-model documentation and an independent logical proof. This is a *self*-correction of a
 same-session conclusion (the SOP values recording and fixing errors over defending them). Ledger +
 CHANGELOG + memory updated in the same session.
+
+### §112.57.6 ★★★ v13 — the corrected STM-state-writer ring, BUILT + offline-verified (whole-packet hook) (2026-10-04, task #257)
+
+The §112.57.5 correction restores the instrument's premise, so the v12 ring is rebuilt as **v13**
+with the hook at the **whole packet** (v12's fatal flaw, §112.57.2). Builder:
+`scratch/diag_patch_v13/build_diag_patch_v13.py`; artifacts in `scratch/diag_patch_v13/image_patched/`.
+
+**Hook.** The packet at `0xc0fe174c` (the STM state write) —
+`{ if (!p0.new) jump:t 0xc0fe1764; p0 = cmp.eq(r18,#-0x2); r1 = memw(r16+#0x4); memw(r16+#0x4) = r18 }` —
+is replaced **in full (12 bytes)** by `{ jump TRAMP; nop; nop }` with correct parse bits
+(`01/01/11`), assembled as a hand-built word triple (a `jump` word + two nops) because the target is
+out of the assembler's PC-relative range. `TRAMP 0xc0dedc08` (24 B nop run in b16, 1.95 MB below the
+site, inside the 22-bit range) does `r6 = ##0xc003054c; jumpr r6`. `CAVE 0xc003054c` (b05, 136 B of
+a 180 B nop run): filter `r16 == 0xc1e158d0` → log → **replay the packet exactly** →
+`r18==-2 ? 0xc0fe1758 : 0xc0fe1764`. **Verified by disassembling the built bytes** (site = the jump,
+tramp = the cave address, cave = the full log+replay+branch; `scratch/_verify_v13.py`).
+
+**Register safety (proven):** the engine `FUN_c0fe1460` uses r0–r5, r16–r22, r29–r31 and **no
+r6–r15** (byte-scan over the whole function) ⇒ the cave uses only r6–r9 and clobbers nothing live;
+r0/r1/r2/r16/r17/r18/r22 are preserved for both continuations.
+
+**Save area `0xc1455000`** (free in stock): `+0x00` marker, `+0x04` seq (total transitions), `+0x10`
+`first_seq[0..11]` (first seq each NEW state was entered — ring-wrap insurance, guarded by
+`cmp.gtu(r18,#0xb)` so a sentinel `-2` never indexes out of bounds), `+0x40` the 128-entry ring of
+`{seq, r31, old_state, new_state}`.
+
+**Deploy files (md5):** `modem.mdt 31d0ac2b29645eef0cd60e086bdc9882`, `modem.b01
+995b20a1a2e8cc14e0cef81ccea71ce7`, `modem.b05 71ec5cbf50cf40ad93f05686d3f3ff73`, `modem.b16
+ad290aabd7f435a3227854088e2ac007`. **Deploy = copy these into `/lib/firmware/` and reboot**
+(§112.57.1 — NOT the p3 partition). Stock `modem.mdt` = `1a6f9507…`.
+
+**Pre-registration P-V13-STM** (scored after the soak): H1 the ring records a transition INTO state
+11 at/near boot ⇒ state 11 is a boot-time state; H2 the sequence `11 → … → 2` with intermediate
+states ⇒ the timer deadline outlived the transition; H3 the seq-delta between the 11→… entry and the
+2-entry brackets the timer period (~900 s, not ~0.3 s). **NEG:** no state-11 entry ⇒ state 11 was
+never visited this boot and the paradox has a third explanation.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| v12's packet-parse blocker | fixed by whole-packet replacement | **YES** — site is `{jump tramp; nop; nop}`, verified |
+| Register safety for the cave | no live register clobbered | **YES** — engine uses no r6–r15 (byte-verified) |
+| Cave fits the free run | ≤180 B | **YES** — 136 B |
+| Hash re-verify / disassembly | PASS | **YES** — both PASS |
+| Deploy + soak + read | device required | **NOT DONE** — dongle offline (operator reboot) |
+
+**SOP.** Firmware patch (reversible, re-flashable) — NOT a baseband blind-patch. Built and
+hash/disassembly-verified **offline**; **not deployed** (the dongle was offline this session).
+Device is stock (`modem.mdt 1a6f9507…`). The §112.57.5 self-correction was recorded before building
+(the SOP values fixing a wrong conclusion rather than building on it). Ledger + CHANGELOG + memory
+updated in the same session.
