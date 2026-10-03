@@ -41,6 +41,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      armer's upstream statically. The only new piece (effective write/drain on
      the LL1 path) is largely pre-answered by the slot state. ⇒ **no v2 firmware
      patch is obviously warranted**; the next move is a decision, not a build.
+  3c. **The state-20 ARM-vs-CANCEL lifecycle ring (P-CANCELRATE)** — **DONE (§112.46),
+     VOID/CONFOUNDED**: the run **wedged** (no fatal in 34 min; the fatal grep was
+     empty from AP 159→2175), and the "CANCEL" hook site `0xc034e1f0` is a
+     **shared dispatch merge point** (15+ selectors) so it counts **every ML1
+     dispatch**, not the ctx0 cancel. The ARM (`FUN_c02fda90`, exactly 2 call
+     sites) fired only **32×**, **corroborating §63.5's dormant finding** and
+     **refuting the pre-registration's "0.63/s armer" premise** (that rate is the
+     dispatcher's). No v3 until the actual recurring state-20 armer is identified.
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a
@@ -54,6 +62,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.46 (P-CANCELRATE — the state-20 ARM-vs-CANCEL lifecycle ring)** — a firmware ring (the v7/v8
+  cave technique) retargeting 3 `call` sites: **ARM** `FUN_c02fda90` at `0xc0326874`/`0xc033c0f4` (both
+  its call sites) + **CANCEL** `FUN_c02fc3cc` at the ML1 dispatcher `0xc034e1f0`. Offline-verified (hash
+  PASS, read-back disassembly) before any write; boot-transparent (the retargeted dispatcher did **not**
+  reproduce the §87 v12 crash-loop). **The fatal NEVER fired** — a 34-min watcher saw an empty fatal grep
+  from AP 159→2175 and the modem **WEDGED** (data path dead, `mmcli` still `running/connected/lte`; the
+  §71 regime, third confirmation). The coredump was **forced on-demand** (`dump_devcd1_1536.bin`, md5
+  `f05204e8…`) and **carries NO filled crash report** (only format strings) — a forced watchdog crash
+  cannot be classified. Ring valid (G1–G3 PASS; **G4 FAIL** — wedge, not fatal): **ARM = 32**,
+  **CANCEL = 947** (last arg `0x80`), ring 128/128 CANCEL. **VOID on two independent grounds:** (a) the
+  CANCEL site `0xc034e1f0` is a **shared dispatch MERGE POINT** — cases `jump` there with selectors
+  `1,2,4,8,0x10,0x20,0x40,0x80,0x100,0x200,0x400,0x800,0x1000,0x2000,0x4000` — so the count is a
+  **generic ML1-dispatch count, not the ctx0 cancel** (the §87 trap; the ring stores no per-entry
+  selector, so the ctx0 subset is unrecoverable); (b) `FUN_c02fda90` fired only 32×, **corroborating
+  §63.5** ("entered exactly 4 times in 900.6 s … essentially dormant") and **refuting the
+  pre-registration's "~0.63/s armer / 565–674 arms" premise** (≈ the dispatcher rate). A second forced
+  crash (`dump_devcd2_2057.bin`) reads the save page as **magic 0, count 0** ⇒ the page is **cleared at
+  modem boot** (no persistence). The `0xec121000` counter **rate is unresolved** (builders say 204 800 Hz;
+  `ll1_ring_dump.py` says 19.2 MHz; a cross-dump LL1 test is ambiguous because the seq counter resets at
+  boot) ⇒ report raw ticks; the ordering is rate-independent. **Rolled back to stock firmware**
+  (md5-verified) + config restored (`preemptive_ssr_enabled=1`). Pre-registered
+  (`PREREG_cancel_ring.md`); a negative of our own is stated. Tools:
+  `scratch/cancel_ring/{build,read}_cancel_ring.py`, `PREREG_cancel_ring.md`.
 - **§112.45 (P-MEASRING — the measurement-ring firmware instrument)** — a deterministic firmware ring
   (the v7/v8 cave technique) retargeting the **5 literal `call` sites** of the three ML1
   measurement-scheduler primitives (1 ARM `FUN_c01ecbf4` + 2 WRITE `FUN_c01bc8e0` + 2 DRAIN

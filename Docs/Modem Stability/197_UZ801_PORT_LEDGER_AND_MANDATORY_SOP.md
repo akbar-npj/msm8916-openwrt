@@ -15242,3 +15242,134 @@ correct v2 hook set. Ledger + CHANGELOG + memory updated in the same session.
 **Tools / evidence:** `scratch/meas_ring/build_meas_ring.py`, `read_meas_ring.py`, `PREREG_meas_ring.md`,
 `dumps/dump_devcd1_916.bin`; `scratch/hexdec/slot2.py`; `ufi001b_hash_tool.py`; device
 `/root/dumpwatch.sh`, `/root/dumps/`; ledger §105.4/§105.8, §111, §112.9, §112.23, §112.44.
+
+## §112.46 ★★★ P-CANCELRATE — THE ARM-vs-CANCEL(state-20) LIFECYCLE RING: **VOID / CONFOUNDED** on two independent grounds — the run **WEDGED** (no fatal at all), and the "CANCEL" hook site `0xc034e1f0` is a **shared dispatch MERGE POINT** (15+ selectors) so it counts **every ML1 dispatch**, not the ctx0 cancel (2026-10-03)
+
+Task #249–#251. Pre-registered in `scratch/cancel_ring/PREREG_cancel_ring.md` (question, decision rule
+class 1/2/3/4, gates G1–G5, falsifiers) **before** the build/deploy/run.
+
+**The question it was built to answer** (item 99.7(3) — the one lifecycle step never put on a clock):
+at the state-20 ctx0 50 ms watchdog expiry (§111/§112.9), which stops first — the **ARM**
+(`FUN_c02fda90`) or the **CANCEL** (`FUN_c02fc3cc`)? Class 3 (both live yet ctx0 fires ⇒ the cancel is
+*ineffective*) was the pre-registered highest-value outcome.
+
+### §112.46.1 The instrument (built, offline-verified, deployed)
+
+Firmware ring (the v7/v8/v1-proven cave technique), 3 `call` sites retargeted to a b05 cave that logs
+then tail-jumps (`jumpr r7`, r31 intact) to the real target:
+
+| event | site VA (b16) | original → cave | target |
+| :-- | :-- | :-- | :-- |
+| ARM | `0xc0326874` (in `FUN_c032685c`) | `call 0xc02fda90` → `cave_ARM` | `FUN_c02fda90` |
+| ARM | `0xc033c0f4` (in `0xc033c0a4`) | `call 0xc02fda90` → `cave_ARM` | `FUN_c02fda90` |
+| CANCEL | `0xc034e1f0` (in `FUN_c034e01c`) | `call 0xc02fc3cc` → `cave_CANCEL` | `FUN_c02fc3cc` |
+
+* Ring on save page `0xc1455000`: `+0x00 magic 0x52494e47`, `+0x04 count`, `+0x10 2×{count,last_ts,last_arg}`
+  (tag 0 = ARM, arg = r0 = instance; tag 1 = CANCEL, arg = r1 = selector), `+0x40 128×16 B {seq,tag,site(r31),ts}`.
+* **Build verified:** hash re-verify PASS (19 MATCH / 0 MISMATCH); read-back disassembly resolved all 3
+  sites to their caves; the `call` re-encode uses the §112.45 fixed layout (**bit 24 = sign of the NEW field**).
+* **Deployed** to `/lib/firmware/` (b16 `30730ce5…`, b05 `dd72f443…`, b01 `ad0bad9d…`, mdt `153db25d…`),
+  md5-verified, `sync`, reboot. **BOOT GATE PASS:** MBA→mpss→up (AP 12.9 s), LTE attached, `ping` 3/3.
+  The retargeted **dispatcher** site did **not** reproduce the §87 v12 crash-loop.
+
+### §112.46.2 The run — the fatal NEVER FIRED; the modem WEDGED instead
+
+Run config: `a2_pin=1` + **pre-emptive SSR DISABLED** (`preemptive_ssr_enabled=0`), continuous traffic.
+A 34-min watcher (`ATDZQG`) polled `dmesg | grep -E "subsystem failure reason|lte_ml1_common_timer.c:390"`
+every 25 s **from AP 159 s to AP 2175 s: the grep was EMPTY at every sample** ⇒ **no fatal, and no
+`modem subsystem failure reason`, in the whole run.** The modem instead **WEDGED** — data path dead
+(ping 100 % loss) while `mmcli` reported `running`/`connected`/`lte`/`home` (the §71/§112.15 regime,
+now confirmed a *third* time). ⇒ **gate G4 FAILS by construction**: this is a **wedge capture, not a
+fatal capture.**
+
+### §112.46.3 The capture (on-demand, and it carries NO crash report)
+
+With the watcher exhausted and the modem wedged, the coredump was forced on-demand (the §6.2a recipe:
+`rmmod qcom_bam_dmux` first, then `echo enabled > …/coredump` + `echo 1 > …/crash`). `dmesg` shows the
+synthetic event: `[1534.197490] crash detected … type watchdog` → recovery → up at 1536.77.
+Dump = `/root/dumps/dump_devcd1_1536.bin` (85 398 475 B, md5 `f05204e8954e3ff5becac9cf6c28d82e`).
+
+**★ A forced `crash` does NOT produce a filled report.** `read_crash_report.py` → **NO embedded crash
+report**; the dump contains only the *format* strings (`"ERR crash log report"` ×1, `"QDSP6_PC"` ×1,
+`"Uptime (h:m:s): %ld:%02ld:%02ld"`), never a filled `QDSP6_PC : 0x…`. ⇒ a forced-watchdog coredump
+**cannot be classified by the assert descriptor**, so even the crash *type* is unconfirmed.
+
+### §112.46.4 The result (raw)
+
+**G1 PASS** magic `0x52494e47`; **G2 PASS** both tags > 0; **G3 PASS** seq monotonic; **G4 FAIL** (no
+fatal — a wedge); **G5** ts non-zero but the clock epoch is unresolved (§112.46.6).
+
+| tag | count | last_ts | last_arg |
+| :-- | --: | --: | :-- |
+| **ARM** (`FUN_c02fda90`) | **32** | 3 493 965 887 | 0x0 |
+| **CANCEL** (`FUN_c02fc3cc` @ dispatcher) | **947** | 3 718 873 136 | **0x80** (ctx0) |
+
+Ring: **128/128 entries are tag CANCEL** (seq 852..979, ts span 3 534 438 944..3 718 873 136); the ARM
+tag **never appears in the ring**. Raw ordering (rate-independent): `last_ts[ARM] < last_ts[CANCEL]`.
+
+### §112.46.5 ★★ THE CONFOUND — two independent reasons the ordering is NOT interpretable
+
+**(a) The "CANCEL" site is a shared dispatch MERGE POINT, not the ctx0 cancel (the §87 merge-point trap).**
+`0xc034e1f0` is the convergence point of the ML1 **message-ID → context-selector** switch in
+`FUN_c034e01c`: cases set `r1:0 = combine(##<selector>, r18)` and `jump 0xc034e1f0` with selectors
+**1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000, 0x4000** (verified in
+the disassembly). So the **947-count is the total ML1-dispatch count, not the ctx0 (0x80) cancel**; the
+`last_arg = 0x80` is only the *last* message's selector. The ring stores no per-entry selector, so the
+ctx0 subset **cannot be recovered offline**. (The pre-registration listed the merge-point trap as a
+falsifier but expected it to read count = 0; a merge point reads **count ≫ 0** — G2 passing was NOT
+sufficient.)
+
+**(b) The ARM hook watches a path the pre-registration mis-modelled.** `FUN_c02fda90` has **exactly 2
+call sites** (both hooked), yet fired only **32** times. This **corroborates the project's own §63.5
+finding** — *"`FUN_c02fda90` was entered exactly 4 times in the whole 900.6 s window … the
+state-20/measurement-request path … is **essentially dormant**"* — and **refutes the pre-registration's
+premise** that it is "the armer … ~0.63/s (565–674 arms / 902 s)". That 0.63/s figure is ≈ the measured
+**dispatcher** rate (947 events over the run), i.e. the premise almost certainly conflated the generic
+ML1-dispatch rate with the armer. ⇒ the ARM-vs-CANCEL comparison compares a **dormant** primitive against
+a **generic dispatch counter**; neither is the ctx0 lifecycle.
+
+### §112.46.6 Clock / persistence caveats (stated; do NOT affect the verdict)
+
+* **The save page is cleared at modem boot.** A second forced crash after the modem's post-`1534` reboot
+  (boot #3, dump `/root/dumps/dump_devcd2_2057.bin`) reads the page as **magic 0, count 0** — the stale
+  `0x52494e47` from boot #2 is gone ⇒ **no persistence across boots**. So the 1536 ring must lie within
+  one boot (boot #2 = AP 1424.1→1534.2 = **110 s**), yet the ring spans 900.6 s *at 204800 Hz*.
+* **The `0xec121000` counter rate is UNRESOLVED and my own tools disagree.** `0xec121000` IS the LL1-ring
+  timestamp source (`FUN_c00342b0` writes `_DAT_ec121000` into rec+0x08), but `meas_ring`/`cancel_ring`
+  builders say **204 800 Hz** while `ll1_ring_dump.py` says **19 200 ticks/ms (19.2 MHz)**. A cross-dump
+  LL1 comparison (crashes 522.8 s apart) is ambiguous because the LL1 seq counter **resets at boot**
+  (boot #3 ring starts seq 0x1, ts_first 0). ⇒ **report raw ticks; the ordering is rate-independent.**
+* The §112.46.4 `sec` columns (if printed at 204 800 Hz) are therefore **provisional**.
+
+### §112.46.7 Achieved vs Expected
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Instrument builds, hashes PASS, disassembles back | yes | **YES** (§112.46.1) |
+| Boots transparent (no crash-loop; the dispatcher retarget is safe) | yes | **YES** — MBA→mpss→up, LTE attached |
+| Captures the real fatal | yes | **NO** — the modem WEDGED; no fatal in 34 min (§112.46.2) |
+| Ring valid (G1–G5) | yes | **G1/G2/G3 PASS; G4 FAIL** (wedge, no fatal) |
+| Which stops first (ARM vs ctx0-CANCEL)? | class 1/2/3 | **NOT INTERPRETABLE** — CANCEL tag is a merge-point count; ARM is dormant (§112.46.5) |
+| Answers the causal question | yes | **NO** — VOID on two independent grounds |
+
+### §112.46.8 SOP
+
+Pre-registered (`PREREG_cancel_ring.md`) **before** build/deploy. One change at a time (firmware patch
+only; `a2_pin` held; pre-emptive SSR off for the run). Offline verification before any device write
+(hash PASS + read-back disassembly). **Rolled back to stock firmware** — restored `b16/b05/b01/b15/b00/mdt`
+from `/root/modem_stock_backup/`, md5-verified (`b16 57fef19d…`, `b05 332f000b…`, `b01 b85b86ce…`,
+`mdt 1a6f9507…`), `preemptive_ssr_enabled` 0→1, `sync`, reboot; post-reboot modem up cleanly (AP 12.5 s).
+**A negative of our own is stated**: the run is VOID — it captured a wedge, not the fatal, and the CANCEL
+hook is a merge point. **The run's value is two concrete corrections** (the merge-point site; the
+dormant-armer premise) that must gate any v3. Ledger + CHANGELOG + memory updated in the same session.
+
+**★ Implication for a v3 (not built — decision, not a patch):** to isolate the **ctx0** cancel, a hook at
+`0xc034e1f0` must **filter on `r1 == 0x80`** (or hook the specific selector case) and log the arg
+per entry; and the "arm" to pair it with must be the **actual recurring state-20 armer** (the 0.63/s
+primitive — NOT the dormant `FUN_c02fda90`), which is itself now an **open identification** (§63.5 vs the
+§112.45.5 model conflict). Without that, the ARM-vs-CANCEL question is not answerable by a ring.
+
+**Tools / evidence:** `scratch/cancel_ring/build_cancel_ring.py`, `read_cancel_ring.py`,
+`PREREG_cancel_ring.md`, `dumps/dump_devcd1_1536.bin`, `dumps/dump_devcd2_2057.bin`;
+`scratch/diag_patch_v12/read_crash_report.py`; `scratch/ll1_ring_dump.py`; device `/root/dumpwatch.sh`,
+`/root/modem_stock_backup/`; ledger §63.5, §71, §87, §111, §112.9, §112.15, §112.45.
