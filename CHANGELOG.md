@@ -82,11 +82,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   wedge). ★ Corpus inconsistency §112.48.3 gains a clean data point: **traffic → FATAL** (supports
   §112.35, contradicts item 81; item 81's v7-instrumented firmware remains a confound). ★★ **`a2_pin`
   alone did NOT suppress this fatal** — the pin guards a *different* (cold-boot `a2_power.c:1189`) fatal;
-  only the pre-emptive SSR suppresses the 900 s event. ★ New lead (hypothesis, not result): the fatal is a
-  **sleep/wakeup coordination failure** — task `slpc` (sleep controller) + site `lte_ml1_sleepmgr_stm.c` +
-  the A2-side strings `"A2 task blocked in wakeup/sleep … pending state"`. Pre-registration written
-  **before** the event; coredump pulled device-local and md5-verified; device restored to the mitigated
-  baseline.
+  only the pre-emptive SSR suppresses the 900 s event. ★ The site label is the **fixed shared ERR_FATAL
+  descriptor**, not the real site: reading the coredump confirms the MCPM guard `FUN_c0ce7fe0` is
+  **INERT** (its snapshot arrays `DAT_c30fd9a8`/`DAT_c30fda28` are all zero; LPR `0xc1d473f8` = `"rpm"`),
+  so this run does **not** revive the closed `rpm.sync` lead (§112.39) — the surviving root-cause
+  candidate is still the **ML1-wide stall** (items 84–86/100/102). Pre-registration written **before** the
+  event; coredump pulled device-local and md5-verified; device restored to the mitigated baseline.
 - **§112.48 (WEDGE vs FATAL — the ~900 s event's two manifestations)** — offline re-parse of the two
   archived F3 series (`a2pin/f3stall/*` = the §112.34 idle run; `a2pin/f3assert/*` = the §112.35 traffic
   run). The wedge's F3 is a **staged shutdown**: RF (`rflte_*`) → 0 first, then an `a2_power` **storm**

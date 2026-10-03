@@ -15692,15 +15692,19 @@ a **different** fatal (the cold-boot `a2_power.c:1189`, §112.23); it does **not
 division of labour — §112.24's "0 fatals / 1612 s" was with the pre-emptive SSR ON, so that result
 does not credit the pin with suppressing the 900 s event.)
 
-**★ New lead — the fatal is in the SLEEP/Wakeup path.** The task is `slpc` (the firmware's
-sleep-duration/controller task: `"%s #%u[%u] Error %u when setting slpc duration, sleep skipped!"`),
-the site is the LTE ML1 **sleep-manager** state machine (`lte_ml1_sleepmgr_stm.c`), and the coredump's
-string pool carries the A2-side counterparts
-`"A2 task blocked in wakeup/sleep/apps action pending state counter=%d, state=%d"` and
-`"A2 task blocked in wakeup/sleep pending state. counter=%d, state=%d"`. ⇒ the ~900 s event is a
-**sleep/wakeup coordination failure** between LTE ML1 and the A2 task. This is the first time the
-dominant site and the `slpc` task have been tied to concrete sleep-path strings; it is a hypothesis to
-pursue, **not** a result.
+**★ The site label is a SHARED DESCRIPTOR — it does NOT reopen the MCPM/`rpm` lead.** The dmesg
+`file:line` is the **fixed shared ERR_FATAL descriptor** (ledger §21–44), not the real site. This was
+confirmed live: `lte_ml1_sleepmgr_stm.c:4054` is the ledger's label for the MCPM system-sleep
+watchdog `FUN_c0ce7fe0` (§112.38), which §112.38/39 found **INERT**. Reading **my** coredump
+reproduces that inert guard exactly — the two MCPM snapshot arrays `DAT_c30fd9a8`/`DAT_c30fda28` are
+**all zero**, and the LPR at `0xc1d473f8` is confirmed `"rpm"` (`+0x00 → 0xc1848058` = `"rpm"`). ⇒ my
+run reproduces the known *family* label and does **not** revive the closed `rpm.sync` LPR park
+(§112.39: `q6pcvote` LIVE). The task `slpc` (the firmware's sleep-duration controller —
+`"Error %u when setting slpc duration, sleep skipped!"`) and the coredump's A2 strings
+(`"A2 task blocked in wakeup/sleep/apps action pending state counter=%d, state=%d"`) do show the
+crash path touches the sleep/wakeup machinery, but the **surviving root-cause candidate is
+unchanged**: the **ML1-wide stall** that stops the SERV-MEAS-RSP reply path (items 84–86/100/102;
+§112.38 "the one thing that is genuinely OPEN"). Recorded as an observation, **not** a reopened lead.
 
 **Achieved vs Expected.**
 
