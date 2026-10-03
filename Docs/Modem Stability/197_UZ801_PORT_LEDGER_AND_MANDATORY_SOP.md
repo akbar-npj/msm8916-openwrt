@@ -15419,18 +15419,37 @@ live state field.
   the `DAT_c1e143ca` test). The generic `FUN_c02fba64` handles **all nine** contexts; it is **not** a
   second ctx0 armer.
 
-### §112.47.4 ⇒ §112.46.8's open identification CLOSES **negatively**
+### §112.47.4 ⇒ §112.46.8's open identification CLOSES **negatively** (static)
 
-There is **no hidden high-rate ctx0 armer**. The ctx0 arm really is `FUN_c02fda90` alone (2 call sites,
-`0xc0326874` / `0xc033c0f4`), which P-CANCELRATE measured at **32/run** and §63.5 at **4/900.6 s**.
-The "0.63/s armer (565–674 arms)" was a **misreading** — it is ≈ the generic ML1-dispatch rate, not an
-arm rate. Consequence: **a v3 ring as §112.46.8 envisioned has no target**; and §112.45.5's own
-correction already noted the v7–v11 rings **are** the `FUN_c02fda90` instrument. The correct reading of
-the fatal is therefore: **a single lost reply on a low-rate (~4–32/boot) ctx0 handshake**, not a
-high-frequency lifecycle whose rate "stopped first". `FUN_c02fda90` sends `0x408020d` (request) or
-`0x4070210` (reply) and then arms ctx0 via `FUN_c02fba64(inst,0x80,0,0)`; `FUN_c02fc3cc(inst,0x80)`
-services/clears it, and **asserts if the selector was not pending** (`DAT_c3c6eb90` for `0x80`) — i.e.
-the framework treats an unexpected completion as fatal too.
+There is **no hidden high-rate ctx0 armer**: the `0x80` (ctx0) selector is passed at exactly two call
+sites, both inside `FUN_c02fda90` (2 call sites of its own, `0xc0326874` / `0xc033c0f4`). The generic
+`FUN_c02fba64` arms **all nine** contexts; only the `0x80` arms come from `FUN_c02fda90`. ⇒ **a v3 ring
+as §112.46.8 envisioned has no target** (and §112.45.5 already noted the v7–v11 rings **are** the
+`FUN_c02fda90` instrument). `FUN_c02fda90` sends `0x408020d` (request) or `0x4070210` (reply) and then
+arms ctx0 via `FUN_c02fba64(inst,0x80,0,0)`; `FUN_c02fc3cc(inst,0x80)` services/clears it, and
+**asserts if the selector was not pending** (`DAT_c3c6eb90` for `0x80`) — i.e. the framework treats an
+unexpected completion as fatal too.
+
+### §112.47.4b ★★ CORRECTION — the ARM **RATE** is CONTESTED; do NOT call the pre-registration a "misreading"
+
+§112.46.5(b) asserted the pre-registration's *"~0.63/s (565–674 arms / 902 s)"* premise was a
+**misreading** of the generic ML1-dispatch rate, on the strength of P-CANCELRATE's **32**. **That
+inference is now RETRACTED.** The v7 instrument hooks **the very same two sites** (`0xc0326874`,
+`0xc033c0f4`; `scratch/diag_patch_v7/build_diag_patch_v7.py` SITES, and its reader counts total calls)
+and measured **674 calls in the 902.29 s idle run = 0.747 Hz** — i.e. **the top of the
+pre-registration's own predicted band**. The measured rates for this one function now disagree wildly:
+
+| source | regime | count | rate |
+| :-- | :-- | --: | --: |
+| §63.5 (v6 cave) | traffic | 4 | 0.0044 Hz |
+| P-CANCELRATE (§112.46) | traffic (wedged) | 32 | ~0.03 Hz |
+| v7 item 81 | traffic | 225 | 0.1975 Hz |
+| v7 item 81 | **idle** | **674** | **0.747 Hz** |
+
+⇒ the pre-registration's 0.63/s is **plausibly correct** (v7 idle), and **P-CANCELRATE's 32 is the
+outlier**, not the other way round. **The rate is OPEN** (regime-dependent and/or an instrument
+artefact in one arm); **the §112.47.4 static closure does NOT depend on it**. Item 81's own note that
+"§63.5's dormant finding is WRONG in BOTH regimes" is consistent with this.
 
 ### §112.47.5 Two null results recorded (no thermal signature)
 
@@ -15446,6 +15465,7 @@ the framework treats an unexpected completion as fatal too.
 | | Expected | Achieved |
 | :-- | :-- | :-- |
 | Resolve the "true recurring state-20 armer" | find a non-dormant armer | **NO such armer exists** — it is `FUN_c02fda90` alone (2 sites) |
+| Settle the ARM rate | one number | **NO** — contested (4 / 32 / 225 / 674); §112.46.5(b)'s "misreading" verdict **RETRACTED** (§112.47.4b) |
 | Establish whether a v3 ring is warranted | yes | **NO** — redundant; the v7–v11 rings already instrument `FUN_c02fda90` |
 | Thermal/RF-aging signature in the F3 | possible | **NULL** — no temperature record; `PC_PENDING_TEMP` is a client name |
 | Device state | stock, healthy | **YES** — stock md5s, SSR on, modem up |

@@ -48,15 +48,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      dispatch**, not the ctx0 cancel. The ARM (`FUN_c02fda90`, exactly 2 call
      sites) fired only **32×**, **corroborating §63.5's dormant finding** and
      **refuting the pre-registration's "0.63/s armer" premise** (that rate is the
-     dispatcher's).
+     dispatcher's). **⚠ RETRACTED by §112.47.4b** — the v7 instrument (the SAME two
+     sites) measured 674 calls / 902.29 s idle = 0.747 Hz, i.e. the pre-registration
+     was plausibly RIGHT and this 32 is the outlier; the ARM rate is OPEN.
   3d. **Offline closure of 3c's "open identification"** — **DONE (§112.47), NEGATIVE**:
      the ctx0 arm is **genuinely only `FUN_c02fda90`** (its 2 sites are the only
      two that pass selector `0x80` to the sole pending-bit setter `FUN_c02fba64`;
      the other 13 sites arm the *other* eight contexts). There is **no hidden
      high-rate armer** ⇒ a v3 ring is **REDUNDANT**. Also corrected: `obj[+0x38]`
-     is a **fixed context ID (20..28)**, not a transient state. The fatal is a
-     **single lost reply on a ~4–32/boot handshake**, not a high-frequency
-     lifecycle. A thermal-signature search in the F3 was a **NULL**.
+     is a **fixed context ID (20..28)**, not a transient state. The ARM rate is
+     **contested (4 / 32 / 225 / 674) and OPEN**; the static closure is
+     rate-independent. A thermal-signature search in the F3 was a **NULL**.
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a
