@@ -12535,7 +12535,7 @@ Soak started 2026-10-02T09:57:08Z (uptime 9 277) — `scratch/crashloop/soak_828
 
 **Crash #11 (`8313.07` up → fatal `8351.12` = +38.05 s) has ~37.4 s of TOTAL AP-side dmesg silence before the assert** — after the channel `CMD_OPEN`s at 8313.69, the next line in the window is the fatal itself. No `stale edge`, no `lost edge`, no `pc-ack timeout`. Crash #12 is the same (+18.5 s, §112.18.2). ⇒ the a2_power mode is **not** an AP-handshake event; the AP is a bystander.
 
-**★ The vote polarity is now code-grounded (`qcom_bam_dmux.c:574-578`).** `SMSM_A2_POWER_CONTROL` **high = the AP PERMITS the modem to power collapse**; `power_vote(0)` clears it = *"the AP does NOT permit collapse"*. Android's `ul_powerdown()→power_vote(0)` clears it 1000 ms after the last TX and `ul_wakeup()→power_vote(1)` re-arms it. In the driver: `bam_dmux_pc_vote(dmux, true/false)` sets/clears `dmux->pc` (the AP's vote bit) and is called **only** from `bam_dmux_runtime_resume()` (`:2097`) / `bam_dmux_runtime_suspend()` (`:2070`).
+**★ The vote polarity is now code-grounded (`qcom_bam_dmux.c:582-595` + Android `bam_dmux.c`).** `SMSM_A2_POWER_CONTROL` **high = the AP REQUESTS the A2 stay AWAKE (it does NOT permit collapse)**; `power_vote(0)` clears it = *"the AP permits the modem to power collapse"*. Ground truth is the driver's own comment — *"`ul_powerdown() -> power_vote(0)`, clearing `SMSM_A2_POWER_CONTROL` **so the A2 can collapse**, and `ul_wakeup() -> power_vote(1)` re-arms it on demand"* — plus Android's call sites (`ul_powerdown()`→`power_vote(0)`; `ul_wakeup()`→`power_vote(1)`), corroborated live by §112.18.6 (`vote(1)` → the modem's pc line RISES = wake). In the driver: `bam_dmux_pc_vote(dmux, true/false)` sets/clears `dmux->pc` (the AP's vote bit) and is called **only** from `bam_dmux_runtime_resume()` (`:2097`) / `bam_dmux_runtime_suspend()` (`:2070`). ⚠ **CORRECTION 2026-10-03 (own claim): the earlier text here read the polarity INVERTED — "high = PERMITS collapse; clear = do NOT collapse" — a misreading of the same comment; retracted. The inversion had propagated to `memory/project_a2_handshake_storm.md` §112.18.5 (now fixed). The correct polarity is what makes the `control=on` pin the *keep-A2-awake* lever (§112.21(J)).**
 
 **★ The SSR teardown resets the ack + the MODEM's bit but NOT the AP's vote bit (`:2362-2382`).** Verbatim: `WRITE_ONCE(dmux->pc_state, false)`; `dmux->pc_ack_state = 0`; `qcom_smem_state_update_bits(dmux->pc_ack, …, 0)`; `pm_runtime_set_suspended()`; then `states = qcom_smem_get(…, 85, …)` and `states[1] &= ~BIT(1)` (the **modem's** `SMSM_MODEM_STATE` bit). The AP's own vote (`dmux->pc`, a separate `devm_qcom_smem_state_get(dev, "pc", …)`) is untouched, while Android's `restart_notifier_cb:2182` explicitly calls `power_vote(0)`. ⚠ **But the live counter is balanced (`pc_vote_tx_count: 38 == pc_unvote_tx_count: 38`, `runtime_status: suspended`, `pc_state: 1`, `pc_line_level: 1`, `pm_suspend_attempts: 38` vs `completions: 36`)** ⇒ at rest the net vote is 0, so a *standing* stale vote is not visible; the exposure is only the window between `pm_runtime_set_suspended()` and the first post-restart `runtime_resume` (which re-votes 1). **The §112.16 fix (clear the vote bit in the teardown) is code-ready and Android-parity, but the evidence is circumstantial — it must be its own patch (829) with its own pre-registration, NOT bundled into the 828 soak.**
 
@@ -13300,9 +13300,13 @@ counter `+0x7588` is **1** in every dump. Tool: **`scratch/a2_regsnap.py <dump>�
 |---|---|---|---|---|---|
 | devcd1_590 (natural, cold) | 0 | 0 | **`0x00e1a061` → &7 = 1** | 0 | 0 |
 | devcd3/4/5/6 | 0 | 0 | **`0x00e28361` → &7 = 1** | 0 | 0 |
+| **devcd1_304 (2026-10-03, natural, cold)** | 0 | 0 | **`0x00e15061` → &7 = 1** | 0 | 0 |
 
 ⇒ **The 3rd wait register is the ONLY one stuck, and its low-3-bit field is stuck at 1 — unanimously
-across 5 independent dumps.** The other four are 0 (so their `while ((reg & 7) != 0)` loops exit
+across 6 independent dumps** (`scratch/f3_soak/nat304/dump_devcd1_304.bin`, md5 `5a06098af0ea4773a71607a958a3f71c`;
+crash report `Task a2 / PC 0xc087a804 / LR 0xc0879164 / TCB 0xc3c0bba4`, identical to the other five;
+fatal at AP 300.6 s = modem-uptime **288 s** — a **third, earlier** cold-boot time, so the window is
+**288…722 s**, all below the 600 s pre-emptive SSR). The other four are 0 (so their `while ((reg & 7) != 0)` loops exit
 immediately). This is the *exact* condition §112.20(C) predicted from the return address, now
 **confirmed from the register itself**.
 
@@ -13417,3 +13421,309 @@ is, for practical purposes, **dead** — there is no indirect entry. A live regi
 *ground-truth* attribution (an enclosing-function census + AP device-tree symbols), not an inference.
 The negative (the ring is unenable-able) is filed with its falsifying search (zero pointer hits). The
 "state 1" semantics remain **OPEN** and are explicitly *not* guessed.
+
+---
+
+## §112.22 ★★★★ TASK #230 VERDICT — the AP gates the A2 **power-down**, but whether that prevents `a2_power.c:1189` is **OPEN** (2026-10-03)
+
+Task #230 asked whether the A2 hardware quiesce (`_DAT_ec320bac & 7 == 1`, §112.21(I)/(J)) is AP-influenced.
+Read-only this session: the AP trees, the stock decompile, the §112.21 F3 capture, and the archived H-A2b arm.
+
+### (A) The three sub-questions — all PROVEN
+
+| # | Question | Verdict | Evidence |
+|---|---|---|---|
+| a | Which client's release triggers the down-path? | **PROVEN** | F3 `a2_power.c:2463`: `A2 turned OFF by client=11[…(11)=APPS], req_bmask=0x0` — APPS is the **last** to release, so the gate `FUN_c0505d90` powers down when it does (§112.21(F) rec 16) |
+| b | Can the APPS client keep the bitmask non-zero (suppress the power-down)? | **PROVEN** | the AP's SMSM vote drives the APPS client; H-A2b pinned it and the modem never power-collapsed (`runtime_suspended_time` frozen, zero `quiesced` lines) |
+| c | Does the AP's bam-dmux runtime-PM vote gate it? | **PROVEN** | `bam_dmux_runtime_suspend()` → `bam_dmux_pc_vote(dmux,false)` is the **only** writer of the clear; pinning `control=on` stops it |
+
+### (B) ★ REFINEMENT — the fatal wait is NOT gated on a power-down→power-up transition
+
+§112.21(J)(C) framed the crash as "a power-DOWN→power-UP gap". Reading the callers this session **weakens that
+and with it the only identified lever**:
+
+* `FUN_c0504ccc` (the a2 task power-up init, §112.21(G)) calls the fatal 5-register wait `FUN_c0504fc8`
+  **twice** (`:862512`, `:862574`), interleaved with further waits on `b98/b9c/ba0/bbc`, and writes the A2
+  control bits `_DAT_ec320814 &= ~1`, `_DAT_ec320a98 = (_DAT_ec320a98 & ~3) | 1`.
+* `FUN_c0505208` (`:862744`) calls `FUN_c0504ccc()` **whenever `DAT_c285ebc8 != 0` (A2 up)**, then clears bits
+  11/14 of the request bitmask and powers down only if it reached 0.
+* `DAT_c285ebc8 == 1` in **all five dumps** (§112.20(D)). ⇒ the crash occurs while the A2 is **UP**; the wait
+  runs on **every** `FUN_c0505208` invocation while the A2 is up, **not** only across a power-up transition.
+  **So "keep the A2 awake" does NOT obviously prevent the wait, and the lever's mechanism is NOT established.**
+  What remains PROVEN is only the narrower asymmetry: the DOWN path (`FUN_c0505308`) never checks the five
+  quiesce fields, the UP path does.
+* ⚠ Two decompiler artefacts, stated as limits (not relied on beyond the call graph): `FUN_c0505208` has **no
+  caller** in the 77 067-function export (indirectly dispatched), and `FUN_c0504fc8` is rendered with an
+  inconsistent signature (an arg at the call sites, `void` at the definition).
+
+### (C) ★ The AP driver DOES reset its A2 BAM on SSR teardown
+
+`bam_dmux_ssr_teardown()` (`:1985`) → `bam_dmux_power_off()` → `bam_free_chan()` writes `BAM_P_RST` /
+`BAM_IRQ_SRCS_MSK_EE` / `BAM_CTRL` (the patch-831 deferral), and `bam_dmux_power_on()` re-programs them. So the
+"the AP leaves the A2 BAM non-quiescent" hypothesis is **not excluded** — but the AP **cannot** write the
+modem's `0xec320ba4..be0` status fields (TrustZone; §1 platform quirks), so any AP influence is *indirect*
+(via the BAM/`pc` handshake), not a direct register poke.
+
+**★★★ But on a COLD boot the AP does NOT touch the A2 BAM before the modem boots.** `bam_dmux_probe()`
+(`:2670-2679`) calls `bam_dmux_power_on()` — which submits RX DMA descriptors to the A2 BAM — **only if
+`pc_state` is already high**, i.e. only if the modem is already up ("Check if remote finished initialization
+before us"). On a cold boot the modem boots *after* the AP, so `pc_state` is false at probe and the probe
+submits nothing; the first `bam_dmux_power_on()` follows the modem's own wake (`pc_irq`). ⇒ **the AP's A2 BAM
+activity is a *consequence* of the modem being up, not a cause of the cold-boot stuck state** — making the AP
+a likely **bystander** for the cold-boot `a2_power.c:1189` (the same conclusion §112.18.5 reached for the
+restart case). This is the strongest argument *against* the "keep the A2 awake" AP-side lever.
+
+### (D) ★ CORRECTION — the vote polarity was INVERTED in §112.18.5 (fixed in place)
+
+Ground truth (`qcom_bam_dmux.c:582-595` + Android `bam_dmux.c`): **`SMSM_A2_POWER_CONTROL` high = the AP
+requests the A2 stay AWAKE; `power_vote(0)` clears it = the AP permits collapse** (driver: clearing it *"so the
+A2 can collapse"*; `ul_powerdown()`→`power_vote(0)`, `ul_wakeup()`→`power_vote(1)`; live §112.18.6 `vote(1)` →
+the modem's pc line RISES = wake). The inverted §112.18.5 text is retracted in place; it had propagated to
+`memory/project_a2_handshake_storm.md` §112.18.5 (also fixed). **This correction is what makes the
+`control=on` pin the *keep-A2-awake* lever, not its opposite.**
+
+| Claim | Status |
+|---|---|
+| client 11 = APPS is the last to release before the A2 powers down | **PROVEN** (F3 rec 16) |
+| The AP's vote drives the APPS client; pinning keeps the bitmask non-zero | **PROVEN** (H-A2b) |
+| The AP's runtime-PM vote gates the A2 power-down | **PROVEN** (`pc_vote(false)` is the only clear) |
+| The fatal wait runs on **every** `FUN_c0505208` while the A2 is up | **PROVEN** (source) |
+| The §112.21(J)(C) "power-down→power-up gap" framing | **DOWNGRADED to hypothesis** (A2 is UP at the crash) |
+| Keeping the A2 awake prevents `a2_power.c:1189` | **OPEN** — the wait is not gated on a power-down |
+| The AP can write the modem's `0xec320ba4..be0` status fields | **NO** (TrustZone; AP-unreadable) |
+
+**SOP note.** Read-only (AP trees + stock decompile + the §112.21 F3 capture + the archived H-A2b arm). The
+§112.18.5 polarity error is filed against our own claim with its falsifying evidence (the driver comment +
+Android call sites + §112.18.6), not silently edited. The two decompiler artefacts are stated as limits, not
+hidden. The verdict is deliberately **OPEN** on the lever's efficacy — it is **not** promoted to a fix on the
+strength of the H-A2b arm, which never tested a cold boot. Next: a pre-registered experiment (§112.23).
+
+## §112.23 ★★★★★ P-A2PIN — THE `control=on` PIN **SUPPRESSES** THE COLD-BOOT `a2_power.c:1189` FATAL (n=1); THE MODEM THEN DIES OF THE ~900 s `lte_ml1` FATAL INSTEAD (2026-10-03)
+
+Task #230's lever, pre-registered in `scratch/a2pin/PREREG_a2pin.md` and run this session.
+
+### The experiment
+* **Lever:** `/root/a2pin.sh` — stop `modem-bearer-watchdog` (the only *repeating* writer of
+  `power/control=auto`) and hold `.../bam-dmux/power/control = on` in a 10 s loop, so
+  `bam_dmux_runtime_suspend()` — the only writer of `bam_dmux_pc_vote(false)` — never runs and the
+  AP's `SMSM_A2_POWER_CONTROL` vote stays SET.
+* **Boot:** cold, 2026-10-03 ~04:19. Modem up at AP **12.28 s**; LTE **attached**
+  (`10.106.175.131/29`, default route via `wwan0`, 100 % signal) — so the no-fatal is **not** a
+  failed attach. **No SSR between 12.28 s and the fatal** (the only `recovering 4080000` is at
+  913.01 s).
+* **Window:** AP up 78 → 923 s, 29 samples (`scratch/a2pin/run1.log`).
+
+### Result
+* **P1 (lever TOOK): PASS.** `control=on` in **every** sample; `runtime_suspended_time` **frozen**
+  at 22 220 µs across the whole window.
+* **P2 (efficacy, `a2_power.c:1189`): PASS.** No `a2_power.c:1189` fatal. The modem ran clean from
+  AP 12.28 s to 912.996 s.
+* **⚠ BUT the modem still died:** `[912.995992] qcom-q6v5-mss 4080000.remoteproc: fatal error
+  received: lte_ml1_sleepmgr_stm.c:4054:` → SSR → modem up again at 913.787 s (patch-831 deferral
+  clean: `T5 rx released` → `T7 power_off returned`).
+* **FALSIFIER (an `a2_power.c:1189` with `control=on`) did NOT occur.** H-A2c is **not** falsified.
+* **Release:** kill `a2pin.sh` + `/etc/init.d/modem-bearer-watchdog start` → `control` returned to
+  `auto`, `runtime_suspended_time` resumed (25 430 → 214 948 over 3 min). **No new `a2_power` fatal
+  in the 3 min after release** (up 1261 → 1430 s) ⇒ the fatal is not "whenever the A2 powers down";
+  it is specific to the cold-boot A2 init sequence.
+
+### Baseline for contrast (same firmware, no lever)
+Three cold boots, all `a2_power.c:1189`: modem-uptime **288 s** (`devcd1_304`), **576 s**
+(`devcd1_590`), **722.7 s**. ⇒ with no lever the modem dies **early**, before the ~900 s fatal can
+fire. The pin boot is the first to reach the ~900 s window.
+
+### Mechanism lead (NOT yet a mechanism)
+The pin boot's F3 (all-SSID mask) shows the APPS client behaving differently. In the **baseline**
+chunk at the fatal (`nat589/c000111_up00586.raw`) the client histogram is `{2:22, 3:22, 11:11, 14:3}`
+with the SMSM vote records (`a2_power.c:1771` "Modem A2 state SMSM bit turned ON client=11,
+apps_smsm_vote_bit=1"; `:2612` "Keep A2 ON with PC_PENDING_TEMP client orig_client=11"; `:1830`
+"A2 Modem SMSM bit turned OFF client=14"). The **pin** boot's early chunks
+(`c000002..004_up00022..00032`) also show client 11 with full SMSM vote cycling (`:1875` ON, `:1889`
+OFF, `:4031` "Voted for A2 shutdown", `:2463` "A2 turned OFF by client=11"). ⚠ A full-boot
+client-11 scan was **not completed** (device `grep` timed out over 201 chunks), so a claim like
+"client 11 stops after up=32" is **NOT established**. Safe statement only: the pin changes the A2
+power-handshake timing/shape; the exact difference is **OPEN**.
+
+### Confounds (stated)
+1. **`n=1`.** The baseline is 3/3, so one clean boot is suggestive, not conclusive.
+2. **★ The lever ALSO removes the pre-emptive SSR** (`a2pin.sh` stops the watchdog). The
+   `a2_power` fatal is documented as firing "+17…28 s after a warm restart" (§112.21(E)), so an
+   absent restart is a competing explanation. **Counter:** the baseline fatals at **288 s and
+   576 s** are both **before** the 600 s pre-emptive SSR, so those two are genuine cold-boot fatals
+   with no restart — which the pin suppressed. The 722.7 s baseline is the ambiguous one. **A
+   pin+watchdog run (the `a2_pin` UCI option, watchdog still running) resolves this AND is the
+   deployable configuration.**
+3. The coredump was `disabled` at the fatal ⇒ **no dump** of the `lte_ml1_sleepmgr_stm.c:4054` event.
+
+| Claim | Status |
+|---|---|
+| The `control=on` pin holds across a 900 s window | **PROVEN** (P1) |
+| The pin suppresses the cold-boot `a2_power.c:1189` fatal | **PROVEN (n=1)**, confound §2 stated |
+| The pin prevents the modem from dying | **NO** — `lte_ml1_sleepmgr_stm.c:4054` at 912.996 s |
+| The pin is a deployable fix | **OPEN** — the ~900 s fatal is untouched |
+| Client 11 (APPS) is the mechanistic difference | **OPEN** (scan incomplete) |
+| The `a2_power.c:1189` fatal is triggered by any A2 power-down | **NO** — it did not return after release |
+
+**SOP note.** Pre-registered before the reboot (`PREREG_a2pin.md`); the lever is opt-in and
+reversible (a script + a runtime sysfs write); one change at a time. P1/P2 scored against the
+frozen criteria. The confound (§2) and the incomplete scan are stated, not hidden. The result is
+**not** promoted to a fix: the ~900 s fatal remains and the confound is unresolved. Next:
+pin+watchdog (production config), then P-NOBAM (`scratch/a2pin/PREREG_nobam.md`).
+
+## §112.24 ★★★★★ P-A2PIN-WD — THE PIN HOLDS ACROSS TWO PRE-EMPTIVE SSRs, ZERO FATALS OVER 1612 s: THE DEPLOYABLE CONFIG IS CRASH-FREE (n=1) (2026-10-03)
+
+Resolves the §112.23 confound and tests the deployable configuration.
+
+### The experiment
+* **Lever:** the permanent, opt-in `a2_pin` UCI option in `modem-bearer-watchdog` (default `0`).
+  With `a2_pin=1` the watchdog holds `bam-dmux/power/control=on` every loop **while still running
+  its pre-emptive SSR and bearer-stall recovery**. Deployed the updated watchdog (md5
+  `67136b8bf277d23a55b29bb337d512a2`; `diff` vs the device's stock = **only** the `a2_pin` block),
+  `uci set modem-watchdog.recovery.a2_pin=1`, rebooted cold. Also added a `rc.local` block enabling
+  the modem coredump (it resets to `disabled` each boot).
+* **Pre-registration:** `scratch/a2pin/PREREG_a2pin_wd.md`. **Boot:** cold, ~04:47; LTE attached
+  (`10.102.87.61/30`, default route via wwan0). **Window:** up 237 → 1567 s (`run3_wd.log`).
+
+### Result
+* **P-WD1 (lever TOOK): PASS.** `control=on` in **every** sample; `runtime_suspended_time`
+  **frozen at 22 822 µs** across the whole window — including across both SSRs.
+* **P-WD2 (the SSR fired): PASS.** TWO pre-emptive SSRs: `04:57:19 … modem uptime 602s >= 600s`
+  and `05:07:28 … modem uptime 608s >= 600s`. ⇒ the §112.23 confound is **removed**: this boot had
+  the pre-emptive SSR active AND the pin.
+* **P-WD3 (efficacy): PASS.** **ZERO fatals** (`dmesg | grep -c "fatal error received"` = **0**)
+  through up=**1612 s** — past all three baselines (288/576/722.7 s) and past two SSRs.
+* **FALSIFIER did NOT occur.**
+* ⚠ **Monitor defect (stated):** the monitor's `SSR=[n]` used `dmesg | grep -c "recovering
+  4080000"`, which is **0** for a pre-emptive restart (that path uses `echo restart` via debugfs
+  and emits no `recovering` line). The SSRs were confirmed from `logread` instead.
+
+### Mechanism lead (strengthened)
+The pin boot's F3 (`scratch/a2pin/f3wd/`, the SSR window up 591-636) shows **client 11 (APPS)
+ABSENT** from every a2_power record (`{2:30,3:38,14:3}` @591, `{2:56,3:52,14:1}` @597,
+`{2:22,3:36}` @607); client 11 appears **only** in the boot chunk. The **baseline** at its fatal
+(`nat589/c000111_up00586`) has client 11 present (`{2:22,3:22,11:11,14:3}`) with the SMSM vote
+records. ⇒ the pin keeps the AP's APPS client from cycling the A2 vote. ⚠ Still a **LEAD, not a
+mechanism**: the causal chain from the held vote to `_DAT_ec320bac & 7` is not established.
+
+### Verdict
+**Pin + pre-emptive SSR is the first configuration that shows NO crash over a multi-SSR window** on
+this device. It is a **mitigation**, not a root-cause fix: a controlled modem restart every 600 s
+(the existing lever) + the pin (no A2 power collapse, higher idle power). **n=1** for this config.
+
+| Claim | Status |
+|---|---|
+| The `a2_pin` option holds `control=on` with the watchdog running | **PROVEN** |
+| The pin survives a pre-emptive SSR | **PROVEN** (2 SSRs, `susp` frozen) |
+| The pin suppresses the `a2_power.c:1189` fatal across SSRs | **PROVEN (n=1)** |
+| The pin changes the APPS-client (11) participation | **PROVEN** (F3, both boots) |
+| The config is crash-free over a multi-SSR window | **OBSERVED (n=1, 1612 s, 2 SSRs, 0 fatals)** |
+| The config is a root-cause fix | **NO** — a mitigation (restart + no-collapse) |
+
+**SOP note.** Pre-registered (`PREREG_a2pin_wd.md`) before the reboot; the lever is opt-in
+(`a2_pin` default `0`) and reversible; one change at a time. P-WD1/2/3 scored against the frozen
+criteria; the falsifier did not occur. The monitor defect is stated, not hidden, and the SSR claim
+was re-verified from `logread`. The result is called a **mitigation**, not a fix. Next: P-NOBAM
+(`scratch/a2pin/PREREG_nobam.md`), then a longer n≥2 confirmation of this config.
+
+## §112.25 ★★★ P-NOBAM — WITHOUT `qcom_bam_dmux` THE A2 POWER HANDSHAKE IS **DORMANT**, SO THE FATAL CANNOT FIRE: THE TEST IS **CONFOUNDED** (2026-10-03)
+
+Pre-registered in `scratch/a2pin/PREREG_nobam.md`. Lever: `/etc/modules.d/bam-dmux` reduced to
+`qcom_common` (backup at `/root/bam-dmux.bak`; `/root/nobam.sh on|off`), cold reboot ~05:14.
+
+### Result
+* **P-NB1 (lever TOOK): PASS.** `lsmod` shows **no `qcom_bam_dmux`**; `qcom_common` loaded (used by
+  `qcom_wcnss_pil`/`qcom_q6v5_mss`); **no `wwan0`**; the modem still boots (`state=running`,
+  `is now up` at 12.6 s) — so the fatal is not suppressed by a dead modem.
+* **P-NB2: INCONCLUSIVE — the run is CONFOUNDED.** No `a2_power.c:1189` and no fatal of any kind
+  through up=1211 s, **but the modem's A2 power handshake never ran**: the F3 capture has **zero
+  `a2_power` records** in every current-boot chunk (up<520) while the mask **is** armed
+  (`cfm_cpu_monitor.c`, `a2_task.c` etc. all flow). ⇒ with no AP participant the A2 power machinery
+  is **dormant**, so the fatal *cannot* fire. "No fatal" here means "no handshake", **not** "the AP
+  driver is required for the fatal". The FALSIFIER (§112.22(C) bystander) was therefore **not
+  tested**, and §112.22(C) remains **OPEN**.
+* **★ Side finding:** the **second** pre-emptive SSR's restart **failed**: `[1219.98] msm_subsys:
+  restarting 4080000.remoteproc` → `[1220.99] PBL boot timed out` → `can't start rproc: -110` →
+  `power-up … failed: -110`; the modem stayed **offline**. (The first restart at 619.2 s succeeded.)
+  So without `bam_dmux` the modem can fail to re-boot on an SSR — a new failure mode, not a fatal.
+
+| Claim | Status |
+|---|---|
+| The lever removed `qcom_bam_dmux` and `wwan0`, modem still boots | **PROVEN** (P-NB1) |
+| No `a2_power.c:1189` fired without the AP driver | **OBSERVED**, but **CONFOUNDED** |
+| The A2 power handshake is AP-dependent | **PROVEN** (zero `a2_power` records with the mask armed) |
+| §112.22(C) bystander hypothesis | **STILL OPEN** (not tested) |
+| An SSR can fail to re-boot the modem without `bam_dmux` | **OBSERVED** (PBL boot timeout, -110) |
+
+**SOP note.** Pre-registered; the lever is a one-file overlay change with an exact backup and a
+revert script; one change at a time. The result is recorded as **INCONCLUSIVE**, not as a pass — the
+dormant-handshake confound was found in the F3 and is stated, not hidden. The side finding (PBL
+boot timeout) is reported as an observation with its dmesg lines. **Follow-up (in progress 2026-10-03
+05:38):** `bam_dmux` restored, the pin+watchdog config re-verified (`a2_pin=1`, `bam_dmux` loaded,
+`ctrl=on`, coredump enabled, attached) and **soaking** (`scratch/a2pin/run5_soak.log`, 2 h) to confirm
+§112.24 over n≥5 pre-emptive-SSR cycles — result to be recorded as §112.26.
+
+## §112.26 ★★★★ SOAK CONFIRMATION — THE PIN + PRE-EMPTIVE-SSR CONFIG IS CRASH-FREE OVER **5 SSR CYCLES / 3222 s** (2026-10-03)
+
+Confirms §112.24. Same config (`a2_pin=1`, watchdog running, coredump enabled); cold boot ~05:37;
+soak `scratch/a2pin/run5_soak.log` (2 h; this is the 45-min checkpoint).
+
+### Result (at up=3222 s)
+* **`/sys/kernel/debug/msm_subsys/modem` = 5** restarts; `dmesg … "is now up"` = 6 (initial + 5);
+  **`dmesg | grep -c "fatal error received"` = 0** — **ZERO fatals across 5 pre-emptive-SSR cycles**.
+* `control=on` in every sample; `runtime_suspended_time` **frozen at 7993 µs** throughout.
+* The dmesg ring had **not** wrapped (spans `[0.000000]` → `[2433.7]`), so the counts are complete.
+* ⚠ **New measurement trap:** `logread | grep -c "PREEMPTIVE SSR"` **wrapped** (read 2, then 1). For a
+  wrap-proof SSR count use **`/sys/kernel/debug/msm_subsys/modem`** (the subsystem restart counter),
+  not a logread grep.
+
+| Claim | Status |
+|---|---|
+| 5 pre-emptive SSRs occurred | **PROVEN** (`msm_subsys/modem` = 5) |
+| Zero fatals across them | **PROVEN** (`fatal error received` = 0) |
+| The pin held throughout | **PROVEN** (`ctrl=on`, `susp` frozen) |
+| The config is crash-free over a multi-SSR window | **CONFIRMED (n=5 SSR cycles)** |
+| The config is a root-cause fix | **NO** — still a mitigation (restart + no A2 collapse) |
+
+**SOP note.** Pre-registered lever; the soak is the §112.24 confirmation. The wrap-proof counter
+(`msm_subsys/modem`) replaces the logread grep after the wrap was observed — a measurement
+correction, stated. The result confirms the **mitigation**, not a root cause. The 2 h soak continues.
+
+## §112.27 ★★ DEPLOYABILITY HARDENING — THE PIN MUST BE SET FROM BOOT, NOT 10 s AFTER IT (2026-10-03)
+
+The pin is held by the watchdog loop, but **two boot-time writers set `control=auto` first**:
+`/etc/init.d/hmu05-modem-pm` (`START=96`, boot-only, writes `auto`) and — before the first watchdog
+loop — the kernel default. So there is a **~0-10 s window at boot with `control=auto`**. The
+`a2_power` fatal fires at modem-uptime **288 s+**, so this window does **not** explain the §112.24/26
+result — but it is a real gap for a deployable fix.
+
+### §112.27.1 FIX IMPLEMENTED AND VERIFIED (2026-10-03)
+
+**Change.** `msm89xx/base-files/etc/init.d/hmu05-modem-pm` now reads
+`uci -q get modem-watchdog.recovery.a2_pin` and, when it is `1`, **writes `control=on` itself and
+returns before the `auto` write** (log line: *"A2-pin enabled - holding bam-dmux control=on"*). With
+`a2_pin=0` the original `auto` + `autosuspend_delay_ms=1000` path runs unchanged, so stock Phase-5
+dynamic power collapse is byte-for-byte preserved. Both scripts share `START=96`; they run in name
+order (`hmu05-…` < `modem-bearer-…`), so writing the pin here is the **earliest** possible moment and
+closes the window rather than merely narrowing it. The watchdog's own `if [ "$(cat $BAM_CTRL)" != "on" ]`
+guard then finds it already `on` and skips its redundant log — idempotent by design.
+
+**Offline checks.** `sh -n` clean; `git diff` = 18 insertions / 1 deletion (the moved `auto` pair).
+
+**Live branch test (no reboot, `a2_pin` toggled with `uci commit`).**
+`a2_pin=1` → `ctrl=on` + *"A2-pin enabled - holding"*; `a2_pin=0` → `ctrl=auto` + *"enabling 1s
+cellular autosuspend"*. Both branches behaved as designed.
+
+**Boot verification (reboot at up=3368 s).** At **uptime 40 s**: `control` was already `on`,
+`a2_pin=1`, the `hmu05-modem-pm` boot log carried the **A2-pin branch**, and
+`logread | grep -c "hmu05-modem-pm: HMU05 runtime PM: enabling 1s"` = **0** — i.e. the boot never
+executed the `auto` write. The watchdog's redundant "Pinned BAM-DMUX" line was correctly absent
+(guard saw `on`). **The ~0-10 s `control=auto` window is CLOSED.**
+
+**Deployed artifact.** device `/etc/init.d/hmu05-modem-pm` md5 `533c97d56b3f09457dea78e99efe8780`
+(was `e6546d57cf0f3aa1a985f4cdd1223a80`). Source of truth = the `msm89xx/` tree; this scp is the live
+test deploy. A follow-up sysupgrade will carry it into the image.
+
+**Caveat / scope.** This is a **deployability hardening of the §112.23/§112.24 mitigation**, not a
+root-cause fix. It does not touch the `a2_power.c:1189` wait itself, nor the ~900 s `lte_ml1`
+deadline (still covered by the 600 s pre-emptive SSR). The next long soak under this hardened config
+is the confirmation run.

@@ -17,9 +17,26 @@ start() {
 			;;
 	esac
 
-	logger -t hmu05-modem-pm "HMU05 runtime PM: enabling 1s cellular autosuspend (Phase 5 dynamic power collapse)"
 	local bctrl="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
 	local bdelay="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/autosuspend_delay_ms"
+
+	# A2-pin (ledger §112.23/§112.27).  When enabled, the AP must hold its
+	# SMSM_A2_POWER_CONTROL vote SET so the modem's A2 never powers down, which
+	# suppresses the cold-boot `a2_power.c:1189` fatal.  Write the pin HERE too,
+	# at the earliest boot moment: this script and modem-bearer-watchdog share
+	# START=96 but run in name order, so without this branch the boot would
+	# write `control=auto` first and leave the A2 unpinned for the ~0-10 s
+	# before the watchdog's first loop.  Default 0 = stock dynamic power
+	# collapse (Phase 5), i.e. unchanged behaviour.
+	local a2_pin="$(uci -q get modem-watchdog.recovery.a2_pin 2>/dev/null || echo 0)"
+	if [ "$a2_pin" = "1" ]; then
+		logger -t hmu05-modem-pm "HMU05 runtime PM: A2-pin enabled - holding bam-dmux control=on (A2 never powers down; ledger §112.23)"
+		[ -f "$bctrl" ] && echo on > "$bctrl" 2>/dev/null || true
+		[ -f "$bdelay" ] && echo 1000 > "$bdelay" 2>/dev/null || true
+		return 0
+	fi
+
+	logger -t hmu05-modem-pm "HMU05 runtime PM: enabling 1s cellular autosuspend (Phase 5 dynamic power collapse)"
 	[ -f "$bctrl" ] && echo auto > "$bctrl" 2>/dev/null || true
 	[ -f "$bdelay" ] && echo 1000 > "$bdelay" 2>/dev/null || true
 }

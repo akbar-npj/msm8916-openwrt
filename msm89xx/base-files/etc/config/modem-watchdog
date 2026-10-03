@@ -47,3 +47,14 @@ config recovery 'recovery'
 	# observed cold-boot fatal.  See ledger §112.13.
 	option preemptive_ssr_enabled '1'
 	option preemptive_ssr_interval '600'
+
+	# A2-pin (ledger §112.23).  When 1, the watchdog holds
+	# bam-dmux/power/control=on every loop, so bam_dmux_runtime_suspend() -- the
+	# only writer of bam_dmux_pc_vote(false) -- never runs, the AP's
+	# SMSM_A2_POWER_CONTROL vote stays SET, and the modem's A2 never powers down.
+	# This suppresses the cold-boot `a2_power.c:1189` fatal (P-A2PIN: reproducible
+	# at modem-uptime 288/576/722 s on the default policy; absent with the pin
+	# held).  Cost: the A2 cannot power-collapse (higher idle power).  It does NOT
+	# affect the ~900 s `lte_ml1` fatal -- that remains covered by the pre-emptive
+	# SSR above.  Default 0 = stock dynamic power collapse.
+	option a2_pin '0'
