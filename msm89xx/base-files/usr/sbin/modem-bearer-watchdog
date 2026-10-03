@@ -40,6 +40,23 @@ BEARER_DOWN_SECS=0
 BEARER_REARM_COOLDOWN=60
 LAST_BEARER_REARM=0
 
+# --- Hardening (2026-10-04): a fail-safe fallback anchor ----------------------
+#
+# SECS_SINCE_SSR is the local timer, in seconds, since the last modem restart the
+# watchdog knows about — either its OWN pre-emptive SSR or an OBSERVED fatal (a
+# fatal means the modem was restarted by crash recovery, which re-arms the
+# ~902.7 s deadline).  It is used ONLY as a FALLBACK anchor when
+# get_modem_uptime() cannot read the kernel's "is now up" line (dmesg evicted and
+# no saved anchor).  Over-counting is SAFE (we restart early); under-counting is
+# not — hence a fatal resets it.  Before this, an unknown anchor only produced a
+# warning and left the modem UNPROTECTED.
+SECS_SINCE_SSR=0
+# LAST_FATAL_COUNT lets the loop notice a NEW "fatal error received" line: the
+# mitigation's whole job is to prevent the fatal, so any fatal is evidence it
+# failed (wrong interval, missing a2_pin, a slow check loop, or an uncovered
+# site).  The old loop never read dmesg, so such a failure was invisible.
+LAST_FATAL_COUNT=0
+
 # Connectivity verification: standard DNS query to carrier/configured DNS.
 #
 # RETRYING IS MANDATORY. The modem drops the FIRST uplink packet after it has been
@@ -250,6 +267,24 @@ while true; do
         continue
     fi
 
+    # 1a. Fatal observer (hardening 2026-10-04).  Count the modem's own
+    #     "fatal error received" lines; a NEW one means the pre-emptive
+    #     mitigation did NOT prevent the fatal.  Log the site(s) so the failure
+    #     is visible instead of silent, and reset the local SSR timer — the
+    #     crash-recovery restart re-arms the ~902.7 s deadline, so the fallback
+    #     anchor must start counting again from here.
+    FATAL_COUNT=$(dmesg 2>/dev/null | grep -c "fatal error received")
+    case "$FATAL_COUNT" in
+        ''|*[!0-9]*) FATAL_COUNT="$LAST_FATAL_COUNT" ;;   # unreadable: keep the old value
+    esac
+    if [ "$FATAL_COUNT" -gt "$LAST_FATAL_COUNT" ]; then
+        _new=$(dmesg 2>/dev/null | grep "fatal error received" | tail -n $((FATAL_COUNT - LAST_FATAL_COUNT)) | sed 's/.*fatal error received: *//' | tr '\n' ' ')
+        logger -t modem-stall-watchdog "MODEM FATAL OBSERVED (count ${LAST_FATAL_COUNT} -> ${FATAL_COUNT}): the pre-emptive mitigation did NOT prevent it. New site(s): ${_new:-unknown}"
+        SECS_SINCE_SSR=0
+    fi
+    LAST_FATAL_COUNT="$FATAL_COUNT"
+    SECS_SINCE_SSR=$((SECS_SINCE_SSR + CHECK_INTERVAL))
+
     # 1b. Preemptive SSR — restart the modem subsystem before the ~902.7 s
     # firmware ERR_FATAL threshold (Model M3: the deadline is armed by a warm
     # restart and anchored to that restart's epoch, so a restart well under it
@@ -268,25 +303,30 @@ while true; do
     if [ "$PREEMPTIVE_SSR_ENABLED" = "1" ]; then
         MU=$(get_modem_uptime)
         if [ -z "$MU" ]; then
-            # Anchor unknown (dmesg unreadable/evicted and no saved anchor). Warn
-            # once per unknown episode instead of either spamming or skipping
-            # silently — an un-anchored preemptive SSR is a real safety gap.
+            # FAIL-SAFE FALLBACK (hardening 2026-10-04).  The anchor is unknown
+            # (dmesg evicted and no saved anchor).  The old code only WARNED and
+            # left the modem UNPROTECTED, so the ~902.7 s deadline would simply
+            # expire.  Fall back to the local timer since the last restart we
+            # know of — over-counting is safe (we restart early).
+            MU="$SECS_SINCE_SSR"
             if [ "$MU_UNKNOWN" != "1" ]; then
-                logger -t modem-stall-watchdog "PREEMPTIVE SSR: modem uptime UNKNOWN (no 'is now up' line and no saved anchor); the ~902.7s deadline cannot be pre-empted until this is fixed."
+                logger -t modem-stall-watchdog "PREEMPTIVE SSR: modem uptime UNKNOWN (no 'is now up' line and no saved anchor); using the local ${SECS_SINCE_SSR}s-since-restart fallback so the deadline is still pre-empted."
                 MU_UNKNOWN=1
             fi
-        elif [ "$MU" -ge "$PREEMPTIVE_SSR_INTERVAL" ]; then
+        else
+            MU_UNKNOWN=0
+        fi
+        if [ "$MU" -ge "$PREEMPTIVE_SSR_INTERVAL" ]; then
             logger -t modem-stall-watchdog "PREEMPTIVE SSR: modem uptime ${MU}s >= ${PREEMPTIVE_SSR_INTERVAL}s; restarting modem to prevent the ~902.7s ERR_FATAL."
             MU_UNKNOWN=0
             do_modem_ssr
+            SECS_SINCE_SSR=0
             LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
             LAST_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
             STALL_COUNT=0
             PROBE_FAILS=0
             sleep "$CHECK_INTERVAL"
             continue
-        else
-            MU_UNKNOWN=0
         fi
     fi
 
