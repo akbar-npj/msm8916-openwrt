@@ -14286,3 +14286,90 @@ recorded as such; no code change was made (none is warranted); the device was no
 
 **Tools / evidence:** `openwrt/.../drivers/net/wwan/qcom_bam_dmux.c`,
 `GitIgnore/android_kernel_zte_msm8916/drivers/soc/qcom/bam_dmux.c`.
+
+## §112.37 ★★★ PSCI / cpuidle axis — RE-VERIFIED AGAINST SOURCE: the §112.29 "cluster unreachable" claim is WRONG; the cpuidle sub-lever was ALREADY FALSIFIED (Doc 231 §18 / H-IDLE); axis CLOSED (2026-10-03)
+
+**Instruction.** "Dig into the PSCI/cpuidle axis" — the §112.36 "next target" and §112.29's "remaining
+verified AP-side differential" (PSCI PC-denied + cpuidle-2-state). Read-only investigation against the
+current source and a live genpd probe; no code change, no device mutation beyond a read-only probe.
+
+**Two corrections to the ledger's prior text (§112.29 lines 13855-13857, §112.36 lines 14277-14282).**
+
+1. **"Cluster power collapse is unreachable on OpenWrt" is FALSE.** The cluster states
+   (`cluster-retention` `0x41000012`, `cluster-gdhs` `0x41000032`) ARE registered — as **genpd domain
+   states**, not as CPU `cpuidle` states, so they do not appear in
+   `/sys/devices/system/cpu/cpuN/cpuidle/` (which lists only CPU-level states). `cpuidle-psci.c:226-251`
+   (`psci_dt_cpu_init_topology`) wires `drv->states[state_count-1].enter = psci_enter_domain_idle_state`
+   for the deepest CPU state; `cpuidle-psci-domain.c:142-190` (`psci_cpuidle_domain_probe`) allocates a
+   genpd per `power-domain-cpuN`/`power-domain-cluster` node and calls `psci_set_osi_mode(true)` — which
+   **SUCCEEDED** (boot log `CPUidle PSCI: Initialized CPU PM domain topology using OSI mode`; no
+   `failed to set OSI mode` message ⇒ `psci_set_osi_mode` at :176 returned 0). Live genpd summary
+   confirms the topology is built and ACTIVE:
+   ```
+   power-domain-cluster   on     children: power-domain-cpu0..3
+   power-domain-cpu2      off-0  (suspended)   ← cpu2's domain powered off at probe
+   power-domain-cpu0/1/3   on     (active)
+   ```
+   ⇒ the hierarchical OSI topology works and the cluster domain **does** power off (per-CPU domain
+   `off-0` observed). The §112.29 reading mistook "no cluster state in the per-CPU cpuidle dir" for
+   "unreachable" — a measurement trap of the same class as the §3.x LED counter misreads.
+
+2. **The cpuidle sub-lever was ALREADY FALSIFIED on 2026-09-28 (Doc 231 §18 / `H-IDLE`).**
+   Pre-registration `scratch/drx_exp/PREREG_cpuidle_rf.md`: lever = `echo 1 >
+   …/cpuN/cpuidle/state1/disable` for N=0..3 (WFI-only). **P1 PASS** (cpu-sleep-0 usage frozen);
+   **P2 FAIL — fatal #16 at AP `16892.961383`, `lte_ml1_common_timer.c:390`, 530 s after the lever**
+   (modem-uptime ~902.7 s; the falsifier). ⇒ the AP deep-idle behaviour is NOT the differential. This
+   test **also suppresses the cluster domain state**: in `cpuidle-psci.c:246-248` the domain-idle enter
+   (`psci_enter_domain_idle_state`, which does `pm_runtime_put_sync_suspend(pd_dev)`) is wired ONLY to
+   `drv->states[state_count-1]` (the deepest CPU state); with state1 disabled the CPU never selects it,
+   so the domain device is never runtime-suspended and the cluster never powers down. **H-IDLE covers
+   both the standalone-PC and the cluster-PC axes.** The §112.29/§112.36 "next target" proposal
+   overlooked this existing result.
+
+**The PSCI "PC-mode denied" sub-lever.** `psci_1_0_init()` (`psci.c:728-744`) calls
+`psci_set_osi_mode(false)` ("Default to PC mode"); the firmware returns `-3 = PSCI_RET_DENIED`
+(`psci.c:160-173` warns `failed to set PC mode: -3`). debugfs `/sys/kernel/debug/psci` confirms
+`OSI is supported`, `Extended StateID format is used`, `SET_SUSPEND_MODE is supported`. So the firmware
+advertises OSI, accepts `SET_SUSPEND_MODE(OSI)` (the cpuidle-domain probe's later call succeeds), and
+rejects PC. ⇒ **OpenWrt runs in OSI mode** (the firmware's only offered mode). Android's 3.10 kernel
+does NOT use PSCI for idle at all — it uses the qcom `lpm-levels` driver
+(`drivers/cpuidle/lpm_levels.c`, DT `qcom,lpm-levels` in `msm8916-pm.dtsi:109-170`) which registers
+3 CPU modes (`wfi`/`standalone_pc`/`pc`) + 2 system/cluster modes (`l2_cache_gdhs`/`l2_cache_pc`, the
+latter `send-rpm-sleep-set`). So the *real* differential is "mainline-PSCI-OSI vs downstream-qcom-LPM",
+NOT "PSCI-PC-denied is a defect" — PC-denial is normal msm8916 mainline behaviour (the firmware is
+OSI-only by design).
+
+**Is there a remaining lever here?** No actionable one:
+* Forcing PC mode is **impossible** (firmware denies it) and is the wrong direction (the firmware is
+  OSI-only; mainline defaults to PC only as a fallback, not as a requirement).
+* Disabling deep idle (the only reversible AP lever on this axis) = `H-IDLE`, already FALSIFIED.
+* The `lpm_levels` ↔ `psci_idle` difference is architectural (downstream vs mainline); porting the qcom
+  LPM driver to 6.12 is a multi-thousand-line effort and H-IDLE's negative already shows the
+  *behaviour* (deep-idle-present) is not the arming variable — only the *mechanism* differs.
+
+**Verdict: the PSCI/cpuidle axis is CLOSED** — (a) the "cluster unreachable" claim is retracted
+(wrong measurement basis), (b) the cpuidle sub-lever was already falsified (H-IDLE), (c) the PC-denial
+is normal firmware behaviour, not a fixable defect, and (d) no remaining reversible lever exists. The
+§112.29/§112.36 "next target" pointer is hereby **superseded**. The arming variable remains **OPEN**,
+but the verified AP-side power-management differentials are now exhausted (A2/A15/cpuidle all closed).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| §112.29 cluster-unreachable | verified AP differential | **RETRACTED** — wrong basis (genpd, not cpuidle dir) |
+| §112.29 cpuidle-2-state lever | test the lever | **already FALSIFIED** (H-IDLE, 2026-09-28) |
+| PSCI PC-denial | a fixable defect? | **no** — normal OSI-only firmware; not actionable |
+| remaining AP PM differential | exhausted? | **yes** — A2/A15/cpuidle/PSCI all closed |
+
+**SOP.** Source-verified against the current tree (`psci.c`, `cpuidle-psci.c`, `cpuidle-psci-domain.c`,
+`msm8916.dtsi`, Android `msm8916-pm.dtsi` + `lpm_levels.c`); a live read-only genpd probe corroborated
+the topology; the prior ledger text's error is corrected in the same session; no code change was made
+(none is warranted); the device was not mutated (read-only probe only).
+
+**Tools / evidence:** `openwrt/.../drivers/firmware/psci/psci.c`,
+`openwrt/.../drivers/cpuidle/{cpuidle-psci.c,cpuidle-psci-domain.c}`,
+`openwrt/.../arch/arm64/boot/dts/qcom/msm8916.dtsi` (idle-states :202-233, power-domains :279-303),
+`GitIgnore/android_kernel_zte_msm8916/{drivers/cpuidle/lpm_levels.c,
+arch/arm/boot/dts/qcom/msm8916-pm.dtsi}`, `scratch/drx_exp/{PREREG_cpuidle_rf.md,cpuidle_soak.log}`,
+live probe `ssh root@192.168.8.1` (genpd summary + psci debugfs + cpuidle states).
