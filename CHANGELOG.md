@@ -11,8 +11,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Pending / next
+
+- **Cleanup patch (carried over)** — fold the `hang_probe_t4` / `f3cap` /
+  `coredump-enable` blocks out of `/etc/rc.local` into a removal patch; the
+  instruments are no longer needed post-§112.31 (P-REARM confirmed) and
+  §112.18.13 (patch 831 soak passed 30/30 SSRs).
+- **`a2_pin` default decision (carried over, open)** — whether the shipped image
+  should default `a2_pin=1` (currently opt-in via uCI set; shipped config sets
+  it). A design/risk question: `a2_pin=1` suppresses the cold-boot
+  `a2_power.c:1189` fatal but is a **mitigation, not a root-cause fix**
+  (§112.24/§112.28); it holds the modem's A2 power-control pin across pre-emptive
+  SSRs.
+- **The one open mechanism question** — *what stops the ML1 SERV-MEAS-RSP reply
+  path at ~902 s* (§112.38 OPEN, §112.39 surviving candidate). This is a
+  causal-mechanism question, not a timer-limit question; the firmware-timer axis
+  is exhausted.
+
 ### Changed — modem stability ledger
 
+- **`be50e56`** — Add this CHANGELOG.md (Keep-a-Changelog format) documenting
+  commit `03bbc17` and the prior §112.37–§112.39 series. Doc 197 remains the
+  primary source of truth; this file is a quick-reference index.
 - **`03bbc17`** — §112.39 sync note: findings folded back into §112.38.
   - Added a "Sync with §112.38" subsection to §112.39 recording that its
     findings were carried back into §112.38 (commit `c1ad1d9`): the MCPM row #1
