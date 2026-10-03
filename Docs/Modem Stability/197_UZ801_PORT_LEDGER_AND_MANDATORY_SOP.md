@@ -14241,3 +14241,48 @@ F3 log used as corroboration; device restored to the shipped config in the same 
 
 **Tools / evidence:** `scratch/a2pin/{PREREG_bamdelay2.md,bamdelay2.sh,bamdelay2.log}`,
 `scratch/a2pin/f3assert/*.raw`, `scratch/a2pin/f3_assert_summary.py`.
+
+## §112.36 ★ STEP #3 (make the A2 handshake modem-driven) — RE-VERIFIED AGAINST SOURCE: **CLOSED, ≡ the deployed `a2_pin` lever** (2026-10-03)
+
+**Instruction.** "Proceed to step #3 A2 handshake" — implement the Android-style modem-driven A2 handshake
+(`bam_dmux.c` `SMSM_MODEM_STATE` callback + apps-ack) and test it.
+
+**Re-verification against the CURRENT source** — Android 3.10 `drivers/soc/qcom/bam_dmux.c` vs mainline 6.12
+`drivers/net/wwan/qcom_bam_dmux.c` (read, not recalled):
+
+| role | Android (3.10) | OpenWrt (6.12) |
+| :-- | :-- | :-- |
+| **modem announces** | `SMSM_MODEM_STATE & SMSM_A2_POWER_CONTROL` → `bam_dmux_smsm_cb` :2430 → `reconnect_to_bam()`/`bam_init()` | `hexagon_smsm 1` edge → `bam_dmux_pc_irq` :1992 → `bam_dmux_power_on()` / `bam_dmux_pm_restart()` |
+| **AP votes** | `power_vote()` :1672 sets `SMSM_APPS_STATE & A2_POWER_CONTROL` | `bam_dmux_pc_vote()` :272 sets `apps_smsm 1` |
+| **AP acks** | `toggle_apps_ack()` :2412 toggles `SMSM_APPS_STATE & A2_POWER_CONTROL_ACK` | `bam_dmux_pc_ack()` :284 toggles `apps_smsm 11` |
+| **modem acks** | `SMSM_MODEM_STATE & A2_POWER_CONTROL_ACK` → `bam_dmux_smsm_ack_cb` :2468 → completes the wakeup | `hexagon_smsm 11` → `bam_dmux_pc_ack_irq` :2052 → completes `pc_ack_completion` |
+| **wake wait** | waits for the modem's ack | waits for the modem's ack (`wait_for_completion_timeout(pc_ack_completion, 2000)`, :2135) |
+
+⇒ **functionally equivalent** — both are a 4-bit handshake with a modem-announcement path *and* an AP ack.
+This re-confirms §112.29 #1. The **only** AP-driven element is the vote-clear `bam_dmux_pc_vote(dmux, false)`
+in `bam_dmux_runtime_suspend()` (:2104) — **exactly the `a2_pin` lever** (§112.23).
+
+**Empirically closed as well.** The A2 vote regime is **already varied across the fatal dataset**:
+`a2_pin=1` (the AP's vote pinned set ⇒ the modem alone controls the collapse — the *strongest* form of
+"modem-driven") fataled at modem-uptime **901.96 s** (§112.33) / **900.435 s** (§112.35); the default
+`a2_pin=0` (the AP's vote toggling with UL data, exactly like Android) fataled at **~902.7 s** (§112.6 and
+the pre-`a2_pin` boots). ⇒ **the A2 vote regime does NOT affect the ~902 s fatal.** Implementing the
+modem-driven callback would re-derive `a2_pin` and **cannot** fix it.
+
+**Verdict: step #3 is CLOSED** — statically (re-verified here; §112.29) and empirically (the a2_pin 0/1
+contrast). **No code change is warranted.** The user's ordered plan (1 → 2 → 3) is now exhausted:
+#1 §112.34/§112.35 (late data path — not a fix), #2 static bring-up diff (negative: reset/power/mailbox
+match), #3 (closed, ≡ `a2_pin`).
+
+**Next target (proposed).** The remaining **verified** AP-side differential (§112.29): **PSCI PC-mode denied**
+(`psci: [Firmware Bug]: failed to set PC mode: -3` = `PSCI_RET_DENIED`; the AP then uses OSI mode) and
+**cpuidle exposing only 2 states** (`state0=WFI`, `state1=cpu-sleep-0`; the DT declares
+`cluster-retention`/`cluster-gdhs` but **no cluster state is registered** ⇒ cluster power collapse is
+unreachable) — vs Android's msm8916 LPM cpuidle (C0/C1/C2=cluster PC). Not yet established that either arms
+the modem, but they are the only *verified* AP-side power-management differences left.
+
+**SOP.** Source-verified against the current tree (not from memory); the result is a **negative** and is
+recorded as such; no code change was made (none is warranted); the device was not touched.
+
+**Tools / evidence:** `openwrt/.../drivers/net/wwan/qcom_bam_dmux.c`,
+`GitIgnore/android_kernel_zte_msm8916/drivers/soc/qcom/bam_dmux.c`.
