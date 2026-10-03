@@ -13875,3 +13875,70 @@ arming. Achieved: closed #1 (no new mechanism), **falsified #2** (clean shutdown
 arming — the discriminator is cold-start vs restart), and ruled out the CW-1 marker and the modem's F3
 stream as the arming signal; isolated the two remaining verified AP-side differentials (PSCI PC-denied,
 cpuidle-2-state). **Not achieved:** the identity of the arming variable — still **OPEN**.
+
+## §112.30 ★ P-SSR800 — the pre-emptive-SSR interval 600→800 s: **PASS** (2026-10-03)
+
+**Why.** §112.24's `a2_pin=1` suppresses the cold-boot `a2_power.c:1189` fatal, so the 600 s SSR interval
+— which existed only to clear the **722.7 s** cold-boot fatal — is no longer needed at 600 s. 800 s leaves
+a **102.7 s** margin below the 902.7 s deadline and cuts the restart rate 20 %. (The watchdog anchors on
+**modem uptime**: `get_modem_uptime()` = kernel uptime − the "is now up" anchor.)
+
+**Pre-registration** `scratch/a2pin/PREREG_ssr800.md`: P1 config applied; P2 survival (≥800 s modem-uptime
+on ≥3 cycles, window ≥2700 s); P3 no fatal. **Falsifier:** any fatal, or a fatal at modem-uptime <800 s.
+
+**Result** (monitor `scratch/a2pin/run6_ssr800.log`, 43 × 60 s samples, up 211→2738 s):
+
+| event | AP-up window | modem-uptime |
+| :-- | :-- | :-- |
+| SSR 0→1 | 813→873 | ~800-860 |
+| SSR 1→2 | 1595→1655 | ~755-815 |
+| SSR 2→3 | 2377→2438 | ~752-813 |
+
+**`msm_subsys/modem`=3, `control=on`, `a2pin=1`, `dmesg | grep -c "fatal error received"`=0 for all 43
+samples.** P1 ✓ P2 ✓ (3 cycles, window 2738 s) P3 ✓. **PASS** — the 800 s interval is safe and is now the
+shipped default. Reversible: `uci set modem-watchdog.recovery.preemptive_ssr_interval='600'`.
+
+**Achieved vs Expected.** Expected: confirm 800 s ≤ the safe bound. Achieved: 3 clean cycles, zero fatals,
+no cycle below 800 s. **Open:** whether the *perpetual* SSR is even necessary — see §112.31.
+
+## §112.31 ★★★ P-REARM — an OpenWrt graceful SSR **re-arms** the modem (H1 CONFIRMED); and a natural fatal still reboots the AP (2026-10-03)
+
+**Motivation (§112.29).** Android's post-clean-SSR core (`cw1_warm.elf`) is ARMED. OpenWrt had never
+measured whether a **graceful SSR** leaves the modem armed, because the pre-emptive SSR always restarts
+at 600/800 s — **before** the 902.7 s deadline. Pre-registration: `scratch/a2pin/PREREG_rearm.md`.
+Setup: `a2_pin=1` (unchanged), `preemptive_ssr_interval=100000` (SSR disabled) so the modem (started by
+graceful **SSR #3**) ran toward 902.7 s. **Falsifier:** any fatal ⇒ H1.
+
+**Result — H1 CONFIRMED.** The AP rebooted during the observation; the cause is in pstore
+(`/sys/fs/pstore/console-ramoops-0`, the **previous** boot):
+
+```
+[3333.996398] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[3333.996467] remoteproc remoteproc0: crash detected ... type fatal error
+[3334.004059] remoteproc remoteproc0: handling crash #1
+[3334.012291] remoteproc remoteproc0: recovering 4080000.remoteproc
+   ... bam-dmux SSR teardown T0..T9 (all present, all returned) ...
+[3334.937596] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+```
+
+Modem anchor (`dmesg "is now up"` for SSR #3) = AP-up **2432.197134** ⇒ **fatal at modem-uptime
+3333.996398 − 2432.197134 = 901.799 s** — the ~902.7 s deadline. ⇒ **an OpenWrt graceful SSR re-arms the
+modem; every start arms.** The pre-emptive SSR is **necessary** (it is not only the cold boot that arms),
+and the §112.29 cold-start-vs-restart model holds on OpenWrt.
+
+**Second finding — a NATURAL fatal still reboots the AP.** The bam-dmux teardown completed cleanly (T0
+through T9, all `returned`), and **~1.0 s later** `port failed halt` fired and the dongle re-enumerated
+on the host (`journalctl -k`: `usb 1-1: USB disconnect` → `new high-speed USB device`, host 13:13:39→
+13:14:01). This is the known **hang site B** (the natural-fatal `port failed halt` window). ⚠ It is
+distinct from the §112.18.13 T4→T5 hang that patch 831 fixed (that teardown is now clean) — so the
+`port failed halt` AP-reboot on a natural fatal **persists**. The pre-emptive SSR avoids it entirely
+(it prevents the fatal). **No coredump was captured** — the AP rebooted before `dumpwatch.sh` finished
+copying the devcd node (`/root/dumps/` has no new file).
+
+**Consequence.** The natural-fatal path cannot deliver a coredump on this setup ⇒ the §112.29 cold-boot
+coredump test must use the **on-demand trigger** instead: `rmmod qcom_bam_dmux` → `echo enabled >
+/sys/class/remoteproc/remoteproc0/coredump` → `echo 1 > /sys/kernel/debug/remoteproc/remoteproc0/crash`
+(§6.2a). See §112.32.
+
+**Achieved vs Expected.** Expected: resolve whether a graceful restart re-arms. Achieved: **YES**
+(901.799 s). Also surfaced a natural-fatal AP reboot. **Open:** the cold-boot coredump comparison.
