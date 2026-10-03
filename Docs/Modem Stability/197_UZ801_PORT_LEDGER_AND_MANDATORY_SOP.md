@@ -16011,6 +16011,11 @@ c0fe196c: call 0xc0879150 (assert descr 0xc3cc1c80)   ; assert(obj != NULL)
 the compile-time constant object `0xc1e158d0`. This **upgrades §112.52's hypothesis to a proof** and
 fixes `SLEEP = 3` (the assert text is `== SLEEP` and the compare is `cmp.eq(r0,#0x3)`).
 
+★ **Independent confirmation — it is the framework's own getter.** The NULL-guard descriptor at
+`0xc3cc1c80` resolves to **`stm2.c:1500`**, `"Fatal Error: 'sm->pi_const_data->const_data == NULL' %d%d%d"`
+— i.e. the tail-target `0xc0fe1960` is the STM **framework** (`stm2.c`) getter, not sleepmgr code. So
+`FUN_c03a0c20` = `stm_get_state(&LTE_ML1_SLEEPMGR_STM)` beyond reasonable doubt.
+
 ### §112.54.2 The state ENUM is recovered from the state table — and the live value is `ONLINE_SLEEP_WAIT`
 
 The `LTE_ML1_SLEEPMGR_STM` object at `0xc1e158d0` begins `{ void *name; u32 state; ... }`; its first
@@ -16072,9 +16077,10 @@ The same module's message table (`{char *name; u32 id}`) names the whole sleep f
 | `LTE_ML1_SLEEPMGR_DISABLE_SLEEP_REQ` | `0x042b0201` | | `LTE_ML1_SLEEPMGR_RF_EXIT_CNF` | `0x042b0804` |
 | `LTE_LL1_SYS_SLEEP_CNF` | `0x040a0808` | | `LTE_LL1_ASYNC_WAKEUP_CNF` | `0x040b0806` |
 
-The sibling handler `FUN_c039eed0` (registered by the same state) **sends a message and arms a timer**:
-`FUN_c02f933c(ctx, 2, 0, 0, 6, 8)`, `FUN_c0b61cd0(ctx + 0x4a8, 2, 0, 2)`, and stamps `ctx + 0x474`.
-Read as a state action, this is a **sleep request + completion watchdog** — the "wait" half of
+The sibling handler `FUN_c039eed0` (registered by the same state) **arms a timer and logs**:
+`FUN_c0b61cd0(ctx + 0x4a8, 2, 0, 2)` (arm the timer at `ctx + 0x4a8`), `FUN_c02f933c(...)` — ⚠ **`FUN_c02f933c`
+is NOT a message send**: it is F3-mask-gated (`gp+0x2d1` / `gp+0x6584` bit 2) and only formats/logs — and
+it stamps `ctx + 0x474`. Read as a state action, this is a **completion watchdog** — the "wait" half of
 `ONLINE_SLEEP_WAIT`.
 
 ### §112.54.5 ⇒ THE MECHANISM (named)
@@ -16112,7 +16118,7 @@ struct from the fatal coredump:
 
 | field | value | note |
 | :-- | :-- | :-- |
-| `ctx+0x4a8+0x0c` | `0xc03967f0` | the **callback** — a tail-call to `FUN_c02f933c(0, ctx, 0, 0, 6, 8)`, i.e. it *sends a message* |
+| `ctx+0x4a8+0x0c` | `0xc03967f0` | a code pointer — a **trace helper** (tail-calls the F3-gated logger `FUN_c02f933c`) |
 | `ctx+0x4a8+0x14` | `0xc20f1680` | back-pointer to the context |
 | `ctx+0x4a8+0x18` | `0x00000004` | |
 | **`ctx+0x4a8+0x1c`** | **`0xdeaddead`** | **poison ⇒ the timer is NOT armed** |
@@ -16120,7 +16126,7 @@ struct from the fatal coredump:
 
 ⇒ at the fatal instant the completion watchdog had **already disarmed** (fired or never re-armed), so it
 is **not** the thing that invoked `FUN_c039ef80` at the crash. The callback `FUN_c03967f0` is a
-**message sender**, not the fatal function.
+**logger**, not the fatal function.
 
 **⚠ Same-module assert family.** The **line-4089** assert (`serv_cell != NULL`) is the function
 `FUN_c0396850` (`c0396860: r0 = memub(ctx+0x2a0); ... c03968a4: r0 = 0xc3c81a50`), a *different*
