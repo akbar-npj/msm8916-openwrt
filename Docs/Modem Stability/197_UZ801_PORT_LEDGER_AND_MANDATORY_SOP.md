@@ -15527,6 +15527,17 @@ PLMN/cell-id operations (`cmss.c`, `qmi_nas.c`).
 then collapsed (184). ⇒ in the fatal the RF is *active at the trigger*; in the idle run the RF is
 already quiet.
 
+**What the "`a2_power` storm" actually IS (resolved 2026-10-03).** The two storming lines are
+`a2_power.c:1313` = `"A2 power req from client=N"` and `a2_power.c:3765` = `"Process A2 power req
+from client=N"` — i.e. the **modem firmware's OWN internal A2 power-request processing** (clients 2/3
+alternating), **not** the AP-side `bam_dmux` handshake (that is the Doc 170 storm, measured on the AP
+counters). Both regimes log the same two lines at similar absolute rates (fatal up900 = 138, wedge
+up902 = 53); the wedge's apparent "storm" (53→114) is therefore **partly a *relative* dominance** — the
+other subsystems (`rf`, `nas`) die while `a2_power` keeps logging, so it *becomes* the dominant record
+class. Reading it as "the modem's internal power-state machinery running its shutdown sequence" is
+supported, but the 2× absolute rise means it is also genuinely more active at the event. (Evidence:
+`scratch/a2pin/f3_a2dump.py`, `scratch/f3parse.py`.)
+
 ### §112.48.3 ★★ CORPUS INCONSISTENCY — the regime→outcome mapping does NOT agree across runs
 
 | source | regime | outcome |
