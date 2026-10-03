@@ -15983,6 +15983,55 @@ memory updated in the same session.
 
 ---
 
+## §112.53.1 ★★★★ RESULT — the event FIRED at **mu 900.62 s with traffic stopped at mu 300 s** ⇒ activity **ARMS**, it does not GATE (P-SCHED1-ARM confirmed; P-SCHED1-GATE FALSIFIED) (2026-10-04)
+
+**Run.** Stock HMU05 (hash verified), `a2_pin=1`, **`preemptive_ssr_enabled=0`**, continuous
+`ping -I wwan0 -i 1 8.8.8.8` from modem-uptime ≈12 s to **300 s**, then STOP (bearer up, idle),
+watch to mu ≥ 1050 s. Clean modem restart via `/sys/kernel/debug/msm_subsys/modem`.
+
+**Result — an event fired, and it was the SAME fatal.**
+
+| quantity | value |
+| :-- | :-- |
+| modem anchor ("is now up") | AP `6459.495544` |
+| **fatal** (`fatal error received`) | AP `7360.117706` |
+| **modem uptime at the fatal** | **`900.622162 s`** |
+| fatal site | **`lte_ml1_sleepmgr_stm.c:4054`** (identical to §112.49) |
+| traffic window | mu `≈12…300 s` (stopped **600 s before** the fatal) |
+| default route | present (`route=2`) through mu 896, **gone** at mu 901 (the fatal's SSR) |
+| coredump | `/root/dumps/dump_devcd2_7362.bin` (85 398 475 B, md5 `9e3cd57b…` verified device==host), captured by the watcher at 19:46:34 |
+| SSR recovery | `crash #2` → "is now up" at AP 7361.638 (≈1.5 s downtime) |
+
+**Coredump verification — the SAME crash, byte-for-byte.** `scratch/diag_patch_v12/read_crash_report.py`
+gives `Uptime 0:15:00`, task **`slpc`**, PC **`0xc087a804`**, SP `0x8ae99318`, LR `0xc0879164` — the
+**same task and PC as §112.49**. The fatal stack (modem VA `0xc4699318`, `scratch/read_stack.py`) has the
+**identical** shape: `+0x000 = 0xc35b1384`, `+0x00c = 0xc08791a8`, `+0x014 = 0xc20f1680` (ctx),
+**`+0x01c = 0xc039f7c4`** (the line-4054 assert in `FUN_c039ef80`), `+0x024 = 0xc312db4c`,
+`+0x028 = 0x17`. **And the STM state is again `*(0xc1e158d4) = 2` = `ONLINE_SLEEP_WAIT`** (class
+`0xc1a94f70`, ctx `0xc20f1680`) — i.e. **§112.54 is reproduced on a second, independent specimen**, this
+one with traffic stopped at mu 300 s.
+
+**Scoring (pre-registered §112.53).**
+
+| id | prediction | outcome |
+| :-- | :-- | :-- |
+| **P-SCHED1-ARM** | an event at ~900 s **despite** traffic stopping at 300 s ⇒ early activity ARMS | **CONFIRMED** (fatal at mu 900.62) |
+| **P-SCHED1-GATE** | no event by mu 1000 ⇒ activity must be present at the anchor | **FALSIFIED** |
+| **P-SCHED1-CLASS** | if an event fires it is a FATAL | **CONFIRMED** (a fatal, not a wedge) |
+
+⇒ **"ACTIVITY-GATED" (§112.34/35) is more precisely "ACTIVITY-ARMED".** Activity early in the boot
+*arms* the ~900 s event; the event then fires at the anchor **whether or not activity is present at the
+anchor**. This resolves the §112.48.3 corpus inconsistency's *gating* reading: the *presence* of traffic
+at the mark is irrelevant; the *history* of traffic early in the boot is what matters. ⚠ n = 1
+(qualitative); the *rate* is not measured.
+
+**SOP.** One config change (`preemptive_ssr_enabled` 0 → 1, restored after the run and verified);
+stock firmware (hash verified before); pre-registration written **before** the event; the run is
+reversible. Baseline restored: `preemptive_ssr_enabled=1`, `a2_pin=1`, `preemptive_ssr_interval=800`,
+`power/control=on`. Ledger + CHANGELOG + memory updated in the same session.
+
+---
+
 ## §112.54 ★★★★★ THE STATE NAMED — the fatal STM is in `ONLINE_SLEEP_WAIT` (2), NOT `SLEEP` (3): the sleep manager is stuck **mid-sleep-entry** (2026-10-04)
 
 **Instruction.** Continue §112.52's read-only next steps 1–3 — *identify `FUN_c03a0c20`; read the
@@ -16042,6 +16091,10 @@ word (`0xc1e158d0`) points at the STM **class** `0xc1a94f70`, whose `+0x04` is t
 
 ⇒ **the fatal assert fires because the sleep manager is in `ONLINE_SLEEP_WAIT`, not `SLEEP`.**
 The comparison `FUN_c03a0c20() != 3` (§112.52) is therefore `state != SLEEP`, and `2 != 3` ⇒ assert.
+
+★ **Reproduced on a second, independent specimen.** The §112.53.1 P-SCHED1 fatal (traffic stopped at
+mu 300 s) has the **same task/PC/stack** and the **same state `*(0xc1e158d4) = 2`** — see §112.53.1's
+coredump verification. ⇒ `ONLINE_SLEEP_WAIT` is not an artifact of one run.
 
 ### §112.54.3 What `FUN_c039ef80` is: a handler **registered by the `ONLINE_SLEEP_WAIT` state**
 

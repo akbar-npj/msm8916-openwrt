@@ -72,6 +72,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.53.1 (P-SCHED1 RESULT — activity ARMS, it does not GATE)** — the pre-registered early-only-traffic
+  run produced a **FATAL at modem uptime `900.622162 s`** (`lte_ml1_sleepmgr_stm.c:4054`), **600 s after
+  traffic stopped at mu 300 s**. `P-SCHED1-ARM` **CONFIRMED**, `P-SCHED1-GATE` **FALSIFIED**,
+  `P-SCHED1-CLASS` **CONFIRMED** (a fatal, not a wedge). The coredump (`dump_devcd2_7362.bin`, md5
+  `9e3cd57b…` device==host) has the **same task `slpc`, PC `0xc087a804`, and the identical fatal stack**
+  (`+0x01c = 0xc039f7c4`), and the **same STM state `*(0xc1e158d4) = 2` = `ONLINE_SLEEP_WAIT`** ⇒ §112.54
+  reproduced on a second independent specimen. ⇒ "ACTIVITY-GATED" is more precisely **"ACTIVITY-ARMED"**:
+  early activity arms the ~900 s event; presence of traffic at the mark is irrelevant. Baseline restored
+  (`preemptive_ssr_enabled=1`). n=1 (qualitative).
 - **§112.54 (THE STATE NAMED — the fatal STM is in `ONLINE_SLEEP_WAIT`, not `SLEEP`)** — continuing
   §112.52's read-only next steps. **(1) The getter is proven:** `FUN_c03a0c20` →
   `c02d9f94` → `c0fe1960` where `c0fe1960: if(r0==0) assert; r0 = memw(r0+#4); return` ⇒
