@@ -40,12 +40,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
-- **`adb9706` §112.41 (phase 2, ML1 SERV-MEAS-RSP reply path)** — traced the chain
-  (`FUN_c02fda90` armer → CNF gate `FUN_c01bc934` → ready-writer `FUN_c01bc8e0`);
-  the ready counter `slot[+0x01]` is **0 in 7/7** fatal dumps, so the producer
-  never ran and the reply was never produced. Verdict: the reply path is
-  **downstream of the ML1-wide stall — no new root**. Armer gate
-  `DAT_c1e143ca=0` in 7/7 (normal path). Read-only, offline.
+- **`b7b2ece` §112.42 (phase 3, the ML1 meas-table flag)** — a 39-dump census shows
+  the §105.4 flag (`+0x00=1` on the `b9` slot **and** `b8=(b9+1)mod3` **and** data=0
+  **and** `cons=0`) is confined to (`d2=0` **and** `e02=1`) dumps — so far exactly the
+  **3 `d2=0` fatals**; the 2 healthy `d2=0` captures both have **`e02=0`**, which
+  **mechanically disables** the flag (gate B `0≤+0x01` always passes). ⇒ the flag's
+  fatal-specificity is **UNRESOLVED** (a new confounder, `e02`, was found). Two
+  corrections: **§112.41 is RETRACTED** (its `slot[+0x01]=0` evidence was already
+  falsified by §105.2 — it is the resting value) and **§105.8's "confound resolved" is
+  UNSUPPORTED** (its four controls all read `d2=1`, so §105.5 was never executed).
+  Design constraint: a high-rate RAM sampler is **impossible** (TrustZone blocks all AP
+  reads of modem RAM). **P-IDLECTRL2 RAN** (`dump_devcd2_13985.bin`, md5
+  `a6905ca4…`): the idle modem survived to modem-up **966 s** (`d2=0`) but read
+  **`e02=0`** ⇒ **VOID by the pre-registered gate** — the gate fired as designed.
+  Device restored (SSR 1500→800, reboot). Read-only analysis + one forced capture.
+- **`adb9706` §112.41 (phase 2, ML1 SERV-MEAS-RSP reply path)** — ⚠ **RETRACTED by
+  §112.42** (the `slot[+0x01]=0` evidence is non-discriminating). Kept for the
+  record: traced the chain (`FUN_c02fda90` armer → CNF gate `FUN_c01bc934` →
+  ready-writer `FUN_c01bc8e0`); its "producer never ran" claim holds only for the
+  `d2=0` dumps. Read-only, offline.
 - **`9d95c78` §112.40 (phase 1, RF/interference lead)** — re-confirmed item 71's RF
   collapse with a new tool `scratch/rf_timeline.py`; found the
   `rflte_core_rxctl` RX gain/freq-comp values are **always 0** (no retune storm);

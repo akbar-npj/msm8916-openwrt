@@ -14772,14 +14772,15 @@ mutation, no patch, no baseband change. The negative (no new root) is stated, no
 `0x39800000`), `scratch/firmware/modem.asm` (`call 0xc01bc8e0` at `0xc01df174`/`0xc01e4304`); ledger
 §84, §102, §105-109.
 
-## §112.42 ★★★★ PHASE 3 — THE ML1 MEAS-TABLE "PRE-CRASH FLAG" IS NOT A FATAL PRECURSOR: §112.41's `slot[+0x01]=0` evidence is non-discriminating (§105.2 already falsified it), the flag tracks `d2`, and the decisive `d2=0` healthy control (§105.5) has still never been captured (2026-10-03)
+## §112.42 ★★★★ PHASE 3 — THE ML1 MEAS-TABLE "PRE-CRASH FLAG": §112.41's `slot[+0x01]=0` evidence is non-discriminating (RETRACTED), §105.8's idle control never tested `d2=0`, and a NEW confounder `e02` leaves the flag's fatal-specificity UNRESOLVED (2026-10-03)
 
 **Instruction.** From the approved sequenced plan, phase 3: *"a new live instrument for the
 ML1-side counter — design + pre-register + deploy a purpose-built sampler (ctx0 watchdog state +
 SERV-MEAS CNF-pending flags) at high rate."* **Outcome: the instrument design was replaced by a
 measurement-control audit, because the target "counter" is not a valid observable.** The audit is
-read-only/offline; the live control is **pre-registered** (`P-IDLECTRL2`) but could **not** be run
-cleanly this session (§112.42.5).
+read-only/offline; the live control was **pre-registered** (`P-IDLECTRL2`) and **run** (§112.42.5) —
+it landed on `e02=0` and was **VOID** by the pre-registered gate, and that void is itself the finding:
+**`e02` is a newly-identified confounder** (§112.42.2/§112.42.6).
 
 ### §112.42.1 Why a high-rate RAM sampler cannot exist (the design constraint)
 
@@ -14791,26 +14792,35 @@ readers are the **coredump** (a crash-time snapshot) and the **F3 log** — and 
 carry these fields (§112.13/§112.40: no precursor). The plan's "DIAG/RPM-ring **or**
 coredump-on-trigger" therefore collapses to **coredump-on-trigger only**.
 
-### §112.42.2 The decisive re-analysis — 38 OpenWrt dumps
+### §112.42.2 The decisive re-analysis — 39 OpenWrt dumps, and the `e02` confounder
 
 Re-ran `scratch/hexdec/slot2.py` on the 36 `scratch/coredump_live_full/coredump_live/*.elf` plus the
-two §112.32 `a2pin` cores. Each dump classified by its **own** crash report (`read_crash_report.py`,
-which gives the modem's uptime) × `d2`:
+three `a2pin` cores (incl. the new `dump_devcd2_13985.bin`, §112.42.5). Each dump classified by its
+**own** crash report (`read_crash_report.py`; ⚠ the filename `upNNN` is the **AP** clock, not the
+modem's — the report's `Uptime` is the real one) × `d2` × **`e02`**:
 
-| dump class | n | `d2` | flag present¹ |
-| :-- | --: | :-- | :-- |
-| fatal, modem-up ~900–947 s | 33 | **1** | **0 / 33** |
-| fatal, modem-up ~902 s | 3 | **0** | **3 / 3** |
-| healthy forced capture (`d2=1`) | 1 (a2pin COLD, §112.32) | 1 | 0 / 1 |
-| healthy forced capture (`d2=0`, `e02=0`) | 1 (a2pin WARM, §112.32) | 0 | **0 / 1** |
+| `d2` | `e02` | n | flag present¹ | fatal? |
+| :-- | :-- | --: | :-- | :-- |
+| 1 | 1 | 34 | **0 / 34** | 33 fatal + 1 healthy (a2pin COLD) |
+| **0** | **1** | 3 | **3 / 3** | **3 FATAL** (up915.42, up915.44, up1818.92) |
+| **0** | **0** | 2 | 0 / 2 | **2 healthy** (a2pin WARM, the §112.42.5 idle control) |
 
 ¹ flag = *a slot has `+0x00=1`* **and** `b8=(b9+1) mod 3` **and** that slot's data (`+0x08`) is 0
 **and** `cons=0` — i.e. §105.4's discriminator. In every `d2=1` dump the table is **balanced**
 (`b8==b9`) with exactly one **consumed** slot (`cons=1`, data ≠ 0).
 
-⇒ **The flag is predicted by `d2`, not by the fatal** (`3/3` vs `0/34`; the lone `d2=0` exception is
-the §112.32 WARM core, which uniquely has `e02=0`, so the gate condition (B) `e02 ≤ +0x01` passes and
-the drain completes — a different configuration, not a counter-example).
+**⚠ The flag is confined to (`d2=0` **AND** `e02=1`) — and that is the whole problem.** `e02` is the
+gate's condition-(B) threshold: the gate drains iff `e02 <= slot[+0x01]`. With **`e02=0`** that is
+`0 <= +0x01`, **always true**, so the gate always drains and **the flag cannot exist** — regardless of
+health. Both `d2=0` **healthy** captures have `e02=0`; all 37 other dumps have `e02=1`. ⇒ the healthy
+`d2=0` captures are **mechanically incapable** of testing the flag, and **the flag's fatal-specificity
+is therefore UNRESOLVED, not falsified.**
+
+> ⚠ **Self-correction (same session).** The first version of this entry — committed as `b7b2ece` —
+> read this census as *"the flag tracks `d2`, not the fatal"* and titled the section *"NOT a fatal
+> precursor"*. That was **over-claimed**: `e02` (which the first census table omitted) is the
+> confounder, and the two healthy `d2=0` dumps it leaned on are exactly the two `e02=0` dumps. The
+> claim is corrected here; the §112.41 retraction below is unaffected.
 
 ### §112.42.3 §112.41 is unsupported (the correction)
 
@@ -14841,51 +14851,64 @@ bearer-down / detached) — i.e. **none was in the `d2=0` state §105.5 required
 disable` did not take; §112.5's trap). So §105.8 never tested the confound it claimed to resolve,
 and its conclusion is **UNSUPPORTED**. §105.5 remains **genuinely unexecuted**.
 
-### §112.42.5 The live control — pre-registered, not run
+### §112.42.5 The live control — pre-registered and RUN; VOID by the gate
 
 `scratch/a2pin/PREREG_idlectrl2.md` — **P-IDLECTRL2**: capture a healthy **`d2=0`, `e02=1`**
 coredump (LTE-attached, idle, crashed short of 902 s, §6.2a). Pre-registered decision rule:
 
 * flag **present** ⇒ §105.4's flag is a normal **idle** feature ⇒ **§105.4 FALSIFIED**, the
   meas-table axis is **EXHAUSTED** as a fatal lead, **§112.41 RETRACTED**;
-* flag **absent** ⇒ the flag **is** the idle-arm fatal signature ⇒ **§105.4 CONFIRMED**.
+* flag **absent** ⇒ the flag **is** the idle-arm fatal signature ⇒ **§105.4 CONFIRMED**;
+* **gate:** the capture counts only if `d2=0` **AND** `e02=1`; otherwise it is **VOID**.
 
-**Not run cleanly at first.** The device was in a **degraded** state — ModemManager's daemon absent
-from the bus (`mmcli -L` → *"couldn't find the ModemManager process"*), bearer down 3280 s, `wwan0`
-DOWN — so the modem's **LTE-attach state was ambiguous**, and a capture would have been a
-**confounded** control (it could not be certified "attached + connected + idle" per §105.5). The gate
-result is required *before* reading the flag, so the run is gated rather than fudged.
+**RUN (2026-10-03).** The device's ModemManager daemon was absent from the bus and the bearer had been
+down 3280 s, so instead of a data-bearer control the run used the **§112.34/35 idle-survival route**:
+the pre-emptive SSR was temporarily raised 800 → 1500 s, and `scratch/a2pin/idlectrl2.sh` waited for
+modem-uptime ≥ 950 s. **The idle modem reached modem-uptime 966 s and did NOT assert** — the AP stayed
+alive, `msm_subsys/modem` = 15 throughout, confirming §112.34/35's "idle → no assert" on the OpenWrt
+arm. The §6.2a capture then produced `dump_devcd2_13985.bin` (85 398 475 B, md5
+`a6905ca4f393dd4114e2a08b5a4fc0ae`, watcher `up=13985`; **no embedded crash report** ⇒ a clean forced
+capture, so the trigger is neutral).
 
-**Then launched as an idle-survival run (the §112.34/35 route).** Because the modem is currently
-**idle** (no bearer), the §112.34/35 "idle → no assert" result lets it be driven **past 902 s**
-without fataling. The pre-emptive SSR was temporarily raised 800 → 1500 s so the idle modem can cross
-the 902 s boundary, and `scratch/a2pin/idlectrl2.sh` waits for modem-uptime ≥ 950 s, then forces the
-§6.2a capture. **Gate:** the capture is a valid control only if `d2=0` **and** `e02=1`; if the modem
-instead fataled (AP reboot ⇒ SSH lost), the idle hypothesis is falsified for this state and that is
-itself recorded. **Result: pending at the time of writing** — to be appended here when the dump lands.
+**Result — VOID by the gate.** The dump reads `c0: e02=0 b9=0 b8=0 be=0 d2=0` (all slots empty) and
+`c1: e02=0 …`. It is `d2=0` (the gate's health condition) **but `e02=0`** — so it **cannot** test the
+flag (§112.42.2), and the run is **VOID** exactly as pre-registered. **The finding is not the flag: it
+is that the healthy idle state has `e02=0`.** `e02` — the carrier's readiness threshold — is a state
+variable that differs between the healthy idle captures (`e02=0`) and the `d2=0` fatals (`e02=1`), and
+it is the confounder the decisive control must neutralise. Restored afterwards: pre-emptive SSR
+interval 1500 → 800 (the mitigation that prevents the ~902 s fatal).
 
 ### §112.42.6 Verdict + Achieved vs Expected
 
-**The ML1 meas-table axis is NOT a valid fatal observable.** Its "pre-crash flag" tracks the `d2`
-state; its headline counter (`slot[+0x01]`) is the table's resting value; and the decisive healthy
-`d2=0` control has never been captured. The ML1-wide-stall *model* (§84/§112.41) is not refuted —
-only its **meas-table measurement** is retired.
+**§112.41's phase-2 conclusion is RETRACTED** (its `slot[+0x01]=0` evidence is the table's resting
+value — §105.2). **§105.8's "confound resolved" is UNSUPPORTED** (its four controls were all `d2=1`,
+so §105.5 was never executed). And the §105.4 flag's **fatal-specificity remains UNRESOLVED**: it is
+confined to (`d2=0` **and** `e02=1`) dumps, which so far are exactly the 3 `d2=0` fatals; the healthy
+`d2=0` captures all have `e02=0`, which **mechanically** disables the flag. **A new confounder —
+`e02`, the carrier readiness threshold — is identified**; the decisive control must be a healthy
+(**`e02=1`, `d2=0`**) capture, and whether that state is reachable at all is now the open question.
+The ML1-wide-stall *model* (§84) is not refuted — only its **meas-table measurement** is retired.
 
 | | Expected | Achieved |
 | :-- | :-- | :-- |
 | A high-rate ML1-counter sampler | design + deploy | **IMPOSSIBLE** — TrustZone blocks AP RAM reads (§112.42.1) |
 | Confirm the §112.41 "producer never ran" | yes/no | **NO** — its evidence (`+01=0`) is non-discriminating (§105.2) |
-| Does the flag mark the fatal? | yes/no | **NO** — it tracks `d2` (3/3 vs 0/34); no healthy `d2=0` control |
-| Run the decisive control | yes/no | **NO** — device degraded (MM absent, bearer down) ⇒ deferred, pre-registered |
+| Does the flag mark the fatal? | yes/no | **UNRESOLVED** — confined to (`d2=0`, `e02=1`); the confounder `e02` was found |
+| Run the decisive control | yes/no | **RAN but VOID** — the idle modem survived to 966 s (`d2=0`) yet read `e02=0` (§112.42.5) |
 
 ### SOP
 
-Read-only/offline for the correction (§112.42.1–4): existing coredumps + existing tools
-(`slot2.py`, `read_crash_report.py`); no device mutation. The control is **pre-registered before
-any capture** (`PREREG_idlectrl2.md`, written 2026-10-03 before touching the device). The negative
-(§112.41 unsupported; §105.8's confound not actually closed) is stated, not hidden. A prior
-conclusion of our own is retracted. Ledger + memory updated in the same session.
+Read-only/offline for the analysis (§112.42.1–4): existing coredumps + existing tools (`slot2.py`,
+`read_crash_report.py`). The control was **pre-registered before any capture**
+(`PREREG_idlectrl2.md`, written 2026-10-03 before touching the device), and its **validity gate
+fired as designed** — the run is reported VOID rather than scored. Two negatives of our own are
+stated, not hidden: **§112.41's evidence is non-discriminating**, and **this entry's own first
+version (`b7b2ece`) over-claimed "tracks `d2`"** — corrected here after the run exposed `e02` as the
+confounder. The device was restored (pre-emptive SSR 1500 → 800). Ledger + memory updated in the
+same session.
 
 **Tools / evidence:** `scratch/hexdec/slot2.py`, `scratch/diag_patch_v12/read_crash_report.py`,
-`scratch/coredump_live_full/coredump_live/*.elf` (36), `scratch/a2pin/dump_devcd{1_872,2_1743}.bin`,
-`scratch/a2pin/PREREG_idlectrl2.md` (new); ledger §105.2/§105.4/§105.5/§105.8, §112.32, §112.41.
+`scratch/coredump_live_full/coredump_live/*.elf` (36),
+`scratch/a2pin/dump_devcd{1_872,2_1743,2_13985}.bin` (39 total), `scratch/a2pin/PREREG_idlectrl2.md`,
+`scratch/a2pin/idlectrl2.sh` + `idlectrl2.log`; ledger §105.2/§105.4/§105.5/§105.8, §112.32, §112.34/35,
+§112.41.
