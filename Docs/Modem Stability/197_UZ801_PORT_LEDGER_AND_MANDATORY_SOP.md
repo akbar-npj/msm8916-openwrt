@@ -14014,3 +14014,62 @@ and **closed the coredump avenue** (the arming is not in modem RAM). **Open:** t
 **Tools / evidence:** `scratch/a2pin/{coldcap.sh,warmcap.sh,cw_batch.py,cw_pair.py,cw_cross.py}`,
 `scratch/a2pin/{coldcap.log,warmcap.log,cw_batch*.out,cw_coldwarm.out,cw_pair*.out}`,
 `scratch/a2pin/dump_devcd{1_872,2_1743}.bin`, `scratch/android_dump/cw_diff.py`.
+
+## §112.33 ★★★★ P-POR — a TRUE power cycle does NOT disarm the modem (H2): the arming is intrinsic to the OpenWrt boot (2026-10-03)
+
+**Question (§112.29/#2 corollary, §112.32 consequence).** §112.32 showed the arming is **not** in modem RAM
+(the OpenWrt cold core is cold-like yet armed). It is set by the AP. But is it a **power-retained hardware
+latch** (which a real power-off would clear) or is it **re-created fresh every boot** by the AP's modem
+bring-up? The §112.6 "cold boot arms" datum does not distinguish these — its boot may itself have been a
+warm reset. Pre-registration: `scratch/a2pin/PREREG_por.md`.
+
+**Procedure.** Config persisted across the power cycle: `a2_pin=1`,
+`preemptive_ssr_interval=100000` (SSR disabled). The user **physically unplugged the dongle ≥30 s** (VBUS
+off ⇒ every power domain cycles, all registers reset), then replugged. Monitor `scratch/a2pin/por_mon3.sh`
+(breaks on fatal/survival), log `scratch/a2pin/por_mon3.log`.
+
+**Setup verified clean (the §112.25 confound cleared).** Fresh boot: `msm_subsys/modem`=0, **one** modem
+start (`is now up` @ AP **13.046384 s**). Data path **fully functional**: `bearer=true`, MM modem object
+present, `wwan0` up with `10.101.30.55/28`, `ping -I wwan0 8.8.8.8` = **0 % loss** (175 ms).
+
+**Result — H2 CONFIRMED.**
+
+```
+[ 13.046384] remoteproc0: remote processor 4080000.remoteproc is now up      <-- POR cold start
+[915.009945] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[915.010148] remoteproc0: crash detected ... type fatal error
+[917.223757] remoteproc0: remote processor 4080000.remoteproc is now up      <-- crash-recovery restart
+```
+
+**Modem-uptime at the fatal = 915.009945 − 13.046384 = 901.963561 s ≈ 902.0 s** — the ~902.7 s deadline,
+same signature. **A true hardware POR does NOT clear the arming.**
+
+**Consequences.**
+1. **The "power-retained latch" hypothesis is FALSIFIED.** A genuine VBUS-off power cycle (all domains
+   cycled) still leaves the modem armed ⇒ the arming is **re-created by the OpenWrt boot itself**, not a
+   leftover state. (It also re-confirms §112.6 on the current build: a single cold start fataled at 902.0 s.)
+2. Combined with §112.32 (not in modem RAM) and §112.8 (not the SMEM crash marker), the target is now
+   **unambiguously the AP's modem-bring-up path** — §112.8's named side-by-side: mainline
+   `q6v5_start()`/`q6v5_mba_load()` (`qcom_q6v5_mss.c:1594`) + `qcom_q6v5_wait_for_start()`
+   (`qcom_q6v5.c:154`) + the `handover`-IRQ proxy-unvote vs Android `modem_powerup()`→`pil_boot()`
+   (`peripheral-loader.c:685`, proxy-vote :740 / `auth_and_reset` :767 / `pil_proxy_unvote` :779) and the
+   SMSM-based `subsystem_restart` framework.
+3. ⚠ **A secondary contrast — the fatal this time did NOT reboot the AP** (`port failed halt` did not fire;
+   `up` continued 908→924 and the modem crash-recovered). So hang site B is **not** a deterministic
+   consequence of a natural fatal — it is conditional (the §112.31 instance had a preceding graceful SSR /
+   bam-dmux teardown). Worth its own note; not the focus here.
+
+**In-passing re-confirmation of the §112.25 P-NOBAM confound.** The pre-POR state had `qcom_bam_dmux`
+unloaded (my earlier `modprobe` probe failed: `Failed to request RX DMA channel: -ENODEV`), i.e. **no AP data
+path** (`wwan0` absent, no MM object). In that state the modem ran to **1128 s with no fatal** — the same
+"dormant A2 handshake ⇒ no fatal" condition as P-NOBAM. This is **not** a falsification of P-REARM: the
+contrast is clean — **with a functional data path the fatal fires at 902.0 s; without it the modem
+survives**. So the ~902.7 s fatal **requires the AP↔modem A2/data path to be active**.
+
+**Achieved vs Expected.** Expected: decide warm-reload vs intrinsic. Achieved: **H2 — intrinsic to the
+OpenWrt boot** (POR does not disarm; fatal at 901.96 s); plus a clean re-confirmation of §112.6 and the
+P-NOBAM contrast. **Open:** the specific AP bring-up step that arms the modem.
+
+**Tools / evidence:** `scratch/a2pin/{PREREG_por.md,por_mon.sh,por_mon2.sh,por_mon3.sh}`,
+`scratch/a2pin/{por_mon2.log,por_mon3.log}`. Device restored to the shipped config
+(`preemptive_ssr_interval=800`, `a2_pin=1`).
