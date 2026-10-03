@@ -72,6 +72,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.50 (mitigation hardening — fail-safe fallback anchor + fatal observer)** — audit of
+  `modem-bearer-watchdog` found two real gaps, both fixed and deployed. **(1)** When `get_modem_uptime()`
+  could not read the kernel's "is now up" line (dmesg evicted + no saved anchor), the old loop only
+  *warned* and left the modem **unprotected** — the ~902.7 s deadline would simply expire. It now falls
+  back to `SECS_SINCE_SSR`, a local timer since the last known restart (own SSR or observed fatal).
+  **(2)** The loop never read dmesg, so a mitigation failure was **silent**; a fatal observer now counts
+  `fatal error received` lines, logs each NEW site, and resets the local timer (baseline seeded at
+  startup). Unit-tested with a mock dmesg; `sh -n` clean; deployed (`67136b8b…` → `cdb8c7db…` → `9a31d83`);
+  backup `/root/modem-bearer-watchdog.pre-harden.bak`. Commits `fa47a85`, `9a31d83`.
 - **§112.49 (PRE-REGISTRATION + RESULT — stock-firmware wedge-recoverability run)** — device run with the
   one-change discipline (`preemptive_ssr_enabled` 0→1): stock firmware (no patch), `a2_pin=1`, pre-emptive
   SSR **OFF**, continuous `ping -I wwan0` traffic, stall-watchdog fallback. The event at modem uptime

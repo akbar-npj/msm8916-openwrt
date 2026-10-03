@@ -15724,3 +15724,54 @@ the same session.
 **Tools / evidence:** `scratch/wedge_run_20261003/dump_devcd1_3334.bin` (md5 `580be11b…`),
 `scratch/diag_patch_v12/read_crash_report.py`, `/root/wedge_state.log`, `/root/wedge_run.log`; ledger
 §105.7, §112.23/24, §112.34/35, §112.48; Doc 162.
+
+---
+
+## §112.50 ★★ MITIGATION HARDENING — a fail-safe fallback anchor + a fatal observer (2026-10-04)
+
+**Instruction.** "Harden the mitigation." Audit of `modem-bearer-watchdog` (the pre-emptive-SSR lever)
+against its own logs found two real robustness gaps; both are fixed, deployed and verified.
+
+### Gap 1 — the modem could be left UNPROTECTED when the anchor is unknown
+
+`get_modem_uptime()` reads the kernel's `remote processor 4080000.remoteproc is now up` line from
+dmesg; if dmesg has evicted it **and** `/tmp/modem_up_anchor` is gone, it returns empty. The old loop
+only **warned** ("the ~902.7s deadline cannot be pre-empted until this is fixed") and did nothing — the
+~902.7 s deadline would then simply expire, i.e. the modem was left **unprotected** in exactly the
+state the mitigation exists to prevent.
+
+**Fix.** Fall back to `SECS_SINCE_SSR`, a local timer (seconds) since the last restart the watchdog
+knows about — either its **own** pre-emptive SSR or an **observed** fatal (crash recovery re-arms the
+deadline). Over-counting is **safe** (we restart early); under-counting is not, hence a fatal resets
+it. The unknown-anchor warning is now emitted once per episode and states that the fallback is active.
+
+### Gap 2 — a mitigation failure was INVISIBLE
+
+The loop never read dmesg, so if a fatal fired anyway (wrong interval, missing `a2_pin`, a slow check
+loop, or a site the mitigation does not cover) **nothing in the log said so** — the failure was
+silent. **Fix.** A fatal observer counts the modem's `fatal error received` lines each pass, logs
+each **NEW** site, and resets `SECS_SINCE_SSR`. The baseline is **seeded at startup** so only NEW
+fatals are reported (a fatal that predates the watchdog run is history, not a fresh failure).
+
+### Verification
+
+| check | result |
+| :-- | :-- |
+| logic unit-test (mock dmesg) — observer + fallback | **PASS** (0→1 and 1→3 detected with sites; fallback fires at 800 s) |
+| `sh -n` on the device | **PASS** |
+| deployed script md5 | `67136b8b…` (HEAD, byte-identical to the device before the change) → `cdb8c7db…` → seed `9a31d83` |
+| observer live | **PASS** — first pass logged `MODEM FATAL OBSERVED (count 0 -> 1) … lte_ml1_sleepmgr_stm.c:4054`; after the seed fix it logs only `Fatal observer: 1 pre-existing modem fatal(s) … (baseline)` |
+| backup | `/root/modem-bearer-watchdog.pre-harden.bak` (md5 `67136b8b…`) |
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Find a real robustness gap | ≥1 | **2** (unprotected-on-unknown-anchor; invisible-failure) |
+| Fix without breaking the working mitigation | yes | **YES** — byte-identical pre-state confirmed, backed up, unit-tested, deployed |
+| Make a mitigation failure visible | yes | **YES** — the fatal observer |
+
+**SOP.** One change at a time; the device's script was **byte-identical to the tracked HEAD**
+(`67136b8b…`) before the change, so no device-local edit was clobbered; backed up before deploy;
+source committed (`fa47a85`, `9a31d83`); no firmware change. Reversible: restore the backup, or set
+`preemptive_ssr_enabled=0`. Ledger + CHANGELOG + memory updated in the same session.
