@@ -31,9 +31,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      (§112.44)**: the flag is the deterministic output of the event-0x10 handler
      (which clears `d2` then arms), so `(d2=0, armed)` is forced by construction
      and the probabilistic Stage 2 is **superseded** (a snapshot cannot measure
-     persistence). **Open decision:** whether to build the deterministic
-     v8-style firmware ring on the armer/writer/gate (higher-risk) to measure
-     persistence, or accept the §112.44 structural result as final.
+     persistence). The deterministic firmware-ring follow-up was **approved,
+     built and run** — **P-MEASRING, DONE (§112.45)**: the technique is proven
+     (boot-transparent, captured the real fatal), but the literal "ARM stopped
+     first" answer is **confounded** (the event-0x10 stream is early-concentrated
+     and stops 814 s before the fatal). **Open next:** a **v2** ring on the
+     **state-20 watchdog armer `FUN_c02fda90`** (+ its cancel/expiry
+     `FUN_c02d7bd0`) that logs **effective** write/drain, per §112.45.5.
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a
@@ -47,6 +51,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.45 (P-MEASRING — the measurement-ring firmware instrument)** — a deterministic firmware ring
+  (the v7/v8 cave technique) retargeting the **5 literal `call` sites** of the three ML1
+  measurement-scheduler primitives (1 ARM `FUN_c01ecbf4` + 2 WRITE `FUN_c01bc8e0` + 2 DRAIN
+  `FUN_c01bc934`), ring on save page `0xc1455000`, entered by `call` (r31 = packet return addr) and
+  tail-jumping (`jumpr`, r31 intact) ⇒ **semantically transparent**. Offline-verified (hash PASS,
+  read-back disassembly) **before any device write**; boot gate PASSED; captured the real fatal
+  (`lte_ml1_common_timer.c:390`, modem ≈901.83 s, coredump `dump_devcd1_916.bin`, md5 `8912a618…`).
+  Ring valid (G1–G5, count 389 239). **Literal pre-registered answer = class 1 "ARM stopped first"**
+  (`last_ts[ARM]=88.0 s` vs WRITE `901.4 s` / DRAIN `901.8 s`) — **but CONFOUNDED and NOT promoted**:
+  the modem stayed fully healthy for **813.8 s after the ARM stream stopped**, the ARM/event-0x10
+  stream is **early-concentrated** (5 079 arms at ~58/s for 88 s, then 0 in the last 128 events;
+  ARM:WRITE = 1:38), and the WRITE/DRAIN hooks fire on **every call** (incl. no-op iterations) so the
+  192 k counts over-count (the armed slot's `+01` is still 0 at the fatal). ⇒ the instrument targeted
+  the **wrong armer**: the fatal's armer is the **state-20 watchdog armer `FUN_c02fda90`**, not
+  event-0x10. **Also fixes a real bug in the v7 `call` re-encode**: bit 24 (field sign) must be
+  **set from the sign of the new field**, not preserved from the old word — validated against all 5
+  stock sites **and** the LLVM toolchain's own encoder. **Rolled back to stock firmware** (md5-verified)
+  + config restored (`preemptive_ssr_enabled=1`). Pre-registered (`PREREG_meas_ring.md`); a negative of
+  our own is stated. Tools: `scratch/meas_ring/{build,read}_meas_ring.py`, `PREREG_meas_ring.md`.
 - **§112.44 (P-FLAGPOS Stage 1 — the §105.4 flag's mechanism)** — the offline PC-STRUCT test the user's
   positive-control request called for. The **event-0x10 handler `FUN_c01ecbf4` clears `d2` and then arms
   the ring**: `FUN_c01bc724`'s `memset(carrier+0xbc, 0, 0x12c)` covers **`+0xd2`** (and `+0xbe`), and

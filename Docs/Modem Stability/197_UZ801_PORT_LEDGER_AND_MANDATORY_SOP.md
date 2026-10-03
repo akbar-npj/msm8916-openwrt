@@ -15097,3 +15097,136 @@ updated in the same session.
 `scratch/firmware/modem.asm` (`c01bc724`, `c01bc7f0`, `c01bc8e0`, `c01bc934`, `c01cfb20`, `c01cfb48`,
 `c01ecbf4`, `c0228c90`), `modem_full_decompiled.c`; coredumps `up915.42`, `up915.44`, `up1818.92`
 (§112.42's `d2=0` fatals); `scratch/a2pin/PREREG_posctrl.md`; ledger §105.4/§105.8, §106, §112.42/§112.43.
+
+## §112.45 ★★★★ P-MEASRING — THE MEASUREMENT-RING FIRMWARE INSTRUMENT WORKS AND CAPTURES THE `lte_ml1_common_timer.c:390` FATAL; LITERAL ANSWER = "ARM STOPPED FIRST", BUT **CONFOUNDED** (the event-0x10 ARM stream is early-concentrated and stops **814 s before** the fatal while the modem stays healthy) (2026-10-03)
+
+Task #243–#248. Pre-registered in `scratch/meas_ring/PREREG_meas_ring.md` (question, decision rule,
+validity gate G1–G5, falsifiers) **before** the build/deploy/run.
+
+### §112.45.1 The instrument (built, offline-verified, deployed)
+
+A firmware ring in the dead `nop` run of `modem.b05`, entered by retargeting the **5 literal `call`
+sites** of the three ML1 measurement-scheduler primitives — a COMPLETE census (1 ARM + 2 WRITE +
+2 DRAIN; verified by `grep`):
+
+| event | site VA | original | → cave |
+| :-- | :-- | :-- | :-- |
+| **ARM** | `0xc01cfb48` (dispatcher, type 0x10) | `call 0xc01ecbf4` | `cave_ARM` `0xc003054c` |
+| **WRITE** | `0xc01df174` (STI `FUN_c01df100`) | `call 0xc01bc8e0` | `cave_WRITE` `0xc003055c` |
+| **WRITE** | `0xc01e4304` (ODRX `FUN_c01e41d8`) | `call 0xc01bc8e0` | `cave_WRITE` |
+| **DRAIN** | `0xc01dda28` (STI `FUN_c01dc5d0`) | `call 0xc01bc934` | `cave_DRAIN` `0xc003056c` |
+| **DRAIN** | `0xc01e3a88` (ODRX `FUN_c01e3a54`) | `call 0xc01bc934` | `cave_DRAIN` |
+
+* Cave = 152 B (llvm-mc hexagonv60, **object path** — the v7 `--show-encoding` path drops the
+  `jump log` PC-relative fixup). Scratch = r5..r11 (caller-saved; args are r0..r4 — the targets take
+  ≤5 args — so r0..r4, `gp/fp/sp/lr` are never touched). Entered by `call` ⇒ r31 = the packet return
+  address; tail-jumps (`jumpr r7`, r31 intact) into the real target ⇒ **semantically transparent**.
+* Ring on save page `0xc1455000` (the v7/v8-proven byte-identical-zero page): `+0x00 magic 0x52494e47`,
+  `+0x04 count`, `+0x10 3×{count,last_ts,last_arg}`, `+0x40 128×16 B {seq,tag,site,ts}`. Timestamp =
+  the modem's own `0xec121000` counter (204800 Hz; **independently re-confirmed here** — the ODRX
+  cadence is 24.57 M ticks = 120.0 s ⇒ 204 750 Hz).
+* **★ The `call` re-encode bug the v7 formula hid.** The v7 `call_bytes` preserved bit 24 from the OLD
+  word; that is only correct when old and new fields share a sign. Here the ARM stock field is
+  POSITIVE (bit24=0) but the cave target is BACKWARD (bit24 must be 1). The correct layout (fitted
+  against all 5 stock sites AND the **LLVM toolchain's own encoder** at the real PC) is
+  `w[31:25]`=const, **`w[24]=sign(field)`**, `w[23:16]=field[21:14]`, `w[15:14]`=packet parse bits
+  (**site-specific, must be preserved**), `w[13:0]=field[13:0]`. The builder was fixed; read-back
+  disassembly then resolved every site to its cave.
+* **Build verified:** `ufi001b_hash_tool.py verify` → `Overall: PASS`, 0 MISMATCH; the patched bytes
+  disassemble back to the intended cave; b15 = 16 differing bytes (5 call sites), b05 = the cave only.
+* **Deployed:** backed up stock to `/root/modem_stock_backup/` (md5s equal the extracted stock image),
+  staged to `/tmp`, installed to `/lib/firmware/`, md5-verified, `sync`, reboot.
+* **BOOT GATE PASS:** `MBA booted without debug policy, loading mpss` (AP 12.08 s) → `remote processor
+  is now up` (12.78 s) → CMD_OPEN ch0..7 → `SSR powerup: modem pc_state=1`. **No crash-loop** ⇒ the
+  cave is transparent at boot. LTE attached (wwan0 `10.87.141.195/29`, `mmcli` connected/lte/91 %).
+
+### §112.45.2 The capture
+
+Run config: `a2_pin=1` (suppresses the cold-boot `a2_power.c:1189` fatal; §112.23), **pre-emptive SSR
+DISABLED** (`preemptive_ssr_enabled=0`) so the ~902 s fatal is allowed to fire. Continuous traffic
+(`/root/traffic.sh`, ping 8.8.8.8/25 s — **129 ok / 12 fail**; the single mid-run FAIL is at the fatal).
+
+* **FATAL: `lte_ml1_common_timer.c:390` at AP 914.612776 s** (modem uptime **≈901.83 s**) — exactly
+  the target (cf. §111/§112.9). SSR teardown/recovery clean (T0..T4 logged, modem back up 916.30 s).
+* **Coredump captured** by the existing `dumpwatch.sh` → `/root/dumps/dump_devcd1_916.bin`
+  (85 398 475 B, md5 `8912a6186b0f915a8e2991ac7f9f1e07`), pulled to `scratch/meas_ring/dumps/`.
+
+### §112.45.3 The result
+
+**G1 PASS** magic `0x52494e47`; **G2 PASS** all per-tag counts > 0; **G3 PASS** ring seq monotonic
+389112..389239; **G4 PASS** real fatal with SSR off; **G5 PASS** last_ts non-zero/consistent.
+Instrument **count = 389 239**. Modem-boot ts ≈ **202.554 M** (from the fatal).
+
+| tag | count | last_ts | modem-uptime of last event |
+| :-- | --: | --: | --: |
+| **ARM** (event 0x10) | 5 079 | 220 584 186 | **88.0 s** |
+| **WRITE** (`FUN_c01bc8e0`) | 192 341 | 387 168 143 | 901.4 s |
+| **DRAIN** (`FUN_c01bc934`) | 191 819 | 387 248 781 | 901.8 s (the fatal) |
+
+Ring (last 128 events, ts 220.757 M..387.249 M): tag histogram **{WRITE:65, DRAIN:63, ARM:0}**;
+site histogram **{WRITE(STI):59, DRAIN(STI):57, WRITE(ODRX):6, DRAIN(ODRX):6}**. The tail shows two
+streams: STI WRITE/DRAIN dense until ts 239.78 M (**modem 181.8 s**, then stop), then ODRX WRITE/DRAIN
+at a **120 s** cadence (1290→1890 s scale) to the fatal.
+
+**Literal pre-registered answer: class 1 — ARM stopped first** (`last_ts[ARM] ≪ last_ts[WRITE] ≈
+last_ts[DRAIN]`; gap 166.6 M ticks = **813.8 s**). The table at the fatal confirms the §105.4 flag:
+`c0 e02=1 b9=2 b8=0 d2=0`, `slot2 +00=1 +01=0 +08=0 cons=0` — exactly §112.44's post-arm state.
+
+### §112.45.4 ★ THE CONFOUND — the class-1 reading is an ARTIFACT, not the fatal trigger
+
+* **The modem stayed fully healthy for 813.8 s AFTER the ARM stream stopped** (LTE attached, 129/141
+  pings OK, no SSR until 914.6 s). A stream whose cessation precedes the fault by 14 min, with full
+  function in between, is **not** a causal "step that stopped first".
+* **The ARM/event-0x10 stream is early-concentrated, not periodic.** 5 079 arms at ~58/s for the first
+  88 s (initial measurement/acquisition), then **0 arms in the last 128 events** and 0 for the final
+  814 s. The ARM:WRITE ratio is **1:38**, so the ARM hook does **not** track the arming of the slots
+  the WRITE/DRAIN operate on — `FUN_c01bc7f0` (the armer) has exactly **one** reference in the whole
+  image (`jump` at `0xc01ecc04`, inside `FUN_c01ecbf4`), so event 0x10 is the ONLY armer and it simply
+  stopped.
+* **The WRITE/DRAIN streams are dominated by loop calls, not effective writes/drains.** `FUN_c01bc8e0`
+  and `FUN_c01bc934` both *begin* with `if slot[b9]+0x00 == 1`; the hooks fire on every CALL, so 192 k
+  "WRITEs" include the no-op iterations. The armed slot's `+01` is still **0** at the fatal ⇒ **no
+  effective write ever resolved the pending arm**, even though the WRITE hook kept firing.
+* **Sub-stream detail:** the STI variants (WRITE `FUN_c01df100`, DRAIN `FUN_c01dc5d0`) stop at **181.8 s**;
+  only the **ODRX** variants run to the fatal. So "WRITE/DRAIN active at the fatal" is true only of ODRX.
+
+⇒ **The instrument does NOT cleanly answer the causal question.** It confirms the *mechanics*
+(§112.44: the fatal table holds an armed, unwritten slot) and it proves the instrument is sound, but
+"ARM stopped first" is a benign post-acquisition behaviour, not the trigger.
+
+### §112.45.5 The actionable finding — the instrument targeted the wrong armer
+
+The fatal is `lte_ml1_common_timer.c:390` = the **state-20 50 ms watchdog** (§111/§112.9), whose armer is
+**`FUN_c02fda90`** (the SERV-MEAS *request* sender), **NOT** event 0x10 (`FUN_c01ecbf4` = the measurement
+*slot* armer, §112.44). The two are different paths in different segments. A **v2** instrument that
+answers "which step stopped first" must hook the **state-20 armer** (`FUN_c02fda90` / its two call sites
+`0xc0326874`, `0xc033c0f4`) plus the state-20 **cancel/expiry** (`FUN_c02d7bd0`), and should log the
+**effective** write/drain (inside the `+0x00==1` branch), not the call. The v7 cave technique is proven
+and reusable; only the hook set changes.
+
+### §112.45.6 Achieved vs Expected
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Instrument builds, hashes PASS, disassembles back | yes | **YES** (§112.45.1) |
+| Boots transparent (no crash-loop) | yes | **YES** — MBA→mpss→up, LTE attached (§112.45.1) |
+| Captures the real fatal | yes | **YES** — `lte_ml1_common_timer.c:390` @ modem 901.83 s (§112.45.2) |
+| Ring valid (G1–G5) | yes | **YES** — magic, count 389 239, monotonic, all tags > 0 (§112.45.3) |
+| Which step stops first? | ARM/WRITE/DRAIN | **literal = ARM (class 1)**, but **CONFOUNDED** (§112.45.4) |
+| Answers the causal question | yes | **NO** — the ARM stream is early-concentrated; targeted the wrong armer (§112.45.5) |
+
+### §112.45.7 SOP
+
+Pre-registered (`PREREG_meas_ring.md`) **before** build/deploy. One change at a time (firmware patch
+only; `a2_pin` held; pre-emptive SSR off for the run). Offline verification before any device write
+(hash PASS + read-back disassembly). **Rolled back to stock firmware after the capture** — restored the
+4 files from `/root/modem_stock_backup/`, md5-verified (`b15 1d0a8e74…`, `b05 332f000b…`,
+`b01 b85b86ce…`, `mdt 1a6f9507…`), `preemptive_ssr_enabled` 0→1, `sync`, reboot; post-reboot LTE
+attached (wwan0 `10.131.141.41/30`) and `ping -I wwan0 8.8.8.8` = 3/3, 0 % loss.
+**A negative of our own is stated**: the instrument's literal answer is confounded and the causal
+question is NOT answered; the run's value is the proof the technique works + the identification of the
+correct v2 hook set. Ledger + CHANGELOG + memory updated in the same session.
+
+**Tools / evidence:** `scratch/meas_ring/build_meas_ring.py`, `read_meas_ring.py`, `PREREG_meas_ring.md`,
+`dumps/dump_devcd1_916.bin`; `scratch/hexdec/slot2.py`; `ufi001b_hash_tool.py`; device
+`/root/dumpwatch.sh`, `/root/dumps/`; ledger §105.4/§105.8, §111, §112.9, §112.23, §112.44.
