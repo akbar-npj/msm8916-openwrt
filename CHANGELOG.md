@@ -72,6 +72,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.55 (THE FATAL IS A TIMER-EXPIRY CALLBACK — and the 12-state map; CORRECTS §112.54.3)** —
+  continuing §112.54's read-only next steps 1–2. **(1) The sleepmgr STM has 12 states**, not 4
+  (class `+0x14 = 12`; table `0xc1a94fc8` runs exactly 12×0x10 B and ends at the message table
+  `0xc1a95088`): `INACTIVE, ONLINE, ONLINE_SLEEP_WAIT, SLEEP, ONLINE_WAKEUP, TTL_WAIT,
+  LIGHT_SLEEP_WAIT, LIGHT_SLEEP, LIGHT_SLEEP_WAKEUP, OFFLINE_WAKEUP, OFFLINE_RECORD,
+  OFFLINE_SLEEP_WAIT` (live `2 = ONLINE_SLEEP_WAIT` unchanged). **(2) Assert texts resolved**
+  (`a2_descr.py`): `0xc3c81a40` = `lte_ml1_sleepmgr_stm.c:4054` `Assert stm_get_state (
+  LTE_ML1_SLEEPMGR_STM ) == SLEEP failed`; `0xc3c81a50` = `…:4089` and `0xc3c81a00` = `…:10903`
+  are `serv_cell != NULL`. The decompressed ERR_FATAL record in **both** coredumps reads exactly the
+  4054 text. **(3) `FUN_c039ef80` is a software-TIMER EXPIRY CALLBACK, not a handler**: the fatal
+  stack carries the scheduler array base `0xc1d9fef0`, the id-4 slot `0xc1da0830`, the stride
+  `0x940 (=4×0x250)`, the stamp `0xe_e81861fe`, and the return address `0xc0b66fcc` — which
+  disassembles to `c0b66fbc: memb(r20)=#3` (slot state → 3) … `c0b66fc0: r0 = memw(r17+0x70)` …
+  `c0b66fc8: callr r0`. **(4) Registration/arm:** `FUN_c0b66ee0(id,fn)`/`FUN_c0b66f00(id,fn)` write
+  `slot+0x70`/`slot+0xf0`; `FUN_c0396fa0` writes `slot+0x70 = FUN_c039ef80`, `slot+0xf0 =
+  FUN_c039eed0`, then **arms** (`0xc0b663e0`). **(5) ★ CORRECTION:** `FUN_c0396fa0`'s **only** caller
+  is `c0398764`, inside the **`OFFLINE_SLEEP_WAIT`** handler `0xc03986b0` — so §112.54.3's
+  "`ONLINE_SLEEP_WAIT` registers `FUN_c039ef80`" is **WRONG** (a Ghidra merge artifact). **(6)**
+  `FUN_c039eed0` arms the `ctx+0x4a8` watchdog and sends `STMR_ON_REQ 0x042b0206`; `FUN_c039ef80`
+  cancels timer 4 (`func_0xc0b674b0(4)`). The full 31-entry sleepmgr message table is recovered.
+  ⇒ **the fatal is a sleep-cycle timer expiring while the STM is mid-sleep-entry** (the §112.54
+  "deadlock" framing stands, now pinned to a timer). **OPEN:** why the arm site is state 11 while the
+  machine is state 2; the timer period (~0.313 s at 19.2 MHz); why `ONLINE_SLEEP_WAIT → SLEEP` never
+  completed. ⚠ the older `lte_ml1_common_timer.c:390` attribution does **not** match these dumps'
+  fatal record. Offline, read-only; no device write, no patch.
 - **§112.53.1 (P-SCHED1 RESULT — activity ARMS, it does not GATE)** — the pre-registered early-only-traffic
   run produced a **FATAL at modem uptime `900.622162 s`** (`lte_ml1_sleepmgr_stm.c:4054`), **600 s after
   traffic stopped at mu 300 s**. `P-SCHED1-ARM` **CONFIRMED**, `P-SCHED1-GATE` **FALSIFIED**,
@@ -95,6 +120,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   handler pointers finds each **exactly once** — `FUN_c0396f30`@`0xc1a94fec` (state-table +0x24),
   `FUN_c039ef80`@`0xc1da08a0`, `FUN_c039eed0`@`0xc1da0920`. ⇒ **the fatal function is entered as a
   handler only while the STM is in `ONLINE_SLEEP_WAIT` — the state it then asserts it is not in.**
+  ⚠ **CORRECTED by §112.55.5:** the `c0396fa0` registration is a *separate* function whose only caller
+  is the `OFFLINE_SLEEP_WAIT` handler; `FUN_c039ef80` is a **timer callback**, not a state handler.
   **Mechanism:** the sleep manager is **deadlocked mid-sleep-entry** — it left `ONLINE`, entered
   `ONLINE_SLEEP_WAIT` (a `GO_TO_SLEEP_REQ` issued, completion watchdog armed), and the sleep **never
   landed** (`SLEEP` never reached); a later event dispatches `FUN_c039ef80`, which asserts `state ==

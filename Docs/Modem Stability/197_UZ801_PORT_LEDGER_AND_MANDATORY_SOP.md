@@ -16098,6 +16098,11 @@ coredump verification. ⇒ `ONLINE_SLEEP_WAIT` is not an artifact of one run.
 
 ### §112.54.3 What `FUN_c039ef80` is: a handler **registered by the `ONLINE_SLEEP_WAIT` state**
 
+> ⚠ **CORRECTED by §112.55.5.** The registration/arm code at `c0396fa0` is **NOT part of
+> `FUN_c0396f30`** (a Ghidra merge artifact): it is a separate function `FUN_c0396fa0` whose **only
+> caller is the `OFFLINE_SLEEP_WAIT` (state 11) handler `0xc03986b0`**, and `FUN_c039ef80` is a
+> **timer-expiry callback** (slot id 4), not a state/message handler. Read §112.54.3 with §112.55.
+
 The `ONLINE_SLEEP_WAIT` entry handler `FUN_c0396f30` (state-table idx 2) registers **two** handlers:
 
 ```
@@ -16196,3 +16201,159 @@ single function, they are two functions' asserts that happen to sit adjacent in 
 **SOP.** Offline, read-only: the same §112.49 coredump (md5 `580be11b…`) + the stock HMU05 ELF; no
 device write, no patch. Tools: `scratch/a2_descr.py`, `scratch/read_stack.py`, `llvm-objdump`,
 Ghidra (`DecompList.java`). Ledger + CHANGELOG + memory updated in the same session.
+
+## §112.55 ★★★★★ THE FATAL IS A **TIMER-EXPIRY CALLBACK** — `FUN_c039ef80` is timer slot id 4's `+0x70` callback, fired by the scheduler; plus the full **12-state** map (2026-10-04)
+
+**Instruction.** Continue §112.54's read-only next steps 1–2 — *"determine which message/event
+dispatches `FUN_c039ef80` (id 4); is it an incoming `*_CNF` (the out-of-order hypothesis) or a
+timer?"*
+
+**Result — steps 1–2 close, and §112.54.3 is CORRECTED.** `FUN_c039ef80` is **not** a state/message
+handler at all: it is a **software-timer expiry callback**. The fatal is **a timer firing**. This
+re-frames the "ML1 stall": it is a **sleep-cycle timer expiring while the sleep manager is still
+mid-sleep-entry**.
+
+### §112.55.1 The sleepmgr STM has **12 states**, not 4 (the state table is 0xC0 B)
+
+The class `0xc1a94f70` field `+0x14 = 0x0c` (12) is the state count; the table at `0xc1a94fc8`
+(0x10 B entries `{char *name; void *entry; void *f2; void *f3}`) runs exactly 12 entries and ends
+**exactly** where the message table begins (`0xc1a95088`):
+
+| idx | name | entry | f2 |
+| :-- | :-- | :-- | :-- |
+| 0 | `INACTIVE` | `0xc0396a40` | — |
+| 1 | `ONLINE` | `0xc0396c50` | — |
+| **2** | **`ONLINE_SLEEP_WAIT`** | **`0xc0396f30`** | `0xc0397380` |
+| **3** | **`SLEEP`** | **`0xc03973a0`** | — |
+| 4 | `ONLINE_WAKEUP` | `0xc0397f30` | `0xc03982b0` |
+| 5 | `TTL_WAIT` | `0xc0398410` | `0xc0398590` |
+| 6 | `LIGHT_SLEEP_WAIT` | `0xc0397a30` | — |
+| 7 | `LIGHT_SLEEP` | `0xc0397d10` | `0xc0397dd0` |
+| 8 | `LIGHT_SLEEP_WAKEUP` | `0xc0397ea0` | `0xc0397ee0` |
+| 9 | `OFFLINE_WAKEUP` | `0xc03985f0` | — |
+| 10 | `OFFLINE_RECORD` | `0xc0398670` | — |
+| 11 | `OFFLINE_SLEEP_WAIT` | `0xc03986b0` | — |
+
+⇒ §112.54's `INACTIVE/ONLINE/ONLINE_SLEEP_WAIT/SLEEP` are the first **four of twelve**; the live
+state `2` = `ONLINE_SLEEP_WAIT` (§112.54) stands unchanged.
+
+### §112.55.2 The assert messages (resolved) — and the record text in BOTH dumps
+
+`scratch/a2_descr.py` on the §112.49 coredump resolves the three adjacent descriptors:
+
+| descriptor | file:line | message |
+| :-- | :-- | :-- |
+| `0xc3c81a40` | `lte_ml1_sleepmgr_stm.c:4054` | `Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM ) == SLEEP failed: ` |
+| `0xc3c81a50` | `lte_ml1_sleepmgr_stm.c:4089` | `Assert serv_cell != NULL failed: ` |
+| `0xc3c81a00` | `lte_ml1_sleepmgr_stm.c:10903` | `Assert serv_cell != NULL failed: ` |
+
+The **decompressed ERR_FATAL record itself** (`0xc35b1384`, the first word of the fatal stack) reads,
+byte-for-byte in **both** coredumps: `Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM ) == SLEEP failed:`.
+⇒ the fatal site is `lte_ml1_sleepmgr_stm.c:4054`, on the **`== SLEEP`** assert — **not**
+`lte_ml1_common_timer.c:390` (an older attribution; see §112.55.6).
+
+### §112.55.3 `FUN_c039ef80` is a **timer callback** — proof from the fatal stack (both dumps)
+
+The fatal stack (`SP 0x8ae992d8` → modem VA `0xc46992d8`) is **saturated with one timer slot**:
+
+| stack off | value | meaning |
+| :-- | :-- | :-- |
+| `+0x078` | `0xc1d9fef0` | **the scheduler/timer array base** |
+| `+0x054`,`+0x094` | `0x00000940` | **`4 × 0x250`** — the slot stride for id 4 |
+| `+0x0a4` | `0xc1da0830` | **slot id 4 = `0xc1d9fef0 + 4*0x250`** |
+| `+0x0b0/+0x0b4` | `0xe81861fe 0000000e` | the timer's 64-bit stamp `0xe_e81861fe` |
+| **`+0x0ac`** | **`0xc0b66fcc`** | **the return address of the callback invocation** |
+
+The caller disassembles to exactly that:
+
+```
+c0b66fbc: memb(r20) = #0x3        ; r20 = slot+4  -> set slot STATE = 3 (firing)
+c0b66fc0: r0 = memw(r17+0x70)     ; r0 = slot[+0x70]  (the registered callback)
+c0b66fc4: if (cmp.eq(r0,#0)) jump 0xc0b66fec
+c0b66fc8: callr r0                ; <-- calls FUN_c039ef80 ; return address = 0xc0b66fcc
+```
+
+`r17` is the id-4 slot (`0xc1da0830`), and the coredump confirms `slot[+0x70] = 0xc039ef80` and
+`slot[+0x04] = 3` (the value the dispatcher just wrote). ⇒ **`FUN_c039ef80` was invoked by the
+software-timer expiry path**, not by a message dispatch. (The module is the scheduler: `0xc0b6xxxx`,
+19.2 MHz arithmetic, `deaddead` poison, per-slot `+0x70`/`+0xf0` callbacks.)
+
+### §112.55.4 The callbacks: registration, arm, cancel
+
+Two trivial setters write the slot callbacks (both `id*0x250`-indexed, array base `0xc1d9fef0`):
+
+```c
+void FUN_c0b66ee0(int id, void *fn) { *(u32*)(0xc1d9ff60 + id*0x250) = fn; }  // slot+0x70
+void FUN_c0b66f00(int id, void *fn) { *(u32*)(0xc1d9ffe0 + id*0x250) = fn; }  // slot+0xf0
+```
+
+The sleepmgr's helper `FUN_c0396fa0(ctx)` writes **both** and then **arms** the timer
+(`0xc0b663e0`, which sets `slot+0x04 = 2` and computes the next expiry):
+
+| slot field | value (id 4) | meaning |
+| :-- | :-- | :-- |
+| `slot+0x70` = `0xc1da08a0` | **`FUN_c039ef80`** | **callback #1 (the fatal one)** |
+| `slot+0xf0` = `0xc1da0920` | **`FUN_c039eed0`** | callback #2 |
+| `slot+0x04` = `0xc1da0834` | `3` at the fatal | slot state (0 idle / 2 armed / 3 firing) |
+
+`FUN_c039eed0` (callback #2) **arms the `ctx+0x4a8` watchdog** (if `ctx+0x394 != 1`), stamps
+`ctx+0x474`, and **sends `LTE_ML1_SLEEPMGR_STMR_ON_REQ` (`0x042b0206`)**. `FUN_c039ef80` (callback #1)
+asserts `state == SLEEP`, then does sleep accounting and **cancels timer 4** (`func_0xc0b674b0(4)`).
+
+### §112.55.5 ★ CORRECTION to §112.54.3 — the arming helper's ONLY caller is `OFFLINE_SLEEP_WAIT`
+
+`FUN_c0396fa0` has **exactly one call site in the whole firmware**: `c0398764`, inside
+`FUN_c03986b0` — the **`OFFLINE_SLEEP_WAIT` (state 11)** handler. `FUN_c0396f30`
+(`ONLINE_SLEEP_WAIT`, state 2) contains **no** registration/arm code (no reference to
+`0xc0b663e0`/`0xc0b66ee0`/`0xc0b66f00`). ⇒ **§112.54.3's "the `ONLINE_SLEEP_WAIT` entry handler
+registers `FUN_c039ef80`" is WRONG**: the registration/arm is done by `OFFLINE_SLEEP_WAIT`. How a
+timer armed by state 11 fires while the STM is in state 2 is the **new open question** (§112.55.7).
+
+### §112.55.6 The full 31-entry sleepmgr message table (names recovered)
+
+`0xc1a95088`, `{char *name; u32 id}`, 31 entries — includes the sleep flow
+`ENABLE_SLEEP_REQ 0x042b0200`, `GO_TO_SLEEP_REQ 0x042b0209`, `WAKEUP_REQ 0x042b0205`,
+`STMR_ON_REQ 0x042b0206`, `RF_SLEEP_CNF 0x042b0802`, `RF_WAKEUP_CNF 0x042b0801`,
+`RF_ENTER_CNF 0x042b0803`, `LL1_SYS_SLEEP_CNF 0x040a0808`, `LL1_ASYNC_WAKEUP_CNF 0x040b0806`,
+`OFFLINE_ENABLE_REQ 0x042b020f`, `WMGR_RESULT_IND 0x042b040b`, `TRM_GRANT_CB_IND 0x042b040d`, …
+
+### §112.55.7 ⇒ THE REFINED MECHANISM — and what is still OPEN
+
+**The fatal is a sleep-cycle timer expiry, not a bad message.** The sleep manager runs a software
+timer (slot id 4); its expiry callback `FUN_c039ef80` requires `stm_get_state == SLEEP`. At ~900 s the
+timer fired while the STM was in **`ONLINE_SLEEP_WAIT`** ⇒ ERR_FATAL. The §112.54 "deadlock
+mid-sleep-entry" framing **stands**, now mechanically pinned to a **timer expiry**.
+
+**Observations from the coredump (context `0xc20f1680`):** `ctx+0x394 = 0`; `ctx+0x5b0 = 0x7d`;
+`ctx+0x4a8+0x1c = 0xdeaddead` (the `ctx+0x4a8` watchdog disarmed); `ctx+0x474 = 0x2481ab`;
+`ctx+0x478 = 0x4e20 (20000)`. The `ctx+0x2d0`/`ctx+0x660` pair holds a **previous** `FUN_c039ef80`
+stamp (`0xe_e7bca520`, ~6.01 M ticks before the fatal stamp `0xe_e81861fe`) ⇒ **`FUN_c039ef80` ran
+before**, i.e. the timer re-fires (periodic), and an earlier expiry did *not* assert — consistent with
+"the state is normally `SLEEP` when it fires".
+
+**Still OPEN (all unproven).**
+1. **Why the arming call site is `OFFLINE_SLEEP_WAIT` (11)** while the machine is in
+   `ONLINE_SLEEP_WAIT` (2) — did the machine pass through state 11 earlier (e.g. boot/offline), or is
+   the timer armed once at init and re-firing?
+2. **The timer's period** (the scheduler module's clock is 19.2 MHz; the inter-fire delta
+   `0xe81861fe − 0xe7bca520 = 6 012 126` ticks ≈ 0.313 s if 19.2 MHz — a **DRX-like** cycle).
+3. **Why `ONLINE_SLEEP_WAIT → SLEEP` did not complete** — the original §112.54 question (a lost
+   `RF_SLEEP_CNF`/`LL1_SYS_SLEEP_CNF`, an out-of-order wakeup, …). The `ctx+0x4a8` watchdog is
+   disarmed, so it is not the trigger.
+4. ⚠ The older `lte_ml1_common_timer.c:390` attribution for "the 900 s fatal" is **not** what the
+   fatal record says in these dumps (it reads the sleepmgr 4054 text); treat the sleepmgr site as the
+   grounded one and re-check any doc that cites the timer site for *this* event.
+
+**Next steps (read-only first).**
+1. Decompile `FUN_c03986b0` (OFFLINE_SLEEP_WAIT) and `FUN_c0396f30` (ONLINE_SLEEP_WAIT) end-to-end
+   and map the sleepmgr state-transition graph (who writes `obj+4`).
+2. Identify the scheduler's "arm/re-arm" driver and the slot's period field (`slot+0xd8`) to fix the
+   timer's period.
+3. If the offline path stays unresolved, the decisive instrument is a **firmware ring on the STM
+   state writer** (log every `*(0xc1e158d4)` transition with a timestamp), run to the ~900 s fatal.
+
+**SOP.** Offline, read-only: the §112.49 coredump (`scratch/wedge_run_20261003/dump_devcd1_3334.bin`,
+md5 `580be11b…`) + the §112.53.1 coredump (`scratch/sched1_run_20261003/dump_devcd2_7362.bin`, md5
+`9e3cd57b…`) + the stock HMU05 ELF; **no device write, no patch**. Tools: `scratch/a2_descr.py`,
+`scratch/read_stack.py`, `scratch/readva.py`, `llvm-objdump`, Ghidra
+(`DecompList.java`, `DecompList2.java`). Ledger + CHANGELOG + memory updated in the same session.
