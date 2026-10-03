@@ -72,6 +72,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.48 (WEDGE vs FATAL — the ~900 s event's two manifestations)** — offline re-parse of the two
+  archived F3 series (`a2pin/f3stall/*` = the §112.34 idle run; `a2pin/f3assert/*` = the §112.35 traffic
+  run). The wedge's F3 is a **staged shutdown**: RF (`rflte_*`) → 0 first, then an `a2_power` **storm**
+  (53→114), then NAS/QMI decay, then only the `cfm_cpu_monitor` heartbeat; the fatal run instead has the
+  RF **busy** (674→560) right up to the assert. **★★ A CORPUS INCONSISTENCY is recorded OPEN:**
+  §112.34/35 say *traffic→assert, idle→no assert*; item 81 says the **exact opposite** — both cannot be
+  right. Also: §112.34's "wedge" is **confounded with idle-sleep** (§104), so it is not a clean specimen;
+  and the stated goal **"convert a fatal into a recoverable wedge" is likely COUNTERPRODUCTIVE** — a
+  fatal recovers in ~1.7 s via the SSR (§112.35: assert 912.464 → up 914.168) while a wedge waits for the
+  60 s stall watchdog. Two negatives of our own. No device write.
 - **§112.47 (offline closure of §112.46.8's "open identification")** — pure offline re-derivation
   (stock `modem.asm` + the Ghidra decompilation; **no device write, no firmware build**). Establishes
   that (a) `obj[+0x38]` is a **fixed context ID `20+k`**, written once by `FUN_c02fb8b0` via

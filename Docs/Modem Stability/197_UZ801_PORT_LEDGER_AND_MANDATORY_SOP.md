@@ -15482,3 +15482,99 @@ is a decision, and per SOP it is taken with the user.
 **Tools / evidence:** `scratch/firmware/modem.asm` (`FUN_c02fb8b0`, `FUN_c02fba64`, `FUN_c02fc3cc`,
 `FUN_c02fda90`, `FUN_c02d7bd0`); `scratch/hexdec/func.py`; `scratch/hexdec/ctx_state.py`;
 `scratch/f3_soak/cap_fatal.bin`; `scratch/f3parse.py`; ledger §63.5, §111, §112.44, §112.45, §112.46.
+
+## §112.48 ★★★ WEDGE vs FATAL — the ~900 s event's two manifestations, the staged shutdown, and a **corpus inconsistency** (2026-10-03)
+
+Task #253 (user-selected direction: "shift to the wedge regime"). **Offline** — the two archived F3
+series (`scratch/a2pin/f3stall/*.raw` = the §112.34 idle run; `scratch/a2pin/f3assert/*.raw` = the
+§112.35 traffic run) re-parsed with `scratch/f3parse.py`; **no device write, no firmware patch.**
+
+### §112.48.1 The two manifestations
+
+The ~900 s event has a **fixed trigger** but a **variable manifestation**:
+* **FATAL** — an ML1/SM assert fires and the modem crashes → SSR. The assert **site varies**:
+  `lte_ml1_common_timer.c:390` (ctx0 watchdog, the usual one), `lte_ml1_sm_conn_inter_freq_stm.c:712`
+  (§112.35), `lte_ml1_sm_idle_stm.c:2913` (item 85), `lte_LL1_gap_rf_tune.c:351` (§53).
+* **WEDGE** — no assert; the data path dies while the modem stays `running`/`connected`/`lte`
+  (items 71/78/81, §71/§112.15; §112.34's idle run). Recovery requires a **modem restart** (a
+  userspace `svc data` cycle does **not** fix it).
+
+⇒ the assert is a **conditional downstream symptom**, not the event itself (§112.34 conclusion 2).
+
+### §112.48.2 The wedge's F3 signature is a STAGED SHUTDOWN (quantified)
+
+F3 records per 5 s chunk, grouped (`rf` = `rflte_*`/`rfmeas_*`; `a2` = `a2_power.c`; `nas` =
+`qmi_nas`+`cmss`+`cmlog`; `cfm` = `cfm_cpu_monitor.c`):
+
+| chunk | n | rf | a2 | nas | cfm |
+| :-- | --: | --: | --: | --: | --: |
+| **WEDGE** up00902 | 565 | **103** | 53 | 92 | 101 |
+| up00907 | 437 | **1** | **114** | 20 | 102 |
+| up00912 | 161 | 0 | 1 | 40 | 103 |
+| up00917 | 107 | 0 | 0 | 0 | 100 |
+| up00923 | 121 | 0 | 0 | 0 | 107 |
+| up00928 | 115 | 0 | 0 | 0 | 107 |
+| **FATAL** up00900 | 1431 | **674** | 138 | 40 | 103 |
+| up00906 | 1250 | **560** | 136 | 40 | 104 |
+| up00911 | 360 | 184 | 28 | 0 | 22 |
+
+**Order of death (wedge): RF first → then an `a2_power` STORM (53→114) → then NAS/QMI decay → then only
+the `cfm_cpu_monitor` heartbeat.** The MCPM is alive and cycling (~1.27 s: `mcpm_saw` FW_WAKE-UP →
+`FW_SLEEP_PWRDN_FULL`) right up to the event. The last normal records before the RF death are NAS
+PLMN/cell-id operations (`cmss.c`, `qmi_nas.c`).
+
+**The fatal run is the opposite at the RF layer**: `rf` was **674 → 560** (busy) right up to the assert,
+then collapsed (184). ⇒ in the fatal the RF is *active at the trigger*; in the idle run the RF is
+already quiet.
+
+### §112.48.3 ★★ CORPUS INCONSISTENCY — the regime→outcome mapping does NOT agree across runs
+
+| source | regime | outcome |
+| :-- | :-- | :-- |
+| §112.34 (bamdelay) | data path late, **idle** | **no assert** (wedge / silent RF death) |
+| §112.35 (bamdelay-2) | data path late, **traffic** | **ASSERT** at mu 900.435 s |
+| item 81 (`diag_v7_event`) | **idle** | **FATAL** at 902.29 s |
+| item 81 (`diag_v7_traffic`) | **traffic** | **WEDGE** (1139 s) |
+| items 71/78 | traffic | **WEDGE** |
+
+§112.34/35 ⇒ *traffic → assert, idle → no assert*; item 81 ⇒ the **exact opposite**. **Both cannot be
+right.** Candidate confounds: the v7-instrumented firmware (item 81) vs stock (§112.34/35); the
+`preemptive_ssr` setting; whether "idle" means *no LTE attach* or *attached but no ping*. **Recorded as
+OPEN** — a decisive experiment must fix the firmware (stock), the config, and the definition of
+"idle"/"traffic".
+
+### §112.48.4 ⚠ The §112.34 "wedge" is CONFOUNDED with idle-sleep
+
+§112.35's own correction: `rflte_*` **absence can mean *idle*** (§104). §112.34's link was near-idle
+(rx 7465 B / tx 26492 B), so its "RF collapse at the usual mark" is plausibly the **idle-sleep
+signature**, and its "wedge" may be an **idle link + the watchdog's RX-frozen Stage-2 firing**
+(i.e. a watchdog false-positive), not the ~900 s event. ⇒ **§112.34's wedge is not a clean specimen.**
+
+### §112.48.5 ⚠ The stated goal ("convert a fatal into a recoverable wedge") is likely COUNTERPRODUCTIVE
+
+A fatal is **recovered faster**: assert at 912.464 s → `crash detected` → `remote processor is now up`
+at **914.168 s** (§112.35) — ~1.7 s of modem downtime, then AP re-attach. A wedge has no assert, so it
+waits for the **stall watchdog** (`stall_timeout 60` + `check_interval 10`) ⇒ up to **~70 s** of dead
+data. ⇒ biasing toward the wedge makes the **outage longer**, not shorter. The wedge's real value is
+**scientific**: it is the assert-free form of the event, so it isolates the *event* from the *assert*.
+The only way the wedge could be *better* is if it were recoverable **without a modem restart** (memory
+says a restart is required) — that is the one open, testable lever.
+
+### §112.48.6 Achieved vs Expected
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Characterize the wedge's F3 signature | a shutdown sequence | **YES** — RF → A2 storm → NAS/QMI → heartbeat (§112.48.2) |
+| Explain the wedge/fatal branch | one rule | **NO** — the corpus contradicts itself (§112.48.3) |
+| Isolate the event from the assert | yes | **partly** — the fatal's RF is *busy* at the trigger; §112.34's wedge is confounded (§112.48.4) |
+| Is the "convert to wedge" goal sound? | assumed | **NO** — the fatal recovers faster (§112.48.5) |
+
+### §112.48.7 SOP
+
+Offline only (no device write, no firmware patch) ⇒ the pre-registration / one-change gates do not
+apply; the corpus inconsistency and the counterproductive-goal finding are stated as **negatives of our
+own**. Ledger + CHANGELOG + memory updated in the same session.
+
+**Tools / evidence:** `scratch/a2pin/f3stall/*.raw`, `scratch/a2pin/f3assert/*.raw`,
+`scratch/f3parse.py`, `scratch/a2pin/f3_assert_summary.py`; ledger §71, §78, §104, §112.15, §112.34,
+§112.35, §112.47.
