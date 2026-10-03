@@ -13727,3 +13727,151 @@ test deploy. A follow-up sysupgrade will carry it into the image.
 root-cause fix. It does not touch the `a2_power.c:1189` wait itself, nor the ~900 s `lte_ml1`
 deadline (still covered by the 600 s pre-emptive SSR). The next long soak under this hardened config
 is the confirmation run.
+
+## §112.28 ★★ MODEM-FIRMWARE FIX FOR THE A2 QUIESCE TIMEOUT — EVALUATED, NOT WARRANTED (2026-10-03)
+
+Task #231 asked whether the cold-boot `a2_power.c:1189` fatal can be cured in the modem firmware.
+Verdict: **no safe patch target exists, and the AP-side pin already suppresses the fatal** — a
+firmware patch is **NOT warranted**. The stock HMU05 disassembly (`disasm_full.txt`, extracted to
+`scratch/a2pin/a2funcs.txt`) gives the mechanism.
+
+**The wait is a legitimate HW-readiness check.** `FUN_c0504fc8` (UP path, called from `FUN_c0504ccc`
+at `c0504d48`) polls the A2-client status words in the `0xec320b80` block — `0xec320ba4`,
+`+0x08`=`0xec320bac`, `+0x34`=`0xec320bd8`, `+0x3c`=`0xec320be0` — each tested `bitsclr(r0,#0x7)`; the
+`bac` loop (`c0505068`–`c0505080`) exits only when `(memw(0xec320bac) & 7) == 0`. Each failed poll
+calls `FUN_c05042c8`, which bumps the tick counters at `0xc28602f8`/`0xc28602fc`; when the latter
+exceeds **900** the assert fires. The stuck word reads `& 7 == 1` (n=5 dumps, §112.21(I)) ⇒ **an A2
+client never released; the wait correctly refuses to proceed.**
+
+**The DOWN path does not check the same fields.** `FUN_c0505308` waits on `0xec320b94`'s low byte
+(`cmpb.eq(r0,#0)` at `c05053bc`) and then clears enable bits at `r19-0x38c/-0x388/-0x380/-0x384/-0xfc`,
+i.e. it powers the A2 down **without** verifying the five quiesce words are clear. So the
+power-down→power-up gap can leave a client word latched and the next UP times out — consistent with
+§112.21(J).
+
+**Why no patch is safe.**
+1. *Skip the wait* (`c0505070 → jump 0xc0505084` unconditionally, or the compare at `c050507c`):
+   proceeds with the A2 **not quiesced** ⇒ silent data-path corruption, a different assert, or a
+   hung bus. **Rejected.**
+2. *Clear the stuck word* (write 0 to `0xec320bac`): the bit is **HW status**, not a CPU-owned latch;
+   clearing it does not make the hardware ready. **Rejected.**
+3. *Raise the timeout* (`> 900`): the word never clears on its own (§112.21(I)) ⇒ more time changes
+   nothing (item 84/85/86 already showed deadline-extension never saves the modem). **Rejected.**
+4. *Fix the DOWN sequencing* (make `FUN_c0505308` check the five fields before powering down): the
+   only direction that addresses the real defect — but it is a bespoke change to a **closed,
+   unverifiable baseband** whose failure mode is a bricked/NV-corrupt modem, and the AP-side pin
+   already prevents the DOWN from happening at all (§112.23/§112.24). Cost/benefit does not justify it.
+
+**Decision.** Ship the AP-side pin (`a2_pin=1`) + pre-emptive SSR as the fix. **Do NOT patch the
+baseband for this fault.** Re-open only if the pin is shown non-deployable (e.g. an unacceptable
+power cost) — then option 4 is the sole candidate, and it would need a full offline disassembly +
+hash-verified 3-file deploy (`GitIgnore/compare/ufi001b_hash_tool.py`) and a pre-registered falsifier.
+
+## §112.29 ★★ THE COLD-BOOT ARMING DIFFERENTIAL — #1 closed, #2 FALSIFIED, #3 first pass (2026-10-03)
+
+**Context.** The user's ordered plan: (1) the A2 handshake direction, (2) the unclean-shutdown flag,
+(3) a differential boot capture. The driving question: *"in android, cold boot has no crash unless we
+induce SSR, then it's repetitive each 15 minute, but in openwrt, no matter cold boot or warm boot,
+crash always happens"* — i.e. **OpenWrt's cold boot behaves like Android's warm restart.** Firmware is
+byte-identical (proven), so the cause is AP-side (§112.6/§112.8).
+
+### #1 — the A2 handshake direction (A15): CLOSED, no new mechanism
+
+Static side-by-side of Android 3.10 `bam_dmux.c` vs mainline 6.12 `qcom_bam_dmux.c`. Android is
+**modem-driven** (modem asserts `SMSM_A2_POWER_CONTROL` via `bam_dmux_smsm_cb` :2430, AP acks via
+`toggle_apps_ack` :2412; the AP's own `power_vote()` :1672 increments **no** counter). OpenWrt is
+**AP-driven** (`pc_vote_tx_count` ← `bam_dmux_runtime_resume` :1025). But the two are **functionally
+equivalent**: both have a modem-announcement path (`bam_dmux_pc_irq` :966 → `bam_dmux_power_on` :823 /
+`bam_dmux_power_off` :901) and an AP-ack (`bam_dmux_pc_ack` :131). The **only** AP-driven element is
+the vote-clear `bam_dmux_pc_vote(dmux, false)` in `bam_dmux_runtime_suspend()` :1015 — which is
+**exactly the `a2_pin` lever** (§112.23). ⇒ A15 ≡ the pin; no new mechanism. One new observation:
+Android's `reconnect_to_bam()` :1947 does an `sps_device_reset` (AP-side BAM state) that mainline's
+`bam_dmux_power_on()` does not — **AP-side only**, not the modem's A2 HW.
+
+### #2 — the "unclean-shutdown flag": **FALSIFIED**
+
+**Hypothesis** (§112.6 candidate / §112.8 next-lead): a persistent "last shutdown was unclean" marker
+in the modem's NV/EFS, cleared only by a *clean* modem shutdown — which Android's power-off performs
+and mainline does not. That would explain "OpenWrt cold arms, Android cold is clean."
+
+**Two static facts.**
+1. **Android's SSR is a CLEAN stop.** `subsystem_shutdown()` (`subsystem_restart.c:459-470`) calls
+   `dev->desc->shutdown(dev->desc, true)` from the restart sequence (:721) → `modem_shutdown(force_stop=true)`
+   (`pil-q6v5-mss.c:98-118`): assert the force-stop GPIO, `wait_for_completion_timeout(&stop_ack, 1000 ms)`
+   (the modem's own stop-ack handshake), deassert, then `pil_shutdown()`.
+2. **Mainline's SSR is ALSO a clean stop.** `q6v5_restart_work()` (`qcom_q6v5_mss.c:2022`) → `rproc_shutdown()`
+   → `q6v5_stop()` (:1636) → `qcom_q6v5_request_stop(&qproc->q6v5, qproc->sysmon)`. (Mainline `q6v5_ops`
+   has **no `.shutdown`** — `.start/.stop/.parse_fw/.load/.panic` only — so an **AP reboot** does not
+   gracefully stop the modem, but an **SSR** does.)
+
+**The decisive datum (CW-1, §54.11).** The Android WARM core `cw1_warm.elf` was taken *after one clean
+SSR* (`echo restart` = graceful stop + ramdump; `cw1_prereg.md`) and that regime is **ARMED** (the next
+fatal lands at restart + 902.7 s). ⇒ **a clean/graceful modem shutdown does NOT clear the arming.**
+
+**Verdict: FALSIFIED.** The discriminator is **cold-start (first boot after an AP reboot, no SSR has
+ever run) vs restart** — NOT clean vs unclean. Implementing Android's graceful-stop handshake on
+mainline (the obvious #2 fix) **would not** prevent the fatal. Corollary: the arming requires that the
+modem has been **started before** in the current power session; a genuine first power-on is clean.
+This is exactly why OpenWrt's cold boot arms **iff** its "cold boot" did not power-cycle the modem.
+
+### #3 — differential boot capture, first pass
+
+**(a) The CW-1 marker, cross-arm.** §54.11's largest cold-vs-warm component is a 49 192-byte region in
+seg 15, modem_va `0xc2158a98..0xc2164abc` (a 0x30-byte-node free list): all-zero in Android cold,
+populated in Android warm. Read it in the 6 OpenWrt `scratch/coredump_live/*` cores (`cw_diff.py va`,
+bias `0x39800000`):
+
+| dump | regime (§9713/9718) | `0xc2158a98` |
+| :-- | :-- | :-- |
+| `up915.44_devcd1` | control (no ctx0) | `0x00000000` (= Android cold) |
+| `up919.52` | control | `0x00000000` (= Android cold) |
+| `up1818.92_devcd2` | FATAL | `0xc2158ab8` (= Android warm) |
+| `up1822.52` | FATAL | `0xc2158ab8` |
+| `up2723.69` | FATAL | `0xc2158ab8` |
+| `up3629.79` | (n/a) | `0x00000000` |
+
+⇒ the marker tracks **ramdump/fatal bookkeeping**, not the regime cleanly (control dumps are empty even
+at 915-919 s). **Consistent with §54.11's "causal or consequential — not established"**: this region is
+**not** the arming variable. ⚠ Caveat: the OpenWrt cores are Sep-20/21, a different session, so this is
+a cross-session comparison.
+
+**(b) The modem's own F3 boot log.** Pulled the first 512 KB of the chunk immediately after SSR #2
+(`/root/f3cap/c000365_up01897.raw`, md5-verified) and parsed it (`scratch/f3parse.py`): 47 records,
+all **normal runtime** — `a2_power.c:1313/3765` power reqs (clients 2/3/14; **no `client=11 (APPS)`
+in the slice**), `pgi_msgr.c:718` WWAN_TECH_MSG, `mcpm_saw.c:591/393`, `mcpm_npa.c`, `cfm_cpu_monitor.c:308`.
+**No boot-mode / reset-reason / "cold vs warm" message** exists in the stream ⇒ the modem does not
+self-report its regime. ⚠ The F3 `ts` did **not** reset at the SSR in this slice (≈2.95e9 ticks ≈ 4 h),
+so the F3 clock is **not** the 902.7 s deadline clock — do not use it as a boot anchor.
+
+### The remaining concrete AP-side differential (the A2 / P-A6 axis)
+
+Two **verified** OpenWrt-vs-Android AP-side differences remain, both on the **power-collapse** axis:
+
+* **PSCI PC mode is DENIED by firmware.** `dmesg`: `psci: OSI mode supported.` then
+  `psci: [Firmware Bug]: failed to set PC mode: -3`. Source: `psci_1_0_init()` (`psci.c:728-744`)
+  calls `psci_set_osi_mode(false)` ("Default to PC mode"); `psci_set_osi_mode()` (:160-173) invokes
+  `PSCI_1_0_FN_SET_SUSPEND_MODE` and warns on `err < 0`; **-3 = `PSCI_RET_DENIED`**. The AP then uses
+  OSI mode (`CPUidle PSCI: Initialized CPU PM domain topology using OSI mode`).
+* **cpuidle exposes only 2 states.** Live: `state0=WFI`, `state1=cpu-sleep-0` (standalone PC). The DT
+  **declares** cluster states (`/cpus/domain-idle-states/cluster-retention`, `cluster-gdhs`) but
+  cpuidle registers **no cluster state** ⇒ **cluster power collapse is unreachable on OpenWrt**.
+  Android's msm8916 LPM cpuidle registers **3** (C0/C1/C2=cluster PC).
+
+**Not established that either arms the modem** — but they are the only *verified* AP-side
+power-management differences left, and they are exactly the class §112.8 named. They are the next
+static target (the port's `hyp`/qhypstub PSCI + the DT genpd topology vs the QCOM LPM driver).
+
+### The decisive next experiment (proposed)
+
+**A true power-cycle vs a warm AP reboot, with the pre-emptive SSR disabled.** If the arming requires a
+prior modem start (the §112.29/#2 corollary), then a **cold** OpenWrt boot — dongle unplugged long
+enough to POR the modem, then `preemptive_ssr_interval` raised so nothing restarts it — must run
+**past 902.7 s with no fatal**. If it still fatals, the arming is intrinsic to OpenWrt's AP boot
+sequence (→ the PSCI/cpuidle axis above). **Falsifier:** any fatal at modem-uptime ≈ 902.7 ± 1 s.
+Pre-register before running. ⚠ Reversible: set `preemptive_ssr_interval` back to 800.
+
+**Achieved vs Expected (this section).** Expected: name the AP-side cause of OpenWrt's cold-boot
+arming. Achieved: closed #1 (no new mechanism), **falsified #2** (clean shutdown does not clear the
+arming — the discriminator is cold-start vs restart), and ruled out the CW-1 marker and the modem's F3
+stream as the arming signal; isolated the two remaining verified AP-side differentials (PSCI PC-denied,
+cpuidle-2-state). **Not achieved:** the identity of the arming variable — still **OPEN**.
