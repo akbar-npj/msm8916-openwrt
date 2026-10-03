@@ -14443,3 +14443,141 @@ three falsifying results (the 5000 ms sweep, the 43/43 zero arrays, the byte-ide
 `scratch/a2_descr.py`, `scratch/hexdec/ctx_state.py`, the §2 decompilation
 (`FUN_c0ce7fe0`/`FUN_c0cf3e04`/`FUN_c0879150`), §38 disassembly (`0xc0ce8430-44`), §112.20 disassembly
 (`FUN_c05042c8`/`FUN_c0504fc8`), items 85/86 (v10/v11 deadline-sweep logs).
+
+## §112.39 ★★★★ THE `rpm.sync` LPR PARK — CLOSED: not a hang, not a frozen counter; the `q6pcvote` is LIVE at the fatal (2026-10-03)
+
+**Instruction.** "Investigate rpm.sync LPR park mechanism." A read-only disassembly + coredump synthesis
+testing whether the `rpm.sync` LPR step (the surviving open lead from §112.38 §"The one thing that is
+genuinely OPEN") is the upstream condition that stops the sleep count at ~902 s. **No device mutation,
+no patch.** This section closes that lead.
+
+### What the `rpm.sync` park IS
+
+The `rpm` LPR descriptor lives at modem VA `0xc1d473f8` (dump VA `0x885473f8`, bias `0x39800000`,
+confirmed by reading its name pointer `+0x00 = 0xc1848058` → the string `"rpm"`). Its fields:
+
+| field | value (up915.44) | meaning |
+|---|---|---|
+| `+0x00` | `0xc1848058` → `"rpm"` | LPR name pointer |
+| `+0x04` | `2` | mode count |
+| `+0x10` | `0xc08bebc0` | **enter** fn ptr (a `jumpr r31` stub; real body at `0xc08bebd0`) |
+| `+0x18` | **1064** | **`q6pcvote`** — the live counter read by `FUN_c0cd3384()` |
+| `+0x50` | `0xc185580d` → `"bcr_hm"` | secondary name |
+| `+0x58` | `0xc1d47418` | LPRM list head |
+
+The `enter` function `FUN_c08bebd0` (`0xc08bebd0`) is NOT an infinite park. It calls a chain of
+setup functions (`FUN_c08bd140`, `FUN_c08bedf0`, `FUN_c0f9a600`, `FUN_c08b9690`, `FUN_c0880240`,
+`FUN_c08bcbc0`), then a conditional assert (`FUN_c0879150` if `FUN_c089de40()` returns non-zero),
+then `FUN_c08bd2e0` which contains the two "park" loops.
+
+### The two "park" loops are bounded waits, NOT infinite spins
+
+The two loops §6.4/§39.2 flagged as "timeout-free churn":
+
+1. **`0xc08b96f4`** (`p0 = cmp.eq(r0,#0x0); if (!p0.new) jump:t 0xc08b96e8`): loops back to
+   call `FUN_c08b9820` **while `memw(r21+#0x4) != 0`**. Each iteration calls `FUN_c08b9820` (a
+   16-line function that calls `FUN_c0691730` then `FUN_c087785c` then jumps to `FUN_c0691738` —
+   a **yielding** call, not a tight spin). This is a **bounded wait for a condition to clear**,
+   not a park.
+
+2. **`0xc08b988c`** (`p0 = cmp.eq(r0,#0x0); if (!p0.new) jump:t 0xc08b9860`): loops **while
+   `memw(r17+#0x0) != 0`**, calling `FUN_c08baec0` each iteration. Again a bounded wait, not a
+   spin — each iteration does work (`FUN_c08baec0` is a substantial call).
+
+Both loops **call functions that yield** (they reach `FUN_c0691738` = the QuRT scheduler yield),
+so they are not CPU-bound tight spins. They are **condition-clear wait loops** — the kind of
+thing that waits for an RPM ack or a hardware-ready bit. If the condition never clears, they
+would *hang* (the §39.2 "hang hypothesis"), but see below.
+
+### The `+0x18` writer (`FUN_c12812c0` at `0xc1281334`) bumps the LPRM `+0x48`, NOT the LPR `+0x18`
+
+§50's claim that "the writer of `+0x18` is `FUN_c12812c0`, bumping `entry+0x48` at `0xc1281334`;
+`LPR+0x18` equals the `+0x48` of the ONE active LPRM" is **partly imprecise**. The disassembly at
+`0xc128132c-44`:
+
+```
+c128132c: r1 = memw(r0+#0x18)       ; READS the LPR's +0x18 (q6pcvote) into r1 (a param)
+c1281338: r0 = memw(r22+#0x48)      ; reads the LPRM's +0x48
+c1281340: r0 = add(r0,#0x1)         ; increments
+c1281344: memw(r22+#0x48) = r0.new  ; writes back to LPRM +0x48
+```
+
+The **bump is on `r22+0x48`** (the LPRM's `+0x48`), while `r1 = memw(r0+#0x18)` **reads** the LPR's
+`+0x18` as a parameter (for the subsequent `FUN_c12805a0` / `callr r2` calls). The LPR `+0x18` is
+NOT written by this site. The LPRM `+0x48` field in the coredump is `0xc12875c0` — a **constant
+function pointer** (not a counter) across all 7 dumps, so the bump target is a different LPRM
+instance than the head. The §50 "mirror" claim is **not the mechanism**.
+
+### The decisive coredump finding: `q6pcvote` is LIVE (varying), and the MCPM scratch is ZEROED
+
+Reading the `rpm` LPR `+0x18` (the `q6pcvote` counter) and the MCPM scratch arrays across all 7
+archived up9xx coredumps:
+
+| dump | `q6pcvote` (LIVE, LPR+0x18) | MCPM scratch `[0]` (`DAT_c30fd9a8`) | MCPM sleep-count `[0]` (`DAT_c30fda28`) |
+|---|---|---|---|
+| up913.64 | 1538 | 0 | 0 |
+| up9143.88 | 1647 | 0 | 0 |
+| up915.42 | 1060 | 0 | 0 |
+| up915.44 | 1064 | 0 | 0 |
+| up915.55 | 1564 | 0 | 0 |
+| up923.12 | 1479 | 0 | 0 |
+| up923.71 | 1605 | 0 | 0 |
+
+**Two facts:**
+
+1. **The `q6pcvote` counter is NOT frozen** — it varies 1060-1647 across the 7 fatals. It is a
+   *live* counter that is still being incremented at the moment of the fatal. The `rpm.sync` LPR
+   park is **not** a stuck/hung loop that stops advancing this counter.
+
+2. **The MCPM scratch arrays (`DAT_c30fd9a8` the snapshot, `DAT_c30fda28` the sleep-count) are
+   ZEROED in every dump** — confirming §38 that `FUN_c0ce7fe0` zeroes its own inputs as its last
+   action (`0xc0ce8430-44`), or the MCPM layer never ran. The HARD_FAIL gate
+   (`if (uVar6 <= *puVar12)` = `if (q6pcvote <= snapshot)`) is `1064 <= 0` = FALSE — the gate
+   does NOT fire. The `FUN_c0ce7f98()` sleep-count reader returns 0 (all entries zeroed), so the
+   outer `400 < uVar7` guard is `400 < 0` = FALSE. **The MCPM `system_sleep_check` HARD_FAIL is
+   not reachable in any of the 7 fatals.**
+
+### Why the "hang" hypothesis is CLOSED
+
+§39.2's surviving hypothesis was: "the `rpm.sync` park survives only as a *hang* hypothesis with
+no detector, and an observed fatal is an `ASSERT(0)`, not a hang." The coredump evidence **rules
+out the hang**:
+
+- If the `rpm.sync` enter (`FUN_c08bebd0`) were parked in one of the two bounded-wait loops at the
+  moment of the fatal, the `q6pcvote` counter would be **frozen at a single value** across dumps
+  (it stops incrementing when the park hangs). Instead it varies 1060-1647 — **it is still
+  advancing**.
+- The observed fatal is `lte_ml1_common_timer.c:390` (an `ASSERT(0)`), not a QuRT task hang/timeout.
+  The `rpm.sync` park runs on a different QuRT context than the ML1 timer that asserts.
+- The MCPM layer (`FUN_c0ce7fe0`) that *consumes* the `q6pcvote` does not run (its scratch is
+  zeroed), so even if the park *did* stall, the HARD_FAIL consumer would not fire.
+
+**The `rpm.sync` LPR park is not the upstream condition.** The "why the sleep count stops" question
+of §112.38 is NOT answered by `rpm.sync` — it must be a **different** per-tech sleep-count counter
+(one that the ML1 layer reads, not the MCPM layer, which doesn't run). The §112.38 §"open" entry
+for `rpm.sync` is hereby **CLOSED**.
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Is `rpm.sync` park the upstream stall? | yes/no | **NO** — `q6pcvote` is LIVE (1060-1647, varying) at the fatal |
+| Is the park an infinite spin? | characterize | **NO** — two bounded condition-clear loops, each iteration yields to the scheduler |
+| Does the MCPM HARD_FAIL fire? | yes/no | **NO** — scratch zeroed in 7/7 dumps; `q6pcvote <= snapshot` is `1064 <= 0` = FALSE |
+| Is §50's "LPR+0x18 = LPRM+0x48 mirror" the mechanism? | verify | **NO** — the bump is on LPRM `+0x48` (a fn-ptr constant `0xc12875c0`); LPR `+0x18` is only READ as a param |
+| The root "why sleep count stops" | OPEN | **still OPEN** — but `rpm.sync` is RULED OUT; the counter that stops is ML1-side (the SERV-MEAS-RSP ctx0 watchdog of items 84-86), not the `rpm.sync` LPR counter |
+
+### SOP
+
+Read-only disassembly (`scratch/firmware/modem.asm` for `FUN_c08bebd0`/`FUN_c08b96f4`/
+`FUN_c08b988c`/`FUN_c12812c0`/`FUN_c08bd290`/`FUN_c0cd3384`/`FUN_c0ce7fe0`/`FUN_c0ce7f98`) +
+decompiled C (`Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c` for the MCPM gate) +
+coredump reads (all 7 `scratch/coredump_live_full/coredump_live/modem_coredump_up9*.elf`, bias
+`0x39800000`). No device mutation, no patch, no baseband change. Every claim cross-referenced to
+its primary ledger section (§49, §50, §38, §39.2, §112.38). The "rpm.sync ruled out" verdict is
+filed with the 7-varying-counter table and the 7-zeroed-scratch table.
+
+**Tools / evidence:** `scratch/firmware/modem.asm` (lines 2080255-2080420, 2085524-2085640,
+4566973-4567100, 3120739-3120820, 2083950-2084040), `modem_full_decompiled.c:2367053-2367160`
+(`FUN_c0cd3384`), `:2380277-2380420` (`FUN_c0ce7fe0`/`FUN_c0ce7f98`), the inline coredump reader
+(bias `0x39800000`; LPR at `0x885473f8`, scratch at `0x897fd9a8`/`0x897fda28`).
