@@ -14073,3 +14073,93 @@ P-NOBAM contrast. **Open:** the specific AP bring-up step that arms the modem.
 **Tools / evidence:** `scratch/a2pin/{PREREG_por.md,por_mon.sh,por_mon2.sh,por_mon3.sh}`,
 `scratch/a2pin/{por_mon2.log,por_mon3.log}`. Device restored to the shipped config
 (`preemptive_ssr_interval=800`, `a2_pin=1`).
+
+## §112.34 ★★★★ P-BAMDELAY — delaying the AP data-path bring-up by ~300 s does NOT prevent the ~902 s EVENT, but it REMOVES THE ASSERT (2026-10-03)
+
+**Question.** §112.33: the arming is re-created by the OpenWrt boot; §112.25/§112.33: with no AP data path
+the modem survives ≥1128 s. So the fatal **requires** the AP↔modem data path — but is the ~902.7 s clock
+**anchored to the modem boot** (the data path merely permissive) or to the **data-path bring-up**?
+Pre-registration: `scratch/a2pin/PREREG_bamdelay.md` (H-DELAY / H-ARMED-AT-BOOT / H-NOARM).
+
+**Mechanism (a tooling finding worth keeping).** The module is **not** autoloaded by
+`/etc/modules.d/bam-dmux`; it is autoloaded by the **OF modalias** of the DTS child device
+`4080000.remoteproc:bam-dmux` (created by `qcom_q6v5_mss`). Blocked the autoload by **renaming the .ko**
+(`qcom_bam_dmux.ko` → `qcom_bam_dmux.ko.late`); the modalias load then fails
+(`kmodloader: failed to open .../qcom_bam_dmux.ko`) and the module is `insmod`-ed **by path** at mu 309.
+* ⚠ **OpenWrt's `kmodloader` IGNORES `/etc/modprobe.d/*.conf` `install` directives** —
+  `install qcom_bam_dmux /bin/false` did **not** stop `modprobe qcom_bam_dmux`. Recorded so it is not retried.
+
+**Setup (verified).** `a2_pin=1`, `preemptive_ssr_interval=100000` (SSR off), .ko renamed, AP reboot.
+No `qcom_bam_dmux`, no `wwan*`; modem up @ AP **11.934429 s**; `bam-dmux` device present but **unbound**.
+At **mu 309.0 s** (AP 320.96) `insmod` → rc=0; the modem **immediately** sent `CMD_OPEN` on all 8 channels
+(it had been waiting), data path fully up ~20 s later (`wwan0 10.16.142.166/30`, default route, MM
+`connected`/LTE/`attached`/88 %, `ping -I wwan0 8.8.8.8` = **0 % loss**). **No confound:** the bring-up
+**succeeded** (unlike the §112.25 `-ENODEV` reload), and `power/control=on` (the `a2_pin` hold IS in effect).
+
+**Result — the ASSERT did not fire; the EVENT still did.**
+
+```
+[ 11.934429] remoteproc0: ... is now up                         <-- modem boot (mu 0)
+[ 320.96]    insmod qcom_bam_dmux (mu 309) -> CMD_OPEN x8, data path up
+[ 902-907]   F3: rflte_* present -> ZERO            (RF / RX pipeline ceases)
+[ 907-912]   F3: a2_power.c 114 -> 1 ; NAS/QMI -> 0
+[ 917+]      F3: only cfm_cpu_monitor.c (heartbeat) + DalVAdc.c
+[ 976]       AP: stall-watchdog sees RX frozen (data path died ~mu 954)
+[1414.665874] qcom-q6v5-mss: msm_subsys: restarting 4080000.remoteproc   <-- WATCHDOG Stage-3 SSR, NOT a modem assert
+```
+
+`dmesg | grep -iE "fatal error received|modem subsystem failure|crash detected"` = **NONE**. The modem ran
+to AP 1415 / **mu ~1403 with `msm_subsys/modem`=0** (no assert); the single restart was the deployed
+stall-watchdog's Stage-3 recovery (`RF receiver frozen (RX remains 0)`).
+
+**Pre-registered outcomes.**
+* **H-ARMED-AT-BOOT** (fatal within seconds of `t_load`, since `t_boot+902.7` was already ~600 s past) →
+  **FALSIFIED**: nothing happened at `t_load`.
+* **H-DELAY** (fatal at `t_load + 902.7` = mu 1211) → **NOT observed**.
+* **H-NOARM** (no fatal) → **observed — but NOT via the failed-`modprobe` confound** (the bring-up
+  succeeded and the path carried traffic).
+
+**The key F3 datum.** The modem's **own log** shows the RF/RX-pipeline (`rflte_*`) cease at the **usual
+~mu 902 mark** (AP 902-907), after which the whole stack goes quiet (A2 → NAS/QMI → only the
+`cfm_cpu_monitor` heartbeat). So the **~902 s event — a staged shutdown of the modem's RF/LTE stack —
+occurred at the usual time even though the AP data path came up 309 s late** ⇒ **the EVENT is
+boot-anchored**, and the **ML1 `lte_ml1_common_timer.c:390` assert is a CONDITIONAL downstream
+manifestation**, separable from the event. ⚠ Caveat: per §104, `rflte_*` absence alone can mean *idle*;
+the stronger signal here is that **ALL** subsystem logging collapsed to the CPU heartbeat.
+
+**⚠ Open ambiguity (why this is not yet a fix).** The link was **near-idle** the whole run (`wwan0`
+rx 7465 B / tx 26492 B). So "the assert did not fire" is confounded between **(a)** the late bring-up and
+**(b)** the absence of traffic/activity. §112.25 (no data path) and this run (data path up, idle) both show
+**no assert**; a normal boot (data path up, traffic) asserts. ⇒ the assert needs an **activity/traffic
+condition** this run did not meet. **Next discriminator:** repeat with the data path up late **and
+continuous traffic** — assert at mu ~902 ⇒ event is boot-anchored and activity-gated; assert at mu ~1211 ⇒
+bring-up-anchored.
+
+**Consequences.**
+1. **The ~902 s event is NOT prevented by delaying the AP data path** — it is boot-anchored (it happened at
+   the usual time). So "delay the data path" is **not** a fix; it only changes the symptom
+   (assert → silent RF/data death).
+2. **The assert is separable from the event.** The crash/SSR is a *downstream* consequence; the real target
+   remains the **~902 s RF/LTE shutdown** itself.
+3. The AP data path died at ~mu 954 and the deployed watchdog correctly detected (Stage-2 "RF receiver
+   frozen") and recovered (Stage-3 SSR) — the §112.18.15 / Doc-197 watchdog chain works end-to-end on a
+   genuine RF freeze.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| H-ARMED-AT-BOOT | fatal at `t_load` | **FALSIFIED** (nothing) |
+| H-DELAY | fatal at `t_load+902.7` | **not observed** |
+| H-NOARM | no fatal (confound) | **observed, confound CLEARED** (bring-up succeeded) |
+| Event timing | ? | **boot-anchored** (F3 RF collapse at the usual ~mu 902) |
+| Assert | ? | **conditional** — did not fire; ambiguity (late bring-up vs no-traffic) **OPEN** |
+
+**SOP.** Ground-truth-first: the mechanism (OF modalias) was read from the running kernel, not assumed; the
+F3 evidence is the modem's own log; one change at a time; pre-registered with a falsifier; the
+negative/ambiguous result is recorded as such; the device was restored to the shipped config
+(`a2_pin=1`, `preemptive_ssr_interval=800`, `bam-dmux` autoload re-enabled, `.ko` restored) in the same
+session.
+
+**Tools / evidence:** `scratch/a2pin/{PREREG_bamdelay.md,bamdelay.sh,bamdelay.log}`,
+`scratch/a2pin/f3stall/*.raw`, `scratch/a2pin/{f3_chunk_summary.py,f3_a2dump.py}`.
