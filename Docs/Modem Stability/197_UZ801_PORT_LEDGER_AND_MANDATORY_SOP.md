@@ -14579,7 +14579,7 @@ for `rpm.sync` is hereby **CLOSED**.
 | Is the park an infinite spin? | characterize | **NO** — two bounded condition-clear loops, each iteration yields to the scheduler |
 | Does the MCPM HARD_FAIL fire? | yes/no | **NO** — scratch zeroed in 7/7 dumps; `q6pcvote <= snapshot` is `1064 <= 0` = FALSE |
 | Is §50's "LPR+0x18 = LPRM+0x48 mirror" the mechanism? | verify | **NO** — the bump is on LPRM `+0x48` (a fn-ptr constant `0xc12875c0`); LPR `+0x18` is only READ as a param |
-| The root "why sleep count stops" | OPEN | **still OPEN** — but `rpm.sync` is RULED OUT; the counter that stops is ML1-side (the SERV-MEAS-RSP ctx0 watchdog of items 84-86), not the `rpm.sync` LPR counter |
+| The root "why sleep count stops" | OPEN | **still OPEN** — `rpm.sync` is RULED OUT; the surviving candidate (folded into §112.38's OPEN section) is the ML1-side SERV-MEAS-RSP ctx0 watchdog (items 84-86/100/102), a symptom not the root; the *identity* of what stops the reply path at ~902 s is the open mechanism question |
 
 ### SOP
 
@@ -14595,3 +14595,21 @@ filed with the 7-varying-counter table and the 7-zeroed-scratch table.
 4566973-4567100, 3120739-3120820, 2083950-2084040), `modem_full_decompiled.c:2367053-2367160`
 (`FUN_c0cd3384`), `:2380277-2380420` (`FUN_c0ce7fe0`/`FUN_c0ce7f98`), the inline coredump reader
 (bias `0x39800000`; LPR at `0x885473f8`, scratch at `0x897fd9a8`/`0x897fda28`).
+
+### Sync with §112.38 (2026-10-03)
+
+This section's findings have been **folded back into §112.38** (commit `c1ad1d9`):
+
+- §112.38's MCPM row #1 now carries the 7-dump coredump confirmation (scratch zeroed 7/7,
+  `q6pcvote` LIVE 1060-1647) — the "INERT" verdict is no longer §38-disassembly-only.
+- §112.38's "no untested lever" point 1 cites the 7-dump read as the fifth confirmation.
+- §112.38's "one thing that is genuinely OPEN" section: `rpm.sync` moved from the lead candidate
+  to **RULED OUT**; the ML1-side SERV-MEAS-RSP ctx0 watchdog (items 84-86/100/102) is now
+  listed as the **surviving candidate** (a symptom, not the root — the *identity* of what stops
+  the reply path at ~902 s is the open mechanism question).
+- §112.38's Achieved/Expected table and SOP/Tools reference §112.39's 7-dump read and
+  decompilation.
+
+**Net state:** the `rpm.sync` LPR park axis is **CLOSED**. The firmware-timer axis itself remains
+**exhausted** (§112.38). The one open question — *what stops the ML1 SERV-MEAS-RSP reply path at
+~902 s* — is a causal-mechanism question, not a timer-limit question.
