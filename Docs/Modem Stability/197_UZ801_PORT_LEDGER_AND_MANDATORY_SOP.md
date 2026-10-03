@@ -14966,3 +14966,134 @@ patch.
 
 **Tools / evidence:** `scratch/a2pin/dump_devcd1_3125.bin`, `scratch/hexdec/slot2.py`,
 `scratch/diag_patch_v12/read_crash_report.py`; ledger §105.3/§105.4, §112.42.
+
+## §112.44 ★★★★★ PC-STRUCT (P-FLAGPOS Stage 1) — the §105.4 flag IS the deterministic output of the event-0x10 handler: `(d2=0, armed)` is reachable **by construction** (the handler clears `d2` **then** arms); the fatal is the arm that is never *resolved*, and the pre-registered probabilistic Stage 2 is **superseded** (2026-10-03)
+
+**Instruction.** The user asked to add a **positive control** for the §105.4 flag (the "vacuous control"
+gap left by §112.42/§112.43). Pre-registered as **P-FLAGPOS** (`scratch/a2pin/PREREG_posctrl.md`):
+**Stage 1 = PC-STRUCT** (offline, run first — *can a slot be armed (`+0x00=1`) while the carrier is
+`d2=0`?*), **Stage 2 = PC-ARMED** (live, n=8 forced captures — only if Stage 1 says "permitted").
+This entry is the **Stage-1 result**: it is decisive, and it *reframes* Stage 2.
+
+### §112.44.1 Method (offline, read-only)
+
+Read the **complete** set of code that touches the meas table (`0xc36b82d0`; §106's 8 functions) plus the
+event chain that calls them, from `scratch/firmware/modem.asm` (raw disasm, ground truth) and
+`Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c` (Ghidra, readable). No device access, no
+patch, no baseband write.
+
+### §112.44.2 The event-0x10 chain (who arms the ring)
+
+* `FUN_c0228c90` (`lte_LL1_cmd_proc_srch.c`) dequeues an LL1 command (`FUN_c0038a20`) and dispatches it
+  by type via **`FUN_c01cfb20(type, …)`**; the dispatcher maps **type == 0x10 → `FUN_c01ecbf4`**
+  (`c01cfb20`: `p0 = cmp.eq(param_1,#0x10)` → `call 0xc01ecbf4`; asm `c01cfb48`).
+* `FUN_c01ecbf4` is the **event-0x10 handler** and calls **both**:
+  ```c
+  void FUN_c01ecbf4(undefined4 p) { FUN_c01bc724(); FUN_c01bc7f0(p); }
+  ```
+  ⇒ event 0x10 runs the carrier init **and** the ring armer, in that order, on **every** occurrence.
+
+### §112.44.3 `FUN_c01bc724` (the carrier init) **clears `d2`** — verified in raw asm
+
+Raw asm (`c01bc72c`–`c01bc7e4`), per carrier (`r23 = 0xc36b82d0 + carrier*0x1e8`):
+
+* `memset(carrier+0x10, 0, 0xa8)` (`c01bc74c`/`c01bc750`) ⇒ **all three ring slots** zeroed, i.e.
+  `+0x00`, `+0x01`, `+0x08` (data), `+0x10`, `+0x14`, and `cons` (`+0x30`) — the whole slot region
+  `+0x10..+0xb7`.
+* `memb(carrier+0x00)=0` (`c01bc760`); `carrier+0x02 = template[0]` (`c01bc768`, `r2 = memb(0xc1d7e91e)`);
+  `carrier+0x09 = carrier index`; `carrier+0x08 = template[1]`; `carrier+0x0a = <call ret>`.
+* **`memset(carrier+0xbc, 0, 0x12c)`** (`c01bc7bc`: `r0 = add(r23,#0xbc)`; `r2 = #0x12c`;
+  `c01bc7c8 call 0xc00303f0`) ⇒ clears **`+0xbc … +0x1e7`**, which **includes `+0xbe` (`be`) and
+  `+0xd2` (`d2`)**. `+0xbf` is explicitly preserved (`c01bc7d0`/`c01bc7e0`).
+* **★ The template bytes at `0xc1d7e91e` are `01 08 28 28 …`** (read from every coredump checked;
+  identical across all of them) ⇒ **`template[0] = 0x01` ⇒ `e02` is set to `1`** by this init.
+
+### §112.44.4 `FUN_c01bc7f0` (the armer) — arms without reading `d2`
+
+Decompiled body (matches the §106 hand-decode): for each **active** carrier `0..uVar5-1`,
+`carrier+0x00 = 1`, `slot[b9]+0x00 = 1` (`c01bc854`, the `-0xa9` fold), a 4-byte payload to
+`slot[b9]+0x2c`, and **`carrier+0xb8 = (b8+1) mod 3`** (`c01bc88c`). It reads **no** `d2`, and it writes
+**no** `slot+0x08` (data).
+
+### §112.44.5 ⇒ the post-event-0x10 state **is** the §105.4 flag, and the gate cannot drain it
+
+Immediately after event 0x10 (with `b8==b9` before, the normal balanced state):
+
+| field | value | §105.4 flag needs |
+| :-- | :-- | :-- |
+| `carrier+0x00` | 1 | — |
+| `slot[b9]+0x00` | **1** (armed) | ✅ armed |
+| `carrier+0xb8` / `+0xb9` | **(b9+1)%3** / b9 | ✅ `b8=(b9+1)mod3` |
+| `slot[b9]+0x08` (data) | **0** (armer writes `+0x2c`, not `+0x08`) | ✅ data = 0 |
+| `cons` | **0** | ✅ cons = 0 |
+| `d2` | **0** (cleared by §112.44.3) | ✅ `d2=0` |
+| `e02` | **1** (template[0]) | ✅ `e02=1` |
+
+And the gate **`FUN_c01bc934`** drains iff `slot[b9]+0x00==1` **AND `e02 <= slot[b9]+0x01`**. Right after
+the arm `+0x01 = 0` and `e02 = 1` ⇒ **condition B fails ⇒ the gate cannot drain**. The only thing that
+makes it drainable is the **writer `FUN_c01bc8e0`** (STI feeder `c01df174` / ODRX `c01e4304`), which
+increments `slot[b9]+0x01` (and writes `+0x08/+0x10/+0x14`) **only while the slot is armed**.
+
+> ⇒ **The flag resolves iff a measurement result is written.** It is *not* a state unique to a fatal; it
+> is the **normal transient between the arm (event 0x10) and the result write**. The fatal is that write
+> **never happening** — i.e. §106's "consumer stalled", refined to *"the producer armed but the result
+> never arrived"*.
+
+### §112.44.6 Data confirmation — the 3 `d2=0` fatals read *exactly* the post-arm state
+
+`slot2.py` on the 3 `d2=0, e02=1` fatals (§112.42's set):
+
+| dump | c0 | c1 |
+| :-- | :-- | :-- |
+| `up915.42` | `e02=1 d2=0 b9=1 b8=2`; slot1 `+00=1 +01=0 +08=0 cons=0`; others empty | `e02=1 d2=0 b9=0 b8=0`, all empty |
+| `up915.44` | `e02=1 d2=0 b9=1 b8=2`; slot1 `+00=1 +01=0 +08=0 cons=0` | `e02=1 d2=0 b9=0 b8=0`, all empty |
+| `up1818.92` | `e02=1 d2=0 b9=2 b8=0`; slot2 `+00=1 +01=0 +08=0 cons=0` | `e02=1 d2=0 b9=0 b8=0`, all empty |
+
+Every row is byte-for-byte the §112.44.5 post-arm state (`b8=(b9+1)%3` holds in all three: 1→2, 1→2,
+2→0). **The §105.4 flag is the deterministic output of event 0x10.** ⇒ `(d2=0, armed)` is not merely
+*reachable* — it is **forced** by a normal event.
+
+### §112.44.7 Verdict — Stage 1 returns "arming is FORCED at `d2=0`"; Stage 2 is superseded
+
+* **Stage-1 answer: NO — `d2=0` does not exclude arming; the event-0x10 handler *clears* `d2` and then
+  arms.** The pre-registered first branch ("`d2=0` excludes arming ⇒ fatal-specific by construction") is
+  **FALSIFIED**; the second branch ("`d2=0` permits arming") holds.
+* **But Stage 1 also reframes the question.** The flag is a **transient** state that every event 0x10
+  produces. A single coredump therefore **cannot** distinguish *"just armed, result pending"* (healthy)
+  from *"armed, result never came"* (fatal) — only the **persistence** does, and a snapshot has no time
+  axis. So the pre-registered **Stage 2 (n=8 random captures) is not fit for the question**: catching the
+  flag in a healthy modem would be *expected* (it is the transient), and *not* catching it in n=8 would
+  be uninformative.
+* **⇒ Stage 2 is NOT run as pre-registered.** The supersession is recorded in
+  `scratch/a2pin/PREREG_posctrl.md` (amendment dated before any Stage-2 run). The **only** instrument
+  that can measure persistence is a **deterministic event logger** — the v8-style firmware ring on the
+  armer `FUN_c01bc7f0` / writer `FUN_c01bc8e0` / gate `FUN_c01bc934` (PREREG §6) — which is
+  **higher-risk** (cf. the v12 responder instrument, which crash-looped boot) and is **deferred to the
+  user's decision**.
+* **What this does to §105.4/§105.8/§112.41.** §105.4's *observation* (flag in idle-fatals, absent in
+  traffic controls) **stands**, and its *mechanism* is now **CONFIRMED and named** (an arm whose result
+  was never written) — §105.8's "about to die" is directionally right, but the flag is **not** a state
+  that cannot exist healthy. §112.41 stays **retracted**. The §112.42 census is reconciled: event 0x10
+  sets `e02=1`, so an `e02=0` table is one where event 0x10 has **not fired** (fresh/reset), and the
+  `d2=1` dumps are event-0x10 tables whose arm was **resolved** by a result write.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Can a slot be armed while `d2=0`? | yes/no | **YES — and it is FORCED**: event 0x10 clears `d2` then arms (§112.44.3/4) |
+| Is the flag fatal-specific by construction? | yes/no | **NO** — it is the deterministic post-event-0x10 transient |
+| Run the live Stage 2 | yes/no | **NO — superseded**: a snapshot cannot measure persistence (§112.44.7) |
+| Name the flag's mechanism | — | **YES** — an armed slot whose measurement result is never written |
+
+**SOP.** Offline/read-only (existing disassembly + decompilation + coredumps; no device access, no patch,
+no baseband write). The pre-registration's own **Stage-1 gate decided the outcome**, and the deviation
+from "run Stage 2" is **documented in the pre-registration before any run**, with the reason (a snapshot
+cannot measure persistence). A negative of our own is stated: the Stage-2 design the pre-registration
+proposed is **not fit for the question**, and that is recorded rather than papered over. Ledger + memory
+updated in the same session.
+
+**Tools / evidence:** `scratch/hexdec/func.py`, `scratch/hexdec/slot2.py`,
+`scratch/firmware/modem.asm` (`c01bc724`, `c01bc7f0`, `c01bc8e0`, `c01bc934`, `c01cfb20`, `c01cfb48`,
+`c01ecbf4`, `c0228c90`), `modem_full_decompiled.c`; coredumps `up915.42`, `up915.44`, `up1818.92`
+(§112.42's `d2=0` fatals); `scratch/a2pin/PREREG_posctrl.md`; ledger §105.4/§105.8, §106, §112.42/§112.43.

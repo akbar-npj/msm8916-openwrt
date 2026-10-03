@@ -27,6 +27,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      phase-2 conclusion is **RETRACTED** and §105.8's "confound resolved" is
      **UNSUPPORTED**. The decisive control (`P-IDLECTRL2`) was **run but VOID**
      (the idle modem survived to 966 s but read `e02=0`).
+  3b. **Positive control for the §105.4 flag (P-FLAGPOS)** — Stage 1 **DONE
+     (§112.44)**: the flag is the deterministic output of the event-0x10 handler
+     (which clears `d2` then arms), so `(d2=0, armed)` is forced by construction
+     and the probabilistic Stage 2 is **superseded** (a snapshot cannot measure
+     persistence). **Open decision:** whether to build the deterministic
+     v8-style firmware ring on the armer/writer/gate (higher-risk) to measure
+     persistence, or accept the §112.44 structural result as final.
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a
@@ -40,6 +47,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.44 (P-FLAGPOS Stage 1 — the §105.4 flag's mechanism)** — the offline PC-STRUCT test the user's
+  positive-control request called for. The **event-0x10 handler `FUN_c01ecbf4` clears `d2` and then arms
+  the ring**: `FUN_c01bc724`'s `memset(carrier+0xbc, 0, 0x12c)` covers **`+0xd2`** (and `+0xbe`), and
+  `FUN_c01bc7f0` then sets `carrier+0x00=1`, `slot[b9]+0x00=1`, `carrier+0xb8=(b8+1)mod3` (reads no
+  `d2`, writes no `+0x08`). The template at `0xc1d7e91e` is `01 08 28 28 …` ⇒ the handler sets
+  **`e02=1`**. ⇒ **`(d2=0, armed)` is reachable — indeed FORCED — by construction**; the §105.4 flag is
+  the deterministic post-event-0x10 state (confirmed byte-for-byte in the 3 `d2=0` fatals:
+  `up915.42/44`, `up1818.92`). The gate `FUN_c01bc934` **cannot drain** an armed slot until the writer
+  `FUN_c01bc8e0` fills `+0x08`/increments `+0x01` ⇒ the fatal is the arm whose **result is never
+  written** (§106's "consumer stalled", refined). **Consequence:** the pre-registered probabilistic
+  **Stage 2 (n=8) is superseded and NOT run** — a snapshot cannot measure *persistence*, so the test
+  cannot distinguish "transient" from "stuck"; the amendment is recorded in `PREREG_posctrl.md` before
+  any run. Read-only/offline (no device access). §105.4's observation stands with its mechanism now
+  named; §112.41 stays retracted; §105.8's "about to die" is directionally right but the flag is not a
+  state that cannot exist healthy.
 - **§112.43 (e02 reachability)** — `ifdown modem` (MM `registered`, LTE, no bearer) + a §6.2a
   capture (`dump_devcd1_3125.bin`, md5 `65dc280a…`, no crash report) reads carrier 0
   `e02=1, d2=1` (consumed slot, no flag) and **carrier 1 `e02=1, d2=0`** (empty, no flag).
