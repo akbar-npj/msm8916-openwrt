@@ -16357,3 +16357,172 @@ md5 `580be11b…`) + the §112.53.1 coredump (`scratch/sched1_run_20261003/dump_
 `9e3cd57b…`) + the stock HMU05 ELF; **no device write, no patch**. Tools: `scratch/a2_descr.py`,
 `scratch/read_stack.py`, `scratch/readva.py`, `llvm-objdump`, Ghidra
 (`DecompList.java`, `DecompList2.java`). Ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.56 ★★★★ The sleepmgr, decoded from the coredump — state names + the full 31-message table (byte-verified), the armer's ONLY caller, and the generic STM/scheduler frameworks (2026-10-04)
+
+**Instruction.** Execute §112.55's read-only next steps 1–2: *"decompile `FUN_c03986b0`
+(OFFLINE_SLEEP_WAIT) and `FUN_c0396f30` (ONLINE_SLEEP_WAIT) end-to-end and map the sleepmgr
+state-transition graph; identify the scheduler's arm/re-arm driver and the slot's period."*
+
+**Result.** The state names and the **entire** 31-entry message table are now **byte-verified from
+the coredump's own string pool**, the armer's single call site is **confirmed with ZERO indirect
+references**, and the **generic STM framework (getter + transition)** is located. The §112.55
+"armed in state 11, fires in state 2" paradox is now **PROVEN to be real** (not a decompiler
+artifact) — it is the crux of the still-open question. **Root cause remains OPEN.**
+
+### §112.56.1 The 12 state names are BYTE-VERIFIED (they were inferred in §112.55.1)
+
+Read from the coredump string pool (each state-table `name` field is a real `char *`):
+
+| idx | name | entry | f2 | f3 |
+| :-- | :-- | :-- | :-- | :-- |
+| 0 | `INACTIVE` | `0xc0396a40` | — | — |
+| 1 | `ONLINE` | `0xc0396c50` | — | — |
+| **2** | **`ONLINE_SLEEP_WAIT`** | **`0xc0396f30`** | **`0xc0397380`** | — |
+| **3** | **`SLEEP`** | **`0xc03973a0`** | — | — |
+| 4 | `ONLINE_WAKEUP` | `0xc0397f30` | `0xc03982b0` | — |
+| 5 | `TTL_WAIT` | `0xc0398410` | `0xc0398590` | — |
+| 6 | `LIGHT_SLEEP_WAIT` | `0xc0397a30` | — | — |
+| 7 | `LIGHT_SLEEP` | `0xc0397d10` | `0xc0397dd0` | — |
+| 8 | `LIGHT_SLEEP_WAKEUP` | `0xc0397ea0` | `0xc0397ee0` | — |
+| 9 | `OFFLINE_WAKEUP` | `0xc03985f0` | — | — |
+| 10 | `OFFLINE_RECORD` | `0xc0398670` | — | — |
+| 11 | `OFFLINE_SLEEP_WAIT` | `0xc03986b0` | — | — |
+
+Class object `0xc1a94f70` (name string at `+0x3c` = `"LTE_ML1_SLEEPMGR_STM\0"`): `+0x14=0x0c` (12
+states), `+0x18` = state table `0xc1a94fc8`, `+0x1c=0x1f` (31), `+0x20` = message table
+`0xc1a95088`. Instance object `0xc1e158d0`: `+0x00` = class, **`+0x04` = state = 2**,
+`+0x08 = 8`, `+0x14` = ctx `0xc20f1680`. ⇒ §112.55.1's names are **CONFIRMED**; the live state
+`2 = ONLINE_SLEEP_WAIT` **stands**.
+
+### §112.56.2 The FULL 31-entry message table — names AND ids, byte-verified
+
+`0xc1a95088`, `{char *name; u32 id}` (supersedes §112.55.6's partial list):
+
+| # | name | id |
+| :- | :-- | :-- |
+| 0 | `LTE_ML1_SLEEPMGR_ENABLE_SLEEP_REQ` | `0x042b0200` |
+| 1 | `LTE_ML1_SLEEPMGR_DISABLE_SLEEP_REQ` | `0x042b0201` |
+| 2 | `LTE_ML1_SLEEPMGR_OFFLINE_ENABLE_REQ` | `0x042b020f` |
+| 3 | `LTE_ML1_SLEEPMGR_OBJ_START_REQ` | `0x042b0202` |
+| 4 | `LTE_ML1_SLEEPMGR_OBJ_ABORT_REQ` | `0x042b0204` |
+| 5 | `LTE_ML1_DLM_RX_CFG_CNF` | `0x04030841` |
+| 6 | `LTE_LL1_SYS_RUN_RXLM_RF_SCRIPT_CNF` | `0x040a080e` |
+| 7 | `LTE_LL1_UL_TX_LM_CONFIG_CNF` | `0x04090804` |
+| 8 | `LTE_LL1_SYS_SLEEP_CNF` | `0x040a0808` |
+| 9 | `LTE_ML1_SLEEPMGR_RF_SLEEP_CNF` | `0x042b0802` |
+| 10 | `LTE_ML1_SLEEPMGR_RF_EXIT_CNF` | `0x042b0804` |
+| 11 | `LTE_ML1_SLEEPMGR_WAKEUP_REQ` | `0x042b0205` |
+| 12 | `LTE_ML1_SLEEPMGR_RF_LESS_WAKEUP_REQ` | `0x042b020e` |
+| 13 | `LTE_ML1_SLEEPMGR_WMGR_RESULT_IND` | `0x042b040b` |
+| 14 | `LTE_ML1_SLEEPMGR_WMGR_TIMER_EXPIRY_IND` | `0x042b040c` |
+| 15 | `LTE_ML1_SLEEPMGR_TRM_GRANT_CB_IND` | `0x042b040d` |
+| 16 | `LTE_ML1_SLEEPMGR_RF_WAKEUP_CNF` | `0x042b0801` |
+| 17 | `LTE_ML1_SLEEPMGR_RF_ENTER_CNF` | `0x042b0803` |
+| 18 | `LTE_ML1_SLEEPMGR_STMR_ON_REQ` | `0x042b0206` |
+| 19 | `LTE_LL1_ASYNC_WAKEUP_CNF` | `0x040b0806` |
+| 20 | `LTE_ML1_SLEEPMGR_DLS_EXIT_IND` | `0x042b040a` |
+| 21 | `LTE_ML1_SLEEPMGR_UPDATE_SCLK_ERR_REQ` | `0x042b0208` |
+| 22 | `LTE_ML1_SLEEPMGR_LIGHT_SLEEP_WAKEUP_REQ` | `0x042b020c` |
+| 23 | `LTE_LL1_SYS_LIGHT_SLEEP_MOD_CTRL_CNF` | `0x040a0814` |
+| 24 | `LTE_ML1_DLM_LIGHT_SLEEP_ISSUE_IND` | `0x04030462` |
+| 25 | `LTE_ML1_SLEEPMGR_DELAYED_CFG_APP_IND` | `0x042b0409` |
+| 26 | `LTE_ML1_SLEEPMGR_LIGHT_SLEEP_ENABLE_FW_REQ` | `0x042b020d` |
+| 27 | `LTE_ML1_SLEEPMGR_LIGHT_SLEEP_OBJ_END_IND` | `0x042b0408` |
+| 28 | `LTE_LL1_SYS_SAMPLE_REC_DONE_IND` | `0x040a041b` |
+| 29 | `LTE_ML1_SM_OFFLINE_GOTO_SLEEP_IND` | `0x04020425` |
+| 30 | `LTE_ML1_SLEEPMGR_GO_TO_SLEEP_REQ` | `0x042b0209` |
+
+### §112.56.3 ★ The armer `FUN_c0396fa0` has EXACTLY ONE reference — and it is OFFLINE_SLEEP_WAIT
+
+- `grep "call 0xc0396fa0"` over the **full** disassembly ⇒ **1** hit: `c0398764`, inside
+  `FUN_c03986b0` (state 11 = `OFFLINE_SLEEP_WAIT`). **No** `jump 0xc0396fa0`.
+- A raw little-endian search for the pointer `0xc0396fa0` in the whole ELF ⇒ **0 occurrences**
+  ⇒ it is **not** in any table and **not** reachable indirectly. **The paradox is PROVEN.**
+- (Control) a raw search for `0xc0396f30` ⇒ **1** occurrence, at the state-table entry
+  `{name=0xc1a95af3, entry=0xc0396f30, f2=0xc0397380, f3=0}` ⇒ the table is authoritative.
+
+### §112.56.4 `FUN_c0396f30` (state 2 entry) is SHORT — §112.55's "big body" was a Ghidra MERGE
+
+The raw disassembly shows `FUN_c0396f30` returns at **`c0396f84`** (`dealloc_return`); its whole
+body is 5 calls (`c02d8e58`, `c03933a0`, `c0312830`, **`c0397150`**, `c02a5f00`). The big body
+§112.55's Ghidra listing attributed to it is a **merge of three adjacent functions**
+(`FUN_c0396f30` + `FUN_c0396fa0` + `FUN_c0397150`) — the decompiler did not split at the nop-padded
+`0xc0396fa0` boundary. ⚠ **§112.55.5's conclusion stands** (state 2 does **no** registration/arming);
+only the *listing* was misleading.
+
+### §112.56.5 `FUN_c0397150` — a shared helper called by BOTH state 2 and state 11
+
+`FUN_c0396f30` (state 2) and `FUN_c03986b0` (state 11) **both** call `FUN_c0397150` (the only two
+callers). It issues a message with constant **`0x040a0209`** at `c03972b8`/`c03972f0`
+(`func_0xc03927d0(ctx, buf, len, 0x040a0209)`). ⚠ Note this is **not** `GO_TO_SLEEP_REQ`
+(`0x042b0209`, which the sleepmgr sends from `c03967e4`/`c039a354`); `0x040a0209` is an
+**`LTE_LL1_SYS` request** (the `0x040a` subsystem). The sleepmgr's send helper
+`func_0xc03927d0` hardcodes sender subsystem `0x42b` (`c03927e8: r1:0 = combine(##0x42b, r18)`).
+
+### §112.56.6 ★ The GENERIC STM framework — getter and transition
+
+- **getter**: `stm_get_state(obj) = *(u32 *)(obj + 4)`, at `0xc0fe1960`
+  (`c0fe1968: r0 = memw(r0+#0x4); dealloc_return`; null ⇒ assert).
+- **transition** (`~0xc0fe16xx`): `c0fe1754: r1 = memw(r16+#0x4); memw(r16+#0x4) = r18`
+  — reads the old state, writes the new; it calls the **old-state exit** (`0xc0fe11e0`) and the
+  **new-state entry** (`0xc0fe11f0`), and indexes `state_table[old]` via `r22+0x8` to reach
+  `+0xc` (`f3`, the exit callback). ⇒ the state writer is the framework, **not** the state handlers.
+
+### §112.56.7 The scheduler `0xc0b6xxxx` is a GENERIC service (≥6 unrelated modules)
+
+`FUN_c0b663e0` (8 callers), `FUN_c0b66830` (6), `FUN_c0b674b0` (9), `FUN_c0b66ee0` (15),
+`FUN_c0b66f00` (15), `FUN_c0b670c0` (12) are called from `c0396xxx` (sleepmgr) **and** from
+`c04d6xxx`, `c054exxx`, `c06exxx`, `c0ab0xxx`, `c0bb2xxx`, `c0ce8xxx`, `c0cf1xxx`. ⇒ **slot id 4 is
+the sleepmgr's own id**, not a global; the dispatcher (`c0b66fc8: callr r0` = `slot[+0x70]`) is
+per-slot. `FUN_c0b674b0` (the "cancel" `FUN_c039ef80` calls at `c039f35c`, once) is a per-slot
+state machine, not a bare unlink.
+
+### §112.56.8 Context (`0xc20f1680`) observations at the fatal
+
+- `ctx+0x068 = 0x040a0808` = **`LTE_LL1_SYS_SLEEP_CNF`** — the very CNF whose arrival would drive
+  2→3. ⚠ Whether this is a *received*-message buffer or a *pending* one is **UNRESOLVED**.
+- `ctx+0x478 = 0x0fa04e20` (low half `0x4e20 = 20000`). `FUN_c03986b0` (state 11) writes
+  `memh(ctx+0x478) = 0x4e20` at `c03987a8` ⇒ **consistent with state 11 having run**, but
+  `ctx+0x478` has **other writers** (`c03923e8`, `c0393fd4`, `c01fbfb4`, `c01fc1c4`) ⇒ **NOT** a
+  unique state-11 marker.
+- Six embedded sub-timer structs `{base=0xc361a3f0, id=4, state=0xdeaddead}` at
+  `+0x3c0/+0x4c0/+0x550/+0x588/+0x5d8/+0x630`, each followed by a `0xc0396xxx` callback pointer.
+- The state handlers `FUN_c0397380` (state 2 `f2`) and `FUN_c03973a0` (state 3 entry) are
+  **near-identical clones** that funnel into a common sleep/wake work routine — so the state *gates*
+  the routine, it does not implement it.
+
+### §112.56.9 ⇒ THE PROVEN PARADOX, and what is still OPEN
+
+**Proven.** (i) The sleepmgr STM is in **`ONLINE_SLEEP_WAIT` (2)** at the fatal (both dumps).
+(ii) Timer slot 4 fires the callback `FUN_c039ef80`, which asserts `state == SLEEP (3)`.
+(iii) Slot 4's callbacks are installed **only** by `FUN_c0396fa0`, whose **only** reference in the
+whole firmware is the `OFFLINE_SLEEP_WAIT` (11) handler. ⇒ **a timer armed from state 11 fired
+while the STM was in state 2.** The §112.55 framing is therefore *not* an artifact.
+
+**Still OPEN (unchanged in substance, now sharpened).**
+1. **How state 11 armed a timer that fired in state 2** — the two non-exclusive candidates are
+   (a) the modem legitimately passed 11 → … → 2 and the timer's deadline outlived the transition,
+   or (b) state 11 is a **boot-time** state and the timer is a **long** (≈ the ~900 s clock) timer.
+   The timer's **period is still not pinned** (the 19.2 MHz scheduler arithmetic is in
+   `FUN_c0b663e0`, but the sleepmgr's deadline `slot+0xd8` is a 64-bit stamp whose rate is not
+   established).
+2. **Which awaited `*_CNF` is lost** — the flow sends `GO_TO_SLEEP_REQ`/`LL1_SYS` requests and waits
+   for `RF_SLEEP_CNF`/`LL1_SYS_SLEEP_CNF`; `ctx+0x068` even holds `LL1_SYS_SLEEP_CNF`'s id.
+   Whether that CNF arrived and the transition failed, or never arrived, is **UNRESOLVED**.
+3. **Why `ONLINE_SLEEP_WAIT → SLEEP` did not complete** — the original §112.54 question.
+
+**Next steps.** The read-only path is now **saturated** (framework + tables + names all resolved;
+the remaining unknowns are *dynamic*). The decisive instrument is **unchanged from §112.55.7**:
+a **firmware ring on the STM state writer** (log every `*(0xc1e158d4)` transition + the message id
+being dispatched, with a timestamp), run to the ~900 s fatal. This is the same ring technique
+proven by v7–v11 / P-MEASRING / P-CANCELRATE.
+
+**SOP.** Offline, read-only: the §112.49 coredump (`scratch/wedge_run_20261003/dump_devcd1_3334.bin`,
+md5 `580be11b…`) + the §112.53.1 coredump (`scratch/sched1_run_20261003/dump_devcd2_7362.bin`, md5
+`9e3cd57b…`) + the stock HMU05 ELF (`scratch/hmu05_stock_elf/modem_hmu05_stock.elf`); **no device
+write, no patch**. Tools: `llvm-objdump` (elf32-hexagon), `scratch/read_stack.py` (coredump reads),
+an inline coredump string-pool reader. **No pre-registration** (pure read-only characterisation).
+Ledger + CHANGELOG + memory updated in the same session.

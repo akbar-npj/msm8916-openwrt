@@ -72,6 +72,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.56 (the sleepmgr, decoded from the coredump — state names + full 31-message table
+  byte-verified; the armer's ONLY caller; the generic STM/scheduler frameworks)** — continuing
+  §112.55's read-only next steps 1–2. **(1)** The 12 state names are now **byte-verified from the
+  coredump string pool** (each state-table `name` is a real `char *`): `INACTIVE, ONLINE,
+  ONLINE_SLEEP_WAIT, SLEEP, … OFFLINE_SLEEP_WAIT`; class `0xc1a94f70` carries the literal
+  `"LTE_ML1_SLEEPMGR_STM"`; instance `0xc1e158d0` has `+0x04 = state = 2`, `+0x14 = ctx
+  0xc20f1680`. **(2)** The **full 31-entry message table** (`0xc1a95088`, `{name,id}`) is recovered
+  (supersedes §112.55.6's partial list), incl. `LL1_SYS_SLEEP_CNF 0x040a0808`, `RF_SLEEP_CNF
+  0x042b0802`, `GO_TO_SLEEP_REQ 0x042b0209`, `STMR_ON_REQ 0x042b0206`. **(3)** The armer
+  `FUN_c0396fa0` has **exactly one reference in the whole firmware** (`call` @ `c0398764`, in the
+  `OFFLINE_SLEEP_WAIT` handler `FUN_c03986b0`) and **zero** raw-pointer occurrences ⇒ **the
+  "armed in state 11, fires in state 2" paradox is PROVEN real**. **(4)** `FUN_c0396f30` (state 2
+  entry) is **short** (returns at `c0396f84`); §112.55's "big body" was a **Ghidra merge** of three
+  adjacent functions (its §112.55.5 conclusion still stands). **(5)** `FUN_c0397150` is a shared
+  helper called by **both** state 2 and state 11; it issues an **`LTE_LL1_SYS` request
+  `0x040a0209`** (≠ `GO_TO_SLEEP_REQ`). **(6)** The **generic STM framework** is located: getter
+  `stm_get_state(obj)=*(u32*)(obj+4)` @ `0xc0fe1960`; the transition writes `memw(obj+4)=newstate`
+  @ `c0fe1754` (old-state exit `0xc0fe11e0`, new-state entry `0xc0fe11f0`). **(7)** The scheduler
+  `0xc0b6xxxx` is a **generic** service (callers in ≥6 unrelated modules) ⇒ slot id 4 is the
+  sleepmgr's own. **(8)** Context: `ctx+0x068 = 0x040a0808` (LL1_SYS_SLEEP_CNF's id); six embedded
+  sub-timer structs `{base=0xc361a3f0, id=4, state=0xdeaddead}`; states 2/3 handlers are
+  near-identical clones. ⇒ **the read-only path is saturated**; the remaining unknowns are
+  **dynamic** ⇒ the decisive instrument stays the §112.55.7 **firmware ring on the STM state
+  writer**. **Root cause still OPEN.** Offline, read-only; no device write, no patch.
 - **§112.55 (THE FATAL IS A TIMER-EXPIRY CALLBACK — and the 12-state map; CORRECTS §112.54.3)** —
   continuing §112.54's read-only next steps 1–2. **(1) The sleepmgr STM has 12 states**, not 4
   (class `+0x14 = 12`; table `0xc1a94fc8` runs exactly 12×0x10 B and ends at the message table
