@@ -14390,7 +14390,7 @@ the ~902 s beat. They are **not independent** — they are three consumers of ON
 
 | # | Watchdog | Site (file:line) | Mechanism (function) | Threshold | Tested? | Result |
 |---|---|---|---|---|---|---|
-| 1 | **MCPM system-sleep watchdog** | `lte_ml1_sleepmgr_stm.c:4054` | `FUN_c0ce7fe0` (`0xc0ce7fe0`) | `min_sleep_count > 400` AND `min_elapsed_since_sleep > 400` (ms); `400 × 2.259188 s = 903.675 s` | **INERT** (§38) | The `mcpm_drv.c`/`mcpm_ut_superset.c` layer **does not run** in 43/43 dumps; `FUN_c0ce7fe0` **zeroes its own scratch arrays** (`DAT_c30fd9a8`/`DAT_c30fda28`) as its last action (`0xc0ce8430-44`) ⇒ the guard reads zero in every dump ⇒ "a guard that never passes, not the fatal". **Any patch at `0xcaf1d0`/`0xcaf1d4` (the `400`/`450` constants) is inert** (§38.5). |
+| 1 | **MCPM system-sleep watchdog** | `lte_ml1_sleepmgr_stm.c:4054` | `FUN_c0ce7fe0` (`0xc0ce7fe0`) | `min_sleep_count > 400` AND `min_elapsed_since_sleep > 400` (ms); `400 × 2.259188 s = 903.675 s` | **INERT** (§38; §112.39 coredump-confirmed 7/7) | The `mcpm_drv.c`/`mcpm_ut_superset.c` layer **does not run** in 43/43 dumps; `FUN_c0ce7fe0` **zeroes its own scratch arrays** (`DAT_c30fd9a8`/`DAT_c30fda28`) as its last action (`0xc0ce8430-44`) ⇒ the guard reads zero in every dump. §112.39 read the `q6pcvote` (LPR `0xc1d473f8` `+0x18`) and the scratch across **7 up9xx fatals**: scratch = 0/0 in all 7, `q6pcvote` = 1060-1647 (varying, LIVE) ⇒ the HARD_FAIL gate `q6pcvote <= snapshot` = `1064 <= 0` = FALSE — **never fires**. **Any patch at `0xcaf1d0`/`0xcaf1d4` (the `400`/`450` constants) is inert** (§38.5). |
 | 2 | **ML1 state-20 watchdog** | `lte_ml1_common_timer.c:390` | `FUN_c02d7bd0` (`0xc02d7bd0`) jump-table entry 20 → bare assert; armed by `FUN_c02fda90` (sends `0x408020d` SERV-MEAS-RSP, then arms a QuRT timer on ctx0 at `inst+0x328+k*0x40`) | **50 ms** static default (9 contexts; `Δ = 9 600 074 ticks = 50.004 ms`) | **TESTED + FALSIFIED** (items 85/86) | The **deadline sweep** (v10: 50→5000 ms; v11: 50→500 ms) **FALSIFIED this as the root cause**: with the deadline extended to 5000 ms, **661 arms all cancelled, the watchdog NEVER fired, yet the modem still died at 903.61 s** (`lte_ml1_sm_idle_stm.c:2913`) ⇒ the ~900 s event is an **ML1-WIDE STALL**; the watchdog is a **SYMPTOM**, not the root timer. Item 86: at 500 ms the watchdog *does* fire (127 ARM / 1 CB) and the fatal tracks the deadline (50 ms→902.1 s, 500 ms→902.5 s, 5000 ms→903.6 s) — **but the stall outlives every deadline**. |
 | 3 | **a2_power wait-loop timeout** | `a2_power.c:1189` | `FUN_c05042c8` (`0xc05042c8`) spin helper; the 3rd of `FUN_c0504fc8`'s 5 hardware-quiesce waits (`_DAT_ec320bac & 7` never clears) | `DAT_c28602fc > 900` (901 units; spin count 45 051 byte-identical ×4) | **TESTED + EVALUATED** (§112.20/§112.28) | **NOT a root-cause fix** — a *legitimate HW-readiness check* (`FUN_c0504fc8` polls `0xec320ba4/bac/bd8/be0`, exits on `&7==0`; the assert fires past tick 900). The spin count is byte-identical across 4 dumps ⇒ the handshake is **dead, not slow** ⇒ a longer timeout only delays the assert. **§112.28: a firmware fix is NOT warranted** (every patch target unsafe; the `a2_pin` lever prevents the DOWN). Fires **post-SSR** (uptime 17-28 s), not on the natural cold-boot beat. |
 
@@ -14398,8 +14398,11 @@ the ~902 s beat. They are **not independent** — they are three consumers of ON
 
 1. **The MCPM `400`/`450` thresholds cannot be patched to fix anything** — the branch is gated by a
    layer (`mcpm_drv.c`) that does not run, and the function zeroes its own inputs. Varying `400 → 4000`
-   would change nothing because the guard's *inputs* are zero by design (§38.1). The project has
-   confirmed this four ways (island varies, pointer chain, 7 exact strings, firmware ID).
+   would change nothing because the guard's *inputs* are zero by design (§38.1). §112.39
+   **coredump-confirmed this across 7 up9xx fatals**: the scratch arrays = 0/0 in all 7, and the
+   `q6pcvote` counter the gate reads is LIVE (1060-1647, varying) ⇒ `q6pcvote <= snapshot` =
+   `1064 <= 0` = FALSE in every dump. The project has confirmed this four ways (island varies,
+   pointer chain, 7 exact strings, firmware ID) plus the 7-dump coredump read.
 2. **The ML1 50 ms deadline was swept 100× → 5000 ms** (items 85/86 — the most direct test possible):
    the deadline only changes *which site* reports the fatal (50 ms→`common_timer:390`,
    5000 ms→`sm_idle_stm:2913`), never *whether* the modem dies. The stall is ML1-wide and outlives
@@ -14411,17 +14414,26 @@ the ~902 s beat. They are **not independent** — they are three consumers of ON
 ### The one thing that is genuinely OPEN
 
 **Why the per-tech sleep count stops incrementing at ~902 s** — i.e. the *identity* of the upstream
-condition that consumer #2 (the ML1 stall) tracks. The candidates that survived falsification:
-- **`rpm.sync` LPR park** (§6.4) — a timeout-free churn loop (`0xc08b96f4`/`0xc08b988c`); the RPM is
-  alive across the fatal (Doc 150: 214 records in-window, 4629 in the 3.6 s after) ⇒ the stall is
-  Q6-side. Untested AP-side carrier: the `icc_set_bw()` interconnect/bandwidth axis (§112.16's
-  hypothesis, mechanistically doubtful — Android's `msm-bus-dbg` clients contain NO MSS master/slave
-  per A5). **Treat as a test, not a consequence.**
+condition that consumer #2 (the ML1 stall) tracks. The candidates:
+- **`rpm.sync` LPR park** (§6.4) — **RULED OUT (§112.39, 2026-10-03)**: the `q6pcvote` counter (LPR
+  `0xc1d473f8` `+0x18`) is **LIVE** (varies 1060-1647 across 7 fatals, not frozen), the two "park"
+  loops (`0xc08b96f4`/`0xc08b988c`) are bounded condition-clear waits (each iteration yields to the
+  QuRT scheduler), and the MCPM HARD_FAIL gate that consumes `q6pcvote` is unreachable (scratch
+  zeroed 7/7 ⇒ `1064 <= 0` = FALSE). The LPR counter is not the upstream stall.
 - **The AP↔modem power-collapse handshake timing** — but §112.34/35 showed the assert is
   **boot-anchored and activity-gated** (fires at mu 900.435 s with traffic, no fatal idle), so an
   AP-runtime-PM cause is *weakened*, not strengthened.
+- **The ML1-side SERV-MEAS-RSP ctx0 watchdog** (items 84-86, 100, 102) — the **surviving
+  candidate**: the fatal is `lte_ml1_common_timer.c:390` (state-20 ctx0 watchdog expiry, 50 ms
+  static default), armed by `FUN_c02fda90` after sending `0x408020d` (`LTE_ML1_SM_STM_SERV_MEAS_RSP`).
+  The CNF `FUN_c01c1820` (`lte_LL1_schdr_dl.c:2380`) has two producers (STI + ODRX) gated by
+  `slot[+0x01] >= entry[+0x02]`; at the fatal none outstanding (42/42). The deadline sweep
+  (items 85/86) showed the watchdog is a **symptom** — extending it to 5000 ms changes *which site*
+  reports the fatal, never *whether* the modem dies ⇒ an **ML1-WIDE STALL** tracks this counter, but
+  the counter itself is not the root. The *identity* of what stops the SERV-MEAS-RSP reply path at
+  ~902 s is the open mechanism question.
 
-Neither is a *timer/watchdog limit* — both are *causal-mechanism* questions, addressed elsewhere.
+Neither is a *timer/watchdog limit* — all are *causal-mechanism* questions, addressed elsewhere.
 **The firmware-timer axis itself is exhausted.**
 
 ### Achieved vs Expected
@@ -14432,17 +14444,19 @@ Neither is a *timer/watchdog limit* — both are *causal-mechanism* questions, a
 | MCPM `400` threshold patch | candidate | **INERT** (guard inputs zeroed by design; layer doesn't run) |
 | ML1 50 ms deadline | candidate | **FALSIFIED** (items 85/86 sweep; stall outlives every deadline) |
 | a2_power `>900` | candidate | **EVALUATED, NOT WARRANTED** (stuck HW register, not a timer; §112.28) |
-| The root "why sleep count stops" | OPEN | **still OPEN** — but it is a mechanism question, not a timer limit |
+| The root "why sleep count stops" | OPEN | **still OPEN** — `rpm.sync` RULED OUT (§112.39: `q6pcvote` LIVE); the surviving candidate is the ML1-side SERV-MEAS-RSP ctx0 watchdog (items 84-86/100/102); it is a mechanism question, not a timer limit |
 
 **SOP.** Read-only synthesis from archived coredumps + established decompilations + on-disk instrument
-logs (items 84-86, §112.20, §38, §2); no device mutation, no patch, no baseband change. Every claim
-cross-referenced to its primary ledger section. The "no untested lever" verdict is filed with the
-three falsifying results (the 5000 ms sweep, the 43/43 zero arrays, the byte-identical spin counts).
+logs (items 84-86, §112.20, §38, §2, §112.39's 7-dump coredump read); no device mutation, no patch, no
+baseband change. Every claim cross-referenced to its primary ledger section. The "no untested lever"
+verdict is filed with the three falsifying results (the 5000 ms sweep, the 43/43 zero arrays, the
+byte-identical spin counts) plus §112.39's 7-dump `q6pcvote`-LIVE/scratch-zeroed confirmation.
 
 **Tools / evidence:** `scratch/diag_patch_v7/{ctx_expiry_analysis.py,timer_pool.py,build_diag_patch_v7.py}`,
 `scratch/a2_descr.py`, `scratch/hexdec/ctx_state.py`, the §2 decompilation
 (`FUN_c0ce7fe0`/`FUN_c0cf3e04`/`FUN_c0879150`), §38 disassembly (`0xc0ce8430-44`), §112.20 disassembly
-(`FUN_c05042c8`/`FUN_c0504fc8`), items 85/86 (v10/v11 deadline-sweep logs).
+(`FUN_c05042c8`/`FUN_c0504fc8`), items 85/86 (v10/v11 deadline-sweep logs), §112.39 (7-dump coredump
+read of `q6pcvote`/scratch, bias `0x39800000`; `FUN_c0cd3384`/`FUN_c0ce7f98` decompilation).
 
 ## §112.39 ★★★★ THE `rpm.sync` LPR PARK — CLOSED: not a hang, not a frozen counter; the `q6pcvote` is LIVE at the fatal (2026-10-03)
 
