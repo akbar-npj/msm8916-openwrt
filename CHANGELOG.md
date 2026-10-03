@@ -40,6 +40,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.43 (e02 reachability)** — `ifdown modem` (MM `registered`, LTE, no bearer) + a §6.2a
+  capture (`dump_devcd1_3125.bin`, md5 `65dc280a…`, no crash report) reads carrier 0
+  `e02=1, d2=1` (consumed slot, no flag) and **carrier 1 `e02=1, d2=0`** (empty, no flag).
+  ⇒ **`(d2=0, e02=1)` IS reachable in a healthy modem** — the `e02` objection that voided
+  P-IDLECTRL2 is **removed**. But the healthy instance was an **empty carrier** (no armed
+  slot), so the flag's absence is **vacuous** and does not test it; the direction now
+  **favours §105.4** (the flag = "armed but undrained"; healthy carriers always drain). Also
+  refines `d2` to **per-carrier**. Device restored. Read-only analysis + one forced capture.
 - **`b7b2ece` §112.42 (phase 3, the ML1 meas-table flag)** — a 39-dump census shows
   the §105.4 flag (`+0x00=1` on the `b9` slot **and** `b8=(b9+1)mod3` **and** data=0
   **and** `cons=0`) is confined to (`d2=0` **and** `e02=1`) dumps — so far exactly the

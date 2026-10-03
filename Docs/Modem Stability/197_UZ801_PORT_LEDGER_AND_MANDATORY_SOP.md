@@ -14912,3 +14912,57 @@ same session.
 `scratch/a2pin/dump_devcd{1_872,2_1743,2_13985}.bin` (39 total), `scratch/a2pin/PREREG_idlectrl2.md`,
 `scratch/a2pin/idlectrl2.sh` + `idlectrl2.log`; ledger §105.2/§105.4/§105.5/§105.8, §112.32, §112.34/35,
 §112.41.
+
+## §112.43 ★★★★ e02 REACHABILITY VERIFIED — a healthy modem DOES reach (`d2=0`, `e02=1`), but only on an EMPTY carrier; the direction now favours §105.4 (2026-10-03)
+
+**Question (§112.42's open item).** The §105.4 flag is confined to (`d2=0`, `e02=1`) dumps — so far
+exactly the 3 `d2=0` fatals. Both healthy `d2=0` captures read `e02=0`, which **mechanically** disables
+the flag (gate B `0 ≤ +0x01` always passes). So: **is (`d2=0`, `e02=1`) reachable in a HEALTHY modem?**
+
+**Method.** Put the device in the **LTE-registered, no-bearer** state — `ifdown modem`; verified
+`mmcli` `state: registered`, `access tech: lte`, signal 80 %, `wwan0` DOWN, no bearers — then run the
+§6.2a forced capture (`rmmod qcom_bam_dmux` → `echo enabled > …/coredump` → `echo 1 > …/crash`).
+
+**Result — `scratch/a2pin/dump_devcd1_3125.bin`** (85 398 475 B, md5
+`65dc280aa8c32cada6ea5e8b76f68d1a`, **no embedded crash report** ⇒ a clean forced capture):
+
+| carrier | `e02` | `d2` | b8/b9 | slots |
+| :-- | :-- | :-- | :-- | :-- |
+| 0 | 1 | **1** | 2/2 | one **consumed** (`+08`≠0, `cons=1`) ⇒ no flag |
+| 1 | **1** | **0** | 0/0 | **all empty** (`+00=0`, `cons=0`) ⇒ no flag |
+
+⇒ **YES — (`d2=0`, `e02=1`) is reachable in a healthy modem** (carrier 1). The `e02` objection that
+**voided** P-IDLECTRL2 (§112.42.5) is **removed**: the state the flag test needs does exist outside a
+fatal.
+
+**But the flag was absent — and vacuously so.** Carrier 1 is an **empty / unused** carrier: no
+measurement was ever armed (every slot `+00=0`, `cons=0`), so there was nothing for the gate to drain.
+That "no flag" therefore does **not** test the flag. In the healthy **active** carrier (carrier 0) a
+measurement *is* armed and is **drained** (`cons=1`, no flag).
+
+**⇒ The direction now favours §105.4.** The flag is *"a measurement armed (`+00=1`) but not drained"*.
+In **every** healthy carrier a measurement in flight is drained (`cons=1`); the flag is so far observed
+**only** at the fatal. A decisive **positive** control — a healthy (`d2=0`, `e02=1`) carrier **with an
+armed slot** — would have to catch the sub-ms armed window, which a random forced capture will
+essentially never do. So this is likely as close as the instrument gets, and the residual uncertainty is
+**stated, not closed**.
+
+**★ Incidental refinement — `d2` is PER-CARRIER.** This dump has `c0 d2=1` while `c1 d2=0` in the same
+snapshot. §105.3's "`d2=1` ⟺ traffic" was read on carrier 0 only; the field is per-entry, so it reads as
+"this carrier's measurement stream is active", not a global traffic flag.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Is (`d2=0`, `e02=1`) reachable healthy? | yes/no | **YES** (carrier 1) — the `e02` objection is removed |
+| Does a healthy (`d2=0`, `e02=1`) carrier show the flag? | yes/no | **NO — but vacuously** (the carrier was empty; no armed slot) |
+| Decisively settle §105.4 | yes/no | **NO** — direction now favours §105.4, but no positive control |
+
+**SOP.** One reversible device run, consistent with §112.42.5's pre-registered gate; the result's
+*vacuous* nature is stated rather than scored as a confirmation. Device restored (reboot; MM
+`connected`, default route via `wwan0`, PING OK; SSR interval 800). No baseband change, no firmware
+patch.
+
+**Tools / evidence:** `scratch/a2pin/dump_devcd1_3125.bin`, `scratch/hexdec/slot2.py`,
+`scratch/diag_patch_v12/read_crash_report.py`; ledger §105.3/§105.4, §112.42.
