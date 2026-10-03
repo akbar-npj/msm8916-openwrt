@@ -48,7 +48,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      dispatch**, not the ctx0 cancel. The ARM (`FUN_c02fda90`, exactly 2 call
      sites) fired only **32×**, **corroborating §63.5's dormant finding** and
      **refuting the pre-registration's "0.63/s armer" premise** (that rate is the
-     dispatcher's). No v3 until the actual recurring state-20 armer is identified.
+     dispatcher's).
+  3d. **Offline closure of 3c's "open identification"** — **DONE (§112.47), NEGATIVE**:
+     the ctx0 arm is **genuinely only `FUN_c02fda90`** (its 2 sites are the only
+     two that pass selector `0x80` to the sole pending-bit setter `FUN_c02fba64`;
+     the other 13 sites arm the *other* eight contexts). There is **no hidden
+     high-rate armer** ⇒ a v3 ring is **REDUNDANT**. Also corrected: `obj[+0x38]`
+     is a **fixed context ID (20..28)**, not a transient state. The fatal is a
+     **single lost reply on a ~4–32/boot handshake**, not a high-frequency
+     lifecycle. A thermal-signature search in the F3 was a **NULL**.
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a
@@ -62,6 +70,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.47 (offline closure of §112.46.8's "open identification")** — pure offline re-derivation
+  (stock `modem.asm` + the Ghidra decompilation; **no device write, no firmware build**). Establishes
+  that (a) `obj[+0x38]` is a **fixed context ID `20+k`**, written once by `FUN_c02fb8b0` via
+  `FUN_c02d7b80(ctx_base, 20+k)` — not a transient state; (b) `inst[+0x300]` is the pending-selector
+  bitmask, **set only** by `FUN_c02fba64` (15 sites, one fixed selector each) and cleared by
+  `FUN_c02fc3cc`; (c) the **`0x80` (ctx0) selector is passed at exactly 2 sites, both inside
+  `FUN_c02fda90`** ⇒ there is **no hidden high-rate ctx0 armer** and a v3 ring is **REDUNDANT**
+  (§112.45.5 already noted the v7–v11 rings ARE the `FUN_c02fda90` instrument). Two nulls recorded: the
+  F3 `cap_fatal.bin` carries **no temperature record** (the 16 `temp` hits are the `PC_PENDING_TEMP`
+  A2 client name), so a thermal/PA-aging hypothesis gets no log support; and the capture tail is a
+  quiet post-SSR idle modem. **A negative of our own is stated** — the hoped-for lead is removed and a
+  v3's value is downgraded to zero. Device left on stock firmware (md5-verified).
 - **§112.46 (P-CANCELRATE — the state-20 ARM-vs-CANCEL lifecycle ring)** — a firmware ring (the v7/v8
   cave technique) retargeting 3 `call` sites: **ARM** `FUN_c02fda90` at `0xc0326874`/`0xc033c0f4` (both
   its call sites) + **CANCEL** `FUN_c02fc3cc` at the ML1 dispatcher `0xc034e1f0`. Offline-verified (hash

@@ -15373,3 +15373,92 @@ primitive — NOT the dormant `FUN_c02fda90`), which is itself now an **open ide
 `PREREG_cancel_ring.md`, `dumps/dump_devcd1_1536.bin`, `dumps/dump_devcd2_2057.bin`;
 `scratch/diag_patch_v12/read_crash_report.py`; `scratch/ll1_ring_dump.py`; device `/root/dumpwatch.sh`,
 `/root/modem_stock_backup/`; ledger §63.5, §71, §87, §111, §112.9, §112.15, §112.45.
+
+## §112.47 ★★★ OFFLINE CLOSURE of §112.46.8's "open identification": the ctx0 arm is **genuinely only `FUN_c02fda90`** — there is **NO** hidden high-rate armer, so a v3 ring is **REDUNDANT**; and `obj[+0x38]` is a **fixed context ID (20..28)**, not a transient state (2026-10-03)
+
+Task #252. Pure offline re-derivation from the stock disassembly
+(`scratch/firmware/modem.asm`) + Ghidra decompilation
+(`Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c`); **no device write, no firmware
+patch, no boot.** Device left on stock firmware (verified: `b16 57fef19d…`, `b05 332f000b…`,
+`b01 b85b86ce…`, `mdt 1a6f9507…`, `preemptive_ssr_enabled=1`, modem up, LTE attached).
+
+### §112.47.1 What §112.46.8 left open, and why it mattered
+
+§112.46.8 concluded that a v3 ARM-vs-CANCEL ring must pair the ctx0 cancel with *"the actual recurring
+state-20 armer (the 0.63/s primitive — NOT the dormant `FUN_c02fda90`)"*, and called that armer an
+**open identification**. If such an armer existed, every prior instrument (v7–v11, P-CANCELRATE) had
+targeted the wrong function and a v3 would be justified. **It does not exist.**
+
+### §112.47.2 `obj[+0x38]` is a FIXED context ID, not a state (correction)
+
+`FUN_c02fb8b0` (the ML1-timer context creator) calls `FUN_c02d7b80(ctx_base, 20+k)` for
+`ctx_base = inst + 0x328 + k*0x40`, `k = 0..8`, and then stores the constant **once** per slot:
+`memb(inst+0x360) = 0x14`, `memb(inst+0x3a0) = 0x15`, … `memb(inst+0x520) = 0x1b` (i.e.
+`ctx_k[+0x38] = 20+k`). ⇒ `+0x38` is the **context index/ID assigned at creation** (20..28), **never
+written again**. The fatal callback `FUN_c02d7bd0` reads it only to **dispatch** (`r1 = memub(r16+0x38)`
+→ jump table `0xc1a861d4`); "state-20" is shorthand for **context 0**, not a transient arm/clear state.
+This matches `scratch/hexdec/ctx_state.py`'s docstring and **supersedes** any reading of `+0x38` as a
+live state field.
+
+### §112.47.3 `inst[+0x300]` is the pending-selector bitmask; the setter is `FUN_c02fba64`
+
+* `FUN_c02fba64(inst, selector, r2, r3)` = `r4 = DAT_c312c764[inst]`; `switch(selector)` →
+  `r0 = memuh(r4+0x300); r0 = and(r0, ~clearbits); r0 = setbit(r0, bit); memh(r4+0x300) = r0`.
+  It is the **only setter**: an `awk` scan of the whole ML1-timer module
+  (`0xc02fb000..0xc0303000`) finds `memh(...+0x300)` **writes only inside `FUN_c02fba64`** (7 sites:
+  `c02fbab4/bacc/baf0/bb14/bb38/bb5c/bb7c`) and inside `FUN_c02fc3cc` (the clear/service, `c02fc30c`,
+  `c02fc624`).
+* **15 `call 0xc02fba64` sites**, each with a **fixed** selector taken from the delay slot
+  (`r1:0 = combine(#<sel>, r16)`): `0x8` (`c02fc7d8`), `0x100` (`c02fcbe0`, `c02fcf30`),
+  **`0x80`** (`c02fdcd4`, `c02fdd90`), `0x1000` (`c02fe0c8`, `c0302860`), `0x20` (`c0301498`),
+  `0x40` (`c03015f0`), `0x200`/`0x800` (`c0302050`), `0x2000`/`0x8000` (`c03021b4`), `0x1`
+  (`c0302298`), `0x2` (`c0302364`), `0x4` (`c03023f4`).
+* **`0x80` (= ctx0) appears at exactly TWO sites — `0xc02fdcd4` and `0xc02fdd90` — and BOTH lie inside
+  `FUN_c02fda90`** (spans `0xc02fda90`..`0xc02fddcc`; verified against the function-boundary labels and
+  the decompiled body, which has exactly two `FUN_c02fba64(iVar1,0x80,0,0)` calls — one per branch of
+  the `DAT_c1e143ca` test). The generic `FUN_c02fba64` handles **all nine** contexts; it is **not** a
+  second ctx0 armer.
+
+### §112.47.4 ⇒ §112.46.8's open identification CLOSES **negatively**
+
+There is **no hidden high-rate ctx0 armer**. The ctx0 arm really is `FUN_c02fda90` alone (2 call sites,
+`0xc0326874` / `0xc033c0f4`), which P-CANCELRATE measured at **32/run** and §63.5 at **4/900.6 s**.
+The "0.63/s armer (565–674 arms)" was a **misreading** — it is ≈ the generic ML1-dispatch rate, not an
+arm rate. Consequence: **a v3 ring as §112.46.8 envisioned has no target**; and §112.45.5's own
+correction already noted the v7–v11 rings **are** the `FUN_c02fda90` instrument. The correct reading of
+the fatal is therefore: **a single lost reply on a low-rate (~4–32/boot) ctx0 handshake**, not a
+high-frequency lifecycle whose rate "stopped first". `FUN_c02fda90` sends `0x408020d` (request) or
+`0x4070210` (reply) and then arms ctx0 via `FUN_c02fba64(inst,0x80,0,0)`; `FUN_c02fc3cc(inst,0x80)`
+services/clears it, and **asserts if the selector was not pending** (`DAT_c3c6eb90` for `0x80`) — i.e.
+the framework treats an unexpected completion as fatal too.
+
+### §112.47.5 Two null results recorded (no thermal signature)
+
+* **F3 `cap_fatal.bin` (64 MB, 31 252 records) carries NO temperature record.** The 16 `temp` matches
+  are all the A2 power-client **name** `PC_PENDING_TEMP` (`a2_power.c:2582/4031`), not a temperature.
+  There is no `therm*`/`deg*`/`adc`-as-temperature F3 site in the capture. ⇒ a **thermal/PA-aging**
+  hypothesis gets **no support** from the modem's own log; not pursued further without a new instrument.
+* The capture tail is a **quiet idle modem** (`cfm_cpu_monitor.c:308` heartbeats only, after a NAS
+  attach) — consistent with a post-SSR boot, not a busy pre-fatal window.
+
+### §112.47.6 Achieved vs Expected
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Resolve the "true recurring state-20 armer" | find a non-dormant armer | **NO such armer exists** — it is `FUN_c02fda90` alone (2 sites) |
+| Establish whether a v3 ring is warranted | yes | **NO** — redundant; the v7–v11 rings already instrument `FUN_c02fda90` |
+| Thermal/RF-aging signature in the F3 | possible | **NULL** — no temperature record; `PC_PENDING_TEMP` is a client name |
+| Device state | stock, healthy | **YES** — stock md5s, SSR on, modem up |
+
+### §112.47.7 SOP
+
+No device write and no firmware build (offline-only), so the pre-registration / one-change-at-a-time
+gates do not apply; the correction is recorded against §112.46.8 and §112.45.5 in the same session as
+it was derived. **A negative of our own is stated**: this closes the "open identification" by
+**removing** the hoped-for lead, and it **downgrades** the value of a v3 ring to zero. Ledger +
+CHANGELOG + memory updated in the same session. **No new firmware patch is proposed** — the next move
+is a decision, and per SOP it is taken with the user.
+
+**Tools / evidence:** `scratch/firmware/modem.asm` (`FUN_c02fb8b0`, `FUN_c02fba64`, `FUN_c02fc3cc`,
+`FUN_c02fda90`, `FUN_c02d7bd0`); `scratch/hexdec/func.py`; `scratch/hexdec/ctx_state.py`;
+`scratch/f3_soak/cap_fatal.bin`; `scratch/f3parse.py`; ledger §63.5, §111, §112.44, §112.45, §112.46.
