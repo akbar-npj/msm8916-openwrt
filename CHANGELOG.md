@@ -35,9 +35,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      built and run** — **P-MEASRING, DONE (§112.45)**: the technique is proven
      (boot-transparent, captured the real fatal), but the literal "ARM stopped
      first" answer is **confounded** (the event-0x10 stream is early-concentrated
-     and stops 814 s before the fatal). **Open next:** a **v2** ring on the
-     **state-20 watchdog armer `FUN_c02fda90`** (+ its cancel/expiry
-     `FUN_c02d7bd0`) that logs **effective** write/drain, per §112.45.5.
+     and stops 814 s before the fatal). **⚠ §112.45.5 CORRECTION:** the proposed
+     **v2** (hook `FUN_c02fda90` + `FUN_c02d7bd0`) is **REDUNDANT** — that is
+     exactly the **v7–v11** instrument (items 79–86), and item 97 closed the
+     armer's upstream statically. The only new piece (effective write/drain on
+     the LL1 path) is largely pre-answered by the slot state. ⇒ **no v2 firmware
+     patch is obviously warranted**; the next move is a decision, not a build.
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a

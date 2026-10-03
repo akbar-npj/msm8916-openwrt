@@ -15204,6 +15204,18 @@ answers "which step stopped first" must hook the **state-20 armer** (`FUN_c02fda
 **effective** write/drain (inside the `+0x00==1` branch), not the call. The v7 cave technique is proven
 and reusable; only the hook set changes.
 
+**⚠⚠ §112.45.5 CORRECTION (2026-10-03, same session — honesty).** The first half of this recommendation
+**already exists**: `FUN_c02fda90` + `FUN_c02d7bd0` were instrumented by **v7–v11 (items 79–86)** — the
+v7 ring's two call sites ARE `0xc0326874`/`0xc033c0f4`, and the v8–v11 paired rings log the arm **and**
+the callback. Item 86 already answered the arm/callback question at a 500 ms sweep point (127 ARM / 1 CB,
+the CB the last event; the reply is >500 ms late; the stall ≥ ~1.6 s). Item 97 closed the armer's upstream
+statically (10 call sites, all `LTE_ML1_SM_IDLE_STM`). ⇒ **"hook `FUN_c02fda90`" is REDUNDANT, not a new
+instrument.** The only genuinely-new piece of the recommendation is the **effective** (not call)
+write/drain semantics on the **LL1 measurement-scheduler** path (`FUN_c01bc8e0` / gate `FUN_c01bc934`) —
+and even that is largely pre-answered by the slot state at the fatal (`slot[+0x01]=0` ⇒ no effective
+write; §105/§112.44). ⇒ **a v2 is NOT obviously worth another firmware patch**; the honest next move is a
+decision, not a build. Recorded so the overlap is not re-derived.
+
 ### §112.45.6 Achieved vs Expected
 
 | | Expected | Achieved |
