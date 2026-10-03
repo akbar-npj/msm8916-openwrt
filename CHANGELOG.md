@@ -17,8 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   1 → 2 → 3:
   1. **RF / interference lead** — DONE (§112.40): the RF/meas layer is the first
      LTE sub-layer to stop, but state-dependent and the F3 does not say why.
-  2. **ML1 SERV-MEAS-RSP reply path** — trace what stops the reply at ~902 s
-     (ledger §112.41 pending).
+  2. **ML1 SERV-MEAS-RSP reply path** — DONE (§112.41): the reply is *downstream*
+     of the ML1-wide stall — the producer (`FUN_c01bc8e0`) never runs
+     (`slot[+0x01]=0` in 7/7 dumps); no new root.
   3. **New live instrument** for the ML1-side counter (ledger §112.42 pending;
      needs a pre-registration + device deployment).
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
@@ -34,6 +35,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.41 (phase 2, ML1 SERV-MEAS-RSP reply path)** — traced the chain
+  (`FUN_c02fda90` armer → CNF gate `FUN_c01bc934` → ready-writer `FUN_c01bc8e0`);
+  the ready counter `slot[+0x01]` is **0 in 7/7** fatal dumps, so the producer
+  never ran and the reply was never produced. Verdict: the reply path is
+  **downstream of the ML1-wide stall — no new root**. Armer gate
+  `DAT_c1e143ca=0` in 7/7 (normal path). Read-only, offline.
 - **§112.40 (phase 1, RF/interference lead)** — re-confirmed item 71's RF
   collapse with a new tool `scratch/rf_timeline.py`; found the
   `rflte_core_rxctl` RX gain/freq-comp values are **always 0** (no retune storm);

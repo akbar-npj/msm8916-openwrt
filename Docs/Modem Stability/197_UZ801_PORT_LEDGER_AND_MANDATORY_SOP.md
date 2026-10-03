@@ -14703,3 +14703,71 @@ a capture + the ledger's own boot anchor (§71.5). The negative (no retune storm
 **Tools / evidence:** `scratch/rf_timeline.py` (new), `scratch/f3parse.py`,
 `scratch/android_dump/{f3_wedge3,f3_wedge2,f3_v4,f3_v4idle,f3_v4idle2,f3_v4traf,f3_v6traf}.raw`;
 ledger §71.5/§71.6, Doc 231 §18.
+
+## §112.41 ★★★ PHASE 2 — THE ML1 SERV-MEAS-RSP REPLY PATH: the reply is DOWNSTREAM of the ML1-wide stall; the producer never runs (slot[+0x01]=0 in 7/7) — no new root (2026-10-03)
+
+**Instruction.** From the approved sequenced plan, phase 2: trace what stops the ML1
+SERV-MEAS-RSP reply at ~902 s (the surviving candidate of §112.38/§112.39). **Read-only, offline**
+(disassembly + 7 archived coredumps). No device mutation, no patch, no baseband change.
+
+### The chain (re-derived from the decompilation)
+
+| stage | function | role |
+|---|---|---|
+| armer | `FUN_c02fda90` (`c02fda90`) | builds the SERV-MEAS-RSP msg (`thunk_FUN_c0b63880(…,0x402,0x408020d)`), sends it via `FUN_c02d26d0(…,0x28)`, then arms the ctx0 timer via `FUN_c02fba64(iVar1,0x80,0,0)` |
+| armer caller | `FUN_c032685c` (`c032685c`) | calls the armer when `(*(ushort*)(param_2+2) & 1) == 0` (a once-flag), then re-arms `FUN_c0365408(0x1e)` |
+| ready-flag writer | `FUN_c01bc8e0` (`c01bc8e0`) | `if ((&DAT_c36b82e0)[idx]==1) { …; (&DAT_c36b82d0)[iVar1+0x11] += 1; }` — increments the slot **ready** counter `slot[+0x01]` |
+| CNF gate | `FUN_c01bc934` (`c01bc934`) | `if (slot[+0x00]==1) { if (slot[+0x02] <= slot[+0x01]) { FUN_c01c1968(); … } }` — fires the CNF only when both hold |
+| CNF | `FUN_c01c1820` (`c01c1820`) | the reply producer (STI + ODRX, §102) |
+
+Note `&DAT_c36b82e0` = table base `+0x10` = the **same byte** as `slot[+0x00]` (the valid flag), so the
+ready-writer's gate **is** the valid flag.
+
+### The decisive coredump read (7/7 fatal dumps)
+
+| dump | `slot[+0x00]` valid (carrier 0) | `slot[+0x01]` ready (carrier 0) |
+|---|---|---|
+| up913.64 | 0 | **0** |
+| up9143.88 | 0 | **0** |
+| up915.42 | 1 | **0** |
+| up915.44 | 1 | **0** |
+| up915.55 | 0 | **0** |
+| up923.12 | 0 | **0** |
+| up923.71 | 0 | **0** |
+
+⇒ **`slot[+0x01]` (the ready counter) is 0 in ALL 7 dumps** — the ready-writer `FUN_c01bc8e0` **never
+incremented it**, i.e. the measurement scheduler never produced the slot. When the valid flag is set
+(2/7) the slot is left **valid but un-ready** (exactly §106-109's "producer-never-ran" signature).
+The CNF gate's condition (B) `slot[+0x02] <= slot[+0x01]` therefore **cannot pass**, so the CNF never
+fires, the reply is never sent, and the 50 ms ctx0 watchdog expires (§84).
+
+**New datapoint:** the armer's own branch gate `DAT_c1e143ca = 0` in 7/7 ⇒ the armer is on its
+**normal** path (send + arm), so the failure is **not** the armer selecting the wrong branch.
+
+### Verdict
+
+**The SERV-MEAS-RSP reply path is DOWNSTREAM of the ML1-wide stall.** The reply is not lost by a
+reply-path defect; the reply is never *produced* because the ML1 measurement scheduler never runs the
+ready-writer. This is the same "ML1-wide stall" the §112.38 inventory named — **phase 2 identifies no
+new root**. It confirms: the ~902 s event stops the ML1 scheduler, and the state-20 watchdog
+(§84, items 84-86) is the *reporter*, not the cause.
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Name what stops the reply | a defect | **NO** — the reply is never produced; the producer never runs |
+| Confirm the gate mechanism | yes/no | **YES** — `slot[+0x01]=0` in 7/7; gate (B) cannot pass |
+| Is the armer at fault? | yes/no | **NO** — `DAT_c1e143ca=0` (normal path) in 7/7 |
+| A new root cause | yes/no | **NO** — the reply path is downstream of the ML1-wide stall |
+
+### SOP
+
+Read-only, offline: decompilation (`Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c`
+— `FUN_c02fda90` :478151, `FUN_c032685c` :507387, `FUN_c01bc8e0` :229288, `FUN_c01bc934` :229309) +
+7 coredump reads (bias `0x39800000`; table base `DAT_c36b82d0` → dump `0x89eb82d0`). No device
+mutation, no patch, no baseband change. The negative (no new root) is stated, not hidden.
+
+**Tools / evidence:** `modem_full_decompiled.c` (lines above), the inline coredump reader (bias
+`0x39800000`), `scratch/firmware/modem.asm` (`call 0xc01bc8e0` at `0xc01df174`/`0xc01e4304`); ledger
+§84, §102, §105-109.
