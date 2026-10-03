@@ -14613,3 +14613,93 @@ This section's findings have been **folded back into §112.38** (commit `c1ad1d9
 **Net state:** the `rpm.sync` LPR park axis is **CLOSED**. The firmware-timer axis itself remains
 **exhausted** (§112.38). The one open question — *what stops the ML1 SERV-MEAS-RSP reply path at
 ~902 s* — is a causal-mechanism question, not a timer-limit question.
+
+## §112.40 ★★★ PHASE 1 — THE RF / INTERFERENCE LEAD: the RF/meas layer is the FIRST LTE sub-layer to stop (item 71 re-confirmed), but it is STATE-DEPENDENT and the F3 does not say why (2026-10-03)
+
+**Instruction.** From the approved sequenced plan ("focus on fatal"; phase 1 = the RF/interference
+lead): determine whether the ~900 s fatal is preceded by / caused by an RF-layer wedge, and classify
+it as *symptom*, *precursor*, or *bystander*. **Read-only, offline** (archived F3 captures + parser);
+no device mutation, no patch, no baseband change.
+
+**Method.** Re-parsed the archived Android-arm F3 captures with the current parser
+(`scratch/f3parse.py`) using a new tool `scratch/rf_timeline.py` (per-subsystem counts + last-record
+times + per-bin timeline; F3 clock 204800 Hz). Captures: `scratch/android_dump/{f3_wedge3,f3_wedge2,
+f3_v4,f3_v4idle,f3_v4idle2,f3_v4traf,f3_v6traf}.raw`.
+
+### 1. Item 71 re-confirmed (the RF collapse)
+
+`f3_wedge3.raw` (item 71): the RF/measurement subsystems and their **last** records (global-rel;
+boot ≈ 10277.5 s ⇒ `rflte_core_rxctl` last = **boot+905.4 s**, matching §71.5's byte-order figure):
+
+| subsystem | n | last (rel s) | last (boot+) |
+|---|---:|---:|---:|
+| `rflte_core_rxctl.c` | 876 | 11182.87 | **+905.4** |
+| `lte_LL1_gap_rf_tune.c` | 103 | 11182.85 | +905.4 |
+| `rflte_mc_meas.c` | 73 | 11182.84 | +905.4 |
+| `lte_ml1_gapmgr_stm.c` | 474 | 11187.99 | +910.5 |
+| `lte_ml1_gm_pwr_cntrl.c` | 242 | 11189.93 | +912.5 |
+
+The RF/meas family stops at the event; ML1/sleepmgr/pgi stop within ~25 s after (§71.5). The
+platform (`timer.c`, `wlan_*`) continues. **The RF layer is the FIRST LTE sub-layer to stop.**
+
+### 2. NEW — the RX gain/freq-comp values are ALWAYS ZERO
+
+`rflte_core_rxctl.c` logs exactly ONE message: `rflte_core_rxctl_update_rx_gain_freq_comp_to_mdsp:
+Gain_offset[%d]= %d`, emitted in **groups of 6** (offset 0..5). Across every capture the second arg
+is **0**:
+
+| capture | records | offset histogram | gain-value histogram |
+|---|---:|---|---|
+| `f3_wedge3` | 876 | 0:146 1:146 2:147 3:147 4:144 5:146 | **{0: 876}** |
+| `f3_wedge2` | 12 | 2 each | **{0: 12}** |
+| `f3_v4` | 762 | — | **{0: 762}** |
+
+⇒ the RX gain/frequency compensation written to the modem DSP is **never a non-zero correction** —
+a *"never accumulates a lock"* signature. ⚠ **Caveat:** the semantics are unconfirmed (offset 0 may
+legitimately mean "no correction"); this is an observation, not yet a mechanism. It does show there
+is **no oscillating/retune storm** — the values are constant.
+
+### 3. STATE-DEPENDENT — not a controlled replicate
+
+`f3_wedge2.raw` (item 69's wedge) has only **12** `rflte_core_rxctl` records (vs 876 in item 71).
+The RF layer is present in **all** regimes (v4-fatal 762, v4idle 1059, v4idle2 938, v4traf 519,
+v6traf 230) ⇒ the RF collapse is **conditional on RF being active**, not a traffic-only or
+universal feature. This confirms §71.6: the two wedges were in **different network/RF states** and
+are **not a controlled replicate**.
+
+### 4. Classification and the honest limit
+
+**Verdict: PRECURSOR — the RF/meas layer is the first LTE sub-layer to stop (it precedes the ML1/
+sleepmgr/pgi stop by ~25 s), but it is state-dependent and the F3 does not say WHY it stops.** It is
+**not** a downstream symptom of the ML1 stall (it precedes it), but it is also **not proven to be the
+root** — the F3 carries no RF-internal cause.
+
+⚠ **Limit:** the archived captures are multi-session and the 32-bit `ts` wraps (~20971.5 s), so the
+**fatal-run** boot anchor is unreliable offline ⇒ the RF-vs-assert ordering *within a fatal run*
+(does RF die before or after the ~902 s assert?) is **not pinned from the F3 alone**. A single-session
+capture with a clean boot marker would settle it.
+
+The Doc 231 §18 **interference hypothesis** (stable RSRP + flapping SNR ⇒ the RX chain chases a
+noisy channel) remains **UNTESTED**. The decisive test — leave the **Android** arm **stationary
+≥ 24 h** — is **operator-run** (per §231 §18) and is the natural next step if this lead is pursued.
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Re-confirm the RF collapse | yes/no | **YES** — `rflte_core_rxctl` last boot+905.4, RF family first to stop |
+| Characterize the retune | storm? | **NO storm** — gain values are constant (always 0) |
+| Is RF the root? | yes/no | **NO** — it is a *precursor*; the F3 does not name the cause |
+| Is it a controlled replicate? | yes/no | **NO** — state-dependent (876 vs 12 RF records) |
+| Fatal-run RF-vs-assert ordering | pin it | **NOT PINNED** — multi-session wrapping captures |
+
+### SOP
+
+Read-only, offline: archived captures parsed with `scratch/f3parse.py`; new tool
+`scratch/rf_timeline.py`. No device mutation, no patch, no baseband change. Every figure traceable to
+a capture + the ledger's own boot anchor (§71.5). The negative (no retune storm) and the limitation
+(no fatal-run anchor) are stated, not hidden.
+
+**Tools / evidence:** `scratch/rf_timeline.py` (new), `scratch/f3parse.py`,
+`scratch/android_dump/{f3_wedge3,f3_wedge2,f3_v4,f3_v4idle,f3_v4idle2,f3_v4traf,f3_v6traf}.raw`;
+ledger §71.5/§71.6, Doc 231 §18.

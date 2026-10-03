@@ -13,23 +13,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Pending / next
 
-- **Cleanup patch (carried over)** — fold the `hang_probe_t4` / `f3cap` /
-  `coredump-enable` blocks out of `/etc/rc.local` into a removal patch; the
-  instruments are no longer needed post-§112.31 (P-REARM confirmed) and
-  §112.18.13 (patch 831 soak passed 30/30 SSRs).
+- **Sequenced ~900 s fatal investigation (approved plan)** — user chose order
+  1 → 2 → 3:
+  1. **RF / interference lead** — DONE (§112.40): the RF/meas layer is the first
+     LTE sub-layer to stop, but state-dependent and the F3 does not say why.
+  2. **ML1 SERV-MEAS-RSP reply path** — trace what stops the reply at ~902 s
+     (ledger §112.41 pending).
+  3. **New live instrument** for the ML1-side counter (ledger §112.42 pending;
+     needs a pre-registration + device deployment).
+- **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
+  `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
+  decision: it fixes no crashes and removes the on-device safety net for a
+  possible patch-831 regression.
 - **`a2_pin` default decision (carried over, open)** — whether the shipped image
   should default `a2_pin=1` (currently opt-in via uCI set; shipped config sets
   it). A design/risk question: `a2_pin=1` suppresses the cold-boot
   `a2_power.c:1189` fatal but is a **mitigation, not a root-cause fix**
   (§112.24/§112.28); it holds the modem's A2 power-control pin across pre-emptive
   SSRs.
-- **The one open mechanism question** — *what stops the ML1 SERV-MEAS-RSP reply
-  path at ~902 s* (§112.38 OPEN, §112.39 surviving candidate). This is a
-  causal-mechanism question, not a timer-limit question; the firmware-timer axis
-  is exhausted.
 
 ### Changed — modem stability ledger
 
+- **§112.40 (phase 1, RF/interference lead)** — re-confirmed item 71's RF
+  collapse with a new tool `scratch/rf_timeline.py`; found the
+  `rflte_core_rxctl` RX gain/freq-comp values are **always 0** (no retune storm);
+  showed the collapse is **state-dependent** (876 vs 12 RF records across the two
+  wedges). Verdict: **precursor**, cause unknown; the fatal-run RF-vs-assert
+  ordering is not pinnable from the multi-session wrapping captures. Read-only,
+  offline.
 - **`be50e56`** — Add this CHANGELOG.md (Keep-a-Changelog format) documenting
   commit `03bbc17` and the prior §112.37–§112.39 series. Doc 197 remains the
   primary source of truth; this file is a quick-reference index.
