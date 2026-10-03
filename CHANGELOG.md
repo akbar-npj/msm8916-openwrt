@@ -22,11 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
      (`slot[+0x01]=0` in 7/7 dumps); no new root.
   3. **New live instrument for the ML1-side counter** — DONE (§112.42): a high-rate
      RAM sampler is **impossible** (TrustZone blocks AP reads); the audit instead
-     showed the meas-table "pre-crash flag" **tracks `d2`, not the fatal** and that
-     §112.41's `slot[+0x01]=0` evidence is non-discriminating (§105.2 had already
-     falsified it). §112.41's phase-2 conclusion is **RETRACTED**. The decisive
-     `d2=0` healthy control is pre-registered (`P-IDLECTRL2`) — the live run is
-     in progress / pending a clean attached-idle device state.
+     showed the meas-table flag is confined to (`d2=0`, `e02=1`) — a **new
+     confounder `e02`** leaves its fatal-specificity **UNRESOLVED**. §112.41's
+     phase-2 conclusion is **RETRACTED** and §105.8's "confound resolved" is
+     **UNSUPPORTED**. The decisive control (`P-IDLECTRL2`) was **run but VOID**
+     (the idle modem survived to 966 s but read `e02=0`).
 - **Cleanup patch (carried over, DEFERRED)** — fold the `hang_probe_t4` /
   `f3cap` / `coredump-enable` blocks out of `/etc/rc.local`. Deferred by user
   decision: it fixes no crashes and removes the on-device safety net for a
