@@ -14134,6 +14134,11 @@ rx 7465 B / tx 26492 B). So "the assert did not fire" is confounded between **(a
 condition** this run did not meet. **Next discriminator:** repeat with the data path up late **and
 continuous traffic** — assert at mu ~902 ⇒ event is boot-anchored and activity-gated; assert at mu ~1211 ⇒
 bring-up-anchored.
+> **★ RESOLVED by §112.35 (same session):** the repeat **with continuous traffic** asserted at modem-uptime
+> **900.435 s** ⇒ the ~902 s assert is **BOOT-ANCHORED and ACTIVITY-GATED**; this run's "no assert" was due
+> to **(b) the idle link**. This run's F3 "RF collapse at the usual mark" is therefore re-attributed to
+> **idle sleep** (§104 caveat), not the event. The conclusion below (assert = conditional downstream symptom)
+> stands; the F3 evidence is superseded.
 
 **Consequences.**
 1. **The ~902 s event is NOT prevented by delaying the AP data path** — it is boot-anchored (it happened at
@@ -14163,3 +14168,76 @@ session.
 
 **Tools / evidence:** `scratch/a2pin/{PREREG_bamdelay.md,bamdelay.sh,bamdelay.log}`,
 `scratch/a2pin/f3stall/*.raw`, `scratch/a2pin/{f3_chunk_summary.py,f3_a2dump.py}`.
+
+## §112.35 ★★★★★ P-BAMDELAY-2 — the ~902 s assert is BOOT-ANCHORED **and ACTIVITY-GATED**: with traffic it fires at modem-uptime ~900 s regardless of when the data path came up (2026-10-03)
+
+**Question.** Resolve §112.34's open ambiguity: with the data path brought up at mu 309, **no assert** fired —
+was that because of the **late bring-up** (a) or the **near-idle link / no traffic** (b)?
+Pre-registration: `scratch/a2pin/PREREG_bamdelay2.md` (A-ACTIVITY / B-BRINGUP / C-BRINGUP-ANCHOR).
+
+**Design.** Identical to §112.34 (`.ko` renamed → no autoload; `insmod` by path at mu 300) **plus a
+continuous `ping -I wwan0`** loop started as soon as the default route came up. Monitor
+`/root/bamdelay2.sh` → `/root/bamdelay2.log`.
+
+**Setup.** `a2_pin=1`, `preemptive_ssr_interval=100000` (SSR off); modem up @ AP **12.029294 s**.
+`insmod` @ AP 321.57 (**mu 309.5**), rc=0. PING START @ AP 351.79 (mu 339.8); traffic continuous
+(`wwan0` rx/tx grew monotonically 2702→28740 / 2824→31708).
+
+**Result — A-ACTIVITY CONFIRMED.**
+
+```
+[912.464498] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sm_conn_inter_freq_stm.c:712:
+[912.464572] remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[914.167509] remoteproc0: remote processor 4080000.remoteproc is now up        <-- crash-recovery
+```
+
+**Modem-uptime at the assert = 912.464498 − 12.029294 = 900.435 s ≈ 900.4 s** — the **usual ~902 s mark**,
+**not** `t_load + 902.7` (= modem-uptime ~1211 s). So:
+* **The ~902 s assert is BOOT-ANCHORED** — it fires at modem-uptime ~900 s **regardless of when the AP data
+  path came up** (mu 2 in a normal boot, mu 309 here).
+* **The ~902 s assert is ACTIVITY-GATED** — §112.34 (same late bring-up, **near-idle** link) produced **no
+  assert**; this run (same late bring-up, **continuous traffic**) produced the assert at the usual mark.
+  ⇒ §112.34's "no assert" was due to **(b) the absence of traffic**, **not** the late bring-up.
+* **B-BRINGUP** and **C-BRINGUP-ANCHOR** are **FALSIFIED**.
+
+**F3 corroboration.** Unlike §112.34 (RF went quiet at the mark), here the RF/RX pipeline was **busy right up
+to the assert**: `rflte_core_rxctl.c` 504 records in the up00906 chunk, and 168 in a **1.05 s** up00911 chunk
+(cut short by the assert); `rflte_mc_meas.c`/`rfmeas_mc.c` (measurement) present throughout.
+
+**★ Correction to §112.34.** That run's F3 "RF collapse at the usual ~mu 902 mark" was most likely the
+**idle-sleep signature** (the §104 caveat: `rflte_*` absence can mean *idle*), **not** the ~902 s event — the
+event/assert did not occur there because the link was idle. §112.34's *conclusion* (the assert is a
+conditional downstream symptom) stands, but its *evidence* (the F3 RF collapse) is now attributed to
+idleness. The **boot-anchored** claim is re-established here, via the **assert itself**.
+
+**★ A second assert site.** This run asserted in `lte_ml1_sm_conn_inter_freq_stm.c:712` (the **connected-mode
+inter-frequency measurement state machine**) rather than the usual `lte_ml1_common_timer.c:390`. Both fire at
+~mu 900-902. That the connected-mode measurement SM only runs **when connected / carrying traffic** is a
+plausible mechanistic basis for the activity gate, and it sits squarely in the §105–109 SERV-MEAS /
+measurement-scheduler model. (⚠ The record `file:line` is a shared descriptor per §21–44 — do not over-read a
+single sample.)
+
+**Consequences.**
+1. **"Delay the data path" is NOT a fix** — with traffic the assert fires at the usual ~mu 902 s. §112.34's
+   symptom change (assert → silent RF/data death) was simply the **idle** case.
+2. **The ~902 s deadline is a property of the modem's BOOT**, confirmed by an independent route (assert
+   timing) rather than the F3. The AP's role is to keep the modem **connected and active**; the deadline is
+   in the modem.
+3. The activity gate is a new, sharp constraint on any fix: a candidate fix must be tested with **traffic
+   flowing**, or it will silently "pass" as an idle no-op.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| A-ACTIVITY | assert at mu ~902 | **CONFIRMED** (mu 900.435 s, with traffic) |
+| B-BRINGUP | no assert despite traffic | **FALSIFIED** |
+| C-BRINGUP-ANCHOR | assert at mu ~1211 | **FALSIFIED** |
+| §112.34 cause | (a) late bring-up vs (b) no traffic | **(b) no traffic** — resolved |
+
+**SOP.** Pre-registered with a falsifier; one change at a time; the negative/ambiguous §112.34 result was
+**resolved by a targeted follow-up** and the earlier evidence corrected in the same session; the modem's own
+F3 log used as corroboration; device restored to the shipped config in the same session.
+
+**Tools / evidence:** `scratch/a2pin/{PREREG_bamdelay2.md,bamdelay2.sh,bamdelay2.log}`,
+`scratch/a2pin/f3assert/*.raw`, `scratch/a2pin/f3_assert_summary.py`.
