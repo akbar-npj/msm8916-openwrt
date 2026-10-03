@@ -16526,3 +16526,87 @@ md5 `580be11b…`) + the §112.53.1 coredump (`scratch/sched1_run_20261003/dump_
 write, no patch**. Tools: `llvm-objdump` (elf32-hexagon), `scratch/read_stack.py` (coredump reads),
 an inline coredump string-pool reader. **No pre-registration** (pure read-only characterisation).
 Ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.57 ★★★ The v12 STM-state-writer ring — BLOCKED (two corrections: the /lib/firmware load path, and §112.56.6's site) (2026-10-04)
+
+**Instruction.** Execute §112.56.9's recorded next step: *"a firmware ring on the STM state
+writer (log every `*(0xc1e158d4)` transition + the message id being dispatched, with a timestamp),
+run to the ~900 s fatal."*
+
+**Result.** The instrument was **built, hash-verified and disassembly-verified**, then **NOT
+deployed** (deployed once, immediately rolled back) because two offline checks falsified its
+premise. Two **corrections** fall out. **Root cause remains OPEN.**
+
+### §112.57.1 ★ CORRECTION — the AP loads the baseband from `/lib/firmware`, NOT from the `modem` partition
+
+The v12 run began by flashing the `modem` partition (`/dev/mmcblk0p3`, a 64 MiB FAT16 holding
+`IMAGE/modem.{mdt,b00..b25}`) via `fastboot flash modem <64 MiB FAT16 image>`. After reboot:
+
+- `/lib/firmware/modem.mdt` was **still stock `1a6f9507…`** — the flash had **no effect on the
+  running baseband**.
+- `p3` was **not mounted** anywhere (`/proc/mounts`), **no** init script / `rc.local` block copies
+  it, and the DT has **no `firmware-name`** property (the driver uses the default `request_firmware`
+  path).
+- `/lib/firmware` resolves to the **persistent ext4 overlay** (per the deployment memory), and
+  `md5sum /lib/firmware/modem.mdt` is the authoritative "which baseband is active" check.
+
+⇒ **To deploy a patched baseband, copy the changed `modem.*` files into `/lib/firmware/` and
+reboot** (or restart remoteproc0). A `fastboot flash modem` of the p3 partition does **not** change
+the running baseband. ⚠ This **narrows** the memory's "a `modem`-partition-only reflash fixes a
+`/firmware` mistake" — the p3 reflash alone is *not* sufficient; the `/lib/firmware` copy is the
+operative step. (Both were restored to stock this session; `p3` and `/lib/firmware` now both hash
+`1a6f9507…`.)
+
+### §112.57.2 ★ CORRECTION — the site `0xc0fe1754` is the 3rd instruction of a 3-instruction PACKET
+
+`0xc0fe174c..0xc0fe1754` is **one 3-instruction packet**:
+```
+c0fe174c: { if (!p0.new) jump:t 0xc0fe1764
+c0fe1750:   p0 = cmp.eq(r18,#-0x2)
+c0fe1754:   r1 = memw(r16+#0x4); memw(r16+#0x4) = r18 }
+```
+Replacing the site with a bare 4-byte `jump` **breaks the packet parse bits** (the jump's natural
+parse field ≠ the compound's), which would misparse and likely crash the modem. **Verified** with
+`llvm-mc`: assembling the exact 3-instruction packet reproduces the firmware's bytes byte-for-byte
+(only the jump offset differs), and the polarity encoding is confirmed
+(`if (p0.new) jump:t` = `0x5c005804`; `if (!p0.new) jump:t` = `0x5c205804`; the firmware's
+`0x5c20580c` = `if (!p0.new)`). ⇒ **any firmware hook on this site must be assembled as a whole
+packet**, not spliced instruction-by-instruction.
+
+### §112.57.3 ★★ CORRECTION to §112.56.6 — `0xc0fe1754` is NOT the general state writer
+
+§112.56.6 claimed the compound at `0xc0fe1754` is *the* STM state writer. The packet's branch
+makes the write **conditional**: `p0 = cmp.eq(r18, -2)`; `if (!p0.new) jump:t 0xc0fe1764`
+⇒ the write `memw(r16+#0x4) = r18` executes **only when `r18 == -2`** (a sentinel); for every
+`r18 != -2` the code jumps to `0xc0fe1764` (which reads `memw(r16+#0x4)`, indexes the state table
+`[r22+0x8]`, and calls the `+0xc` callback — **no write**). Since the sleepmgr's live state is
+`2` (not `-2`), **`0xc0fe1754` cannot be the writer that produced state 2.** ⇒ §112.56.6's
+"state writer" identification is **WRONG**; the true general state writer is **elsewhere** and
+still **unidentified**.
+
+⚠ Note the surrounding function (entry ≈`0xc0fe14e0`..`0xc0fe17d8`) is the **generic STM
+message/state engine**, used by every STM. It also writes `memw(r16+#0xc) = r18` (`0xc0fe1630`)
+and `memw(r16+#0x8) = r0` (`0xc0fe1634`) — i.e. the object layout is richer than `+0x04 = state`.
+
+### §112.57.4 Status and what is needed next
+
+- **v12 image**: built at `scratch/diag_patch_v12/` (`build_diag_patch_v12.py` +
+  `image_patched/` + the FAT16 `v12_modem.bin`). **Not deployed**; the deployed-then-rolled-back
+  copy is reverted. The builder is retained as a template (it has the proven assemble-via-obj +
+  SHA256-rehash pipeline).
+- **Blockers**: (1) the true state writer is unidentified; (2) the site needs whole-packet
+  assembly. **Both are offline-solvable** but were not completed this session.
+- **Next steps (offline)**: (a) identify the *real* writer of the sleepmgr state (`0xc1e158d0+4`)
+  — the sleepmgr-specific handlers `FUN_c0396f30`/`FUN_c0396f60`.. and the state-table `f2`
+  callbacks are the prime suspects; (b) once identified, re-encode the hook as a **whole packet**
+  via `llvm-mc` (proven above), rebuild, and only then deploy to `/lib/firmware`.
+
+**SOP.** Firmware patch (reversible, re-flashable) — NOT a baseband blind-patch. Build +
+offline hash/disassembly verification done **before** deploy. Device deployed once then **rolled
+back to stock in the same session** (`p3` + `/lib/firmware` both `1a6f9507…`); the running modem
+was never at risk (stock was loaded at boot before the copy). ⚠ An **accidental `reboot-mode` with
+no argument enters EDL** (`05c6:9008`) — always pass `fastboot`/`bootloader` explicitly. Tools:
+`llvm-mc`/`llvm-objdump` (elf32-hexagon), `fastboot`, a Python FAT16 patcher. Ledger + CHANGELOG
++ memory updated in the same session.

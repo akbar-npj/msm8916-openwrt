@@ -72,6 +72,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.57 (the v12 STM-state-writer ring — BLOCKED; two corrections)** — executing §112.56.9's
+  recorded next step (a firmware ring on the STM state writer). The instrument was built,
+  hash-verified and disassembly-verified, then **NOT deployed** (deployed once, immediately rolled
+  back) because two offline checks falsified its premise. **(1) CORRECTION — the AP loads the
+  baseband from `/lib/firmware` (persistent ext4 overlay), NOT from the `/dev/mmcblk0p3` `modem`
+  partition.** A `fastboot flash modem` of the p3 FAT16 had **no effect** on the running baseband
+  (`/lib/firmware/modem.mdt` stayed stock `1a6f9507…`); p3 is not mounted, no script copies it, and
+  the DT has no `firmware-name`. To deploy a patched baseband, copy the changed `modem.*` files into
+  `/lib/firmware/` and reboot. **(2) CORRECTION — the site `0xc0fe1754` is the 3rd instruction of a
+  3-instruction PACKET** (`{ if(!p0.new) jump:t 0xc0fe1764; p0=cmp.eq(r18,-2); compound }`); a bare
+  `jump` replacement breaks the packet parse bits (verified with `llvm-mc`, which reproduces the
+  firmware bytes exactly). **(3) ★ CORRECTION to §112.56.6** — the write at `0xc0fe1754` is
+  **conditional on `r18 == -2`** (a sentinel), so it is **NOT** the general state writer that
+  produced the sleepmgr's live state `2`; the true writer is **unidentified**. Both `p3` and
+  `/lib/firmware` were **restored to stock in the same session**; the running modem was never at
+  risk. Root cause remains OPEN. See ledger §112.57.
+
 - **§112.56 (the sleepmgr, decoded from the coredump — state names + full 31-message table
   byte-verified; the armer's ONLY caller; the generic STM/scheduler frameworks)** — continuing
   §112.55's read-only next steps 1–2. **(1)** The 12 state names are now **byte-verified from the
