@@ -16575,7 +16575,13 @@ parse field ≠ the compound's), which would misparse and likely crash the modem
 `0x5c20580c` = `if (!p0.new)`). ⇒ **any firmware hook on this site must be assembled as a whole
 packet**, not spliced instruction-by-instruction.
 
-### §112.57.3 ★★ CORRECTION to §112.56.6 — `0xc0fe1754` is NOT the general state writer
+### §112.57.3 ⚠ SUPERSEDED by §112.57.5 — (this subsection's conclusion is WRONG) `0xc0fe1754` is NOT the general state writer
+
+> **⚠ THIS SUBSECTION WAS RETRACTED THE SAME SESSION — see §112.57.5.** The reasoning below
+> wrongly assumed a conditional jump *skips* the other instructions of its own packet. In Hexagon a
+> packet issues as a unit (branch decisions are taken at packet end), so the store **does** execute.
+> `0xc0fe1754` **IS** the general STM state writer and §112.56.6 stands. The text below is kept for
+> the record only.
 
 §112.56.6 claimed the compound at `0xc0fe1754` is *the* STM state writer. The packet's branch
 makes the write **conditional**: `p0 = cmp.eq(r18, -2)`; `if (!p0.new) jump:t 0xc0fe1764`
@@ -16610,3 +16616,54 @@ was never at risk (stock was loaded at boot before the copy). ⚠ An **accidenta
 no argument enters EDL** (`05c6:9008`) — always pass `fastboot`/`bootloader` explicitly. Tools:
 `llvm-mc`/`llvm-objdump` (elf32-hexagon), `fastboot`, a Python FAT16 patcher. Ledger + CHANGELOG
 + memory updated in the same session.
+
+### §112.57.5 ★★★★ CORRECTION to §112.57.3 — `0xc0fe1754` IS the general STM state writer (Hexagon packet semantics)
+
+§112.57.3 was **WRONG** and is retracted. It reasoned that the store `memw(r16+#0x4) = r18` at
+`0xc0fe1754` is *skipped* when the packet's conditional jump is taken. **It is not.** In Hexagon a
+packet issues as a unit: *"Every instruction in a packet reads its source registers at the same
+instant, the instructions execute in parallel, and their results are written at the end of the
+packet. **Branch decisions are also taken at packet end.**"* (Hex-Rays, *Hexagon support* → the
+packet model; same statement in the Qualcomm Hexagon V60/V61 PRM §3.3.) Therefore the 3-instruction
+packet
+```
+{ if (!p0.new) jump:t 0xc0fe1764;  p0 = cmp.eq(r18,#-0x2);  r1 = memw(r16+#0x4); memw(r16+#0x4) = r18 }
+```
+**always executes the load+store**; the conditional jump only selects which continuation runs *after*
+the packet. The `r18 == -2` test chooses the *post-write* path, **not whether the write happens**.
+
+**Independent confirmation — Ghidra decompilation of the engine `FUN_c0fe1460`** (entry; created +
+decompiled headless; output `scratch/_ghidra_stm.txt`):
+```c
+func_0xc0fe11e0(piVar9, iVar6, param_4);   // exit old state
+iVar4 = piVar9[1];                          // old state (read)
+piVar9[1] = iVar6;                          // <-- STATE WRITE — OUTSIDE the if/else ⇒ UNCONDITIONAL
+if (iVar6 == -2) { FUN_c0fe11f0(piVar9, param_4); return; }   // sentinel → enter helper
+func_0xc0fe10f0(piVar9, iVar4, param_4);                      // normal → alternate transition path
+```
+Ghidra places the store *before* the branch, unconditionally. **Logical proof:** the engine reads
+`piVar9[1]` *after* the handler returns (`if (piVar9[1] == iVar6) return;`) to decide whether the
+state changed; if the handler wrote the state itself that check would be vacuous, so the engine must
+write it — and `0xc0fe1754` is the only `memw(obj+4) = …` in the entire STM cluster (engine
+`FUN_c0fe1460` + helpers `FUN_c0fe1100`/`FUN_c0fe11e0`/`FUN_c0fe11f0`/`FUN_c0fe1270`, all
+read-verified). ⇒ **§112.56.6 STANDS: `0xc0fe1754` is the general STM state writer.**
+
+**Consequence for the v12 ring:** the instrument's *premise* is restored (hook the state write,
+filter `r16 == 0xc1e158d0`). Only the *implementation* was ever blocked (§112.57.2 — the site is the
+3rd instruction of a packet). The correct hook is the **whole packet at `0xc0fe1740`** — the
+transition entry `{ call 0xc0fe11e0; r1:0 = combine(r18,r16); r2 = r17 }`, reached once per state
+change — replaced with `{ jump <cave>; nop; nop }`; the cave logs `(r16, old = memw(r16+4),
+new = r18)`, then **replays the original packet** and `jumpr` back to `0xc0fe174c`. The v12 cave
+already filters on the sleepmgr object; only the site/replay must change.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Resolve whether `0xc0fe1754` writes unconditionally | read the ISA packet rule + decompile the engine | **YES** — Hex-Rays packet model + Ghidra (`piVar9[1] = iVar6` outside the branch) + the "engine must write the state" proof all agree |
+| Decide §112.56.6 vs §112.57.3 | one of them | **§112.56.6 stands; §112.57.3 retracted** |
+| v12 instrument viability | unblocked or not | **premise restored**; implementation = whole-packet hook at `0xc0fe1740` |
+
+**SOP.** Offline static analysis only — no device touched, no firmware built or flashed this step.
+Decompilation via Ghidra headless (`DecompRange.java`), cross-checked against the official Hexagon
+packet-model documentation and an independent logical proof. This is a *self*-correction of a
+same-session conclusion (the SOP values recording and fixing errors over defending them). Ledger +
+CHANGELOG + memory updated in the same session.

@@ -72,6 +72,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.57.5 (CORRECTION to §112.57.3 — `0xc0fe1754` IS the general STM state writer)** — a
+  **same-session self-correction**. §112.57.3 wrongly concluded the store `memw(r16+#0x4) = r18`
+  at `0xc0fe1754` is skipped when the packet's conditional jump is taken. In Hexagon a packet
+  issues as a unit — *"the instructions execute in parallel, and their results are written at the
+  end of the packet. Branch decisions are also taken at packet end"* (Hex-Rays *Hexagon support*;
+  Qualcomm V60/V61 PRM §3.3) — so the store **always executes**. **Confirmed by Ghidra
+  decompilation** of the engine `FUN_c0fe1460`: `iVar4 = piVar9[1]; piVar9[1] = iVar6;` sits
+  *outside* the `if (iVar6 == -2)` branch ⇒ unconditional. Logical proof: the engine reads
+  `piVar9[1]` *after* the handler to detect a state change, so the engine (not the handler) must
+  write it, and `0xc0fe1754` is the only `memw(obj+4) = …` in the whole STM cluster. ⇒ **§112.56.6
+  stands; §112.57.3 retracted.** The v12 ring's *premise* is restored; only the *implementation*
+  (whole-packet hook at `0xc0fe1740`, replay the packet, `jumpr` back to `0xc0fe174c`) was ever
+  blocked. Offline only; no device touched. See ledger §112.57.5.
+
 - **§112.57 (the v12 STM-state-writer ring — BLOCKED; two corrections)** — executing §112.56.9's
   recorded next step (a firmware ring on the STM state writer). The instrument was built,
   hash-verified and disassembly-verified, then **NOT deployed** (deployed once, immediately rolled
@@ -83,9 +97,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `/lib/firmware/` and reboot. **(2) CORRECTION — the site `0xc0fe1754` is the 3rd instruction of a
   3-instruction PACKET** (`{ if(!p0.new) jump:t 0xc0fe1764; p0=cmp.eq(r18,-2); compound }`); a bare
   `jump` replacement breaks the packet parse bits (verified with `llvm-mc`, which reproduces the
-  firmware bytes exactly). **(3) ★ CORRECTION to §112.56.6** — the write at `0xc0fe1754` is
-  **conditional on `r18 == -2`** (a sentinel), so it is **NOT** the general state writer that
-  produced the sleepmgr's live state `2`; the true writer is **unidentified**. Both `p3` and
+  firmware bytes exactly). **(3) ⚠ CORRECTION to §112.56.6 — RETRACTED by §112.57.5** — this
+  claimed the write at `0xc0fe1754` is **conditional on `r18 == -2`** and so is **NOT** the general
+  state writer. **That is WRONG** (Hexagon same-packet instructions all execute); `0xc0fe1754`
+  **is** the general STM state writer and §112.56.6 stands. Both `p3` and
   `/lib/firmware` were **restored to stock in the same session**; the running modem was never at
   risk. Root cause remains OPEN. See ledger §112.57.
 
