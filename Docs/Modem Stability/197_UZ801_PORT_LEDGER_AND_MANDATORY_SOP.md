@@ -15578,3 +15578,49 @@ own**. Ledger + CHANGELOG + memory updated in the same session.
 **Tools / evidence:** `scratch/a2pin/f3stall/*.raw`, `scratch/a2pin/f3assert/*.raw`,
 `scratch/f3parse.py`, `scratch/a2pin/f3_assert_summary.py`; ledger §71, §78, §104, §112.15, §112.34,
 §112.35, §112.47.
+
+---
+
+## §112.49 ★ PRE-REGISTRATION — wedge recoverability on STOCK firmware (written BEFORE the event) (2026-10-03)
+
+**Why.** §112.48 left two things OPEN: (a) the regime→outcome mapping is contradicted across the
+corpus (§112.48.3); (b) the one *testable* claim that would make the wedge direction worthwhile is
+whether a wedge is recoverable **without a modem restart** (§112.48.5). This run fixes every confound
+the corpus inconsistency named — same **stock** firmware, same config, one explicit regime — and
+tests recoverability directly. This block is written **before** the event, so it is a true
+pre-registration.
+
+**Config (ground truth, verified before launch).** Stock firmware — `modem.b16` md5 `57fef19d…`,
+`modem.b05` `332f000b…`, `modem.b01` `b85b86ce…`, `modem.mdt` `1a6f9507…` (i.e. **no** v7/v8/v1
+instrument, **no** patch). `modem-watchdog.watchdog.a2_pin=1` (mitigation intact).
+`modem-watchdog.recovery.preemptive_ssr_enabled=0` (**OFF**, so the event can manifest). Regime =
+**continuous traffic** (`/root/wedge_traffic.sh` = `ping -I wwan0 -i 1 8.8.8.8`, rx growing).
+Fallback = stall watchdog (`stall_timeout 60`, `check_interval 10`). Monitor `/root/wedge_mon.sh`
+(10 s cadence) logs to `/root/wedge_run.log` (up-state, rx_bytes, ping rc, fatal count) and, on **2
+consecutive** ping failures, attempts a userspace recovery (`ifup modem` → `mmcli -m 0
+--simple-connect="apn=jionet"`) logging `WEDGE` / `RECOVERED` / `NOT recovered` to
+`/root/wedge_state.log`. Event expected at modem uptime ~900 s ⇒ AP ~3332 (modem last restarted at
+AP 2432).
+
+**Pre-registered predictions.**
+- **P-WEDGE-RECOVER (primary).** If the event manifests as a **WEDGE** (data dies while the modem
+  stays `running`/`connected`/`lte`), it will **NOT** be recoverable by a userspace bearer rebuild
+  (`ifup modem` / `mmcli`) — a modem restart will be required. *Rationale:* the wedge is a
+  modem-side stall; memory records "a modem restart clears it, `svc data` does not". If it **is**
+  recoverable, that falsifies the memory claim and is the single most valuable result of the run.
+- **P-WEDGE-OUTCOME (secondary, LOW confidence).** On stock + traffic + `a2_pin=1` + no pre-emptive
+  SSR, the outcome is **WEDGE** — the majority of traffic runs (items 71/78; item 81-traffic) wedge,
+  and §112.35's traffic-assert is the lone dissenter. Flagged low-confidence because the corpus
+  contradicts itself.
+- **P-WEDGE-DURATION (conditional).** If WEDGE **and** P-WEDGE-RECOVER holds, the outage lasts until
+  the stall watchdog fires (~60–70 s) — i.e. ≫ the fatal's ~1.7 s (§112.48.5).
+
+**Scoring.** WEDGE vs FATAL is read from `dmesg` (a fatal ⇒ an SSR / `modem subsystem failure
+reason`) **and** the monitor's classification. Recoverability is read from `wedge_state.log`
+(`RECOVERED` vs `NOT recovered`) — but a `RECOVERED` that only happened **after** the stall watchdog
+restarted the modem does **NOT** count as a userspace recovery (must be confirmed by an unchanged
+modem uptime / `ATS_RTC` across the recovery). Result to be appended as §112.49.1 in the same
+session, and the device config restored (`preemptive_ssr_enabled` 0→1) afterward.
+
+**SOP.** Offline prediction only; the device run was launched with the one-change discipline
+(`preemptive_ssr_enabled` is the sole change from the mitigated baseline); no firmware patch.
