@@ -72,6 +72,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.54 (THE STATE NAMED — the fatal STM is in `ONLINE_SLEEP_WAIT`, not `SLEEP`)** — continuing
+  §112.52's read-only next steps. **(1) The getter is proven:** `FUN_c03a0c20` →
+  `c02d9f94` → `c0fe1960` where `c0fe1960: if(r0==0) assert; r0 = memw(r0+#4); return` ⇒
+  **`FUN_c03a0c20()` = `stm_get_state(obj)` = `*(0xc1e158d0 + 4)`**, so `SLEEP = 3` is confirmed (compare
+  is `cmp.eq(r0,#0x3)`). **(2) The state ENUM is recovered** from the class struct `0xc1a94f70`
+  (`+0x04 = "LTE_ML1_SLEEPMGR_STM"`, `+0x18 = state table 0xc1a94fc8`, 0x10 B entries): idx 0 `INACTIVE`
+  (h `c0396a40`), 1 `ONLINE` (h `c0396c50`), **2 `ONLINE_SLEEP_WAIT` (h `c0396f30`, f2 `c0397380`)**,
+  **3 `SLEEP` (h `c03973a0`)**. Live value at the §112.49 fatal: `*(0xc1e158d4) = 2` =
+  **`ONLINE_SLEEP_WAIT`**. **(3) The registration chain is proven from the coredump:** the
+  `ONLINE_SLEEP_WAIT` entry handler `FUN_c0396f30` registers `FUN_c039ef80` and `FUN_c039eed0`
+  (`c0396fc0: r1:0 = combine(##-0x3fc61080,#0x4); call 0xc0b663e0`); searching the coredump for the
+  handler pointers finds each **exactly once** — `FUN_c0396f30`@`0xc1a94fec` (state-table +0x24),
+  `FUN_c039ef80`@`0xc1da08a0`, `FUN_c039eed0`@`0xc1da0920`. ⇒ **the fatal function is entered as a
+  handler only while the STM is in `ONLINE_SLEEP_WAIT` — the state it then asserts it is not in.**
+  **Mechanism:** the sleep manager is **deadlocked mid-sleep-entry** — it left `ONLINE`, entered
+  `ONLINE_SLEEP_WAIT` (a `GO_TO_SLEEP_REQ` issued, completion watchdog armed), and the sleep **never
+  landed** (`SLEEP` never reached); a later event dispatches `FUN_c039ef80`, which asserts `state ==
+  SLEEP` ⇒ ERR_FATAL. **§112.54.6:** the completion watchdog (`ctx+0x4a8`, callback `FUN_c03967f0`, a
+  message-sender) is **DISARMED** (`+0x1c = 0xdeaddead`) at the fatal, so it did not fire the crash; and
+  the line-4089 `serv_cell` assert is the *different* function `FUN_c0396850` — so `0xc3c81a40`/`50` are
+  **two functions' asserts**, correcting §112.52's "one shared block" phrasing. Sleep-path message table
+  (`0xc1a95088`) recovered (`GO_TO_SLEEP_REQ` `0x042b0209`, `RF_SLEEP_CNF` `0x042b0802`,
+  `LL1_SYS_SLEEP_CNF` `0x040a0808`, …). **Does NOT add:** *why* the transition never lands (lost
+  `*_CNF`? out-of-order wakeup? watchdog?) — still OPEN. Offline, read-only; no device write, no patch.
 - **§112.52 (the assert SITE located — `FUN_c039ef80`, `lte_ml1_sleepmgr_stm.c`)** — continuing §112.51's
   read-only next step. Resolving the ERR/assert descriptor for line 4054 in the zlib descriptor DB gives
   **`0xc3c81a40`** (`lte_ml1_sleepmgr_stm.c`), and searching the stock disassembly for that exact

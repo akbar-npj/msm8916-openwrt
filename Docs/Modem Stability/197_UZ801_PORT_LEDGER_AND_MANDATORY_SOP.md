@@ -15934,3 +15934,206 @@ recovered, so treat the table→struct link as *probable*, not proven.
 md5 `580be11b…`) + the stock disassembly; no device write, no patch. A new tool
 (`scratch/descr_scan.py`) and a stack reader (`scratch/read_stack.py`) were added. Ledger + CHANGELOG +
 memory updated in the same session.
+
+---
+
+## §112.53 ★★★ PRE-REGISTRATION — the power/traffic-SCHEDULE experiment (P-SCHED1: early-only traffic) (2026-10-04)
+
+**Written BEFORE the run.**
+
+**Question.** Is the ~900 s event **armed EARLY** by activity (and then fires at the anchor
+regardless), or is it **gated** — i.e. activity must be PRESENT at the ~900 s mark? §112.34/35
+established *idle ⇒ no assert, traffic ⇒ assert*, but they varied traffic PRESENCE across the **whole**
+run, not its **schedule**. This run discriminates the two readings of "ACTIVITY-GATED".
+
+**Config — ONE change from the mitigated baseline (`preemptive_ssr_enabled` 1 → 0).**
+- **stock** HMU05 firmware (no patch; `modem.mdt` md5 verified `1a6f9507…` before the run);
+- `a2_pin=1` (`4080000.remoteproc:bam-dmux:power/control` = `on`, verified);
+- `preemptive_ssr_enabled=0` (so the event can manifest);
+- **traffic schedule:** continuous `ping -I wwan0 -i 1 8.8.8.8` from modem-uptime **≈0 s to 300 s**,
+  then **STOP** (leave the bearer up and idle);
+- stall watchdog active (`stall_timeout=60`, `check_interval=10`).
+
+**Method.** A clean modem restart via `/sys/kernel/debug/msm_subsys/modem` (patch 826) resets the
+modem-uptime anchor to the fresh kernel `is now up` line. A device loop logs, every 5 s: modem uptime
+(AP `/proc/uptime` − anchor), the cumulative `fatal error received` count, and `wwan0` rx/tx bytes. It
+kills the ping at modem uptime 300 s and stops at modem uptime ≥ 1050 s (or earlier if the loop is
+interrupted).
+
+**Pre-registered predictions.**
+
+| id | prediction | confidence |
+| :-- | :-- | :-- |
+| **P-SCHED1-ARM** | an event (fatal or wedge) fires at **~900 s** modem uptime **despite traffic stopping at 300 s** ⇒ early activity ARMS the event | low–medium |
+| **P-SCHED1-GATE** | **NO** event by modem uptime **1000 s** ⇒ activity must be present at the anchor (gating) | low–medium |
+| P-SCHED1-CLASS | if an event fires, it is a **FATAL** (the §112.49 traffic class), not a wedge | low |
+
+**Falsifiers.** P-SCHED1-ARM is falsified by surviving past modem-uptime 1000 s with no event.
+P-SCHED1-GATE is falsified by any event before 1000 s. n = 1 ⇒ this is a **qualitative discriminator**
+(event vs no event), not a rate.
+
+**Restore.** After the run (or at modem uptime ≥ 1050 s): set `preemptive_ssr_enabled=1`; if the modem
+wedged, restart it via the clean node; verify the mitigated baseline (`power/control=on`,
+`preemptive_ssr_enabled=1`, `a2_pin=1`, `preemptive_ssr_interval=800`).
+
+**SOP.** One change at a time (`preemptive_ssr_enabled` 1→0, restored after); stock firmware (hash
+verified before); pre-registration written **before** the event; the run is reversible (a fatal
+self-recovers via crash recovery; a wedge is cleared by the clean-restart node). Ledger + CHANGELOG +
+memory updated in the same session.
+
+---
+
+## §112.54 ★★★★★ THE STATE NAMED — the fatal STM is in `ONLINE_SLEEP_WAIT` (2), NOT `SLEEP` (3): the sleep manager is stuck **mid-sleep-entry** (2026-10-04)
+
+**Instruction.** Continue §112.52's read-only next steps 1–3 — *identify `FUN_c03a0c20`; read the
+sleepmgr STM state at the fatal (which state, not merely "not SLEEP"); find what enters
+`FUN_c039ef80` and what transition sets SLEEP.*
+
+**Result — all three close.** The fatal is no longer "a state precondition failed": the **exact state
+has a name**, and it is the state the sleep manager occupies **between requesting a sleep and
+completing it**.
+
+### §112.54.1 The getter is proven: `FUN_c03a0c20()` = `stm_get_state(LTE_ML1_SLEEPMGR_STM)` = `*(0xc1e158d0 + 4)`
+
+The §112.52 thunk chain is fully resolved from the stock ELF:
+
+```
+c03a0c20: r0 = ##-0x3e1ea730          ; r0 = 0xc1e158d0   (the LTE_ML1_SLEEPMGR_STM object)
+c03a0c24: jump 0xc02d9f94
+c02d9f94: jump 0xc0fe1960
+c0fe1960: p0 = cmp.eq(r0,#0x0); allocframe(#0x0)
+c0fe1964: if (p0) jump 0xc0fe196c     ; NULL guard
+c0fe1968: r0 = memw(r0+#0x4); dealloc_return   ; <-- returns *(obj + 4)
+c0fe196c: call 0xc0879150 (assert descr 0xc3cc1c80)   ; assert(obj != NULL)
+```
+
+⇒ **`FUN_c03a0c20()` is a generic `stm_get_state(obj)` that returns `obj->state` at `+4`**, applied to
+the compile-time constant object `0xc1e158d0`. This **upgrades §112.52's hypothesis to a proof** and
+fixes `SLEEP = 3` (the assert text is `== SLEEP` and the compare is `cmp.eq(r0,#0x3)`).
+
+### §112.54.2 The state ENUM is recovered from the state table — and the live value is `ONLINE_SLEEP_WAIT`
+
+The `LTE_ML1_SLEEPMGR_STM` object at `0xc1e158d0` begins `{ void *name; u32 state; ... }`; its first
+word (`0xc1e158d0`) points at the STM **class** `0xc1a94f70`, whose `+0x04` is the C string
+`"LTE_ML1_SLEEPMGR_STM"` and whose `+0x18` is the **state table** `0xc1a94fc8`. Each entry is 0x10 B
+`{char *name; void *entry; void *f2; void *f3}`:
+
+| idx | name | entry handler | f2 |
+| :-- | :-- | :-- | :-- |
+| 0 | `INACTIVE` | `0xc0396a40` | — |
+| 1 | `ONLINE` | `0xc0396c50` | — |
+| **2** | **`ONLINE_SLEEP_WAIT`** | **`0xc0396f30`** | `0xc0397380` |
+| **3** | **`SLEEP`** | `0xc03973a0` | — |
+
+**Live value at the §112.49 fatal** (coredump `scratch/wedge_run_20261003/dump_devcd1_3334.bin`,
+`*(0xc1e158d4)`):
+
+| VA | value | meaning |
+| :-- | :-- | :-- |
+| `0xc1e158d0` | `0xc1a94f70` | class ptr → `"LTE_ML1_SLEEPMGR_STM"` |
+| **`0xc1e158d4`** | **`0x00000002`** | **`state = ONLINE_SLEEP_WAIT`** (expected `SLEEP` = 3) |
+| `0xc1e158d8` | `0x00000008` | (constant) |
+| `0xc1e158e4` | `0xc20f1680` | the runtime context (matches the fatal stack `+0x014`) |
+
+⇒ **the fatal assert fires because the sleep manager is in `ONLINE_SLEEP_WAIT`, not `SLEEP`.**
+The comparison `FUN_c03a0c20() != 3` (§112.52) is therefore `state != SLEEP`, and `2 != 3` ⇒ assert.
+
+### §112.54.3 What `FUN_c039ef80` is: a handler **registered by the `ONLINE_SLEEP_WAIT` state**
+
+The `ONLINE_SLEEP_WAIT` entry handler `FUN_c0396f30` (state-table idx 2) registers **two** handlers:
+
+```
+c0396fc0: immext(#0xc039ef80)
+c0396fc4: r1:0 = combine(##-0x3fc61080,#0x4)   ; handler = FUN_c039ef80, id = 4
+c0396fc8: call 0xc0b663e0                       ; stm_register_handler(...)
+```
+
+(the sibling `FUN_c039eed0` is registered the same way at `c0396fac`). Confirmed **in the coredump** —
+searching for the handler pointers finds each **exactly once**, in the STM's handler table:
+
+| pointer | coredump VA | role |
+| :-- | :-- | :-- |
+| `FUN_c0396f30` | `0xc1a94fec` | state-table entry for `ONLINE_SLEEP_WAIT` (`0xc1a94fc8 + 0x24`) |
+| **`FUN_c039ef80`** | **`0xc1da08a0`** | **the registered handler that raises the fatal assert** |
+| `FUN_c039eed0` | `0xc1da0920` | the sibling handler (registered by the same state) |
+
+So the fatal function `FUN_c039ef80` is **entered as a command/event handler only while the STM is in
+`ONLINE_SLEEP_WAIT`** — which is exactly the state it then asserts it is *not* in.
+
+### §112.54.4 The sleep path (the sleepmgr message table, `0xc1a95088`)
+
+The same module's message table (`{char *name; u32 id}`) names the whole sleep flow:
+
+| message | id | | message | id |
+| :-- | :-- | :- | :-- | :-- |
+| `LTE_ML1_SLEEPMGR_ENABLE_SLEEP_REQ` | `0x042b0200` | | `LTE_ML1_SLEEPMGR_RF_WAKEUP_CNF` | `0x042b0801` |
+| `LTE_ML1_SLEEPMGR_GO_TO_SLEEP_REQ` | `0x042b0209` | | `LTE_ML1_SLEEPMGR_RF_SLEEP_CNF` | `0x042b0802` |
+| `LTE_ML1_SLEEPMGR_WAKEUP_REQ` | `0x042b0205` | | `LTE_ML1_SLEEPMGR_RF_ENTER_CNF` | `0x042b0803` |
+| `LTE_ML1_SLEEPMGR_DISABLE_SLEEP_REQ` | `0x042b0201` | | `LTE_ML1_SLEEPMGR_RF_EXIT_CNF` | `0x042b0804` |
+| `LTE_LL1_SYS_SLEEP_CNF` | `0x040a0808` | | `LTE_LL1_ASYNC_WAKEUP_CNF` | `0x040b0806` |
+
+The sibling handler `FUN_c039eed0` (registered by the same state) **sends a message and arms a timer**:
+`FUN_c02f933c(ctx, 2, 0, 0, 6, 8)`, `FUN_c0b61cd0(ctx + 0x4a8, 2, 0, 2)`, and stamps `ctx + 0x474`.
+Read as a state action, this is a **sleep request + completion watchdog** — the "wait" half of
+`ONLINE_SLEEP_WAIT`.
+
+### §112.54.5 ⇒ THE MECHANISM (named)
+
+**The `LTE_ML1_SLEEPMGR_STM` is deadlocked mid-sleep-entry.** The manager left `ONLINE` and entered
+`ONLINE_SLEEP_WAIT` (a `GO_TO_SLEEP_REQ` was issued and the completion watchdog armed), but the
+**sleep never completed** — the state never advanced to `SLEEP` (3). A subsequent event then dispatches
+the `ONLINE_SLEEP_WAIT` handler `FUN_c039ef80`, whose first act is to assert `state == SLEEP`; the state
+is still `2` ⇒ **ERR_FATAL**.
+
+This is a **precise, falsifiable** statement of "the ML1 stall": it is not a generic freeze — it is a
+**sleep-transition that never lands**, and the crash is the *sanity check on that transition*.
+
+**What this ADDS.**
+1. The fatal state is **named** (`ONLINE_SLEEP_WAIT`), not merely "≠ SLEEP".
+2. `FUN_c03a0c20` is **proven** to be `stm_get_state(obj) = obj->state`; `SLEEP = 3` is confirmed.
+3. The **registration chain** is proven from the coredump: the state handler registers `FUN_c039ef80`,
+   so the assert is a handler-body precondition, and the handler only exists in `ONLINE_SLEEP_WAIT`.
+4. The sleep path's message names, and the sibling handler's send+watchdog, are recovered.
+
+**What this does NOT add — the *cause of the non-completion* is still OPEN.**
+- It does **not** yet say *why* `ONLINE_SLEEP_WAIT → SLEEP` never lands. Candidates (all unproven):
+  a lost/missing `RF_SLEEP_CNF` (`0x042b0802`) or `LL1_SYS_SLEEP_CNF` (`0x040a0808`); the completion
+  watchdog (`ctx+0x4a8`) firing into `FUN_c039ef80`; or an out-of-order wakeup.
+- It does **not** connect this STM to the §112.45 state-20 timer (different message space:
+  `0x042bxxxx` sleepmgr vs `0x40xxxxxx` ML1) — that link is **untested**.
+- ⚠ The state-index→name mapping is by array position (the four names form a natural progression, and
+  the two compared indices 2/3 land on `ONLINE_SLEEP_WAIT`/`SLEEP`); treat the *names* as high
+  confidence, the *entry-handler* attribution as read directly from the table.
+
+### §112.54.6 The `ONLINE_SLEEP_WAIT` completion watchdog is **DISARMED** at the fatal
+
+`FUN_c039eed0` arms a timer at `ctx + 0x4a8` (`FUN_c0b61cd0(ctx+0x4a8, 2, 0, 2)`). Reading that timer
+struct from the fatal coredump:
+
+| field | value | note |
+| :-- | :-- | :-- |
+| `ctx+0x4a8+0x0c` | `0xc03967f0` | the **callback** — a tail-call to `FUN_c02f933c(0, ctx, 0, 0, 6, 8)`, i.e. it *sends a message* |
+| `ctx+0x4a8+0x14` | `0xc20f1680` | back-pointer to the context |
+| `ctx+0x4a8+0x18` | `0x00000004` | |
+| **`ctx+0x4a8+0x1c`** | **`0xdeaddead`** | **poison ⇒ the timer is NOT armed** |
+| `ctx+0x474` | `0x2481ab` | last stamp |
+
+⇒ at the fatal instant the completion watchdog had **already disarmed** (fired or never re-armed), so it
+is **not** the thing that invoked `FUN_c039ef80` at the crash. The callback `FUN_c03967f0` is a
+**message sender**, not the fatal function.
+
+**⚠ Same-module assert family.** The **line-4089** assert (`serv_cell != NULL`) is the function
+`FUN_c0396850` (`c0396860: r0 = memub(ctx+0x2a0); ... c03968a4: r0 = 0xc3c81a50`), a *different*
+sleepmgr function — so the two descriptors `0xc3c81a40`/`0xc3c81a50` are **not** one shared block in a
+single function, they are two functions' asserts that happen to sit adjacent in the descriptor DB
+(this corrects the "one shared block" phrasing of §112.52).
+
+**Next steps (read-only first).**
+1. Determine which message/event dispatches `FUN_c039ef80` (id 4) — trace `0xc0b663e0`'s table.
+2. Check whether an incoming `*_CNF` (`RF_SLEEP_CNF` / `LL1_SYS_SLEEP_CNF`) is what invokes
+   `FUN_c039ef80` while still in `ONLINE_SLEEP_WAIT` (the out-of-order hypothesis), or a timer.
+3. ✔ Done — `ctx+0x4a8`/`ctx+0x474` read at the fatal (§112.54.6): watchdog disarmed.
+
+**SOP.** Offline, read-only: the same §112.49 coredump (md5 `580be11b…`) + the stock HMU05 ELF; no
+device write, no patch. Tools: `scratch/a2_descr.py`, `scratch/read_stack.py`, `llvm-objdump`,
+Ghidra (`DecompList.java`). Ledger + CHANGELOG + memory updated in the same session.
