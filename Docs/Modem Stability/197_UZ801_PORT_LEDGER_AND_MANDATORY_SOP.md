@@ -15635,3 +15635,88 @@ session, and the device config restored (`preemptive_ssr_enabled` 0→1) afterwa
 
 **SOP.** Offline prediction only; the device run was launched with the one-change discipline
 (`preemptive_ssr_enabled` is the sole change from the mitigated baseline); no firmware patch.
+
+### §112.49.1 ★★ RESULT — the event was a **FATAL** (P-WEDGE-OUTCOME FALSIFIED); the monitor's "WEDGE" is a **false positive**
+
+**What fired.** At AP `3332.924371` dmesg printed
+`qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:` → `crash
+detected` → SSR teardown → `remote processor is now up` at `3334.487595`. The modem had come up at
+`2432.446489` (the previous pre-emptive SSR), so the fatal is at modem uptime **900.478 s**.
+
+**Coredump (decisive instrument).** `/root/dumps/dump_devcd1_3334.bin`, 85 398 475 B, md5
+`580be11ba957623bb42ac99c83b57102` (pulled md5-verified; `scratch/wedge_run_20261003/`). Its embedded
+crash report (`scratch/diag_patch_v12/read_crash_report.py`) reads:
+
+| field | value |
+| :-- | :-- |
+| Uptime | **0:15:00** (900 s — the modem's own clock) |
+| BuildID | HIMI_U01_MODEM_V1.0 |
+| Task | **`slpc`** |
+| PC | `0xc087a804` (the ordinary err/assert handler) |
+| SSR / BADVA | 0 / 0 |
+| LR / SP | `0xc0879164` / `0x8ae992d8` |
+| Dog Report | present, header only (no filled per-task row) |
+
+**Classification: FATAL.** This is the ledger §105.7 **"traffic 902 s fatal (`slpc` @ 0:15:0x)"** class
+(its table signature is `v=000, b8=b9, d2=1`, ring last record `lte_LL1_schdr_main.c:551`), and the
+site `lte_ml1_sleepmgr_stm.c:4054` is the ledger's **dominant** fatal signature (census ×18, §line
+2866; Doc 162 "the deterministic ~900.8 s fatal"). ⇒ **not a new signature**; a clean reproduction of
+the known traffic fatal.
+
+**★ The monitor's `WEDGE` is a FALSE POSITIVE.** `/root/wedge_state.log` records
+`FATAL at up=3336 (fatal 0->2)` **and** `WEDGE at up=3346 (2 consecutive ping fails)`. The ping
+failures at 3336/3346 were the **consequence of the fatal's SSR** (`wedge_run.log`: `"up": false` at
+3336 → `"up": true` at 3346, rx frozen 60 992 B across the restart), not an independent wedge. A
+"ping-fails ⇒ WEDGE" rule **must first exclude an SSR** (fatal counter / modem restart) or it will
+mislabel every fatal's data outage as a wedge. This is exactly the confound §112.48.4 named for the
+older wedge specimens.
+
+**Scoring (pre-registration §112.49).**
+
+| prediction | outcome |
+| :-- | :-- |
+| **P-WEDGE-OUTCOME** (WEDGE) | **FALSIFIED** — the event was a FATAL (task `slpc`) |
+| **P-WEDGE-RECOVER** (a wedge is not userspace-recoverable) | **NOT TESTED** — no wedge occurred; the single recovery attempt at 3346 hit the modem mid-restart (`error: couldn't find modem`) |
+| **P-WEDGE-DURATION** | **N/A** (conditional on a wedge) |
+
+**Corpus inconsistency (§112.48.3) — one clean data point.** Stock firmware, one config, **traffic**
+⇒ **FATAL**. This supports §112.35's direction (*traffic → assert*) and contradicts item 81
+(*traffic → WEDGE*). ⚠ Confound remains: item 81 ran the **v7-instrumented** firmware, so firmware is
+still a candidate explanation for the disagreement. §112.48.3 stays **OPEN** but is now 1 data point
+narrower.
+
+**★★ a2_pin alone did NOT suppress this fatal.** The run had `a2_pin=1` (`power/control=on`, verified)
+with the pre-emptive SSR **OFF**, and the 900 s fatal fired anyway. ⇒ the pin's protection is against
+a **different** fatal (the cold-boot `a2_power.c:1189`, §112.23); it does **not** prevent the ~900 s
+`sleepmgr` fatal. **Only the pre-emptive SSR suppresses this one.** (This clarifies the mitigation's
+division of labour — §112.24's "0 fatals / 1612 s" was with the pre-emptive SSR ON, so that result
+does not credit the pin with suppressing the 900 s event.)
+
+**★ New lead — the fatal is in the SLEEP/Wakeup path.** The task is `slpc` (the firmware's
+sleep-duration/controller task: `"%s #%u[%u] Error %u when setting slpc duration, sleep skipped!"`),
+the site is the LTE ML1 **sleep-manager** state machine (`lte_ml1_sleepmgr_stm.c`), and the coredump's
+string pool carries the A2-side counterparts
+`"A2 task blocked in wakeup/sleep/apps action pending state counter=%d, state=%d"` and
+`"A2 task blocked in wakeup/sleep pending state. counter=%d, state=%d"`. ⇒ the ~900 s event is a
+**sleep/wakeup coordination failure** between LTE ML1 and the A2 task. This is the first time the
+dominant site and the `slpc` task have been tied to concrete sleep-path strings; it is a hypothesis to
+pursue, **not** a result.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+| :-- | :-- | :-- |
+| Classify the event under a fixed config | fatal or wedge | **YES** — FATAL, `slpc`, `sleepmgr:4054`, 900.478 s |
+| Test wedge recoverability | yes/no | **NO** — no wedge occurred (prediction not exercised) |
+| Resolve the regime→outcome inconsistency | a rule | **PARTLY** — traffic→FATAL here; item 81's firmware confound remains |
+| Advance the root cause | a lead | **YES (lead only)** — sleep/wakeup coordination (`slpc` + A2 blocked strings) |
+
+**SOP.** One-change discipline (`preemptive_ssr_enabled` 0→1 restored after); stock firmware (no
+patch); coredump pulled **device-local** and md5-verified (85 398 475 B matches the device size);
+pre-registration written **before** the event. Device restored to the mitigated baseline
+(`power/control=on`, `preemptive_ssr_enabled=1`, `a2_pin=1`). Ledger + CHANGELOG + memory updated in
+the same session.
+
+**Tools / evidence:** `scratch/wedge_run_20261003/dump_devcd1_3334.bin` (md5 `580be11b…`),
+`scratch/diag_patch_v12/read_crash_report.py`, `/root/wedge_state.log`, `/root/wedge_run.log`; ledger
+§105.7, §112.23/24, §112.34/35, §112.48; Doc 162.

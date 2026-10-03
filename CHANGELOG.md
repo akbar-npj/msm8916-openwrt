@@ -72,6 +72,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — modem stability ledger
 
+- **§112.49 (PRE-REGISTRATION + RESULT — stock-firmware wedge-recoverability run)** — device run with the
+  one-change discipline (`preemptive_ssr_enabled` 0→1): stock firmware (no patch), `a2_pin=1`, pre-emptive
+  SSR **OFF**, continuous `ping -I wwan0` traffic, stall-watchdog fallback. The event at modem uptime
+  **900.478 s** was a **FATAL** — dmesg `lte_ml1_sleepmgr_stm.c:4054`, coredump
+  `/root/dumps/dump_devcd1_3334.bin` (85 398 475 B, md5 `580be11b…`) reads `Uptime 0:15:00`, task
+  **`slpc`**, PC `0xc087a804`. **P-WEDGE-OUTCOME FALSIFIED** (it was not a wedge); the monitor's
+  `WEDGE at up=3346` is a **false positive** (the ping failures were the fatal's SSR, not an independent
+  wedge). ★ Corpus inconsistency §112.48.3 gains a clean data point: **traffic → FATAL** (supports
+  §112.35, contradicts item 81; item 81's v7-instrumented firmware remains a confound). ★★ **`a2_pin`
+  alone did NOT suppress this fatal** — the pin guards a *different* (cold-boot `a2_power.c:1189`) fatal;
+  only the pre-emptive SSR suppresses the 900 s event. ★ New lead (hypothesis, not result): the fatal is a
+  **sleep/wakeup coordination failure** — task `slpc` (sleep controller) + site `lte_ml1_sleepmgr_stm.c` +
+  the A2-side strings `"A2 task blocked in wakeup/sleep … pending state"`. Pre-registration written
+  **before** the event; coredump pulled device-local and md5-verified; device restored to the mitigated
+  baseline.
 - **§112.48 (WEDGE vs FATAL — the ~900 s event's two manifestations)** — offline re-parse of the two
   archived F3 series (`a2pin/f3stall/*` = the §112.34 idle run; `a2pin/f3assert/*` = the §112.35 traffic
   run). The wedge's F3 is a **staged shutdown**: RF (`rflte_*`) → 0 first, then an `a2_power` **storm**
