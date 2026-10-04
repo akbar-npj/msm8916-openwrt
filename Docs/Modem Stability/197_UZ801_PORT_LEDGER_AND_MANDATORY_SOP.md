@@ -18246,3 +18246,115 @@ callback slots); `scratch/disasm_at.py` / `scratch/dump_va.py` for the static pa
 message map verified in the stock ELF). No firmware write this session (read-only RE + coredump
 analysis). One change at a time (no device change). Honest about the fatal/wedge capture asymmetry
 and the still-open root. Ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.71 — The raw radio wakeup event: RFA operation `0x60702aa` (Task #278)
+
+**Context.** §112.70 named the stall: at the ~900 s event the `LTE_ML1_RFMGR_STM` is parked in
+**SLEEP** with `ctx+0x104 = 0x4290203` (`LTE_ML1_RFMGR_WAKEUP_REQ` in flight); the completion
+handler `0xc0315560` (which emits `RF_WAKEUP_CNF` via `ctx+0x1f0` and clears `ctx+0x104`) never
+runs. This section traces the **raw radio wakeup event** that must drive that completion.
+
+**★ The RFMGR is an STM with a fully-resolved dispatch map.** Class `0xc1a8b9d0`; object
+`0xc1e145a8` (`+0x00`=class, `+0x04`=state, `+0x14`=ctx). 8 states × 20 messages; handler table
+`0xc1a8bb40` = **8×20 function pointers** (state-major). Decoded in full by
+`scratch/_rfmgr_stm.py`:
+
+| state | name | entry | exit |
+|---|---|---|---|
+| 0 | INACTIVE | `0xc0313ae0` | `0xc0313b80` |
+| 1 | ACTIVE | `0xc0313bd0` | `0xc0313c30` |
+| 2 | RX_TUNED | `0xc0314bc0` | `0xc0314bd0` |
+| 3 | TUNING | `0xc0314ba0` | `0xc0314bb0` |
+| 4 | TX_TUNED | `0xc0314be0` | `0xc0314bf0` |
+| 5 | **SLEEP** | `0xc0315220` | `0xc0315290` |
+| 6 | SCRIPT_EXEC | `0xc03157e0` | `0xc03157f0` |
+| 7 | SCRIPT_BUILD | `0xc0315800` | `0xc0315810` |
+
+Message registry `0xc1a8baa0` (20 entries). The SLEEP row is the load-bearing one:
+
+| msg | id | name | handler |
+|---|---|---|---|
+| 9 | `0x4290202` | `LTE_ML1_RFMGR_SLEEP_REQ` | `0xc03152f0` |
+| 10 | `0x60708a9` | `RFA_RF_LTE_SLEEP_CNF` | `0xc0315420` |
+| 18 | `0x4290203` | **`LTE_ML1_RFMGR_WAKEUP_REQ`** | **`0xc0315490`** (issue) |
+| 19 | `0x60708aa` | **`RFA_RF_LTE_WAKEUP_CNF`** | **`0xc0315560`** (completion) |
+
+⇒ Confirmed: the completion is the STM's handler for the **`RFA_RF_LTE_WAKEUP_CNF` message**
+(`0x60708aa`) while in SLEEP — a *software message*, delivered to the STM, not a direct call.
+
+**★ The RFA operation family.** The modem has a 1:1 family of **RFA (RF-abstraction) operations**,
+each with a **request** id `0x60702ax` and a **confirmation** id `0x60708ax` (offset +0x600):
+
+| op | request | meaning | CNF |
+|---|---|---|---|
+| 0 | `0x60702a1` | ENTER_MODE | `0x60708a1` |
+| 1 | `0x60702a2` | EXIT_MODE | `0x60708a2` |
+| 2 | `0x60702a3` | FDD_RX_CONFIG | `0x60708a3` |
+| 3 | `0x60702a4` | FDD_TX_CONFIG | `0x60708a4` |
+| 4 | `0x60702a5` | TDD_RX_CONFIG | `0x60708a5` |
+| 5 | `0x60702a6` | TDD_TX_CONFIG | `0x60708a6` |
+| 6 | `0x60702a7` | FDD_TX_DISABLE | `0x60708a7` |
+| 7 | `0x60702a8` | TDD_TX_DISABLE | `0x60708a8` |
+| 8 | `0x60702a9` | SLEEP | `0x60708a9` |
+| 9 | **`0x60702aa`** | **WAKEUP** | **`0x60708aa`** |
+
+⇒ **The "raw radio wakeup event" is RFA operation `0x60702aa`.**
+
+**★ Two dispatch tables, both now resolved (gp is known).** `gp = 0xc3c09000` (set at
+`0xc0000670`, `gp = r1`, `r1 = ##-0x3c3f7000`). This unlocks every `gp+0x…` table:
+
+- **RFMGR CNF builder** `0xc0316080`: dispatches `r2 ∈ [0x60702a1, 0x60702aa]` via
+  `idx = r2 - 0x60702a1`, table **`memw(gp+0xbb14) = 0xc1a8b940`** (10 entries). idx 9 → the WAKEUP
+  builder (`0xc03165cc` → emits `0x60708aa` at `0xc0316600`), which **posts** the CNF via
+  `0xc02a5620` → `0xc0b62f10`. (`gp+0xbb00/0xbb04` → `0xc1a8b77c`/`0xc1a8b798` = the RFA state
+  accessor tables used by `0xc0313670`/`0xc03136c0`.)
+- **RFA server dispatcher** `0xc1018620` (reached from `0xc1018600`): dispatches `r0 = memw(obj+0)`
+  over the `0x60702xx` family, table **`memw(gp+0xd2cc) = 0xc1b328a8`** (26 entries,
+  `idx = msg - 0x60702a1`; and `memw(gp+0xd2d0) = 0xc1b32874`, 13 entries, `idx = msg - 0x60704ad`).
+  **Table A idx 9 (`0x60702aa`) → `0xc1018798`** → `0xc1017818` = the **raw WAKEUP handler**.
+
+**★ The raw WAKEUP handler `0xc1017818`.** Gets the RFA object (`0xc093bcc0`), loops over the
+active-carrier mask (`memw(obj+0x10)`), and per carrier issues the RF-script work via
+`0xc10188a8`/`0xc10188b4` and `0xc101c31c` (called with `(carrier, state)`); builds an F3 trace
+payload (`0xc08f16a0`). The sibling handlers in Table A are `0xc101872c` (ENTER_MODE),
+`0xc1018738` (EXIT_MODE), `0xc1018744` (FDD_RX_CONFIG), `0xc1018750` (FDD_TX_CONFIG),
+`0xc101875c` (TDD_RX_CONFIG), `0xc1018768` (TDD_TX_CONFIG), `0xc1018774` (TDD_TX_DISABLE),
+`0xc1018780` (FDD_TX_DISABLE), `0xc101878c` (SLEEP).
+
+**★ Where the stall sits.** At the ~900 s event the RFMGR's SLEEP handler `0xc0315560` never runs.
+`0xc0315560` is invoked when the STM dequeues `RFA_RF_LTE_WAKEUP_CNF` (`0x60708aa`). That message is
+built & posted by `0xc0316080` from the raw operation `0x60702aa`. ⇒ **the stall is on the RFA
+completion side: the raw WAKEUP operation `0x60702aa` is never completed, so its CNF (`0x60708aa`)
+is never posted.** The RFMGR's issue handler `0xc0315490` did run (pending is set); the RFA
+reply never comes back.
+
+**⚠ Honest boundary.** Two modules are interleaved in the same image: the RFMGR STM code
+(`0xc0313xxx`–`0xc0316xxx`) and the RFA layer (`0xc1018xxx`–`0xc101cxxx`, plus the
+`0xc0316xxx` completion handlers). The exact direction of `0x60702aa` — RFMGR→RFA request vs an
+RFA-internal event — is settled by the **filter tables**: `0x60702aa` is **absent** from the RFMGR's
+received-message table (`0xc1e14520`) but **present** in the RFA table (`0xc1e56240`), so the RFMGR
+**sends** `0x60702aa` and **receives** `0x60708aa`. **What stops the RFA layer from completing
+`0x60702aa` at ~900 s remains OPEN** — this section names the raw operation and its handler; it does
+not yet name the resource that stalls.
+
+**Artifacts.** `scratch/_rfmgr_stm.py` (full 8×20 STM decode), `scratch/_rfatbl.py` (RFA Table A
+annotated), `scratch/_find_u32.py` (ELF u32 search), `scratch/_dump_region.py` / `_rd_ptr.py`
+(gp-relative table reads). gp = `0xc3c09000`.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| name the raw wakeup event | an id | **YES** — RFA op `0x60702aa` (WAKEUP) |
+| name its handler | a function | **YES** — `0xc1018798` → `0xc1017818` |
+| resolve the dispatch tables | table addrs | **YES** — `0xc1a8b940` (CNF), `0xc1b328a8` (RFA) |
+| resolve gp | the base | **YES** — `gp = 0xc3c09000` |
+| name why completion stops | a mechanism | **NO — still OPEN** (raw op named, resource not) |
+
+**SOP.** Ground truth first — the STM map, the two dispatch tables and the operation family were all
+read from the stock ELF (`modem.elf`) and cross-checked against the live coredump signatures
+(§112.70). No firmware write, no device change this session (read-only RE). One change at a time.
+Honest that the raw op is named but the stalling resource is not. Ledger + CHANGELOG + memory updated
+in the same session.

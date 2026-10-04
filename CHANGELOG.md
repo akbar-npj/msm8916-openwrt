@@ -11,6 +11,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — Task #278: the raw radio wakeup event is RFA operation 0x60702aa
+
+- **Ledger §112.71** — traced the raw event that must drive the RFMGR wakeup completion.
+- **★ The RFMGR is an STM** (class `0xc1a8b9d0`, obj `0xc1e145a8`, 8 states × 20 messages); handler
+  table `0xc1a8bb40` decoded in full. SLEEP handler[18] `LTE_ML1_RFMGR_WAKEUP_REQ` (`0x4290203`) =
+  `0xc0315490` (issue); SLEEP handler[19] `RFA_RF_LTE_WAKEUP_CNF` (`0x60708aa`) = `0xc0315560`
+  (completion) ⇒ the completion is a **software message** delivered to the STM.
+- **★ The raw radio wakeup event = RFA operation `0x60702aa`** — one of a 1:1 family of 10 RFA ops
+  (request `0x60702a1..aa` ↔ CNF `0x60708a1..aa`, offset +0x600). The RFMGR **sends** `0x60702aa`
+  (absent from its received-message filter table `0xc1e14520`) and **receives** `0x60708aa`.
+- **★★ gp resolved = `0xc3c09000`** (set at `0xc0000670`), unlocking every gp-relative jump table:
+  the CNF builder `0xc0316080` table = `0xc1a8b940` (10 entries, idx 9 → WAKEUP → posts `0x60708aa`);
+  the RFA server dispatcher `0xc1018620` table A = `0xc1b328a8` (26 entries, **idx 9 → `0xc1018798`
+  → `0xc1017818` = the raw WAKEUP handler**).
+- **★ Where the stall sits:** the raw op `0x60702aa` is never completed ⇒ `0x60708aa` is never
+  posted ⇒ the RFMGR handler `0xc0315560` never runs. The issue side did run (pending set). **The
+  resource that stops the RFA layer completing `0x60702aa` at ~900 s remains OPEN.**
+- **Artifacts:** `scratch/_rfmgr_stm.py`, `scratch/_rfatbl.py`, `scratch/_find_u32.py`,
+  `scratch/_dump_region.py`, `scratch/_rd_ptr.py`.
+
 ### 2026-10-04 — Task #277: the RF confirmation stall is a stuck RFMGR wakeup transaction
 
 - **Ledger §112.70** — named the RF entity and the stall signature.
