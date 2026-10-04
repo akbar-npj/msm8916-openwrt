@@ -18489,3 +18489,52 @@ in-memory (a dead task's handle), so removing the trigger should give a healthy 
 were read directly from the running device; no claim is inferred. No firmware write. Honest that the
 wedge mechanism is proven but the root defect (why `s_sbh` is poison) is OPEN. One change at a time.
 Ledger + CHANGELOG + memory updated in the same session.
+
+### 112.72.8 RESOLVED 2026-10-04 — out-of-band `rc.local` edit breaks the trigger; clean boot verified
+
+Because journaled overlay writes were wedged, `/etc/rc.local` (in `/overlay/upper/etc/`, inode 170)
+was edited **directly on the raw block device** — bypassing ext4/the journal. **Result: after reboot
+`/etc/rc.local` = `7052eb35f491d0d396cbe01fb4aae40e`, `dmesg | grep -c 'Internal error: Oops'` = 0,
+`jbd2/mmcblk0p15` = `SW` (healthy), load 0.6, and overlay writes succeed** (`ROOT_WRITE_OK` /
+`ETC_WRITE_OK` / `RM_OK`). Firmware `398dce8a…` and the stock backup are intact.
+
+**The method (inode → data block → in-place `dd`):**
+
+1. `ls -i /etc/rc.local` → **inode 170** (`stat` is MISSING on this busybox; `ls -i` works).
+2. Read the ext4 superblock (`dd … bs=1 skip=1024 count=128 | od -A d -t x1`): block size **4096**
+   (`s_log_block_size=2`), inode size **256**, **8064** inodes/group, `EXTENTS`+`64BIT`+`FLEX_BG`
+   on, **no `inline_data`** (so the 2001-byte file lives in one 4096-aligned block).
+3. Read group descriptor 0 (`dd … bs=4096 skip=1 count=1 | head -c 64`): `bg_inode_table_lo` @0x08 =
+   **458** (`bg_inode_table_hi` is @**0x28**, not 0x0c — the 64-byte descriptor layout).
+4. Inode 170 byte offset = `458*4096 + 169*256` = **1,919,232**.
+5. Parse the inode's extent header at inode offset 0x28: `eh_magic=0xf30a`, `depth=0`, one extent —
+   `start_block=685158` ⇒ **byte offset 2,806,407,168**.
+6. Verify: `dd … bs=4096 skip=685158 count=1`, md5 of the first 2001 bytes =
+   `582e1c583302c08a996cd0097222fd92` = the live `/etc/rc.local`. ✔
+7. Build a **same-length (2001-byte)** replacement (drop the `hang_probe_t4`/`f3cap`/`dmesgtap`/
+   `dumpwatch` blocks — the churn source; keep `coredump-enable`, which is sysfs-only), pad with `#`
+   to exactly 2001 so `i_size` is untouched, and write it:
+   `dd of=/dev/mmcblk0p15 bs=4096 seek=685158 count=1 conv=notrunc,fsync`.
+
+**⚠ Traps found doing this:**
+
+- **`strings -t d -n 4 /dev/mmcblk0p15 | grep <marker>` found a STALE older copy** of rc.local at
+  block 46088 (an ~1628-byte version *without* `oops_all_cpu_backtrace`). **A content search is NOT
+  authoritative — resolve the file through its INODE.**
+- **busybox tooling:** `grep` has **no `-b`**; `strings -t d` DOES give byte offsets; `base64`/
+  `uuencode` are **MISSING** (transfer via `od -A d -t x1`); `od` collapses repeated lines with `*`
+  unless `-v` is given (which silently truncated a 4096-B pull to 1648 B); `stat` is MISSING.
+- **`reboot -f` did NOT reboot** (uptime unchanged after it returned rc 0). **`echo 1 >
+  /proc/sys/kernel/sysrq; echo b > /proc/sysrq-trigger` did.** (A normal `reboot` risks hanging on
+  the wedged journal's `sync`/unmount.)
+- The edit survives because the file's page is clean (read-only); on next boot the kernel re-reads
+  from disk. Data blocks are neither journaled-in-progress nor checksummed, so a same-length in-place
+  write is safe.
+
+**Artifacts:** `scratch/flash_bug/rc_local.orig{,.block4096}`, `rc_local.new{,.block4096}`,
+`rc_local.verify.od`.
+
+**Consequence:** the overlay is writable again ⇒ the v29 run setup (disable the pre-emptive/Stage-3
+SSR, re-add only tmpfs-based capture) can proceed. The `hang_probe_t4`/`f3cap`/`dmesgtap`/`dumpwatch`
+diagnostics are **intentionally removed from boot** until the root defect (poison `s_sbh`) is fixed;
+re-adding them re-triggers the wedge.

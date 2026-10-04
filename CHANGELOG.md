@@ -30,6 +30,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   PID 6049 — `f3cap.sh` re-runs at boot and re-triggers. The wedge is in-memory (a dead task's
   handle), so breaking the trigger should give a healthy boot.
 - **Blocked:** the v29 run setup (`uci commit` to disable the pre-emptive/Stage-3 SSR cannot persist).
+- **RESOLVED 2026-10-04 (ledger §112.72.8):** edited `/etc/rc.local` **out-of-band via the raw block
+  device** (journaled writes were wedged): `ls -i` → inode 170 → ext4 superblock (bs 4096, inode 256)
+  → group desc 0 (`bg_inode_table_lo` @0x08 = 458) → inode offset 1,919,232 → extent `start_block`
+  685158 (byte 2,806,407,168); verified md5, then wrote a **same-length 2001-byte** replacement
+  (dropped the `f3cap`/`dumpwatch`/`hang_probe_t4` churn; kept `coredump-enable`) with
+  `dd … seek=685158 conv=notrunc,fsync`. After a **`sysrq-b`** reboot (`reboot -f` did nothing):
+  `/etc/rc.local` = `7052eb35…`, **0 oops**, `jbd2` healthy, **overlay writes OK**, firmware intact.
+  ⚠ A content search (`strings -t d`) found a **stale** older copy — resolve via the INODE.
+  Artifacts: `scratch/flash_bug/`.
 
 ### 2026-10-04 — Task #278: the raw radio wakeup event is RFA operation 0x60702aa
 
