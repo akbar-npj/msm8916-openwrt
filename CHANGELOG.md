@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v32 RESULT: the RFMGR WAKEUP completion RUNS on every wakeup (H4a) — delivery is HEALTHY
+
+- **Ledger §112.81** — ran v32 v2 (`modem.mdt` `76b4177e…`), SSR off, to the ~900 s event. **FATAL at
+  AP 914.191932 s**, `lte_ml1_common_timer.c:390`; dump `scratch/v32_run/dump_FATAL.bin`.
+- **Raw:** `seq_entry = 1458`, `comp_count = 1458`, `cnf_count = 0`; completion ring = 1458 entries
+  (all `caller 0xc0fe1654`, `ctx 0xc1e145a8`, `msg_obj 0xc312ba48`).
+- **★ H4a CONFIRMED — `comp_count == seq_entry`:** the RFMGR WAKEUP completion `0xc0315560` ran on
+  every wakeup, **1:1** with the RFA handler returns ⇒ **the RFA→RFMGR CNF DELIVERY IS HEALTHY.**
+  This **FALSIFIES v31's inference** that the completion never runs.
+- **Site identity:** the completion's `r16` = the RETURN of `0xc02d8e58` = the ctx `0xc216fd50` (the
+  ring logs the ENTRY arg = the STM object `0xc1e145a8`). It reads `ctx+0x104` (=`0x4290203`), calls
+  `ctx+0x1f0`=`0xc039e570`, clears `ctx+0x104`.
+- **⚠ Caveat:** the completion ENTRY ran 1:1 but may still BAIL inside (4 assert-logger paths); at the
+  fatal `ctx+0x104` is still pending. Next = the completion EXIT + the callback.
+- **Send NEG:** `cnf_count = 0` ⇒ `0xc03165cc` is an ERROR-path block, NOT the CNF builder (re-scope).
+- **H1 gap:** the v32 caves never write the marker (builder gap) — attribution via offsets + ring.
+
 ### 2026-10-05 — v32 v1 **BOOT-LOOPED the modem** (negative result): packet-boundary bug + v2 fix
 
 - **Ledger §112.80** — the v32 v1 instrument (`modem.mdt` md5 `9b5a47de…`) **boot-looped the modem**:

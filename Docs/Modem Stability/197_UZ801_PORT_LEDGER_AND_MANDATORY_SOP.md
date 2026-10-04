@@ -18993,3 +18993,50 @@ function but `0xc03165cc..0xc03166e0` uses **no** r8-r11.
 **SOP.** Boot-loop captured + root-caused + rolled back **before** any rebuild; the negative result is
 recorded (not hidden); the verifier gap that let v1 pass is **closed** (boundary assertion); one
 change at a time; ledger + CHANGELOG + memory updated in the same session.
+
+## §112.81 — v32 RESULT: the RFMGR WAKEUP completion RUNS on EVERY wakeup (H4a) — the RFA→RFMGR delivery is HEALTHY
+
+**Run.** v32 v2 (`modem.mdt` md5 `76b4177e…`), `ssr=0`/`pre=0`, coredump enabled, to the ~900 s event.
+**FATAL at AP 914.191932 s**, site `lte_ml1_common_timer.c:390`; dump `scratch/v32_run/dump_FATAL.bin`
+(85 398 475 B).
+
+**Raw result** (header @`0xc1455000`): `seq_entry = 1458` (+0x04), `comp_count = 1458` (+0x08),
+`cnf_count = 0` (+0x0c). Completion ring @`0xc1d4c600`: **1458 entries**, ALL with
+`caller = 0xc0fe1654`, `ctx = 0xc1e145a8`, `msg_obj = 0xc312ba48` (single caller / single arg — the
+fixed WAKEUP-CNF delivery).
+
+**H1 UNVERIFIABLE (v32 builder gap).** The v32 caves write ONLY the three counters — **no cave writes
+the marker `0x76323C01` or the site fields** (the builder docstring claimed them, but none of the cave
+bodies does). So `marker = 0` **BY DESIGN**; attribution rests on the counter offsets + the populated
+ring (a save area that is not writable, or a cave that did not run, would read 0).
+
+**H2 PASS.** `seq_entry = 1458 > 0`, `comp_count = 1458 > 0`.
+
+**★ H3/H4a CONFIRMED — `comp_count == seq_entry` (1458 == 1458).** The RFMGR WAKEUP completion
+`0xc0315560` ran on **EVERY** wakeup, **1:1** with the RFA handler returns ⇒ **the RFA→RFMGR
+WAKEUP-CNF DELIVERY IS HEALTHY.** This **FALSIFIES v31's inference** (§112.78) that "the completion
+never runs": v31 could only *infer* (it did not measure the completion); v32 **measures** it.
+
+**Site identity (resolved, §112.70 corrected).** `0xc0315560` is invoked from the message dispatch
+loop `0xc0fe1650` (`callr r19`), entry arg `r0 = 0xc1e145a8` (the RFMGR STM object). Inside,
+`r16 = r0` is taken **AFTER** `call 0xc02d8e58` — i.e. **`r16` = the helper's RETURN = the context
+`0xc216fd50`**, NOT the entry arg. The completion then reads `ctx+0x104` (= `0x4290203` pending ✓),
+calls the callback `memw(ctx+0x1f0)` = `0xc039e570`, then clears `ctx+0x104` (at `0xc0315608`). (This
+is why the ring's "ctx" column shows the STM object `0xc1e145a8`, not the context — the ring logs the
+**entry arg**.)
+
+**⚠ Caveat (honest).** The completion **ENTRY** ran 1:1; that does NOT prove the completion
+**COMPLETED** — `0xc0315560` has **four** assert-logger bail paths (`0xc0315630`/`0xc031563c`/
+`0xc0315648`/`0xc0315654`). At the fatal `ctx+0x104` is still `0x4290203` (pending), consistent with
+EITHER (i) the last cycle's completion **bailing inside**, OR (ii) a **new** cycle interrupted by the
+fatal (the memory's own note: at a FATAL the pending REQ is partly expected). ⇒ **next instrument =
+the completion EXIT** (`0xc0315628 dealloc_return`) + the callback `0xc039e570`.
+
+**Send side NEG.** `cnf_count = 0` ⇒ the probe site `0xc03165cc` is **NOT** on the wakeup path. The
+code there is an **ERROR-path block** (it is preceded by `if (r0==0) jump <function-end>`, so it is
+reached only when a message build fails) — the memory's "`0xc03165cc` = the WAKEUP CNF builder" is
+**not borne out by execution**; the CNF build occurs elsewhere. Re-scope.
+
+**SOP.** Pre-registered rule §112.79 scored at the cut (`comp==seq ⇒ H4a`), no re-tuning; the H1 gap
+and the send-side mis-site recorded as negatives; ledger + CHANGELOG + memory updated in the same
+session.
