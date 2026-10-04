@@ -19266,3 +19266,120 @@ symptom. **The root cause remains the MCPM/power-collapse stall (§112.57.15) an
 at a time. **Negative/closing result reported as such** — it does not identify the root cause; it
 removes the RF-wakeup transport from the candidate set and corrects a prior inference.
 
+
+---
+
+## §112.86 — MCPM/power-collapse target, offline: the last sleep never exits; the F3 collapse tail; and a coredump-level NEGATIVE on the `rpm.sync` software park (2026-10-05)
+
+**Trigger.** After v34 closed the RF-transport line (§112.85), take up §112.57.15's stated next target:
+"instrument the MCPM/power-collapse path itself". This item is **offline only** (archived coredumps +
+archived F3 chunks; **no device mutation, no new patch**), and is deliberately first a *coredump*
+attack on the corpus's surviving root-cause candidate (§6.4/§37: the `rpm.sync` park) so the next
+instrument is aimed at a live hypothesis.
+
+**A. The LPR deep-sleep ring — the last `SleepEntry` has no `SleepExit`.** `scratch/coredump_live/ring.py`
+across the 5 archived fatal dumps:
+
+| dump | EnteringModes | ExitingModes | ModeChosen | SleepEntry | SleepExit |
+|---|---|---|---|---|---|
+| `up915.44_devcd1` | 26 | 26 | 28 | **15** | 14 |
+| `up1818.92_devcd2` | 26 | 26 | 29 | **17** | 14 |
+| `up1822.52` | 27 | 27 | 27 | **15** | 14 |
+| `up2723.69` | 27 | 27 | 26 | **15** | 14 |
+| `up3629.79` | 27 | 27 | 27 | 13 | 14 |
+
+In 4 of 5 dumps `SleepEntry = SleepExit + 1`; in `up915.44` the **memory-order** (`--seq`) tail of the
+sleep-cycle buffer is the last record `off=0x45504c7  SleepEntry  ts=0x0f6bfd7f` with **no following
+`SleepExit`** ⇒ the modem **entered its final sleep and never exited**. (⚠ `ts` is a wrapping 32-bit
+counter — read the *memory order*, per the ring tool's trap A; the counts are window-limited by the
+ring, so this is corroboration, not a balance proof.)
+
+**B. The F3 collapse tail (chunk `scratch/f3_v15/c000173_up00908.raw`, last 20 records).** The last
+power-layer records before silence, in `ts` order:
+
+```
+2816766764 mcpm_saw.c:393   MCPM 2 step FW PC FW_SLEEP_PWRDN_FULL [5]
+2816766796 mcpm_npa.c:1286  MCPM_NPA: Delaying complete request for CLKCPU
+2816766816 mcpm_npa.c:1361  MCPM_NPA: Sched CLKCPU req for 384000, tech 6
+   ... 0.25 s: only cfm_cpu_monitor @20 Hz ...
+2816822932 mcpm_npa.c:702   MCPM_NPA: ldo17 freq CB notified [1, 6, 0]
+2816826188 mcpm_saw.c:591   MCPM FW_WAKE-UP_Start [387020119, 387020312, 10]
+2816826220 mcpm_npa.c:1322  MCPM_NPA: No Imm CLKCPU req of 384000
+2816826256 a2_power.c:1313  A2 power req from client=3
+2816826256 a2_power.c:3765  Process A2 power req from client=3
+2816826272 a2_power.c:1313  A2 power req from client=2
+2816826276 a2_power.c:3765  Process A2 power req from client=2
+2816826464/476/496 pgi_msgr.c:718  WWAN_TECH_MSG from CXM
+2816828244 cfm_cpu_monitor.c:308  CPU 7
+2816830284 rf_task.c:336    get imei stoped          <-- LAST non-heartbeat record
+2816838504.. cfm_cpu_monitor.c:308  CPU 18,17,17,18,6 ...
+```
+⇒ the final sequence is a **normal-looking wakeup** (`FW_WAKE-UP_Start` **290 ms** after the PWRDN:
+`2816826188 − 2816766764 = 59 424` ticks = 290.2 ms @204800 Hz), two A2 power requests, then the **RF
+task stops**. After that only the 20 Hz CPU heartbeat and the 1 Hz `DalVAdc` continue. This matches the
+§112.57.11/13 staged shutdown (power layer first, then CM/NAS/QMI), and refines §112.57.15's "the final
+event is a FW_WAKE-UP_Start" by naming the **last** record as `rf_task.c:336 "get imei stoped"`.
+
+**C. `mc_msg.c:5625 "SLOW CLOCK REQUEST"` is ROUTINE — NOT a precursor.** It appears **once per ~10 s**
+in every chunk (Δts = `2 048 140` = 10.0007 s @204800 Hz), before, during and after the collapse, with
+`reason=0, valid=0`. It is the F3 clock-rate cross-check as well: it re-confirms **204800 Hz**.
+
+**D. NEGATIVE — the `rpm.sync` churn loop is NOT parked at any captured fatal.** The §6.4/§37 "the Q6's
+`rpm.sync` step parks in a timeout-free churn loop" is the corpus's *surviving* root-cause candidate.
+Its loop is now decoded exactly from `disasm_b16.txt`:
+
+```
+c08b96e8: call 0xc08b9820                 ; wait/retry body (logs 0xc18540dc)
+c08b96ec: call 0xc08ba950                 ; sync predicate
+c08b96f0: r0 = memw(r21+#0x4)             ; r21 = the rpm.sync state struct
+c08b96f4: p0 = cmp.eq(r0,#0x0); if (!p0) jump:t 0xc08b96e8
+```
+with the loop body's own read `c08b985c: r0 = memw(r17=##0xc2c65fcc)` — i.e. **the same word
+`struct+0x4`**. The "dirty" log is `rpm_force_sync (set: %d) (dirty: %d,%d,%d)` @ `0xc185403b`, args
+`[set, struct+0x1c, struct+0x20, struct+0x24]`.
+
+The literal is `##-0x3d39a038` = `0xc2c65fc8`, with `immext(#0xc2c65fc0)`; the loop body reads
+`0xc2c65fcc` = `0xc2c65fc8 + 4`. **Reading the struct across ALL 42 archived coredumps**
+(`scratch/coredump_live/` + `scratch/coredump_live_full/coredump_live/`, uptimes 426 s … 15 982 s):
+**`struct+0x04` is `0x8ad7ee90` (a stable pointer) in every dump**, and the words around it are
+stable constants/pointers (`+0x08 = 0x00000044`, `+0x00 = 0x00000001`, `+0x24 = 0`). Under the base
+that makes the loop *coherent* (`0xc2c65fc0`) the same word `0xc2c65fcc` is the pointer, and the flag
+at `0xc2c65fc4` reads **0** in every dump.
+
+⇒ **Under either base the coredump does not show the `rpm.sync` churn loop parked.** This is an
+**independent, coredump-level falsification** of the software-park root cause, complementing §39.2's
+three-count kill (NV gate closed, `mcpm_drv.c` layer absent, no AP carrier). ⚠ Honest caveats: (i) the
+exact struct base is ambiguous between the `immext` value and the literal (8 bytes apart) and needs a
+runtime read to settle; (ii) the coredump is the modem's memory *at the assert*, so a park that the
+assert itself unwound would not show — but no writer of that word was located in the static image, so a
+park at the assert should persist.
+
+**E. Where this leaves the root cause.** The stall is real and coredump-confirmed (the last sleep never
+exits; the MCPM/power layer stops first; the CPU heartbeat continues), but it is **not** the `rpm.sync`
+software park. The two remaining candidates are both **hardware-handshake** stalls, not software loops:
+* the **`cxo.shutdown` step of the always-selected `mode[1]`** (the deepest LPR mode —
+  `npa_scheduler.fork+CLM.disable+l2.ret+tcm.ret+cxo.shutdown+rpm.sync+cpu_vdd.pc_l2_tcm_ret`, §37) —
+  i.e. the modem turns off its own crystal and the *restore* on wakeup never completes;
+* the **A2 power hardware quiesce** (§112.20/§112.28: `FUN_c0504fc8` polls `0xec320ba4/bac/bd8/be0`,
+  exits on `&7==0`, and the assert fires past tick 900; the spin count is byte-identical across 4 dumps
+  ⇒ the handshake is **dead, not slow**).
+Both are consistent with §112.57.15's "the states advance but the MCPM cycle that actually powers down
+the modem stops, so the cycle is hollow".
+
+**F. Next instrument (revised target).** Not the `rpm.sync` loop (now negatively tested). Target the
+**hardware handshake**: read `0xec320bac & 7` and the SAW step register live across the event, or ring
+the `FUN_c0504fc8` quiesce poll, so the *dead* handshake is named. The F3 record rate is not the
+instrument (the events stop); the hardware register is.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| LPR ring shows the last sleep not exiting | yes | **YES** — 4/5 dumps `SleepEntry = SleepExit+1`; `up915.44` last record is an unmatched `SleepEntry` |
+| The F3 collapse tail is a normal wakeup then RF stop | ? | **YES** — `FW_WAKE-UP_Start` +290 ms, 2 A2 power reqs, `rf_task.c:336 "get imei stoped"`, then heartbeat only |
+| `SLOW CLOCK REQUEST` is a precursor | maybe | **NO** — routine, 1/10 s, reason=0 valid=0 |
+| `rpm.sync` churn loop parked at the fatal | yes (surviving candidate) | **NO** — `struct+0x04` never shows a parked value across 42 dumps |
+| Root cause identified | — | **NO** — narrowed to the `cxo.shutdown`/A2 hardware handshake |
+
+**SOP.** Ground-truth-first: every claim is read from an **archived, md5-known** coredump or an
+archived F3 chunk with the verified `f3parse.py`/`ring.py`; the F3 clock (204800 Hz) is cross-checked
+two ways. No device mutation, no patch, no baseband write. **Negative result recorded, not hidden**
+(the `rpm.sync` park). Ledger + CHANGELOG + memory updated in the same session.

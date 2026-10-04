@@ -11,6 +11,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — ★★★ MCPM/power-collapse target, offline: last sleep never exits; F3 collapse tail; NEGATIVE on the `rpm.sync` park (ledger §112.86)
+
+- **Offline only** (archived coredumps + archived F3 chunks; no device mutation, no patch).
+- **A. LPR deep-sleep ring:** across the 5 fatal dumps `SleepEntry = SleepExit + 1` in 4 of 5; in
+  `up915.44` the memory-order tail's last record is an **unmatched `SleepEntry`** ⇒ the modem entered
+  its final sleep and **never exited** (coredump confirmation of §112.57.15).
+- **B. F3 collapse tail:** `FW_SLEEP_PWRDN_FULL` → (290 ms) → `FW_WAKE-UP_Start` → 2× `a2_power` req →
+  **`rf_task.c:336 "get imei stoped"`** → heartbeat only. Refines §112.57.15 (the last record is the RF
+  task stopping, not the wakeup).
+- **C. `mc_msg.c:5625 "SLOW CLOCK REQUEST"` is ROUTINE** (1/10 s, reason=0 valid=0) — not a precursor;
+  re-confirms the F3 clock is 204800 Hz.
+- **D. NEGATIVE:** the §6.4/§37 **`rpm.sync` software park** — the corpus's surviving root-cause
+  candidate — is **not present at any captured fatal**: the churn-loop flag reads a stable pointer/zero
+  across **all 42 archived coredumps** (independent of §39.2's three-count kill).
+- **E/F. Revised target:** the stall is a **hardware-handshake** stall — the `cxo.shutdown` step of the
+  always-selected `mode[1]`, and/or the A2 quiesce `0xec320bac & 7` (§112.20/§112.28). Next instrument
+  reads the hardware register live, not the F3 rate. **Root cause still OPEN.**
+
 ### 2026-10-05 — ★★★★★ v34 RESULT: H7a — the RF wakeup transport is HEALTHY in BOTH directions; the ~900 s event has a VARIABLE victim (ledger §112.85)
 
 - Ran v34 (`modem.mdt` `1908ec47…`), SSR off, IDLE. **FATAL at AP 913.386908 s**, site
