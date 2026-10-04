@@ -17788,3 +17788,92 @@ netdev is created and immediately torn down, so `wwan0` never appears. A full **
 (`deploy_v28_ring.py --rollback` → stock `1a6f9507…`). One change at a time. Steady state restored
 (`preemptive_ssr_enabled=1`, traffic stopped). Honest: the ~900 s root cause is still **OPEN**; this
 adds the first *instrumented* wedge confirmation of the state discriminator.
+
+---
+
+## §112.66 — RUN 8: a FIFTH ~900 s fatal signature (`lte_ml1_sm_conn_inter_freq_stm.c:712`, ML1 MGR) with a HEALTHY sleepmgr — the event has a VARIABLE VICTIM
+
+**Context.** Part of the "keep a track" + "dig into why the wake-up signal stops" thread (Doc 245).
+Config: **stock** baseband `1a6f9507e03d4ddbbf1977af81ecdbd7`, `preemptive_ssr_enabled=0`,
+`a2_pin=1`, **continuous traffic** (host `ping`), AP rebooted immediately before the run. This is
+run 8 of Doc 245's track record.
+
+**RESULT 1 — the fatal is a NEW signature, at the same ~900 s clock.**
+`logread` → `Fatal error on the modem` at AP uptime **2524.496 s**; the crash report reads
+`file=lte_ml1_sm_conn_inter_freq_stm.c line=712 task=ML1 MGR uptime=0:15:00` ⇒ modem-up **≈901.3 s**
+(the usual window). The descriptor was resolved **offline** from the coredump via the assert-DB
+(`scratch/a2_descr.py`): `0xc3c80640` → line 712, message **`Assert 0 failed:`** (an unconditional
+`ASSERT(0)` — a default / "should-never-happen" branch). This is the **5th distinct ~900 s fatal
+signature**; §112.57.10's four were `lte_ml1_sleepmgr_stm.c:4054`, `a2_power.c:1189`,
+`lte_ml1_common_timer.c:390`, `lte_ml1_sm_idle_stm.c:2913`.
+
+**RESULT 2 — the sleepmgr was HEALTHY at this fatal.** `scratch/sleepmgr_dump.py` on
+`dump_fatal_901.bin`: object `0xc1e158d0`, `+0x04 = 1` (**ONLINE**), `+0x08 = 0x06`. Contrast §112.58/65
+(FATAL ⇒ state 9 OFFLINE_WAKEUP, WEDGE ⇒ state 4 ONLINE_WAKEUP). ⇒ **the ~900 s event can fatal
+WITHOUT the sleepmgr RF-wakeup stall.** The sleepmgr state is therefore a *victim's* signature, not
+the root.
+
+**RESULT 3 — the crashing function is the connected-mode inter-frequency / IRAT measurement SM.**
+The assert cluster in `lte_ml1_sm_conn_inter_freq_stm.c` (all id 9509, resolved from the DB):
+
+| descr VA | line | message |
+|---|---|---|
+| `0xc3c805f0` | 451 | `Fatal Error: 'sm == NULL' %d%d%d` |
+| `0xc3c80600` | 510 | `Assert status == LM_SUCCESS failed:` |
+| `0xc3c80610` | 515 | `Assert status == LM_SUCCESS failed:` |
+| `0xc3c80620` | 657 | `Assert ((rfa_rf_lte_l2l_build_scripts_cnf_s *)payload)->req_result == RFA_RF_LTE_SUCCESS failed:` |
+| `0xc3c80630` | 699 | `Fatal Error: 'sm == NULL' %d%d%d` |
+| **`0xc3c80640`** | **712** | **`Assert 0 failed:`** ← fired |
+| `0xc3c80650` | 979 | `Assert …gap_check_current_gap_purpose(instance) != LTE_SM_CONN_MEAS_INTER_AGC failed:` |
+| `0xc3c80670` | 1140 | `Fatal Error: 'sm == NULL' %d%d%d` |
+| `0xc3c80680` | 1147 | `Assert ngbr_srch_cnf_ptr->num_of_detected_neighbor_cells <= MAX_NUM_DETECTED_NEIGHBOR_CELLS failed:` |
+| `0xc3c80690` | 1164 | `Assert 0 failed:` |
+
+Line **657** is the important neighbour: it is the SM rejecting an **RF driver L2L build-scripts
+confirmation whose `req_result != RFA_RF_LTE_SUCCESS`** — i.e. this SM consumes RF-driver completions,
+exactly like the sleepmgr consumes `RF_WAKEUP_CNF`. The *fired* assert is line 712 (`ASSERT(0)`), not
+657, so the SM did **not** take the explicit RF-failure path; it hit an unconditional default branch.
+The containing function (entry ≈`0xc0389ef4`, calls `0xc02d9f94`/`0xc02e4094`/`0xc08f1610`/`0xc03c3450`
+then `FUN_c0879150(&descr 0xc3c80640)`) was **not** decompiled by Ghidra; the flat disasm has
+`<unknown>` decode gaps around it, so the *exact* event/state that reaches line 712 is **not yet
+resolved** (honest limitation).
+
+**RESULT 4 — NO F3 precursor; the modem was healthy to the crash instant.** F3 window
+`scratch/mcpm_run/f3win/` (24 chunks, up 2400–2522) parsed with `f3parse` → 27 347 main-boot records.
+In the final **1.0 s** there are **227** records, all normal: `rflte_core_rxctl.c:403` gain-comp ×12
+every 40 ms, `rflte_mc_meas.c:1943` **IRAT LTE GRFC script** every 40 ms (last at **−0.023 s**),
+`pgi_msgr.c:718` WWAN_TECH_MSG, `mcpm_npa.c`/`mcpm_saw.c` (MCPM **cycle running**, last at −0.23 s),
+`a2_power.c:1313/3765` A2 power req, `cfm_cpu_monitor.c:308`. **The very last record is
+`rf_task.c:336 " get imei stoped "`** (emitted once, at the crash instant). ⇒ matches §112.13
+("the fatal has NO F3 precursor") and **differs from the wedge's §112.57.11 staged F3 collapse** — a
+fatal crashes at the event, a wedge keeps running and the collapse unfolds.
+
+**Interpretation.** Five independent ML1 signatures now fire at the **same boot-anchored ~900 s**
+clock, and the victim (sleepmgr vs inter-freq vs idle vs timer) is not fixed by config. Combined with
+§112.58/65 this reframes the model: **the ~900 s event is upstream of the SMs; the sleepmgr RF-wakeup
+stall and the missing `RF_WAKEUP_CNF` are one victim's symptom, not the root.** The common consumer
+failure is *an RF-layer completion that never arrives* (sleepmgr: `RF_WAKEUP_CNF`; inter-freq: the
+`rfa_rf_lte_l2l_build_scripts_cnf` / measurement completion). This **strengthens** the RF-death model
+(§112.71) and the "fixed trigger, variable manifestation" model (§112.48+). Root cause still **OPEN**.
+
+**Honest caveats.** n = 1 for signature E. The function at line 712 was not decompiled; the branch that
+reaches `ASSERT(0)` is not identified. The F3 window is 24 chunks ending at up 2522 (≈3 s before the
+fatal at 2525) — the "no precursor" claim is bounded by that coverage.
+
+**Artifacts.** `scratch/mcpm_run/dump_fatal_901.bin` (85 398 475 B, md5 `f955dd1344937a9b6b497ec541df21c8`);
+`scratch/mcpm_run/f3win/`; `scratch/mcpm_run/watch.log`; readers `scratch/crashlog_extract.py`,
+`scratch/sleepmgr_dump.py`, `scratch/a2_descr.py`, `scratch/mcpm_run/f3tail.py`.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| record run 8 in the track record | manifestation + clock | **YES** — FATAL @ modem-up 901.3 s |
+| identify the fatal signature | file:line | **YES** — `lte_ml1_sm_conn_inter_freq_stm.c:712` (NEW) |
+| sleepmgr state | (unknown) | **state 1 ONLINE — HEALTHY** (new) |
+| F3 precursor | none (fatal) | **YES** — none; 227 normal records in the last 1.0 s |
+| resolve the exact line-712 branch | the event that hits `ASSERT(0)` | **NO** — function not decompiled; disasm gaps |
+
+**SOP.** Ground truth first (signature + messages read from the coredump's own assert-DB and sleepmgr
+object; no source assumed). No blind patch. One change at a time. Honest about the unresolved branch
+and the n = 1. Steady state restored (`preemptive_ssr_enabled=1`).

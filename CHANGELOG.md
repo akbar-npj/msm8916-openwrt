@@ -11,6 +11,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — RUN 8: a FIFTH ~900 s fatal signature (`lte_ml1_sm_conn_inter_freq_stm.c:712`, ML1 MGR) with a HEALTHY sleepmgr
+
+- **Ledger §112.66 / Doc 245 §3** — stock baseband `1a6f9507…`, `preemptive_ssr_enabled=0`, `a2_pin=1`,
+  continuous traffic, cold AP boot → **FATAL** at AP uptime 2524.496 s (modem-up **≈901.3 s**).
+- **New signature.** Crash report `file=lte_ml1_sm_conn_inter_freq_stm.c line=712 task=ML1 MGR`; the
+  descriptor resolved offline from the coredump's assert-DB (`scratch/a2_descr.py`): `0xc3c80640` →
+  message **`Assert 0 failed:`** (unconditional `ASSERT(0)`). This is the **5th distinct ~900 s fatal
+  site** (after `lte_ml1_sleepmgr_stm.c:4054`, `a2_power.c:1189`, `lte_ml1_common_timer.c:390`,
+  `lte_ml1_sm_idle_stm.c:2913`).
+- **★★★★★ The sleepmgr was HEALTHY** (`0xc1e158d0` `+0x04 = 1` ONLINE, `+0x08 = 0x06`). ⇒ **the ~900 s
+  event can fatal WITHOUT the sleepmgr RF-wakeup stall** — the sleepmgr state is a *victim's* signature,
+  not the root. This reframes the model: the trigger is upstream of the ML1 SMs.
+- **The crashing SM consumes RF completions.** Its assert cluster includes line **657**
+  `((rfa_rf_lte_l2l_build_scripts_cnf_s *)payload)->req_result == RFA_RF_LTE_SUCCESS` (an RF-driver
+  completion check) — the same "waits on the RF layer" shape as the sleepmgr's `RF_WAKEUP_CNF`. The
+  *fired* assert was line 712 (`ASSERT(0)`), a default branch; the exact reaching event is unresolved
+  (the function was not decompiled; disasm has decode gaps).
+- **No F3 precursor** (matches §112.13): 227 normal records in the final 1.0 s (IRAT GRFC script every
+  40 ms to −23 ms, MCPM cycle running, A2 power req); the last record is `rf_task.c:336 " get imei
+  stoped "`. Differs from the wedge's §112.57.11 staged collapse (a fatal crashes at the event).
+- **Track record updated** (Doc 245 §3): run 8 → counts now **WEDGE 4 / FATAL 4**; added the **victim
+  SM** as a second uncontrolled variable alongside the MCPM phase.
+- Artifacts: `scratch/mcpm_run/dump_fatal_901.bin` (md5 `f955dd1344937a9b6b497ec541df21c8`),
+  `scratch/mcpm_run/f3win/`, readers `scratch/crashlog_extract.py` / `sleepmgr_dump.py` /
+  `a2_descr.py` / `mcpm_run/f3tail.py`.
+
 ### 2026-10-04 — v28 RF-WAKEUP-CNF CALLBACK RING: instrument the RF wakeup path's RF-driver side
 
 - **Ledger §112.63 / Doc 244 §6.8** — v26 (egress) and v27 (ingress) see only the sleepmgr's
