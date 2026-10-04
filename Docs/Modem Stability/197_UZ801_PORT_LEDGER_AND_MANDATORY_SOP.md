@@ -18358,3 +18358,134 @@ read from the stock ELF (`modem.elf`) and cross-checked against the live coredum
 (§112.70). No firmware write, no device change this session (read-only RE). One change at a time.
 Honest that the raw op is named but the stalling resource is not. Ledger + CHANGELOG + memory updated
 in the same session.
+
+---
+
+## §112.72 — The router flash-storage bug: an overlayfs→ext4→jbd2 unlink oops that wedges the whole overlay
+
+**Status: CONFIRMED on the live device (2026-10-04).** This is an **AP-side (OpenWrt/kernel) fault**,
+**not** a modem fault. It is unrelated to the ~900 s event; it was discovered while setting up the
+v29 run (task #279), when a `uci commit` to disable the pre-emptive SSR hung and never persisted.
+
+### 112.72.1 Symptom
+
+- **Every write to the overlay blocks forever.** `/root`, `/etc`, `/lib` (all on
+  `overlayfs:/overlay`, upperdir `/overlay/upper` on `/dev/mmcblk0p15` ext4) — a plain
+  `echo B > /root/_w3` **never returns** (the ssh session times out). `uci commit` hangs in `D`.
+- **tmpfs still works.** `echo A > /tmp/_t` returns immediately (`TMP_OK`). So it is **not** a general
+  I/O or ssh fault — it is specific to the ext4 overlay.
+- **Reads still work.** `md5sum /lib/firmware/modem.mdt` returns
+  `398dce8abb35d280d243eb63f68cce74` (the deployed v29 image is intact on disk); `/proc/*` reads fine.
+  **Consequence: the deployed firmware is safe, but nothing can be changed.**
+- **Load average ≈ 7.5** sustained, from writers piling up in `D`.
+- **Two kernel threads pinned in `DW`** (uninterruptible):
+  `PID 12 [kworker/u16:0+f]` and **`PID 187 [jbd2/mmcblk0p15]`**.
+- Live user tasks also stuck in `D`: `PID 6162 diag_logtool capture 5 /root/f3cap/c000005_up00039.raw`,
+  `PID 3289 dmesgtap.sh`.
+
+### 112.72.2 The oops (boot-time, deterministic)
+
+At **uptime 39.23 s on every boot**, the kernel oopses in the overlay **unlink** path:
+
+```
+[   39.233085] CPU: 0 UID: 0 PID: 6049 Comm: rm Tainted: G           O       6.12.94 #0
+[   39.394190] Internal error: Oops: 0000000096000004 [#1] PREEMPT SMP
+[   39.897444] pc : jbd2_write_access_granted+0x14/0xb8
+[   39.904126] lr : jbd2_journal_get_write_access+0x60/0xec
+   x0 : ffff59db42490000   x1 : c568142b5fe526b7   (x4 = x22 = same poison)
+   Code: 910003fd a90153f3 aa0003f4 a9025bf5 (f9400020)
+Call trace:
+  jbd2_write_access_granted+0x14/0xb8
+  jbd2_journal_get_write_access+0x60/0xec
+  __ext4_journal_get_write_access+0x44/0x180
+  ext4_orphan_add+0x178/0x4c0
+  __ext4_unlink+0x1f8/0x2a0
+  ext4_unlink+0x6c/0xa0
+  vfs_unlink+0xd4/0x29c
+  ovl_do_remove+0x35c/0x420
+  ovl_unlink+0x14/0x20
+  vfs_unlink+0xd4/0x29c
+  do_unlinkat+0x1dc/0x24c
+  __arm64_sys_unlinkat+0x34/0x74
+```
+
+- The faulting instruction is `(f9400020)` = `ldr x0, [x1]` — a **dereference of a garbage pointer**
+  `x1 = 0xc568142b5fe526b7`. In `jbd2_write_access_granted(handle, bh, undo)` the first read is
+  `bh->b_private`; the trace enters from `ext4_orphan_add` → `__ext4_journal_get_write_access(…,
+  EXT4_SB(sb)->s_sbh, …)` ⇒ **the superblock buffer_head pointer (`s_sbh`) delivered to jbd2 is a
+  poison value** (`0xc568142b5fe526b7`; the same value also sits in x4/x22 — a classic poison/UAF
+  pattern, not a valid kernel address).
+- **The task is `rm` (PID 6049)** deleting through **overlayfs** (`ovl_unlink → ovl_do_remove →
+  vfs_unlink → ext4_unlink`) — i.e. an overlay unlink of a real upper file, which forces an
+  `ext4_orphan_add` (journal write to the ext4 superblock) → jbd2.
+- `[ 6.857658] rootfs_data: recovering journal` at boot confirms the journal was dirty on entry.
+
+### 112.72.3 The wedge mechanism (why all writes hang)
+
+An oops kills the task **without releasing the jbd2 handle it already held**. The `rm` had passed
+`jbd2_journal_start`/`start_this_handle` (it is *inside* `jbd2_journal_get_write_access` when it
+dies), so its transaction still has an open update that will never be closed. Kernel stacks prove
+the deadlock:
+
+```
+PID 187 [jbd2/mmcblk0p15]        PID 12 [kworker/u16:0+f]
+  jbd2_journal_wait_updates        wait_transaction_locked
+  jbd2_journal_commit_transaction  add_transaction_credits
+  kjournald2                       start_this_handle
+                                   jbd2__journal_start
+                                   __ext4_journal_start_sb
+                                   ext4_do_writepages   ← writeback
+                                   wb_workfn
+```
+
+- `kjournald2` is stuck in **`jbd2_journal_wait_updates`** — waiting for `t_updates` to reach 0 for a
+  transaction whose one remaining handle belongs to the **dead `rm` task** ⇒ waits forever.
+- Any new overlay write must open a transaction ⇒ blocks in **`wait_transaction_locked`** behind that
+  never-completing commit. **Reads need no transaction ⇒ they still work.**
+- There is no userspace lever to release the handle; only a reboot clears the in-memory state.
+
+### 112.72.4 The trigger (a boot-time diagnostic script)
+
+`/etc/rc.local` (added this investigation) starts the capture scripts via `start-stop-daemon`:
+`hang_probe_t4.sh`, **`f3cap.sh`**, `dmesgtap.sh`, **`dumpwatch.sh`**. Both file-churn scripts issue
+overlay `rm`s:
+
+- `f3cap.sh:54` `rm -f "$f"` (empty chunk) and `f3cap.sh:59` `… | while read -r o; do rm -f "$o"; done`
+  (chunk rotation).
+- `dumpwatch.sh:40` `rm -f "$tmp"` and `dumpwatch.sh:52` `rm -f "$old"`.
+
+At boot `f3cap.sh` immediately starts `diag_logtool capture` → writes chunk files → rotates → `rm`
+→ the oops. The live filename `…/c000005_up00039.raw` ("up00039" = **uptime 39 s**) matches the oops
+timestamp exactly, pinning the trigger to this script.
+
+### 112.72.5 Why a reboot did NOT fix it (a FALSIFIED working hypothesis)
+
+The pre-reboot hypothesis was "a reboot clears the hung journal." **That is FALSIFIED.** The device
+was rebooted and the oops recurred at the **same point** (uptime 39 s, **same PID 6049**, same site
+`jbd2_write_access_granted+0x14`), because **`f3cap.sh` runs again at boot and re-triggers the same
+unlink.** It is a **repeatable trigger**, not a one-off on-disk corruption: the journal wedge is
+in-memory (a dead task's handle), so removing the trigger should give a healthy boot.
+
+### 112.72.6 Consequence for the investigation
+
+- **Blocked:** disabling the pre-emptive/Stage-3 SSR for the v29 soak (`uci commit` cannot persist).
+- **Not at risk:** the deployed v29 image (`398dce8a…`) and its stock backup are intact (reads work).
+- **Not the modem:** this is a host-kernel overlayfs/ext4 bug; it does not affect the ~900 s analysis.
+
+### 112.72.7 Open questions / remediation candidates (not yet executed)
+
+1. **Which script's `rm`** is the exact victim (f3cap rotation vs. dumpwatch temp) — the trace shows
+   only `rm`; the `up00039` filename implicates `f3cap.sh`.
+2. **Underlying defect:** why `EXT4_SB(sb)->s_sbh` is a poison value in the `ext4_orphan_add` path —
+   a genuine kernel bug (use-after-free / corrupted `ext4_sb_info`), to be investigated offline
+   against the 6.12.94 source. **Not proven** which of UAF vs. a corrupted-on-disk orphan list.
+3. **Remediation candidates:** (a) break the trigger — stop `f3cap.sh`/`dumpwatch.sh` from churning
+   the overlay at boot (requires either an overlay write, which is wedged, or an out-of-band edit of
+   `rc.local` via the bootloader/EDL); (b) run the capture `OUT` on **tmpfs** so churn never touches
+   ext4; (c) as a last resort, reformat the overlay (`firstboot`) or reflash — **destructive: wipes
+   `/root`, `/etc` and the deployed firmware/backup.**
+
+**SOP.** Ground truth first — the oops, the kernel stacks, the mount table and the live file names
+were read directly from the running device; no claim is inferred. No firmware write. Honest that the
+wedge mechanism is proven but the root defect (why `s_sbh` is poison) is OPEN. One change at a time.
+Ledger + CHANGELOG + memory updated in the same session.

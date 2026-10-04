@@ -11,6 +11,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — The router flash-storage bug: overlayfs→ext4→jbd2 unlink oops wedges the overlay
+
+- **Ledger §112.72** — documented the AP-side (OpenWrt/kernel) storage fault found while setting up
+  the v29 run; **unrelated to the ~900 s modem event**.
+- **Symptom:** every **overlay write hangs forever** (`/root`, `/etc`, `/lib` on `mmcblk0p15` ext4);
+  **tmpfs writes work**; **reads work** (deployed v29 image `398dce8a…` intact); load ≈ 7.5.
+- **Oops (deterministic, uptime 39 s):** `PID 6049 Comm: rm` → `ovl_unlink` → `ext4_unlink` →
+  `ext4_orphan_add` → `jbd2_journal_get_write_access` → **`jbd2_write_access_granted+0x14`** fault
+  `(f9400020)` dereferencing poison `x1 = 0xc568142b5fe526b7` (the `s_sbh` handed to jbd2).
+- **Wedge mechanism (proven by kernel stacks):** the oopsed `rm` dies holding an open jbd2 handle ⇒
+  `PID 187 [jbd2/mmcblk0p15]` stuck in `jbd2_journal_wait_updates`; `PID 12 [kworker/u16:0+f]` stuck
+  in `wait_transaction_locked` ⇒ **no new transaction can start** ⇒ all writers block in `D`.
+- **Trigger:** the diagnostic scripts launched from `/etc/rc.local` churn files on the overlay —
+  `f3cap.sh:54/59` and `dumpwatch.sh:40/52` `rm -f`. Live `…/c000005_up00039.raw` ("up00039" = the
+  oops uptime) pins it to `f3cap.sh`.
+- **★ A reboot does NOT fix it (hypothesis FALSIFIED):** the oops recurred at the same point, same
+  PID 6049 — `f3cap.sh` re-runs at boot and re-triggers. The wedge is in-memory (a dead task's
+  handle), so breaking the trigger should give a healthy boot.
+- **Blocked:** the v29 run setup (`uci commit` to disable the pre-emptive/Stage-3 SSR cannot persist).
+
 ### 2026-10-04 — Task #278: the raw radio wakeup event is RFA operation 0x60702aa
 
 - **Ledger §112.71** — traced the raw event that must drive the RFMGR wakeup completion.
