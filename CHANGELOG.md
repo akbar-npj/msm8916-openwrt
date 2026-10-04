@@ -11,6 +11,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — P-V30-CNFPOST SCORED: the CNF-post site is reached on every entry (stall is at/after the handler's completion)
+
+- **Ledger §112.76** — ran v30 (entry ring on the raw WAKEUP handler `0xc1017818` **+ a counter at
+  the CNF-post site `0xc10179a8`**) with SSR disabled, to the ~900 s event.
+- **FATAL at AP 915.799 s**, site `lte_ml1_common_timer.c:390`. Dump
+  `scratch/v30_run/dump_FATAL.bin` (85 398 475 B). Clean AP reboot first (0 real oops; LTE attached).
+- **H1 PASS** (marker `0x76323a01` + site_entry `0xc1017818`), **H2 PASS** (`seq_entry = 1234`,
+  `exit_count = 1234`; independent counters at `+0x04`/`+0x0c`).
+- **★ H3a — `exit_count == seq_entry` (diff 0):** all **1234** handler invocations reached the
+  CNF-post block ⇒ **H3b FALSIFIED** (the last entry's RF-script work did **not** block before the
+  post). The loss is **at/after the handler's completion**, not in the per-carrier RF-script work.
+- **Corroboration:** RFMGR state 5 (SLEEP); SLEEPMGR state 9; WAKEUP_REQ `0x4290203` at `0xc1e14530`
+  (⚠ corrects the ledger's earlier "`ctx+0x104`" offset note — the value is the invariant).
+- **Residual (honest):** the counter is at the post **entry**, so it cannot separate "completed the
+  post and returned (CNF emitted, lost in the RFA→RFMGR transport)" from "reached the post and
+  blocked inside it" ⇒ **v31 = an epilogue counter at `0xc10179fc`** (`== exit_count` ⇒ transport;
+  `== exit_count − 1` ⇒ in-post block).
+- **Pre-run control (§112.75.1):** the post site is on the only main path (the sole bypass is a dead
+  null-object error path) ⇒ `exit_count == seq_entry` in health.
+
 ### 2026-10-04 — v30 PRE-REGISTRATION (P-V30-CNFPOST): is the CNF `0x60708aa` actually POSTED at the event?
 
 - **Ledger §112.75** — pre-registered the v30 run **before** it: v29 proved the raw WAKEUP handler

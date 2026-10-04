@@ -18717,3 +18717,69 @@ entry-vs-post count.
 ⇒ **`exit_count == seq_entry` in health; a deficit is meaningful.** A deficit of exactly 1 = the last
 entry never reached the post (H3b); a large deficit would instead indict the null-object error path
 (a measurement caveat, not a stall) and would be reported as such.
+
+---
+
+## §112.76 — P-V30-CNFPOST SCORED: the CNF-post site is reached on EVERY entry ⇒ the stall is at/after the handler's completion
+
+**Run.** Fresh **AP reboot** (clean boot: 0 real oops — the 4 grep hits were `ramoops` substrings;
+overlay writable; LTE attached, ping OK) so the modem cold-starts with v30 (`bfe46e2b…`). SSR
+disabled (`ssr_enabled=0`, `preemptive_ssr_enabled=0`), `coredump=enabled`. A **FATAL** fired at
+**AP 915.799 s**, site **`lte_ml1_common_timer.c:390`** (the classic site). Dump
+`scratch/v30_run/dump_FATAL.bin` (85 398 475 B, valid ELF32). Runner `scratch/v30_run.sh`; decoder
+`scratch/read_v30_ring.py`.
+
+**Ring read (`scratch/read_v30_ring.py`).** Header `0xc1455000` = `+0x00 marker 0x76323a01`,
+`+0x04 seq_entry 0x4d2 = 1234`, `+0x08 site_entry 0xc1017818`, `+0x0c exit_count 0x4d2 = 1234`,
+`+0x10 site_exit 0` (never written — cosmetic; the exit cave only touches `+0x0c`). The two counters
+are **independent** (the entry cave increments `+0x04`; the exit cave increments `+0x0c`; both start
+from 0 in BSS).
+- **H1 PASS** — marker `0x76323a01` @`0xc1455000`, site_entry `0xc1017818` @`0xc1455008`.
+- **H2 PASS** — `seq_entry = 1234 > 0` **and** `exit_count = 1234 > 0` (both probes ran).
+- **★ H3a — `exit_count == seq_entry` (diff 0) ⇒ every one of the 1234 handler invocations reached
+  the CNF-post block `0xc10179a8`.** H3b **FALSIFIED** (the last entry's RF-script work did **not**
+  block before the post); H3c N/A; NEG N/A.
+- Entry ring intact: 1234 records, **all** `caller = 0xc10187a0` (the WAKEUP stub `0xc1018798`+8),
+  `msg_id == msg_obj` = a `0xc310xxxx` RF-script object cycling over 10 objects, regular cadence to
+  the recorded end — identical in shape to the v29 run.
+
+**Corroboration in the same dump.** **RFMGR state = 5 (SLEEP)**; **SLEEPMGR state = 9
+(OFFLINE_WAKEUP)**; and the **WAKEUP_REQ word `0x4290203` is present at `0xc1e14530`** (with the
+companion `0x4290202` SLEEP at `0xc1e1452c`) — the §112.65/66/70 event signature. ⚠ The ledger's
+prior phrasing "`ctx+0x104`" put the word at a different address; the **value** is the invariant, the
+exact offset note is corrected here (`0xc1e14530`).
+
+**Interpretation.** The raw WAKEUP handler **runs** (v29: entered 1162×/1234×) **and reaches its
+CNF-completion block on every invocation** (v30), yet the RFMGR's completion handler `0xc0315560`
+never runs (§112.70) and the sleepmgr's LAST cycle alone omits `RF_WAKEUP_CNF` (v26/v27). ⇒ **The loss
+is at or after the handler's completion sequence — NOT in the handler's per-carrier RF-script work
+(H3b falsified).** The handler loads the CNF id `0x60708aa` at `0xc10179ac` and runs its completion
+calls (`0xc08f1500`, `0xc093be30`) on all 1234 entries; the CNF nevertheless never reaches the RFMGR.
+
+**Residual ambiguity (honest — one level deeper than v29).** The counter is at the post block
+**ENTRY** (`0xc10179a8`), so `exit_count == seq_entry` is consistent with **both**:
+- **(a)** every entry **completed** the post sequence and returned (the CNF was emitted but **lost in
+  the RFA→RFMGR completion transport**), and
+- **(a′)** the **last entry reached the post and then blocked inside it** (e.g. in the completion call
+  `0xc093be30`), so the CNF was never emitted.
+⇒ **v31 must add an EPILOGUE counter** at the single return site `0xc10179fc` (the `jump 0xc0837c38`
+that both the main path and the — dead — null-object path use): `epilogue_count == exit_count` ⇒ (a),
+`== exit_count − 1` ⇒ (a′).
+
+⚠ **Disassembler note.** The post block contains two words llvm-objdump cannot decode (`0xc10179b8`
+`0x89404003`, `0xc10179d4` `0x70604001`) — a duplex/`call` alignment gap. They are **after** the
+counter site, so they do not affect H3; their exact semantics were not needed to score.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| does the handler reach its CNF post at the event | yes/no | **YES** — 1234 / 1234 entries |
+| H3b: last entry's RF-script work blocked | possible | **FALSIFIED** |
+| localise the loss | inside the handler vs downstream | **AT/AFTER the handler's completion** (not the RF-script work) |
+| name the stopping resource | a resource | **NO — still OPEN** (needs the v31 epilogue counter: transport vs in-post block) |
+
+**SOP.** Pre-registered (§112.75) + pre-run static control (§112.75.1) **before** the result; scored
+at cut, no re-tuning; instrument hash + config recorded; one change at a time; honest that "reached
+the post" is proven but "completed the post" vs "lost in the transport" is not. Ledger + CHANGELOG +
+memory updated in the same session.
