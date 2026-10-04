@@ -18074,6 +18074,20 @@ armed **once per restart** and is **not** re-armed, which is why the wedge dump 
 restart) has no instance left. Callback `d051e254` is shared with the 18 h timer and lives outside
 the ELF/coredump range, so it remains statically unresolved.
 
+**★ The sleepmgr state at the event is VARIABLE and all ONLINE-regime.** `scratch/sleepmgr_dump.py`
+(sleepmgr object `0xc1e158d0`, state @+0x4):
+
+| dump | event | state |
+|---|---|---|
+| `dump_devcd1_2525` | FATAL `sm_conn_inter_freq` | **1 — ONLINE** |
+| `dump_devcd2_3449` | FATAL `sleepmgr` | **2 — ONLINE_SLEEP_WAIT** |
+| `dump_devcd3_4526` | WEDGE | **4 — ONLINE_WAKEUP** |
+
+⇒ §112.65's "fatal = OFFLINE (state 9)" is **not** general: two fresh fatals sit in the ONLINE regime
+(states 1 and 2). Combined with §112.66 (a healthy state-1 sleepmgr at a fatal), the state at the
+event is **variable** — consistent with the §112.67/69 race. (Caveat: the dump is captured *after* the
+assert, so the state may have moved; the robust reading is that it is **not fixed** at 9.)
+
 **⚠⚠ MEASUREMENT-DISCIPLINE FAILURE (the soak was contaminated).** A leftover capture script
 `/root/v28_wedgecap.sh` — started **13:28:47** by a *prior* session and never stopped — was still
 running. It fired on the WEDGE commit (14:08:46, "treating as a genuine stall"), ran
