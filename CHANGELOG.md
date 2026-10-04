@@ -11,6 +11,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — P-V29-RAWWAKE SCORED: the raw WAKEUP handler runs at the event (stall is DOWNSTREAM)
+
+- **Ledger §112.74** — ran v29 (ring on the entry of the raw RFA WAKEUP handler `0xc1017818`) with
+  SSR disabled, to the ~900 s event.
+- **FATAL at modem-uptime 903.46 s** (AP 1718.567 s − modem restart 815.107 s), site
+  `lte_ml1_common_timer.c:390`. Dump `scratch/v29_run/dump_FATAL.bin` (85 398 475 B).
+- **H1 PASS** (marker `0x76323901` + site `0xc1017818`), **H2 PASS** (`seq = 1162`).
+- **★ H3a SUPPORTED / H3b FALSIFIED:** the raw WAKEUP handler is **entered 1162×**, all via the WAKEUP
+  stub (`caller = 0xc10187a0`), regular cadence right up to the recorded end ⇒ the raw op `0x60702aa`
+  **DOES fire**; the stall is **NOT upstream** of `0xc1017818`.
+- **Corroboration:** RFMGR state 5 (SLEEP) + `ctx+0x104 = 0x4290203` (WAKEUP pending); SLEEPMGR state 9.
+- **Residual (honest):** an entry-only ring cannot separate "every entry completed, last CNF lost"
+  from "last entry's RF-script work blocked" ⇒ **v30 needs a ring at the handler exit / CNF post
+  (`0xc10179a8` / `0xc0316600`)**.
+
 ### 2026-10-04 — The router flash-storage bug: overlayfs→ext4→jbd2 unlink oops wedges the overlay
 
 - **Ledger §112.72** — documented the AP-side (OpenWrt/kernel) storage fault found while setting up

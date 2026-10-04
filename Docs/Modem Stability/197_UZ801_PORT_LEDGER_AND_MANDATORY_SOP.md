@@ -18579,3 +18579,56 @@ resource/event (or a further falsification); ledger + memory.
 
 **SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
 before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.74 — P-V29-RAWWAKE SCORED: the raw WAKEUP handler `0xc1017818` RUNS at the event ⇒ stall is DOWNSTREAM (upstream falsified)
+
+**Run.** SSR disabled (`ssr_enabled=0`, `preemptive_ssr_enabled=0`), `coredump=enabled`, firmware
+`398dce8a…`. The modem had restarted at AP 815.107 s (last pre-emptive SSR); a **FATAL** fired at
+**AP 1718.567 s = modem-uptime 903.46 s**, site **`lte_ml1_common_timer.c:390`** (the classic site).
+Dump captured: `scratch/v29_run/dump_FATAL.bin` (85 398 475 B, valid ELF32). Runner `scratch/v29_run.sh`.
+
+**Ring read (`scratch/read_v29_ring.py`).**
+- **H1 PASS** — marker `0x76323901` @`0xc1455000`, site `0xc1017818` @`0xc1455008`. Hook bytes at the
+  site = `16c70658` (the jump packet) followed by the original `allocframe` word ⇒ instrument in place.
+- **H2 PASS** — `seq = 1162` (> 0; ring is 4096, so no wrap — the full history is present).
+- **H3a SUPPORTED / H3b FALSIFIED** — the raw WAKEUP handler is **entered 1162 times**, ALL with
+  `caller = 0xc10187a0` (the return address inside the WAKEUP stub `0xc1018798`+8), with a **regular
+  cadence right up to the recorded end** (the last entries 1157..1162 show the same steady cycle
+  `0xc310ea88, 0xc310ec08, 0xc310ed88, 0xc310ef08, 0xc310f088, 0xc310ea88`). `msg_obj` (r16) cycles
+  over 10 RF-script objects. **⇒ the raw op `0x60702aa` DOES fire at the event; the stall is NOT
+  upstream of `0xc1017818`.**
+- **NEG** not applicable (marker present).
+
+**Corroboration in the same dump:** **RFMGR state = 5 (SLEEP)** with **`ctx+0x104 = 0x4290203`**
+(WAKEUP_REQ pending) and **SLEEPMGR state = 9** (OFFLINE_WAKEUP) — the exact event signature of
+§112.65/66/70. So the modem was parked in SLEEP holding an unserviced WAKEUP while the raw handler
+had been executing continuously.
+
+**Interpretation.** The RFMGR→RFA wakeup chain *issues* (`0x60702aa` is dispatched to `0xc1017818`
+1162×), but the RFMGR's completion `0xc0315560` never runs. Combined with **v26/v27** (the sleepmgr's
+LAST cycle alone omits `RF_WAKEUP_CNF` before `STMR_ON_REQ`) and **v28** (the RFMGR RF_WAKEUP_CNF
+missing), the loss is in the **CNF path between the raw handler and the STMs** — i.e. the raw op fires
+but its completion never arrives.
+
+**Residual ambiguity (honest).** The ring records **entries only** (no exit/completion marker, no
+timestamp). It therefore **cannot distinguish**:
+(a) every entry completed and the **last CNF `0x60708aa` was lost downstream**, from
+(b) the **last entry's per-carrier RF-script work blocked** (handler never returned).
+The cadence argument (1162 entries over 903.46 s = **1.286 /s**, a plausible RF wake rate; a much
+higher rate would have stopped growing long before the fatal) favours the handler running to the
+event, but it is an inference, not a measurement. **⇒ v30 must add a ring at the handler EXIT /
+CNF-post (`0xc10179a8` / `0xc0316600`) to see whether `0x60708aa` is actually POSTED.**
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| does `0x60702aa` fire at the event | yes/no | **YES** — 1162 dispatches to `0xc1017818` |
+| localise the stall | upstream vs downstream | **DOWNSTREAM** (upstream FALSIFIED) |
+| name the stopping resource | a resource | **NO — still OPEN** (needs the CNF-post ring) |
+
+**SOP.** Pre-registered (§112.73) before the run; scored at cut; one change at a time; honest that
+"fires" is proven but "never completes" vs "completes-and-CNF-lost" is not. Ledger + CHANGELOG +
+memory updated in the same session.
