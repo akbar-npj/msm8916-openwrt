@@ -18632,3 +18632,63 @@ CNF-post (`0xc10179a8` / `0xc0316600`) to see whether `0x60708aa` is actually PO
 **SOP.** Pre-registered (§112.73) before the run; scored at cut; one change at a time; honest that
 "fires" is proven but "never completes" vs "completes-and-CNF-lost" is not. Ledger + CHANGELOG +
 memory updated in the same session.
+
+---
+
+## §112.75 — v30 run PRE-REGISTRATION (P-V30-CNFPOST): is the CNF `0x60708aa` actually POSTED at the event?
+
+**Question.** §112.74 proved the raw RFA WAKEUP handler `0xc1017818` is **entered 1162×** at the
+~900 s event (stall is **downstream** of it), but an **entry-only** ring cannot distinguish:
+- (a) every entry completed and the **last CNF `0x60708aa` was POSTED but LOST in delivery**, from
+- (b) the **last entry's per-carrier RF-script work BLOCKED** (handler never reached its post).
+
+**Does the handler reach its CNF-post packet `0xc10179a8` on the last entry before the event?**
+
+**Instrument (v30).** Same entry ring as v29 on `0xc1017818` (site `{ jump → tramp 0xc1048644 → cave
+0xc003054c }`), **plus a counter at the handler's CNF-post site `0xc10179a8`** — the packet
+`{ immext(#0x6070880); r1 = ##0x60708aa; r3 = memub(r3+#0x35) }` that loads the CNF id `0x60708aa`
+immediately before the handler posts it. The site's first word is replaced by a 4-byte jump to the
+new b16 trampoline `0xc1048664`, which jumps into a second b05 cave at `0xc00305bc`. The exit cave
+increments `SAVE_AREA+0x0c`, **reproduces all 3 original instructions** (verified: the `##0x60708aa`
+form assembles to the exact original 12 bytes `225c6000 41450078 a3c62391`; the cave's `41c5` vs
+`4145` difference is only a packet **parse bit** — duplex vs standalone — the operand is identical),
+then `jumpr` to the continuation `0xc10179b4`.
+
+⚠ The exit probe is a **counter, not a ring** — the b05 free window is only 180 B and the entry cave
+already uses 112 B; a second 4096-entry ring would overrun. The counter answers the binary question
+(posted-or-not) but gives **no per-entry timestamps**.
+
+**Save area.** header `0xc1455000` = `{ +0x00 marker 0x76323A01, +0x04 seq_entry, +0x08 site_entry
+0xc1017818, +0x0c exit_count, +0x10 site_exit 0xc10179a8 }`; entry ring `0xc1d4c600`, 4096 × 16 B =
+`{ seq, caller=r31, msg_id=r0, msg_obj=r16 }`.
+
+**Instrument hash.** `modem.mdt` md5 `bfe46e2bffada25a13dbb732afe63686` (built from the patched base
+`GitIgnore/compare/modem_hmu05_extracted/image`; seg16/seg5 SHA-256 re-verified PASS; b16 sites
+`0xc1017818`→`16c70658`, `0xc10179a8`→`5ec60658`; trampolines `0xc1048644`/`0xc1048664`; caves
+`0xc003054c`(112 B)/`0xc00305bc`(44 B)). Builder `scratch/diag_patch_v30/build_diag_patch_v30.py`;
+offline disasm verify `scratch/diag_patch_v30/verify_v30.py`.
+
+**Run config.** `ssr_enabled=0`, `preemptive_ssr_enabled=0` (ring survives to the event),
+`coredump=enabled`. Runner `scratch/v29_run.sh` (same policy: FATAL → grab the auto devcd; WEDGE →
+force `echo 1 > /sys/class/remoteproc/remoteproc0/crash` at the AP deadline). Decoder: entry seq from
+`0xc1455004`, exit count from `0xc145500c`.
+
+**Hypotheses.**
+- **H1 (instrument ran):** marker `0x76323A01` @`0xc1455000` **and** site `0xc1017818` @`0xc1455008`.
+- **H2 (both probes ran):** `seq_entry` @`0xc1455004` > 0 **and** `exit_count` @`0xc145500c` > 0.
+- **H3 (localise the loss), decision rule (fixed):**
+  - **(a) CNF POSTED, LOST in delivery** if `exit_count == seq_entry` (every entry reached the post;
+    the last CNF was emitted but never delivered) ⇒ the loss is **downstream of the handler** (in the
+    RFA→RFMGR completion transport / the STM hand-off).
+  - **(b) last entry's RF-script work BLOCKED** if `exit_count == seq_entry - 1` (the final entry
+    never reached the post) ⇒ the loss is **inside the handler's per-carrier RF-script work**.
+  - **(c) post site never reached** if `exit_count == 0` ⇒ the handler never executes the packet at
+    all (a structural mismatch with §112.71's code map).
+- **NEG:** marker absent ⇒ the instrument did not run / the save area is not writable.
+
+**Scored at cut** (no re-tuning): H1, H2, H3a/H3b/H3c, NEG. Deliverable: whether the CNF is posted;
+if posted-and-lost, the loss moves to the RFA→RFMGR completion transport (a new, narrower target);
+ledger + memory.
+
+**SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
+before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.

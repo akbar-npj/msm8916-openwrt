@@ -11,6 +11,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — v30 PRE-REGISTRATION (P-V30-CNFPOST): is the CNF `0x60708aa` actually POSTED at the event?
+
+- **Ledger §112.75** — pre-registered the v30 run **before** it: v29 proved the raw WAKEUP handler
+  `0xc1017818` is **entered** 1162× at the event (stall DOWNSTREAM), but an entry-only ring cannot
+  separate "last CNF posted but lost" from "last entry's RF-script work blocked".
+- **Instrument (v30):** same entry ring on `0xc1017818` (site → tramp `0xc1048644` → cave
+  `0xc003054c`) **plus a counter at the CNF-post site `0xc10179a8`** (site → tramp `0xc1048664` →
+  cave `0xc00305bc`, 44 B). Header `0xc1455000` = `{ marker 0x76323A01, seq_entry, site_entry
+  0xc1017818, exit_count, site_exit 0xc10179a8 }`. ⚠ exit probe is a **counter, not a ring** (b05
+  free window = 180 B; entry cave already uses 112 B).
+- **Hash:** `modem.mdt` md5 `bfe46e2bffada25a13dbb732afe63686`; seg16/seg5 SHA-256 re-verified PASS;
+  site words `0xc1017818`→`16c70658`, `0xc10179a8`→`5ec60658`; offline disasm verify PASS.
+- **Run config:** SSR disabled (`ssr_enabled=0`, `preemptive_ssr_enabled=0`), `coredump=enabled`,
+  LTE attached. Runner `scratch/v30_run.sh`; decoder `scratch/read_v30_ring.py`.
+- **Decision rule (fixed):** `exit_count == seq_entry` ⇒ CNF **POSTED but LOST** (loss downstream of
+  the handler); `== seq_entry − 1` ⇒ **last entry's RF-script work BLOCKED**; `== 0` ⇒ post site never
+  reached; NEG ⇒ marker absent.
+
 ### 2026-10-04 — P-V29-RAWWAKE SCORED: the raw WAKEUP handler runs at the event (stall is DOWNSTREAM)
 
 - **Ledger §112.74** — ran v29 (ring on the entry of the raw RFA WAKEUP handler `0xc1017818`) with
