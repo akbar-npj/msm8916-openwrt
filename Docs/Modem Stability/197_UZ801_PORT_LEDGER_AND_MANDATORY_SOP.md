@@ -18692,3 +18692,28 @@ ledger + memory.
 
 **SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
 before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.
+
+### 112.75.1 Pre-run control — the CNF-post site `0xc10179a8` is on the only main path (the rule is sound)
+
+Established by **static disassembly of the stock handler** while the v30 run was in flight, **before
+the result is known** — it does not change H1/H2/H3, it validates that `exit_count` is a clean
+entry-vs-post count.
+
+- **The handler `0xc1017818` has exactly ONE path that bypasses the post site `0xc10179a8`:** the
+  branch at **`0xc1017828`** `p0 = cmp.eq(r17,#0x0); if (!p0.new) jump:t 0xc1017840`, whose fall-through
+  (`r17==0`) does `r16 = r0; call 0xc08f1480; r0 = ##0xc16ea62c; r17 = #0x3; jump 0xc10179fc` — a
+  **log-and-return error path** that skips the post and goes straight to the epilogue.
+- **`r17` is the message-object pointer** (it is later dereferenced: `add(r17,#0x14)`, `add(r17,#0x24)`,
+  `memw(r17+#0x10)`), so the branch is a **null-object check**.
+- **`r17 = r0` at `0xc1017824`** (duplex with `call 0xc093bcc0`); `r0` at the handler entry is set by the
+  **RFA stub `0xc1018798`** = `{ call 0xc1017818; r0 = r16 }`, i.e. `r0 = r16` = the object. The entry
+  helper `0xc0837c30` (→ b05 **`0xc0030020`** = the compiler callee-saved spill `memd(r30-0x28)=r25:24 …
+  jumpr r31`) **does not touch r0** ⇒ `r17` = the object pointer.
+- **Every other branch** in `0xc1017840..0xc10179a4` converges on `0xc101796c`/`0xc10179a0`, which fall
+  into `0xc10179a8`; **no other branch targets the epilogue `0xc10179fc`**.
+- **The v29 ring already shows the object is never null** (1162 entries, `r0 == r16` = a `0xc310xxxx`
+  object every time) ⇒ the error path is **effectively dead** in the RF-wakeup flow.
+
+⇒ **`exit_count == seq_entry` in health; a deficit is meaningful.** A deficit of exactly 1 = the last
+entry never reached the post (H3b); a large deficit would instead indict the null-object error path
+(a measurement caveat, not a stall) and would be reported as such.
