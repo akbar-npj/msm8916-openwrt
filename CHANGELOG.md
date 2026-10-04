@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — ★★ v33 boot-looped: the b05 ZERO regions are NOT EXECUTABLE (ledger §112.82.1)
+
+- **Symptom:** the first v33 image (`a9def8a9…`, new caves in a zero run at `0xc003f354`) boot-looped
+  `:Excep :0:` every ~11 s. Bisect: **exit-only** (`f7458322…`) also looped ⇒ the EXIT hook's *cave
+  location*, not the callback.
+- **Root cause (crash log):** captured the boot-loop dump (`scratch/v33_bootloop/dump_exitonly.bin`,
+  85 398 475 B) → `crashlog_extract.py` gives **`PC=0xc003f354` = the cave's FIRST word**, while that
+  VA in the same dump holds the cave bytes ⇒ the region is **loaded + readable but NOT EXECUTABLE**
+  (runtime permission/MPU; the ELF's RWE flag does not describe the runtime mapping).
+- **★ RULE:** injected code must go in a **NOP-padded** (`00 c0 00 7f`) run, never a **zero** run. b05
+  has ONE usable sled: `0xc003054c..0xc0030600` (180 B).
+- **Fix:** rebuilt v33 with ALL caves in the sled — comp+ring 92 B @`0xc003054c` + exit 28 B
+  @`0xc00305a8` + cb 36 B @`0xc00305c4` = 156 B. `modem.mdt` md5 **`9202ebd5562c85948e1321d98594004f`**;
+  `verify_v33.py` PASS; deployed → **CLEAN BOOT** (`crashes=0 excep=0` at up 88).
+- Memory `reference_hmu05_platform_quirks.md` §1 updated with the executability rule.
+
 ### 2026-10-05 — v32 RESULT: the RFMGR WAKEUP completion RUNS on every wakeup (H4a) — delivery is HEALTHY
 
 - **Ledger §112.81** — ran v32 v2 (`modem.mdt` `76b4177e…`), SSR off, to the ~900 s event. **FATAL at
@@ -25,6 +41,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ctx+0x1f0`=`0xc039e570`, clears `ctx+0x104`.
 - **⚠ Caveat:** the completion ENTRY ran 1:1 but may still BAIL inside (4 assert-logger paths); at the
   fatal `ctx+0x104` is still pending. Next = the completion EXIT + the callback.
+- **Refinement:** at the fatal `ctx+0x12 = 0` (the completion's early-return gate is CLEAR ⇒ it takes
+  the callback path and clears `ctx+0x104`), callback slots registered ⇒ the pending REQ is a **NEW
+  cycle interrupted by the fatal**, not a bail ⇒ **the RFMGR WAKEUP cycle is HEALTHY up to the fatal**
+  (a WEDGE remains the load-bearing case; v32 captured a FATAL).
 - **Send NEG:** `cnf_count = 0` ⇒ `0xc03165cc` is an ERROR-path block, NOT the CNF builder (re-scope).
 - **H1 gap:** the v32 caves never write the marker (builder gap) — attribution via offsets + ring.
 

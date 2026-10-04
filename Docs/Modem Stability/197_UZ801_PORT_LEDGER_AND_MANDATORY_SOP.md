@@ -19037,6 +19037,93 @@ code there is an **ERROR-path block** (it is preceded by `if (r0==0) jump <funct
 reached only when a message build fails) — the memory's "`0xc03165cc` = the WAKEUP CNF builder" is
 **not borne out by execution**; the CNF build occurs elsewhere. Re-scope.
 
+**Refinement — the completion's own ctx state at the fatal (from the same dump).** `ctx = 0xc216fd50`:
+`+0x12 = 0` (the completion's **early-return gate** at `0xc03155c4` — `if (memub(ctx+0x12)==0) goto
+<callback path>` — is **CLEAR**, so the completion takes the callback path and **clears `ctx+0x104`**);
+`+0x1f0 = 0xc039e570`, `+0x1f4 = 0xc20f13e0` (callback registered); `+0x238 = 0`, `+0x23c = 2`;
+`+0x104 = 0x4290203` (pending). ⇒ the pending REQ is most consistent with a **NEW cycle interrupted by
+the fatal** (the completion for cycles 1..1458 ran and cleared), NOT with the last completion bailing
+— which is exactly the memory's own note that at a **FATAL** the pending REQ is partly expected (the
+state-20 50 ms watchdog fires *after* the sleepmgr issues `WAKEUP_REQ`). **⇒ the RFMGR WAKEUP cycle is
+HEALTHY right up to the fatal; the fatal itself is the ML1 state-20 watchdog, not a wakeup-transport
+loss.** (A WEDGE, where the REQ persists 145 s after the data death, remains the load-bearing case —
+v32 captured a FATAL, so it does not speak to the wedge.)
+
 **SOP.** Pre-registered rule §112.79 scored at the cut (`comp==seq ⇒ H4a`), no re-tuning; the H1 gap
 and the send-side mis-site recorded as negatives; ledger + CHANGELOG + memory updated in the same
 session.
+
+## §112.82 — v33 PRE-REGISTRATION (P-V33-EXIT-CB): does the completion FINISH, and does its CALLBACK run?
+
+**Gap this closes.** v32 (§112.81) proved the RFMGR WAKEUP completion `0xc0315560` is **ENTERED** 1:1
+with the RFA handler return (`comp_count == seq_entry == 1458`). It did **not** prove the completion
+**FINISHES** — a completion can enter and then take one of its own early-exit/assert paths. v33 adds
+two counters to the v32 image:
+
+* **EXIT** — the completion's **single common tail** `0xc0315628`
+  (`{ r0 = r17; r17:16 = memd(r29+#0x18); dealloc_return }`; the `ctx+0x12!=0` early exit at
+  `0xc03155d8`, the `r1!=1` exit at `0xc031560c`, and the fall-through at `0xc0315624` all converge
+  here). counter `comp_exit` @modem `0xc1455010`.
+* **CALLBACK** — the callback the completion invokes, `memw(ctx+0x1f0)` = `0xc039e570` (a thunk
+  `r2 = #0x0; jump 0xc039e580`), called at `0xc03155f4 callr r2`. counter `cb_count` @`0xc1455014`.
+
+**Build.** `scratch/diag_patch_v33/build_diag_patch_v33.py` — v32's three sites are KEPT unchanged;
+the two new sites (`0xc0315628`, `0xc039e570`) are hooked by DIRECT jumps to new caves in a large
+all-zero free run at b05 `0xc003f354` (16976 B). `modem.mdt` md5 **`a9def8a90933f3f2dddc49ff2f8f6b5a`**.
+`verify_v33.py` PASS: all 5 site jumps decode; the exit cave's final packet is **byte-identical** to
+stock (`00407170 401f1c3e`); the cb cave ends `r2=#0; jumpr → 0xc039e580`.
+
+**Pre-registered decision rule (scored at the cut; no re-tuning):**
+
+| # | condition | verdict |
+|---|-----------|---------|
+| H1 | `seq_entry>0 AND comp_count>0` | instrument ran |
+| H5a | `comp_exit == comp_count` | the completion runs to its RETURN on every wakeup — **FULLY healthy, no early bail** |
+| H5b | `comp_exit < comp_count` | completions BAIL before the tail (assert path or the `ctx+0x12` exit) — **failure is INSIDE the completion** |
+| H6a | `cb_count == comp_count` | the callback fires on every completion |
+| H6c | `cb_count == comp_count - 1` | the callback is **SKIPPED for exactly the failing wakeup** (sharpest signal) |
+| H6b | `cb_count == 0` | the callback NEVER fires (always `ctx+0x12!=0`, or `ctx+0x1f0==0`) |
+| — | `cnf_count` | expected 0 (v32: `0xc03165cc` is an error-path block, not the CNF builder) |
+| NEG | all counters 0 | instrument did not run / save area not writable |
+
+**Interpretation map.** H5a+H6a ⇒ the whole RFMGR WAKEUP path (delivery → completion → callback) is
+healthy end-to-end up to the fatal ⇒ the ~900 s event is **NOT** in this path and the hunt returns to
+the ML1 state-20 watchdog. H5b or H6c ⇒ the failing wakeup is where the completion breaks, and the
+exact bail branch (`ctx+0x12`, the tail, or the callback) is the next target.
+
+**SOP.** Instrument is control-flow-neutral (each cave reproduces the whole original packet; the exit
+cave's tail is byte-verified identical to stock); one change at a time; pre-registered above **before**
+the run; ledger + CHANGELOG + memory updated in the same session.
+
+### §112.82.1 — ★★ v33 first build BOOT-LOOPED: the b05 ZERO regions are NOT EXECUTABLE
+
+**Symptom.** The first v33 image (`a9def8a9…`) put the two new caves in a large all-ZERO run at b05
+`0xc003f354` (16976 B). The modem boot-looped `:Excep :0:` every ~11 s (crashes at 33.9 / 44.6 /
+55.7 s), `state=running` between crashes. v32 (`76b4177e…`) had booted CLEAN.
+
+**Isolation.** The image is v32 + {exit hook, cb hook}. Bisect: **exit-only** (`f7458322…`, cave at
+`0xc003f354`) → **also boot-looped** (`crashes=3 excep=3` at up 77). So the fault is the EXIT hook's
+*cave location*, not the callback.
+
+**Root cause — from the crash log.** Captured the boot-loop coredump (`scratch/v33_bootloop/dump_exitonly.bin`,
+85 398 475 B) and ran `crashlog_extract.py`:
+> `file=:Excep line=0 task=AMSS0` · `PC=0xc003f354` · `LR=0x0`
+
+`PC = 0xc003f354` = **the cave's FIRST word** — the CPU faulted on the very first fetch. Reading that
+VA from the SAME dump shows the cave bytes ARE present (`4055140c 08c00078 89c08891 …`) ⇒ the region is
+**loaded and READABLE, but NOT EXECUTABLE**. The ELF declares b05 as one RWE segment (`flags=0x8000007`,
+`filesz=memsz=0x14000`, `0xc0030000..0xc0044000`), so this is a **runtime permission/MPU** effect, not an
+ELF one.
+
+**★ RULE (applies to every future b05 cave): the large ZERO-filled stretches of b05 are DATA, not code.
+Only the NOP-padded (`00 c0 00 7f`) stretches are executable.** b05 has exactly ONE usable NOP sled
+large enough for multiple caves: **`0xc003054c..0xc0030600` (180 B)**; the next-largest NOP run is 28 B.
+Do NOT place code in a zero run.
+
+**Fix.** Rebuilt v33 with ALL caves in the proven sled (v32 executed it 1458×/run):
+`comp+ring` 92 B @`0xc003054c` + `exit` 28 B @`0xc00305a8` + `cb` 36 B @`0xc00305c4` = 156 B of 180.
+`modem.mdt` md5 **`9202ebd5562c85948e1321d98594004f`**; `verify_v33.py` PASS (all 3 sites land in the sled;
+exit cave tail byte-identical). Deployed, rebooted → **CLEAN BOOT** (`crashes=0 excep=0 rfmgr=0` at up 88).
+`seq`/`cnf`/tramp were dropped to fit the sled (v32 already established `comp==seq` and `cnf==0`).
+
+
