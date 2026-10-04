@@ -19358,8 +19358,10 @@ parked.** (Under the literal base the same word reads a stable pointer, which wo
 coherent base is confirmed by the `+0x04 = 0` reading.) This is an **independent, coredump-level
 falsification** of the software-park root cause, complementing §39.2's three-count kill (NV gate
 closed, `mcpm_drv.c` layer absent, no AP carrier). ⚠ Honest caveat: the coredump is the modem's memory
-*at the assert*, so a park that the assert itself unwound would not show — but no writer of
-`base+0x04` was located in the static image, so a park at the assert should persist.
+*at the assert* — i.e. **after** the stall — so a park that was unwound before the dump would not show.
+The read is therefore strong evidence that the loop is not parked *at the assert*, and it removes the
+"parked at the dump" form of the hypothesis; it does not by itself exclude a transient park earlier.
+**Not yet verified:** whether anything writes `base+0x04` (a writer search was NOT performed).
 
 **E. Where this leaves the root cause.** The stall is real and coredump-confirmed (the last sleep never
 exits; the MCPM/power layer stops first; the CPU heartbeat continues), but it is **not** the `rpm.sync`
