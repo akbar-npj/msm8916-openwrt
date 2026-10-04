@@ -18538,3 +18538,44 @@ was edited **directly on the raw block device** — bypassing ext4/the journal. 
 SSR, re-add only tmpfs-based capture) can proceed. The `hang_probe_t4`/`f3cap`/`dmesgtap`/`dumpwatch`
 diagnostics are **intentionally removed from boot** until the root defect (poison `s_sbh`) is fixed;
 re-adding them re-triggers the wedge.
+
+---
+
+## §112.73 — v29 run PRE-REGISTRATION (P-V29-RAWWAKE): does the raw RFA WAKEUP handler run at the event?
+
+**Question.** §112.71 traced the RFMGR wakeup completion to the raw RFA op `0x60702aa`, dispatched
+via table `0xc1b328a8` idx 9 → `0xc1018798` → **`0xc1017818`** (the raw WAKEUP handler, which does the
+per-carrier RF-script work and posts the CNF `0x60708aa` at its exit). The RFMGR completion
+`0xc0315560` never runs (§112.70: `ctx+0x104 = 0x4290203` pending in every event dump). **Does the raw
+handler even execute at the ~900 s event?**
+
+**Instrument (v29, deployed).** Firmware `/lib/firmware/modem.mdt` =
+`398dce8abb35d280d243eb63f68cce74`. A ring hooks the **entry** of `0xc1017818` (site `{ jump → tramp
+→ cave }`, cave in b05 `0xc003054c`). Header `0xc1455000` = `{ marker 0x76323901, seq, site
+0xc1017818 }`; ring `0xc1d4c600`, 4096 × 16 B = `{ seq, caller=r31, msg_id=r0, msg_obj=r16 }`.
+⚠ At the handler entry `r0` is the **message id** `0x60702aa` (not a pointer) and `r16` is the RFA
+message object (the dispatcher `0xc1018620` passes them that way; the first v29 build faulted reading
+`memw(r0+0x10)`).
+
+**Run config.** `ssr_enabled=0`, `preemptive_ssr_enabled=0` (so neither the 800 s pre-emptive restart
+nor the Stage-3 wedge SSR wipes the ring), `coredump=enabled`. Capture policy: a FATAL auto-produces a
+devcd dump (grab it); a WEDGE does not, so at the AP deadline force `echo 1 >
+/sys/class/remoteproc/remoteproc0/crash` to snapshot the ring. Runner: `scratch/v29_run.sh`;
+decoder: `scratch/read_v29_ring.py`.
+
+**Hypotheses.**
+- **H1 (instrument ran):** marker `0x76323901` @`0xc1455000` **and** site `0xc1017818` @`0xc1455008`.
+- **H2 (ring populated):** `seq` @`0xc1455004` > 0.
+- **H3 (localise the stall):** from the LAST entries before the event —
+  - **(a) DOWNSTREAM** if the handler keeps firing normally right up to the event (entries at ~900 s,
+    regular cadence) ⇒ the handler runs but its completion (CNF `0x60708aa`) never reaches the RFMGR
+    ⇒ the stall is in the CNF post / per-carrier RF-script completion.
+  - **(b) UPSTREAM** if the handler STOPS firing well before the event (last entry ≪ the event time,
+    or `seq==0`) ⇒ the RFA dispatcher stopped routing `0x60702aa` to it ⇒ the stall is upstream.
+- **NEG:** marker absent ⇒ the instrument did not run / the save area is not writable.
+
+**Scored at cut** (no re-tuning): H1, H2, H3a/H3b, NEG. Deliverable: the concrete stopping
+resource/event (or a further falsification); ledger + memory.
+
+**SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
+before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.
