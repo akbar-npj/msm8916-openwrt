@@ -11,6 +11,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — ★ v33 RESULT: RFMGR WAKEUP completion + RF_WAKEUP_CNF callback are HEALTHY (H5a+H6a, ledger §112.83)
+
+- Ran v33 (`modem.mdt` `9202ebd5…`), SSR off, IDLE. **FATAL at AP 914.180 s**,
+  `lte_ml1_common_timer.c:390`; dump `scratch/v33_run/dump_FATAL.bin`.
+- **Raw:** `comp_count = comp_exit = cb_count = 1296`; ring uniform (all `caller 0xc0fe1654`,
+  `ctx 0xc1e145a8`, `msg_obj 0xc312ba48`).
+- **★ H5a+H6a CONFIRMED:** the RFMGR WAKEUP completion `0xc0315560` reaches its tail `0xc0315628` and
+  invokes its callback `0xc039e570` on **every** wakeup, including the last before the fatal.
+- **★★★ NEW FACT:** the callback IS the **`SLEEPMGR_RF_WAKEUP_CNF` (`0x42b0801`) sender** —
+  `0xc039e570` → `0xc039e580` → funnel `0xc03927d0` (the function v26 hooked). So the RFMGR→sleepmgr
+  wakeup-CNF path is healthy end-to-end ⇒ the ~900 s event is **NOT** a lost/stalled RF wakeup CNF.
+  **Closes the RFMGR-wakeup-transport hypothesis family (v26→v33).**
+- **⚠ OPEN (cross-run):** v27's ingress ring saw `RF_WAKEUP_CNF` 265× vs `STMR_ON_REQ` 266×; v33 shows the
+  sender fires 1296×. Reconciliation (router/dispatch drop vs sleepmgr ordering race) needs a combined
+  send+ingress instrument → proposed **v34**.
+- **Offset correction:** §112.82's first-build offsets (`0xc1455010/14`) were the boot-looping build; the
+  shipped sled build uses `+0x08 comp_exit` / `+0x0c cb_count`.
+
 ### 2026-10-05 — ★★ v33 boot-looped: the b05 ZERO regions are NOT EXECUTABLE (ledger §112.82.1)
 
 - **Symptom:** the first v33 image (`a9def8a9…`, new caves in a zero run at `0xc003f354`) boot-looped

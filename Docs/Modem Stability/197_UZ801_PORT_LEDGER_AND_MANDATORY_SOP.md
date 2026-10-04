@@ -19126,4 +19126,60 @@ Do NOT place code in a zero run.
 exit cave tail byte-identical). Deployed, rebooted → **CLEAN BOOT** (`crashes=0 excep=0 rfmgr=0` at up 88).
 `seq`/`cnf`/tramp were dropped to fit the sled (v32 already established `comp==seq` and `cnf==0`).
 
+> **Offset correction.** §112.82's build paragraph quotes the FIRST (boot-looping) build's save-area offsets
+> (`comp_exit @0xc1455010`, `cb_count @0xc1455014`). The SHIPPED sled build (`9202ebd5…`) uses
+> **`+0x04 comp_count`, `+0x08 comp_exit`, `+0x0c cb_count`** (confirmed against `build_diag_patch_v33.py`
+> and the deployed dump). `read_v33_ring.py` decodes the shipped layout.
+
+### §112.83 — v33 RESULT: the RFMGR WAKEUP completion + its RF_WAKEUP_CNF callback are HEALTHY (H5a+H6a)
+
+**Run.** `scratch/v33_run.sh` soak, SSR disabled, IDLE. FATAL at AP **914.180 s**
+(`qcom-q6v5-mss … fatal error received: lte_ml1_common_timer.c:390`), devcd captured
+(`scratch/v33_run/dump_FATAL.bin`, 85 398 475 B). `read_v33_ring.py`:
+
+```
+comp_count = 1296   (completion ENTERED,  site 0xc0315560)
+comp_exit  = 1296   (completion REACHED TAIL, site 0xc0315628)
+cb_count   = 1296   (callback RAN,   site 0xc039e570)
+```
+
+**Verdict (pre-registered §112.82): H5a + H6a.**
+* **H5a** — `comp_exit == comp_count` ⇒ the RFMGR WAKEUP completion `0xc0315560` runs to its single common
+  tail `0xc0315628` on **every** wakeup (no early bail, no assert path).
+* **H6a** — `cb_count == comp_count` ⇒ the completion invokes its registered callback `0xc039e570` on
+  **every** wakeup, including the last one before the fatal.
+* The comp ring is perfectly uniform: 1296 records, all `caller=0xc0fe1654 ctx=0xc1e145a8 msg_obj=0xc312ba48`
+  (the RFMGR object — matches `project_rfmgr_wakeup_stall.md`).
+
+**★★★ NEW FACT (from the disassembly, not in the pre-registration): the callback IS the
+`SLEEPMGR_RF_WAKEUP_CNF` sender.**
+* `0xc039e570` is a thunk `{ r2 = #0x0; jump 0xc039e580 }`; it has **NO direct call sites** in the whole
+  disassembly — it is reachable ONLY as the data pointer written to `memw(ctx+0x1f0)`, invoked by the
+  completion's `callr r2` at `0xc03155f4`. (Sibling thunks `0xc039e700` r2=#3, `0xc03a0b44` r2=#2,
+  `0xc03a0b74` r2=#1 → same body.)
+* Body `0xc039e580`: gates on `f3_toggle`(`gp+0x2d1`)/`f3_mask`(`gp+0x6584/6588`), selects an ML1 msg id by
+  the thunk's r2, then **`call 0xc03927d0`** — the **sleepmgr ML1-message send funnel** (the exact function
+  v26 hooked) — with `r3` = the id, `r2 = #0x10`. r2=0 (our thunk) selects **`r3 = 0x42b0801`** =
+  **`SLEEPMGR_RF_WAKEUP_CNF`** (id table in `read_v27_ring.py`).
+* ⇒ **the RFMGR WAKEUP completion emits `SLEEPMGR_RF_WAKEUP_CNF` on every wakeup (1296/1296), including the
+  last before the fatal.** The RFMGR→sleepmgr wakeup-CNF path is control-flow-healthy end-to-end.
+
+**Interpretation (per §112.82 map).** H5a+H6a ⇒ the whole RFMGR WAKEUP path (delivery [v32] → completion
+[v33] → tail [v33] → RF_WAKEUP_CNF emit [v33]) is **HEALTHY up to the fatal** ⇒ the ~900 s event is **NOT**
+a lost/stalled RF wakeup CNF, and the v28 "RF WAKEUP CNF MISSING" reading is **not a sender-side loss**.
+This CLOSES the RFMGR-wakeup-transport hypothesis family (v26→v33).
+
+**⚠ OPEN TENSION with v27 (cross-run, unresolved).** v27's INGRESS ring (`0xc039d460`) saw
+`SLEEPMGR_RF_WAKEUP_CNF` **265×** vs `SLEEPMGR_STMR_ON_REQ` **266×** and concluded the last cycle omitted
+the CNF. v33 shows the SENDER fires **1296×**. The two runs differ in length/activity, so the raw counts are
+not directly comparable, but the reconciliation question is now sharp: **is the CNF emitted but not
+dispatched to the sleepmgr object (a router/dispatch drop), or does the sleepmgr arm its timer before it
+processes the CNF (an ordering race)?** This needs a single image instrumenting BOTH `0xc039e570` (send)
+and `0xc039d460` (sleepmgr ingress) with a shared sequence — the proposed **v34**.
+
+**SOP.** Pre-registered before the run; one change at a time; instrument control-flow-neutral; result
+recorded before rollback; ledger + CHANGELOG + memory in the same session. Negative/closing result reported
+as such (no claim that this found the root cause).
+
+
 
