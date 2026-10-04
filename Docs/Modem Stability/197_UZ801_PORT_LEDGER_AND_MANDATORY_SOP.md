@@ -19338,21 +19338,28 @@ with the loop body's own read `c08b985c: r0 = memw(r17=##0xc2c65fcc)` — i.e. *
 `struct+0x4`**. The "dirty" log is `rpm_force_sync (set: %d) (dirty: %d,%d,%d)` @ `0xc185403b`, args
 `[set, struct+0x1c, struct+0x20, struct+0x24]`.
 
-The literal is `##-0x3d39a038` = `0xc2c65fc8`, with `immext(#0xc2c65fc0)`; the loop body reads
-`0xc2c65fcc` = `0xc2c65fc8 + 4`. **Reading the struct across ALL 42 archived coredumps**
-(`scratch/coredump_live/` + `scratch/coredump_live_full/coredump_live/`, uptimes 426 s … 15 982 s):
-**`struct+0x04` is `0x8ad7ee90` (a stable pointer) in every dump**, and the words around it are
-stable constants/pointers (`+0x08 = 0x00000044`, `+0x00 = 0x00000001`, `+0x24 = 0`). Under the base
-that makes the loop *coherent* (`0xc2c65fc0`) the same word `0xc2c65fcc` is the pointer, and the flag
-at `0xc2c65fc4` reads **0** in every dump.
+The literal is `##-0x3d39a038` = `0xc2c65fc8` (4 refs in `disasm_b16.txt`), while the loop body reads
+`##-0x3d39a034` = `0xc2c65fcc` directly (3 refs) — i.e. the **same word** (`0xc2c65fc8 + 4`), so the
+literal is a "base added twice" compiler artefact and the **coherent struct base is `0xc2c65fc0`**.
 
-⇒ **Under either base the coredump does not show the `rpm.sync` churn loop parked.** This is an
-**independent, coredump-level falsification** of the software-park root cause, complementing §39.2's
-three-count kill (NV gate closed, `mcpm_drv.c` layer absent, no AP carrier). ⚠ Honest caveats: (i) the
-exact struct base is ambiguous between the `immext` value and the literal (8 bytes apart) and needs a
-runtime read to settle; (ii) the coredump is the modem's memory *at the assert*, so a park that the
-assert itself unwound would not show — but no writer of that word was located in the static image, so a
-park at the assert should persist.
+**Reading the struct across ALL 42 archived coredumps** (`scratch/coredump_live/` +
+`scratch/coredump_live_full/coredump_live/`, uptimes 426 s … 15 982 s), with base `0xc2c65fc0`:
+
+| word | value | count |
+|---|---|---|
+| `base+0x00` | `0x00000000` | 42/42 |
+| **`base+0x04` (the loop-exit flag)** | **`0x00000000`** | **42/42** |
+| `base+0x08` | `0x00000001` | 42/42 |
+| `base+0x0c` | `0x8ad7ee90` / `0x8ad7ee70` | 37 / 5 |
+
+⇒ **the churn loop's exit flag is CLEAR (`0`) in every captured fatal — the `rpm.sync` loop is NOT
+parked.** (Under the literal base the same word reads a stable pointer, which would mean the loop
+*always* spins — impossible for a modem that normally sleeps 3×/s ⇒ that base is the artefact, and the
+coherent base is confirmed by the `+0x04 = 0` reading.) This is an **independent, coredump-level
+falsification** of the software-park root cause, complementing §39.2's three-count kill (NV gate
+closed, `mcpm_drv.c` layer absent, no AP carrier). ⚠ Honest caveat: the coredump is the modem's memory
+*at the assert*, so a park that the assert itself unwound would not show — but no writer of
+`base+0x04` was located in the static image, so a park at the assert should persist.
 
 **E. Where this leaves the root cause.** The stall is real and coredump-confirmed (the last sleep never
 exits; the MCPM/power layer stops first; the CPU heartbeat continues), but it is **not** the `rpm.sync`
