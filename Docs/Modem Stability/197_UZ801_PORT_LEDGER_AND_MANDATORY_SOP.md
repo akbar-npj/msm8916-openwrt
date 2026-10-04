@@ -16717,3 +16717,1074 @@ hash/disassembly-verified **offline**; **not deployed** (the dongle was offline 
 Device is stock (`modem.mdt 1a6f9507…`). The §112.57.5 self-correction was recorded before building
 (the SOP values fixing a wrong conclusion rather than building on it). Ledger + CHANGELOG + memory
 updated in the same session.
+
+### §112.57.7 ★★★★★ v13 DEPLOYED and DEBUGGED — TWO builder bugs fixed; instrument now boots clean (2026-10-04)
+
+v13 was deployed this session and **crash-looped the modem at every boot** (`:Excep :0:` ~12 s after
+modem-up, repeatedly). Two independent builder bugs were found and fixed; the instrument now
+cold-boots with **0 crashes**.
+
+**Bug 1 — the `jump` immediate is 23-bit signed, not 22-bit.** `jump_field()` masked
+`((target-pc)//2)` to 22 bits (sign bit 21). The real Hexagon `J2_jump` immediate is **23-bit**
+(sign bit 22 → `word[24]`). Empirically (llvm-mc, `scratch/_jmptest.py`): `field=+6 → 0x58004006`,
+`field=-6 → 0x59FF7FFA` (not `0x58FF7FFA`). Any negative offset in `[-2^22,-2]` — including the
+site's `-0x1F3B44` (field `0x30625E`) — was therefore emitted with bit22 clear and read by the modem
+as **POSITIVE**, so the site jumped to `0xc15edc08` instead of `0xc0dedc08` and took the boot
+`:Excep`. The parse bits (`01/01/11`, base `0x58004000` for instr0) were **correct**. Fix: mask to
+`0x7FFFFF` and set `word[24] = field[22]`. Corrected site packet = `5e62c1590040007f00c0007f`.
+
+**Bug 2 — same-packet register hazard in every trampoline.** `{ r6 = ##X; jumpr r6 }` puts the load
+and the jump in ONE packet; `jumpr` reads the **pre-packet** r6, so it jumped to garbage and faulted
+at the packet (`PC = 0xc0dedc08`, `R16=0`). This bit the TRAMP and BOTH cave exit jumps. llvm-mc
+emits it **silently** (no warning). Fix: split each into two packets (`{ r6 = ##X }` then
+`{ jumpr r6 }`); size unchanged (136 B cave).
+
+**Evidence.** Bug-1 crash PC `0xc15edc08` and bug-2 crash PC `0xc0dedc08` were read from the
+coredumps (`scratch/crashlog_extract.py`); the deployed bytes were confirmed present in the dump and
+all four VAs (`site`/`tramp`/`cave`/`save`) confirmed mapped by the PT_LOAD map. Final image md5:
+`modem.mdt daa903be156d3c37f29f2678a5972499`, `modem.b16 24a5862b3b32cab9c473475811f12f6c`,
+`modem.b05 697f9ffb263833eeb46ae39171496d1b`, `modem.b01 03b4ba3d2224bdfcbe08dc9a3129d544`.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| site jump decodes to the tramp | `0xc0dedc08` | **YES** (bug 1 fixed) |
+| tramp/cave packets hazard-free | separate packets | **YES** (bug 2 fixed) |
+| cold boot | no crash | **YES** — 0 crashes, modem up 12.4 s |
+| soak → ~900 s fatal → read ring | P-V13-STM scored | **IN PROGRESS** |
+
+**SOP.** Firmware patch, reversible (stock backup `/root/fw_stock_hmu05`, `deploy_v13_ring.py
+--rollback`). Every change was disassembly-verified offline AND against the deployed coredump before
+proceeding. Two self-inflicted regressions were recorded rather than hidden. Ledger + CHANGELOG +
+memory updated in the same session.
+
+### §112.57.8 ★★★ "An early-boot SSR/crash arms the ~900 s timer" — FALSIFIED (archived cold boots) (2026-10-04)
+
+Hypothesis (operator): OpenWrt's cold boot does an early modem SSR/crash that Android's does not, and
+that arms the ~900 s timer. Tested against **every archived cold boot** (`scratch/**`, pre-patch,
+Sep 20–21 2026):
+
+| boot (stock) | modem "up" | early crash/SSR | first fatal |
+|---|---|---|---|
+| OpenWrt `bootB` | 13.7 s | **none** | `lte_ml1_sleepmgr_stm.c:4054` @ **914.4 s** (Δ = **900.7 s from modem-up**) |
+| OpenWrt `bootC` | 12.6 s | **none** | `a2_power.c:1189` @ 541.5 s |
+| OpenWrt `rtnl` boot | 11.8 s | **yes** — `coex_interface.c:530` @ 12.0 s | (log too short) |
+| Android cold boot | 7.3 s | none | **none through 2723 s** |
+
+- **bootB is decisive:** a completely clean OpenWrt cold boot (zero crashes) still fataled at
+  modem-uptime 900.7 s, then repeated at +903.9 s. ⇒ an early crash is **NOT necessary** to arm the
+  timer; the hypothesis (as a necessary condition) is **FALSIFIED**.
+- Early crashes DO occur (the `coex_interface.c:530` boot crashed 0.23 s after modem-up) but are the
+  exception, not the armer. A whole-archive scan found **only one** early (<120 s) stock fatal.
+- The timer is **anchored to modem powerup** (Δ ≈ 900.7 s), consistent with §112.8 ("arming is in the
+  PIL powerup handshake"). The differential vs Android is therefore the **powerup handshake**, not a
+  crash.
+- bootB's only anomaly: `bam_dmux: RX watchdog: PC line asserted while pc_state=0 (lost edge),
+  resyncing` @ 741.7 s — 172.7 s before the fatal (not the +15 s `stale edge`→`a2_task` class).
+
+**SOP.** Offline analysis of archived logs only — no device touched. The negative result is recorded
+rather than defended. Ledger + CHANGELOG + memory updated in the same session.
+
+### §112.57.9 ★★★★ The ~900 s fatal is a FAMILY of three asserts — ground-truth tally, and the v14 suppression fix (2026-10-04)
+
+**Ground truth (coredump tally).** `crashlog_extract.py` over the archived ~900 s coredumps
+(`scratch/coredump_live_full/coredump_live/modem_coredump_up9*.elf`) shows the ~900 s fatal is **not
+one site** — it is three different asserts, each in a different task, all at modem-uptime
+0:15:00–0:15:10:
+
+| sig | `file:line` | task | dump | site (VA) | clean continuation |
+|---|---|---|---|---|---|
+| A | `lte_ml1_sleepmgr_stm.c:4054` | `slpc` | up913.64, up915.55, up9143.88 | `FUN_c039ef80` `0xc039f7b8` | epilogue `0xc0030080` |
+| B | `a2_power.c:1189` | `a2` | up923.12, up923.71 | `FUN_c05042c8` `0xc0504320` | good-path tail `0xc0504308` |
+| C | `lte_ml1_common_timer.c:390` | `tmr_slave3` | up915.42, up915.44 | `FUN_c02d7bd0` `0xc02d7c18..7d80` (8 sites) | good-path `0xc02d7df8` |
+
+Every site is the **same shape**: a 12-byte, 3-instruction packet `{ call 0xc0879150 ; immext ;
+r0 = <descriptor> }` — a call to the common fatal routine `FUN_c0879150` (the crash PC is
+`0xc087a804` in all three). `FUN_c0879150` **never returns**, so each caller's post-assert code is
+unreachable and each provides a clean continuation elsewhere.
+
+**Mechanism per signature (what the coredump shows).**
+- **B (a2, dominant):** `FUN_c05042c8` is a ~50 Hz tick (C = `0xc28602f8` = **45 051** at the fatal;
+  45 051/900 s ≈ 50 Hz). Every 50th call it increments the 1 Hz counter `0xc28602fc` and returns 1;
+  the fatal dump has `0xc28602fc = 901` — i.e. the a2 watchdog is a **>900 count** (900 s) and the
+  counter is never reset, so it fires. (Root: why the reset never happens — OPEN.)
+- **A (sleepmgr):** STM state `*(0xc1e158d4)` = **2** (ONLINE_SLEEP_WAIT); the timer callback
+  `FUN_c039ef80` armed at powerup from state 11 fires at 900.6 s and asserts `state == SLEEP`.
+  Confirmed live in the dump.
+- **C (ML1 timer):** `FUN_c02d7bd0` is a message-validation switch on `obj[+0x38]`; an invalid
+  message asserts.
+
+**The v14 fix (`scratch/diag_patch_v14/build_diag_patch_v14.py`).** Overwrite each 12-byte assert
+packet with `{ jump <clean-continuation> ; nop ; nop }` (same 23-bit `J2_jump` encoder as v13, byte-
+verified against the real `jump 0xc0030080` at `0xc039f7b4`). 10 sites, all in `modem.b16`; the
+`b16` SHA-256 is re-hashed into `b01` seg16 and `modem.mdt` rebuilt exactly as v13. The patch turns
+"assert" into "abort this sanity check and continue" — it does **not** touch the (still-OPEN) root
+cause. Fully reversible (`scratch/deploy_v14_suppress.py --rollback`, stock `1a6f9507…`).
+
+**Deployed 2026-10-04 05:24** with the **pre-emptive SSR disabled** (`uci set
+modem-watchdog.recovery.preemptive_ssr_enabled=0`) so the fatal can fire. `modem.mdt
+ecdaf2c97d72da150d367c68d8b7cff8`, `modem.b16 ef1b02e8f5baa885a17a40ef43c92566`. Cold boot clean.
+
+**PRE-REGISTRATION (P-V14-SUPPRESS).** Soak with SSR off to AP-up ≥1500 s (modem-up ≥1480 s; stock
+fatals at 900.6 s):
+- **H1:** ZERO `fatal error received` / `modem subsystem failure reason` past modem-up 900 s.
+- **H2:** the data path is ALIVE past 900 s (`ping -I wwan0 8.8.8.8` still succeeds) — the modem is
+  **not** a zombie. If H2 fails the fix is not a fix and v14 must be rolled back.
+- **NEG:** any of the three signatures (or a new one) still fires ⇒ the asserts are alternatives of a
+  common upstream stall and per-site suppression is insufficient.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| 3 signatures identified from coredumps | A/B/C | **YES** (7/7 dumps classified) |
+| all 10 sites byte-verified stock | exact 12-B match | **YES** (build asserts each) |
+| jump targets decode | A `c0030080`, B `c0504308`, C `c02d7df8` | **YES** (all 10 hand-decoded) |
+| b01/mdt rehash | seg16 only | **YES** (hash re-verify PASS) |
+| deploy + SSR off + cold boot | clean | **YES** |
+| H1/H2 soak | no fatal + data alive | **NO — NEG** (D fired at 916.8 s; see §112.57.10) |
+
+**SOP.** Ground-truth-first: the three signatures were established from **coredumps**, not inferred.
+Every patch site was byte-verified against the pristine stock image before overwrite, and every jump
+target hand-decoded. One logical change (suppress the ~900 s fatal family), reversible, pre-
+registered with an explicit falsifier (NEG) and a zombie check (H2). Ledger + CHANGELOG + memory
+updated in the same session.
+
+**OUTCOME (2026-10-04 05:38) — P-V14-SUPPRESS = NEG.** With v14 deployed and the pre-emptive SSR
+off, the soak was clean through AP-up 892.96 s, then at **AP-up 924.21 s** (`fatals=1 … ping=0`) the
+modem fatally crashed and SSR'd — via a **4th signature not covered by v14**:
+`lte_ml1_sm_idle_stm.c:2913` (task `ML1 MGR`). ⇒ per-site suppression of A/B/C is insufficient; see
+**§112.57.10**.
+
+### §112.57.10 ★★★★ v14 FAILED (P-V14-SUPPRESS NEG): the fatal moved to a 4th signature; the full-corpus site set; v15 = suppress all four (2026-10-04)
+
+**Result.** v14 deployed (`modem.mdt ecdaf2c9…`), pre-emptive SSR off, cold boot clean. Soak
+(`scratch/v14_run/soak.log`) clean through AP-up 892.96 s, then at **AP-up 924.21 s**
+(`fatals=1 ssr=0 ping=0`). AP dmesg:
+```
+[916.816818] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sm_idle_stm.c:2913:
+[916.817022] ... crash detected in 4080000.remoteproc: type fatal error
+[916.832943] ... recovering 4080000.remoteproc
+[917.750759] ... port failed halt
+[917.796415] ... MBA booted without debug policy, loading mpss
+[935.767719] ... remote processor 4080000.remoteproc is now up
+```
+⇒ a **full modem SSR** (crash → recover → MBA reload → up at 936 s). v14 did **not** prevent the
+crash — it changed the logged signature. P-V14-SUPPRESS **NEG** criterion triggered.
+
+**The 4th signature (D).** Pulled coredump `scratch/v14_run/dump_v14_fatal.bin`; `crashlog_extract.py`:
+`file=lte_ml1_sm_idle_stm.c line=2913 task=ML1 MGR uptime=0:15:02 SP=0x8af2a658 LR=0xc0879164
+PC=0xc087a804`. Call-site resolved by disassembly: the assert packet at **`0xc03556a8`** (its packet
+return address `0xc03556b4` is the stack entry) loads descriptor `0xc3c793f0` → `a2_descr.py` →
+`lte_ml1_sm_idle_stm.c:2913`. The sibling packet at `0xc03556c0` loads `0xc3c79400` → `…:2923`. Clean
+continuation = `0xc0030098` (the good-path exit `jump 0xc0030098` at `0xc03556cc`).
+
+**Full-corpus tally (63 dumps scanned, 43 classified) — exactly 4 ~900 s signatures:**
+
+| sig | file:line | task | n | regime |
+|---|---|---|---|---|
+| A | `lte_ml1_sleepmgr_stm.c:4054` | slpc | 18 | ~900 s (0:15:00) |
+| B | `a2_power.c:1189` | a2 | 11 | **mixed**: ~0:01:17 (cold-boot) AND ~0:15:41 |
+| C | `lte_ml1_common_timer.c:390` | tmr_slave3 | 9 | ~900 s (0:15:02) |
+| D | `lte_ml1_sm_idle_stm.c:2913` | ML1 MGR | 1 | ~900 s (0:15:02, v14 run) |
+
+Off-900 (out of scope for this goal): `a2_power.c:2949` (n=3, ~0:01:51/~0:08:40),
+`a2_taskq.c:759` (n=1, ~0:07:28).
+
+**Mechanism re-read (new ground truth; instrument `scratch/scan_assert_sites.py`).** The scanner
+inflates the descriptor DB (`scratch/v14_run/dump_v14_fatal.bin`, base `0xc3c1c000`) and maps every
+`call 0xc0879150` packet's `r0 = ##imm` descriptor → file:line. It finds **17 708** such call sites
+(`FUN_c0879150` is the generic **assert/error logger**, not the halt). It stores the descriptor into
+the shared BSS `0xc35b1384` and formats a message. `0xc087a76c` (called at its entry, `0xc087915c`)
+is the **crash-context saver** — it executes `r1 = pc` at `0xc087a804`, which is why the reported
+**PC is a fixed red herring** across all dumps. The assert blocks end by **jumping to a clean
+continuation** (an epilogue or the good-path exit) — the "assert" is *log-and-continue*. The actual
+modem halt is `stop(r0)` at **`0xc087a818`**, reached from `0xc0878eb0` (after `0xc0879030`). The
+scanner is verified: the 8 ML1-timer sites in `FUN_c02d7bd0` resolve to 8 distinct lines
+(268/287/315/325/336/357/372/**390**); only 390 fires.
+
+**v15 (`scratch/diag_patch_v15/build_diag_patch_v15.py`).** v14's 10 sites **+** the D pair
+(`0xc03556a8`, `0xc03556c0` → `jump 0xc0030098`) = **12 sites**, all in `modem.b16`; same b01
+seg16 rehash and `modem.mdt` rebuild. Deploy via `scratch/deploy_v15.py` (SSR off).
+
+**PRE-REGISTRATION (P-V15-ALLFOUR).** SSR off, soak to AP-up ≥1500 s:
+- **H1:** ZERO `fatal error received` past modem-up 900 s.
+- **H2:** the data path is ALIVE past 900 s (`ping -I wwan0 8.8.8.8` still succeeds) — not a zombie.
+- **NEG:** a 5th signature (a file:line outside {A,B,C,D}) still fires ⇒ the ~900 s site set is larger
+  than the corpus; per-site suppression is abandoned and the root cause becomes mandatory.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| v14 suppress A/B/C | no fatal | **NO** — D fired at 916.8 s (full SSR) |
+| D call-site + descriptor identified | VA + file:line | **YES** (`0xc03556a8` / `0xc3c793f0` → `…:2913`) |
+| full-corpus ~900 s signature set | 4 | **YES** (63 dumps tallied) |
+| scanner maps assert packets | exact | **YES** (8/8 ML1 sites, distinct lines) |
+| v15 build + deploy + cold boot | 12 sites patched, clean | **YES** (`modem.mdt 1eae1869…`, cold-boot clean) |
+| H1/H2 soak | no fatal + data alive | **NO — NEG** (H1 PASS, H2 FAIL; see §112.57.11) |
+
+**SOP.** Ground-truth-first: the NEG was recorded, not hidden; the 4th signature was established from
+a **coredump** (call site by disassembly, descriptor by `a2_descr.py`), and the complete signature
+set from a **corpus tally**, not inference. One logical change (extend suppression to the 4th
+signature), reversible, pre-registered with an explicit falsifier (NEG) and a zombie check (H2).
+Ledger + CHANGELOG + memory updated in the same session.
+
+### §112.57.11 ★★★★★ v15 FAILED (P-V15-ALLFOUR NEG): assert-suppression converts the FATAL into the WEDGE — the fatal IS the modem's own fast recovery trigger (2026-10-04)
+
+**Result.** v15 deployed (`modem.mdt 1eae1869…`), pre-emptive SSR off, cold boot clean. Soak
+(`scratch/v15_run/soak.log`) clean through **AP-up 1383.6 s** (`fatals=0`). **No fatal fired — H1
+PASSES.** But the data path was **DEAD**: at AP-up 1320 s a direct `ping -I wwan0` gave **100 %
+packet loss**, `wwan0` RX bytes **frozen at 21678** (unchanged over 5 s) while TX grew, and `mmcli -m 0`
+still reported `state: connected / access tech: lte / signal quality: 83% / packet service: attached`.
+**Connected-but-dead.** H2 **FAILS**. Per the pre-registration ("If H2 fails the fix is not a fix")
+⇒ **P-V15-ALLFOUR = NEG.**
+
+**Recovery (the key new ground truth).** With no fatal, recovery came from the **userspace
+`modem-stall-watchdog`** (`/usr/sbin/modem-bearer-watchdog`, pid 3817; `uci show modem-watchdog`
+→ `stall_timeout=60 check_interval=10 ssr_enabled=1`). Full escalation (`logread`):
+```
+00:22:25  Unbalanced traffic detected: TX+3, RX+0 (stall duration: 10s/60s)
+00:23:36  stall duration 60s/60s
+00:24:14  Probe failed (1/2) - not escalating yet
+00:25:03  Probe failed 2 times consecutively; treating as a genuine stall.
+00:25:03  User-plane stall confirmed (70s). Telemetry: WDS dormancy='traffic-channel-active',
+          Cell ID='4399665', PhysCell='406', EARFCN='2463', RSRP='-86 dBm', SNR='16.0 dB',
+          PrefDataPath='no', TX=317, RX=246
+00:25:03  Stage 1: qmicli --wds-go-dormant  -> rc=0
+00:27:04  Stage 1 insufficient (RX remained frozen). Stage 2: disconnect + recreate bearer
+00:27:08  New bearer created: IP='10.138.2.1/30'
+00:30:29  Stage 2 INSUFFICIENT: RF receiver frozen (RX remains 0). Stage 3: Remoteproc SSR
+00:30:51  Stage 3 SUCCESS: Remoteproc SSR restored RX traffic successfully.
+```
+So the modem reports a **healthy control plane** (RSRP −86 dBm, SNR 16 dB, cell present, WDS
+`traffic-channel-active`) while the **user-plane RX is frozen**. Stage 1 (`wds-go-dormant`, which
+resets RRC) and Stage 2 (bearer rebuild) **both fail**; only the **full modem SSR** recovers —
+re-confirming §58–61 ("a modem restart clears it, `svc data` does not").
+
+**F3 ground truth of the death (unique instrument — this boot never SSR'd at 900 s, so the modem's
+post-900 s state is preserved).** `scratch/f3_v15/` (chunks up 898/903/908/913/918/923). Per-chunk
+file census:
+```
+up=898  a2_power 122  cfm_cpu_monitor 104  pgi_msgr 90   mcpm_npa 75  mcpm_saw 30  cmlog 18
+up=903  a2_power 131  cfm_cpu_monitor 102  pgi_msgr 96   mcpm_npa 83  mcpm_saw 33
+up=908  a2_power 127  cfm_cpu_monitor 102  pgi_msgr 93   mcpm_npa 80  mcpm_saw 30
+up=913  cfm_cpu_monitor 102  cmlog 18  qmi_nas 12  cmss 10  tle_log 7      <- a2/mcpm/pgi GONE
+up=918  cfm_cpu_monitor 101  DalVAdc 6  qmi_mmode_task 1                    <- NAS/QMI gone
+up=923  cfm_cpu_monitor 100  tle_log 7  DalVAdc 5  qmi_mmode_task 1
+```
+⇒ a **STAGED SHUTDOWN** (identical to the documented WEDGE order): the MCPM/power layer
+(`a2_power`/`mcpm_npa`/`mcpm_saw`/`pgi_msgr`) dies first at ~up 910, then CM/NAS/QMI at ~915, leaving
+only the `cfm_cpu_monitor` CPU heartbeat + `DalVAdc` thermal. The modem CPU is **alive** (≈20
+heartbeat msgs/s) — only the LTE stack is dead. The byte burst (2.5–3.0 MB/5 s vs a normal
+0.39 MB/5 s) at up 898–908 is the collapse flush.
+
+**Reframing (this is the §112.57.11 headline).** The ~900 s **fatal assert is the modem's OWN
+fast recovery trigger**: the sleepmgr deadlock stalls the LTE stack → RF receiver freezes → the
+assert fires → `stop(r0)` → AP remoteproc crash → SSR → recovery in **~12 s**. v15 (suppress the
+asserts) removes that trigger and leaves only the slow userspace fallback: **~504 s of dead data
+(up 910→1414) before the stall-watchdog's Stage-3 SSR**. So `fatal → wedge` is **strictly
+counterproductive** (≈12 s vs ≈504 s), matching the existing `⚠ "fatal→wedge" COUNTERPRODUCTIVE`
+note. **Assert-suppression is a dead axis.** The root cause (the boot-anchored ~900 s sleep-entry
+deadlock, `LTE_ML1_SLEEPMGR_STM` stuck in ONLINE_SLEEP_WAIT=2) is now **mandatory** to fix.
+
+**⚠ Measurement bug found and fixed.** `grep -c "0% packet loss"` **also matches `"100% packet
+loss"`**, so the soak/fine `ping=1` field is **bogus** (it read 1 while the path was 100 % dead).
+Fixed in `scratch/v15_soak.sh` / `scratch/v15_fine.sh` to use **ping's exit code**. The historical
+`ping=` values in `scratch/v15_run/*.log` are therefore **not interpretable**; the direct exit-code
+probes are authoritative.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| v15 build + deploy + cold boot | 12 sites patched, clean | **YES** (`1eae1869…`) |
+| H1: zero fatal past modem-up 900 s | no fatal | **YES** (soak clean to AP-up 1383.6 s) |
+| H2: data path ALIVE past 900 s | ping succeeds | **NO** — 100 % loss; wwan0 RX frozen (21678 B) |
+| NEG: a 5th signature fires | (would abandon per-site) | **n/a** — the fatal never fired (H2 fails first) |
+| recovery path | — | **stall-watchdog Stage-3 SSR at up 1414 s** (~504 s dead) |
+
+**SOP.** Ground-truth-first: H1/H2 scored from **direct exit-code probes** (not the buggy grep) and
+from the **F3 chunk census**; the recovery path from `logread`; the NEG recorded, not hidden. One
+logical change (extend suppression), reversible (`scratch/deploy_v15.py --rollback`, stock
+`1a6f9507…`), pre-registered with H1/H2/NEG. Ledger + CHANGELOG + memory updated in the same session.
+
+**Action taken.** v15 was **rolled back to stock** (`/lib/firmware/modem.mdt 1a6f9507…`, verified) and
+the **shipped mitigation re-enabled** (`preemptive_ssr_enabled=1`, interval 800 s, `a2_pin=1`); the
+device is healthy (`ping -I wwan0` OK). v15 is strictly worse than stock and must not ship.
+**Mitigation re-verified:** at AP-up 2219→2249 s (modem-up ~800 s) the SSR count went 1→2 with
+**`fatal=0`** — the pre-emptive SSR fired on schedule and no ~900 s fatal occurred.
+
+### §112.57.12 ★★★★ The a2 assert (`a2_power.c:1189`) is a deterministic boot-anchored 900 s timer — `*(0xc28602fc)` is never reset (2026-10-04)
+
+Decoded `FUN_c05042c8` (`scratch/hmu05_stock_elf/disasm_b16.txt`, `0xc05042c8`): a **50 Hz tick** that
+`r0 = *(0xc28602f8)++; if (r0 % 50 == 0) { *(0xc28602fc)++; return 1 } else { if (*(0xc28602fc) > 900)
+assert(a2_power.c:1189) }`. So the 1 Hz counter `*(0xc28602fc)` increments once per second and the
+assert fires when it exceeds 900 — i.e. **at a fixed ~900 s after modem boot, unconditionally**.
+Cross-checked every reference to the counter base `0xc28602c0` (4 sites: `0xc05042d4`, `0xc0504334`,
+`0xc050501c`, `0xc0506240`): the 50 Hz counter `0xc28602f8` has 3 writers, but the **1 Hz counter
+`0xc28602fc` is written in exactly ONE place — the increment itself** ⇒ it is **never reset**, so no
+AP-side event can clear it. This makes the a2 assert a **deterministic boot-anchored timer**, not a
+symptom — consistent with §112.57.9's fatal-dump value `0xc28602fc = 901`.
+
+**Consequence for the goal.** The ~900 s fatal is a **family of boot-anchored ~900 s timers** (the a2
+one is proven deterministic; A/C/D fire at the same mark), and the fatal is the modem's own recovery
+trigger (§112.57.11). Therefore: (1) suppressing the asserts is dead (v14/v15 NEG); (2) the only
+proven lever remains the **pre-emptive SSR before the 900 s mark**; (3) a true root-cause fix needs
+the *upstream* cause of the ~900 s event, which is a **modem-internal, boot-anchored ML1/sleepmgr
+deadlock** — a firmware-RE effort, not an AP-side software change.
+
+**Caller context (added 2026-10-04).** `FUN_c05042c8` is invoked from a **loop** in the a2-power
+path: `c0504c6c call 0xc05042c8` → `c0504c70 call 0xc0508c44` → `c0504c74 p0 = cmp.eq(r0,#0x0);
+if (p0) jump:t 0xc0504c6c` (i.e. `while (FUN_c0508c44() == 0) a2_tick();`). So the a2 tick is the
+body of a **wait-loop guarded by `FUN_c0508c44`** — consistent with §112.20's "a2-power WAIT-LOOP
+TIMEOUT". Because the 1 Hz counter is **boot-anchored and never reset**, the timeout is a fixed ~900 s
+from boot regardless of when the wait started.
+
+**AP-side lever (`a2_pin`) is unrelated to the 900 s event.** `msm89xx/base-files/etc/init.d/hmu05-modem-pm`
+shows `a2_pin=1` ⇒ the AP holds bam-dmux runtime PM `control=on` (A2 never powers down; suppresses
+the cold-boot `a2_power.c:1189` fatal). It does **not** touch the 900 s ML1/sleepmgr event (§112.49),
+confirming the AP-side PM axis is exhausted (§112.37).
+
+**Differential (added 2026-10-04).** The staged shutdown is **NOT OpenWrt-specific**: the Android F3
+instrument (`scratch/android_dump/`) shows the same event — its F3 log **froze** (size constant at
+13 240 621 B from device-time 31374 onward) with `FATAL_TOTAL=17` unchanged, i.e. the modem stopped
+logging **without** a fatal. So the event is **modem-internal**; the OpenWrt-specific part is the
+**deterministic 900 s arming** (Android's cold start is clean), which lives in the AP's modem
+powerup path.
+
+### §112.57.13 ★★★★★ v13 STM-state-writer ring WORKS — but the run produced a WEDGE with the sleepmgr HEALTHY: the sleepmgr deadlock is a VARIANT, not the common event (2026-10-04, tasks #263/#264)
+
+**Deploy.** v13 ring image (`modem.mdt daa903be…`, §112.57.6) copied into `/lib/firmware` (md5-verified
+on device), `preemptive_ssr_enabled=0`, `ssr_enabled=1`, cold boot **clean** (modem up at AP 13.8 s, 0
+crashes). Continuous `ping -I wwan0` traffic from a device-side generator. Soak `scratch/v13_soak.sh`.
+
+**The event.** Soak clean (`fatals=0 ssr=0 ping=1`) through AP-up **907.95 s**, then at AP-up **925.10 s**
+`ping=0` — **but `fatals=0 ssr=0`**: the modem stayed `running`, `mmcli` still `connected/lte/attached`.
+⇒ a **WEDGE**, not a fatal. The stall-watchdog began escalating (`Unbalanced traffic detected: TX+4, RX+0`).
+Because a wedge yields **no coredump**, the ring was captured **on demand** (§6.2a): `rmmod qcom_bam_dmux`
+→ `echo enabled > …/coredump` → `echo 1 > /sys/kernel/debug/remoteproc/remoteproc0/crash`; `dumpwatch`
+pulled **`dump_devcd1_973.bin`** (85 398 475 B) → `scratch/v13_run/dump_v13_wedge.bin`.
+
+**★★★★★ THE RING (`scratch/read_v13_ring.py`).** `marker = 0xc1455000` ✓ (instrument ran);
+**`seq = 12922`** transitions. `first_seq` per state: `1`@1, `2`@2, `3`@3, `4`@4, `5`@5, `0`@7, `6`@11,
+`7`@12, `8`@13, **`9`@681, `10`@682, `11`@683**. The 128-entry ring (seq 12795…12922) is a
+**continuous, normal cycle**, repeated to the very last entry:
+
+```
+1->2->3->4->5->1   (ONLINE -> ONLINE_SLEEP_WAIT -> SLEEP -> ONLINE_WAKEUP -> TTL_WAIT -> ONLINE)
+1->6->7->8->1      (LIGHT_SLEEP cycle)
+1->6->8->1         (light-sleep, skipping 7)
+```
+
+The **last** transition is `seq 12922: 3 -> 4 (SLEEP -> ONLINE_WAKEUP)`, and the live state read from
+the dump is **`*(0xc1e158d4) = 4` = `ONLINE_WAKEUP`**. ⇒ **In this run the sleepmgr NEVER stalled in
+`ONLINE_SLEEP_WAIT` (2) — it was cycling normally at the capture.** The ring's `r31` is `0xc0fe174c`
+(the hook site) for every entry, so the caller field is not discriminating; the state sequence is.
+
+**★★★★★ F3 across the wedge (`scratch/v13_run/f3/`).** Byte rate jumps from ~3 MB/5 s to **8–9 MB/5 s**
+at up 913–967 (the collapse flush). Per-chunk file census: up **908** = normal (`a2_power` 116, `cfm`
+102, `pgi_msgr` 87, `mcpm_npa` 75, `mcpm_saw` 29, `qmi_nas` 12, `cmss` 10); up **913** = the power layer
+collapses (`cfm` 102, `a2_power` **21**, `pgi_msgr` 15, `mcpm_npa` 14, `mcpm_saw` 5); up **918** =
+**only `cfm_cpu_monitor` 106 + `tle_log` 7 + `DalVAdc` 5**. ⇒ the **same staged shutdown** as §112.57.11
+(power/MCPM layer first, then CM/NAS/QMI, leaving the CPU heartbeat). The last non-heartbeat records are
+`a2_task.c:817 "A2 inactivity timer re-started…"`, `rf_task.c:336 "get imei stoped"`, then CM/NAS cell
+updates (`qmi_nas_check_and_update_cell_id`, `cmss` `csg_info`, `sys_mode:9`).
+
+**P-V13-STM scoring (pre-registered in `build_diag_patch_v13.py`):**
+
+| hypothesis | prediction | result |
+|---|---|---|
+| H1 | ring records a transition INTO state 11 **at/near boot** ⇒ 11 is a boot state | **FALSIFIED** — 11 first entered at **seq 683** (~50 s), after 1,2,3,4,5,0,6,7,8 |
+| H2 | ring records `11 -> … -> 2` with seq deltas | **UNSCORED** — the ring wrapped (seq 683 is outside the 128-entry window) |
+| H3 | the 11→…→2 seq-delta brackets ~900 s | **FALSIFIED** — the cycle rate is ~13.5 transitions/s (full cycle ≈ 0.37 s), not ~900 s |
+| NEG | no state-11 entry this boot | not triggered (state 11 WAS entered) |
+
+**★★★★★ THE REFRAMING.** The sleepmgr deadlock (§112.51/52/54) is **one manifestation, not the common
+event**. In this run the ~900 s event killed the **data path and the MCPM/power layer** while the
+sleepmgr cycled normally. Across the corpus the **common** feature of the ~900 s event is the **staged
+shutdown of the MCPM/power layer** (`a2_power`/`mcpm_npa`/`mcpm_saw`/`pgi_msgr`), present in BOTH the
+fatal and the wedge; the sleepmgr `ONLINE_SLEEP_WAIT` stall is a **variant** that happens to add the
+`sleepmgr_stm.c:4054` assert (and thereby the modem's fast self-recovery). ⚠ The STM advancing on a
+timer does **not** prove the hardware sleep works — the states advance but the MCPM cycle that actually
+powers down the modem stops, so the cycle is "hollow". ⚠ Caveat: the ring perturbs the hot STM-write
+path by ~30 insns/transition (~400 insns/s); the fatal↔wedge outcome is also known-variable (§112.48),
+so this single specimen does not prove the ring changed the outcome.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Deploy v13 + SSR off + cold boot | clean, ring active | **YES** (`daa903be…`, 0 crashes) |
+| Capture the ~900 s event | a fatal → coredump | **a WEDGE** (no fatal) → **on-demand coredump** captured |
+| Ring marker present | `0xc1455000` | **YES** |
+| H1 state 11 is a boot state | yes | **NO** — first entered seq 683 |
+| H3 timer period ≈ 900 s | yes | **NO** — cycle ≈ 0.37 s |
+| Sleepmgr deadlocked at the event | yes | **NO** — state 4, cycling to the last entry |
+| Common event identified | sleepmgr | **NO** — the **MCPM/power-layer staged shutdown** |
+
+**SOP.** Ground-truth-first: the ring was read from a **pulled, md5-verified** coredump; the wedge (vs
+fatal) classified from `dmesg` (`fatals=0 ssr=0`) + `ping` exit code; the F3 census from
+`scratch/f3parse.py`. One change (instrument firmware), reversible (`deploy_v13_ring.py --rollback`,
+stock `1a6f9507…`), pre-registered with H1/H2/H3/NEG. Negative/refuting results recorded, not hidden.
+Ledger + CHANGELOG + memory updated in the same session.
+
+**Next (targets the COMMON cause).** Instrument the MCPM/power-layer death — the a2 wait-loop
+(`FUN_c0508c44` predicate / `FUN_c05042c8` tick, §112.57.12) or the MCPM sleep/wake cycle — and
+re-run v13 to catch the **fatal** variant so the sleepmgr sequence at the stall can be compared.
+
+---
+
+## §112.57.14 — v13 run-2 CAUGHT THE FATAL: the sleepmgr is FROZEN in `ONLINE_SLEEP_WAIT` (state 2)
+
+**What was run.** The §112.57.13 next-step experiment: same v13 STM-state-writer ring firmware
+(`modem.mdt daa903be156d3c37f29f2678a5972499`), `preemptive_ssr_enabled=0`, continuous traffic
+(`scratch/v13_traffic.sh`), cold boot. Goal: catch the **fatal** variant (run-1 produced a wedge) so the
+ring could be read at a sleepmgr stall.
+
+**Result — a FATAL this time.**
+```
+[  913.915633] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_sleepmgr_stm.c:4054:
+[  913.915837] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  915.634158] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+```
+The modem was powered up at AP `13.05 s`, so the fatal is at **modem uptime ≈ 900 s** (AP 913.92 s) —
+the same boot-anchored clock. Recovery at AP 915.63 s (**~1.7 s** — the modem's own fast SSR).
+Auto-coredump captured by `dumpwatch`: `/root/dumps/dump_devcd1_915.bin` (85 398 475 B), pulled to
+`scratch/v13_run2/dump_run2_fatal.bin` (md5 `7cae3307c20189ec4bd6140ef017990d`).
+
+Crash report (`scratch/diag_patch_v12/read_crash_report.py`): **Task=`slpc`, Uptime `0:15:00`, PC
+`0xc087a804`, SSR 0** — signature **A** (`lte_ml1_sleepmgr_stm.c:4054`).
+
+**The v13 ring (the decisive datum).** `scratch/read_v13_ring.py scratch/v13_run2/dump_run2_fatal.bin`:
+```
+   marker = 0xc1455000 (expect 0xc1455000)   seq = 13297
+   ring (last 3):
+      seq 13295   r31=0xc0fe174c   4 -> 5   (ONLINE_WAKEUP -> TTL_WAIT)
+      seq 13296   r31=0xc0fe174c   5 -> 1   (TTL_WAIT -> ONLINE)
+      seq 13297   r31=0xc0fe174c   1 -> 2   (ONLINE -> ONLINE_SLEEP_WAIT)   <-- LAST WRITE
+   live sleepmgr state @0xc1e158d4 = 2  (ONLINE_SLEEP_WAIT)
+   a2 counters: 0xc28602f8 = 0   0xc28602fc = 0
+```
+So at the fatal the ring's **last transition is INTO state 2** and there is **no `2 -> 3`** — the
+sleepmgr entered `ONLINE_SLEEP_WAIT` and the sleep entry never completed. The **live state is 2**, i.e.
+exactly what `ASSERT(stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP)` rejects. The 128-entry ring is
+otherwise the normal cycle (`1->2->3->4->5->1`, with occasional `1->6->7->8->1`); old-state histogram
+`{1:27,2:23,3:23,4:24,5:24,6:3,7:1,8:3}` — no anomaly before the freeze.
+
+**Contrast with run-1 (the WEDGE, §112.57.13).** There the last transition was `seq 12922: 3 -> 4`
+(SLEEP -> ONLINE_WAKEUP) and the live state was **4**. So the sleepmgr was caught mid-**wakeup**, and no
+assert fired.
+
+**★★★★★ THE UNIFIED MODEL (fatal vs wedge discriminator).** The ~900 s event is the **MCPM sleep/wake
+power-collapse cycle stopping**. The sleepmgr freezes at whatever phase it is in at that instant:
+* phase = **sleep entry** (`ONLINE -> ONLINE_SLEEP_WAIT`, state 2) ⇒ the sleep-entry deadline timer fires
+  and `ASSERT(stm_get_state == SLEEP)` **fails ⇒ the FATAL** (modem fast self-recovery, ~1.7 s);
+* phase = **wakeup** (state 4) ⇒ no assert ⇒ the **WEDGE** (data path dead until the userspace Stage-3
+  SSR, ~504 s).
+
+So §112.57.13's "the sleepmgr stall is a variant" is refined: the sleepmgr stall is not a *separate*
+event — it is the **specific phase that trips the assert**, and the v13 ring has now captured it
+directly. The underlying death (the MCPM cycle stopping) is common to both.
+
+**★★ Correction to §112.20 / §112.57.12 — the a2 watchdog is a SPIN-COUNT watchdog, not a time
+watchdog.** Scanning the a2 counters across **every** coredump:
+```
+   a2-fatal dumps (Task=a2):  0xc28602f8 = 45051   0xc28602fc = 901   uptimes 18 / 17 / 27 / 28 / 288 / 576 s
+   ML1/slpc fatals + wedges:  0xc28602f8 = 0       0xc28602fc = 0     uptimes ~900 s / wedges
+```
+`FUN_c05042c8` increments `0xc28602f8` per call and `0xc28602fc` once per 50 calls, and asserts when
+`0xc28602fc >= 901` (constant `901` decoded from the previously-`<unknown>` word at `c0504318`:
+`cmp.gtu(901, c1) ? return : assert`; the second word of the 2-word packet `c0504314` was missing from
+`disasm_b16.txt` and was recovered from the ELF). Because the a2 poll loop's spin **rate varies**, the
+same `901` (45050 calls) is reached at uptimes from **18 s to 576 s**. ⇒ The `a2_power.c:1189` assert is
+a **fixed spin budget**, and its wall time is not fixed; the `c1 == 901` dumps are a *distinct* class
+(Task=a2) from the ~900 s ML1-class fatals, whose a2 counters are **0** (the a2 layer is healthy — this
+fatal is **not** the a2 watchdog). The a2 poll runs only while `byte[a2struct+0x1dc] == 0` (the a2
+power-up wait at `c0500d88`); the loop resets `0xc28602f8` after each sub-block (`c0505020/5040/5084/50a8`)
+but **never resets `0xc28602fc`** — a second, independent finding.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Deploy v13 + SSR off + cold boot | clean, ring active | **YES** (`daa903be…`) |
+| Catch the ~900 s **fatal** (run-2) | fatal → auto-coredump | **YES** — `lte_ml1_sleepmgr_stm.c:4054` @ AP 913.92 s |
+| Ring marker present | `0xc1455000` | **YES** (`seq=13297`) |
+| Sleepmgr frozen at the fatal | state 2 | **YES** — last write `1->2`, live state **2** |
+| Fatal↔wedge discriminator identified | ? | **YES** — the sleepmgr **phase** at the freeze (2 ⇒ fatal, 4 ⇒ wedge) |
+| Root cause (why the MCPM cycle stops) | identified | **NO** — still open |
+
+**SOP.** Ground-truth-first: the ring was read from a **pulled, md5-verified** coredump; the fatal
+classified from the host `dmesg` (`fatal error received: lte_ml1_sleepmgr_stm.c:4054`) **and** the
+coredump crash report (Task/Uptime); the a2 counter census from all local coredumps; the missing
+instruction recovered from the **stock ELF** (not the flat disasm). One change (instrument firmware),
+reversible (`scratch/deploy_v13_ring.py --rollback`, stock `1a6f9507…`). Negative/refuting results
+recorded (the a2-watchdog-is-time claim is corrected). Ledger + CHANGELOG + memory updated this session.
+
+**Next.** (a) Restore the mitigation (`preemptive_ssr_enabled=1`) — the fatal is the modem's own fast
+recovery, and the pre-emptive SSR is the only working lever. (b) To find *why* the MCPM cycle stops,
+instrument the MCPM sleep/wake cycle itself (`mcpm_saw` `FW_SLEEP_PWRDN_FULL` / `FW_WAKE-UP_Start`,
+`mcpm_npa` `CLKCPU`) — the ring shows the sleepmgr's *phase*, not the *trigger*.
+
+## §112.57.15 — F3 refinement: the MCPM sleep/wake cycle is the thing that STOPS; the frozen phase = the last MCPM event
+
+Re-analysing the run-1 wedge F3 (`scratch/v13_run/f3/`) with `scratch/f3parse.py`, the **MCPM
+sleep/wake power-collapse cycle** is visible and periodic: about **3×/s** the modem logs
+```
+mcpm_saw.c : MCPM 2 step FW PC FW_SLEEP_PWRDN_FULL 5
+mcpm_npa.c : MCPM_NPA: Delaying complete request for CLKCPU until scheduling, tech 6
+mcpm_npa.c : MCPM_NPA: Sched CLKCPU req for 384000, tech 6
+mcpm_npa.c : MCPM_NPA: ldo17 freq CB notified with 1 tech 6
+mcpm_saw.c : MCPM FW_WAKE-UP_Start ... duration = 8-10 usecs
+```
+The PWRDN timestamps are quantised to multiples of **65536 ticks** (= 0.32 s at 204800 Hz), i.e. a
+~0.32 s sleep period. In the last chunk the **whole sequence STOPS** — the final event in the capture is
+a `FW_WAKE-UP_Start` (duration 8 µs) at ts `3412087296`, after which only `DalVAdc` (1 Hz PMIC read),
+`cfm_cpu_monitor`, `qmi_mmode`, `tle_log` and one `mc_msg.c: SLOW CLOCK REQUEST` continue. The
+`a2_power`/`pgi_msgr`/`mcpm_*` tasks all go silent.
+
+**★★ This closes the loop with §112.57.14.** The sleepmgr freezes at the phase of the **last** MCPM
+event:
+* last event = **PWRDN** (sleep) and the following WAKE-UP never comes ⇒ sleepmgr frozen in
+  `ONLINE_SLEEP_WAIT` (2) ⇒ the sleep-entry deadline assert fires ⇒ **FATAL** (run-2);
+* last event = **WAKE-UP** ⇒ sleepmgr frozen in `ONLINE_WAKEUP` (4) ⇒ **WEDGE** (run-1).
+
+So the ~900 s event is a **stall of the MCPM/power-collapse cycle**, and the *fatal vs wedge* outcome is
+just *which side of the PWRDN/WAKE pair* the stall lands on.
+
+**The slpc stack at the fatal** (from the filled crash report, `dump_run2_fatal.bin` @ file `0x3520e24`):
+the return-address chain is `0xc087a804` (halt) ← `0xc08791a8` ← **`0xc039f7c4`** (the sleepmgr assert
+fn, §112.57.14) ← `0xc12010f8` ← `0xc0b66fcc` ← `0xc0b67658` ← `0xc087d9d8` ← `0xc0b675e0` ←
+`0xc087c658` ← `0xc087c644`. The `0xc087c6xx`/`0xc087d9xx` frames are the **ERR/timer framework**, so
+the assert is indeed a **software-timer expiry** (consistent with §112.52), not a direct call.
+
+**⚠ The Dog Report is NOT a task-deadlock oracle here.** The filled `dog_state_table`
+(`dump_run2_fatal.bin` @ file `0x3522002`) lists 100 tasks; only `DSMSGR RECV`, `tc`, `hdrsrch`,
+`pgi`, `mgpmc`, `cd` have a real `Timeout=60/Count=58/Is_Blocked=0`; every other row is
+`Timeout=0/Count=-1/Is_Blocked=1`. **`slpc`/`ML1`/`tmr_slave3` are NOT in the table**, so it cannot
+name the stuck MCPM task. Do not read `Is_Blocked=1` as "this task is deadlocked" — it is the
+unregistered-row default.
+
+**Root cause status: still OPEN.** What remains is *why the MCPM cycle stops* at modem-uptime ~900 s.
+The next instrument must target the MCPM/power-collapse path itself (the `mcpm_saw`/`mcpm_npa` tasks),
+not the sleepmgr (the ring already shows its phase).
+
+**SOP.** Ground-truth-first: F3 parsed with the verified `f3parse.py`; the stack chain read from the
+**filled** crash report (not the format string); the Dog Report read from the **filled** table at
+`0x3522002` (not the `0x17bffbb` format string). Ledger + memory updated this session.
+
+## §112.58 — STATE CORRECTION: slot[0] is OFFLINE_WAKEUP (9) at fatals, NOT 2; v24/v25 instrument results (2026-10-04, task #267)
+
+**⚠ CORRECTS §112.54, §112.56.5, §112.57.9, §112.57.14, §112.57.15** — all claimed
+`*(0xc1e158d4) = 2` (ONLINE_SLEEP_WAIT) at the fatal. A direct byte-read of the sleepmgr instance
+`0xc1e158d0` slot[0], field `+0x4` (the state field, per `stm_get_state` at `0xc0fe1960`:
+`r0 = memw(r0+0x4); return`), across **6 fatal dumps** gives **9 (OFFLINE_WAKEUP)** in every one — NOT 2.
+Verified dumps: `dump_devcd1_916.bin` (v25 fatal, 902 s), `modem_coredump_up915.44_devcd1.elf`,
+`modem_coredump_up1818.92_devcd2.elf`, `modem_coredump_up2723.69.elf`, `modem_coredump_up3629.79.elf`.
+Raw bytes at `0xc1e158d0`: `70 4f a9 c1 | 09 00 00 00 | 1d 00 00 00 …`. The v13 **wedge** dump
+correctly reads slot[0] = 4 (ONLINE_WAKEUP) — that one stands. **Reframed model:** the ~900 s event is
+a **stuck WAKEUP** — FATAL = state 9 (OFFLINE_WAKEUP, the `9→1` transition never lands), WEDGE = state
+4 (ONLINE_WAKEUP, the `4→1` transition never lands). The assert `state == SLEEP (3)` fires because a
+timer callback expected SLEEP but found OFFLINE_WAKEUP. This is the **inverse** of the prior
+"stuck sleep-entry" model.
+
+**v24 (engine prologue-packet hook) — CRASH-LOOP.** Replacing word0 of `{ call 0xc08384e0;
+allocframe(#0x28) }` at `0xc0fe1460` with `call 0xc0dedc08` (keeping `allocframe` in place) crashes
+the modem with corrupted control flow (PC `0xd0a7eaf8`, LR=0, BADVA `0x4cd67a2c`, uptime 1 s). v22
+control (site reverted) STABLE ⇒ the prologue packet's `call`+`allocframe` pairing must NOT be
+disturbed. `modem.mdt = f81098986d7bb6c9ec89bf144e0a013d`.
+
+**v25 (engine first-BODY-packet hook) — STABLE, captured the fatal, but ring UNUSABLE.** Hooks
+`0xc0fe1468` → cave logs `{seq, obj=r1, new_state=r2, caller=memw(r30+0x28)}`. STABLE to 916 s, fatal
+captured (`lte_ml1_common_timer.c:390`, Task `tmr_slave3`, PC `0xc087a804`, SSR=0). `modem.mdt =
+36fbafd5fd4daceec9a4dff0a7413435`. Ring unusable: (1) wrong caller offset (`memw(r30+0x28)` should be
+`memw(r30+0)` — the saved r31 is at frame base, not past the frame); (2) no sleepmgr filter (120/128
+entries are a TTL_WAIT STM, drowning the rare sleepmgr calls; ring wrapped at seq=738283); (3) the
+`→2`/`→3` external sites pass `r1 = array0[n]` (`0xc1e0fd08+0x1c*n`), NOT the sleepmgr — so a filter
+on `r1 == 0xc1e158d0` at those sites blocks everything (v23's bug). The sleepmgr is driven through a
+different path (the internal recursive call `0xc0fe1558`, or another function).
+
+**stm_get_state** (`0xc0fe1960`) reads `[obj+0x4]`; the engine's state write (`0xc0fe1630`) writes
+`[obj+0xc]` — different fields. See Doc 243 for full details. Ledger + memory updated this session.
+
+---
+
+## §112.59 — The LTE_ML1_SLEEPMGR wakeup path: complete code map (Doc 244)
+
+Static RE, 2026-10-04, stock ELF + v25 fatal coredump. No baseband write; device on stock
+(`modem.mdt 1a6f9507…`) with the pre-emptive-SSR mitigation enabled.
+
+**§112.59.1 — the object & class.** `LTE_ML1_SLEEPMGR_STM`, class `0xc1a94f70`, live object
+`0xc1e158d0` (slot 0). `stm_get_state` reads `memw(obj+0x4)`; at the fatal it is **9 (OFFLINE_WAKEUP)**.
+`get_context` reads `memw(obj+0x14)` = `0xc20f1510`. Class `+0x14` = 12 states; `+0x18` = state table
+`0xc1a94fc8`; `+0x20` = message registry `0xc1a95088`; `+0x24` = handler table `0xc1a95180`.
+All 12 state names read byte-for-byte from the coredump (`scratch/sleepmgr_dump.py`).
+
+**§112.59.2 — the 31-message interface (NEW).** The registry `0xc1a95088` is **31 entries**
+(16 + 15) of `{name_ptr, msg_id}` × 8 B, ending at `0xc1a95180`. Full list in Doc 244 §3. Key:
+`WAKEUP_REQ 0x42b0205`, `RF_LESS_WAKEUP_REQ 0x42b020e`, `OFFLINE_ENABLE_REQ 0x42b020f`,
+`LIGHT_SLEEP_WAKEUP_REQ 0x42b020c`, `RF_WAKEUP_CNF 0x42b0801`, `RF_SLEEP_CNF 0x42b0802`,
+`RF_ENTER_CNF 0x42b0803`, `RF_EXIT_CNF 0x42b0804`, `LTE_LL1_SYS_SLEEP_CNF 0x40a0808`,
+`LTE_LL1_ASYNC_WAKEUP_CNF 0x40b0806`, `LTE_ML1_SM_OFFLINE_GOTO_SLEEP_IND 0x4020425`.
+
+**§112.59.3 — the fatal assert site is the SLEEP→WAKEUP routine.** `0xc039ef80`:
+`call 0xc03a0c20` (= `stm_get_state(0xc1e158d0)`) → `cmp.eq(r0,#0x3)`; if not SLEEP → `0xc039f7b8`
+(assert logger ×2). Then, at the tail, `r3:2 = combine(0x42b0205, 0x18)` → `call 0xc03927d0` (ML1
+send) → `WAKEUP_REQ`. So the fatal is the modem's periodic **wake-up trigger** firing while the
+sleepmgr is in OFFLINE_WAKEUP(9), not a generic assert. `0xc03a0c20` is a 4-byte thunk
+(`jump 0xc02d9f94` → `jump 0xc0fe1960`, the engine getter).
+
+**§112.59.4 — sleep/wake callback pair.** `0xc039eec0` (sleep) and `0xc039ef80` (wakeup) are
+registered together by `0xc0396fa0` (tag `4`, via `0xc0b66f00` / `0xc0b663e0`; table
+`0xc1d9fec0 + slot*0x250`). `0xc0396fa0` has exactly ONE caller: `0xc0398764`, in the
+sleep-entry / OFFLINE_SLEEP_WAIT region.
+
+**§112.59.5 — incoming dispatch.** The ML1 message router `0xc043b0xx` (binary search on msg id)
+routes `0x40a0808` / `0x40a080e` / `0x40a0814` (accept-mask `0x1041`) to the sleepmgr handler
+`0xc039d460`. The OFFLINE trigger `0x4020425` is sent by `0xc036b3d4` (ML1-SM module).
+
+**§112.59.6 — wakeup-state handlers.** state 4 entry `0xc0397f30` / f2 `0xc03982b0`; state 8 entry
+`0xc0397ea0` / f2 `0xc0397ee0`; **state 9 entry `0xc03985f0`, f2 = 0** (no completion sub-handler).
+State-9 entry sets `ctx+0x4=0x43`, `ctx+0x18=0xc039e800`, calls `0xc0392ac0` (re-init online mask),
+then `jump 0xc0318f90`.
+
+**§112.59.7 — meaning for the ~900 s event.** The sleepmgr takes the **OFFLINE path** (driven by
+`LTE_ML1_SM_OFFLINE_GOTO_SLEEP_IND`) instead of completing `ONLINE → ONLINE_SLEEP_WAIT → SLEEP`.
+Consistent with the RF/ML1 dying first; the wake-up trigger then asserts. The `9→1` completion
+(RF_EXIT_CNF path) is the transition that never lands. **Root cause still OPEN.**
+
+**Next instrument (candidate):** receiver-side ring on the send funnel `0xc03927d0` (filter
+`0x42b0xxx`/`0x40a08xx`) + `0xc039d460` + `0xc036b3d4`, to capture the exact message that first
+drives the sleepmgr offline at ~900 s.
+
+---
+
+## §112.60 — v26: the SLEEPMGR message-funnel ring (built + deployed 2026-10-04)
+
+Implements Doc 244 §5 next-step 1 (user request *"build v26 receiver ring"*). One change at a
+time; device on the stock-derived v26 image with the pre-emptive SSR disabled so the ~900 s
+event is reachable. See Doc 244 §6 for the full write-up.
+
+**§112.60.1 — the funnel `0xc03927d0`.** The sleepmgr's ML1-message send wrapper. Uniform caller
+convention: `r0` = destination object, `r1` = payload ptr, `r2` = payload length, `r3` = ML1
+message id. Reached by **41 `call` sites** in `0xc0392xxx..0xc039fxxx` plus **3 tail-`jump`
+thunks** in the ML1 core (`0xc02a5eb0/ec0/ed0`, posting `0x408021a` / `0x42b0204` OBJ_ABORT_REQ /
+`0x42b040d` TRM_GRANT_CB_IND). It is NOT sleepmgr-exclusive, but is the sleepmgr's whole egress.
+
+**§112.60.2 — the hook.** Body packet `0xc03927d4` (3 instructions, 12 B:
+`r19:18=combine(r2,r1); r17:16=combine(r0,r3); memd(r29+0)=r19:18`) → `{ jump CAVE; nop; nop }`
+(parse `01,01,11`). The cave (b05 `0xc003054c`, 144 B) logs
+`{seq, msg_id=r3, caller=r31, (len<<16)|state}` to a ring, then reproduces the packet
+**byte-for-byte** (llvm-mc emits the exact stock bytes `124102f5104300f500d2dda1`) and jumps to
+the fall-through `0xc03927e0`. `state = memw(obj+0x4)` is read with a **predicated load only when
+`obj == 0xc1e158d0`**, so the ML1-core callers (whose `r0` is a different object) cannot fault.
+Scratch r6–r11 are free (the funnel body uses only r0–r3, r16–r19, r29–r31, gp). The site is
+3.5 MB from the b05 cave ⇒ **no trampoline** (inside the `j2_jump` ±8 MB range).
+
+**§112.60.3 — the 0xc5000000 lesson (IMPORTANT).** The first v26 build put header+ring at
+`0xc5000000` (tail of the topmost segment [20]) — byte-verified all-zero in all 68 HMU05
+coredumps. The modem still took an exception **on the cave's first write**:
+`Uptime 0:00:16  Task AMSS0  PC 0xc003055c (inside the cave)  BADVA 0xc5000000`.
+⇒ **a zero-filled coredump region is NOT necessarily a writable runtime region** (segment
+permission flags are all `RWX` and cannot distinguish). Prefer **mid-segment** normal BSS over a
+segment tail. (The `modem VA = dump VA + 0x39800000` bias still holds; the fault is a runtime
+mapping gap.)
+
+**§112.60.4 — the final save area.** header/beacon `0xc1455000` (the free-BSS window PROVEN
+writable by v13/v20/v25); ring `0xc1d4c600` (4096 × 16 B) — a 100 KB region byte-verified
+all-zero in **all 69 HMU05 coredumps** (uptimes 25 s…13656 s), in the **middle** of the normal
+RW BSS segment [13].
+
+**§112.60.5 — build / deploy / run.** Builder
+`scratch/diag_patch_v26/build_diag_patch_v26.py` (`modem.mdt md5 f57ed422b23405228f9e5689e17aa06c`);
+deployer `scratch/deploy_v26_ring.py` (sha256 read-back); reader `scratch/read_v26_ring.py`;
+run harness `scratch/v26_run.sh`. Post-deploy: the modem booted cleanly (uptime 69 s, no fatal,
+`state=running`) ⇒ the ring region IS writable. **Pre-registration P-V26-FUNNEL:** H1 marker
+`0x76323601` @`0xc1455000` + site `0xc03927d0` @`0xc1455008`; H2 `seq>0` + non-zero ring; H3
+ML1-family ids; H4 last entries before the fatal differ from steady state; NEG marker absent.
+
+**§112.60.6 — first-run NEGATIVE, recorded.** The `0xc5000000` build crashed the modem at modem
+uptime 16 s; that dump (`scratch/v26_run/dump_boot32.bin`) is retained as the fault evidence.
+
+## §112.61 — v26 RESULT: the funnel ring captured the fatal (2026-10-04)
+
+Run with the pre-emptive SSR disabled. Fatal at AP dmesg `915.260490 s`; crash report uptime
+`0:15:02` (modem ≈902 s): `lte_ml1_common_timer.c:390`, **Task `tmr_slave3`**, PC `0xc087a804`
+(assert logger), BADVA `0`. Dump `dump_devcd1_916.bin` → `scratch/v26_run/dump_fatal_916.bin`.
+**Achieved vs Expected:** expected H1–H4 + NEG (Doc 244 §6.4); achieved H1/H2/H3 PASS, **H4 PASS
+(n=1)**, NEG not triggered.
+
+**§112.61.1 — H1/H2/H3 PASS.** marker `0x76323601` @`0xc1455000`; site field = `0xc03927d4`
+(the hook packet; the cave stores `SITE_VA`, not the `0xc03927d0` entry); `seq = 40111`; 4096 live
+entries; ML1-family ids (`0x42b0xxx`/`0x40a0xxx`/`0x40b0xxx`/`0x4290xxx`/`0x4320xxx`/`0x4080xxx`).
+
+**§112.61.2 — the egress is a regular sleep/wake cycle.** ~20–21 messages/cycle, ~192 repeats
+across the last 4096 msgs (`seq 36016..40111`; 40111 since boot ⇒ **≈44 msg/s**). Canonical cycle:
+`42b0801 RF_WAKEUP_CNF → 42b0206 STMR_ON_REQ → 42b0406 → 4320220 → 4290202 → 40a0209 →
+42b0802 RF_SLEEP_CNF → 42b0208 UPDATE_SCLK_ERR_REQ → 42b0403 → 42b0209 GO_TO_SLEEP_REQ →
+42b040b WMGR_RESULT_IND ×2 → 42b0404 → 42b0205 WAKEUP_REQ → 40a0400 ×3 → 40b0206 → 4290203 →
+40a020f → 42b0405 → …`.
+
+**§112.61.3 — H4: the FINAL cycle is the only anomalous one.** Across the window `STMR_ON_REQ`
+(`0x42b0206`) is preceded by `RF_WAKEUP_CNF` (`0x42b0801`) **191/192 times**; the **sole**
+exception is the **last** `STMR_ON_REQ` (seq 40110), preceded by `42b0405`. Last four entries:
+`40108 40a020f` → `40109 42b0405` → `40110 42b0206 STMR_ON_REQ` → `40111 42b0406` → **FATAL**.
+⇒ the sleepmgr **armed its sleep timer without first emitting the RF-wakeup confirmation**, then
+died — consistent with the RF layer failing to wake, and with the fatal task being the **timer
+slave `tmr_slave3`** (the `STMR_ON_REQ` arms a timer whose callback asserts at
+`lte_ml1_common_timer.c:390`). Caveat: **n=1** — a unique-in-window anomaly, not yet a mechanism.
+
+**§112.61.4 — the sleepmgr is NOT dead before the fatal.** Object `0xc1e158d0` frozen in state
+**9 `OFFLINE_WAKEUP`** (class `0xc1a94f70`, ctx `0xc20f1510`), unchanged from prior runs; but the
+egress was actively cycling up to the last message. The ring is **egress**, so it never shows the
+*incoming* message that drives the sleepmgr into the OFFLINE path — the OFFLINE trigger is an
+**ingress** event. The object carries a 20-entry msg-id table at `+0x20`
+(`0x0409xxxx`/`0x041bxxxx`/`0x0404xxxx`/`0x040dxxxx` …) but **no state-history buffer**.
+
+**§112.61.5 — caller field = the next packet boundary (reusable).** The recorded `caller` is `r31`,
+which Hexagon sets to the address of the **next packet** after the `call`'s packet. Three sites
+are standalone `{ call … }` ⇒ `call+4` (`0xc039f7b4`/`0xc039e6f0`/`0xc0395e80`, all matched
+exactly); the `STMR_ON_REQ` sender is `0xc039ef6c` fused into a 3-instruction packet ⇒
+`r31 = 0xc039ef6c+12 = 0xc039ef78`. Never assume `caller-4` is the call site.
+
+**§112.61.6 — reader fix.** `scratch/read_v26_ring.py`: ring index is `seq % 4096` and `seq` is
+**pre-incremented**, so the window is `[max(1,seq-N+1) .. seq]` (the earlier `seq-N` window read a
+wrap-ghost and mislabelled it).
+
+**§112.61.7 — next step.** Instrument the sleepmgr **ingress** (the incoming dispatch / the ML1
+router call into the sleepmgr) to capture the message that drives the OFFLINE transition — the
+egress funnel cannot see it. Doc 244 §5.
+
+**§112.61.8 — verification of `0xc039d460` against the stock ELF (user request, 2026-10-04).**
+Doc 244 §4.4 claimed `0xc039d460` = the sleepmgr's LL1-CNF handler. **Corrected:** it is a
+**directly-called, generic router→object forwarder**, not a per-message handler. Evidence:
+(1) it is a genuine function (`0xc039d460`, prologue `allocframe(#0x8)`; prior fn ends
+`dealloc_return` @`0xc039d454`); (2) direct callers = `0xc043b124` (the msg-id dispatcher),
+`0xc039e7ec` (sleepmgr), `0xc03a0c44` (tail-call); (3) it forwards to `0xc02ef910` → `0xc0fe13c0`,
+which does `r4 = memw(memw(memw(obj))+0x20); callr r4` — a vtable dispatch; `0xc02ef910` has
+**106 callers** ⇒ generic; (4) it references the sleepmgr object constant `0xC1E158D0` and
+`0xC1655Cxx` records that are **F3/trace descriptors, not strings**. **★ The sleepmgr's real
+ingress handlers are the class table `0xc1a95180`** (index-aligned with the registry `0xc1a95088`):
+`0x42b0200 ENABLE_SLEEP_REQ → 0xc03987e0`, `0x42b0201 DISABLE_SLEEP_REQ → 0xc0398c80`,
+**`0x42b020f OFFLINE_ENABLE_REQ → 0xc039d150`**, `0x42b0202`/`0x42b0204`/`0x04030841`/`0x040a080e`/
+`0x04090804 → 0xc03987c0`; those functions have **zero direct call sites** ⇒ dispatched indirectly.
+Class re-confirmed from the fatal dump: `+0x14=12` states, `+0x1c=31` msgs, `+0x20=0xc1a95088`,
+`+0x24=0xc1a95180`, name `"LTE_ML1_SLEEPMGR_STM"`, state-9 entry `0xc03985f0`; all 31 registry
+names read out and match. `0xc043b124` is a **shared/fallback** target (also reached by a path
+routing `0x42b0200..0x42b020f`). ⇒ `0xc039d460` is *on* the ingress path but is a shared forwarder;
+the v27 ingress hook should target `0xc1a95180`'s dispatch (filtered to `obj==0xc1e158d0`). Residual
+uncertainty: `combine(##imm,#0x0)` renders ambiguously (which reg gets `0xC1E158D0`).
+
+
+### §112.62 — v27 SLEEPMGR INGRESS RING: built + deployed (RESULT PENDING)
+
+**Goal.** §112.61's v26 ring logged the sleepmgr's **egress** (the send funnel `0xc03927d0`)
+and showed the outgoing sleep/wake cycle stops mid-stream (the last cycle omits `RF_WAKEUP_CNF`).
+The OFFLINE *trigger* is an **ingress** event, invisible to an egress ring. v27 therefore logs
+the messages the sleepmgr is **dispatched**.
+
+**Hook site.** `0xc039d460`'s call packet `0xc039d46c` (`{ call 0xc02ef910 }`, word `0x5bea5252`),
+replaced by `{ jump 0xc003054c }` (word `0x59925870`, verified target `0xc003054c`). This is the
+only point where BOTH `r16 = r1` (= the ML1 message id being dispatched) AND the true caller `r31`
+are live — the later body packet `0xc039d470` (`r3:2 = combine(r16,r0)`) would yield a useless
+`r31 = 0xc039d470`. `0xc039d460` hard-references the sleepmgr object `0xC1E158D0` (its one
+non-trivial constant), i.e. it is on the sleepmgr path; but see the caveat below.
+
+**Cave (recorded, not resolved).** §4.4a found `0xc039d460` is a **shared forwarder** to the
+generic object dispatcher `0xc02ef910 → 0xc0fe13c0` (`r4 = memw(memw(memw(obj))+0x20); callr r4`;
+`0xc02ef910` has 106 callers). Re-reading the constant: `r1:0 = combine(##-0x3e1ea730,#0x0)` with
+`combine(high,low)` semantics puts `0xC1E158D0` in **r1**, `r0 = 0`, making the following
+`cmpb.eq(r0,#0)` branch ambiguous. Whether the ring captures **sleepmgr-only** ingress or a
+broader ML1 dispatch is therefore settled **empirically** by the msg-id histogram, not statically.
+
+**Cave (register safety, verified).** The cave uses only `r6`–`r11`; `r0`–`r3` (call args),
+`r16` (msg id, consumed by `0xc039d470`) and `r17` are preserved. The cave's own `callr r6`
+clobbers `r31`, but the return address is frame-saved by `allocframe(#0x8)` and restored by
+`dealloc_return` at `0xc039d49c`; `0xc039d470..0xc039d49c` never reads `r31` as a value.
+
+**Image.** Built from pristine stock: site `modem.b16`, 128 B cave `modem.b05` @`0xc003054c`
+(no trampoline: 3.59 MB, inside J2_jump ±8 MB), header/beacon `0xc1455000` (marker `0x76323701`,
+seq, site VA `0xc039d46c`), ring `0xc1d4c600` (4096 × 16 B `{seq, msg_id=r16, caller=r31, state}`,
+state = `memw(0xc1e158d0+0x4)`). b01 seg16/seg5 hashes rebuilt; hash re-verify PASS.
+**`modem.mdt md5 = 030f528376f38cce5a1e9fb0803075de`.**
+
+**Deploy + run.** Uploaded to `/lib/firmware` with sha256 read-back PASS on all 5 files
+(`scratch/deploy_v27_ring.py`). `preemptive_ssr_enabled=0` (let the fatal fire), `ssr_enabled=1`,
+`a2_pin=1`, coredump enabled, dumpwatch running. AP rebooted 2026-10-04T09:08Z; modem booted v27
+clean (`state=running`). Fatal expected at modem-uptime ≈902 s. **RESULT PENDING.**
+
+**Reader.** `scratch/read_v27_ring.py <dump>` (header marker `0x76323701`, site `0xc039d46c`).
+
+**RESULT (2026-10-04) — H1/H2/H3 PASS; the missing `RF_WAKEUP_CNF` is CONFIRMED from the ingress
+side.** Fatal `lte_ml1_common_timer.c:390` at AP dmesg `914.458760 s`; dump
+`scratch/v27_run/dump_fatal_916.bin` (md5 `4df0b22e…`). `seq = 22564`; ring window seq 18469..22564
+(last ~163 s). **The hook is sleepmgr-specific** — all 23 distinct msg-ids are sleepmgr messages,
+so `0xc039d460` is entered with `r1 = the ML1 msg id` (the §4.4a argument-order ambiguity is thus
+resolved empirically: the ring is sleepmgr-only ingress, not a broad ML1 dispatch). Callers:
+`0xc043b130` (the router's fused call at `0xc043b124`) and `0xc039e7fc` (the sleepmgr's own
+`OBJ_START_REQ` self-post at `0xc039e7ec`), both consistent with the `r31` = next-packet-boundary rule.
+
+★ **The anomaly is identical to v26, now from the ingress side:** `STMR_ON_REQ (0x42b0206)` occurs
+**266** times and is preceded by `RF_WAKEUP_CNF (0x42b0801)` in **265** of them; the **sole
+exception is the LAST one** (seq `22561`, state 9 `OFFLINE_WAKEUP`): `… WAKEUP_REQ(22557) →
+OFFLINE_GOTO_SLEEP(22558) → RXLM_RF_SCRIPT(22559) → ASYNC_WAKEUP(22560) → **STMR_ON(22561, no
+RF_WAKEUP_CNF)** → SAMPLE_DONE(22562) → OFFLINE_GOTO_SLEEP(22563) → OFFLINE_ENABLE_REQ(22564) →
+FATAL`. The sleepmgr **armed its sleep timer without the RF-wakeup confirmation**, then the ML1
+timer slave asserted. The RF wakeup confirmation was present for the previous ~163 s and failed only
+in the final cycle. **Interpretation:** strengthens the §112.57.x model (RF wakeup fails → sleepmgr
+arms the timer anyway → timer-slave assert); it does **NOT** reveal *why* the RF wakeup fails —
+**root cause still OPEN**. Reproduce with `scratch/analyze_v27_cycles.py`.
+
+### §112.63 — v28 RF-WAKEUP-CNF CALLBACK RING: built + deployed (RESULT PENDING)
+
+**Goal (user request "Instrument RF wakeup path").** v26 (egress) and v27 (ingress) both showed
+that in the FINAL sleep/wake cycle the sleepmgr arms its sleep timer (`STMR_ON_REQ`) WITHOUT the
+preceding `RF_WAKEUP_CNF`. Both rings see only the sleepmgr's *messages*; neither can see the RF
+driver side that produces the confirmation. v28 hooks the ONE function that emits every `RF_*_CNF`
+and records the **caller** — the RF-driver code path that invoked the completion callback.
+
+**Code map (all from the stock ELF).** `0xc039e580` is the sleepmgr's RF-confirmation sender. It
+is entered ONLY through four 8-byte tail-call stubs, each setting `r2` = a selector then
+`jump 0xc039e580`:
+
+| stub | r2 | message sent | message id |
+|---|---|---|---|
+| `0xc039e570` | 0 | `LTE_ML1_SLEEPMGR_RF_WAKEUP_CNF` | `0x42b0801` |
+| `0xc03a0b70` | 1 | `LTE_ML1_SLEEPMGR_RF_EXIT_CNF` | `0x42b0804` |
+| `0xc03a0b40` | 2 | `LTE_ML1_SLEEPMGR_RF_SLEEP_CNF` | `0x42b0802` |
+| `0xc039e700` | 3 | `LTE_ML1_SLEEPMGR_RF_ENTER_CNF` | `0x42b0803` |
+
+Verified from the switch at `0xc039e688`: `0xc039e698 r3=##0x42b0801` (r17==0/else),
+`0xc039e6b0 r17==1 → 0x42b0804`, `0xc039e6c8 r17==2 → 0x42b0802`, `0xc039e6e0 r17==3 → 0x42b0803`.
+The stubs are registered as **completion callbacks** — e.g. `0xc039b95c` stores `0xc039e700` into a
+`0x4290203` RF-request payload (msg `0x4290203` built at `0xc039b93c`/`0xc039baf4`; the RF-driver
+dispatcher that range-checks `0x4290203` is at `0xc0313f1c`). When the RF driver completes the
+request it invokes the callback → stub → `0xc039e580`. Therefore at `0xc039e580` **entry**,
+`r31` = the RF driver's return address, i.e. the RF-side code path that produced this confirmation.
+
+**Hook site — v2 (entry `0xc039e580`).** v1 hooked the 4-byte `{ call 0xc02d1140 }` at
+**`0xc039e584`** and continued at `0xc039e588` — which is **MID-PACKET**. A stream decode
+(`llvm-mc -disassemble`) shows `0xc039e584` is a **FUSED 16-byte packet**
+`{ call 0xc02d1140; r17 = r2; r18 = r0; memd(r29+#0x10) = r19:18 }` (spans `0xc039e584..0xc039e594`),
+so continuing at `0xc039e588` re-executed `r18 = r0` with the cave's r0=0 → the modem crashed with
+**`Assert cnf_msg != NULL failed` at `lte_ml1_sleepmgr_stm.c:4344`** (task ML1 MGR, modem-uptime
+0:00:16). v2 therefore hooks the function **ENTRY `0xc039e580`** (a clean 4-byte duplex packet) and
+continues at `0xc039e584` (a proven packet boundary). `0xc02d1140` is a leaf stub `{ r0 = #0x0;
+jumpr r31 }`. The entry is the only clean boundary where BOTH `r2` (selector) AND the true caller
+`r31` are live.
+
+**★★★★★ The site-packet parse-bits bug (v1 AND v2 crash cause).** `site_packet4` built the
+`{ jump 0xc003054c }` word with base `0x58004000` → packet parse bits `[15:14] = 0b01`. A
+**standalone** 4-byte instruction MUST have **parse = 0b11** (single-instruction packet). With
+parse=01 the CPU decoded the FOLLOWING packet's words as extra instructions of THIS packet →
+**illegal-instruction `:Excep` at the site PC `0xc039e580`** (all GPRs 0, `BADVA=0xe2eea008`, task
+AMSS0, modem crash-loop at ≈20 s uptime). Fix = base **`0x5800C000`** (parse=11). Verified against
+`llvm-mc` label assembly: site `0xc039e580`→cave `0xc003054c` = **`e6cf9259`** (correct) vs the
+buggy `e64f9259` (only bit 15 differs). ★ The parse bits must match the packet structure being
+replaced: v28's stock site `0x401cf4eb` is a **duplex (parse=00)** → replacement needs parse=11;
+v27's stock site `0xc039d46c` (word `0x5bea5252`) was **parse=01**, so v27's parse=01 coincidentally
+matched its site (why v27 ran). ★ A hand encoder/decoder round-trip shares the bug — only `llvm-mc`
+catches it. Negative control: STOCK firmware ran 360 s with 0 fatals (`scratch/stock_watch.sh`),
+proving the early `:Excep` was the patch, not pre-existing.
+
+**Cave (`0xc003054c`, 120 B).** Reproduce the entry prologue duplex
+`{ memd(r29+#-0x10)=r17:16; allocframe(#0x20) }` byte-for-byte (it saves r31 into the new frame, so
+the fused packet's `call` may clobber r31; the cave logs r31 BEFORE it), append
+`{seq, sel=r2, caller=r31, state}` to ring `0xc1d4c600` (header/beacon `0xc1455000`, marker
+`0x76323801`, site VA `0xc039e580`; `state = memw(0xc1e158d0+0x4) & 0xffff`), then
+`r6 = ##0xc039e584; jumpr r6`. Register safety: the cave uses only `r6`–`r11`; `r2`/`r19`/`r29` are
+preserved (the fused packet reads them); `r0` is set to 0 by the fused packet's own call.
+
+**Image.** Built from pristine stock (`scratch/diag_patch_v28/build_diag_patch_v28.py`); site
+`modem.b16`, cave `modem.b05`, header `0xc1455000`, ring `0xc1d4c600` (4096 × 16 B). Cave
+disassembly re-verified: `r8=0xC1455000`, `r6=0x76323801`, `r6=0xC039E580`, `r11=0xC1D4C600`,
+`r7=0xC1E158D0`, `r6=0xC039E584`. b01 seg16/seg5 hashes rebuilt; hash re-verify PASS.
+**`modem.mdt md5 = 0f57e8836314ac863f7053316979b220`** (parse-fixed; the buggy v2 was `ea7cc5a8…`).
+
+**Deploy + run.** Uploaded to `/lib/firmware` with sha256 read-back PASS on all 5 files
+(`scratch/deploy_v28_ring.py`). `preemptive_ssr_enabled=0` (let the fatal fire), `ssr_enabled=1`,
+`a2_pin=1`, dumpwatch running. AP rebooted 2026-10-04 (parse-fixed build). Fatal expected at
+modem-uptime ≈900 s. **RESULT: captured — see §112.64** (RUN 1 = WEDGE, ring wiped by the Stage-3
+SSR; RUN 2 = the FATAL, ring fully populated).
+
+**Reader.** `scratch/read_v28_ring.py <dump>` (marker `0x76323801`, site `0xc039e580`; prints
+sel/caller/state + histograms). Monitors: `scratch/v28b_wait.sh` (classifies a new watcher.log line:
+up∈[850,1000] = FATAL, up<100 = EARLY CRASH); `scratch/stock_watch.sh` (dmesg fatal watch).
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| hook the RF-CNF sender's caller (r31) | a ring of `{seq, sel, caller, state}` at `0xc1d4c600` | ring wired; v1 crashed (mid-packet) and v2 crashed (parse=01) before any capture |
+| modem survives to the natural fatal | no early crash; fatal ≈900 s | v1/v2 crash-looped ≈16–21 s; **parse-fixed build stable past 200 s (RESULT PENDING)** |
+| identify the RF-driver code path | `caller` resolves into the RF driver | **PENDING** |
+| reproduce the missing `RF_WAKEUP_CNF` | last cycle omits sel 0 | **PENDING** |
+
+**SOP.** Ground truth first (every address read from the stock ELF; site/cave bytes verified by
+re-disassembly AND the site packet verified against `llvm-mc` label assembly). No blind patch (built
+from pristine stock; stock backup `/root/fw_stock_hmu05` verified md5 `1a6f9507…`). Reversible
+(`deploy_v28_ring.py --rollback`). One change at a time (v1 → v2 → parse fix, each tested). Honest:
+the ~900 s root cause is **not** fixed; this instrument targets the RF side that v26/v27 could not
+see.
+
+## §112.64 — v28 RESULT: the RF-CNF ring captured the fatal; the missing confirmation is the RF WAKEUP (2026-10-04)
+
+**Run.** Fixed v28 (`0f57e883…`) on the AP boot of 2026-10-04 10:27:18. RUN 1 (cold modem,
+modem-uptime ≈970 s) manifested as a **WEDGE** — data-path death, NO fatal, no coredump; the
+stall-watchdog escalated Stage 1→2→3 and SSR'd at AP 1435 s, **wiping the ring**. RUN 2 (the
+crash-recovery warm restart; modem-uptime 0 at AP 1435.93 s) manifested as the **FATAL** at
+**modem-uptime 902.77 s** (AP 2338.70 s): `lte_ml1_common_timer.c:390`, task `tmr_slave3`, PC
+`0xc087a804`, stack frame `0xc02d7bd0` — the canonical ~902.7 s signature. Dump
+`/root/dumps/dump_devcd1_2341.bin` (85 398 475 B, md5 `dc64876ec8c4d98fcfcdb40c80eaa3a9`) pulled to
+`scratch/v28_run/dump_fatal_905.bin`. ★ **First real v28 capture** (v1/v2 crashed before any capture).
+
+**Result 1 — the ring ran and is a STRICT WAKEUP/SLEEP alternation.** Header marker `0x76323801`,
+site `0xc039e580`, **seq = 2541** (no wrap).
+- sel histogram: **RF_WAKEUP_CNF (sel 0) ×1270**, **RF_SLEEP_CNF (sel 2) ×1271**; sel 1/3 (EXIT/ENTER)
+  never emitted. **Non-alternating runs: NONE** — the sequence is exactly `…,W,S,W,S,…`.
+- The LAST emission (seq 2541) is a **RF_SLEEP_CNF** (state `OFFLINE_SLEEP_WAIT`) ⇒ **no
+  RF_WAKEUP_CNF followed it** — the final RF wakeup confirmation is absent.
+- ★ sel mapping re-verified in THIS dump from the switch at `0xc039e688` (`r17`=sel →
+  `r3=##69928961/2/3/4` = `0x42b0801/2/3/4`), so the missing confirmation is definitively the WAKEUP.
+
+**Result 2 — the sleepmgr object at the fatal.** `0xc1e158d0`: `+0x00 = 0xc1a94f70` (class
+`LTE_ML1_SLEEPMGR_STM`), **`+0x04 = 0x00000009` = state 9 = OFFLINE_WAKEUP** (a WAKEUP state),
+`+0x08 = 0x1d`. ⇒ at the fatal the sleepmgr sits in **OFFLINE_WAKEUP**, waiting for an RF wakeup
+that never arrived — exactly what v27 saw from the ingress side (last `STMR_ON_REQ`, state 9, no
+preceding `RF_WAKEUP_CNF`). **v26 (egress) + v27 (ingress) + v28 (RF-CNF emission) now agree.**
+
+**Result 3 — the two RF wakeup completion paths (NEW; only v28 sees the RF-driver caller).**
+- RF_SLEEP_CNF is ALWAYS emitted from caller `0xc0315440`.
+- RF_WAKEUP_CNF is emitted from TWO callers: **`0xc0314d48` (×743)** and **`0xc03155fc` (×527)**.
+- Split by sleepmgr mode: **ONLINE** wakeups → `0xc0314d48` (743) + `0xc03155fc` (57); **OFFLINE**
+  wakeups → `0xc03155fc` (470) ONLY ⇒ `0xc0314d48` = ONLINE-wakeup path, `0xc03155fc` =
+  OFFLINE-wakeup path. The fatal's missing confirmation is an **OFFLINE** wakeup.
+- All three callers build the callback payload (`memw(obj+0x10)=0x4290202/0x4290203`,
+  `memb(obj+0x14)=3`) then `callr r2` — RF-driver completion sites invoking the registered callback
+  (stub → `0xc039e580`).
+
+**Result 4 — no RF-CNF precursor.** The ONLINE↔OFFLINE mode blocks are regular throughout (a
+repeating short-OFFLINE-blip pattern; last block OFFLINE seq 2466..2541). The RF-CNF pattern does
+**not** visibly degrade before the fatal. (The ring has no timestamps, so a rate change cannot be
+measured from it.)
+
+**Interpretation.** The fatal is a **request/response timeout**: the sleepmgr enters OFFLINE_WAKEUP,
+requests an RF wakeup, and the 50 ms state-20 timer (`lte_ml1_common_timer.c:390`) expires before the
+RF wakeup completes. v28 proves the RF wakeup completion was never EMITTED ⇒ the stall is on the
+RF-driver side, not the sleepmgr side. **The root cause (why the RF offline-wakeup completion stops
+at ≈902.7 s) remains OPEN.**
+
+**Caveat (honest).** "Ring ends on SLEEP with the sleepmgr in a WAKEUP state" is also consistent with
+"the fatal fired mid-cycle". The evidence it is *missing* (not merely *not-yet-emitted*): (a) v27
+independently showed the final sleepmgr cycle lacked `RF_WAKEUP_CNF`; (b) the sleepmgr is in a WAKEUP
+state while the sole RF-CNF sender never ran again.
+
+**Artifacts.** `scratch/v28_run/dump_fatal_905.bin`; `scratch/v28_run/ring_fatal_905.txt`;
+`scratch/v28_run/analysis_905.txt`. ★ New device-side instrument `scratch/v28_wedgecap.sh`: forces an
+on-demand coredump (`rmmod qcom_bam_dmux` → `crash` node) at the stall-watchdog's commit point, so a
+**WEDGE** — which produces NO coredump and is wiped by the Stage-3 SSR — can still be captured.
+Deployed (pid 16299); did NOT fire in RUN 2 (RUN 2 was a FATAL, which self-dumps).
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| capture a fatal coredump | ring survives to a fatal | **YES** — seq 2541, first real v28 capture |
+| identify the RF-driver code path | `caller` resolves into the RF driver | **YES** — wakeup `0xc0314d48` (ONLINE) / `0xc03155fc` (OFFLINE); sleep `0xc0315440` |
+| reproduce the missing `RF_WAKEUP_CNF` | last cycle omits sel 0 | **YES** — last emission is SLEEP; sleepmgr state 9 (OFFLINE_WAKEUP) |
+| localise the stall | which side stops | **RF-driver completion side** (not the sleepmgr); root cause still OPEN |
+
+**SOP.** Ground truth first (sel mapping re-verified from `0xc039e688` in THIS dump; crash report from
+the dump; caller sites disassembled from the dump). No blind patch (pristine stock). Reversible
+(`deploy_v28_ring.py --rollback`; stock `1a6f9507…`). One change at a time. Honest: the ~900 s root
+cause is NOT fixed; v28 is the THIRD independent confirmation of the RF-wakeup stall.
+
+**★ RUN 3 — REPRODUCED (2026-10-04).** After RUN 2's crash-recovery restart, the next warm cycle
+fataled again: `lte_ml1_common_timer.c:390` at **modem-uptime 901.98 s** (AP 3242.42 s), identical
+crash report (task `tmr_slave3`, PC `0xc087a804`). Dump `/root/dumps/dump_devcd2_3244.bin`
+(md5 `740c0e335bc7a943a1b0a77c3e5bcf51`) → `scratch/v28_run/dump_fatal_903.bin`. Ring **seq 2441**,
+identical structure to RUN 2: strictly alternating (non-alternating runs = 0), **WAKEUP ×1220 /
+SLEEP ×1221**, **last emission = RF_SLEEP_CNF**, sleepmgr `0xc1e158d0` `+0x04 = 9` OFFLINE_WAKEUP,
+`+0x08 = 0x1d`; wakeup callers `0xc0314d48` ×677 / `0xc03155fc` ×543, sleep `0xc0315440` ×1221. ⇒ the
+missing-RF-wakeup result is **reproducible across consecutive warm restarts** (n = 2). ⚠ Observation
+(not yet a proven law): the ONLY wedge so far (RUN 1) was the **cold-boot** event; both **warm-restart**
+events (RUN 2/3) were **FATALs** — the cold/warm manifestation split is an open hypothesis (n = 1 cold).
+⚠ **FALSIFIED by §112.65** (a WARM-restart event wedged).
+
+---
+
+## §112.65 — v28 WEDGE CAPTURED: the sleepmgr is in the ONLINE regime (state 4) at a wedge, OFFLINE (state 9) at a fatal; the cold/warm split is FALSIFIED (2026-10-04)
+
+**Goal.** Capture a **WEDGE** coredump — the quiet manifestation of the ~900 s event: the data path
+dies with NO fatal and NO automatic coredump, and the userspace Stage-3 SSR would wipe the modem's RAM
+before anyone could read it.
+
+**Setup.** v28 RF-CNF ring (`modem.mdt 0f57e883…`) installed in `/lib/firmware`; `preemptive_ssr_enabled=0`
+(so the pre-emptive SSR cannot reset the modem first); `a2_pin=1`; continuous traffic
+(`ping -I wwan0 -i 1 8.8.8.8`); the modem **warm-restarted** with
+`echo restart > /sys/kernel/debug/msm_subsys/modem` at AP 7281.6 s (to load v28 and re-arm the ~900 s
+deadline). `v28_wedgecap.sh` armed (BASE empty) — it forces an on-demand coredump at the stall-watchdog
+commit point.
+
+**The wedge.** Data death between AP **8181 s** (last `ping=OK`) and **8211 s** (first `ping=FAIL`) ⇒
+**modem-uptime ≈898–928 s** — the ~900 s event. **No fatal, no SSR restart** (`nrestart`/`nfatal`
+unchanged at 6/2; modem `running`) ⇒ a **WEDGE**. The stall-watchdog committed at AP **8354 s**
+(`Probe failed 2 times consecutively; treating as a genuine stall.`); `v28_wedgecap.sh` fired at AP
+**8355 s** (`rmmod qcom_bam_dmux` 1 s → `crash` node `rc=0`). Dump `dump_devcd3_8357.bin`
+(85,398,475 B, md5 `db8b304adc428fbc4e92a8a6c4edc601`) → `scratch/wedge_run/dump_wedge_8357.bin`.
+(The dump carries **no modem ERR crash log** — expected: the crash was forced from the AP via the
+debugfs `crash` node, not by a modem-side assert.)
+
+**★★★★★ RESULT 1 — the sleepmgr state confirms §112.58.** `0xc1e158d0` = `c1a94f70 | 00000004 |
+00000013 …` ⇒ class `LTE_ML1_SLEEPMGR_STM`, **state `+0x04 = 4` (ONLINE_WAKEUP)**, `+0x08 = 0x13`.
+⇒ **WEDGE ⇒ state 4**; the fatal reads **state 9 (OFFLINE_WAKEUP)**, `+0x08 = 0x1d`. **n = 2 for the
+wedge** (v13 wedge `dump_v13_wedge.bin` + this v28 wedge); 8+ for the fatal.
+
+**★★★★ RESULT 2 — the RF-CNF tail is IDENTICAL to the fatal; the sleepmgr state is the discriminator.**
+Ring marker `0x76323801`, **seq 3383**, strictly alternating: RF_WAKEUP_CNF ×1691 / RF_SLEEP_CNF ×1692
+(sel 1/3 never emitted), **last emission = RF_SLEEP_CNF** (state at emission = ONLINE_SLEEP_WAIT) — the
+same "the final RF wakeup confirmation was never emitted" signature as the fatal (RUN 2 seq 2541 /
+RUN 3 seq 2441). Callers: sleep `0xc0315440` ×1692; wakeup `0xc0314d48` (ONLINE) ×1356 / `0xc03155fc`
+(OFFLINE) ×335. ⇒ **the RF-CNF ring alone does NOT discriminate wedge from fatal.**
+
+**★★★★ RESULT 3 (NEW) — the REGIME at the freeze differs.** The fatal's last **76** emissions are all
+**OFFLINE-regime** (states 9/11), live state 9. The wedge's last **10** emissions are **ONLINE-regime**
+(states 2/4), live state 4 — it transitioned **OFFLINE→ONLINE at seq 3374** (≈3 s before capture).
+State histograms — wedge: ONLINE_SLEEP_WAIT ×1450 / ONLINE_WAKEUP ×1449 / OFFLINE_WAKEUP ×242 /
+OFFLINE_SLEEP_WAIT ×242; fatal: 801 / 800 / 470 / 470. ⇒ the discriminator is the **regime**
+(online vs offline wakeup), not merely a within-regime phase.
+
+**⚠ Caveat (honest).** The wedge is captured **~145–160 s after** the data death (at the watchdog
+commit, not at the death), and the ring shows the sleepmgr **still emitting RF-CNFs** across that
+window, so the captured state/regime could be a *phase* rather than a hard freeze. n = 2 for the wedge.
+Counter-evidence that it is a real freeze: (a) the fatal's state is 8/8 = 9 (deterministic); (b) 2/2
+wedges = 4; (c) the last regime run in each case is long and one-sided.
+
+**⚠ §112.64's cold/warm hypothesis is FALSIFIED.** This wedge occurred on a **warm** modem restart
+(AP uptime 7281 s; `echo restart`), not a cold boot. ⇒ the fatal-vs-wedge manifestation is **not**
+determined by cold-vs-warm; it is a **race** (consistent with §112.57.13/14, where the SAME cold-boot
+recipe gave a wedge on run-1 and a fatal on run-2). Wedges now: v13-cold + v28-warm. Fatals:
+v13-warm + v28-warm ×2.
+
+**⚠ LIMITATION — no F3 for this specimen.** The DIAG/F3 stream went **silent at AP 7301 s** (15 s after
+the v28 modem restart) and did not resume until the forced crash (AP 8359 s); the f3cap deleted the 167
+empty chunks. ⇒ the §112.57.13/15 "MCPM/power-layer collapse" F3 confirmation is **not** reproduced
+here. (Also a tooling finding: a `msm_subsys` restart can leave the F3 mask unproductive for the whole
+modem life — worth investigating.)
+
+**⚠ Operational note — the on-demand capture breaks the data path until an AP reboot.** `v28_wedgecap.sh`
+does `rmmod qcom_bam_dmux` first (so its SSR notifier cannot hang the AP, §6.2a). After the forced crash
+the modem restarts, but the reloaded `qcom_bam_dmux` (patch 831, md5 `98d532de…`) then fails its SSR
+powerup with `Failed to request RX DMA channel: -ENODEV` on **every** subsequent modem restart — the
+netdev is created and immediately torn down, so `wwan0` never appears. A full **AP reboot** restores it
+(`SSR powerup: channels already active`). Plan for this when using the wedgecap instrument.
+
+**Artifacts.** `scratch/wedge_run/dump_wedge_8357.bin` (md5 `db8b304a…`); `scratch/wedge_run/watch.log`;
+`scratch/wedge_run/f3/` (post-crash chunks only). Readers: `scratch/read_v28_ring.py`,
+`scratch/sleepmgr_dump.py`. Instrument: `scratch/v28_wedgecap.sh` (device `/root/v28_wedgecap.sh`).
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| capture a WEDGE coredump | force the dump before the Stage-3 SSR | **YES** — `dump_devcd3_8357.bin`, full 85.4 MB |
+| wedge sleepmgr state (§112.58) | state 4 (ONLINE_WAKEUP) | **YES** — `+0x04 = 4` |
+| reproduce the missing `RF_WAKEUP_CNF` | last emission = SLEEP | **YES** — seq 3383, last = RF_SLEEP_CNF |
+| discriminate wedge from fatal | sleepmgr state | **YES** — 4 vs 9; and the REGIME differs (ONLINE vs OFFLINE) |
+| confirm the MCPM collapse via F3 | F3 across the wedge | **NO** — F3 silent for the whole v28 modem life (tooling gap) |
+
+**SOP.** Ground truth first (state read from the dump; sel/caller mapping re-verified in-dump from
+`0xc039e688`). No blind patch (pristine stock on rollback). Reversible
+(`deploy_v28_ring.py --rollback` → stock `1a6f9507…`). One change at a time. Steady state restored
+(`preemptive_ssr_enabled=1`, traffic stopped). Honest: the ~900 s root cause is still **OPEN**; this
+adds the first *instrumented* wedge confirmation of the state discriminator.
