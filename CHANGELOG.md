@@ -11,6 +11,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — v31 PRE-REGISTRATION (P-V31-EPILOGUE): does the handler RETURN after the CNF post?
+
+- **Ledger §112.77** — pre-registered **before** the run. v30 showed the handler reaches its CNF-post
+  block on every entry, but a post-**entry** counter can't tell whether it then **completed and
+  returned**.
+- **Instrument (v31):** v29/v30 entry ring on `0xc1017818` (site → tramp `0xc1048644` → cave
+  `0xc003054c`) **plus a counter at the single return site `0xc10179fc`** (`jump 0xc0837c38`; site →
+  tramp `0xc1048664` → cave `0xc00305bc`, 32 B). Header `0xc1455000` = `{ marker 0x76323B01,
+  seq_entry, site_entry 0xc1017818, (unused), epilogue_count }`.
+- **Hash:** `modem.mdt` md5 `e91031ed535ce2b648e5fc6fedc048de`; sites `0xc1017818`→`16c70658`,
+  `0xc10179fc`→`34c60658`; offline disasm verify PASS.
+- **Decision rule (fixed):** `epilogue_count == seq_entry` ⇒ every entry returned ⇒ the CNF was
+  **EMITTED and lost in the RFA→RFMGR transport**; `== seq_entry − 1` ⇒ the last entry **BLOCKED
+  INSIDE the post** (in `0xc08f1500`/`0xc093be30`); NEG ⇒ marker absent.
+
 ### 2026-10-04 — P-V30-CNFPOST SCORED: the CNF-post site is reached on every entry (stall is at/after the handler's completion)
 
 - **Ledger §112.76** — ran v30 (entry ring on the raw WAKEUP handler `0xc1017818` **+ a counter at

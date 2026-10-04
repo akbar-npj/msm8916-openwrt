@@ -18724,8 +18724,9 @@ entry never reached the post (H3b); a large deficit would instead indict the nul
 
 **Run.** Fresh **AP reboot** (clean boot: 0 real oops — the 4 grep hits were `ramoops` substrings;
 overlay writable; LTE attached, ping OK) so the modem cold-starts with v30 (`bfe46e2b…`). SSR
-disabled (`ssr_enabled=0`, `preemptive_ssr_enabled=0`), `coredump=enabled`. A **FATAL** fired at
-**AP 915.799 s**, site **`lte_ml1_common_timer.c:390`** (the classic site). Dump
+disabled (`ssr_enabled=0`, `preemptive_ssr_enabled=0`), `coredump=enabled`. The modem booted (MBA) at
+**AP 12.36 s**, so a **FATAL** at **AP 915.799 s = modem-uptime ≈ 903.4 s** (the classic clock), site
+**`lte_ml1_common_timer.c:390`**. Dump
 `scratch/v30_run/dump_FATAL.bin` (85 398 475 B, valid ELF32). Runner `scratch/v30_run.sh`; decoder
 `scratch/read_v30_ring.py`.
 
@@ -18783,3 +18784,50 @@ counter site, so they do not affect H3; their exact semantics were not needed to
 at cut, no re-tuning; instrument hash + config recorded; one change at a time; honest that "reached
 the post" is proven but "completed the post" vs "lost in the transport" is not. Ledger + CHANGELOG +
 memory updated in the same session.
+
+---
+
+## §112.77 — v31 run PRE-REGISTRATION (P-V31-EPILOGUE): does the handler RETURN after the CNF post?
+
+**Question.** §112.76 proved the raw RFA WAKEUP handler `0xc1017818` reaches its CNF-post block
+`0xc10179a8` on **every** entry (1234/1234), but a post-**entry** counter cannot tell whether the
+handler then **completed the post and returned**. **Does the handler reach its single return site
+`0xc10179fc` (`jump 0xc0837c38`, the epilogue trampoline to b05 `0xc0030084` = restore r16-r25 +
+`dealloc_return`) on every entry?**
+
+**Instrument (v31).** Same entry ring as v29/v30 on `0xc1017818` (site → tramp `0xc1048644` → cave
+`0xc003054c`), **plus a counter at the epilogue site `0xc10179fc`** (site → tramp `0xc1048664` → cave
+`0xc00305bc`, 32 B). The epilogue cave increments `SAVE_AREA+0x10`, then reproduces the original
+`jump 0xc0837c38` as a register-indirect jump (`r6 = ##0xc0837c38; jumpr r6` — llvm-mc cannot assemble
+the far direct jump; `jumpr` is equivalent and does not set r31). Register-safe: at `0xc10179fc` r6 is
+dead (set at `0xc1017894`, unused by the epilogue); the cave uses only r6/r8/r9.
+
+**Save area.** header `0xc1455000` = `{ +0x00 marker 0x76323B01, +0x04 seq_entry, +0x08 site_entry
+0xc1017818, +0x10 epilogue_count }`; entry ring `0xc1d4c600`, 4096 × 16 B.
+
+**Instrument hash.** `modem.mdt` md5 `e91031ed535ce2b648e5fc6fedc048de` (seg16/seg5 SHA-256 re-verified
+PASS; b16 sites `0xc1017818`→`16c70658`, `0xc10179fc`→`34c60658`; trampolines `0xc1048644`/`0xc1048664`;
+caves `0xc003054c`(112 B)/`0xc00305bc`(32 B)). Builder `scratch/diag_patch_v31/build_diag_patch_v31.py`;
+offline disasm verify `scratch/diag_patch_v31/verify_v31.py`.
+
+**Run config.** `ssr_enabled=0`, `preemptive_ssr_enabled=0`, `coredump=enabled`; LTE attached.
+Runner `scratch/v30_run.sh`-style; decoder `scratch/read_v31_ring.py`.
+
+**Hypotheses.**
+- **H1 (instrument ran):** marker `0x76323B01` @`0xc1455000` **and** site_entry `0xc1017818` @`0xc1455008`.
+- **H2 (both probes ran):** `seq_entry` @`0xc1455004` > 0 **and** `epilogue_count` @`0xc1455010` > 0.
+- **H3 (localise the loss), decision rule (fixed):**
+  - **(a) CNF EMITTED, lost in the transport** if `epilogue_count == seq_entry` (every entry returned
+    after the post) ⇒ the loss is in the **RFA→RFMGR completion transport** (the RFA server's reply
+    routing / the STM message delivery), *not* inside the handler.
+  - **(b) BLOCKED INSIDE the post** if `epilogue_count == seq_entry − 1` (the final entry reached the
+    post and never returned) ⇒ the loss is in the handler's **completion calls** (`0xc08f1500`,
+    `0xc093be30`).
+  - **(c)** `epilogue_count ≪ seq_entry` ⇒ many entries did not return (unexpected; report).
+- **NEG:** marker absent ⇒ the instrument did not run / the save area is not writable.
+
+**Scored at cut** (no re-tuning): H1, H2, H3a/H3b/H3c, NEG. Deliverable: whether the CNF is emitted
+(⇒ transport) or the handler blocks in its post (⇒ the specific call); ledger + memory.
+
+**SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
+before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.
