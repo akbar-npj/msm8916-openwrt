@@ -18030,3 +18030,91 @@ segments** (`0xc0000000..0xc51c0000`) — a second image / not statically resolv
 verified against 4 raw dumps; the ms/19.2 MHz unit was proven exactly, not assumed). No blind patch;
 no device change this session. Honest about the negative result and the callback-resolution limit.
 Device untouched (P-DET soak still running in the observation config).
+
+---
+
+## §112.69 — P-DET continuation (n=6): the race reproduces (FATAL, FATAL, WEDGE again); 3 new dumps re-confirm §112.68; and a leftover capture script contaminated the soak (2026-10-04)
+
+**Context.** Continuing the §112.67 P-DET soak (fixed observation config: stock baseband
+`1a6f9507…`, `preemptive_ssr=0`, `a2_pin=1`, continuous `wwan0` traffic). One more modem boot produced
+three further events before the data path died, then the device was recovered and the mitigation
+restored.
+
+**★★★★★ RESULT — the race reproduces (n = 6).** Under the *same* fixed config, this boot split again:
+
+| event | AP-up at event | modem-up at event | manifestation | victim |
+|---|---|---|---|---|
+| (pre-recorder) | 2524.50 s | **≈901 s** (after the 1623 restart) | **FATAL** | `lte_ml1_sm_conn_inter_freq_stm.c:712` |
+| B′ | 3446.70 s | **≈900 s** (after the 2546 recovery) | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
+| C′ | 4523.87 s | **≈900 s** (data death ≈4348 s; watchdog +175 s) | **WEDGE** | (none — `crash detected … type watchdog`) |
+
+⇒ **FATAL, FATAL, WEDGE again** — the §112.67 verdict (a RACE, not determinism) is now n = 6
+(two independent FATAL+FATAL+WEDGE triples). The victim varies (inter-freq vs sleepmgr vs silent).
+
+**★ The mitigation's ON→OFF transition is visible in one boot.** `msm_subsys: restarting` fired at
+**812.79 s and 1623.23 s** (Δ = 810.4 s ≈ the 800 s pre-emptive interval) — i.e. the pre-emptive SSR
+was **ON** at boot and suppressed the event across two cycles; it was then **disabled** for the
+observation phase, and the first fatal landed at **2524.5 s = 1623.2 + 901.3 s** — a clean
+demonstration that (a) the pre-emptive SSR holds the event off and (b) removing it re-arms the clock
+to ≈900 s after the last restart.
+
+**★★★★ 3 new coredumps re-confirm §112.68 (the 900 s timer fires *after* the event).** Pulled from
+this boot (`scratch/pdet_end/dumps/`):
+
+| dump | event | uptime (max now) | 900 s timer idx | rem at dump | fires at |
+|---|---|---|---|---|---|
+| `dump_devcd1_2525.bin` | FATAL `sm_conn_inter_freq` | 2526.2 s | 92 (`d051e254`) | **+21.73 s** | 2547.9 s |
+| `dump_devcd2_3449.bin` | FATAL `sleepmgr` | 3448.3 s | 142 (`d051e254`) | **+11.55 s** | 3459.9 s |
+| `dump_devcd3_4526.bin` | **WEDGE** | 4525.6 s | **absent** | — | (fired ≈4363 s, not re-armed) |
+
+**★ NEW: the 900 s timer is a per-restart one-shot.** Back-computing `fires − 900 s` gives an arm
+time of **≈2560 s** and **≈2559.9 s** — i.e. **~14–25 s after the preceding modem recovery**
+(fatal-recovery at 2546.1 s; §112.68's boot-anchored dumps likewise arm ~30–41 s post-boot). It is
+armed **once per restart** and is **not** re-armed, which is why the wedge dump (≈1075 s after its
+restart) has no instance left. Callback `d051e254` is shared with the 18 h timer and lives outside
+the ELF/coredump range, so it remains statically unresolved.
+
+**⚠⚠ MEASUREMENT-DISCIPLINE FAILURE (the soak was contaminated).** A leftover capture script
+`/root/v28_wedgecap.sh` — started **13:28:47** by a *prior* session and never stopped — was still
+running. It fired on the WEDGE commit (14:08:46, "treating as a genuine stall"), ran
+`rmmod qcom_bam_dmux`, and forced a coredump. Consequences: (1) `qcom_bam_dmux` was **never
+reloaded**, so there was **no `wwan0`**, MM reported **no modem object**, and the traffic generator
+could not arm the event — the soak's data path was **dead ~2000 s**; (2) the pdet recorder kept
+running and logged a misleading quiet stretch. ⇒ **RULE (add to measurement discipline): before
+starting any soak, enumerate and stop prior-session capture scripts, and verify the soak is
+*arming* (data path up + traffic flowing), not merely "running".**
+
+**⚠ NEW OBSERVATION — `modprobe qcom_bam_dmux` hung after the forced crash.** With the modem up but
+the driver unloaded, `modprobe qcom_bam_dmux` produced **no dmesg and no module** and left the SSH
+session blocked **>3 min** (no `modprobe` process remained; `dmesg` unchanged). This is a *potential*
+reload-after-force-crash defect and is **UNTRIAGED** — it was not pursued because the device was
+recovered by reboot (the module autoloads cleanly at boot). Recorded for a future look; do not
+assume a clean `rmmod`/`modprobe` cycle is safe after a forced `echo 1 > crash`.
+
+**★ The wedge dump WAS captured** (`dump_devcd3_4526.bin`, 85 398 475 B) by `dumpwatch.sh` even
+though the devcoredump node read `disabled` at write time — a stock-firmware wedge, reinforcing
+§112.67's "the wedge is not an instrument artefact".
+
+**Recovery.** Soak ended (host collector killed; device `pdet.sh`/`v13_traffic.sh`/`dumpwatch.sh`
+stopped). **Mitigation restored** (`preemptive_ssr_enabled=1`, `a2_pin=1`, interval 800) and the
+device rebooted clean: uptime 49.8 s, `qcom_bam_dmux` loaded, `wwan0..7` up, MM `Modem/0` present.
+
+**Artifacts.** `scratch/pdet_end/{dmesg_full.txt,logread_full.txt,pdet.log,state.txt}`;
+`scratch/pdet_end/dumps/dump_devcd{1_2525,2_3449,3_4526}.bin` (md5 `f955dd13…`, `4e184ff1…`,
+`376c2023…`); `/root/v28_wedgecap.log`; `/root/dumps/watcher.log`.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| reproduce the race (fixed config) | another mixed pair | **YES** — FATAL, FATAL, WEDGE (n=6 total) |
+| 3 new dumps confirm the timer finding | timer after the event | **YES** — rem +21.7 / +11.6 s; absent at the wedge |
+| characterize the 900 s timer | armed once? | **YES** — per-restart one-shot, armed ~14–25 s post-recovery |
+| clean soak run | — | **NO** — contaminated by a leftover capture script (documented) |
+| restore the mitigation | — | **YES** — `preemptive_ssr=1` + `a2_pin=1`, rebooted, verified |
+
+**SOP.** Ground truth first (event times from the device's own `dmesg`; modem-up computed from the
+remoteproc "is now up" timestamps; the timer arm-time back-computed from `max(now)` and `rem`). No
+blind patch. One change at a time (reboot only after all evidence was pulled to the host). Honest
+about the contaminated soak and the untriaged `modprobe` hang. Mitigation restored per the standing
+device-state requirement.

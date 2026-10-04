@@ -179,25 +179,39 @@ traffic):**
 | A (= run 8) | 2524.496 | **900.385 s** | **FATAL** | `lte_ml1_sm_conn_inter_freq_stm.c:712` |
 | B (= P-DET 1) | 3446.703 | **900.838 s** | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
 | C (= P-DET 2) | data death ≈ 4352 | **≈903.7 s** | **WEDGE** | (none — data path died, no assert) |
+| D (triple 2, §112.69) | 2524.496 | **≈901 s** (after the 1623 restart) | **FATAL** | `lte_ml1_sm_conn_inter_freq_stm.c:712` |
+| E (triple 2, §112.69) | 3446.703 | **≈900 s** (after the 2546 recovery) | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
+| F (triple 2, §112.69) | 4523.871 | **≈900 s** (data death ≈4348; watchdog +175 s) | **WEDGE** | (none — `crash detected … type watchdog`) |
 
-**★★★★★ VERDICT — the manifestation is a RACE; H0 is FALSIFIED.** Under a **fixed** config, the SAME
-~900.6 s trigger produced **FATAL, FATAL, WEDGE** (n = 3). The timing is deterministic
-(900.4 / 900.8 / ≈903.7 s — spread **≈3.3 s**), but *whether the modem asserts or just goes quiet* is
-**not** determined by the config. This directly answers the user's hypothesis ("if it's a quiet failure
-it should always be a quiet failure"): **no — a quiet failure is not stable under a fixed config.**
+**★★★★★ VERDICT — the manifestation is a RACE; H0 is FALSIFIED (n = 6).** Under a **fixed** config, the
+SAME ~900.6 s trigger produced **FATAL, FATAL, WEDGE twice over** (two independent triples). The timing
+is deterministic (900.4 / 900.8 / ≈903.7 s — spread **≈3.3 s**), but *whether the modem asserts or just
+goes quiet* is **not** determined by the config. This directly answers the user's hypothesis ("if it's a
+quiet failure it should always be a quiet failure"): **no — a quiet failure is not stable under a fixed
+config.**
+
+★ **The mitigation's ON→OFF transition is visible in one boot (§112.69).** `msm_subsys: restarting` at
+**812.79 s and 1623.23 s** (Δ = 810.4 s ≈ the 800 s pre-emptive interval) held the event off across two
+cycles; after it was disabled, the first fatal landed at **2524.5 s = 1623.2 + 901.3 s** — the pre-emptive
+SSR holds the event off and removing it re-arms the clock to ≈900 s after the last restart.
 
 ★ **The victim also varies** (inter-freq SM vs sleepmgr) with the same config. So the ~900 s event is a
 single upstream trigger with **two independent random outcomes**: (1) which SM notices first, and
 (2) whether that SM asserts (FATAL) or the data path just dies (WEDGE).
 
-★ **Wedge on STOCK firmware** (event C) — the wedge is **not** an artefact of the diagnostic ring
+★ **Wedge on STOCK firmware** (events C and F) — the wedge is **not** an artefact of the diagnostic ring
 instruments (all 3 prior organic wedges were on v13/v28 firmware). The RF layer still reported a cell
 in the wedge telemetry (`Cell ID=4399665`, `PhysCell=406`, `EARFCN=2463`, `RSRP=-90 dBm`,
 `SNR=10.6 dB`) ⇒ "connected but the data path is dead", matching §112.71.
 
-⚠ **Caveat (restart class).** All 3 events are preceded by a **fatal-recovery** or **SSR** restart, not a
+⚠ **Caveat (restart class).** All events are preceded by a **fatal-recovery** or **SSR** restart, not a
 cold boot; the pre-registered "cold AP boot" was not enforced (the series is autonomous). Cold/warm is
 already falsified (§112.65), but the restart class remains a tracked variable.
+
+⚠⚠ **Soak contamination (§112.69).** A leftover capture script `/root/v28_wedgecap.sh` (started by a
+prior session, never stopped) fired on the wedge commit, `rmmod`'d `qcom_bam_dmux`, and forced a
+coredump; the driver was never reloaded ⇒ no `wwan0`, ModemManager blind, data path dead ~2000 s (a
+false-quiet stretch). The soak's `wwan0` stimulus was dead from event F onward.
 
 ---
 

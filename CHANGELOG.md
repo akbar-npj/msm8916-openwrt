@@ -11,7 +11,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### 2026-10-04 — QuRT timer pool: a new coredump instrument; the 900 s timer is NOT the ~900 s trigger
+### 2026-10-04 — P-DET continuation (n=6): the race reproduces; 3 new dumps re-confirm §112.68; a leftover capture script contaminated the soak
+
+- **Ledger §112.69** — the P-DET soak produced one more modem boot with three events under the
+  **same fixed observation config**: **FATAL** `lte_ml1_sm_conn_inter_freq_stm.c:712` @ modem-up ≈901 s,
+  **FATAL** `lte_ml1_sleepmgr_stm.c:4054` @ ≈900 s, **WEDGE** @ ≈900 s (data death; `crash detected …
+  type watchdog` +175 s). ⇒ **FATAL, FATAL, WEDGE again — the §112.67 RACE verdict is now n = 6.**
+- **★ The mitigation's ON→OFF transition is visible in one boot.** `msm_subsys: restarting` at
+  812.79 s and 1623.23 s (Δ = 810.4 s ≈ the 800 s pre-emptive interval) held the event off across two
+  cycles; after it was disabled the first fatal landed at **2524.5 s = 1623.2 + 901.3 s**.
+- **★★★★ 3 new coredumps re-confirm §112.68** (`scratch/pdet_end/dumps/`): the 900 s timer's remaining
+  is **+21.73 s** (sm_conn fatal) and **+11.55 s** (sleepmgr fatal) — i.e. it fires *after* the event —
+  and is **absent** from the wedge dump (already fired ≈4363 s, not re-armed). **★ NEW: the 900 s
+  timer is a per-restart one-shot**, armed ≈14–25 s after the preceding recovery.
+- **⚠⚠ Measurement-discipline failure.** A leftover capture script `/root/v28_wedgecap.sh` (started by
+  a prior session, never stopped) fired on the wedge commit, `rmmod`'d `qcom_bam_dmux`, and forced a
+  crash → the driver never re-initialized → no `wwan0`, MM blind, data path dead ~2000 s. New RULE:
+  stop prior-session capture scripts before a soak and verify the soak is *arming*, not merely running.
+- **⚠ New, untriaged:** `modprobe qcom_bam_dmux` **hung** (>3 min, no dmesg, no module) after the
+  forced crash — a possible reload-after-force-crash defect.
+- **Recovery:** soak ended; **mitigation restored** (`preemptive_ssr=1` + `a2_pin=1`, interval 800) and
+  the device rebooted clean (`wwan0..7` up, MM `Modem/0`).
+
+
 
 - **Ledger §112.68** — tasks #272/#273 ("enumerate boot-armed timers to name the ~900 s timer").
   The modem's timer API is the QuRT timer library (create `FUN_c0914b30`; arm-with-duration
