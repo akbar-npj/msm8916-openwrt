@@ -157,6 +157,31 @@ crash-recovery / Stage-3 SSR / explicit `msm_subsys restart`); (b) **activity** 
 time" loop silently becomes warm after the first wedge. The loop must force a **full AP reboot** (or at
 minimum record the actual boot type) before each event.
 
+**▶ SOAK LAUNCHED (2026-10-04 13:48 UTC).** The event fires at modem-up ≈900 s on **every** modem boot
+(with `preemptive_ssr=0` + traffic), and the modem auto-recovers (a fatal self-recovers; a wedge is
+recovered by the stall-watchdog Stage-3 SSR) — so the series runs **automatically** without a manual
+restart loop. Live instruments:
+- device `/root/pdet.sh` (recorder, `start-stop-daemon`, log `/root/pdet.log`) — logs every
+  `FATAL <sig>` (from `dmesg "fatal error received: <file>:<line>:"`), every `WEDGE` (stall-watchdog
+  `treating as a genuine stall`), and every modem restart, with the AP uptime;
+- device `/root/v13_traffic.sh` (continuous `ping -I wwan0 8.8.8.1`/s) — the §112.49 "activity arms the
+  event" regime;
+- host `scratch/pdet_collect.sh` → `scratch/pdet_collect.log` (mirrors the device log every 60 s; exits
+  at 10 events or 3.2 h).
+⚠ Boot type after a **fatal recovery** (a remoteproc crash-recovery, not an SSR) is a *third* restart
+class; record it, since cold/warm is already falsified (§112.65) but the restart mechanism is a tracked
+variable.
+
+**▶ P-DET live events (2026-10-04):**
+| event | restart class before it | modem-up at event | manifestation | signature |
+| :-- | :-- | :-- | :-- | :-- |
+| 1 | fatal-recovery (after run 8) | ≈922 s | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
+
+★ **Immediate live result:** run 8 (`lte_ml1_sm_conn_inter_freq_stm.c:712`) and P-DET event 1
+(`lte_ml1_sleepmgr_stm.c:4054`) are the **same config, back-to-back** — the **victim SM varies within a
+fixed config**, confirming §112.66's "variable victim" directly. (Both are FATAL, so this pair does not
+yet speak to the fatal-vs-wedge split.)
+
 ---
 
 ## 5. Achieved vs Expected
