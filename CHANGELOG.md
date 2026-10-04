@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — P-V31-EPILOGUE **CONFIRMED**: the CNF is EMITTED and LOST DOWNSTREAM (RFA→RFMGR transport)
+
+- **Ledger §112.78** — ran v31 (entry ring on `0xc1017818` **+ a counter at the return site
+  `0xc10179fc`**) with SSR disabled, to the ~900 s event.
+- **FATAL at AP 915.194888 s**, site `lte_ml1_common_timer.c:390`; MBA at AP 11.795971 s ⇒
+  **modem-up 903.399 s**. Dump `scratch/v31_run/dump_FATAL.bin` (85 398 475 B).
+- **H1 PASS** (marker `0x76323b01` + site_entry `0xc1017818`), **H2 PASS** (`seq_entry = 1428`,
+  `epilogue_count = 1428`).
+- **★ H3a — `epilogue_count == seq_entry` (diff 0):** every handler invocation **reached the CNF
+  post AND returned** ⇒ the handler ran to normal completion on the failing request too, and the CNF
+  (`0x60708aa`) was **emitted**. **H3b FALSIFIED** (no in-post block). ⇒ **the loss is DOWNSTREAM of
+  the raw handler, in the RFA→RFMGR completion transport** (RFMGR completion `0xc0315560` never ran).
+- **Corroboration:** RFMGR state 5 (SLEEP); SLEEPMGR state 9 (OFFLINE_WAKEUP); `ctx+0x104 = 0x4290203`.
+- **Residual (honest):** "returned" proves the handler completed; "posted" is inferred (single live
+  path, §112.75.1). Next instrument = the RFA-server reply path that hands `0x60708aa` to RFMGR.
+
 ### 2026-10-04 — v31 PRE-REGISTRATION (P-V31-EPILOGUE): does the handler RETURN after the CNF post?
 
 - **Ledger §112.77** — pre-registered **before** the run. v30 showed the handler reaches its CNF-post

@@ -18831,3 +18831,61 @@ Runner `scratch/v30_run.sh`-style; decoder `scratch/read_v31_ring.py`.
 
 **SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
 before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.78 — v31 RESULT: P-V31-EPILOGUE **CONFIRMED** — the CNF is EMITTED and LOST DOWNSTREAM (RFA→RFMGR transport)
+
+**Run.** Fresh AP boot; v31 firmware `modem.mdt` md5 `e91031ed535ce2b648e5fc6fedc048de` loaded
+(preflight confirms). Config `ssr_enabled=0`, `preemptive_ssr_enabled=0`, `coredump=enabled`; LTE
+attached. **FATAL** at AP **915.194888 s** (`qcom-q6v5-mss … fatal error received:
+lte_ml1_common_timer.c:390:`); MBA booted AP **11.795971 s** ⇒ **modem-up at fatal = 903.399 s**
+(the ~900 s clock). Dump `scratch/v31_run/dump_FATAL.bin`, 85 398 475 B.
+
+**Event signature (corroborated in the same dump).** RFMGR `0xc1e145a8` class `0xc1a8b9d0`
+**state = 5 (SLEEP)**; `ctx = memw(RFMGR+0x14) = 0xc216fd30`; **`ctx+0x104 = 0x4290203`**
+(WAKEUP_REQ pending); SLEEPMGR `0xc1e158d0` **state = 9 (OFFLINE_WAKEUP)**. Identical to v28/v30
+(only the `ctx` heap pointer differs per boot — `0xc216fd20` in v30 vs `0xc216fd30` here).
+
+**Decoded counters.** marker `0x76323b01` OK; `site_entry = 0xc1017818` OK;
+**`seq_entry = 1428`**; **`epilogue_count = 1428`**; **diff = 0**. Entry-ring caller histogram:
+`0xc10187a0` ×1428 (the RFA stub tail after `call 0xc1017818`), msg objects cycling
+`0xc310eb48/ecc8/ee48/f148`.
+
+**Scored.**
+
+| hypothesis | rule | result |
+|---|---|---|
+| **H1** instrument ran | marker + site_entry | **PASS** |
+| **H2** both probes ran | `seq_entry > 0` **and** `epilogue_count > 0` | **PASS** (1428 / 1428) |
+| **H3a** CNF emitted, lost in transport | `epilogue_count == seq_entry` | **CONFIRMED (diff 0)** |
+| **H3b** blocked inside the post | `epilogue_count == seq_entry − 1` | **FALSIFIED** |
+| **H3c** many entries didn't return | `epilogue_count ≪ seq_entry` | **not observed** |
+| **NEG** instrument didn't run | marker absent | **not observed** |
+
+**Conclusion.** On **every** one of the 1428 entries the raw RFA WAKEUP handler `0xc1017818` (a)
+reached its CNF-post block `0xc10179a8` (§112.76) **and** (b) returned through its single epilogue
+`0xc10179fc` (§112.78). ⇒ the handler ran to **normal completion** on the last (failing) request too,
+and the CNF (`0x60708aa`, WAKEUP_CNF) was **emitted** — but RFMGR's completion `0xc0315560` **never
+ran** (§112.74). **The loss is DOWNSTREAM of the raw handler: in the RFA→RFMGR completion transport
+(the RFA server's reply routing / the ML1 message delivery to RFMGR).** The per-carrier RF-script
+work and the handler's completion calls are both **cleared**.
+
+⚠ **Honest residual.** "Returned from the handler" proves the handler completed; "the CNF was posted"
+is inferred (the post is on the only live path per §112.75.1, and reaching `0xc10179a8` + returning
+leaves no other exit). It does **not** by itself prove the posted CNF was enqueued for delivery vs.
+dropped in the post call's tail — but §112.74's independent finding (RFMGR `+0x104 = 0x4290203`
+still pending, completion `0xc0315560` never ran) pins the loss to the delivery side. The next
+instrument is the **transport**: the RFA-server reply path that hands `0x60708aa` back to RFMGR.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| does the handler RETURN after the post at the event | yes/no | **YES** — 1428 / 1428 |
+| localise the loss | inside handler vs downstream | **DOWNSTREAM** (RFA→RFMGR transport) |
+| name the stopping resource | a resource | **NO — still OPEN** (now bounded to the completion transport) |
+
+**SOP.** Instrument hash + config recorded BEFORE the run (§112.77); hypotheses + decision rule fixed
+before the result; scored at cut, no re-tuning; event signature corroborated independently in the
+same dump; one change at a time; ledger + CHANGELOG + memory updated in the same session.
