@@ -19224,3 +19224,45 @@ state-20 watchdog) ⇒ next target = the MCPM/power-collapse latency, not the me
 issue cave reproduces the 3-word prologue incl. `allocframe(#0x8)`); one change at a time;
 pre-registered above **before** the run; ledger + CHANGELOG + memory updated in the same session.
 
+## §112.85 — v34 RESULT: H7a — the RF wakeup transport is HEALTHY in BOTH directions (2026-10-05)
+
+**Run.** `scratch/v34_run.sh`, SSR disabled, IDLE. **FATAL at AP 913.386908 s**, site
+**`lte_ml1_sm_conn_inter_freq_stm.c:712`** (task `ML1 MGR`, modem `uptime=0:15:00` = 900 s); devcd
+captured (`scratch/v34_run/dump_FATAL.bin`, 85 398 475 B). `read_v34_ring.py`:
+
+```
+comp_count  = 1647   (completion ENTERED,        site 0xc0315560)
+issue_count = 1647   (WAKEUP_REQ issue ENTERED,  site 0xc0315490)
+cb_count    = 1647   (callback RAN,              site 0xc039e570)
+```
+
+**Verdict (pre-registered §112.84): H7a.** `issue_count == comp_count` ⇒ **every issued WAKEUP_REQ
+completed** — there is **NO loss on the request hop**. `cb_count == comp_count` re-confirms v33's H6a.
+⇒ **the entire RF wakeup round trip is control-flow-healthy in BOTH directions**
+(issue → RFA handler → CNF → completion → tail → RF_WAKEUP_CNF → sleepmgr).
+
+**★★★ This FALSIFIES the §112.83-deduced "the fatal's WAKEUP_REQ is issued-but-never-completed".** That
+inference came from the pending field + `comp==seq`; the direct measurement says the counts are EQUAL.
+Lesson (again): measure, don't infer.
+
+**★★★★★ The run's fatal is a DIFFERENT VICTIM and it does NOT involve the RF path at all.** The event
+signature in this dump:
+* **RFMGR** obj `0xc1e145a8`: state **4 (TX_TUNED)**, `ctx+0x104 = 0x0` (**IDLE — no wakeup in
+  flight**), `ctx+0x1f0 = 0xc039e570` (callback registered), `ctx+0x12 = 0`.
+* **SLEEPMGR** obj `0xc1e158d0`: state **1 (ONLINE) — HEALTHY**.
+* Assert: `lte_ml1_sm_conn_inter_freq_stm.c:712` (ASSERT(0)) in task **ML1 MGR**.
+
+This matches §112.66's run 8 exactly. ⇒ the "RFMGR pending WAKEUP_REQ" + "sleepmgr state 9" signature
+seen at v33's fatal is **VICTIM-DEPENDENT**, not a universal feature of the ~900 s event: when the
+victim is `tmr_slave3` (`lte_ml1_common_timer.c:390`) the RFMGR happens to be mid-wakeup; when the
+victim is `ML1 MGR` (`…conn_inter_freq_stm.c:712`) the RFMGR is idle and the sleepmgr is healthy.
+
+**⇒ Reframing (the v26→v34 line closes).** The ~900 s event is an **upstream ML1/MCPM trigger with a
+VARIABLE victim** (§112.57.13/14/15, §112.66). The RF-wakeup / sleepmgr "stall" is a **symptom of one
+particular victim**, not the cause. Chasing the RF transport (v26–v34) was chasing a victim-dependent
+symptom. **The root cause remains the MCPM/power-collapse stall (§112.57.15) and is still OPEN.**
+
+**SOP.** Pre-registered before the run; scored at the cut; instrument control-flow-neutral; one change
+at a time. **Negative/closing result reported as such** — it does not identify the root cause; it
+removes the RF-wakeup transport from the candidate set and corrects a prior inference.
+

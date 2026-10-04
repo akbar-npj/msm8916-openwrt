@@ -11,6 +11,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — ★★★★★ v34 RESULT: H7a — the RF wakeup transport is HEALTHY in BOTH directions; the ~900 s event has a VARIABLE victim (ledger §112.85)
+
+- Ran v34 (`modem.mdt` `1908ec47…`), SSR off, IDLE. **FATAL at AP 913.386908 s**, site
+  **`lte_ml1_sm_conn_inter_freq_stm.c:712`** (task `ML1 MGR`); dump `scratch/v34_run/dump_FATAL.bin`.
+- **Raw:** `comp_count = issue_count = cb_count = 1647`.
+- **★ H7a CONFIRMED:** every issued WAKEUP_REQ completed — **NO loss on the request hop**. The whole
+  RF wakeup round trip (issue → RFA handler → CNF → completion → tail → RF_WAKEUP_CNF → sleepmgr) is
+  control-flow-healthy in BOTH directions. **FALSIFIES the §112.83-deduced "issued-but-never-completed"**
+  (measure, don't infer).
+- **★★★★★ This run's fatal does NOT involve the RF path:** RFMGR state 4 (TX_TUNED) with
+  `ctx+0x104 = 0` (**idle**), SLEEPMGR state 1 (**ONLINE, healthy**), assert in `ML1 MGR`.
+  ⇒ the "RFMGR pending + sleepmgr state 9" seen at v33's fatal is **VICTIM-DEPENDENT**, not universal.
+- **⇒ Reframing:** the ~900 s event is an **upstream ML1/MCPM trigger with a variable victim**
+  (§112.57.13/14/15, §112.66). The RF-wakeup/sleepmgr "stall" is a symptom of one victim, not the
+  cause. The v26→v34 RF-transport line **closes**. Root cause remains the **MCPM/power-collapse stall**
+  (§112.57.15) — still OPEN.
+- Device rolled back to stock (`1a6f9507…`); SSR mitigation re-enabled (1/1).
+
 ### 2026-10-05 — ★ v33 RESULT: RFMGR WAKEUP completion + RF_WAKEUP_CNF callback are HEALTHY (H5a+H6a, ledger §112.83)
 
 - Ran v33 (`modem.mdt` `9202ebd5…`), SSR off, IDLE. **FATAL at AP 914.180 s**,
