@@ -19183,3 +19183,44 @@ as such (no claim that this found the root cause).
 
 
 
+## §112.84 — v34 PRE-REGISTRATION (P-V34-ISSUE): is the fatal's WAKEUP_REQ LOST or just LATE? (2026-10-05)
+
+**Gap this closes.** v32/v33 closed the **CNF side** of the RFMGR WAKEUP round trip (RFA handler →
+RFMGR completion → sleepmgr all 1:1 healthy). The **request side** is untested: the STM dispatch of
+`0x4290203` WAKEUP_REQ to the RFMGR issue handler **`0xc0315490`** (which requires `ctx+0x104==0`,
+sets it to `0x4290203`, and `call 0xc02a5580`).
+
+At the ~900 s event `ctx+0x104` is still `0x4290203` (9/9 event dumps) while v32 shows
+`comp_count == seq_entry`. Two readings remain:
+* **LOSS** — the event's WAKEUP_REQ was issued but never reached the RFA handler `0xc1017818`, so no
+  CNF, no completion (one missing completion); or
+* **LATENCY/ordering** — every issued wakeup DID complete, and the pending field is simply a FRESH
+  in-flight request (< 50 ms old) when the state-20 watchdog fired.
+
+v34 adds an **ISSUE counter** at `0xc0315490` to the v33 image (the exit cave, whose H5a question v33
+already answered, is dropped to make sled room). Sites: comp `0xc0315560` (+ring), cb `0xc039e570`,
+issue `0xc0315490`. All caves in the proven NOP sled `0xc003054c..0xc0030600` (exactly 180 B).
+`modem.mdt` md5 **`1908ec475207f311a0681ba1f2284201`**; `verify_v34.py` **ALL CHECKS PASS**.
+
+SAVE AREA @`0xc1455000`: `+0x04 comp_count` · `+0x08 issue_count` · `+0x0c cb_count`.
+
+**Pre-registered decision rule (scored at the cut; no re-tuning):**
+
+| # | condition | verdict |
+|---|-----------|---------|
+| H1 | `comp_count>0 AND issue_count>0` | instrument ran |
+| H7a | `issue_count == comp_count` | every issued wakeup completed ⇒ the event pending is a FRESH in-flight request ⇒ the ~900 s fatal is **LATENCY/ordering**, NOT a lost request |
+| H7b | `issue_count == comp_count + 1` | exactly one issued wakeup never completed ⇒ **LOSS on the REQUEST hop** (issue → RFA handler) |
+| H7c | `issue_count > comp_count + 1` | multiple lost completions ⇒ a deeper stall |
+| NEG | all counters 0 | instrument did not run / save area not writable |
+
+**Interpretation map.** H7b ⇒ the ~900 s event breaks the RFMGR→RFA **request** delivery (the mirror
+of the v31 "lost CNF" claim, which v32 falsified on the CNF side) — next target = the `0xc02a5580`
+send path and the RFA server's dispatch of `0x60702aa`. H7a ⇒ the transport is healthy in BOTH
+directions and the fatal is a **timing** failure (the RF wakeup completing slower than the 50 ms
+state-20 watchdog) ⇒ next target = the MCPM/power-collapse latency, not the message transport.
+
+**SOP.** Instrument is control-flow-neutral (each cave reproduces the whole original packet; the
+issue cave reproduces the 3-word prologue incl. `allocframe(#0x8)`); one change at a time;
+pre-registered above **before** the run; ledger + CHANGELOG + memory updated in the same session.
+
