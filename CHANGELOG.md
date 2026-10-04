@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v32 v1 **BOOT-LOOPED the modem** (negative result): packet-boundary bug + v2 fix
+
+- **Ledger §112.80** — the v32 v1 instrument (`modem.mdt` md5 `9b5a47de…`) **boot-looped the modem**:
+  `lte_ml1_rfmgr_stm.c:3712` every ~11 s. Boot-loop coredump captured
+  (`scratch/v32_run/dump_BOOTLOOP.bin`); **rolled back to stock** (`1a6f9507…`), modem recovered.
+- **Root cause — a MID-PACKET continuation.** Both v32 sites are multi-instruction packets
+  (comp `0xc0315560` = 3 words; cnf `0xc03165cc` = 2 words), but v1 patched only the first word and
+  continued at `SITE+4` = **mid-packet**. The RFMGR `:3712` assert is a downstream symptom of the
+  WAKEUP completion never finishing. Same trap class as `feedback_patch_parse_bits.md`.
+- **v2 fix (built + offline-verified):** replace the first word with `{ jump cave }`, **reproduce the
+  whole packet in the cave** (comp keeps `{callr; r17=r1; memd; allocframe}` as ONE packet so
+  `allocframe` still saves the caller's r31), continue at the **true** boundaries
+  `0xc031556c`/`0xc03165d4`; `verify_v32.py` now **asserts packet boundaries** (v1's gap).
+- **v2 hash:** `modem.mdt` md5 **`76b4177e5279d2521767d9409b7fdf85`** (seg16/seg5 SHA-256 PASS; caves
+  172 B of the 180 B sled). Decision rule (§112.79) **unchanged**.
+
 ### 2026-10-04 — P-V31-EPILOGUE **CONFIRMED**: the CNF is EMITTED and LOST DOWNSTREAM (RFA→RFMGR transport)
 
 - **Ledger §112.78** — ran v31 (entry ring on `0xc1017818` **+ a counter at the return site

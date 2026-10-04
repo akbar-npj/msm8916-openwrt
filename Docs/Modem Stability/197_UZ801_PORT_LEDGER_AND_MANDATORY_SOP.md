@@ -18889,3 +18889,107 @@ instrument is the **transport**: the RFA-server reply path that hands `0x60708aa
 **SOP.** Instrument hash + config recorded BEFORE the run (§112.77); hypotheses + decision rule fixed
 before the result; scored at cut, no re-tuning; event signature corroborated independently in the
 same dump; one change at a time; ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.79 — v32 run PRE-REGISTRATION (P-V32-TRANSPORT): does the `0x60708aa` CNF REACH the RFMGR completion?
+
+**Question.** §112.78 proved the raw RFA WAKEUP handler `0xc1017818` runs and returns on every
+entry, so the CNF `0x60708aa` is *emitted* and lost **downstream**. **Where exactly?** Instrument the
+two ENDS of the RFA→RFMGR transport: the **send** side (the WAKEUP CNF builder) and the **recv** side
+(the RFMGR WAKEUP completion `0xc0315560`, which reads `ctx+0x104` and compares `0x4290203`).
+
+**Instrument (v32).** Three sites, all in b16:
+- **seq (baseline)** — `0xc10179fc` (the v31 epilogue site; the RFA handler return) → b16 tramp
+  `0xc1048644` → b05 cave `0xc003054c` (32 B): increment `SAVE+0x04`, then reproduce
+  `jump 0xc0837c38`.
+- **comp (recv)** — `0xc0315560` (RFMGR completion ENTRY; packet `{ call 0xc02d8e58 }`) → **direct
+  jump** (~3 MB, inside the 22-bit ±8 MB range) → b05 cave `0xc003056c` (84 B): increment
+  `SAVE+0x08`, log ring `{seq, caller=r31, ctx=r0, msg_obj=r1}`, then `r6=##0xc02d8e58; callr r6`,
+  then jump to `0xc0315564`.
+- **cnf (send)** — `0xc03165cc` (RFA CNF table `0xc1a8b940` idx 9 = the WAKEUP CNF builder; packet
+  `{ r0 = memub(gp+#0x2d1) }`) → **direct jump** → b05 cave `0xc00305c0` (36 B): increment
+  `SAVE+0x0c`, reproduce `r0 = memub(gp+#0x2d1)`, jump to `0xc03165d0`.
+
+**Save area.** header `0xc1455000` = `{ +0x00 marker 0x76323C01, +0x04 seq_entry, +0x08 comp_count,
++0x0c cnf_count, +0x10 site_seq 0xc10179fc, +0x14 site_comp 0xc0315560, +0x18 site_cnf 0xc03165cc }`;
+ring `0xc1d4c600`, 4096 × 16 B `{seq, caller, ctx, msg_obj}`.
+
+**Instrument hash.** `modem.mdt` md5 **`9b5a47de385b6b780bf674aee203f6b5`** (seg16/seg5 SHA-256
+re-verified PASS; sites `0xc10179fc`→`24c60658`, `0xc0315560`→`06d8a359`, `0xc03165cc`→`facfa359`;
+tramp `0xc1048644`; caves `0xc003054c`(32 B)/`0xc003056c`(84 B)/`0xc00305c0`(36 B)). Builder
+`scratch/diag_patch_v32/build_diag_patch_v32.py`; offline disasm verify
+`scratch/diag_patch_v32/verify_v32.py` (all three site→target decodes OK).
+
+**Run config.** `ssr_enabled=0`, `preemptive_ssr_enabled=0`, `coredump=enabled`; LTE attached.
+Runner `scratch/v32_run.sh`; decoder `scratch/read_v32_ring.py`.
+
+**Hypotheses.**
+- **H1 (instrument ran):** marker `0x76323C01` @`0xc1455000` **and** site_seq `0xc10179fc` @`0xc1455010`.
+- **H2 (probes ran):** `seq_entry` > 0 **and** `comp_count` > 0.
+- **H3 (localise the loss), decision rule (fixed):**
+  - **(a)** `comp_count == seq_entry` ⇒ the RFMGR completion ran for the failing wakeup too ⇒ the
+    loss is **INSIDE/AFTER the completion** (state-check bail / callback), not in delivery.
+  - **(b)** `comp_count == seq_entry − 1` ⇒ the last CNF **never reached** the completion ⇒ lost in
+    the **RFA→RFMGR delivery** (queue/dispatch).
+  - **(c)** `comp_count ≪ seq_entry` ⇒ many completions missing (unexpected; report).
+- **Send side (secondary):** `cnf_count == seq_entry` ⇒ the CNF is built on every wakeup (send side
+  healthy); `cnf_count == seq_entry − 1` ⇒ the CNF build is skipped for the last one; `cnf_count == 0`
+  ⇒ `0xc03165cc` is not on the wakeup path (report; would force a re-scope of the send probe).
+- **NEG:** marker absent ⇒ the instrument did not run / the save area is not writable.
+
+**Scored at cut** (no re-tuning): H1, H2, H3a/H3b/H3c, the send-side comparison, NEG. Deliverable:
+whether the CNF reaches the completion (delivery loss) or the completion itself bails (in-completion
+loss); ledger + memory.
+
+**SOP.** Instrument hash + config recorded BEFORE the run; hypotheses and the decision rule fixed
+before the result; one change at a time; ledger + CHANGELOG + memory updated in the same session.
+
+## §112.80 — v32 v1 **BOOT-LOOPED the modem** (negative result): the packet-boundary bug, and the v2 fix
+
+**Outcome.** The v32 v1 instrument (`modem.mdt` md5 `9b5a47de…`) did **not** produce a result: the
+modem **boot-looped** on every boot — `qcom-q6v5-mss 4080000.remoteproc: fatal error received:
+lte_ml1_rfmgr_stm.c:3712:` every ~11 s, with repeated `MBA booted … loading mpss`. A boot-loop
+coredump was captured (`scratch/v32_run/dump_BOOTLOOP.bin`, 85 398 475 B), then the device was
+**rolled back to stock** (`scratch/deploy_v32_ring.py --rollback` → md5 `1a6f9507…`) and rebooted; the
+modem recovered (`state=running`, `fatal error received` count = 0).
+
+**Root cause — a MID-PACKET continuation (NOT the assert site itself).** Hexagon groups instructions
+into **packets**; a jump target must be a packet boundary. v1 patched only the **first 4-byte word**
+of each site and had the cave continue at `SITE+4` — but **both** sites are multi-instruction packets:
+
+| site | packet (llvm-objdump) | next TRUE boundary | v1 used |
+|---|---|---|---|
+| comp `0xc0315560` | `{ call 0xc02d8e58; r17 = r1; memd(r29+#-0x10)=r17:16; allocframe(#0x20) }` (3 words) | `0xc031556c` | `0xc0315564` ✗ |
+| cnf  `0xc03165cc` | `{ r0 = memub(gp+#0x2d1); if (cmp.eq(r0.new,#0x1)) jump:t 0xc03165ec }` (2 words) | `0xc03165d4` | `0xc03165d0` ✗ |
+
+So the cave returned to the **middle** of the original packet. `lte_ml1_rfmgr_stm.c:3712` is the RFMGR
+state-machine assert that fires because the WAKEUP completion `0xc0315560` never completed — i.e. the
+reported assert is a **downstream symptom** of the broken jump, not the fault itself. (This is the
+**same trap class** as `feedback_patch_parse_bits.md`: a standalone 4-byte patch must cover a whole
+packet, and the continuation must be a packet boundary. v1's `verify_v32.py` checked only that the
+jump *target* decoded — it did **not** check packet boundaries, so it passed a broken image.)
+
+**The v2 fix (built, offline-verified).** Replace only the first word with `{ jump cave }` (a
+single-instruction packet), **reproduce the whole original packet inside the cave**, and continue at
+the **true** boundary:
+- **comp cave** now reproduces `{ callr r6; r17 = r1; memd(r29+#-0x10)=r17:16; allocframe(#0x20) }`
+  as **one packet** (llvm-mc round-trip confirmed) — so `allocframe` still reads the **pre-packet
+  r31** (the caller's return), exactly as the original `{ call; …; allocframe }` does — then jumps to
+  `0xc031556c`.
+- **cnf cave** reproduces `r0 = memub(gp+#0x2d1)` + the conditional jump to `0xc03165ec` (default
+  continuation `0xc03165d4`), then jumps.
+- `verify_v32.py` now carries a **packet-boundary assertion**: each continuation VA must start a
+  packet in the stock flat disassembly (line contains `{`). All three (`0xc031556c`, `0xc03165d4`,
+  `0xc03165ec`) **PASS**.
+
+**v2 instrument hash.** `modem.mdt` md5 **`76b4177e5279d2521767d9409b7fdf85`** (seg16/seg5 SHA-256
+re-verified PASS; sites `0xc10179fc`→`24c60658`, `0xc0315560`→`06d8a359`, `0xc03165cc`→`fecfa359`;
+caves `0xc003054c`(32 B)/`0xc003056c`(92 B)/`0xc00305c8`(48 B), total 172 B of the 180 B sled). The
+**decision rule (§112.79) is UNCHANGED**; only the continuation addresses and the cave bodies were
+corrected. Register safety re-checked: comp = function entry (r6,r8-r11 volatile/dead); cnf = mid-
+function but `0xc03165cc..0xc03166e0` uses **no** r8-r11.
+
+**SOP.** Boot-loop captured + root-caused + rolled back **before** any rebuild; the negative result is
+recorded (not hidden); the verifier gap that let v1 pass is **closed** (boundary assertion); one
+change at a time; ledger + CHANGELOG + memory updated in the same session.
