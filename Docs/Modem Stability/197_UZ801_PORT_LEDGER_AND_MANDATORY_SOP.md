@@ -18132,3 +18132,117 @@ remoteproc "is now up" timestamps; the timer arm-time back-computed from `max(no
 blind patch. One change at a time (reboot only after all evidence was pulled to the host). Honest
 about the contaminated soak and the untriaged `modprobe` hang. Mitigation restored per the standing
 device-state requirement.
+
+---
+
+## §112.70 — Task #277: the RF confirmation stall is a STUCK RFMGR wakeup transaction (2026-10-04)
+
+**Goal (task #277).** Root-cause *why* the RF sleep/wake confirmation stops at ~900 s. Prior state:
+v26 (egress), v27 (ingress) and v28 (RF-CNF emission) agree that the sleepmgr's final cycle arms its
+sleep timer without the preceding `RF_WAKEUP_CNF`; the missing confirmation is the OFFLINE wakeup.
+§112.68 falsified the QuRT-timer hypothesis. This section names the entity, the state and the code
+path, and **falsifies the "RFMGR state is the discriminator" hypothesis**.
+
+**★ The "RF driver" is the `LTE_ML1_RFMGR` STM.** Class `0xc1a8b9d0` (name str `0xc1a8ba0c` =
+`"LTE_ML1_RFMGR_STM"`), live BSS singleton **`0xc1e145a8`** (state @`+0x04`; context pointer
+@`+0x14`). 8-state table `0xc1a8ba20` (`{name, entry, f2, f3}`):
+
+| # | state | entry | f2 |
+|---|---|---|---|
+| 0 | INACTIVE | `0xc0313ae0` | `0xc0313b80` |
+| 1 | ACTIVE | `0xc0313bd0` | `0xc0313c30` |
+| 2 | RX_TUNED | `0xc0314bc0` | `0xc0314bd0` |
+| 3 | TUNING | `0xc0314ba0` | `0xc0314bb0` |
+| 4 | TX_TUNED | `0xc0314be0` | `0xc0314bf0` |
+| 5 | SLEEP | `0xc0315220` | `0xc0315290` |
+| 6 | SCRIPT_EXEC | `0xc03157e0` | `0xc03157f0` |
+| 7 | SCRIPT_BUILD | `0xc0315800` | `0xc0315810` |
+
+Message interface (registry `0xc1a8baa0`): `0x4290200` START_REQ · `0x4290201` TUNE_REQ ·
+`0x4290202` SLEEP_REQ · **`0x4290203` WAKEUP_REQ** · `0x4290204` STOP_REQ · `0x4290205`
+SEND_TUNE_SCRIPT_REQ · `0x4290206` BUILD_SCRIPT_REQ.
+
+**★★★★ FALSIFIED — the RFMGR state is NOT a FATAL/WEDGE discriminator.** Reader
+`scratch/rfmgr_dump.py <dump>`. Across the corpus the FATAL state is BOTH 4 (TX_TUNED) and 5
+(SLEEP); the WEDGE state is 5 (3/3). n = 13 events:
+
+| dump | manifest | faulting task | RFMGR state | ctx+0x104 |
+|---|---|---|---|---|
+| v24 devcd1_916 | FATAL | tmr_slave3 | 5 SLEEP | `0x4290203` |
+| pdet devcd1_2525 | FATAL | ML1 | 4 TX_TUNED | `0x0` |
+| pdet devcd2_3449 | FATAL | slpc | 4 TX_TUNED | `0x4290202` |
+| pdet devcd3_4526 | WEDGE | — | 5 SLEEP | `0x4290203` |
+| v13 wedge | WEDGE | — | 5 SLEEP | `0x4290203` |
+| v13run2 fatal | FATAL | slpc | 4 TX_TUNED | `0x4290202` |
+| v14 fatal | FATAL | ML1 | 5 SLEEP | `0x4290203` |
+| v26 fatal | FATAL | tmr_slave3 | 5 SLEEP | `0x4290203` |
+| v27 fatal | FATAL | tmr_slave3 | 5 SLEEP | `0x4290203` |
+| v28 903 | FATAL | tmr_slave3 | 5 SLEEP | `0x4290203` |
+| v28 905 | FATAL | tmr_slave3 | 5 SLEEP | `0x4290203` |
+| wedge 8357 | WEDGE | — | 5 SLEEP | `0x4290203` |
+| mcpm 901 | FATAL | ML1 | 4 TX_TUNED | `0x0` |
+
+⇒ the "FATAL = TX_TUNED / WEDGE = SLEEP" idea is **WRONG**. (The *sleepmgr* state
+`0xc1e158d0+0x04` = 9 fatal / 4 wedge remains the clean discriminator — v28.)
+
+**★★★★★ NEW — the event signature is a STUCK WAKEUP TRANSACTION.** The RFMGR context
+(`obj+0x14`) carries the in-flight request at **`ctx+0x104`**: `0` = idle, `0x4290202` = SLEEP_REQ
+in flight, `0x4290203` = WAKEUP_REQ in flight. Control (non-event, on-demand captures):
+
+| RFMGR state | `ctx+0x104` | dumps |
+|---|---|---|
+| 5 SLEEP | **`0x0`** | a2pin 872, a2pin 3125, cancel_ring 1536, nat304 304, nat589 590 (5/5) |
+| 4 TX_TUNED | `0x0` | crashloop r2 ×4, nat589 old_devcd3 |
+| 4 TX_TUNED | `0x4290202` | sched1 7362, wedge_run 3334 |
+| 2 RX_TUNED | `0x4290202` | v28 up32, v28 v2 up34 |
+| 2 RX_TUNED | `0x0` | v26 boot32 |
+| 0 INACTIVE | `0x0` | a2pin 13985/1743, cancel_ring 2057, v13 25, v13 fixed_boot, v20 devcd1, v24 328 |
+
+**Every event dump in SLEEP shows `ctx+0x104 = 0x4290203` (9/9); every non-event dump in SLEEP
+shows `0x0` (5/5)** (Fisher exact p ≈ 5×10⁻⁴). ⇒ at the event the RFMGR is parked in SLEEP holding
+an **unserviced WAKEUP_REQ**. (The 4 state-4 events are an ambiguous phase — `0x0` or `0x4290202`,
+both also seen in non-event dumps.)
+
+**★★★★ The code path (why the confirmation stops).** Two mirror issue/completion pairs (all in the
+`0xc0313xxx`–`0xc0315xxx` RFMGR range):
+
+- **WAKEUP** — issue `0xc0315490`: requires `ctx+0x104==0` (else assert path `call 0xc0879150`),
+  sets `memw(ctx+0x104)=0x4290203` (`0xc03154b8..0xc03154c4`), then `call 0xc02a5580`. Completion
+  `0xc0315560`: requires `ctx+0x104==0x4290203`, emits the callback payload
+  `{memb(+0x14)=3; memw(+0x10)=0x4290203}` via `callr memw(ctx+0x1f0)`
+  (`0xc03155e4..0xc03155f4`), then **clears `memw(ctx+0x104)=0`** (`0xc03155fc..0xc0315608`).
+- **SLEEP** — issue `0xc03152f0` (in the SLEEP state entry `0xc0315220`): requires
+  `ctx+0x104==0`, sets `memw(ctx+0x104)=0x4290202` (`0xc0315310..0xc0315320`), `call 0xc02a5580`.
+  Completion (checks `ctx+0x104 ∈ {0x4290202, 0x4290204}` @`0xc0315004`): emits `RF_SLEEP_CNF` via
+  `callr memw(ctx+0x1b8)` (`0xc0315420..0xc0315438`).
+
+At the event the WAKEUP completion never reaches its clear ⇒ **the wakeup request is issued but its
+completion never runs.** The completion callback slots are **registered (non-zero)** in every event
+dump (`ctx+0x1b8 = 0xc03a0b40` SLEEP_CNF stub, `ctx+0x1f0 = 0xc039e570` WAKEUP_CNF stub) ⇒ this is
+**not** a missing-callback bug; the **asynchronous RF completion event itself** does not arrive.
+This supports the task's "hardware/resource, not a software timer" hypothesis: the stall is on the
+RF transaction's **completion side**, downstream of the ML1 timer layer.
+
+**⚠ Caveat.** The fatal is triggered by the state-20 50 ms watchdog *after* the sleepmgr issues its
+WAKEUP_REQ, so at a FATAL "pending = WAKEUP_REQ" is partly expected. The **wedge** is the
+load-bearing case: it is captured ~145 s after the data death and STILL holds `pending = 0x4290203`
+(3/3) ⇒ the transaction is genuinely stuck, not mid-flight. **The root of the missing completion
+(which hardware/script event is awaited, and why it stops) remains OPEN.**
+
+**Artifacts.** `scratch/rfmgr_dump.py` (reader: state + `obj+0x14` context + `ctx+0x104` + the two
+callback slots); `scratch/disasm_at.py` / `scratch/dump_va.py` for the static path.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| name the RF entity | a named SM | **YES** — `LTE_ML1_RFMGR_STM`, obj `0xc1e145a8` |
+| test "FATAL=TX_TUNED / WEDGE=SLEEP" | a discriminator | **NO — FALSIFIED** (fatal ∈ {4,5}) |
+| find the stall signature | a pending request? | **YES** — SLEEP + `pending=0x4290203`, 9/9 vs 5/5 |
+| test hardware/resource vs timer | — | **SUPPORTED** — callback registered, never fires |
+| name why the completion stops | a mechanism | **PARTIAL** — completion side named; root OPEN |
+
+**SOP.** Ground truth first (state/context read from the dumps, never guessed; the class/state/
+message map verified in the stock ELF). No firmware write this session (read-only RE + coredump
+analysis). One change at a time (no device change). Honest about the fatal/wedge capture asymmetry
+and the still-open root. Ledger + CHANGELOG + memory updated in the same session.

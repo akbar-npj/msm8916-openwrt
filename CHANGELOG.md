@@ -11,6 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — Task #277: the RF confirmation stall is a stuck RFMGR wakeup transaction
+
+- **Ledger §112.70** — named the RF entity and the stall signature.
+- **★ The "RF driver" is the `LTE_ML1_RFMGR` STM** (class `0xc1a8b9d0`, obj `0xc1e145a8`, 8 states
+  INACTIVE/ACTIVE/RX_TUNED/TUNING/TX_TUNED/SLEEP/SCRIPT_EXEC/SCRIPT_BUILD; msgs `0x4290200..06`).
+- **★★★★ FALSIFIED:** the RFMGR state is NOT a FATAL/WEDGE discriminator — the FATAL state is BOTH
+  4 (TX_TUNED) and 5 (SLEEP); the WEDGE state is 5 (3/3). (The *sleepmgr* state 9/4 remains the clean
+  discriminator.)
+- **★★★★★ NEW signature:** the RFMGR context field `ctx+0x104` holds the in-flight request
+  (`0x4290202` SLEEP / `0x4290203` WAKEUP). **Every event dump in SLEEP has `0x4290203` (9/9);
+  every non-event dump in SLEEP has `0x0` (5/5)** (Fisher p ≈ 5×10⁻⁴) ⇒ the RFMGR is stuck in SLEEP
+  holding an unserviced WAKEUP_REQ.
+- **★★★★ Code path:** an issue/completion pair per request (WAKEUP issue `0xc0315490` / completion
+  `0xc0315560`; SLEEP issue `0xc03152f0` / completion @`0xc0315420`). The completion emits the CNF
+  and clears `ctx+0x104`; at the event it never runs. The callback slots (`ctx+0x1b8`/`ctx+0x1f0`)
+  are **registered (non-zero)** ⇒ **not** a missing-callback bug — the **async RF completion event
+  itself** does not arrive (supports hardware/resource, not a software timer). Root remains OPEN.
+- **Artifacts:** `scratch/rfmgr_dump.py` (reader).
+
 ### 2026-10-04 — P-DET continuation (n=6): the race reproduces; 3 new dumps re-confirm §112.68; a leftover capture script contaminated the soak
 
 - **Ledger §112.69** — the P-DET soak produced one more modem boot with three events under the
