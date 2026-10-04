@@ -18744,10 +18744,10 @@ from 0 in BSS).
   the recorded end — identical in shape to the v29 run.
 
 **Corroboration in the same dump.** **RFMGR state = 5 (SLEEP)**; **SLEEPMGR state = 9
-(OFFLINE_WAKEUP)**; and the **WAKEUP_REQ word `0x4290203` is present at `0xc1e14530`** (with the
-companion `0x4290202` SLEEP at `0xc1e1452c`) — the §112.65/66/70 event signature. ⚠ The ledger's
-prior phrasing "`ctx+0x104`" put the word at a different address; the **value** is the invariant, the
-exact offset note is corrected here (`0xc1e14530`).
+(OFFLINE_WAKEUP)**; and the **in-flight request field is set**: `ctx = memw(RFMGR+0x14) =
+0xc216fd20`, and `ctx+0x104 = 0xc216fe24 = 0x04290203 = 0x4290203` (**WAKEUP_REQ in flight**) — the
+§112.65/66/70 event signature, exactly as recorded. (A separate copy of the request word pair
+`0x4290202`/`0x4290203` also sits at `0xc1e1452c`/`0xc1e14530`.)
 
 **Interpretation.** The raw WAKEUP handler **runs** (v29: entered 1162×/1234×) **and reaches its
 CNF-completion block on every invocation** (v30), yet the RFMGR's completion handler `0xc0315560`
