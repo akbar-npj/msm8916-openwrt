@@ -17943,3 +17943,90 @@ estimate the **rate** (and to look for a config that pins the outcome).
 modem-up computed from the remoteproc "is now up" timestamps). No blind patch. One change at a time.
 Honest about the restart-class caveat and the interim n. Device left in the **observation config**
 (`preemptive_ssr=0`) for the ongoing soak — restore `=1` to re-enable the mitigation.
+
+---
+
+## §112.68 — The QuRT timer pool: a NEW coredump instrument, and the 900 s timer is NOT the ~900 s trigger (2026-10-04)
+
+**Motivation.** Tasks #272/#273 ("enumerate boot-armed timers to name the ~900 s timer"). The
+working hypothesis was a boot-armed ~900 s software timer. The modem's timer API is the **QuRT
+timer library** — the ML1 arm wrapper `FUN_c02d7b80` calls `thunk_FUN_c0b61cc0(obj, arg, &UNK_c02d7bd0, obj)`
+→ `FUN_c0914b20` → `FUN_c0914b30` (create/register), and `FUN_c0b61cd0` → `FUN_c0914dc0` →
+`FUN_c0914e10` (arm with a 64-bit duration). `FUN_c0914dc0` scales by `0x24a` = 586 ≈ 19.2 MHz / 32768 Hz.
+
+**★ The timer object pool is in BSS and is coredump-readable.** `FUN_c0915020` resolves a handle to
+`&DAT_c2cd4de0 + (idx & 0xffff) * 0x90`, 256 entries (idx 0..0xff). Field map (verified against
+`FUN_c0914e10`/`FUN_c0915020` and raw dumps):
+
+| off | meaning |
+|---|---|
+| +0x00 | 0 |
+| +0x0c | default ptr `c361a3f0` |
+| **+0x1c** | **callback fn ptr** (ML1 = `c02d7bd0`) |
+| +0x24 | owner2 (+0x88 for ML1) |
+| +0x2c | class `c1d49bf0` (QuRT timer class) |
+| **+0x30** | **absolute expiry (u64, ticks)** |
+| **+0x40** | **arm-time snapshot (u64, ticks)** |
+| **+0x50** | **duration (u32, ms)** |
+| +0x58 | duration (u64, ticks) |
+| +0x60 | interval (u32, ms) |
+| +0x70 | type (2 = one-shot, 3 = periodic) |
+| +0x78/+0x7c | list prev/next |
+| +0x80 | list root |
+| +0x84 | magic `0xcacacac` |
+| +0x88 | owner (back-ptr) |
+
+**Unit resolution (exact, all 57 entries of the run-8 dump):** `expiry − arm_now = dur_ms × 19200`
+⇒ **the duration field is in ms and the tick clock is 19.2 MHz.**
+
+**★ `max(+0x40)` = the modem uptime.** Verified against the dump filenames: 917.4 s (`*_916`),
+1536.0 s (`*_1536`), 13986.1 s (`*_13985`), 13518.5 s (`*_13518`), 302.4 s (`*_304`). The pool thus
+gives both a reliable uptime and a **full live-timer census** from any coredump.
+
+**★ The ML1 timers are directly visible.** Timers whose callback is `c02d7bd0` have durations
+50/100/330/430/530/630/1000/5000 ms and are re-armed continuously; at the fatal the expiring timers
+are the **50 ms** (state-20 watchdog) and **100 ms** ones — consistent with §112.48/§112.46.
+
+**★ A 900,000 ms (900 s) timer exists — but it is NOT the trigger.** It is dynamically allocated
+(random pool index, random owner; present in ~19/31 dumps), callback `d051e254`, and armed at
+**~30–41 s** (≈ the attach time). In every **boot-anchored** dump (tick clock starts at 0; see below)
+its **remaining is +16…+27 s ⇒ it fires ~20 s AFTER the fatal**:
+
+| dump | uptime (max now) | 900 s timer idx | arm (s) | fires (s) | rem at fatal |
+|---|---|---|---|---|---|
+| v27_run/fatal_916 | 916.1 | 217 | 41.3 | 941.3 | +25.2 |
+| v26_run/fatal_916 | 916.9 | 34 | 44.3 | 944.3 | +27.4 |
+| v14_run/fatal | 918.5 | 41 | 42.7 | 942.7 | +24.2 |
+| v13_run2/fatal | 915.5 | 180 | 32.1 | 932.1 | +16.5 |
+| v28_run/fatal_903 | 3244.1 (warm) | 104 | 2354.5 | 3254.5 | +9.9 |
+
+**★ Falsification.** No timer in the pool has an expiry at ~900 s; the only expiries at the fatal are
+the small ML1 timers. ⇒ **the ~900 s boot-anchored trigger is NOT a QuRT software timer.** Redirect to
+a non-QuRT source (hardware / RPM / MCPM timer) or a counter/resource.
+
+**The `900000` constant** is the default of an **IMS `PDPRATHandlerVoLTE.cpp`** config initializer
+(3 sites at `0xc12553a8`/`0xc125d314`/`0xc125fea4`, alongside 30 s / 60 s / 600 s / 5 s / 10.8 s
+defaults). The 900 s timer's callback `d051e254` (shared with the 18 h timer) is **outside the ELF
+segments** (`0xc0000000..0xc51c0000`) — a second image / not statically resolvable here.
+
+**⚠ Tick clock caveat.** On a cold boot the tick clock starts at 0 (`max(now) ≈ uptime`). It
+**PERSISTS across an SSR**: `mcpm_run/dump_fatal_901` has `max(now) = 2526.2 s` at ATS uptime ≈ 900 s
+⇒ "900 s" is an **ATS-uptime** figure, not tick-uptime.
+
+**Artifacts.** `scratch/timer_pool.py`, `scratch/timer_analyze.py`, `scratch/timer_obj.py`,
+`scratch/elfstr.py`, `scratch/timer_const_scan.py`, `scratch/timer_imm_scan.py`,
+`scratch/timer_round_scan.py` (+ `.out`).
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| locate the modem timer subsystem | arm + expiry dispatch | **YES** — QuRT timer lib (`FUN_c0914b30`/`FUN_c0914e10`), pool `DAT_c2cd4de0` |
+| static search for the ~900 s constant | candidate sites | **YES** — 3× `0xdbba0` (all IMS config defaults); other round-second candidates rejected as thresholds/magic |
+| name the ~900 s timer | the trigger | **NO** — a 900 s timer exists but fires ~20 s *after* the fatal |
+| is the trigger a QuRT timer? | — | **NO (falsified)** — no pool expiry at ~900 s |
+
+**SOP.** Ground truth first (field map derived from the decompiled arm/dispatch functions, then
+verified against 4 raw dumps; the ms/19.2 MHz unit was proven exactly, not assumed). No blind patch;
+no device change this session. Honest about the negative result and the callback-resolution limit.
+Device untouched (P-DET soak still running in the observation config).

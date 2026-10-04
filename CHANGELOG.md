@@ -11,6 +11,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — QuRT timer pool: a new coredump instrument; the 900 s timer is NOT the ~900 s trigger
+
+- **Ledger §112.68** — tasks #272/#273 ("enumerate boot-armed timers to name the ~900 s timer").
+  The modem's timer API is the QuRT timer library (create `FUN_c0914b30`; arm-with-duration
+  `FUN_c0914e10`; `FUN_c0914dc0` scales by `0x24a`=586 ≈ 19.2 MHz/32768 Hz).
+- **★ New instrument — the timer object pool.** `FUN_c0915020` resolves a handle to
+  `&DAT_c2cd4de0 + idx*0x90`, 256 entries, in **BSS ⇒ readable from any coredump**. Field map
+  (+0x1c callback, +0x30 expiry, +0x40 arm-time, +0x50 duration, +0x84 magic `0xcacacac`, +0x88
+  owner). **Units proven exactly** (`expiry − arm = dur_ms × 19200` for all 57 entries): duration in
+  ms, tick clock 19.2 MHz. Tools `scratch/timer_pool.py`, `timer_analyze.py`, `timer_obj.py`.
+- **★ `max(+0x40)` = the modem uptime** (verified vs dump filenames 917.4/1536.0/13986.1/13518.5/302.4 s)
+  ⇒ the pool gives a reliable uptime + a full live-timer census from any coredump.
+- **★ The ML1 timers are directly visible** (callback `c02d7bd0`): 50/100/330/430/530/630/1000/5000 ms,
+  re-armed continuously; at the fatal the expiring ones are the 50 ms (state-20 watchdog) + 100 ms.
+- **★★★★★ NEGATIVE: the ~900 s trigger is NOT a QuRT software timer.** A 900,000 ms (900 s) timer
+  *does* exist (callback `d051e254`, dynamically allocated, ~19/31 dumps) but it is armed at ~30–41 s
+  (≈ attach) and in every boot-anchored dump its **remaining is +16…+27 s ⇒ it fires ~20 s AFTER the
+  fatal**. No pool timer has an expiry at ~900 s. ⇒ redirect to a non-QuRT source (hardware / RPM /
+  MCPM timer) or a counter/resource.
+- The `900000` constant is an **IMS `PDPRATHandlerVoLTE.cpp`** config default (3 sites, with 30 s/60 s/
+  600 s/5 s neighbours); the 900 s timer's callback `d051e254` is outside the ELF segments.
+- ⚠ Tick clock: reset on cold boot, **persists across an SSR** (`mcpm_run/fatal_901` `max(now)`=2526 s
+  at ATS uptime ≈900 s) ⇒ "900 s" is an ATS-uptime figure.
+
 ### 2026-10-04 — P-DET RESULT: the ~900 s manifestation is a RACE (fixed config → FATAL, FATAL, WEDGE)
 
 - **Ledger §112.67 / Doc 245 §4** — the pre-registered determinism test (P-DET) ran autonomously:
