@@ -17877,3 +17877,69 @@ fatal at 2525) — the "no precursor" claim is bounded by that coverage.
 **SOP.** Ground truth first (signature + messages read from the coredump's own assert-DB and sleepmgr
 object; no source assumed). No blind patch. One change at a time. Honest about the unresolved branch
 and the n = 1. Steady state restored (`preemptive_ssr_enabled=1`).
+
+---
+
+## §112.67 — P-DET RESULT: the ~900 s manifestation is a RACE (fixed config → FATAL, FATAL, WEDGE); determinism FALSIFIED
+
+**Context.** Doc 245 §4 pre-registered **P-DET**: with a **fixed** config (stock baseband
+`1a6f9507…`, `preemptive_ssr=0`, `a2_pin=1`, continuous traffic), run N events and record each
+manifestation. H0 = deterministic (10:0 / 0:10); H1 = race (mixed); H0 is falsified by a single mixed
+pair. The event fires at modem-up ≈900 s on **every** modem boot, and the modem auto-recovers (a fatal
+self-recovers via a remoteproc crash-recovery; a wedge is recovered by the stall-watchdog Stage-3 SSR),
+so the series runs **autonomously** — no manual restart loop. Instruments: device `/root/pdet.sh`
+(recorder → `/root/pdet.log`) + `/root/v13_traffic.sh`; host `scratch/pdet_collect.sh` →
+`scratch/pdet_collect.log`.
+
+**★★★★★ RESULT — H0 FALSIFIED (n = 3).** Under the fixed config, three consecutive events split:
+
+| event | modem-up at event | manifestation | victim |
+|---|---|---|---|
+| A (= Doc 245 run 8) | **900.385 s** | **FATAL** | `lte_ml1_sm_conn_inter_freq_stm.c:712` |
+| B | **900.838 s** | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
+| C | **≈903.7 s** | **WEDGE** | (none — data path died, no assert) |
+
+The **timing is deterministic** (900.4 / 900.8 / ≈903.7 s, spread ≈3.3 s) but the **manifestation is
+not**: the same trigger gave two FATALs and one WEDGE. ⇒ the answer to the standing hypothesis "if it's
+a quiet failure it should always be a quiet failure" is **NO** — a quiet failure is **not** a stable
+property of a fixed config; it is a **race**. (This is the first *clean, single-config, n>1* falsification;
+the historical track record's same-config pairs were confounded by differing fw/boot labels.)
+
+**★★★★ The VICTIM is a second independent random axis.** Events A and B — back-to-back, identical
+config — assert in **two different** ML1 state machines (inter-freq vs sleepmgr). Combined with §112.66
+(5 distinct fatal sites), the model is: **one upstream ~900 s trigger → (1) which SM notices first, and
+(2) whether it asserts or the data path silently dies.** Both are races.
+
+**★★★★ WEDGE ON STOCK FIRMWARE (event C).** All three *prior* organic wedges were on **instrumented**
+firmware (v13/v28 rings; run 1 was v15, an assert-suppressor). Event C is a wedge on **pristine stock**
+⇒ the wedge is **not** an artefact of the diagnostic hooks. The wedge telemetry shows the RF layer still
+reporting a cell (`Cell ID=4399665`, `PhysCell=406`, `EARFCN=2463`, `RSRP=-90 dBm`, `SNR=10.6 dB`,
+`WDS dormancy='traffic-channel-active'`, `PrefDataPath='no'`) while `RX+0` — i.e. **"connected but the
+data path is dead"**, matching §112.71. The stall was detected at AP 14:06:06 (TX+4, RX+0), the watchdog
+committed at 14:08:44 ("treating as a genuine stall"), Stage 1 `wds-go-dormant` → `DeviceUnsupported`,
+Stage 2 bearer rebuild → Stage 3 SSR (modem up 4525.48).
+
+**⚠ Caveat (restart class).** The three events were preceded by a **fatal-recovery** (A→B) or an **SSR**
+(B→C) restart, not a cold boot — the autonomous series could not enforce the pre-registered "cold AP
+boot". Cold/warm is already falsified (§112.65); the restart class remains a tracked variable.
+
+**⚠ Caveat (n).** The pre-registered target was N = 10; this is an **interim n = 3**. The verdict
+(H0 falsified) follows from a *single* mixed pair and does not need n = 10; the soak continues to
+estimate the **rate** (and to look for a config that pins the outcome).
+
+**Artifacts.** `scratch/pdet_collect.log` (host mirror), `/root/pdet.log` (device, authoritative),
+`scratch/pdet.sh`, `scratch/pdet_collect.sh`, `scratch/v13_traffic.sh`.
+
+**Achieved vs Expected.**
+
+| item | expected | achieved |
+|---|---|---|
+| run the pre-registered determinism test | fixed config, N events | **PARTIAL** — autonomous series, n = 3 so far |
+| answer "is the quiet failure deterministic?" | yes/no | **YES — NO (it is a race)** |
+| distinguish wedge-from-fatal cleanly | same config both ways | **YES** — FATAL, FATAL, WEDGE under one config |
+| wedge independent of the instruments | — | **YES** — event C is a wedge on stock fw |
+
+**SOP.** Ground truth first (event times + signatures read from the device's own `dmesg`/`logread`;
+modem-up computed from the remoteproc "is now up" timestamps). No blind patch. One change at a time.
+Honest about the restart-class caveat and the interim n. Device left in the **observation config**
+(`preemptive_ssr=0`) for the ongoing soak — restore `=1` to re-enable the mitigation.

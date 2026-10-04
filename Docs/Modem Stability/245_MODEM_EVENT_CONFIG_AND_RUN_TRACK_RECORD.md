@@ -172,15 +172,32 @@ restart loop. Live instruments:
 class; record it, since cold/warm is already falsified (§112.65) but the restart mechanism is a tracked
 variable.
 
-**▶ P-DET live events (2026-10-04):**
-| event | restart class before it | modem-up at event | manifestation | signature |
+**▶ P-DET live events (2026-10-04; fixed config: stock fw, `preemptive_ssr=0`, `a2_pin=1`, continuous
+traffic):**
+| event | AP time | modem-up at event | manifestation | victim signature |
 | :-- | :-- | :-- | :-- | :-- |
-| 1 | fatal-recovery (after run 8) | ≈922 s | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
+| A (= run 8) | 2524.496 | **900.385 s** | **FATAL** | `lte_ml1_sm_conn_inter_freq_stm.c:712` |
+| B (= P-DET 1) | 3446.703 | **900.838 s** | **FATAL** | `lte_ml1_sleepmgr_stm.c:4054` |
+| C (= P-DET 2) | data death ≈ 4352 | **≈903.7 s** | **WEDGE** | (none — data path died, no assert) |
 
-★ **Immediate live result:** run 8 (`lte_ml1_sm_conn_inter_freq_stm.c:712`) and P-DET event 1
-(`lte_ml1_sleepmgr_stm.c:4054`) are the **same config, back-to-back** — the **victim SM varies within a
-fixed config**, confirming §112.66's "variable victim" directly. (Both are FATAL, so this pair does not
-yet speak to the fatal-vs-wedge split.)
+**★★★★★ VERDICT — the manifestation is a RACE; H0 is FALSIFIED.** Under a **fixed** config, the SAME
+~900.6 s trigger produced **FATAL, FATAL, WEDGE** (n = 3). The timing is deterministic
+(900.4 / 900.8 / ≈903.7 s — spread **≈3.3 s**), but *whether the modem asserts or just goes quiet* is
+**not** determined by the config. This directly answers the user's hypothesis ("if it's a quiet failure
+it should always be a quiet failure"): **no — a quiet failure is not stable under a fixed config.**
+
+★ **The victim also varies** (inter-freq SM vs sleepmgr) with the same config. So the ~900 s event is a
+single upstream trigger with **two independent random outcomes**: (1) which SM notices first, and
+(2) whether that SM asserts (FATAL) or the data path just dies (WEDGE).
+
+★ **Wedge on STOCK firmware** (event C) — the wedge is **not** an artefact of the diagnostic ring
+instruments (all 3 prior organic wedges were on v13/v28 firmware). The RF layer still reported a cell
+in the wedge telemetry (`Cell ID=4399665`, `PhysCell=406`, `EARFCN=2463`, `RSRP=-90 dBm`,
+`SNR=10.6 dB`) ⇒ "connected but the data path is dead", matching §112.71.
+
+⚠ **Caveat (restart class).** All 3 events are preceded by a **fatal-recovery** or **SSR** restart, not a
+cold boot; the pre-registered "cold AP boot" was not enforced (the series is autonomous). Cold/warm is
+already falsified (§112.65), but the restart class remains a tracked variable.
 
 ---
 
@@ -191,8 +208,8 @@ yet speak to the fatal-vs-wedge split.)
 | device config captured (fw + modules + settings + packages) | complete | **YES** — §1 |
 | patch inventory | complete | **YES** — §2 (801–831 AP-side; modem-side diagnostics separate) |
 | run track record | every known run, with config | **YES** — §3 (8 runs) |
-| determinism question answered | yes/no | **PARTIAL** — not determined by the tracked variables; ≥2 uncontrolled variables (MCPM phase, victim SM); P-DET pre-registered |
-| root cause of the missing wake-up | identified | **OPEN** — see ledger §112.66 |
+| determinism question answered | yes/no | **YES — NOT deterministic.** Fixed config gave FATAL, FATAL, WEDGE (n=3). The **timing** is deterministic (900.4–903.7 s); the **manifestation** is a race. |
+| root cause of the missing wake-up | identified | **OPEN** — see ledger §112.66/67 |
 
 ## 6. SOP statement
 

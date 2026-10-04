@@ -11,6 +11,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-04 — P-DET RESULT: the ~900 s manifestation is a RACE (fixed config → FATAL, FATAL, WEDGE)
+
+- **Ledger §112.67 / Doc 245 §4** — the pre-registered determinism test (P-DET) ran autonomously:
+  fixed config (stock baseband, `preemptive_ssr=0`, `a2_pin=1`, continuous traffic); the event fires at
+  modem-up ≈900 s on every boot and the modem auto-recovers (fatal → crash-recovery; wedge →
+  stall-watchdog Stage-3 SSR).
+- **★★★★★ H0 FALSIFIED (n = 3).** Event A (=run 8) **FATAL** `lte_ml1_sm_conn_inter_freq_stm.c:712`
+  @ mu 900.385 s; event B **FATAL** `lte_ml1_sleepmgr_stm.c:4054` @ mu 900.838 s; event C **WEDGE**
+  @ mu ≈903.7 s. The **timing is deterministic** (spread ≈3.3 s) but the **manifestation is a race**.
+  ⇒ "if it's a quiet failure it should always be a quiet failure" is **NO**.
+- **★★★★ Variable victim** — events A and B (identical config, back-to-back) assert in two different
+  ML1 SMs. One upstream trigger, two independent random outcomes (which SM notices first; assert vs
+  silent data death).
+- **★★★★ Wedge on STOCK firmware** (event C) ⇒ the wedge is **not** an artefact of the v13/v28 ring
+  instruments. Telemetry: RF still reports a cell (RSRP −90 dBm, SNR 10.6 dB) while `RX+0` =
+  "connected but the data path is dead" (§112.71).
+- Instruments: device `/root/pdet.sh` + `/root/v13_traffic.sh`; host `scratch/pdet_collect.sh` →
+  `scratch/pdet_collect.log`. Device left in the observation config (`preemptive_ssr=0`) — restore `=1`
+  for the mitigation.
+
 ### 2026-10-04 — RUN 8: a FIFTH ~900 s fatal signature (`lte_ml1_sm_conn_inter_freq_stm.c:712`, ML1 MGR) with a HEALTHY sleepmgr
 
 - **Ledger §112.66 / Doc 245 §3** — stock baseband `1a6f9507…`, `preemptive_ssr_enabled=0`, `a2_pin=1`,
