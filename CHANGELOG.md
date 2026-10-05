@@ -11,6 +11,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.128 the three alternative "live peek" instruments are all NEGATIVE (log-on-demand, QMI, coredump); the "read the modem live" avenue is CLOSED
+
+- **1. Modem-side log-on-demand (`DIAG_CMD_LOG_ON_DMND = 0x78`) — NEGATIVE.** `0x78` is defined
+  (`diagchar.h:120`) but handled **AP-side only** (`diag_masks.c:880`, `diag_dci.c:1433` — a local
+  echo `78 <code:2> 01`, request `78 <log_code_lo> <log_code_hi>`, code = 4-bit equip + 12-bit item)
+  and **never forwarded to the modem** (grep: `0x78` appears nowhere else in `drivers/char/diag`).
+  On the live CMD channel `77`/`78`/`79` are **recognized-but-silent** (no reply for any payload
+  length) while all other unknown codes → `13 BAD_CMD`. ⇒ no log-buffer/memory dump this way.
+- **★ Data-channel correction.** `/dev/rpmsg0` returns a `60 10 …` **log record** to both raw and
+  HDLC sends (its RX is the F3 stream, a rolling counter), **not** a command reply; the 58-byte VERNO
+  is obtained on the **CMD** channel. §112.127 §4's "stray HDLC success on rpmsg0" is corrected to the
+  CMD channel.
+- **2. QMI — NEGATIVE.** Enumerated the 15 libqmi services (`dms dsd fox ims imsa imsp loc nas pbm qos
+  uim voice wda wds wms`); `fox` = Foxconn firmware-version. Probed DMS/NAS/WDS/DSD: host-visible state
+  only (online / external-source / registered LTE / RSRP −92 / SNR 19.8 / WDS connected / DRX unknown).
+  **No ML1/MCPM/timer state; no memory read. IMS/IMSA → `InvalidServiceType`** (not instantiated,
+  consistent with §112.99). Note: `--dms-foxconn-change-device-mode=fastboot-*` is a non-SSR
+  device-mode lever (future recovery option).
+- **3. Coredump / live RAM read — NEGATIVE.** Modem = `remoteproc0` (`4080000.remoteproc`); debugfs
+  exposes only `coredump`/`crash`/`recovery`/`resource_table` — **`crash` is the only capture path**
+  (destructive). No minidump, no restart-level. The modem carveout `mpss@86800000` is **XPU-protected:
+  `devmem 0x86800000` → Bus error** (reconfirms Doc 172 §1 / Doc 239 §153: the AP cannot read modem
+  RAM by any route). ⇒ no non-destructive snapshot.
+- **Aggregate.** The ~900 s trigger cannot be read from a *running* modem by any of these routes; the
+  productive family remains the **firmware cave/ring + crash-coredump read** (Doc 239/240, v26–v51) —
+  the event must be **caught at the fatal**, not peeked at beforehand. Root cause remains **OPEN**.
+
 ### 2026-10-05 — §112.127 the DIAG COMMAND CHANNEL is solved (DIAG_CMD + raw); the DIAG dispatch decoded; NO memory-read opcode exists
 
 - **★ The missing instrument is built.** The modem exposes a dedicated request/response SMD channel

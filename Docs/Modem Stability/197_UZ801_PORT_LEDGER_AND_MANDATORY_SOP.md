@@ -22315,3 +22315,86 @@ address used as a self-validating control); the earlier "raw works / HDLC reject
 command surface actually probed; the intermittency was traced to SSR channel teardown (a mechanism),
 not hand-waved. Device reads + a rebuilt userspace tool only — **no firmware change, no baseband
 write, no coredump**; the ~900 s root cause remains **OPEN**.
+
+---
+
+## §112.128 — The three alternative "live peek" instruments are all NEGATIVE: log-on-demand, QMI, and the coredump route (2026-10-05, task #316/#317/#318)
+
+**Why this was done.** §112.126/§112.127 closed the DIAG memory-read route and left one named gap: a
+**live, non-destructive** view of modem-internal state at ~800 s vs ~910 s (the §112.107
+"boundary-state hunt" recommendation). Three alternative instruments were proposed and pursued in
+order. All three are now **scoped negatives**; together they **close the "read the modem live" avenue
+by every non-firmware route**. Device: HMU05 on OpenWrt 6.12.94, modem fresh (SSR at ap 32914 s /
+18:09), `diag-bind` + `cntl-enable-range` active.
+
+### 1. Modem-side log-on-demand (`DIAG_CMD_LOG_ON_DMND = 0x78`) — NEGATIVE
+
+- **The code is real but AP-local.** `diagchar.h:120` defines `DIAG_CMD_LOG_ON_DMND 0x78`; the only
+  handlers are **AP-side**: `diag_masks.c:880` (a userspace mask request `78 LL HH` → the AP replies
+  `78 <code:2> 01`) and `diag_dci.c:1433` (the same echo for a DCI client). The AP **consumes `0x78`
+  locally and never forwards it to the modem** — confirmed by grepping the whole `drivers/char/diag`
+  tree: `0x78` appears only in those two handlers. The request format is `78 <log_code_lo> <log_code_hi>`
+  where the 16-bit code = 4-bit equip ID (bits 12–15) + 12-bit item (`LOG_GET_EQUIP_ID` /
+  `LOG_GET_ITEM_NUM`, `include/linux/diagchar.h:789`).
+- **The modem is silent on `0x77`/`0x78`/`0x79` — a distinct class.** Re-running the §112.127 dispatch
+  scan on the live CMD channel: `55 99 ff 10 31` → `13 BAD_CMD`; `30`→`30 13 01`; `40`→a 217-byte
+  payload; `4b`→`15` (needs params). But **`77`, `78`, `79` return NOTHING** for any payload length
+  (`7800`, `780000`, `7800000000`, `7800000000000000`, and valid log codes `78 10 49`/`78 00 49`/
+  `78 04 00`/`78 18 71`/`78 49 10`) — they are **recognized response codes**, not modem request
+  commands. (The lone `77 00` seen once was the **lagged reply to the preceding `77` send**, the
+  one-request lag documented in §112.127 §3, not a `79` reply.)
+- **The data channel does not answer commands.** `/dev/rpmsg0` returned a `60 10 …` **log record**
+  (a rolling counter, e.g. `60 10 00 d8 69 1d …`) to *both* raw and HDLC-framed sends — i.e. its RX is
+  the **F3 log stream**, not a command reply. The 58-byte VERNO reply is obtained on the **CMD**
+  channel (`/dev/rpmsg2`), which is what `diag_logtool selftest` uses. ⇒ §112.127 §4's "stray HDLC
+  success on `/dev/rpmsg0`" should be read as **the CMD channel** (or a transient); the data channel is
+  log-only.
+- **Conclusion.** `0x78` is a **log-item-on-demand registration** (AP echo), **not a log-buffer or
+  memory dump**, and the modem never answers it. No on-demand dump is reachable this way.
+
+### 2. QMI — a complete host-API surface, but no internal state and no read — NEGATIVE
+
+- **Services enumerated** (libqmi 1.36.0, `/dev/wwan0qmi0` via the qmi-proxy): `dms dsd fox ims imsa
+  imsp loc nas pbm qos uim voice wda wds wms`. `fox` is the **Foxconn firmware-version** service (not
+  a dump); `--dms-foxconn-*` are Foxconn DMS extensions.
+- **What they expose is host-visible state only.** Live probes returned: DMS operating mode `online`,
+  power state `external-source`; NAS serving system `registered` / LTE / JIO 4G (MCC 405, MNC 861);
+  signal RSSI −64 dBm / RSRP −92 dBm / SNR 19.8 dB; DSD `3gpp-lte`, `so-mask-lte-fdd`; WDS packet
+  service `connected`; NAS DRX `unknown`. **No service exposes ML1/MCPM/timer state**, and none reads
+  memory. **IMS/IMSA return `InvalidServiceType`** — the IMS stack is **not instantiated**, consistent
+  with §112.99's refutation of the `ims/regmana` 900 s constant.
+- **Conclusion.** QMI adds at most an independent sub-second "modem responsive + RF health" poll —
+  **redundant** with the existing ATS_RTC (modem uptime) and F3 instruments, and it cannot see the
+  dying layer. ★ Note for a future recovery lever: `--dms-foxconn-change-device-mode=fastboot-ota|
+  fastboot-online` and `--dms-foxconn-set-fcc-authentication` are Foxconn-specific, non-SSR ways to
+  move the modem's device mode.
+
+### 3. Coredump / live RAM read — crash-time only; the AP cannot read modem RAM — NEGATIVE
+
+- **The modem is `remoteproc0`** (`4080000.remoteproc`). Its debugfs (`/sys/kernel/debug/remoteproc/
+  remoteproc0/`) exposes only `carveout_memories` (empty), `coredump` (`enabled`), `crash` (write to
+  trigger a crash), `name`, `recovery` (`enabled`), `resource_table`. **There is no "dump without a
+  crash" trigger**; `crash` is the only capture path, and it kills the modem.
+- **No minidump and no restart-level on this build.** `find /sys /proc -iname '*minidump*'` → 0 hits;
+  `*restart*` → only `4ab000.restart` (the MSM **reboot** driver), not a Qualcomm restart-level.
+- **The AP cannot read the modem's RAM by any route.** The modem carveout is `mpss@86800000`
+  (reserved `86000000-8bcfffff`). `devmem 0x86800000 32` → **Bus error** (XPU/TrustZone-protected);
+  SMEM `0x86300000` likewise faults. This **reconfirms Doc 172 §1** and Doc 239 §153 ("the save area
+  is ONLY readable from a coredump … the AP cannot read modem memory by any route").
+- **Conclusion.** No non-destructive RAM snapshot exists. The only observation channels for
+  modem-internal state remain (a) the F3/log stream and (b) the **firmware cave export + coredump
+  read** already established in Doc 239/240 (v4+). ⇒ the §112.107 "peek at ~800 s vs ~910 s" is
+  **infeasible by all three proposed routes**.
+
+### Aggregate conclusion
+
+The ~900 s trigger cannot be read out of a *running* modem: DIAG has no read opcode (§112.127), the
+log-on-demand is an AP echo, QMI is a host-API facade, and the AP is hardware-blocked from modem RAM.
+The productive instrument family remains the **firmware-side ring/cave in modem BSS + read it from the
+crash coredump** (v26–v51), i.e. the event must be *caught at the fatal*, not *peeked at beforehand*.
+
+**SOP.** Ground truth first (opcode constants + handler sites read from source; QMI services
+enumerated from the live device; the XPU block **measured** with `devmem`, not assumed); each negative
+is **scoped** to the surface actually probed; one claim (§112.127 §4's data-channel HDLC success) is
+**corrected by today's experiment**; **no firmware change, no baseband write, no destructive coredump
+trigger** — reads and live probes only. The ~900 s root cause remains **OPEN**.
