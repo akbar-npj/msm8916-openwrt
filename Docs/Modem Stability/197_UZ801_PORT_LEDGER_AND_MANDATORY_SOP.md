@@ -23181,3 +23181,10 @@ catch the exact transition to 10 ms at ~900 s.
 
 **SOP.** Pre-registered (§112.137) **before** the event; one change at a time; natural event with pre-emptive SSR
 disabled; result recorded **before** rollback; `a2_pin=1`. Rollback follows immediately after this record.
+
+**Rollback (done).** `python3 scratch/deploy_v55.py --rollback` restored `/lib/firmware` from
+`/root/fw_stock_hmu05`; `modem.mdt = 1a6f9507e03d4ddbbf1977af81ecdbd7` (**stock**). ⚠ **`rollback()` does NOT
+restart the modem** (unlike the v54 script) ⇒ the *running* modem keeps the patched image in RAM even though the
+on-disk files are stock; a manual `echo restart > msm_subsys/modem` was required (restart_count 31→32). After the
+restart: modem running, `wwan0 = 10.95.165.33/30`, default route via `wwan0`, **ping OK**. `rollback()` was
+**fixed** to restart + confirm.
