@@ -22155,6 +22155,29 @@ is fully compatible with an underlying fatal at 15 min. `main`'s "20-min soak PA
 therefore **not evidence of stability** unless it also checked the fatal counter / crash count — which the
 ping-based method does not. **A stability soak MUST count fatals (by last-timestamp or `crash #N`), not just loss.**
 
+**★ MEASURED recovery duration (wall-clock calibrated; fatal at 16:56:27.8, `ap=28511.809`).** The recovery has
+**two layers**, and the "quick SSR" is only the first:
+
+| event | Δ from fatal |
+|---|---|
+| fatal `:324` | 0 |
+| wwan0 ports disconnected (`ap=28511.945`) | +0.14 s |
+| **remoteproc "is now up" (`ap=28513.301`)** | **+1.49 s** |
+| BAM reinit / ports reattached (`ap=28513.507 / .727`) | +1.70 / +1.92 s |
+| netifd starts bearer setup (`apn 'jionet'`) | +9.2 s |
+| **bearer connected → `Interface 'modem' is now up`, `wwan0 link is up`** | **+13.2 s** |
+| keepalive (2 s heartbeat) probe **still failing** | +16.2 s and +21.2 s |
+| soak ping OK again (`ap=28537`) | +25.2 s |
+
+⇒ **modem ≈ 1.5 s; AP bearer ≈ 13 s; data path actually usable ≈ 15–25 s** (dominated by the userspace bearer
+rebuild, cf. the ~14–17 s figure elsewhere in this ledger). So the **data-path outage is NOT a 1.5 s blip** — a
+continuous-loss soak *would* see it. The Arm-C miss was therefore **primarily the ring-wrap fatal-count mask**,
+**secondarily** the 30 s ping sampling straddling the ~20 s outage (OK at +6.8 s, OK at +25.2 s).
+
+**Implication for `main`'s "0.0 % loss":** a 15–25 s outage in 1212 s would normally read as ~1.5–2 % loss, so that
+soak either sampled too coarsely or its loss figure is not a reliable stability signal. **A loss-only metric is
+insufficient; the fatal counter (`crash #N`) is the only dependable detector.**
+
 **Caveat (honest).** n=1 per arm; the project model is **fixed trigger, variable manifestation** (FATAL vs WEDGE
 vary run-to-run), so the arm-to-arm manifestation differences (B=WEDGE vs A/C=FATAL) **cannot** be attributed to
 the patch or the keepalive from n=1. The robust, n=1-safe conclusion is the one above: **all three arms evented**.

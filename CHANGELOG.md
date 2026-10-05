@@ -20,9 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **★★ A/B/C conclusion — the event occurred in ALL 3 arms:** A stock = FATAL @900.96 s; B patch-only = WEDGE
   @~900 s; C patch+2 s keepalive = FATAL @915.8 s. ⇒ **neither the no-sleep patch nor the 2 s keepalive prevents
   the ~900 s event.** The report's "completely resolves the crash" is **FALSE**.
-- **★ Masking mechanism (the report's likely error):** a fatal with a **quick SSR recovery** is invisible to a
-  ping/loss soak (modem back in ~1.5 s) ⇒ `0.0 % loss` over 20 min is compatible with a 15-min fatal. **A
-  stability soak MUST count fatals (last-timestamp or `crash #N`), not just loss.**
+- **★ Measured recovery (Arm C, wall-clock calibrated):** remoteproc up **+1.49 s**; BAM/ports +1.7/+1.9 s; netifd
+  bearer setup +9.2 s; **bearer/interface up +13.2 s**; keepalive (2 s) **still failing at +16.2 s and +21.2 s**;
+  soak ping OK at +25.2 s. ⇒ **modem ≈1.5 s but the data path is down ~15–25 s** (userspace bearer rebuild). The
+  Arm-C miss was **primarily the ring-wrap fatal-count mask**, secondarily the 30 s ping sampling straddling the
+  ~20 s outage. **A loss-only metric is insufficient; the fatal counter (`crash #N`) is the dependable detector.**
+- **★ Masking mechanism (the report's likely error):** a fatal with a **quick modem recovery** is easy to miss in a
+  ping/loss soak ⇒ `0.0 % loss` over 20 min is not evidence of stability. **A stability soak MUST count fatals
+  (last-timestamp or `crash #N`), not just loss.**
 - **Caveat:** n=1/arm; manifestation varies run-to-run ⇒ no arm-to-arm causal claim from n=1.
 - **Harness fix:** `scratch/soak_dev.sh` fatal detection now compares the **last fatal line** (timestamp), not a
   count. Re-uploaded. Device rolled back to stock + keepalive OFF.
