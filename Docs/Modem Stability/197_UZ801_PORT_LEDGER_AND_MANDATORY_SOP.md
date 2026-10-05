@@ -22979,3 +22979,62 @@ The v53 (a) conclusion is **retracted explicitly** rather than silently overwrit
 **Rollback (done).** `python3 scratch/deploy_v54.py --rollback` restored all 5 files; **installed md5 == the
 `/root/fw_stock_hmu05` backup** for `modem.mdt` (`1a6f9507…`), `b00`, `b01`, `b05`, `b16` (verified by direct
 `md5sum` compare). Modem restarted onto stock; `wwan0 = 10.93.246.2/30`, default route up, **ping OK**.
+
+---
+
+## §112.136 — STATIC MAP of the ML1 common-timer dispatcher and its key-3 / key-20 handlers — 2026-10-06, task #324
+
+**Why.** §112.135 showed key-3 fires at a constant 10 ms (100 Hz) in the terminal window; the handler must be
+understood before instrumenting the **arm path**. All VAs below are from the **stock** image (seg16 =
+`0xc0287000`, `modem.b16`), disassembled with `scratch/_dis2.py`.
+
+**The dispatcher `FUN_c02d7bd0` is a thin jump table (0x20 bytes).**
+```
+c02d7bd0: call 0xc02d1140            ; return-0 stub
+c02d7bd4: r16 = r0                   ; r16 = the context object
+c02d7bd8: memd(r29-0x10)=r17:16; allocframe(#0xb0)
+c02d7bdc: r1 = memub(r16+#0x38)      ; key
+c02d7be4: r2 = memw(gp+#0xba64)      ; handler-table base
+c02d7be8: r2 = memw(r2 + r1<<2)      ; handler = table[key]
+c02d7bec: jumpr r2                   ; dispatch
+```
+⇒ the dispatcher does **no** timer work; the period is set by the **arm path**, not here.
+
+**Every handler BUILDS and SENDS an ML1 message** and asserts on failure. Common helpers:
+`0xc02871ac` = message build; `0xc0287198` = message send (the store `memb(r2+#0x10)=r1` writes the **key**
+into the message); `0xc0879150` = assert (`r0` = the descriptor, `r1 = #0x401`).
+
+| key | handler VA | message id(s) sent | assert descriptor(s) |
+|---|---|---|---|
+| 0 | `0xc02d7bf0` | `0x41b041a` | `0xc3c6c780` |
+| 3 | `0xc02d7cc4` | `0x4200409`, `0x43a0404`, `0x4050451` | `0xc3c6c7c0` |
+| 20 | `0xc02d7d54` | — (checks, then asserts) | `0xc3c6c800` = **`:390`** |
+
+**key-3 (`0xc02d7cc4`)** sends three messages in sequence (each: build → send → store key at `buf+0x10` →
+`if (r0==0) jump 0xc02d7df8` else assert). It does **not** re-arm a timer ⇒ the 10 ms period is **external** to
+the handler.
+
+**key-20 (`0xc02d7d54`)** = the fatal handler:
+```
+r0 = memub(gp+#0x2d1); if (r0==1) jump 0xc02d7d74
+r0 = memw(gp+#0x6584); if (!tstbit(r0,#2)) jump 0xc02d7d80   ; assert
+r0 = memw(gp+#0x6588); if (!tstbit(r0,#2)) jump 0xc02d7d80   ; assert
+0xc02d7d74: call 0xc08f1500 …
+0xc02d7d80: call 0xc0879150 (assert), r0 = ##0xc3c6c800 = :390
+```
+⇒ the fatal fires when `memub(gp+0x2d1) != 1` **and** bit 2 is clear in `gp+0x6584`/`gp+0x6588` — i.e. a
+**gate/flag check** (`gp+0x2d1`, `gp+0x6584`, `gp+0x6588` are candidate root-cause flags).
+
+**The timer framework.** A function containing `0xc0913740` does 64-bit time arithmetic on a context `r2` and a
+spec `r18`: it range-checks the state `magic - 0xfedcba9 < 6` (`0xc0913748/4c`), **clears `obj+0x20`**
+(`0xc0913768: memd(r2+#0x20)=r1:0`, r1:0=0), and reads a 64-bit **interval** from **`r18+#0x38`** with a base at
+`r18+#0x30` (`r3:2 = add(r27:26, r23:22)`). ⇒ the interval is a **runtime value** in `r18+#0x38`.
+
+**No 10 ms constant.** A raw search of `modem.b16` for `0x0002EE00` (= 192 000 ticks = 10 ms @ 19.2 MHz) returns
+**0 hits** ⇒ the key-3 period is **data-driven**, not a literal.
+
+**Next (v55).** Pin the **arm function** (the writer of the context deadline / the caller of the `r18+#0x38`
+path) and ring it to record `{key, interval, caller, t}` — to catch the arm event that sets key-3 to 10 ms.
+
+**SOP.** Static ground truth only (no device change); every VA re-disassembled this session from the stock image.
+**Root cause OPEN.**

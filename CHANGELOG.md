@@ -11,6 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.136 STATIC MAP: the ML1 dispatcher is a thin jump table; every handler sends an ML1 message; key-20's fatal is a flag-gate check
+
+- **Dispatcher `FUN_c02d7bd0` = 0x20 bytes**: `key = memub(obj+0x38); handler = memw(table[key]); jumpr handler`.
+  No timer work in the dispatcher ⇒ the period is set by the **arm path**.
+- **Every handler builds+sends an ML1 message** (`0xc02871ac` build / `0xc0287198` send / `0xc0879150` assert).
+  key-0 → `0x41b041a`; key-3 → `0x4200409`, `0x43a0404`, `0x4050451`; key-20 → checks then asserts.
+- **key-20 (fatal) = a flag gate**: asserts `:390` when `memub(gp+0x2d1) != 1` **and** bit 2 is clear in
+  `gp+0x6584`/`gp+0x6588` — candidate root-cause flags.
+- **Timer framework** (fn containing `0xc0913740`) reads a 64-bit **interval** from `r18+#0x38` and clears
+  `obj+0x20`. **No 10 ms literal in `modem.b16`** ⇒ the key-3 period is **data-driven**.
+- **Next (v55):** pin the arm function and ring `{key, interval, caller, t}`. Root cause **OPEN**.
+
 ### 2026-10-06 — §112.135 v54 RESULT: the key-3 storm is a LIVE context firing at a constant ~10 ms (100 Hz); the fatal key-20 dispatch is the ONLY dead-context dispatch
 
 - **Run.** Natural event, modem-up **901 s**, devcd33. `SAVE.seq = 18854`. Device fatal at AP uptime 40083.39 s =
