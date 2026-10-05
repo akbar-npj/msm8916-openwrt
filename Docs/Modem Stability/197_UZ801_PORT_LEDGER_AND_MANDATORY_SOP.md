@@ -20421,3 +20421,945 @@ own stack dump**, and every claim is cross-checked against an **independent** ar
 read from the coredump, the module's own strings, and the crash **registers** (`R21/R26/R20/R19/R18`) that
 reproduce the tech index. The negative (root cause still OPEN) is stated in the table, not buried. Ledger +
 CHANGELOG + memory updated this session.
+
+
+---
+
+## §112.101 — The `slpc` **"SystemTimer"** trigger: a per-RAT DAL deferred callback, armed through `slpc`'s `0xc0b66c00`/`0xc0b66ae0` → `0xc0914e10`; the type-0 producer is the callback handler `0xc0b67bd0`
+
+**Trigger.** §112.100 named the fatal's caller (`slpc` → per-RAT worker → `FUN_c039ef80`) and re-pointed the
+next instrument at "what message at ~900 s makes `slpc` request the LTE wakeup". This item answers it: it
+reconstructs `slpc`'s **message protocol**, the **per-RAT DAL object** created in `slpc_init` (the
+`"SystemTimer"`), the **arm/submit path** that drives it, and the **callers** of that path. **Offline only**
+(archived stock ELF + archived coredumps; no device change — device stays on stock + deployed mitigation).
+
+### (A) `slpc`'s message protocol — a 2-byte `{type, tech}` queue
+
+The `slpc` loop (`0xc0b675e0`) receives with `0xc1200f30(memw(0xc1da1200), &msg, 2)` — a **2-byte**
+message — and dispatches on `msg[0]` (`0xc0b67624: r0 = memub(r29+#0x10)`):
+
+| `msg[0]` | action |
+|---|---|
+| `0` | `call 0xc0b66f20` — the per-RAT worker (§112.100) |
+| `1` | `memh(pertech[tech]+0x110) += 1` (a per-RAT counter) + log |
+| else | discard, re-receive |
+
+`msg[1]` is the tech index (`0xc0b67614: r27 = setbit(r16= r29+0x10, 0)` = `&msg[1]`). ⇒ the worker is
+driven by a **2-byte `{0, tech}` message**, never by a direct call.
+
+### (B) `slpc_init` builds a per-RAT DAL object — *that* is the "SystemTimer"
+
+`slpc_init` (`0xc0b677f0`) creates the task (`0xc1200d40("slpc", 0x102)`), then loops over **8 RATs**
+(`loop0(…,#0x8)`, stride `0x250`). Per RAT it (i) looks up the DAL property **`"SystemTimer"`** (string at
+`0xc17e7d36`; property APIs `0xc1273bf0` / `0xc1273f60`), and (ii) calls the DAL object constructor
+**`0xc0914b30(object = pertech[i]+0x98, arg1 = pertech[i]+0x88, 0, 0, handler = 0xc0b67bd0, i)`**.
+The constructor stores `object[0x0c] = handler`, `object[0x14] = arg5`, and links the object into a shared
+list head (`object[0x00]`).
+
+Live confirmation (`modem_coredump_up913.64_devcd1.elf`, `pertech[4]` at `0xc1da0830`):
+
+| field | value |
+|---|---|
+| `pertech[4]+0x98` (object[0x00]) | `0xc3618fe0` (shared list head) |
+| **object[0x0c] = `pertech[4]+0xa4`** | **`0xc0b67bd0`** (the handler) |
+| object[0x14] = `pertech[4]+0xac` | `4` (the tech index) |
+
+⇒ each RAT owns a **deferred-callback object** whose handler is `0xc0b67bd0`. (`0xc0914e10` is the paired
+"submit/queue" function; together they are the DAL work/timer API.)
+
+### (C) The handler `0xc0b67bd0` posts `{0, tech}` to the `slpc` queue
+
+`0xc0b67bd0` writes a 2-byte message (`memb(msg+0)=0`, `memb(msg+1)=tech`) and sends it via `0xc0b67c10`
+(→ `0xc029fa60`, the REX queue send) to queue `0xc1da1200`. **This is the type-0 message the worker
+consumes.** ⇒ the object is a timer; its expiry is what wakes `slpc`.
+
+### (D) The arm/submit path — `0xc0b66c00` / `0xc0b66830` → `0xc0b66ae0` → `0xc0914e10`
+
+`slpc` exposes a per-RAT arm pair (`0xc0b66c00`, `0xc0b66830`; near-duplicates) and a "set duration"
+function (`0xc0b66d40`). `0xc0b66c00(tech, deadline64)`:
+1. reads `pertech[tech]+0x04` (state); if state == 0 it only logs and returns;
+2. stores the deadline at `pertech+0x118` / `+0x130` / `+0x138`;
+3. calls `0xc0b66a10` (compute + log), then **`0xc0b66ae0`**.
+
+`0xc0b66ae0(tech)`:
+* computes `delta = pertech+0x118 − pertech+0x60` and stores it at `pertech+0xd8`;
+* **submits the per-RAT object**: `call 0xc0914e10(pertech[tech]+0x98, delay)`. `0xc0914e10` stores the
+  time at `object+0x50` / `+0x60` and dispatches via the DAL vtable (`+0x64`).
+
+**Live identity check** (`pertech[4]`): `pertech+0x60 = 0x00021480`, `pertech+0x118 = 0x1682da30`,
+`pertech+0xd8 = 0x1680c5b0`, and `0x1682da30 − 0x00021480 = 0x1680c5b0` ✓. Also `0x21480 / 0x1bbc = 19.2`
+exactly (see (G)).
+
+⇒ the chain is a **round-trip through `slpc`**:
+
+```
+slpc_arm(tech, deadline) 0xc0b66c00   ← called by the RAT/sleep stacks (see (E))
+      └─ 0xc0b66ae0 ── DAL submit 0xc0914e10(pertech[tech]+0x98, delay)
+            └─ [timer expires] handler 0xc0b67bd0 → post {0,tech} to queue 0xc1da1200
+                  └─ slpc loop 0xc0b675e0 → worker 0xc0b66f20(tech)
+                        └─ pertech[tech]+0x04 == 2 → set 3, call pertech[tech]+0x70
+                              └─ LTE: 0xc039ef80 → assert stm_get_state(SLEEPMGR_STM)==SLEEP
+```
+
+### (E) ★ The arm API is NOT `slpc`-internal — it is called by the RAT/sleep stacks
+
+`grep "call 0xc0b66c00"` = **15 sites, none inside `0xc0b6xxxx`**. Grouped by module:
+
+| module | call sites |
+|---|---|
+| **sleepmgr `0xc039xxxx`** | `0xc0394634`, `0xc0394660` (inside the next-wakeup computation `0xc03943xx`) |
+| `0xc06dxxxx`/`0xc06exxxx` | `0xc06df914`, `0xc06dfa5c`, `0xc06e1348`, `0xc06e14cc`, `0xc06e2d40`, `0xc06e5004`, `0xc06e5330`, `0xc06ec16c`, `0xc06ec53c` |
+| `0xc0bbxxxx` | `0xc0bb1ddc`, `0xc0bb2d90`, `0xc0bb3390` |
+| `0xc0cfxxxx` | `0xc0cf1d40` |
+
+`0xc0b66d40` (the "set duration" sibling) is called from the same families plus `0xc04dxxxx` / `0xc06bxxxx`.
+⚠ **Honest correction to a first-pass reading:** an initial `head`-limited grep suggested only two callers;
+the full grep shows 15. The arm is a **public per-RAT API**, not a sleepmgr-only path. The tech argument is
+`r0`; at the sleepmgr sites it is a computed value (`r18-5`) or a possibly-clobbered register, so **this item
+does NOT claim the sleepmgr arms tech 4** — the armer of LTE at ~900 s is left OPEN.
+
+The sleepmgr's `0xc03943xx` is nonetheless the strongest *structural* candidate: it is the **next-wakeup
+computation** (reads `memh(obj+0x3e0/0x3e2/0x478/0x47a)`, forms a 64-bit deadline `r21:20` with the
+`0x10624dd3` (÷1000) and `0x51eb851f` (÷100) magics and `0x7800` = 30720, compares to `memd(obj+0x58)`, then
+calls `slpc_arm`; and at `0xc03946dc` calls `0xc0b66d40`).
+
+### (F) The LTE wakeup callback is registered **by the sleepmgr** into `slpc`'s table
+
+`grep "c039ef80"` finds **exactly one code reference**: `0xc0396fc0` (`immext(#0xc039ef80)`), inside
+`0xc0396fa0`, which registers the sleep/wake pair:
+
+```
+0xc0396fa0: (r16 = the sleepmgr object)
+0xc0396fa8: immext(#0xc039eec0); r1:0 = combine(##-0x3fc61130, #4)
+0xc0396fb4: call 0xc0b66f00   → pertech[4]+0xf0 = 0xc039eed0   (the paired SLEEP callback)
+0xc0396fbc: call 0xc0b66ee0   → pertech[4]+0x70 = …            (the WAKEUP slot)
+0xc0396fc0: immext(#0xc039ef80); r1:0 = combine(##-0x3fc61080, #4)
+0xc0396fc8: call 0xc0b663e0   → initialise pertech[4] with 0xc039ef80
+```
+
+Live: `pertech[4]+0x70 = 0xc039ef80` (wakeup, the assert site) and `+0xf0 = 0xc039eed0`. (Note: §112.59
+recorded the sleep callback as `0xc039eec0`; `0xc039eec0` and `0xc039eed0` are **adjacent distinct
+functions** — `0xc039eec0` is a log wrapper, `0xc039eed0` the allocframe body — and the live registration is
+`0xc039eed0`. Minor provenance fix, not a mechanism change.)
+
+### (G) A numeric note (recorded, NOT claimed)
+
+`pertech+0x60 / pertech+0x58 = 19.2` exactly (live `136320 / 7100`), so `0xc0b66d40` scales its u16 input by
+**×19.2** (the `0x124f800 = 19.2e6` multiply with a ÷1e6 magic). If the input is in **µs**, the live LTE
+duration is **7.1 ms** — implausibly short for a sleep deadline; the unit is therefore **not settled** by
+this arithmetic alone. The deadline `r21:20` in the caller is 64-bit and unambiguous; it is what the ring in
+(H) should capture.
+
+### (H) What this adds, and what stays OPEN
+
+* **Adds — the fatal's trigger mechanism is fully mapped.** `slpc`'s only inputs are the 2-byte
+  `{type,tech}` messages; the type-0 producer is the per-RAT object handler `0xc0b67bd0`; that object is
+  armed only through `0xc0b66c00`/`0xc0b66830` → `0xc0b66ae0` → `0xc0914e10`. There is **no other producer**
+  of the fatal's message. The `"SystemTimer"` is the per-RAT DAL object at `pertech[i]+0x98`.
+* **Adds — the LTE wakeup callback is the sleepmgr's own** (`0xc039ef80`, registered at `0xc0396fa0`), so the
+  fatal is the **sleepmgr's scheduled LTE wakeup executing while the STM is not `SLEEP`** — a race, matching
+  §112.67. `slpc` is the deferred-execution vehicle, not the decision-maker.
+* **Corrects §112.100's implied next step.** The message is not posted by an external task; it is posted by
+  `slpc`'s own per-RAT timer handler. Ringing the queue alone would only re-show `0xc0b67bd0`.
+* **Does NOT** identify which caller arms LTE at ~900 s, nor why the sleepmgr leaves `SLEEP` early. Both are
+  **OPEN**. The arm API has 15 callers across four module families, so the *armer* must be identified by
+  instrumentation, not by exclusion.
+* **Re-points the next instrument (concrete, pre-registerable).** Ring the **15 `slpc_arm` call sites**
+  (capture the tech `r0` and the 64-bit deadline `r21:20` at `0xc0394634`/`0xc0394660`, and at the
+  `0xc06d`/`0xc0bb`/`0xc0cf` sites). Comparing the armed deadline to the actual wake time at ~900 s
+  distinguishes "the deadline itself is ~900 s" from "the deadline is short but the callback fires late",
+  and names the armer.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| The `slpc` message protocol is named | ? | **YES** — 2-byte `{type,tech}`; type 0 → worker, type 1 → counter |
+| The `"SystemTimer"` is identified | ? | **YES** — the per-RAT DAL object at `pertech[i]+0x98` (ctor `0xc0914b30`) |
+| The type-0 producer is found | ? | **YES** — handler `0xc0b67bd0` (object+0x0c), posts `{0,tech}` |
+| The arm/submit path is found | ? | **YES** — `0xc0b66c00`/`0xc0b66830` → `0xc0b66ae0` → `0xc0914e10` |
+| The arm is called ONLY by the sleepmgr | ? | **NO** — 15 callers across `0xc039`/`0xc06d`/`0xc0bb`/`0xc0cf` |
+| The LTE wakeup callback registrar is the sleepmgr | ? | **YES** — `0xc0396fa0` writes `pertech[4]+0x70` |
+| Root cause identified | — | **NO** — the armer and "why not SLEEP at 900 s" are still OPEN |
+
+**SOP.** Offline only (archived stock ELF + archived coredumps; no device change). Ground-truth-first: every
+claim is read from the disassembly **and** cross-checked against the live coredump (`pertech[4]` object
+handler `+0xa4 = 0xc0b67bd0`, `+0x70 = 0xc039ef80`, `+0xf0 = 0xc039eed0`, and the
+`pertech+0xd8 = pertech+0x118 − pertech+0x60` identity). A first-pass grep under-counted the arm callers;
+the correction is stated explicitly in (E) rather than hidden. The negative (armer + root cause OPEN) is in
+the table. Ledger + CHANGELOG + memory updated this session.
+
+### §112.102 — the `slpc_arm` FUNNEL RING (v42): built, offline-verified, DEPLOYED; capture window OPEN
+
+**Instrument.** §112.101's re-pointed lead was to ring the 15 `slpc_arm` call sites. Ringing 15 sites
+individually is infeasible, so v42 hooks the **single callee entry** `0xc0b66c00` instead — every one of the
+15 sites reaches it via `call 0xc0b66c00`, and at entry **r0 = tech**, **r2:r3 = the 64-bit deadline**, and
+**r31 = the caller's return address (= callsite+4)** — so one hook captures the armer, the tech, and the
+deadline for all 15 sites.
+
+**Why the entry hook is subtle.** `0xc0b66c00`'s first *packet* is 12 bytes and bundles the call with the
+frame setup:
+
+```
+c0b66c00  { call 0xc08371d0                 <- packet 1 (12 B)
+c0b66c04    immext(#0xc1d9fec0)
+c0b66c08    r1 = ##0xc1d9fef0; allocframe(#0x38) }
+c0b66c0c  { r16 = r0                        <- packet 2 (body), UNCHANGED
+c0b66c10    r19:18 = combine(r3,r2) }
+```
+
+Replacing only the first 4 bytes would split the packet and double/omit the `allocframe`. v42 instead
+replaces the **whole 12-byte packet** with a `jump` (parse=0b11) to a pad, then to a cave that **replicates
+the entire prologue** after writing the ring:
+
+```
+site  0xc0b66c00  jump 0xc0deb4a8 ; nop ; nop            (12 B, packet 1)
+pad   0xc0deb4a8  r6 = ##0xc003054c ; jumpr r6           (12 B; unlimited range, preserves r31)
+cave  0xc003054c  write ring {seq, r0, r2, r3, r31}
+                  allocframe(#0x38)                       (saves the incoming r31 = caller LR)
+                  callr 0xc08371d0                        (the displaced call)
+                  r1 = ##0xc1d9fef0
+                  jumpr 0xc0b66c0c                        (resume the body)
+```
+
+Because the cave's `allocframe` is executed at the same SP as the original's (the hook is at the function
+entry), the frame and the saved LR are byte-identical; `frame_return` at the function exit restores
+`r31 = callsite+4` exactly. `r0/r2/r3` are read *before* the displaced call, matching the original's own
+ordering (the original also ran `0xc08371d0` before reading them at `0xc0b66c0c`).
+
+**Ring.** `0xc1d4c600`, **2048 slots x 32 B** (BSS, zeroed at boot). Slot = `{+0x0 seq, +0x4 tech, +0x8
+deadline_lo, +0xc deadline_hi, +0x10 caller}`; seq counter at `0xc1455000+0x4`. A first build used a 16-byte
+stride for 5 words (20 B) — caught offline before deployment (the `caller` word would have aliased the next
+slot's `seq`); the stride is now 32 B. The ring is BSS, so it lands verbatim in the next auto-coredump.
+
+**Offline verification (`scratch/diag_patch_v42/verify_v42.py`, PASS).** site jump target = pad with
+parse=0b11; the two trailing slots are nop; the body packet at `0xc0b66c0c` is preserved byte-exact
+(`1040607012c203f5`); the pad hop is byte-exact; the cave is byte-exact and all five constants resolve
+(`immext` high halves `0xc1455000`, `0xc1d4c600`, `0xc08371c0`, `0xc1d9fec0`, `0xc0b66c00`); every changed
+byte lies inside the site/pad/cave regions; `modem.b01` carries the correct `sha256` for seg 16 and seg 5;
+`modem.mdt == modem.b00 + modem.b01`. Built `modem.mdt` md5 = **`08584974f14fb8b2596edf98c6a00923`**
+(stock `1a6f9507e03d4ddbbf1977af81ecdbd7`).
+
+**PRE-REGISTERED DECISION — P-V42** (registered before any v42 data exists):
+
+* **H1** the modem BOOTS and runs to the ~900 s event (no crash-loop).
+* **H2** the `tech==4` deadlines cluster around a value whose expiry ≈ 900 s ⇒ the deadline itself is ~900 s
+  (the "armed-at-boot" model).
+* **H2'** the deadlines are short (<< 900 s) but a late caller's entry arrives at ~900 s ⇒ the deadline is
+  short but the callback fires late.
+* **H3** the caller (`r31`) of the **last `tech==4` entry before the fatal** names the armer; cross-reference
+  against the 15 call-site VAs (`0xc0394634`, `0xc0394660`, `0xc06df914`, `0xc06dfa5c`, `0xc06e1348`,
+  `0xc06e14cc`, `0xc06e2d40`, `0xc06e5004`, `0xc06e5330`, `0xc06ec16c`, `0xc06ec53c`, `0xc0bb1ddc`,
+  `0xc0bb2d90`, `0xc0bb3390`, `0xc0cf1d40`) to name the armer module.
+* **NEG** the modem crash-loops ⇒ the cave is invalid.
+
+**Deployment.** `scratch/deploy_v42_ring.py` installed `modem.{mdt,b00,b01,b05,b16}` into `/lib/firmware`
+and verified by sha256 read-back (PASS). **The pre-emptive SSR was DISABLED** (`uci set
+modem-watchdog.recovery.preemptive_ssr_enabled=0`) because it was masking the event — the device had run 82
+minutes clean under `preemptive_ssr_interval=800`; the modem is reset at 800 s and never reaches the ~900 s
+fatal. `a2_pin=1` and the recovery `ssr_enabled=1` are unchanged. The device was rebooted to activate v42.
+The capture window is **OPEN**: the next ~900 s fatal produces an auto-coredump whose BSS carries the ring,
+read by `scratch/read_v42_ring.py <dump>`.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| The 15-site arming API is instrumentable via one hook | ? | **YES** — callee entry `0xc0b66c00` carries tech + deadline + caller |
+| The prologue split is avoided | ? | **YES** — whole 12-byte packet replaced; cave replicates the prologue |
+| Offline verification | PASS | **PASS** — `verify_v42.py` (site/pad/cave/constants/containment/hashes/mdt) |
+| Deployed + sha256 read-back | PASS | **PASS** — `/lib/firmware` md5 `08584974f14fb8b2596edf98c6a00923` |
+| Capture window opened | ? | **YES** — pre-emptive SSR disabled; reboot issued 2026-10-05 07:02 UTC |
+| The armer identified | ? | **OPEN** — awaiting the next fatal's coredump |
+
+**SOP.** Ground-truth-first: the site/pad/cave bytes are disassembled and round-tripped with `llvm-mc`
+against the stock image before any device change; the deployment is verified with the loadable artifact
+(sha256 read-back), never a local md5. A design bug (16-byte stride for a 20-byte record) was caught by
+offline review and fixed **before** deployment. The mitigation was disabled deliberately and reversibly, and
+the disable is recorded here rather than left implicit. The negative (armer OPEN) is in the table. Ledger +
+CHANGELOG + memory updated this session.
+
+### §112.103 — v42 run #1: the fatal is CONFIRMED at 915.57 s, but the AP hang blocks the auto-coredump
+
+**Result (from `console-ramoops-0`, the previous boot's console).** The device booted v42 (firmware md5
+`08584974f14fb8b2596edf98c6a00923`), the modem powered up, and at **`ap_up = 915.573721 s`**:
+
+```
+[  915.573721] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common_timer.c:390:
+[  915.573807] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[  915.581357] remoteproc remoteproc0: handling crash #1 in 4080000.remoteproc
+[  915.589716] remoteproc remoteproc0: recovering 4080000.remoteproc
+   … bam_dmux SSR teardown T0–T9 …
+[  915.766992] bam-dmux: refusing to queue command while modem is collapsed
+[  916.411531] qcom-q6v5-mss 4080000.remoteproc: port failed halt
+```
+
+* **H1 is CONFIRMED.** The v42 instrument booted and ran cleanly to the ~900 s event (`lte_ml1_common_timer.c:390`,
+  the `tmr_slave3` variant of the same ~900 s family) — the hook did **not** crash-loop the modem.
+* **⚠ The auto-coredump was NOT captured.** `port failed halt` at **916.41 s** is followed ~3 s later by an
+  **AP reboot** (the next boot is at 07:19:27; uptime 58 s at the 07:20:25 poll). The 85 MB dump could not be
+  written/read in that window, and the AP reboot cleared any `devcd` node. This is **AP hang site B**
+  (`port failed halt`, the natural-fatal window) — **patch 831 is deployed** (`qcom_bam_dmux.ko` md5
+  `98d532de…`, the T4→T5 fix) and the ramoops shows T4–T9 completing, so this hang is a **different** one
+  (the q6v5 halt failure), not the T4→T5 race.
+* **Consequence.** The natural fatal does **not** reliably yield a coredump. The ring must be captured by an
+  **on-demand** dump (ledger §6.2a: `rmmod qcom_bam_dmux` first, then enable + trigger the coredump) taken
+  **before** the fatal (the fatal is at ap_up ≈915 s; the capture is scheduled at ap_up ≥880 s).
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — the modem boots with v42 and reaches ~900 s | ? | **YES** — fatal at 915.573721 s, no crash-loop |
+| The fatal family is the ~900 s one | ? | **YES** — `lte_ml1_common_timer.c:390` |
+| The auto-coredump is captured | ? | **NO** — AP hang `port failed halt` at 916.41 s → AP reboot |
+| The ring is read | ? | **OPEN** — on-demand capture scheduled (ap_up ≥880 s) |
+| The armer identified | ? | **OPEN** |
+
+**SOP.** Ground-truth-first: the outcome is read from the device's own `console-ramoops-0` (the previous
+boot's console), not inferred. The negative (no auto-coredump) is stated plainly, with the mechanism (the AP
+hang) and the evidence (patch 831 present, T4–T9 completed ⇒ a different hang). The mitigation-disable from
+§112.102 is still in force; the capture is by the documented on-demand procedure. Ledger + CHANGELOG + memory
+updated this session.
+
+### §112.104 — v42 run #1 CAPTURED: the armer is the SLEEPMGR itself (H3 answered)
+
+**Method.** The natural fatal's auto-coredump is blocked by the AP hang (§112.103), so the ring was captured
+by an **on-demand** dump at `ap_up = 884 s` (before the fatal): `rmmod qcom_bam_dmux`, `echo enabled >
+…/modem/coredump`, `echo 1 > …/modem/crash`, pull `devcd1/data` (85 398 475 B). Read by
+`scratch/read_v42_ring.py`. **The hook worked** — 581 non-empty slots, matching the seq counter.
+
+**A correction to the caller semantics.** `r31` at the arm entry is the **return address = the start of the
+next PACKET after the `call`**, not `callsite+4` (a Hexagon `call` sits inside a packet with arg-setup, and
+the return address is the following packet). So `0xc0394640` ⇒ the packet at `0xc0394634`, and `0xc039466c`
+⇒ the packet at `0xc0394660`. The reader's mapping was fixed accordingly.
+
+**RESULT — the armer histogram (581 arms):**
+
+| return addr (r31) | count | arm site | module |
+|---|---|---|---|
+| `0xc039466c` | **489** | `0xc0394660` | **sleepmgr** |
+| `0xc0394640` | **92** | `0xc0394634` | **sleepmgr** |
+
+* **ALL 581 arms are `tech == 4` (LTE).** `slpc_arm` is called ONLY for LTE in this run.
+* **The armer is the SLEEPMGR itself** — both sites are in the sleepmgr function `0xc0394600…` (the
+  sleep-timer re-arm path). None of the `0xc06d`/`0xc0bb`/`0xc0cf` sites fire. **This answers H3**: the
+  sleepmgr arms its own LTE sleep timer; the fatal is the sleepmgr's self-armed timer firing while the STM
+  is not `SLEEP`. Combined with §112.101 (the callback `0xc039ef80` is registered by the sleepmgr at
+  `0xc0396fa0`), the **LTE sleep path is entirely self-contained inside the sleepmgr**.
+* The two sites are the "now > deadline" arm (`0xc0394634`, taken when `r1:0 > r21:20` at `0xc0394608`) and
+  the "deadline != now" re-arm (`0xc0394660`, after the first arm returns 0). Both pass
+  `r3:2 = combine(r21,r20)` (the deadline) and `r0 = #0x4` (tech = LTE).
+
+**The deadline (the `r21:20` argument).** A **32-bit** value (`r3` = 0 in 581/581). Range
+`0x517c2`…`0x256ddbd`. It is **NOT monotonic** (not an absolute time that grows) and is **dominated by a
+near-constant cluster ~`0x256dd60` = 39,247,200** (275/581 within `0x256c000…0x256dfff`), with a secondary
+cluster ~`0x254e000` (54), several lower clusters (37.7 M, 38.6 M, 34.9 M, …), and 171 values `< 0x2000000`.
+**H2 is NOT supported in the obvious reading:** if the modem clock is 19.2 MHz, 39,247,200 ticks = **2.044 s**
+(not ~900 s). The unit is **OPEN** — a ~900 s reading would require a ~43.6 kHz clock. H2′ (short deadline,
+fires late) is compatible with the data; H2 (the deadline itself ≈ 900 s) is **not** demonstrated.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — boots to the ~900 s event | ? | **YES** (§112.103: fatal at 915.573721 s) |
+| The ring is captured | ? | **YES** — on-demand dump at ap_up 884 s, 581 slots |
+| All arms are LTE | ? | **YES** — 581/581 `tech==4` |
+| H3 — the armer is named | ? | **YES** — the **sleepmgr** (both sites `0xc0394634`/`0xc0394660`) |
+| H2 — the deadline itself ≈ 900 s | ? | **NO** — ~39,247,200; ~2.04 s at 19.2 MHz; unit OPEN |
+| H2′ — short deadline, fires late | ? | **compatible** (not yet discriminated) |
+| Root cause (why STM != SLEEP at 900 s) | — | **OPEN** |
+
+**SOP.** Ground-truth-first: the ring is read from the on-demand coredump and cross-checked (581 slots = the
+seq counter). A caller-semantics error (`callsite+4` vs next-packet-start) was found and corrected, and the
+correction is stated here rather than hidden. The capture method (on-demand, because the auto-dump is blocked)
+is documented. The negative (H2 not supported; root cause OPEN) is in the table. Ledger + CHANGELOG + memory
+updated this session.
+
+### §112.105 — v42 ring deadline ANALYSIS: the sleepmgr step object found, the clock is 19.2 MHz, and the
+sleepmgr sits AT the fatal instant
+
+**Question.** What do the 581 captured `slpc_arm(LTE, deadline)` values *mean*, and what clock are they in?
+(Follow-up to §112.104, which left the unit OPEN.)
+
+**Method.** All reads are from the same on-demand coredump (`scratch/v42_capture/ondemand_devcd1.bin`,
+`ELF_BIAS = 0x39800000`); the deadline distribution was re-analysed offline (`scratch/read_v42_ring.py` plus
+ad-hoc readers). No new on-device instrument was built — this is a data + disassembly analysis.
+
+**A. The sleepmgr step object is `0xc20f1510` (NEW, and the key that unblocked everything).**
+The step function `0xc03940e0(obj=r0, state=r1)` is invoked by `0xc03973a0`, which is a **method of the class
+`0xc1a94f70`** — the class pointer `0xc03973a0` sits at `class+0x8c` (the method table). The method gets its
+object from `0xc02d8e58` = `memw(x+0x14)`. Following `*(0xc1e158d0+0x14)` in the coredump gives the **live step
+object `0xc20f1510`** (the STM object `0xc1e158d0` is a *different*, smaller object — its `+0x58` is a byte
+array, which is why the earlier hunt for "now" at `0xc1e158d0+0x58` failed).
+
+**B. Cross-check — the step object's `+0x58` IS the last armed deadline.** `0xc20f1510+0x58 = 0x0256dd6b =
+39 247 211`, which is **exactly the last ring entry (seq 581)**. The step function writes `obj+0x58 = r21:20`
+(the deadline) at `0xc0394aec` after each arm, and reads it back as its time reference at `0xc039429c/4370/
+43f8/4570/4654`. So `+0x58` = "the time of the last sleep-timer arm".
+
+**C. The clock is 19.2 MHz (PROVEN).** `gp+0x107b8 = 19 200 000` (`0x0124f800`) is loaded in the slpc
+conversion helper `0xc0b66a10`. And the sleepmgr's **absolute** 64-bit time fields land at the fatal instant:
+
+| field | value | ÷19.2 MHz |
+|---|---|---|
+| step `0xc20f1510+0x2d0` | 17 567 592 566 | **914.979 s** |
+| step `+0x5f8` | 17 567 500 668 | 914.974 s |
+| RAT slot `0xc1da0830+0x118` | 17 567 583 228 | 914.978 s |
+| RAT slot `+0x100` | 17 567 583 473 | 914.978 s |
+| RAT slot `+0x50` (epoch) | 17 543 053 878 | 913.701 s |
+
+The **fatal is at 915.574 s** (§112.103). So the sleepmgr's own time field is within **0.6 s of the fatal** —
+i.e. the on-demand dump caught the sleepmgr **at the fatal instant** (the `ap_up=884 s` in the log is when the
+command was *issued*; the dump reflects the modem state at ~915 s). This is a strong, independent confirmation
+that the dump is a genuine pre-fatal snapshot.
+
+**D. The slpc timer is 27-bit, and the arm site is a two-clock conversion.** In `slpc_arm` (`0xc0b66c00`):
+* `r23:22 = memd(gp+0x109e8) = 0x07ffffff` — the timer mask is **2²⁷−1** (`gp+0x109f0 = 0xfffffffff8000000`
+  is its complement).
+* `slot[+0x138] = deadline` (the raw input, = 39 247 211); `slot[+0x130] = f(tech)` (= 24 529 350);
+  `slot[+0x118] = slot[+0x50] + slot[+0x130]` (= 17 567 583 228, the 19.2 MHz expiry); `slot[+0xf8] =
+  slot[+0x118] & 0x07ffffff` (the 27-bit wrapped timer value).
+* `slot+0x8 = 0x01d4c000 = 30 720 000 = 1.6 × 19 200 000` and `= 0x7800 × 1000`. If this is the slpc tick
+  rate (30.72 MHz) then **`0x7800` = 1 ms** and the deadline 39 247 211 = **1.2776 s**; at 19.2 MHz it is
+  2.044 s. The two-clock structure (19.2 MHz absolute vs a 30.72 MHz / 0x7800-granular timer) is the reading
+  most consistent with all constants, but the slpc tick rate is **not yet independently proven** (OPEN).
+  — **→ RESOLVED as 30.72 MHz in §112.106 (measured inter-expiry period).**
+
+**E. The deadline distribution has TWO phases (NEW structure, not visible in §112.104).**
+
+| phase | seq | dominant deadline(s) | = 0x7800 units | note |
+|---|---|---|---|---|
+| **1** | 1–30 | ~1 843 045 **and** ~613 956 | **60× and 20×** (3 : 1) | bimodal, exact multiples of 0x7800 |
+| **2** | 31–581 | ~39 247 200 (±100) | 1277.578× (not integer) | near-constant for the whole rest of the run |
+
+The **transition is sharp at seq ~31**: before it the sleepmgr arms 20 ms / 60 ms (0x7800 units); after it the
+deadline jumps ~21× to ~39.2 M and **stays there** (±100, non-monotonic) for the remaining 550 arms. Site
+breakdown: **SITE B `0xc0394660` = 489** (the "deadline in the future" schedule path), **SITE A `0xc0394634`
+= 92** (the "now > deadline / state∈{5,6}" catch-up path); SITE A's values are smaller (~1–2.5 M).
+
+**F. What this does and does not say about the ~900 s event.**
+* It **names the mechanism precisely**: the sleepmgr re-arms its own LTE sleep timer `slpc_arm(4, ·)` ~1.5×/s
+  (581 arms / 884 s), with a **near-constant deadline in phase 2** — a periodic re-arm, not a one-shot.
+* It **confirms the sleepmgr is the sole LTE armer** (H3, §112.104) and that the deadline is *not* an
+  absolute time that grows — so the earlier "H2 not supported" reading stands.
+* It **does NOT yet** connect the ~39.2 M value to the ~900 s wall-clock. The near-constant deadline is
+  present from seq 31 (~47 s) onward, **not** only at ~900 s, so the ring does **not** show a 900-s-specific
+  transition. The root cause (why the STM is not `SLEEP` at ~900 s) remains **OPEN**.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Locate the sleepmgr step object | ? | **YES** — `0xc20f1510` via `*(0xc1e158d0+0x14)` |
+| Cross-check `+0x58` = last ring deadline | yes | **YES** — `0x0256dd6b` = seq 581 exactly |
+| Pin the clock | ? | **PARTIAL** — 19.2 MHz proven for the absolute fields; slpc tick rate OPEN |
+| Explain the 581 deadlines | ? | **YES** — two phases; phase 2 = near-constant re-arm |
+| Connect to the ~900 s event | ? | **NO** — the constant deadline spans seq 31→581, not a 900-s transition |
+| Root cause (why STM ≠ SLEEP at ~900 s) | — | **OPEN** |
+
+**SOP.** Ground-truth-first: every value is read from the on-demand coredump and cross-checked (`+0x58` =
+the ring's last entry; the absolute time field = the fatal instant). No new on-device instrument was needed,
+so no new deployment. The negative (the ring does **not** isolate a 900-s transition; the slpc tick rate is
+OPEN) is stated in the table. Ledger + CHANGELOG + memory updated this session.
+
+---
+
+### §112.106 — RESOLVED: the slpc tick rate is **30.72 MHz** (`0x7800` = 1 ms); the phase-2 deadline is a
+**1.2776 s ≈ 1.28 s** LTE paging/DRX re-arm
+
+**Question.** §112.105D left the slpc tick rate OPEN (19.2 MHz vs 30.72 MHz). Resolve it from ground truth.
+
+**Method.** Read **two consecutive sleep-timer expiries** from the same on-demand coredump
+(`scratch/v42_capture/ondemand_devcd1.bin`, `ELF_BIAS = 0x39800000`) and compare the measured period to the
+ring deadline. Offline analysis only (`scratch/_v42_tick.py`); no new on-device instrument, no new deployment.
+
+**A. The decisive measurement — the inter-expiry interval.** In the LTE RAT slot `0xc1da0830`:
+
+| field | value | ÷19.2 MHz |
+|---|---|---|
+| `+0xd8` (last expiry; == step `+0x5f8`) | 17 567 500 668 | 914.973993 s |
+| `+0xe0` (next expiry) | 17 592 134 110 | 916.256985 s |
+| **interval `+0xe0 − +0xd8`** | **24 633 442 ticks** | **1.282992 s** |
+
+The `+0xd8`/`+0xe0` fields are the **same 19.2 MHz absolute-time family** as the §112.105C fields (same
+magnitude and epoch), so the **observed sleep-timer period = 24 633 442 / 19.2e6 = 1.282992 s**.
+
+**B. The ring deadline fits that period only at 30.72 MHz.**
+
+| interpretation | deadline 39 247 211 → | vs measured 1.282992 s |
+|---|---|---|
+| @19.2 MHz | 2.044126 s | **NO** (60 % off) |
+| @30.72 MHz | **1.277578 s** | **YES — 0.42 % off** |
+
+Implied tick rate = `39 247 211 / (24 633 442 / 19.2e6) = **30.59 MHz**`; the only clean clock near it is
+**30.72 MHz = 1.6 × 19.2 MHz**.
+
+**C. The code's own conversion confirms it.** In `slpc_arm` (`0xc0b66c00`), `slot+0x130 = f(tech) = 24 529 350`
+and `slot+0x138 = deadline = 39 247 211`; the ratio is **0.624998 = 5/8 = 19.2/30.72**. The arm path therefore
+converts the raw deadline **30.72 → 19.2 MHz (×5/8)** before adding it to the 19.2 MHz epoch:
+`slot+0x118 = slot+0x50 + slot+0x130 = 17 543 053 878 + 24 529 350 = 17 567 583 228` ✓. And the converted value
+(24 529 350) equals the **observed** interval (24 633 442) to **0.42 %** — the code's own ×5/8 conversion lands
+on the measured hardware period. **Two independent confirmations of 30.72 MHz.**
+
+**D. Corroborating constants.** `slot+0x8 = 0x01d4c000 = 30 720 000 = 0x7800 × 1000` — the slpc tick-rate
+constant. Phase-1 deadlines are **exact integer multiples** of `0x7800`: 1 843 045 = 59.995 × 0x7800 (60 ms),
+613 956 = 19.986 × 0x7800 (20 ms) — only meaningful if `0x7800` is a tick unit.
+
+**E. Physical reading — the two phases become a clean DRX story.**
+
+| phase | seq | deadline | @30.72 MHz | physical |
+|---|---|---|---|---|
+| **1** | 1–30 | 60× / 20× 0x7800 | **60 ms / 20 ms** | boot / acquisition fast re-arm |
+| **2** | 31–581 | ~39 247 200 | **1.2776 s ≈ 1.28 s** | the LTE **1.28 s paging / DRX cycle** |
+
+In phase 2 the sleepmgr re-arms `slpc_arm(4, ·)` once per 1.28 s DRX cycle (581 arms / 884 s ≈ 0.66/s ≈ one per
+~1.34 s — a 1.28 s timer plus arm overhead). This is a **normal periodic sleep-timer re-arm**, not a one-shot.
+
+**F. What it does / does not say.**
+* It **closes** the §112.105D "unit OPEN" caveat: **slpc tick = 30.72 MHz, `0x7800` = 1 ms**.
+* The phase-2 deadline is a periodic **1.28 s** value present from seq 31 (~47 s) onward — **not** a
+  900-s-specific value ⇒ this is consistent with §112.105F: the ring still does **not** isolate the ~900 s
+  transition.
+* Root cause (why the STM is not `SLEEP` at ~900 s) remains **OPEN**.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Measure a real timer period | yes | **YES** — 24 633 442 ticks = 1.282992 s (consecutive expiries) |
+| Decide 19.2 vs 30.72 MHz | one of them | **30.72 MHz** — 0.42 % fit (19.2 MHz is 60 % off) |
+| Confirm with the code's own conversion | yes | **YES** — `f(tech)/deadline = 5/8` lands on the measured period |
+| Give the deadline a physical meaning | ? | **YES** — phase 2 = 1.2776 s ≈ LTE 1.28 s DRX re-arm |
+| Connect to the ~900 s event | ? | **NO** — the 1.28 s constant spans seq 31→581, not a 900-s transition |
+| Root cause (why STM ≠ SLEEP at ~900 s) | — | **OPEN** |
+
+**SOP.** Ground-truth-first: the tick rate is decided by a **measured** timer period (two expiries read from the
+coredump), cross-checked against the code's own 5/8 conversion and the `0x7800` constants — not by assumption.
+No new on-device instrument was needed, so no new deployment; nothing was patched, so the running image is
+unchanged. The negative (still no 900-s transition in the ring; root cause OPEN) is stated in the table.
+Ledger + CHANGELOG + memory updated this session.
+
+---
+
+### §112.107 — Boundary-state hunt (offline corpus): **no distinct ~900 s trigger**; the only boundary-correlated
+structure is the common shutdown (a drained timer/scheduler pool)
+
+**Question.** Find the single field/state that crosses a threshold at modem-uptime ~900 s.
+
+**Method.** Offline cross-dump 32-bit discriminator scan (`scratch/_v43_discrim.py`) over 36 coredumps (all in
+`scratch/coredump_live_full/coredump_live/`): **21 boundary** dumps (`lte_ml1` @ modem-uptime 900–903 s),
+**8 pre-boundary** (`a2_*` @ 68–575 s), **7 post-boundary** (`a2_*` @ 909–1041 s). For each 4-byte word in the
+captured range, compute min/max within each group; a *perfect discriminator* = constant in the boundary group
+**and** constant in the pre group **and** different. The post group (same failure mode as pre, later uptime)
+controls the failure-mode confound. Also dumped the QuRT timer pool (`scratch/_v43_timers.py`).
+
+**Key limitation (stated up front).** Every dump in the corpus is a **crash-time** dump, and the boundary family
+exists only at 900–903 s ⇒ there is **no pre-boundary dump of a run that later died at 900 s**. The
+pre-vs-post comparison is therefore confounded (uptime + failure mode). This bounds what the corpus can answer.
+
+**A. 370 perfect discriminators — no distinct trigger.**
+Annotating the 370 against the post group: **88 boundary-correlated** (same value in boundary and post,
+different in pre), **280 failure-mode artifacts** (assert strings / log buffers at `0xC120xxxx`–`0xC121xxxx`
+that differ because a different assert fired), 2 other. The 88 boundary-correlated words are dominated by
+**ordinary counters** (a value 1 higher at the boundary) plus **4 simple latches** (0 → nonzero):
+`0xC35C9820`, `0xC35CDBA0` (a counter/stat table), `0xC385A860` (= `0x0100006c`), `0xC385AE98` (= 1). **None
+corresponds to a known trigger structure.**
+
+**B. The one structured boundary-correlated object is the timer/scheduler pool — and it is a SYMPTOM.**
+An array of 0x10-byte records at **`0xC3479a00`** (256 entries, ~4 KB), with a pool header at `0xC3479800`
+carrying the **QuRT timer-object magic `0x0fedcba9`** (the same magic the timer create/arm code writes at
+`c0914adc` and checks at `c0913748`; cf. the `0xcacacac` pool magic). In **all 21 boundary dumps AND all 7 post
+dumps**, every record is uniformly `{+0x00=next, +0x04=0, +0x08=state=0x0b, +0x0c=owner=0xc23aafe0}`; in the 8
+pre dumps the records have **varied** owners/states. ⇒ At the boundary the pool is **uniformly released**
+(drained). Because this holds for **both** the `lte_ml1` boundary dumps **and** the `a2_power` post dumps, it is
+**not** a per-victim state — it is the **common shutdown** (§112.57.13/15, the MCPM/power staged shutdown),
+i.e. a **symptom**, not the trigger. ⚠ Caveat: all post dumps are crashes, so the corpus cannot separate
+"crosses 900 s" from "happens at the ≥900 s event in both families" — either way it is not the trigger.
+
+**C. The 900 s timer is re-confirmed a non-trigger.** The QuRT pool (`0xc2cd4de0`) holds a `dur=900000 ms`
+timer (idx 213, cb `d051e254`, a *generic* callback shared by many durations) — but it is armed at AON 40.6 s
+and fires at AON 940.6 s, i.e. **~25 s AFTER the fatal**; **no timer in the pool expires at the fatal**
+(§112.68/69 re-confirmed).
+
+**Conclusion.** The offline corpus **cannot** isolate the ~900 s trigger: the only boundary-correlated
+structure is the common shutdown (a drained pool), the rest are counters/assert artifacts, and the corpus has
+no pre-boundary snapshot of a doomed run. A decisive boundary hunt needs a **live pre-boundary snapshot** —
+the on-demand capture forces a crash, so it cannot provide one (a DIAG memory-peek at ~800 s vs ~910 s would).
+**Root cause remains OPEN.**
+
+| Item | Expected | Achieved |
+|---|---|---|
+| A field that crosses ~900 s | one field | **NO** — 88 candidates, all counters/pool-state, no trigger |
+| Control the failure-mode confound | yes | **PARTIAL** — post-a2 group isolates mode; uptime still confounds |
+| Name the boundary-correlated object | ? | **YES** — a drained QuRT timer/scheduler pool `0xC3479a00` (magic `0xfedcba9`) |
+| Is it the trigger? | ? | **NO** — it is the common shutdown (both families) |
+| Rule out the 900 s timer | yes | **YES** — fires 25 s AFTER the fatal |
+| Root cause (why STM ≠ SLEEP at ~900 s) | — | **OPEN** |
+
+**SOP.** Ground-truth-first: every value read from coredumps (`scratch/_v43_discrim.py`, `_v43_timers.py`,
+`_v43_scan900.py`), the pool magic named from the disassembly (`c0914adc`/`c0913748`). Read-only/offline: no
+baseband write, no patch, no deploy, no device access. The negative (no trigger found; the corpus is
+crash-time only) is stated plainly. Ledger + CHANGELOG + memory updated this session.
+
+---
+
+### §112.108 — #2 config-perturbation probe (LIVE, HMU05): **no config lever moves or suppresses the ~900 s fatal**; and the post-fatal restart leaves the modem in a **one-way low-power trap** (only a cold reboot restores LTE)
+
+**Question.** Does any *config* perturbation move the ~900 s anchor or suppress the fatal? (Operator directive: sequential #1→#2→#3; #1 = §112.107.)
+
+**Live context.** The device (`hmu05,250605v0s`, OpenWrt, `modem.mdt` md5 `08584974f14fb8b2596edf98c6a00923`; `ssr_enabled=1`, `preemptive_ssr_enabled=0`, `a2_pin=1`) was found ~94 min into a boot, in a **post-fatal zombie state**:
+
+| AP time | event |
+|---|---|
+| 11.8–12.6 s | modem up (cold boot), MM finds it, LTE registers |
+| 884.5 s | `bam-dmux … power_off` (data-path teardown) |
+| **914.5 s** | **fatal `lte_ml1_common_timer.c:390`** (modem-uptime ~902 s), crash #1 |
+| 915.9 s | crash-recovery restart: modem "is now up" |
+| 916.3–916.5 s | `wwan0qmi0`/at ports reattached |
+| 916 s → 5 955 s | **modem never usable**: DMS `shutting-down`, NAS `not-registered-searching`, RF `none`, MM `No modems were found` — **4 777 s** (modem RTC via `ats-probe` confirms the modem CPU alive, clock ticking) |
+| 5 955 s | manual **reactive** SSR (`echo restart > …/msm_subsys/modem`) → **same zombie state** |
+| 6 099 s | AP reboot (cold) → **modem up 12.03 s, MM finds it, LTE `registered`** |
+
+**A. Natural experiment (strongest config evidence).** A modem whose LTE stack is OFF (DMS `shutting-down`) ran **4 777 s with no fatal** — the longest clean modem-uptime observed on this device. Long-duration confirmation of the LTE-stack gating (P-PMOS3's `offline` gave 1 126 s). **Radio off ⇒ no fatal.**
+
+**B. Config perturbations attempted — none perturbed, none moved the anchor.**
+
+| lever | result |
+|---|---|
+| QMI NAS `--nas-get-drx` | **get only** — qmicli has no DRX *setter*; DRX is network-controlled |
+| `mmcli --3gpp-set-packet-service-state=detached/attached` | **rejected** — `QMI protocol error (3): 'Internal'` |
+| `mmcli --3gpp-register-in-operator=405861` | **rejected** — `WrongState: Operation not allowed while modem is connected` |
+| `mmcli --set-current-bands=eutran-3` | accepted, **no-op** — serving cell already band 3 (EARFCN 1451) |
+| `--dms-set-operating-mode=online` / `=reset` | success, mode reads back `online`, **RF stays `none`** (the trap, part C) |
+| (prior) `offline` (CFUN=4) | suppresses (1 126 s) but **kills the data path** |
+| (prior) `low-power` | does **not** suppress, no anchor move (P-PMOS5, 902.178 s) |
+| (prior) `a2_pin` | no effect on the 900 s fatal (§112.49) |
+
+**Conclusion (#2).** No config lever keeps LTE data up *and* moves/suppresses the ~900 s fatal — every suppressing state takes the LTE stack down. This **exonerates the sleep/DRX/power-collapse config axis** and is consistent with the fatal being a **firmware-internal, LTE-stack-gated timer**. **#2 = NEGATIVE.**
+
+**C. Operational finding (feeds #3) — the post-fatal restart's outcome is VARIABLE: usually a ~24 s MM rebuild, occasionally a permanent TRAP.**
+
+- **Case A (trapped, n=1) — the boot found at session start.** fatal `lte_ml1_common_timer.c:390` @ AP 914.5 s (modem-uptime ~902.5 s) → crash-recovery restart → the modem returned in DMS `shutting-down`, NAS `not-registered-searching`, RF `none`, MM `No modems were found`, and stayed that way **4 777 s**. `--dms-set-operating-mode=online` / `=reset` reported success and the mode read back `online` **but the RF stayed `none`**; a hard MM restart still found no modem. Only a **cold reboot** restored LTE (modem up AP 12.03 s, MM found it, `registered`). This is the known one-way low-power trap (Doc 205 §6: *"`offline` is the one-way trap (only an AP reboot restores it)"*), now seen **after the fatal**.
+- **Case B (recovered, n=1) — the second boot, same day.** fatal `lte_ml1_sleepmgr_stm.c:4054` @ AP 912.6 s (modem-uptime ~900.6 s) → **identical AP-side sequence** (crash → bam-dmux PS0–PS3b `power_off` → modem stopped @ 912.76 → MBA @ 913.51 → "is now up" @ 914.06 → wwan ports @ 914.5) → **MM re-probed (Modem/3) and LTE was `connected` by AP 938 ⇒ ~24 s**. Normal recovery.
+
+⇒ **The AP-side recovery sequence is identical in both cases; the difference is the MODEM's post-restart state (`online` vs `shutting-down`) — a modem-firmware race, not an AP defect.** (Two different victim sites, both at the ~900 s deadline: `common_timer.c:390` and `sleepmgr_stm.c:4054` — consistent with §112.57.9/10/§112.66.) **Consequence for #3:** a reactive recovery must **detect the trapped outcome and re-drive the modem** — the current reactive SSR does not clear the trap; only a cold reboot does. ⚠ Both n=1.
+
+**Candidate mechanism for the trapped branch (UNTESTED):** `a2_pin=1` holds the AP's A2 power vote SET (`bam-dmux power/control=on`, `bam_dmux_runtime_suspend()` never runs ⇒ `pc_vote(false)` never written; §112.16/§112.21) across the restart; if the modem's post-restart A2 handshake needs the vote to toggle, the init could stall in `shutting-down`. The normal ~16 s rebuild was measured (2026-09-22, Doc 185) **before** `a2_pin` existed ⇒ the axis is open. **Next: test `a2_pin=0` × post-fatal recovery.**
+
+| Item | Expected | Achieved |
+|---|---|---|
+| A config lever that moves/suppresses the fatal | one | **NO** — all rejected/no-op/already-tested |
+| Exonerate the sleep/DRX config axis | yes | **YES (by exhaustion)** — not config-reachable |
+| The fatal needs an active LTE stack | yes | **YES** — 4 777 s with the stack off, no fatal |
+| Recover the modem after the fatal | yes | **NO** — warm restart → one-way trap; cold reboot required |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: modem uptime from `ats-probe` (ATS_RTC), state from `qmicli`/`mmcli`/dmesg. No baseband write, no patch, no deploy. One reversible recovery action (a single **reactive** SSR to unstick a wedged modem) — **not** the pre-emptive SSR the operator ruled out. The #2 negative and the (C) recovery finding are stated plainly. Ledger + CHANGELOG + memory updated this session.
+
+### §112.109 — #3 "Hunt the RF freeze": the RF is **NOT** an independent failure — it is the *first step* of a staged FW wind-down that ends in an unmatched `FW_SLEEP_PWRDN_FULL` (2026-10-05)
+
+**Question (operator directive, replacing #3).** The RF/LTE receiver appears to "freeze" at ~900 s. Instrument **why** — the upstream cause, before any CNF/assert.
+
+**Method.** Re-analysed the existing boundary capture `scratch/f3_900/` (7 chunks × 5 s, **AP** uptime 898→948 s, the fatal run) and `scratch/f3_v15/` (6 chunks, 898→923 s, the assert-suppression/wedge run) with the **proven** `scratch/f3parse.py` (`ts` at `k+5`, 204800 Hz). ⚠ The ad-hoc parsers written earlier this session (`_rf_freeze_census.py`, `_rf_lines.py`, `_rf_last_ts.py` v1) read `ts` at `k+3` — **inside `na`** — so their *timestamps* were garbage (the record *counts* were unaffected). Fixed by using `f3parse.parse`. New tools: `scratch/_rf_last_ts.py` (v2), `scratch/_rf_cycle.py`.
+
+**Finding 1 — the RF's first-to-stop signal, named.** The `rflte` share collapses 234→78→0 across AP 898→903→908. It is **one** log site:
+
+```
+rflte_core_rxctl.c:403  code=0x12c2  fmt="rflte_core_rxctl_update_rx_gain_freq_comp_to_mdsp: Gain_offset[%d]= %d"
+```
+emitted in a fixed pattern: **6 × `Gain_offset[i]` (i=0..5) followed by 1 × `rflte_mc_meas.c:1943`** (`"IRAT LTE GRFC script GFRC Tx ant_sel_num 4 for device 0 band 2"`). 216 records in the up898 chunk = 36 such pairs / 5.17 s ≈ **7 calls/s**.
+
+**Finding 2 — the update is a NO-OP: `Gain_offset` is identically 0.** In the 350 s dense capture `scratch/f3_soak/cap_fatal.bin`, **3444/3444** `rflte_core_rxctl.c:403` records have `args=[i, 0]` — **zero** non-zero offsets. On this firmware/board the RX gain/frequency compensation written to the MDSP is always zero.
+
+**Finding 3 — the ordering is REAL (not a log-rate artifact).** Verified two independent ways:
+- *last stream position* (capture order ≈ chronological): in the up903 chunk `rflte`'s last record is at index **274 / 456 = 60 %**, while `pgi_msgr`/`a2_power`/`mcpm_npa`/`mcpm_saw` last at **94–97 %** and the `cfm_cpu_monitor` heartbeat at **100 %**.
+- *last `ts`*: rflte last at **+1.55 s** into the chunk vs MCPM/power at **+4.48 s**.
+⇒ **`rflte` stops ≈ 1.7 s before the MCPM/power/coex subsystems.**
+
+**Finding 4 — the MCPM FW sleep/wake cycle changes 0.320 s → 1.280 s at the boundary, and `tech wakeup_req` appears.** Cycle boundary = `mcpm_saw.c:591` (`FW_WAKE-UP_Start`, arg0 = MCPM timer; deltas / 19.2 MHz):
+
+| chunk (AP up) | cycle periods (s) | `mcpm.c:3109` (`tech wakeup_req`) |
+|---|---|---|
+| 898 | 0.297 0.343 0.640 0.320 0.320 0.297 0.343 0.320 | **0** |
+| 903 | 0.320 0.320 0.297 0.427 **1.294 1.280** | **3** |
+| 908 | **1.280 1.291 1.280** | **4** |
+| 913 | (1 wake) | **1** |
+| 938+ | — (post-restart) | 0 |
+
+1.28 s = **4 × 0.320 s** = the **LTE long-DRX cycle** (0.320 s = short DRX). So the modem steps from short-DRX to long-DRX exactly as the RF stops, and the LTE stack (`mcpm.c:3109`, **tech 4 = LTE**, `"clearing params early_wakeup_time 0x%x%x"`) starts issuing tech wakeup requests **only** at the boundary.
+
+**Finding 5 — a CM/SDSS burst follows the last `rflte` record** (up903, stream idx 276→303): `pgi_msgr.c:718 WWAN_TECH_MSG` (bands 124/122), `trm_config_handler.c:1012 "SRLTE is enabled"` + `:1016 "get srlte,dsds mode: 2"`, `gstkutil.c:7705 "******** dumping array mm_idle ********"`, `sdss.c:7144 "SDSS:FRFL: Updating core ss"`, `cmss.c:30893 "CMSOA: cmsoa send mcc_msg()"`, `sdss.c:18454 "** Activate GWL opr script = ssscr_gw_opr_srv_info **"`. And in up913: **`rf_task.c:336 "get imei stoped"`** — the RFM teardown string (v15/§112.95), i.e. the fatal-path re-entry.
+
+**Finding 6 — the terminal state is a full FW power-down with NO wake.** The last MCPM cycle is `mcpm_npa.c:702` → `mcpm.c:3109` → `mcpm_saw.c:591 FW_WAKE-UP_Start` → `mcpm_saw.c:393 "MCPM 2 step FW PC FW_SLEEP_PWRDN_FULL 5"` → `mcpm_npa.c:1361/1286`, then **silence**. Only the 20 Hz `cfm_cpu_monitor.c:308` heartbeat and `DalVAdc.c:1257` continue (at 20 Hz / ~1 Hz) through every post-boundary chunk. ⇒ **the modem's application core stays ALIVE; only the FW (RF/LTE/MCPM) subsystem is dead.** This is the **unmatched `SleepEntry`** signature of §112.86 — the FW powered down fully and the wake never came.
+
+**Finding 7 — the wedge comparison is CONFOUNDED (do not over-read it).** `f3_v15` (wedge) shows **zero** `rflte` records and **zero** `mcpm.c:3109` in *every* chunk — but it also has no LTE-RX activity at all, so the runs differ in more than the manifestation. The 0.32→1.28 s transition and `tech wakeup_req` are therefore observed **only in the fatal run** but **cannot** be claimed fatal-specific from this pair. (Stated as an explicit limit, not a result.)
+
+**Finding 8 — the call chain (offline decompile).** `handler table 0xc0d15610 → FUN_c02a47d0 → FUN_c10169d0` (the RX-control worker: loops the active-chain bitmask `puVar2[4]`, calls `FUN_c10188a8` then `FUN_c1018bac` twice per active chain) `→ FUN_c1018bac → FUN_c101311c` (per-index gain compute; `FUN_c105e600(…,0x142,…)`) `→ FUN_c08f1580(0xc16ea334, i, gain)` (the :403 log) `+ FUN_c1007fe4`/`FUN_c1007f88`, which write the value into the MDSP table `[gp+0x4370] + chain*0x180 + i*2 + 0x360` (4 chains × 0x180; the reader `FUN_c1008044` uses the same stride). So the log is emitted by the **LTE RX gain/freq-compensation updater**, once per active chain per tick.
+
+**Conclusion (#3).** The RF does **not** fail independently. The RF RX-control task stops as the **first step** of a staged FW wind-down (RF → MCPM/power/coex → `FW_SLEEP_PWRDN_FULL` → no wake). The "RF freeze" is a **leading indicator / symptom**, not the upstream cause. **The RF-freeze hypothesis — an independent RF-driver failure that *causes* the ~900 s fatal — is NOT SUPPORTED.** **Root cause remains OPEN.**
+
+**Consequence for a modem patch (the operator's standing direction).** Patching the RF RX task or its `Gain_offset` update would not touch the root cause — that code is downstream and, on this board, a no-op (all-zero offsets). The failing layer is the **sleep/wake (MCPM power-collapse) path**, upstream of the RF; the only defensible targets remain the sleepmgr/MCPM wake path already instrumented by v26–v34 (transport *healthy*) and v42 (armer = the sleepmgr itself).
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Name the first RF signal to stop | yes | **YES** — `rflte_core_rxctl.c:403` (`…update_rx_gain_freq_comp_to_mdsp`, `Gain_offset[i]=0`) |
+| Is the RF failure independent (upstream)? | maybe | **NO** — it stops first *within* a staged wind-down; MCPM/power stop ~1.7 s later |
+| A clean fatal-vs-wedge discriminator | yes | **NO** — the wedge capture has no LTE-RX activity ⇒ confounded |
+| Patch target in the RF task | one | **NONE** — downstream + no-op (all-zero) |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: reused **existing** captures (no new device run), the **proven** `f3parse` parser, and the tracked `modem_full_decompiled.c` (VAs are real VA − 0x100000). No baseband write, no patch, no deploy, no device state change. The parser-offset error found and corrected mid-analysis is disclosed above. The confounded cross-run comparison is stated as a limit, not promoted to a result. Ledger + CHANGELOG + memory updated this session.
+
+### §112.110 — Why the wake never arrives: the MCPM wake mechanism, the request path, and a coredump NEGATIVE (2026-10-05)
+
+**Question (operator follow-up to §112.109).** §112.109 left the terminal state = `mcpm_saw.c:393 FW_SLEEP_PWRDN_FULL` with **no following wake**. Instrument **why the wake never arrives**.
+
+**Method.** Offline: the tracked decompile (`modem_full_decompiled.c`; its VAs ARE the coredump VAs — verified: `0xc3973590` maps, `+0x100000` is all-zero) + the **6 local coredumps** (`scratch/coredump_live/*.elf`, incl. the ~915 s fatal) read via `scratch/a2_descr.py`'s `load`/`dumpva2off`/`rd` + descriptor resolution. Plus the existing F3 boundary capture. **No device run, no patch, no deploy.**
+
+**Finding 1 — the MCPM FW sleep/wake is a 10-source VOTE.**
+- `DAT_c3973594` = the wake-source **bitmask**; **all-idle = `0x3ff`**. Per-tech mask table at `0xc1e0d320` (read from the coredump): `tech 0→0x01, 1→0x02, 2→0x100, 3→0x200, 4→0x04, 5→0x08, 6→0x10, 7→0x20, 8→0x40, 9→0x80`.
+- `FUN_c0cf8e70` (mcpm_saw): the FW power-collapse is issued **only when `DAT_c3973594 == 0x3ff`** (every source idle).
+- `FUN_c0cf8fa4(wake_mask)` (logs **`mcpm_saw.c:591 FW_WAKE-UP_Start`**): **clears that source's bit**; then `if (state==4 && mask != 0x3ff)` it performs the wake (`FUN_c0cd5040(1)` + `FUN_c0cd3694()`, state→5).
+⇒ **The FW wakes only when a source *clears* its bit. If no source ever clears, the FW stays down forever.**
+
+**Finding 2 — the request path (who is supposed to clear a bit).**
+`FUN_c0ce3f78` (the MCPM **IRAT / mode-change** handler — it runs the `MCPMDRV_mux_tech_IRAT_Config` path, walks per-tech entries at stride `0x4d0`, and gates on `*(gp+0xda8)`) → `FUN_c0cd4500` (aggregates 14 tech entries at stride `0x17c`) → `FUN_c0ce1664` (per-tech wakeup; **gated by the per-tech flag `DAT_c3963d87 + tech*0x4d0`**) → `FUN_c0cf8fa4(mask[tech])`.
+
+**Finding 3 — NEW assert sites in the power path (not previously catalogued).** Resolved from the descriptor DB:
+- **`mcpm_saw.c:424`** = the FW-power-collapse **10-try timeout** in `FUN_c0cf8cd0` (`FUN_c1274c20(2000)` × up to 10 polls of `FUN_c0b5c120(5)`; on exhaustion → `FUN_c0879150(&DAT_c3c68760)`).
+- The **`fws_sleep.c`** SAW-hardware state machine (states 2→3→4→5), asserting at **every** transition: `fws_sleep.c:253/257/258` (`FUN_c0b5c120`), `:407/409` (`FUN_c0b5c250`), `:493/495/502` (`FUN_c0b5c2a0`), `:542/548/549` (`FUN_c0b5c310`).
+⚠ **Neither `mcpm_saw.c:424` nor any `fws_sleep.c` site is among the known ~900 s fatal sites** (those are `lte_ml1_*` / `a2_power.c:1189`, §112.57.9/10, §112.97) ⇒ these are **candidate** sites, not confirmed.
+
+**Finding 4 — the F3 says the wake was SERVICED, then stopped being REQUESTED.**
+- `mcpm.c:3109` (`MCPM: tech wakeup_req- clearing params early_wakeup_time …`) = **tech 4 = LTE**, and it appears **only at the boundary**: counts 0 (up898) → **3 → 4 → 1** (up903/908/913) → 0.
+- In up903/up908 its **last** occurrence is immediately followed by the **last** `mcpm_saw.c:591 FW_WAKE-UP_Start` (stream idx 428→429 and 182→183), then the terminal `FW_SLEEP_PWRDN_FULL`.
+⇒ The last wake **did** happen (request → wake). **No further request arrives** ⇒ the failure is on the **REQUEST side**, not the service side. "The wake never arrives" = **"the wake request never arrives."**
+
+**Finding 5 — the coredumps CANNOT answer this (NEGATIVE).** All 6 dumps give a **byte-identical** MCPM state: `DAT_c3973594 = 0x3ef` (bit `0x10` = **tech 6** cleared), `DAT_c3973590 = 0`, `DAT_c3973598 = 0x100`, `DAT_c3973599 = 1`, `DAT_c1e0a5e3 = 0x02000101`, and the per-tech flag nonzero **only** for tech 6. ⇒ the dump is taken **after the crash handler quiesced the MCPM**; the state is steady, not the fault. **A coredump-based answer is impossible; only a live capture can catch the transition.**
+
+**Finding 6 — the boundary F3 shows an IRAT mode-change burst right after the last RF record** (up903, stream idx 276→303): `trm_config_handler.c:1012 "SRLTE is enabled"`, `sdss.c:18454 "Activate GWL opr script"`, `cmss.c:30893 "CMSOA: cmsoa send mcc_msg()"`, `gstkutil.c:7705 "dumping array mm_idle"`, `cmss.c:17008 "Copy csg_info … old_mode:9 new_mode:9"`. This is consistent with `FUN_c0ce3f78` (the MCPM IRAT/mode-change handler) being the last MCPM request-path code to run.
+
+**Conclusion.** The wake stops because the **request** stops, not because the service fails. The requester is the MCPM **IRAT / aggregate** path (`FUN_c0ce3f78 → FUN_c0cd4500 → FUN_c0ce1664 → FUN_c0cf8fa4`). **Whether the trigger is the LTE short→long DRX transition (0.320→1.280 s, §112.109) or the concurrent CM/SDSS IRAT reconfig is OPEN.** Root cause OPEN.
+
+**Next decisive instrument (not yet built).** A **live ring on the wake path** — hook `FUN_c0cf8fa4` (the wake) and/or `FUN_c0cd4500` / `FUN_c0ce1664` (the request), logging `{seq, tech, wake_mask, DAT_c3973594, DAT_c3973590, t}` — to catch the **last request** and whether the request stream stops abruptly or degrades. Reuse the v26–v42 ring technique (a code cave + a fixed BSS ring read from an on-demand coredump). This is the only instrument that can answer the question, given Finding 5.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Name the wake mechanism | yes | **YES** — a 10-source vote (`DAT_c3973594`, all-idle `0x3ff`); a wake = a source clears its bit (`FUN_c0cf8fa4`) |
+| Name the requester | yes | **YES (path)** — `FUN_c0ce3f78` (IRAT) → `FUN_c0cd4500` → `FUN_c0ce1664` → `FUN_c0cf8fa4` |
+| Request-side vs service-side | one | **REQUEST-side** — the last wake fired; no further request |
+| Answer it from a coredump | hoped | **NO** — MCPM state is byte-identical in all 6 dumps (post-quiesce) |
+| Root cause | — | **OPEN** — needs a live wake-path ring |
+
+**SOP.** Ground-truth-first: the tracked decompile + 6 coredumps + the descriptor DB (authoritative line numbers) + the existing F3 capture. VA convention re-verified (`0xc3973590` maps in the dump; `+0x100000` is all-zero). No baseband write, no patch, no deploy, no device state change. The coredump NEGATIVE is stated plainly, and the assert sites are labelled **candidate**, not confirmed. Ledger + CHANGELOG + memory updated this session.
+
+### §112.111 — Why the wake never arrives, part 2: the MCPM cycle is DRX-driven, and it stops after a WAKE (not a sleep) — a correction to §112.110 (2026-10-05)
+
+**Question (operator follow-up).** §112.110 concluded "the wake request stops ⇒ request-side" and proposed a live ring. Before building an instrument, re-read the **existing boundary F3** with the **proven** `f3parse` parser (`ts` at `k+5`), in *stream order*, at record granularity. The question was refined to: **what, exactly, is the last MCPM event — a sleep or a wake?**
+
+**Method.** Offline, no device run, no patch. `scratch/_mcpm_stream.py` (new) dumps every MCPM-family record per boundary chunk in stream order with `ts` relative to the chunk's first record; `scratch/_collapse_timeline.py` (new) prints a per-subsystem count + last-`ts` census across chunks; `scratch/_grep_f3.py` (new) searches `file`/`fmt` across chunks. Captures reused: `scratch/f3_900` (the ~900 s fatal), `scratch/f3_v15` (a wedge), `scratch/f3_soak/fail9584` (a second fatal-family capture).
+
+**Finding 1 — the MCPM FW sleep/wake cycle is a DRX-driven POWER cycle, and its trigger is the NPA `ldo17` frequency callback (not the IRAT path).**
+In `up898` (healthy, short DRX) the cycle repeats every **0.31–0.32 s** with exactly this shape:
+1. `mcpm_npa.c:702` `MCPM_NPA: ldo17 freq CB notified with %d tech %d` — args `[1, 6]` = "notified with 1 tech 6".
+2. `mcpm_saw.c:591` `MCPM FW_WAKE-UP_Start. Triggered Start time = %lx, End time = %lx, duration = %lu usecs` — args `[start, end, dur]`, **dur = 8–11 µs**.
+3. `mcpm_npa.c:1322` `No Imm CLKCPU req of 384000 … tech 6` (×1–6).
+4. `mcpm_saw.c:393` `MCPM 2 step FW PC FW_SLEEP_PWRDN_FULL %d` — arg `5`.
+5. `mcpm_npa.c:1286/1361` `Delaying complete request for CLKCPU … / Sched CLKCPU req for 384000, tech 6`.
+⇒ the FW is **awake ~34 ms and asleep ~280 ms** per cycle; the wake is triggered by the **CX-rail (ldo17) frequency callback**, i.e. by the LTE receiver coming out of DRX. **This corrects §112.110 Finding 2's implication that the wake is driven by the IRAT/mode-change path** — the IRAT path (`FUN_c0ce3f78`) is a *separate* entry into the same wake primitive; the *periodic* driver is NPA/ldo17.
+
+**Finding 2 — the cycle period transitions 0.32 → 1.28 s at the boundary, and `mcpm.c:3109` appears only in the long-DRX regime.**
+In `up903` the inter-wake intervals read 0.32, 0.32, 0.32, 0.30, 0.44, **1.29, 1.28** s; in `up908` they are **1.28 s** throughout. The record `mcpm.c:3109` `MCPM: tech wakeup_req- clearing params early_wakeup_time 0x%x%x sleep_active %d` (args `[hi, lo, sleep_active]`, `sleep_active=1`) is **absent in `up898`** and appears **only** once the interval has reached 1.28 s (counts 0 → 3 → 4 → 1 → 0 across `up898…up913`). This is the LTE **short-DRX → long-DRX** transition (×4), and it is **fatal-only**: the wedge (`f3_v15`) holds a continuous **0.32 s** cycle with **no `mcpm.c:3109` anywhere**.
+
+**Finding 3 (the correction) — the LAST MCPM event is a completed WAKE, not a sleep.** In the fatal (`f3_900/up913`, records [15]–[22]):
+```
+[15] ldo17 freq CB
+[16] mcpm.c:3109 tech wakeup_req (early_wakeup_time hi=0xE0000000, sleep_active=1)
+[17] FW_WAKE-UP_Start (duration = 10 usec)
+[18] No Imm CLKCPU req ... tech 6
+[19/20] a2_power.c:1313/3765  A2 power req from client=3 (TD DL), req=1
+[21/22] pgi_msgr.c:718  WWAN_TECH_MSG from CXM: Tech 0 Band 122 Chan 1451 FreqKHz 1830000 Dir 2 BW 10000000
+```
+and then **no `FW_SLEEP_PWRDN_FULL`** — the chunk continues for another 75 records (t+0.65 → t+2.85 s) of app-core heartbeat only, and `up938/943/948` contain **zero** MCPM records. ⇒ **§112.110 Finding 4's "…then the terminal `FW_SLEEP_PWRDN_FULL`" is WRONG**: that sleep belongs to `up908`'s last *complete* cycle; the true terminal is `up913`'s **incomplete** cycle ending on a **wake**. The FW is left **awake**, and the sleep/wake machinery then stops running entirely. "The wake never arrives" is therefore mis-stated: **the wake arrived one last time; the cycle that should have continued did not.**
+
+**Finding 4 — the terminal signature is COMMON to the fatal and the wedge.** The wedge (`f3_v15/up908`, records [449]–[460]) ends with the *same* shape:
+`ldo17 CB → FW_WAKE-UP_Start (duration 10) → No Imm CLKCPU → a2_power client=3 AND client=2 req=1 → pgi_msgr CXM (Band 124 / 122) → rf_task.c:336 " get imei stoped " → heartbeat only`, and again **no `FW_SLEEP_PWRDN_FULL`**. ⇒ the terminal FW wind-down is **manifestation-independent** (fatal ≡ wedge here); it is the *common shutdown*, not the differentiator. (Consistent with §112.87/§112.95: `rf_task.c:336` is the one-shot RFM teardown, a symptom.)
+
+**Finding 5 — the collapse order (per-chunk census, `scratch/_collapse_timeline.py`).**
+| stage | last activity | fatal (`f3_900`) | wedge (`f3_v15`) |
+|---|---|---|---|
+| RF / LTE RX control | `rflte_core_rxctl.c:403` + `rflte_mc_meas.c:1943` (IRAT GRFC script) | stops in **`up903` t+1.5 s** | (absent throughout) |
+| IRAT reconfig | `trm_config_handler.c:1012 "SRLTE is enabled"`, `sdss.c:18454 "** Activate GWL opr script **"`, `cmss`/`gstkutil` | **`up903` t+1.6 s** | absent |
+| MCPM / A2 / CXM | `mcpm_npa`, `mcpm_saw`, `mcpm.c`, `a2_power`, `pgi_msgr` | stops **`up913` t+0.6 s** | stops between `up908` and `up913` |
+| app-core heartbeat | `cfm_cpu_monitor.c:308` (50 ms), `DalVAdc.c:1257` | **continues in every chunk incl. `up948`** | continues in `up923` |
+⇒ the RF/LTE engine dies **first**, ~9 s before the MCPM machinery stops, and the app core never dies.
+
+**Finding 6 — a one-time SRLTE/GWL IRAT reconfig coincides with the RF stop (fatal-only, but not tightly coupled).** `trm_config_handler.c:1012 "SRLTE is enabled"` + `:1016 "…srlte,dsds mode: 2"` + `sdss.c:18454 "** Activate GWL opr script **"` occur **only** at `up903` t+1.596 s in `f3_900` (never in `f3_v15`), and the RF RX control stops 48 ms earlier (t+1.548). A **second** fatal-family capture (`f3_soak/fail9584`) also shows `SRLTE is enabled` (`up9564`) and `Activate GWL opr script` (`up9578`), but **~18–23 s before** its own MCPM stop ⇒ the SRLTE reconfig is **fatal-associated but not tightly time-locked**, so its causal role is **UNPROVEN**. (Note `cmsoa.c:2746 "=CM= c2kswitch: Not SRLTE mode"` immediately follows "SRLTE is enabled" — the config is contradictory in the log; do not over-read.)
+
+**Conclusion.** The MCPM FW sleep/wake cycle is a **slave of the LTE DRX engine**, driven through the NPA `ldo17` frequency callback. At the ~900 s event the LTE/RF RX-control engine stops (coincident with an SRLTE/IRAT reconfig), the DRX wakeups stop, and the MCPM cycle stops **after one final wake** — leaving the FW awake while the app core runs on. So "the wake never arrives" = **"the LTE engine that generates the wake requests stopped"**. Root cause remains **OPEN** (upstream of the RF).
+
+**Limits (stated, not hidden).** (1) The F3 is an *observation* channel: it shows the last RF tick, not why it is the last. (2) The wedge has no `rflte` records at all ⇒ the fatal-vs-wedge comparison on the RF/IRAT stage is **confounded** (§112.109 Finding 7 still applies). (3) `fail9584` is at ~9584 s, not ~900 s, so it may be a different failure family; it is cited only to show the SRLTE/GWL signature is not unique to `f3_900`. (4) The coredump remains a proven NEGATIVE for the MCPM state (§112.110 Finding 5).
+
+**Next decisive instrument (not yet built).** A **live ring on the RF/LTE RX-control task** — hook `FUN_c10169d0` (the RX-control worker) and/or its callee `FUN_c101311c` (the per-index gain compute that emits `rflte_core_rxctl.c:403`), logging `{seq, chain_bitmask, tick, t}` — to catch the **last invocation** and decide whether it *completed* or *hung*. Optionally add the TRM config-handler entry for the SRLTE reconfig. This is upstream of the MCPM cycle and is where the engine actually dies; the MCPM wake-path ring of §112.110 is now **lower priority** (the MCPM cycle is a slave, not the driver).
+
+| Item | Expected | Achieved |
+|---|---|---|
+| What triggers the periodic MCPM wake | one mechanism | **YES** — the NPA `ldo17` freq callback (`mcpm_npa.c:702`, tech 6); cycle = DRX period |
+| Characterise the DRX transition | yes | **YES** — 0.32 → 1.28 s (short→long); `mcpm.c:3109` only in long DRX; **fatal-only** |
+| Is the terminal a sleep or a wake | one | **WAKE** — last event = `FW_WAKE-UP_Start`, no `FW_SLEEP_PWRDN_FULL` (**corrects §112.110**) |
+| Is the terminal fatal-specific | hoped | **NO** — identical in the fatal and the wedge |
+| A fatal-only RF-stage signature | maybe | **PARTIAL** — SRLTE/GWL reconfig at the RF stop (fatal-only in the pair; not time-locked in `fail9584`) |
+| Root cause | — | **OPEN** — needs a live RF/LTE-RX ring |
+
+**SOP.** Ground-truth-first: reused **existing** captures (no new device run), the **proven** `f3parse` parser, and stream-order record dumps; no baseband write, no patch, no deploy, no device state change. A prior-session error (§112.110's terminal-event claim) is **corrected in place** and the superseded text is named. The confounded cross-run comparison and the `fail9584` time mismatch are stated as limits, not promoted. Ledger + CHANGELOG + memory updated this session.
+
+### §112.112 — v43 (the RF/LTE RX-control ring): the §112.111 target `FUN_c10169d0` is **NOT the RX tick** — a clean NEGATIVE that re-targets the hunt (2026-10-05)
+
+**Question.** §112.111 concluded the LTE/RF RX engine stops first and proposed a live ring on the "RX-control worker"
+`FUN_c10169d0` and/or its callee `FUN_c101311c` (the emitter of `rflte_core_rxctl.c:403`), to decide whether the worker
+*stopped being called* (H3) or *ran with the chains deactivated* (H3′).
+
+**Instrument (v43).** Hooked the entry packet of `FUN_c10169d0` @ `0xc10169d0` (seg16/`modem.b16`): packet 1
+`{ call 0xc08384e0 ; allocframe(#0x68) }` → `jump` to a 28-B NOP pad `0xc1214124` → hop to a code cave `0xc003054c`
+(seg5/`modem.b05`). The cave appends `{seq, ctx=r0, caller=r31, bitmask=memw(r0+0x10)}` to a 4096×16 B BSS ring
+`0xc1d4c600`, with the counter at `0xc1455000`, then reproduces the displaced `allocframe` + register-save helper and
+resumes the body at `0xc10169d8`. Built by `scratch/diag_patch_v43/build_diag_patch_v43.py`, offline-verified by
+`verify_v43.py` (**PASS**; b16 changed=15 B, b05 changed=79 B, all in-region; seg16/seg5 sha256 + mdt OK;
+`modem.mdt md5 = 7b7f1dfe23a5ba1d6339919f259673e3`), deployed by `scratch/deploy_v43.py` (sha256 read-back **PASS**).
+
+**Method / run.** The last modem reload (10:15:02Z) **predated** the deploy (10:17:46Z), so the running modem was still
+v42; a **clean asynchronous restart** was forced (`echo restart > /sys/kernel/debug/msm_subsys/modem` — patch 826; the
+write value is `"restart"`, NOT `"1"`; `restart_count` 1→2). The modem came up on v43 at `ap_up 5015 s` with LTE
+connected. `scratch/run_v43.py` polled `/sys/class/devcoredump/`; the **natural fatal** produced `devcd4` (85 398 475 B)
+at `modem_up = 899 s`, pulled and decoded by `scratch/read_v43_ring.py`. The site and cave bytes were **confirmed in
+the dump** (`0xc10169d0` = `aa eb 3f 58 00 c0 00 7f`), so the patch was loaded and executing.
+
+**RESULT — the ring holds only 11 entries.** Counter `@0xc1455000 = 11`; 11 non-empty slots (seq 1..11).
+
+| seq | ctx | bitmask | caller (r31) |
+|---|---|---|---|
+| 1,2,3,5,7,8,9,11 (×8) | `0x8ae87f30` | `0x0` | `0xc1016c68` |
+| 4,10 | `0xc310ee48` | `0x1` | `0xc1018740` |
+| 6 | `0xc310ea88` | `0x1` | `0xc1018740` |
+
+* **`FUN_c10169d0` is called ELEVEN times in 899 s** (≈0.012 Hz). It is **not** a periodic worker. The §112.111
+  target identification is therefore **FALSIFIED**.
+* **H2 is NOT supported**: there are **two** callers, not one.
+* **H3/H3′ are INCONCLUSIVE** (n=11; the final entry has bitmask 0, but 8/11 are 0).
+* The two call sites resolve by disassembly: **`0xc1016c64`** sets `r0 = r29+0x40` (a **stack-local** struct, bitmask
+  0) and **`0xc1018738`** sets `r1:0 = combine(#1, r16)` (a **BSS** struct, bitmask 1). So `FUN_c10169d0` is a general
+  "process this control struct" helper reached from two internal sites in its own module — not an RX tick. (The
+  `0x8ae87f30` "ctx" is a stack address, outside every PT_LOAD, which is why it does not resolve.)
+
+**The corrected target rate.** The observable that actually stops first — `rflte_core_rxctl.c:403`
+(`rflte_core_rxctl_update_rx_gain_freq_comp_to_mdsp: Gain_offset[%d]= %d`) — is a **6-index loop** (idx 0..5) emitted
+**36×** in the `up898` F3 chunk (≈**7–8 calls/s**), and it stops between `up903+1.548 s` and `up908` (`scratch/f3_900`,
+records re-counted with the proven parser). So the real tick is **~7–8 Hz**, i.e. ~600× the v43 target's rate. Static
+localisation of its emitter: the `:403` descriptor is one of `0xc1528fe4` / `0xc152d68c` / `0xc155a338` (packed
+`line=403, level=1`), referenced from `0xc05763ac`, `0xc05af634`/`0xc05af668`, and `0xc0664000`; the containing
+function of the strongest candidate begins at **`0xc05af580`** (`allocframe(#0x10)`). The shared log-call tails make
+the *exact* site ambiguous statically, so the next instrument must identify it **at runtime**.
+
+**A reader bug, found and fixed.** `read_v43_ring.py` printed the counter from bytes `[4:8]` of `@0xc1455000`; the
+cave writes it at `[0:4]`, so the counter read **0** while the ring held seq 1..11 — a contradiction that exposed the
+bug. Fixed to `[0:4]`; re-read gives **11** (consistent). Disclosed here rather than hidden.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — boots and runs to the ~900 s event | yes | **YES** — fatal at `modem_up 899 s`, no crash-loop; patch bytes confirmed in the dump |
+| The ring is captured | yes | **YES** — natural `devcd4`, 11 slots = counter |
+| H2 — the caller is constant (single driver) | hoped | **NO** — two callers (`0xc1016c68` ×8, `0xc1018740` ×3) |
+| H3 / H3′ — bitmask nonzero to the last / drains to 0 | one | **INCONCLUSIVE** — n=11; last entry bitmask 0, but 8/11 are 0 |
+| The §112.111 target is the RX tick | assumed | **NO (FALSIFIED)** — `FUN_c10169d0` = 11 calls / 899 s |
+| The real tick's rate | ~? | **~7–8 Hz** (6-index loop, 36 calls/chunk) |
+| Root cause | — | **OPEN** — re-targeted to the `:403` emitter |
+
+**Limits (stated, not hidden).** (1) v43 instruments **one** function; the negative is only as wide as that function.
+(2) The 11-entry ring gives no timestamps, so the *when* of the 11 calls is unknown. (3) The `:403` emitter's exact VA
+is **not yet pinned** (three candidate descriptor sites; shared log tails); it must be resolved at runtime. (4) The
+device is currently left running **v43** (the patch is control-flow-neutral and adds ~11 writes/900 s).
+
+**Next decisive instrument (not yet built).** Identify the `:403` emitter **at runtime**: hook the F3 log wrapper
+`0xc08f1610` and ring `{seq, desc, a1, a2, a3, caller=r31}` (filter, if needed, to the three candidate descriptors).
+The descriptor that fires at ~7–8 Hz and whose **last** entry sits at the RF collapse names the function (via `r31`),
+and then a second, dedicated ring on **that** entry decides *stopped-being-called* vs *ran-empty* — the question
+§112.111 actually posed. Root cause remains **OPEN**.
+
+**SOP.** Ground-truth-first: the target VA, the displaced packet, the callers, the descriptor candidates and the
+`:403` record structure were all read from the stock image / the coredump / the F3 captures (no guessing); the patch
+was hash-verified **offline** and by **sha256 read-back on the device** before the run; the site and cave bytes were
+re-confirmed **inside the returned dump**. A reader bug was found and corrected, and a prior-session target error
+(§112.111's `FUN_c10169d0`) is recorded as a **falsified hypothesis** rather than quietly dropped. Reversible: the
+only device writes were `/lib/firmware` (v43) + a modem restart; stock backup intact at `/root/fw_stock_hmu05`
+(`modem.mdt md5 = 1a6f9507e03d4ddbbf1977af81ecdbd7`). Ledger + CHANGELOG + memory updated this session.
+
+### §112.113 — v44 (the F3 log-wrapper ring): the hook is CORRECT, but the ring is too short — the modem logs at ~446/s, so 4096 slots = 9.2 s (2026-10-05)
+
+**Question.** §112.112's "next decisive instrument": hook the F3 log wrapper `FUN_c08f1610` and ring
+`{seq, desc, caller=r31, arg0}` so the descriptor that fires at ~7–8 Hz (the `rflte_core_rxctl.c:403` observable)
+names its emitter at runtime. *Did the ring catch the `:403` stream and its emitter?*
+
+**Instrument (v44).** Hooked the entry packet of `FUN_c08f1610` @ `0xc08f1610` (seg16/`modem.b16`): packet 1
+`{ r4 = memw(gp+#0x38ac) ; allocframe(#0x0) }` → `jump` (parse=0b11) to a 12-B NOP pad `0xc08f1604` (3 words right
+after `FUN_c08f15xx`'s `dealloc_return`) → hop to a code cave `0xc003054c` (seg5/`modem.b05`). The cave appends
+`{seq, desc=r0, caller=r31, arg0=r1}` to a 4096×16 B BSS ring `0xc1d4c600`, with the counter at `0xc1455000`, then
+reproduces the displaced `r4 = memw(gp+#0x38ac) ; allocframe(#0x0)` and resumes at `0xc08f1618`. Built by
+`scratch/diag_patch_v44/build_diag_patch_v44.py`, offline-verified by `verify_v44.py` (**PASS**; b16 changed=15 B,
+b05 changed=79 B, all in-region; seg16/seg5 sha256 + mdt OK; `modem.mdt md5 = 326209eecae9a99e2b24b6714ba4a2ba`),
+deployed by `scratch/deploy_v44.py` (sha256 read-back **PASS**).
+
+**Method / run.** The running modem was still v43 (its reload predated the deploy), so a **clean asynchronous
+restart** was forced (`echo restart > /sys/kernel/debug/msm_subsys/modem` — patch 826; the write value is
+`"restart"`, NOT `"1"`; `restart_count` 2→3). The modem came up on v44; `scratch/run_v44.py` polled
+`/sys/class/devcoredump/`; the **natural fatal** produced `devcd8` (85 398 475 B) at `modem_up = 906 s`, pulled and
+decoded by `scratch/read_v44_ring.py`.
+
+**The hook target is CORRECT (verified, not assumed).** The call sites load the descriptor address into `r0` and
+`call 0xc08f1610`; disassembling them shows the literal load immediately before the call:
+`0xc05763ac` (`immext #0xc1528fc0 ; r0 = ##0xc1528fe4 ; call 0xc08f1610`), `0xc05af634`/`0xc05af668` (descriptors
+`0xc152d68c`/`0xc152d69c`), `0xc0664000` (via thunk `0xc0287020`, descriptor `0xc155a338`), and the ring's own
+top callers `0xc039e114` (descriptor `0xc1655cb8`), `0xc0b7ac38` (`0xc1617f50`), `0xc031bfd0` (`0xc1652068`). So
+`FUN_c08f1610` **is** the F3 log wrapper and `r0` **is** the descriptor. (v44's earlier mis-give, that the body
+looked like a level-check helper, was a disassembler resync artifact; the call-site evidence settles it.)
+
+**RESULT — the ring filled (404 343 calls) but is a 9.2 s window, and the `:403` candidates are absent from it.**
+
+| quantity | value |
+|---|---|
+| counter `@0xc1455000` | **404 343** log calls in 906 s ⇒ **~446 calls/s** |
+| non-empty slots | **4096** (full); seq range `400248 .. 404343` |
+| window covered | the last 4096 calls = the last **~9.2 s** |
+| distinct descriptors in-window | **12** |
+| top descriptors | `0xc1655cb8` ×1751 (line 18668, lvl 0x208), `0xc1617f50` ×1751 (line 1680, lvl 0x3a), `0xc1652068` ×584 (line 1366, lvl 0x1fd), then 9 ×1 |
+| `:403` candidates | `0xc1528fe4` **ABSENT**, `0xc152d68c` **ABSENT**, `0xc155a338` **ABSENT** |
+
+The last 40 slots are a **tight 3-message alternation** — `0xc1617f50` (caller `0xc0b7ac38`, arg0 `0x57ee4ff2`),
+`0xc1655cb8` (caller `0xc039e114`, arg0 `0xa34`), and every 3rd `0xc1652068` (caller `0xc031bfd0`, arg0 `0x208`) —
+i.e. the modem is in a **crash-time log storm** at the moment of the fatal, and the `:403` stream had already
+stopped **more than 9.2 s earlier** (consistent with §112.112's "it stops between `up903+1.548 s` and `up908`").
+
+**A model correction, found in passing.** The three crash-time descriptors decode to `line`/`level` pairs where
+**`level` exceeds `0xFF`** (`0x208`, `0x1fd`). `scratch/logsite.py`'s anchor heuristic guards on
+`(w0 & 0xFFFF) <= 0xFF`; that guard is a **plausibility filter for the ~8 % of entries whose `word1` is a string
+pointer**, **not** a property of the model. The true model remains `packed = (line << 16) | level` with `line` in
+the high 16 bits; `level` is a **level mask** and may be large. This is why two of the three dominant descriptors
+looked "invalid" at first glance.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — boots and runs to the ~900 s event | yes | **YES** — fatal at `modem_up 906 s`, no crash-loop; patch bytes confirmed in the dump |
+| H2 — the ring is non-empty | yes | **YES** — 404 343 calls, 4096/4096 slots |
+| H3 — a `:403` descriptor appears at ~7–8/s | hoped | **NO** — all three candidates **ABSENT** from the last 9.2 s |
+| H4 — the caller names the emitter | hoped | **NO (this run)** — the in-window callers are the crash-storm emitters, not the `:403` emitter |
+| The hook target is the F3 wrapper | assumed | **YES (verified)** — every log call site loads the descriptor into `r0` then `call 0xc08f1610` |
+| Root cause | — | **OPEN** — the ring is simply too short |
+
+**Limits (stated, not hidden).** (1) The ring is a **fixed 4096-slot** window; at 446 calls/s it covers only
+~9.2 s. It cannot see anything that stopped earlier — a **negative here is a window limit, not an absence**.
+(2) The largest zeroed BSS run usable for a bigger ring is only ~64 KB ⇒ a 4× ring buys only ~37 s; **ring size is
+not the fix**. (3) The ring has no timestamps; only the seq counter orders events. (4) The three crash-time
+descriptors are reported but their emitters were **not** pursued (they are the crash storm, not the `:403` stream).
+
+**Next decisive instrument (not yet built).** Replace the ring with an **O(1) "last-seen" record filtered on the
+descriptor's line field == 403** (v45, `scratch/diag_patch_v45/`): `count403 @+0x00`, `last403 {seq,desc,caller,arg0}
+@+0x10`, `first403 @+0x20` at `0xc1d4c600`, plus the total counter `@0xc1455000`. This spans the **whole run** with
+~64 B of state and answers: who emits line 403 (caller), which descriptor, the rate (`count403`/906 s), and **when**
+it stopped (last403.seq vs the total seq).
+
+**SOP.** Ground-truth-first: the target VA, the displaced packet, the pad, the descriptor literals and the ring's
+own callers were all read from the stock image / the coredump (no guessing); the patch was hash-verified **offline**
+and by **sha256 read-back on the device** before the run; the site and cave bytes were re-confirmed **inside the
+returned dump**. The earlier "the target may be wrong" doubt is **recorded and then resolved by evidence** rather
+than left standing, and the `logsite.py` level-guard misconception is corrected in place. Reversible: the only
+device writes were `/lib/firmware` (v44) + a modem restart; stock backup intact at `/root/fw_stock_hmu05`
+(`modem.mdt md5 = 1a6f9507e03d4ddbbf1977af81ecdbd7`). Ledger + CHANGELOG + memory updated this session.
