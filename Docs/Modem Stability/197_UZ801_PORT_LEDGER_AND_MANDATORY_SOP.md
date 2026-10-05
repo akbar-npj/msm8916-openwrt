@@ -22975,3 +22975,7 @@ OPEN.**
 **SOP.** Pre-registered (§112.134) **before** the event; one change at a time; the natural event was reached with
 pre-emptive SSR disabled; the result is recorded **before** the firmware rollback; rollback to stock follows.
 The v53 (a) conclusion is **retracted explicitly** rather than silently overwritten.
+
+**Rollback (done).** `python3 scratch/deploy_v54.py --rollback` restored all 5 files; **installed md5 == the
+`/root/fw_stock_hmu05` backup** for `modem.mdt` (`1a6f9507…`), `b00`, `b01`, `b05`, `b16` (verified by direct
+`md5sum` compare). Modem restarted onto stock; `wwan0 = 10.93.246.2/30`, default route up, **ping OK**.
