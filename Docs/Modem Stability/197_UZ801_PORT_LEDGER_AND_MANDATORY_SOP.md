@@ -22072,3 +22072,45 @@ dmesg fatal baseline `D0=17`; `U0` anchored to the restart. Arm B = **patch only
 an AP-wall-clock proxy. The new signature is reported as a new natural manifestation, and it triggered an in-place
 correction of §112.121. The harness failure is recorded with its cause and the fix (device-side soak) before Arm B
 runs. No conclusion about the patch is drawn from Arm A.
+
+### §112.124 — A/B/C blob test: Arm B (no-sleep patch alone) = WEDGE at ~900 s (the fatal is gone; the data path still dies)
+
+**Arm B result (no-sleep patch `modem.mdt 3006927c…`, `qcom-time-daemon` ON, keepalive OFF):** **WEDGE at ~900 s**
+— the DSP fatal is **gone**, but the **data path still dies** at the same ~15-min mark.
+
+**Raw soak log** (`/root/soak_B_nosleep.log`, `U0=26433`):
+
+```
+mu=1..879s    ping=OK   (LTE up, inet 10.110.7.180, state=running)
+mu=910s       ping=FAIL(1)   inet 10.110.7.180 state=running
+mu=944..1077s ping=FAIL(2..6) inet 10.110.7.180 state=running
+mu=1100s      *** CLEAN: reached mu=1100s with no event ***   <- FALSE (see below)
+```
+
+**Verdict = WEDGE (corrected by hand).** The soak printed `CLEAN` — a **false positive from a logic flaw**: its
+WEDGE threshold was 8 consecutive ping failures, but the target (`mu=1100`) was reached after only **6** failures,
+so the target branch fired first. The link was **already dead and never recovered**.
+
+**Independent verification of the WEDGE:**
+- **No new dmesg fatal**: the last `fatal error received` is `25556.94` (`lte_ml1_sleepmgr_stm.c:4054`), which is
+  **before** Arm B's modem boot at `26432.65` ⇒ the Arm-B modem **never asserted** (no coredump: `devcd: disabled`).
+- `remoteproc0/state = running`; `wwan0` still holds `inet 10.110.7.180`; **`ping 8.8.8.8` FAILS** (3/3).
+- ⇒ the classic **connected-but-dead** signature: modem alive, bearer present, **data path dead**.
+
+**Onset:** between `mu=879 s` (OK) and `mu=910 s` (FAIL) ⇒ **~880–910 s**, the same ~900 s deadline as Arm A.
+
+**Interpretation.** The no-sleep patch (`r0=#0x20` stub of the `ENABLE_SLEEP_REQ` handler `0xc03987e0`) **removes
+the ML1 DSP fatal** (no coredump, no `:4054`/`:324`) but **does not prevent the ~900 s event** — it changes the
+manifestation from **FATAL → WEDGE**. This **exactly reproduces `main`'s Run 2** ("no-sleep patch removed the DSP
+crash but the data froze at exactly 15.0 min"). ⇒ the forwarded user report's "completely resolves the 15-minute
+crash" is **false as a stability claim**: the modem still dies at ~15 min; only the *manifestation* changed. The
+`main`-final claim rests on the **2 s keepalive** (Arm C), not the patch.
+
+**Harness fix (applied before Arm C).** `scratch/soak_dev.sh`: `WEDGE_FAILS 8 → 5`, and the target branch now
+scores **WEDGE if any ping failure is outstanding at target** (not CLEAN). Re-uploaded to the device.
+
+**SOP.** The false-CLEAN is reported as a harness flaw, corrected in the script, and the verdict is re-derived
+from independent evidence (dmesg + state + ping), not from the soak's own label. The result is compared to the
+pre-registered expectation (Arm B → "FATAL or WEDGE at ~900 s") — **WEDGE ⇒ expectation met**. No claim that the
+patch "works" is made; the manifestation change is stated as exactly that. Arm C (patch + 2 s keepalive) is
+launched with the fixed harness.

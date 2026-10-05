@@ -11,6 +11,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.124 A/B/C Arm B (no-sleep patch alone) = WEDGE at ~900 s (fatal gone, data path still dies ⇒ reproduces main's Run 2); soak false-CLEAN fixed; Arm C (patch + 2 s keepalive) launched
+
+- **Arm B verdict = WEDGE, not CLEAN.** Soak printed CLEAN only because its 8-fail wedge threshold wasn't reached
+  before the mu=1100 target (only 6 fails) — the link was dead and never recovered. Independent evidence: **no new
+  dmesg fatal** (last `:4054` @25556.94 is before Arm B's boot @26432.65), `state=running`, `wwan0` holds
+  `10.110.7.180`, **ping FAILS**, `devcd: disabled` (no coredump). Onset between mu=879 (OK) and mu=910 (FAIL).
+- **Meaning:** the no-sleep patch removes the ML1 DSP **fatal** but **not** the ~900 s event — it changes
+  **FATAL → WEDGE**. This **exactly reproduces `main`'s Run 2**. ⇒ the user report's "completely resolves the
+  crash" is **false as a stability claim**; the modem still dies at ~15 min.
+- **Harness fix:** `scratch/soak_dev.sh` `WEDGE_FAILS 8→5` + target-time link check (target reached while down =
+  WEDGE). Re-uploaded.
+- **Arm C launched:** patch + 2 s keepalive (config `enabled=1, interval=2, enable_recovery=0`, verified running).
+
 ### 2026-10-05 — §112.121 CORRECTED (v51 census CONTAMINATED but ring CLEAN ⇒ dispatcher NEG; `:324` is NATURAL, not instrument-induced) + §112.123 Arm-A control = FATAL at 900.96 s (`:324` reproduced on stock ⇒ 6th natural signature) + Arms B/C moved to a device-side soak
 
 - **§112.121 correction:** the Arm-A control reproduced `lte_ml1_common.c:324` on **stock** at modem-up 900.96 s ⇒
