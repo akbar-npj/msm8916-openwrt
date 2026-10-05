@@ -21916,44 +21916,56 @@ section changes documentation only. Ledger + CHANGELOG + memory updated this ses
 
 ---
 
-### §112.121 — v51 (ML1 common-timer dispatch census) RESULT: CONFOUNDED (instrument-induced fatal)
+### §112.121 — v51 (ML1 common-timer dispatch census) RESULT: census CONTAMINATED, ring CLEAN — dispatcher healthy to the fatal
 
-**Status:** instrument-confounded; the ML1-pivot census is **inconclusive** and must be re-run with a relocated
-state region before any conclusion about the ML1 timer layer is drawn.
+> **⚠ CORRECTION (same session, after the Arm-A control).** The first version of this section claimed the `:324`
+> fatal was **instrument-induced** because `:324` is "not in the corpus". That claim is **FALSIFIED**: the Arm-A
+> control (stock firmware, no v51 patch) reproduced **`lte_ml1_common.c:324` at modem-up 900.96 s** (dmesg
+> `crash #20`), and the two following stock boots fataled `lte_ml1_sleepmgr_stm.c:4054` at 900.70/900.61 s. So
+> **`:324` is a NATURAL 6th signature** and v51's fatal was natural, not induced. The `filesz>0` reasoning in the
+> first version was also wrong (see "Confounding" below). The **contaminated census** finding stands, on the
+> readback evidence, not on the signature.
+
+**Status:** the per-key **CENSUS is invalid** (its region is used by the modem at runtime); the **RING is valid**
+and scores a **NEG** for the ML1 common-timer dispatcher over its window. No re-run is required to score the
+dispatcher's *tail* behaviour; a re-run is required only if we want a **whole-run** per-key census.
 
 **Run.** v51 single-site DISPATCH hook on `FUN_c02d7bd0` @ `0xc02d7bec` (`{ jumpr r2 }`, packet `00 c0 82 52`),
-cave `0xc003054c` (128 B, fits the 180 B sled), state in `modem.b19` at `SAVE=0xc1cfe8a0`, `CENSUS=0xc1cfe8c0`,
-`RING=0xc1d4c600` (4096×16 B, the proven v50 region). Deployed + hash-verified (`modem.mdt` md5 recorded);
-modem restarted cleanly (state 16→17→18); LTE attached, ping OK.
+cave `0xc003054c` (128 B, fits the 180 B sled). State (all `modem.b19`, **asserted zeroed in the stock image**):
+`SAVE.seq` @ `0xc1cfe898` (in a 118569 B zero run `0xc1cfe898..0xc1d1b7c1`), `CENSUS` @ `0xc1cfe8a0` (256×12 B),
+`RING` @ `0xc1d4c600` (4096×16 B, the v50-proven zero run `0xc1d4c47c..0xc1d654a9`). Deployed + hash-verified;
+modem restarted cleanly; LTE attached, ping OK. Fatal at **modem-up 919 s** (`lte_ml1_common.c:324`).
 
-**Result.** The fatal fired at **modem-up 919 s** — but with signature
-`lte_ml1_common.c:324` (`Task=slpc`), a signature **NOT in the 42-dump corpus** (the corpus has exactly 5 sites:
-`lte_ml1_sleepmgr_stm.c:4054` ×17, `lte_ml1_common_timer.c:390` ×4, `lte_ml1_common_dump.c:217`, the
-`a2_power.c:1189` family, and the `a2_task.c:3179` family). `SAVE.seq = 84362` (so the dispatcher IS hot — ~92
-calls/s, consistent with a per-DRX timer), and the ring cadence was healthy to the last record (keys 0, 1, 3, 4,
-12, 13, 14, 15 observed; **no key 20**; no spike; no collapse ⇒ branches (a)/(b)/(c) all NOT matched ⇒ would
-score NEG). The fatal's PC/LR were within the dispatcher's own dispatch table region.
+**Result — RING (VALID).** 4096 records recovered, key histogram
+`{3:3284, 0:395, 14:132, 1:132, 15:50, 13:56, 12:39, 4:8}`, **no key 20**, regular cadence, span **9.0 s**
+(172031012 ticks @19.2 MHz). `SAVE.seq = 84362` (dispatcher hot, ~92 calls/s). ⇒ **P-V51 NEG for the dispatcher**:
+in the last 9 s the ML1 common-timer dispatcher ran a regular cadence with no key-20 spike and no collapse. **⚠
+Window limit:** 4096 slots @ ~455 rec/s = only **9 s** of coverage — this does NOT exclude a whole-run change.
 
-**Confounding.** The `SAVE`/`CENSUS` region `0xc1cfe8a0`/`0xc1cfe8c0` is in `modem.b19` segment
-`0xc1c3c000..0xc1f2bac8` — a segment with `filesz > 0` (live BSS, unlike the v50-proven zeroed run at
-`0xc1d4c600`). The high-key census entries read back the modem's own pointers (the census `last_handler` field
-showed live-code VAs), so the instrument's writes **corrupted live modem state** ⇒ the `:324` fatal is
-**instrument-induced**, not the natural ~900 s event. The RING region (`0xc1d4c600`) was the only genuinely-zeroed
-window and is uncorrupted, but it is downstream of the corrupted census.
+**Result — CENSUS (INVALID).** The readback is impossible: keys 148–252 show counts ≈3.25e9 and `last_handler`
+pointing **inside the census region itself** (`0xc1cff3d0`, `0xc1cff330`, `0xc1cfef60`…) — i.e. the region holds
+the modem's own pointer list at runtime. Only the low keys are sane (0:9089, 1:3029, 3:65694, 13:1298, 14:3028,
+15:1136). ⇒ the per-key totals cannot be trusted.
 
-**Fix for any re-run.** Relocate `SAVE` and `CENSUS` into the **proven zeroed run** that v50 used — i.e. co-locate
-all state in `0xc1d4c600`-ish window (a single 68 KB zero run exists there: `SAVE` 4 B + `CENSUS` 3072 B + `RING`
-65536 B = 68612 B, fits). Do NOT use `0xc1cfe8a0` for anything. Re-verify by reading back the region from a coredump
-BEFORE trusting the census.
+**Confounding (corrected).** The region was **zeroed in the static image** (the builder asserts it), so the
+"`filesz>0` live BSS" reasoning in the first version was wrong. The collision is a **runtime** one: `0xc1cfe8a0`
+is a BSS region the modem **uses at runtime** (it holds a pointer list), so our writes interleave with the modem's
+⇒ the census is corrupt. The v50 RING at `0xc1d4c600` is a region that is zeroed **and unused at runtime**, which
+is why it reads back clean. ⇒ **"zeroed in the image" is NOT sufficient; a region must be proven unused at
+runtime** (as v50's ring was, by a successful readback).
 
-**Ledger impact.** The §112.120 "ML1 pivot" is **not closed** — its first instrument is confounded. The MCPM/power
-line (§112.118/119) remains CLOSED (that was established by v49/v50 with state in the proven region). The root cause
-remains OPEN. The P-V51 pre-registration's NEG branch is **NOT scored** here because the confound invalidates the
-run; re-running with the relocated state is the only way to score it.
+**Fix for any re-run.** Co-locate ALL state in the v50-**proven** run `0xc1d4c47c..0xc1d654a9`:
+`SAVE` @ `0xc1d4c600` (4 B) + `CENSUS` @ `0xc1d4c608` (3072 B, ends `0xc1d4d208`) + `RING` @ `0xc1d4d208`
+(65536 B, ends `0xc1d5d208`) — all inside the proven window. Do NOT use `0xc1cfe8a0`. Verify by readback.
 
-**SOP.** The confound is reported as a confound, not as a negative. The fatal's novelty (`:324` not in corpus) was
-the tell that flagged it. The fix (relocate to the v50-proven zero run) is stated before any re-run. No conclusion
-about the ML1 timer layer is drawn from this run.
+**Ledger impact.** The §112.120 "ML1 pivot" scores a **NEG for the dispatcher's tail** (ring) but its whole-run
+census is invalid. The MCPM/power line (§112.118/119) remains CLOSED. The root cause remains OPEN; the trigger is
+**outside the ML1 common-timer dispatcher's steady state** (or the dispatcher's change is subtler than the 9 s
+window can see).
+
+**SOP.** The correction is made in place with the reason (the Arm-A control falsified the signature argument).
+The ring vs census split is reported honestly (one valid, one invalid). The "zeroed ≠ unused" lesson is recorded.
+No conclusion about the whole-run ML1 timer layer is drawn from the corrupt census.
 
 ### §112.122 — the `main`-branch no-sleep patcher audit + the staged A/B/C test pre-registration
 
@@ -22024,3 +22036,39 @@ The test is pre-registered with explicit per-arm expectations before any arm is 
 **before** the test arms. The keepalive is staged but not enabled for the control. No conclusion about whether the
 patch "works" is drawn until the arms complete. Reversible by construction: each arm rolls the modem back to stock
 before the next. Ledger + CHANGELOG + memory updated this session.
+
+### §112.123 — A/B/C blob test: Arm A (stock control) = FATAL reproduced at modem-up 900.96 s; `lte_ml1_common.c:324` is a NATURAL 6th signature
+
+**Arm A result (control, stock `modem.mdt 1a6f9507…`, `qcom-time-daemon` ON, keepalive OFF):** the event
+**reproduced**. dmesg timeline (ap-up seconds; the running modem loads `/lib/firmware` on each powerup):
+
+| dmesg | signature | modem-uptime |
+|---|---|---|
+| 23752.70 | **`lte_ml1_common.c:324`** (crash #20) | **900.96 s** |
+| 24654.87 | `lte_ml1_sleepmgr_stm.c:4054` (crash #21) | 900.70 s |
+| 25556.94 | `lte_ml1_sleepmgr_stm.c:4054` (crash #22) | 900.61 s |
+
+Crashes #20–#22 are **stock** (post-rollback) ⇒ **3/3 stock boots evented at ~900 s** (two manifestations). ⇒
+**the ~900 s event is confirmed on the current config** and the base rate remains ~100 %.
+
+**★★ NEW natural signature — `lte_ml1_common.c:324`.** This site is **NOT in the 42-dump corpus** (which has
+`:4054` ×17, `:390` ×4, `:217`, `a2_power.c:1189`, `a2_task.c:3179`). Arm A shows it **occurs naturally on stock**
+⇒ it is a **6th manifestation**, not an instrument artifact. This **falsified** the first §112.121 claim that
+v51's `:324` was instrument-induced (corrected in place above). Note crash #19 at 22601.30 (`:324`, modem-up
+919.06 s) was the v51 run itself — natural, same signature.
+
+**Harness lesson (recorded).** The **host-side** soak (`scratch/soak_nosleep.py`) is correct — it anchors `U0` to
+the modem boot — but it was **killed at mu=867 s** by the session/network interruption, **33 s before the fatal**,
+so it missed the event it was watching (the modem fataled anyway, unattended). ⇒ for Arms B/C the soak was moved
+**onto the device** (`scratch/soak_dev.sh`, launched detached with `setsid`), logging to `/root/soak_<label>.log`
+and detecting FATAL via the dmesg `fatal error received` count and WEDGE via 8 consecutive ping failures. This is
+robust to host/SSH/session loss.
+
+**Pre-flight for Arm B.** No-sleep blob deployed + verified (`modem.mdt md5 3006927c…`, `b16@0x1117e0 =
+00c4007800c09f52`); `qcom-time-daemon` pid 2525 ON; `modem-keepalive.general.enabled='0'` (OFF); coredump enabled;
+dmesg fatal baseline `D0=17`; `U0` anchored to the restart. Arm B = **patch only** (daemon ON, keepalive OFF).
+
+**SOP.** The control is reported with the raw dmesg timestamps and the modem-uptime arithmetic (boot→fatal), not
+an AP-wall-clock proxy. The new signature is reported as a new natural manifestation, and it triggered an in-place
+correction of §112.121. The harness failure is recorded with its cause and the fix (device-side soak) before Arm B
+runs. No conclusion about the patch is drawn from Arm A.

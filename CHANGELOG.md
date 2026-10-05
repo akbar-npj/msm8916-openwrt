@@ -11,7 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### 2026-10-05 — §112.121: v51 (ML1 dispatch census) CONFOUNDED (instrument-induced `:324` fatal; state region collided with live BSS); §112.122: `main`-branch no-sleep patcher audit (opcodes mis-labeled `#-1` vs actual `#0x20`; target is the `ENABLE_SLEEP_REQ` handler; daemon was a crash trigger on main, not a fix; main's own Run 2 → WEDGE at 15 min) + staged A/B/C blob test pre-registered (control running, patch blob built `3006927c…`, 2 s keepalive staged but OFF)
+### 2026-10-05 — §112.121 CORRECTED (v51 census CONTAMINATED but ring CLEAN ⇒ dispatcher NEG; `:324` is NATURAL, not instrument-induced) + §112.123 Arm-A control = FATAL at 900.96 s (`:324` reproduced on stock ⇒ 6th natural signature) + Arms B/C moved to a device-side soak
+
+- **§112.121 correction:** the Arm-A control reproduced `lte_ml1_common.c:324` on **stock** at modem-up 900.96 s ⇒
+  v51's fatal was **natural**, NOT instrument-induced (the first version's signature argument is falsified). What
+  stands: the **CENSUS** region `0xc1cfe8a0` is **contaminated at runtime** (readback = self-referential pointers
+  `0xc1cffXXX`, counts ≈3.25e9) ⇒ census invalid. The **RING** (`0xc1d4c600`, v50-proven) is **CLEAN** — 4096 recs,
+  keys `{3:3284,0:395,14:132,1:132,15:50,13:56,12:39,4:8}`, **no key 20**, regular cadence, span 9.0 s ⇒
+  **P-V51 NEG for the dispatcher's tail**. Lesson: **"zeroed in the image" ≠ "unused at runtime"**.
+- **§112.123 Arm A (stock control) = FATAL reproduced.** dmesg crashes #20/#21/#22 (all stock, post-rollback) at
+  modem-up **900.96 / 900.70 / 900.61 s** — 3/3 boots evented. **`:324` is a NEW natural 6th signature** (not in
+  the 42-dump corpus). Base rate remains ~100 %.
+- **Harness fix:** the host soak was killed at mu=867 s (33 s before the fatal) by a session/network interruption ⇒
+  Arms B/C run **on the device** (`scratch/soak_dev.sh`, `setsid`-detached, `/root/soak_<label>.log`), robust to
+  host/SSH loss; FATAL via dmesg count, WEDGE via 8 consecutive ping failures.
+- **Arm B deployed + running:** no-sleep blob verified (`3006927c…`), daemon ON, keepalive OFF, coredump enabled.
+
+### 2026-10-05 — §112.121: v51 (ML1 dispatch census) — see the CORRECTED entry above; §112.122: `main`-branch no-sleep patcher audit (opcodes mis-labeled `#-1` vs actual `#0x20`; target is the `ENABLE_SLEEP_REQ` handler; daemon was a crash trigger on main, not a fix; main's own Run 2 → WEDGE at 15 min) + staged A/B/C blob test pre-registered (control running, patch blob built `3006927c…`, 2 s keepalive staged but OFF)
 
 - **v51 result:** fatal at modem-up 919 s, signature `lte_ml1_common.c:324` — **NOT in the 42-dump corpus** ⇒
   instrument-induced. `SAVE.seq=84362` (dispatcher hot, ~92 calls/s); ring cadence healthy to the end (keys
