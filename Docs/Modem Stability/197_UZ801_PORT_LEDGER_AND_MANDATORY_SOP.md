@@ -22833,3 +22833,77 @@ a time; (3) the fatal key-20 dispatch runs on a **non-live** object. **Root caus
 with this superseding section. The refutation came from (a) widening the search key (the magic is a state field,
 not a constant) and (b) reading the **writer** in the firmware (`0xc0913884`) instead of inferring from a single
 dump. No device change; no rollback needed (firmware already stock, then v54 re-deployed for the clean re-run).
+
+---
+
+## §112.134 — v54 PRE-REGISTRATION: the **corrected** context-snapshot ring — do the key-3 timer's OWN fields change, and does the interval collapse? — 2026-10-06, task #323
+
+**Why.** §112.132 (v53) decided **(a) EXTERNAL** — the terminal key-3 storm re-dispatches a **static** context —
+from `obj+0x38`/`obj+0x3c` being constant. But (i) v53's cave had a **Hexagon same-packet read-before-write
+hazard** that shifted its recorded words and **lost the caller field**, and (ii) `obj+0x38`/`+0x3c` are the
+**key/type id**, not timer state. v54 fixes the hazard and records the **timer's own fields** instead, to test
+whether the key-3 context is a **self-re-arming timer** (fields advance / interval collapses) or is driven
+**wholly from outside** (fields static). See §112.133 for the corrected object model (28 fixed contexts).
+
+**Timing (honesty).** The v54 image was deployed and the run started at **19:54:14Z**; this pre-registration is
+written at **~20:00Z**, i.e. **after deployment but BEFORE the ~900 s event** (~20:09Z). **No v54 data has been
+seen** (the ring region is BSS and is only captured by the crash coredump). This is therefore a valid
+pre-registration.
+
+**Ground truth / fix.**
+* Site `0xc02d7bec` `{ jumpr r2 }` → PAD `0xc02cb2c4` → CAVE `0xc003054c` (156 B), **byte-identical site/PAD to v53**.
+* **Packet-hazard fix:** each `memw(obj+NN)` load and its ring store are placed in **SEPARATE Hexagon packets**
+  (v53 put `{ load r13; store r13 }` in ONE packet ⇒ the store wrote the **pre-packet** `r13`). Verified by
+  `verify_v54.py` check "no load/store r13 packet hazard" (PASS).
+* Registers: clobbers only `r7–r13`; preserves `r2` (handler), `r16` (object), `r29`, `r31`; ends `jumpr r2`.
+
+**State — same v50-readback-proven run `0xc1d4c600..0xc1d5c600` (seg19).**
+
+| region | VA | size | layout |
+|---|---|---|---|
+| SAVE | `0xc1d4c600` | 16 B | `{seq, key_last, t_last, pad}` |
+| CENSUS | `0xc1d4c610` | 256 × 16 B | `{count, last_seq, last_t, handler}` |
+| RING | `0xc1d4d610` | 1024 × 32 B | `{seq, key, handler, obj, w1c, w20, w28, t}` |
+
+`w1c = memw(obj+0x1c)` (live pointer, or `0xdeaddead`); `w20 = memw(obj+0x20)`; `w28 = memw(obj+0x28)`;
+`t = memw(0xc1da0948)`. **v54 image md5 `e223bd11bb54e3990498cfa5165e4aa5`** (VERIFY PASS, 15 checks).
+
+**P-V54 (pre-registered BEFORE any v54 data exists).**
+* **H1** the modem boots and runs to the ~900 s event (`SAVE.seq > 0`).
+* **H2** the ring is sane: `seq` strictly increasing; keys ⊆ the v52 set `{0,1,3,4,12,13,14,15,20}`.
+* **H3** the key-3 terminal storm is **reproduced**: ≥50 key-3 records in the terminal `t`-group.
+* **H4** `obj` is a **stable valid pointer** for all key-3 records (obj ↔ key 1:1).
+* **(a)** key-3's `w1c`/`w20`/`w28` are **all CONSTANT** across the storm ⇒ driven **EXTERNALLY** (confirms v53
+  with correct field capture) ⇒ next target = the arm/event path.
+* **(b)** any of `w1c`/`w20`/`w28` **CHANGES** across the storm ⇒ the mechanism is **INSIDE the context**
+  (a self-advancing timer/counter) ⇒ next target = the field's writer.
+* **(d)** the key-3 interval `(w28-w20)` is **CONSTANT** ⇒ a fixed re-arm period (the storm is a *rate* change);
+  **COLLAPSES toward 0** across the storm ⇒ a runaway re-arm (the storm IS the mechanism).
+* **DEAD** count: how many key-3 records have `w1c == 0xdeaddead` (a non-live context being dispatched is itself
+  a finding; §112.133 says key 20's dispatch is non-live).
+* **NEG** the storm is absent, **or** `obj` is 0/invalid, **or** (fields constant **and** interval constant) ⇒
+  v54 adds nothing over v53 ⇒ re-scope to hooking the **arm path** of the key-3 context.
+
+**Falsifier (decisive negative).** If `obj` is **0** for every record, the "r16 = the context object" model is
+wrong and the v52/v53 key readings were artifacts ⇒ the dispatcher model must be rebuilt.
+
+**Caveats.** `w20`/`w28` are **unlabelled** 64-bit fields (the reader takes the low words); their semantic
+(deadline? last-fire? counter?) is **not** established — the test is only whether they *move*. The cached `t`
+cannot distinguish "one long cycle" from "the clock stopped" (§112.130 caveat); v54 does not fix that.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Hazard fix offline-verified | yes | **yes** (VERIFY PASS, 15 checks) |
+| Boots to the event | yes | *pending* |
+| Key-3 storm reproduced | yes | *pending* |
+| (a)/(b) discrimination | yes | *pending* |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: the site/PAD/cave and the state run were read from the **stock image** before
+writing; the hazard was **proven** with `llvm-mc` (one packet `{load;store}` = `cd41909104cd8ca1` vs two packets
+= `cdc1909104cd8ca1`) and the builder was changed to separate packets; the image was offline-VERIFY-PASS and
+sha256 read back from the device (SOP: verify the loadable artifact, not the local md5). Pre-emptive SSR is
+**disabled** (`preemptive_ssr_enabled=0`) so the **natural** event is reached; `a2_pin=1`. One change at a time;
+rollback = `python3 scratch/deploy_v54.py --rollback`.

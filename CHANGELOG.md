@@ -11,7 +11,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### 2026-10-06 — §112.133 CORRECTION: key-20 is NOT "poisoned" — a FIXED 28-slot context array; `0xdeaddead` is the normal non-live default
+### 2026-10-06 — §112.134 v54 PRE-REGISTRATION: corrected context-snapshot ring (packet-hazard fixed; records the key-3 timer's own fields)
+
+- **Fixes §112.132's instrument bug.** v53's cave used `{ load r13; store r13 }` in **one** Hexagon packet, so
+  each store wrote the **pre-packet** `r13` (the ring offset) and the caller field was lost. v54 splits each load
+  and store into **separate packets** (`verify_v54.py` check "no load/store r13 packet hazard" = PASS).
+- **Records the timer fields** `w1c=memw(obj+0x1c)`, `w20=memw(obj+0x20)`, `w28=memw(obj+0x28)` (not `w38/w3c`,
+  which §112.133 showed are the key/type id).
+- **P-V54:** H1–H4 as before; **(a)** fields all constant ⇒ EXTERNAL (confirms v53); **(b)** any changes ⇒
+  mechanism INSIDE the context; **(d)** interval `(w28-w20)` constant ⇒ fixed re-arm, collapsing ⇒ runaway.
+- **Timing:** image deployed + run started **19:54:14Z**; pre-registration written **~20:00Z**, **before** the
+  ~900 s event — no v54 data seen. Image md5 `e223bd11bb54e3990498cfa5165e4aa5` (VERIFY PASS, 15 checks).
+- Pre-emptive SSR **disabled** (natural event); `a2_pin=1`; rollback `scratch/deploy_v54.py --rollback`.
+
+### 2026-10-06 — §112.133 CORRECTION: key-20 is NOT "poisoned" — a fixed set of 28 context objects; `0xdeaddead` is the normal non-live default
 
 - **Supersedes §112.132's "structurally poisoned" claim**, which rested on an incomplete enumeration (the scanner
   matched only two magic values).
