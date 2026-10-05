@@ -21452,3 +21452,79 @@ re-confirmed **inside the returned dump**. The v45 zero is explained by evidence
 unexplained negative, and §112.112's candidate descriptors are marked **superseded** in place. Reversible: the
 only device writes were `/lib/firmware` (v45) + a modem restart; stock backup intact at `/root/fw_stock_hmu05`
 (`modem.mdt md5 = 1a6f9507e03d4ddbbf1977af81ecdbd7`). Ledger + CHANGELOG + memory updated this session.
+
+### §112.115 — v46 (the F3 line-403 table on the CORRECT wrapper `0xc08f1580`): **H2/H3/H4 PASS** — the `:403` message IS emitted via `0xc08f1580`, desc `0xc16ea334`, caller `FUN_c101311c`; but `count403 = 60` is ~360× below the F3 capture ⇒ an **OPEN rate discrepancy** (2026-10-05)
+
+**Question.** §112.114's next instrument: the same O(1) line-403 last-seen table, hooked on **`0xc08f1580`** — the
+wrapper the `rflte_core_rxctl.c:403` message actually uses (`0xc08f1610` covered only ~26 % of log sites).
+
+**Instrument (v46).** One-constant retarget of v45: hook the entry packet of `FUN_c08f1580` @ `0xc08f1580`
+(packet 1 = `{ r3 = r2 ; r4 = memw(gp+#0x38ac) ; allocframe(#0x0) }`, 12 B → `jump PAD` + 2× nop; pad
+`0xc08f1604`; cave `0xc003054c`), cave keeps the O(1) record at `0xc1d4c600` (`count403 @+0x00`,
+`last403 {seq,desc,caller,arg0} @+0x10`, `first403 @+0x20`; total counter `0xc1455000`). Built by
+`scratch/diag_patch_v46/build_diag_patch_v46.py`, offline-verified by `verify_v46.py` (**PASS**; cave 128 B,
+register-discipline clean, b16 changed=18 B, b05 changed=104 B, all in-region; seg16/seg5 sha256 + mdt OK;
+`modem.mdt md5 = f57b0fbcc3f3a35097bf336408ea8227`), deployed by `scratch/deploy_v46.py` (sha256 read-back
+**PASS**). Clean asynchronous restart (`restart_count` 4→5). `scratch/run_v46.py` captured the **natural fatal**
+`devcd10` (85 398 475 B) at `modem_up = 902 s`; read by `scratch/read_v46_table.py` and the raw table
+re-verified by hand.
+
+**RESULT (raw, re-read by hand).**
+```
+SAVE.seq (total 0xc08f1580 calls) = 158471
+count403 (line-403 calls)         = 60
+last403 : seq=111821  desc=0xc16ea334  caller=0xc1013438  arg0=5
+first403: seq=  8929  desc=0xc16ea334  caller=0xc1013438  arg0=0
+```
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — boots and runs to the ~900 s event | yes | **YES** — fatal at `modem_up 902 s`; patch bytes confirmed in the dump |
+| H2 — `count403 > 0` and `last403.seq < SAVE.seq` | yes | **YES** — `count403 = 60`; `last403.seq 111821 < 158471` |
+| H3 — the caller names the emitter | hoped | **YES** — `caller = 0xc1013438` = the return address of the `call 0xc08f1580` at `0xc1013428` inside **`FUN_c101311c`** |
+| H4 — `last403.desc == 0xc16ea334` | yes | **YES** — `desc = 0xc16ea334` (line 403, level 0x15) |
+| Root cause | — | **OPEN** — but the `:403` emitter is now confirmed live |
+
+**H3/H4 PASS is decisive:** the `rflte_core_rxctl.c:403` message **is** emitted via **`0xc08f1580`** by
+**`FUN_c101311c`**, exactly as §112.114 pinned statically. `first403.arg0 = 0` and `last403.arg0 = 5` confirm
+the 6-index loop (`i = 0..5`) — i.e. `count403 = 60 = 10 × 6` ⇒ the hook saw **~10 `FUN_c101311c` calls**.
+
+**⚠ OPEN — a ~360× rate discrepancy (the headline caveat).** The existing F3 capture `scratch/f3_900/`
+(`c000171_up00898.raw`) holds **216** `rflte_core_rxctl.c:403` records (fmt
+`…Gain_offset[%d]= %d`, args `[i, 0]`, i=0..5) in a **4.28 s** span = **~50/s** = **36 bursts × 6** ⇒ the F3
+capture implies `FUN_c101311c` ran **~8.4×/s**. v46 saw **10 calls in 902 s**. The two are irreconcilable by a
+constant factor, so exactly one of these holds:
+- **(a) the two runs differ hugely in RF/RX activity** — `FUN_c101311c` is the RX-gain-comp worker, so it only
+  runs when the RX chain is active; the v46 run may have been far less RX-active than the F3-capture run; or
+- **(b) v46's hook misses most `:403` calls** — the filter/entry reproduction is subtly wrong.
+
+I verified the negative is not a *filter* failure: only **one** descriptor in the whole image points at the
+`:403` format string (`0xc44dd988`), at b18 offset `0x1ea338` = `0xc16ea334` (one load site `0xc1013430`), and
+v46's `count403 = 60` records all carry that exact descriptor — so the filter and the wrapper are correct for
+the calls it *did* see. **v47 (running) is the decisive test**: it hooks **`FUN_c101311c`'s ENTRY** and reports
+its call count and caller directly.
+
+**Stop-time (conditional on a constant rate — do not over-read).** `last403.seq = 111821` of `158471` at
+~175 `0xc08f1580` calls/s ⇒ the `:403` stream (as seen through this wrapper) stopped at **~639 s** of a 902 s
+run, i.e. ~263 s before the fatal. That is **far earlier** than the ~903 s the F3 capture shows for the same
+message — another facet of the same discrepancy, and a reason not to trust the seq→time conversion until v47
+resolves the rate.
+
+**Limits (stated, not hidden).** (1) `SAVE.seq` counts **only** calls through `0xc08f1580` (~175/s), not all F3
+log calls (~454/s) — the seq→time conversion above is therefore approximate. (2) The `caller = 0xc1013438` is
+the return address *after* the `call` packet, i.e. the emitter itself; it does **not** name `FUN_c101311c`'s
+caller (v47 does). (3) The F3-capture `:403` records are genuinely `rflte_core_rxctl.c:403`
+`Gain_offset[%d]= %d` (fmt + args verified) — the discrepancy is not a parser artifact.
+
+**Next decisive instrument (running).** v47: hook `FUN_c101311c`'s entry (`0xc101311c`; prologue
+`{ call 0xc08371d0 ; allocframe(#0xa0) }`, where `0xc08371d0`→`0xc0030000` is a compiler register-save stub;
+reproduced in the cave as `allocframe(#0xa0) ; r6=##0xc08371d0 ; callr r6`) and record
+`{count, last{seq,caller,arg0,arg1}, first{…}}`. `modem.mdt md5 = b0493f252fcb15f208e84298a6ffd51d`;
+`verify_v47.py` PASS; deployed + booted cleanly.
+
+**SOP.** Ground-truth-first: the wrapper, the call site, the descriptor and the fmt string were all read from
+the **stock image**; the patch was hash-verified offline and by sha256 read-back on the device before the run;
+the site/cave bytes were re-confirmed inside the returned dump and the raw table was re-read by hand. The
+surprising count is reported as an **open discrepancy** (not explained away), with the falsification test
+(v47) already built. Reversible: only `/lib/firmware` + a modem restart; stock backup intact at
+`/root/fw_stock_hmu05`. Ledger + CHANGELOG + memory updated this session.

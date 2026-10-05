@@ -11,6 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v46 line-403 table on the CORRECT wrapper 0xc08f1580: H2/H3/H4 PASS, but count403=60 is ~360x below the F3 capture (ledger §112.115)
+
+- **Built, offline-verified, deployed and ran v46** — a one-constant retarget of v45's O(1) line-403
+  last-seen table onto the wrapper the `:403` message actually uses, `0xc08f1580`
+  (`modem.mdt md5 = f57b0fbcc3f3a35097bf336408ea8227`; `verify_v46.py` PASS; sha256 read-back PASS).
+  Clean asynchronous restart (`restart_count` 4→5); natural fatal `devcd10` (85 398 475 B) at
+  `modem_up = 902 s`.
+- **RESULT: `SAVE.seq = 158 471`, `count403 = 60`**; `last403 {seq=111821, desc=0xc16ea334,
+  caller=0xc1013438, arg0=5}`; `first403 {seq=8929, … arg0=0}`.
+- **H3/H4 PASS (decisive):** the `rflte_core_rxctl.c:403` message **is** emitted via `0xc08f1580` by
+  **`FUN_c101311c`**, exactly as §112.114 pinned statically. `arg0 = 0…5` confirms the 6-index loop
+  (`count403 = 60 = 10 × 6` ⇒ ~10 `FUN_c101311c` calls).
+- **⚠ OPEN — a ~360× rate discrepancy:** the F3 capture (`scratch/f3_900/c000171_up00898.raw`) holds
+  216 `:403` records in 4.28 s (~50/s ⇒ ~8.4 `FUN_c101311c` calls/s), vs v46's 10 calls in 902 s.
+  Either the runs differ in RX activity, or the hook misses most calls. Verified NOT a filter failure
+  (only one descriptor in the image points at the `:403` fmt string `0xc44dd988` → `0xc16ea334`).
+- **Next decisive test (running):** v47 hooks `FUN_c101311c`'s ENTRY and reports its call count + caller
+  (`modem.mdt md5 = b0493f252fcb15f208e84298a6ffd51d`; `verify_v47.py` PASS; deployed + booted cleanly).
+
 ### 2026-10-05 — v45 F3 line-403 table: count403=0 — the hook covered 1 of ≥5 log wrappers; the :403 emitter is FUN_c101311c via 0xc08f1580 (ledger §112.114)
 
 - **Built, offline-verified, deployed and ran v45** (same `FUN_c08f1610` hook; cave now keeps an O(1)
