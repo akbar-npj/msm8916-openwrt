@@ -19392,3 +19392,879 @@ instrument (the events stop); the hardware register is.
 archived F3 chunk with the verified `f3parse.py`/`ring.py`; the F3 clock (204800 Hz) is cross-checked
 two ways. No device mutation, no patch, no baseband write. **Negative result recorded, not hidden**
 (the `rpm.sync` park). Ledger + CHANGELOG + memory updated in the same session.
+
+---
+
+## §112.87 — The AP-side modem-powerup differential is a NEGATIVE; and the RF-task stop is an EVENT, not a fault (2026-10-05)
+
+Task: continue §112.86(E)/§112.8's stated lead — "static side-by-side of Android `pil-q6v5-mss.c`
+powerup vs mainline `qcom_q6v5_mss.c` powerup", to find the **arming** difference (Android cold boot
+clean, OpenWrt/pmOS cold boot armed, firmware byte-identical). Offline only; one read-only live check.
+
+**A. The CX-rail external-BHS lead is CLOSED.** Android's `pil_mss_power_up()`
+(`pil-msa.c:91-112`) asserts `EXTERNAL_BHS_ON` (`BIT(0)`) at `drv->cxrail_bhs` and polls
+`EXTERNAL_BHS_STATUS` (`BIT(4)`, 50 µs) — **but only `if (drv->cxrail_bhs)`**, and that pointer is set
+**only** when the DTS provides a `cxrail_bhs_reg` reg-names entry (`pil-q6v5-mss.c:296-300`). A tree-wide
+grep shows `cxrail_bhs_reg` in **only** `msm8226.dtsi` and `msm8610.dtsi` — **NOT** `msm8916.dtsi`.
+⇒ Android-on-HMU05 does **not** assert the CX-rail BHS either; the differential does not exist.
+
+**B. The QDSP6SS reset/power-up sequence is IDENTICAL.** Android `__pil_q6v5_reset`
+(`pil-q6v5.c:211-272`) = assert resets/stop-core → `QDSS_BHS_ON|QDSS_LDO_BYP` + `udelay(1)` → turn on
+memories (L2 banks individually) → remove IO clamp → bring core out of reset → `GFMUX_CTL`
+(`Q6SS_CLK_ENA`, `+Q6SS_CLK_SRC_SWITCH_CLK_OVR` when `qdsp6v56`) → start core. Mainline
+`q6v5proc_reset`'s `else` branch (`qcom_q6v5_mss.c:~810-865`) is the **same** instruction-for-instruction
+(the project already patched mainline's GFMUX_CTL to match; §112.12 found that write a runtime no-op).
+The HMU05 node is `qcom,pil-q6v56-mss` ⇒ `qdsp6v56=true` ⇒ the override bits match.
+
+**C. The IMEM image-info table is a real AP-side difference but is AP-side bookkeeping.** Android's
+imem node (`msm8916.dtsi:1440-1467`) has `mem_dump_table@10`, `restart_reason@65c`, `boot_stats@6b0`,
+and **`pil@94c` (200 B)**; mainline's imem node has **only** `emergency_download_mode`. Android's
+`peripheral-loader.c` writes a `struct pil_image_info {char name[8]; __le64 start; __le32 size;}`
+(20 B packed) at `pil_info_base + 20*priv->id` on every `pil_boot` (`:857-862`) and zeroes it on
+shutdown (`:524-527`). Mainline has **no** equivalent writer. This is the QCOM PIL's crash-dump
+bookkeeping (the modem firmware does not read it) ⇒ noted, not causal.
+⚠ A read-only `devmem` of IMEM (`0x860065c` restart_reason, `0x86006b0` boot_stats, `0x860094c` pil)
+on the live OpenWrt device returned **non-sensical/random-looking words** (e.g. `restart_reason =
+0xE498460F`) ⇒ the AP's `/dev/mem` view of IMEM is **not** a usable oracle here; do not read IMEM from
+the AP without a control.
+
+**D. Remaining DTS/property diffs are functional, not obviously causal.** Android uses GPIO SSR
+signals (`smp2pgpio_ssr_*`) + explicit `halt_q6/halt_modem/halt_nc` registers
+(`0x194f000/0x1950000/0x1951000`) + `vdd_pll`/`vdd_mx-uV=<1050000>`; OpenWrt uses `smp2p` interrupts +
+`qcom,halt-regs = <&tcsr 0x18000 0x19000 0x1a000>` + `rpmpd` power-domains. Different signalling
+plumbing for the same functions.
+
+⇒ **The §112.8 lead is NARROWED to a negative: the modem power-up sequence itself does not differ.**
+If the arming asymmetry is real it is **elsewhere in the AP boot**, not in the PIL/q6v5 power-up.
+
+**E. NEW — the F3 collapse tail's last non-heartbeat is the RFM task's IMEI lifecycle, and it is an
+EVENT.** In the up908 chunk (`scratch/f3_v15/c000173_up00908.raw`, file order) the last non-heartbeat
+record is `rf_task.c:336 "get imei stoped"` (idx 460), after which only the 20 Hz `cfm_cpu_monitor`
+heartbeat + 1 Hz `DalVAdc` continue. Traced statically:
+* the log's F3 descriptor is `0xc164e188` (`line=336, code=0x18`, strptr `0xc44c17e4`);
+* its code site is **`0xc0d5f030`**, inside the function beginning at **`0xc0d5efd0`** — an
+  **event-bitmask dispatcher**: bit 0 → teardown; bit 1 → teardown; bit 4 → teardown; **bit 6** →
+  `rf_task.c:386 "get imei start"` (desc `0xc164e198` @ `0xc0d5f0e4`); **bit 7** →
+  `:396 "get imei done"` (desc `0xc164e1a0` @ `0xc0d5f12c`) then possibly `:400 "get imei will stop"`
+  (desc `0xc164e1a8` @ `0xc0d5f154`); **bit 14** → `:336 "get imei stoped"` (@ `0xc0d5f030`, guarded by
+  `tstbit(r17,#0xe)` at `0xc0d5f010` **and** the global byte `0xc3110940` at `0xc0d5f01c`);
+* the handler is **registered for the string `"RFM_INIT_COMPLETE"`** (`0xc1a63f0e`): at
+  `c0d5eee8-efc`, `r2 = 0xc0d5efd0`, `r0/r1 = "RFM_INIT_COMPLETE"`, `call 0xc087b0b0`.
+* the sibling `rf_dispatch_command` (descriptor `0xc164e0b8`, code ~`0xc0d5e680`) dispatches RF
+  commands from a **stride-`0xc8`** table (`r18 = add(r20, mpyi(#0xc8, r19))` @ `c0d5e718`) by **CID**,
+  logging `CID.0x%x - No Handler/No Entry`.
+⇒ **The RF stop is a state-machine EVENT (bit 14), not a spontaneous fault.** The root cause is the
+**source** of that event / the RFM command, which is not yet named.
+
+**F. CORRECTION to §112.86(B).** The `FW_SLEEP_PWRDN_FULL → FW_WAKE-UP_Start` gap of **290 ms is a
+NORMAL deep-sleep cycle**, not the stall: it is byte-identical in two independent chunks
+(`c000172`: ts `2815783728→2815843148` = 59 420 ticks = 290.1 ms; `c000173`: `2816766764→2816826188`
+= 59 424 ticks = 290.1 ms @204800 Hz). The MCPM sleep/wake cycle runs **normally** right up to the
+event; what changes is the RFM task stopping. §112.86(B)'s "the last record is the RF task stopping"
+stands; its implication that the 290 ms gap was the stall does **not**.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Android asserts the CX-rail BHS on msm8916 | maybe (the §112.6 lead) | **NO** — `cxrail_bhs_reg` absent on msm8916 ⇒ lead CLOSED |
+| The QDSP6SS reset sequences differ | maybe | **NO** — identical instruction-for-instruction |
+| The IMEM pil table is a modem-visible difference | ? | **NO** — AP-side crash-dump bookkeeping only |
+| The 290 ms PWRDN→WAKEUP gap is the stall | implied by §112.86(B) | **NO** — normal, byte-identical ×2 |
+| The RF-task stop is spontaneous | ? | **NO** — event bit 14 in the `RFM_INIT_COMPLETE` handler |
+| Root cause identified | — | **NO** — the AP-powerup axis is closed; the event SOURCE is the next target |
+
+**SOP.** Ground-truth-first: every claim read from the **stock** HMU05 ELF / the Android 3.10 tree /
+the archived F3 chunks with the verified `f3parse.py`; descriptor↔code-site resolved by exact string
+pointer + `immext`/`r0=##` disassembly. One read-only `devmem` probe (no writes). No patch, no baseband
+write. **Negative result recorded, not hidden** (the CX-rail BHS lead; the AP-powerup differential).
+Ledger + CHANGELOG + memory updated in the same session.
+
+## §112.88 — v35: the RFM-task EVENT ring — the instrument that names the event bit-14 SOURCE (2026-10-05)
+
+Task: continue §112.87(E) — the F3 collapse tail's terminal non-heartbeat is the RFM event handler
+`0xc0d5efd0` firing **event bit 14** (`rf_task.c:336 "get imei stoped"`). §112.87 named the *site* but
+not the *source*. v35 records, on **every** entry to that handler, the **event mask** (`r0`), the
+**caller** (`r31`) and a sequence number, so the bit-14 event's dispatcher can be named.
+
+**Build (offline, verifier PASS).** `scratch/diag_patch_v35/build_diag_patch_v35.py`; verified by
+`scratch/diag_patch_v35/verify_v35.py` (site→stub→cave decode + exact prologue reproduction).
+* site `0xc0d5efd0` (b16) — the handler's entry is a 2-word packet (`0x70604010` `r16=r0`;
+  `0xebf41c30` `{memd(r29+#-0x10)=r17:16; allocframe(#0x18)}`). word0 is replaced by a single
+  `jump` packet; the cave REPRODUCES the whole original packet then continues at `0xc0d5efd8`.
+* **Two-stage hop.** The handler is 13.8 MB from the b05 NOP sled — beyond the `jump` field's ±8 MB
+  range. b16's largest NOP run is only **28 B** (too small for the 76 B cave), so the hop is
+  **site → b16 stub `0xc0deb4a8` (`jump`, in range) → cave `0xc003054c` (`jumpr`, unlimited)**. The
+  stub (12 B: `immext #0xc0030540; r6 = ##…; jumpr r6`) lives in a clean 24 B NOP pad immediately
+  after a `jumpr r31` (inter-function padding).
+* save `0xc1455000+0x04` = count; ring `0xc1d4c600` 4096 × 16 B `{seq, caller=r31, mask=r0}`.
+* image md5 `71889f0bdfbb341007965deca4ebbcff` (stock `1a6f9507e03d4ddbbf1977af81ecdbd7`).
+
+**PRE-REGISTERED DECISION — P-V35-RFMEV** (registered before any v35 data existed):
+* **H1** `count > 0` → the instrument ran (the handler is entered post-boot).
+* **H2** a ring entry with **mask bit 14 set** → the stop event; its `caller` names the dispatcher.
+* **H3** the bit-14 entries share a **single caller** → the event source is **upstream** of that
+  caller; the next instrument is that dispatcher's event-word writer. If the bit-14 caller is *many*,
+  the event is delivered through a fan-in and the mask word is the discriminator.
+* **NEG** `count == 0` → the handler is never entered post-boot (the RFM stop is delivered through a
+  different path) → retarget.
+
+**RUN PROTOCOL.** (1) disable the mitigation so the modem can reach the ~900 s event
+(`preemptive_ssr_enabled=0`, `ssr_enabled=0`; keep `a2_pin=1` for the cold-boot `a2_power.c:1189`
+fatal); (2) deploy v35 to `/lib/firmware`; (3) reload the modem; (4) arm `/root/dumpwatch.sh`;
+(5) wait for the fatal; (6) read the ring from the coredump; (7) restore the mitigation + stock
+firmware.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Instrument runs (count>0) | yes | **YES** — count = 773 |
+| A bit-14 event is captured | yes | **YES** — exactly 1 (seq 772, mask `0x40d3`) |
+| The bit-14 caller names the source | yes | **YES** — a single caller `0xc0d5ef78` |
+| Root cause identified | — | **PARTLY** — the terminal LTE-death event is now named; its trigger is still open |
+
+**RESULT (2026-10-05).** v35 ran; the modem fataled at **modem uptime 902.58 s** (`lte_ml1_common_timer.c:390`,
+AP 5161.34 s), and the ring was read from the coredump (`scratch/v35_dump.bin`, md5 `a27b5e63`).
+* **H1 PASS** — `count = 773`: the RFM handler is entered 773× post-boot.
+* **H2 PASS** — exactly **ONE** bit-14 event: `seq=772, mask=0x40d3` (bits 0,1,4,6,7,14 — the full RFM
+  **teardown** mask). It is the LAST entry before the collapse.
+* **H3 PASS** — a **SINGLE** caller: `r31 = 0xc0d5ef78`.
+* **Census**: `0xc0d3261c` ×760 (mask `0x06`), `0xc0d32730` ×11, `0xc0d5ef78` ×1 (the teardown),
+  `0xc0d5f03c` ×1 (mask `0x02`, a self-recursive call inside the handler).
+
+**The bit-14 caller NAMED.** `0xc0d5ef78` is the return address of a **direct** `call 0xc0d5efd0` at
+`0xc0d5ef70` (packet `{ call 0xc0d5efd0; r0 = #0x40d3 }`), inside the function **`0xc0d5edd4..0xc0d5ef7c`**.
+That function:
+* logs descriptor `0xc164e158` = **`rf_task.c: "RF task  new imei check !"`** (resolved from the ELF),
+  immediately before the teardown;
+* calls helpers `0xc0d5f430`/`0xc0d5f490` (state checks) and `0xc0d5ef84`/`0xc0d5ef8c` (thunks to
+  `0xc02a5040`/`0xc02a5048`);
+* **registers `0xc0d5efd0` for the string `"RFM_INIT_COMPLETE"`** (`0xc1a63f0e`) at `0xc0d5eefc`;
+* its tail **unconditionally** fires the teardown (both branches converge on `0xc0d5ef70`).
+⇒ **The terminal LTE-stack death is initiated by the RFM task itself**, via a one-shot
+**"new imei check" → RFM teardown** (`0xc0d5edd4`), NOT by an external event fan-in. The trigger of
+`0xc0d5edd4` is not statically visible (no `call`/`jump` to it anywhere in the disassembly; it is a
+registered callback / table entry) — that is the next target (v36).
+
+**Also confirmed live:** the v35 image is fully functional (ModemManager registered, `wwan0` up with an
+IPv4/IPv6 address) ⇒ the instrumented handler does not perturb normal operation.
+
+**SOP.** Pre-registered **before** the run (this section). Ground-truth-first: sites, packets and the
+±8 MB `jump` limit verified against the stock HMU05 ELF by `llvm-mc`/`llvm-objdump`. Reversible:
+mitigation toggled by UCI, firmware deployed to `/lib/firmware` (overlay) with a stock backup and a
+`--rollback` path. One change at a time. Negative results will be recorded, not hidden.
+
+## §112.89 — v36: suppress the RFM teardown — is the terminal event the CAUSE or a SYMPTOM? (2026-10-05)
+
+Task: follow §112.88's named terminal event. v35 proved the RFM teardown (mask `0x40d3`) is fired ONCE
+by the RFM "new imei check" function `0xc0d5edd4` at `0xc0d5ef70`, and that only the 50 ms heartbeat
+survives after it. v36 removes that call and asks whether the LTE-stack death follows.
+
+**Build.** `scratch/diag_patch_v36/build_diag_patch_v36.py`. SINGLE SITE, NO CAVE: at `0xc0d5ef70`
+the 2-word packet `{ call 0xc0d5efd0; r0 = #0x40d3 }` (`3040005a 60da4078`) is replaced by the
+same-size `{ r0 = #0x40d3; nop }` (`605a4078 00c0007f`). The handler call is gone; the function still
+returns `r0 = 0x40d3`. Verified by `llvm-objdump` (the site now reads `{ r0 = #0x40d3; nop }` then the
+epilogue). image md5 `115b2a938bbc3b825a2b72737d133b4b` (stock `1a6f9507e03d4ddbbf1977af81ecdbd7`).
+
+**PRE-REGISTERED DECISION — P-V36-NOTEARDOWN** (registered before the run):
+* **H1** the modem SURVIVES past **900 s** of modem uptime with a **LIVE data path** (ping OK / `wwan0`
+  rx grows) ⇒ the RFM teardown **CAUSES** the LTE-stack death ⇒ a real (blunt) fix, and the cause chain
+  is **RFM-side, not ML1-side**.
+* **H2** the modem still `ERR_FATAL`s at ~900 s ⇒ the teardown is a **SYMPTOM**; the cause is
+  **UPSTREAM** of the RFM task ⇒ the next target is the trigger of `0xc0d5edd4`.
+* **NEG** the modem crash-loops at boot ⇒ the patch is invalid (the teardown is load-bearing at boot).
+
+**RUN PROTOCOL.** (1) mitigation still disabled (`preemptive_ssr_enabled=0`, `ssr_enabled=0`, `a2_pin=1`);
+(2) deploy v36 to `/lib/firmware`; (3) reload the modem; (4) start a 1 Hz ping from the device as a
+data-path liveness probe; (5) wait past 900 s; (6) score H1/H2; (7) restore the mitigation + stock fw.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Modem boots on v36 (no crash-loop) | yes | **NO — crash-loop** |
+| Modem survives past 900 s with a live data path (H1) | ? | **N/A (NEG branch)** |
+| Root cause identified | — | **NO — but the teardown is proven LOAD-BEARING (model sharpened)** |
+
+**RESULT (2026-10-05) — NEG (crash-loop), REPRODUCED.** Deploying v36 and reloading the modem
+(`echo restart > /sys/kernel/debug/msm_subsys/modem`) puts the modem into a boot crash-loop:
+`/sys/class/remoteproc/remoteproc0/state` toggles `running→offline→crashed` every ~1.8 s, and the AP
+dmesg reports
+```
+qcom-q6v5-mss 4080000.remoteproc: fatal error received: SFR Init: wdog or kernel error suspected.
+remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+remoteproc remoteproc0: handling crash #33 in 4080000.remoteproc
+```
+(The string `SFR Init: wdog or kernel error suspected.` is the **modem's own** boot/watchdog message —
+it lives in `modem.b18`; the modem watchdog-resets at bring-up.) The crash-loop was reproduced twice
+(the first attempt wedged the AP; this second, controlled attempt reproduced it on a freshly-booted AP).
+
+**The v36 image is provably a CLEAN minimal patch** (byte-diff vs pristine):
+`modem.b16` 8 B @ `0xad7f70` (the site VA `0xc0d5ef70`), `modem.b01` 32 B @ `0x228` (seg16 sha256),
+`modem.mdt` 32 B @ `0x5bc` (same hash). The stock packet `{ call 0xc0d5efd0; r0 = #0x40d3 }`
+(`3040005a 60da4078`, parse 01→11) is replaced by the well-formed `{ r0 = #0x40d3; nop }`
+(`605a4078 00c0007f`, parse 01→11), re-verified by `llvm-mc -disassemble`. `0xc0d5edd4` has **zero
+static callers** and **zero data pointers** in any encoding. ⇒ The crash-loop is caused by the
+**semantic removal of the call**, not by a build/packaging artefact.
+
+**MODEL SHARPENED (the important outcome).** `0xc0d5edd4` ("RF task  new imei check !",
+`rf_task.c:582`) fires the RFM teardown **at boot** — independently confirmed by Doc 221 (F3
+`ts 78428  rf_task.c:582  RF task  new imei check !` at boot). The v35 ring recorded only ONE
+teardown (`seq=772`, `mask=0x40d3`, caller `0xc0d5ef78`) because its early (boot) entries were lost
+when the cave's save area `0xc1455000` / ring `0xc1d4c600` were initialised/zeroed after the boot
+check. ⇒ **The ~900 s teardown is a RE-RUN of the boot-time RFM "new imei check"**, and the teardown
+is **load-bearing at boot** (removing it hangs RFM bring-up → watchdog). So the ~900 s event is **not**
+"the RFM task killing the modem"; it is the RFM task **re-initialising** itself at ~900 s (and the
+re-init not recovering). **The new target is the TRIGGER that re-runs `0xc0d5edd4` at ~900 s.**
+
+**SOP.** Pre-registered **before** the run. Ground-truth-first: the site and its packet were read from
+the stock HMU05 ELF and the replacement verified with `llvm-objdump`. Reversible: single 8-byte site,
+firmware in `/lib/firmware` (overlay) with a stock backup and a `--rollback` path. One change at a time.
+Device recovered: stock firmware restored (mdt `1a6f9507`), mitigation re-enabled
+(`preemptive_ssr_enabled=1`, `ssr_enabled=1`, `a2_pin=1`), AP rebooted, modem `running`, `wwan0` up.
+
+## §112.90 — v37: the `rf_1`-task ENTRY ring — naming what RE-RUNS the RFM init at ~900 s (2026-10-05)
+
+Task: follow §112.89. v36 proved the RFM teardown is **load-bearing at boot** (removing it crash-loops
+the modem), so the ~900 s teardown is a **RE-RUN of the boot-time RFM "new imei check"**. The open
+question is now sharp: **what invokes `0xc0d5edd0` (the "RF task  new imei check !" function,
+`rf_task.c:582`) a second time at ~900 s?**
+
+**NEW offline fact — `0xc0d5edd0` is the `rf_1` TASK's registered entry.** File offset `0x174d500` is a
+task-descriptor table. Its entries name the RF tasks and carry a code pointer:
+`rf_1` (`0xc1d1c330`) → **`0xc0d5edd0`**; `rf_2` → `0xc0d5e980`; `rf_apps` → `0xc0d5e810`;
+`rf_wrsp` → `0xc0d5d1b0`; `rf_ic` → `0xc0d5c4f0`; `rf_fwsw` → `0xc0d5eda0`;
+`rf_task_init_function` → `0xc0b32fa4`. The entry packet is 2 words:
+`0xc0d5edd0` `0x78004000` (parse=1) `r0 = #0x0`; `0xc0d5edd4` `0xebf41cc0` (parse=0)
+`{ memd(r29+#-0x10) = r17:16; allocframe(#0x60) }`. (v35/v36's `0xc0d5edd4` was the 2nd instruction
+of this entry packet, not the function start.)
+
+**Build (offline, verifier PASS).** `scratch/diag_patch_v37/build_diag_patch_v37.py`; verified by
+`scratch/diag_patch_v37/verify_v37.py`.
+* site `0xc0d5edd0` (b16) — word0 replaced by a single `jump` packet; the cave REPRODUCES the whole
+  2-word entry packet then continues at `0xc0d5edd8`.
+* TWO-STAGE HOP (as v35): site → b16 stub `0xc0deb4a8` (`jump`, in ±8 MB range) → b05 cave
+  `0xc003054c` (`jumpr`, unlimited). The entry is 13.8 MB from the b05 sled.
+* cave (80 B) records `{seq, caller=r31, arg0=r0, arg1=r1}`; save `0xc1455000+0x04` = count;
+  ring `0xc1d4c600` 4096 × 16 B.
+* image md5 `fa34d8a04d7896a458e57d8118624c57` (stock `1a6f9507e03d4ddbbf1977af81ecdbd7`).
+
+**PRE-REGISTERED DECISION — P-V37-RF1CALLER** (registered before any v37 data existed):
+* **H1** `count > 0` → the instrument ran (the entry is reached post-boot).
+* **H2** `>= 2` entries → the entry runs more than once (the re-run is confirmed at the FUNCTION
+  level, not only at the event-handler level).
+* **H3** the LAST entry's `caller` differs from the FIRST's → a **distinct trigger** re-runs `rf_1`
+  at ~900 s; that caller is named and becomes the next target. If all callers are identical → a
+  single generic RF-task dispatch source → retarget to the message/event feeding it.
+* **NEG** `count == 0` → the entry is never reached post-boot → retarget.
+
+**RUN PROTOCOL.** (1) mitigation disabled (`preemptive_ssr_enabled=0`, `ssr_enabled=0`, `a2_pin=1`);
+(2) deploy v37 to `/lib/firmware` (sha256 read-back); (3) reload the modem; (4) confirm it boots
+cleanly (no crash-loop); (5) keep continuous `ping -I wwan0` traffic (the fatal is activity-armed);
+(6) arm `/root/dumpwatch.sh`; (7) wait for the fatal; (8) read the ring from the coredump;
+(9) restore the mitigation + stock firmware.
+
+**Boot check (pre-data).** v37 boots cleanly: after the reload, `remoteproc0/state` stayed `running`
+for 30 s with **no** `fatal`/`crash` in dmesg, and the data path came up (`mmcli` connected/attached,
+signal 81 %, `ping -I wwan0` OK). ⇒ Hooking the `rf_1` entry does not perturb normal operation.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Modem boots on v37 (no crash-loop) | yes | **YES** — `running`, data path up |
+| Instrument runs (count>0) | yes | **YES — `count = 1`** in BOTH captures (§112.91) |
+| The ~900 s re-run is captured | yes | **NO — H2 FAILS** (only 1 entry; the entry is not re-entered) |
+| The re-run's caller is named | yes | **NO** — one caller, `0xc087c658`, the *boot* dispatch |
+| Root cause identified | — | _pending_ |
+
+**SOP.** Pre-registered **before** the run (this section). Ground-truth-first: the site, its packet and
+the task table were read from the stock HMU05 ELF; the replacement verified with `llvm-mc`/`llvm-objdump`
+(`verify_v37.py`). Reversible: single 4-byte site + a b05 cave, firmware in `/lib/firmware` (overlay)
+with a stock backup and a `--rollback` path. One change at a time. Negative results will be recorded.
+
+## §112.91 — v37 RESULT: the `rf_1` TASK ENTRY is dispatched ONCE per boot; the ~900 s re-run is NOT a re-entry (2026-10-05)
+
+Task: run the v37 ring and read it. **The run produced no auto-coredump** (see the timing note), so the
+ring was captured **on demand** — the §6.2a recipe: `rmmod qcom_bam_dmux` → `echo 1 >
+/sys/kernel/debug/remoteproc/remoteproc0/crash` → `cat /sys/class/devcoredump/devcd*/data` (85 398 475 B).
+
+**Two captures, both v37, both `count = 1`** (identical ring contents — a deterministic per-boot fact):
+
+| capture | boot | modem-uptime at capture | bytes | md5 | file |
+| :-- | :-- | --: | --: | :-- | :-- |
+| **WEDGE** (on-demand, this session) | modem up AP 11 130; data path died ~AP 14 908 (modem-uptime **3 778 s**) | — | 85 398 475 | `80a62f3afd27c4a1049665d2c2c815bc` | `scratch/dumps/v37_wedge_dump.bin` |
+| **FATAL** (auto, AP 11 130) | modem up AP 327 | **3:00:01 = 10 801 s** (crash report) | 85 398 475 | `c1b180655a45d6240173e108e9e130bc` | `scratch/dumps/fatal_11130.bin` |
+
+**Ring contents (both).** `marker = 0x0`; `count = 1`; the single entry is
+`seq=1  caller=0xc087c658  r0=0x00000000  r1=0x0000005a`.
+
+**P-V37-RF1CALLER scored.**
+* **H1 PASS** — `count = 1 > 0` ⇒ the instrument ran; the entry IS reached post-boot.
+* **H2 FAIL** — only **1** entry ⇒ the entry runs **once** post-boot, NOT twice. **The ~900 s event does
+  NOT re-enter `0xc0d5edd0`.**
+* **H3** n/a (single entry); the one caller is `0xc087c658`, which lies inside `FUN_c087c500`
+  (`0xc087c500..0xc087c6a8`) — a fixed dispatcher, i.e. the *boot* dispatch, not a distinct ~900 s trigger.
+
+**★ Timing caveat (why H2 is a weak negative).** Neither v37 boot reproduced the ~900 s event:
+the AP-327 boot fataled at modem-uptime **3:00:01** (crash report: Task **ML1**, PC `0xc087a804`,
+LR `0xc0879164`, site `lte_ml1_common_dump.c:217`), and the AP-11 130 boot **wedged** at modem-uptime
+**~3 778 s** (data path died 02:24:44, LED beacon; watchdog: "RF receiver frozen (RX remains 0)";
+`mmcli` stayed connected/attached/lte throughout). Both are far from 900 s ⇒ the run likely did **not**
+exercise the ~900 s path (the event is activity-armed, §112.34/35, and the run's traffic was not
+continuous). So `count = 1` is *consistent with* the event never firing; it is not a clean disproof.
+
+**Interpretation (retarget).** `0xc0d5edd0` is a **task ENTRY** — dispatched once, then the task runs its
+own internal loop. The teardown at `0xc0d5ef70` (which v35 saw fire once at ~900 s, §112.88) is reached
+from **inside that loop**, not by a second dispatch of the entry. ⇒ **the entry-hook is mis-targeted**;
+the next instrument must hook the **teardown call site `0xc0d5ef70`** (or the code path that reaches it),
+not `0xc0d5edd0`. This supersedes the v37 premise.
+
+**Achieved vs Expected.**
+
+| Item | Expected | Achieved |
+|---|---|---|
+| On-demand coredump captured | yes | **YES** — 85 398 475 B, md5 `80a62f3a…` |
+| Instrument ran (H1) | yes | **PASS** — `count = 1` |
+| Entry re-runs at ~900 s (H2) | yes | **FAIL** — 1 entry; not re-entered |
+| The re-run's caller named (H3) | yes | **NO** — single boot caller `0xc087c658` |
+| ~900 s event reproduced in the run | yes | **NO** — fatal at mu 10 801 s; wedge at mu ~3 778 s |
+| Root cause identified | — | _pending_ |
+
+**Restore (done).** v37 rolled back to stock (`modem.mdt` md5 `1a6f9507…`); mitigation re-enabled
+(`preemptive_ssr_enabled=1`, `ssr_enabled=1`, `a2_pin=1`); AP rebooted ⇒ `ping -I wwan0` **exit 0**
+(data path restored).
+
+**SOP.** Pre-registration from §112.90 scored as written (H1 PASS / H2 FAIL). Capture hygiene: coredump
+copied DEVICE-LOCAL then pulled md5-verified (`80a62f3a…`). Ground-truth-first: the crash report's own
+`Uptime = 3:00:01` is the authority for the fatal's modem-uptime (not an AP-clock inference). One change
+at a time; negative recorded. Ledger + CHANGELOG + memory updated this session.
+
+## §112.92 — v38: the TWO-RING probe (handler entry + teardown call) — PRE-REGISTRATION (2026-10-05)
+
+Task: follow §112.91. v37 showed the `rf_1`-task ENTRY `0xc0d5edd0` is dispatched **once** per boot, so
+the ~900 s teardown is reached **from inside the task loop**, not by a re-entry. v35 (§112.88) saw the
+**RFM event handler `0xc0d5efd0` fire mask `0x40d3` once at ~900 s** from the call site `0xc0d5ef70`.
+v38 hooks **both** points in one image, so the event is bracketed from both sides.
+
+**NEW offline fact — what mask `0x40d3` DOES (from `scratch/firmware/modem.asm`).** The handler
+`0xc0d5efd0` is a **bit-mask dispatcher**:
+```
+0xc0d5efd0  { r16 = r0 ; memd(r29+#-0x10)=r17:16 ; allocframe(#0x18) }   ; r16 = mask
+0xc0d5efd8  { if (r16==0) jump 0xc0d5f074 }                             ; mask 0 -> no-op return
+0xc0d5efe8  call 0xc08875b0 ; r0 = r16                                  ; (log/format the mask)
+0xc0d5eff4  if (!tstbit(r17,#0x1))  jump 0xc0d5f010                     ; bit1  -> 0xc0d5f250 + 0xc0887550(2) + 0xc0d5c7b0(0)
+0xc0d5f010  if (!tstbit(r17,#0xe))  jump 0xc0d5f07c                     ; bit14 -> log "get imei stoped" (rf_task.c:336)
+0xc0d5f020    p0 = memb(0xc3110940)                                     ;   then, iff 0xc3110940 != 0:
+0xc0d5f034    call 0xc0d5efd0 ; r0 = #0x2                               ;     RECURSE with mask 0x2
+```
+`0x40d3 = bits {0,1,4,6,7,14}`. The teardown call site **hardcodes** the mask (`r0 = #0x40d3` at
+`0xc0d5ef74`), so ring A's mask is *always* `0x40d3` at the teardown; the only variation is the gated
+recursive `0x2` (ring A may therefore show `0x40d3` then `0x2`). The **guard flags** recorded by ring B
+are: `gp+0xdc4` — read at `0xc0d5ef64`, selects whether the extra `0xc0d5ed30` call runs before the
+teardown; and `gp+0xdc5` — read at `0xc0d5ef04`, a state flag compared against `1`.
+
+**Build (offline, verifier PASS).** `scratch/diag_patch_v38/build_diag_patch_v38.py`; verified by
+`scratch/diag_patch_v38/verify_v38.py` (both site jumps decode parse=0b11 into the pad; both pad hops
+re-assemble byte-exact; cave A reproduces the handler entry packet `10406070301cf4eb`; cave B sets
+`r0=0x40d3`/`r31=0xc0d5ef78`/`r6=0xc0d5efd0`; b01 sha256 updated; diff census ⊆ intended regions).
+* **Ring A** — site `0xc0d5efd0` (handler entry) → pad `0xc0deb4a8` → cave `0xc003054c` → `0xc0d5efd8`.
+  Records `{seq, mask=r0, t}`; save `0xc1455000+0x04`; ring `0xc1d4c600` (4096 × 16 B).
+* **Ring B** — site `0xc0d5ef70` (teardown call) → pad `0xc0deb4b4` → cave `0xc00305a4` → handler.
+  Records `{seq, gp+0xdc4, gp+0xdc5}`; save `0xc1455100+0x04`; ring `0xc1d5c600` (4096 × 16 B).
+* `t = memw(0xc2cd4e20)` — the QuRT timer-pool uptime proxy (§112.68).
+* image md5 `6673667fc1b6e91d6035610de29284d9` (stock `1a6f9507e03d4ddbbf1977af81ecdbd7`).
+* **Collision check (offline, from the v37 dump):** ring A span `0xc1d4c600..0xc1d5c600` holds only
+  6 non-zero bytes; ring B's first non-zero byte is at `0xc1d65488` (36 KB into its span) ⇒ the first
+  ~2280 ring-B slots are free BSS. With ~1 teardown/boot, only slot 1 is written — no collision.
+
+**PRE-REGISTERED DECISION — P-V38** (registered before any v38 data existed; **corrected 2026-10-05
+before any v38 data was read**, because §112.88 had already shown the handler is entered **773×**, so a
+"count ≥ 2" test is vacuous — the genuinely new information is the **timestamp `t`** and ring B's flags):
+* **H1** ring A `count > 0` → the handler runs post-boot (instrument alive).
+* **H2 — THE KEY TEST.** The `mask == 0x40d3` handler entry's `t` is **≈ the ~900 s event time** (its `t`
+  is ~900 s of timer units after the FIRST ring-A entry's `t`), **NOT** ≈ the first entry's `t`. This
+  decides the §112.91 ambiguity: does the RFM teardown fire at **boot** (a boot-time init) or at the
+  **~900 s event**? H2-PASS ⇒ the teardown is the terminal ~900 s event; H2-FAIL (teardown `t` ≈ 0) ⇒ it
+  is a boot event and the ~900 s path is elsewhere.
+* **H3** ring B's guard flags (`gp+0xdc4`, `gp+0xdc5`) at the teardown discriminate the branch: `gp+0xdc4
+  == 0` ⇒ the direct path (skip `0xc0d5ed30`); `!= 0` ⇒ the extra `0xc0d5ed30` call ran first. The value
+  of `gp+0xdc5` (compared against `1` at `0xc0d5ef04`) is recorded.
+* **NEG** ring A has **no** `mask == 0x40d3` entry ⇒ the teardown did not fire in this run (no ~900 s
+  event captured) ⇒ retarget the run, not the instrument.
+
+**RUN PROTOCOL.** (1) mitigation disabled (`preemptive_ssr_enabled=0`, `ssr_enabled=0`, `a2_pin=1`);
+(2) deploy v38 to `/lib/firmware` (sha256 read-back); (3) AP reboot so the modem reloads; (4) confirm it
+boots cleanly (no crash-loop); (5) keep **continuous** `ping -i 1 -I wwan0` traffic (the event is
+activity-armed, §112.34/35); (6) poll to the event; (7) auto-capture the coredump on a fatal, or the
+§6.2a on-demand recipe on a wedge; (8) read BOTH rings; (9) restore the mitigation + stock firmware.
+
+## §112.93 — v38 RESULT: the RFM teardown is the TERMINAL handler entry at the event; the guard flags are (dc4=0, dc5=1); the `t` proxy was WRONG (2026-10-05)
+
+Task: run v38 to the ~900 s event and read both rings. **The run reproduced the event as a WEDGE** —
+the data path died at AP uptime **~917 s** (`ping` `1`→`0` at poll 47, four consecutive failures while
+`mmcli` stayed `connected`/`home`), i.e. modem-uptime ≈ **900 s**. Captured **on demand** (§6.2a:
+`rmmod qcom_bam_dmux` → `echo 1 > …/crash` → `cat …/devcd1/data`), 85 398 475 B, md5
+`30d258c779813cbe950fa72fe9bfc06a` (`scratch/dumps/v38_wedge_100950.bin`).
+
+**RING A (handler `0xc0d5efd0`) — `count = 773`, 773 slots:**
+* 771 entries `mask = 0x06` (seq 1..771), then **`mask = 0x40d3` (the teardown) at seq 772**, then
+  `mask = 0x02` at seq 773 (the gated self-recursion inside the handler).
+* ⇒ the teardown is the **terminal** handler entry — nothing but the recursion follows it. This
+  reproduces §112.88's v35 census (773) exactly, now with the recursion made explicit.
+
+**RING B (teardown call `0xc0d5ef70`) — `count = 1`, slot 1 = `{seq=1, gp+0xdc4=0, gp+0xdc5=1}`:**
+* the teardown call fired **once**, taking the **direct** branch: `gp+0xdc4 == 0` ⇒ the extra
+  `0xc0d5ed30` call is **skipped**; `gp+0xdc5 == 1` ⇒ the `0xc0d5ef10..ef5c` logging block **runs**.
+
+**★ INSTRUMENT DEFECT — the `t` field is 0.** `t = memw(0xc2cd4e20)` read **0 in every entry**. Cause:
+`0xc2cd4e20` = pool base `0xc2cd4de0` + `0x40`, and `+0x40` is a **per-entry arm-time u64** (non-zero
+only while *that* entry is armed), **not** a global uptime. The pool's **max** arm-time
+(`0x507fed93f`) = **1125.5 s at 19.2 MHz** ≈ the modem uptime at *capture* (≈200 s after the wedge) —
+so the tick rate is confirmed, but a fixed-address `t` must use a **always-armed short-period entry**
+(or a scan), not `+0x40` of entry 0. ⇒ **H2 could not be scored via `t`.**
+
+**P-V38 scored (as corrected before data).**
+* **H1 PASS** — ring A `count = 773 > 0`.
+* **H2 PASS (by ORDERING, not by `t`)** — the `mask==0x40d3` entry is **seq 772 of 773**, i.e. the
+  **last** handler entry before the wedge, after 771 post-boot-check entries. It is therefore the
+  **~900 s event**, **not** a boot entry. (The boot teardown is absent from the ring — consistent with
+  §112.89's early region-zeroing.)
+* **H3 SCORED** — `gp+0xdc4 = 0`, `gp+0xdc5 = 1` (the direct branch).
+* **NEG** n/a (a `0x40d3` entry was present).
+
+**What this does and does NOT settle.** It **confirms** the terminal-event model (the RFM teardown is
+the last RFM action before the LTE-stack death) and **names the branch** (direct, `dc4=0/dc5=1`). It does
+**not** name the **trigger** that re-runs the rf_1 "new imei check" at ~900 s — the open question from
+§112.91. Note the guard flags **do not gate the teardown** (both `dc4` branches and both `dc5` branches
+converge on `0xc0d5ef70`); they only select *logging*. ⇒ the flags are a **branch label**, not a
+suppressor.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| Modem boots on v38 (no crash-loop) | yes | **YES** — `running`, data path up, no fatal |
+| ~900 s event reproduced | yes | **YES — WEDGE at AP ~917 s (modem ≈900 s)** |
+| Ring A instrument alive (H1) | yes | **PASS** — `count = 773` |
+| Teardown is the terminal event (H2) | yes | **PASS by ordering** (seq 772/773) — `t` broken |
+| Guard flags captured (H3) | yes | **YES** — `dc4=0, dc5=1` |
+| The ~900 s TRIGGER named | yes | **NO** — still open |
+| Root cause identified | — | _pending_ |
+
+**SOP.** Pre-registration corrected **before** any v38 data was read (§112.92 note). Ground-truth-first:
+the handler's mask-dispatch and the branch structure were read from the stock ELF. Capture hygiene: the
+coredump was pulled device-local then md5-verified; the **declared-size check** is in the capture script.
+Reversible: firmware in `/lib/firmware` (overlay) with a stock backup and a `--rollback` path. One change
+at a time; the instrument defect is recorded, not hidden. Ledger + CHANGELOG + memory updated.
+
+
+**Boot check (pre-data).** v38 boots cleanly: after a real AP reboot, `modem.mdt` md5 = `6673667f…`,
+`remoteproc0/state` = `running`, **no** `fatal`/`crash` in dmesg, `mmcli` connected/home/attached,
+`ping -I wwan0` OK. ⇒ hooking both points does not perturb normal operation.
+
+## §112.94 — v39 (conditional-teardown gate) + v40 (code-space run counter): BOTH NEG; the RFM teardown is reached AT BOOT and b05 code is EXECUTE-ONLY (2026-10-05)
+
+Task: follow §112.93. v38 named the RFM teardown (`0xc0d5ef70`, mask `0x40d3`) as the **terminal**
+handler entry at the ~900 s event. v39 asks the cause-vs-symptom question by keeping the **boot**
+teardown but **skipping** the ~900 s one; v40 asks whether the 773-entry sequence runs once (boot) or
+twice (boot + ~900 s).
+
+### v39 — the conditional-teardown gate — NEG (boot crash-loop)
+
+`scratch/diag_patch_v39/build_diag_patch_v39.py` (verifier `verify_v39.py`, PASS). Same sites/pads/caves
+as v38; cave B gates the handler call on the **handler-entry counter** (`SAVE_A+0x4`): *skip the teardown
+iff the handler has run > `0x64` (100) times*. Premise: at boot the counter is ~0 ⇒ the boot teardown
+runs; at ~900 s it is ~771 ⇒ the ~900 s teardown is skipped. image md5 `e9202a71298b11b94bd1f4bd89136b76`.
+
+**RESULT — H1 FAIL, NEG.** After a real AP reboot the modem **crash-loops**:
+`qcom-q6v5-mss …: fatal error received: SFR Init: wdog or kernel error suspected.` every ~1.1 s
+(37 crashes in 77 s) — the **same signature as v36** (§112.89). ⇒ **the gate SKIPPED the boot teardown**,
+i.e. **the handler had already been entered >100 times before the boot teardown call**, and the teardown
+is **load-bearing at boot** (reproducing v36). The v39 premise ("boot counter ~0") is **FALSIFIED**.
+
+**MODEL SHARPENED.** The teardown call site `0xc0d5ef70` lives in the **`rf_1` task entry** `0xc0d5edd0`
+(`rf_task.c:582 "RF task  new imei check !"`): it **registers** the handler `0xc0d5efd0` for
+`"RFM_INIT_COMPLETE"` at `0xc0d5eefc` (`call 0xc087b0b0`), then reaches the teardown at `0xc0d5ef70`
+(`{ call 0xc0d5efd0; r0 = #0x40d3 }`) near the function tail. ⇒ **the teardown site is reached AT BOOT**,
+and >100 handler entries precede it. (The handler is a **bit-mask dispatcher**: bit1 → `0xc0d5f250` +
+`0xc0c7b0`, bit14 → logs `rf_task.c:336 "get imei stoped"` iff `memb(0xc3110940)!=0`, then recurses with
+mask `0x2`.)
+
+### v40 — the code-space run counter — NEG (`:Excep`, b05 is execute-only)
+
+`scratch/diag_patch_v40/` (verifier PASS; md5 `cfa2c14cf98a17b5ba45034c55d71d82`). Same two rings, but
+cave A increments a **code-space** counter at `0xc00305f8` (a NOP-pad byte in b05, whose ELF `p_flags`
+are **RWX**), plus the data counter — to count handler runs across any data reset. **RESULT:** the modem
+crash-loops with a **different** signature, `qcom-q6v5-mss …: fatal error received:     :Excep  :0:`.
+⇒ **b05 is mapped execute-only at runtime** (the ELF `W` bit is not honoured); the code-space write faults
+at the first handler entry. **Negative recorded:** code-space markers are unavailable on this baseband.
+
+### The reset question (why v38's ring reads 773)
+
+v38 ran a whole boot→~917 s run and ring A counted **773** entries (771× `0x06`, the teardown `0x40d3`,
+the recursion `0x02`) with the teardown call firing **once** (ring B `count=1`). But the **F3 collapse
+tail** (`scratch/f3_v15/c000173_up00908.raw`) shows the handler's bit-14 log `rf_task.c:336
+" get imei stoped "` at `ts=2816830284`, **inside the live 20 Hz `cfm_cpu_monitor` heartbeat stream at
+~908 s** — i.e. the handler's bit-14 path really **runs at ~908 s** (not a retained boot record; the
+descriptor `0xc164e188` is referenced **only** at the handler's bit-14 site `0xc0d5f02c`). Since v39
+shows the handler also runs **at boot**, the handler runs at **both** ⇒ the boot sequence must have been
+**reset** in between (else ring A would count ~1546).
+
+**The reset is NOT a modem restart.** The v38 soak log (`scratch/v38_run/soak.log`) shows `f=0`
+(no `fatal error received`) and `mm=connected` **throughout** the run — the modem never crashed or
+re-dispatched. The ELF segment map shows our save (`0xc1455000`, seg 17) and rings (`0xc1d4c600` /
+`0xc1d5c600`, seg 19) are **initialized data** (`filesz==memsz`), **not BSS**, and **no firmware code
+references those addresses** ⇒ no targeted memset. The reset mechanism is therefore **UNIDENTIFIED**.
+
+### The decisive test — v41 (in flight)
+
+`scratch/diag_patch_v41/` records the **bit-14 guard flag** `memb(0xc3110940)` as ring A's third field
+(in place of v38's broken `t`). The guard is **BSS** (boot value `0`) and has a **single writer in the
+whole firmware** — the handler's own bit-14 path (`memb(##0xc3110940)=r18` at `0xc0d5f170`). It reads
+`1` in the v38 dump at capture (~917 s). **P-V41:** if ring A's 771 `mask==0x06` entries carry
+`guard==0` → the sequence is the **BOOT** one (M1; the RFM teardown is **not** the ~900 s event); if
+`guard==1` → the sequence is the **~908 s** one (M2; the RFM init **re-runs** at the event). Boot-check:
+v41 boots cleanly (`running`, `fatal=0`, `crash=0`).
+
+| Item | Expected | Achieved |
+|---|---|---|
+| v39: modem boots (H1) | yes | **NO — crash-loop** (`SFR Init`, = v36) |
+| v39: boot teardown skipped | — | **YES** ⇒ boot handler-count **>100**, teardown **load-bearing** |
+| v40: boots | yes | **NO — `:Excep`** ⇒ **b05 execute-only** |
+| v40: code-space counter usable | yes | **NO** (negative recorded) |
+| Root cause identified | — | _pending (v41 in flight)_ |
+
+**SOP.** Pre-registrations written before each run (v39 §112.92-registered gate; v40 docstring; v41
+docstring). Ground-truth-first: the segment flags, the guard's single writer, the F3 descriptor xref and
+the F3 heartbeat context were all read from the archived ELF / capture. Reversible: firmware in
+`/lib/firmware` (overlay), stock backup + `--rollback`; device restored to stock + mitigation
+(`preemptive_ssr=1`, `ssr=1`, `a2_pin=1`) after each NEG. One change at a time; both negatives recorded,
+not hidden. Ledger + CHANGELOG + memory updated this session.
+
+## §112.95 — v41 RESULT: the 773-entry handler sequence is the BOOT sequence — the RFM teardown is NOT the ~900 s event; the RFM-teardown line (v35–v41) is CLOSED (2026-10-05)
+
+Task: §112.94's decisive test. v41 records the **bit-14 guard flag** `memub(0xc3110940)` as ring A's
+third field. Pre-registered P-V41: `guard==0` on the 771 `mask==0x06` entries ⇒ the sequence is the
+**BOOT** one (M1); `guard==1` ⇒ it is the **~908 s** one (M2).
+
+### The run — a WEDGE in the canonical window (the "crash" was OUR forced coredump)
+
+`scratch/diag_patch_v41/` (verifier `verify_v41.py`, PASS; md5 `ff277587519b451d4f511388631344d7`).
+Deployed with mitigation OFF (`preemptive_ssr=0, ssr=0, a2_pin=1`), AP rebooted, boot-check clean
+(`running`, `fatal=0`, `crash=0`). Two watchers ran: `scratch/v41_run.sh` (wedge → §6.2a capture) and
+`scratch/v41_fatalwatch.sh` (fatal → devcd pull).
+
+The event was a **WEDGE**, not a fatal: the soak's `ping` was alive through `u=909.32 s` (poll 34) and
+**dead from `u=924.63 s`** (poll 35) onward, with `r=running`, `f=0`, `c=0`, `mm=connected` throughout —
+the classic connected-but-dead signature. The modem came up at **AP 13.4 s** (`remoteproc0 … now up`), so
+the wedge is at **modem-up ≈ 896–911 s** — the **canonical 898–928 s window**.
+
+At poll 38 the soak ran the §6.2a on-demand capture (`echo 1 > …/crash`), which **forced** a modem crash;
+`dmesg` shows `crash detected … type watchdog` at AP 981.823 s — **that crash is OUR coredump trigger, not
+the event.** The fatalwatch (poll 20) saw the same forced crash and pulled the same devcd: both dumps have
+md5 `e51f4c478e4aad240b2e4c42d59767c3` (`v41_wedge_105316.bin` == `v41_fatal_105327.bin`).
+
+### The ring — H2 PASS
+
+`python3 scratch/read_v41_ring.py scratch/dumps/v41_wedge_105316.bin`:
+
+```
+RING A (handler 0xc0d5efd0): count=773
+  seq   1..771  mask=0x00000006  guard=0   (ALL 771)
+  seq      772  mask=0x000040d3  guard=0   (the teardown; guard read at ENTRY, before the write)
+  seq      773  mask=0x00000002  guard=1   (the recursion)
+RING B (teardown call 0xc0d5ef70): count=1
+```
+
+**P-V41 H2 PASSES.** Every one of the 771 `mask==0x06` entries carries `guard==0` ⇒ the sequence ran
+**before the flag was ever set** ⇒ it is the **BOOT** sequence. The flag flips `0→1` **at the boot
+teardown itself** (seq 772 entry reads 0; seq 773 entry reads 1). ⇒ **The RFM handler does NOT re-run at
+the ~900 s event.**
+
+### This RESOLVES §112.94's "reset" puzzle — there was no reset
+
+Ring A's count is **773 for the whole boot→event run**, so the handler was entered exactly 773 times
+total. There is no second sequence to overwrite the first; the earlier reading ("the handler runs at boot
+**and** ~908 s ⇒ a reset between") was an artifact of v38's broken `t` proxy (§112.93). The v15 F3
+`rf_task.c:336 " get imei stoped "` at the collapse is therefore the teardown being **re-entered in the
+FATAL path only** (the v15 run was a fatal-path staged shutdown), i.e. a **SYMPTOM** of the modem's own
+shutdown — the **WEDGE** path (this v41 run) does **not** re-enter it. Cause-vs-symptom answered:
+**symptom.**
+
+### Verdict — the RFM-teardown line (v35–v41) is CLOSED
+
+| Item | Expected | Achieved |
+|---|---|---|
+| v41: boots, no crash-loop (H1) | yes | **YES** (`running`, `fatal=0`, `crash=0`) |
+| v41: 771 `mask==0x06` entries guard==0 (H2) | guard==0 | **YES — all 771** |
+| v41: handler re-runs at the event (H2′) | guard==1 | **NO** |
+| v41: event is the canonical ~900 s one | modem-up 898–928 | **YES — wedge at modem-up ≈896–911 s** |
+| RFM teardown IS the ~900 s event | — | **NO — it is a boot-time, load-bearing op** |
+
+**The `rf_1` "new imei check" teardown is a boot-time, load-bearing operation** (v36/v39: removing or
+gating it boot-crash-loops) and is **not** the ~900 s event. At the event it re-enters only in the fatal
+path, as a symptom of the staged shutdown. **No further work on this line.** The root cause remains the
+**MCPM/power-collapse staged shutdown** (§112.57.13/15, §112.86 — the final `SleepEntry` never exits).
+
+**SOP.** Pre-registration (P-V41) written in the v41 builder docstring **before** any v41 data existed.
+Ground-truth-first: the guard's single writer (`0xc0d5f170`, verified by a whole-disasm census: 1 write,
+2 reads), the string `" get imei stoped "` (exactly 1 occurrence in the whole image, referenced only at
+the bit-14 site `0xc0d5f02c`), and the ring/counter addresses (0 firmware xrefs ⇒ scratch, not clobbered)
+were all read from the archived ELF. The wedge was distinguished from the forced crash by the AP dmesg
+(`type watchdog` at 981.8 s = the §6.2a `echo 1 > crash`). Reversible: `scratch/deploy_v41.py --rollback`
+→ stock + mitigation; device left on stock (`preemptive_ssr=1`, `ssr=1`, `a2_pin=1`). One change at a
+time. Ledger + CHANGELOG + memory updated this session.
+
+---
+
+## §112.96 — MCPM/SAW offline recon: the F3 descriptor mechanism SOLVED; the SAW step code located; the SAW state is NOT a discriminator
+
+While the device sat on stock+mitigation after v41, I did offline recon on the surviving
+**MCPM/power-collapse** candidate (the final `SleepEntry` never exits, §112.86). The goal was to find a
+place to instrument the staged shutdown. Three findings.
+
+### (A) The F3 log-descriptor mechanism is SOLVED — a reusable instrument
+
+Every F3 record's `fmt` is resolved through an **8-byte descriptor**:
+
+```
+struct f3_desc { u32 packed; u32 msg_ptr; };   // packed = (line<<16) | code
+```
+
+`msg_ptr` points at a **CONCATENATED `"<file>: <fmt>"` string** — there is **no separate file pointer**;
+the file name and the format live in one NUL-terminated string, and the descriptor's `msg_ptr` is the
+ONLY pointer. To go from a known log site (e.g. an F3 line seen in a capture) to its **code site**:
+
+1. Compute the concatenated string's VA from the segment map (`dump_va = elf_va − 0x39800000`).
+2. Search the segment files for that 4-byte VA → that is the descriptor VA.
+3. Grep `disasm_full.txt` for the descriptor VA → that is the `LOG_F`/`MSG_F` call site.
+
+Worked examples (both verified):
+
+| Log | Concatenated string | String VA | Descriptor VA | Code site |
+|---|---|---|---|---|
+| `rf_task.c:336` | `"rf_task.c: get imei stoped "` | `0xc44c17e4` | `0xc164e188` | bit-14 site `0xc0d5f02c` |
+| `mcpm_saw.c:393` | `"mcpm_saw.c:MCPM 2 step FW PC FW_SLEEP_PWRDN_FULL %d"` | `0xc44c0c64` | `0xc1647400` | step fn `0xc0cf8d04` |
+
+This is the missing half of `scratch/logsite.py` (§6 of the F3-bootlog reference): `logsite.py` goes
+string→site by HASH; this goes site→descriptor→string **exactly**. Both are needed because the HASH
+path is ~92 % and the `<file>.c:<fmt>` path is ~8 %.
+
+### (B) The MCPM/SAW step code is located
+
+- Step function: **`0xc0cf8cd0`** (`call 0xc0836ac0; allocframe(#0x10)`), with the
+  `FW_SLEEP_PWRDN_FULL` log at `0xc0cf8d04` (descriptor `0xc1647400`).
+- Step-timing wrapper: `0xc0cf8e70` / `0xc0cf8f58`.
+- SAW **state** struct: `0xc3973590` (= `0xc3973580 + 0x10`); SAW **config** struct: `0xc1e0a5c0`.
+
+⚠ `disasm_full.txt` covers `0xc0000000..0xc1404e0c` only, so seg16/seg18 (where some MCPM/SAW code
+lives) are **not** in it — the MCPM/SAW code above was reached via descriptor + segment reasoning, and
+the step fn `0xc0cf8cd0` IS inside the covered range (it is seg5/b05-adjacent), so it is directly
+readable.
+
+### (C) The SAW state is NOT a manifestation discriminator — a ring here would be uninformative
+
+I compared the SAW state struct `0xc3973580`/`0xc1e0a5c0` across **5 fatal dumps + 3 wedge dumps**:
+**byte-identical in every dump** (same bytes at the same offsets). Therefore a ring on the SAW step
+code would record the same sequence for both manifestations and could not tell a fatal from a wedge.
+**Do NOT build a SAW-step instrument.** The discriminator lives elsewhere.
+
+### Consequence — retarget to the sleepmgr's CONSUMPTION of `RF_WAKEUP_CNF`
+
+The recon closes the MCPM/SAW *step-code* as an instrument target and re-points the next instrument at
+the **sleepmgr-side consumption** of the RF wakeup confirmation (v26/v27/v28 already showed the last
+cycle arms the sleep timer **without** `RF_WAKEUP_CNF`; v32/v34 showed the RF transport itself is
+healthy on other runs ⇒ the defect is on the **consumer** side, a consumption/ordering race in the
+sleepmgr, not a lost message and not the SAW step). The natural site is the `FUN_c02d7bd0` timer-callback
+window (`obj[+0x38]` state-20 context, §112.44/§112.46) — the same window that produced the state-20
+watchdog expiry in v7–v11.
+
+**SOP.** Offline only (no device change; device on stock+mitigation throughout). Ground-truth-first: the
+descriptor mechanism was verified on TWO independent worked examples (`rf_task.c:336` and
+`mcpm_saw.c:393`) before being recorded; the segment map was cross-checked by size AND by the known
+`rpm_force_sync` string (§112.13 ground truth); the "not a discriminator" verdict is an **A/B over 8
+real dumps** (5 fatal + 3 wedge), not a single sample. No pre-registration is needed for a recon step
+(no live data is scored); the next *live* instrument WILL be pre-registered before deployment. Ledger
+updated this session.
+
+
+---
+
+## §112.97 — Corpus census: the ~900 s deadline is EXCLUSIVELY `lte_ml1` (modem-uptime 900–903 s); the `a2_power.c:1189` family is a SEPARATE, scattered event with a coredump-readable signature (`logcnt=901`)
+
+**Trigger.** After §112.96 re-pointed the next instrument at the sleepmgr consumer, I did a cheap,
+decisive **census over the whole archived corpus** (42 coredumps) of the two things every dump carries:
+the **modem's own fatal site + uptime** (from the embedded crash report, `scratch/crashlog_extract.py`)
+and the **A2-quiesce counters** (`0xc28602f8` spin / `0xc28602fc` logcnt, read by
+`scratch/a2_counters.py`). Offline only; no device change.
+
+### (A) The fatal site × modem-uptime histogram — two DISJOINT families
+
+```
+SITE HISTOGRAM (n=42)                UPTIME HISTOGRAM (modem seconds)
+  18  lte_ml1_sleepmgr_stm.c:4054      900 s x10   901 s x4   902 s x12   903 s x1
+  11  a2_power.c:1189                  909/910/921/940/941/947/1041 s  x7
+   9  lte_ml1_common_timer.c:390        68/77/111/177/412/448/520/575 s  x8
+   3  a2_power.c:2949
+   1  a2_taskq.c:759
+```
+
+Cross-tabulating site against uptime gives a **clean partition**:
+
+| family | sites | modem uptime | n |
+|---|---|---|---|
+| **the ~900 s deadline** | `lte_ml1_sleepmgr_stm.c:4054` **and** `lte_ml1_common_timer.c:390` | **900, 901, 902, 903 s ONLY** | **27** |
+| **the A2-quiesce deadlock** | `a2_power.c:1189` | 68, 77, 177, 412, 909, 910, 921, 940, 941, 947, 1041 s (scattered) | 11 |
+| other | `a2_power.c:2949` (111/520/575 s), `a2_taskq.c:759` (448 s) | scattered | 4 |
+
+**★ The ~900 s event is EXCLUSIVELY the `lte_ml1` family, and it is at the modem's OWN uptime
+900–903 s.** Every one of the 27 `lte_ml1` dumps reads `0:15:00`–`0:15:03` in the modem's crash report;
+**not one** `a2_power`/`a2_taskq` dump is at 900 s, and **not one** `lte_ml1` dump is off 900–903 s.
+This is a clean two-family separation on the modem clock.
+
+**⇒ The deadline is a clean 900 s (15 min) on the MODEM's own clock** — not the AP-side "902.7 s".
+The AP-side 902.7 s (§112.6, the config comment, the pre-emptive-SSR model) is `900 s + the AP↔modem
+boot offset`; §112.49.1's single exact reading (`modem uptime 900.478 s`) already hinted this, and the
+27-dump census confirms it. **Use 900 s, not 902.7 s, when reasoning about the deadline.**
+
+### (B) NEW — the `a2_power.c:1189` deadlock has a coredump-readable signature: `logcnt = 901`
+
+`scratch/a2_counters.py` reads the two A2-quiesce counters in every dump:
+
+| word | `a2_power.c:1189` dumps (n=11) | ALL other dumps (n=31) |
+|---|---|---|
+| `0xc28602f8` (spin) | `0x0000affb` = **45 051** | `0` or `1` |
+| `0xc28602fc` (logcnt) | `0x00000385` = **901** | `0` |
+
+The correlation is **exact (11/11 and 31/31)**. `FUN_c05042c8` (`a2_power.c:1189`'s assert helper,
+descriptor `0xc3c1f3a0`) increments `0xc28602f8` on every spin and `0xc28602fc` every 50 spins, and the
+assert fires when `0xc28602fc > 900`. At the deadlock the spin count is `45051 = 901 × 50 + 1` and
+`logcnt = 901` — i.e. **the modem spun the full A2-quiesce budget against registers
+`0xec320ba4/ba8/bac/bd8/be0` and the bits never cleared**. `FUN_c0504fc8` (the quiesce) polls exactly
+those five registers for `(val & 7) == 0`, calling `FUN_c05042c8` in the wait loop.
+
+⇒ **`logcnt@0xc28602fc == 901` is a one-word, coredump-only detector for the A2-quiesce deadlock.**
+(The "900" here is a *spin* budget ≈ 77 s at the observed rate — it is NOT the 900 s deadline; the
+coincidence of the number 900 is just that, and this census separates them.)
+
+**Why this matters.** The `a2_power.c:1189` family is now *machine-identifiable* without a crash-report
+parse, and it is a **different bug** from the ~900 s deadline (different clock, different layer). It is
+the A2/SMSM handshake deadlock (§112.23; the `a2_pin=1` mitigation holds the AP's
+`SMSM_A2_POWER_CONTROL` vote SET so the quiesce never has to run).
+
+### (C) Consequence for the mitigation — the 600 s pre-emptive SSR does NOT cover the early `a2_power` cluster
+
+The corpus has `a2_power.c:1189` fatals at modem-uptime **68, 77, 177, 412 s** — all **below** the
+600 s pre-emptive restart. A 600 s pre-emptive SSR therefore **cannot** pre-empt them; only `a2_pin=1`
+(the held A2 vote) does. This is the mechanical reason the two levers are **complementary**, and it
+matches the config's own invariant (`a2_pin=0 ⇒ interval ≤ 600`).
+
+⚠ **Discrepancy, recorded honestly (not a drift claim).** `a2_pin` is an **opt-in** lever — the tracked
+source `msm89xx/base-files/etc/config/modem-watchdog:60` ships `option a2_pin '0'` (commit `8be46fa`,
+"opt-in a2_pin lever"), and the device under test runs `a2_pin=1`. The config comment's stated rationale
+is that "600 s gives a 122 s margin below the earliest observed cold-boot fatal [722.7 s]"; **the corpus
+contradicts that margin** — it holds `a2_power.c:1189` dumps at modem-uptime **68/77/177/412 s**, i.e.
+below any pre-emptive interval. Two readings, both open: (i) those early dumps predate the mitigation
+(unmitigated runs), so the 600 s margin holds *for the mitigated config*; or (ii) the early window is
+real and `a2_pin=1` (not the interval) is what closes it. **Discriminator:** the config/uptime of those
+four runs — not recorded in the dumps. Flagged for the shipped-default decision; **not** acted on here
+(one-change discipline).
+
+### (D) What this does NOT do
+
+It does **not** identify the root cause of the ~900 s deadline. It **narrows** it: the deadline is a
+clean 900 s on the modem clock, fires **only** in the ML1 sleep/timer layer, and is separable from the
+A2 handshake. The upstream arming (re-created by every boot, §112.33) remains **OPEN**.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| ~900 s deadline is at the modem's own 900 s | yes | **YES** — 27/27 `lte_ml1` dumps at 900–903 s |
+| `a2_power.c:1189` is a separate event | ? | **YES** — scattered uptimes, disjoint from 900 s |
+| `a2_power.c:1189` is coredump-identifiable | ? | **YES** — `logcnt@0xc28602fc == 901` (11/11) |
+| The 600 s SSR covers all `a2_power` | ? | **NO** — early cluster at 68–412 s needs `a2_pin=1` |
+| Root cause identified | — | **NO** — deadline arming still OPEN |
+
+**SOP.** Ground-truth-first: every row is read from an **archived, md5-known** coredump via two
+independent parsers (`crashlog_extract.py` for the crash report; `a2_counters.py` for the counters);
+the site↔uptime partition is an **A/B over 42 real dumps**, not a sample. No device mutation, no patch,
+no baseband write. **Negative/honest**: the root cause is still OPEN and this item says so. Ledger +
+CHANGELOG + memory updated in the same session.
+
+
+---
+
+## §112.98 — The exact assert messages for the ~900 s family (from the embedded crash report): the dominant site is `Assert stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP failed`
+
+**Trigger.** §112.97 established the ~900 s family as `lte_ml1_sleepmgr_stm.c:4054` (×18) +
+`lte_ml1_common_timer.c:390` (×9). The crash report (`ERR crash log report. Version 3`) in each dump
+carries not just `file:line` but the **`Error message`** and the descriptor in `R16`. Reading them
+(offline, from the archived dumps):
+
+| site | task | `Error message` | modem uptime | R16 (descriptor) |
+|---|---|---|---|---|
+| `lte_ml1_sleepmgr_stm.c:4054` | `slpc` | **`Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM ) == SLEEP failed`** | 0:15:00 | `0xc3c81a40` |
+| `lte_ml1_common_timer.c:390` | `tmr_slave3` | `Assert 0 failed` | 0:15:02 | (generic) |
+| `lte_ml1_sm_conn_inter_freq_stm.c:712` | `ML1 MGR` | `Assert 0 failed` | 0:15:00 | (generic) |
+
+**★ The DOMINANT site (18/42, the plurality) is a NAMED state-machine assert:**
+`stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP` — the sleepmgr STM is **not in the `SLEEP` state** when
+a SLEEP-requiring operation runs. This is the *same* assert §112.51/§112.52 already tied to
+`FUN_c039ef80` (the `SLEEP → WAKEUP` trigger, which asserts `state == SLEEP` then sends
+`WAKEUP_REQ 0x42b0205`); §112.97's census now shows it is the **most common** victim, and it fires at
+the **modem's own 0:15:00**. The other two sites are generic `Assert 0 failed`.
+
+**What this adds (and does not).**
+* **Adds:** the plurality fatal has a *named* condition — a **wakeup attempted while the sleepmgr is not
+  SLEEP**. Combined with §112.57/§112.65's state readouts (fatal ⇒ sleepmgr state 9 `OFFLINE_WAKEUP`;
+  wedge ⇒ state 4 `ONLINE_WAKEUP`), the mechanism is: the sleepmgr enters a wakeup state and the state
+  does not return to `SLEEP`, so the next SLEEP→WAKEUP trigger asserts.
+* **Does not:** name *why* the state is wrong at 900 s. The arming (re-created by every boot, §112.33)
+  is still **OPEN**; this is the *victim's* named condition, not the trigger.
+
+**SOP.** Offline only; every message is read from an **archived** dump's own crash report (the modem's
+words, not a symbol guess). No device mutation. Ledger + memory updated this session.
+
+---
+
+## §112.99 — The ONLY literal `900000` in the firmware is the IMS Registration Manager (`ims/regmana`); the module is **NOT instantiated** ⇒ **REFUTED** as the ~900 s deadline
+
+**Question.** §112.97 fixed the ~900 s deadline as a clean 900 s on the modem clock. The most
+attractive single hypothesis was a literal **900000 ms** one-shot timer armed at modem start. This
+section finds *every* literal `900000` (`0xdbba0`) in the image and tests it end-to-end.
+
+**Finding (the only 900000 sites).** A full-disassembly scan for `0xdbba0` returns exactly **three**
+code sites, all inside one module:
+
+| site | store |
+|---|---|
+| `0xc12553c0` | `r19 = 0xdbba0` → `memw(obj+0x5b8)` |
+| `0xc125d338` | `r22 = 0xdbba0` → `memw(obj+0x5d4)` |
+| `0xc125fe54` | `memw(obj+0xcc) = 0xdbba0` |
+
+The module is named from its own rodata (near `0xc180f8xx`): **`CPDPRATHandlerVoLTE`**,
+`CRegistrationHandlerVoLTE`, `CRegistrationHandlerWLAN`, `CRegisterManager`, `CRegMonitorHandler`,
+with the build path `…/modem_proc/ims/regmana…`. Its config struct (`ctor` `c125fdfc`, vtable
+`0xc1810c00`) holds the timeout table **`{30000, 60000, 600000, 900000, 10800, 5000}` ms** at
+`+0xc0…+0xd4`, consumed by a retry/backoff dispatcher at **`0xc1260cf0`** (reads each field; note
+`+0xd0` is converted `*1000` at use).
+
+**Test — three independent checks, all NEGATIVE.**
+
+1. **Live object.** The class vtable `0xc1810c00` is stored at object `+0x0`. Searching **6** coredumps
+   (incl. `dump_fatal_901`) for the 4-byte vtable value finds **no 4-byte-aligned data-segment hit** —
+   only code-embedded byte coincidences at *fixed* VAs (identical across every dump).
+2. **Live config struct.** Searching the same dumps for the exact 20-byte field signature
+   `30000,600000,60000,900000,10800` finds **zero** hits.
+3. **F3.** No `ims`/`regmana`/`CPDPRAT`/`CRegistration` string appears in **any** of the 10 `f3cap`
+   captures.
+
+⇒ the IMS Registration Manager is **not instantiated** on this device (consistent with HMU05 shipping
+voice/VoLTE stubbed, §3a.9). Its 900 s timer is **not** the ~900 s deadline.
+
+**Unit caveat on §112.68/69.** QuRT pool `idx 92` does carry `+0x50 = 0x000dbba0` with a large `rem`;
+but `rem/dur = 1200`, **not** the `19 200` implied by a "ms" label at the 19.2 MHz tick ⇒ the pool's
+`+0x50` **unit is unverified**, and the earlier "900 s pool timer" identification rests on that
+unproven unit assumption.
+
+**What this rules out / leaves.** The ~900 s deadline is **not** a literal `900000` in the image and
+**not** the IMS timer. The remaining constant space is also empty of a 900-s-at-tick representation
+(`0x40600000` is the **float 3.5**; every `#0x384` is a struct stride, not a timer). The arming value
+is therefore **computed, NV-sourced, or expressed in a unit we have not pinned** — the next instrument
+must read the *runtime* arm argument (e.g. extend the v26 sleepmgr funnel ring to capture the
+`STMR_ON_REQ` duration) rather than scan for a constant.
+
+**SOP.** Offline only; every claim is from the archived stock ELF/disassembly and archived dumps
+(the modem's own bytes). No device mutation, no firmware patch. Ledger + CHANGELOG + memory updated
+this session. This is a *negative* and is recorded as such.
