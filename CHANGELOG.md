@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — the plurality fatal's EXACT call chain: the `slpc` task's per-RAT LTE wakeup callback (ledger §112.100)
+
+- **§112.100 — the fatal's caller is named.** The crash report carries a raw stack dump; walking the
+  Hexagon frame chain on `modem_coredump_up913.64_devcd1.elf` (`lte_ml1_sleepmgr_stm.c:4054`, task `slpc`)
+  gives **`slpc` task loop `0xc0b675e0` → per-RAT worker `0xc0b66f20` → `callr r0` (`r0 = memw(r17+0x70)`)
+  → `FUN_c039ef80` → `if (stm_get_state(LTE_ML1_SLEEPMGR_STM) != 3) assert`**. So the fatal is a **wakeup
+  requested while the sleepmgr is not `SLEEP`** — the *consumer* side §112.96 pointed at.
+- **`FUN_c039ef80` is a registered per-RAT callback** (`grep "call 0xc039ef80"` = 0). The table is
+  `0xc1d9fef0`, stride `0x250`; read from the coredump it is the modem's **RAT table** —
+  `"GSM"`/`"1X"`/`"WCDMA"`/**`"LTE"`**, with **tech 4 = LTE** and `pertech[4]+0x70 = 0xc039ef80`
+  (identical in all 36 archived dumps). Crash registers corroborate the index (`R21 = 4×0x250`,
+  `R26 = 0xc1d9fef0`, `R20/19/18 = pertech[4]+0x04/+0x78/+0xd8`).
+- **The owning module is the `slpc` task** — its two printable strings are **`"slpc"`** and
+  **`"SystemTimer"`**, and it creates the task at `0xc0b6783c` (`0xc1200d40("slpc", 0x102)`).
+- **Still OPEN:** the upstream "why the sleepmgr is not `SLEEP` at 900 s". Next instrument re-pointed at the
+  **`slpc` receive** (`0xc1200f30`) + per-RAT dispatch entry — a cheaper, pre-registerable ring.
+
 ### 2026-10-05 — the only literal 900 s constant is the IMS Registration Manager, which is NOT instantiated ⇒ REFUTED (ledger §112.99)
 
 - **§112.99 — the 900000 scan, and its refutation.** A full-disassembly scan for `0xdbba0` (900000)

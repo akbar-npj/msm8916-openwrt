@@ -20268,3 +20268,134 @@ must read the *runtime* arm argument (e.g. extend the v26 sleepmgr funnel ring t
 **SOP.** Offline only; every claim is from the archived stock ELF/disassembly and archived dumps
 (the modem's own bytes). No device mutation, no firmware patch. Ledger + CHANGELOG + memory updated
 this session. This is a *negative* and is recorded as such.
+
+
+---
+
+## §112.100 — The plurality fatal's EXACT call chain: the `slpc` task's per-RAT **LTE wakeup callback** (`FUN_c039ef80`) — and the per-RAT table it is registered in
+
+**Trigger.** §112.98 named the plurality fatal's *condition* (`Assert stm_get_state ( LTE_ML1_SLEEPMGR_STM )
+== SLEEP failed`, task `slpc`, ×18) but not its **caller**. §112.96 had re-pointed the next instrument at
+the sleepmgr *consumer* side. This item reconstructs the **full call chain** from the crash report's own
+raw stack dump and reads the structures it touches out of the coredump. **Offline only** — no device
+mutation, no patch; the device stays on stock + mitigation.
+
+### (A) The crash report carries a stack dump — walk it, do not symbolise
+
+`scratch/_crash_text.py <dump>` prints the filled-in report (the format-string template lives elsewhere in
+the image; the *filled* copy is the one with `tcb.task_name:` populated). For
+`modem_coredump_up913.64_devcd1.elf` (site `lte_ml1_sleepmgr_stm.c:4054`, task `slpc`, uptime `0:15:00`,
+`R16 = 0xc3c81a40`) the report gives `SP=0x8ae99038`, `FP=0x8ae99040` and a `Stack Dump (from 0x8ae99038)`.
+
+Hexagon `allocframe` stores `{saved FP @ [FP+0], saved LR @ [FP+4]}`. Walking the chain:
+
+| frame FP | saved FP | saved LR | function (identified below) |
+|---|---|---|---|
+| `0x8ae99040` | `0x8ae99050` | `0xc08791a8` | callee of `FUN_c0879150` (the assert logger, `0xc0879150+0x58`) |
+| `0x8ae99050` | `0x8ae990e0` | **`0xc039f7c4`** | `FUN_c0879150` — called from `FUN_c039ef80` at the assert |
+| `0x8ae990e0` | `0x8ae99110` | **`0xc0b66fcc`** | **`FUN_c039ef80`** — called from `0xc0b66fc8` (`callr r0`) |
+| `0x8ae99110` | `0x8ae99160` | **`0xc0b67658`** | `0xc0b66f20` (per-RAT worker) — called from `0xc0b67650` |
+| `0x8ae99160` | `0x8ae99218` | **`0xc087c658`** | `0xc0b675e0` (the `slpc` task loop) — called from the REX dispatcher |
+
+Two other stack words that look like code are **DATA**, not returns: `0xc20f1510` is the sleepmgr object's
+`+0x14` field (§112.101), and `0xc312db4c` is a table immediate used by `FUN_c039ef80` itself. The leaf
+returns `0xc1201c5c` / `0xc12010f8` sit in the same path (below the frame-chain depth the dump records).
+
+### (B) The assert site, confirmed instruction-by-instruction
+
+`FUN_c039ef80` (`0xc039ef80`) is a small message handler:
+
+```
+c039ef88: call 0xc02d1140                    ; returns 0 (a stub)
+c039efb0: r17 = memw(r16<<#0x2 + 0xc312db4c) ; r16 = 0 -> r17 = table[0]
+c039efe4: call 0xc03a0c20                    ; stm_get_state(LTE_ML1_SLEEPMGR_STM)
+c039efec: p0 = cmp.eq(r0,#0x3); if (!p0.new) jump:nt 0xc039f7b8   ; != SLEEP -> assert
+...
+c039f7a8: r3:2 = combine(##0x42b0205,#0x18)  ; WAKEUP_REQ
+c039f7b0: call 0xc03927d0                    ; the sleepmgr ML1-message funnel (v26)
+c039f7b4: jump 0xc0030080
+c039f7b8: call 0xc0879150                    ; <-- THE ASSERT (descriptor 0xc3c81a40 = R16)
+```
+
+⇒ the fatal is literally **`if (stm_get_state(LTE_ML1_SLEEPMGR_STM) != 3) assert`** on the *wakeup* path —
+a wakeup requested while the sleepmgr is **not** `SLEEP`. ✓ Matches §112.98 exactly, and the saved LR
+`0xc039f7c4` in the dump is the `call 0xc0879150` return address (`0xc039f7b8` + 12 = the 3-instr packet).
+
+### (C) `FUN_c039ef80` is a REGISTERED PER-RAT CALLBACK; the table is the modem's RAT table
+
+`grep -c "call 0xc039ef80"` in the full disassembly = **0**. The function is reached **indirectly**:
+`0xc0b66fc0: r0 = memw(r17+#0x70)` → `0xc0b66fc8: callr r0`, where
+`0xc0b66f3c: r17 = 0xc1d9fef0 + r16*0x250`. Reading that array out of the coredump:
+
+| tech | `+0x00` → name string | `+0x04` | `+0x70` (wakeup callback) |
+|---|---|---|---|
+| 0 | `"GSM"` | 0 | 0 |
+| 1 | `"1X"` | 0 | 0 |
+| 2 | `0xc1a61b3c` | 0 | 0 |
+| 3 | `"WCDMA"` | 0 | 0 |
+| **4** | **`"LTE"`** | **3** | **`0xc039ef80`** |
+| 5 / 6 | `0xc1a61b40` / `0xc1a61b48` | 0 | 0 |
+
+⇒ **`0xc1d9fef0` is the modem's per-RAT table** (stride `0x250`), **tech 4 = LTE**, and **LTE's registered
+wakeup callback *is* the assert site**. The crash registers corroborate the tech index independently:
+`R21 = 0x940 = 4 × 0x250`, `R26 = 0xc1d9fef0`, `R20/R19/R18 = 0xc1da0834 / 0xc1da08a8 / 0xc1da0908`
+(= `pertech[4] + 0x04 / +0x78 / +0xd8`).
+
+Across **all 36** archived dumps `pertech[4]+0x70 = 0xc039ef80` (a fixed registration) and
+`pertech[4]+0x04 ∈ {0, 2, 3}`.
+
+### (D) The owning module is the `slpc` task
+
+The module that owns the table spans `0xc0b65e00..0xc0b68100` — **all 79** references to the base
+`##-0x3e260110` in the image are inside it. Scanning that range for immediates that resolve to printable
+strings yields **exactly two**: **`"slpc"`** (loaded at `0xc0b67828`) and **`"SystemTimer"`**
+(`0xc0b6787c`, `0xc0b678a0`). At `0xc0b6783c` it calls `0xc1200d40(r0="slpc", r1=0x102)` (task create,
+TCB base `0xc1da1170`) and stores a timer handle at `r17+0x90` (`0xc1da1200`). The function at
+`0xc0b675e0` is the task's **message loop**: `0xc1200f30(memw(0xc1da1200), &msg, 2)`, dispatch on the
+received byte (`0` → the per-RAT worker `0xc0b66f20`).
+
+⇒ **The plurality fatal is the `slpc` (sleep-controller) task's per-RAT LTE wakeup request**, which
+asserts because the LTE ML1 sleepmgr is not in `SLEEP`.
+
+### (E) What this adds, and what it leaves OPEN
+
+* **Adds — the fatal's identity.** Not "an ML1 timer" but a **per-RAT wakeup request issued by the `slpc`
+  task while the sleepmgr is mid-transition**. In `up913.64` the sleepmgr object (`0xc1e158d0`, class
+  `0xc1a94f70`) reads `+0x04 = 2` (a non-`SLEEP` state) — consistent with §112.57.14's "frozen in a
+  sleep-wait" reading, and with §112.67's "the manifestation is a **RACE**".
+* **Consistent with the v26–v28 line.** v26/v27/v28 showed the last cycle arms the sleep timer *without*
+  `RF_WAKEUP_CNF`, leaving the sleepmgr in a wakeup state; this item shows the **consumer** that then
+  trips: the next per-RAT wakeup request. The `slpc` side is therefore the *first place the trigger is
+  visible without instrumenting the ML1*.
+* **Does NOT** name the upstream condition that leaves the sleepmgr in that state at 900 s. The arming
+  (re-created by every boot, §112.33) remains **OPEN**. This is one level closer than §112.98: it names the
+  *caller*, not the *cause*.
+* **Re-points the next instrument (concrete, pre-registerable).** Ring the **`slpc` receive**
+  (`0xc1200f30`'s return + the byte at `&msg`) **and** the per-RAT dispatch entry `0xc0b66f20` (tech index
+  in `r0`). That captures **what message at ~900 s** makes `slpc` request the LTE wakeup — the first
+  `slpc`-side view of the trigger. It is a smaller, cheaper instrument than the ML1-side rings.
+
+### (F) A side observation, recorded but NOT claimed (do not over-read)
+
+The `a2_power.c:1189` family's uptimes in the census (§112.97) are **not all scattered**: besides the
+cold-boot cluster (68/77/177/412 s) there is a **near-900 cluster** — 909/910/921/940/941/947 s (and 1041).
+Because that assert fires after a fixed **spin** budget (`>900` spins ≈ tens of seconds), a deadlock that
+*starts* near 900 s would assert in exactly that window. This is **consistent with** the ~900 s event also
+starving the A2 quiesce (a power-subsystem-wide stall), but the corpus alone does **not** establish it —
+the 1041 s member is too late for a fixed spin budget. Flagged as a hypothesis with a named discriminator
+(the per-dump spin **rate**), **not** a finding.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| The plurality fatal's caller is named | ? | **YES** — `slpc` → per-RAT worker → `FUN_c039ef80` |
+| `FUN_c039ef80` is a registered callback | ? | **YES** — `pertech[LTE]+0x70`, no direct call sites |
+| The table is the RAT table | ? | **YES** — GSM / 1X / WCDMA / **LTE** names read from the dump |
+| The owning task is `slpc` | ? | **YES** — module strings `"slpc"` + `"SystemTimer"`; task create at `0xc0b6783c` |
+| Root cause identified | — | **NO** — the upstream "why the sleepmgr is not SLEEP at 900 s" is still OPEN |
+
+**SOP.** Offline only (archived stock ELF + archived coredumps; no device change — the device remains on
+stock + the deployed mitigation). Ground-truth-first: the frame chain is walked from the **crash report's
+own stack dump**, and every claim is cross-checked against an **independent** artefact — the per-RAT names
+read from the coredump, the module's own strings, and the crash **registers** (`R21/R26/R20/R19/R18`) that
+reproduce the tech index. The negative (root cause still OPEN) is stated in the table, not buried. Ledger +
+CHANGELOG + memory updated this session.
