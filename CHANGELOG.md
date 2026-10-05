@@ -11,6 +11,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v49 MCPM SAW wake-source-mask ring: H1–H4 PASS but branches (a)/(b)/(c) ALL NOT MATCHED — the wake-source vote is HEALTHY right up to the fatal ⇒ the "stuck source blocks the collapse" hypothesis is REFUTED (ledger §112.118)
+
+- **Built, offline-verified, deployed and ran v49** — a two-site **ENTRY** ring on the MCPM SAW vote functions
+  `FUN_c0cf8e70` (tag 1 = source-IDLE / collapse path) and `FUN_c0cf8fa4` (tag 2 = source-ACTIVE / wake path),
+  recording `{seq, tag|state<<8, mask, t}` into the 4096 × 16 B ring `0xc1d4c600` (`SAVE.seq` @ `0xc1455000`);
+  cave 160 B @ `0xc003054c` (`modem.mdt md5 = 78f9a91e04a8c30790863abbdd81989a`; `verify_v49.py` PASS; sha256
+  read-back PASS). Forced restart (count 11→12).
+- **Run:** NATURAL fatal `lte_ml1_common_timer.c:390`, task `tmr_slave3`, at modem-uptime **902 s** (crash report
+  "Uptime 0:15:02"); auto-coredump `devcd13` (85 398 475 B). Victim = `tmr_slave3` (v48's variant), **not** `slpc`
+  (v47) — the variable-victim race again.
+- **RESULT — H1/H2/H3/H4 PASS, but NONE of the pre-registered branches (a)/(b)/(c):** `SAVE.seq = 2645`
+  (recovered 2645/2645); tags e70(idle)=1287, fa4(wake)=1358; mask histogram `0x3ff`×1288, `0x3ef`×1355 (+ two
+  STARTUP transients `0x37f`/`0x3bf`); **Σ inter-record Δt = 900.4 s @19.2 MHz ≈ the 902 s run** ⇒ the ring spans
+  the **whole** run. Only **bit 4 (0x10, LTE)** ever toggles; the other 9 sources stay idle all run. The last 12
+  records alternate `e70(0x3ef)/fa4(0x3ff)` cleanly through seq 2645.
+- **HEADLINE — the hypothesis is REFUTED:** the mask returns to `0x3ff` (all sources idle) on **every** cycle; the
+  collapse condition `state==0 && mask==0x3ff` is reachable ~1322× over the run, including at the last `e70`
+  (seq 2644). **No source is stuck ACTIVE** ⇒ the MCPM/power layer is a **VICTIM**, not the cause (consistent with
+  §112.111 and §112.66). §112.111's "last event is a wake with no sleep" is trivial: the crash landed just after a
+  wake, before the next sleep request — **not** a skipped sleep.
+- **Next target:** the MCPM-side candidate is now *inside* the collapse issuer `FUN_c0cf8cd0` (the
+  `FW_SLEEP_PWRDN_FULL` completion / `mcpm_saw.c:424` timeout); but the weight is on the cause being **outside
+  MCPM (upstream in ML1)**.
+- Rolled back to stock (`1a6f9507…`) and reloaded the modem (count 13).
+
 ### 2026-10-05 — v48 entry ring on the generic STM engine 0xc0fe1460: NEGATIVE (H3 FAIL) — the engine recomputes the state internally, so the entry's r0 is NOT the state; v13's write-packet hook is the correct instrument (ledger §112.117)
 
 - **Built, offline-verified, deployed and ran v48** — an entry ring on the generic STM engine `FUN_c0fe1460`

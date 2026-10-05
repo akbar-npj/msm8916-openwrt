@@ -21668,3 +21668,80 @@ hand. A **negative** result (H3 FAIL) is reported as such, together with an expl
 acknowledgement** (the SOP values recording errors over defending them). Reversible: only `/lib/firmware` + a
 modem restart; rolled back to stock (`1a6f9507…`) and the modem restarted (10) at the end of the session. Ledger +
 CHANGELOG + memory updated this session.
+
+### §112.118 — v49 (MCPM SAW wake-source-mask ring): **H1/H2/H3/H4 PASS, but the pre-registered branches (a)/(b)/(c) are ALL NOT MATCHED — the wake-source vote is HEALTHY right up to the fatal ⇒ the "stuck source blocks the collapse" hypothesis is REFUTED** (2026-10-05)
+
+**Why this was run.** §112.117 closed the slpc line (both leads spent) and reframed the open question: *why does
+the MCPM/FW stop re-entering power-collapse at the ~900 s event?* The hypothesis: the wake-source vote
+`DAT_c3973594` never returns to `0x3ff` (all sources idle) because one source stays ACTIVE, so `FUN_c0cf8e70`'s
+collapse branch (`state==0 && mask==0x3ff && DAT_c3973599`) never fires. A coredump cannot answer it (§112.110 /
+§112.96 — the post-quiesce MCPM state is byte-identical across dumps), so it had to be observed LIVE.
+
+**Mechanism (decompiled C ground truth — `modem_full_decompiled.c`).** `DAT_c3973594` = the wake-source mask,
+**bit SET (1) = source IDLE**; `0x3ff` = all 10 sources idle. `DAT_c3973590` = the SAW state (0 idle, 4 awake,
+5 waking). `FUN_c0cf8e70(r0=mask)` "source IDLE": `mask |= arg`, then `if (state==0 && mask==0x3ff && flag)`
+→ `FUN_c0cf8cd0()` = the **FW power-COLLAPSE**. `FUN_c0cf8fa4(r0=mask)` "source ACTIVE": `mask &= ~arg`, then
+`if (enable && state==4 && mask!=0x3ff)` → the **WAKE**.
+
+**Instrument.** `scratch/diag_patch_v49/build_diag_patch_v49.py` — a two-site **ENTRY** ring on `FUN_c0cf8e70`
+(tag 1 = source-IDLE / collapse path) and `FUN_c0cf8fa4` (tag 2 = source-ACTIVE / wake path). Each 8-byte site
+packet is replaced by `{ r7 = #TAG }` + `{ jump PAD }`; the cave (160 B @ `0xc003054c`) reads `r0/r1/r7` **before**
+the prologue, records `{seq, tag|state<<8, mask, t}` into the 4096 × 16 B ring `0xc1d4c600` (`SAVE.seq` @
+`0xc1455000`), then replays the prologue tag-dispatched and resumes. `verify_v49.py` **PASS**; `modem.mdt md5 =
+78f9a91e04a8c30790863abbdd81989a`; `scratch/deploy_v49.py` sha256 read-back **PASS** on all 5 files.
+
+**Run.** `scratch/run_v49.py`; forced restart (count 11→12); **NATURAL fatal** `lte_ml1_common_timer.c:390`, task
+**`tmr_slave3`**, at **modem-uptime 902 s** (crash report "Uptime 0:15:02"), auto-coredump `devcd13`
+(85 398 475 B) → `scratch/v49_capture/natural_devcd13.bin`. ⚠ Victim = `tmr_slave3` (v48's variant), **not** `slpc`
+(v47) — the variable-victim race again (§112.48).
+
+**RESULT (raw, re-read by two independent scripts).**
+```
+SAVE.seq (total hook calls) = 2645      ring recovered 2645/2645   window [1..2645]
+tag histogram: e70(idle)=1287   fa4(wake)=1358                 (H2 PASS)
+mask histogram: 0x3ff x1288 ; 0x3ef x1355 ; 0x37f x1 ; 0x3bf x1   (last two = STARTUP only)
+Σ inter-record Δt (small deltas) = 17 287 085 786 ticks = 900.4 s @19.2 MHz  ≈ the 902 s run
+longest 0x3ef run = 8 (seq 6..13, STARTUP) ; in steady state max len 5 (seq 1297)
+last 12 records: perfect alternation e70(0x3ef)/fa4(0x3ff) through seq 2645
+```
+
+**Reading the mask.** Bit SET = IDLE. Only **bit 4 (0x10, the LTE source)** ever toggles; the other 9 sources stay
+idle (bit set) for the whole run. The recorded value is the **PRE**-call mask: `e70` sees `0x3ef` (LTE active) and
+sets it → `0x3ff`; `fa4` sees `0x3ff` (all idle) and clears it → `0x3ef`. Cycle period = **0.32 s (short DRX) /
+1.28 s (long DRX)**, matching §112.111.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 boots to the ~900 s event | yes | **YES** — `lte_ml1_common_timer.c:390`/`tmr_slave3` @ modem-up 902 s |
+| H2 ring non-empty, both tags present | yes | **YES** — 2645 recs; e70=1287, fa4=1358 |
+| H3 trajectory = DRX cycle to the boundary, then the stop | yes | **YES for the cycle** (0.32/1.28 s DRX); the **stop is ABSENT** — no terminal anomaly |
+| H4 `seq` spans the run | yes | **YES** — Σ Δt = 900.4 s @19.2 MHz ≈ 902 s |
+| (a) calls continue, mask stuck ≠ `0x3ff` | — | **NO** — mask returns to `0x3ff` every cycle |
+| (b) both tags stop together | — | **NO** — both continue to seq 2645 |
+| (c) one tag stops, the other continues | — | **NO** |
+| Root cause | — | **OPEN** (one major candidate REFUTED) |
+
+**HEADLINE — the hypothesis is REFUTED.** The MCPM wake-source vote is **HEALTHY right up to the fatal**: the mask
+returns to `0x3ff` (all sources idle) on **every** cycle — the collapse condition `state==0 && mask==0x3ff` is
+reachable ~1322 times over the run, including at the very last `e70` (seq 2644). **No source is stuck ACTIVE.**
+⇒ the MCPM/power layer is a **VICTIM** (or bystander), **NOT** the cause — consistent with §112.111 (the MCPM
+collapse is manifestation-independent) and §112.66 (the event is upstream of the SMs).
+
+**Also explained.** §112.111's "the last event is a WAKE with no sleep" is trivial here: the last record is
+`fa4(wake)` seq 2645 (pre-mask `0x3ff` → LTE active `0x3ef`, state 4); the crash simply landed just after a wake,
+before the next sleep request — it is **NOT** a skipped sleep.
+
+**Consequence — where the failure is NOT, and the next target.** Not the vote, and therefore not the "stuck-source"
+branch of `FUN_c0cf8e70`. The remaining **MCPM-side** candidate is *inside the collapse issuer* `FUN_c0cf8cd0` —
+i.e. the vote reaches `0x3ff`, the collapse is **ISSUED**, but the FW does not complete it (the `FW_SLEEP_PWRDN_FULL`
+completion / the `mcpm_saw.c:424` timeout, §112.110). That is a candidate for the next ring (issue→completion of
+`FUN_c0cf8cd0`). But given the fatal is `lte_ml1_*` and the victim varies (§112.48), the weight is on the cause
+being **entirely outside MCPM (upstream in ML1)**.
+
+**SOP.** Ground-truth-first: the bit polarity, both function bodies and the collapse/wake conditions were read from
+the decompiled C; the site packets, cave size and register discipline were verified offline (`verify_v49.py` PASS)
+and by sha256 read-back on the device **before** the run; the site bytes were **re-confirmed in the returned dump**
+(site A `27 c0 00 78` = `r7=#1`, site B `47 c0 00 78` = `r7=#2`); the raw ring was re-read by two independent
+scripts, and the Σ Δt = 900.4 s internal-consistency check confirms the ring spans the full run. A **NEGATIVE**
+(hypothesis refuted) is reported as such. Reversible: only `/lib/firmware` + a modem restart; rolled back to stock
+(`1a6f9507…`) and the modem reloaded (count 13) this session. Ledger + CHANGELOG + memory updated this session.
