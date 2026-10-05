@@ -23325,3 +23325,39 @@ disabled; result recorded **before** rollback; `a2_pin=1`. Rollback follows imme
 **Rollback (done).** `python3 scratch/deploy_v56.py --rollback` restored `/lib/firmware` from
 `/root/fw_stock_hmu05` (**stock `1a6f9507…`**) and **restarted the modem** onto it; after the restart: modem
 running, LTE re-attached, **ping OK**.
+
+---
+
+## §112.141 — v57 PRE-REGISTRATION: the **key-3-FILTERED** reschedule ring — key-3's whole-run timer history — 2026-10-06, task #324
+
+**Why.** §112.140 proved key-3's timer spec (`0xc2cda7e0`) carries interval `0x2EE00` = 10.000 ms, but v56's
+1024-entry **unfiltered** ring covered only the last ~52 s and key-3's records were ALL terminal ⇒ the interval
+**earlier** in the run was not captured (the change is only inferred from the rate). v57 **filters the ring on the
+key-3 context** so the 1024 entries hold the last 1024 **key-3** reschedules ⇒ effectively key-3's whole-run timer
+history.
+
+**Method (same verified site).** Site `0xc09137ec` → PAD `0xc02cb2c4` → cave `0xc003054c` (**140 B**), re-executes
+the original store then jumps to `0xc09137f0`. The cave computes `ctx = memw(r18+0x88)`, sets `p0 = (ctx ==
+0xc20f1068)`, and **predicates all ring/count stores on `p0`**. Clobbers `r6–r13` **and `p0`** — `p0` is not read
+between the site and its next write at `0xc0913828`, so it is dead there.
+
+| region | VA | size | layout |
+|---|---|---|---|
+| SAVE | `0xc1d4c600` | 16 B | `{global_seq, k3_count, last_iv_lo, last_iv_hi}` |
+| RING | `0xc1d4d610` | 1024 × 32 B | `{seq_k3, spec, iv_lo, iv_hi, dl_lo, dl_hi, ctx, t}` |
+
+**v57 image md5 `efda20c2ff40e33fdf1b411b4a84f5b1`** (offline VERIFY PASS, 18 checks).
+
+**P-V57 (pre-registered BEFORE any v57 data exists).**
+* **H1** boots to the event (`SAVE.global_seq > 0`).
+* **H2** the ring is key-3-**only** (every record's `ctx == 0xc20f1068`).
+* **H3** ≥50 key-3 records in the terminal `t`-group (storm reproduced).
+* **H4** one distinct spec.
+* **(a)** the interval is 10 ms for **ALL** records ⇒ the timer **always** ran at 10 ms ⇒ the storm is the timer
+  being **ARMED/started** at ~900 s; next = the timer **START** path.
+* **(b)** the interval **CHANGES** to `0x2EE00` inside the captured history ⇒ the period was **reprogrammed**;
+  next = the **writer of `spec+0x38`** at that transition.
+* **NEG** `k3_count == 0` ⇒ the engine never touches key-3's timer ⇒ re-target.
+
+**SOP.** Ground-truth-first; offline VERIFY-PASS; pre-registered before the event; natural event with pre-emptive
+SSR disabled; `a2_pin=1`; rollback = `python3 scratch/deploy_v57.py --rollback`.
