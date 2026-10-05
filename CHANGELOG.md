@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.121: v51 (ML1 dispatch census) CONFOUNDED (instrument-induced `:324` fatal; state region collided with live BSS); §112.122: `main`-branch no-sleep patcher audit (opcodes mis-labeled `#-1` vs actual `#0x20`; target is the `ENABLE_SLEEP_REQ` handler; daemon was a crash trigger on main, not a fix; main's own Run 2 → WEDGE at 15 min) + staged A/B/C blob test pre-registered (control running, patch blob built `3006927c…`, 2 s keepalive staged but OFF)
+
+- **v51 result:** fatal at modem-up 919 s, signature `lte_ml1_common.c:324` — **NOT in the 42-dump corpus** ⇒
+  instrument-induced. `SAVE.seq=84362` (dispatcher hot, ~92 calls/s); ring cadence healthy to the end (keys
+  0/1/3/4/12/13/14/15; no key 20; no collapse). The `SAVE`/`CENSUS` region `0xc1cfe8a0` is in a `filesz>0` BSS
+  segment ⇒ writes corrupted live modem state. **Fix for re-run:** relocate all state into the v50-proven zeroed
+  run at `0xc1d4c600`. NEG branch **NOT scored** (confound invalidates the run).
+- **`main`-branch audit:** the forwarded "patch + qcom-time-daemon resolves the crash" report is the
+  already-quarantined no-sleep patch. Verified: opcodes `00 c4 00 78 00 c0 9f 52` = `{ r0 = #0x20 ; jumpr r31 }`
+  (returns 32, **not** `-1`); target `0xc03987e0` = the `ENABLE_SLEEP_REQ` (msg `0x42b0200`) handler; stock bytes
+  are a live prologue ⇒ the 8-byte write stubs sleep-enable. `main`'s own test log shows Run 2 (patch alone) →
+  WEDGE at 15 min, and the final "stable" stack = patch + 2 s keepalive + daemon **OFF**.
+- **Test pre-registered (blob A/B/C, no rebuild):** A=stock control (running), B=patch-only, C=patch+2 s
+  keepalive. WEDGE detection load-bearing. Patched blob built + verified (`modem.mdt` md5 `3006927c…`). 2 s
+  keepalive staged on device (`/root/modem-keepalive.2s`, orig backed up), service still OFF for the control.
+
 ### 2026-10-05 — #2 ML1 pivot (offline re-scope): no literal 900 s constant and no ML1 watchdog; the ONLY boot-anchored 1 Hz field in the 58 MB BSS is an UNREFERENCED counter at `0xc28c28a0+0x320·i+0x2c`; P-V51 (ML1 common-timer dispatch census) pre-registered (ledger §112.120)
 
 - **Offline recon only** (stock image + 35-dump corpus; no device write, no patch, no run).

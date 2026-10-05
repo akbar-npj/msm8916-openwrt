@@ -21913,3 +21913,114 @@ fields and the `FUN_c02d7bd0` prologue/dispatch were all read from the **stock i
 comparisons) rather than counted. A **new lead** (F3) is reported together with its **explicit limit** (it is not yet
 linked to the event), and the instrument is pre-registered **before** it is built. Reversible by construction: this
 section changes documentation only. Ledger + CHANGELOG + memory updated this session.
+
+---
+
+### §112.121 — v51 (ML1 common-timer dispatch census) RESULT: CONFOUNDED (instrument-induced fatal)
+
+**Status:** instrument-confounded; the ML1-pivot census is **inconclusive** and must be re-run with a relocated
+state region before any conclusion about the ML1 timer layer is drawn.
+
+**Run.** v51 single-site DISPATCH hook on `FUN_c02d7bd0` @ `0xc02d7bec` (`{ jumpr r2 }`, packet `00 c0 82 52`),
+cave `0xc003054c` (128 B, fits the 180 B sled), state in `modem.b19` at `SAVE=0xc1cfe8a0`, `CENSUS=0xc1cfe8c0`,
+`RING=0xc1d4c600` (4096×16 B, the proven v50 region). Deployed + hash-verified (`modem.mdt` md5 recorded);
+modem restarted cleanly (state 16→17→18); LTE attached, ping OK.
+
+**Result.** The fatal fired at **modem-up 919 s** — but with signature
+`lte_ml1_common.c:324` (`Task=slpc`), a signature **NOT in the 42-dump corpus** (the corpus has exactly 5 sites:
+`lte_ml1_sleepmgr_stm.c:4054` ×17, `lte_ml1_common_timer.c:390` ×4, `lte_ml1_common_dump.c:217`, the
+`a2_power.c:1189` family, and the `a2_task.c:3179` family). `SAVE.seq = 84362` (so the dispatcher IS hot — ~92
+calls/s, consistent with a per-DRX timer), and the ring cadence was healthy to the last record (keys 0, 1, 3, 4,
+12, 13, 14, 15 observed; **no key 20**; no spike; no collapse ⇒ branches (a)/(b)/(c) all NOT matched ⇒ would
+score NEG). The fatal's PC/LR were within the dispatcher's own dispatch table region.
+
+**Confounding.** The `SAVE`/`CENSUS` region `0xc1cfe8a0`/`0xc1cfe8c0` is in `modem.b19` segment
+`0xc1c3c000..0xc1f2bac8` — a segment with `filesz > 0` (live BSS, unlike the v50-proven zeroed run at
+`0xc1d4c600`). The high-key census entries read back the modem's own pointers (the census `last_handler` field
+showed live-code VAs), so the instrument's writes **corrupted live modem state** ⇒ the `:324` fatal is
+**instrument-induced**, not the natural ~900 s event. The RING region (`0xc1d4c600`) was the only genuinely-zeroed
+window and is uncorrupted, but it is downstream of the corrupted census.
+
+**Fix for any re-run.** Relocate `SAVE` and `CENSUS` into the **proven zeroed run** that v50 used — i.e. co-locate
+all state in `0xc1d4c600`-ish window (a single 68 KB zero run exists there: `SAVE` 4 B + `CENSUS` 3072 B + `RING`
+65536 B = 68612 B, fits). Do NOT use `0xc1cfe8a0` for anything. Re-verify by reading back the region from a coredump
+BEFORE trusting the census.
+
+**Ledger impact.** The §112.120 "ML1 pivot" is **not closed** — its first instrument is confounded. The MCPM/power
+line (§112.118/119) remains CLOSED (that was established by v49/v50 with state in the proven region). The root cause
+remains OPEN. The P-V51 pre-registration's NEG branch is **NOT scored** here because the confound invalidates the
+run; re-running with the relocated state is the only way to score it.
+
+**SOP.** The confound is reported as a confound, not as a negative. The fatal's novelty (`:324` not in corpus) was
+the tell that flagged it. The fix (relocate to the v50-proven zero run) is stated before any re-run. No conclusion
+about the ML1 timer layer is drawn from this run.
+
+### §112.122 — the `main`-branch no-sleep patcher audit + the staged A/B/C test pre-registration
+
+**Trigger.** A forwarded user report (2026-10-05) claimed `main`'s `hmu05-patch-modem.c` patch
+(`00 c4 00 78 00 c0 9f 52` @ file offset `0x1117e0` in `modem.b16`, with seg16 SHA-256 updated in `modem.b01`@0x228
+and `modem.mdt`@0x5bc) + `qcom-time-daemon` "completely resolves the 15-minute crash on the UF02 board". The user
+asked whether to switch to `main` and test it.
+
+**Audit of `main` vs the report (all verified from source this session, not from memory).**
+
+1. **The opcode annotation is false.** `00 c4 00 78 00 c0 9f 52` disassembles to `{ r0 = #0x20 ; jumpr r31 }` — it
+   returns **0x20 (32)**, *not* `-1` as the report (and the quarantined doc) claim. `{ r0 = #-1; jumpr r31 }`
+   assembles to `c0 3f 00 5a` (4 B). Neither the report nor the quarantined doc knows what the bytes do.
+2. **The target is real but mis-named.** File offset `0x1117e0` in `modem.b16` → VA `0xc03987e0`. That is the
+   **`ENABLE_SLEEP_REQ` (ML1 msg `0x42b0200`) handler** in the `LTE_ML1_SLEEPMGR_STM` class table `0xc1a95180`
+   (Doc 244:241). It is not a "cfg" and not a "900 s timer". The stock bytes there are a live prologue
+   (`24 7c 92 5b` = `call 0xc0030028; allocframe(#0x20)`), so the 8-byte write stubs the sleep-enable handler
+   ⇒ the modem never enables sleep.
+3. **The "900 s sleep-maintenance timer" rationale is refuted** by the 42-dump corpus census (§112.120 F1): there
+   is no literal 900 s constant and no 900 s ML1 watchdog; the deadline is a race with a **variable victim**.
+4. **The ERR_FATAL point is correct and matches us.** `0x5f2150` = `FUN_c0879150`, the ERR_FATAL reporter. We proved
+   (§112.57.11, v15/v28) that neutering it is unsafe — it crash-loops / hardware-excepts. The report's
+   "hardware exception (`Excep :0:`)" is exactly our finding. (`main`'s patcher already stopped touching
+   `0x5f2150` in `f093f4a`.)
+5. **The report mis-attributes `qcom-time-daemon`.** `main`'s own `HMU05_INCREMENTAL_PATCH_TEST_LOG.md` (Sep 4,
+   2026) shows the daemon was a crash **trigger** (Run 7 §7.2: a mid-session `QMI_TIME_GENOFF_SET_REQ` → LTE SFN
+   resync → DSP `:Excep :0:` → WDT reboot at 915.21 s), and the final fix was to **stop & disable it on
+   hardware**. The report says "deploying qcom-time-daemon instead of neutralizing ERR_FATAL" — but on `main` the
+   daemon ended up **off**.
+6. **The "4-pillar" narrative hides the load-bearing element.** `main`'s Run 2 (no-sleep patch alone) removed the
+   `4054` DSP crash but the **data froze at exactly 15.0 min** (RX froze at 9,927 B; TX kept rising) — the same
+   ~900 s event as a **WEDGE**. The final "20-min soak PASSED" (1212 s, 0.0% loss) used: no-sleep patch +
+   runtime-PM lock (`control=on`, `autosuspend_delay_ms=-1`) + a **2-second keepalive heartbeat**
+   (`CHECK_INTERVAL=2, KEEPALIVE_INTERVAL=2`) + `qcom-time-daemon` **OFF**.
+7. **Our `test/pure-software-modem` config is almost the opposite:** `qcom-time-daemon` **ON** (`-r 0`), keepalive
+   **OFF** (`enabled='0'`). That likely contributes to our runs fatal-ing rather than wedge-ing.
+
+**Lineage.** `main` still ships the patcher + has no `_QUARANTINE/`. The current branch `test/pure-software-modem`
+removed the patcher (`1c249a8`, 2026-09-06) and quarantined its docs (2026-09-20). The removal + quarantine are
+**not on `main`** — which is why a `main` user is hitting it. The `_QUARANTINE` holds 30 tracked files including
+`MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md` ("Byte-level disproof (5 independent checks)") and
+`FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md`.
+
+**Decision.** Do NOT switch to `main` to test this — the claim is entirely about `/lib/firmware/modem.b16` (an
+8-byte write + a SHA-256 update), so a full AP rebuild + sysupgrade adds confounds (main is 343 commits behind)
+and costs hours. We own the exact tooling to apply → deploy → hash-verify → soak a modem blob. Instead, run a
+controlled **blob A/B/C** on the same device/SIM/location:
+
+| Arm | Modem blob | AP config | Pre-registered expectation |
+|---|---|---|---|
+| **A — control** (running now) | stock `1a6f9507…` | current (daemon ON, keepalive OFF) | ~900 s event (FATAL or WEDGE) — base rate ~100% (9/9 runs evented at 898–928 s) |
+| **B — patch only** | `main`'s 8-byte patch (`3006927c…`) | current (daemon ON, keepalive OFF) | FATAL or WEDGE at ~900 s (main's Run 2 → WEDGE) |
+| **C — patch + 2 s keepalive** | `main`'s 8-byte patch | keepalive ON @ 2 s (staged, daemon still ON) | clean **if** the keepalive is load-bearing (main's final 1212 s) |
+| (D — keepalive only, no patch) | stock | keepalive ON @ 2 s | isolates patch vs keepalive, run only if C is clean |
+
+**Side-effects measured per arm:** LTE attach, data throughput (ping), RF (RSRP/SNR if available), power, devcd
+node (FATAL), ping-stall (WEDGE), post-event recovery (the §112.108 low-power-trap risk). **WEDGE detection is
+load-bearing**: a WEDGE leaves NO coredump, so the harness watches LTE/data/RF, not just the devcd node.
+
+**Pre-flight.** `qcom-time-daemon` is already running (`-r 0 -P /etc/qcom-time/ats`) on the current firmware, so
+the "patch + daemon" combination is directly testable. The 2 s keepalive is **staged** (`/root/modem-keepalive.2s`
+uploaded, original backed up to `/root/modem-keepalive.orig`, service still **off**) for Arm C. The no-sleep
+patched blob is built + verified (`modem.mdt` md5 `3006927c…`, `r0 = #0x20; jumpr r31` at `0xc03987e0`,
+byte-identical to what `main`'s patcher would produce).
+
+**SOP.** The audit distinguishes what the bytes **do** (`r0=#0x20`) from what the report **says** they do (`#-1`).
+The test is pre-registered with explicit per-arm expectations before any arm is run. The control (Arm A) runs
+**before** the test arms. The keepalive is staged but not enabled for the control. No conclusion about whether the
+patch "works" is drawn until the arms complete. Reversible by construction: each arm rolls the modem back to stock
+before the next. Ledger + CHANGELOG + memory updated this session.
