@@ -22588,3 +22588,202 @@ updated this session.
 
 **Rollback.** `python3 scratch/deploy_v52.py --rollback` restores stock; verified `modem.mdt md5` returns to
 `1a6f9507e03d4ddbbf1977af81ecdbd7`.
+
+---
+
+## §112.131 — v53 PRE-REGISTRATION: a **context-snapshot** ring on the ML1 common-timer dispatcher — what drives the terminal key-3 storm? — 2026-10-06, task #322
+
+**Why.** §112.130 localised the ~900 s event to the **terminal DRX cycle**: 178 dispatches (6.8× normal),
+dominated by context **key 3** (124×; absent from all 77 preceding regular cycles), ending in the single
+**key-20** dispatch whose case *unconditionally* emits the ERR_FATAL at `lte_ml1_common_timer.c:390`. **What
+drives key 3's storm is unknown.** v53 records, for **every** dispatch, the **context object** and its header
+words — to discriminate an *external* driver (a timer re-arm / event source re-dispatching a static context)
+from an *internal* one (the context's own state changing).
+
+**Ground truth established this session (static, before building).**
+* The dispatcher prologue is a **single 12-byte packet**
+  `{ call 0xc02d1140; r16 = r0; memd(r29+#-0x10)=r17:16; allocframe(#0xb0) }`. `0xc02d1140` is a `return 0`
+  stub; the `call`'s r31 clobber is **invisible** because `allocframe` (same packet) saves the **original**
+  r31:30 ⇒ **r16 = the incoming r0 = the context object**. (This resolves the earlier "r16 = 0" confusion — a
+  multi-instruction-packet misread.)
+* The dispatch is `r1 = memub(r16+#0x38)` → `r2 = memw(memw(gp+#0xba64) + r1<<2)` → `jumpr r2` at `0xc02d7bec`.
+* **There is exactly ONE NOP sled ≥160 B in the whole image** (`b05 @ 0xc003054c`, 180 B) — so the cave must be
+  compact (v53's is **156 B**; v52's was 132 B).
+
+**Method (unchanged — firmware cave in modem BSS + crash-coredump read; §112.128's only remaining channel).**
+
+| item | value |
+|---|---|
+| site | `0xc02d7bec` `{ jumpr r2 }` → `{ jump PAD }` (**byte-identical to v52**) |
+| PAD | `0xc02cb2c4` → `{ r6 = ##CAVE }; { jumpr r6 }` |
+| CAVE | `0xc003054c` (156 B of the 180 B sled) |
+| registers | clobbers only `r7–r13`; preserves `r2` (handler), `r16` (object), `r29`, `r31`; ends `jumpr r2` |
+
+**State — ALL inside the v50-readback-proven run `0xc1d4c600..0xc1d5c600` (seg19).**
+
+| region | VA | size | layout |
+|---|---|---|---|
+| SAVE | `0xc1d4c600` | 16 B | `{seq, key_last, t_last, pad}` |
+| CENSUS | `0xc1d4c610` | 256 × 16 B | `{count, last_seq, last_t, handler}` |
+| RING | `0xc1d4d610` | 1024 × 32 B | `{seq, key, handler, obj, w38, w3c, caller, t}` |
+
+`obj = r16`; `w38 = memw(obj+0x38)`; `w3c = memw(obj+0x3c)`; `caller = memw(r29+0xb0)` (**best-effort** — the
+frame slot where `allocframe` saved r31; **offset unverified**, flagged for the reader); `t = memw(0xc1da0948)`.
+End `0xc1d57010 ≤ 0xc1d5c600`. Offline-verified: cave 156 ≤ 180, no `<unknown>`, all 4 constants, all 8 ring
+store offsets, seg5/16/19 sha256 in `b01`, `mdt = b00+b01`, regions zeroed. **v53 image md5
+`2b0a0176d5792d5dd7a2c85164911d0d`.**
+
+**P-V53 (pre-registered BEFORE any v53 data exists).**
+* **H1** the modem boots and runs to the ~900 s event (`SAVE.seq > 0`).
+* **H2** the ring is sane: `seq` strictly increasing; keys ⊆ the v52 set `{0,1,3,4,12,13,14,15,20}`.
+* **H3** the key-3 terminal storm is **reproduced**: ≥50 key-3 records in the terminal `t`-group.
+* **H4** `obj` is a **stable valid pointer** for all key-3 records (obj ↔ key 1:1) ⇒ the model holds.
+* **(a)** key-3's `w38`/`w3c` are **CONSTANT** across the storm ⇒ driven **EXTERNALLY** (a timer re-arm loop or
+  an event source re-dispatching a static context) ⇒ next target = the arm/event path.
+* **(b)** key-3's `w38`/`w3c` **CHANGE** across the storm (e.g. a countdown/state field) ⇒ the mechanism is
+  **INSIDE the context** ⇒ next target = the field's writer.
+* **(c)** `caller` **differs** between key-3 and normal dispatches ⇒ different drivers.
+* **(d)** `caller` is **identical** for all dispatches ⇒ a single fixed driver loop (⇒ the storm is a *rate*
+  change, not a *source* change).
+* **NEG** the storm is absent, **or** `obj` is 0/invalid, **or** (`w38`/`w3c` constant **and** `caller`
+  identical) ⇒ v53 adds nothing ⇒ re-scope to hooking the **arm path** of the key-3 context.
+
+**Falsifier (decisive negative).** If `obj` is **0** for every record, then the "r16 = the context object"
+model is wrong and the v52 key reading was an artifact ⇒ the whole dispatcher model must be rebuilt.
+
+**Caveats.** `caller` (r29+0xb0) is an **unverified** frame offset; the reader flags it and it must be
+cross-checked against a code VA range before being believed. The cached `t` cannot by itself distinguish "one
+long cycle" from "the clock stopped" (§112.130 caveat); v53 does not fix that — it targets the *driver*.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Ground-truth prologue resolved | yes | **yes** (r16 = the object) |
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS) |
+| Context snapshot captured | hoped | **yes** — §112.132 |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: the site packet, the PAD sled, the cave sled (**the only ≥160 B sled in the
+image**), the state run and its zero-ness were read from the **stock image** before writing; the prologue
+calling convention was resolved by assembling the exact bytes with `llvm-mc` (multi-instruction packet). The
+instrument is pre-registered **before** it is built and deployed. One change at a time (the site is
+byte-identical to v52; the only change is the recorded fields). Reversible: `/lib/firmware` + a modem restart
+only; a full stock rollback (`1a6f9507…`) is staged. No baseband partition write; no destructive coredump
+trigger. Ledger + CHANGELOG + memory updated this session.
+
+**Rollback.** `python3 scratch/deploy_v53.py --rollback` restores stock.
+
+## §112.132 — v53 RESULT: the terminal key-3 storm is **EXTERNAL** (a static context re-dispatched), and the **key-20 fatal context is structurally poisoned** (`0xdeaddead`) — 2026-10-06, task #322
+
+**Run.** Natural event (no SSR, no forced dump): modem restarted at AP-up 36 653 s; the modem died at
+**modem-up 907 s**; `natural_devcd31.bin` (85 398 475 B) pulled at 19:27:16Z. `SAVE.seq = 18617`,
+`key_last = 20`, `t_last = 3 785 927 044`. Image md5 `2b0a0176d5792d5dd7a2c85164911d0d` (rollback staged).
+
+**H1–H4 — ALL PASS.**
+
+| hyp | pre-registered | result |
+|---|---|---|
+| H1 | boots to the event | **PASS** (`SAVE.seq = 18617 > 0`) |
+| H2 | ring sane (monotone `seq`; keys ⊆ v52 set) | **PASS** — `seq` strictly increasing; keys = `{0,1,3,12,13,14,15,20}` |
+| H3 | key-3 terminal storm reproduced (≥50) | **PASS** — terminal group = **178** records, key-3 = **124** |
+| H4 | `obj` stable for key-3 (obj ↔ key 1:1) | **PASS** — one object `0xc20f1068` |
+
+**★ The run reproduces §112.130's terminal signature EXACTLY.** The 1024-record ring (live window
+`[17594..18617]`) splits into **34 groups by the cached timestamp `t`**: **33 regular groups** (g0–g32,
+24–28 dispatches each, keys **`{0,1,12,13,14,15}` — no key 3, no key 20**) and the **terminal group g33 =
+178** dispatches with keys **`{0:26, 1:9, 3:124, 12:2, 13:3, 14:9, 15:4, 20:1}`** — identical to v52's
+terminal cycle (178 / key-3 = 124 / one key-20). The regular groups step at a metronomic
+`Δt = 24 575 864` ticks = **1.2800 s @ 19.2 MHz** — the **LTE DRX cycle** (matches v52's 1.2800 s). The
+terminal group's Δt = 24 499 063 = 1.276 s ⇒ the 178-dispatch storm + the fatal are compressed into **one**
+DRX window. The ring spans ≈42 s (33 cycles) of clean cycling before the event.
+
+**★★★★★ Field-shift artifact (instrument defect, resolved).** The cave recorded the three context words with
+packets of the form `{ r13 = memw(r16+#NN); memw(r12+#slot) = r13 }`. In Hexagon a register written by one
+instruction of a packet is **not visible** to another instruction of the **same** packet — every read sees the
+**pre-packet** value. So each store wrote the **previous** packet's `r13`, shifting the words by one slot:
+
+| ring slot | reader's (old) name | **actual content** |
+|---|---|---|
+| `+0x10` | "w38" | the **ring offset** (`idx*32`) — junk |
+| `+0x14` | "w3c" | **`memw(obj+0x38)`** — the real w38 |
+| `+0x18` | "caller" | **`memw(obj+0x3c)`** — the real w3c |
+| `+0x1c` | "t" | `t` (`r10`, a distinct register — **not** shifted) |
+
+`memw(r29+0xb0)` was loaded but **never stored** ⇒ **the caller field does not exist**. Proof: `ring+0x10 ==
+(seq & 0x3ff)*32` for **every** record; `ring+0x14 == obj+0x38` read statically; `ring+0x18 == obj+0x3c`.
+(Pre-registered `caller = memw(r29+0xb0)` was already flagged "best-effort / offset UNVERIFIED".) The reader
+`scratch/read_v53_context.py` was corrected to this mapping; the ledger's §112.131 layout table is superseded.
+
+**Scored decisions (corrected).**
+* **(a) MATCHED — the context is CONSTANT ⇒ driven EXTERNALLY.** Across all 124 key-3 records `obj+0x38 = 3`
+  (1 distinct) and `obj+0x3c = 0` (1 distinct). The storm is **not** an in-context countdown/state field; the
+  same static context is **re-dispatched 124×** from outside.
+* **(b) NOT matched.**
+* **(c)/(d) UNSCOREABLE** — the caller field does not exist (above).
+* **NEG not triggered** — the storm was present and `obj` was valid.
+
+**★★★ Structural finding — one context object per key, and the key-20 object is POISONED.** Every key maps to
+**exactly one** object over the whole window (obj ↔ key 1:1, no exceptions):
+
+| key | obj | obj+0x18 | obj+0x1c | obj+0x30 |
+|---|---|---|---|---|
+| 0 | `0xc20e30f0` | 4 | `0xc33f00fc` | `0x0fedcbaa` |
+| 1 | `0xc216bbe8` | 4 | `0xc3960055` | `0x0fedcbaa` |
+| 3 | `0xc20f1068` | 4 | `0xc3d70014` | `0x0fedcbaa` |
+| 12 | `0xc2103990` | 4 | `0xc3df001c` | `0x0fedcbaa` |
+| 13 | `0xc216bc28` | 4 | `0xc31d00de` | `0x0fedcbaa` |
+| 14 | `0xc216bc68` | 4 | `0xc32b00e8` | `0x0fedcbaa` |
+| 15 | `0xc216bca8` | 4 | `0xc3f40037` | `0x0fedcbaa` |
+| **20** | **`0xc2150f58`** | **`0xdeaddead`** | **`0xdeaddead`** | **`0x0fedcbab`** |
+
+All 8 share the class vtable `0xc361a3f0`, `+0x0c = 0xc02d7bd0` (the dispatcher itself — a callback),
+`+0x14` = self, `+0x34 = 0x0102`, `+0x38` = the key, `+0x3c = 0`. The **key-20 context** — the *only* dispatch
+whose case emits the ERR_FATAL **unconditionally** (§112.130) — is **structurally distinct**: `+0x18`/`+0x1c`
+hold the `0xdeaddead` poison instead of `4` / a per-key code pointer, and `+0x30` is `0x0fedcbab` (vs
+`0x0fedcbaa`, one bit different). ⇒ the fatal is dispatched through a **poisoned / never-initialised**
+context. Also note keys **{1,13,14,15}** sit at `0xc216bbe8 + k*0x40` — a **stride-`0x40`** array, matching the
+known ML1 context-array stride (`ctx = inst+0x328+k*0x40`, §208/§209); keys `{0,3,12,20}` are elsewhere.
+
+**What this closes / what is next.** v53 **closes the "is the storm self-driven by a mutating context?" question
+— NO, the context is static (a)**. It also **promotes the key-20 context to a first-class suspect**: the fatal
+is emitted from a poisoned context, not a healthy one. The immediate next step is the one v53 *tried* and
+failed to capture: **who calls the dispatcher with key 3, 124× in the final cycle** — fix the caller capture
+(load into its **own** packet, or read the saved `r31` from the frame) and/or hook the **key-3 handler's own
+call sites** (`0xc02d7cc4`, the `:336/:357/:372` assert family) and the **key-20 arm path**.
+
+**P-V53 score.**
+
+| item | pre-registered | result |
+|---|---|---|
+| H1 boot to event | hoped | **PASS** |
+| H2 ring sane | hoped | **PASS** |
+| H3 key-3 storm reproduced | hoped | **PASS** (178 / 124) |
+| H4 obj stable | hoped | **PASS** (`0xc20f1068`) |
+| (a) CONSTANT ⇒ external | one of (a)/(b) | **MATCHED** |
+| (b) CHANGES ⇒ internal | one of (a)/(b) | not matched |
+| (c)/(d) caller | one of (c)/(d) | **VOID** (field does not exist) |
+| NEG (no storm / bad obj) | — | not triggered |
+| Root cause | — | **OPEN** |
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Context snapshot captured | yes | **yes** (natural event, modem-up 907 s) |
+| Storm driver classified | (a) or (b) | **(a) EXTERNAL** — context static |
+| Caller captured | best-effort | **NO** — field lost to the packet-shift; (c)/(d) void |
+| Terminal signature reproduced | hoped | **exact** (v52 ≡ v53) |
+| Key-20 context characterised | — | **poisoned** (`0xdeaddead`) |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: every field was read from the **stock image** before writing; the cave was
+offline-verified (VERIFY PASS) before deploy; the deployment was sha256-read-back-verified; the run was
+**natural** (no SSR, no forced dump). One change at a time (the site is byte-identical to v52; only the
+recorded fields differ). Honest negative: the **caller field was lost to a same-packet read-before-write** and
+is recorded as **VOID**, not silently reinterpreted; the `(a)`/`(b)` decision is reported **after** correcting
+the shift. Reversible: `/lib/firmware` + a modem restart only; **rolled back to stock (`1a6f9507…`) this
+session**. No baseband partition write; no destructive coredump trigger. Ledger + CHANGELOG + memory updated
+this session.
+
+**Rollback.** `python3 scratch/deploy_v53.py --rollback` restores stock.

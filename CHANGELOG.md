@@ -11,6 +11,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.132 v53 RESULT: the terminal key-3 storm is EXTERNAL (a static context re-dispatched); the key-20 fatal context is structurally POISONED (`0xdeaddead`)
+
+- **Run.** Natural event (no SSR, no forced dump), modem-up **907 s**, `scratch/v53_capture/natural_devcd31.bin`
+  (85 398 475 B). `SAVE.seq = 18617`, `key_last = 20`. Image md5 `2b0a0176…` (rolled back to stock this session).
+- **H1–H4 ALL PASS:** boots to the event; ring sane (monotone seq, keys ⊆ v52 set); key-3 storm reproduced
+  (terminal group **178**, key-3 = **124**); key-3 `obj` stable = `0xc20f1068`.
+- **★ Exact reproduction of §112.130's terminal signature.** 34 groups by the cached timestamp: **33 regular cycles**
+  (24–28 dispatches, keys `{0,1,12,13,14,15}` — no key 3, no key 20) stepping at `Δt = 24 575 864` ticks =
+  **1.2800 s @ 19.2 MHz** (the LTE DRX cycle), then the **terminal group = 178** `{0:26,1:9,3:124,12:2,13:3,14:9,15:4,20:1}`.
+- **★★★★★ Instrument defect found + corrected (honest negative).** The cave's three context-word stores used
+  packets `{ r13 = memw(r16+#NN); memw(r12+#slot) = r13 }`; Hexagon reads a register written in the **same packet**
+  as the **pre-packet** value ⇒ each store wrote the **previous** packet's r13, shifting the fields one slot. Actual
+  layout: `ring+0x10` = ring offset (junk), `+0x14` = `obj+0x38`, `+0x18` = `obj+0x3c`, `+0x1c` = `t`. `memw(r29+0xb0)`
+  was **never stored** ⇒ **the caller field does not exist** ((c)/(d) VOID). Reader corrected.
+- **Scored decisions (corrected):** **(a) MATCHED — the context is CONSTANT ⇒ driven EXTERNALLY** (obj+0x38 = 3,
+  obj+0x3c = 0 across all 124 key-3 records); (b) not matched; (c)/(d) VOID; NEG not triggered.
+- **★★★ Structural finding.** One context object per key (obj ↔ key 1:1, 8 keys). All share vtable `0xc361a3f0`,
+  `+0x0c = 0xc02d7bd0`, `+0x18 = 4`, `+0x30 = 0x0fedcbaa` — **except key 20**, whose `+0x18`/`+0x1c` are **`0xdeaddead`**
+  and `+0x30 = 0x0fedcbab`: the fatal is dispatched through a **poisoned / never-initialised** context. Keys
+  `{1,13,14,15}` sit at `0xc216bbe8 + k*0x40` (the known ML1 ctx-array stride).
+- **Next:** capture the key-3 caller (own-packet load / saved r31) and/or hook the key-3 handler `0xc02d7cc4` and the
+  key-20 arm path. Root cause remains **OPEN**.
+
+### 2026-10-06 — §112.131 v53 PRE-REGISTRATION: a context-snapshot ring on the ML1 common-timer dispatcher (what drives the terminal key-3 storm?)
+
+- **Why.** §112.130 localised the event to the terminal DRX cycle (key-3 storm → key-20 fatal). *What drives key 3*
+  is unknown. v53 records, per dispatch, the **context object** (`r16`) and its header words, to discriminate an
+  **external** driver (a static context re-dispatched) from an **internal** one (the context's state changing).
+- **Ground truth resolved this session (static).** The dispatcher prologue is ONE 12-byte packet
+  `{ call 0xc02d1140; r16 = r0; memd(r29+#-0x10)=r17:16; allocframe(#0xb0) }`; `0xc02d1140` is a `return 0` stub and
+  the `call`'s r31 clobber is invisible (allocframe saves the original r31:30) ⇒ **`r16` = the incoming r0 = the
+  context object** (resolves the earlier "r16 = 0" confusion — a multi-instruction-packet misread). **There is
+  exactly ONE NOP sled ≥160 B in the whole image** (`b05 @ 0xc003054c`, 180 B) ⇒ the cave must be compact.
+- **Instrument.** Site `0xc02d7bec` (byte-identical to v52) → PAD `0xc02cb2c4` → CAVE `0xc003054c` (**156 B**);
+  clobbers only r7–r13, preserves r2/r16/r29/r31, ends `jumpr r2`. State in the v50-proven run: SAVE 16 B,
+  CENSUS 256×16 B, **RING 1024 × 32 B `{seq, key, handler, obj, w38, w3c, caller, t}`**. Image md5 `2b0a0176…`.
+- **P-V53 pre-registered:** H1 boots to the event; H2 ring sane (seq monotonic, keys ⊆ v52 set); H3 key-3 storm
+  reproduced (≥50 terminal); H4 obj stable for key-3; **(a)** w38/w3c CONSTANT ⇒ external driver; **(b)** w38/w3c
+  CHANGE ⇒ mechanism inside the context; **(c)** caller differs key-3 vs normal; **(d)** caller identical ⇒ fixed loop;
+  **NEG** storm absent / obj invalid / (constant AND identical) ⇒ re-scope to the arm path. **Falsifier:** obj == 0
+  for all records ⇒ the "r16 = the object" model is wrong.
+- Offline **VERIFY PASS** (cave 156 ≤ 180, no `<unknown>`, 4 constants, all 8 ring store offsets, seg5/16/19
+  sha256, `mdt=b00+b01`, regions zeroed). Root cause remains **OPEN**.
+
 ### 2026-10-05 — §112.130 v52 RESULT: whole-run ML1 common-timer dispatch census is SANE (H2 PASS); the ~900 s event is a terminal DRX-cycle storm (key 3) ending in the single key-20 dispatch that IS the ERR_FATAL
 
 - **Run.** v52 built, offline-verified, deployed, run to the natural event (`scratch/v52_capture/natural_devcd29.bin`,
