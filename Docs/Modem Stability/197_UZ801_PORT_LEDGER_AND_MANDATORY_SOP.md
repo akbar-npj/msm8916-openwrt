@@ -21528,3 +21528,75 @@ the site/cave bytes were re-confirmed inside the returned dump and the raw table
 surprising count is reported as an **open discrepancy** (not explained away), with the falsification test
 (v47) already built. Reversible: only `/lib/firmware` + a modem restart; stock backup intact at
 `/root/fw_stock_hmu05`. Ledger + CHANGELOG + memory updated this session.
+
+---
+
+### §112.116 — v47 (entry ring on `FUN_c101311c`): **H1/H2/H3 PASS — it is called exactly 10× per run (= 60/6), so v46 was CORRECT; the §112.115 "~360×" is a REGIME difference, not a hook bug; the `:403` line is a SYMPTOM** (2026-10-05)
+
+**Question.** §112.115's open discrepancy: v46's line-403 table on the correct wrapper `0xc08f1580` saw only
+`count403 = 60` (~10 `FUN_c101311c` calls) in 902 s, ~360× below the F3 capture's `:403` burst. Is `FUN_c101311c`
+really called ~10×/run (⇒ the two runs differ in RX activity), or does v46's hook miss calls (a filter bug)?
+
+**Instrument (v47).** Entry hook on `FUN_c101311c` @ `0xc101311c`. The prologue is ONE 8-byte packet
+`{ call 0xc08371d0 ; allocframe(#0xa0) }` (where `0xc08371d0`→`0xc0030000` is a compiler register-save stub);
+replaced by `jump PAD` + 2× nop; pad `0xc1049084`; cave `0xc003054c`; table `0xc1d4c600`; total counter
+`0xc1455000`. The cave records `{seq, caller=r31, arg0=r0, arg1=r1}` **before** the prologue clobbers `r31`,
+then reproduces the prologue as `{ allocframe(#0xa0) } ; { r6 = ##0xc08371d0 } ; { callr r6 }` (allocframe
+runs first so it saves the caller's `r31`), then `{ r6 = ##0xc1013124 } ; { jumpr r6 }` to the body. Built by
+`scratch/diag_patch_v47/build_diag_patch_v47.py`; `verify_v47.py` **PASS** (cave 108 B, register-discipline
+clean, b16 changed=15 B, b05 changed=108 B, all in-region; seg16/seg5 sha256 + mdt OK;
+`modem.mdt md5 = b0493f252fcb15f208e84298a6ffd51d`); deployed by `scratch/deploy_v47.py` (sha256 read-back
+**PASS**). Clean asynchronous restart (`restart_count` 5→6). `scratch/run_v47.py` captured the **natural fatal**
+`devcd11` (85 398 475 B) at `modem_up = 903 s`; read by `scratch/read_v47_table.py` and the raw table
+re-verified by hand via `vadump.py`.
+
+**RESULT (raw, re-read by hand).**
+```
+SAVE.seq (total FUN_c101311c calls) = 10
+count                               = 10
+last call : seq=10  caller=0xc1019a88  arg0=1  arg1=2
+first call: seq= 1  caller=0xc1019a88  arg0=0  arg1=2
+```
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — boots and runs to the ~900 s event | yes | **YES** — fatal `modem_up 903 s`; patch bytes confirmed in the dump |
+| H2 — `count` agrees with v46 (`60 / 6 = 10`) | yes | **YES** — `count = 10` exactly; the two instruments **AGREE** |
+| H3 — the caller names the call site | hoped | **YES** — `caller = 0xc1019a88` = the return address of the `call 0xc101311c` @ `0xc1019a80` (one of the 6 known sites) |
+| H4 — the 6-index emit loop explains `count403` | yes | **YES** — `10 calls × 6 = 60` = v46's `count403` |
+| Root cause | — | **OPEN** |
+
+**The §112.115 discrepancy is RESOLVED — option (a).** `FUN_c101311c` is called **exactly 10×** in a 902 s
+idle-but-attached run, and **all 10 calls come from a single site `0xc1019a80`** (`arg0` steps `0,1,0,1,…`;
+`arg1 = 2` constant) — a **2-carrier loop invoked 5×** (the LTE measurement scheduler has 2 carriers). The other
+5 call sites were never used. Therefore **v46's hook was correct**: `count403 = 60 = 10 × 6`. The F3 capture's
+288 `:403` records in a 5.84 s window (~48 calls) are **not** the idle baseline — they are a burst from a
+different (busier) regime. **There was no hook bug.**
+
+**⚠ Correction to §112.115's "~360×" framing (this session, offline).** The `scratch/f3_900/` capture is a
+**masked subset** (only ~25 source files; 2174 msgs over ~50 s ≈ 43/s, vs the full ~446/s measured in §112.113),
+and its 288 `:403` records sit **entirely inside a 5.84 s window** (chunks `up00898` 216 records/4.28 s +
+`up00903` 72 records/1.52 s; **zero** in `up00908`+). So the "~360×" compared a *within-burst* rate to a
+*whole-run count*, not two whole-run rates. The true comparison is **~48 burst calls vs 10 whole-run calls** —
+a regime difference, exactly option (a). A second capture `scratch/f3_v15/` uses a **different mask** (no
+`rflte_*` at all ⇒ `:403 = 0`), confirming the two captures are complementary masks, not comparable rates.
+
+**The `:403` / RF-freeze line is a SYMPTOM, not a cause.** A per-subsystem F3 census across the boundary
+(`scratch/_rf_freeze_census.py`) shows that at the collapse `rflte` (234→78→0), `mcpm` (132→63→28→0),
+`a2_power` (124→56→16→0) and `pgi_msgr` (195→88→16→0) **all collapse together** (up903→908), while
+`cfm_cpu_monitor` stays flat (~104/chunk) as a heartbeat. So `:403` (rflte) does **not** stop uniquely first —
+it is part of a joint RF/power/messaging wind-down, and `FUN_c101311c` is simply an RX-activity-driven worker
+that goes quiet when RX goes quiet. §112.109's "`:403` stops first" is thus re-read as **the RX/data-path
+stopping**, consistent with §58–61's data-path-death model. This line should be **de-prioritized as a
+root-cause lead**.
+
+**v47's fatal signature (for the run track record).** Crash report: `Task = slpc`, `PC = 0xc087a804`,
+`LR = 0xc0879164`, `Uptime = 0:15:02` (902 s) — the known **`slpc` per-RAT wakeup** manifestation
+(§112.100/101), i.e. the same ~900 s clock, a variable victim.
+
+**SOP.** Ground-truth-first: the prologue, the call sites and the stub were read from the **stock image**; the
+patch was hash-verified offline and by sha256 read-back on the device before the run; the site/cave bytes were
+re-confirmed inside the returned dump and the raw table was re-read by hand via `vadump.py`. The resolution is
+reported together with an **in-place correction** of §112.115's headline (masked capture ⇒ within-burst vs
+whole-run), per the ledger's correction convention. Reversible: only `/lib/firmware` + a modem restart; stock
+backup intact at `/root/fw_stock_hmu05`. Ledger + CHANGELOG + memory updated this session.

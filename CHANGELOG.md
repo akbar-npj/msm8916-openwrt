@@ -11,6 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v47 entry ring on FUN_c101311c: called exactly 10x per run (=60/6) — v46 was CORRECT; the ~360x is a regime difference, not a hook bug; the :403 line is a SYMPTOM (ledger §112.116)
+
+- **Built, offline-verified, deployed and ran v47** — an entry ring on `FUN_c101311c` (the `rflte_core_rxctl.c:403`
+  emitter), recording `{seq, caller, arg0, arg1}` before the prologue clobbers `r31`
+  (`modem.mdt md5 = b0493f252fcb15f208e84298a6ffd51d`; `verify_v47.py` PASS; sha256 read-back PASS).
+  Clean restart (`restart_count` 5→6); natural fatal `devcd11` (85 398 475 B) at `modem_up = 903 s`.
+- **RESULT: `SAVE.seq = 10`, `count = 10`**; last `{seq=10, caller=0xc1019a88, arg0=1, arg1=2}`;
+  first `{seq=1, caller=0xc1019a88, arg0=0, arg1=2}`. **All 10 calls from ONE site `0xc1019a80`** (a 2-carrier
+  loop run 5×).
+- **The §112.115 discrepancy is RESOLVED — option (a), no hook bug:** `10 calls × 6 = 60` = v46's `count403`
+  exactly. The F3 capture's 288 `:403` records (a 5.84 s burst) are a **different (busier) regime**, not the
+  idle baseline.
+- **Correction to §112.115's "~360×":** the `f3_900` capture is a masked subset (25 files, ~2174 msgs / ~50 s
+  ≈ 43/s vs the full ~446/s) whose `:403` records sit entirely in a 5.84 s window — so "~360×" compared a
+  *within-burst* rate to a *whole-run count*.
+- **Census:** `rflte`/`mcpm`/`a2_power`/`pgi_msgr` **collapse together** (up903→908) while `cfm_cpu_monitor`
+  stays flat ⇒ `:403` does not stop uniquely first; the RF-freeze line is a **SYMPTOM** and is de-prioritized.
+- **v47 fatal signature:** `Task = slpc`, uptime 902 s (the known per-RAT wakeup manifestation, §112.100/101).
+
 ### 2026-10-05 — v46 line-403 table on the CORRECT wrapper 0xc08f1580: H2/H3/H4 PASS, but count403=60 is ~360x below the F3 capture (ledger §112.115)
 
 - **Built, offline-verified, deployed and ran v46** — a one-constant retarget of v45's O(1) line-403
