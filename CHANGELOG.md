@@ -11,6 +11,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v50 MCPM collapse-issuer entry ring: H1/H3/H4 PASS, decision (a) MATCHED — the collapse is ISSUED + ENABLED + COMPLETING throughout ⇒ the MCPM/power layer is a VICTIM; the MCPM line is CLOSED and the search PIVOTS to ML1 (ledger §112.119)
+
+- **Built, offline-verified, deployed and ran v50** — a single-site **ENTRY** ring on `FUN_c0cf8cd0` (the COLLAPSE
+  ISSUER; site `0xc0cf8cd0`, cave 148 B @ `0xc003054c`, ring `0xc1d4c600`), recording
+  `{seq, tag|state<<8|f3599<<16|f3598<<24, mask, t}` (`modem.mdt md5 = 3c099919ec1b0529a548fa2d6aab33d3`;
+  `verify_v50.py` PASS; sha256 read-back PASS). Forced restart (14→15).
+- **Run:** NATURAL fatal `lte_ml1_sleepmgr_stm.c:4054` ("Assert stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP
+  failed"), task `slpc`, modem-uptime **900 s**; auto-coredump `devcd14` (85 398 475 B). Victim = `slpc`/sleepmgr
+  (v47's variant), **not** `tmr_slave3` (v49).
+- **RESULT:** `SAVE.seq = 863` (863/863 recovered); **state=0 for all; mask=0x3ff for all; `DAT_c3973599`==1 for
+  ALL 863; `DAT_c3973598`==0 at EVERY entry**. Cadence = the DRX cycle (1.28 s long / 0.32 s short); span 880.2 s.
+- **HEADLINE:** the collapse issuer is called **once per DRX cycle** and on **every** call the collapse is enabled
+  (`f3599=1`), the previous collapse has completed (`f3598=0`), and the fatal is an **ML1/sleepmgr** assert — **not**
+  `mcpm_saw.c:424`. ⇒ **the MCPM/power layer is a VICTIM** (direct observation, not inference). With §112.118 (vote
+  healthy) and §112.111 (manifestation-independent), the **MCPM line is CLOSED**.
+- **PIVOT:** the failure is outside MCPM — the fatal is the **ML1** layer (`lte_ml1_sleepmgr_stm.c:4054` /
+  `lte_ml1_common_timer.c:390`). Next: the ML1 sleepmgr `SLEEP→WAKEUP` trigger `FUN_c039ef80`, or the outstanding
+  **RF_WAKEUP_CNF omission on the terminal cycle** (v26/v27).
+- Rolled back to stock (`1a6f9507…`) and reloaded the modem.
+
 ### 2026-10-05 — v49 MCPM SAW wake-source-mask ring: H1–H4 PASS but branches (a)/(b)/(c) ALL NOT MATCHED — the wake-source vote is HEALTHY right up to the fatal ⇒ the "stuck source blocks the collapse" hypothesis is REFUTED (ledger §112.118)
 
 - **Built, offline-verified, deployed and ran v49** — a two-site **ENTRY** ring on the MCPM SAW vote functions

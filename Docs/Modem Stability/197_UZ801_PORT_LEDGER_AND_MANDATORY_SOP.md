@@ -21745,3 +21745,73 @@ and by sha256 read-back on the device **before** the run; the site bytes were **
 scripts, and the Σ Δt = 900.4 s internal-consistency check confirms the ring spans the full run. A **NEGATIVE**
 (hypothesis refuted) is reported as such. Reversible: only `/lib/firmware` + a modem restart; rolled back to stock
 (`1a6f9507…`) and the modem reloaded (count 13) this session. Ledger + CHANGELOG + memory updated this session.
+
+### §112.119 — v50 (MCPM **collapse-issuer** entry ring): **H1/H3/H4 PASS, decision (a) MATCHED — the collapse is ISSUED + ENABLED + COMPLETING throughout ⇒ the MCPM/power layer is a VICTIM; the line is CLOSED and the search PIVOTS to ML1** (2026-10-05)
+
+**Why this was run.** §112.118 (v49) proved the wake-source VOTE is healthy at the ~900 s event (the mask returns
+to `0x3ff` on every DRX cycle). The remaining MCPM-side question (task #308): is the collapse **issued** and does it
+**complete**, or does it time out (`mcpm_saw.c:424`, the §112.110 hypothesis)? The static state chain already
+implied *completes* (`state==4` at `fa4` entry ⇒ `df0(3→4)` ran ⇒ `state==3` ⇒ only `FUN_c0cf8cd0`'s return produces
+it), but SOP demands direct observation before a pivot.
+
+**Instrument.** `scratch/diag_patch_v50/build_diag_patch_v50.py` — a single-site **ENTRY** ring on
+`FUN_c0cf8cd0` (the COLLAPSE ISSUER, site packet `f86e675b02c09da0` @ `0xc0cf8cd0`; pad `0xc1049084`; cave 148 B @
+`0xc003054c`; ring `0xc1d4c600`, `SAVE.seq` @ `0xc1455000`). It records
+`{seq, tag|state<<8 | DAT_c3973599<<16 | DAT_c3973598<<24, mask, t}` **before** the prologue, then replays
+`allocframe(#0x10)` + `call 0xc0836ac0` and resumes at `0xc0cf8cd8`. `verify_v50.py` **PASS**; `modem.mdt md5 =
+3c099919ec1b0529a548fa2d6aab33d3`; deploy sha256 read-back **PASS**; boot-check PASS (restart 13→14, running).
+
+**Run.** `scratch/run_v50.py`; forced restart (14→15); **NATURAL fatal** `lte_ml1_sleepmgr_stm.c:4054`
+("Assert stm_get_state(LTE_ML1_SLEEPMGR_STM) == SLEEP failed"), task **`slpc`**, modem-uptime **900 s**
+("Uptime 0:15:00"); auto-coredump `devcd14` (85 398 475 B) → `scratch/v50_capture/natural_devcd14.bin`. ⚠ Victim =
+`slpc`/sleepmgr (v47's variant), **not** `tmr_slave3` (v49) — the variable-victim race again.
+
+**RESULT (raw).**
+```
+SAVE.seq (total FUN_c0cf8cd0 calls) = 863      ring recovered 863/863   window [1..863]
+tag    histogram: {1: 863}                     (single site)
+state  histogram: {0: 863}                     (always the state-0 collapse branch)
+f3599  histogram: {1: 863}                     DAT_c3973599 (collapse-enable) == 1 for ALL
+f3598  histogram: {0: 863}                     DAT_c3973598 == 0 at EVERY entry (prev collapse completed)
+mask   histogram: {0x3ff: 863}                 mask all-idle at EVERY entry
+inter-record deltas: 1.28 s (long DRX, dominant) + 0.32 s (short DRX); span (small deltas) = 880.2 s
+last 40 records: normal 1.28 s cadence through seq 863
+```
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 boots to the ~900 s event | yes | **YES** — `lte_ml1_sleepmgr_stm.c:4054`/`slpc` @ modem-up 900 s |
+| H2 ring non-empty; `SAVE.seq ≈ 1287` | yes | **non-empty YES (863)**; the literal ≈1287 **not met** — v49's `e70` count was 1287, but that is a *different run*; 863 over 880 s = **once per DRX cycle** (v49 ran 60 % short-DRX, v50 27 %) |
+| H3 `DAT_c3973599 == 1` for essentially all | yes | **YES** — 863/863 (the collapse-enable flag is 1 to the end) |
+| H4 no `mcpm_saw.c:424` assert | yes | **YES** — the fatal is `lte_ml1_sleepmgr_stm.c:4054`, NOT the MCPM timeout |
+| (a) H2+H3+H4 pass ⇒ MCPM is a victim ⇒ pivot | — | **MATCHED** |
+| (b) calls stop / `f3599→0` near the end | — | **NO** |
+| (c) fatal = `mcpm_saw.c:424` | — | **NO** |
+| Root cause | — | **OPEN** (MCPM eliminated) |
+
+**HEADLINE — the MCPM/power-collapse line is CLOSED.** The collapse issuer is called **once per DRX cycle (863×)**
+and on **every** call the state is 0, the mask is all-idle (`0x3ff`), the enable flag `DAT_c3973599` is **1**, and
+`DAT_c3973598` is **0** (the *previous* collapse had always cleared it ⇒ every collapse completed). The fatal is an
+**ML1/sleepmgr** assert, **not** an MCPM timeout. ⇒ **the MCPM/power layer is a VICTIM, not the cause** — now
+confirmed by direct observation, not inference. Combined with §112.118 (the vote is healthy) and §112.111 (the MCPM
+collapse is manifestation-independent), the whole MCPM/power line is closed.
+
+**⚠ Note on the span.** The ring spans ~880 s vs the ~900 s run. Since `e70` calls the collapse and v49 showed
+`e70` firing from boot to the crash, the most likely reading is that the **MCPM/SAW only becomes ready ~20 s into
+boot** (the first collapses happen after init). The `t` field (19.2 MHz, wraps 223.7 s, with occasional glitches)
+cannot fully resolve this; the collapse cadence is normal to the last record. Either way the collapse is healthy
+whenever it runs, and the fatal is not an MCPM assert.
+
+**Consequence — PIVOT.** The failure is **outside MCPM**. The fatal is `lte_ml1_sleepmgr_stm.c:4054` /
+`lte_ml1_common_timer.c:390` — the **ML1 layer**. The next instrument targets the ML1 side (the sleepmgr
+`SLEEP→WAKEUP` trigger `FUN_c039ef80`, or the sleepmgr STM / its ML1-message funnel), and the outstanding upstream
+anomaly: the **RF_WAKEUP_CNF omission on the terminal cycle** (v26/v27: the sleepmgr arms its sleep timer without
+the RF-wakeup confirmation).
+
+**SOP.** Ground-truth-first: the collapse-issuer body, the state-writer set and the return-value semantics were read
+from the decompiled C; the site packet, cave size and register discipline were verified offline (`verify_v50.py`
+PASS) and by sha256 read-back on the device **before** the run; the site bytes were re-confirmed in the returned
+dump (`27 c0 00 78` = `r7=#1`); the raw ring was re-read and the per-field histograms computed directly. A
+hypothesis-driven **positive** (the collapse completes) and the resulting **pivot** are recorded as such. Reversible:
+only `/lib/firmware` + a modem restart; rolled back to stock (`1a6f9507…`) and the modem reloaded this session.
+Ledger + CHANGELOG + memory updated this session.
