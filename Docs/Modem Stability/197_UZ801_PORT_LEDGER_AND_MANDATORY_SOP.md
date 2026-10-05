@@ -22907,3 +22907,71 @@ writing; the hazard was **proven** with `llvm-mc` (one packet `{load;store}` = `
 sha256 read back from the device (SOP: verify the loadable artifact, not the local md5). Pre-emptive SSR is
 **disabled** (`preemptive_ssr_enabled=0`) so the **natural** event is reached; `a2_pin=1`. One change at a time;
 rollback = `python3 scratch/deploy_v54.py --rollback`.
+
+---
+
+## §112.135 — v54 RESULT: the terminal key-3 storm is a **LIVE** context firing at a **constant ~10 ms (100 Hz)** for one DRX window; the fatal key-20 dispatch is the **only** dead-context dispatch — 2026-10-06, task #323
+
+**Run.** Natural event (no SSR, no forced dump), modem-up **901 s**, devcd33, 85 398 475 B. `SAVE.seq = 18854`,
+`key_last = 20`. Image md5 `e223bd11…`; pre-emptive SSR disabled. Device fatal at AP uptime **40083.39 s** =
+`lte_ml1_common_timer.c:390` (the expected site); modem auto-recovered. Capture
+`scratch/v54_capture/natural_devcd33.bin`.
+
+**Scoring P-V54 (pre-registered §112.134).**
+
+| id | criterion | result |
+|---|---|---|
+| H1 | boots to the event | **PASS** (`SAVE.seq = 18854`) |
+| H2 | ring sane | **PASS** (seq monotone; keys ⊆ `{0,1,3,4,12,13,14,15,20}`) |
+| H3 | key-3 terminal storm | **PASS** (terminal group = **176**; key-3 = **123** ≥ 50) |
+| H4 | key-3 obj stable | **PASS** (obj = `0xc20f1068`, 1 distinct) |
+| **(a)** | fields CONSTANT ⇒ external | **FALSIFIED** — `w20`/`w28` change (123 distinct each) |
+| **(b)** | fields CHANGE ⇒ inside | **MATCHED (with a caveat — see below)** |
+| (d) | interval `(w28-w20)` | **fixed, no collapse** (distinct=7, min=38, max=69) |
+| DEAD | `w1c==0xdeaddead` | key-3 = **0**; whole window = **1**, and it is **key 20** |
+
+**★ The storm is a sustained ~100 Hz (10 ms) firing.** `w20 = memw(obj+0x20)` behaves as a **shared monotone
+clock**: it advances by an **exact `0x2EE00` = 192 000** ticks between consecutive key-3 dispatches ⇒
+**10.000 ms @ 19.2 MHz ⇒ 100 Hz**. 123 firings × 10 ms = **1.23 s** ≈ the DRX cycle (1.28 s). For every context
+`w28 = w20 + ~40` ⇒ `+0x20` = dispatch **entry time**, `+0x28` = **exit time** (callback duration ≈ 40 ticks ≈
+2 µs). So (d)'s "interval" is the callback **duration**, **not** the period — it does not collapse.
+
+**★ The key-3 context is LIVE.** `w1c = memw(obj+0x1c) = 0xc37300b0` (a valid pointer) — the opposite of
+§112.132's "poisoned" reading, and consistent with §112.133.
+
+**★ The fatal key-20 dispatch is the ONLY dead-context dispatch in the whole window.** `w1c == 0xdeaddead`
+appears **exactly once** in 1024 records — seq 18854 = **key 20** (the fatal). Its fields are also
+**inconsistent**: `w28 = 0x31a43796 < w20 = 0x31b2dddd` (backwards), whereas every live context has
+`w28 > w20`. ⇒ the key-20 context is **not a normally-maintained timer**; it is dispatched exactly once, dead.
+
+**Retraction of §112.132's "(a) EXTERNAL".** v53's (a) read `obj+0x38`/`+0x3c` — which §112.133 showed are the
+**key/type id** and 0, i.e. **constant by construction**. So v53's "EXTERNAL (context static)" was an artifact of
+reading the wrong fields. v54, reading the actual timer fields, shows the context is **live and its fields
+advance**. (v53's H1–H4 and the reproduced terminal signature **stand**; only the (a) conclusion is retracted.)
+
+**Honest caveat.** `+0x20`/`+0x28` are **timestamp bookkeeping** (entry/exit times), so "fields change" does
+**not** by itself prove a self-arm. The decisive new facts are the **rate** (constant 10 ms) and the
+**dead-context fatal**, not the inside/outside label. What *schedules* the key-3 timer at 10 ms remains **OPEN**.
+
+**Corrected model.** During the terminal DRX window a **live** key-3 timer (handler `0xc02d7cc4`) fires at a
+**constant 100 Hz** (10 ms) for ~1.23 s; then the dispatcher runs **one** dispatch of a **dead** context
+(key 20, `w1c = 0xdeaddead`, handler `0xc02d7d54`) whose case unconditionally emits the ERR_FATAL at
+`lte_ml1_common_timer.c:390`. **Root cause (what collapses the key-3 period to 10 ms, and why key 20 is dead)
+OPEN.**
+
+**Census (whole run, 9 keys).** key 0 = 8820, 1 = 2938, 14 = 2937, 13 = 1259, 15 = 1101, **3 = 906**,
+12 = 882, 4 = 10 (stale, `last_t` a wrap artifact), **20 = 1**.
+
+**Achieved vs Expected (§112.134).**
+
+| | Expected | Achieved |
+|---|---|---|
+| Hazard fix offline-verified | yes | **yes** (VERIFY PASS, 15 checks) |
+| Boots to the event | yes | **yes** (modem-up 901 s) |
+| Key-3 storm reproduced | yes | **yes** (123) |
+| (a)/(b) discrimination | yes | **(a) FALSIFIED, (b) MATCHED** |
+| Root cause | — | **OPEN** |
+
+**SOP.** Pre-registered (§112.134) **before** the event; one change at a time; the natural event was reached with
+pre-emptive SSR disabled; the result is recorded **before** the firmware rollback; rollback to stock follows.
+The v53 (a) conclusion is **retracted explicitly** rather than silently overwritten.

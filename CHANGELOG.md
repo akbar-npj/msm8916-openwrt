@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.135 v54 RESULT: the key-3 storm is a LIVE context firing at a constant ~10 ms (100 Hz); the fatal key-20 dispatch is the ONLY dead-context dispatch
+
+- **Run.** Natural event, modem-up **901 s**, devcd33. `SAVE.seq = 18854`. Device fatal at AP uptime 40083.39 s =
+  `lte_ml1_common_timer.c:390`; modem auto-recovered. Image md5 `e223bd11…`.
+- **H1–H4 PASS**: boots to the event; ring sane; terminal group 176 with key-3 = **123**; obj stable `0xc20f1068`.
+- **★ ~100 Hz (10 ms).** `w20 = memw(obj+0x20)` is a shared monotone clock advancing by an exact **`0x2EE00` =
+  192 000 ticks = 10.00 ms @ 19.2 MHz** between consecutive key-3 dispatches. 123 × 10 ms = 1.23 s ≈ the DRX
+  cycle. `w28 = w20 + ~40` (dispatch entry/exit times; ~40 ticks ≈ 2 µs callback duration).
+- **★ key-3 is LIVE** (`w1c = 0xc37300b0`), not poisoned. **(a) EXTERNAL is FALSIFIED** (v53 read the key/type
+  id); **(b) MATCHED** — with the caveat that `+0x20/+0x28` are timestamp bookkeeping, so the decisive facts are
+  the **rate** and the dead-context fatal, not the inside/outside label.
+- **★ The fatal key-20 dispatch is the ONLY `0xdeaddead` dispatch in the whole 1024-record window**, and its
+  fields are backwards (`w28 < w20`) — a dead, never-maintained context dispatched exactly once.
+- **§112.132's "(a) EXTERNAL" retracted.** Root cause (what collapses the key-3 period to 10 ms / why key 20 is
+  dead) **OPEN**.
+
 ### 2026-10-06 — §112.134 v54 PRE-REGISTRATION: corrected context-snapshot ring (packet-hazard fixed; records the key-3 timer's own fields)
 
 - **Fixes §112.132's instrument bug.** v53's cave used `{ load r13; store r13 }` in **one** Hexagon packet, so
