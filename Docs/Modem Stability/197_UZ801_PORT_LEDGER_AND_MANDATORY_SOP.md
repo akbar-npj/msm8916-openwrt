@@ -21363,3 +21363,92 @@ returned dump**. The earlier "the target may be wrong" doubt is **recorded and t
 than left standing, and the `logsite.py` level-guard misconception is corrected in place. Reversible: the only
 device writes were `/lib/firmware` (v44) + a modem restart; stock backup intact at `/root/fw_stock_hmu05`
 (`modem.mdt md5 = 1a6f9507e03d4ddbbf1977af81ecdbd7`). Ledger + CHANGELOG + memory updated this session.
+
+### §112.114 — v45 (the F3 line-403 "last-seen" table): **count403 = 0** — the filter was right, but the hook covered only **one of ≥5 log wrappers**; the `:403` emitter is `FUN_c101311c` via `0xc08f1580` (2026-10-05)
+
+**Question.** §112.113's next instrument: an O(1) "last-seen" record filtered on the descriptor's line field == 403,
+spanning the whole run, to name the `rflte_core_rxctl.c:403` emitter and its stop time.
+
+**Instrument (v45).** Same hook as v44 — the entry packet of `FUN_c08f1610` @ `0xc08f1610` (pad `0xc08f1604`,
+cave `0xc003054c`) — but the cave now updates, for every log call whose descriptor line field (`memw(r0)>>16`) is
+403, an O(1) record at `0xc1d4c600`: `count403 @+0x00`, `last403 {seq,desc,caller,arg0} @+0x10`,
+`first403 @+0x20`; the total counter stays at `0xc1455000`. Built by
+`scratch/diag_patch_v45/build_diag_patch_v45.py`, offline-verified by `verify_v45.py` (**PASS**; cave 124 B,
+register-discipline check clean, b16 changed=14 B, b05 changed=101 B, all in-region; seg16/seg5 sha256 + mdt OK;
+`modem.mdt md5 = 493392c651a374eacd56f4c193cf21bf`), deployed by `scratch/deploy_v45.py` (sha256 read-back
+**PASS**).
+
+**Method / run.** Clean asynchronous restart (`echo restart > /sys/kernel/debug/msm_subsys/modem`; patch 826;
+`restart_count` 3→4). `scratch/run_v45.py` polled `/sys/class/devcoredump/`; the **natural fatal** produced
+`devcd9` (85 398 475 B) at `modem_up = 906 s`, pulled and decoded by `scratch/read_v45_table.py`.
+
+**RESULT.** The patch is **present and executing** — `SAVE.seq = 411 552` (the cave's counter, ~454 calls/s over
+906 s, matching v44's 446/s) — but **`count403 = 0`, `last403 = first403 = 0`, the whole table is zero (NEG2)**.
+So in 411 552 log calls **no descriptor with line field 403 was ever seen at this hook**.
+
+**WHY — the hook covers ONE of the log macro family.** `0xc08f1610` is **one entry point** of a family of F3 log
+wrappers, all in `0xc08f14xx–0xc08f18xx`, all opening with `r = memw(gp+#0x38ac)` (the F3 level mask) +
+`allocframe`, all called with the descriptor in `r0`:
+
+| wrapper | call sites (image-wide) |
+|---|---|
+| `0xc08f1480` | 13 180 |
+| `0xc08f1500` | 14 344 |
+| `0xc08f1580` | 7 848 |
+| **`0xc08f1610`** (v44/v45 hook) | **14 227** |
+| `0xc08f16a0` | 5 873 |
+| `0xc08f1840` | 1 |
+
+⇒ the hook covered **14 227 / ~55 500 ≈ 26 %** of all log call sites. A descriptor emitted through any of the
+other four wrappers is invisible to it.
+
+**The `:403` emitter, pinned statically (new).** The format string
+`rflte_core_rxctl.c:rflte_core_rxctl_update_rx_gain_freq_comp_to_mdsp: Gain_offset[%d]= %d` lives in **b25** at
+`0xc44dd988`. Exactly one descriptor points at it:
+
+> **`0xc16ea334`** = `{ packed = 0x01930015 (line **403**, level 21), word1 = 0xc44dd988 (the string) }`
+
+`0xc16ea334` is loaded at exactly one site, `0xc1013430` (`r1:0 = combine(r23, ##0xc16ea334)`), inside
+**`FUN_c101311c`** — the per-index RX-gain compute that §112.111 named as the suspected `:403` emitter. The
+descriptor family `0xc16ea304…0xc16ea33c` is the function's message set (lines 241/251/256/305/367/398/**403**/801).
+
+**Which wrapper does it use?** Decoding `FUN_c101311c`'s packets (parse bits confirm the grouping) gives a clean
+one-packet-per-message sequence, and the packet that carries `r0 = 0xc16ea334` is:
+
+```
+c1013428 (packet): { call 0xc08f1580 ; immext(#0xc16ea300) ; r1:0 = combine(r23, ##0xc16ea334) ; r2 = memh(r18) }
+```
+
+⇒ **the `:403` message is emitted via `0xc08f1580`**, not `0xc08f1610`. (The function's single `0xc08f1610` call at
+`0xc1013384` carries `0xc16ea324`, line 367.) This fully explains `count403 = 0`: the hook was on the wrong
+wrapper.
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 — boots and runs to the ~900 s event | yes | **YES** — fatal at `modem_up 906 s`; patch bytes confirmed in the dump |
+| The counter runs | yes | **YES** — `SAVE.seq = 411 552` |
+| H2 — `count403 > 0` | yes | **NO (NEG2)** — `count403 = 0` |
+| H3 — the caller names the emitter | hoped | **N/A** — no entry |
+| H4 — the descriptor is a known `:403` candidate | hoped | **N/A** — but the emitter is now named **statically** (`FUN_c101311c`, desc `0xc16ea334`, via `0xc08f1580`) |
+| Root cause | — | **OPEN** — but the instrument target is now exact |
+
+**Limits (stated, not hidden).** (1) v45's zero is a **hook-coverage** negative, not an absence of the message —
+the message demonstrably exists (216 records in the `up898` F3 chunk). (2) The three "line-403, level-1"
+candidates of §112.112 (`0xc1528fe4`, `0xc152d68c`, `0xc155a338`) are **not** the rflte message; the real one is
+`0xc16ea334` (level 21). §112.112's candidate list is **superseded**. (3) `FUN_c101311c`'s packet grouping is
+inferred from parse bits; the "call sees the same-packet `r0` write" step is the Hexagon packet-atomic rule and is
+consistent with the whole function's message sequence, but is not independently re-verified here.
+
+**Next decisive instrument (not yet built).** Re-run the **same** line-403 last-seen table hooked on
+**`0xc08f1580`** (the wrapper the `:403` message actually uses) — a one-constant change to the v45 builder
+(site `0xc08f1580`, a fresh pad in b16, same cave). That yields: the `:403` emitter's caller (`r31`), its rate
+(`count403`/run), and **when it stopped** (`last403.seq` vs the total). Optionally also hook `FUN_c101311c`'s entry
+to answer §112.111's original question directly (*stopped-being-called* vs *ran-empty*).
+
+**SOP.** Ground-truth-first: the wrapper family, the descriptor, the format string, the emit site and the packet
+grouping were all read from the **stock image** (`scratch/full_disasm.txt`, 306 MB) — no guessing; the patch was
+hash-verified **offline** and by **sha256 read-back on the device** before the run; the site and cave bytes were
+re-confirmed **inside the returned dump**. The v45 zero is explained by evidence rather than left as an
+unexplained negative, and §112.112's candidate descriptors are marked **superseded** in place. Reversible: the
+only device writes were `/lib/firmware` (v45) + a modem restart; stock backup intact at `/root/fw_stock_hmu05`
+(`modem.mdt md5 = 1a6f9507e03d4ddbbf1977af81ecdbd7`). Ledger + CHANGELOG + memory updated this session.

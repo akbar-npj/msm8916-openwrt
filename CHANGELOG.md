@@ -11,6 +11,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v45 F3 line-403 table: count403=0 — the hook covered 1 of ≥5 log wrappers; the :403 emitter is FUN_c101311c via 0xc08f1580 (ledger §112.114)
+
+- **Built, offline-verified, deployed and ran v45** (same `FUN_c08f1610` hook; cave now keeps an O(1)
+  line-403 last-seen record at `0xc1d4c600`; `modem.mdt md5 = 493392c6…`; `verify_v45.py` PASS;
+  sha256 read-back PASS). Natural fatal `devcd9` (85,398,475 B) at `modem_up = 906 s`.
+- **RESULT: `SAVE.seq = 411 552` (the cave ran) but `count403 = 0`** — no line-403 descriptor at this hook.
+- **WHY (the real finding):** `0xc08f1610` is ONE entry point of an F3 log-wrapper family
+  (`0xc08f1480`/`0xc08f1500`/`0xc08f1580`/`0xc08f1610`/`0xc08f16a0`/`0xc08f1840`, ~55,500 call sites
+  total). The hook covered only 14,227 (~26%).
+- **The `:403` emitter is now pinned statically:** the fmt string lives at `0xc44dd988` (b25); exactly one
+  descriptor points at it — **`0xc16ea334`** `{packed=0x01930015 → line 403, level 21; word1=0xc44dd988}`,
+  loaded at `0xc1013430` inside **`FUN_c101311c`** (the per-index RX-gain compute). Its packet calls
+  **`0xc08f1580`** — not `0xc08f1610`. §112.112's level-1 candidates are **superseded**.
+- **Next:** re-run the same table hooked on `0xc08f1580`.
+
 ### 2026-10-05 — v44 F3 log-wrapper ring: the hook is CORRECT, but the ring is too short (~446 calls/s) (ledger §112.113)
 
 - **Built, offline-verified, deployed and ran the v44 ring** on the F3 log wrapper `FUN_c08f1610`
