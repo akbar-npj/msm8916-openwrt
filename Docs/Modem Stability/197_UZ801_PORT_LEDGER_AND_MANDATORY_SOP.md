@@ -20301,6 +20301,28 @@ Two other stack words that look like code are **DATA**, not returns: `0xc20f1510
 `+0x14` field (§112.101), and `0xc312db4c` is a table immediate used by `FUN_c039ef80` itself. The leaf
 returns `0xc1201c5c` / `0xc12010f8` sit in the same path (below the frame-chain depth the dump records).
 
+### (A2) ★ The signature is DETERMINISTIC across every `sleepmgr_stm.c:4054` fatal
+
+`scratch/_stacksig.py` extracts the code-range words from each filled stack dump. **All 18**
+`lte_ml1_sleepmgr_stm.c:4054` dumps (uptimes 913–15 982 s) carry the **identical** sequence:
+
+```
+c08791a8  c039f7c4  c1201c5c  c12010f8  c0b66fcc  c0b67658  c087d9d8  c0b675e0  c087c658  c0b675e0  c087c644
+```
+
+i.e. the assert logger frame, the `FUN_c039ef80` assert return, two words in the `0xc1201xxx` receive/dispatch
+library, the `0xc0b66f20` `callr` return, the `0xc0b675e0` call return, and the REX dispatcher
+(`0xc087c658`/`0xc087c644`). The other families are **different** on the same test — e.g.
+`common_timer.c:390` = `c02d7bd0 c02d7d8c c0b63004 c1200c50 c0887658 …`, and `a2_power.c:1189` =
+`c050432c c0505078 c0504d50 …`. ⇒ the caller path below is **not a single-dump coincidence**; it is the
+fatal's fixed signature.
+
+⚠ **One provenance caveat, stated honestly:** the RAT index (`r16` in `0xc0b66f20`) is `r16 = r0` taken
+**after** the entry call `0xc08384e0` (a PT_LOAD#5 veneer, i.e. a compiler-inserted helper). So the index
+may come from the helper rather than the caller's argument; what is *empirical* is that the crash's
+callee-saved registers land on the **LTE** entry (`R20/R19/R18 = pertech[4]+0x04/+0x78/+0xd8`, `R21 = 4×0x250`,
+`R26 = 0xc1d9fef0`), and that `pertech[4]+0x70 = 0xc039ef80` in all 36 dumps.
+
 ### (B) The assert site, confirmed instruction-by-instruction
 
 `FUN_c039ef80` (`0xc039ef80`) is a small message handler:
