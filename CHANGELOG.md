@@ -11,6 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.133 CORRECTION: key-20 is NOT "poisoned" — a FIXED 28-slot context array; `0xdeaddead` is the normal non-live default
+
+- **Supersedes §112.132's "structurally poisoned" claim**, which rested on an incomplete enumeration (the scanner
+  matched only two magic values).
+- **Fixed 28-slot array.** Every one of **63** coredumps >40 MB contains **exactly 28** objects with
+  `callback(+0x0c)==0xc02d7bd0` and `magic(+0x30) ∈ {0xfedcba9..0xfedcbae}`. (The §112.132 "9 contexts" was a
+  filter artifact.) Object stride is **0x40**.
+- **`+0x1c == 0xdeaddead` is the DEFAULT** — present in 20–28 of the 28 objects in every dump; only the **live**
+  objects hold a real pointer. Key 20 is one of ~21 non-live entries.
+- **`magic(+0x30)` is a 6-value STATE field**, written by firmware: `0xc0913830` writes `0xfedcbaa` (live,
+  constructor); `0xc0913784` writes `0xfedcbab` gated on `(magic|4)==0xfedcbae`; **`0xc0913884` writes
+  `0xdeaddead` at `+0x1c`**; the code range-checks `magic - 0xfedcba9 < 6`.
+- **The LIVE set (`0xfedcbaa`) is the DRX-census set** `{0,1,3,12,13,14,15}` (31/63), with key 4 swapped in (9),
+  both (8), neither (7) — the live slots are the actively-cycling timers. Key 20 is never live, but neither are
+  keys 2, 6–11, 17, 18, 21–30.
+- **Corrected conclusion:** no evidence of corruption/use-after-free; `0xdeaddead`/`0xfedcbab` are deliberate
+  "not live" states. Surviving facts: a fixed 28-slot array; ~7 live slots; the fatal key-20 dispatch runs on a
+  **non-live** slot. **Root cause OPEN.** Tools: `scratch/scan_ctx.py`, `scratch/_dis2.py`, `scratch/_find_magic.py`.
+
 ### 2026-10-06 — §112.132 v53 RESULT: the terminal key-3 storm is EXTERNAL (a static context re-dispatched); the key-20 fatal context is structurally POISONED (`0xdeaddead`)
 
 - **Run.** Natural event (no SSR, no forced dump), modem-up **907 s**, `scratch/v53_capture/natural_devcd31.bin`
