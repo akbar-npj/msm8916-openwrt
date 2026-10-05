@@ -11,6 +11,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — v48 entry ring on the generic STM engine 0xc0fe1460: NEGATIVE (H3 FAIL) — the engine recomputes the state internally, so the entry's r0 is NOT the state; v13's write-packet hook is the correct instrument (ledger §112.117)
+
+- **Built, offline-verified, deployed and ran v48** — an entry ring on the generic STM engine `FUN_c0fe1460`
+  (the same function v13 hooks at its write packet), recording `{seq, r0, r1, ts}` filtered on
+  `r0 == 0xc1e158d0 || r1 == 0xc1e158d0` (`modem.mdt md5 = ca3bb2b7d4b752684b6bb9434ec5bd69`;
+  `verify_v48.py` PASS; sha256 read-back PASS). Clean restart (`restart_count` 8→9).
+- **Run:** natural fatal `lte_ml1_common_timer.c:390` at modem-uptime **902.0 s** (a *different* victim than
+  v47's `slpc` — the variable-victim race); auto-coredump `devcd12` (85 398 475 B).
+- **RESULT — H1 PASS, H2 PASS, H3 FAIL:** `SAVE.seq = 288 591` (~320 calls/s — a hot generic framework
+  function); 650 records in the last 4096 calls, all with exactly one OBJ field (always `r1`); but **`r0 = 0`
+  (INACTIVE) for all 650** ⇒ a flat state sequence, NOT v13's cycle.
+- **Cause (decisive, static):** `0xc0fe1654: r18 = r0` — the engine **recomputes** the new state internally;
+  the entry's `r0` is a scratch/default (0). The write `0xc0fe1754: memw(r16+#0x4) = r18` stores the
+  recomputed value, so the entry cannot log a transition. `r16` is never reassigned ⇒ the *filter* is sound;
+  only the *state field* is wrong.
+- **★★ Redundancy acknowledged:** v48's H3 was already answered by **v13** (§112.57.13/14), which hooked the
+  write packet and captured the sequence at both variants (wedge `3→4`, live state 4; fatal `1→2`, live state
+  2). v48 adds **no new physics** — it is a negative that validates v13's approach.
+- **Task #293 (slpc line):** both stated leads are spent — **v42** ringed `slpc_arm` (armer = the sleepmgr, all
+  `tech==4`, 1.28 s LTE DRX re-arm) and **v13** captured the STM sequence. The failure is **downstream of the
+  sleepmgr's request** (the FW stops collapsing) ⇒ the open question is *why the MCPM/FW stops re-entering
+  power-collapse*.
+- Rolled back to stock (`1a6f9507…`) and restarted the modem (10) at the end of the session.
+
 ### 2026-10-05 — v47 entry ring on FUN_c101311c: called exactly 10x per run (=60/6) — v46 was CORRECT; the ~360x is a regime difference, not a hook bug; the :403 line is a SYMPTOM (ledger §112.116)
 
 - **Built, offline-verified, deployed and ran v47** — an entry ring on `FUN_c101311c` (the `rflte_core_rxctl.c:403`

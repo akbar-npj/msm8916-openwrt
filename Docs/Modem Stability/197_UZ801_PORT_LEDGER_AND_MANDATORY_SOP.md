@@ -21600,3 +21600,71 @@ re-confirmed inside the returned dump and the raw table was re-read by hand via 
 reported together with an **in-place correction** of §112.115's headline (masked capture ⇒ within-burst vs
 whole-run), per the ledger's correction convention. Reversible: only `/lib/firmware` + a modem restart; stock
 backup intact at `/root/fw_stock_hmu05`. Ledger + CHANGELOG + memory updated this session.
+
+---
+
+### §112.117 — v48 (entry ring on the generic STM engine `0xc0fe1460`): **NEGATIVE (H3 FAIL)** — the engine recomputes the new state internally, so the entry's `r0` is NOT the state; v13's write-packet hook remains the correct instrument (2026-10-05)
+
+**Why this was run.** Task #293 ("trace the slpc SystemTimer trigger") re-pointed at the STM state sequence *with
+timing*. v48 was built to hook the **entry** of the generic STM engine `FUN_c0fe1460` (the same function v13 hooks
+at its write packet) and record `{seq, r0, r1, ts}`, filtered on `r0 == 0xc1e158d0 || r1 == 0xc1e158d0`.
+
+**Instrument.** `scratch/diag_patch_v48/build_diag_patch_v48.py`; site `0xc0fe1460` (8-byte prologue packet
+`{ call 0xc08384e0 ; allocframe(#0x28) }` → `jump PAD` + nop; pad `0xc1049084`; cave `0xc003054c`). The cave
+records `{seq @+0, r0 @+4, r1 @+8, ts = memw(0xc1da0948) @+0xc}` into the 4096 × 16 B ring `0xc1d4c600`, then
+reproduces the prologue as `{ allocframe(#0x28) } ; { r6 = ##0xc08384e0 } ; { callr r6 }` and
+`{ r6 = ##0xc0fe1468 } ; { jumpr r6 }`. `verify_v48.py` **PASS** (cave 124 B; register discipline clean — only
+p1/p2/r6/r8–r13 written, no r0–r3); `modem.mdt md5 = ca3bb2b7d4b752684b6bb9434ec5bd69`. Deployed by
+`scratch/deploy_v48.py` (sha256 read-back **PASS** on all 5 files). Clean restart (`restart_count` 8→9).
+
+**Run.** `scratch/run_v48.py`; natural fatal **`lte_ml1_common_timer.c:390`** at AP 15 684.18 s with the modem up
+at AP 14 782.19 s ⇒ **modem-uptime 902.0 s**; recovered in 1.44 s (the modem's own SSR). Auto-coredump `devcd12`
+(85 398 475 B) → `scratch/v48_capture/natural_devcd12.bin`. ⚠ The victim is the `lte_ml1_common_timer.c:390` /
+`tmr_slave3` variant, **different from v47's `slpc`** (`lte_ml1_sleepmgr_stm.c:4054`) — the variable-victim race
+again (§112.48).
+
+**RESULT (raw, re-read by hand).**
+```
+SAVE.seq (total FUN_c0fe1460 calls) = 288591      (~320 calls/s -- a hot generic framework function)
+ring records in the last 4096 calls = 650
+records with exactly one OBJ field  = 650/650      (H2 PASS; the field is always r1)
+r0 (the "state")                    = 0 for ALL 650 records  (INACTIVE)
+```
+
+| Item | Expected | Achieved |
+|---|---|---|
+| H1 boots to the ~900 s event | yes | **YES** — fatal `lte_ml1_common_timer.c:390` @ modem-up 902.0 s |
+| H2 filter correct (exactly one OBJ field) | yes | **YES** — 650/650 |
+| H3 the state sequence is the SLEEP→…→SLEEP cycle | yes | **NO (FAIL)** — flat `INACTIVE→INACTIVE` (r0 = 0 for all 650) |
+| H4 `ts` advances in ~1.28 s steps | yes | **NO** — `ts` is the **MCPM 19.2 MHz clock** (wraps 223.7 s); the reader's 222 s deltas are wrap artifacts |
+| Root cause | — | **OPEN** |
+
+**WHY H3 FAILS — the entry's `r0` is not the new state (decisive, static).** The engine **recomputes** the state
+internally: `0xc0fe1654: r18 = r0` (with `r0` computed by the preceding packets), and the write
+`0xc0fe1754: memw(r16+#0x4) = r18` stores that recomputed value. At the **entry**, `r18` is merely initialised
+from arg1 (`0xc0fe146c: r19:18 = combine(r2,r0)`), so the entry's `r0` is a scratch/default — it is **0** for
+every sleepmgr call. (Also verified: `r16` is **never** reassigned in the engine ⇒ `r16 == r1` throughout, so the
+*filter* is sound; only the *state field* is wrong.) ⇒ **the entry cannot log a state transition.** v13's
+whole-packet hook at the **write** (`0xc0fe174c`, reading the internal `r18`) is the correct and only instrument.
+
+**★★ REDUNDANCY ACKNOWLEDGED.** v48's H3 was **already answered** by v13 (§112.57.13/14, 2026-10-04), which
+hooked the write packet and captured the sequence at both variants (wedge `3→4`, live state 4; fatal `1→2`, live
+state 2, no `2→3`). v48 adds **no new physics** — it is a *negative that validates v13's approach* (the entry-hook
+premise is falsified; the write-hook is necessary). The instrument was built before the v13 overlap was noticed;
+the run was completed because it had already been deployed and yields an independent specimen of the
+variable-victim race.
+
+**Consequence for task #293 (the slpc line).** Both of the slpc line's stated leads are already spent: **v42**
+(§112.104/106) ringed `slpc_arm` (armer = the **sleepmgr**, all `tech==4`, phase-2 deadline = the **1.28 s LTE
+DRX re-arm**), and **v13** captured the STM sequence. The chain is: sleepmgr *requests* sleep (v13: stuck in
+`ONLINE_SLEEP_WAIT`, state 2) → MCPM vote → FW power-collapse, and the failure is **downstream of the request**
+(the FW stops collapsing). The remaining open question is therefore **why the MCPM/FW stops re-entering
+power-collapse** — not a sleepmgr-side question.
+
+**SOP.** Ground-truth-first: the site packet, the internal `r18 = r0` reassignment and the write site were read
+from the **stock image**; the patch was hash-verified offline (`verify_v48.py` PASS) and by sha256 read-back on
+the device before the run; the site/cave bytes were re-confirmed in the returned dump and the raw ring re-read by
+hand. A **negative** result (H3 FAIL) is reported as such, together with an explicit **redundancy
+acknowledgement** (the SOP values recording errors over defending them). Reversible: only `/lib/firmware` + a
+modem restart; rolled back to stock (`1a6f9507…`) and the modem restarted (10) at the end of the session. Ledger +
+CHANGELOG + memory updated this session.
