@@ -11,6 +11,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.138 v55 RESULT: the invoker/caller ring — key-3 shares the SAME caller as every other key ⇒ (a) the timer period was reprogrammed
+
+- **Run.** Natural event at modem-up **906 s**, `devcd36` (85 398 475 B), pre-emptive SSR disabled.
+  `SAVE.seq = 18902`. H1–H4 **PASS** (key-3 = 123 in the terminal group; key-3 `obj = 0xc20f1068` single).
+- **Caller decoded.** `f_b4 = 0xc0916ff4` (distinct=1, 1024/1024 code VAs) = **the caller**, the *same* for every
+  key. `f_ac = 0xc02d7bd0` = the caller's `r17` = the **registered callback** (confirms the indirect-callback
+  model; **0** direct `call ##0xc02d7bd0` in `modem.b16`). Caller site = the instruction after `callr r17`
+  (`r17 = memw(r19+#0x1c)` callback, `r0 = memw(r19+#0x30)` arg) at `0xc0916ff0` — **one** dispatch loop.
+- **Why (a) is decisive.** The 3 non-terminal `t`-groups (~26 records, ≈1.28 s apart) contain **no key-3**; only
+  the terminal group (178 records, a single `t`) has the 123 key-3 firings ⇒ the loop dispatches **only expired**
+  contexts ⇒ key-3's **deadline itself** was set to 10 ms. `w20` step median = `0x2EE00` = 10.000 ms (re-confirmed).
+- **Next (v56):** the **arm path** (writer of key-3's deadline / producer of its dispatch record) is the target.
+  Root cause **OPEN**. Rollback to stock follows.
+
 ### 2026-10-06 — §112.137 v55 PRE-REGISTRATION: the invoker/caller ring (is key-3's 100 Hz a timer-period change or an event source?)
 
 - **Adds the caller of the dispatcher** to the verified v54 instrument: the frame window `r29+0xa8..0xb4` that

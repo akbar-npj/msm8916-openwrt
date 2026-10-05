@@ -23108,3 +23108,76 @@ cycle" from "the clock stopped" (§112.130).
 the v53 hazard was fixed and the verifier asserts **no** load/store-r13 packet hazard and the frame reads); image
 offline-VERIFY-PASS; pre-registered **before** the event; pre-emptive SSR disabled so the **natural** event is
 reached; `a2_pin=1`. One change at a time; rollback = `python3 scratch/deploy_v55.py --rollback`.
+
+---
+
+## §112.138 — v55 RESULT: the invoker/caller ring — key-3 shares the **SAME caller** as every other key ⇒ **(a)** the timer period was **reprogrammed** (the ARM path is the next target) — 2026-10-06, task #324
+
+**Natural event reached.** `modem.mdt = 4eb4566dd2c0ad700e59f9de5815e68e` (VERIFY PASS, 16 checks) deployed; modem
+restarted (restart_count 30→31, U0 = ap_up 43071 s); the modem fataled **naturally at modem-up 906 s** with
+pre-emptive SSR **disabled** ⇒ `devcd36`, 85 398 475 B. `SAVE.seq = 18902`, `key_last = 20`,
+`t_last = 2455325249`. The dump was pulled **before** any rollback.
+
+**Ring (1024 records, live window [17879..18902]).** key histogram
+`{0: 442, 13: 64, 14: 147, 15: 56, 1: 147, 12: 44, 3: 123, 20: 1}`.
+
+| hypothesis | result |
+|---|---|
+| **H1** boots to the event | **PASS** (`SAVE.seq = 18902`) |
+| **H2** ring sane (seq strictly increasing; keys ⊆ v52 set) | **PASS** — keys `[0,1,3,12,13,14,15,20]` |
+| **H3** key-3 terminal storm reproduced (≥50) | **PASS** — terminal group 178 records, **key-3 = 123** |
+| **H4** `obj` stable for key-3 | **PASS** — single `obj = 0xc20f1068` |
+| **(a)/(b)** | **(a) SAME caller** — every record's caller = `0xc0916ff4` |
+
+**The frame window decoded (this also validates the §112.137 model).**
+
+| slot | value (distinct) | code VAs | reading |
+|---|---|---|---|
+| `f_a8` | `0x1` (1) | 0/1024 | caller's `r16` (a flag) |
+| `f_ac` | `0xc02d7bd0` (1) | 1024/1024 | caller's `r17` = **the callback pointer** (the dispatcher) |
+| `f_b0` | `0x8ad52288` (1) | 0/1024 | caller's frame pointer |
+| `f_b4` | **`0xc0916ff4`** (1) | 1024/1024 | **the caller return address** |
+
+⇒ the §112.137 premise holds: **`f_b4` = the caller**. `f_ac` holding `0xc02d7bd0` (the registered callback)
+**confirms the indirect-callback model** — the dispatcher is *not* called directly; a framework loads the callback
+and `callr`s it. (A static scan of `modem.b16` finds **0** direct `call ##0xc02d7bd0` — consistent.)
+
+**The caller site (stock disassembly at `0xc0916fc0`).**
+```
+c0916fec: r0 = memw(r19+#0x30); r17 = memw(r19+#0x1c)   ; arg = context ; r17 = callback
+c0916ff0: callr r17                                      ; invoke the ML1 dispatcher
+c0916ff4: jump 0xc0917090                                ; <-- the recorded RA
+```
+⇒ the dispatcher is a **registered callback** stored at `r19+0x1c`, with its argument at `r19+0x30`, invoked from a
+per-entry dispatch loop. **All 28 keys share this one call site** ⇒ a **single** dispatch loop.
+
+**(a) is valid because the loop dispatches only EXPIRED contexts.** The 3 non-terminal `t`-groups (~26 records each,
+`t` ≈ 1.28 s apart) contain **no key-3 at all**; only the terminal group (178 records, a **single** `t` =
+2455325249) contains the 123 key-3 firings. If the loop polled every registered context each pass, key-3 would
+appear in *every* group. It does not ⇒ key-3's **deadline itself was set to 10 ms**. (This is the honest reading:
+"same caller" alone is necessary-but-not-sufficient; the *expiry-only* semantics make it decisive.)
+
+**key-3 timing (re-confirmed).** `w20` step: distinct=22, min=191927, max=192082, **median = 192000 =
+`0x2EE00` ticks = 10.000 ms @ 19.2 MHz**; `w28-w20` = 37..44 ticks (~2 µs = handler run time). ⇒ `w20`/`w28` are
+dispatch entry/exit timestamps and the period is exactly 10.00 ms.
+
+**The `t` clock froze in the terminal window** — all 178 terminal records share `t = 2455325249` (the §112.130
+caveat): the DRX-cycle clock did not advance during the storm. Last record = **key-20** (the fatal) at
+`seq 18902`, `obj = 0xc2150f58`, `w1c = 0xdeaddead`.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS, 16 checks) |
+| Caller slot is a code VA | hoped | **yes** — `f_b4 = 0xc0916ff4` (1024/1024) |
+| (a)/(b) discrimination | yes | **(a) SAME caller ⇒ timer-period change** |
+| Root cause | — | **OPEN** |
+
+**Next (v56).** The 10 ms key-3 period is **set by the arm path** (the writer of key-3's deadline / the enqueue of
+its dispatch record), **not** by the handler (§112.136) and **not** by a different caller (§112.138). Target =
+the **arm path**: ring the writer of the key-3 deadline (or the producer of its `r19`-style dispatch record) and
+catch the exact transition to 10 ms at ~900 s.
+
+**SOP.** Pre-registered (§112.137) **before** the event; one change at a time; natural event with pre-emptive SSR
+disabled; result recorded **before** rollback; `a2_pin=1`. Rollback follows immediately after this record.
