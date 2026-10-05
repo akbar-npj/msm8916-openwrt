@@ -22189,3 +22189,51 @@ line** (its timestamp) to the baseline line, not a count. Re-uploaded.
 modem-up arithmetic). The masking mechanism is named and generalised (a lesson for every future soak). The n=1
 caveat is stated explicitly so no arm-to-arm causal claim is over-read. The device is rolled back to stock +
 keepalive OFF after the test.
+
+### §112.126 — the live DIAG memory-peek route is NOT exposed at cmd 0x0000 (scoped negative); a live post-fatal WEDGE observed and recovered by the watchdog's Stage-3 SSR
+
+**Trigger.** Resuming the root-cause hunt (2026-10-05). §112.107 named the missing capability as a live,
+non-destructive peek of modem RAM at ~800 s vs ~910 s ("a DIAG memory-peek at ~800 s vs ~910 s would").
+That route is tested here.
+
+**DIAG subsystem map (device; transport verified first).** `diag_logtool selftest` completed a `VERNO`
+(0x00) round-trip ⇒ the `/dev/rpmsg0` DIAG bridge is live. Then `DIAG_SUBSYS_CMD_F (0x4B) | subsys |
+cmd=0x0000` for subsys `0x00..0x20`:
+
+| status byte | subsys IDs | meaning |
+|---|---|---|
+| `0x13` BAD_CMD | `00-03,06,07,0c,0d,10,11,14-1a,1d-20` | no such subsys / op |
+| `0x4b` (subsys reply) | `04,05,08,09,0e,0f,1b,1c` | valid subsys, cmd 0 accepted |
+| `0x14` BAD_PARM | `0a,0b` | valid subsys, cmd 0 needs params |
+| `0x15` | `12,13` | valid subsys (`0x13` = EFS, the known-good one) |
+
+**⇒ No memory-read service at cmd 0x0000.** Subsys `0x00` — the classic `DIAG_SUBSYS_DIAG_SERVICES`
+memory-read path — returns BAD_CMD, and no other ID accepts cmd 0 as a memory read. **Scope of the
+negative:** this closes only **cmd 0x0000**; a memory read behind a different cmd/subsys is **not**
+excluded. Blind-probing the *valid* subsystems with unknown cmds was deliberately **not** done (SOP: no
+blind commands at the baseband). ⇒ the live-peek route needs a decoded opcode (from the modem's own DIAG
+dispatch) before it can be used; it is **not** a drop-in capability.
+
+**F3-mask hypothesis closed (same session).** The prior boundary captures (`f3_900`, ~43 msg/s) could in
+principle have missed the trigger if the F3 mask were narrow. Checked: `scratch/f3cap.sh` already arms
+with `diag_logtool cntl-enable-range /dev/rpmsg1 256` (a 256-SSID sweep, "the modem's full F3 subsystem
+space"). ⇒ the ~43 msg/s is the modem's **emitted** (post-mask) rate, **not** a capture artifact. The
+"NO F3 PRECURSOR" finding (§112.13) therefore stands.
+
+**Live observation — a post-fatal WEDGE, recovered.** The device was found ~**1036 s** into a modem boot
+in the §112.108 post-fatal one-way state: modem `running`, `wwan0` up holding the **Arm-C** IP
+`10.139.113.132`, default route present, `ping 8.8.8.8` **100 % loss**, **no coredump**, no new dmesg
+fatal since the Arm-C `:324` at ap `28511.8`. The **pre-emptive SSR is OFF**
+(`modem-watchdog.recovery.preemptive_ssr_enabled=0`) — deliberately, per ledger line ~20656 ("it was
+masking the event"), so nothing pre-empted the ~900 s event. `modem-bearer-watchdog` (pid 3784) noticed
+the stall only when traffic was generated (17:14:01), then ran its staged recovery: Stage 1
+`wds-go-dormant` (no effect); Stage 2 bearer teardown/rebuild (no effect); **Stage 3 SSR → "SUCCESS" at
+ap 30011.2**, after which the data path returned (new IP `10.47.253.94`, `ping` 0 % loss). ⇒ **a wedge is
+recoverable by SSR**, and the modem **re-armed** in the fresh cycle (a fresh ~900 s window opened).
+
+**SOP.** The DIAG transport was validated (VERNO round-trip) before the negative was believed; the
+negative is explicitly **scoped** to cmd 0x0000 and the blind-probe risk was declined; the F3-mask
+hypothesis was checked against the actual harness and **closed** rather than assumed; the live-wedge
+recovery is reported with its mechanism (watchdog Stage-3 SSR), not attributed to any fix. Offline
+analysis + device reads only — **no firmware change, no baseband write, no conclusion about the root
+cause** (which remains OPEN).

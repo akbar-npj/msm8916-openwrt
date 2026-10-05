@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.126 the live DIAG memory-peek is NOT exposed at cmd 0x0000 (scoped negative); a live post-fatal WEDGE recovered by the watchdog's Stage-3 SSR
+
+- **DIAG memory-peek route tested (the §112.107 "missing capability").** Transport validated first
+  (`diag_logtool selftest` VERNO round-trip OK). Probing `DIAG_SUBSYS_CMD_F (0x4B)|subsys|cmd=0x0000` for
+  subsys `0x00..0x20` mapped the subsystems: valid = `04,05,08,09,0a,0b,0e,0f,12,13,1b,1c` (`0x13`=EFS,
+  known-good); **subsys `0x00` (the classic `DIAG_SUBSYS_DIAG_SERVICES` memory-read path) returns `0x13`
+  BAD_CMD.** ⇒ **no memory-read service at cmd 0x0000.** Scope: closes only cmd 0x0000; a read behind a
+  different cmd/subsys is NOT excluded. Blind-probing valid subsystems with unknown cmds was **declined**
+  (SOP: no blind commands at the baseband). The route needs a decoded opcode, not a drop-in tool.
+- **F3-mask hypothesis closed.** `scratch/f3cap.sh` already arms `cntl-enable-range 256` (full F3 space),
+  so the ~43 msg/s of `f3_900` is the modem's **emitted** rate — the "NO F3 PRECURSOR" finding stands.
+- **Live post-fatal WEDGE observed + recovered.** Device found ~1036 s into a modem boot in the §112.108
+  one-way state (modem `running`, `wwan0` up on the Arm-C IP `10.139.113.132`, route present, `ping`
+  100 % loss, no coredump). Pre-emptive SSR **off** (deliberate). `modem-bearer-watchdog` ran Stage 1
+  (`wds-go-dormant`) → Stage 2 (bearer rebuild) → **Stage 3 SSR SUCCESS at ap 30011.2**, restoring data
+  (`10.47.253.94`, ping 0 % loss) and **re-arming** the ~900 s window. ⇒ a wedge is SSR-recoverable.
+
 ### 2026-10-05 — §112.125 A/B/C Arm C (patch + 2 s keepalive) = FATAL at modem-up 915.8 s (soak false-CLEAN from a dmesg ring-wrap) ⇒ ★ the ~900 s event occurred in ALL THREE arms; ★ a quick SSR recovery makes a fatal look "clean" to a ping soak
 
 - **Arm C actually FATALED** at modem-up **915.81 s** (`lte_ml1_common.c:324`, crash **#23**; `restart_count`
