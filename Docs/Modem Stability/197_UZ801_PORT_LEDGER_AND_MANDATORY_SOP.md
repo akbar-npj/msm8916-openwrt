@@ -22398,3 +22398,193 @@ enumerated from the live device; the XPU block **measured** with `devmem`, not a
 is **scoped** to the surface actually probed; one claim (§112.127 §4's data-channel HDLC success) is
 **corrected by today's experiment**; **no firmware change, no baseband write, no destructive coredump
 trigger** — reads and live probes only. The ~900 s root cause remains **OPEN**.
+
+---
+
+## §112.129 — v52 PRE-REGISTRATION: the corrected **whole-run** ML1 common-timer dispatch census (all state moved into the v50-proven region) — 2026-10-05, task #320
+
+**Why.** §112.121 scored v51's per-key **census INVALID**: its region `0xc1cfe8a0` is used by the modem at
+runtime (keys 148–252 held counts ≈3.25e9 and `last_handler` pointing *into the census region itself*), so the
+per-key totals cannot be trusted. §112.121 left an **explicit fix**: *"Co-locate ALL state in the v50-proven run
+… `SAVE` @ `0xc1d4c600` + `CENSUS` + `RING` … Do NOT use `0xc1cfe8a0`. Verify by readback."* v51's **ring** was
+valid but covered only **9 s** (`SAVE.seq = 84362` @ ~455 rec/s). ⇒ the whole-run per-key view — the instrument's
+actual purpose — was **never obtained**. v52 recovers it. This is the method §112.128 concluded is the *only*
+remaining observation channel (Doc 239/240; no live modem read exists).
+
+**Method (unchanged — firmware cave in modem BSS + crash-coredump read).** A code cave in an executable
+segment writes BSS state; the state lands in the natural crash coredump; the AP reads it from the dump. No live
+modem read (§112.128), no DIAG opcode (§112.127).
+
+**Mechanism — identical hook to v51 (ground truth from the stock disassembly).**
+
+| item | value |
+|---|---|
+| dispatcher | `FUN_c02d7bd0` (`lte_ml1_common_timer.c:390`) |
+| site | `0xc02d7bec` `{ jumpr r2 }` (packet `00 c0 82 52`) → `{ jump PAD }` |
+| PAD | `0xc02cb2c4` (12 B inter-function NOP sled, seg16/b16) → `{ r6 = ##CAVE } ; { jumpr r6 }` |
+| CAVE | `0xc003054c` (180 B NOP sled, seg5/b05) |
+| registers | clobbers only `r7–r13`; `r2` (the per-key handler) and `r31` preserved; ends `jumpr r2` |
+
+**State — ALL inside the v50-proven 65536 B run `0xc1d4c600..0xc1d5c600` (seg19/b19, asserted zeroed).**
+(v50 used exactly this run: `RING = 0xc1d4c600`, `mask 0xfff` = 4096×16 B, and it **read back clean** ⇒ the run
+is proven *unused at runtime* — §112.121's lesson: "zeroed in the image" ≠ "unused at runtime".)
+
+| region | VA | size | layout |
+|---|---|---|---|
+| SAVE | `0xc1d4c600` | 16 B | `{seq:u32, key_last:u32, t_last:u32, pad:u32}` |
+| CENSUS | `0xc1d4c610` | 256 × 16 = 4096 B | `{count:u32, first_seq:u32, last_seq:u32, last_t:u32}` per key |
+| RING | `0xc1d4d610` | 2048 × 16 = 32768 B | `{seq:u32, key:u32, handler:u32, t:u32}` (≈4.5 s terminal) |
+
+`key = memub(obj+0x38)`; `t = memw(0xc1da0948)` (MCPM 19.2 MHz, **read-only**, outside the run). End
+`0xc1d55610 ≤ 0xc1d5c600` ⇒ the whole state fits the proven run. **The single variable vs v51 is the state
+region** (`0xc1cfe8a0` → the proven run); the hook is byte-identical.
+
+**P-V52 (pre-registered BEFORE any v52 data exists).**
+* **H1** the modem boots and runs to the ~900 s event (the dispatch hook is sound).
+* **H2** the census is **readable and sane**: ≥4 distinct keys with counts in a plausible range — **no
+  `~3e9` counts and no self-referential `last_seq`** (v51's contamination signature).
+* **H3** the ring's terminal cadence is regular (no terminal anomaly).
+* **H4** key 20 (the state-20 watchdog) is **present and rare** (a timeout, not a heartbeat).
+* **(a)** some key's `last_seq` ≪ `SAVE.seq` ⇒ that timer's owner **stopped** before the crash ⇒ target it.
+* **(b)** key 20 fires (≥1) ⇒ the state-20 watchdog expiry is **directly observed**; its `last_seq` dates it.
+* **(c)** every key shares `last_seq ≈ SAVE.seq` ⇒ the dispatcher was active to the end.
+* **NEG** the census is sane **and** every key is active to the end **and** no key-20 spike ⇒ **the ML1 timer
+  layer is healthy for the whole run** ⇒ the trigger is **outside** the ML1 timer layer (the "second image" /
+  a hardware deadline) ⇒ next target = the ML1 **message** path, not its timers.
+
+**Falsifier (decisive negative).** If the census **again** shows the contamination signature (counts ≈3e9 /
+self-referential fields) at the *proven* run, then **no** BSS region is safe from runtime use ⇒ the whole
+"zero-run ring" method is unsound and the approach must be re-scoped. That outcome is itself a finding.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| State moved to the proven run | yes | **yes** — §112.130 |
+| Census readable + sane (H2) | hoped | **PASS** — §112.130 |
+| Whole-run per-key activity | hoped | **obtained** (`SAVE.seq = 18576`) — §112.130 |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: the site packet, the PAD sled, the CAVE sled, the state run and its zero-ness were
+read from the **stock image** (offsets verified before writing); the hook is byte-identical to v51 (a
+previously-booted image), so the only new risk is the state region, which is the v50-**readback-proven** run.
+The instrument is pre-registered **before** it is built. Reversible: `/lib/firmware` + a modem restart only; a
+full stock rollback (`1a6f9507…`) is staged. No baseband write to a partition; no destructive coredump trigger.
+Ledger + CHANGELOG + memory updated this session.
+
+---
+
+## §112.130 — v52 RESULT: the whole-run ML1 common-timer dispatch census is **SANE (H2 PASS)**; the ~900 s event is a **terminal DRX-cycle storm dominated by dispatcher key 3**, ending in the single **key-20** dispatch that *is* the ERR_FATAL — 2026-10-05, task #320/#321
+
+**What was done.** v52 (§112.129) was built, offline-verified, deployed, and run to the natural event. The modem
+fataled on its own (no forced dump): the capture is `scratch/v52_capture/natural_devcd29.bin` (devcd29, modem-up
+**907 s**, 85 398 475 B). Firmware in `/lib/firmware/modem.mdt` = `d86041e825feaeb0cecda5d95175b052` (v52).
+`SAVE.seq = 18576` dispatch calls — the whole-run view that v51 could not give.
+
+**H2 — PASS (the decisive method result).** The census read from the **v50-readback-proven** run is **sane**:
+9 distinct keys with counts 1…8831, **zero** keys with the ~3e9 contamination signature, no self-referential
+`last_seq`. ⇒ §112.121's explicit fix (co-locate all state in the proven run) **works**; the "zero-run ring"
+method is sound *when the run is readback-proven*. The §112.121 falsifier (contamination again at the proven
+run ⇒ method unsound) is **NOT** triggered.
+
+**The census (whole run, 18 576 dispatches).**
+
+| key | count | last_seq | gap | last_handler | note |
+|---:|---:|---:|---:|---|---|
+| 0 | 8831 | 18568 | 8 | `0xc02d7bf0` | steady heartbeat |
+| 1 | 2943 | 18566 | 10 | `0xc02d7c24` | shared handler (1/13/14/15) |
+| 14 | 2942 | 18553 | 23 | `0xc02d7c24` | " |
+| 13 | 1261 | 18506 | 70 | `0xc02d7c24` | " |
+| 15 | 1103 | 18482 | 94 | `0xc02d7c24` | " |
+| 12 | 883 | 18561 | 15 | `0xc02d7c9c` | " |
+| **3** | **605** | **18575** | **1** | `0xc02d7cc4` | **124 of these are the terminal cycle** |
+| 4 | 7 | 5945 | 12631 | `0xc02d7bf0` | **stopped long ago** (`last_t` in a prior era) |
+| **20** | **1** | **18576** | **0** | `0xc02d7d54` | **the terminal dispatch = the fatal** |
+
+**★★★ The dispatcher is an assert table in `lte_ml1_common_timer.c` — full key → handler → descriptor → line
+map (resolved with `scratch/a2_descr.py` on the v52 dump).**
+
+| key | handler VA | assert descriptor(s) | file:line |
+|---:|---|---|---|
+| 0 | `0xc02d7bf0` | `0xc3c6c790` | `lte_ml1_common_timer.c:268` |
+| 1 / 13 / 14 / 15 | `0xc02d7c24` | `0xc3c6c7a0` | `lte_ml1_common_timer.c:287` |
+| 12 | `0xc02d7c9c` | `0xc3c6c7c0` | `lte_ml1_common_timer.c:325` |
+| **3** | `0xc02d7cc4` | `0xc3c6c7d0` / `0xc3c6c7e0` / `0xc3c6c7f0` | **`lte_ml1_common_timer.c:336 / 357 / 372`** |
+| **20** | `0xc02d7d54` | `0xc3c6c800` / `0xc3c6c810` / `0xc3c6c820` | **`lte_ml1_common_timer.c:390 / 411 / 417`** |
+
+Each normal case is *log → `call 0xc0287198`/`0xc028b140` (message send + status) → `if (status==0) goto clean
+exit` → else `FUN_c0879150(descr)` (ERR_FATAL)*. **Key 20's case is structurally different: it has NO status
+check — after an F3-gated optional trace (`0xc08f1500`) it calls `FUN_c0879150(0xc3c6c800 = :390)`
+unconditionally.** ⇒ **the key-20 dispatch *is* the fatal emission**; the fatal line `lte_ml1_common_timer.c:390`
+is not a detected condition but the key-20 context's handler body. This is the structural reason key 20 fired
+**exactly once in 18 576 dispatches**: it is dispatched only when the state-20 context is entered, and entering
+it always fatals. (§112.45: the state-20 armer is `FUN_c02fda90`; §112.46/47: `obj[+0x38]` = a fixed ctx ID.)
+
+**★★★★★ The terminal structure — the event is a **terminal DRX-cycle storm**, not a "stopped timer".**
+Grouping the 2048-record ring by the cached cycle timestamp (`t = memw(0xc1da0948)`; it advances once per DRX
+cycle, so a group = one cycle):
+
+* **77 regular cycles**, each **25–28 dispatches**, composition stable
+  `{0:≈13, 1:4, 14:4, 13:2, 15:2, 12:1}`, timestamp step **24 575 868 ticks = 1.2800 s @19.2 MHz** — the LTE
+  **DRX 1.28 s** cycle (independently confirms §112.106 phase-2).
+* **A final cycle with 178 dispatches** — **6.8×** a normal cycle — composition
+  `{0:26, 1:9, 3:124, 12:3, 13:3, 14:9, 15:3, 20:1}`. Its start was **on time** (step from the previous cycle =
+  24 499 067 ticks = 1.2760 s, i.e. normal) ⇒ the anomaly is **entirely inside** the terminal cycle.
+* **Key 3 is absent from all 77 regular cycles and fires 124× in the terminal cycle** — the dominant anomaly.
+  The regular keys roughly **double** (53 vs 26) in the same cycle.
+* **Key 20 fires once, as the very last dispatch** (seq 18576 = `SAVE.seq`, gap 0) — the terminal ERR_FATAL.
+
+**Scoring P-V52 (pre-registered in §112.129).**
+
+| hypothesis | outcome |
+|---|---|
+| H1 boots + runs to the event | **PASS** (natural event, modem-up 907 s) |
+| H2 census readable + sane | **PASS** (9 keys, no contamination) |
+| H3 terminal cadence regular | **FAIL** — the terminal cycle is a 178-dispatch / key-3-dominated storm |
+| H4 key 20 present and rare | **PASS** (count 1, the last dispatch) |
+| (a) some key's `last_seq` ≪ `SAVE.seq` ⇒ owner stopped | **NOT MATCHED** — the only genuine "stopped" key is **k4** (gap 12631, `last_t` in a *prior era*, a boot-era artifact); k13/k15 "gaps" (70/94) are just key-3's flood pushing them earlier in the terminal group — they did **not** stop |
+| (b) key 20 fires ⇒ state-20 expiry observed | **MATCHED** (once, terminal) |
+| (c) every key active to the end | **MATCHED** (all active keys have `last_t` = 1043262094) |
+| **NEG** (healthy timer layer ⇒ trigger outside ML1) | **NOT MATCHED** — the ML1 common-timer layer is **not** healthy at the end |
+
+**Interpretation.** The ~900 s event is **not** a timer that quietly stops; it is a **burst**: the terminal DRX
+cycle runs ~7× the normal dispatch rate, **dominated by context key 3** (normally silent during steady DRX),
+and terminates in the single **key-20** dispatch that unconditionally emits the ERR_FATAL at
+`lte_ml1_common_timer.c:390`. Key 3's handler (`0xc02d7cc4`) is itself assert-wrapped (lines 336/357/372) and
+its sends *succeeded* (the fatal is line 390, not 336) ⇒ key 3 is a **re-arm/retry loop that is working**, not a
+failing path — it is the *precursor* of the terminal key-20 fatal. The **root cause is still OPEN**, but the
+terminal signature is now sharply localised: **find what dispatches context key 3 ~124× in one DRX cycle and
+what enters the state-20 context (`FUN_c02fda90`) at the end of that cycle.**
+
+**Caveats (recorded honestly).** (1) Key 3 fired **605× total**, of which 124 are terminal ⇒ it also fired ~481×
+earlier in the run (clustered; not a uniform rate). So key 3 is *not* unique to the event — but within the last
+98.6 s of steady DRX it is **absent for 77 cycles then 124× in the terminal cycle**. (2) The cached cycle
+timestamp cannot distinguish "one long cycle" from "the clock stopped updating and merged ≥2 cycles"; the
+on-time start of the terminal cycle argues for the former. Disambiguating needs a hook on the timestamp updater.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| State moved to the proven run | yes | **yes** (H2 PASS; census sane) |
+| Census readable + sane (H2) | hoped | **PASS** |
+| Whole-run per-key activity | hoped | **obtained** (`SAVE.seq = 18576`) |
+| Terminal anomaly localised | hoped | **yes** — key-3 storm → key-20 fatal |
+| Root cause | — | **OPEN** |
+
+**Ledger impact.** Closes v51's **census INVALID** gap (§112.121): the whole-run per-key view now exists and is
+sane. Re-frames the "ML1 pivot" of §112.120: the ML1 common-timer layer **is** involved at the terminal cycle
+(key-3 storm + the key-20 fatal), so the search **stays in ML1** but moves from "which timer stops" to
+"**what drives context key 3 into a terminal-cycle storm, and what enters state-20**". Supersedes §112.45's
+framing only in adding the *whole-run* context; the state-20 armer `FUN_c02fda90` remains the named next target.
+
+**SOP.** Ground-truth-first: the site packet (`00c08252`), PAD sled, CAVE sled, and the **readback-proven**
+state run were verified from the stock image before writing; the hook is byte-identical to v51; the only new
+variable (the state region) is the v50-proven run. The instrument was pre-registered (§112.129) **before** it
+was built. One change at a time. **Reversible:** the run touched only `/lib/firmware` + a modem restart; a full
+stock rollback (`1a6f9507…`) is staged and executed in this session. No baseband partition write; no destructive
+coredump trigger (the event was natural). Negatives and caveats recorded above. Ledger + CHANGELOG + memory
+updated this session.
+
+**Rollback.** `python3 scratch/deploy_v52.py --rollback` restores stock; verified `modem.mdt md5` returns to
+`1a6f9507e03d4ddbbf1977af81ecdbd7`.

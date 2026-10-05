@@ -11,6 +11,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.130 v52 RESULT: whole-run ML1 common-timer dispatch census is SANE (H2 PASS); the ~900 s event is a terminal DRX-cycle storm (key 3) ending in the single key-20 dispatch that IS the ERR_FATAL
+
+- **Run.** v52 built, offline-verified, deployed, run to the natural event (`scratch/v52_capture/natural_devcd29.bin`,
+  devcd29, modem-up **907 s**, 85 398 475 B). `SAVE.seq = 18576` dispatch calls — the whole-run view v51 could not give.
+- **H2 PASS (decisive).** The census read from the **v50-readback-proven** run is sane: 9 keys, counts 1…8831,
+  **zero** ~3e9 contamination, no self-referential `last_seq`. ⇒ §112.121's fix works; the §112.121 falsifier is NOT triggered.
+- **★★★ Full dispatcher map (assert table in `lte_ml1_common_timer.c`, resolved with `a2_descr.py`):**
+  key 0→`:268`; 1/13/14/15→`:287`; 12→`:325`; **3→`:336/357/372`**; **20→`:390/411/417`**. Each normal case is
+  *log → send → `if(status==0) clean` else `FUN_c0879150(descr)`*. **Key 20's case has NO status check — it calls
+  `FUN_c0879150(0xc3c6c800 = :390)` unconditionally** ⇒ the key-20 dispatch **is** the fatal emission (why key 20 fired once in 18 576).
+- **★★★★★ Terminal structure.** Ring grouped by the cached DRX-cycle timestamp: **77 regular cycles** (25–28 dispatches,
+  `{0:≈13,1:4,14:4,13:2,15:2,12:1}`, step 24 575 868 ticks = **1.2800 s** = the LTE DRX cycle) then a **final cycle with
+  178 dispatches** (6.8×), composition `{0:26,1:9,3:124,12:3,13:3,14:9,15:3,20:1}`, start **on time** (1.2760 s).
+  **Key 3 is absent from all 77 regular cycles and fires 124× in the terminal cycle**; key 20 fires once, last (seq 18576 = `SAVE.seq`).
+- **Scoring:** H1 PASS, **H2 PASS**, **H3 FAIL** (terminal storm), H4 PASS; (a) NOT MATCHED (no key genuinely stopped —
+  k4 is a boot-era artifact, k13/k15 are artifacts of key-3's flood), (b) MATCHED, (c) MATCHED; **NEG NOT MATCHED**.
+- **Interpretation.** The event is a **burst**, not a stopped timer: the terminal DRX cycle runs ~7× the normal rate,
+  dominated by context key 3 (a working re-arm/retry loop — its own asserts at :336/357/372 did NOT fire), then the
+  key-20 context unconditionally emits the fatal at `:390`. Root cause **OPEN**; next target = what drives key 3's
+  terminal storm and what enters state-20 (`FUN_c02fda90`). Caveats recorded (key 3 also fired ~481× earlier, clustered).
+- **Reversible:** `/lib/firmware` + modem restart only; **rolled back to stock** (`modem.mdt md5 1a6f9507…`) this session.
+
+### 2026-10-05 — §112.129 v52 PRE-REGISTRATION: the corrected whole-run ML1 common-timer dispatch census (state moved into the v50-proven region)
+
+- **Why.** §112.121 scored v51's per-key **census INVALID** (its region `0xc1cfe8a0` is used by the modem at
+  runtime — counts ≈3.25e9, `last_handler` self-referential), and left an explicit fix: co-locate ALL state in
+  the **v50-proven** run and verify by readback. v51's **ring** was valid but covered only **9 s**, so the
+  whole-run per-key view was never obtained. v52 recovers it.
+- **Mechanism (byte-identical hook to v51):** `FUN_c02d7bd0` dispatch `0xc02d7bec` `{ jumpr r2 }` → `{ jump PAD }`;
+  PAD `0xc02cb2c4` → CAVE `0xc003054c`; clobbers only `r7–r13`, ends `jumpr r2`.
+- **★ The single variable vs v51 = the state region.** ALL state now lives in the v50-**readback-proven**
+  run `0xc1d4c600..0xc1d5c600` (seg19): SAVE `0xc1d4c600` (16 B), CENSUS `0xc1d4c610` (256×16 B
+  `{count, first_seq, last_seq, last_t}`), RING `0xc1d4d610` (2048×16 B). End `0xc1d55610 ≤ 0xc1d5c600`.
+- **P-V52 pre-registered:** H1 boot+run to the event; H2 census **sane** (no ≈3e9 / self-referential);
+  H3 regular terminal cadence; H4 key 20 present + rare; **(a)** a key's `last_seq ≪ SAVE.seq` ⇒ owner stalled;
+  **(b)** key 20 fires ⇒ state-20 expiry observed; **(c)** all keys active to the end; **NEG** ⇒ the ML1 timer
+  layer is healthy whole-run ⇒ trigger outside it. **Falsifier:** if the census is *again* contaminated at the
+  proven run, no BSS region is safe ⇒ the zero-run ring method is unsound.
+- Root cause remains **OPEN**. No build/deploy yet (pre-registration only).
+
 ### 2026-10-05 — §112.128 the three alternative "live peek" instruments are all NEGATIVE (log-on-demand, QMI, coredump); the "read the modem live" avenue is CLOSED
 
 - **1. Modem-side log-on-demand (`DIAG_CMD_LOG_ON_DMND = 0x78`) — NEGATIVE.** `0x78` is defined
