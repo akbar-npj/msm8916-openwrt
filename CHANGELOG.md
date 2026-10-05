@@ -11,6 +11,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.142 v57 RESULT: NEG is a HARNESS ARTIFACT (the ML1 ctx address is NOT stable across runs); ★ the v56 re-analysis ANSWERS P-V57 = (a)
+
+- **Run.** v57 image `efda20c2ff40e33fdf1b411b4a84f5b1` (VERIFY PASS). Natural fatal at **mu 908 s** ⇒ `devcd38`
+  (**85 398 475 B**, md5 `d8eaf82a4690bfdeb5c6552dc3db1821`); crash = `lte_ml1_common_timer.c:390`, task `tmr_slave3`.
+  ⚠ LTE was down after the first restart; the watchdog's **stall-SSR** re-anchored the epoch once; captured
+  **device-side** (`scratch/v57mon.sh`, `setsid`) because a host-side background task dies when the agent turn ends.
+- **v57 result: `global_seq = 163171`, `k3_count = 0`, ring all-zero ⇒ NEG.** **The NEG is a HARNESS ARTIFACT**: the
+  filter used the hard-coded ctx `0xc20f1068`, but the ctx block **shifted −0x20** (v56 `0xc20f1068` → v57
+  `0xc20f1048`) — the objects are **runtime-placed**. ⇒ never filter on a ctx/spec address; filter on the **key**.
+- **★ P-V57 ANSWERED from the v56 dump:** correlating `(ctx, spec, iv)` separates **TWO** key-3 timers — a
+  **1 s** one (`ctx 0xc21837b8`, spec `0xc2cd8980`, iv `0x124F800`) running **throughout**, and a **10 ms** one
+  (`ctx 0xc20f1068`, spec `0xc2cda7e0`, iv `0x2EE00`) appearing **ONLY** in the terminal `t`-group (123×, first at
+  `seq 128640`, absent from the preceding 140 entries) ⇒ **(a) MATCHED: the 10 ms timer is a SEPARATE timer that is
+  ARMED at ~900 s.** (1 s ×~783 + 123 storm = 906 ≈ v52's census ⇒ model self-consistent.)
+- **Mechanism:** the 123 records are interleaved within ONE engine invocation, deadlines advancing exactly
+  `0x2EE00` each fire ⇒ the engine processes **~123 list entries for this one timer**, starving `tmr_slave3`.
+- **Next (v58):** catch the **ARM** of the 10 ms timer, filtering on the **key** not an address. Root cause **OPEN**.
+
+### 2026-10-06 — §112.141 v57 PRE-REGISTRATION: the key-3-FILTERED reschedule ring
+
+- Ring the timer-engine deadline store `0xc09137ec` filtered on `memw(r18+0x88) == 0xc20f1068`; SAVE 16 B +
+  1024×32 B ring. P-V57: **(a)** interval 10 ms for all records ⇒ the timer always ran at 10 ms (armed at ~900 s);
+  **(b)** the interval changes ⇒ the period was reprogrammed. Image md5 `efda20c2ff40e33fdf1b411b4a84f5b1`.
+  ⚠ The hard-coded ctx filter turned out to be invalid (see §112.142).
+
 ### 2026-10-06 — §112.140 v56 RESULT: key-3's timer spec carries interval 0x2EE00 = 10.000 ms; (a) MATCHED — the period WAS reprogrammed
 
 - **Run.** Natural event at modem-up **906 s**, `devcd37`, pre-emptive SSR disabled. `SAVE.seq = 128803`,

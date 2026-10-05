@@ -23361,3 +23361,68 @@ between the site and its next write at `0xc0913828`, so it is dead there.
 
 **SOP.** Ground-truth-first; offline VERIFY-PASS; pre-registered before the event; natural event with pre-emptive
 SSR disabled; `a2_pin=1`; rollback = `python3 scratch/deploy_v57.py --rollback`.
+
+---
+
+## §112.142 — v57 RESULT: **NEG is a HARNESS ARTIFACT** (the ML1 ctx address is **not stable** across runs); ★ the **v56 re-analysis ANSWERS P-V57 = (a)**: the 10 ms key-3 timer is a **SEPARATE, terminal-only timer that is ARMED at ~900 s** — 2026-10-06, task #324
+
+**Run.** v57 image `efda20c2ff40e33fdf1b411b4a84f5b1` (VERIFY PASS). Fresh epoch `U0=46392` (`restart_count` 38→39 at
+21:54:30Z); natural fatal at **`ap_up=47300`, mu=908 s** ⇒ `devcd38` (**85 398 475 B**, md5
+`d8eaf82a4690bfdeb5c6552dc3db1821`). Crash = `lte_ml1_common_timer.c:390`, task `tmr_slave3`, uptime **0:15:01** —
+the target fatal. ⚠ The bearer was **DOWN** after the first restart (MM lost the modem); the watchdog's **stall-SSR**
+(`ssr_enabled=1`) restarted it once more before I re-attached LTE via `/etc/init.d/modemmanager restart`. The run
+was then captured **device-side** (`scratch/v57mon.sh`, `setsid`, survives the host session) because a host-side
+`run_v57.py` background task is **killed when the agent turn ends**.
+
+**v57 result: `SAVE.global_seq = 163171`, `k3_count = 0`, `last_iv = 0`, ring all-zero ⇒ NEG.**
+
+**★ The NEG is a HARNESS ARTIFACT, not a real negative.** The v57 filter compared `memw(r18+0x88)` to the
+**hard-coded** ctx `0xc20f1068`. But the ML1 context block is **not at a fixed address across runs**:
+
+| run | key-3 ctx (self `+0x14`) | `+0x38` |
+|---|---|---|
+| v56 dump | `0xc20f1068` | 3 |
+| v57 dump | **`0xc20f1048`** | 3 |
+
+The whole ctx block (incl. the `0xdeadbeef` delimiter) **shifted −0x20** between the two runs — the objects are
+**runtime-placed**, so a hard-coded ctx address is invalid. (Same reason the v57 spec slot `0xc2cda7e0` holds a
+*different* timer — `+0x88 = 0x0cacacac` — in the v57 dump.) ⇒ **never filter on a ctx/spec address; filter on the
+KEY (`memub(ctx+0x38)`), which is what v56 did.**
+
+**★★ P-V57 is nevertheless ANSWERED, from the v56 dump.** Correlating `(ctx, spec, iv)` over v56's 163 key-3 records
+separates **TWO distinct key-3 timers**:
+
+| ctx | spec | interval | count | when |
+|---|---|---|---|---|
+| `0xc21837b8` | `0xc2cd8980` | `0x124F800` = **1000.000 ms** | 40 | **throughout** the run (every `t`-group) |
+| `0xc20f1068` | `0xc2cda7e0` | `0x2EE00` = **10.000 ms** | **123** | **ONLY** the terminal `t`-group `560299441`, first at `seq 128640` |
+
+The ring window `[127780..128803]` **precedes** the 10 ms timer's first record by 140 entries and the 10 ms timer is
+**absent** there ⇒ it did **not** run earlier. ⇒ **(a) MATCHED: the 10 ms timer is a SEPARATE timer that is
+ARMED/started at ~900 s**, **not** a reprogrammed 1 s timer. (The 1 s timer's ~783 dispatches over 900 s + the 123
+storm = **906 ≈ v52's census** — the model is now self-consistent.)
+
+**Mechanism detail.** The 123 records are **interleaved** with other timers (e.g. `seq 128642` = key 14) inside ONE
+engine invocation (`t` identical), and their deadlines advance by exactly `0x2EE00` each fire
+(`0xcc2185dd27, 0xcc2188cb27, 0xcc218bb927, …`). `spec+0x40` (last-fire) and `spec+0x30` (deadline) differ by
+`0x2EE00`, so each fire reschedules to `now+10 ms`. ⇒ the engine processes **~123 entries for this one timer in a
+single invocation** — i.e. the timer is on the expired list many times over (list duplication), which is what
+**starves `tmr_slave3`** and drives the `:390` assert. Candidate identity: this is consistent with the v26/v27
+**sleepmgr sleep timer** (`STMR_ON_REQ`) being armed with a bogus **10 ms** interval after the RF-wakeup path fails.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS, 18 checks) |
+| Boots + reaches the natural event | yes | **yes** (`lte_ml1_common_timer.c:390`, mu 908 s) |
+| P-V57 (a)/(b) discrimination | yes | **(a) MATCHED** — via v56 re-analysis; **v57's own ring is a harness artifact** |
+| Root cause | — | **OPEN** (the ARM of the 10 ms timer is the next target) |
+
+**Next (v58).** Catch the **ARM** of the 10 ms timer: filter on the **KEY** (`memub(memw(r18+0x88)+0x38) == 3`), NOT
+a ctx address, and record the **first** occurrence of each `(spec, iv)` pair + the caller — or hook the "timer
+add/start" path that writes `spec+0x38 = 0x2EE00`. Also: capture the **1 s** key-3 timer's caller to contrast.
+
+**SOP.** Pre-registered (§112.141) **before** the event; natural event; pre-emptive SSR disabled; `a2_pin=1`;
+result recorded **before** rollback. ⚠ Deviation: the watchdog's **stall-SSR** restarted the modem once while LTE
+was down; the epoch was re-anchored and the event was still captured cleanly. Rollback = `deploy_v57.py --rollback`.
