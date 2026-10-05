@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.125 A/B/C Arm C (patch + 2 s keepalive) = FATAL at modem-up 915.8 s (soak false-CLEAN from a dmesg ring-wrap) ⇒ ★ the ~900 s event occurred in ALL THREE arms; ★ a quick SSR recovery makes a fatal look "clean" to a ping soak
+
+- **Arm C actually FATALED** at modem-up **915.81 s** (`lte_ml1_common.c:324`, crash **#23**; `restart_count`
+  20→21; SSR recovered in ~1.5 s; netifd rebuilt the bearer → new IPv4 `10.139.113.132`). The soak reported
+  `CLEAN` — **false**, because its `grep -c` fatal count stayed 16 when the dmesg ring wrapped (new fatal
+  displaced an old line). The only soak-visible trace was the IP change.
+- **★★ A/B/C conclusion — the event occurred in ALL 3 arms:** A stock = FATAL @900.96 s; B patch-only = WEDGE
+  @~900 s; C patch+2 s keepalive = FATAL @915.8 s. ⇒ **neither the no-sleep patch nor the 2 s keepalive prevents
+  the ~900 s event.** The report's "completely resolves the crash" is **FALSE**.
+- **★ Masking mechanism (the report's likely error):** a fatal with a **quick SSR recovery** is invisible to a
+  ping/loss soak (modem back in ~1.5 s) ⇒ `0.0 % loss` over 20 min is compatible with a 15-min fatal. **A
+  stability soak MUST count fatals (last-timestamp or `crash #N`), not just loss.**
+- **Caveat:** n=1/arm; manifestation varies run-to-run ⇒ no arm-to-arm causal claim from n=1.
+- **Harness fix:** `scratch/soak_dev.sh` fatal detection now compares the **last fatal line** (timestamp), not a
+  count. Re-uploaded. Device rolled back to stock + keepalive OFF.
+
 ### 2026-10-05 — §112.124 A/B/C Arm B (no-sleep patch alone) = WEDGE at ~900 s (fatal gone, data path still dies ⇒ reproduces main's Run 2); soak false-CLEAN fixed; Arm C (patch + 2 s keepalive) launched
 
 - **Arm B verdict = WEDGE, not CLEAN.** Soak printed CLEAN only because its 8-fail wedge threshold wasn't reached

@@ -22114,3 +22114,55 @@ from independent evidence (dmesg + state + ping), not from the soak's own label.
 pre-registered expectation (Arm B → "FATAL or WEDGE at ~900 s") — **WEDGE ⇒ expectation met**. No claim that the
 patch "works" is made; the manifestation change is stated as exactly that. Arm C (patch + 2 s keepalive) is
 launched with the fixed harness.
+
+### §112.125 — A/B/C blob test: Arm C (patch + 2 s keepalive) = FATAL at modem-up 915.8 s (masked by a dmesg ring-wrap); ★ a quick SSR recovery makes a fatal look "clean" to a ping soak
+
+**Arm C result (no-sleep patch `3006927c…`, `qcom-time-daemon` ON, **keepalive ON @2 s**):** the event
+**occurred again** — a **FATAL** at **modem-up 915.8 s**, which the soak **missed** (reported `CLEAN mu=1103`).
+
+**The soak's false CLEAN.** The soak detected fatals via `D=$(dmesg | grep -c "fatal error received")` vs the
+baseline `D0=16`. At the fatal the **count stayed 16** — the dmesg **ring buffer had wrapped**, dropping one old
+`fatal error received` line as the new one was added ⇒ `D > D0` never held. **This is the exact weakness flagged
+in memory** ("a count can stay flat when a new fatal displaces an old one — confirm by the last *timestamp*").
+
+**Independent evidence (definitive):**
+```
+[28511.808934] qcom-q6v5-mss 4080000.remoteproc: fatal error received: lte_ml1_common.c:324:
+[28511.809053] remoteproc remoteproc0: crash detected in 4080000.remoteproc: type fatal error
+[28511.816360] remoteproc remoteproc0: handling crash #23 in 4080000.remoteproc
+[28513.300995] remoteproc remoteproc0: remote processor 4080000.remoteproc is now up
+[28513.506979] bam-dmux … SSR powerup: successfully reinitialized BAM channels and rings
+```
+`U0=27596` ⇒ fatal at modem-up **915.81 s** (`:324`, crash **#23**); `restart_count` 20→21. The **SSR recovered
+the modem in ~1.5 s**, and netifd rebuilt the bearer (logread 16:56:41: new IPv4 `10.139.113.132`) ⇒ the
+**30 s ping never sampled the ~1.5 s outage** (mu=908 OK → fatal → mu=940 OK). The IP change
+(`10.25.108.169` → `10.139.113.132`) is the **only** soak-visible trace of the fatal.
+
+**★★ CONCLUSION of the A/B/C test — the ~900 s event occurred in ALL THREE arms:**
+
+| Arm | modem blob | keepalive | verdict | modem-up |
+|---|---|---|---|---|
+| A (control) | stock `1a6f9507…` | OFF | **FATAL** `:324` | 900.96 s |
+| B | no-sleep `3006927c…` | OFF | **WEDGE** (data dead, no coredump) | ~880–910 s |
+| C | no-sleep `3006927c…` | **ON @2 s** | **FATAL** `:324` (#23) | 915.8 s |
+
+⇒ **Neither the no-sleep patch nor the 2 s keepalive prevents the ~900 s event.** The forwarded user report's
+"completely resolves the 15-minute crash" is **FALSE**: all three arms evented within the same window.
+
+**★ The masking mechanism (the report's likely error).** A fatal with a **quick SSR recovery** is **invisible to
+a ping/loss-based soak** — the modem is back in ~1.5 s and the bearer rebuilds, so `0.0 % loss` over a 20-min soak
+is fully compatible with an underlying fatal at 15 min. `main`'s "20-min soak PASSED (1212 s, 0.0 % loss)" is
+therefore **not evidence of stability** unless it also checked the fatal counter / crash count — which the
+ping-based method does not. **A stability soak MUST count fatals (by last-timestamp or `crash #N`), not just loss.**
+
+**Caveat (honest).** n=1 per arm; the project model is **fixed trigger, variable manifestation** (FATAL vs WEDGE
+vary run-to-run), so the arm-to-arm manifestation differences (B=WEDGE vs A/C=FATAL) **cannot** be attributed to
+the patch or the keepalive from n=1. The robust, n=1-safe conclusion is the one above: **all three arms evented**.
+
+**Harness fix (applied).** `scratch/soak_dev.sh`: fatal detection now compares the **last `fatal error received`
+line** (its timestamp) to the baseline line, not a count. Re-uploaded.
+
+**SOP.** The soak's own `CLEAN` is overridden by independent dmesg evidence (crash #23, restart_count 20→21,
+modem-up arithmetic). The masking mechanism is named and generalised (a lesson for every future soak). The n=1
+caveat is stated explicitly so no arm-to-arm causal claim is over-read. The device is rolled back to stock +
+keepalive OFF after the test.
