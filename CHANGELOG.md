@@ -15,9 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Supersedes §112.132's "structurally poisoned" claim**, which rested on an incomplete enumeration (the scanner
   matched only two magic values).
-- **Fixed 28-slot array.** Every one of **63** coredumps >40 MB contains **exactly 28** objects with
-  `callback(+0x0c)==0xc02d7bd0` and `magic(+0x30) ∈ {0xfedcba9..0xfedcbae}`. (The §112.132 "9 contexts" was a
-  filter artifact.) Object stride is **0x40**.
+- **Fixed set of 28 objects.** Every one of **63** coredumps >40 MB contains **exactly 28** objects with
+  `callback(+0x0c)==0xc02d7bd0` and `magic(+0x30) ∈ {0xfedcba9..0xfedcbae}` (keys `0..30 \ {5,16,19}`). (The
+  §112.132 "9 contexts" was a filter artifact.) Object stride is **0x40**, but they are **not one key-indexed
+  array** — they occupy several stable contiguous 0x40-stride runs: keys **20–28**, **6–11**, **1,13–15**, plus
+  **9 singletons**; run membership is identical across dumps.
 - **`+0x1c == 0xdeaddead` is the DEFAULT** — present in 20–28 of the 28 objects in every dump; only the **live**
   objects hold a real pointer. Key 20 is one of ~21 non-live entries.
 - **`magic(+0x30)` is a 6-value STATE field**, written by firmware: `0xc0913830` writes `0xfedcbaa` (live,
@@ -27,8 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   both (8), neither (7) — the live slots are the actively-cycling timers. Key 20 is never live, but neither are
   keys 2, 6–11, 17, 18, 21–30.
 - **Corrected conclusion:** no evidence of corruption/use-after-free; `0xdeaddead`/`0xfedcbab` are deliberate
-  "not live" states. Surviving facts: a fixed 28-slot array; ~7 live slots; the fatal key-20 dispatch runs on a
-  **non-live** slot. **Root cause OPEN.** Tools: `scratch/scan_ctx.py`, `scratch/_dis2.py`, `scratch/_find_magic.py`.
+  "not live" states. Surviving facts: 28 fixed context objects; ~7 live at a time; the fatal key-20 dispatch runs on a
+  **non-live** object. **Root cause OPEN.** Tools: `scratch/scan_ctx.py` (widened to the full magic range in this
+  follow-up), `scratch/_dis2.py`, `scratch/_find_magic.py`.
 
 ### 2026-10-06 — §112.132 v53 RESULT: the terminal key-3 storm is EXTERNAL (a static context re-dispatched); the key-20 fatal context is structurally POISONED (`0xdeaddead`)
 

@@ -22790,7 +22790,7 @@ this session.
 
 ---
 
-## §112.133 — CORRECTION to §112.132: key-20's context is **NOT "poisoned"** — the object is one of a **fixed 28-slot array**, and `0xdeaddead` is the **normal non-live default** — 2026-10-06, task #322 follow-up
+## §112.133 — CORRECTION to §112.132: key-20's context is **NOT "poisoned"** — the object is one of a **fixed set of 28 context objects**, and `0xdeaddead` is the **normal non-live default** — 2026-10-06, task #322 follow-up
 
 **Why.** §112.132 claimed the key-20 fatal context is "structurally poisoned (`0xdeaddead`)" and that "the fatal is
 dispatched through a poisoned / never-initialised context". That claim was based on an **incomplete enumeration**
@@ -22817,11 +22817,17 @@ against the whole corpus **refutes** it.
   not live" is true and reproducible, but it is **not** a distinguishing property.
 * The object stride is **0x40**; e.g. key 20 @`0xc2150f58`, key 21 @`+0x40`, key 22 @`+0x80` — so `obj+0x38` is the
   key/type id and the objects live in a pool.
+* **Precision (2026-10-06 follow-up).** The 28 objects are **NOT one key-indexed array** (`base + key*0x40` does not
+  hold). They occupy **several stable contiguous 0x40-stride runs**: keys **20–28** (9 slots), keys **6–11** (6; a
+  small gap splits 6–8 from 9–11), keys **1,13,14,15** (4), plus **9 singletons** `{0,2,3,4,12,17,18,29,30}`.
+  The run **membership is identical across dumps** (verified on 3 dumps from different builds/epochs); only the
+  absolute addresses shift per boot. Keys present = **`0..30 \ {5,16,19}`**. (`scan_ctx.py` was widened to the full
+  6-value magic range in this follow-up — the tool and this section now agree; it previously printed "9".)
 
 **Corrected conclusion.** There is **no evidence of memory corruption or a use-after-free** on the key-20 context.
-`0xdeaddead` / `0xfedcbab` are **deliberate firmware state values** meaning "not live", and most of the array is in
-that state. The surviving, reproducible facts are: (1) a **fixed 28-slot context array**; (2) only ~7 slots live at
-a time; (3) the fatal key-20 dispatch runs on a **non-live** slot. **Root cause OPEN.**
+`0xdeaddead` / `0xfedcbab` are **deliberate firmware state values** meaning "not live", and most of the set is in
+that state. The surviving, reproducible facts are: (1) a **fixed set of 28 context objects**; (2) only ~7 live at
+a time; (3) the fatal key-20 dispatch runs on a **non-live** object. **Root cause OPEN.**
 
 **SOP.** This is a **self-correction** recorded rather than silently edited: the earlier claim is left in §112.132
 with this superseding section. The refutation came from (a) widening the search key (the magic is a state field,
