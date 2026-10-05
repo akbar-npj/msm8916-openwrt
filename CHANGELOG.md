@@ -11,6 +11,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — #2 ML1 pivot (offline re-scope): no literal 900 s constant and no ML1 watchdog; the ONLY boot-anchored 1 Hz field in the 58 MB BSS is an UNREFERENCED counter at `0xc28c28a0+0x320·i+0x2c`; P-V51 (ML1 common-timer dispatch census) pre-registered (ledger §112.120)
+
+- **Offline recon only** (stock image + 35-dump corpus; no device write, no patch, no run).
+- **Re-scope:** the ~900 s family is **exclusively `lte_ml1`** at modem-uptime **900–903 s** (21 local boundary
+  dumps) — the **ML1 SM/timer layer**; MCPM/RF/sleepmgr are victims (per §112.118/119, v32–v34, §112.66).
+- **F1:** no literal 900 s constant drives it — `#0x384`/`#0x385` sites are memory offsets, a binary-search
+  threshold table (`c0680744`), and a jump-table enum (`c0e79b78`/`c0ea6b80`); no `>900` ML1 watchdog exists.
+- **F2:** the tracked disassembly covers exactly the **executable** segments (`0xc0000000..0xc1404e0c`, #0–#10); the
+  rest is `rw-`/`r--` data, and #15/#20 are `filesz=0` BSS ⇒ the static blind spot is **data, not code**.
+- **F3 (NEW LEAD):** a cross-dump scan for `|value − modem-uptime| ≤ 3` in *every* dump finds **exactly 3** offsets —
+  `0xc28c28cc/0xc28c2bec/0xc28c2f0c` (stride `0x320`, base `0xc28c28a0`) — a **1 Hz seconds-since-boot counter**
+  present in **both** the `a2_power` and the `lte_ml1` families. Struct: self-referential list head (+0x00/+0x04), a
+  slowly-advancing cursor (+0x0c), a table pointer (+0x14), per-instance state (+0x20/+0x24/+0x28), the counter
+  (+0x2c). **⚠ It is NOT referenced by any ELF immediate and nothing points to it** (whole-dump pointer scan = 6
+  self/neighbour hits) ⇒ maintained outside the ELF's static reference graph (the known "second image") — recorded
+  as a **lead, not a conclusion** (a 1 Hz logging/tracing client would look identical).
+- **Instrument picked + pre-registered: P-V51 = an ML1 common-timer dispatch census** — an entry ring on
+  `FUN_c02d7bd0` (`lte_ml1_common_timer.c:390`), recording `{seq, key=memb(obj+0x38), obj, t}` into a per-key census
+  + a 4096-entry ring, to see whether a key stops, the state-20 watchdog spikes, or the cadence collapses at ~900 s.
+- Root cause **OPEN**.
+
 ### 2026-10-05 — v50 MCPM collapse-issuer entry ring: H1/H3/H4 PASS, decision (a) MATCHED — the collapse is ISSUED + ENABLED + COMPLETING throughout ⇒ the MCPM/power layer is a VICTIM; the MCPM line is CLOSED and the search PIVOTS to ML1 (ledger §112.119)
 
 - **Built, offline-verified, deployed and ran v50** — a single-site **ENTRY** ring on `FUN_c0cf8cd0` (the COLLAPSE

@@ -21815,3 +21815,101 @@ dump (`27 c0 00 78` = `r7=#1`); the raw ring was re-read and the per-field histo
 hypothesis-driven **positive** (the collapse completes) and the resulting **pivot** are recorded as such. Reversible:
 only `/lib/firmware` + a modem restart; rolled back to stock (`1a6f9507…`) and the modem reloaded this session.
 Ledger + CHANGELOG + memory updated this session.
+
+### §112.120 — #2 ML1 PIVOT (offline re-scope): the ~900 s deadline has **no literal constant** and **no ML1 watchdog**; the ONLY boot-anchored 1 Hz field in the whole 58 MB BSS is an **unreferenced** counter at `0xc28c28a0+0x320·i+0x2c`; instrument **P-V51** pre-registered (2026-10-05, task #309)
+
+**Why.** §112.119 CLOSED the MCPM/power line (the collapse is issued + enabled + completing; the fatal is `lte_ml1`).
+Task #309 is the pivot: re-scope to the *actual* fatal layer and pick the next instrument. Done **offline**, against the
+stock image (`scratch/hmu05_stock_elf/modem_hmu05_stock.elf`, 50 046 848 B) + the 35-dump local corpus
+(`scratch/coredump_live_full/coredump_live/`). No device write, no patch, no run.
+
+**Re-scope — the fatal layer, stated precisely.** Re-confirmed from the local corpus (21 boundary dumps): the ~900 s
+family is **exclusively `lte_ml1`** at modem-uptime **900–903 s** (`lte_ml1_sleepmgr_stm.c:4054` ×17,
+`lte_ml1_common_timer.c:390` ×4), disjoint from the `a2_power.c:1189` family (68–1041 s). The victims are **ML1 state
+machines + the ML1 common-timer dispatcher**; the MCPM/power layer (§112.118/119) and the RF/RFA transport
+(v32–v34) are **victims**, and the sleepmgr state is victim-dependent (§112.66: a fatal with the sleepmgr HEALTHY).
+⇒ the fatal layer is the **ML1 SM/timer layer and its event sources** — not MCPM, not the sleepmgr specifically.
+
+**F1 — there is no literal 900 s constant in the ML1 code.** `#0x384` (900) / `#0x385` (901) census over the tracked
+disassembly: the `#0x384` hits are almost all **memory offsets** (`memw(rX+#0x384)`); the only genuine comparisons are
+`c0680744: p1 = cmp.gtu(r18,##0x384)` (a **binary-search threshold table** — neighbours `0x835/0x7d1/0x709/0x6a5/0x44d/
+0x1f4`, i.e. a value classifier, not a watchdog) and `c0e79b78`/`c0ea6b80` `cmp.eq(rX,##0x385/0x386/0x387)` (a
+**jump-table enum dispatch** over 900/901/902). `0xdbba0` (900000) was already refuted (§112.99). ⇒ the deadline is
+**not** a literal-driven ML1 watchdog of the `a2_power.c:1189` shape (`0xc28602fc > 900`).
+
+**F2 — the tracked disassembly covers exactly the EXECUTABLE segments.** `full_disasm.txt` / `disasm_b16.txt` span
+`0xc0000000..0xc1404e0c` = ELF segments #0–#10 (flags `r-x`/`rwx`). Segments #11–#20 are `rw-`/`r--`
+(BSS/rodata); **#15 (`0xc2070000..0xc3c08840`, 28.9 MB) and #20 have `filesz = 0`** ⇒ pure zero-init BSS, no code.
+⇒ **the static-analysis blind spot is data, not code** — the prior ML1 RE (all at `0xc02x..0xc0cx`) is complete.
+
+**F3 (★★ NEW LEAD) — a boot-anchored 1 Hz counter, the ONLY uptime-tracking field in the BSS, and it is NOT
+referenced by any ELF code.** A cross-dump scan for `|value − modem-uptime| ≤ 3` in *every* dump
+(`scratch/_v51_uptime_scan.py`, window `0xc0000000..0xc3a00000` = 14.5 M u32 words × 35 dumps) returns **exactly 3
+offsets**: `0xc28c28cc`, `0xc28c2bec`, `0xc28c2f0c` — stride **`0x320`**, i.e. one 0x320-byte record ×3 at base
+`0xc28c28a0`. The value equals the modem's **seconds-since-boot** in the `a2_power` family (68/77/111/177/412/448/
+520/575/909/910/921/940/941/947/1041 s) **and** in the `lte_ml1` boundary family (900–903 s) ⇒ a **1 Hz counter,
+never reset, running in every run** (unlike the a2 counter `0xc28602fc`, which is **0** in the `lte_ml1` family).
+
+The record (from `modem_coredump_up913.64`, up900):
+
+| off | value | meaning |
+|---|---|---|
+| +0x00/+0x04 | `0xc28c28a0`/`0xc28c28a0` | **self-referential doubly-linked list head** (empty list) |
+| +0x0c | `0x8b03d910` (up900) / `0x8b03d7a0` (up412) | a **slowly-advancing cursor** (~0.75 B/s, into seg #20) |
+| +0x14 | `0xc3c0bbdc` | pointer into a `{ptr, 0x0020xxxx}` table (only instance A) |
+| +0x20/+0x24/+0x28 | A `1/3/0x100` · B `0/0x105/0x10100` · C `0xff/0/0x10000` | per-instance state/mask |
+| **+0x2c** | **`0x384`=900 (up900) / `0x19c`=412 (up412)** | **the boot-anchored 1 Hz counter** |
+
+**★ The address is unreachable statically.** (1) No immediate in the whole disassembly targets `0xc28c2xxx` — the
+`immext(#0xc28c….)` census returns only `0xc28ce2c0/ce5c0/ce600/ce640/ce680/ce6c0/ce700/ce740/ce8c0/cea40/cebc0/
+ced00/ced40` (the `0xc28cexxx` region, referenced from `0xc0670xxx`), **never `0xc28c2xxx`**; there is no
+`##-0x3d73d…` immediate either. (2) A whole-dump scan for u32 pointers into `[0xc28c2000,0xc28c3000)` returns only
+**6**, all self/neighbour pointers — **nothing outside the region points at the record**. ⇒ the counter is maintained
+**outside the ELF's static reference graph** — consistent with the known **"second image"** (the QuRT 900 s timer's
+callback `d051e254` is likewise "outside the ELF segments", §112.68) — or via a computed base.
+
+**⚠ Honest limit.** F3 does **not** yet link the counter to the ~900 s event: a 1 Hz "seconds-since-boot" field is
+exactly what a **logging/tracing client** (list head + moving cursor + table ptr + a "last log time") would hold, and
+its value would track uptime whether or not it is a deadline source. It is recorded as a **lead**, not a conclusion.
+
+**Instrument decision — P-V51: the ML1 common-timer dispatch census.** The fatal layer is the ML1 timer/SM layer, and
+`FUN_c02d7bd0` (`lte_ml1_common_timer.c:390`) is its **own dispatcher**: `{ call 0xc02d1140 (a no-op returning 0);
+r16 = r0 }` → `allocframe(#0xb0)` → `jumpr` through the table `memw(gp+#0xba64)[memb(obj+0x38)]` → a per-key switch
+with assert packets at `0xc02d7c18`/`0xc02d7c4c`/… and clean continuation `0xc02d7df8`. v51 hooks its **entry**
+(`0xc02d7bd0`, the 8-byte packet → `{ jump PAD; nop }`; cave reproduces `r16 = r0` then resumes at `0xc02d7bd8`,
+**dropping the no-op call**) and records `{seq, key = memb(r0+0x38), obj = r0, t}` into a **per-key census**
+(`count[256]`, `last_seq[256]`, `last_t[256]`) plus a 4096-entry ring of the last records. Rationale: it enumerates
+**every ML1 timer expiry by key** over the whole run, so the state-20 watchdog (key 20) timeouts and any stalled key
+are directly visible — the broadest ML1-timer view, and the fatal's own layer.
+
+**P-V51 (pre-registered).**
+* **H1** boots and runs to the ~900 s event (natural fatal or forced dump ≥ 980 s).
+* **H2** the ring/census is non-empty; the key histogram shows the known ML1 keys (the continuously re-armed
+  50/100/330/430/530/630/1000/5000 ms timers ⇒ several distinct keys, each with a large count).
+* **H3** the dispatch cadence is regular to the boundary (no terminal anomaly in the per-second rate).
+* **H4** key 20 (the state-20 watchdog) expiries are **rare** (a timeout, not a heartbeat) and do **not** spike.
+* **(a)** a specific key's expiries **STOP** before the crash ⇒ that timer's owner stalled ⇒ target it next.
+* **(b)** key 20 (state-20) expiries **SPIKE** near ~900 s ⇒ a request/response timeout storm ⇒ the reply path died.
+* **(c)** the whole cadence **collapses** at ~900 s ⇒ the ML1 timer layer itself stalled.
+* **NEG** no change ⇒ the ML1 timer layer is healthy to the crash ⇒ the trigger is **outside** the ML1 timer layer
+  (pointing at the "second image" / a hardware-RPM deadline), and the next target is the ML1 **message** path, not
+  its timers.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Re-scope the fatal layer | ML1 SM/timer layer | **YES** — re-confirmed (21 boundary dumps, exclusively `lte_ml1`) |
+| A 900 s literal / watchdog | hoped | **NO** — no literal, no ML1 `>900` watchdog (F1) |
+| Static coverage is complete for code | yes | **YES** — the blind spot is BSS data (F2) |
+| A boot-anchored counter exists | hoped | **YES (NEW)** — `0xc28c28a0+0x320·i+0x2c` (F3) |
+| The counter is linked to the event | hoped | **NO** — unreferenced statically; a lead, not a conclusion |
+| Instrument picked + pre-registered | yes | **YES** — P-V51 (ML1 common-timer dispatch census) |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first: the ELF program headers, the segment flags/`filesz`, the counter values, the struct
+fields and the `FUN_c02d7bd0` prologue/dispatch were all read from the **stock image** + the archived **coredumps**
+— no device access, no patch, no run. The `#0x384`/`#0x385` sites were disassembled and classified (offsets vs
+comparisons) rather than counted. A **new lead** (F3) is reported together with its **explicit limit** (it is not yet
+linked to the event), and the instrument is pre-registered **before** it is built. Reversible by construction: this
+section changes documentation only. Ledger + CHANGELOG + memory updated this session.
