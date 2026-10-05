@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.140 v56 RESULT: key-3's timer spec carries interval 0x2EE00 = 10.000 ms; (a) MATCHED — the period WAS reprogrammed
+
+- **Run.** Natural event at modem-up **906 s**, `devcd37`, pre-emptive SSR disabled. `SAVE.seq = 128803`,
+  `spec_last = 0xc2cda7e0`, `key_last = 3`. The modem **booted cleanly** on the mid-function patch (LTE up, ping OK).
+- **Decisive measurement** (filtered on the ML1 key-3 context `0xc20f1068`): **123 records, one spec
+  `0xc2cda7e0`, interval `0x2EE00` = 192 000 = 10.000 ms for all 123**, all in the single terminal `t`-group —
+  exactly matching the 123 dispatches v54/v55 saw. Deadline-step top = `0x2EE00` ×121. **(a) MATCHED.**
+- **Honesty.** H2/H4 "FAIL" are **scoring artifacts**: the engine is **generic** (non-ML1 timer contexts also carry
+  the magic; `+0x38` is the ML1 key only for ML1 contexts). The second "key-3" is `ctx 0xc21837b8` / spec
+  `0xc2cd8980` with a **1 s** interval — a different timer. Caveat: the ring covers only the terminal window, so
+  the interval *history* is inferred from the rate (v52 census key-3 = 906 over ~900 s ≈ 1 Hz vs 100 Hz here).
+- **Recorded caller** `0xc0913618` = the engine's own loop site, **not** the armer. **No** writer of `spec+0x38`
+  exists in the engine (`0xc0913000..0xc0914000`) ⇒ the interval is set elsewhere.
+- **Next (v57):** ring the **writer of `spec+0x38`** / the "start timer" path for key-3's spec `0xc2cda7e0`.
+  Root cause **OPEN**. Rollback to stock follows.
+
 ### 2026-10-06 — §112.139 v56 PRE-REGISTRATION: the ARM-path ring — the ML1 timer RESCHEDULE interval
 
 - **Why.** §112.138 closed the caller question (key-3 shares `0xc0916ff4`; only expired contexts fire) ⇒ key-3's

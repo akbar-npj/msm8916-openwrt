@@ -23268,3 +23268,60 @@ path after the site ⇒ the cave may use them freely.
 writing; the site re-disassembles to the intended jump); image offline-VERIFY-PASS; pre-registered **before** the
 event; pre-emptive SSR disabled; `a2_pin=1`; one change at a time; rollback = `python3 scratch/deploy_v56.py
 --rollback` (now restarts the modem).
+
+---
+
+## §112.140 — v56 RESULT: the ARM-path ring — **key-3's timer spec (`0xc2cda7e0`) carries interval `0x2EE00` = 10.000 ms**; **(a) MATCHED** — the period WAS reprogrammed — 2026-10-06, task #324
+
+**Natural event reached.** `modem.mdt = 962eb17f0f30f7317c387e5b42409d4f` (VERIFY PASS, 17 checks) deployed; the
+modem **booted cleanly** on it (LTE up, ping OK — a bad mid-function patch would have crash-looped); modem restarted
+(33→34, U0 = ap_up 44762 s); natural fatal at **modem-up 906 s** (`devcd37`, 85 398 475 B). `SAVE.seq = 128803`,
+`spec_last = 0xc2cda7e0`, `key_last = 3`.
+
+**The decisive measurement (filtered on the ML1 key-3 context `0xc20f1068`).**
+
+| ctx | records | spec | interval | t-groups | seq range |
+|---|---|---|---|---|---|
+| **`0xc20f1068`** (ML1 **key-3**) | **123** | **`0xc2cda7e0`** | **`0x2EE00` = 192 000 = 10.000 ms** (×123, all) | **1** (the terminal group) | 128640..128803 |
+
+⇒ **the ML1 key-3 timer's spec has interval = 10.000 ms**, and it reschedules 123× inside the single terminal
+`t`-group — exactly matching the 123 dispatches v54/v55 saw. **Interval `0x2EE00` ⟺ a 10.00 ms period. (a)
+MATCHED: the period was reprogrammed.** The deadline-step histogram confirms it: top step `0x2EE00` ×121.
+
+**Scoring / honesty.**
+* **H1 PASS** (`SAVE.seq = 128803`). **H3 PASS** (terminal group 196 records; key-3 = 126).
+* **H2 "keys ⊆ v52 set" FAIL** and **H4 "key-3 ctx distinct == 1" FAIL** are **scoring artifacts**: the engine is
+  **generic** — many timer contexts (not just ML1) carry the `0xfedcba9..0xfedcbaf` magic and pass through it, and
+  `+0x38` is the ML1 **key** only for ML1 contexts. The second "key-3" is **`ctx 0xc21837b8` / spec `0xc2cd8980`
+  with interval `0x124F800` = 1 000 ms** — a *different* timer whose `+0x38` coincidentally equals 3. Filtering on
+  the known ML1 key-3 context (`0xc20f1068`) gives the clean single-spec result above. (The extra "keys"
+  `71,72,112,…` are non-ML1 `+0x38` values.)
+* **Caveat (interval history).** The 1024-record ring covers only the terminal window (key-3's records are all in
+  one `t`-group), so key-3's interval **earlier** in the run was **not** captured. The change is inferred from the
+  **rate**: the v52 whole-run census had key-3 = **906** over ~900 s (≈1 Hz) vs 100 Hz here ⇒ the interval changed.
+
+**The recorded caller `0xc0913618`** is the engine's **own loop site** (the instruction after `call 0xc0913df0` at
+`0xc0913610`), **not** an external armer ⇒ v56 does not name the armer.
+
+**No writer of `spec+0x38` exists in the engine** (`0xc0913000..0xc0914000` has **0** `memd(rX+#0x38)=`) ⇒ the
+interval is set by **other** code (a "create/start timer" path), which is the v57 target.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS, 17 checks) |
+| Boots on the mid-function patch | yes | **yes** (clean boot, LTE) |
+| (a)/(b) discrimination | yes | **(a) MATCHED — interval IS 10 ms** |
+| Root cause | — | **OPEN** (the armer is the next target) |
+
+**Next (v57).** Find **who writes `0x2EE00` to key-3's spec `0xc2cda7e0` at `+0x38`** (or who *starts* that timer
+with a 10 ms interval) — i.e. the arm/start path. Candidate: ring the writers of `spec+0x38` filtered to
+`spec == 0xc2cda7e0`, or find the "start timer" API that consumes the spec.
+
+**SOP.** Pre-registered (§112.139) **before** the event; one change at a time; natural event with pre-emptive SSR
+disabled; result recorded **before** rollback; `a2_pin=1`. Rollback follows immediately.
+
+**Rollback (done).** `python3 scratch/deploy_v56.py --rollback` restored `/lib/firmware` from
+`/root/fw_stock_hmu05` (**stock `1a6f9507…`**) and **restarted the modem** onto it; after the restart: modem
+running, LTE re-attached, **ping OK**.
