@@ -23188,3 +23188,83 @@ restart the modem** (unlike the v54 script) ⇒ the *running* modem keeps the pa
 on-disk files are stock; a manual `echo restart > msm_subsys/modem` was required (restart_count 31→32). After the
 restart: modem running, `wwan0 = 10.95.165.33/30`, default route via `wwan0`, **ping OK**. `rollback()` was
 **fixed** to restart + confirm.
+
+---
+
+## §112.139 — v56 PRE-REGISTRATION: the **ARM-path** ring — the ML1 timer **RESCHEDULE interval** (is key-3's period 10 ms?) — 2026-10-06, task #324
+
+**Why.** §112.138 closed the caller question: every key is dispatched from the **same** call site (`0xc0916ff4`)
+and the loop fires **only expired** contexts ⇒ key-3's **deadline itself** was set to 10 ms. §112.136 showed the
+key-3 handler never re-arms ⇒ the arm is in the **timer engine**. v56 rings that engine.
+
+**The timer engine (stock disasm — ground truth).** The function @`0xc0913370` (seg16) is the ML1 timer
+**reschedule / deadline** engine. Entered with `r18` = the per-timer **SPEC**:
+
+| spec field | meaning |
+|---|---|
+| `r18+0x30` | base / current deadline (64-bit) |
+| **`r18+0x38`** | **INTERVAL (64-bit) = the period** |
+| `r18+0x40` | last-fire time (64-bit) |
+| `r18+0x88` | the ML1 **context object** (magic at `+0x30` range-checked `0xfedcba9..0xfedcbaf`) |
+
+It computes the next deadline (with catch-up: `next = now + interval − ((now−base) mod interval)`) and at
+**`0xc09137ec`** stores it: `memd(r18+#0x30) = r3:2`. At that point **`r23:22` still holds the interval**
+(loaded at `0xc091378c`, never overwritten on this path). ⇒ **`interval == 0x2EE00` (192 000 ticks @ 19.2 MHz) ⟺
+a 10.00 ms period.**
+
+**Method (unchanged — firmware cave in modem BSS + crash-coredump read).**
+
+| item | value |
+|---|---|
+| site | `0xc09137ec` `{ memd(r18+#0x30) = r3:2 }` (`06c2d2a1`) → `{ jump PAD }` (repl `6cfd3659`) |
+| PAD | `0xc02cb2c4` → `{ r6 = ##CAVE }; { jumpr r6 }` (reused 12 B sled) |
+| CAVE | `0xc003054c` (**136 B** of the 180 B sled); **re-executes the original store**, then `jumpr`→`0xc09137f0` |
+| registers | clobbers only `r6–r13`; `r18` (spec), `r22/r23` (interval), `r2/r3` (deadline), `r29`, `r31` are **read-only** |
+
+**Register safety (verified, not assumed).** A liveness scan of the **whole** function after the site shows the
+only live registers are `r0, r16, r18, r19, r24–r27, r29, r31` — **none in `r6–r13`**, which are never read on any
+path after the site ⇒ the cave may use them freely.
+
+**State — ALL inside the v50-readback-proven run `0xc1d4c600..0xc1d5c600` (seg19, asserted zeroed).**
+
+| region | VA | size | layout |
+|---|---|---|---|
+| SAVE | `0xc1d4c600` | 16 B | `{seq, spec_last, key_last, pad}` |
+| RING | `0xc1d4d610` | 1024 × 48 B | `{seq, spec, iv_lo, iv_hi, dl_lo, dl_hi, ctx, key, caller, t, pad, pad}` |
+
+`iv_hi:iv_lo` = the interval; `dl_hi:dl_lo` = the new deadline; `ctx = memw(r18+0x88)`;
+`key = memub(ctx+0x38)`; `caller = r31` (the return address into the reschedule function's caller);
+`t = memw(0xc1da0948)`. End `0xc1d59610 ≤ 0xc1d5c600`. **v56 image md5 `962eb17f0f30f7317c387e5b42409d4f`**
+(offline VERIFY PASS, 17 checks; the patched site disassembles to `jump 0xc02cb2c4`).
+
+**P-V56 (pre-registered BEFORE any v56 data exists).**
+* **H1** the modem boots and runs to the ~900 s event (`SAVE.seq > 0`).
+* **H2** the ring is sane: `seq` strictly increasing; keys ⊆ the v52 set `{0,1,3,4,12,13,14,15,20}`.
+* **H3** the key-3 terminal storm appears as **≥50 key-3 reschedules** in the terminal `t`-group.
+* **H4** the key-3 `ctx` is a **stable single** pointer.
+* **(a)** key-3's terminal **interval IS `0x2EE00`** (10 ms) ⇒ the **period was reprogrammed** ⇒ next target =
+  the **writer of `spec+0x38`**.
+* **(b)** key-3's interval is **NOT `0x2EE00`** but its reschedule **rate is ~100 Hz** ⇒ the storm is in the
+  **driver** ⇒ next target = the **caller** of this function.
+* **NEG** **no key-3 records at all** ⇒ the reschedule path is **not** key-3's arm ⇒ re-target.
+
+**Falsifier (decisive negative).** If `SAVE.seq > 0` but **no** record has `ctx+0x38` in the ML1 key set, the
+`r18+0x88` context-link premise is wrong ⇒ the reschedule engine is not the ML1 arm.
+
+**Caveats.** The hook fires for **every** ML1 timer reschedule, not just key-3 (filtered offline by key). The
+`interval` is **read** here, not written — if it never changes, v56 localises the storm to the reschedule
+**driver** (branch b) rather than the period. `t` remains the cached per-cycle clock.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS, 17 checks) |
+| Register safety verified | yes | **yes** (liveness scan of the whole function) |
+| (a)/(b) discrimination | yes | *pending* |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first (site, spec offsets and register liveness all read from the **stock** image before
+writing; the site re-disassembles to the intended jump); image offline-VERIFY-PASS; pre-registered **before** the
+event; pre-emptive SSR disabled; `a2_pin=1`; one change at a time; rollback = `python3 scratch/deploy_v56.py
+--rollback` (now restarts the modem).

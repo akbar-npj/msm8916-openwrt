@@ -11,6 +11,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.139 v56 PRE-REGISTRATION: the ARM-path ring — the ML1 timer RESCHEDULE interval
+
+- **Why.** §112.138 closed the caller question (key-3 shares `0xc0916ff4`; only expired contexts fire) ⇒ key-3's
+  **deadline** was set to 10 ms; §112.136 showed the handler never re-arms ⇒ the arm is in the **timer engine**.
+- **Engine.** Function @`0xc0913370`: `r18` = SPEC; `+0x30` base/deadline, **`+0x38` INTERVAL (the period)**,
+  `+0x40` last-fire, `+0x88` the ML1 context. At `0xc09137ec` it stores the next deadline; `r23:22` = the interval.
+  `interval == 0x2EE00` ⟺ 10.00 ms.
+- **Hook.** Site `0xc09137ec` → PAD `0xc02cb2c4` → cave `0xc003054c` (**136 B**), re-executes the original store
+  then jumps to `0xc09137f0`. Clobbers only `r6–r13`; a **liveness scan of the whole function** confirms they are
+  dead (`r0,r16,r18,r19,r24–r27,r29,r31` are the live set).
+- **Ring** (1024 × 48 B): `{seq, spec, iv_lo, iv_hi, dl_lo, dl_hi, ctx, key, caller, t}`. **P-V56:** H1–H4;
+  **(a)** interval IS `0x2EE00` ⇒ period reprogrammed (find the writer of `spec+0x38`); **(b)** interval not 10 ms
+  but rate ~100 Hz ⇒ the driver; **NEG** no key-3 records ⇒ re-target. Image md5
+  `962eb17f0f30f7317c387e5b42409d4f`, VERIFY PASS (17 checks). Rollback now restarts the modem.
+
 ### 2026-10-06 — §112.138 v55 RESULT: the invoker/caller ring — key-3 shares the SAME caller as every other key ⇒ (a) the timer period was reprogrammed
 
 - **Run.** Natural event at modem-up **906 s**, `devcd36` (85 398 475 B), pre-emptive SSR disabled.
