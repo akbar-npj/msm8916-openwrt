@@ -11,6 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — §112.137 v55 PRE-REGISTRATION: the invoker/caller ring (is key-3's 100 Hz a timer-period change or an event source?)
+
+- **Adds the caller of the dispatcher** to the verified v54 instrument: the frame window `r29+0xa8..0xb4` that
+  `allocframe(#0xb0)` saved the caller's return address into, each load in its **own** packet (fixes the v53
+  read-before-write bug). Same site `0xc02d7bec` / PAD / cave as v52–v54.
+- **Ring** (1024 × 48 B): `{seq, key, handler, obj, w1c, w20, w28, f_a8, f_ac, f_b0, f_b4, t}`.
+- **P-V55:** H1–H4; **(a)** caller SAME for key-3 and others ⇒ timer-period change (hunt the arm); **(b)** caller
+  DIFFERS ⇒ event/message source; **NEG** no frame word is a code VA ⇒ frame offset wrong.
+- **Honest note:** the literal arm function (`0xc0913370`) is only a **hypothesis** (it arms from a *global* spec)
+  and its entry packet is messy; the invoker ring is the robust first step. Image md5
+  `4eb4566dd2c0ad700e59f9de5815e68e`, VERIFY PASS (16 checks). Pre-emptive SSR disabled; `a2_pin=1`.
+
 ### 2026-10-06 — §112.136 STATIC MAP: the ML1 dispatcher is a thin jump table; every handler sends an ML1 message; key-20's fatal is a flag-gate check
 
 - **Dispatcher `FUN_c02d7bd0` = 0x20 bytes**: `key = memub(obj+0x38); handler = memw(table[key]); jumpr handler`.

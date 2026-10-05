@@ -23038,3 +23038,73 @@ path) and ring it to record `{key, interval, caller, t}` — to catch the arm ev
 
 **SOP.** Static ground truth only (no device change); every VA re-disassembled this session from the stock image.
 **Root cause OPEN.**
+
+---
+
+## §112.137 — v55 PRE-REGISTRATION: the **invoker/caller** ring — is key-3's 100 Hz from a timer-period change or an event source? — 2026-10-06, task #324
+
+**Why.** §112.135 showed key-3 fires at a constant 10.00 ms for ~1.23 s; §112.136 showed its handler only
+**sends ML1 messages** and never re-arms ⇒ the 10 ms period is set **outside** the handler. The decisive question
+is whether key-3 is invoked by the **same path** as every other key (⇒ a **timer-period change**, hunt the arm)
+or a **different** one (⇒ an **event/message source** re-dispatches it). **The caller of `FUN_c02d7bd0` answers
+this directly.**
+
+**Why not the literal arm function (honest note).** The best arm candidate is `0xc0913370` — a function that reads
+a timer **interval** (`r18+0x38`) and computes/arms the deadline. But (a) it operates on a **global** spec
+(`r18 = r4 = 0xc2cd3c1c`), so it is **not confirmed** to be the *key-3* arm (vs a generic timer service), and (b)
+its entry is a 12–16 byte multi-instruction packet (`call`+`immext`+`allocframe`), so hooking it is riskier than
+the clean single-instruction sites v52–v54 used. The invoker ring is the **robust** first step; the arm is the
+follow-up if the caller is shared. (Decision taken with the user.)
+
+**Method (unchanged — firmware cave in modem BSS + crash-coredump read).**
+
+| item | value |
+|---|---|
+| site | `0xc02d7bec` `{ jumpr r2 }` → `{ jump PAD }` (**byte-identical to v52/v53/v54**, repl `6cdbfe59`) |
+| PAD | `0xc02cb2c4` → `{ r6 = ##CAVE }; { jumpr r6 }` (reused; in range) |
+| CAVE | `0xc003054c` (**156 B** of the 180 B sled) |
+| registers | clobbers only `r7–r13`; preserves `r2` (handler), `r16` (object), `r29`, `r31`; ends `jumpr r2` |
+
+**State — ALL inside the v50-readback-proven run `0xc1d4c600..0xc1d5c600` (seg19).**
+
+| region | VA | size | layout |
+|---|---|---|---|
+| SAVE | `0xc1d4c600` | 16 B | `{seq, key_last, t_last, pad}` |
+| RING | `0xc1d4d610` | 1024 × 48 B | `{seq, key, handler, obj, w1c, w20, w28, f_a8, f_ac, f_b0, f_b4, t}` |
+
+`f_a8..f_b4 = memw(r29+0xa8 .. r29+0xb4)` — the frame window `allocframe(#0xb0)` saved the caller's return
+address into; **each load is in its OWN packet** (the v53 read-before-write bug is fixed). `t = memw(0xc1da0948)`.
+End `0xc1d59610 ≤ 0xc1d5c600`. **v55 image md5 `4eb4566dd2c0ad700e59f9de5815e68e`** (VERIFY PASS, 16 checks).
+
+**P-V55 (pre-registered BEFORE any v55 data exists).**
+* **H1** the modem boots and runs to the ~900 s event (`SAVE.seq > 0`).
+* **H2** the ring is sane: `seq` strictly increasing; keys ⊆ the v52 set `{0,1,3,4,12,13,14,15,20}`.
+* **H3** the key-3 terminal storm is **reproduced**: ≥50 key-3 records in the terminal `t`-group.
+* **H4** `obj` is a **stable valid pointer** for all key-3 records.
+* **(a)** the caller is the **SAME** for key-3 and every other key ⇒ key-3's **timer period changed** ⇒ next
+  target = the **arm path**.
+* **(b)** the caller **DIFFERS** for key-3 ⇒ an **event/message source** re-dispatches it ⇒ next target = that
+  caller.
+* **NEG** the frame words are **not valid code VAs** ⇒ the frame offset is wrong ⇒ re-derive from the disassembly.
+
+**Falsifier (decisive negative).** If **none** of the 4 frame words is a code VA in any record, the caller-recovery
+model is wrong (the `allocframe`-saves-original-r31 premise fails) ⇒ re-derive the frame layout before believing
+any caller.
+
+**Caveats.** The caller slot is **not known a priori** — the reader reports all 4 frame words and picks the one
+that is a code VA. `w20`/`w28` remain **unlabelled** timestamps. The cached `t` cannot distinguish "one long
+cycle" from "the clock stopped" (§112.130).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS, 16 checks) |
+| Caller slot is a code VA | hoped | *pending* |
+| (a)/(b) discrimination | yes | *pending* |
+| Root cause | — | **OPEN** |
+
+**SOP.** Ground-truth-first (the site/PAD/cave and the frame layout read from the **stock** image before writing;
+the v53 hazard was fixed and the verifier asserts **no** load/store-r13 packet hazard and the frame reads); image
+offline-VERIFY-PASS; pre-registered **before** the event; pre-emptive SSR disabled so the **natural** event is
+reached; `a2_pin=1`. One change at a time; rollback = `python3 scratch/deploy_v55.py --rollback`.
