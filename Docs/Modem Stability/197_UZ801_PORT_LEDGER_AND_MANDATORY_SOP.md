@@ -22237,3 +22237,81 @@ hypothesis was checked against the actual harness and **closed** rather than ass
 recovery is reported with its mechanism (watchdog Stage-3 SSR), not attributed to any fix. Offline
 analysis + device reads only — **no firmware change, no baseband write, no conclusion about the root
 cause** (which remains OPEN).
+
+---
+
+## §112.127 — The DIAG command channel is SOLVED; there is NO memory-read opcode
+
+**Why this was done.** §112.126 closed with "no memory-read service at cmd 0x0000" and named the
+missing capability: a live, non-destructive peek of modem state at ~800 s vs ~910 s. The user asked
+why the Android diag tool had not simply been ported. Answering that required (a) establishing what
+the Android stack actually provides and (b) finding whether the modem exposes a memory-read at all.
+
+**1. The Android userspace diag tools exist but cannot run here.** `GitIgnore/MelbonWhiteStock_Dump`
+and `.../MelbonBlackStock_Working_EDL_Dump` carry the full set: `diag_mdlog`, `diag_uart_log`,
+`diag_klog`, `diag_socket_log`, `diag_qshrink4_daemon`, `diag_callback_client`, `diag_dci_sample`,
+`test_diag`, and `libdiag.so`. All are **ELF 32-bit ARM, dynamically linked against Android's
+`/system/bin/linker` and bionic** — they will not run on this **aarch64 musl** userland. Their
+contents also show what they are: `libdiag.so` is the *Logging Service Module* (masks, streams,
+circular logging); `test_diag` registers an **AP-side** `diagpkt_tbl_reg` service; `diag_dci_sample`
+is a DCI client demo. **None of them contains a modem memory-read.**
+
+**2. The AP-side kernel driver is a pipe, not a command set.** `drivers/char/diag/` (Android 3.10.28)
+does transport + mask handling + filtering. The two tempting names are red herrings: `diagmem.c` is a
+**mempool** (alloc/free), and `MEMORY_DEVICE_MODE`/`DIAG_PROC_MEMORY_DEVICE` is *log-to-memory*
+logging, not a memory read. Porting the driver to the 6.12 kernel would be a rewrite (legacy
+`smd`/`hsic`/`diagfwd_bridge` APIs) and would collide with the existing `rpmsg_chrdev` bridge, which
+is **exclusive-open**. It would also buy nothing: the driver contains no command semantics.
+
+**3. ★★★ THE COMMAND CHANNEL WAS THE MISSING PIECE.** The modem exposes a dedicated
+request/response SMD channel, `DIAG_CMD` (`F_DIAG_REQ_RSP_CHANNEL`), separate from the DIAG data
+channel. `diag-bind` bound only `DIAG` and `DIAG_CNTL`, so `/dev/rpmsg2` never existed. Once bound,
+**raw DIAG command bytes written to `/dev/rpmsg2` are answered on `/dev/rpmsg2`** — the data channel
+(`/dev/rpmsg0`) carries only the log/F3 stream and never answers. Three further facts were required:
+  - a **mask session must be active** (`diag_logtool cntl-enable-range /dev/rpmsg1 256`); with no
+    session the modem ignores the command channel;
+  - the reply queue **lags by one request**, so a drain (150 ms) must precede each send;
+  - the old tool's "send RAW, HDLC is rejected" note was **wrong** — see below.
+
+**4. ★ Framing: the DATA channel needs HDLC, the CMD channel needs RAW.** A stray success —
+`7e 00 0f 1e 7e` (HDLC-framed VERNO) on `/dev/rpmsg0` — returned the genuine 58-byte VERNO reply
+`00 "Nov 25 202523:56:08Sep 09 201510:00:00EAAAANUZ:" ... fe 7e`. On `/dev/rpmsg2` the same bytes are
+rejected (`0x13 BAD_CMD`) while **bare** `00` returns that same 58-byte reply. The HDLC framing was
+recovered from `diagchar_hdlc.c`: **CRC-16/CCITT-FALSE** (poly 0x1021, seed 0xFFFF, sent inverted,
+lo then hi), escape `0x7e`/`0x7d` as `0x7d ^ (b^0x20)`, terminate `0x7e`, leading `0x7e` required.
+
+**5. Instrument built.** `packages/diag-logtool/src/diag_logtool.c` gained:
+`req <hex> <expect>` (raw + reply-matching + drain), `hdlc <hex> <expect> [lead]` (HDLC),
+`capture-send`, and `DIAG_DEV=<path>` to select the endpoint. `read_reply` now accumulates reads and
+splits on the `0x7e` delimiter, skipping the `0x10/0x11/0x79/0x92` stream, and `expect=0` accepts any
+non-stream message. `packages/diag-bind/files/diag-bind` now also binds `DIAG_CMD` (best-effort) and
+prints `CMD=/dev/rpmsgN`; **every SSR destroys this binding**, which is what made the channel look
+intermittent (a second fatal at ap 17:56:11 / watchdog count 17→18 tore it down mid-session).
+
+**6. ★★★ THE DIAG DISPATCH, DECODED.**
+  - **Top-level codes accepted** (reply code == request code): `00 01 0c 0f 19 1a 1b 1c 1d 1f 24 26
+    2c 2d 2f 30`; `27`→`42`; `29`→`14`. **Everything else → `13 DIAG_BAD_CMD_F`.**
+  - **★ The memory/IO commands are GONE: `02 PEEKB`, `03 PEEKW`, `04 PEEKD`, `05 POKEB`, `06 POKEW`,
+    `07 POKED`, `08 OUTP`, `09 OUTPW`, `0a INP`, `0b INPW` all return `0x13 BAD_CMD`.**
+  - **DIAG_SERV (`0x4b 12 <cmd>`)** valid commands: `02 03 04 05 09 0a 0b 0c 0d 0e 0f 10 11 12 29`
+    (consistent with `DIAG_DIAG_POLL=0x03`, `DIAG_DEL_RSP_WRAP=0x04`, `..._CNT=0x05`). With no
+    payload they return a 7-byte bare header; `29` returns a timestamp. `06 07 08 13..28 2a..30` →
+    `0x13`; `00 01` → `0x15` (a length/param error); `55` and `214` → `0x13`.
+  - Subsystem commands DO work: `4b 13 01 00` (FS/EFS cmd 1) returns a real payload.
+  - **No reply to any accepted command or to any `0x12` command carried the memory contents** of the
+    self-validating sentinel address `0xc2fe7220` (`0x31415926`). The `0x12` commands behave as
+    in-place buffer/test operations (the `diagdiag_common.c` / `MUTEX_DIAGDIAG_MEMOP_CS` factory
+    stress test), not a peek.
+
+**7. Conclusion.** **This modem build exposes no DIAG memory-read opcode.** The legacy PEEK/POKE/INP/
+OUTP set is removed, the AP driver is a pipe, the Android userspace tools are logging-only 32-bit
+bionics, and the surviving `0x12` commands are a memory *stress test*, not a read. The ledger's hoped
+-for "DIAG memory-peek at ~800 s vs ~910 s" is therefore **NOT achievable via DIAG**; the decisive
+"counter wrapped vs condition met" test needs a different instrument.
+
+**SOP.** Ground truth first (framing + CRC taken from `diagchar_hdlc.c`, not guessed; the sentinel
+address used as a self-validating control); the earlier "raw works / HDLC rejected" note was
+**falsified by experiment** and corrected rather than carried; the negative is **scoped** to the
+command surface actually probed; the intermittency was traced to SSR channel teardown (a mechanism),
+not hand-waved. Device reads + a rebuilt userspace tool only — **no firmware change, no baseband
+write, no coredump**; the ~900 s root cause remains **OPEN**.

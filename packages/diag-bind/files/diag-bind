@@ -29,6 +29,10 @@ BUS=/sys/bus/rpmsg
 DRV=rpmsg_chrdev
 DIAG=remoteproc0:smd-edge.DIAG.-1.-1
 CNTL=remoteproc0:smd-edge.DIAG_CNTL.-1.-1
+# The request/response channel (F_DIAG_REQ_RSP_CHANNEL).  Raw DIAG commands are
+# written here and their replies are read back here; the DIAG data channel
+# (above) carries only the log/F3 stream.  It is also destroyed by every SSR.
+CMD=remoteproc0:smd-edge.DIAG_CMD.-1.-1
 
 bind_one() {
     dev=$1
@@ -76,6 +80,9 @@ ensure_dev() {
 
 bind_one "$DIAG" || exit 1
 bind_one "$CNTL" || exit 1
+# The command channel is best-effort: a modem build without it must not make
+# diag-bind fail, since the data/control channels are what captures need.
+bind_one "$CMD" || true
 
 i=0
 while [ "$i" -lt 10 ]; do
@@ -85,12 +92,13 @@ while [ "$i" -lt 10 ]; do
     i=$((i+1))
 done
 
-D0=$(node_of "$DIAG"); D1=$(node_of "$CNTL")
+D0=$(node_of "$DIAG"); D1=$(node_of "$CNTL"); D2=$(node_of "$CMD")
 if [ -z "${D0:-}" ]; then echo "ERROR: DIAG bound but produced no rpmsg node" >&2; exit 1; fi
 if [ -z "${D1:-}" ]; then echo "ERROR: DIAG_CNTL bound but produced no rpmsg node" >&2; exit 1; fi
 
 ensure_dev "$D0" || { echo "ERROR: cannot create /dev/$D0" >&2; exit 1; }
 ensure_dev "$D1" || { echo "ERROR: cannot create /dev/$D1" >&2; exit 1; }
+if [ -n "${D2:-}" ]; then ensure_dev "$D2" || D2=""; fi
 
 # Prove the data channel really opens read-write.  /dev/rpmsg0 is
 # exclusive-open, so this must be a single read-write descriptor.
@@ -105,3 +113,4 @@ fi
 
 echo "DIAG=/dev/$D0"
 echo "CNTL=/dev/$D1"
+[ -n "${D2:-}" ] && echo "CMD=/dev/$D2"

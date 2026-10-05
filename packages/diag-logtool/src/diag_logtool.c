@@ -206,6 +206,116 @@ static double now_s(void) {
     return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
+/* CRC-16/CCITT (poly 0x1021, seed 0xFFFF) as used by diagchar_hdlc.c
+ * (CRC_16_L_SEED / crc_ccitt_byte). */
+static uint16_t crc16_ccitt(uint16_t crc, const unsigned char *p, int n) {
+    for (int i = 0; i < n; i++) {
+        crc ^= (uint16_t)(p[i] << 8);
+        for (int b = 0; b < 8; b++)
+            crc = (crc & 0x8000) ? (uint16_t)((crc << 1) ^ 0x1021)
+                                 : (uint16_t)(crc << 1);
+    }
+    return crc;
+}
+
+/*
+ * HDLC-frame a DIAG payload exactly as diagchar_hdlc.c does:
+ *   [0x7e] <escaped payload> <escaped ~crc_lo> <escaped ~crc_hi> 0x7e
+ * Escape 0x7e and 0x7d as 0x7d ^ (byte ^ 0x20).  The leading flag is optional
+ * (the driver only emits the trailing one); pass lead=1 for a fresh frame.
+ */
+static int hdlc_frame(const unsigned char *in, int n, unsigned char *out,
+                      int outsz, int lead) {
+    unsigned char raw[BUFSZ];
+    int rl = 0, o = 0;
+    uint16_t crc;
+
+    if (n < 0 || n > (int)sizeof(raw) - 3) return -1;
+    memcpy(raw, in, n);
+    rl = n;
+    crc = ~crc16_ccitt(0xFFFF, in, n);
+    raw[rl++] = (unsigned char)(crc & 0xFF);
+    raw[rl++] = (unsigned char)((crc >> 8) & 0xFF);
+
+    if (lead) {
+        if (o >= outsz) return -1;
+        out[o++] = 0x7e;
+    }
+    for (int i = 0; i < rl; i++) {
+        unsigned char b = raw[i];
+        if (b == 0x7e || b == 0x7d) {
+            if (o + 2 > outsz) return -1;
+            out[o++] = 0x7d;
+            out[o++] = (unsigned char)(b ^ 0x20);
+        } else {
+            if (o + 1 > outsz) return -1;
+            out[o++] = b;
+        }
+    }
+    if (o >= outsz) return -1;
+    out[o++] = 0x7e;
+    return o;
+}
+
+/*
+ * Read until a message whose first byte is `code` appears, then return it.
+ *
+ * The modem interleaves a continuous stream (LOG_F 0x10, MSG_F 0x11, and the
+ * 0x79 / 0x92 control messages) with command replies.  Each message is
+ * terminated by a 2-byte CRC followed by 0x7e, and a single read() may coalesce
+ * many messages, so a reply can be preceded/followed by stream traffic and may
+ * even be split across two reads.  We therefore accumulate reads and look for
+ * a message start -- either at buffer offset 0 or immediately after a 0x7e --
+ * whose first byte matches `code`, terminated by the next 0x7e.
+ *
+ * Returns the message length, 0 on timeout, -1 on error.
+ */
+static int read_reply(unsigned char code, unsigned char *out, int outsz,
+                      int timeout_ms) {
+    static unsigned char acc[1 << 20];
+    int acclen = 0;
+    double t0 = now_s();
+
+    for (;;) {
+        int i;
+        for (i = 0; i < acclen; i++) {
+            int match;
+            if (code == 0)
+                /* any message that is not part of the continuous stream */
+                match = !(acc[i] == 0x10 || acc[i] == 0x11 ||
+                          acc[i] == 0x79 || acc[i] == 0x92);
+            else
+                match = (acc[i] == code);
+            if (!match) continue;
+            if (i != 0 && acc[i - 1] != 0x7e) continue;   /* must be a msg start */
+            /* first candidate: look for its delimiter */
+            for (int j = i + 1; j < acclen; j++) {
+                if (acc[j] == 0x7e) {
+                    int len = j - i + 1;
+                    if (len > outsz) len = outsz;
+                    memcpy(out, acc + i, len);
+                    return len;
+                }
+            }
+            break;      /* candidate present but incomplete -> read more */
+        }
+
+        int remain = timeout_ms - (int)((now_s() - t0) * 1000.0);
+        if (remain <= 0) return 0;
+
+        if (acclen > (int)sizeof(acc) - BUFSZ) {   /* keep tail for split msgs */
+            int keep = 4096;
+            memmove(acc, acc + acclen - keep, keep);
+            acclen = keep;
+        }
+
+        int r = read_msg(acc + acclen, sizeof(acc) - acclen, remain);
+        if (r < 0) return -1;
+        if (r == 0) continue;
+        acclen += r;
+    }
+}
+
 static void put_le32(unsigned char *p, uint32_t v) {
     p[0] = (unsigned char)(v & 0xFF);
     p[1] = (unsigned char)((v >> 8) & 0xFF);
@@ -335,12 +445,33 @@ static int cmd_listen(int seconds) {
  * message boundaries survive (each read() returns exactly one message).
  * Record format: u32 LE length, then the message bytes.
  */
+static int cmd_capture_send(int seconds, const char *path, const char *hex);
+
 static int cmd_capture(int seconds, const char *path) {
+    return cmd_capture_send(seconds, path, NULL);
+}
+
+/*
+ * Like cmd_capture, but send a raw payload first.  Records every read() as a
+ * length-prefixed blob so the request/response relationship can be analysed
+ * offline (the modem's reply is interleaved with the continuous stream).
+ */
+static int cmd_capture_send(int seconds, const char *path, const char *hex) {
     unsigned char buf[BUFSZ];
     double t0 = now_s();
     long total = 0, msgs = 0, logs = 0, msgsf3 = 0;
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) { fprintf(stderr, "open(%s): %s\n", path, strerror(errno)); return 1; }
+
+    if (hex && hex[0]) {
+        unsigned char req[BUFSZ];
+        int n = hex2bin(hex, req, sizeof(req));
+        if (n <= 0) { fprintf(stderr, "bad hex\n"); close(fd); return 1; }
+        printf("TX (%d bytes): ", n);
+        hexdump(req, n);
+        if (send_payload(req, n) < 0) { close(fd); return 1; }
+        t0 = now_s();               /* start the capture window after the TX */
+    }
 
     printf("Capturing %s for %d s -> %s\n", DEV_PATH, seconds, path);
 
@@ -375,7 +506,7 @@ static int cmd_selftest(void) {
     printf("selftest: sending DIAG_VERNO_F (0x00)\n");
     if (send_payload(req, 1) < 0) return 1;
 
-    int r = read_msg(resp, sizeof(resp), 5000);
+    int r = read_reply(DIAG_VERNO_F, resp, sizeof(resp), 5000);
     if (r <= 0) { printf("selftest: FAIL (no response)\n"); return 1; }
 
     printf("selftest: got %d bytes\n", r);
@@ -387,6 +518,72 @@ static int cmd_selftest(void) {
     }
     printf("selftest: UNEXPECTED reply\n");
     return 1;
+}
+
+/* Discard any already-queued messages (e.g. a spontaneous reply left over from
+ * the previous request) so the next read returns OUR reply, not a stale one. */
+static void drain_quiet(int ms) {
+    unsigned char b[BUFSZ];
+    while (read_msg(b, sizeof(b), ms) > 0) { /* discard */ }
+}
+
+/*
+ * Send a raw payload and wait for a reply whose first byte equals `expect`,
+ * skipping the F3/log stream.  This is the instrument `raw` should have been:
+ * it isolates the modem's actual answer from the continuous stream.
+ */
+static int cmd_req(const char *hex, unsigned int expect) {
+    unsigned char req[BUFSZ], resp[BUFSZ];
+    int n = hex2bin(hex, req, sizeof(req));
+    if (n <= 0) { fprintf(stderr, "bad hex\n"); return 1; }
+
+    printf("TX (%d bytes): ", n);
+    hexdump(req, n);
+
+    drain_quiet(150);           /* flush stale replies before our request */
+    if (send_payload(req, n) < 0) return 1;
+
+    int r = read_reply((unsigned char)expect, resp, sizeof(resp), 5000);
+    if (r == 0) {
+        printf("RX: <timeout, no reply with code 0x%02x>\n", expect);
+        return 0;
+    }
+    if (r < 0) return 1;
+
+    printf("RX (%d bytes):\n", r);
+    hexdump_ascii(resp, r);
+    return 0;
+}
+
+/*
+ * HDLC-frame a payload and send it, then wait for a reply.  Required on the
+ * DIAG_CMD (request/response) channel, whose endpoint has encode_hdlc set.
+ * `lead` selects whether a leading 0x7e flag is emitted.
+ */
+static int cmd_hdlc(const char *hex, unsigned int expect, int lead) {
+    unsigned char req[BUFSZ], frame[BUFSZ], resp[BUFSZ];
+    int n = hex2bin(hex, req, sizeof(req));
+    if (n <= 0) { fprintf(stderr, "bad hex\n"); return 1; }
+
+    int fl = hdlc_frame(req, n, frame, sizeof(frame), lead);
+    if (fl < 0) { fprintf(stderr, "hdlc_frame failed\n"); return 1; }
+
+    printf("TX payload (%d bytes) -> HDLC frame (%d bytes): ", n, fl);
+    hexdump(frame, fl);
+
+    drain_quiet(150);
+    if (send_payload(frame, fl) < 0) return 1;
+
+    int r = read_reply((unsigned char)expect, resp, sizeof(resp), 5000);
+    if (r == 0) {
+        printf("RX: <timeout, no reply with code 0x%02x>\n", expect);
+        return 0;
+    }
+    if (r < 0) return 1;
+
+    printf("RX (%d bytes):\n", r);
+    hexdump_ascii(resp, r);
+    return 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -551,8 +748,11 @@ int main(int argc, char **argv) {
             "usage:\n"
             "  %s selftest\n"
             "  %s raw <hexbytes>\n"
+            "  %s req <hexbytes> <expect_code>   (reply-matching; skips F3 stream)\n"
+            "  %s hdlc <hexbytes> <expect_code> [lead]   (HDLC-framed, for DIAG_CMD)\n"
             "  %s listen <seconds>\n"
             "  %s capture <seconds> <file>\n"
+            "  %s capture-send <seconds> <file> <hex>   (TX first, then capture)\n"
             "  %s log-config <op>\n"
             "  %s log-disable\n"
             "  %s log-enable\n"
@@ -563,7 +763,8 @@ int main(int argc, char **argv) {
             "  %s cntl-disable [dev]\n"
             "  %s cntl-dump [dev]\n",
             argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
-            argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+            argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
+            argv[0], argv[0], argv[0]);
         return 2;
     }
 
@@ -580,15 +781,26 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "cntl-dump"))
         return cmd_cntl_dump(argc >= 3 ? argv[2] : CNTL_PATH);
 
-    if (open_dev(DEV_PATH) < 0) return 1;
+    /* The DIAG data/log channel is /dev/rpmsg0; the request/response channel
+     * is a separate endpoint (DIAG_CMD).  DIAG_DEV overrides for testing. */
+    const char *dev_path = getenv("DIAG_DEV");
+    if (!dev_path || !dev_path[0]) dev_path = DEV_PATH;
+    if (open_dev(dev_path) < 0) return 1;
 
     int rc = 2;
     if (!strcmp(argv[1], "raw") && argc >= 3) {
         rc = cmd_raw(argv[2]);
+    } else if (!strcmp(argv[1], "req") && argc >= 3) {
+        rc = cmd_req(argv[2], argc >= 4 ? (unsigned int)strtoul(argv[3], NULL, 0) : 0);
+    } else if (!strcmp(argv[1], "hdlc") && argc >= 3) {
+        rc = cmd_hdlc(argv[2], argc >= 4 ? (unsigned int)strtoul(argv[3], NULL, 0) : 0,
+                      argc >= 5 ? atoi(argv[4]) : 1);
     } else if (!strcmp(argv[1], "listen") && argc >= 3) {
         rc = cmd_listen(atoi(argv[2]));
     } else if (!strcmp(argv[1], "capture") && argc >= 4) {
         rc = cmd_capture(atoi(argv[2]), argv[3]);
+    } else if (!strcmp(argv[1], "capture-send") && argc >= 5) {
+        rc = cmd_capture_send(atoi(argv[2]), argv[3], argv[4]);
     } else if (!strcmp(argv[1], "selftest")) {
         rc = cmd_selftest();
     } else if (!strcmp(argv[1], "log-config") && argc >= 3) {

@@ -11,6 +11,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-05 — §112.127 the DIAG COMMAND CHANNEL is solved (DIAG_CMD + raw); the DIAG dispatch decoded; NO memory-read opcode exists
+
+- **★ The missing instrument is built.** The modem exposes a dedicated request/response SMD channel
+  **`DIAG_CMD`** (`F_DIAG_REQ_RSP_CHANNEL`), separate from the DIAG data channel. `diag-bind` never
+  bound it, so `/dev/rpmsg2` did not exist. Bound it: **raw DIAG command bytes written to
+  `/dev/rpmsg2` are answered on `/dev/rpmsg2`**; `/dev/rpmsg0` carries only the log/F3 stream and
+  never answers. Requires an active mask session (`cntl-enable-range`), and the reply queue lags one
+  request (drain before send). `packages/diag-bind/files/diag-bind` now binds `DIAG_CMD` too.
+- **★ Framing corrected.** The old "send RAW, HDLC is rejected" note is **FALSE**. The DATA channel
+  answers an HDLC-framed VERNO (`7e 00 0f 1e 7e` → the 58-byte `00 "Nov 25 2025…EAAAANUZ:" …` reply);
+  the CMD channel wants **bare** bytes. HDLC recovered from `diagchar_hdlc.c`: CRC-16/CCITT-FALSE
+  (0x1021/0xFFFF, sent inverted, lo-hi), escape `7e`/`7d` as `7d ^ (b^20)`, leading+trailing `7e`.
+- **`diag_logtool` extended** (`packages/diag-logtool/src/diag_logtool.c`): `req`, `hdlc`,
+  `capture-send`, `DIAG_DEV`; `read_reply` accumulates reads, splits on `0x7e`, skips the
+  `10/11/79/92` stream, `expect=0` = any non-stream.
+- **★★★ DIAG dispatch decoded.** Top-level accepted: `00 01 0c 0f 19 1a 1b 1c 1d 1f 24 26 2c 2d 2f
+  30`; everything else → `13 BAD_CMD`. **The memory/IO commands are GONE — `02/03/04 PEEKB/W/D`,
+  `05/06/07 POKE*`, `08/09 OUTP*`, `0a/0b INP*` all → `0x13`.** `DIAG_SERV (0x4b 12)` valid:
+  `02 03 04 05 09 0a 0b 0c 0d 0e 0f 10 11 12 29` (they are the `diagdiag` factory memory *stress*
+  commands, not a read); `4b 13 01 00` (FS) returns a real payload.
+- **Conclusion.** **No DIAG memory-read opcode exists on this build** — so the §112.107 hoped-for
+  "peek at ~800 s vs ~910 s" is **NOT achievable via DIAG**; the decisive test needs another
+  instrument. Also: the Android userspace tools (`diag_mdlog`, `libdiag.so`, `test_diag`,
+  `diag_dci_sample`) are 32-bit bionic (won't run on aarch64 musl) and logging-only, and the AP
+  kernel driver is a transport pipe — **so porting the Android stack was the wrong target.**
+- **Intermittency explained:** a second modem fatal at ap `17:56:11` (watchdog count 17→18, site
+  `:Excep :0:`) SSR'd the modem and **destroyed the DIAG_CMD binding** mid-session.
+
 ### 2026-10-05 — §112.126 the live DIAG memory-peek is NOT exposed at cmd 0x0000 (scoped negative); a live post-fatal WEDGE recovered by the watchdog's Stage-3 SSR
 
 - **DIAG memory-peek route tested (the §112.107 "missing capability").** Transport validated first
