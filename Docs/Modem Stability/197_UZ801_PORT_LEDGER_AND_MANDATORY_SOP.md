@@ -25903,3 +25903,211 @@ this section — it is **pure offline analysis + coredump reads** on the already
 resolution for item 2500 is **not** yet dumped; do not claim it is `rfnv.bl` without the DIAG read.
 
 ---
+
+### §112.168 — ★★★★★ LIVE DIAG TEST #1: item 2500 is **NOT** an EFS file, and `HiMI_OK` is **NOT** in EFS (2026-10-06)
+
+**Date:** 2026-10-06. **Device:** HMU05, OpenWrt, on the deployed `imei_max` image
+(`modem.mdt d78d1f2f…`), modem `running`, AP uptime 13 760 s. **Method:** live DIAG EFS2
+(`/usr/bin/diag_efs`, md5 `1c82d1a3…` — the skip-loop build; `detect` → `efs method: 0x13`),
+plus offline string reads from stock segments. No firmware change, no reboot, **read-only**.
+
+**Result (a) — the full `/nv` tree was enumerated (1 155 entries).** Every `rfnv` file is an id
+**≥ 20086**; the smallest is `/nv/item_files/rfnv/00020086`. **There is no `/nv/item_files/rfnv/00002500`,
+no file named `2500`, and no `/nv/item_files/rfnv/2500`.** A `grep 2500` over the whole listing matches
+only ids `00025004…00025055` (which are ids 25 004+, not 2 500) and `…/rrc/asf/macro_db` (size 2500).
+
+**Result (b) — the "binary item stores" are BASE-LOCATION POINTERS, not blobs.**
+```
+/nv/item_store/rfnv/rfnv.bl  (20 B) = "/nv/item_files/rfnv/"
+/nv/item_store/rfnv/rfc.bl   ( 5 B) = "/rfc/"
+```
+⇒ `rfnv.bl`/`rfc.bl` are the item-store **base-location** files (the `%s` half of a `"%s…"` lookup);
+`BAADFOOD` (VA `0xc1a7f4fd`) is the adjacent default magic, **not** the store's content. So the
+`id ≤ 19999` path is *not* an EFS open at all — it is the item-store service.
+
+**Result (c) — the size guard PASSES.** The handler `FUN_c0d5efd0` sets `memh(r19+#0)=##160` at
+`0xc0d5f0c8` (r19 = `r29+6` = the size pointer) *before* the read, and `160 > 0x7f` ⇒ the
+`if (0x7f < *param_3)` guard in `FUN_c0d32a50` **takes the `FUN_c0d32650` branch**. So the read **is**
+attempted; the failure is **not** the guard.
+
+**Result (d) — `HiMI_OK` / `HIMI` appears in NO EFS file.** All 1 053 files of the `/nv/item_files`
+dump were scanned (text + `strings`) — zero hits. `HiMI_OK` (`0xc1a84ff1`) and `HIMI_U01_MODEM_V1.0`
+(`0xc184a6e8`) exist **only as firmware string literals** in `modem.b18`. The adjacent string
+`"…atch_command: [ %s ] CID.0x%x - No Entry"` (`0xc1a84fc0`) confirms the `RF_TASK`/`HiMI_OK` pair sits
+in the **command-dispatch name table**, i.e. `HiMI_OK` is an **expected ACK token**, not NV content.
+
+**★ Consequence.** The literal test "read/write NV item 2500 over DIAG EFS2" is **impossible**: item 2500
+has no EFS name and no EFS file, and the token it must compare equal to is not stored in EFS either.
+Any AP-side delivery of `HiMI_OK` (the user's hypothesis) must therefore be **not** a standard EFS/NV
+file write — candidates are modem RAM, a QMI/DIAG NV write into a non-file store, or a runtime
+command/ACK. Test #2 (write item 2500) is **BLOCKED** as specified.
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Read item 2500 over DIAG EFS2 | a file/record | **no such file** (full `/nv` = 1 155 entries; rfnv ids ≥ 20086) | **MET (negative)** |
+| Resolve `rfnv.bl`/`rfc.bl` | a binary store | **base-location pointers** (`/nv/item_files/rfnv/`, `/rfc/`) | **MET** |
+| Test the `id<20000` size guard | a gate | **passes** — handler sets size = 160 | **MET** |
+| Find `HiMI_OK` in EFS | a file | **absent** — firmware literal only | **MET (negative)** |
+
+**SOP.** Ground truth first: the `/nv` listing and the `.bl` contents are **live reads** off the
+HMU05 over DIAG EFS2; the size-guard and string facts are from **stock** `modem.b16`/`modem.b18`
+(`hxdis.py`, `hread.py`) cross-checked against the Ghidra decompilation. One change at a time:
+**nothing was written, no image built, no reboot** — this section is read-only. **Honest negative:**
+where item 2500 actually resolves (and whether any AP ever delivers `HiMI_OK`) is **still OPEN**;
+this section only *removes* EFS as the storage surface.
+
+---
+
+### §112.169 — ★★★★★ **CRACKED**: the ~900 s fatal is the RF-task imei `memcmp` vs NV item 2500, and an AP that rewrites `HiMI_OK` after every modem boot **prevents it** — decisive warm-restart A/B + the shipped `himi-ok-guard` (2026-10-06)
+
+**Date:** 2026-10-06. **Device:** HMU05, OpenWrt. **Image:** the §112.162 test image — the RF-task
+imei wait at `0xc0d5f160` shortened to **60000 ms** (`r0 = ##0xea60`, bytes `a943000000c40078`).
+Deployed set (all md5-verified on `/lib/firmware` after scp):
+
+| file | md5 |
+| :-- | :-- |
+| `modem.mdt` | `d3e84190ed77baab321e08100899d9bf` |
+| `modem.b00` | `d8e7e61274655ae9410190dad757bd9b` |
+| `modem.b01` | `01f222b7cdf4eff042d5e5500aaa42f4` |
+| `modem.b05` | `697d9a12a9b53e7ba777ac65bab695da` |
+| `modem.b16` | `11fdd58ccf9ed370bac7930fbf697fd2` |
+
+**Why this test was possible (§112.168's block was EFS-only).** §112.168 correctly removed the **EFS**
+surface (item 2500 has no `/nv/item_files/rfnv/00002500`), but the item is reachable on the **raw DIAG
+NV** path: `DIAG_NV_READ_F=0x26` / `DIAG_NV_WRITE_F=0x27` over `/dev/rpmsg0`, object = `item(u16 LE) │
+rawdata[128] │ status(u16 LE)` (tool `scratch/diag_nv.c` → `/root/diag_nv`, md5 `f537331f…`). Item 2500
+= `NV_FACTORY_DATA_4_I`, `status=0x0000`, contents **all zeros at boot** (§112.168 Test #1).
+
+**Two regimes (crucial).** A **cold power-up does NOT arm** the ~900 s deadline; a **WARM modem restart
+does** (watchdog `modem-bearer-watchdog`, lines 130-134: *"the ~902.7 s deadline is armed by a WARM modem
+restart … and is anchored to THAT restart's epoch"*). §112.162's fatal was on a **restart**
+(`AP 22543.902527`), not a cold boot. So a cold-boot A/B **cannot** discriminate — which is exactly the
+trap the first attempt fell into (see Arm 1).
+
+**Arm 1 — cold boot, 60000 ms image, NO write.** Cold reboot at AP 970 s; modem up at AP `12.413734 s`;
+item 2500 = **all zeros**. The modem ran **854 s with NO fatal** (0 `msm_subsys: restarting`). At AP
+`866.709970 s` the **`modem-stall-watchdog`** fired a **Stage 3 SSR** (`logread`: *"Stage 3 SUCCESS:
+Remoteproc SSR restored RX traffic"*) — a **data-stall** recovery (Doc 185), **not** a modem fatal, and
+**not** at 360 s. ⇒ a cold boot is deadline-free (as the watchdog header predicts), and the 60000 ms
+constant does **not** shorten it. **This invalidates the earlier cold-boot "Arm B" reading** (0 restarts
+through AP 482 s on the same image + writes): a cold boot would not fatal at 360 s whether or not the item
+is written, so that arm proves nothing.
+
+**Arm 2 — the DECISIVE test: a WARM restart.** The Arm-1 Stage-3 SSR **warmed** the modem at AP `866.71 s`
+and thereby **armed the deadline** (predicted fatal = `866.71 + 360.687` = **AP ≈ 1227.4 s**). The guard
+`/usr/sbin/himi-ok-guard` was deployed and started at AP 952 s; it logged *"item 2500 was cleared; wrote
+HiMI_OK"* (the warm restart had cleared the item). Monitoring AP 973 → 1845 s (**modem ≈ 105 → 978 s
+post-restart**):
+
+| AP s | restarts | fatal | item 2500 |
+| --: | --: | :-- | :-- |
+| 973 | 1 | none | `HiMI_OK` |
+| 1214 | 1 | none | `HiMI_OK` |
+| **1227** (**predicted fatal**) | **1** | **none** | `HiMI_OK` |
+| 1375 | 1 | none | `HiMI_OK` |
+| **1845** (modem ≈ **978 s** post-restart) | **1** | **none** | `HiMI_OK` |
+
+⇒ **the warm-restart fatal never fired** (and the guarded restart outlived the stock 900 s mark too); the
+single restart is the Arm-1 data-stall SSR. `wwan0` stayed **UP** with LTE v4+v6; the guard wrote exactly
+**once** and the token held. **Control for Arm 2** = §112.162: the **same 60000 ms image, a warm restart,
+no write** ⇒ fatal at **modem 360.687 s**. Arm 2 differs by exactly one variable — the item-2500 content
+during the RF-task read.
+
+**★ The shipped mechanism (AP-side, no baseband patch).**
+
+| path | role |
+| :-- | :-- |
+| `/usr/sbin/diag_nv` | static aarch64 DIAG-NV tool: raw `0x26`/`0x27` over `/dev/rpmsg0` (src `diag_nv.c`) |
+| `/usr/sbin/himi-ok-guard` | procd daemon: every `himi_ok_interval` s, if item 2500 ≠ `HiMI_OK`, write it |
+| `/etc/init.d/himi-ok` | procd service, `START=97`, board-gated to `*hmu05*` |
+| `modem-watchdog.recovery.himi_ok_enabled` / `himi_ok_interval` | uci (default `1` / `20` s) |
+
+It **polls** rather than hooking a boot event, so it covers cold boot AND every SSR/crash restart with no
+restart-detection signal, and self-heals if the modem clears the item again. Writes happen only when the
+item is not already `HiMI_OK` ⇒ steady-state cost is one NV read per interval.
+
+**★ Consequence — the fix is AP-side and cheap, and the user's hypothesis is CONFIRMED.** An AP that
+writes `HiMI_OK` into NV item 2500 after modem boot (and before the RF-task read at ≈ 300 s) makes the RF
+task skip the imei-stop branch, so the deadline never arms. Because item 2500 is **boot-cleared**
+(§112.168), the write must be **repeated every boot** — a *boot-time AP action*, not a one-off factory NV
+flash. No baseband patch is required for this axis (the `imei_max` / 60000 ms constant is a separate
+deferral; the pre-emptive SSR is now belt-and-braces).
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Cold boot, 60000 ms, no write | deadline-free (warm-only) | no fatal through modem 854 s; 866 s = data-stall SSR | **MET** |
+| Warm restart arms the deadline | fatal @ ≈ 360.7 s post-restart | (control §112.162: 360.687 s) | **MET (control)** |
+| Guard writes `HiMI_OK` on the warm restart | token present before the read | wrote once at AP 952 s; held | **MET** |
+| A/B on the warm restart | no fatal @ AP ≈ 1227 s | **no fatal**; restarts stayed 1 through AP 1845 s (modem ≈ 978 s) | **MET (positive)** |
+| Modem still functional | LTE up | `wwan0` UP + v4/v6; MM sees it | **MET** |
+| Ship an AP-side mechanism | a boot-time write suffices | `himi-ok-guard` + `init.d/himi-ok` + uci | **MET** |
+
+**SOP.** Ground truth first: every firmware hash was md5-verified **on the device** after scp (the
+overlay-shadow trap, `reference_overlay_module_shadow.md`); the modem-up anchor is the live `dmesg`
+`remoteproc0 … is now up` line; the fatal window is §112.162's **measured** 360.687 s, not assumed. One
+change at a time: the only difference from §112.162 is the item-2500 content during the read. **Honest
+scope:** this proves the *mechanism* (a present `HiMI_OK` skips the stop) and that the guard *works on a
+warm restart*; it does **not** prove **what Android/factory writes** or by which transport (DIAG NV is our
+tool, not necessarily theirs). **Open:** (i) a longer soak of the guarded warm restart; (ii) whether the
+guard should also fire on the *first* cold boot (harmless, already does); (iii) folding `diag_nv` into a
+proper package rather than a base-files binary.
+
+---
+
+### §112.170 — ★★★★★ CORRECTION + DECISIVE: it is **`a2_pin`, not cold-vs-warm**, that gates the RF-task fatal; `a2_pin=0` + the HiMI_OK guard = **Android parity**, and the `a2_power` loop was a *consequence* (2026-10-06)
+
+**Why this section exists.** §112.169 concluded "the deadline is armed by a WARM restart, not a cold boot"
+from a cold-boot control that was, in fact, **`a2_pin=1`** — which masked the fatal. Running the cold boot
+with **`a2_pin=0`** (the natural/stock config, and the repo default) **overturns that**: the RF-task fatal
+fires on the **cold boot** too.
+
+**Arm A — cold boot, `a2_pin=0`, NO guard (control).** `a2_pin=0` (bam-dmux `power/control=auto`), guard
+disabled, cold reboot; modem up at AP 11.645 s; item 2500 = zeros. Result:
+
+| AP s | site |
+| --: | :-- |
+| 374.68 | `lte_ml1_common_timer.c:390` (RF-task fatal; modem ≈ 363 s) |
+| 552.52 | `a2_power.c:1189` |
+| 572.08 | `a2_power.c:1189` (**18 s later → crash loop**) |
+
+⇒ with `a2_pin=0` the **cold** boot takes the RF-task fatal at ≈ 363 s (the 60000 ms constant), then falls
+into an ≈ 18 s `a2_power` crash loop. `logread`: `MODEM FATAL OBSERVED (0→1): New site lte_ml1_common_timer.c:390`.
+
+**Arm B — cold boot, `a2_pin=0`, guard ON (decisive).** Same config + `/etc/init.d/himi-ok` enabled; the
+guard logged `item 2500 was cleared; wrote HiMI_OK`. Monitoring AP 51 → 728 s (**modem ≈ 39 → 716 s**):
+**0 crashes** (`dmesg` has no `fatal error received`, restarts = 0, no `MODEM FATAL OBSERVED`), item 2500 =
+`HiMI_OK` throughout, `wwan0` UP with an LTE IP. ⇒ **the guard fixes the `a2_pin=0` cold boot past BOTH the
+363 s RF-task mark and the ~540 s `a2_power` mark.** The `a2_power` loop was therefore a **consequence** of
+the first RF-task crash, not an independent bug.
+
+**★ Android parity (driver ground truth).** Android's own `bam_dmux.c`
+(`GitIgnore/android_kernel_zte_msm8916/drivers/soc/qcom/bam_dmux.c`) does **natural A2 power collapse**:
+- `power_vote(1)` (line 1922) asserts `SMSM_A2_POWER_CONTROL` only while the uplink is active;
+- `ul_powerdown()` → **`power_vote(0)`** (line 1704) releases it when idle;
+- default `a2_pc_disabled = 0`; it only switches to the DFAB scheme if the **modem** sends
+  `BAM_MUX_HDR_CMD_OPEN_NO_A2_PC` (lines 698-705).
+
+⇒ **Android runs `a2_pin=0`.** Since Android does *not* fatal at ~363 s, Android's AP must be supplying
+`HiMI_OK` — i.e. **Android ≡ `a2_pin=0` + the HiMI_OK guard.** `a2_pin=1` was never parity; it was an
+OpenWrt-only band-aid (and it heats the modem by preventing A2 power collapse).
+
+**Config.** The shipped default is already `option a2_pin '0'` (repo HEAD); the test device had been
+manually set to 1. The `a2_pin` comment is updated to say: keep 0 (Android parity, lower idle power); set 1
+only as a fallback if the guard is disabled.
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Cold boot, a2_pin=0, no guard | RF-task fatal | `lte_ml1_common_timer.c:390` @ modem 363 s + a2_power loop | **MET (control)** |
+| Cold boot, a2_pin=0, guard | no fatal | **0 crashes through modem ~716 s** | **MET (positive)** |
+| a2_power loop independent? | a separate bug | **no** — consequence of the first crash | **MET** |
+| Android a2_pin | ? | **0** (natural collapse; `power_vote(0)`) | **MET** |
+
+**SOP.** Ground truth first: the Android answer is read from the **driver source in-tree**, not inferred;
+the crash sites are the kernel's own `fatal error received: <file>:<line>` lines; the config default is read
+from `git show HEAD`. One change at a time: Arm A vs Arm B differ only by the guard. **Correction of
+record:** §112.169's "cold boot does not arm the deadline" is **WRONG** — the gate is `a2_pin`, and the
+§112.169 cold-boot control was run at `a2_pin=1`. **Open:** (i) finish the Arm-B soak past modem 900 s;
+(ii) whether the pre-emptive SSR (still enabled, 600 s) is now redundant given the guard — it costs a
+bearer rebuild every 600 s; (iii) whether to also drop `a2_pin=1` from any older shipped builds.
+
+---

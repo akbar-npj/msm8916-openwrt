@@ -58,13 +58,38 @@ config recovery 'recovery'
 	# zombie only; the DEEP one (RF `none`) does not respond.
 	option zombie_nudge_secs '60'
 
-	# A2-pin (ledger §112.23).  When 1, the watchdog holds
+	# A2-pin (ledger §112.23, §112.170).  When 1, the watchdog holds
 	# bam-dmux/power/control=on every loop, so bam_dmux_runtime_suspend() -- the
 	# only writer of bam_dmux_pc_vote(false) -- never runs, the AP's
 	# SMSM_A2_POWER_CONTROL vote stays SET, and the modem's A2 never powers down.
-	# This suppresses the cold-boot `a2_power.c:1189` fatal (P-A2PIN: reproducible
-	# at modem-uptime 288/576/722 s on the default policy; absent with the pin
-	# held).  Cost: the A2 cannot power-collapse (higher idle power).  It does NOT
-	# affect the ~900 s `lte_ml1` fatal -- that remains covered by the pre-emptive
-	# SSR above.  Default 0 = stock dynamic power collapse.
+	#
+	# ⚠ This was an OpenWrt-only BAND-AID, not Android parity.  Holding the pin
+	# masked BOTH the cold-boot `a2_power.c:1189` fatal AND the RF-task
+	# `lte_ml1_common_timer.c:390` fatal -- at the cost of higher idle power/heat
+	# (the A2 can never power-collapse).
+	#
+	# ★ 2026-10-06 (§112.170) -- the HiMI_OK guard below removes the need for it.
+	# With himi_ok_enabled=1, a2_pin=0 is SAFE: a cold boot on the 60000 ms test
+	# image ran clean past the ~363 s RF-task mark AND the ~540 s a2_power mark
+	# (0 crashes through modem ~716 s).  The a2_power loop seen with a2_pin=0 and
+	# NO guard was a CONSEQUENCE of the first RF-task crash, not an independent
+	# bug.  Android itself runs natural A2 collapse -- bam_dmux.c
+	# ul_powerdown() -> power_vote(0) -- i.e. a2_pin=0.  So KEEP THIS AT 0 for
+	# Android parity and lower idle power; set 1 only as a fallback if the guard
+	# is disabled.
 	option a2_pin '0'
+
+	# HiMI_OK guard (ledger §112.165-§112.169).  The modem's RF task reads NV
+	# item 2500 (NV_FACTORY_DATA_4_I) and memcmp()s it against the literal
+	# "HiMI_OK".  On a mismatch it takes its "get imei will stop" branch and
+	# waits (600000 ms stock) before the ML1 fatal the ~900 s deadline is built
+	# on.  Item 2500 is CLEARED AT EVERY MODEM BOOT, so an AP that never
+	# rewrites it leaves the modem to fatal ~900 s after any WARM restart (a
+	# crash-recovery SSR or a deliberate clean one).  /usr/sbin/himi-ok-guard
+	# rewrites "HiMI_OK" shortly after each modem boot (cold + every restart),
+	# so the memcmp passes and the deadline never arms.  This is the ROOT-CAUSE
+	# fix for the ~900 s lte_ml1 fatal; the pre-emptive SSR above is a
+	# belt-and-braces deferral.  Set himi_ok_enabled=0 to disable;
+	# himi_ok_interval is the seconds between checks (min 5).
+	option himi_ok_enabled '1'
+	option himi_ok_interval '20'
