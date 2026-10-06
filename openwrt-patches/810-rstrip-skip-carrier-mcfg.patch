@@ -1,0 +1,22 @@
+rstrip: do not strip the bundled carrier MCFG blobs
+
+Every carrier MCFG (mcfg_sw.mbn) begins with the 7f 45 4c 46 ("\x7fELF")
+magic, so file(1) reports it as "ELF 32-bit LSB executable". rstrip.sh only
+skips */lib/firmware/*, so the qcom-carrier-autocfg blobs under
+usr/share/qcom-carrier-autocfg/mcfg/ are fed to `sstrip -z`, which rewrites
+the header and truncates the file (29816 -> 29813 bytes, SHA-1 changes).
+
+These are modem firmware images, not AP executables. Exclude them from rstrip
+the same way /lib/firmware already is.
+
+--- a/scripts/rstrip.sh
++++ b/scripts/rstrip.sh
+@@ -20,7 +20,7 @@
+   exit 1
+ }
+ 
+-find $TARGETS -not -path \*/lib/firmware/\* -a -type f -a -exec file {} \; | \
++find $TARGETS -not -path \*/lib/firmware/\* -not -path \*/qcom-carrier-autocfg/mcfg/\* -a -type f -a -exec file {} \; | \
+   sed -n -e 's/^\(.*\):.*ELF.*\(executable\|relocatable\|shared object\).*,.*/\1:\2/p' | \
+ (
+   IFS=":"
