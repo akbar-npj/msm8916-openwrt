@@ -22,14 +22,6 @@ EOF
 uci -q del_list firewall.@zone[1].network='modem' 2>/dev/null || true
 uci add_list firewall.@zone[1].network='modem'
 
-###############################################################################
-# Apply device-specific No-Sleep patch on HMU05 if present
-###############################################################################
-
-if [ -x /usr/sbin/hmu05-patch-modem ]; then
-    /usr/sbin/hmu05-patch-modem /lib/firmware
-fi
-
 # HMU05 runtime PM lock to prevent 15-minute (:Excep :0:) modem crashes
 case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
     *hmu05*)

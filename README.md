@@ -24,7 +24,6 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
   * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
   * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
-* **🛡️ HMU05 No-Sleep Fix**: Hardware-guarded native C patcher (`hmu05-patch-modem`) prevents Qualcomm Hexagon DSP 15-minute sleep stalls (`FUN_c03987e0` / `ERR_FATAL` bypass) with embedded SHA-256 header recalculation.
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
 * **⚙️ Reboot to Fastboot**: `reboot-fastboot` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
 * **🔧 Recovery Without Physical Access**: EDL and Fastboot reboot targets provide software-triggered recovery paths directly from a running OpenWrt system.
@@ -35,7 +34,7 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
 
 | Board Target  | Profile Name      | Device Model               | SoC     | RAM    | Storage   | Features                                                                                |
 | :------------ | :---------------- | :------------------------- | :------ | :----- | :-------- | :-------------------------------------------------------------------------------------- |
-| **`hmu05`**   | `generic-hmu05`   | Generic HMU05 (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, No-Sleep Patch, Ramoops, Reboot-to-EDL, Reboot-to-Fastboot |
+| **`hmu05`**   | `generic-hmu05`   | Generic HMU05 (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Ramoops, Reboot-to-EDL, Reboot-to-Fastboot                 |
 | **`ufi001b`** | `generic-ufi001b` | Generic UFI001B 4G Stick   | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot, Ramoops                 |
 | **`uz801`**   | `yiming-uz801v3`  | YiMing UZ801 v3 Dongle     | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot, Swapped LED mapping     |
 | **`uf02`**    | `generic-uf02`    | Generic UF02 / UF2 Stick   | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot                          |
