@@ -11,6 +11,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — ★★★★★ §112.166 P-NVID RUNTIME PROOF: the RF task reads NV item **2500** into `0xc310dcb0`, exactly once, at the very end (+ §112.164 patch 832; §112.165 the `HiMI_OK` gate)
+
+- **§112.165 — the stop is a string compare, not an event.** The RF task's `rf_task.c:400 "get imei  will stop"`
+  fires iff the response buffer `0xc310dcb0` is NOT `"HiMI_OK"` (`c0d5f140` `memcmp("HiMI_OK", buf, 7)`).
+  `HiMI_OK` (`0xc1a84ff1`) is the **ACK of a registered command `RF_TASK`** (registered at `c0d5ee54`,
+  handler `c0d5efa0`, runtime descriptor `0xc31108f8`). Buffer is **ZEROS in 6/6 coredumps**.
+- **§112.166 — the read id is `c0d32a50`'s arg0, and P-NVID proves it at runtime.** A ring was placed on the
+  ENTRY of the shared NV reader `FUN_c0d32a50` (b16; all 83 refs are `call 0xc0d32a50`, nothing branches
+  into the 20 displaced bytes). Result (`scratch/dumps/pnvid_c0d32a50_ring.bin`, `SAVE.seq = 1689`):
+  the RF task's call is the **LAST record and the ONLY one** —
+  `seq=1689 caller=0xc0d5f110 id=2500 r1=0xc310dcb0 r3=0xc3c0be2c r4=0x80`.
+  ⇒ **id = 2500 = arg0** (2500 ≤ 19999 ⇒ the non-rfnv path), `r1` is exactly the `HiMI_OK` buffer, and it
+  fires **once**, immediately before the fatal. The other 1688 calls are the RF-NV/LTE families (rfnv ids
+  20 019…27 543; callers `0xc0e92f5c`×905, `0xc0d32bd4`×645, `0xc0d5be90`×76, …).
+- **★ The user's AP-write hypothesis now has a subject: NV item 2500.** If `"HiMI_OK"` is written where item
+  2500 resolves (or the read is made to succeed), the memcmp passes and the RF task loops instead of
+  stopping. **Open:** the non-rfnv EFS name for 2500 (its ≤19999 branch thunks `0xc0d32650`→`0xc0d32580`,
+  which is not a `%s%08d` builder) — capture the path string at runtime, or read 2500 live over DIAG EFS2.
+- **★★ DEPLOYMENT TRAP (§112.166.3).** A first build put the cave in `modem.b19`'s *file*; it passed
+  `ufi001b_hash_tool.py verify` (19 MATCH / 0 MISMATCH, PASS) yet the modem died
+  `MPSS authentication failed: -19` — b01 carries an **RSA signature + certificate chain** after the hash
+  table. Caves go in **b16/b05 only** (b05 nop sled `0xc003054c`); rings/save pages go in b19 **at runtime**.
+- **§112.164 — AP-side patch 832** (`msm89xx/patches/832-bam-dmux-tx-stats-uaf.patch`): the `wwan0` TX byte
+  accounting read `skb->len` *after* the DMA was submitted — the completion callback
+  (`bam_dmux_tx_callback → bam_dmux_tx_done → dev_consume_skb_any`) can already have freed the skb, so the
+  read is a use-after-free and yields a garbage ~1000× over-count. Fixed by snapshotting the length before
+  submit. VERIFIED live 2026-10-06.
+- Files: ledger §112.164–166; `msm89xx/patches/832-bam-dmux-tx-stats-uaf.patch`;
+  `scratch/build_imei_ring.py`, `scratch/deploy_imei_ring.py`, `scratch/read_imei_ring.py`.
+
 ### 2026-10-06 — ★★★★ §112.163 DEPLOYED: the RF-task imei wait driven to its signed maximum (`0x7fffffff` ms = 24.855 days)
 
 - **The patch.** §112.162 proved the ~900 s fatal is the RF-task imei wait; the wait constant lives at

@@ -25297,3 +25297,481 @@ keep it enabled given the baseband no longer stops at 900 s.
 
 ---
 
+### §112.164 — AP-side: the `wwan0` netdev TX byte counter was a use-after-free read (patch 832) (2026-10-06)
+
+**Status:** RESULTS — **VERIFIED LIVE (2026-10-06)** on `hmu05`.
+**Ledger:** this doc (Doc 197).
+
+**Symptom.** `wwan0` `/sys/class/net/.../statistics/tx_bytes` read ~1000× high (3.86 GB at 23 855 pkts =
+161 KB/pkt) while `tx_packets` and `rx_bytes` matched the modem's own WDS counters. The **increment** was
+correct in the common case (measured 92 B/pkt live), so the excess is a small number of **gigantic**
+increments — impossible for `skb->len` (≤ MTU+11 ≈ 1511 B).
+
+**Root cause.** `bam_dmux_netdev_start_xmit()` read `skb->len` **after** `dma_async_issue_pending()`. The
+DMA completion `bam_dmux_tx_callback()` → `bam_dmux_tx_done()` → `dev_consume_skb_any(skb)` **frees the
+skb**, so the later `skb->len` read is a use-after-free and accounts a garbage length (observed ~4 GB).
+`tx_packets` is bumped by 1 before the read, hence the "right packet count, absurd byte count" signature.
+This is the same UAF class the driver already documents at `bam_dmux_skb_dma_submit_tx()` (`skb_dma->skb
+->len` with a NULL slot).
+
+**Fix.** `msm89xx/patches/832-bam-dmux-tx-stats-uaf.patch` — snapshot `len = skb->len;` immediately after
+`bam_dmux_tx_prepare_skb()` (while the skb is still owned) and use `len` for both TX stats adds.
+
+#### Achieved vs Expected
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Explain the ~1000× `tx_bytes` | a concrete mechanism | **UAF read of `skb->len` after DMA submit** | **MET** |
+| Preserve the correct increment | 92 B/pkt retained | **YES** (snapshot equals the old value) | **MET** |
+| Not regress the other counters | `tx_packets` / `rx_bytes` unchanged | **YES** (untouched) | **MET** |
+| Prove the fix on-device | tx_bytes ≈ WDS | **YES** — Δnetdev = ΔWDS; whole-boot 293 B/pkt | **MET** |
+
+**SOP.** Ground truth first: the counters were compared against the modem's **WDS** packet statistics
+(the independent truth) before any change; the `skb->len` offset (`0x70`) was confirmed by disassembly
+(same offset in the RX path, which matches WDS). One change at a time: the patch only moves the read
+earlier. Reproducible: the patch is in the tracked source of truth (`msm89xx/patches/`), verified to
+apply cleanly and to reproduce the edited tree byte-for-byte, and it is applied through the real build
+pipeline. **Honest negative:** the fix is **not yet live-verified**; the on-device proof is pending.
+
+**Next.** Flash the hmu05 image built this session and confirm `tx_bytes ≈ WDS TX bytes`.
+
+**Build record (2026-10-06).** `./build.sh build hmu05` → 510 s, tree re-prepared so **patch 832 applied
+through the real pipeline**; `guard` re-run: **in sync**. Module-build verified by disassembly: the
+`skb->len` load is now at `bam_dmux_netdev_start_xmit+0xdc` (`ldr w22, [x19, #0x70]`) **before** the
+submit call, and the `tx_bytes` add (`+0x12e8`) uses the saved `x22` — no post-submit `skb->len` read.
+Image: `openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.bin`
+sha256 `463818c2c9ea939639f3c86be6763b1dbc126ed6529186c6f154def0a1f88438`.
+
+#### (D) Result — VERIFIED LIVE (2026-10-06)
+
+Flashed via `sysupgrade` (**config-preserving** path, so the overlay was not reformatted). Verified after
+reboot:
+
+| Check | Value |
+|---|---|
+| whole-boot `tx_bytes / tx_packets` | **293 B/pkt** (was **161 807** B/pkt pre-fix) |
+| Δ over 40×500 B pings | netdev **+56 pkts / +22 940 B**; **≈ WDS Δ**, no jump |
+| running module | `/lib/modules/6.12.94/qcom_bam_dmux.ko` = `323075c0fa6ec41def32f82988e65461` (= the image's module) |
+| module disasm | `ldr w22,[x19,#0x70]` at `+0x122c` (before submit); `add x0,x0,x22` at `+0x12e8` |
+
+**⚠★ DEPLOYMENT TRAP FOUND AND CLEARED — the fix did NOT go live on the first boot.** A **stale module
+copied onto the overlay** (`/overlay/upper/lib/modules/6.12.94/qcom_bam_dmux.ko`, mtime **Oct 2 22:59**,
+md5 `98d532de…`, unstripped) **shadowed the image's module** — the first post-flash boot still ran the
+unpatched code (`ldr w0,[x19,#0x70]` immediately before the `tx_bytes` add). Removing the overlay copy
+and rebooting loaded the image module. **Generalise: any manually-installed file under `/lib/modules/`
+survives `sysupgrade` and shadows the image. Before attributing a kernel-module change to an image,
+check `/overlay/upper/lib/modules/` and hash the *loaded* module — not just the image's.**
+
+**Scope note:** this fixes an **accounting** defect only; it is unrelated to the ~900 s fatal.
+
+---
+
+### §112.165 — ★★★★★ `HiMI_OK`: the RF task's imei-stop decision is a `memcmp` against an RF-dispatch COMMAND NAME (2026-10-06)
+
+**Status:** FIND (static + coredump). Reframes §112.162 §F.iii — the stop is gated by a **string compare**
+upstream of the mask-`0x4000` wait.
+**Ledger:** this doc (Doc 197); builds on §112.162/§112.163. Ground truth: stock HMU05 firmware
+(`GitIgnore/compare/modem_hmu05_extracted/image`), five coredumps in `scratch/dumps/`.
+
+#### (A) The string and its single code reference
+
+`HiMI_OK` exists at VA **`0xc1a84ff1`** (file `modem.b18`, off `0x584ff1`), **immediately after `RF_TASK`**
+(`0xc1a84fe9`), inside the `rf_dispatch.c` string block:
+
+```
+c1a84eeb  "rf_dispatch_command: [ %s ] - No command in Q"
+c1a84f19  "rf_dispatch_command: [ %s ] - CID could not be extracted"
+c1a84f52  "rf_dispatch_command: [ %s ] - NULL FP to extract CID"
+c1a84f87  "rf_dispatch_command: [ %s ] CID.0x%x - No Handler"
+c1a84fb9  "rf_dispatch_command: [ %s ] CID.0x%x - No Entry"
+c1a84fe9  "RF_TASK"
+c1a84ff1  "HiMI_OK"
+```
+
+⇒ `RF_TASK` is the RF task's dispatch **name**; `HiMI_OK` is a **command name** in the same table.
+Whole-disassembly census: the string is referenced **exactly once** — `c0d5f134` `r0 = ##-0x3e57b00f`
+(= `0xc1a84ff1`), in the RF-task event handler `FUN_c0d5efd0` (`rf_task.c`), the **bit-7 branch**:
+
+```
+c0d5f110  if (!tstbit(r17,#0x7)) goto c0d5efe8          ; bit 7 clear -> loop back to the wait
+c0d5f11c  c0887550(.., 0x80)                            ; post signal bit 0x80
+c0d5f124  log  rf_task.c:396 " get imei done"
+c0d5f130  r0 = "HiMI_OK"           (0xc1a84ff1)
+c0d5f13c  r1 = 0xc310dcb0                               ; the RF command-name buffer
+c0d5f140  call c1206600 ; r2 = 7                         ; memcmp("HiMI_OK", buf, 7)
+c0d5f148  if (r0 == 0) goto c0d5efe8                    ; EQUAL -> loop (RF stays alive)
+c0d5f14c  log  rf_task.c:400 " get imei  will stop"
+c0d5f158  arm 600000 ms wait on mask 0x4000 ; goto c0d5efe8
+```
+
+`c1206600` is a byte-compare (memcmp): it walks `memub(r3+i)` vs `memub(r1+i)` for `r2` bytes
+(`c1206618`) and returns **0 iff equal** (`c1206628` returns ∓1 on mismatch). Raw decode of the site
+(`llvm-mc`): `{ call c0d32a50 ; r1 = ##-1022305104 ; r0 = #2500 }` = `r1 = 0xc310dcb0`, and
+`{ call c1206600 ; r2 = #7 }`.
+
+⇒ **The imei "will stop" is decided by a STRING COMPARE.** If the RF command buffer holds `"HiMI_OK"`,
+the task keeps looping; if it does **not**, the task logs "will stop", arms the 600 s wait, and (after
+the wait) tears down ⇒ the ~900 s fatal.
+
+#### (B) Runtime confirmation — the buffer is EMPTY at the crash
+
+The memcmp buffer **`0xc310dcb0` is ALL ZEROS in all five coredumps** (`fatal_11130`, `v37_wedge`,
+`v38_wedge`, `v41_fatal`, `v41_wedge`) ⇒ at crash time `memcmp("HiMI_OK", buf, 7) != 0` ⇒ the
+"will stop" branch is taken. **This is the first direct read of the gate's state at the fatal.**
+
+The five dumps also contain `HiMI_OK` **twice**: the rodata copy (in `modem.b18`) and a **live BSS
+descriptor** at VA **`0xc31108f8`** (coredump VA `0x899108f8`; coredump bias `+0x39800000`, verified
+against the firmware segment map):
+
+```
+c31108f8  52 46 5f 54 41 53 4b 00   "RF_TASK"
+c3110900  48 69 4d 49 5f 4f 4b 00   "HiMI_OK"
+c3110908  00 00 00 94 d8 6d e6 63   -> 0x63e66dd8  (also written by the task entry at 0xc0d5ee6c)
+c311093c  a0 ef d5 c0               -> 0xc0d5efa0  (code ptr in the RF-task region)
+c3110940  01 00 00 00               (the §112.95 bit-14 guard flag = 1)
+```
+⇒ the RF task holds a live descriptor carrying the registered task name **and** the command name.
+
+#### (C) What this reframes
+
+§112.162 §F.iii asked "why the wait's target event (mask `0x4000`) never arrives". The find shows the
+**decision point is upstream of the wait**: the handler stops the RF task because the command buffer is
+**not** `"HiMI_OK"`. The mask-`0x4000` 600 s wait is the **grace period after that decision**, not the
+thing being waited for at ~299 s. ⇒ The **AP-side option** the user recalled ("the firmware expects
+`HiMI_OK`") now has a concrete site: the RF task is gated on an **RF-dispatch command named `HiMI_OK`**.
+
+#### Achieved vs Expected
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Identify the stop's upstream gate | an event/flag | **a `memcmp` vs the command name `"HiMI_OK"`** | **MET** |
+| Locate `HiMI_OK` in the image | a string | **VA `0xc1a84ff1`, `rf_dispatch.c` block, 1 code ref `c0d5f134`** | **MET** |
+| Read the gate's state at the crash | a value | **buffer `0xc310dcb0` = zeros in 5/5 dumps ⇒ compare fails** | **MET** |
+| Prove delivering `HiMI_OK` skips the stop | test | **NOT TESTED** (static + coredump only) | **NOT MET** |
+
+**SOP.** Ground truth first: the string, its single code reference, the compare function and the buffer
+address were read from the **stock** disassembly and cross-checked with a raw `llvm-mc` decode; the
+runtime structures were read from **five independent coredumps** with the bias `+0x39800000` verified
+against the firmware segment map. One change at a time: **no change** — this is a find.
+**Honest negative:** static + coredump only; the causal claim (that delivering `HiMI_OK` skips the stop)
+is **not yet tested**.
+
+#### (D) Trace — the RF dispatch (`rf_dispatch.c`)
+
+**The dispatch functions (located in the RF-task code region, `0xc0d5e5xx`):**
+
+* **`c0d5e610` = `rf_dispatch_command(node, cid)`.** `r16 = r0` (node), `r17 = r1` (cid). If `r17 != 0`
+  it enters the **dispatch loop** at `c0d5e660`:
+  ```
+  c0d5e660  r2 = memw(r16+0x44)            ; the node's HANDLER FP
+  c0d5e664  if (r2 == 0) goto c0d5e694     ; no handler
+  c0d5e668  callr r2                        ; r0 = cid, r1 = &arg  -> CALL THE HANDLER
+  c0d5e670  if (r0 != 0) goto c0d5e6b4
+  c0d5e674  r0 = memub(r16+0x19); if (r0 != 1) goto c0d5e688
+  c0d5e67c  goto c0d5e634 ; log  desc 0xc164e0a8  "… CID.0x%x - No Handler"
+  c0d5e694  …             ; log  desc 0xc164e0b8  "… CID.0x%x - No Entry"
+  ```
+  ⇒ **the RF command dispatch is a `callr` of `node+0x44`**; "No Handler"/"No Entry" are the two failure
+  logs (their F3 descriptors are the `rf_dispatch.c` pairs at `0xc164e0a8`/`0xc164e0b8`).
+* **`c0d5e570` = the node lookup.** Takes `(r0, r1=table)`, checks `memub(table+0)` against `cid>>0x18`
+  (`c0d5e598-c0d5e5a4`), then **walks the list at `table+4` with stride `0xc8`**, matching
+  `memw(node+4) == cid` (`c0d5e5e0-c0d5e5ec`). ⇒ the CID registry is an array of `0xc8`-byte nodes
+  (this is the same `0xc8` stride seen in the RF code).
+
+**Descriptor table.** All **19** `rf_dispatch.c` F3 descriptors are contiguous at `0xc164df98…0xc164e0b8`
+(each `{u32 msg_ptr; u32 "rf_dispatch.c"}`): 7× `register_command`, 7× `deregister_command`, 5×
+`command`. The log sites reference them via `immext(#0xc164df00/e040/e080) + r0 = ##…` (the disassembler's
+`immext` display **masks the low 6 bits**, so `immext(#0xc164e080)` + `##-0x3e9b1f80` = the descriptor
+`0xc164e0a8`). **No `rf_dispatch.c` record appears in ANY F3 capture** (`f3bootB_full`, `f3cap_imax`) ⇒
+the dispatch never errors at runtime — it is quiet/healthy.
+
+**How this relates to `HiMI_OK`.** The dispatch calls `node->handler(cid, &arg)`; the RF task's handler is
+`FUN_c0d5efd0`. The **command NAME** `HiMI_OK` is therefore not a CID — it is compared as a **string**
+against the buffer `0xc310dcb0`. That buffer is written by `c0d32a50` / `c0d32980`, which build
+`/nv/item_files/rfnv/%s%08d` paths (`c0d32a9c-c0d32aac`) — i.e. **RF-NV item reads** — and the RF task's
+bit-6 branch calls `c0d32a50(size=2500, buf=0xc310dcb0, …)` immediately before the bit-7 `memcmp`
+(`c0d5f100`). ⇒ **working model: the "imei" step reads an RF-NV item into `0xc310dcb0` and requires the
+content `"HiMI_OK"`.**
+
+**Next.** (1) Identify the RF-NV item id/name read at `c0d5f100` (the `r2 = add(r29,#0x6)` local = `0x00a0`
+= 160, set at `c0d5f0cc`) and whether it is an EFS/`rfnv` item the AP can write. (2) Decide whether
+`HiMI_OK` is the expected NV content (AP-writable via DIAG EFS — see `reference_diag_efs_read.md`) or a
+dispatch-status string.
+
+---
+
+### §112.166 — `HiMI_OK` is a **registered command ACK**, not NV content; the read id is `c0d32a50`'s **arg0**; the AP-write hypothesis
+
+**Date:** 2026-10-06. Follows §112.165. Method: raw-byte Hexagon disassembly (calibrated `llvm-mc`,
+base = instruction address) + five independent coredumps (bias `+0x39800000`).
+
+#### (A) The call chain at `c0886fe0` — a **runtime TLS/GP accessor**, not an id source
+
+`FUN_c0d5efd0` bit-6 ("get imei start") calls `c0886fe0` at `c0d5f0ec` and feeds its return as `r3` to
+`c0d32a50`. The chain is **tail-jumps** (no return addresses pushed):
+
+```
+c0d5f0ec  call c0886fe0                        ; return addr = c0d5f0f0
+c0886fe0  { r0 = memw(gp+#0x4e3c); jump c0886fec }
+c0886fec  { immext(#0x9793c0); jump c12003cc } ; c0886fec + 0x9793e0 = c12003cc  ✓
+c12003cc  { jump c11ea8c8 }                    ; c12003cc - 0x15b04 = c11ea8c8   ✓
+c11ea8c8  { r1:0 = combine(r0,#0)              ; r1 = index, r0 = 0  (.h = Rs)
+            if (p0.new) jump:t c11ea8e4; p0 = cmp.gt(r1,#0x3f)
+            r2 = ugp
+            p0 = cmp.eq(r2,#0); if (p0.new) jump:nt c11ea8e4
+            r0 = addasl(r2,r1,#2)              ; r0 = ugp + 4*index
+            r0 = memw(r0+#0x48)                ; return *(u32*)(ugp + 0x48 + 4*index)
+            c11ea8e4: jumpr r31 }
+```
+
+* **`c0886fe0` has 1077 callers** ⇒ a **generic runtime helper** (TLS/GP slot accessor), **not** an
+  RF-NV-specific getter. Feeding its return as an NV item id is therefore suspicious.
+* **Writer hunt (§112.166.1): NEGATIVE.** `gp+0x4e3c` has **5 reads, 0 writes** in the whole image
+  (`c0886fe4`, `c0887000`, `c088712c`, `c08871c0`, `c0887260`) ⇒ it is a **relocated/GOT slot**, not a
+  settable variable. `ugp` is written **only** by the thread-switch runtime (`c00309xx`–`c0033dxx`) ⇒
+  `TLS[0x48]` is a per-thread slot set by thread setup, not a single site. **No static writer exists.**
+
+#### (B) `HiMI_OK` is the **ACK string of a registered command `RF_TASK`**
+
+Source strings adjacent in `modem.b18`: **`"RF_TASK"` @ `0xc1a84fe9`**, **`"HiMI_OK"` @ `0xc1a84ff1`**
+(the latter is exactly the `memcmp` target at `c0d5f140`). `"HiMI_OK"` is the **only** `HiMI*` string in
+the whole firmware — a one-off token, not a named protocol.
+
+The RF-task **init** function (`c0d5edd0`–`c0d5eeb4`) **registers a command**:
+
+```
+c0d5ee54  r17 = add(r29,#0x28)                                   ; stack descriptor
+c0d5ee58  immext(#0xc1a84fc0); r1:0 = combine(##-0x3e57b017,#0)  ; r1 = "RF_TASK"
+c0d5ee60  immext(#0x80000); r18 = ##0x80010
+c0d5ee68  immext(#0x63e66dc0); memw(r17+#0x4) = ##0x63e66dd8
+c0d5ee70  memb(r17+#0x24) = #0x0
+c0d5ee74  immext(#0xc0d5ef80); memw(r17+#0x20) = ##-0x3f2a1060 ; = 0xc0d5efa0  (HANDLER)
+c0d5ee80  memw(r29+#0x28) = r1                                   ; name = "RF_TASK"
+c0d5eea0  memw(r17+#0xc) = #0x1 ; memw(r17+#0x10) = r5
+c0d5eeb0  memh(r17+#0x1c) = ##0xc0
+c0d5eeb4  call c0837e04                                          ; register
+```
+
+**Runtime descriptor at `0xc31108f8`** (byte-identical in **5/5** coredumps):
+
+```
+0xc31108f8: "RF_TASK\0"  "HiMI_OK\0"     <- command name + expected ACK
+0xc3110908: 0x00000094  0xd86de663  0x00000001  0x00000000
+0xc3110924: 0xc3c0be2c  0x00000001
+0xc311092c: 0xc310f1f8  0xc310f208  0x00080010
+0xc311093c: 0xc0d5efa0                   <- the handler (matches the registration above)
+```
+
+⇒ **the RF task registers a command `RF_TASK` whose expected ACK is `HiMI_OK`**, with handler
+`c0d5efa0`. This is a **name/ACK protocol**, exactly the shape of the user's AP-side instinct — but the
+ACK does **not** arrive over a live AP transport; it arrives via an **EFS/NV read** (below).
+
+#### (C) The response buffer `0xc310dcb0` is a field of a struct at `0xc310dc80`
+
+```
+0xc310dc88  (+0x08)  getter (c0d2d7e0: r0 = 0xc310dc88; jumpr r31)
+0xc310dca0  (+0x20)  status byte pair (c0d2d840: memb 0xc310dca0/0xc310dca1)
+0xc310dcb0  (+0x30)  the 2500-byte buffer read into by BOTH readers
+```
+
+Read into by **`c0d32a50`** (RF task, `c0d5f100`) **and** its sibling **`c0d32980`** (`c0d2f768`, an
+LTE/ML1 function) — both with `r0 = 0x9c4` (2500). Both build `/nv/item_files/rfnv/%s%08d` when
+`id > 19999` (`c0d32a9c`), else a non-rfnv path.
+
+#### (D) CORRECTION — the id is `c0d32a50`'s **arg0**, and the `0xa0` local is a **size**
+
+Hexagon reads all packet sources **before** writes commit. In `c0d32a50`'s first packet:
+
+```
+{ r17:16 = combine(r1,r2); r1:0 = combine(r4,r3); r6 = r0; memd(r29+#0x70) = r17:16 }
+```
+`r6 = r0` reads the **pre-packet r0 (incoming arg0)** — *not* the just-written `r3`. So the id used in
+`%08d` and the `>19999` gate is **arg0**. The sibling `c0d32980` confirms it independently: `r6 = r0` is
+its own packet (`c0d32988`). Therefore:
+
+* the earlier "id = `ret(c0886fe0)`" (§112.165 `(D)` Next-item) is **at most a competing candidate**
+  (the packet reuses r0 for an internal helper call);
+* the `0xa0` = 160 local is the **read size/status halfword** — cross-checked: `0x19b` = 411
+  (`c0b3be50`), `0x2000` = 8192 (`c0d5be30`), compared at `c0d32ad8` against the file size;
+* for the RF task, **arg0 = `0x9c4` = 2500**, and 2500 ≤ 19999 ⇒ the **non-rfnv** path, *not*
+  `/nv/item_files/rfnv/…`. **There is no "RF-NV item 160".**
+
+#### (E) The user's hypothesis (NV read/write)
+
+The HMU05 firmware **reads and writes** NV (the `c0d32a50`/`c0d32980` family has ~80 callers, and the
+EFS2 layer supports writes). The UFI001B device firmware does not. ⇒ **Working hypothesis: on cold boot
+the AP writes an NV item (the `HiMI_OK` token / the `RF_TASK` config) that the modem's "get imei" step
+reads back; on OpenWrt nothing writes it, the buffer stays zeros, the `memcmp` fails, and the RF task
+stops.** This is testable by (i) capturing the exact id and (ii) reading that item live over DIAG EFS2
+(`reference_diag_efs_read.md`).
+
+#### Achieved vs Expected
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Find a static writer of `gp+0x4e3c`/`TLS[0x48]` | a store site | **none** — GOT/relocated slot + thread runtime | **MET (negative)** |
+| Resolve the `c0886fe0` call chain | an id getter | **a 1077-caller TLS/GP accessor** | **MET** |
+| Identify what `HiMI_OK` is | NV content | **the ACK string of a registered command `RF_TASK`** | **MET** |
+| Pin the NV read id | a constant | **arg0 = 2500 (non-rfnv)** — but packet-ordering ambiguous vs `r3` | **PARTIAL** |
+| Test the AP-write hypothesis | a run | **NOT TESTED** | **NOT MET** |
+
+**SOP.** Ground truth first: all VAs and strings read from the **stock** disassembly; the packet
+semantics cross-checked by **raw-byte `llvm-mc` decode with an address-calibrated base**; runtime
+structures read from **five independent coredumps**. One change at a time: **no change** — this is a
+find + a correction. **Honest negative:** the id is **not** statically settled (arg0 vs r3), so §112.166.2
+builds an instrument to capture it at runtime.
+
+#### §112.166.2 — the `c0d32a50` instrument (BUILT)
+
+**Design.** Ring-logger on the **entry** of `c0d32a50` (`0xc0d32a50`, `PT_LOAD#16+0xaaba50`) and its
+sibling `c0d32980` (`0xc0d32980`). Each record captures `{seq, r0, r1, r2, r3, r4, r5, r31(caller)}`.
+Read the ring from the coredump at the ~900 s fatal (fw VA = dump VA + `0x39800000`). This yields the
+**exact** id/path and settles arg0-vs-r3.
+
+**Build.** *(see §112.166.3 for the build result and hashes)*
+
+#### §112.166.3 — the `c0d32a50` entry-ring build (P-NVID) + a DEPLOYMENT TRAP
+
+**Site.** Entry of `c0d32a50` (`PT_LOAD#16+0xaaba50`). Raw-byte parse-bit decode of the entry:
+
+```
+0xc0d32a50  0x498c78a7 parse=01  ┐ packet 1 (8 B): { r7 = memw(gp+#26388); allocframe(#120) }
+0xc0d32a54  0xa09dc00f parse=11  ┘
+0xc0d32a58  0xf5014210 parse=01  ┐
+0xc0d32a5c  0xf5044300 parse=01  │ packet 2 (12 B):
+0xc0d32a60  0x70062a74 parse=00  ┘   { r17:16=combine(r1,r2); r1:0=combine(r4,r3); r6=r0; memd(r29+#112)=r17:16 }
+0xc0d32a64  ...             ── packet 3 starts here (the `cmp.gt(r6,##19999)` / rfnv gate)
+```
+The trailing `parse=00` is a **duplex** (two ops, one word), so packets 1+2 = **20 bytes**. A census of
+all 83 references to `c0d32a5x`/`c0d32a6x` in `modem.asm` shows **every one is `call 0xc0d32a50`** and
+**nothing branches to `0xc0d32a54..c0d32a63`** ⇒ displacing 20 bytes is safe.
+
+**Trampoline (20 B, 5 words) — SEPARATE packets (v62 hazard).**
+```
+{ r6 = ##0xc003054c }   { jumpr r6 }   { nop }   { nop }
+```
+**Cave** replays the displaced 20 raw bytes verbatim, then resumes with
+```
+{ r12 = ##0xc0d32a64 }  { jumpr r12 }
+```
+`r12`, **not** `r6`: packet 3 does `p0 = cmp.gt(r6,##19999)` and r6 must still hold the item id that the
+replayed packet 2 (`r6 = r0`) produced. The cave clobbers only `r8..r13` (caller-saved); `r0..r5`,
+`r29..r31` are untouched; r6 is clobbered by the trampoline but restored by the replay.
+
+**Ring.** 2048 × 32 B `{ seq, r0(id), r1, r2, r3, r4, r31(caller), ts }`; seq @`0xc1ef6a00`;
+ring @`0xc1ef7000`; `ts = memw(0xc1da0948)` (MCPM 19.2 MHz, the v62/v64 source).
+
+**★★ DEPLOYMENT TRAP — modifying a segment's *file* can break MPSS auth.** The first build put the cave
+in **b19** (`0xc1ef6800`) and re-hashed b19 in b01. `ufi001b_hash_tool.py verify` reported
+**19 MATCH / 0 MISMATCH, Overall PASS** — yet the modem **failed to boot**:
+
+```
+qcom-q6v5-mss 4080000.remoteproc: MPSS authentication failed: -19
+qcom-q6v5-mss 4080000.remoteproc: port failed halt
+remoteproc remoteproc0: can't start rproc 4080000.remoteproc: -19
+```
+
+`modem.b01` is not just a hash table — after it sits an **RSA signature (256 B) + certificate chain
+(6144 B)** (`ufi001b_hash_tool.py`: `[0x28..0x28+N*32)` hashes, then the sig, then the certs). The
+proven builds (v62/v64, and the deployed `imei_max`) **only ever modify b16 + b05 and write b19 at
+RUNTIME**. Fix: **cave → b05** (`0xc003054c`, the v62/v64-proven 180-byte nop sled), **ring/save stay in
+b19 written at runtime only**, so the b19 file stays byte-identical to stock. After the fix the modem
+boots (`state=running`, no `authentication failed` line).
+
+**Result / hashes.**
+| file | md5 | note |
+| :-- | :-- | :-- |
+| `modem.mdt` | `3ea3d226234adac22a4a4e51cc063657` | b00+b01 |
+| `modem.b16` | `7e421d08b4d5c222764573eff5a02e8d` | wait 60000 ms + entry trampoline |
+| `modem.b05` | `2284314c8d86252042332692e0988c6c` | 120 B cave in the nop sled |
+| `modem.b19` | *unchanged* | ring/save are runtime-only |
+
+`ufi001b_hash_tool.py verify scratch/imei_ring/image_patched` → **19 MATCH, 0 MISMATCH, PASS**;
+`modem.b19`/`modem.b00` byte-identical to stock. Deployed 2026-10-06 (AP uptime ~8646) and the modem
+booted `running`.
+
+**Achieved vs Expected.**
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Hook the NV reader entry without disturbing callers | modem boots | boots `running`; hash PASS | **MET** |
+| Cave location | a free in-range region | **b05 nop sled** (b19 file-mod is a trap) | **MET (after a failed build)** |
+| Capture the id at runtime | ring at the fatal | *pending coredump* | **PENDING** |
+| Test the AP-write hypothesis | id → EFS2 read | *pending* | **PENDING** |
+
+**SOP.** Ground truth first: the entry packet decode is from the **stock** bytes with parse bits read
+directly; the 83-caller census is from the stock disassembly; the cave sled is the **v62/v64-proven**
+region. One change at a time: the **b19 variant was built, deployed, and FAILED** (auth `-19`); it was
+rolled back to the known-good image (which booted) before the b05 variant was built ⇒ the b19 file-mod
+is the isolated cause. Hashes verified with `ufi001b_hash_tool.py` (Overall PASS) and sha256 read-back
+from the device.
+
+#### §112.166.4 — P-NVID RESULT: the RF task reads NV item **2500** into `0xc310dcb0`, **exactly once**, at the end
+
+Coredump `scratch/dumps/pnvid_c0d32a50_ring.bin` (85 398 475 B, md5 `bebeaee96cbeab99c528a1736a19678d`,
+modem fatal at AP uptime 9046; `read_imei_ring.py`).
+
+```
+SAVE.seq = 1689          (the hook fired 1689 times; no ring wraparound -> ALL calls are present)
+
+caller histogram (r31):
+  0xc0e92f5c  x905     0xc0d32bd4  x645     0xc0d5be90  x76
+  0xc104dfc8  x42      0xc0d2afdc  x13      0xc0d2ad18  x7
+  0xc0d5f110  x1        <-- THE RF TASK
+```
+
+**The RF task's call is the LAST record (seq 1689) and the ONLY one:**
+
+```
+seq=1689  caller=0xc0d5f110  id=2500 (0x9c4)  r1=0xc310dcb0  r2=0x8ae881e6  r3=0xc3c0be2c  r4=0x80
+```
+
+* `r1 = 0xc310dcb0` is **exactly the buffer memcmp'd against `"HiMI_OK"`** (§112.165) ⇒ this is the
+  "get imei" read, not some other reader use.
+* **id = 2500 = arg0** ⇒ **§112.166.1's correction is CONFIRMED at runtime**: the id is arg0, *not*
+  `ret(c0886fe0)`, and *not* 160. 2500 ≤ 19999 ⇒ the **non-rfnv** path (no `/nv/item_files/rfnv/…`).
+* It fires **once in the whole run** — and at the very end, immediately before the fatal. (Caller
+  census: the 1688 earlier calls are the RF-NV/LTE families, ids 20 019…27 543, i.e. rfnv ids.)
+* The response buffer is **ALL ZEROS** in this dump too (now **6/6** dumps) ⇒ the read of item 2500
+  returned nothing ⇒ `memcmp("HiMI_OK", buf, 7)` fails ⇒ `rf_task.c:400 "get imei  will stop"` ⇒ the
+  mask-`0x4000` wait ⇒ the ~360 s fatal.
+
+**★ The complete causal chain, now runtime-grounded:**
+
+```
+RF task FUN_c0d5efd0 (bit-7 branch)
+  -> c0d5f0f4  call c0d32a50(id=2500, dst=0xc310dcb0, &size, ctx=0xc3c0be2c, 128)
+  -> 2500 <= 19999 -> NON-rfnv read path
+  -> buffer 0xc310dcb0 stays ZEROS  (6/6 coredumps)
+  -> c0d5f140 memcmp("HiMI_OK", buf, 7) != 0
+  -> c0d5f14c "get imei  will stop"  -> arm mask-0x4000 wait -> ~900 s (stock) / ~360 s (60 000 ms) fatal
+```
+
+**⇒ The user's AP-write hypothesis now has a concrete subject: NV item 2500.** If a writer puts
+`"HiMI_OK"` into whatever item 2500 resolves to (or the read is made to succeed), the `memcmp` passes,
+the RF task loops instead of stopping, and the fatal's *trigger* disappears. **Open:** the non-rfnv
+path's concrete EFS name for id 2500 (the ≤19999 branch thunks `0xc0d32650` -> `0xc0d32580`, which is
+NOT a simple `%s%08d` builder — the path string must be captured at runtime, or item 2500 read live
+over DIAG EFS2 per `reference_diag_efs_read.md`).
+
+**Deployment note.** The instrument build (which crashes at ~360 s) was rolled back to the deployed
+`imei_max` image immediately after the capture (`modem.mdt` back to `d78d1f2f…`, modem `state=running`).
+
+**Achieved vs Expected.**
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Capture the read id at runtime | an id | **2500 (arg0)** — settles arg0-vs-r3 | **MET** |
+| Bind the read to the HiMI_OK gate | buf match | **r1 = 0xc310dcb0 exactly** | **MET** |
+| How often does it fire? | ? | **once**, as the last event before the fatal | **MET** |
+| The non-rfnv EFS path for 2500 | a name | *not yet captured* | **NOT MET** |
+| AP-write test | a run | subject now known (item 2500) | **PARTIAL** |
+
+**SOP.** Ground truth first: the site bytes and the 83-caller census are from the **stock** image; the
+cave sled is the v62/v64-proven region; the id/buffer are read from a **fresh** coredump with the
+verified bias. One change at a time: the b19 variant was **deployed and FAILED** (auth `-19`), rolled
+back, then the b05 variant was built — the b19 file-mod is the isolated cause. Hashes: build →
+`ufi001b_hash_tool.py verify` **Overall PASS**; deploy → sha256 read-back OK; coredump → md5 match.
+**Honest negative:** the non-rfnv EFS name for item 2500 is **not** yet known; do not claim it.
+
+---
