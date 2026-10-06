@@ -11,6 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-10-06 — ★★★★ §112.163 DEPLOYED: the RF-task imei wait driven to its signed maximum (`0x7fffffff` ms = 24.855 days)
+
+- **The patch.** §112.162 proved the ~900 s fatal is the RF-task imei wait; the wait constant lives at
+  `0xc0d5f160` inside the RF-task handler `FUN_c0d5efd0` (`r0 = ##<ms>`, stock `600000`). Drive it to the
+  safe signed maximum: `r0 = ##0x7fffffff` = 2 147 483 647 ms = **24.855 days**. Bytes
+  `9f 64 00 00 00 c0 00 78` → `ff 7f ff 07 e0 c7 00 78`. (`0xffffffff` assembles as `##-1`, i.e.
+  "immediate" — not usable.)
+- **Build.** `scratch/build_imei_wait.py 0x7fffffff scratch/patch_imei_max/image_patched`: writes the site
+  in `modem.b16`, re-SHA256's segs 16 & 5 into `modem.b01`, rebuilds `modem.mdt` = `b00`+`b01`.
+  `ufi001b_hash_tool.py verify` → **19 MATCH / 0 MISMATCH, Overall PASS**.
+- **Deploy (2026-10-06).** `/lib/firmware` updated and **sha256 read-back verified on the device**; modem
+  restarted and reached `state=running`; AP up ~31 min / modem ≈ 1860 s with **zero fatal**. Deployed
+  hashes: `modem.mdt d78d1f2fad0099043d16c25a0e098f43`.
+- **★ What this is and is NOT.** The predicted deadline becomes `~299 s + 24.855 d + ~1.6 s ≈ 24.86 days`
+  of modem uptime. This is a **DEFERRAL, not a root-cause fix** — the RF task still stops; it simply waits
+  ~24.9 days instead of 600 s before the fatal. Root cause (why the mask-`0x4000` event never arrives)
+  remains OPEN.
+- Files: ledger §112.163; `scratch/build_imei_wait.py`, `scratch/patch_imei_max/`.
+
 ### 2026-10-06 — ★★★★★ §112.162 DECISIVE A/B: the ~900 s fatal is the RF-task "new imei check" — `[will-stop @ ~299 s] + [600 s wait] + [~1.6 s]`
 
 - **★ The lead.** `rf_task.c` logs `:386 start` / `:396 done` / `:400 will stop` at modem-up ≈ 298–300 s, then

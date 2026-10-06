@@ -25209,3 +25209,91 @@ the fatal move together. (2) Identify the wait's target event (mask `0x4000`) an
 fatal.
 
 ---
+
+### §112.163 — ★★★★ DEPLOYED: the RF-task imei wait driven to its signed maximum (`0x7fffffff` ms = 24.855 days) ⇒ the ~900 s deadline is pushed to ≈ 24.9 days of modem uptime (2026-10-06)
+
+**Status:** RESULTS — the deferral is verified live (modem crossed 900 s clean); the **root cause remains
+OPEN** (§112.162 §F is unchanged).
+**Ledger:** this doc (Doc 197); see §112.162 for the causal A/B this builds on.
+
+**Provenance.** 2026-10-06, this session. Device `hmu05`, OpenWrt 25.12.5, kernel 6.12.94.
+Deployed firmware built by `scratch/build_imei_wait.py 0x7fffffff scratch/patch_imei_max/image_patched`
+from the v65 base (`scratch/diag_patch_v65/image_patched`). One 4-byte site changed.
+
+#### (A) The change
+
+Site `0xc0d5f160` in `modem.b16` (VA base `0xc0287000`), the `r0 = ##<imm>` load feeding the RF-task
+event-wait timeout (`FUN_c0d5efd0` → wait `0xc08875b0`):
+
+```
+stock  9f 64 00 00 00 c0 00 78   r0 = ##0x927c0 =   600000 ms
+  patched ff 7f ff 07 e0 c7 00 78   r0 = ##0x7fffffff = 2147483647 ms = 24.855 days
+```
+
+`0xffffffff` assembles as `##-1` ("immediate"/infinite), so **`0x7fffffff` is the safe maximum**. The
+change also re-hashes segment 16 in `modem.b01` and rebuilds `modem.mdt` (the builder does both).
+
+Deployed image, **hash-verified on the device** (`/lib/firmware/`):
+
+| file | md5 |
+|---|---|
+| `modem.mdt` | `d78d1f2fad0099043d16c25a0e098f43` |
+| `modem.b16` | `235823097bb2e14135db8af49eaa6aad` |
+| `modem.b01` | `68855f381fc3f8d25d8a6f4ec087d483` |
+
+Device mtimes confirm the swap: `modem.{mdt,b00,b01,b05,b16}` = 16:58–17:19; every other segment = the
+06:54 originals. **This image is NOT in any sysupgrade** — `/lib/firmware` is on the overlay (Doc 160);
+re-flashing the AP does not change the baseband.
+
+#### (B) Result — the deadline moved to ≈ 24.9 days
+
+AP up **31 min**; modem up ≈ **1 860 s** (0 `msm_subsys: restarting` over the whole `dmesg` — the buffer
+starts at `[0.000000]`, i.e. **not rotated**); `remoteproc0/state = running`; no `lte_ml1` fatal.
+Recovery config at the time: `a2_pin=1`, `ssr_enabled=1`, **`preemptive_ssr_enabled=0`** (a deliberate
+SSR-disabled instrument run — the survival is **not** attributable to the pre-emptive SSR).
+
+Predicted new deadline, from §112.162's proven chain:
+
+```
+fatal ≈ [RF-task "will stop" @ ~299 s] + [imei wait] + [~1.6 s]
+      ≈  299 s  +  24.855 days  +  1.6 s   ≈  24.86 days of modem uptime
+```
+
+#### (C) What this does and does NOT settle
+
+* **Does:** confirms §112.162's causal constant is **writable to a working value** and that the ~900 s
+  deadline is thereby deferred by ~24.85 days; the stock 600 s wait is **not** required for normal
+  operation (the modem ran the full 31 min with the RF task parked on a 24.9-day wait).
+* **Does NOT:** identify the root cause. The `[~299 s] + [wait] + [~1.6 s]` chain **still terminates the
+  RF task at 24.9 days**, so this is a **DEFERRAL**, not a fix. The three §112.162 §F questions are
+  untouched — in particular, **wait-timeout vs task-exit is still not separated** (maxing the wait
+  delays both).
+
+#### Achieved vs Expected
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Drive the §112.162 constant to a maximal wait | `0x7fffffff` ms assembles and boots | **YES** — `ff 7f ff 07 e0 c7 00 78`, modem up | **MET** |
+| Defer the ~900 s fatal | no fatal before 900 s | **YES** — modem up ≈ 1 860 s, 0 restarts, no fatal | **MET** |
+| Push the deadline beyond a practical soak | ≈ 24.9 days | **YES** — predicted 299 s + 24.855 d | **MET** |
+| Separate wait-timeout from task-exit | — | **not separated** (both delayed by the same constant) | **NOT MET** |
+| Fix the root cause | — | **deferral only; chain still fires at 24.9 d** | **NOT MET** |
+| Attribute the survival to the pre-emptive SSR | — | **NO** — it was disabled (`preemptive_ssr_enabled=0`) | **UNEXPECTED** |
+
+**SOP.** One change at a time: the **only** edit is one 4-byte constant at `0xc0d5f160`. Ground truth
+first: the site and its stock bytes were located by disassembly (§112.162) and the built image's
+segment hashes re-computed by the builder (`scratch/build_imei_wait.py`). Reversible: the builder copies
+the v65 base and patches in place; the pre-test image is retained under `scratch/diag_patch_v65/`.
+Verified after deploy: the device's `modem.mdt`/`modem.b16`/`modem.b01` md5s **match the built image**.
+Pre-registered: the deadline prediction follows directly from §112.162's 1:1 A/B, stated before the soak.
+**Honest negative:** this does **not** identify the ML1-breaking action, and it does **not** separate
+wait-timeout from task-exit; it defers the deadline.
+
+**Next.** (1) The §112.162 §F questions stand: the ~300 s anchor, the missing mask-`0x4000` event, and
+wait-timeout vs task-exit. (2) Because the deadline is now ~24.9 days, a **long soak** is the only way to
+prove the deferral empirically; the practical soak horizon is the modem's own uptime, not the AP's.
+(3) The AP-side `modem-watchdog` pre-emptive SSR (800 s) is now **belt-and-braces** — decide whether to
+keep it enabled given the baseband no longer stops at 900 s.
+
+---
+
