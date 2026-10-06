@@ -48,6 +48,16 @@ config recovery 'recovery'
 	option preemptive_ssr_enabled '1'
 	option preemptive_ssr_interval '600'
 
+	# Post-fatal zombie nudge (ledger §112.161, 2026-10-06).  A modem fatal is
+	# followed by a crash-recovery restart that can leave the modem in a
+	# low-power ZOMBIE: DMS `shutting-down`, NAS `not-registered-searching`,
+	# ModemManager "no modem object".  A modem/SSR restart does NOT clear it, but
+	# `qmicli --dms-set-operating-mode=online` does (measured, n = 2).  After this
+	# many seconds with the bearer down and NO modem object, the watchdog attempts
+	# that nudge (cooldown-bounded).  Set to 0 to disable.  ⚠ Recovers the SHALLOW
+	# zombie only; the DEEP one (RF `none`) does not respond.
+	option zombie_nudge_secs '60'
+
 	# A2-pin (ledger §112.23).  When 1, the watchdog holds
 	# bam-dmux/power/control=on every loop, so bam_dmux_runtime_suspend() -- the
 	# only writer of bam_dmux_pc_vote(false) -- never runs, the AP's

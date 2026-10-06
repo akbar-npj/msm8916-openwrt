@@ -40,6 +40,26 @@ BEARER_DOWN_SECS=0
 BEARER_REARM_COOLDOWN=60
 LAST_BEARER_REARM=0
 
+# Post-fatal zombie nudge (ledger §112.161, 2026-10-06).
+#
+# A modem fatal at ~902.6 s is followed by a crash-recovery restart that can land
+# the modem in a LOW-POWER ZOMBIE: DMS `shutting-down`, NAS
+# `not-registered-searching`, ModemManager "no modem object".  Measured twice on
+# 2026-10-06: a modem/SSR restart does NOT clear it (a pre-emptive SSR at AP
+# 20504 left it `shutting-down`), but `qmicli --dms-set-operating-mode=online`
+# DOES (`online` + `registered`, ~10 s, reproduced n = 2).  The old loop only
+# logged "waiting for MM to re-probe" and waited forever, so a post-fatal zombie
+# left the device without cellular until a cold reboot.
+#
+# Attempt the nudge only after the bearer has been down with NO modem object for
+# this long, and only every ZOMBIE_NUDGE_COOLDOWN seconds (bounded, so it cannot
+# churn during a genuine boot).  ⚠ This recovers the SHALLOW zombie only; the
+# DEEP one (RF `none`) does not respond (ledger §112.108 Case A).
+ZOMBIE_DOWN_SECS=0
+LAST_ZOMBIE_NUDGE=0
+ZOMBIE_NUDGE_COOLDOWN=120
+ZOMBIE_QMI_DEV="/dev/wwan0qmi0"
+
 # --- Hardening (2026-10-04): a fail-safe fallback anchor ----------------------
 #
 # SECS_SINCE_SSR is the local timer, in seconds, since the last modem restart the
@@ -268,6 +288,7 @@ while true; do
     KEEPALIVE_INTERVAL=$(uci -q get modem-watchdog.keepalive.interval || echo 10)
     KEEPALIVE_TARGET=$(uci -q get modem-watchdog.keepalive.target || echo "1.1.1.1")
     BEARER_DOWN_RECOVER_SECS=$(uci -q get modem-watchdog.recovery.bearer_down_recover_secs || echo 30)
+    ZOMBIE_NUDGE_SECS=$(uci -q get modem-watchdog.recovery.zombie_nudge_secs || echo 60)
 
     # 1. Check if modem remoteproc is running
     RPROC=$(cat "$RPROC_STATE" 2>/dev/null)
@@ -406,12 +427,47 @@ while true; do
            [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
            [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ]; then
             if mmcli -L 2>/dev/null | grep -q '/Modem/'; then
+                ZOMBIE_DOWN_SECS=0
                 logger -t modem-stall-watchdog "Bearer STUCK: netifd interface down ${BEARER_DOWN_SECS}s with a modem present; re-driving (up + re-arm availability)."
                 ubus call network.interface.modem up 2>/dev/null || true
                 ubus call network.interface.modem notify_proto '{"action":5,"available":true}' 2>/dev/null || true
                 LAST_BEARER_REARM=$NOW
             else
                 logger -t modem-stall-watchdog "Bearer down ${BEARER_DOWN_SECS}s and ModemManager reports no modem object; waiting for MM to re-probe."
+                # Post-fatal ZOMBIE recovery (ledger §112.161, 2026-10-06).
+                #
+                # Measured 2026-10-06: after a fatal's crash-recovery restart the
+                # device can enter a TWO-LAYER zombie — (1) ModemManager is not on
+                # the bus (`mmcli -L` → "couldn't find the ModemManager process in
+                # the bus"; procd does NOT respawn a daemon that died without
+                # exiting) and (2) the modem is stuck in DMS `shutting-down`.
+                # Neither a modem/SSR restart nor either fix ALONE restores the
+                # bearer: measured, the QMI nudge alone left the bearer down, and
+                # the MM restart alone is not enough while the modem is
+                # `shutting-down`.  Recover BOTH.  The old loop only logged and
+                # waited forever, so a post-fatal zombie left the device without
+                # cellular until a cold reboot.  Cooldown-bounded; ⚠ recovers the
+                # SHALLOW zombie only (RF alive) — the DEEP one (RF `none`) does
+                # not respond (ledger §112.108 Case A).
+                ZOMBIE_DOWN_SECS=$((ZOMBIE_DOWN_SECS + CHECK_INTERVAL))
+                if [ "$ZOMBIE_DOWN_SECS" -ge "$ZOMBIE_NUDGE_SECS" ] && \
+                   [ $((NOW - LAST_ZOMBIE_NUDGE)) -ge "$ZOMBIE_NUDGE_COOLDOWN" ]; then
+                    if mmcli -L 2>&1 | grep -q "couldn't find the ModemManager"; then
+                        logger -t modem-stall-watchdog "ZOMBIE: ModemManager not on the bus; restarting modemmanager service"
+                        /etc/init.d/modemmanager restart >/dev/null 2>&1 || true
+                        sleep 5
+                    fi
+                    ZOMBIE_MODE=$(qmicli -d "$ZOMBIE_QMI_DEV" --dms-get-operating-mode 2>/dev/null | sed -n "s/.*Mode: '\(.*\)'/\1/p")
+                    case "$ZOMBIE_MODE" in
+                        shutting-down|offline|low-power|persistent-low-power)
+                            logger -t modem-stall-watchdog "ZOMBIE: DMS mode '${ZOMBIE_MODE}'; attempting --dms-set-operating-mode=online"
+                            qmicli -d "$ZOMBIE_QMI_DEV" --dms-set-operating-mode=online >/dev/null 2>&1 || true ;;
+                        *)
+                            logger -t modem-stall-watchdog "ZOMBIE: DMS mode '${ZOMBIE_MODE:-unknown}'; modem already online, no nudge" ;;
+                    esac
+                    LAST_ZOMBIE_NUDGE=$NOW
+                    ZOMBIE_DOWN_SECS=0
+                fi
             fi
         fi
         sleep "$CHECK_INTERVAL"

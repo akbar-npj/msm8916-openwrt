@@ -23426,3 +23426,1786 @@ add/start" path that writes `spec+0x38 = 0x2EE00`. Also: capture the **1 s** key
 **SOP.** Pre-registered (§112.141) **before** the event; natural event; pre-emptive SSR disabled; `a2_pin=1`;
 result recorded **before** rollback. ⚠ Deviation: the watchdog's **stall-SSR** restarted the modem once while LTE
 was down; the epoch was re-anchored and the event was still captured cleanly. Rollback = `deploy_v57.py --rollback`.
+
+---
+
+## §112.143 — v58 PRE-REGISTRATION: the ML1 timer **ARM** ring (unfiltered) — catch the ARM of the 10 ms key-3 timer — 2026-10-06, task #325
+
+**Why.** §112.142 closed the question *what* the terminal key-3 storm is (a SEPARATE key-3 timer, interval
+`0x2EE00` = 10.000 ms @ 19.2 MHz, present only in the terminal window) and established that v57's own ring was a
+**harness artifact** — the ML1 context block is **runtime-placed BSS** and shifted −0x20 between runs, so any
+filter on a ctx/spec **address** is invalid. The next step is the **ARM** (the timer START), recorded **without
+any address filter**, so the arm of the 10 ms timer is caught and the armer identified.
+
+**Ground truth established this session (stock image, `scratch/_dis2.py` + the v57 coredump).**
+- The ML1 timer engine's START/ARM function is **`0xc0914e10`** (`{ call 0xc0837c30; allocframe(#0x50) }`; it
+  loads the spec into `r17` at `0xc0914ea8`).
+- At **`0xc0914f70`** it executes **`memd(r17+#0x38) = r23:22`** — the ACTIVE interval ← the CONFIGURED interval
+  loaded from `spec+0x68` at `0xc0914f54`. Then `0xc0914f80: memd(r17+#0x30) = (spec+0x40) + r19:18`.
+- **`spec+0x88` == the ML1 CONTEXT.** Verified against the v57 coredump: `0xc2cd46d8+0x88 == 0xc20f1048`
+  (the **key-3** context) and `0xc2ce2e64+0x88 == 0xc20e30f0` (the key-0 context). The context's `+0x38` is the KEY.
+- The v57 coredump's spec census **independently confirms** the two key-3 intervals: **key-3 has a spec with
+  `iv = 0x2EE00` (10.000 ms)** and **key-12 has a spec with `iv = 0x124F800` (1.000 s)**; other keys carry
+  100/300/700/800 ms specs. (So §112.142's "1 s key-3 timer" is more precisely **key-12's** 1 s spec; the two
+  key-3-interval claim is re-scoped: key-3's own spec is 10 ms.)
+
+**Method (unchanged channel — firmware cave in modem BSS + crash-coredump read; §112.128).**
+- SITE (seg16): **`0xc0914f70`** (`07 d6 d1 a1`) → `{ jump PAD }`.
+- PAD `0xc02cb2c4` (12 B nop sled) → `{ r6=##CAVE } { jumpr r6 }`; CAVE **`0xc003054c`** (180 B sled) re-executes
+  the original store then jumps to **`0xc0914f74`**. Clobbers only **r6–r13** (dead at the site: caller-saved and
+  never saved by the function; the successor path uses r0,r1,r16,r17 only).
+- STATE (seg19, verified all-zero): **SAVE `0xc1d4c600`** 16 B `{arm_total, cnt_10ms, cnt_1s, —}`;
+  **RING `0xc1d4c800`** 2048 × 32 B `{seq, spec, iv_lo, iv_hi, ctx, cfg_lo, cfg_hi, t}`.
+- **No address filter** (records every arm); the key is derived **offline** by mapping each record's `ctx` to the
+  28 contexts extracted from the **same** v58 coredump.
+
+**P-V58 (pre-registered BEFORE any v58 data exists).**
+- **H1** boots and runs to the ~900 s event (`SAVE.arm_total > 0`).
+- **H2** the ring is non-empty and every record's `ctx` maps to one of the 28 contexts (sane).
+- **H3** the terminal key-3 timer is CAUGHT: ≥1 ring record with `iv == 0x2EE00` whose `ctx` maps to **key 3**.
+- **(a)** exactly ONE/few such 10 ms key-3 arms near the end ⇒ the timer is **ARMED once at ~900 s** (confirms
+  §112.142's offline conclusion); next = the **caller** of that arm.
+- **(b)** MANY 10 ms arms / throughout ⇒ the period was **reprogrammed**; next = the writer of `spec+0x68`.
+- **NEG** `arm_total == 0`, or no record with `iv == 0x2EE00` ⇒ the arm path is elsewhere; re-target.
+
+**Deployment.** `scratch/diag_patch_v58/build_diag_patch_v58.py`; `verify_v58.py` (offline, 20 checks);
+`deploy_v58.py` (sha256 read-back); device-side capture `scratch/v58mon.sh`; reader `scratch/read_v58.py`.
+Image `modem.mdt` md5 = **`92bf203aad52f8b3e3a8a24d92ee21ad`** (stock `1a6f9507e03d4ddbbf1977af81ecdbd7`).
+Runtime config unchanged: `preemptive_ssr_enabled=0`, `preemptive_ssr_interval=800`, `a2_pin=1`, `ssr_enabled=1`.
+
+**SOP.** Static ground truth re-derived this session from the stock image **and** validated against the v57
+coredump; one change at a time; pre-registered before the event; natural event; pre-emptive SSR disabled;
+result to be recorded **before** rollback.
+
+---
+
+## §112.144 — v58 RESULT: the ML1 timer **ARM path is NORMAL**; the 10 ms key-3 period is the NORMAL per-DRX period; the "spec" is a RECYCLED POOL SLOT — 2026-10-06, task #325
+
+**⚠ CORRECTION to §112.143.** The pre-registration named the SITE as `0xc0914f70` (a 4-byte store) and the image
+md5 as `92bf203a…`. Both were wrong, and the first deployment **crash-looped the modem at boot** (`mba.mbn` OK,
+then `fatal error received: SFR Init` / `start timed out` / `-110`; modem stuck `offline`). The ARM store
+`0xc0914f70` is the **2nd half of the 8-byte packet at `0xc0914f6c`** (`{ r1:0 = memd(r17+#0x40) ;
+memd(r17+#0x38) = r23:22 }`); a 4-byte patch at `+4` is mis-decoded (the packet's first word carries the parse
+bits, so the CPU read the jump word as an ordinary slot-1 instruction). **Fix:** patch the WHOLE 8-byte packet
+(`SITE = 0xc0914f6c`, `SITE_PKT = 0041d19107d6d1a1`), replace with `{ jump PAD } + { nop }`, and have the cave
+re-execute BOTH original instructions. Rebuilt + re-verified (VERIFY PASS) + redeployed; the modem booted cleanly
+(restart 40→41, `running`) and LTE re-attached. **Corrected image `modem.mdt` md5 = `cc74baf621507e2274d4430089b2ea76`.**
+
+**Run.** Natural event, no pre-emptive SSR (`preemptive_ssr_enabled=0`, `a2_pin=1`). Capture
+`scratch/v58_capture/natural_devcd39.bin` (md5 `e067b936efed48d2aa7262d3335ea412`):
+`lte_ml1_common_timer.c:390`, task `tmr_slave3`, uptime 0:15:02.
+
+**SAVE: `arm_total = 91151`, `cnt_10ms = 805`, `cnt_1s = 0`.** Ring: 2048 records, `seq 89104..91151`.
+
+**Scoring.**
+- **H1 PASS** (`arm_total > 0`).
+- **H2 PARTIAL** — only **65/2048** records have a `ctx` in the 28 ML1 contexts. New structural reason:
+  **`0xc0914e10` is a GENERAL "SystemTimer" arm function used by MANY subsystems**, not ML1-only; most arms are
+  on non-ML1 objects.
+- **H3 PASS** — 21 records with `iv == 0x2EE00`, all mapping to **key 3** (`ctx 0xc20f1068`).
+- **(a) NO, (b) MATCHED.** The 10 ms arms are spread across the WHOLE run at ~1 per DRX cycle (`t` advances
+  ~24 575 863 ticks = 1.280 s per group), NOT confined to the terminal window.
+
+**★ Decisive conclusion: the ARM path is NORMAL.** The 10 ms key-3 interval is **key-3's normal per-DRX period**,
+armed ~once per 1.28 s DRX cycle throughout the run (805 arms over ~900 s ≈ 0.89/s) — **not** a terminal-only arm.
+⇒ **§112.142's "a SEPARATE 10 ms key-3 timer ARMED only at ~900 s" is CONTRADICTED** (it was a v56 re-analysis
+artifact). Reconciling with v54/v56 (123 key-3 dispatches at 10 ms spacing at the terminal): since the ARMs are
+normal, the terminal storm is a **RESCHEDULE (self-re-arm) storm** on the `0xc09137ec` path (v55–v57's site) — a
+DIFFERENT path from the ARM `0xc0914f70` hooked here.
+
+**New structural facts.**
+- **The "spec" is a RECYCLED POOL SLOT, not a stable per-timer object.** Slots span `~0xc2cd4e70..0xc2cddcc0`.
+  Read back at crash time, a slot used by key-3 at `seq 89151` (`0xc2cd8bc0`) is **all-zero** (freed), and
+  `0xc2cd79c0`/`0xc2cdd600` hold `+0x88 = 0xc35aab98` — a **different ctx** than the one the ring recorded for that
+  slot ⇒ slots are handed out and reused; a context can use many slots.
+- **key-20 (the FATAL context) is armed with `iv = 0` (a CANCEL) every DRX cycle** — 22× in the ring, ALL
+  `iv = 0`, `cfg = 0`. ⇒ the fatal is **NOT** produced by a re-arm of key-20; its timer is repeatedly *cancelled*,
+  yet it fires at ~900 s.
+- **Terminal window** (~170 records): a tight loop of `iv = 0` arms on ctxs **`0x8b097150` / `0xc397fb00` /
+  `0xc35aab98`** (NOT among the 28 ML1 contexts), with the cached per-cycle MCPM timestamp (`memw(0xc1da0948)`)
+  **frozen** at `1832871885`. `0xc1da0948` is the **cached per-DRX-cycle timestamp** (advances once per DRX cycle);
+  the freeze is that cache no longer updating = **DRX-cycle death**, a SYMPTOM.
+
+**★ NEGATIVE killed this session — the "900 s @ 32.768 kHz" constant is a DISASSEMBLY ARTIFACT.** A byte-wise scan
+of `modem.b16` for `0x01c20000` (29 491 200 = 900 × 32 768) returned 4 hits (offsets `0xbe93`, `0xe74b`, `0x152a3`,
+`0x1e5c3`) — but **all are at offset ≡ 3 (mod 4)**. Disassembly shows the bytes at offset ≡ 3 of the aligned
+instruction **`0x1601c200`** = `{ immext(#…); r1 = #0x2 ; jump 0x… }` — the ubiquitous *jump-with-`r1=2`* encoding.
+**No real 900/901/902/903 s constant exists at 32.768 kHz.** Independently confirms §112.120 ("no literal 900/901
+constant") and **retires the "32.768 kHz always-on timeout" hypothesis.**
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Instrument built + offline-verified | yes | **yes** (VERIFY PASS, ~20 checks) — after fixing the 8-byte-packet bug |
+| Boots + reaches the natural event | yes | **yes** (after the fix; md5 `cc74baf6…`) |
+| H1 (`arm_total>0`) | yes | **PASS** (`91151`) |
+| H2 (ring sane) | yes | **PARTIAL** (65/2048 — the arm fn is subsystem-general) |
+| H3 (10 ms key-3 caught) | yes | **PASS** (21 records, all key-3) |
+| (a) single terminal arm | one | **NO** — many arms throughout |
+| (b) period reprogrammed | many | **MATCHED** — but as the NORMAL per-DRX period, not a reprogramming |
+| Root cause identified | yes | **NO** — the ARM/period axis is now CLOSED |
+
+**SOP.** Static ground truth re-derived + the deployment failure root-caused offline (8-byte packet alignment);
+**one change at a time**; pre-registered before the event; natural event; pre-emptive SSR disabled; result recorded
+**before** rollback. Deviation: the first deployment crash-looped (recorded above); the corrected image ran the
+natural event cleanly. Rollback = `scratch/deploy_v58.py --rollback`.
+
+**Next (v59).** The **ARM/period axis is CLOSED**. The surviving question is the **fatal DISPATCH itself** — key-20's
+50 ms SERV-MEAS timeout fires because the reply is lost (v7–v11 / §112.45) ⇒ the **first-dying layer**. Pivot to the
+RF RX-control path (`rflte_core_rxctl.c:403`, `Gain_offset ≡ 0`; site `0xc16ea334`, func `0xc101311c`) and the
+SERV-MEAS reply path — the last un-instrumented causal link.
+
+---
+
+## §112.145 — v58 tail + two offline re-confirmations: the 900 s QuRT timer is (still) NOT the trigger, and the F3 terminal transition is at ~908 s — 2026-10-06, task #325
+
+**Context.** After recording §112.144 the v58 image was rolled back to stock
+(`scratch/deploy_v58.py --rollback`; modem restarted onto `1a6f9507…`). The remaining session work is
+offline analysis of the **v58 coredump** and the **F3 windows** straddling the event.
+
+**A. Re-derivation of the QuRT timer pool (independently reproduces §112.68).** Scanning the pool
+`DAT_c2cd4de0` (256 × 0x90) in `natural_devcd39.bin`:
+- Field map re-verified: `+0x50` = duration (u32, ms), `+0x58` = duration (u64, ticks), `+0x70` = type
+  (2 = one-shot, 3 = periodic), `+0x88` = owner. `expiry(+0x30) − arm(+0x40) = dur_ms × 19200` exactly ⇒
+  **19.2 MHz tick clock** (independently confirmed on every non-trivial entry).
+- **Exactly ONE 900 s timer exists**: entry **[250]** — `+0x50 = 0x000dbba0` (900 000 ms),
+  `+0x58 = 0x0000000405f7e000` (= 17 280 000 000 ticks = **900.000 s**), `+0x70 = 2` (one-shot),
+  owner `+0x88 = 0xc228b750`, callback `+0x1c = 0xd051e254`. **No other entry (used or stale/freed)**
+  carries a ~900 s duration in `+0x50`, `+0x58`, `+0x38`, `+0x68`, or `+0x60`.
+- Its remaining at the (post-fatal) dump = **+9.6 s** ⇒ it fires **~10 s after the fatal**, consistent
+  with §112.68's "+16…+27 s" (same timer, different dump/arm time). ⇒ **the 900 s timer is NOT the trigger.**
+- **The boot-armed-one-shot hypothesis is now DEAD.** §112.68's falsification was *post-fatal* and would
+  have missed a one-shot that **fired** at 900 s (fired one-shots are unlinked). But freed pool slots
+  **retain stale fields** (observed: slot `0xc2cd8bc0` all-zero, `0xc2cd79c0`/`0xc2cdd600` repointed to a
+  different ctx), so a fired 900 s one-shot would still show `+0x58 ≈ 0x405f7e000` in its slot. **None does.**
+  ⇒ **no boot-armed 900 s QuRT one-shot exists.**
+- The `0xdbba0` literal: 5 sites (modem.b18 `0x34093c`/`0x3409ac`; b19 `0x21bf44`/`0x2aadcc`; b22 `0x64a4`),
+  all in data segments — config defaults, consistent with §112.68's IMS `PDPRATHandlerVoLTE` attribution. The
+  tick value `0x405f7e000` is **computed** (`dur_ms × 19200`), never a literal.
+
+**B. The "900 s @ 32.768 kHz" constant `0x01c20000` is a DISASSEMBLY ARTIFACT** (also in §112.144): all 4
+`modem.b16` hits are at offset ≡ 3 (mod 4) — the bytes at ≡3 of the aligned instruction `0x1601c200`
+(`{ immext(#…); r1 = #0x2 ; jump 0x… }`). No real 900 s constant. Confirms §112.120.
+
+**C. F3 windows across the event — the terminal transition is at ~908 s.** Parsing the `f3_v15` captures
+(windowed every 5 s, uptimes 898→923 s; ts at 204 800 Hz):
+
+| window | recs | a2_power | pgi_msgr | mcpm_npa | mcpm_saw | cfm_cpu_monitor |
+|---|---|---|---|---|---|---|
+| up00898 | 473 | 122 | 90 | 75 | 30 | 104 |
+| up00903 | 506 | 131 | 96 | 83 | 33 | 102 |
+| up00908 | 467 | 127 | 93 | 80 | 30 | 102 |
+| **up00913** | **158** | **0** | **0** | **0** | **0** | 102 |
+| up00918 | 108 | 0 | 0 | 0 | 0 | 101 |
+| up00923 | 114 | 0 | 0 | 0 | 0 | 100 |
+
+⇒ Between uptime **908 s** and **913 s** the **power/RF logging path dies** (`a2_power`, `pgi_msgr`,
+`mcpm_npa`, `mcpm_saw` all → 0) while the CPU monitor (`cfm_cpu_monitor`), `cmlog`, `qmi_nas`, `cmss`
+continue. The **last records** in up00908 are the known terminal signature: `mcpm_saw` `FW_WAKE-UP_Start`,
+`a2_power` "Process A2 power req from client=2", `pgi_msgr` "WWAN_TECH_MSG from CXM: Tech 0 Band 124
+Chan 2463 FreqKHz 875000 Dir 2" then "Chan 20463 FreqKHz 830000 Dir 1" — i.e. an **RF retune (875→830 MHz)
+is the last RF-side activity**. This matches the memory's "terminal signature" (wake → A2 req → CXM
+WWAN_TECH_MSG → `rf_task.c:336`) and confirms **no F3 precursor** before it (§112.13).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Roll back v58 → stock | yes | **yes** (restart onto `1a6f9507…`) |
+| Kill/confirm the "900 s @ 32.768 kHz" constant | resolve | **KILLED** — disassembly artifact |
+| Independent re-check of §112.68 | reproduce | **reproduced** — one 900 s timer, fires ~10 s *after* the fatal |
+| Rule out a *fired* boot-armed 900 s one-shot | rule in/out | **RULED OUT** (freed slots retain stale fields; none matches) |
+| Catch the F3 terminal transition | locate | **located at ~908 s** — power/RF logs stop, CPU monitor continues |
+| Root cause identified | yes | **NO** — trigger is non-QuRT; still OPEN |
+
+**SOP.** Read-only offline analysis (v58 coredump + existing F3 captures) plus one rollback; no new device
+change; ground truth re-derived independently (field map re-verified via `expiry−arm = dur_ms×19200`);
+honest about the negative (the 900 s timer is not the trigger, and no boot-armed one-shot exists). Device
+left on **stock** firmware.
+
+**Next (v59).** §112.68's redirect stands: the ~900 s trigger is **not a QuRT timer** — it is a **hardware
+timer, an RPM/MCPM timer, or a counter/resource**. The F3 result narrows it: the event kills the
+**power/RF path** (a2_power/pgi_msgr/mcpm_npa/mcpm_saw) at ~908 s. Recommended next instrument: ring the
+**MCPM/RPM sleep-wake and the sleepmgr sleep-timer arm** with the 19.2 MHz `now`, and count **power-collapse
+cycles** since boot — to test a **counter/resource** trigger (900 s ≈ 703 DRX cycles) versus a hardware
+one-shot.
+
+---
+
+## §112.146 — Test 1 (boot- vs LTE-anchored) + Test 2 (MCPM power-collapse cycle census): **the DRX cycle is EXACTLY 1.2800 s ⇒ ~705 power-collapse cycles in 902.5 s**
+
+**2026-10-06.** Two live experiments run on the stock device (modem.mdt `1a6f9507…`), with the
+pre-emptive-SSR watchdog **disabled** (`/tmp/disable_modem_watchdog`) so the fatal fires naturally.
+
+### Test 1 — is the ~900 s clock anchored to modem BOOT or to LTE-ONLINE?
+
+**Design.** A prior run had set the modem `offline` via QMI (`--dms-set-operating-mode=offline`).
+`offline→online` is blocked (`InvalidTransition`), so the modem was **restarted** at AP-kernel
+**51883.512558**; it then sat in DMS **`shutting-down`** for ~360 s (the Doc-205 one-way low-power
+state) and was only brought `online` at ~AP 52240. If the ~900 s clock were LTE-online-anchored, the
+fatal would land at ~52240+902 ≈ **53142**; if restart-anchored, at 51883.5+902 ≈ **52785**.
+
+**Result — RESTART-ANCHORED.** The fatal fired at AP-kernel **52786.039578**
+(`lte_ml1_common_timer.c:390`, `remoteproc0: crash detected … handling crash #42`), i.e.
+**restart + 902.527 s** — the canonical modem-uptime deadline — **despite** LTE only having come up
+~360 s late. ⇒ the clock is armed by the **modem restart**, not by LTE attach/online.
+
+⚠ **Instrument trap hit here (Rule-11 class).** `dmesg | grep -c "fatal error received"` read a
+**stale 13** because **dmesg rotated** — the fatal *had* fired but the count did not move. Any
+"no fatal" verdict keyed on a raw dmesg count is invalid; use the **modem-up anchor** (`… is now up`)
+or the remoteproc **crash #** instead.
+
+### Test 2 — how many MCPM power-collapse cycles occur since boot?
+
+**Instrument.** `scratch/f3_cycles.py` over a continuous F3 capture (`/root/f3cap.sh`, re-armed per
+bind; `mcpm_saw.c:393` = `FW_SLEEP_PWRDN_FULL` = one power-collapse; `:591` = `FW_WAKE-UP_Start`).
+⚠ OpenWrt ash has **no `nohup`** — start detached with **`setsid /root/f3cap.sh`** (see §112.147).
+
+**Result — the DRX cycle is exactly 1.2800 s.** 51 consecutive inter-SLEEP intervals measured
+**1.2800 s ± 0.004 s**; a second 582-event window gives 1.25 s mean (skewed by the crash). The cycle
+is **rock-steady right up to the fatal** (terminal chunks up52784→up52788 show 4 SLEEP then 0) — **no
+"terminal DRX storm"** in this boot (the earlier f3_v15 0.32 s terminal burst is *not* reproduced).
+⇒ **902.5 s ÷ 1.28 s = 705 cycles.**
+
+**⇒ the ledger's own prediction "900 s ≈ 703 DRX cycles" is numerically CONFIRMED.** The DRX cycle
+(1.28 s) is precisely the unit that divides ~900 s into ~700 cycles.
+
+**Timer vs counter — NOT yet discriminated.** Because the DRX rate is *constant* (1.28 s), a fixed
+**time** (902.5 s) and a fixed **count** (~705) predict the same fatal instant. Discrimination needs a
+boot with a **different DRX rate** (e.g. traffic-driven connected-mode DRX) and a check of whether the
+fatal **time** holds (⇒ timer) or the **count** holds (⇒ counter).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Test 1: boot- vs LTE-anchored | decide | **RESTART-ANCHORED** — fatal at restart+902.53 s despite LTE 360 s late |
+| Test 1 offline (prior run) | decide | confounded — offline suppresses, but ML1 may be parked |
+| Test 2: count power-collapse cycles | ~700? | **705** (1.28 s DRX cycle, 51 samples) |
+| Test 2: timer vs counter | decide | **NOT discriminated** (constant rate ⇒ degenerate) |
+| Root cause | identify | **NO** — but the 1.28 s DRX unit is now a hard, measured constant |
+
+**SOP.** One live device (stock firmware); read-only F3 capture + QMI mode reads; watchdog disabled
+deliberately (documented); dmesg-rotation trap caught and corrected; honest that Test 2 does not by
+itself separate timer from counter. F3 capture left running; device **online**, watchdog still disabled.
+
+**Next (v60).** (a) Repeat Test 2 on a **post-fatal boot** captured end-to-end (f3cap re-arms) for an
+exact full-boot count. (b) Vary the DRX rate (traffic vs idle) and compare **time-to-fatal** vs
+**cycle-count-at-fatal** to break the timer/counter degeneracy.
+
+---
+
+## §112.147 — Test 2 RESOLVED: boot B (746 cycles, fatal @ 901.99 s) ⇒ TIMER, not counter; the F3 clock is FREE-RUNNING across SSR — 2026-10-06, task #325
+
+**Context.** §112.146 left the timer-vs-counter question **degenerate** because boot A's terminal window
+showed a constant 1.28 s DRX rate (⇒ time and count predict the same instant). The proposed resolution
+was a **second boot captured end-to-end** with a *different* DRX rate, to see whether the fatal **time**
+holds (⇒ timer) or the fatal **count** holds (⇒ counter). Boot B is exactly that boot.
+
+**Boot B — complete boot-to-fatal F3 capture.** Boot A fataled at AP **52786.039578** (restart
+51883.512 + **902.527 s**); boot B restarted at AP **52787.723102** and the continuous F3 capture
+(`setsid /root/f3cap.sh`) caught it from boot+0.3 s. Boot B fataled at AP **53689.715708**
+(`lte_ml1_common_timer.c:390`, crash #43) = restart + **901.99 s**.
+
+**★ Result — the fatal TIME holds, the cycle COUNT does not.**
+
+| boot | uptime@fatal | SLEEP cycles | mean interval | terminal phase |
+|---|---|---|---|---|
+| A (partial: capture began +455 s) | 902.527 s | 351 (partial) | 1.2983 s | 1.2800 s rock-steady |
+| **B (full: boot→fatal)** | **901.99 s** | **746** | **1.1784 s** | **1.2800 s rock-steady, then STOPS at +877.9 s** |
+
+- **Boot B's 746 cycles ≠ boot A's projected ~705.** The counts differ by **~6 %** (746 vs 705).
+- **Boot B's uptime@fatal = 901.99 s = boot A's 902.53 s** (within **0.54 s**, the known ~0.16 s spread
+  plus the SSR-restart jitter). The **time holds to <0.1 %**, the **count does not**.
+- **Boot B's DRX rate VARIES within the boot**: a fast early phase (+0 s: 0.690 s/cyc), a spike at
+  +240 s (0.800 s/cyc), steady 1.304 s/cyc for the bulk, and a **terminal slowdown at +840 s**
+  (2.000 s/cyc — but see below, this is the cycle *stopping*, not slowing).
+
+⇒ **The trigger is a TIMER (or a deadline on a free-running clock), NOT a counter overflow.** A counter
+that overflows after N cycles would fire at a fixed **count**; here the count varies (705 vs 746) while
+the time is invariant (~902 s). This **kills the "700-cycle counter overflow" hypothesis** that the
+~705 DRX-cycle count had made plausible.
+
+**★ Terminal phase — the cycle STOPS 24 s before the fatal.** The last MCPM SLEEP (`mcpm_saw.c:393`) is
+at boot+**877.92 s** (modem clock 17216.86 s); the fatal is at +901.99 s. The inter-SLEEP interval is
+**exactly 1.2800 s** through the last cycle (no acceleration, no storm) — then the cycle just **stops**.
+The last 14 s of F3 show only `cfm_cpu_monitor.c:308` (a 50 ms CPU-utilization tick from a *different*
+task) continuing to +881.5 s, then ~14 s silence, then a single `cfm_cpu_monitor.c:13313` record (a
+restart marker) at +895.2 s, then the fatal. This is the same "ML1/DRX dies first, CPU monitor survives
+briefly" signature seen in the §112.145 corpus — now captured cleanly end-to-end.
+
+**★★ The F3 timestamp clock is FREE-RUNNING across SSR (does NOT reset).** Boot A's last F3 records are
+at modem-clock ts ~16320 s; boot B's first post-restart records are at ts ~16318 s (the 4535 s "straggler"
+is a single AP-side buffered record flushed post-restart — an AP capture artifact, not a clock reset).
+⇒ the F3 ts is a **free-running 204 800 Hz tick** that **persists across modem restarts** (the QuRT /
+Hexagon tick clock survives SSR). This independently confirms §112.145's `max(+0x40) = 49309 s` anomaly
+and means **the modem does not measure "uptime since restart" with the F3 clock** — it must use a
+separate, restart-anchored counter (the `0xc28602fc`-style BSS field from §112.20). ⚠ do NOT use F3 ts
+to measure per-boot uptime; use the AP `… is now up` kernel timestamp instead.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| End-to-end boot B capture | yes | **yes** (176 chunks, boot→fatal) |
+| Exact full-boot cycle count | ~705? | **746** (boot B); **705** (boot A projected) — they DIFFER |
+| Timer vs counter | decide | **TIMER** — time holds (902 s ± 0.5 s), count varies (705 vs 746, ~6 %) |
+| Terminal phase | characterize | **cycle STOPS at +877.9 s, 24 s before fatal** (no storm) |
+| F3 clock semantics | (incidental) | **free-running across SSR** (does not reset) |
+| Root cause | identify | **NO** — but the "counter overflow" hypothesis is now CLOSED |
+
+**SOP.** One live device (stock firmware, `1a6f9507…`); read-only F3 capture + dmesg reads; watchdog
+disabled (documented, to be re-enabled); the dmesg-rotation trap (§112.146) was already corrected so
+the modem-up anchor count was used as the fatal detector; honest that this is a *negative* result (closes
+the counter hypothesis, does not by itself identify the trigger). The capture is left running for boot C.
+
+**Next (v61).** The timer hypothesis now stands alone. The ~900 s deadline is measured on a
+**restart-anchored modem clock** (not the F3 free-running clock). Two open questions:
+1. **What sets the deadline?** The §112.20 `a2_power.c:1189` watchdog reads `DAT_c28602fc` against a
+   `> 900` threshold — but that's the *symptom*, not the *timer*. The 900 s QuRT one-shot is **not** it
+   (§112.145). Candidate: a **Hexagon hardware timer** (the 19.2 MHz `timetick` has a 32-bit overflow at
+   ~224 s — too short; but a 64-bit `timetick` never overflows). The only remaining "timer" is the
+   **ML1 SM dispatch logic itself** — key-20's 50 ms SERV-MEAS timeout (§112.45) that fires once at ~900 s
+   because the reply is lost. v61 should ring the **SERV-MEAS reply path** (`rflte_core_rxctl.c:403`,
+   the first-dying layer) to catch the lost-reply event.
+2. **Is the 24 s dead zone causal?** The ML1/DRX cycle stops 24 s before the fatal — the same 20–25 s
+   dead zone seen in every prior capture. v61 should capture the **first failing DRX cycle** (the one
+   that doesn't produce a SLEEP) to find where the stall originates.
+
+---
+
+## §112.148 — Terminal failure SIGNATURE (reproduced 2 boots): last WAKE produces no SLEEP — the power-collapse entry fails — 2026-10-06, task #325
+
+**Context.** §112.147 found boot B's terminal phase: the DRX cycle STOPS at +877.9 s, 24 s before the
+fatal, with the inter-SLEEP interval rock-steady 1.2800 s through the last cycle (no storm). This
+section pinpoints the **exact failing event** and confirms it reproduces in boot A.
+
+**★ The terminal failure — a WAKE with no following SLEEP.** The normal DRX wake/sleep cycle in the
+F3 log is a 6-record sequence:
+
+```
+mcpm.c:3109     wakeup_req — clearing params (early_wakeup_time, sleep_duration)
+mcpm_saw.c:591  FW_WAKE-UP_Start          ← the WAKE
+mcpm_npa.c:1322 No Imm CLKCPU req 384000
+mcpm_saw.c:393  FW_SLEEP_PWRDN_FULL       ← the SLEEP (power-collapse)
+mcpm_npa.c:1361 Sched CLKCPU req 384000
+mcpm_npa.c:1286 Delaying complete request
+```
+
+In **both** boot A (f3_v15, terminal capture) and boot B (full boot→fatal capture), the **last** mcpm
+record is `mcpm_npa.c:1322` ("No Imm CLKCPU req of 384000") — i.e. the wake half completes but the
+`mcpm_saw.c:393` (SLEEP_PWRDN_FULL) that should follow **never fires**:
+
+| boot | last WAKE (`:591`) ts | last record (no SLEEP) | gap to fatal |
+|---|---|---|---|
+| A (f3_v15) | 13754.034 s | `mcpm_npa.c:1322` @ 13754.034 s | ~24 s |
+| B (full) | 17218.119 s | `mcpm_npa.c:1322` @ 17218.119 s | ~24 s |
+
+⇒ **the power-collapse ENTRY fails** after the last wake. The modem stays awake from that point;
+~24 s later `tmr_slave3` fires the `lte_ml1_common_timer.c:390` fatal. The 24 s dead zone is the
+**time awake without a DRX cycle** — consistent with the §112.45 "state-20 = a 50 ms SERV-MEAS
+REQUEST/RESPONSE TIMEOUT" model (the reply is lost because the ML1/RF path is already stalled).
+
+**★ Last RF activity before the dead zone (boot B).** `pgi_msgr.c:718` WWAN_TECH_MSG from CXM:
+**Tech 0 Band 122 Chan 1451 FreqKHz 1830000** (a 700 MHz lower-A retune) — the same class of
+terminal signature as §112.145 (Band 124 875→830 MHz retune). The retune is the **last RF-side
+activity**; after it, the RF layer goes silent. The `a2_power.c:1313`/`:3765` (A2 power req client=3)
+is the wake power-up that accompanies it.
+
+**Causal direction.** The failure sequence is:
+1. The modem wakes for a DRX cycle (normal).
+2. A serving-cell measurement / RF retune is processed (the WWAN_TECH_MSG).
+3. The sleep-arm that should re-enter power-collapse **does not fire** (no `mcpm_saw.c:393`).
+4. ~24 s later, the ML1 timer slave (`tmr_slave3`) fires the fatal.
+
+The question is **why the sleep-arm fails** at ~878 s (modem uptime). The §112.118 finding (MCPM
+collapse issuer `FUN_c0cf8cd0` is ISSUED+ENABLED+COMPLETING on every call ⇒ MCPM is a VICTIM) and
+§112.59 (the sleepmgr SLEEP→WAKEUP trigger `0xc039ef80` asserts state==SLEEP then sends WAKEUP_REQ)
+together imply the **sleepmgr never reaches the SLEEP state** on the doomed cycle — the
+`stm_get_state(LTE_ML1_SLEEPMGR_STM) != SLEEP` assert (§112.51) is the downstream fatal, but the
+**cause is upstream**: the sleepmgr is not *transitioning to* SLEEP.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Pinpoint the exact failing event | yes | **yes** — last WAKE produces no SLEEP (`:393` absent) |
+| Reproducibility | 2 boots? | **yes** — boot A (f3_v15) + boot B (full) identical |
+| Last RF activity | characterize | **Band 122 / 1830 MHz retune** (the WWAN_TECH_MSG) |
+| Causal direction | establish | **sleep-arm fails AFTER the wake/retune** (not before) |
+| Root cause | identify | **NO** — but the failure is now pinpointed to the sleep-entry path |
+
+**SOP.** Read-only offline analysis of two F3 captures (boot A f3_v15, boot B full); no device change;
+ground truth re-derived independently (the 6-record normal cycle extracted from the steady-state
+records, then the terminal departure identified); honest that this is a *localization* (not yet a
+mechanism). Device left on stock firmware, watchdog disabled, F3 capture running.
+
+**Next (v61).** The sleep-entry path is the next causal link. Two instruments:
+1. **Ring the MCPM sleep-arm issuer `FUN_c0cf8cd0`** (§112.118) with the 19.2 MHz `now` and a
+   per-call arg dump — to see whether it is **called** on the doomed cycle (and its args differ) or
+   **never called** (the caller — the sleepmgr — didn't reach SLEEP).
+2. **Ring the sleepmgr SLEEP→WAKEUP trigger `0xc039ef80`** (§112.59) — the assert site — to see
+   whether it is **entered** on the doomed cycle (i.e. the sleepmgr DID try to sleep but the assert
+   caught a wrong state) or **never entered** (the sleepmgr stayed in a non-SLEEP state).
+
+The discriminating output: if the sleep-arm issuer is **called** but the sleepmgr is **not in SLEEP**,
+the cause is a state-machine stall upstream of the sleepmgr (the §112.45 SERV-MEAS-RSP timeout). If
+the sleep-arm issuer is **never called**, the cause is the wake/retune path blocking the sleep
+transition.
+
+---
+
+## §112.149 — v50 ring RE-ANALYSIS: the collapse issuer's last call (seq 863) is a SHORT-DRX (0.236 s) entry, then it is NEVER called again — the sleepmgr stopped issuing sleep requests — 2026-10-06, task #325
+
+**Context.** §112.119 reported the v50 ring (collapse issuer `FUN_c0cf8cd0` entry) as 863 calls, all
+healthy (state=0, mask=0x3ff, f3599=1, f3598=0), spanning 880.2 s, fatal at ~900 s. The conclusion
+was "MCPM is a VICTIM" — correct, but the **last-record timing** was not examined. This section
+re-analyses the v50 ring's tail to pinpoint whether the issuer was called on the **doomed cycle** (the
+one that should produce the last SLEEP at +877.9 s per §112.148).
+
+**★ The last interval is 0.236 s — a short-DRX entry, then the issuer STOPS.** The v50 ring's last 20
+intervals:
+
+```
+seq 843→844..845→846: 0.3200 s (short-DRX regime)
+seq 846→847:          1.0420 s (short→long DRX transition)
+seq 847→848..861→862: 1.2800 s (long-DRX regime, 15 steady calls)
+seq 862→863:          0.2360 s ← SHORT interval (a short-DRX re-entry)
+*** seq 864 NEVER HAPPENS *** (863 is the last; the fatal comes ~20 s later)
+```
+
+The 863rd call came **0.236 s** after the 862nd — the **0.32 s short-DRX regime**, not the 1.28 s
+long-DRX regime. Then the issuer is **never called again**. The fatal (`lte_ml1_sleepmgr_stm.c:4054`
+in this boot) comes ~20 s later.
+
+**⇒ the collapse issuer STOPPED BEING CALLED ~20 s before the fatal.** This is NOT the issuer failing
+(its entry is healthy on all 863 calls, and the fatal is NOT `mcpm_saw.c:424`); it is the **caller**
+(the sleepmgr state machine) **ceasing to issue sleep requests**. The sleepmgr did not transition to
+the SLEEP state on the doomed cycle, so it never called the collapse issuer.
+
+**Reconciliation with §112.148 (boot B F3).** §112.148 found the last F3 mcpm record is a WAKE with no
+following SLEEP (`mcpm_saw.c:393` absent after the last `:591`). The v50 ring now explains WHY: the
+collapse issuer (which produces the `mcpm_saw.c:393` SLEEP_PWRDN_FULL) was **never called** on the
+doomed cycle. The sleepmgr stopped issuing sleep requests ⇒ no SLEEP_PWRDN_FULL ⇒ the modem stays
+awake ⇒ ~20 s later the ML1 timer slave fires the fatal (the §112.45 SERV-MEAS-RSP timeout, the reply
+lost because the ML1/RF path is stalled).
+
+**Causal direction now refined:**
+1. The modem wakes for a DRX cycle (normal).
+2. A serving-cell measurement / RF retune is processed (the WWAN_TECH_MSG, §112.148).
+3. The sleepmgr **does not transition to SLEEP** (the cause — root still OPEN).
+4. ⇒ the collapse issuer is not called ⇒ no SLEEP_PWRDN_FULL.
+5. ~20 s later, `tmr_slave3` fires the fatal (key-20's 50 ms SERV-MEAS timeout).
+
+The §112.119 conclusion ("MCPM is a VICTIM") is **confirmed and strengthened**: the issuer's *caller*
+stopped, not the issuer itself. The remaining root-cause question is **WHY the sleepmgr stops
+transitioning to SLEEP** at ~878 s — which is the §112.45/§112.100/§112.101 line (the SERV-MEAS-RSP
+timeout / the `slpc` per-RAT wakeup fatal chain).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Was the issuer called on the doomed cycle? | yes/no | **NO** — it stopped at seq 863, ~20 s before the fatal |
+| Is the issuer's last call healthy? | — | **yes** (state=0, mask=0x3ff, f3599=1, f3598=0) |
+| Does this explain the missing SLEEP_PWRDN_FULL? | yes | **yes** — the issuer wasn't called ⇒ no SLEEP |
+| Root cause | identify | **NO** — but the failure is now traced to the sleepmgr's SLEEP transition |
+
+**SOP.** Read-only offline re-analysis of the v50 coredump ring (§112.119's data); no device change;
+ground truth re-derived independently (the interval sequence extracted from the ring's `t` field, with
+the wrap-period caveat stated); honest that this is a *localization* (the sleepmgr stopped, but WHY
+is still open). Device left on stock firmware, F3 capture running on boot C.
+
+**Next (v61).** The discriminating instrument is now **a ring on the sleepmgr state machine itself**:
+hook the **SLEEP→WAKEUP trigger `0xc039ef80`** (the §112.59 assert site; prologue
+`{ call 0xc0030000 ; allocframe(#0x88) }`, 8 B) to see whether it is **entered** on the doomed cycle
+(the sleepmgr tried to sleep but asserted) or **never entered** (the sleepmgr stayed in a non-SLEEP
+state). If never entered, hook the **SLEEP-arm path** `0xc039eec0` (the sleep callback; §112.59) and
+the **`slpc_arm` funnel** `0xc0b66c00` (§112.105) to find where the sleep transition is blocked.
+
+---
+
+## §112.150 — v27 ring RE-ANALYSIS: the sleepmgr's LAST message is OFFLINE_ENABLE_REQ in state 9 — the OFFLINE path drive is the terminal event — 2026-10-06, task #325
+
+**Context.** §112.149 found the MCPM collapse issuer STOPPED BEING CALLED ~20 s before the fatal
+(the sleepmgr stopped issuing sleep requests). The v27 ingress ring (§112.59, hooks the sleepmgr's
+ML1-dispatch entry `0xc039d460`) was re-read from the archived fatal coredump
+(`scratch/v27_run/dump_fatal_916.bin`, modem uptime 916 s) to find **what message the sleepmgr
+received last** — i.e. what drove it off the normal SLEEP→WAKEUP cycle.
+
+**★ The sleepmgr's LAST message is `SLEEPMGR_OFFLINE_ENABLE_REQ` (0x42b020f) in state
+OFFLINE_WAKEUP (9).** The v27 ring's last 3 records (of 22564 total):
+
+```
+seq     msg_id      state              caller       name
+22562   0x40a041b   OFFLINE_WAKEUP(9)  0xc043b130   LL1_SYS_SAMPLE_REC_DONE_IND
+22563   0x4020425   OFFLINE_WAKEUP(9)  0xc043b130   ML1_SM_OFFLINE_GOTO_SLEEP_IND   ← the OFFLINE drive
+22564   0x42b020f   OFFLINE_WAKEUP(9)  0xc043b130   SLEEPMGR_OFFLINE_ENABLE_REQ     ← LAST (no following WAKEUP_REQ)
+```
+
+The **OFFLINE_ENABLE_REQ** is the last message the sleepmgr processes before the fatal. After it,
+there is **no `SLEEPMGR_WAKEUP_REQ` (0x42b0205)** — the normal wake-up trigger never fires again.
+This is the §112.149 "sleepmgr stopped issuing sleep requests" mechanism: the sleepmgr receives the
+OFFLINE_ENABLE_REQ while already in OFFLINE_WAKEUP (9), and does **not** re-enter the SLEEP→WAKEUP
+cycle.
+
+**★ The normal cycle (one complete prior cycle, seq 22552–22557):**
+
+```
+22552   0x42b020f   SLEEP(3)            OFFLINE_ENABLE_REQ   ← arrives in SLEEP
+22553   0x42b040b   SLEEP(3)            WMGR_RESULT_IND
+22554   0x42b040b   SLEEP(3)            WMGR_RESULT_IND
+22555   0x42b0204   SLEEP(3)            OBJ_ABORT_REQ
+22556   0x42b040b   SLEEP(3)            WMGR_RESULT_IND
+22557   0x42b0205   SLEEP(3)            WAKEUP_REQ           ← the wake fires from SLEEP (the normal path)
+```
+
+In the normal cycle, the OFFLINE_ENABLE_REQ arrives **while in SLEEP (3)**, then the sleepmgr
+processes WMGR_RESULT / OBJ_ABORT, then sends WAKEUP_REQ (the wake-up trigger `0xc039ef80` fires,
+asserting state==SLEEP — which holds). On the **doomed** cycle (seq 22564), the OFFLINE_ENABLE_REQ
+arrives while already in **OFFLINE_WAKEUP (9)** — and the wake-up trigger is **never called** (no
+WAKEUP_REQ follows).
+
+**The caller is `0xc043b130`** (the ML1 router) for ALL three terminal messages — the same router
+that dispatches every sleepmgr message. The **OFFLINE_GOTO_SLEEP_IND (`0x4020425`) sender** is
+`0xc036b3d4` (the ML1-SM / System Manager; prologue `r2 = #0x25; allocframe(#0x20)`, i.e. it loads
+the message ID `0x4020425` and sends it).
+
+**★ Causal chain now traced from the symptom to the trigger:**
+1. The ML1-SM (`0xc036b3d4`) sends `SM_OFFLINE_GOTO_SLEEP_IND` (`0x4020425`) to the sleepmgr.
+2. The sleepmgr (via the router `0xc043b130`) receives `OFFLINE_ENABLE_REQ` (`0x42b020f`).
+3. On the doomed cycle, this arrives while the sleepmgr is in `OFFLINE_WAKEUP (9)` — not `SLEEP (3)`.
+4. The sleepmgr does **not** re-enter the SLEEP→WAKEUP cycle (no `WAKEUP_REQ`).
+5. ⇒ the MCPM collapse issuer is never called again (§112.149) ⇒ no `SLEEP_PWRDN_FULL` (§112.148).
+6. ~20 s later, `tmr_slave3` fires the `lte_ml1_common_timer.c:390` fatal (the §112.45
+   SERV-MEAS-RSP timeout, the reply lost because the ML1/RF path is stalled).
+
+**The remaining root-cause question:** **WHY does the ML1-SM send the
+`SM_OFFLINE_GOTO_SLEEP_IND` at ~878 s?** The §112.59 note says "the sleepmgr takes the OFFLINE path
+… instead of completing `ONLINE→ONLINE_SLEEP_WAIT→SLEEP`; the `9→1` completion (RF_EXIT_CNF) never
+lands" — but that describes the *state-machine consequence*, not the *trigger*. The trigger is the
+`SM_OFFLINE_GOTO_SLEEP_IND` sender `0xc036b3d4` — what makes IT fire at ~878 s is the true root cause.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| The sleepmgr's last message | identify | **OFFLINE_ENABLE_REQ (0x42b020f) in state 9** |
+| The normal-vs-doomed cycle difference | characterize | **normal: OFFLINE_ENABLE_REQ arrives in SLEEP(3) → WAKEUP_REQ; doomed: arrives in OFFLINE_WAKEUP(9) → no WAKEUP_REQ** |
+| The OFFLINE drive sender | identify | **`0xc036b3d4` (ML1-SM) sends `SM_OFFLINE_GOTO_SLEEP_IND` (`0x4020425`)** |
+| Root cause | identify | **NO** — but the trigger is now the ML1-SM's OFFLINE_GOTO_SLEEP_IND at ~878 s |
+
+**SOP.** Read-only offline re-analysis of the v27 coredump ring (§112.59's data); no device change;
+ground truth re-derived independently (the last 60 records extracted from the ring's 22564 entries);
+honest that this is a *localization* (the trigger is the ML1-SM, but WHY it fires at ~878 s is still
+open). Device left on stock firmware, F3 capture running on boot C.
+
+**Next (v61).** The discriminating instrument is now **a ring on the ML1-SM's
+`SM_OFFLINE_GOTO_SLEEP_IND` sender `0xc036b3d4`** — to count its calls, log its caller (`r31`), and
+catch the EXACT doomed-cycle call (the one at ~878 s) and its caller. The caller will name the
+upstream trigger (the `slpc` per-RAT wakeup chain, §112.100/101; the SERV-MEAS-RSP timeout,
+§112.45; or a new candidate). This is the last un-instrumented causal link before the root cause.
+
+---
+
+## §112.151 — v61/v61b/v61c/v61d NEGATIVE → v62 (entry-packet hook) BUILT + STATICALLY VALIDATED; ★★ the ~40 s "patch crash-loop" was the WATCHDOG, not the patch — 2026-10-06, task #325
+
+**Context.** §112.150 localized the trigger to the ML1-SM `SM_OFFLINE_GOTO_SLEEP_IND` (`0x4020425`)
+sender and named it `0xc036b3d4`. The v61 instrument was built to ring that sender (count its calls,
+log `r31` = caller, catch the doomed-cycle call). It crash-looped the modem.
+
+### v61/v61b/v61c/v61d — NEGATIVE (mid-packet hook)
+
+All four v61 variants crashed the modem with a Hexagon `:Excep` (`QDSP6_PC = 0xc02d48e8` = a `call
+0xc043b470` in the ML1-router region; **all GPRs 0; SP out of range**) and then crash-looped. Offline
+forensics of the coredumps (`scratch/v61b_capture/devcd45.bin`, `devcd46.bin`) found the bug — **the
+hook was placed MID-PACKET**:
+
+**★ `0xc036b3d4` is NOT the function entry. The true entry is `0xc036b3cc`.** The four static callers
+all `call 0xc036b3cc` (`0xc0356dd8`, `0xc0356ec4`, `0xc035b584`, `0xc036c1c8`). The entry is a
+**3-word packet**:
+
+```
+0xc036b3cc { p0 = !cmp.eq(r1,#0x0)          parse=01
+0xc036b3d0   immext(#0x4020400)              parse=01
+0xc036b3d4   r2 = ##0x4020425; allocframe(#0x20) }   parse=00 (duplex, last)
+0xc036b3d8 { r1 = #0x401                     (next packet)
+```
+
+v61 replaced only the LAST word of that packet (`0xc036b3d4`) → **it broke the packet** → the CPU
+executed garbage. (This corrects §112.150's "sender is `0xc036b3d4`": that is the *third word of the
+entry packet*, not the entry.)
+
+**★ Concrete confirmation (read from the v61b coredump `scratch/v61b_capture/devcd45.bin`, seg16):**
+
+```
+@0xc036b3cc  stock: 10 40 01 75 | 10 48 40 00 | 6a 52 3c 40   (parse 01, 01, 00-duplex)
+             v61b : 10 40 01 75 | 10 48 40 00 | 27 c0 00 78   (parse 01, 01, 11)
+             decode: p0=!cmp.eq(r1,0) ; immext(#0x4020400) ; R7 = 1     <- the immext is now ORPHANED
+@0xc036b3d8  v61b : 58 04 72 26   (= `jump 0x2644c`, a mis-placed PAD jump)
+```
+
+The stock word 3 is `6a 52 3c 40` = `R2 = 0x25; allocframe(0x20)` — a **duplex, packet-ending** word
+(parse `00`). v61b replaced it with `27 c0 00 78` = `R7 = 1` (parse `11`), leaving the `immext` at
+`0xc036b3d0` extending a word with **no immediate field** → the packet/extension is broken → the
+`:Excep`. v62 replaces the **whole** 12-byte packet instead.
+
+
+**★ Packet parse-bit rule (derived empirically from the stock image + llvm-objdump grouping):** in a
+multi-word packet **every word is `parse=0b01` except the LAST**, which is `0b11` (regular) or `0b00`
+(a duplex instruction); a **1-instruction packet is `0b11`**. The custom decoder (`scratch/hexdec/r2hx/hxdis`)
+prints `(w>>14)&3`.
+
+### v62 — the fix: hook the WHOLE entry packet + replay
+
+v62 replaces the whole 3-word entry packet (`0xc036b3cc..0xc036b3d7`, 12 B) with **one valid 3-word
+packet** `{ r6 = ##CAVE ; jumpr r6 }` (a **full 32-bit address load** → no jump-range limit, no PAD
+trampoline). The cave records `{seq, caller=r31, r1, t}`, then **REPLAYS the entry packet's three
+instructions** (`p0 = !cmp.eq(r1,#0x0)` ; `r2 = ##0x4020425` ; `allocframe(#0x20)`) and resumes at
+`0xc036b3d8`. Only caller-saved `r6`,`r8–r13` are clobbered; `p0` is re-derived from the INPUT `r1`.
+
+```
+SITE  0xc036b3cc  (seg16) -> 154c000c 86410078 00c08652
+CAVE  0xc003054c  (seg5, 100 B, 112-byte nop sled)
+SAVE  0xc1455000  (seg17)  seq (u32)
+RING  0xc1d4c600  (seg19)  1024 x 16 B { +0x0 seq, +0x4 caller=r31, +0x8 r1, +0xc t }
+t = memw(0xc1da0948) = the MCPM 19.2 MHz clock (wraps 223.7 s); seq is the reliable order.
+modem.mdt md5 = 6b0244a2b58d86e002d4effdcd127136   (reproducible; two builds identical)
+```
+
+**★ Static validation (this session, offline, free).** Decoded every word with `hxdis`:
+* site = `immext(#0xc0030540)` ; `R6 = 12` ; `jumpr R6` → parse bits **1,1,3** ✓ (R6 = 0xc003054c).
+* cave (25 words) decodes **exactly** to the intended program: `R8=##SAVE`; `R9=memw(R8)`; `R9=add(R9,1)`;
+  `memw(R8)=R9`; `R10=##RING`; `R11=and(R9,0x3ff)`; `R11=asl(R11,4)`; `R10=add(R10,R11)`;
+  `memw(R10+0/4/8/12)=R9/R31/R1/t`; then `P0=!cmp.eq(R1,0)`; `R2=##0x4020425`; `allocframe(0x20)`;
+  `R6=##0xc036b3d8`; `jumpr R6` ✓. Every packet's parse bits valid.
+
+### ★★★ THE WATCHDOG CONFOUND — the ~40 s crash-loop is NOT patch-induced
+
+With the **watchdog ENABLED** (`/tmp/disable_modem_watchdog` absent), v62 crash-looped at **~40 s modem
+uptime**, and a **stock-control run also crashed ~5× at ~45 s**. The v62 coredump
+(`scratch/v62_capture/v62_dump.bin`, 85 398 475 B, md5 `9f498f57bc2f0ae436eabea51eb19e22`) is
+`:Excep @PC=0`, `QDSP6_SSR=0x0a`, **ring EMPTY (`SAVE.seq = 0`) → the cave NEVER RAN**.
+
+**With the watchdog DISABLED (`touch /tmp/disable_modem_watchdog`), v62 boots and runs STABLE ≥120 s**
+(`restart_count` 2→3, `state=running` throughout). ⇒ **the ~40 s crash-loop was WATCHDOG-INDUCED, not
+patch-induced**; the ring was empty because the modem never reached the sender before the watchdog
+restarted it. The watchdog (`modem-bearer-watchdog` → `q6v5_restart_work()`, patch 826) does an
+`rproc_shutdown()`+`rproc_boot()` on a cadence.
+
+**★ SOP RULE (new): any short-run (< ~5 min) crash comparison MUST have the watchdog disabled, or the
+result is uninterpretable.** A crash-loop under the watchdog says nothing about a patch.
+
+### P-V62 status
+
+* **H1 — CONFIRMED:** v62 boots and runs (no crash-loop) once the watchdog is disabled.
+* **H2/H3 — PENDING:** the run to the natural ~900 s fatal is in progress (modem uptime ~203 s at
+  ledger-write time; watchdog disabled; `dumpwatch.sh` running to auto-capture the coredump).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| v61 root cause | the hook is sound | **NEG — mid-packet hook at 0xc036b3d4 broke the entry packet** |
+| True sender entry | 0xc036b3d4 | **0xc036b3cc (3-word packet; 0xc036b3d4 is its 3rd word)** |
+| v62 site + cave | assemble + be semantically correct | **PASS — all 28 words decode exactly; site parse 1,1,3** |
+| v62 H1 (boots, no crash-loop) | PASS | **PASS (watchdog disabled); the ~40 s crash-loop was the WATCHDOG** |
+| v62 H2/H3 (ring non-empty; caller) | the doomed-cycle caller | **PENDING (run in progress)** |
+| Root cause | identify | **NO — run pending** |
+
+**SOP.** Read-only offline forensics of the v61 coredumps (no device change) → the fix; the v62 build is
+byte-reproducible (two builds → identical md5) and statically validated word-by-word before deployment;
+deployment verified by sha256 read-back of the loadable files (not a local md5); honest that the
+short-run crashes were a watchdog artifact, not a patch signal. Device is currently on the **v62 image**
+with the watchdog disabled, running to the fatal; the stock backup is at `/root/fw_stock_hmu05/`
+(`modem.mdt md5 1a6f9507e03d4ddbbf1977af81ecdbd7`).
+
+**Next.** Read the v62 ring from the fatal coredump: (a) H2 — is `SAVE.seq` ~222? (b) H3 — is the
+`r31` histogram one of the 4 static call sites? (c) the LAST call's caller names the upstream trigger
+(P-V62 (a) doomed-cycle caller / (b) constant caller ⇒ internal state / (c) H2 FAIL ⇒ next target is the
+ML1 router `0xc043b130`).
+
+---
+
+## §112.152 — v62 RUN: the modem crash-loops `:Excep` at ~40–49 s (SAVE.seq=0 ⇒ the patch is INERT); ★★ the SSR crash-loop is INVISIBLE to `restart_count` and `remoteproc0/state` — 2026-10-06, task #325
+
+**Context.** v62 was deployed (`md5 6b0244a2…`, verified) and the modem restarted onto it with the watchdog
+disabled. This section records the run result and a serious monitoring defect that invalidated the first
+reading.
+
+### ★ The v62 run: an early `:Excep` crash-loop, and the cave NEVER RAN
+
+The modem **crash-loops** with a Hexagon `:Excep` (`Error in file :Excep , line 0`), task `AMSS0`,
+**`Uptime (h:m:s): 0:00:40` and `0:00:49`** (the MODEM's own uptime), `QDSP6_PC=0x0`, all GPRs `0x0`,
+`QDSP6_SSR=0x0a`, `QDSP6_SP=0x8af2aac0`. Coredumps `dump_devcd2_725.bin`, `dump_devcd3_990.bin`
+(85 398 475 B each). In **both** dumps:
+* the v62 site patch IS present (`0xc036b3cc = 15 4c 00 0c 86 41 00 78 00 c0 86 52`) and the cave IS present
+  (`0xc003054c = 40 55 14 0c …`) — the image deployed correctly;
+* **`SAVE.seq = 0` and `RING` all-zero ⇒ the cave NEVER RAN** ⇒ the sender `0xc036b3cc` was **never called**
+  in the 40–49 s before the crash ⇒ **the v62 patch is INERT and cannot be the cause of this crash**
+  (**P-V62 H2 FAIL**; the §112.150 sender-identification is NOT testable in a 40–49 s boot).
+
+### The pstore (previous boot) — 15 fatals, 3 clean restarts, and a 263 s stock-stable window
+
+`console-ramoops-0` (pulled from `/sys/fs/pstore/`) shows the whole previous AP boot (AP 0→1087):
+
+| t (AP s) | event |
+|---|---|
+| 11.2 | modem up |
+| 60.56 | **clean restart** (SSR teardown, NO preceding `fatal error received`) |
+| 101.97, 149.33, 195.41, 245.33, 278.61 | FATAL #1–#5 (`:Excep`) |
+| 296.81 | **clean restart** |
+| 560.30 | **clean restart** ← **this is the v62 deploy's `echo restart`** |
+| 634.44, 702.28, 734.28, 804.68, 840.52, 889.16, 937.80, 989.00, 1019.72, 1050.44 | FATAL #6–#15 |
+
+18 teardowns / 15 fatals ⇒ **3 clean restarts** (t=60.56, 296.81, 560.30). Stock (before the v62 restart)
+was **stable for 263 s (AP 296→560)**. The AP rebooted at ~AP 1087 (`port failed halt` → the §112.18 AP-hang
+site). **The two pre-v62 crashes #1–#5 mean an early `:Excep` crash-loop is NOT unique to v62.**
+
+### ★★ MONITORING DEFECT — the SSR crash-loop is invisible to the two obvious counters
+
+A background monitor polled `cat /sys/kernel/debug/msm_subsys/modem` (restart_count) and
+`cat /sys/class/remoteproc/remoteproc0/state` every 5–15 s for 120 s and reported **`restart_count=3`
+constant and `state=running` throughout — while the modem was crash-looping** (FATAL #6 at AP 634 fell
+inside that window). Both counters are BLIND to a crash-recovery SSR:
+* `restart_count` counts **only completed deliberate restarts** (the `echo restart` node), not crash-SSRs;
+* `remoteproc0/state` reads `running` between crashes (each crash+recovery is < 1 s, and the modem is
+  restarted before the next poll).
+**⇒ the ONLY reliable crash-loop detector is `dmesg | grep -c "handling crash"` (or a fresh `devcoredump`
+node).** This is the same class as feedback RULE 7 (an instrument that does not cover the window
+manufactures false negatives) and it produced a false "v62 is stable ≥120 s" reading.
+
+### Watchdog: it DOES honor the flag; use the PERSISTENT uci, not `/tmp`
+
+`/usr/sbin/modem-bearer-watchdog` line 258: `if [ "$ENABLED" != "1" ] || [ -f /tmp/disable_modem_watchdog ];
+then … continue; fi` — so BOTH `/tmp/disable_modem_watchdog` AND `uci modem-watchdog.general.enabled` gate it.
+**An AP reboot clears `/tmp`**, so the durable form is `uci set modem-watchdog.general.enabled=0; uci commit
+modem-watchdog`. No `PREEMPTIVE`/`modem-stall` log lines appear in the pstore, so the watchdog did not
+restart the modem during the crash-loop.
+
+### Stock control (in progress)
+
+Cold AP reboot with **clean stock** (`modem.mdt md5 1a6f9507…`, all 21 segments = base image), watchdog
+persistently disabled (`uci enabled=0`): at AP 88 / modem ~75 s the modem is **HEALTHY and REGISTERED**
+(`mmcli`: connected, LTE, 78 % signal, `wwan1` has an IP) with **0 crashes** — i.e. past the 40–49 s point.
+Full-run result pending.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| v62 H1 (boots + runs) | PASS | **FAIL — crash-loops `:Excep` at 40–49 s** |
+| v62 H2 (ring non-empty) | ~222 calls | **FAIL — `SAVE.seq=0`; cave never ran** |
+| v62 image correct | site+cave deployed | **PASS — both verified in the dumps** |
+| v62 causes the crash? | (implicit) | **NO — the patch never executes; stock ALSO crash-looped (#1–#5)** |
+| Crash detector | `restart_count`/`state` | **BLIND — must use `dmesg \| grep -c "handling crash"`** |
+| Root cause | identify | **NO — an early `:Excep` crash-loop is now the blocker** |
+
+**SOP.** Device is on clean stock (verified by md5 vs the base image, all 21 segments) with the watchdog
+persistently disabled; a control run is in progress. The v62 run and both coredumps are archived
+(`scratch/v62_capture/`, `scratch/v62_capture2/`); the pstore was pulled before it could be overwritten.
+Honest that (a) the patch is inert, (b) the crash-loop is NOT v62-specific (crashes #1–#5 predate it), and
+(c) the first "v62 stable ≥120 s" reading was a **monitoring artifact** caused by polling blind counters.
+
+**Next.** (1) Finish the stock control — is a cold-booted clean stock stable for ~10 min? (2) If stock is
+clean, isolate the early crash: warm `echo restart` on stock vs a v62 cold boot. (3) Only then re-attempt the
+sender ring — and gate every short-run comparison on `dmesg | grep -c "handling crash"`.
+
+---
+
+## §112.153 — v62 crash ROOT-CAUSED (Hexagon same-packet read-after-write), v62b/v63 isolation, and v64 FIX
+
+**★ ROOT CAUSE of the v62/v63 `:Excep` crash-loop: a Hexagon *intra-packet* read-after-write on `r6`.**
+
+v62's b16 site replaced the 3-word entry packet with a SINGLE 3-instruction packet:
+
+```
+{ immext(#0xc0030540); r6 = ##-0x3ffcfab4; jumpr r6 }      # ONE packet  (llvm: valid, but WRONG semantics)
+```
+
+On Hexagon, **every instruction in a packet reads its source registers at the start of the packet,
+before any write in that packet commits.** So `jumpr r6` read the **pre-packet** `r6` (whatever the
+caller left in the volatile register), *not* the freshly-loaded cave address `0xc003054c` ⇒ a wild jump
+⇒ `:Excep` (PC=0/all-GPR-0 in the dump; `SAVE.seq=0` because the cave never got to run).
+
+**The v50 trampoline (PROVEN) avoided this on purpose.** Compare the two builders verbatim:
+
+```python
+# v50 (WORKED)  -- TWO separate 1-instruction packets:
+hop  = asm(f".text\n{{ r6 = ##0x{CAVE:x} }}\n{{ jumpr r6 }}\n")
+# v62 (CRASHED) -- ONE packet (';' joins them):
+site = asm(f".text\n{{ r6 = ##0x{CAVE:x}; jumpr r6 }}\n")
+```
+
+The `;` inside `{ … }` is the packet-join operator; a newline between `{…}` groups starts a new packet.
+**Rule (now a project constraint): never write a register and use it as a jump/branch target in the same
+packet — put the write and the `jumpr`/`callr` in separate packets.** (This is the Hexagon analogue of a
+load-delay-slot / no-forwarding hazard.)
+
+**Isolation matrix (each a controlled single change, warm `echo restart`, watchdog persistently off):**
+
+| image | b16 site | b05 cave | result |
+|---|---|---|---|
+| stock | stock | stock | **CLEAN** (0 crashes) |
+| v62 | `{immext;r6=##CAVE;jumpr r6}` (1 pkt) | full record+replay | **CRASH-LOOP** `:Excep` @ modem-up 40–49 s |
+| v62b | stock | full record+replay | **CLEAN** (cave never entered) |
+| v63 | `{immext;r6=##CAVE;jumpr r6}` (1 pkt) | replay-only (no mem access) | **CRASH-LOOP** |
+| v64 | `{ jump CAVE }` + `{ nop }` + `{ nop }` | full record+replay | **CLEAN (110 s, crash_count frozen)** |
+
+⇒ the crash is caused by the **b16 site patch alone**, and specifically by the same-packet `r6=`/`jumpr r6`
+form. v62b (cave present, site stock) and stock are both clean; v62/v63 (same site) both crash.
+
+**Ground truth — the sender `0xc036b3cc` (stock disasm, this session):**
+
+```
+c036b3c8 { jump 0xc0030098 }                      # prev function tail
+c036b3cc { p0 = !cmp.eq(r1,#0x0)
+c036b3d0   immext(#0x4020400)
+c036b3d4   r2 = ##0x4020425; allocframe(#0x20) }  # <-- entry packet (12 B)
+c036b3d8 { r1 = #0x401
+c036b3dc   r0 = add(r29,#0x0)
+c036b3e0   r16 = r0; memd(r29+#0x18) = r17:16 }
+c036b3e4 { r3 = add(r29,#0x0)
+c036b3e8   if (p0) r4 = #0x2
+c036b3ec   if (!p0) r4 = #0x1 }                   # <-- p0 IS used (replayed from INPUT r1)
+c036b3f0 { call 0xc0b63880; memb(r3+#0x10) = r4 }
+c036b3f8 { call 0xc02d26d0; r2 = #0x18; r1 = add(r29,#0x0); r0 = r16 }
+c036b404 { jump 0xc0030098 }                      # shared epilogue (seg5): r17:16=memd(r30-8); dealloc_return
+```
+
+The continuation depends on (a) the `allocframe(#0x20)` having run (it uses `r29`), (b) `p0` derived from the
+**input** `r1`, and (c) `r16` (set at `0xc036b3e0`, used at `0xc036b400`). The cave replays `p0 = !cmp.eq(r1,#0)`,
+`r2 = ##0x4020425`, `allocframe(#0x20)` and touches only r8–r13/r2/r6 (r16 and r31 are preserved) — sound.
+
+**v64 (the fix):** b16 site = a **PC-relative `{ jump 0xc003054c }`** (one instruction, no register) + two
+`nop`s; the far jump is direct because `0xc003054c - 0xc036b3cc = -0x33ae80` (−3.4 MB) is inside the `jump`
+±4 MB range. Deployed: `modem.mdt md5 = 223e4d2547273d63f3edc0f487d12ef2` (sha256 read-back PASS on all 5 files).
+
+**v64 short-run result: CLEAN.** Warm restart → `dmesg | grep -c "handling crash"` **frozen at 12** (crash #12
+at AP 1426 predates the v64 restart at AP 1433) for **110 s**; `remoteproc0/state = running` throughout.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| v62/v63 crash root cause | (unknown) | **FOUND — same-packet `r6=`/`jumpr r6` read-after-write** |
+| v62b (cave-only) control | clean if cave is innocent | **PASS — clean** |
+| stock control | clean | **PASS — clean, registered** |
+| v64 H1 (boots + runs, no crash-loop) | PASS | **PASS — 110 s clean** |
+| v64 H2 (ring non-empty) | ~222 calls | **PENDING — run to the ~900 s event in progress** |
+| v64 H3 (caller = 1 of 4 static sites) | constant/small set | **PENDING** |
+
+**SOP.** One change at a time (site form only); every image verified by sha256 read-back on the device; the
+control matrix (stock / v62b / v62 / v63 / v64) is archived; crash detection uses the reliable
+`dmesg | grep -c "handling crash"` (NOT the blind `restart_count`/`state`). This §**corrects §112.152**:
+the early `:Excep` crash-loop **is** caused by the v62/v63 site patch (v62b and stock are clean under the same
+protocol), not by a pre-existing boot fault — crashes #1–#5 in the §112.152 pstore predate the controlled
+isolation and were produced by a different (then-deployed) image.
+
+**Next.** Let v64 run to the natural ~900 s fatal (modem clock is restart-anchored; U0≈AP 1434 ⇒ event ≈ AP
+2334), pull the auto-coredump, decode the ring with `scratch/read_v62_ring.py`, and answer P-V62 H2/H3.
+
+---
+
+## §112.154 — v64 RESULT (P-V62): the `SM_OFFLINE_GOTO_SLEEP_IND` sender fires 2×/DRX-cycle with NO terminal anomaly — §112.150's framing is CLOSED
+
+**Run.** v64 image `modem.mdt md5 = 223e4d2547273d63f3edc0f487d12ef2` (sha256 read-back PASS on all 5 files).
+Modem warm-restarted onto v64 at AP 1433; **clean** (crash_count frozen) until the **natural fatal at
+modem_up = 902 s** (crash #13, AP 2336). Coredump `devcd4`, **85 398 475 B** → `scratch/v64_capture/natural_devcd4.bin`.
+Crash = the expected `lte_ml1_common_timer.c:390` (~900 s event). **H1 PASS.**
+
+**Ring (SAVE.seq = 1064; 1024 records recovered, window [41..1064]).** The cave RAN — v62's blocker is gone.
+
+**H3 — the caller set is exactly 2 of the 4 static sites, in STRICT alternation:**
+
+| seq parity | caller (r31) | site | r1 (mode) | count |
+|---|---|---|---|---|
+| odd (41,43,…,1063) | `0xc036c1d0` | `0xc036c1c8` | 0 | 512 |
+| even (42,44,…,1064) | `0xc0356ecc` | `0xc0356ec4` | 1 | 512 |
+
+Both callers decode as a 2-word packet `{ call 0xc036b3cc ; r1:0 = combine(#MODE,r16) }` (manually decoded:
+`0xc036c1c8`=`5bff7902`→`call 0xc036b3cc`, `0xc0356ec4`=`5a026284`→`call 0xc036b3cc`) ⇒ `r31 = site+8` and the
+mode in `r1` — exactly the `EXPECTED_R31` map, independently validated. **The alternation never breaks.**
+
+**★ Timing — two INDEPENDENT per-DRX-cycle periodic callers.** Split by mode, each is a regular sequence:
+`median Δt = 24 575 864 ticks @19.2 MHz = 1.280 s` — **the DRX cycle.** The two run on the same 1.28 s grid
+(B ≈ A two slots later). Both STOP TOGETHER at a handful of GLOBAL pauses (seq ≈ 127 = 28.2 s, 253 = 17.9 s,
+299/447/643/801/1005 = 14.1 s, 459 = 16.6 s, 813 = 15.4 s) — i.e. the sleep-request drive is globally gated
+(LTE awake / traffic), identically for both callers.
+
+⚠ **The MCPM `t` counter (`0xc1da0948`) is NOT monotonic across the interleaved callers** (506 of 1023
+consecutive raw deltas are negative). The two callers run CONCURRENTLY, so the `SAVE.seq` increment and the
+`t` read can swap order between them — the ring's `seq` order is therefore **not** strictly chronological.
+**Per caller** the sequence is monotonic and regular (the above medians). Do not read `t` across the interleave.
+
+**★ NO terminal anomaly.** The last calls are a normal alternation pair — seq 1063 (`0xc036c1c8`, mode 0) and
+seq 1064 (`0xc0356ec4`, mode 1). There is no extra call, no missing call, no novel caller, and no unique final
+interval. **The doomed cycle is indistinguishable from every other cycle.**
+
+**⇒ §112.150's framing is CLOSED as posed.** §112.150 asked "WHY does the ML1-SM send
+`SM_OFFLINE_GOTO_SLEEP_IND` at ~878 s?" The answer: **it does not do so *at ~878 s* — it sends it twice per
+DRX cycle for the whole run (1064 calls / 902 s).** The send is a **normal per-cycle event, not the trigger.**
+The remaining question is the sleepmgr's **STATE** when the terminal messages arrive (the §112.59 OFFLINE path:
+the terminal `0x4020425` + `0x42b020f` land while the sleepmgr is in `OFFLINE_WAKEUP (9)`, so the `9→1`
+completion / `RF_EXIT_CNF` never lands), **not** the send.
+
+**P-V62 scoring.** **H1 PASS · H2 PASS (cave ran; `seq=1064`; the pre-registered `~222` was wrong ~4.8×) ·
+H3 PASS. Decision (b):** the caller set is constant/regular ⇒ the trigger is NOT the caller.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| v64 H1 (boots + runs to the ~900 s event) | PASS | **PASS — natural fatal @ modem_up 902 s** |
+| v64 H2 (ring non-empty, seq ≈ 222) | ~222 calls | **PASS on non-empty; seq = 1064 (prediction 4.8× low)** |
+| v64 H3 (caller = 1 of 4 static sites) | constant/small set | **PASS — exactly 2 sites, strict 512/512 alternation** |
+| doomed-cycle caller differs | (a) | **NO — decision (b): caller is regular** |
+| §112.150 "sender fires at ~878 s" | root cause | **CLOSED — it fires 2×/DRX-cycle all run** |
+
+**SOP.** One change at a time (v64 = the site form only); every image sha256-verified on the device; the
+control matrix (stock/v62/v62b/v63/v64) and the §112.153 root cause are archived; the crash detector is
+`dmesg | grep -c "handling crash"`. **Honest NEGATIVE:** the pre-registered "doomed-cycle caller names the
+trigger" branch (a) did NOT occur; the ring answers the question by *closing* it. Artifacts:
+`scratch/diag_patch_v62/build_v64_reljump.py`, `scratch/deploy_v64.py`, `scratch/run_v64.py`,
+`scratch/read_v62_ring.py`, `scratch/v64_capture/natural_devcd4.bin` + `run.log`.
+
+**Next.** Pivot to the sleepmgr STATE: why the terminal `SM_OFFLINE_GOTO_SLEEP_IND` / `OFFLINE_ENABLE_REQ`
+arrive in `OFFLINE_WAKEUP (9)` (the §112.59 `9→1` `RF_EXIT_CNF` completion never lands). Candidate: ring the
+sleepmgr state transitions (`0xc039d460` ingress) around the terminal window, or the RF `RF_EXIT_CNF` sender.
+
+---
+
+## §112.155 — v65 RESULT: the OFFLINE_WAKEUP path is a NORMAL per-DRX-cycle path (294 entries), NOT a terminal anomaly
+
+**Run.** v65 image `modem.mdt md5 = b9c4801ae165cab5911c267cec8fce27` (sha256 read-back PASS). Warm restart;
+natural event at **modem_up 904 s** (crash #14, `devcd5`, 85 398 475 B) → `scratch/v65_capture/natural_devcd5.bin`.
+**H1 PASS** (no crash-loop; the PC-relative site + prologue replay is sound).
+
+**Instrument.** Hooks the ENTRY packet of the sleepmgr **state-9 (OFFLINE_WAKEUP) entry `0xc03985f0`**
+(state table `0xc1a94fc8` slot 9, `{entry=0xc03985f0, f2=0, f3=0}`) with `{ jump CAVE }` + `{ nop }`; the cave
+records `{seq, caller=r31, r0, t}` and replays `p0 = cmp.eq(r0,#0)`, `memd(r29+#-0x10)=r17:16`,
+`allocframe(#0x10)`, resuming at `0xc03985f8`. (memd MUST precede allocframe — both use the OLD r29.)
+
+**Result — a clean NEGATIVE for the "OFFLINE path is the terminal event" reading:**
+
+| | value |
+|---|---|
+| `SAVE.seq` (state-9 entries) | **294** |
+| caller (r31) | **`0xc0fe1188` for ALL 294** — the STM framework's `callr r4` return site (the state dispatcher) |
+| r0 | **`0xc1e158d0` for ALL 294** — the sleepmgr object (slot 0) |
+| inter-entry delta | **median 24 575 861 ticks = 1.280 s @19.2 MHz = the DRX cycle** (min 24 499 055, max 24 652 666) |
+| terminal behaviour | the last 30 entries are a regular 1.28 s cadence — **no gap, no burst, no anomaly** |
+
+**⇒ P-V65 decision (b):** the sleepmgr enters `OFFLINE_WAKEUP (9)` **~294 times over 904 s** (≈ every 3.07 s, at
+a 1.28 s DRX cadence with global pauses) — i.e. the OFFLINE path is a **NORMAL, recurring, non-terminal path**,
+**not** a one-off terminal event. **This refutes §112.59's causal story** ("the sleepmgr TAKES the OFFLINE path
+[at the end] instead of completing ONLINE→…→SLEEP"): the state observed at the fatal (`obj+0x04 = 9`, re-confirmed
+here) is simply a **frequently-occupied state**, not a terminal signature.
+
+**Structural corroboration (parsed from the v64 coredump).** The sleepmgr class's message registry
+`0xc1a95088` (31 × `{name_ptr, msg_id}`) and the handler table `0xc1a95180` (31 × 4 B) are **only partially
+populated**: handlers exist for the **first 8** entries (`0x42b0200→0xc03987e0`, `0x42b0201→0xc0398c80`,
+**`0x42b020f→0xc039d150`**, `0x42b0202/0x42b0204/0x04030841/0x040a080e/0x04090804→0xc03987c0`); entries
+**8–30 are NULL** — including `0x42b0804 RF_EXIT_CNF`, `0x42b0801 RF_WAKEUP_CNF`, `0x42b0205 WAKEUP_REQ`.
+⇒ the RF completions and `WAKEUP_REQ` have **no per-message handler**; they are processed by the **per-STATE**
+handlers (state table `f2`), and state 9's `f2 = 0` ⇒ in state 9 a completion **cannot** be consumed. This is the
+*structural* reason a `9→1` cannot complete — but v65 shows state 9 is entered ~294×, so this alone does not
+explain a terminal failure.
+
+**★ Combined with the v7–v11 record (item 85), the event is an ML1-WIDE STALL.** Item 85 already showed the
+watchdog deadline only shifts *which* assert fires (50 ms → `lte_ml1_common_timer.c:390` @902.1 s; 500 ms →
+902.5 s; 5000 ms → `lte_ml1_sm_idle_stm.c:2913` @903.6 s) and that the replies are **LATE, not lost**. v64 + v65
+now show that **both** downstream observables — the `SM_OFFLINE_GOTO_SLEEP_IND` send (2×/DRX-cycle) **and** the
+sleepmgr OFFLINE entry (~1×/DRX-cycle) — are **regular to the last event**. ⇒ **the trigger is neither the send
+nor the sleepmgr state transition; it is whatever stalls ML1 at ~900 s.** The AP did nothing at the fatal
+(the AP dmesg 3590–3710 s shows only the SSR teardown/recovery).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| v65 H1 (boots + runs to the event) | PASS | **PASS — natural event @ modem_up 904 s** |
+| v65 H2 (ring non-empty) | seq ≥ 1 | **PASS — seq = 294** |
+| (a) state 9 entered once at ~900 s | terminal event | **NOT MATCHED** |
+| (b) state 9 entered per-DRX-cycle | normal path | **MATCHED — 294 entries, 1.28 s cadence, no terminal anomaly** |
+| §112.59 "OFFLINE path is the terminal event" | — | **REFUTED** — state 9 is a frequently-occupied normal state |
+| Root cause | identify | **STILL OPEN — but localised to the ~900 s ML1-wide stall** |
+
+**SOP.** One change at a time (the hook site only); the image was sha256-verified on the device; the crash
+detector is `dmesg | grep -c "handling crash"`. **Honest NEGATIVE:** the probe closes a lead rather than
+finding a cause. Artifacts: `scratch/diag_patch_v65/build_v65.py`, `scratch/deploy_v65.py`, `scratch/run_v65.py`,
+`scratch/read_v65_ring.py`, `scratch/v65_capture/natural_devcd5.bin` + `run.log`.
+
+**Next.** The two clean per-cycle observables (send, OFFLINE entry) are exhausted. The remaining lead is the
+**~900 s ML1-wide stall** itself: instrument the ML1 idle-SM / the `lte_ml1_sm_idle_stm.c` path (item 85's
+alternate assert site) to catch the FIRST late reply, or hunt the boot-anchored ~900 s deadline directly.
+
+---
+
+## §112.156 — MITIGATION VERIFIED LIVE (2026-10-06): the pre-emptive SSR pre-empted the ~900 s deadline at modem-uptime 801 s, zero fatal; root cause still OPEN
+
+**Trigger.** Post-§112.155 session continuation. The v64/v65 images were diagnostic instruments; the
+shipped mitigation had to be re-established and *verified* (the open `/goal` requires a working fix,
+and the stop-hook correctly notes v64/v65 are not one).
+
+**Deploy check (one-change discipline; tracked source == device).**
+`msm89xx/base-files/usr/sbin/modem-bearer-watchdog` md5 **`e1b32f7a3bac7dd8847fec392bf89bde`** == device
+`/usr/sbin/modem-bearer-watchdog` ⇒ the pre-emptive-SSR logic is in the **tracked, shippable** source, not
+only on the device. Config (device, opt-in): `general.enabled=1`, `recovery.ssr_enabled=1`,
+`recovery.preemptive_ssr_enabled=1`, `recovery.preemptive_ssr_interval=800`, `recovery.a2_pin=1`
+(tracked default is `interval=600`, `a2_pin=0`; both are self-consistent per the §112.30 invariant —
+`a2_pin=1` permits up to 800 s).
+
+**★ Result — the deadline was pre-empted, not fired.** On the current boot the modem had come up at AP
+`3704.05`; the watchdog fired a **clean** modem restart at AP **`4505.31`** (`msm_subsys: restarting
+4080000.remoteproc`) = **modem-uptime 801 s**, i.e. **~101 s before the ~902 s deadline**. Evidence:
+
+| quantity | value |
+| :-- | :-- |
+| pre-emptive trigger | `msm_subsys: restarting 4080000.remoteproc` @ AP `4505.313` |
+| modem-uptime at trigger | **801 s** (< the 900–903 s fatal window) |
+| modem back up | AP `4506.028` (recovery ≈ 0.7 s to "now up"; bearer rebuild ~10-15 s) |
+| `fatal error received` | **flat at 12** across the trigger (no new fatal) |
+| restart count this boot | 7 total `msm_subsys: restarting`; exactly **one** at ≥800 s |
+| anchor | `/tmp/modem_up_anchor` updated `3704 → 4506` ⇒ **no restart-loop** |
+
+⇒ **The shipped mitigation does what it claims**: it converts the uncontrolled ~900 s ERR_FATAL (the
+modem's own fast-recovery assert, ~12 s + a full SSR) into a *controlled* restart ~100 s earlier. This is
+the only verified crash-eliminator; `a2_pin` alone does not cover it (§112.49).
+
+**⚠ Two operational notes found while verifying (not defects in the fix).**
+1. `logread | grep -t modem-stall-watchdog` can be **empty** even while the watchdog is working: the
+   `qcom-time-daemon` emits `[QMI-TIME] SCLK calibration watchdog reset…` at a high rate and **evicts the
+   logread ring**. Detect the pre-emptive SSR from **dmesg** (`msm_subsys: restarting`), never from
+   `logread`.
+2. The watchdog loop blocks only in its normal `sleep 10` (verified: sole child `sleep 10`, parent in
+   `do_wait`) — the earlier "stuck loop" suspicion was a transient child, not a hang.
+3. The anchor updates on the loop's **next** iteration, so a watcher polling `get_modem_uptime()`'s inputs
+   sees a **transient over-read** (~30-60 s, e.g. `modem_up 799 → 830 → 59`) right after a pre-emptive SSR.
+   This is the documented "over-counting is safe" behaviour, not a second restart (the restart count is
+   flat and there is exactly one `msm_subsys: restarting` at ≥800 s). Soak: `scratch/v65_capture/soak_mitigation.log`.
+
+**Root cause — STILL OPEN, and localised.** The event is a **modem-internal ML1/sleepmgr stall**: the
+sleepmgr is stuck in `OFFLINE_WAKEUP (9)`; the MCPM collapse issuer `FUN_c0cf8cd0` stops being *called*
+~20 s before the fatal (§112.149) because the sleepmgr stops issuing sleep requests. §112.118/§112.119
+closed the MCPM/power layer as a **victim**; v64 closed the `SM_OFFLINE_GOTO_SLEEP_IND` send (normal
+2×/DRX-cycle) and v65 closed the sleepmgr OFFLINE entry (normal ~1×/DRX-cycle, §112.155). The **arming**
+is a **mainline-vs-QCOM AP-boot property** on byte-identical firmware (§112.6); the modem-powerup sequence
+is instruction-identical (§112.87), AP-side shared memory is excluded (§37.1/§38), and pmOS reproduces it
+(§A16) ⇒ it is not an AP-stack property and not any AP-side lever tested to date. The remaining
+root-cause work is **firmware RE of the ML1 idle-SM / the sleep-request path** (why the sleep from
+`OFFLINE_SLEEP_WAIT` does not land), not another AP-side change.
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| Mitigation deployed & shippable | tracked source == device | **YES — md5 match, pre-emptive logic present** |
+| Pre-emptive SSR fires < 900 s | restart at ~800 s | **YES — fired at modem-uptime 801 s** |
+| No fatal on the pre-empted cycle | `fatal error received` flat | **YES — flat at 12; zero new fatal** |
+| No restart-loop | anchor updates | **YES — anchor 3704 → 4506** |
+| Root cause identified | identify | **NO — still OPEN (modem-internal ML1/sleepmgr stall)** |
+
+**SOP.** One change at a time (config restore + verification only; no firmware write this session); every
+claim anchored on dmesg/`/proc/uptime`, not on `logread`; the mitigation is reversible
+(`preemptive_ssr_enabled=0`). Artifacts: `scratch/soak_v65_mitigation.py` (corrected metrics),
+`scratch/v65_capture/soak_mitigation.log`. **Honest NEGATIVE:** this verifies the *mitigation*, not the
+*root cause* — the ~900 s ML1/sleepmgr stall remains unexplained, so the fix remains a **mitigation**.
+
+---
+
+## §112.157 — §112.156 RE-CONFIRMED (2nd live pre-emption, 810 s) + an independent F3 terminal-signature re-derivation + the time-daemon log-flood defect — 2026-10-06
+
+**2026-10-06.** Read-only re-verification session on the live device (modem.mdt `b9c4801…` = the v65
+instrument image), plus offline re-analysis of the archived F3 captures. No firmware write, no baseband
+change, no new patch.
+
+### (A) §112.156 RE-CONFIRMED — and the one apparent counter-example is explained
+
+A dmesg audit initially looked like the mitigation had **failed**: `handling crash #14` at AP
+**3702.61** and `restarting` at AP **4505.31** (803 s later). The `… is now up` lines resolve it:
+
+```
+[ 2799.271225] msm_subsys: restarting 4080000.remoteproc          <- modem boot A (up ~2800)
+[ 3702.609072] fatal error received: lte_ml1_common_timer.c:390   <- boot A fatal @ modem-uptime ~903 s
+[ 3704.051314] remote processor 4080000.remoteproc is now up      <- crash-recovery restart
+[ 4505.312956] msm_subsys: restarting 4080000.remoteproc          <- PRE-EMPTIVE SSR (deliberate)
+[ 4506.027794] remote processor 4080000.remoteproc is now up      <- boot B
+```
+
+⇒ the fatal at 3702 was **not** a mitigation failure: it was a **deliberate SSR-disabled instrument run**
+(the v65 ring needs the natural fatal to fire, exactly as the v42 run documented). The 4505 restart was
+a genuine **pre-emption** of boot B — it fired at modem-uptime **801 s**, before the ~902.7 s deadline.
+
+**★ A SECOND live pre-emption, verified in this session.** The soak
+(`scratch/soak_v65_mitigation.py`, `scratch/v65_capture/soak_mitigation.log`) caught the next cycle:
+
+```
+[ 5316.310138] msm_subsys: restarting 4080000.remoteproc   <- boot B modem-uptime 5316.31-4506.03 = 810.3 s
+[ 5317.026935] remote processor 4080000.remoteproc is now up
+```
+
+`dmesg | grep -c "fatal error received"` stayed **flat at 12** (zero new fatal); the anchor updated
+4506 → 5317 (no restart-loop). ⇒ **two consecutive clean pre-emptions (801 s, 810 s), zero fatal.**
+
+### (B) Independent F3 terminal-signature re-derivation (offline; boot B full boot→fatal capture)
+
+Parsed `scratch/f3bootB_full/*.raw` (39 308 records) with `scratch/f3parse.py`; boot B filtered to
+`ts ∈ [3.342e9, 3.530e9]` (the later-boot stragglers in the same dir were excluded). The **only**
+terminal-only record is the one already named by §112.95/§112.148:
+
+| record | boot A (`f3_v15`) | boot B | repeats? |
+|---|---|---|---|
+| `rf_task.c:336 " get imei stoped "` | ts 13754.05 | ts 17217.81 | **one-off** (the last non-heartbeat record) |
+| `cmss.c:7947 =CM= Mapping csg_info` (+ `cmlog.c:1410`/`qmi_nas.c:4435`) | +0.65 s | +0.61 s | periodic (288–295×/boot) |
+| last `mcpm_saw.c:591 FW_WAKE-UP_Start` | ts 13754.03 | ts 17218.12 | every DRX cycle |
+
+**New NEGATIVE controls (this session), each ruling out a "terminal-only" reading:**
+* `mc_msg.c:5625 "SLOW CLOCK REQUEST: reason=0, valid=0"` is **periodic every 10 s** (95×/boot,
+  ts 16328.4 → 17218.4) ⇒ **not** a terminal SCLK failure. (It is the GPS/TLE slow-clock request.)
+* The `cmss/cmlog/qmi_nas` system-selection event fires **288–295×/boot** ⇒ not terminal-specific; it
+  merely happens to be the last one.
+* The DIAG F3 **module mix is FLAT** to the end (~1200 records / 30 s window; `cfm_cpu_monitor.c:308`
+  ~600, `cm/nas` ~200, `mcpm` ~170 per window, unchanged from +30 s to +884 s). ⚠ The "LTE/ML1 share
+  decays 61.1→39.7→1.8" datum is **not** reproducible from the DIAG F3 stream — the LL1/ML1 modules log
+  to a **separate in-RAM ring** (item 103), so DIAG F3 cannot measure ML1 share. Do not cite a DIAG-F3
+  ML1 decay.
+
+⇒ the F3 terminal story is unchanged from §112.148/§112.95: a WAKE with no following SLEEP (the
+power-collapse entry fails), with the `rf_task.c:336` teardown re-entry as a **fatal-path symptom**.
+
+### (C) ★ A live AP-side defect found: `qcom-time-daemon` floods the log ring
+
+`logread` on the device is **1023 lines and dominated by `qcom-time-daemon`**; the
+`modem-stall-watchdog` pre-emptive-SSR lines are **not recoverable** (they are evicted). Two causes:
+
+1. **Every daemon message is logged TWICE** — once as `daemon.err qcom-time-daemon[..]: qcom-time-daemon[..]: [QMI-TIME] …`
+   (the `LOG_PERROR` copy on stderr, captured by procd) and once as `daemon.notice qcom-time-daemon[..]: [QMI-TIME] …`.
+   `openlog(..., LOG_PERROR)` (`qcom-time-daemon.c:1020`) plus the init's `procd_set_param stderr 1`
+   (`qcom-time-daemon.init:84`) double every line.
+2. **36 INITIAL handshakes + 35 QMI timeouts** over one boot (14 modem crashes ⇒ 14 `DEL_SERVER` →
+   re-handshake; each `run_handshake_state_machine` re-logs the full VERIFIED banner).
+
+**Why it matters:** the pre-emptive SSR's own audit line (`logger -t modem-stall-watchdog "PREEMPTIVE SSR: …"`)
+is pushed out of the ring, so the mitigation is **un-auditable from `logread`** — exactly the §112.156
+trap. (The watchdog's anchor is unaffected: the `… is now up` line is still present in `dmesg`, 23
+occurrences.) Recorded as a finding; **not patched** this session (out of scope, and a logging change
+must not be bundled with a stability claim — SOP: one change at a time).
+
+**Achieved vs Expected.**
+
+| | Expected | Achieved |
+|---|---|---|
+| §112.156 re-verified | pre-emption < 900 s | **YES — a 2nd pre-emption at modem-uptime 810 s, `fatal error received` flat at 12** |
+| The AP-3702 fatal explained | not a mitigation failure | **YES — a deliberate SSR-disabled v65 instrument run (modem-uptime 903 s)** |
+| F3 terminal signature re-derived independently | reproduce | **YES — `rf_task.c:336` one-off + WAKE-without-SLEEP (matches §112.148/§112.95)** |
+| `SLOW CLOCK REQUEST` a terminal SCLK failure? | test | **NO — periodic 10 s (95×/boot); negative** |
+| DIAG-F3 ML1-share decay reproducible? | test | **NO — F3 module mix flat; ML1 logs to a separate in-RAM ring** |
+| Root cause identified | identify | **NO — still OPEN (modem-internal ML1-wide stall)** |
+
+**SOP.** Read-only live audit (dmesg / `/proc/uptime` / `logread`) + offline F3 re-parse; no device
+write, no firmware change, no new patch; the archived captures are used as-is (no re-capture); the
+"mitigation works" claim is anchored on **dmesg** (the `… is now up` anchor + the crash/fatal counts),
+never on `logread`. **Honest NEGATIVE:** this session **re-confirms the mitigation and rules out three
+candidate terminal signatures**; it does **not** identify the root cause. The trigger of the ~878 s
+sleep-transition failure — *why the sleepmgr stops transitioning to SLEEP* — remains **OPEN**; the next
+instrument is the one §112.148/§112.147 nominate: ring the **SERV-MEAS reply path / the RF first-dying
+layer** (`rflte_core_rxctl.c:403`) to catch the first lost reply.
+
+---
+
+## §112.158 — NEW DECISIVE CONSTRAINT: the ~900 s fatal fires with the modem held runtime-ACTIVE and NOT power-collapsing (`MPSS num_shutdowns` FLAT) ⇒ the fatal is INDEPENDENT of the sleep/collapse path — 2026-10-06
+
+**2026-10-06.** Live, read-only audit of the running device (modem.mdt `b9c4801…` = the v65 instrument
+image; watchdog `enabled=1`, `preemptive_ssr_enabled=1`, `interval=800`, `a2_pin=1`). No firmware write,
+no patch, no device mutation beyond reading sysfs/`devmem`.
+
+### (A) The measurement — the modem is NOT power-collapsing under `a2_pin=1`
+
+`a2_pin=1` makes `modem-bearer-watchdog` write `bam-dmux/power/control = on`
+(`msm89xx/base-files/usr/sbin/modem-bearer-watchdog:359-365`), i.e. the AP's bam_dmux **never
+runtime-suspends**, so it never clears its A2 vote. The AP-side telemetry confirms it:
+
+```
+power/control            = on
+power/runtime_status     = active
+power/autosuspend_delay  = 1000
+rx_telemetry: pm_suspend_attempts=0  pm_resume_attempts=1  pm_usage_count=1
+              pc_state=1  pc_ack_state=1  pc_timeout_count=0  rx_tearing_down=0
+```
+
+and the **modem's own Q6 power-collapse is measured to have STOPPED**:
+
+```
+devmem 0x61154 32  (RPM master-stats MPSS num_shutdowns, Doc 34's instrument)
+   0x00000004  ->  0x00000004   over 20 s   (FLAT)
+devmem 0x60154 32  (APSS) = 0x00000000
+```
+
+⇒ Under the shipped mitigation the modem is held runtime-ACTIVE and **does not power-collapse at all**
+(`num_shutdowns` flat over 20 s; contrast Doc 34's `1.616 /s` healthy figure, which was measured with
+the default `control=auto`). This is the documented *cost* of `a2_pin=1`
+(`modem-bearer-watchdog:349-356`: "the modem cannot power-collapse (higher idle power)").
+
+### (B) The constraint — the fatal does NOT require the collapse
+
+The ~900 s fatal has fired **with the pin held** — §15.6's clean A2-pin arm
+(`control=on`, `runtime_suspended_time` frozen) recorded **fatal #13 at AP 14183.215848,
+`lte_ml1_common_timer.c:390`, only 814.2 s after the pin**. That arm was read as "the fatal does NOT
+require the AP to drop the A2 vote"; the measurement in (A) strengthens it to the sharper statement:
+
+> **The ~900 s fatal does not require the modem to power-collapse (or to sleep) at all.** The entire
+> MCPM/FW-collapse/`SleepEntry` family — which the corpus has repeatedly proposed as the mechanism
+> (§112.86, §112.110-119, the LPR framework's `rpm.sync` park) — is therefore **downstream/orthogonal**:
+> the fatal fires when the modem is held awake and its Q6 PC counter is frozen.
+
+This is consistent with, and gives a mechanism for, the earlier §15.6 and §15.2 results, and it
+**retires the `system_sleep_check` / "no tech slept for 400 units" reading** independently of §11.5
+(which had already found that layer's globals read zero in 43/43 dumps): if the check were live, holding
+the modem awake would *trip* it, not avoid it.
+
+### (C) Corroboration from the archived dumps — the terminal LPR record is a `SleepEntry` with no `SleepExit`, and `LateSleepExit` NEVER fires
+
+Read-only re-run of `scratch/coredump_live/ring.py` over the 6 archived HMU05 fatal dumps
+(`modem_coredump_up915.44 / up919.52 / up1818.92 / up1822.52 / up2723.69 / up3629.79`):
+
+* the **memory-order tail of the LPR sleep-cycle ring is always a `SleepEntry` with no following
+  `SleepExit`** (e.g. `up915.44`: `… SleepEntry ts=0x0f6bfd7f` is the last sleep-cycle record) — the
+  §112.86 signature, re-confirmed;
+* the LPR framework's own **`WARNING (message: "Late sleep exit") (Actual: …) (Expected: …)`** record
+  (fmt VA `0xc1854f1b`, decoded by the tool) fires **0 times in all 6 dumps** ⇒ the terminal event is
+  **not** a *late exit*; the sleep path stops at ENTRY.
+
+⚠ **These two facts sit on opposite sides of (B) and must not be conflated.** (C) is measured on
+`a2_pin=0` dumps (the modem *was* collapsing); (B) is measured with the pin held (it is not). The
+consistent reading is that the `SleepEntry`-without-`SleepExit` is a **manifestation of the same
+terminal stall in the regime where the modem does collapse**, not its cause — the stall is upstream of
+both.
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Is the modem power-collapsing under the shipped `a2_pin=1`? | measure | **NO — `MPSS num_shutdowns` flat (4→4 over 20 s); `runtime_status=active`** |
+| Does the fatal require the collapse? | test | **NO — it fires with the pin held (§15.6 fatal #13 at +814.2 s)** |
+| Retire the MCPM/sleep family as the trigger | — | **YES (on this evidence)** — it is downstream/orthogonal |
+| Terminal LPR record | characterize | **`SleepEntry` with no `SleepExit` (6/6 dumps, re-confirmed)** |
+| `Late sleep exit` a terminal signature? | test | **NO — 0/6 dumps** |
+| Root cause | identify | **STILL OPEN — but localised to the ML1 layer itself / the AP↔modem transport, NOT the sleep path** |
+
+**SOP.** One change at a time — this session made **no** change (read-only: sysfs, `devmem`, archived
+coredumps). Ground truth first: the collapse rate was *measured* (`devmem 0x61154` sampled twice), not
+inferred; the pin→`control=on` linkage was read from the tracked watchdog script, not assumed.
+Instrument validated before its negative was believed: `ring.py`'s format-VA map is the documented one
+(`0xc1854f1b` = "Late sleep exit"). **Honest NEGATIVE:** this session **rules out a whole mechanism
+family** (the sleep/collapse path) rather than identifying the trigger; the trigger is now constrained
+to the ML1 layer or the AP↔modem transport at modem-uptime ≈902 s.
+
+**Next (the surviving target).** With the collapse path excluded, the remaining observable is the
+**ML1-wide stall** itself. Two instruments, both live-ring (the v42/v64/v65 technique):
+1. ring the **ML1 common-timer dispatch** `FUN_c02d7bd0` (v52's target) **and** the ML1 message
+   transport on the same run, logging `{seq, key, ctx, t}` — to catch the FIRST late reply rather than
+   the terminal assert; and
+2. ring the **AP↔modem QMI/DIAG transport** (`/dev/diag`, the qmi channels) across the same window —
+   the last untested AP-side transport axis.
+
+---
+
+## §112.159 — CONSOLIDATION + CORRECTION: the descriptor→file:line map is machine-verified for all three signatures (R16 IS the descriptor); the key-20 **gate is not a discriminator** — §112.136's "flag-check" reading **FALSIFIED** (the three globals are constant 43/43) — 2026-10-06
+
+**2026-10-06.** Read-only analysis of the archived HMU05 coredumps (`scratch/coredump_live*/`) and the
+stock firmware disassembly (`scratch/hmu05_stock_elf/disasm_full.txt`). No firmware write, no device
+mutation.
+
+⚠ **Provenance.** This entry is largely a **re-confirmation** of what §110/§111 (and the ledger's
+`a2_descr.py` tool, §112.20) already established: GP = `0xC3C09000`, R16 = the assert descriptor, and the
+descriptor→file:line mapping. It is recorded here because it was re-derived independently this session
+(two new verification chains) and because it **retracts §112.136's key-20 "gate flag" reading**, which is
+the one genuinely new result. Claims already in the ledger are marked "(re-confirmed)".
+
+### (A) GP re-confirmed — `0xC3C09000` (already resolved in §110 / §112.12 / §112.24), now on a second chain
+
+The ML1 common-timer dispatcher `FUN_c02d7bd0` reads its handler table base from `memw(gp+#0xba64)`.
+Scanning the crash-time dump for a word holding the independently-known table base `0xC1A861D4` locates
+the slot at `0xC3C14A64`; subtracting the immediate gives
+
+> **GP = `0xC3C14A64` − `0xba64` = `0xC3C09000`.** (matches the ledger's prior value)
+
+Verified by a **new, independent chain** — the Low-Power-Resource registry (a pointer the dispatcher never
+touches):
+
+```
+0xC3C09000 + 0x3d48 = 0xC3C0CD48   -> 0xc1d473f8   (a pointer)
+0xc1d473f8 + 0x0000 = 0xC1848058   -> "rpm\0" "/icb" "/axi" "cfg\0"   (the LPR named "rpm")
+0xC3C09000 + 0x3d44 = 0xC3C0CD44   -> 0xc1d46f18   (the sibling LPR slot)
+```
+
+⇒ **Every `gp+0xNNNN` reference in the stock disassembly now resolves to an absolute VA** (e.g.
+`gp+0x2d1 = 0xC3C092D1`, `gp+0x6584 = 0xC3C0F584`). This is a reusable capability; prior entries that
+could not name a `gp+…` field can now be re-read. The GP is identical in **all 43** archived dumps.
+
+### (B) (re-confirmed) R16 carries the descriptor — and the descriptor→file:line map is machine-verified
+
+`scratch/_crash_text.py` decodes the modem's own crash report from each coredump. Across the three
+signature families (§112.57.9) the report is:
+
+| dump | site | task | R16 | PC | LR |
+|---|---|---|---|---|---|
+| `up915.44` / `up915.42` | `lte_ml1_common_timer.c:390` | `tmr_slave3` | **`0xc3c6c800`** | `0xc087a804` | `0xc0879164` |
+| `up915.55` | `lte_ml1_sleepmgr_stm.c:4054` | `slpc` | **`0xc3c81a40`** | `0xc087a804` | `0xc0879164` |
+| `up923.71` / `up923.12` | `a2_power.c:1189` | `a2` | **`0xc3c1f3a0`** | `0xc087a804` | `0xc0879164` |
+
+The **PC and LR are identical in all five dumps** — every signature dies inside the *same* assert
+function. The **only** register that differs is **R16**, and it is exactly the per-site descriptor.
+Disassembling the assert entry `0xc0879150` explains why:
+
+```
+c0879150: call 0xc0878ed0
+c0879154: r16 = r0                      ; <-- the assert function moves its argument (r0) into r16
+c0879158: memd(r29+#-0x10) = r17:16; allocframe(#0x8)
+...
+c087a804: r1 = pc                        ; <-- the shared crash PC (deep inside the assert)
+```
+
+⇒ **R16 = the descriptor pointer passed to the assert**, and the file:line in the crash report is derived
+from it. This is a *cleaner* form of the §112.57.9 "fixed shared descriptor" observation: it is not one
+shared descriptor — it is **one shared assert function with a per-site descriptor in R16**.
+
+The mapping is **machine-verified** with the existing tool `scratch/a2_descr.py` (§112.20: the descriptors
+are `{u32 packed=(id<<16)|line, u32 size=0x10, u32 msg_ptr, u32 file_ptr}` offsets into a zlib-compressed
+database). Running it on the three R16 values from the *same* dump closes the loop:
+
+```
+0xc3c6c800 off=0x50800 line=390  id=9509 size=0x10 file='lte_ml1_common_timer.c'   <- tmr_slave3
+0xc3c81a40 off=0x65a40 line=4054 id=9509 size=0x10 file='lte_ml1_sleepmgr_stm.c'   <- slpc
+0xc3c1f3a0 off=0x33a0  line=1189 id=64   size=0x10 file='a2_power.c'               <- a2
+```
+
+⇒ the three signatures are three *different* descriptors (`id` 9509/9509/64) at three different sites,
+all reported through the *same* assert function.
+
+### (C) ★ The `:390` fatal is the assert at `0xc02d7d80` in the key-20 handler — confirmed by the stack
+
+The crash report's stack walk for `up915.44` (SP `0x8ad52160`):
+
+```
+0x8ad52174  -> 0xc02d7bd0   ; FUN_c02d7bd0 — the ML1 common-timer DISPATCHER
+0x8ad5217c  -> 0xc02d7d8c   ; the key-20 handler, the instruction AFTER the 0xc02d7d80 assert packet
+```
+
+and the key-20 handler `0xc02d7d54` loads the descriptor **`0xc3c6c800` at `0xc02d7d88`** — the same value
+the crash report shows in R16, and the same value `a2_descr.py` decompresses to `lte_ml1_common_timer.c:390`
+in (B). The descriptor is written in the same packet as `call 0xc0879150`; the observed R16 confirms the
+assert receives it.
+
+⇒ **The `:390` fatal is exactly the assert in the key-20 handler of the ML1 common-timer dispatcher**,
+reached from task `tmr_slave3` via `FUN_c02d7bd0`. The handler table is `0xC1A861D4` (31 slots; keys
+`20..28` → `0xc02d7d54`; key 0 → `0xc02d7bf0`; key 3 → `0xc02d7cc4`).
+
+### (D) §112.136 FALSIFIED — the three key-20 "gate" globals are constant build configs, not discriminators
+
+§112.136 read the handler's entry check as *the* trigger:
+
+```
+c02d7d54: r0 = memub(gp+#0x2d1)                       ; 0xC3C092D1
+c02d7d58: if (cmp.eq(r0.new,#0x1)) jump:t 0xc02d7d74   ; ==1 -> skip the two bit checks
+c02d7d5c: r0 = memw(gp+#0x6584)                        ; 0xC3C0F584
+c02d7d60: p0 = !tstbit(r0,#0x2)
+c02d7d64: if (p0.new) jump:t 0xc02d7d80                ; bit2 clear -> assert
+c02d7d68: r0 = memw(gp+#0x6588)                        ; 0xC3C0F588
+c02d7d6c: p0 = !tstbit(r0,#0x2)
+c02d7d70: if (p0.new) jump:t 0xc02d7d80                ; bit2 clear -> assert
+c02d7d74: call 0xc08f1500  (r0 = 0xc164f740)           ; "gate-pass" path — RETURNS normally
+c02d7d80: call 0xc0879150  (r0 = 0xc3c6c800)           ; <-- THE FATAL ASSERT
+```
+
+Scanning **all 43 dumps** for the three globals (`scratch/_gp_gate_scan.py`):
+
+```
+every dump:  gp+0x2d1 = 0x01   gp+0x6584 = 0x00008000   gp+0x6588 = 0x0000000c
+```
+
+They are **byte-identical in the stock `stock_227` dump and in every fatal dump** ⇒ they are **build
+configurations, not runtime state**. Two consequences:
+
+1. §112.136's rule *"the fatal fires when `memub(gp+0x2d1)!=1` and bit 2 is clear"* is **falsified** — its
+   precondition (`gp+0x2d1 != 1`) is **never** satisfied (it is `0x01` in 43/43 dumps), yet the fatal
+   fires; and
+2. the entry check is **not** what gates the fatal: with `gp+0x2d1==1` the code jumps to `0xc02d7d74`,
+   whose `call 0xc08f1500` **returns normally** (it is a small `allocframe(#0)/…/dealloc_return` helper at
+   `0xc08f1480..0xc08f151c`, not a `noreturn`), so **control falls through into the `0xc02d7d80` assert
+   anyway**. The assert is effectively the handler's terminal statement.
+
+⇒ The correct statement is: **dispatching key 20 at all runs the ML1 common-timer's fatal assert**
+(`lte_ml1_common_timer.c:390`, descriptor `0xc3c6c800`). The open question is therefore unchanged and
+sharpened — *what dispatches key 20 at modem-uptime ≈902 s* (the terminal key-3 storm / the ML1-wide
+stall of §112.130/135), **not** any gate flag.
+
+### (E) Corroboration — the terminal F3 order (prior-session, v15 window)
+
+⚠ **Caveat:** the F3 `ts` base is not fully resolved (a 204800 Hz reading gives a ~20 810 s window, far
+beyond the ~900 s boot), so only the *ordering within the terminal window* is relied on. Within
+`scratch/f3_v15/*.raw` the A2/ML1 family stops in the order **`a2_task.c` first**, then
+`mcpm_saw.c`/`mcpm_npa.c`, then `a2_power.c`/`pgi_msgr.c`, while the platform loggers
+(`cfm_cpu_monitor.c`, `qmi_nas.c`, `cmss.c`) continue to the end. The AP-facing A2 task is the first of
+the ML1-adjacent subsystems to fall silent — consistent with the transport/A2 axis, but **not** decisive
+on its own.
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Resolve the firmware GP | re-verify | **YES — `0xC3C09000`** (handler-table slot `+0xba64`; **new** cross-check on the `"rpm"` LPR at `+0x3d48`). Already known (§110) |
+| Which register carries the assert descriptor? | identify | **R16** (re-confirmed) — proven by `0xc0879150`'s `r16 = r0`, and by the per-site R16 values |
+| Descriptor → file:line map | machine-verify | **YES** — `a2_descr.py`: `0xc3c6c800`→`lte_ml1_common_timer.c:390`; `0xc3c81a40`→`lte_ml1_sleepmgr_stm.c:4054`; `0xc3c1f3a0`→`a2_power.c:1189` |
+| Are PC/LR shared across the three signatures? | test | **YES — PC `0xc087a804`, LR `0xc0879164` in 5/5 dumps** |
+| Which instruction is the `:390` fatal? | pin | **the assert at `0xc02d7d80`** (descriptor `0xc3c6c800`), key-20 handler `0xc02d7d54`, task `tmr_slave3`, via `FUN_c02d7bd0` (re-confirmed) |
+| §112.136's key-20 "gate flag" reading | test | **FALSIFIED (new)** — the three globals are constant 43/43 (`0x01`/`0x8000`/`0x0c`); they never discriminate |
+| Does the gate prevent the assert? | test | **NO** — the "gate-pass" path returns and falls through into the same assert |
+| Root cause | identify | **STILL OPEN — the fatal *site* was already proven; the remaining question is what dispatches key 20 at ≈902 s (the ML1-wide stall)** |
+
+**SOP.** One change at a time — this session made **no** change (read-only: archived coredumps +
+stock-image disassembly). Ground truth first: the descriptor/ABI claim was read from the **modem's own
+crash report** (`_crash_text.py`), not inferred from the disassembly alone; the descriptor→file:line map
+was verified with the **existing** decompressor `a2_descr.py` rather than by eyeballing the high-entropy
+descriptor bytes; the GP was re-derived from an *independent* known value (the handler-table base) and
+cross-checked on a second, unrelated pointer chain. Instrument validated before its result was believed:
+`0xc0879150`'s `r16 = r0` was disassembled to explain R16, and `0xc08f1500` was disassembled to prove the
+"gate-pass" path returns (so it falls through into the assert). **Honest correction:** this entry
+**retracts** §112.136's key-20 flag-check reading; it does **not** identify the trigger — it removes a
+wrong one. Most other claims here are **re-confirmations** of §110/§111, flagged as such.
+
+**Next (the surviving target, unchanged and now sharper).** The fatal is the key-20 dispatch of the ML1
+common-timer. Ring, on the same run:
+1. the **dispatcher `FUN_c02d7bd0`** logging `{seq, key, ctx}` — to catch **what dispatches key 20** (the
+   FIRST key-20 dispatch is the fatal, so its caller/context is the whole game); and
+2. the **ML1 message transport** (`0xc02871ac` build / the send helper) — to see whether the key-20
+   dispatch is itself the *response to a failed/late ML1 message* rather than an independent event.
+
+---
+
+## §112.160 — CORRECTION: the Android **cold** dump DOES contain the ML1 ctx array — §82's "no ctx0 at all (cold)" was a fixed-window artifact; `+0x1c=0xdeaddead` / `+0x20=0` are universal ctx defaults — 2026-10-06
+
+**2026-10-06.** Read-only re-analysis of the CW-1 cold/warm Android pair
+(`scratch/android_dump/cw1_cold_run1.elf`, `scratch/android_dump/cw1_warm_run1.elf`) with the
+invariant ctx search (`+0x0c == 0xc02d7bd0`, `+0x14 == self`, `+0x38 ∈ [20,28]`). No device access.
+
+### (A) The cold dump HAS the array — at a moved base
+
+| dump | regime | ctx array base | objects |
+|---|---|---|---|
+| `cw1_cold_run1.elf` | cold (first boot, `cc=0`) | **`0xc2125378`** | **9** (states 20…28) |
+| `cw1_warm_run1.elf` | warm (after one SSR) | `0xc2150f38` | 9 (states 20…28) |
+| `diag_v4.elf` | warm fatal | `0xc2150f38` | 9 |
+
+§82.2's table records `cw1_cold` / `_run1` as **"no ctx0 at all (cold)"**. That is a **fixed-window
+artifact**: the array is present cold but its base is **`0xc2125378`**, not the `0xc2150f38` the warm
+dumps use — so a scan anchored on the warm base (or on a fixed `0xc215xxxx` window) misses it. This is
+exactly the trap `feedback_bss_address_instability.md` warns about ("key instruments on an invariant
+field, never an address"). ⇒ **the ctx array's presence is NOT the cold/warm arming difference.**
+
+### (B) `+0x1c` and `+0x20` are universal defaults, not per-dispatch markers
+
+All nine objects, **both regimes**:
+
+```
+every ctx0..ctx8:  +0x1c = 0xdeaddead     +0x20 = 0x00000000
+```
+
+⇒ within the ML1 ctx array, **`+0x1c = 0xdeaddead` is the at-rest default for every context** (not a
+"dead context" flag) and **`+0x20` is 0 at rest** (the §82.2 expiry discriminator is the transient
+armed window, which is consistent). Any reading that treated `+0x1c == 0xdeaddead` as a *dead-context*
+discriminator **must be re-checked against the ctx array** — it is the value every ctx carries when idle.
+
+⚠ Scope: this holds for the **9-object ML1 ctx array**. It does **not** by itself re-read v54's ring
+object (`0xc20f1068`), which is a different structure (its `+0x38` is a pointer, not a state byte).
+
+### (C) The surviving cold/warm difference is unchanged
+
+With (A), the only reported cold/warm structural difference remains §54.11's **49 192-byte free-list
+region** (`seg15`, `0xc2158a98..0xc2164abc`): all-zero cold, populated warm. Its causality is still
+**not established**.
+
+### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Does the Android cold dump contain the ML1 ctx array? | test | **YES — 9 objects at base `0xc2125378`** |
+| Was §82's "no ctx0 cold" real? | re-check | **NO — fixed-window artifact (the base moved)** |
+| Is `+0x1c=0xdeaddead` a "dead context" marker? | test | **NO — universal default for all 9 ctx in both regimes** |
+| Is `+0x20` non-zero at rest? | test | **NO — 0 for all 9 in both regimes (the §82.2 signal is the transient window)** |
+| Is the ctx array the arming difference? | test | **NO** |
+| Root cause | identify | **STILL OPEN** (surviving cold/warm lead: the §54.11 49 KB free-list region) |
+
+**SOP.** One change at a time — **no** change (read-only coredump analysis). Ground truth first: the
+array was located **by invariant**, not by a fixed VA. Instrument validated before the correction was
+believed: the same search finds 9/9 objects in three independent dumps. **Honest correction:** this entry
+**retracts §82.2's cold row** and flags a **candidate premise** (`+0x1c`) used elsewhere; it does not
+identify the trigger.
+
+---
+
+### §112.161 — A pre-registered NATURAL-fatal capture under `a2_pin=1` with the pre-emptive SSR disabled (2026-10-06): restart+902.609 s; and the `shutting-down` zombie has (at least) TWO depths, the shallow one QMI-recoverable
+
+**Provenance.** 2026-10-06, this session. Device `hmu05`, OpenWrt, `modem.mdt` md5
+`b9c4801ae165cab5911c267cec8fce27`. Config at capture: `modem-watchdog.general.enabled=1`,
+`recovery.ssr_enabled=1`, **`recovery.preemptive_ssr_enabled=0`** (deliberately disabled),
+`recovery.a2_pin=1`. This is the user-selected risky test (pre-emptive SSR off ⇒ a natural fatal; the
+§112.161-era AP-hang risk accepted). Mostly a **confirmation-with-a-fresh-dump**; the one genuinely new
+distinction is **(D)**. Structural facts already in the record are labelled as re-confirmations.
+
+#### (A) The capture — the fatal is at restart + 902.609 s
+
+| AP `dmesg` | event |
+|---|---|
+| 17641.748963 | deliberate `echo restart > …/msm_subsys/modem` (AP-side watchdog STOPPED) |
+| 17642.474211 | modem "is now up" — **no fatal for 1153 s** (see (D)) |
+| 18795.349519 | second restart (watchdog re-enabled, pre-emptive SSR still OFF) |
+| 18796.065056 | modem "is now up" ← **the anchor** |
+| **19698.673941** | **fatal `lte_ml1_common_timer.c:390`** |
+
+`19698.673941 − 18796.065056 = 902.608885 s`. The modem's **own** crash report independently reads
+`Uptime (h:m:s): 0:15:02` = **902 s** ⇒ the deadline is on the **modem's own clock**, restart-anchored.
+Re-confirms model M3 on a fresh, non-injected capture.
+
+Artifacts: `/root/dumps/dump_devcd6_19700.bin` = 85 398 475 B, md5
+**`f842e69862857f95fba0482b3eaf983e`** (verified on pull); F3 chunks `scratch/f3_fatal_a2pin/` (13 × 5 s
+around the fatal; terminal chunk `c000404_up19697.raw`).
+
+#### (B) The crash report — descriptor + task, machine-confirmed
+
+```
+Error in file lte_ml1_common_timer.c, line 390
+Error message: Assert 0 failed:
+REX_TCB ptr: 0xc3c0bf84     tcb.task_name: tmr_slave3
+PC 0xc087a804   LR 0xc0879164   R16 = 0xc3c6c800
+```
+
+`R16 = 0xc3c6c800` is the `lte_ml1_common_timer.c:390` descriptor — §112.159's descriptor map
+**machine-confirmed from a fresh dump**. Task = `tmr_slave3`, matching §52.6/§42.5.
+
+#### (C) The crash-stack signature is stable across dumps
+
+From `0x8ad52160`, the stack holds `c08791a8`, `c2125398` (the key-20 ctx VA), `c02d7bd0`, `c02d7d8c`,
+`c0b63004` — the assert frame, the ctx, the ML1 common-timer dispatcher `FUN_c02d7bd0`, the key-20 handler
+call site `0xc02d7d80+0xc`, and the `0xc0b6xxxx` caller. **Same** sequence the ledger records at line 20316
+(`c02d7bd0 c02d7d8c c0b63004 c1200c50 c0887658 …`) ⇒ a fixed signature, not a single-dump coincidence.
+
+#### (D) ★ NEW — the `shutting-down` zombie has (at least) TWO depths
+
+§112.108's post-fatal zombie was DMS `shutting-down`, NAS `not-registered-searching`, **RF `none`**, MM
+`No modems were found`; it survived 4777 s and a manual reactive SSR produced the **same** zombie — only an
+**AP reboot (cold)** recovered it. The ledger's op-mode table therefore concludes the lever is inert:
+"`set-operating-mode` … all report `success`, mode stays `offline`".
+
+⚠ **Accuracy correction to that blanket statement:** §112.108 **Case A itself** records that the lever *did*
+set the mode — "the mode read back `online` **but the RF stayed `none`**". So the precise statement is **not**
+"the lever is inert" but "**the lever sets the DMS mode; whether the modem becomes usable depends on whether
+the RF layer follows.**" That is the discriminator, and this run lands on the other side of it.
+
+**This run found the opposite for a SHALLOWER zombie.** After the 17641 deliberate restart the modem sat
+in DMS `shutting-down` / NAS `not-registered-searching` / MM "no modem object" for ≥9 min (the watchdog
+logged "Bearer down 30…660 s and ModemManager reports no modem object" throughout), then:
+
+```
+$ qmicli -d /dev/wwan0qmi0 --dms-set-operating-mode=online
+Operating mode set successfully
+$ qmicli -d /dev/wwan0qmi0 --dms-get-operating-mode   → Mode: 'online'
+$ qmicli -d /dev/wwan0qmi0 --nas-get-serving-system   → Registration state: 'registered'
+                                                        RSSI -43 dBm  RSRP -71 dBm
+```
+
+⇒ **the op-mode lever DOES recover the shallow zombie in place.**
+
+**★ Reproduced (n = 2) — and the trap is STICKY across restarts.** After the fatal's crash-recovery restart
+(19700) the modem re-entered the trap; the **pre-emptive SSR then fired at 20504.035 and did NOT clear it**
+(still `shutting-down` / `not-registered-searching` at AP 20693); the `--dms-set-operating-mode=online` nudge
+recovered it again (`online` + `registered`, AP 20710). ⇒ **a modem/SSR restart does not clear the trap; only
+the QMI op-mode nudge (or a cold boot) does.** Two independent confirmations of the nudge.
+
+A distinguishing observable exists *before* the attempt: this zombie still had the RF layer logging
+(`pgi_msgr.c:718 WWAN_TECH_MSG … Tech 0 Band 122 Chan 1451 FreqKHz 1830000` in the F3), whereas §112.108's
+deeper zombie reported RF `none`. **Candidate rule (pre-registration, n = 1 each):** RF `none` ⇒ deep (AP
+reboot); RF alive but NAS detached ⇒ shallow (QMI `--dms-set-operating-mode=online` recovers).
+
+**★★ (D2) The zombie is TWO LAYERS — ModemManager is also gone, and procd does not respawn it.** While the
+modem was `shutting-down`, `mmcli -L` returned `error: couldn't find the ModemManager process in the bus` —
+the **ModemManager daemon itself was not running** (only the `ModemManager-monitor` wrappers and a lingering
+`mmcli -M` survived; `/etc/init.d/modemmanager status` still reported `running (1/2)`). procd's `respawn`
+fires only when the process **exits**; a daemon that dies without exiting is never respawned.
+
+**Measured recovery needs BOTH layers:**
+
+| step | result |
+|---|---|
+| `qmicli --dms-set-operating-mode=online` | modem → `online` + `registered`; **bearer still down** (`up=false`) |
+| … **and** `/etc/init.d/modemmanager restart` | `mmcli -L` → `Modem/0`; bearer `up=true`; `wwan0 UP` |
+
+⇒ **neither fix alone restores service.** This re-scopes the zombie: part of §112.108's "MM `No modems were
+found`" may have been an **MM-daemon** fault, not (only) a modem-firmware one — worth re-checking in the
+archived §112.108 evidence.
+
+**★ Fix applied (reversible).** `modem-bearer-watchdog`'s "no modem object" branch — which previously only
+logged "waiting for MM to re-probe" and waited forever — now recovers **both** layers: after
+`zombie_nudge_secs` (default 60) with no modem object it restarts the `modemmanager` service when MM is off
+the bus, then nudges the modem with `--dms-set-operating-mode=online` **only if** DMS reads
+`shutting-down`/`offline`/`low-power`/`persistent-low-power`; cooldown-bounded (120 s). Files:
+`msm89xx/base-files/usr/sbin/modem-bearer-watchdog` and `msm89xx/base-files/etc/config/modem-watchdog`
+(`zombie_nudge_secs`). `sh -n` clean on host and device; deployed live with the original saved at
+`/root/modem-bearer-watchdog.orig` (md5 `e1b32f7a3bac7dd8847fec392bf89bde`). ⚠ Fixes the **shallow** zombie
+only; the deep one (RF `none`) still needs a cold boot.
+
+#### (E) The 28 ML1 timer contexts and the `+0x30` state field
+
+An invariant scan of this dump (`+0x0c == 0xc02d7bd0 && +0x14 == self`) finds **exactly 28** contexts —
+keys `0..30 \ {5,16,19}` — **matching §112.133** in a fresh dump. `+0x30` is not a magic constant but a
+**4-value per-context state**:
+
+| `+0x30` | keys | reading |
+|---|---|---|
+| `0x0fedcba9` | 2,6,7,8,9,10,11,17,18,21,22,27,29,30 | idle (unarmed) |
+| `0x0fedcbaa` | 0,1,3,12,13,14,15 | fields present; `+0x20` < `+0x28` |
+| **`0x0fedcbab`** | **4, 20** | **ARMED** |
+| `0x0fedcbac` | 23,24,25,26,28 | `+0x28`≠0, `+0x20`=0 |
+
+The two **armed** contexts at the crash are **key 20** (`+0x20−+0x28 = 960 135 ticks = 50.007 ms` — the
+50 ms watchdog) and **key 4** (`96 000 092 ticks = 5000.005 ms` — the 5 s tripwire). This is exactly the
+items 84–86 picture: several ML1 timers are live and the **tightest** (50 ms) is the one that trips on the
+stall. Ledger line 9310 already notes `+0x30` reads `0x0fedcbab` vs siblings `…aa`/`…a9`; **this entry adds
+the 4th value (`…ac`) and the key→state map.**
+
+#### (F) What this does and does NOT settle
+
+* **Settles:** the ~902.6 s deadline is restart-anchored and runs on the modem's own clock (modem's own
+  `Uptime 0:15:02`); the crash task `tmr_slave3`; the descriptor map; the crash-stack signature; the
+  28-context set; the 50 ms / 5 s armed pair at the crash.
+* **Does NOT settle:** the fatal fired at restart+902.609 s while the modem's **NAS layer** had been
+  detached for the first ~9 min — but the F3 shows the **RF/ML1 layer was still active** in that window,
+  so this run does **not** prove the clock is independent of the LTE stack. It is consistent with
+  "restart-armed, victim-must-be-present-at-expiry".
+* **Root cause: STILL OPEN.**
+
+#### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Natural fatal under `a2_pin=1`, pre-emptive SSR off | yes/no | **YES** — restart+902.609 s, coredump + F3 |
+| Fatal anchored to the restart | test | **YES** — modem's own `Uptime 0:15:02` = 902 s |
+| Descriptor map machine-confirmed | re-check | **YES** — R16 = `0xc3c6c800` |
+| Crash-stack signature stable | re-check | **YES** — matches ledger line 20316 |
+| The zombie is QMI-recoverable | test | **YES for the shallow zombie** (contradicts the ledger's blanket "mode stays offline") |
+| `+0x30` is a state enum | test | **YES — 4 values, key→state mapped** |
+| Root cause | identify | **STILL OPEN** |
+
+**SOP.** One change at a time: the **only** change was `recovery.preemptive_ssr_enabled` `1→0`, restored to
+`1` at session end. Ground truth first: the coredump was pulled device-local and md5-verified
+(`f842e698…`) before any claim; the ctx set was located **by invariant**, never by a fixed VA. Reversible:
+the uci lever was reverted. **Honest negative:** the run does **not** advance the root cause; its value is a
+fresh clean capture plus the zombie-depth distinction (D).
+
+**Next.** (1) Test (D) on the next deep zombie: confirm RF `none` and that `--dms-set-operating-mode=online`
+is inert there (turning (D) into a real discriminator). (2) Actionable consequence of (D): teach
+`modem-bearer-watchdog` to attempt a bounded `qmicli --dms-set-operating-mode=online` after N s of
+"no modem object" — a cheap, reversible recovery for the shallow zombie the current watchdog only waits on.
+
+---
+
+### §112.162 — ★★★★★ DECISIVE A/B: the ~900 s fatal is the RF-task "new imei check" — `[will-stop @ ~299 s] + [600 s wait] + [~1.6 s]`; shortening the constant moves the fatal 1:1 (2026-10-06)
+
+**Provenance.** 2026-10-06, this session. Device `hmu05`, OpenWrt. Pre-test firmware = the v65 instrument
+(`modem.mdt` md5 `b9c4801ae165cab5911c267cec8fce27`). Test firmware = **one constant changed** in the v65
+image (`modem.mdt` md5 `d3e84190ed77baab321e08100899d9bf`, `modem.b16` md5
+`11fdd58ccf9ed370bac7930fbf697fd2`, `modem.b01` md5 `01f222b7cdf4eff042d5e5500aaa42f4`), built by
+`scratch/build_imei600.py`. Pre-test firmware backed up to `/root/fw_v65/`; **restored and md5-verified at
+session end** (see SOP).
+
+#### (A) The lead (from the F3 record)
+
+Across every boot→fatal F3 capture, `rf_task.c` logs exactly four messages: `:386 " get imei start"`,
+`:396 " get imei done"`, `:400 " get imei  will stop"` at modem-up ≈ 298–300 s, and `:336 " get imei
+stoped "` at modem-up ≈ 898–900 s. In `scratch/f3bootB_full` (the complete capture) the "will stop"→
+"stoped" gap is **Δts = 122 880 004 ticks @ 204800 Hz = 600.00002 s** — exactly the `600000 ms`
+constant in the handler `FUN_c0d5efd0` at `0xc0d5f160` (`r0 = ##0x927c0`), loaded immediately before the
+loop-back to the wait `0xc08875b0` at `0xc0d5efe8`. (Intra-packet read-before-write: the packet
+`{ call 0xc08875b0 ; r0 = r16 }` passes the **previous** `r0` = 600000 as the wait timeout.)
+
+#### (B) The pre-registered test
+
+Change **only** `0xc0d5f160` `r0 = ##0x927c0` (600000 ms) → `r0 = ##0xea60` (60000 ms). Bytes
+`9f 64 00 00 00 c0 00 78` → `a9 43 00 00 00 c4 00 78` (verified in the built `modem.b16`). **Prediction
+(stated before the run):** if this constant is the ~900 s clock, "stoped" moves to modem-up ≈ 358 s; if the
+fatal follows the shortened constant, the constant is the trigger.
+
+#### (C) Result — the fatal moved 1:1
+
+| | stock (600000 ms) | test (60000 ms) |
+|---|---|---|
+| modem restart ("is now up") | — | **AP 22543.902527** |
+| "will stop" | modem-up ≈ 298 s | modem-up ≈ 299 s (`c000997_up22843`) |
+| "stoped" | ≈ 898 s | **≈ 359 s** (`c001008_up22899`) |
+| Δ("will stop" → "stoped") | **600.00002 s** | **60.00002 s** |
+| **fatal** | ≈ 900 s | **AP 22904.589553 = modem-up 360.687 s** |
+| fatal site | `lte_ml1_common_timer.c:390` (usual) | **`lte_ml1_sleepmgr_stm.c:4054`** |
+
+`22904.589553 − 22543.902527 = 360.687 s`. In both regimes the fatal lands **≈ 1.6 s after "stoped"**.
+The test image crash-looped every ≈ 360 s (the 800 s pre-emptive SSR cannot catch it) — itself a second
+confirmation that the deadline is on the modem's restart-anchored clock.
+
+#### (D) The model (now proven)
+
+```
+fatal  ≈  [RF-task "will stop" @ modem-up ~299 s]  +  [imei wait]  +  [~1.6 s]
+          600 s wait → 900 s ✓        60 s wait → 360 s ✓
+```
+
+The ~900 s clock is **not** a single 900 s timer — it is a **~300 s anchor plus a 600 s wait**. The stock
+RF-task entry `0xc0d5edd0` contains a **`300000 ms` (300 s)** constant at `0xc0d5ef5c`
+(`r1:0 = combine(#0x40, ##0x493e0)`) and a `60000 ms` at `0xc0d5ef48` — the 300 s is the candidate
+"~299 s" anchor (**not** yet independently tested). The task entry ends in `dealloc_return` after the
+`0x40d3` teardown call (`0xc0d5ef70`), i.e. the RF task appears to **exit** after the wait.
+
+#### (E) Consequence — §112.95 OVERTURNED
+
+§112.95 (and `memory/project_rfm_teardown_line.md`) concluded the RFM "new imei check" teardown is a
+**boot-only, load-bearing** op and that the F3 "stoped" is a **symptom** ("re-entered in the FATAL path
+only"). **This A/B refutes the "symptom" half:** a **single constant** on this path moves the fatal by
+exactly the same 540 s, so the wait is on the **causal** path, not a consequence. The v35 observation
+("the `0x40d3` teardown fires once at ~900 s") is consistent with one handler invocation spanning
+299→899 s; §112.95's "boot" reading of the v41 ring is superseded. This also answers the layman model's
+OPEN question — the trigger no longer "comes from nowhere": it is the RF-task imei stop.
+
+#### (F) What this does and does NOT settle
+
+* **Settles:** the dominant segment of the ~900 s fatal is the RF-task imei wait; the fatal is
+  restart-anchored **through that path**; the clock ≈ 300 s + 600 s; the trigger is a **specific,
+  identifiable event** (the RF task's imei "stop").
+* **Does NOT settle:** (i) whether the fatal is caused by the **wait timeout** per se or by the RF task
+  **exiting/stopping** afterwards (both are delayed by the same constant — indistinguishable here);
+  (ii) what the **~300 s anchor** is; (iii) why the expected event (the wait's target, mask bit `0x4000`)
+  never arrives; (iv) whether keeping the RF task alive avoids the fatal. Root cause is now **localised to
+  the RF-task imei path**, but the exact ML1-breaking action is not yet identified.
+
+#### Achieved vs Expected
+
+| | Expected | Achieved |
+|---|---|---|
+| Shortening the 600000 ms constant moves "stoped" | test | **YES — 600.000 s → 60.000 s** |
+| … and the fatal follows it | test | **YES — ~900 s → 360.687 s** |
+| The wait is on the causal path | test | **YES** (overturns §112.95's "symptom") |
+| Fatal ≈ "stoped" + ~1.6 s in both regimes | re-check | **YES** |
+| Root cause | identify | **LOCALISED to the RF-task imei path; exact ML1-breaking action STILL OPEN** |
+
+**SOP.** One change at a time: the **only** change was one 4-byte constant at `0xc0d5f160`; the pre-test
+firmware was backed up to `/root/fw_v65/` and **restored + md5-verified** at session end. Ground truth
+first: the constant was located by disassembly, its bytes verified in the built image, and the test-image
+md5 recorded before deploy. Reversible: full restore done. Pre-registered: the prediction was stated
+before the run and **confirmed**. **Honest negative:** the test does **not** identify the ML1-breaking
+action; it localises the trigger.
+
+**Next.** (1) Test the 300 s anchor: patch `0xc0d5ef5c` (`300000` → `30000`) and confirm "will stop" and
+the fatal move together. (2) Identify the wait's target event (mask `0x4000`) and why it never fires.
+(3) Determine whether the RF task **exits** after the teardown and whether keeping it alive avoids the
+fatal.
+
+---
