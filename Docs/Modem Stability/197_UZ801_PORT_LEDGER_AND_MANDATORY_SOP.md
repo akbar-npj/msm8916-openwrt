@@ -25775,3 +25775,131 @@ back, then the b05 variant was built — the b19 file-mod is the isolated cause.
 **Honest negative:** the non-rfnv EFS name for item 2500 is **not** yet known; do not claim it.
 
 ---
+
+### §112.167 — RESOLVED: item 2500 has **no EFS name** — the reader splits at id 20000 (`/nv/item_files/rfnv/<id>` vs the NV-item service); the module's item **stores** are `/nv/item_store/rfnv/rfnv.bl` + `rfc.bl` (2026-10-06)
+
+**Question this answers:** §112.166's open item — "the non-rfnv EFS name for item 2500". **Answer:
+there is none.** `FUN_c0d32a50` does not build any EFS path for `id ≤ 19999`.
+
+**The reader's two branches (Ghidra, `Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c`
+@ `c0d32a50`; disassembly `scratch/hmu05_stock_elf/disasm_b16.txt`).**
+
+```c
+FUN_c0d32a50(int id, void *dst, ushort *size, a4, a5, a6) {
+  if (id < 20000) {                              /* <= 19999  */
+    if (0x7f < *size) {                          /* size > 127 */
+      r = FUN_c0d32650(id, dst, a4, a5, a6);     /* -> FUN_c0d32580 (mode r5=1) */
+      *size = 0x80;  goto tail;
+    }
+  } else {                                       /* >= 20000 */
+    snprintf(buf, 0x30, "%s%08d", "/nv/item_files/rfnv/", id);   /* c12063e0 */
+    if (efs_open(buf, &h) == -1) { r = 5; *size = 0; goto tail; } /* c091a690 */
+    if (h.size <= *size) { r = efs_read(buf, dst); *size = r; }   /* c09187e0 */
+    else { r = 4; *size = 0; }
+    goto tail;
+  }
+  r = 4; *size = 0;                              /* id<20000 and size<=127 -> error 4 */
+tail: ...return r;
+}
+```
+
+* The `id ≥ 20000` branch **is** the EFS path: `snprintf("%s%08d", "/nv/item_files/rfnv/", id)`
+  ⇒ `/nv/item_files/rfnv/<8-digit id>` (e.g. `/nv/item_files/rfnv/00025000`), then EFS **open**
+  (`0xc091a690`) + **read** (`0xc09187e0`). This matches the ring census (the 1688 earlier calls are
+  ids 20 019…27 543).
+* The `id ≤ 19999` branch (item **2500**) calls `FUN_c0d32650` → `FUN_c0d32580(mode=1)` →
+  `FUN_c0906890(&DAT_c310de2c)` — an **NV-item-service state machine** (`DAT_c2cd2c08` op callback, a
+  jump table at `gp+0x9890` indexed by a state/opcode field). **No path string, no EFS open.**
+
+**The module's actual EFS surface (strings in `modem.b18`; code in `modem.b16`).**
+
+| String | VA | Referenced by |
+| :-- | :-- | :-- |
+| `/nv/item_files/rfnv/` | `0xc1a7d727` | `c0d32a9c` (the `id ≥ 20000` branch) |
+| `%s%08d` | `0xc1a7d720` | `c0d32aa4` |
+| `/nv/item_store/rfnv/rfnv.bl` | `0xc1a7f4e0` | `c0d327d0` (item-store loader; called from `c0d30c2c`) |
+| `/nv/item_store/rfnv/rfc.bl` | `0xc1a7f505` | `c0d328d8` region |
+| `/rfc/` | `0xc1a7f521` | same region |
+| `BAADFOOD` | `0xc1a7f4fd` | blob magic |
+
+⇒ The module is the **NV item service**: named per-item files under `/nv/item_files/rfnv/` for
+ids ≥ 20000, and a **binary item store** `/nv/item_store/rfnv/rfnv.bl` (magic `BAADFOOD`) +
+`/nv/item_store/rfnv/rfc.bl` for the rest. **Item 2500 is therefore a record in the binary item
+store, not an EFS file.**
+
+**The live descriptor proves the request is recorded (both dumps byte-identical).** `0xc310de00`
+(`DAT_c310de08` = mode-0 half, `DAT_c310de2c` = mode-1 half), read from `pnvid_c0d32a50_ring.bin`
+**and** `fatal_11130.bin`:
+
+```
+0xc310de00: 0fedcba9 00000101 00000000 00000000   <- magic 0x0fedcba9, flags 0x101
+0xc310de10: 000009c4 00000001 c310dcb0 c3c0be2c   <- mode0: id=2500, flag=1, dst=0xc310dcb0, a4
+0xc310de20: 00000006 00000000 00000000 00000000   <- mode0: a5=6
+0xc310de34: 000009c4 00000000 c310dcb0 c3c0be2c   <- mode1: id=2500, dst=0xc310dcb0, a4
+0xc310de44: 00000080 00000000 00000000 00000000   <- mode1: a5=0x80
+```
+
+⇒ `FUN_c0d32580` stored **{id=2500, dst=0xc310dcb0, a4=0xc3c0be2c, a5=0x80}** into the mode-1
+descriptor; the request exists, it just is not an EFS file.
+
+**Ring record re-verified (the `c0d5f110` caller).** The record at seq 1689 is genuine and complete:
+
+* Cave store order `+0x00 seq, +0x04 r0, +0x08 r1, +0x0c r2, +0x10 r3, +0x14 r4, +0x18 r31, +0x1c ts`
+  matches `read_imei_ring.py`'s `<8I` unpack **exactly**.
+* `SAVE.seq = 1689`; **0 non-consecutive transitions** across the whole 2048-entry ring ⇒ no
+  wraparound/overwrite; the ring is intact. (Indexing is `seq & 0x7ff`, **no `-1`**.)
+* **The record, field by field.** `RING = 0xc1ef7000`, record index `1689 & 0x7ff = 1689`, byte
+  offset `0xd320`; fw VA `0xc1ef7000 + 1689*32 = 0xc1efd320` → dump VA `0x886fd320`. Raw 32 B:
+
+  ```
+  99060000 c4090000 b0dc10c3 e681e88a 2cbec0c3 80000000 10f1d5c0 e1935501
+  ```
+
+  | Off | Field | Raw LE | Value | Meaning |
+  | :-- | :-- | :-- | :-- | :-- |
+  | `+0x00` | seq | `99060000` | **1689** | call index (monotonic; == `SAVE.seq`) |
+  | `+0x04` | r0 | `c4090000` | **2500** (`0x9c4`) | **the item id** (arg0) |
+  | `+0x08` | r1 | `b0dc10c3` | **`0xc310dcb0`** | **the `HiMI_OK` buffer** (dst / arg1) |
+  | `+0x0c` | r2 | `e681e88a` | `0x8ae881e6` | `r29+6` — the frame's **size u16** (a stack addr; r29=`0x8ae881e0`) |
+  | `+0x10` | r3 | `2cbec0c3` | `0xc3c0be2c` | arg3 = `ret(c0886fe0)` (a TLS/global ptr) |
+  | `+0x14` | r4 | `80000000` | `0x80` (128) | arg4 (buffer size hint; the code also sets `*size=0x80`) |
+  | `+0x18` | r31 | `10f1d5c0` | **`0xc0d5f110`** | **caller** = end of the 4-word call packet @ `c0d5f100` |
+  | `+0x1c` | ts | `e1935501` | `0x015593e1` | MCPM 19.2 MHz clock → `0x015593e1/19.2e6 = 1.166 s` (wraps @223.7 s) |
+
+  Neighbours (same dump) confirm the ring is dense and ordered: `seq 1687`/`1688` sit at indices
+  `1687`/`1688` with caller `0xc0d5be90` and ids `0x5e49`/`0x5e4a`; `seq 1689` is the last entry.
+* **The `c0d5f110` caller is now explained:** the RF-task call is a **4-word packet** at `0xc0d5f100`
+  `{ call c0d32a50 ; r1=0xc310dcb0 ; r0=2500 ; <4th word> }` (parse bits `01 01 01 11`), so the
+  return address is the **end of the packet** = `0xc0d5f110`, **not** `0xc0d5f104`. And `r2 = r29+6`
+  (`0xc0d5f0fc`) is the frame's size u16 ⇒ `r2=0x8ae881e6` is a stack address (r29=`0x8ae881e0`);
+  `r4=0x80` matches `c0d5f0f8`. ⇒ the ring record and the static call site are **fully consistent**
+  (§112.166.4's "call site `c0d5f0f4`" was off by one instruction; the call is at `c0d5f100`).
+
+**Consequence for the AP-write hypothesis.** Item 2500 is **not** an EFS file, so "write the EFS file
+the AP wrote on Android" has no target. The subject is now the **binary item store
+`/nv/item_store/rfnv/rfnv.bl`** (and/or the NV-item-service dispatch). Next tests, in order of cost:
+(a) **read item 2500 live over DIAG EFS2** (`reference_diag_efs_read.md`) — enumerate
+`/nv/item_store/rfnv/` and dump `rfnv.bl`; (b) instrument the EFS **open** (`0xc091a690`) to log every
+path opened during a run (proves whether item 2500 touches EFS at all); (c) instrument the NV-service
+dispatch (`FUN_c0906890` / `DAT_c2cd2c08`) to see what the `id ≤ 19999` request actually resolves to.
+
+**Achieved vs Expected.**
+
+| Intent | Expected | Achieved | Status |
+| :-- | :-- | :-- | :-- |
+| Verify the P-NVID ring record | a clean record | layout matches the cave; **0** non-consecutive seq transitions; raw bytes decoded | **MET** |
+| Reconcile `r31 = 0xc0d5f110` with the call site | a call site | the call is a **4-word packet** @ `c0d5f100` ⇒ return addr = end-of-packet `c0d5f110` | **MET** |
+| Find the non-rfnv EFS name for 2500 | a name | **there is none** — `id ≤ 19999` builds no path | **MET (negative, resolved)** |
+| Identify the storage surface | a path | `/nv/item_files/rfnv/<id>` (id ≥ 20000) + item stores `/nv/item_store/rfnv/rfnv.bl` & `rfc.bl` | **MET** |
+| Prove item 2500's *source* | a blob/record | descriptor + service identified; the exact store record **not** yet dumped | **PARTIAL** |
+
+**SOP.** Ground truth first: the branch logic is from the **Ghidra decompilation** of the stock
+function, cross-checked against the **stock objdump** (`scratch/hmu05_stock_elf/disasm_b16.txt`) and
+the string VAs read out of **stock `modem.b18`** (`scratch/hread.py`). The ring record is decoded from
+a **fresh** coredump with the verified `+0x39800000` bias, and the caller is reconciled to the static
+packet bytes (parse bits read directly). One change at a time: no new image was built or flashed for
+this section — it is **pure offline analysis + coredump reads** on the already-captured
+`pnvid_c0d32a50_ring.bin` and `fatal_11130.bin`. **Honest negative:** the exact store record / service
+resolution for item 2500 is **not** yet dumped; do not claim it is `rfnv.bl` without the DIAG read.
+
+---
