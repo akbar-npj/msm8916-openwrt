@@ -148,14 +148,6 @@ modem_healthy()
         [ -r "$rproc/state" ] || { MODEM_INITIALIZED=0; return 1; }
         [ "$(cat "$rproc/state" 2>/dev/null)" = "running" ] || { MODEM_INITIALIZED=0; return 1; }
 
-        # On HMU05, ensure BAM-DMUX runtime power management remains active (no autosuspend)
-        if [ "$IS_HMU05" = "1" ]; then
-                local bctrl="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
-                if [ -f "$bctrl" ] && [ "$(cat "$bctrl" 2>/dev/null)" != "on" ]; then
-                        echo on > "$bctrl" 2>/dev/null || true
-                fi
-        fi
-
         #
         # 2. WWAN and QMI subsystems must exist in kernel.
         #
