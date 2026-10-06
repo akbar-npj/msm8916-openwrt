@@ -1,0 +1,98 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -105,6 +105,18 @@
+ 	struct completion pc_ack_completion;
+ 
+ 	struct dma_chan *rx, *tx;
++	/*
++	 * Channels terminated by an SSR teardown but deliberately NOT released
++	 * there.  dma_release_channel() -> bam_free_chan() writes BAM registers
++	 * (BAM_P_RST, BAM_IRQ_SRCS_MSK_EE, BAM_CTRL) and the BAM sits in the
++	 * MODEM's power domain (qcom,powered-remotely).  The SSR teardown always
++	 * runs with the modem power-collapsed -- the BEFORE_SHUTDOWN notifier
++	 * clears pc_state before scheduling it -- so releasing there races the
++	 * BAM power-down, and a register access to the unpowered BAM wedges the
++	 * AP (the T4->T5 hang).  The release is deferred to bam_dmux_power_on(),
++	 * which runs only once the modem (and hence the BAM) is powered again.
++	 */
++	struct dma_chan *rx_deferred, *tx_deferred;
+ 	u32 chan_gen; /* Incremented under rx_lock on every channel alloc/free; detects stale snapshots */
+ 	struct bam_dmux_skb_dma rx_skbs[BAM_DMUX_NUM_SKB];
+ 	struct bam_dmux_skb_dma tx_skbs[BAM_DMUX_NUM_SKB];
+@@ -1467,6 +1479,22 @@
+ 	unsigned long flags;
+ 	int i;
+ 
++	/*
++	 * Release channels that a previous teardown deferred.  power_on() is
++	 * only ever reached with the modem awake (every caller gates on the
++	 * power-control line), so the BAM is powered and bam_free_chan()'s
++	 * register writes are safe here.  This is the same "release on the
++	 * wake path" pattern bam_dmux_pm_restart() already uses.
++	 */
++	if (dmux->rx_deferred) {
++		dma_release_channel(dmux->rx_deferred);
++		dmux->rx_deferred = NULL;
++	}
++	if (dmux->tx_deferred) {
++		dma_release_channel(dmux->tx_deferred);
++		dmux->tx_deferred = NULL;
++	}
++
+ 	if (!dmux->rx) {
+ 		dmux->rx = dma_request_chan(dev, "rx");
+ 		if (IS_ERR(dmux->rx)) {
+@@ -1634,12 +1662,12 @@
+ 		   atomic_read(&dmux->rx_active_submitters) == 0);
+ 	dev_err(dmux->dev, "bam-dmux PS2 submitters drained\n");
+ 
+-	/* 4. Safely terminate and release RX DMA */
++	/* 4. Terminate RX DMA; defer the release to a powered-modem context. */
+ 	if (dmux->rx) {
+ 		dev_err(dmux->dev, "bam-dmux PS3a terminating rx\n");
+ 		dmaengine_terminate_sync(dmux->rx);
+-		dev_err(dmux->dev, "bam-dmux PS3b rx terminated, releasing\n");
+-		dma_release_channel(dmux->rx);
++		dev_err(dmux->dev, "bam-dmux PS3b rx terminated, release deferred\n");
++		dmux->rx_deferred = dmux->rx;
+ 		spin_lock_irqsave(&dmux->rx_lock, flags);
+ 		dmux->rx = NULL;
+ 		spin_unlock_irqrestore(&dmux->rx_lock, flags);
+@@ -1650,10 +1678,10 @@
+ 	wait_event(dmux->rx_callback_wait,
+ 		   atomic_read(&dmux->rx_active_callbacks) == 0);
+ 
+-	/* 6. Terminate and release TX DMA */
++	/* 6. Terminate TX DMA; defer the release to a powered-modem context. */
+ 	if (dmux->tx) {
+ 		dmaengine_terminate_sync(dmux->tx);
+-		dma_release_channel(dmux->tx);
++		dmux->tx_deferred = dmux->tx;
+ 		spin_lock_irqsave(&dmux->rx_lock, flags);
+ 		dmux->tx = NULL;
+ 		spin_unlock_irqrestore(&dmux->rx_lock, flags);
+@@ -2734,6 +2762,24 @@
+ 	disable_irq(dmux->pc_irq);
+ 	mutex_lock(&dmux->state_lock);
+ 	bam_dmux_ssr_teardown(dmux);
++	/*
++	 * bam_dmux_ssr_teardown() deferred the DMA channel release (see
++	 * bam_dmux_power_off()).  Release them here only while the modem is
++	 * awake: bam_free_chan() writes BAM registers and the BAM is unpowered
++	 * while the modem is collapsed.  On a collapsed modem the channels are
++	 * intentionally left allocated -- the module is going away and a
++	 * register access here would wedge the AP instead of cleaning up.
++	 */
++	if (bam_dmux_pc_line_asserted(dmux)) {
++		if (dmux->rx_deferred) {
++			dma_release_channel(dmux->rx_deferred);
++			dmux->rx_deferred = NULL;
++		}
++		if (dmux->tx_deferred) {
++			dma_release_channel(dmux->tx_deferred);
++			dmux->tx_deferred = NULL;
++		}
++	}
+ 	mutex_unlock(&dmux->state_lock);
+ }
+ 
