@@ -1,0 +1,45 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -655,6 +655,7 @@
+ 	struct bam_dmux_netdev *bndev = netdev_priv(netdev);
+ 	struct bam_dmux *dmux = bndev->dmux;
+ 	struct bam_dmux_skb_dma *skb_dma;
++	unsigned int len;
+ 	int active, ret;
+ 
+ 	if (READ_ONCE(dmux->in_teardown)) {
+@@ -687,6 +688,16 @@
+ 	if (ret)
+ 		goto drop;
+ 
++	/*
++	 * Snapshot the on-wire length now, while we still own the skb.
++	 * Once the DMA is submitted the completion callback
++	 * (bam_dmux_tx_callback -> bam_dmux_tx_done -> dev_consume_skb_any)
++	 * can free this skb before the accounting below runs.  Reading
++	 * skb->len after that is a use-after-free and yields a garbage
++	 * tx_bytes increment (observed: one freed skb accounted ~4 GB).
++	 */
++	len = skb->len;
++
+ 	if (!bam_dmux_skb_dma_map(skb_dma, DMA_TO_DEVICE))
+ 		goto drop;
+ 
+@@ -699,7 +710,7 @@
+ 				queue_pm_work(&dmux->tx_wakeup_work);
+ 		}
+ 		DEV_STATS_INC(netdev, tx_packets);
+-		DEV_STATS_ADD(netdev, tx_bytes, skb->len);
++		DEV_STATS_ADD(netdev, tx_bytes, len);
+ 		return NETDEV_TX_OK;
+ 	}
+ 
+@@ -708,7 +719,7 @@
+ 
+ 	dma_async_issue_pending(dmux->tx);
+ 	DEV_STATS_INC(netdev, tx_packets);
+-	DEV_STATS_ADD(netdev, tx_bytes, skb->len);
++	DEV_STATS_ADD(netdev, tx_bytes, len);
+ 	return NETDEV_TX_OK;
+ 
+ drop:

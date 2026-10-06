@@ -1,0 +1,56 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -1301,6 +1301,23 @@
+ 	 * assert edge was lost and the driver would otherwise stay quiesced
+ 	 * forever. Resync only against the hardware level, never on a guess.
+ 	 */
++	/*
++	 * Reconcile pc_state with the wire before choosing a branch.  pc_state
++	 * only tracks pc_irq EDGES, so a dropped edge leaves it stale-high while
++	 * the modem is collapsed -- and the branch below would then never read
++	 * the wire at all.  That state is the highest-rate pc-ack timeout class:
++	 * 10 of 25 resumes time out (40.0 %) against 2.3 % when the wire is
++	 * high.  Trust the wire, never the cached edge.  The reconcile only
++	 * clears the cache; the resync path below re-reads the line under
++	 * state_lock and acts only if it is actually asserted, so a momentary
++	 * low during a legitimate transition is harmless.
++	 */
++	if (READ_ONCE(dmux->pc_state) && !bam_dmux_pc_line_asserted(dmux)) {
++		dev_warn(dmux->dev,
++			 "bam_dmux: RX watchdog: pc_state=1 but pc line low (stale edge), reconciling\n");
++		WRITE_ONCE(dmux->pc_state, false);
++	}
++
+ 	if (!READ_ONCE(dmux->pc_state)) {
+ 		bool line = bam_dmux_pc_line_asserted(dmux);
+ 		bool resynced = false;
+@@ -2068,6 +2085,29 @@
+ 	if (!ret) {
+ 		atomic64_inc(&dmux->pc_timeout_count);
+ 		dev_warn(dev, "bam_dmux: modem pc-ack timeout during resume\n");
++		/*
++		 * The vote did not wake the modem.  pc_state only tracks pc_irq
++		 * EDGES, so it can be stale-high while the wire is low -- the
++		 * highest-rate timeout class (10 of 25 resumes = 40.0 %, against
++		 * 2.3 % when the wire is high).  Do not fall through to the
++		 * pc_state wait and then proceed as if the modem were awake:
++		 * pc_state is already true, so that wait is skipped and the
++		 * caller's send_cmd() would write to a collapsed modem.
++		 *
++		 * Reconcile against the wire instead, and hand the recovery to
++		 * the RX watchdog, which rebuilds from the true line level and
++		 * is the only path that can recover a modem that never asserts.
++		 * One timeout is still counted here, exactly as before, so the
++		 * pc_timeout_count rate stays comparable with the pre-fix
++		 * baseline (ws1_preregistration.md P-W2).
++		 */
++		if (!bam_dmux_pc_line_asserted(dmux)) {
++			WRITE_ONCE(dmux->pc_state, false);
++			schedule_delayed_work(&dmux->rx_watchdog_work,
++					      msecs_to_jiffies(10));
++			bam_dmux_record_resume_time(dmux, t_start_ns);
++			return 0;
++		}
+ 	}
+ 
+ 	/* Wait for pc_state to go high (set by pc_irq when bam_dmux_power_on completes) */

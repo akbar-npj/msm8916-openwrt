@@ -1,0 +1,26 @@
+--- a/drivers/remoteproc/qcom_q6v5_mss.c
++++ b/drivers/remoteproc/qcom_q6v5_mss.c
+@@ -102,6 +102,7 @@
+ 
+ /* QDSP6SS_GFMUX_CTL */
+ #define Q6SS_CLK_ENABLE			BIT(1)
++#define Q6SS_CLK_SRC_SWITCH_CLK_OVR	BIT(8)
+ 
+ /* QDSP6SS_PWR_CTL */
+ #define Q6SS_L2DATA_SLP_NRET_N_0	BIT(0)
+@@ -851,7 +852,14 @@
+ 
+ 	/* Turn on core clock */
+ 	val = readl(qproc->reg_base + QDSP6SS_GFMUX_CTL_REG);
+-	val |= Q6SS_CLK_ENABLE;
++	/*
++	 * Match the downstream/Android q6v56 power-up path, which forces the
++	 * clock on during a source switch (pil-q6v5.c).  The live Android
++	 * GFMUX_CTL reads BIT(1)|BIT(8).  The dev_info records the value the
++	 * bootloader left behind, so a null result is interpretable.
++	 */
++	dev_info(qproc->dev, "GFMUX_CTL pre-write: %#010x\n", val);
++	val |= Q6SS_CLK_ENABLE | Q6SS_CLK_SRC_SWITCH_CLK_OVR;
+ 	writel(val, qproc->reg_base + QDSP6SS_GFMUX_CTL_REG);
+ 
+ 	/* Start core execution */

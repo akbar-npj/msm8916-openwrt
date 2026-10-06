@@ -1,0 +1,29 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -1315,7 +1315,25 @@
+ 	if (READ_ONCE(dmux->pc_state) && !bam_dmux_pc_line_asserted(dmux)) {
+ 		dev_warn(dmux->dev,
+ 			 "bam_dmux: RX watchdog: pc_state=1 but pc line low (stale edge), reconciling\n");
+-		WRITE_ONCE(dmux->pc_state, false);
++		/*
++		 * The deassert really happened -- the wire is low -- and
++		 * pc_irq() would have toggled the ack for it (the deassert branch
++		 * at :1990).  Re-check under state_lock and ack, exactly as the
++		 * lost-edge path below does for a missed assert.  Without this
++		 * the AP's ack toggle is left ONE SHORT: the modem never sees its
++		 * deassert acknowledged, its a2_task waits, and it asserts
++		 * ~15 s later (a2_task.c:3179).  Measured on the live boot: 8 of
++		 * 8 a2_task.c:3179 fatals follow a stale edge by 15.0-25.7 s,
++		 * six of them at 15.0-15.1 s; the only stale edges with no fatal
++		 * are the benign ones at a restart instant.
++		 */
++		mutex_lock(&dmux->state_lock);
++		if (READ_ONCE(dmux->pc_state) &&
++		    !bam_dmux_pc_line_asserted(dmux)) {
++			WRITE_ONCE(dmux->pc_state, false);
++			bam_dmux_pc_ack(dmux);
++		}
++		mutex_unlock(&dmux->state_lock);
+ 	}
+ 
+ 	if (!READ_ONCE(dmux->pc_state)) {

@@ -1,0 +1,118 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -1572,9 +1572,24 @@
+ 	dmux->rx_tearing_down = true;
+ 	spin_unlock_irqrestore(&dmux->rx_lock, flags);
+ 
+-	/* 2. Synchronously cancel rearm work and watchdog */
++	/*
++	 * 2. Cancel rearm work synchronously, watchdog NON-BLOCKING.
++	 *
++	 * bam_dmux_power_off() is always reached under state_lock: from the SSR
++	 * teardown work (under state_lock, via bam_dmux_ssr_teardown), from the
++	 * SSR powerup work, from bam_dmux_pc_irq() (:1903 -> :1911, :1934) and
++	 * from bam_dmux_power_on()'s error paths (:1450, :1474, :1481).  So a
++	 * synchronous cancel of rx_watchdog_work here has the same ABBA as
++	 * bam_dmux_pm_quiesce(): the caller holds state_lock and the watchdog
++	 * wants it at :1309.  Make it non-blocking; state_lock already provides
++	 * the mutual exclusion, and the watchdog re-checks under the lock.
++	 *
++	 * rx_rearm_work must stay SYNCHRONOUS: it does NOT take state_lock, so it
++	 * is not excluded by the mutex and must be drained before the DMA channels
++	 * are terminated and released below.
++	 */
+ 	cancel_delayed_work_sync(&dmux->rx_rearm_work);
+-	cancel_delayed_work_sync(&dmux->rx_watchdog_work);
++	cancel_delayed_work(&dmux->rx_watchdog_work);
+ 
+ 	/* 3. Drain submitters; no DMA termination yet to prevent racing with prep/submit */
+ 	wait_event(dmux->rx_submit_wait,
+@@ -1656,9 +1671,27 @@
+ 	dmux->rx_tearing_down = true;
+ 	spin_unlock_irqrestore(&dmux->rx_lock, flags);
+ 
+-	/* 2. Cancel periodic work */
++	/*
++	 * 2. Cancel periodic work.
++	 *
++	 * rx_rearm_work stays SYNCHRONOUS: it submits RX buffers and does NOT
++	 * take state_lock, so an async cancel would let it touch the DMA channels
++	 * concurrently with the teardown below.
++	 *
++	 * rx_watchdog_work must be NON-BLOCKING (patch 820).  bam_dmux_pm_quiesce()
++	 * has exactly ONE caller -- bam_dmux_pc_irq() at :1936 -- and that caller
++	 * holds state_lock from :1903.  bam_dmux_rx_watchdog_func() acquires the
++	 * SAME lock at :1309, so a synchronous cancel here deadlocks whenever the
++	 * watchdog is already running and waiting for that mutex: pc_irq waits for
++	 * the watchdog, and the watchdog waits for pc_irq's lock.  That is a true
++	 * ABBA on a single mutex, and it is exercised on EVERY normal power
++	 * collapse (pc_irq ran 327 times in 1353.6 s = ~7 collapses/min).  No
++	 * synchronous cancel is needed: the watchdog is mutually excluded by
++	 * state_lock and re-checks pc_state, in_teardown and the actual line level
++	 * under that lock at :1315-:1317.
++	 */
+ 	cancel_delayed_work_sync(&dmux->rx_rearm_work);
+-	cancel_delayed_work_sync(&dmux->rx_watchdog_work);
++	cancel_delayed_work(&dmux->rx_watchdog_work);
+ 
+ 	/* 3. Drain submitters; no DMA termination yet to prevent racing
+ 	 * with prep/submit that is outside the spinlock.
+@@ -2231,10 +2264,42 @@
+ 	u32 *states;
+ 
+ 	WRITE_ONCE(dmux->in_teardown, true);
+-	cancel_delayed_work_sync(&dmux->tx_retry_work);
+-	cancel_work_sync(&dmux->tx_wakeup_work);
++
++	/*
++	 * Hand-off trace (patch 820).  dev_err, NOT dev_info: at
++	 * console_loglevel = 6 only err-and-above reach the console sinks, and on
++	 * a hang the last message the kernel emitted is the only evidence of
++	 * where it stopped.  Measured 2026-09-21: a spontaneous fatal left
++	 * "SSR before shutdown: scheduling teardown work" as the last line ever,
++	 * with no coredump created, i.e. rproc_stop() never returned.  T1 vs T0
++	 * (in the notifier) discriminates "the work ran and blocked" from
++	 * "the work never got a worker".  Every line contains "SSR " so the
++	 * soak's /dev/kmsg filter picks it up, and dev_err so console-ramoops
++	 * has it too.
++	 */
++	dev_err(dmux->dev, "bam_dmux: SSR teardown T1 entry\n");
++
++	/*
++	 * NON-BLOCKING cancels.  in_teardown is already set above, and both
++	 * target works test it as their first statement (tx_wakeup_work:736,
++	 * tx_retry_work:850) and re-test it under state_lock (tx_wakeup_work:764),
++	 * so neither will submit anything after this point -- the cancels add a
++	 * WAIT, not a guarantee.  A synchronous cancel here waits WITHOUT TIMEOUT
++	 * on a work item whose progress depends on pm_runtime_resume_and_get()
++	 * (tx_wakeup_work:739) and on state_lock (tx_wakeup_work:758), both of
++	 * which this very path is contending for, and state_lock is held across a
++	 * full bam_dmux_power_on() by the threaded pc_irq handler (:1903->:1909)
++	 * and across bam_dmux_power_off() (:1911, :1934) -- exactly what runs
++	 * during an SSR.  Mutual exclusion is provided by state_lock below, which
++	 * any in-flight tx_wakeup_work must also take.
++	 */
++	cancel_delayed_work(&dmux->tx_retry_work);
++	dev_err(dmux->dev, "bam_dmux: SSR teardown T2 tx_retry cancelled\n");
++	cancel_work(&dmux->tx_wakeup_work);
++	dev_err(dmux->dev, "bam_dmux: SSR teardown T3 tx_wakeup cancelled\n");
+ 
+ 	mutex_lock(&dmux->state_lock);
++	dev_err(dmux->dev, "bam_dmux: SSR teardown T4 state_lock acquired\n");
+ 	dev_info(dmux->dev, "bam_dmux: executing serialized asynchronous SSR teardown\n");
+ 	bam_dmux_ssr_teardown(dmux);
+ 	WRITE_ONCE(dmux->pc_state, false);
+@@ -2367,6 +2432,13 @@
+ 		/* Every SSR gets a fresh powerup budget. */
+ 		dmux->ssr_powerup_retries = 0;
+ 		schedule_work(&dmux->ssr_teardown_work);
++		/*
++		 * T0 (patch 820): the hand-off.  If T0 appears but T1 does not,
++		 * the teardown work never got a system_wq worker -- which is a
++		 * DIFFERENT fault from "the work ran and blocked", and the only
++		 * way to tell them apart from a dying boot's last line.
++		 */
++		dev_err(dmux->dev, "bam_dmux: SSR teardown T0 scheduled\n");
+ 		break;
+ 	case QCOM_SSR_AFTER_POWERUP:
+ 		dev_info(dmux->dev, "bam_dmux: SSR after powerup: scheduling powerup work\n");

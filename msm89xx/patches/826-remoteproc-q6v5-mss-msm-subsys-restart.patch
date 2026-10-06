@@ -1,0 +1,203 @@
+--- a/drivers/remoteproc/qcom_q6v5_mss.c
++++ b/drivers/remoteproc/qcom_q6v5_mss.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <linux/clk.h>
++#include <linux/debugfs.h>
+ #include <linux/delay.h>
+ #include <linux/devcoredump.h>
+ #include <linux/dma-mapping.h>
+@@ -232,6 +233,12 @@
+ 	struct qcom_rproc_ssr ssr_subdev;
+ 	struct qcom_sysmon *sysmon;
+ 	struct platform_device *bam_dmux;
++
++	struct work_struct restart_work;
++	struct dentry *restart_dentry;
++	atomic_t restart_count;
++	atomic_t restart_pending;
++
+ 	bool need_mem_protection;
+ 	bool has_alt_reset;
+ 	bool has_mba_logs;
+@@ -1981,6 +1988,138 @@
+ 	return 0;
+ }
+ 
++/*
++ * Android-parity clean-restart interface.
++ *
++ * Android's subsystem_restart framework exposes
++ * /sys/kernel/debug/msm_subsys/<name>; writing "restart" there shuts the
++ * subsystem down and powers it back up from a workqueue
++ * (subsystem_restart_wq_func()).  The mainline remoteproc stack has no
++ * equivalent: the only lever is the synchronous remoteproc0/state sysfs file,
++ * whose stop path blocks the caller inside the q6v5 force-stop handshake --
++ * and a caller blocked there can be caught by the PMIC watchdog when the
++ * handshake never completes.
++ *
++ * Provide the same node for the modem so the pre-emptive SSR watchdog can ask
++ * for a restart without ever blocking on the handshake.  The restart is
++ * deliberately asynchronous: the write returns immediately and the stop /
++ * power-up pair runs on the system workqueue, exactly as Android does.
++ *
++ * Unlike Android's sequence this collects no ramdump on the way down.  A
++ * pre-emptive restart is not a crash, and dumping the modem carveout is both
++ * slow and -- on HMU05, where modem memory is TrustZone-protected -- able to
++ * abort.  Use the remoteproc "coredump"/"crash" debugfs instruments when a
++ * dump is actually wanted.
++ */
++static void q6v5_restart_work(struct work_struct *work)
++{
++	struct q6v5 *qproc = container_of(work, struct q6v5, restart_work);
++	struct rproc *rproc = qproc->rproc;
++	int ret;
++
++	dev_info(qproc->dev, "msm_subsys: restarting %s\n", rproc->name);
++
++	if (rproc->state == RPROC_RUNNING || rproc->state == RPROC_ATTACHED) {
++		ret = rproc_shutdown(rproc);
++		if (ret) {
++			dev_err(qproc->dev,
++				"msm_subsys: shutdown of %s failed: %d\n",
++				rproc->name, ret);
++			goto out;
++		}
++
++		/*
++		 * rproc_shutdown() only powers the subsystem off once every
++		 * user has dropped its reference.  If somebody else still holds
++		 * one it returns success without stopping anything, and booting
++		 * again would then be a silent no-op -- say so rather than
++		 * pretend the restart happened.
++		 */
++		if (rproc->state != RPROC_OFFLINE) {
++			dev_warn(qproc->dev,
++				 "msm_subsys: %s still up after shutdown (power reference held elsewhere)\n",
++				 rproc->name);
++			goto out;
++		}
++	} else if (rproc->state != RPROC_OFFLINE) {
++		dev_err(qproc->dev, "msm_subsys: %s is not running (state %d)\n",
++			rproc->name, rproc->state);
++		goto out;
++	}
++
++	ret = rproc_boot(rproc);
++	if (ret)
++		dev_err(qproc->dev, "msm_subsys: power-up of %s failed: %d\n",
++			rproc->name, ret);
++	else
++		atomic_inc(&qproc->restart_count);
++
++out:
++	atomic_set(&qproc->restart_pending, 0);
++}
++
++static ssize_t q6v5_restart_read(struct file *filp, char __user *ubuf,
++				 size_t cnt, loff_t *ppos)
++{
++	struct q6v5 *qproc = filp->private_data;
++	char buf[16];
++	int len;
++
++	len = scnprintf(buf, sizeof(buf), "%d\n",
++			atomic_read(&qproc->restart_count));
++
++	return simple_read_from_buffer(ubuf, cnt, ppos, buf, len);
++}
++
++static ssize_t q6v5_restart_write(struct file *filp, const char __user *ubuf,
++				  size_t cnt, loff_t *ppos)
++{
++	struct q6v5 *qproc = filp->private_data;
++	char buf[16];
++
++	cnt = min(cnt, sizeof(buf) - 1);
++	if (copy_from_user(buf, ubuf, cnt))
++		return -EFAULT;
++	buf[cnt] = '\0';
++
++	if (strcmp(strstrip(buf), "restart"))
++		return -EINVAL;
++
++	if (atomic_xchg(&qproc->restart_pending, 1))
++		return -EBUSY;
++
++	schedule_work(&qproc->restart_work);
++
++	return cnt;
++}
++
++static const struct file_operations q6v5_restart_fops = {
++	.open = simple_open,
++	.read = q6v5_restart_read,
++	.write = q6v5_restart_write,
++	.llseek = generic_file_llseek,
++};
++
++static struct dentry *q6v5_msm_subsys_dir;
++
++static void q6v5_restart_debugfs_add(struct q6v5 *qproc)
++{
++	if (!q6v5_msm_subsys_dir)
++		q6v5_msm_subsys_dir = debugfs_create_dir("msm_subsys", NULL);
++	if (IS_ERR_OR_NULL(q6v5_msm_subsys_dir))
++		return;
++
++	qproc->restart_dentry = debugfs_create_file("modem", 0644,
++						    q6v5_msm_subsys_dir,
++						    qproc, &q6v5_restart_fops);
++}
++
++static void q6v5_restart_debugfs_remove(struct q6v5 *qproc)
++{
++	debugfs_remove(qproc->restart_dentry);
++	qproc->restart_dentry = NULL;
++}
++
+ static int q6v5_probe(struct platform_device *pdev)
+ {
+ 	const struct rproc_hexagon_res *desc;
+@@ -2133,6 +2272,9 @@
+ 	qproc->bam_dmux = of_platform_device_create(node, NULL, &pdev->dev);
+ 	of_node_put(node);
+ 
++	INIT_WORK(&qproc->restart_work, q6v5_restart_work);
++	q6v5_restart_debugfs_add(qproc);
++
+ 	return 0;
+ 
+ remove_sysmon_subdev:
+@@ -2152,6 +2294,9 @@
+ 	struct q6v5 *qproc = platform_get_drvdata(pdev);
+ 	struct rproc *rproc = qproc->rproc;
+ 
++	cancel_work_sync(&qproc->restart_work);
++	q6v5_restart_debugfs_remove(qproc);
++
+ 	if (qproc->bam_dmux)
+ 		of_platform_device_destroy(&qproc->bam_dmux->dev, NULL);
+ 	rproc_del(rproc);
+@@ -2552,7 +2697,19 @@
+ 		.of_match_table = q6v5_of_match,
+ 	},
+ };
+-module_platform_driver(q6v5_driver);
++static int __init q6v5_driver_init(void)
++{
++	return platform_driver_register(&q6v5_driver);
++}
++module_init(q6v5_driver_init);
++
++static void __exit q6v5_driver_exit(void)
++{
++	platform_driver_unregister(&q6v5_driver);
++	debugfs_remove_recursive(q6v5_msm_subsys_dir);
++	q6v5_msm_subsys_dir = NULL;
++}
++module_exit(q6v5_driver_exit);
+ 
+ MODULE_DESCRIPTION("Qualcomm Self-authenticating modem remoteproc driver");
+ MODULE_LICENSE("GPL v2");

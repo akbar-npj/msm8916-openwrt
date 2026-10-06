@@ -1,0 +1,34 @@
+--- a/drivers/net/wwan/rpmsg_wwan_ctrl.c
++++ b/drivers/net/wwan/rpmsg_wwan_ctrl.c
+@@ -84,8 +84,30 @@
+ 					struct file *filp, poll_table *wait)
+ {
+ 	struct rpmsg_wwan_dev *rpwwan = wwan_port_get_drvdata(port);
++	/*
++	 * Report the endpoint's TX state WITHOUT registering the caller in the
++	 * endpoint's wait queue.
++	 *
++	 * rpmsg_poll() ends up in qcom_smd_poll(), whose only use of @wait is
++	 *	poll_wait(filp, &channel->fblockread_event, wait);
++	 * That links the caller's poll_table_entry into a wait queue which lives
++	 * inside struct qcom_smd_channel.  The SMD edge teardown frees that
++	 * channel with a bare kfree() in qcom_smd_edge_release() and does not
++	 * drain outstanding pollers, so a task blocked in poll() keeps a dangling
++	 * entry; remove_wait_queue() then walks a clobbered list and the AP
++	 * resets.  (That is a qcom_smd lifetime bug; see patch 822 for the
++	 * in-kernel drain.  This module-level change removes the reachable
++	 * instance of it without a kernel flash.)
++	 *
++	 * poll_wait() is a no-op when p->_qproc is NULL (include/linux/poll.h),
++	 * and the mask below is computed exactly as before, so EPOLLOUT still
++	 * reflects qcom_smd_get_tx_avail(channel) > 20.
++	 */
++	struct poll_table_struct no_wait = { };
+ 
+-	return rpmsg_poll(rpwwan->ept, filp, wait);
++	(void)wait;
++
++	return rpmsg_poll(rpwwan->ept, filp, &no_wait);
+ }
+ 
+ static const struct wwan_port_ops rpmsg_wwan_pops = {

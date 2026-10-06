@@ -1,0 +1,145 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -162,6 +162,34 @@
+ 	 */
+ 	atomic64_t tx_sweep_guard_hits;
+ 
++	/*
++	 * Diagnostics for the deferred-TX path (patch 811).  These exist to
++	 * decide one question with data instead of argument: when
++	 * bam_dmux_netdev_start_xmit() defers a packet because the runtime-PM
++	 * resume it just triggered is still in flight, does that packet ever
++	 * reach the BAM?
++	 *
++	 *   tx_defer_queued      defer branch taken (start_xmit:635)
++	 *   tx_defer_submitted   deferred slot actually submitted by
++	 *                        bam_dmux_tx_wakeup_work()
++	 *   tx_defer_wiped       deferred *bits* discarded by
++	 *                        bam_dmux_pm_restart()/bam_dmux_power_off()
++	 *   tx_defer_wiped_live  of those bits, how many still had an skb --
++	 *                        i.e. a real packet destroyed, not a stale bit
++	 *   tx_submit_ok         any successful bam_dmux_skb_dma_submit_tx()
++	 *   tx_complete          TX DMA completions (bam_dmux_tx_callback)
++	 *
++	 * A ping that is lost with tx_defer_queued+1 / tx_defer_wiped_live+1 /
++	 * tx_defer_submitted+0 / tx_complete+0 is a packet destroyed by the
++	 * wake path, not a modem that failed to answer.
++	 */
++	atomic64_t tx_defer_queued;
++	atomic64_t tx_defer_submitted;
++	atomic64_t tx_defer_wiped;
++	atomic64_t tx_defer_wiped_live;
++	atomic64_t tx_submit_ok;
++	atomic64_t tx_complete;
++
+ 	DECLARE_BITMAP(remote_channels, BAM_DMUX_NUM_CH);
+ 	struct work_struct register_netdev_work;
+ 	struct net_device *netdevs[BAM_DMUX_NUM_CH];
+@@ -343,6 +371,7 @@
+ 	struct bam_dmux_skb_dma *skb_dma = data;
+ 	struct sk_buff *skb = skb_dma->skb;
+ 
++	atomic64_inc(&skb_dma->dmux->tx_complete);
+ 	bam_dmux_tx_done(skb_dma);
+ 	dev_consume_skb_any(skb);
+ }
+@@ -382,6 +411,8 @@
+ 		dev_err(dmux->dev, "Failed to submit TX DMA descriptor: %d\n", desc->cookie);
+ 		return false;
+ 	}
++
++	atomic64_inc(&dmux->tx_submit_ok);
+ 	return true;
+ }
+ 
+@@ -634,6 +665,7 @@
+ 
+ 	if (active <= 0 || !READ_ONCE(dmux->pc_state)) {
+ 		/* Cannot sleep here, or modem not awake yet: mark skb for wakeup handler and return */
++		atomic64_inc(&dmux->tx_defer_queued);
+ 		if (!atomic_long_fetch_or(BIT(skb_dma - dmux->tx_skbs),
+ 					  &dmux->tx_deferred_skb)) {
+ 			if (!READ_ONCE(dmux->in_teardown))
+@@ -767,6 +799,7 @@
+ 			failed_bits |= BIT(i);
+ 			(void)skb; /* skb_dma->skb still owned by slot */
+ 		} else {
++			atomic64_inc(&dmux->tx_defer_submitted);
+ 			submitted++;
+ 		}
+ 	}
+@@ -1415,6 +1448,30 @@
+ 	return true;
+ }
+ 
++/*
++ * bam_dmux_account_deferred_wipe - Count a deferred-TX bitmap about to be
++ * discarded (patch 811 diagnostics).
++ *
++ * The two callers that throw deferred work away -- bam_dmux_power_off() (SSR,
++ * where dropping is correct) and bam_dmux_pm_restart() (an A2 wake, where it
++ * is not) -- call this just before zeroing tx_deferred_skb, while the slots
++ * are still populated.  tx_defer_wiped_live counts real packets destroyed;
++ * tx_defer_wiped minus tx_defer_wiped_live counts stale bits.
++ */
++static void bam_dmux_account_deferred_wipe(struct bam_dmux *dmux,
++					   unsigned long bits)
++{
++	int i;
++
++	if (!bits)
++		return;
++
++	atomic64_add(hweight_long(bits), &dmux->tx_defer_wiped);
++	for_each_set_bit(i, &bits, BAM_DMUX_NUM_SKB)
++		if (dmux->tx_skbs[i].skb)
++			atomic64_inc(&dmux->tx_defer_wiped_live);
++}
++
+ static void bam_dmux_free_skbs(struct bam_dmux_skb_dma skbs[],
+ 			       enum dma_data_direction dir)
+ {
+@@ -1509,6 +1566,8 @@
+ 
+ 	/* Cancel delayed retry work synchronously before clearing tx_deferred_skb and freeing TX buffers */
+ 	cancel_delayed_work_sync(&dmux->tx_retry_work);
++	bam_dmux_account_deferred_wipe(dmux,
++				       atomic_long_read(&dmux->tx_deferred_skb));
+ 	atomic_long_set(&dmux->tx_deferred_skb, 0);
+ 	bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE);
+ 	dmux->tx_next_skb = 0;
+@@ -1691,6 +1750,8 @@
+ 	 * bam_dmux_tx_callback() re-wakes the queue and it can never fire.
+ 	 */
+ 	cancel_delayed_work_sync(&dmux->tx_retry_work);
++	bam_dmux_account_deferred_wipe(dmux,
++				       atomic_long_read(&dmux->tx_deferred_skb));
+ 	atomic_long_set(&dmux->tx_deferred_skb, 0);
+ 	bam_dmux_free_skbs(dmux->tx_skbs, DMA_TO_DEVICE);
+ 	dmux->tx_next_skb = 0;
+@@ -2009,6 +2070,12 @@
+ 			 "cmd_unknown: %llu\n"
+ 			 "a2_pc_disabled: %u\n"
+ 			 "tx_sweep_guard_hits: %llu\n"
++			 "tx_defer_queued: %llu\n"
++			 "tx_defer_submitted: %llu\n"
++			 "tx_defer_wiped: %llu\n"
++			 "tx_defer_wiped_live: %llu\n"
++			 "tx_submit_ok: %llu\n"
++			 "tx_complete: %llu\n"
+ 			 "runtime_status: %s\n"
+ 			 "pm_usage_count: %d\n",
+ 			 dmux->rx_callback_count,
+@@ -2052,6 +2119,12 @@
+ 			 dmux->cmd_unknown_count,
+ 			 dmux->a2_pc_disabled,
+ 			 (unsigned long long)atomic64_read(&dmux->tx_sweep_guard_hits),
++			 (unsigned long long)atomic64_read(&dmux->tx_defer_queued),
++			 (unsigned long long)atomic64_read(&dmux->tx_defer_submitted),
++			 (unsigned long long)atomic64_read(&dmux->tx_defer_wiped),
++			 (unsigned long long)atomic64_read(&dmux->tx_defer_wiped_live),
++			 (unsigned long long)atomic64_read(&dmux->tx_submit_ok),
++			 (unsigned long long)atomic64_read(&dmux->tx_complete),
+ 			 pm_runtime_status_suspended(dev) ? "suspended" :
+ 			 (pm_runtime_active(dev) ? "active" : "other"),
+ 			 atomic_read(&dev->power.usage_count));
