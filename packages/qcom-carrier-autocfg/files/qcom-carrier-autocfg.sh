@@ -229,21 +229,12 @@ provision_carrier_bands() {
 	esac
 
 	if [ "$is_jio" = "1" ] && [ -n "$m_path" ]; then
-		local sup_bands cur_bands lte_bands=""
-		sup_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.supported-bands.value/ {print $2}')
+		local cur_bands
 		cur_bands=$(mmcli -m "$m_path" --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.current-bands.value/ {print $2}')
 
-		for b in $(echo "$sup_bands" | tr -s ', ' '\n'); do
-			case "$b" in
-				eutran-*)
-					lte_bands="${lte_bands:+${lte_bands}|}$b"
-					;;
-			esac
-		done
-
-		if [ -n "$lte_bands" ] && echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
-			log "HMU05 (Jio): Restricting modem bands to LTE-only ($lte_bands) to eliminate 2G/3G IRAT measurement gap crashes..."
-			mmcli -m "$m_path" --set-current-bands="$lte_bands" 2>/dev/null || true
+		if echo "$cur_bands" | grep -qi -E '\<utran|\<geran'; then
+			log "HMU05 (Jio): Restricting modem bands to LTE-only (B1/B3/B5/B8) to eliminate 2G/3G IRAT measurement gap crashes..."
+			mmcli -m "$m_path" --set-current-bands="eutran-1|eutran-3|eutran-5|eutran-8" 2>/dev/null || true
 		fi
 	elif [ "$is_jio" = "0" ] && [ -n "$m_path" ]; then
 		# Non-Jio carrier (Airtel, BSNL, Vi, Ncell, NTC, etc.): Restore all supported bands if previously restricted
@@ -265,21 +256,14 @@ provision_carrier_bands() {
 
 reset_baseband_cache() {
 	local m_path="$1"
-	log "Flushing baseband radio cache and re-reading SIM..."
+	log "Flushing baseband radio cache requested for modem '$m_path'..."
 
-	# Send AT+CFUN=0 (radio off / flush cell cache) then AT+CFUN=1 (radio on / re-read SIM)
-	for at_port in /dev/wwan0at0 /dev/wwan0at1; do
-		if [ -c "$at_port" ]; then
-			log "Sending AT+CFUN radio reset via $at_port..."
-			timeout 2 sh -c "printf 'AT+CFUN=0\r\n' > $at_port" 2>/dev/null || true
-			sleep 1
-			timeout 2 sh -c "printf 'AT+CFUN=1\r\n' > $at_port" 2>/dev/null || true
-			timeout 2 sh -c "printf 'AT+COPS=0\r\n' > $at_port" 2>/dev/null || true
-			break
-		fi
-	done
+	# Under pure-software modem operation with pristine stock firmware,
+	# raw AT+CFUN=0/1 triggers a fatal baseband assertion (lte_ml1_common_dump.c:213).
+	# For pure-software stability, raw AT+CFUN is strictly prohibited.
+	log "Pure-software modem profile: raw AT+CFUN=0/1 is disabled to prevent baseband crash."
 
-	# Cycle ModemManager power state via QMI DMS to ensure registration states are refreshed
+	# Cycle ModemManager power state via QMI DMS to ensure registration states are refreshed cleanly
 	if [ -n "$m_path" ]; then
 		mmcli -m "$m_path" --set-power-state-low 2>/dev/null || true
 		sleep 1
@@ -406,7 +390,7 @@ check_and_flush_radio_cache() {
 			while [ "$b_idx" -le "$bearer_count" ]; do
 				b_path=$(echo "$modem_kv" | awk -F': ' "/modem.generic.bearers.value\\[$b_idx\\]/ {print \$2}" | tr -d ' \r\n')
 				if [ -n "$b_path" ]; then
-					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '/bearer.properties.apn/ {print $2}' | tr -d " '\r\n")
+					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '$1 == "bearer.properties.apn" {print $2}' | tr -d " '\r\n-")
 					if [ -n "$b_apn" ] && [ "$b_apn" != "$target_apn" ]; then
 						log "Bearer APN mismatch in bearer $b_path: cached='$b_apn', SIM requires='$target_apn'"
 						need_flush=1
@@ -419,9 +403,13 @@ check_and_flush_radio_cache() {
 	fi
 
 	if [ "$need_flush" = "1" ]; then
-		log "Radio cache mismatch confirmed. Flushing all bearer and baseband radio caches for '$carrier_name' (APN: $target_apn)..."
+		log "Radio cache mismatch confirmed. Flushing bearer cache for '$carrier_name' (APN: $target_apn)..."
 		flush_bearer_cache "$m_path" "$target_apn" "$target_iptype"
-		reset_baseband_cache "$m_path"
+		local m_state
+		m_state=$(mmcli -m "$m_path" -K 2>/dev/null | awk -F': ' '$1 == "modem.generic.state" {print $2}' | tr -d ' \r\n')
+		if [ "$m_state" != "connected" ]; then
+			reset_baseband_cache "$m_path"
+		fi
 		return 0
 	else
 		log "Radio cache fully matches SIM requirements for '$carrier_name'. No cache flush needed."
@@ -434,10 +422,24 @@ connect_bearer() {
 	local iptype="$2"
 	local imsi="$3"
 
-	log "Requesting ModemManager bearer connection for APN '$apn' ($iptype)..."
-	mmcli -m any --simple-connect="apn=${apn},ip-type=${iptype}" 2>/dev/null || true
-	sleep 2
-	ifup modem 2>/dev/null || true
+	# NOTE: there is deliberately NO QMI-time / ATS_USER gate here.
+	#
+	# This function used to carry an HMU05-only block that waited up to 15 s for
+	# qcom-time-daemon's /var/run/qcom-time-synced marker and then `return 1` --
+	# refusing to bring up the LTE bearer unless the modem had confirmed an
+	# ATS_USER SET.  That gate rested on the SCLK / ~900 s calibration-watchdog
+	# premise, which is RETRACTED (see qcom-time-daemon.init); the real ~900 s
+	# fix is the HiMI_OK guard (ledger §112.170), which is orthogonal to time.
+	# Android sends the ATS_USER SET once at boot and never gates LTE attach on
+	# it.  Attaching must therefore NOT depend on qcom-time-daemon, so that
+	# qcom-carrier-autocfg stays device-agnostic and qcom-time-daemon stays an
+	# optional, HMU05-only extra.
+
+	(
+		flock -x 200
+		log "Triggering netifd interface bring-up for modem (APN: '$apn', IP-Type: '$iptype')..."
+		ifup modem 2>/dev/null || true
+	) 200>/var/lock/modem-bearer.lock
 
 	if [ -n "$imsi" ]; then
 		mkdir -p /etc/qcom-carrier-autocfg 2>/dev/null || true
