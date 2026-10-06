@@ -48,9 +48,9 @@ start_service() {
 	# Auto-restart on crash: (threshold_ms timeout_s retries)
 	procd_set_param respawn 3600 5 5
 
-	# Optional: stream stdout/stderr into logd (visible via logread)
-	# procd_set_param stdout 1
-	# procd_set_param stderr 1
+	# Stream stdout/stderr into logd (visible via logread)
+	procd_set_param stdout 1
+	procd_set_param stderr 1
 
 	# Optional: enable core dumps for debugging segfaults
 	# procd_set_param limits core="unlimited"

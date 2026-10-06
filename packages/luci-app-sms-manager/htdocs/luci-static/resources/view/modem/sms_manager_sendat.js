@@ -33,6 +33,37 @@ return view.extend({
 		}
 	},
 
+	/*
+		Commands that must never reach the modem.
+
+		Raw AT+CFUN mode changes crash the baseband: they trigger the
+		lte_ml1_common_dump.c:213 assertion. The same prohibition is enforced
+		in packages/qcom-carrier-autocfg/files/qcom-carrier-autocfg.sh, which
+		never sends raw AT for this reason. Reads are safe and stay allowed
+		(AT+CFUN? and AT+CFUN=? do not match the rule below).
+
+		Matching is done on a whitespace-stripped, upper-cased copy so that
+		'at +cfun = 0' is caught too, and anywhere in the string so that a
+		chained command cannot slip past.
+	*/
+	atDenyRules: [
+		{
+			re:  /AT\+CFUN=(?!\?)/,
+			why: 'AT+CFUN mode changes crash the baseband (lte_ml1_common_dump.c:213)'
+		}
+	],
+
+	checkAtCommand: function(atcmd) {
+		let normalized = String(atcmd || '').replace(/\s+/g, '').toUpperCase();
+
+		for (let i = 0; i < this.atDenyRules.length; i++) {
+			if (this.atDenyRules[i].re.test(normalized))
+				return this.atDenyRules[i].why;
+		}
+
+		return null;
+	},
+
 	handleCommand: function(exec, args) {
 		let buttons = document.querySelectorAll('.cbi-button');
 
@@ -83,6 +114,16 @@ return view.extend({
 			ui.addNotification(null, E('p', _('Please set the modem for communication')), 'info');
 			return false;
 		}
+
+		let blocked = this.checkAtCommand(atcmd);
+		if ( blocked )
+		{
+			ui.addNotification(null, E('p', [
+				_('Command blocked') + ': ' + _(blocked)
+			]), 'error');
+			return false;
+		}
+
 		let modemNum = modemPath.split('/').pop();
 		return this.handleCommand('/usr/bin/mmcli', [ '-m' , modemNum , '--command=' + atcmd ]);
 	},
