@@ -113,6 +113,137 @@ lookup_carrier_profile() {
 	fi
 }
 
+# ---------------------------------------------------------------------------
+# QMI PDC carrier provisioning (preferred path)
+#
+# The carrier MCFG is applied through the modem's own PDC service (QMI 0x24)
+# instead of copying a file the AP never reads.  Verified on HMU05 2026-10-07:
+# `qmicli --pdc-load-config` only succeeds once libqmi's LOAD_CONFIG_CHUNK_SIZE
+# is 0x100 -- the 0x400 default makes the packet (1024 + 54 B header) exceed the
+# 1024-byte SMD FIFO and the transfer stalls at 0 bytes ("Uploaded 0 of N",
+# "Transaction timed out").  The patch ships in
+# openwrt-overlay/feeds/packages/libs/libqmi/patches/002-qmicli-pdc-chunk-256.patch.
+#
+# The AP kernel never loads MCFG_SW.MBN (zero references in the 6.12 tree); the
+# modem consumes its carrier config at modem boot, which is why the legacy path
+# reboots.  PDC puts the config directly into the modem's config store, so only
+# a modem restart is needed to apply it.
+# ---------------------------------------------------------------------------
+
+# QMI character device. ModemManager owns it, so all calls use -p (proxy).
+pdc_qmi_dev() {
+	local d
+	for d in /dev/wwan0qmi0 /dev/wwan*qmi* /dev/cdc-wdm*; do
+		[ -c "$d" ] && { echo "$d"; return 0; }
+	done
+	return 1
+}
+
+# A PDC config id is the SHA-1 of the file, colon-separated upper-case. qmicli
+# derives exactly this (G_CHECKSUM_SHA1 in load_config_file_from_string).
+pdc_config_id() {
+	sha1sum "$1" 2>/dev/null | cut -d' ' -f1 | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//'
+}
+
+# Status ("Active"/"Inactive") of the config whose id matches, from a
+# `--pdc-list-configs=software` dump.  In that dump the Status line precedes
+# the ID line within each block, so remember the last Status and print it when
+# the matching ID is seen.
+pdc_status_of() {
+	printf '%s\n' "$1" | awk -v id="$2" '
+		/Status:/ { st = $2 }
+		/ID:/     { if (index(toupper($0), toupper(id)) > 0) { print st; exit } }
+	'
+}
+
+# Load (if absent) and activate the carrier MCFG via QMI PDC.  Returns 0 when the
+# config is Active, 1 on any failure (the caller then falls back to copy+reboot).
+pdc_apply_mcfg() {
+	local src="$1" dev id list st
+
+	command -v qmicli >/dev/null 2>&1 || { log "PDC: qmicli not available."; return 1; }
+	dev=$(pdc_qmi_dev) || { log "PDC: no QMI character device found."; return 1; }
+
+	id=$(pdc_config_id "$src")
+	[ -n "$id" ] || { log "PDC: cannot hash '$src'."; return 1; }
+
+	list=$(qmicli -p -d "$dev" --pdc-list-configs=software 2>/dev/null)
+	st=$(pdc_status_of "$list" "$id")
+	if [ "$st" = "Active" ]; then
+		log "PDC: carrier MCFG already Active ($id)."
+		return 0
+	fi
+
+	if [ -z "$st" ]; then
+		log "PDC: loading carrier MCFG '$(basename "$src")' into the modem..."
+		if ! qmicli -p -d "$dev" --pdc-load-config="$src" >/dev/null 2>&1; then
+			log "PDC: --pdc-load-config failed."
+			return 1
+		fi
+	else
+		log "PDC: carrier MCFG present but '$st'; activating."
+	fi
+
+	log "PDC: activating config $id..."
+	if ! qmicli -p -d "$dev" --pdc-activate-config=software,"$id" >/dev/null 2>&1; then
+		log "PDC: --pdc-activate-config failed."
+		return 1
+	fi
+
+	list=$(qmicli -p -d "$dev" --pdc-list-configs=software 2>/dev/null)
+	if [ "$(pdc_status_of "$list" "$id")" != "Active" ]; then
+		log "PDC: activation not verified in --pdc-list-configs."
+		return 1
+	fi
+	log "PDC: carrier MCFG activated and verified ($id)."
+	return 0
+}
+
+# Restart the modem subsystem without rebooting the AP.  Mirrors
+# modem-bearer-watchdog: prefer the async Android-parity clean-restart node
+# (kernel patch 826), fall back to the synchronous remoteproc stop/start.
+modem_restart() {
+	local node="/sys/kernel/debug/msm_subsys/modem"
+	local rproc="/sys/class/remoteproc/remoteproc0/state"
+	local before now k
+
+	if [ -w "$node" ]; then
+		# The node counts COMPLETED restarts and the write returns before the
+		# workqueue runs, so wait for the counter to move.
+		before=$(cat "$node" 2>/dev/null)
+		echo restart > "$node" 2>/dev/null || return 1
+		k=0
+		while [ "$k" -lt 60 ]; do
+			now=$(cat "$node" 2>/dev/null)
+			[ -n "$now" ] && [ "$now" != "$before" ] && return 0
+			sleep 1
+			k=$((k + 1))
+		done
+		return 1
+	fi
+
+	[ -f "$rproc" ] || return 1
+	echo stop > "$rproc" 2>/dev/null || true
+	k=0
+	while [ "$k" -lt 10 ]; do
+		[ "$(cat "$rproc" 2>/dev/null)" != "running" ] && break
+		sleep 1
+		k=$((k + 1))
+	done
+	echo start > "$rproc" 2>/dev/null || true
+	k=0
+	while [ "$k" -lt 20 ]; do
+		[ "$(cat "$rproc" 2>/dev/null)" = "running" ] && break
+		sleep 1
+		k=$((k + 1))
+	done
+	return 0
+}
+
+# Apply the carrier MCFG for $mbn_rel.
+#   2 = applied via QMI PDC (a modem restart applies it -- no AP reboot)
+#   0 = deployed via file copy (needs a reboot)
+#   1 = no change / not found
 provision_carrier_mbn() {
 	local mbn_rel="$1"
 	local mcfg_src=""
@@ -130,22 +261,27 @@ provision_carrier_mbn() {
 		log "Using bundled Carrier MBN at: $mcfg_src"
 	fi
 
-	if [ -n "$mcfg_src" ]; then
-		if [ ! -f /lib/firmware/MCFG_SW.MBN ] || ! cmp -s "$mcfg_src" /lib/firmware/MCFG_SW.MBN 2>/dev/null; then
-			log "Deploying Carrier MBN '$mbn_rel' into /lib/firmware/MCFG_SW.MBN..."
-			cp -af "$mcfg_src" /lib/firmware/MCFG_SW.MBN
-			cp -af "$mcfg_src" /lib/firmware/mcfg_sw.mbn
-			sync
-			log "Carrier MBN deployed successfully."
-			return 0
-		else
-			log "Active Carrier MBN already matches $mbn_rel."
-			return 1
-		fi
-	else
+	if [ -z "$mcfg_src" ]; then
 		log "No specific Carrier MBN found for $mbn_rel; preserving existing firmware config."
 		return 1
 	fi
+
+	# Preferred: apply through the modem's PDC service.
+	if pdc_apply_mcfg "$mcfg_src"; then
+		return 2
+	fi
+
+	# Fallback: legacy file deploy (takes effect only after a reboot).
+	if [ ! -f /lib/firmware/MCFG_SW.MBN ] || ! cmp -s "$mcfg_src" /lib/firmware/MCFG_SW.MBN 2>/dev/null; then
+		log "Deploying Carrier MBN '$mbn_rel' into /lib/firmware/MCFG_SW.MBN..."
+		cp -af "$mcfg_src" /lib/firmware/MCFG_SW.MBN
+		cp -af "$mcfg_src" /lib/firmware/mcfg_sw.mbn
+		sync
+		log "Carrier MBN deployed successfully (reboot required)."
+		return 0
+	fi
+	log "Active Carrier MBN already matches $mbn_rel."
+	return 1
 }
 
 provision_network() {
@@ -487,10 +623,17 @@ while true; do
 						*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
 					esac
 
+					# provision_carrier_mbn: 2 = applied via QMI PDC (a modem
+					# restart applies it), 0 = file copy (needs a reboot),
+					# 1 = no change.
+					provision_carrier_mbn "$CARRIER_MBN"
+					mbn_result=$?
 					mbn_updated=0
-					if provision_carrier_mbn "$CARRIER_MBN"; then
-						mbn_updated=1
-					fi
+					mbn_via_pdc=0
+					case "$mbn_result" in
+						0) mbn_updated=1 ;;
+						2) mbn_updated=1; mbn_via_pdc=1 ;;
+					esac
 
 					check_and_flush_radio_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI" "$OP_CODE" "$CARRIER_NAME" "$is_jio"
 					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
@@ -502,7 +645,19 @@ while true; do
 					if [ "$INITIAL_BOOT_PROVISION" = "1" ]; then
 						# Device booted up with this SIM (e.g. swapped when powered off)
 						INITIAL_BOOT_PROVISION=0
-						if [ "$mbn_updated" = "1" ]; then
+						if [ "$mbn_via_pdc" = "1" ]; then
+							log "Carrier MBN applied via QMI PDC for '$CARRIER_NAME'. Restarting the modem subsystem to load it (no AP reboot)..."
+							log "========================================================"
+							sync
+							if modem_restart; then
+								sleep 10
+								connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
+								log "Boot-time carrier provisioning completed (PDC + modem restart, no AP reboot)."
+							else
+								log "WARN: modem restart failed after PDC apply; the bearer watchdog will retry."
+							fi
+							log "========================================================"
+						elif [ "$mbn_updated" = "1" ]; then
 							log "Carrier MBN radio firmware updated for '$CARRIER_NAME'. Scheduling automatic reboot in 3 seconds to initialize Hexagon DSP..."
 							log "========================================================"
 							sync
@@ -516,7 +671,19 @@ while true; do
 						fi
 					elif [ "$OP_CODE" != "$LAST_OPERATOR_CODE" ] || [ "$IMSI" != "$LAST_IMSI" ] || [ "$stored_imsi" != "$IMSI" ]; then
 						# Physical SIM was swapped while system was running (HOT-SWAP)
-						if [ "$mbn_updated" = "1" ]; then
+						if [ "$mbn_via_pdc" = "1" ]; then
+							log "HOT-SWAP: Carrier MBN applied via QMI PDC for '$CARRIER_NAME'. Restarting the modem subsystem (no AP reboot)..."
+							log "========================================================"
+							sync
+							if modem_restart; then
+								sleep 10
+								connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
+								log "Hot-swap handled live via PDC + modem restart."
+							else
+								log "WARN: modem restart failed after PDC apply; the bearer watchdog will retry."
+							fi
+							log "========================================================"
+						elif [ "$mbn_updated" = "1" ]; then
 							log "HOT-SWAP: Carrier MBN changed for '$CARRIER_NAME'. Hexagon modem DSP requires a reboot to load new MBN into baseband RAM."
 							log "Restarting device in 3 seconds..."
 							log "========================================================"

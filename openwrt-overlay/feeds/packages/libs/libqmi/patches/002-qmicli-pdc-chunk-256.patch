@@ -1,0 +1,11 @@
+--- a/src/qmicli/qmicli-pdc.c
++++ b/src/qmicli/qmicli-pdc.c
+@@ -37,7 +37,7 @@
+ #if defined HAVE_QMI_SERVICE_PDC
+ 
+ #define LIST_CONFIGS_TIMEOUT_SECS 2
+-#define LOAD_CONFIG_CHUNK_SIZE 0x400
++#define LOAD_CONFIG_CHUNK_SIZE 0x100
+ 
+ /* Info about config */
+ typedef struct {
