@@ -422,31 +422,18 @@ connect_bearer() {
 	local iptype="$2"
 	local imsi="$3"
 
-	# Hard prerequisite on HMU05 (Modem OS v1.0): wait for verified QMI Time ATS_USER sync
-	local board=""
-	[ -f /tmp/sysinfo/board_name ] && board="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
-	[ -z "$board" ] && [ -f /proc/device-tree/compatible ] && board="$(cat /proc/device-tree/compatible 2>/dev/null)"
-	case "$board" in
-		*hmu05*|*HMU05*)
-			local wait_t=0
-			local synced=0
-			while [ "$wait_t" -lt 15 ]; do
-				if [ -f /var/run/qcom-time-synced ]; then
-					log "[QMI-TIME] Modem ATS_USER time sync verified before LTE attach."
-					synced=1
-					break
-				fi
-				log "[QMI-TIME] Waiting for qcom-time-daemon ATS_USER sync handshake ($wait_t/15s)..."
-				sleep 1
-				wait_t=$((wait_t + 1))
-			done
-
-			if [ "$synced" != "1" ]; then
-				log "[QMI-TIME-ERROR] Mandatory /var/run/qcom-time-synced marker absent after 15s! Refusing to attach LTE bearer without verified ATS_USER sync on HMU05."
-				return 1
-			fi
-			;;
-	esac
+	# NOTE: there is deliberately NO QMI-time / ATS_USER gate here.
+	#
+	# This function used to carry an HMU05-only block that waited up to 15 s for
+	# qcom-time-daemon's /var/run/qcom-time-synced marker and then `return 1` --
+	# refusing to bring up the LTE bearer unless the modem had confirmed an
+	# ATS_USER SET.  That gate rested on the SCLK / ~900 s calibration-watchdog
+	# premise, which is RETRACTED (see qcom-time-daemon.init); the real ~900 s
+	# fix is the HiMI_OK guard (ledger §112.170), which is orthogonal to time.
+	# Android sends the ATS_USER SET once at boot and never gates LTE attach on
+	# it.  Attaching must therefore NOT depend on qcom-time-daemon, so that
+	# qcom-carrier-autocfg stays device-agnostic and qcom-time-daemon stays an
+	# optional, HMU05-only extra.
 
 	(
 		flock -x 200
