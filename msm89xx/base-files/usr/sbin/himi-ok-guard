@@ -1,0 +1,63 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# himi-ok-guard -- keep the HMU05 modem NV item 2500 == "HiMI_OK".
+#
+# WHY (ledger §112.165-§112.169):
+#   The modem's RF task reads NV item 2500 (NV_FACTORY_DATA_4_I) into
+#   0xc310dcb0 and memcmp()s it against the literal "HiMI_OK".  When it does
+#   NOT match, the task takes its "get imei will stop" branch and waits (600000
+#   ms stock) before the ML1 fatal the ~900 s deadline is built on.  Item 2500
+#   is CLEARED AT EVERY MODEM BOOT, so an AP that never (re)writes it leaves the
+#   modem to fatal ~900 s after any WARM restart (a crash-recovery SSR or a
+#   deliberate clean one).  Writing "HiMI_OK" shortly after each modem boot
+#   makes the memcmp pass and the deadline never arms.
+#
+#   §112.169 (2026-10-06): on the 60000 ms test image, writing HiMI_OK every
+#   15 s through the RF-task read (modem-up ~299 s) gave 0 restarts / no fatal
+#   through modem-up 902 s with LTE fully up; the no-write control fataled.
+#
+# WHY POLL (rather than hook a boot event):
+#   Re-checking continuously covers cold boot AND every modem restart (SSR /
+#   crash recovery) with no dependency on a restart-detection signal, and
+#   self-heals if the modem clears the item again.  Writes only happen when the
+#   item is not already "HiMI_OK", so steady-state cost is one NV read / cycle.
+#
+# UCI (modem-watchdog.recovery):
+#   himi_ok_enabled   default 1   -- set 0 to disable
+#   himi_ok_interval  default 20  -- seconds between checks
+
+DEV=/dev/rpmsg0
+NV=/usr/sbin/diag_nv
+ITEM=2500
+TOKEN=48694d495f4f4b                      # "HiMI_OK"
+
+ENABLED=$(uci -q get modem-watchdog.recovery.himi_ok_enabled 2>/dev/null || echo 1)
+INTERVAL=$(uci -q get modem-watchdog.recovery.himi_ok_interval 2>/dev/null || echo 20)
+
+log() { logger -t himi-ok-guard "$*"; }
+
+[ "$ENABLED" = "1" ] || { log "disabled by uci (himi_ok_enabled=$ENABLED)"; exit 0; }
+[ -x "$NV" ] || { log "ERROR: $NV not present/executable"; exit 1; }
+case "$INTERVAL" in ''|*[!0-9]*) INTERVAL=20 ;; esac
+[ "$INTERVAL" -ge 5 ] || INTERVAL=5
+
+log "start (item=$ITEM interval=${INTERVAL}s)"
+
+while :; do
+    if [ -c "$DEV" ]; then
+        out=$("$NV" read "$ITEM" 2>/dev/null)
+        if printf '%s' "$out" | grep -q "HiMI_OK"; then
+            :                                   # already set -- nothing to do
+        elif printf '%s' "$out" | grep -q "status=0x0000"; then
+            w=$("$NV" write "$ITEM" "$TOKEN" 2>/dev/null)
+            if printf '%s' "$w" | grep -q "VERIFY: MATCH"; then
+                log "item $ITEM was cleared; wrote HiMI_OK"
+            else
+                log "WARN: write did not verify: $(printf '%s' "$w" | head -n1)"
+            fi
+        fi
+        # else: read timed out / item absent / SP locked -- retry next cycle
+    fi
+    sleep "$INTERVAL"
+done
