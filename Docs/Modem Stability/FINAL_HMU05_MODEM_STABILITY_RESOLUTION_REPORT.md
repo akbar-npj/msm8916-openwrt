@@ -1,12 +1,3 @@
-# Qualcomm MSM8916 HMU05 Modem: Definitive Stability & Connectivity Resolution Report
-
-**Date:** September 3, 2026  
-**Author:** OpenWrt MSM8916 Porting & Stability Team  
-**Target Hardware:** Generic HMU05 (MSM8916 / Snapdragon 410, board `generic-hmu05`)  
-**Kernel:** Linux 6.12.94 / OpenWrt 25.12.5 (`msm89xx/msm8916`)  
-**Baseband Firmware:** `MPSS.DPM.1.0.C7` (Modem Firmware v1.0)  
-**Artifact Path:** `Docs/Modem Stability/FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md`
-
 > ⚠️ **SUPERSEDED (2026-10-07) — read this correction first.** This report predates the
 > 2026-10-06 root-cause finding and its central premise is **RETRACTED**: there is no
 > 900 s SCLK/DRX timer to neutralize, and the fix is **not** a baseband patch. The real
@@ -19,6 +10,15 @@
 > instruction below no longer applies**. "Pillar 1" is obsolete; the A2 `control=on`
 > pin-hold (`modem-a2-hold`) covers the separate `a2_power.c:1189` fatal. Current state:
 > `Docs/Modem Stability/Modem RE/hmu05/`; ledger `197_…SOP.md` §112.165–§112.171.
+
+# Qualcomm MSM8916 HMU05 Modem: Definitive Stability & Connectivity Resolution Report
+
+**Date:** September 3, 2026  
+**Author:** OpenWrt MSM8916 Porting & Stability Team  
+**Target Hardware:** Generic HMU05 (MSM8916 / Snapdragon 410, board `generic-hmu05`)  
+**Kernel:** Linux 6.12.94 / OpenWrt 25.12.5 (`msm89xx/msm8916`)  
+**Baseband Firmware:** `MPSS.DPM.1.0.C7` (Modem Firmware v1.0)  
+**Artifact Path:** `Docs/Modem Stability/FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md`
 
 ---
 
