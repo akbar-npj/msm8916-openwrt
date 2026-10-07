@@ -112,53 +112,44 @@ verify_rx_connectivity() {
 
 # --- Modem subsystem restart ---------------------------------------------------
 #
-# Android-parity clean-restart node (kernel patch 826). Writing "restart" runs
-# the stop -> power-up pair on a workqueue and returns immediately -- exactly
-# what Android's subsystem_restart framework does for
-# /sys/kernel/debug/msm_subsys/modem. Preferred over the synchronous
-# remoteproc0/state lever below, where a writer blocked inside the q6v5
-# force-stop handshake can be caught by the PMIC watchdog (ledger items
-# 45/47/48: the stop handshake bit the modem's own watchdog, and one such
-# restart reset the AP).  Used by the stall ladder's Stage 3.
+# Android-parity clean-restart node (kernel patch 826).  Writing the literal
+# string "restart" runs the stop -> power-up pair on the system workqueue and
+# returns immediately -- exactly what Android's subsystem_restart framework
+# does for /sys/kernel/debug/msm_subsys/modem (subsystem_restart_wq_func()).
+#
+# This is the ONLY restart lever the watchdog uses.  The synchronous
+# remoteproc0/state stop/start is deliberately NOT used: its stop path blocks
+# the writer inside the q6v5 force-stop handshake, and a writer blocked there
+# can be caught by the PMIC watchdog (ledger items 45/47/48 -- the stop
+# handshake bit the modem's own watchdog, and one such restart reset the AP).
+# Patch 826 is applied unconditionally (msm89xx/patches/) and OpenWrt mounts
+# debugfs at boot (init.d/boot), so the node is always present on our images;
+# if it is ever missing we say so rather than fall back to the blocking lever.
+# Used by the stall ladder's Stage 3.
 MSM_SUBSYS_RESTART="/sys/kernel/debug/msm_subsys/modem"
 
-# Restart the modem subsystem. Return 0 once it is running again, 1 if it
-# could not be restarted. Prefers the asynchronous Android-parity node and
-# falls back to the synchronous remoteproc0/state stop/start on a kernel
-# without patch 826.
+# Restart the modem subsystem via the async msm_subsys node.  Return 0 once the
+# restart has completed (restart_count advanced), 1 if the node is absent or
+# the restart did not complete.
 modem_restart() {
-    if [ -w "$MSM_SUBSYS_RESTART" ]; then
-        # The node counts COMPLETED restarts, and the write returns before the
-        # workqueue has even run -- so wait for the counter to move instead of
-        # waiting for the state to read "running" (it still is, right now).
-        _before=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
-        echo restart > "$MSM_SUBSYS_RESTART" 2>/dev/null || return 1
-        _k=0
-        while [ "$_k" -lt 60 ]; do
-            _now=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
-            [ -n "$_now" ] && [ "$_now" != "$_before" ] && break
-            sleep 1
-            _k=$((_k + 1))
-        done
-        [ "$_k" -lt 60 ] || return 1
-        return 0
-    fi
+    [ -w "$MSM_SUBSYS_RESTART" ] || {
+        logger -t modem-stall-watchdog "modem_restart: ${MSM_SUBSYS_RESTART} missing or not writable (patch 826 / debugfs not mounted); no restart lever."
+        return 1
+    }
 
-    [ -f "$RPROC_STATE" ] || return 1
-    echo stop > "$RPROC_STATE" 2>/dev/null || true
+    # The node counts COMPLETED restarts, and the write returns before the
+    # workqueue has even run -- so wait for the counter to move instead of
+    # waiting for the state to read "running" (it still is, right now).
+    _before=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
+    echo restart > "$MSM_SUBSYS_RESTART" 2>/dev/null || return 1
     _k=0
-    while [ "$_k" -lt 10 ]; do
-        [ "$(cat "$RPROC_STATE" 2>/dev/null)" != "running" ] && break
+    while [ "$_k" -lt 60 ]; do
+        _now=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
+        [ -n "$_now" ] && [ "$_now" != "$_before" ] && break
         sleep 1
         _k=$((_k + 1))
     done
-    echo start > "$RPROC_STATE" 2>/dev/null || true
-    _k=0
-    while [ "$_k" -lt 20 ]; do
-        [ "$(cat "$RPROC_STATE" 2>/dev/null)" = "running" ] && break
-        sleep 1
-        _k=$((_k + 1))
-    done
+    [ "$_k" -lt 60 ] || return 1
     return 0
 }
 
@@ -598,7 +589,7 @@ while true; do
                         # resets the modem instead. Without that, the modem's sleep chain
                         # stalls in rpm.sync and the firmware's own watchdog kills it with
                         # "UT detects Q6 PC Voting failure" (surfaced as a2_power.c:1189).
-                        if [ "$(uci -q get modem-watchdog.recovery.ssr_enabled || echo 1)" = "1" ] && { [ -w "$MSM_SUBSYS_RESTART" ] || [ -f "$RPROC_STATE" ]; }; then
+                        if [ "$(uci -q get modem-watchdog.recovery.ssr_enabled || echo 1)" = "1" ] && [ -w "$MSM_SUBSYS_RESTART" ]; then
                             logger -t modem-stall-watchdog "Stage 3 recovery: modem restart (stop -> start)..."
                             modem_restart
                             logger -t modem-stall-watchdog "Modem restart complete (state=$(cat "$RPROC_STATE" 2>/dev/null)); waiting for modem services..."
