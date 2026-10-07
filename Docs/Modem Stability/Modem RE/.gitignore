@@ -1,0 +1,10 @@
+# Decompiled modem firmware.
+#
+# modem_full_decompiled.c is 100+ MB per revision and is fully regenerable
+# from the stock firmware with the offline RE toolchain (llvm-objdump hexagon
+# + the modem.asm/rodata pipeline). Only the hand-written analysis (*.md)
+# belongs in the repo.
+modem_full_decompiled.c
+*.mbn
+*.elf
+*.asm

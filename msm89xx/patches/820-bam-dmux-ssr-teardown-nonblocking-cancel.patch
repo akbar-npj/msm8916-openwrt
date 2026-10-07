@@ -57,26 +57,12 @@
  
  	/* 3. Drain submitters; no DMA termination yet to prevent racing
  	 * with prep/submit that is outside the spinlock.
-@@ -2231,10 +2264,42 @@
+@@ -2231,8 +2264,23 @@
  	u32 *states;
  
  	WRITE_ONCE(dmux->in_teardown, true);
 -	cancel_delayed_work_sync(&dmux->tx_retry_work);
 -	cancel_work_sync(&dmux->tx_wakeup_work);
-+
-+	/*
-+	 * Hand-off trace (patch 820).  dev_err, NOT dev_info: at
-+	 * console_loglevel = 6 only err-and-above reach the console sinks, and on
-+	 * a hang the last message the kernel emitted is the only evidence of
-+	 * where it stopped.  Measured 2026-09-21: a spontaneous fatal left
-+	 * "SSR before shutdown: scheduling teardown work" as the last line ever,
-+	 * with no coredump created, i.e. rproc_stop() never returned.  T1 vs T0
-+	 * (in the notifier) discriminates "the work ran and blocked" from
-+	 * "the work never got a worker".  Every line contains "SSR " so the
-+	 * soak's /dev/kmsg filter picks it up, and dev_err so console-ramoops
-+	 * has it too.
-+	 */
-+	dev_err(dmux->dev, "bam_dmux: SSR teardown T1 entry\n");
 +
 +	/*
 +	 * NON-BLOCKING cancels.  in_teardown is already set above, and both
@@ -93,26 +79,7 @@
 +	 * any in-flight tx_wakeup_work must also take.
 +	 */
 +	cancel_delayed_work(&dmux->tx_retry_work);
-+	dev_err(dmux->dev, "bam_dmux: SSR teardown T2 tx_retry cancelled\n");
 +	cancel_work(&dmux->tx_wakeup_work);
-+	dev_err(dmux->dev, "bam_dmux: SSR teardown T3 tx_wakeup cancelled\n");
  
  	mutex_lock(&dmux->state_lock);
-+	dev_err(dmux->dev, "bam_dmux: SSR teardown T4 state_lock acquired\n");
  	dev_info(dmux->dev, "bam_dmux: executing serialized asynchronous SSR teardown\n");
- 	bam_dmux_ssr_teardown(dmux);
- 	WRITE_ONCE(dmux->pc_state, false);
-@@ -2367,6 +2432,13 @@
- 		/* Every SSR gets a fresh powerup budget. */
- 		dmux->ssr_powerup_retries = 0;
- 		schedule_work(&dmux->ssr_teardown_work);
-+		/*
-+		 * T0 (patch 820): the hand-off.  If T0 appears but T1 does not,
-+		 * the teardown work never got a system_wq worker -- which is a
-+		 * DIFFERENT fault from "the work ran and blocked", and the only
-+		 * way to tell them apart from a dying boot's last line.
-+		 */
-+		dev_err(dmux->dev, "bam_dmux: SSR teardown T0 scheduled\n");
- 		break;
- 	case QCOM_SSR_AFTER_POWERUP:
- 		dev_info(dmux->dev, "bam_dmux: SSR after powerup: scheduling powerup work\n");

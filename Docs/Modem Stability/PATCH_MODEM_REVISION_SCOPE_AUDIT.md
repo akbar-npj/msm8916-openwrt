@@ -1,0 +1,160 @@
+# Patch scope audit — universal vs modem-revision-specific
+
+**Question:** the msm89xx target builds five devices off one kernel patch tree
+(`msm89xx/patches/` → `openwrt/target/linux/msm89xx/patches/`). Which patches are
+**universal** (AP-side/SoC, no modem coupling) and which are **coupled to a modem
+firmware revision** and must be gated?
+
+**Trigger:** the HMU05 modem is `HIMI_U01_MODEM_V1.0` (2015, `MPSS.DPM.1.0.C7-00193`)
+while UFI001B is `HIMI_U01_MODEM_V2.0` (`MPSS.DPM.2.0.2`). A patch tuned to one must
+not silently ship on the other.
+
+**Ground truth (decompiled modems, `Docs/Modem Stability/Modem RE/`):**
+
+| board | decompiled | revision string | size | md5 |
+|---|---|---|---|---|
+| HMU05 | `hmu05/modem_full_decompiled.c` | `HIMI_U01_MODEM_V1.0` / MPSS.DPM.1.0.C7-00193 | 105 121 709 | `9e11084a5416ce0a36cc10a088da8c8c` |
+| UFI001B | `ufi001b/modem_full_decompiled.c` | `MPSS.DPM.2.0.2` | 106 000 424 | `d5933376a0bf33721ab718aa807dad4f` |
+| UZ801 | `uz801/modem_full_decompiled.c` | (no banner matched) | 110 552 970 | `76cb4cea7ee0aed056e9cdeabf49ed08` |
+
+**Devices sharing the tree:** `yiming-uz801v3`, `generic-uf02`, `generic-ufi001b`,
+`generic-hmu05`, `generic-mf800b`.
+
+---
+
+## Key finding — the A2 code is IDENTICAL in V1.0 and V2.0
+
+The A2 power-up quiesce (`a2_power.c`) that the `a2_power.c:1189` fatal lives in is
+**byte-for-byte the same structure** in both firmwares:
+
+```
+hmu05   : 15 lines reference {0xec320ba4, ba8, bac, bd8, be0}   (FUN_c0504fc8 :862632-862653)
+ufi001b : 15 lines reference {0xec320ba4, ba8, bac, bd8, be0}   (FUN_c055bc88 :904744-904765)
+uz801   : 15 lines reference {0xec320ba4, ba8, bac, bd8, be0}
+```
+
+The five client words and the `& 7 == 0` quiesce loops are present in **all three**
+builds at the same fixed hardware addresses (the `0xec320bXX` block is a peripheral
+register window, so it is build-independent). ⇒ The A2 quiesce asymmetry
+(`A2_QUIESCE_ASYMMETRY.md`) is **not** an HMU05-only quirk; V2.0 has it too.
+
+This matters for the audit: the AP-side patches are not coupled to a modem behaviour
+that differs by revision — the modem's A2 structure is the same.
+
+---
+
+## Classification
+
+### A. Universal — keep target-wide
+
+These fix **AP-side or SoC-level** defects. The AP driver and the MSM8916 platform are
+identical on every board, so the defect (and its fix) does not depend on the modem
+firmware.
+
+| patch | touches | why universal |
+|---|---|---|
+| 801–807 | board DTS (`*-hmu05/ufi001b/mf800b/uf02.dts`, Makefile) | per-device hardware description |
+| 808 | bam-dmux driver infra (counters, `rx_telemetry`, teardown/powerup works, `pc_line_asserted`) | AP-side structure |
+| 809 | `bam_dmux_send_cmd`/`start_xmit` PM ordering | AP-side UAF (observed `bam_dmux_skb_dma_map` NULL deref) |
+| 810 | TX-sweep race guards | AP-side race |
+| 811 | deferred-TX telemetry | AP-side diagnostics |
+| 812 | preserve deferred TX slots | AP-side correctness |
+| 813 | reboot-to-EDL (`qcom_scm`, `msm-poweroff`, DTS) | SoC |
+| 814 | SSR powerup retry | AP-side recovery (polls the pc wire) |
+| 815 | `qcom_sysmon` ignore wcnss/modem SSR | platform |
+| 816 | `qcom_smsm` validate mbox before request | platform |
+| 818 | pm8916 L13 voltage range (DTS) | platform |
+| 819 | `rpmsg_char` NULL-eptdev guard | platform |
+| 820* | SSR teardown non-blocking cancel | AP-side lock-order (ABBA) fix |
+| 821* | SSR teardown flush before power-down | AP-side ordering fix |
+| 822 | `qcom_smd` drain channel pollers before free | platform |
+| 823 | `rpmsg_wwan_ctrl` don't register pollers | platform |
+| 824 | rpm-master-stats (DTS) | platform/diagnostic |
+| 825 | pc-state reconcile against the wire | AP-side (trusts hardware, protocol-correct) |
+| 826 | `q6v5_mss` async `msm_subsys` restart node | platform |
+| 827 | `q6v5_mss` GFMUX clk src switch | platform |
+| 828 | ack the stale deassert | AP-side (adds the missing SMSM ack — protocol-correct) |
+| 831* | defer DMA release to a powered modem | AP-side (BAM power-domain hang) |
+| 832 | TX `tx_bytes` UAF | AP-side UAF |
+| 999 | tsens eprobe-defer | platform |
+
+### B. Modem-revision-coupled — gate
+
+| patch | why coupled | action |
+|---|---|---|
+| 833 | adds an A2 **down-ack wait** in `bam_dmux_runtime_resume()`; only validated against the HMU05 modem, and on a modem that does not complete the down-ack it would add a 2 s stall to every resume | **GATED to HMU05** via `of_machine_is_compatible("hmu05,250605v0s")` (2026-10-07) |
+
+**833 is the only patch whose behaviour is coupled to a specific modem's A2
+handshake.** It was gated on 2026-10-07; the counters stay unconditional so the
+telemetry remains comparable across boards. (`msm89xx/patches/833-…` md5
+`29be455856e486bcb0528d22debf0123`, synced to the live tree.)
+
+### C. Investigation artifacts — drop / strip
+
+Debug probes left in the tree from the AP-hang investigation. They are **not**
+modem-revision-specific, but they should not ship on any board: they are `dev_err`
+(console/log spam on every teardown), and 821's own comment notes the probes cost
+~40 ms of console time and made the teardown **lose the power-down race 2/2 times** —
+i.e. they are actively harmful, not merely noisy.
+
+| patch | artifact | action |
+|---|---|---|
+| 830 | `PS0`–`PS3b` probes (pure probe patch — nothing else) | **DROPPED 2026-10-07** (file removed) |
+| 820* | `T0`–`T4` probes embedded in a real fix | **STRIPPED 2026-10-07** (fix kept) |
+| 821* | `T5`–`T9` probes embedded in a real fix | **STRIPPED 2026-10-07** (fix kept) |
+| 831* | 1 probe (`PS3b` text) embedded in a real fix | **STRIPPED 2026-10-07** (fix kept) |
+
+(`*` = real AP-side fix with debug probes attached.)
+
+**Cleanup (2026-10-07):** the three affected patches were regenerated from a
+reconstructed clean upstream (`qcom_bam_dmux.c`, 910 lines) rather than hand-edited,
+and the whole bam-dmux series (808→833, 830 dropped) was replayed from clean and
+verified to reproduce the edited build tree byte-for-byte. The module rebuilds
+(`648e178c77b82935b85b0e915ebc62ef`, 244 960 B, down from 246 768 B) with **no**
+`teardown T`/`bam-dmux T`/`bam-dmux PS` strings and the `hmu05,250605v0s` gate
+present.
+
+---
+
+## Recommendation
+
+1. **833** — done: gated to HMU05.
+2. **830** — done: dropped (pure debug probe; no functional content).
+3. **820 / 821 / 831** — done: the embedded `T*`/`PS*` `dev_err` probes are stripped;
+   the fixes are kept.
+4. **Everything else** — leave target-wide; the AP-side and SoC fixes are
+   modem-revision-agnostic.
+
+### Consequence worth flagging
+
+Because the A2 quiesce asymmetry is **identical in V2.0**, UFI001B is likely exposed to
+the same `a2_power.c:1189` fatal as HMU05 once it carries a data bearer. The HMU05
+pin-hold (`modem-a2-hold`, `control=on`) is currently HMU05-gated — UFI001B therefore
+runs `control=auto`. **This has not been tested on UFI001B**; if it crashes the same
+way, the pin-hold should be extended to it. Flagged, not acted on (needs a UFI001B
+soak).
+
+---
+
+## Verification
+
+```bash
+# the A2 quiesce is identical across builds (expect 15 for each)
+for d in hmu05 ufi001b uz801; do
+  f="Docs/Modem Stability/Modem RE/$d/modem_full_decompiled.c"
+  echo -n "$d: "; grep -c "ec320ba4\|ec320ba8\|ec320bac\|ec320bd8\|ec320be0" "$f"
+done
+
+# 833 is gated (expect the compatible string)
+grep -n "of_machine_is_compatible" msm89xx/patches/833-*.patch
+
+# the debug probes still in the tree
+grep -lE '^\+.*dev_err.*"bam-dmux (T[0-9]|PS)' msm89xx/patches/*.patch
+```
+
+**SOP statement.** Read-only audit + one gated patch (833). All claims are from the
+patch contents and the three decompiled modems; the classification is by *what the
+patch depends on* (AP/SoC vs modem handshake), not by its title. The 833 gate was
+verified: the patch applies clean to the 832-state, reproduces the edited build tree,
+and the module compiles (gate string `hmu05,250605v0s` present in the `.ko`). The V2.0
+A2-identical finding is direct `grep` of the decompiled firmware.

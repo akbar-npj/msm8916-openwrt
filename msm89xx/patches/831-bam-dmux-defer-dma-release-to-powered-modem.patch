@@ -42,23 +42,20 @@
  	if (!dmux->rx) {
  		dmux->rx = dma_request_chan(dev, "rx");
  		if (IS_ERR(dmux->rx)) {
-@@ -1634,12 +1662,12 @@
+@@ -1630,10 +1658,10 @@
+ 	wait_event(dmux->rx_submit_wait,
  		   atomic_read(&dmux->rx_active_submitters) == 0);
- 	dev_err(dmux->dev, "bam-dmux PS2 submitters drained\n");
  
 -	/* 4. Safely terminate and release RX DMA */
 +	/* 4. Terminate RX DMA; defer the release to a powered-modem context. */
  	if (dmux->rx) {
- 		dev_err(dmux->dev, "bam-dmux PS3a terminating rx\n");
  		dmaengine_terminate_sync(dmux->rx);
--		dev_err(dmux->dev, "bam-dmux PS3b rx terminated, releasing\n");
 -		dma_release_channel(dmux->rx);
-+		dev_err(dmux->dev, "bam-dmux PS3b rx terminated, release deferred\n");
 +		dmux->rx_deferred = dmux->rx;
  		spin_lock_irqsave(&dmux->rx_lock, flags);
  		dmux->rx = NULL;
  		spin_unlock_irqrestore(&dmux->rx_lock, flags);
-@@ -1650,10 +1678,10 @@
+@@ -1643,10 +1671,10 @@
  	wait_event(dmux->rx_callback_wait,
  		   atomic_read(&dmux->rx_active_callbacks) == 0);
  
@@ -71,7 +68,7 @@
  		spin_lock_irqsave(&dmux->rx_lock, flags);
  		dmux->tx = NULL;
  		spin_unlock_irqrestore(&dmux->rx_lock, flags);
-@@ -2734,6 +2762,24 @@
+@@ -2697,6 +2725,24 @@
  	disable_irq(dmux->pc_irq);
  	mutex_lock(&dmux->state_lock);
  	bam_dmux_ssr_teardown(dmux);
