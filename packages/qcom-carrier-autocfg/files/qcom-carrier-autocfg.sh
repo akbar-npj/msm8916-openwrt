@@ -199,45 +199,34 @@ pdc_apply_mcfg() {
 	return 0
 }
 
-# Restart the modem subsystem without rebooting the AP.  Mirrors
-# modem-bearer-watchdog: prefer the async Android-parity clean-restart node
-# (kernel patch 826), fall back to the synchronous remoteproc stop/start.
+# Restart the modem subsystem without rebooting the AP, via the async
+# Android-parity clean-restart node (kernel patch 826) -- the same lever
+# modem-bearer-watchdog uses.  The synchronous remoteproc stop/start is
+# deliberately NOT used: its stop path blocks the writer inside the q6v5
+# force-stop handshake, which the PMIC watchdog can catch and reset the AP.
+# Patch 826 is applied unconditionally and debugfs is mounted at boot, so the
+# node is always present; if it is ever missing, fail rather than block.
 modem_restart() {
 	local node="/sys/kernel/debug/msm_subsys/modem"
-	local rproc="/sys/class/remoteproc/remoteproc0/state"
 	local before now k
 
-	if [ -w "$node" ]; then
-		# The node counts COMPLETED restarts and the write returns before the
-		# workqueue runs, so wait for the counter to move.
-		before=$(cat "$node" 2>/dev/null)
-		echo restart > "$node" 2>/dev/null || return 1
-		k=0
-		while [ "$k" -lt 60 ]; do
-			now=$(cat "$node" 2>/dev/null)
-			[ -n "$now" ] && [ "$now" != "$before" ] && return 0
-			sleep 1
-			k=$((k + 1))
-		done
+	[ -w "$node" ] || {
+		log "modem_restart: ${node} missing or not writable (patch 826 / debugfs); no restart lever."
 		return 1
-	fi
+	}
 
-	[ -f "$rproc" ] || return 1
-	echo stop > "$rproc" 2>/dev/null || true
+	# The node counts COMPLETED restarts and the write returns before the
+	# workqueue runs, so wait for the counter to move.
+	before=$(cat "$node" 2>/dev/null)
+	echo restart > "$node" 2>/dev/null || return 1
 	k=0
-	while [ "$k" -lt 10 ]; do
-		[ "$(cat "$rproc" 2>/dev/null)" != "running" ] && break
+	while [ "$k" -lt 60 ]; do
+		now=$(cat "$node" 2>/dev/null)
+		[ -n "$now" ] && [ "$now" != "$before" ] && return 0
 		sleep 1
 		k=$((k + 1))
 	done
-	echo start > "$rproc" 2>/dev/null || true
-	k=0
-	while [ "$k" -lt 20 ]; do
-		[ "$(cat "$rproc" 2>/dev/null)" = "running" ] && break
-		sleep 1
-		k=$((k + 1))
-	done
-	return 0
+	return 1
 }
 
 # Apply the carrier MCFG for $mbn_rel.
