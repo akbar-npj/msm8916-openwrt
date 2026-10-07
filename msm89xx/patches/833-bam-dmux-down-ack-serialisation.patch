@@ -1,0 +1,89 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -152,6 +152,17 @@
+ 	atomic64_t pc_unvote_tx_count;
+ 	atomic64_t pc_ack_irq_count;
+ 	atomic64_t pc_timeout_count;
++	/*
++	 * Android parity (bam_dmux.c ul_wakeup(), the wait_for_ack block at
++	 * :1909): set by bam_dmux_runtime_suspend() when it votes the modem
++	 * DOWN, cleared by bam_dmux_runtime_resume() after it has waited for
++	 * the modem to ack that down vote.  While it is set, resume must not
++	 * vote up -- the two votes would cross and the modem's A2 power-up
++	 * quiesce would time out (a2_power.c:1189).
++	 */
++	bool pc_down_ack_pending;
++	atomic64_t pc_down_ack_wait_count;
++	atomic64_t pc_down_ack_timeout_count;
+ 	atomic64_t pm_suspend_attempts;
+ 	atomic64_t pm_suspend_completions;
+ 	atomic64_t pm_resume_attempts;
+@@ -2113,6 +2124,13 @@
+ 	dev_dbg(dev, "runtime suspend\n");
+ 
+ 	bam_dmux_pc_vote(dmux, false);
++	/*
++	 * Android parity: mark the down vote as awaiting the modem's ack.
++	 * bam_dmux_pc_vote() reinit'd pc_ack_completion, so it is now armed for
++	 * that ack; bam_dmux_pc_ack_irq()/bam_dmux_pc_irq() complete it.  The
++	 * next bam_dmux_runtime_resume() consumes the flag and waits.
++	 */
++	WRITE_ONCE(dmux->pc_down_ack_pending, true);
+ 	mutex_unlock(&dmux->state_lock);
+ 
+ 	return 0;
+@@ -2136,6 +2154,27 @@
+ 	dev_dbg(dev, "runtime resume\n");
+ 	atomic64_inc(&dmux->pm_resume_attempts);
+ 
++	/*
++	 * Android parity (bam_dmux.c ul_wakeup(), the wait_for_ack block at
++	 * :1909): do not vote the modem up while a previous power-DOWN vote is
++	 * still unacked.  bam_dmux_runtime_suspend() armed pc_ack_completion
++	 * when it voted down, so this returns immediately when the down-ack has
++	 * already arrived (the common case) and otherwise waits for it.  If the
++	 * two votes cross, the modem's A2 power-up quiesce times out and it
++	 * asserts (a2_power.c:1189).
++	 */
++	if (READ_ONCE(dmux->pc_down_ack_pending)) {
++		atomic64_inc(&dmux->pc_down_ack_wait_count);
++		ret = wait_for_completion_timeout(&dmux->pc_ack_completion,
++						  msecs_to_jiffies(2000));
++		WRITE_ONCE(dmux->pc_down_ack_pending, false);
++		if (!ret) {
++			atomic64_inc(&dmux->pc_down_ack_timeout_count);
++			dev_warn(dev,
++				 "bam_dmux: modem down-ack timeout before resume\n");
++		}
++	}
++
+ 	reinit_completion(&dmux->pc_ack_completion);
+ 
+ 	mutex_lock(&dmux->state_lock);
+@@ -2287,6 +2326,8 @@
+ 			 "pc_unvote_tx_count: %llu\n"
+ 			 "pc_ack_irq_count: %llu\n"
+ 			 "pc_timeout_count: %llu\n"
++			 "pc_down_ack_wait_count: %llu\n"
++			 "pc_down_ack_timeout_count: %llu\n"
+ 			 "pm_suspend_attempts: %llu\n"
+ 			 "pm_suspend_completions: %llu\n"
+ 			 "pm_resume_attempts: %llu\n"
+@@ -2337,6 +2378,8 @@
+ 			 (unsigned long long)atomic64_read(&dmux->pc_unvote_tx_count),
+ 			 (unsigned long long)atomic64_read(&dmux->pc_ack_irq_count),
+ 			 (unsigned long long)atomic64_read(&dmux->pc_timeout_count),
++			 (unsigned long long)atomic64_read(&dmux->pc_down_ack_wait_count),
++			 (unsigned long long)atomic64_read(&dmux->pc_down_ack_timeout_count),
+ 			 (unsigned long long)atomic64_read(&dmux->pm_suspend_attempts),
+ 			 (unsigned long long)atomic64_read(&dmux->pm_suspend_completions),
+ 			 (unsigned long long)atomic64_read(&dmux->pm_resume_attempts),
+@@ -2629,6 +2672,8 @@
+ 	atomic64_set(&dmux->pc_unvote_tx_count, 0);
+ 	atomic64_set(&dmux->pc_ack_irq_count, 0);
+ 	atomic64_set(&dmux->pc_timeout_count, 0);
++	atomic64_set(&dmux->pc_down_ack_wait_count, 0);
++	atomic64_set(&dmux->pc_down_ack_timeout_count, 0);
+ 	atomic64_set(&dmux->pm_suspend_attempts, 0);
+ 	atomic64_set(&dmux->pm_suspend_completions, 0);
+ 	atomic64_set(&dmux->pm_resume_attempts, 0);

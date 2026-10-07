@@ -44,8 +44,14 @@ config recovery 'recovery'
 	# zombie only; the DEEP one (RF `none`) does not respond.
 	option zombie_nudge_secs '60'
 
-	# NOTE: the pre-emptive SSR (preemptive_ssr_enabled / preemptive_ssr_interval),
-	# the a2_pin band-aid and the himi_ok_* keys are GONE.  The pre-emptive SSR
-	# existed only to defer the ~900 s lte_ml1 fatal; the root-cause fix is the
-	# HMU05-only HiMI_OK guard (a separate, HMU05-gated service), and the modem
-	# now runs Android-parity natural A2 power collapse (BAM-DMUX control=auto).
+	# NOTE: the pre-emptive SSR (preemptive_ssr_enabled / preemptive_ssr_interval)
+	# and the himi_ok_* keys are GONE.  The pre-emptive SSR existed only to defer
+	# the ~900 s lte_ml1 fatal; the root-cause fix is the HMU05-only HiMI_OK guard
+	# (a separate, HMU05-gated service).
+	#
+	# The A2-hold lever (a2_pin=1) is BACK, as /usr/sbin/modem-a2-hold
+	# (HMU05-gated, enabled by uci-defaults/98-modem-a2-hold): bam-dmux is pinned
+	# control=on so the modem's A2 never powers down.  Measured 2026-10-07 --
+	# with `control=auto` the A2 cycle asserts a2_power.c:1189 every ~65-70 s once
+	# a data bearer is up (wwan0 flaps); with control=on there are no a2_power
+	# fatals.  §112.170's "a2_pin=0 is safe" was drawn without data traffic.
