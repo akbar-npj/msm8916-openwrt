@@ -177,6 +177,8 @@ gh release upload -R akbar-npj/msm8916-openwrt v25.12.5-r1 \
 
 ## 6. Flashing Firmware to Device
 
+The generated `openwrt-msm89xx-msm8916-<board>-flash.sh` is **two-in-one**: it offers an interactive menu with **Migrate** (stock Android → OpenWrt, Scenario A) and **Update** (existing OpenWrt → OpenWrt, Scenario B, Option 1). Run `./openwrt-msm89xx-msm8916-<board>-flash.sh --help` for the non-interactive flags.
+
 ### Scenario A: Migrating from Stock Android to OpenWrt (Mandatory First-Time Flash Script)
 
 > [!CAUTION]
@@ -195,10 +197,10 @@ All five are published as GitHub Release assets for every board (see §5). Put t
 same directory and run the script from there.
 
 #### What the Script Automatically Handles:
-1. **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory.
+1. **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory. Every read is validated; if any backup fails (error, or an empty/short file) the script **aborts before writing anything**, leaving the device untouched.
 2. **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely.
 3. **Firmware Extraction & Flashing**: Extracts `aboot.mbn`, `hyp.mbn`, `rpm.mbn`, `sbl1.mbn`, and `tz.mbn` from the board's `*-firmware.zip` and flashes them to the newly repartitioned layout.
-4. **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and safely erases `rootfs_data`.
+4. **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and wipes `rootfs_data` (fast 2 MiB superblock wipe, reformatted on next boot).
 5. **Partition Restoration**: Restores all previously backed-up calibration and radio partitions back to the device.
 6. **Automatic Reboot**: Reboots the device straight into OpenWrt (`edl reset`).
 
@@ -225,13 +227,27 @@ same directory and run the script from there.
    # Make script executable
    chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
 
-   # Run the flasher
+   # Run the flasher (two-in-one: migrate or update)
    ./openwrt-msm89xx-msm8916-<board>-flash.sh
    ```
    *(Replace `<board>` with your target device board name: `generic-hmu05`, `generic-ufi001b`, `yiming-uz801v3`, or `generic-uf02`)*
 
+   The script shows an interactive menu. For a first-time migration choose **`1` (Migrate from stock Android to OpenWrt)**:
+   ```
+   === OpenWrt MSM8916 EDL Flash Script ===
+
+     1) Migrate from stock Android to OpenWrt
+        (DESTRUCTIVE: repartitions the eMMC, flashes the bootloader,
+         wipes Android)
+     2) Update an existing OpenWrt install
+        (flashes boot + rootfs only; partition table left untouched)
+
+   Choice [1/2]:
+   ```
+   *(For unattended use, `--mode migrate --yes` selects the same path.)*
+
 4. **Confirm the Prompts**:
-   The script will verify the required `.img` and `.zip` files, prompt you to continue (`y`), execute the backup, flash all partitions, restore the radio data, and reset the device into OpenWrt.
+   The script will verify the required `.img` and `.zip` files, print a loud **destructive-action warning** (type `yes` to proceed), execute the backup, flash all partitions, restore the radio data, and reset the device into OpenWrt.
 
 ---
 
@@ -240,7 +256,7 @@ same directory and run the script from there.
 If your device is **already running OpenWrt**, the OpenWrt GPT layout and bootloader/firmware partitions are already configured. You can use direct EDL flashing or standard Sysupgrade:
 
 #### Option 1: Fast Direct Flash via Qualcomm EDL (9008)
-When the device is already partitioned for OpenWrt, you can flash updated kernel/boot and rootfs images directly:
+When the device is already partitioned for OpenWrt, the **same two-in-one `*-flash.sh`** handles the update: it flashes only `boot` + `rootfs` and leaves the partition table, bootloader and radio/calibration partitions untouched.
 
 1. Put the device into EDL mode:
    - Run `reboot-edl` from SSH terminal on the device, **OR**
@@ -249,17 +265,45 @@ When the device is already partitioned for OpenWrt, you can flash updated kernel
    ```bash
    lsusb | grep 05c6:9008
    ```
-3. Flash the `boot` and `rootfs` partitions using `edl`:
+3. Run the flasher and choose **`2` (Update an existing OpenWrt install)**:
    ```bash
-   # Flash boot (kernel + dtb) partition
-   edl w boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
-
-   # Flash rootfs (system) partition
-   edl w rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
-
-   # Reboot device into OpenWrt
-   edl reset
+   cd openwrt/bin/targets/msm89xx/msm8916
+   chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
+   ./openwrt-msm89xx-msm8916-<board>-flash.sh
    ```
+   It first confirms the device already has an OpenWrt GPT (`edl printgpt` must list `boot` + `rootfs`); if not, it refuses and points you at Migrate — update mode never writes a partition table.
+
+   It then asks whether to keep or wipe the config overlay:
+   ```
+   Config overlay (rootfs_data):
+     y) KEEP  - preserve /etc, packages and the dumped modem/Wi-Fi firmware
+     n) ERASE - wipe the overlay for a factory-clean first boot
+                (fast: 2 MiB superblock wipe, reformatted on boot;
+                 modem firmware is re-dumped automatically)
+   Keep configuration? [Y/n]:
+   ```
+   - **KEEP** is the default and matches a normal `sysupgrade` (config, packages and `/lib/firmware` are preserved).
+   - **ERASE** gives a factory-clean first boot. It is fast: instead of erasing the whole multi-GiB overlay it wipes just the primary ext4 superblock (2 MiB); the boot hook `79-check-rootfs-data` reformats it on the next boot and the modem/Wi-Fi firmware is re-dumped automatically. (The wipe is a raw zero-write — see the manual alternative below for why `edl e`/`edl ep` cannot be used.)
+
+   *(Unattended: `--mode update --keep-config --yes` or `--mode update --erase-config --yes`.)*
+
+4. The script flashes `boot` + `rootfs` (and wipes the overlay if chosen) and reboots with `edl reset`.
+
+> **Prefer `sysupgrade` for routine upgrades** (Option 2/3 below): it is safer and preserves state. Reserve the EDL Update path for recovery or an unbootable device. A KEEP update leaves the entire overlay in place, so stale overlay files can shadow the new rootfs (a known `/lib/modules/*.ko` shadowing incident) — ERASE avoids that.
+
+**Manual alternative** (equivalent to update mode with KEEP):
+```bash
+edl w boot  openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
+edl w rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
+# optional: force a factory-clean overlay on next boot.
+# NOTE: `edl e`/`edl ep` do NOT work with this device's firehose loader
+# (target replies "No storage drive number", nothing is written, yet edl
+# still exits 0) — wipe the superblock with a raw write instead:
+START=$(( $(edl printgpt | sed -n 's/^rootfs_data:.*Offset 0x\([0-9a-f]*\),.*/\1/p') / 512 ))
+dd if=/dev/zero of=/tmp/zeros.bin bs=512 count=4096
+edl ws "$START" /tmp/zeros.bin
+edl reset
+```
 
 #### Option 2: Non-Destructive Sysupgrade (SSH Command Line)
 Upgrade live over Wi-Fi or USB ethernet while preserving configurations and network settings:

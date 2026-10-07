@@ -130,12 +130,27 @@ chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
 ./openwrt-msm89xx-msm8916-<board>-flash.sh
 ```
 
+The script is **two-in-one** and shows an interactive menu — choose **`1` (Migrate from stock Android to OpenWrt)** for a first-time migration:
+
+```
+=== OpenWrt MSM8916 EDL Flash Script ===
+
+  1) Migrate from stock Android to OpenWrt
+     (DESTRUCTIVE: repartitions the eMMC, flashes the bootloader, wipes Android)
+  2) Update an existing OpenWrt install
+     (flashes boot + rootfs only; partition table left untouched)
+
+Choice [1/2]:
+```
+
+*(For unattended use, `--mode migrate --yes` selects the same path; `./...flash.sh --help` lists all flags.)*
+
 #### What the Script Automatically Handles:
 
-* **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory.
+* **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory. Every read is validated; if any backup fails (error, or an empty/short file) the script **aborts before writing anything**, leaving the device untouched.
 * **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely.
 * **Firmware Extraction & Flashing**: Extracts `aboot.mbn`, `hyp.mbn`, `rpm.mbn`, `sbl1.mbn`, and `tz.mbn` from the board's `*-firmware.zip` and flashes them to the newly repartitioned layout.
-* **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and safely erases `rootfs_data`.
+* **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and wipes `rootfs_data` (fast 2 MiB superblock wipe, reformatted on next boot).
 * **Partition Restoration**: Restores all previously backed-up calibration and radio partitions back to the device.
 * **Automatic Reboot**: Reboots the device straight into OpenWrt (`edl reset`).
 
@@ -146,15 +161,42 @@ chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
 If your device is already running OpenWrt and has already been repartitioned to the OpenWrt GPT layout:
 
 * **Recommended (Sysupgrade)**: Use the standard sysupgrade path to preserve configuration (see [Sysupgrade](#-sysupgrade)).
-* **Clean Re-flash via EDL**: If you need a clean re-flash via EDL without modifying the existing OpenWrt partition table:
+* **Clean Re-flash via EDL**: Use the **same two-in-one `*-flash.sh`** and choose **`2` (Update an existing OpenWrt install)**. It flashes only `boot` + `rootfs` and never touches the partition table, bootloader or radio/calibration partitions:
+
+```bash
+cd openwrt/bin/targets/msm89xx/msm8916/
+./openwrt-msm89xx-msm8916-<board>-flash.sh
+```
+
+  Update mode first confirms the device has an OpenWrt GPT (`edl printgpt` lists `boot` + `rootfs`), then asks whether to **KEEP** or **ERASE** the config overlay:
+
+```
+Config overlay (rootfs_data):
+  y) KEEP  - preserve /etc, packages and the dumped modem/Wi-Fi firmware
+  n) ERASE - wipe the overlay for a factory-clean first boot
+             (fast: 2 MiB superblock wipe, reformatted on boot;
+              modem firmware is re-dumped automatically)
+Keep configuration? [Y/n]:
+```
+
+  * **KEEP** (default) matches a normal `sysupgrade`.
+  * **ERASE** gives a factory-clean first boot via a fast 2 MiB superblock wipe.
+
+  *(Unattended: `--mode update --keep-config --yes` or `--mode update --erase-config --yes`.)*
+
+* **Manual EDL alternative** (equivalent to update mode with KEEP):
 
 ```bash
 # Flash kernel boot and rootfs partitions
 edl w boot openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-boot.img
 edl w rootfs openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-<board>-squashfs-system.img
 
-# Optional: erase persistent overlay to start completely clean
-edl e rootfs_data
+# Optional: wipe the persistent overlay superblock to start clean on next boot
+# (reformatted automatically on boot). NOTE: `edl e` / `edl ep` do NOT work with
+# this device's firehose loader (they silently no-op), so wipe with a raw write:
+START=$(( $(edl printgpt | sed -n 's/^rootfs_data:.*Offset 0x\([0-9a-f]*\),.*/\1/p') / 512 ))
+dd if=/dev/zero of=/tmp/zeros.bin bs=512 count=4096
+edl ws "$START" /tmp/zeros.bin
 
 # Reboot the device
 edl reset

@@ -166,9 +166,10 @@ The sysupgrade workflow operates as follows:
 #### Vector B: Host-Driven Flashing via EDL or Fastboot
 When upgrading across major partition layout changes or unbricking:
 1. Put device into EDL mode: `reboot-edl`.
-2. Flash raw eMMC partitions using [`msm89xx/image/flash.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/image/flash.sh):
+2. Flash raw eMMC partitions using the generated [`msm89xx/image/flash.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/image/flash.sh) (installed as `openwrt-msm89xx-msm8916-<board>-flash.sh`), run from the build output directory. It is two-in-one — pick **`1` Migrate** (stock Android → OpenWrt) or **`2` Update** (existing OpenWrt; `boot` + `rootfs` only):
    ```bash
-   ./flash.sh hmu05
+   cd openwrt/bin/targets/msm89xx/msm8916
+   ./openwrt-msm89xx-msm8916-<board>-flash.sh
    ```
 3. Or put device into Fastboot mode (`reboot-bootloader`) and flash individual partitions:
    ```bash
