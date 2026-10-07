@@ -167,7 +167,7 @@ edl reset
 If the device is already running OpenWrt and supports the software Fastboot reboot:
 
 ```bash
-reboot-fastboot
+reboot-bootloader
 ```
 
 Then verify the device:
