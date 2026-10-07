@@ -22,24 +22,27 @@ not silently ship on the other.
 
 ---
 
-## Key finding — the A2 code is IDENTICAL in V1.0 and V2.0
+## Key finding — the A2 quiesce CODE is IDENTICAL in V1.0 and V2.0
 
 The A2 power-up quiesce (`a2_power.c`) that the `a2_power.c:1189` fatal lives in is
-**byte-for-byte the same structure** in both firmwares:
+**structurally identical** in both firmwares. Verified by reading the decompiled
+function bodies (not just counting address references — the `0xec320bXX` block is a
+fixed peripheral window, so an address grep alone proves nothing):
 
-```
-hmu05   : 15 lines reference {0xec320ba4, ba8, bac, bd8, be0}   (FUN_c0504fc8 :862632-862653)
-ufi001b : 15 lines reference {0xec320ba4, ba8, bac, bd8, be0}   (FUN_c055bc88 :904744-904765)
-uz801   : 15 lines reference {0xec320ba4, ba8, bac, bd8, be0}
-```
+| A2 piece | HMU05 (V1.0) | UFI001B (V2.0) | same? |
+|---|---|---|---|
+| power-up quiesce (five client words `{0xec320ba4,ba8,bac,bd8,be0} & 7`, five spin loops) | `FUN_c0504fc8` @862621 | `FUN_c056c5a0` @904735 | **yes** |
+| assert helper (`spin++`, `% 0x32`, `900 < budget` ⇒ assert) | `FUN_c05042c8` @862146 | `FUN_c056b5fc` | **yes** |
+| budget reset (exactly one site, inside the collapse) | `DAT_c28602fc = 0` @862803 | `DAT_c200f830 = 0` @904917 | **yes** |
 
-The five client words and the `& 7 == 0` quiesce loops are present in **all three**
-builds at the same fixed hardware addresses (the `0xec320bXX` block is a peripheral
-register window, so it is build-independent). ⇒ The A2 quiesce asymmetry
-(`A2_QUIESCE_ASYMMETRY.md`) is **not** an HMU05-only quirk; V2.0 has it too.
+⇒ The A2 quiesce asymmetry (`A2_QUIESCE_ASYMMETRY.md`) is **not** an HMU05-only quirk;
+V2.0 carries the **same latent code defect**.
 
-This matters for the audit: the AP-side patches are not coupled to a modem behaviour
-that differs by revision — the modem's A2 structure is the same.
+**But code-identity is necessary, not sufficient, for exposure.** The fatal is a
+runtime condition, not a code property — see the correction under
+*Consequence worth flagging*. This distinction is the whole point: the AP-side patches
+are not coupled to a modem behaviour that *differs* by revision, but neither does
+identical code imply the fatal actually fires on the other board.
 
 ---
 
@@ -125,25 +128,54 @@ present.
 4. **Everything else** — leave target-wide; the AP-side and SoC fixes are
    modem-revision-agnostic.
 
-### Consequence worth flagging
+### Correction (2026-10-07) — UFI001B exposure is UNPROVEN, not "likely"
 
-Because the A2 quiesce asymmetry is **identical in V2.0**, UFI001B is likely exposed to
-the same `a2_power.c:1189` fatal as HMU05 once it carries a data bearer. The HMU05
-pin-hold (`modem-a2-hold`, `control=on`) is currently HMU05-gated — UFI001B therefore
-runs `control=auto`. **This has not been tested on UFI001B**; if it crashes the same
-way, the pin-hold should be extended to it. Flagged, not acted on (needs a UFI001B
-soak).
+An earlier draft of this section said UFI001B is **"likely exposed"** to the same
+`a2_power.c:1189` fatal as HMU05 once it carries a data bearer. **That was an
+over-claim** — it inferred exposure from code-identity alone. The empirical record
+points the other way: **UFI001B has run for hours without any crash**, on a build
+without the recent bam-dmux patches.
+
+Exposure is a **runtime condition**, not a code property. The fatal requires *all* of:
+
+1. the A2 to **collapse** — the AP must runtime-suspend bam-dmux and vote the modem
+   down (`bam_dmux_runtime_suspend()` is the only writer of `bam_dmux_pc_vote(false)`);
+2. a client quiesce word to still be `& 7 != 0` at the next power-up;
+3. the shared budget `DAT_c28602fc` to exceed 900.
+
+The HMU05 rate (≈8 %/cycle; 5 fatals / 61 cycles / 488 s) was measured with a **data
+bearer UP and `control=auto`**. Without traffic the A2 does not cycle and the fatal
+does not appear — which is exactly why the §112.170 "`a2_pin=0` is safe" verdict was
+drawn without data and later retracted.
+
+So UFI001B's clean run means either (a) the soak did not meet those conditions (no
+sustained data bearer, or an older image whose driver never runtime-suspended), or
+(b) V2.0's runtime timing avoids the race despite the identical code. Either way there
+is **no basis to extend the HMU05 pin-hold to UFI001B.**
+
+**Recommendation: do NOT extend `modem-a2-hold` to UFI001B.** If exposure must be
+settled, run a *controlled* soak — UFI001B, **data bearer up**, `control=auto`, with
+telemetry on `pc_vote`/`pc_unvote` and `a2_power` fatals (the same instrumentation that
+measured the HMU05 rate). Absent that, treat UFI001B as **untested**, not exposed.
 
 ---
 
 ## Verification
 
 ```bash
-# the A2 quiesce is identical across builds (expect 15 for each)
+# A2 quiesce reference count (a WEAK proxy: the 0xec320bXX block is a fixed
+# peripheral window; expect 15 for each, but this alone proves nothing).
 for d in hmu05 ufi001b uz801; do
   f="Docs/Modem Stability/Modem RE/$d/modem_full_decompiled.c"
   echo -n "$d: "; grep -c "ec320ba4\|ec320ba8\|ec320bac\|ec320bd8\|ec320be0" "$f"
 done
+
+# the STRONG check: the quiesce function body + assert helper are the same shape
+grep -n "FUN_c0504fc8\|FUN_c05042c8" "Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c"
+grep -n "FUN_c056c5a0\|FUN_c056b5fc" "Docs/Modem Stability/Modem RE/ufi001b/modem_full_decompiled.c"
+# budget reset: exactly one site each, inside the collapse
+grep -n "DAT_c28602fc = 0" "Docs/Modem Stability/Modem RE/hmu05/modem_full_decompiled.c"
+grep -n "DAT_c200f830 = 0" "Docs/Modem Stability/Modem RE/ufi001b/modem_full_decompiled.c"
 
 # 833 is gated (expect the compatible string)
 grep -n "of_machine_is_compatible" msm89xx/patches/833-*.patch
@@ -157,4 +189,7 @@ patch contents and the three decompiled modems; the classification is by *what t
 patch depends on* (AP/SoC vs modem handshake), not by its title. The 833 gate was
 verified: the patch applies clean to the 832-state, reproduces the edited build tree,
 and the module compiles (gate string `hmu05,250605v0s` present in the `.ko`). The V2.0
-A2-identical finding is direct `grep` of the decompiled firmware.
+A2-identical finding is by reading the decompiled function bodies (quiesce, assert
+helper, budget reset), **not** by the address grep alone. The exposure correction is
+from the user's UFI001B soak observation plus the runtime-condition analysis in
+`project_a2_power_fatal_needs_control_on.md`; UFI001B was **not** instrumented here.
