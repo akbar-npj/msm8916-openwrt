@@ -1,16 +1,33 @@
-# MSM8916 Modem Stability, 15-Minute Crash Fix & Power Management
+# MSM8916 Modem Stability — Documentation Index
+
+> ⚠️ **CORRECTION NOTICE (2026-10-07).** Most documents in this directory date from
+> September 2026 and are built on a **RETRACTED** premise: that the ~900 s modem fatal is
+> a 900 s SCLK/DRX maintenance timer that must be neutralised by a **baseband binary
+> patch** (`hmu05-patch-modem`, patching `modem.b16` and re-signing `modem.mdt` /
+> `modem.b01`). The real cause is the modem RF task's `memcmp` of NV item 2500
+> (`NV_FACTORY_DATA_4_I`) against the literal `"HiMI_OK"`; the fix is **AP-side**
+> (`himi-ok-guard` — rewrite `HiMI_OK` after every modem boot, and the deadline never
+> arms). **The `hmu05-patch-modem` patcher has been removed from the tree** (`57024f2`);
+> no baseband patching is performed or required. **Do not follow any `modem.b16` /
+> `modem.mdt` / `modem.b01` instruction in this directory.** For the current, verified
+> state see [`Modem RE/hmu05/`](Modem%20RE/hmu05/) and the ledger
+> `197_UZ801_PORT_LEDGER_AND_MANDATORY_SOP.md` §112.165–§112.171.
 
 ## Overview
 
-This directory contains comprehensive reverse engineering reports, binary patching instructions, QMI protocol specifications, and engineering reports addressing the Qualcomm Hexagon QDSP6 v5 modem 15-minute crash and data stall issues on OpenWrt Linux 6.12.
+This directory contains reverse-engineering reports, QMI protocol notes, and engineering
+reports addressing the Qualcomm Hexagon QDSP6 v5 modem 15-minute crash and data-stall
+issues on OpenWrt Linux 6.12. **Read the correction notice above before citing anything
+here** — the September-era reports are retained for history and are largely superseded.
 
 ## Master Documentation Index
 
-- [**Final HMU05 Modem Stability Resolution Report**](FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md): Definitive 4-pillar resolution architecture, hardware-locked No-Sleep patch, BAM-DMUX PM alignment, native QMI Time Daemon, carrier auto-provisioning, and 45+ minute live benchmarks.
-- [**MSM8916 Modem Stability Complete Engineering Report**](MSM8916_Modem_Stability_Complete_Engineering_Report.md): Detailed report covering Ghidra decompilation of `LTE_ML1_SLEEPMGR_STM`, 900s SCLK drift failure mechanism, multi-tier fix architecture, and live hardware test verification.
-- [**Modem Firmware No-Sleep Patching Guide**](MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md): Step-by-step instructions, Hexagon assembly opcodes, and Python automation script (`patch_modem_nosleep.py`) for patching `modem.b16`.
+- [**Final HMU05 Modem Stability Resolution Report**](FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md): ⚠️ **SUPERSEDED** — the "4-pillar" architecture, including the No-Sleep firmware patch (Pillar 1), predates the 2026-10-06 root-cause finding.
+- [**MSM8916 Modem Stability Complete Engineering Report**](MSM8916_Modem_Stability_Complete_Engineering_Report.md): ⚠️ Ghidra decompilation of `LTE_ML1_SLEEPMGR_STM` and the **retracted** 900 s SCLK-drift theory.
+- [**Modem Firmware No-Sleep Patching Guide**](MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md): ⛔ **RETRACTED — do not follow** (baseband `modem.b16` patch opcodes for a false premise).
 - [**Qualcomm QMI Time Service Reverse Engineering Report**](QUALCOMM_MSM8916_MODEM_TIME_SERVICE_REPORT.md): Analysis of stock Android `time_daemon`, QMI Service 22 IDL specification, and QRTR packet framing.
-- [**Modem 15-Minute Crash & Stall Resolution Summary**](MSM8916_Modem_15Minute_Crash_and_Stall_Resolution.md): Compact summary of BAM-DMUX runtime power management, EFS2 NV calibration, and diagnostic commands.
+- [**Modem 15-Minute Crash & Stall Resolution Summary**](MSM8916_Modem_15Minute_Crash_and_Stall_Resolution.md): ⚠️ Compact September-era summary of BAM-DMUX runtime PM and diagnostic commands.
+- [**Patch scope audit — universal vs modem-revision-specific**](PATCH_MODEM_REVISION_SCOPE_AUDIT.md): ✅ **CURRENT** — every `msm89xx/patches/` patch classified; only patch 833 is modem-coupled (gated to HMU05).
 
 ---
 

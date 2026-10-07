@@ -1,5 +1,18 @@
 # Qualcomm MSM8916 Modem Firmware: 15-Minute Crash Resolution & No-Sleep Patching Guide
 
+> ⛔ **RETRACTED / DO NOT FOLLOW (2026-10-07).** The premise of this guide — that the
+> ~900 s fatal is a **900 s SCLK/DRX maintenance timer** (`FUN_c03987e0` /
+> `lte_ml1_sleepmgr_cfg`) that must be disabled by patching `modem.b16` and re-signing
+> `modem.mdt`/`modem.b01` — is **FALSE** and was the source of a long false lead. The
+> real cause is the modem RF task's `memcmp` of NV item 2500 (`NV_FACTORY_DATA_4_I`)
+> against the literal `"HiMI_OK"`; it is fixed **AP-side** by `himi-ok-guard`
+> (rewrite `HiMI_OK` after every modem boot). **No baseband patch is needed, and the
+> `hmu05-patch-modem` patcher has been removed from the tree** (`57024f2`). Following the
+> opcodes below would modify the baseband and re-sign `modem.mdt`/`modem.b01` — exactly
+> the MPSS-auth trap area — for **no benefit**. Kept only as a record of the retracted
+> approach. Current state: `Docs/Modem Stability/Modem RE/hmu05/`; ledger
+> `197_…SOP.md` §112.165–§112.171.
+
 ---
 
 ## 1. Executive Summary

@@ -2,6 +2,17 @@
 
 ## Current Implementation Status vs. 5-Tier Fix Architecture
 
+> ⚠️ **SUPERSEDED (2026-10-07).** This audit predates the 2026-10-06 root-cause finding.
+> **"Tier 1 — Modem Firmware No-Sleep Patch" is obsolete**: the ~900 s fatal is not a
+> 900 s SCLK timer and needs no baseband patch (the real cause is the RF task's `memcmp`
+> of NV item 2500 vs `"HiMI_OK"`, fixed AP-side by `himi-ok-guard`). The
+> **`hmu05-patch-modem` patcher has been removed from the tree** (`57024f2`) — source,
+> Makefile build, and boot/dumper invocations are gone, so the "GAP: must be
+> cherry-picked" warning below is moot and the correct action is the opposite (do **not**
+> restore it). The remaining tiers are superseded by `msm89xx/patches/` 808–833 plus the
+> HMU05 `modem-a2-hold` pin. Current state: `Docs/Modem Stability/Modem RE/hmu05/`;
+> ledger `197_…SOP.md` §112.165–§112.171.
+
 Based on a thorough review of all 6 documents in `Docs/Modem Stability/` and the current `main` branch codebase.
 
 ---

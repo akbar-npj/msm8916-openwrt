@@ -7,6 +7,19 @@
 **Baseband Firmware:** `MPSS.DPM.1.0.C7` (Modem Firmware v1.0)  
 **Artifact Path:** `Docs/Modem Stability/FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md`
 
+> ⚠️ **SUPERSEDED (2026-10-07) — read this correction first.** This report predates the
+> 2026-10-06 root-cause finding and its central premise is **RETRACTED**: there is no
+> 900 s SCLK/DRX timer to neutralize, and the fix is **not** a baseband patch. The real
+> cause of the ~900 s fatal is the modem RF task's `memcmp` of NV item 2500
+> (`NV_FACTORY_DATA_4_I`) against the literal `"HiMI_OK"`; it is fixed **AP-side** by
+> `himi-ok-guard` (rewrite `HiMI_OK` after every modem boot, and the deadline never arms).
+> **`hmu05-patch-modem` has been removed from the tree** (`57024f2`) — its source, its
+> Makefile build/install, and its invocations in `msm-firmware-dumper.sh` and
+> `99-msm89xx-firstboot` are gone, so **every `modem.b16` / `modem.mdt` / `modem.b01`
+> instruction below no longer applies**. "Pillar 1" is obsolete; the A2 `control=on`
+> pin-hold (`modem-a2-hold`) covers the separate `a2_power.c:1189` fatal. Current state:
+> `Docs/Modem Stability/Modem RE/hmu05/`; ledger `197_…SOP.md` §112.165–§112.171.
+
 ---
 
 ## 1. Executive Summary

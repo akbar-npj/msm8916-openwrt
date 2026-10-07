@@ -1,6 +1,19 @@
 # Qualcomm MSM8916 Hybrid Modem Stability & Recovery Architecture
 ## Multi-Tier Hardware, Firmware, Kernel, and Userspace Defense-in-Depth
 
+> ⚠️ **SUPERSEDED (2026-10-07) — read this correction first.** This plan predates the
+> 2026-10-06 root-cause finding and its premise is **RETRACTED**: the ~900 s fatal is
+> **not** a 900 s SCLK calibration timer, and the fix is **not** a baseband patch. The
+> real cause is the modem RF task's `memcmp` of NV item 2500 (`NV_FACTORY_DATA_4_I`)
+> against the literal `"HiMI_OK"`; it is fixed **AP-side** by `himi-ok-guard`. Therefore
+> **"Tier 1 — Firmware Patching (`hmu05-patch-modem`)" is obsolete and the patcher has
+> been removed from the tree** (`57024f2`): its source, Makefile build/install, and
+> boot/dumper invocations are gone. **No `modem.b16` / `modem.mdt` / `modem.b01`
+> patching is performed or required.** The kernel/PM tiers below are superseded by the
+> AP-side fixes in `msm89xx/patches/` (808–833) plus the HMU05 `modem-a2-hold` pin for
+> the separate `a2_power.c:1189` fatal. Current state:
+> `Docs/Modem Stability/Modem RE/hmu05/`; ledger `197_…SOP.md` §112.165–§112.171.
+
 **Target Platform:** Qualcomm MSM8916 (Snapdragon 410) 4G LTE USB Sticks / Routers (HMU05, Melbon White, HiMI UFI, UFI001B, UF02, UZ801)  
 **OpenWrt Target:** Linux Kernel 6.12 (`msm89xx` target)  
 **Live Hardware Baseline:** Android 4.4.4 (Continuous Uptime: >6h 50m, 0% Packet Loss)  

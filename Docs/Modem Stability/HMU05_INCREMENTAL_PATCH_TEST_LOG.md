@@ -1,5 +1,14 @@
 # HMU05 Incremental Patch & Stability Test Log
 
+> ⚠️ **HISTORICAL — premise RETRACTED (2026-10-07).** This is a September-2026 test log,
+> retained for history. The No-Sleep firmware patch it centres on (Patch 1,
+> `hmu05-patch-modem`, `modem.b16` @ `0x001117e0` + `modem.mdt`/`modem.b01` SHA-256
+> rewrite) is **obsolete**: the ~900 s fatal is **not** a 900 s SCLK timer, and the real
+> cause — the RF task's `memcmp` of NV item 2500 vs `"HiMI_OK"` — is fixed **AP-side**
+> (`himi-ok-guard`). The patcher **has been removed from the tree** (`57024f2`). Treat the
+> "patch applied / outcome" entries below as a record of a superseded approach, not as
+> current guidance.
+
 **Date:** September 4, 2026  
 **Target Device:** Generic HMU05 (Qualcomm MSM8916 / Snapdragon 410)  
 **Test Branch:** `test/hmu05-modem-2026-09-04`  
