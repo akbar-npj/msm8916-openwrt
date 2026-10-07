@@ -1,0 +1,661 @@
+#!/bin/sh
+# Modem Bearer Stall Watchdog — LTE-Native (Android-Equivalent) Implementation
+#
+# RRC idle/connected transitions occur naturally via eNodeB inactivity timers,
+# and QMI WDS dormancy is monitored via --wds-get-dormancy-status.
+# The BAM-DMUX Phase 5 persistent-channel patch keeps DMA channels alive
+# through power collapse, eliminating the need for artificial keepalive pings.
+#
+# This watchdog detects genuine user-plane stalls (eNodeB DRB de-scheduling or
+# RF freeze) by monitoring wwan0 RX counters and WDS packet service status:
+
+LOCKFILE="/var/lock/modem-bearer.lock"
+
+# Modem remoteproc control node (used by Stage 3 SSR recovery)
+RPROC_STATE="/sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state"
+
+# Default baseline fallback values
+STALL_TIMEOUT=30
+CHECK_INTERVAL=5
+COOLDOWN_SECS=60
+KEEPALIVE_ENABLED=1
+KEEPALIVE_INTERVAL=120
+KEEPALIVE_TARGET="openwrt.org"
+
+LAST_TX=0
+LAST_RX=0
+STALL_COUNT=0
+LAST_KEEPALIVE=0
+LAST_KEEPALIVE_LOG=0
+LAST_RECOVERY=0
+RECOVERY_ATTEMPTS=0
+MAX_RECOVERY_ATTEMPTS=1
+EXTENDED_COOLDOWN_SECS=300
+RECOVERY_FAILED=0
+
+# Stuck-bearer re-drive (see the note at step 3).  A bearer that is DOWN in
+# netifd for longer than this is not a transient rebuild; re-arm it.
+BEARER_DOWN_SECS=0
+BEARER_REARM_COOLDOWN=60
+LAST_BEARER_REARM=0
+
+# Post-fatal zombie nudge (ledger §112.161, 2026-10-06).
+#
+# A modem fatal at ~902.6 s is followed by a crash-recovery restart that can land
+# the modem in a LOW-POWER ZOMBIE: DMS `shutting-down`, NAS
+# `not-registered-searching`, ModemManager "no modem object".  Measured twice on
+# 2026-10-06: a modem/SSR restart does NOT clear it (a pre-emptive SSR at AP
+# 20504 left it `shutting-down`), but `qmicli --dms-set-operating-mode=online`
+# DOES (`online` + `registered`, ~10 s, reproduced n = 2).  The old loop only
+# logged "waiting for MM to re-probe" and waited forever, so a post-fatal zombie
+# left the device without cellular until a cold reboot.
+#
+# Attempt the nudge only after the bearer has been down with NO modem object for
+# this long, and only every ZOMBIE_NUDGE_COOLDOWN seconds (bounded, so it cannot
+# churn during a genuine boot).  ⚠ This recovers the SHALLOW zombie only; the
+# DEEP one (RF `none`) does not respond (ledger §112.108 Case A).
+ZOMBIE_DOWN_SECS=0
+LAST_ZOMBIE_NUDGE=0
+ZOMBIE_NUDGE_COOLDOWN=120
+ZOMBIE_QMI_DEV="/dev/wwan0qmi0"
+
+# LAST_FATAL_COUNT lets the loop notice a NEW "fatal error received" line and log
+# it (step 1a).  A fatal is followed by a crash-recovery restart, which is what
+# can leave the modem in the post-fatal ZOMBIE handled at step 3.
+LAST_FATAL_COUNT=0
+
+# Connectivity verification: standard DNS query to carrier/configured DNS.
+#
+# RETRYING IS MANDATORY. The modem drops the FIRST uplink packet after it has been
+# RRC-idle (WDS dormancy 'traffic-channel-dormant'): that packet triggers the RRC
+# Service Request but is not delivered. Measured 2026-09-20 (Doc 147 §5.4):
+#
+#   * a single `ping -c 1` after 120 s idle gets NO reply, 5/5 rounds, even with a
+#     20 s timeout, while the very next packet always succeeds;
+#   * a 5-packet burst after 120 s idle gives 4/5 - exactly the first one lost -
+#     and dormancy then flips to 'traffic-channel-active'.
+#
+# The link is NOT stalled in that state: the modem is registered, the bearer is
+# connected and the AP has a valid address and route. A single-attempt probe
+# therefore produces a false "stall", and the old single-attempt version is what
+# drove the watchdog into Stage 2 (`ubus call network.interface.modem down`) -
+# which, before the bam-dmux fix, panicked the kernel (Doc 147 §4).
+#
+# Android never makes this mistake: TCP retransmits, and DcTracker's data-stall
+# alarm waits 60 s rather than acting on one lost probe. Do the retrying here.
+PROBE_ATTEMPTS=3
+PROBE_GAP=2
+
+# How many consecutive failed (already-retrying) probes before escalating to the
+# recovery ladder. See the note above verify_rx_connectivity().
+PROBE_FAIL_MIN=2
+PROBE_FAILS=0
+
+verify_rx_connectivity() {
+    local dns_server rx_pre rx_post attempt
+    dns_server=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@["dns-server"][0]' 2>/dev/null)
+    [ -z "$dns_server" ] && dns_server="8.8.8.8"
+
+    for attempt in 1 2 3; do
+        rx_pre=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+        nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$dns_server" >/dev/null 2>&1 || true
+        rx_post=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+        if [ "$rx_post" -gt "$rx_pre" ]; then
+            [ "$attempt" -gt 1 ] && logger -t modem-stall-watchdog \
+                "Connectivity probe recovered on attempt $attempt/$PROBE_ATTEMPTS (first-packet-after-dormancy loss, link is healthy)"
+            return 0
+        fi
+        [ "$attempt" -lt "$PROBE_ATTEMPTS" ] && sleep "$PROBE_GAP"
+    done
+    return 1
+}
+
+# --- Modem subsystem restart ---------------------------------------------------
+#
+# Android-parity clean-restart node (kernel patch 826). Writing "restart" runs
+# the stop -> power-up pair on a workqueue and returns immediately -- exactly
+# what Android's subsystem_restart framework does for
+# /sys/kernel/debug/msm_subsys/modem. Preferred over the synchronous
+# remoteproc0/state lever below, where a writer blocked inside the q6v5
+# force-stop handshake can be caught by the PMIC watchdog (ledger items
+# 45/47/48: the stop handshake bit the modem's own watchdog, and one such
+# restart reset the AP).  Used by the stall ladder's Stage 3.
+MSM_SUBSYS_RESTART="/sys/kernel/debug/msm_subsys/modem"
+
+# Restart the modem subsystem. Return 0 once it is running again, 1 if it
+# could not be restarted. Prefers the asynchronous Android-parity node and
+# falls back to the synchronous remoteproc0/state stop/start on a kernel
+# without patch 826.
+modem_restart() {
+    if [ -w "$MSM_SUBSYS_RESTART" ]; then
+        # The node counts COMPLETED restarts, and the write returns before the
+        # workqueue has even run -- so wait for the counter to move instead of
+        # waiting for the state to read "running" (it still is, right now).
+        _before=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
+        echo restart > "$MSM_SUBSYS_RESTART" 2>/dev/null || return 1
+        _k=0
+        while [ "$_k" -lt 60 ]; do
+            _now=$(cat "$MSM_SUBSYS_RESTART" 2>/dev/null)
+            [ -n "$_now" ] && [ "$_now" != "$_before" ] && break
+            sleep 1
+            _k=$((_k + 1))
+        done
+        [ "$_k" -lt 60 ] || return 1
+        return 0
+    fi
+
+    [ -f "$RPROC_STATE" ] || return 1
+    echo stop > "$RPROC_STATE" 2>/dev/null || true
+    _k=0
+    while [ "$_k" -lt 10 ]; do
+        [ "$(cat "$RPROC_STATE" 2>/dev/null)" != "running" ] && break
+        sleep 1
+        _k=$((_k + 1))
+    done
+    echo start > "$RPROC_STATE" 2>/dev/null || true
+    _k=0
+    while [ "$_k" -lt 20 ]; do
+        [ "$(cat "$RPROC_STATE" 2>/dev/null)" = "running" ] && break
+        sleep 1
+        _k=$((_k + 1))
+    done
+    return 0
+}
+
+logger -t modem-stall-watchdog "Started modem bearer stall watchdog (Android-equivalent passive mode)"
+# Configure ModemManager for 0s signal polling (unsolicited only, matching Android RIL)
+mmcli -m any --signal-setup=0 >/dev/null 2>&1 || true
+
+# Seed the fatal observer with the boot's EXISTING fatal count, so the loop
+# reports only NEW fatals -- a fatal that predates this watchdog run (e.g. before
+# a watchdog restart, or the crash that triggered a respawn) is history, not a
+# fresh event.  Log the baseline once so it is still visible.
+LAST_FATAL_COUNT=$(dmesg 2>/dev/null | grep -c "fatal error received")
+case "$LAST_FATAL_COUNT" in ''|*[!0-9]*) LAST_FATAL_COUNT=0 ;; esac
+if [ "$LAST_FATAL_COUNT" -gt 0 ]; then
+    logger -t modem-stall-watchdog "Fatal observer: ${LAST_FATAL_COUNT} pre-existing modem fatal(s) in this boot's dmesg (baseline; will report only NEW ones)."
+fi
+
+while true; do
+    # Dynamically load UCI configuration
+    ENABLED=$(uci -q get modem-watchdog.general.enabled || echo 1)
+    if [ "$ENABLED" != "1" ] || [ -f /tmp/disable_modem_watchdog ]; then
+        STALL_COUNT=0
+        sleep "$CHECK_INTERVAL"
+        continue
+    fi
+
+    STALL_TIMEOUT=$(uci -q get modem-watchdog.general.stall_timeout || echo 30)
+    CHECK_INTERVAL=$(uci -q get modem-watchdog.general.check_interval || echo 5)
+    COOLDOWN_SECS=$(uci -q get modem-watchdog.general.cooldown_seconds || echo 60)
+    KEEPALIVE_ENABLED=$(uci -q get modem-watchdog.keepalive.enabled || echo 1)
+    KEEPALIVE_INTERVAL=$(uci -q get modem-watchdog.keepalive.interval || echo 10)
+    KEEPALIVE_TARGET=$(uci -q get modem-watchdog.keepalive.target || echo "1.1.1.1")
+    BEARER_DOWN_RECOVER_SECS=$(uci -q get modem-watchdog.recovery.bearer_down_recover_secs || echo 30)
+    ZOMBIE_NUDGE_SECS=$(uci -q get modem-watchdog.recovery.zombie_nudge_secs || echo 60)
+
+    # 1. Check if modem remoteproc is running
+    RPROC=$(cat "$RPROC_STATE" 2>/dev/null)
+    if [ "$RPROC" != "running" ]; then
+        STALL_COUNT=0
+        sleep "$CHECK_INTERVAL"
+        continue
+    fi
+
+    # 1a. Fatal observer.  Count the modem's own "fatal error received" lines and
+    #     log any NEW one, so a fatal is visible in the watchdog's own log.  A
+    #     fatal is followed by a crash-recovery restart, which is what can leave
+    #     the modem in the post-fatal ZOMBIE handled at step 3 below.
+    FATAL_COUNT=$(dmesg 2>/dev/null | grep -c "fatal error received")
+    case "$FATAL_COUNT" in
+        ''|*[!0-9]*) FATAL_COUNT="$LAST_FATAL_COUNT" ;;   # unreadable: keep the old value
+    esac
+    if [ "$FATAL_COUNT" -gt "$LAST_FATAL_COUNT" ]; then
+        _new=$(dmesg 2>/dev/null | grep "fatal error received" | tail -n $((FATAL_COUNT - LAST_FATAL_COUNT)) | sed 's/.*fatal error received: *//' | tr '\n' ' ')
+        logger -t modem-stall-watchdog "MODEM FATAL OBSERVED (count ${LAST_FATAL_COUNT} -> ${FATAL_COUNT}); site(s): ${_new:-unknown}"
+    fi
+    LAST_FATAL_COUNT="$FATAL_COUNT"
+
+    # 2. BAM-DMUX runtime-PM policy.
+    #
+    #    `auto` + 1000 ms autosuspend = Android-parity dynamic power collapse:
+    #    the AP clears its SMSM_A2_POWER_CONTROL vote 1 s after the last TX,
+    #    letting the modem's A2 power down.  This is the only policy now: the old
+    #    a2_pin=1 band-aid (hold the device runtime-ACTIVE so the A2 never powers
+    #    down) is retired -- with the HiMI_OK guard, natural A2 collapse is safe
+    #    and matches Android (bam_dmux.c ul_powerdown() -> power_vote(0)).
+    BAM_CTRL="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control"
+    BAM_DELAY="/sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/autosuspend_delay_ms"
+    if [ -f "$BAM_CTRL" ] && [ "$(cat "$BAM_CTRL" 2>/dev/null)" != "auto" ]; then
+        echo auto > "$BAM_CTRL" 2>/dev/null || true
+        logger -t modem-stall-watchdog "Restored BAM-DMUX control=auto (Android-parity dynamic power collapse)"
+    fi
+    if [ -f "$BAM_DELAY" ] && [ "$(cat "$BAM_DELAY" 2>/dev/null)" != "1000" ]; then
+        echo 1000 > "$BAM_DELAY" 2>/dev/null || true
+    fi
+
+    # 3. Check if the netifd interface is up.
+    #
+    # ⚠ A down interface is NOT always transient.  netifd gates bring-up on the
+    # interface's `available` flag (`interface_set_available()`): an explicit
+    # `ubus ... up` on an UNAVAILABLE interface is a NO-OP that only records a
+    # NO_DEVICE error, and the flag is re-armed ONLY by a ModemManager `(+)`
+    # event (ModemManager-monitor -> proto_set_available 1).  If the
+    # modemmanager proto clears the flag (its `DEVICE_NOT_MANAGED` path, taken
+    # when its 5 s `mmcli` poll expires because MM is momentarily busy) while
+    # the modem OBJECT is unchanged, no further `(+)` will ever arrive and the
+    # interface stays down until something re-arms it.  Measured 2026-10-03:
+    # with the modem object present, `set_available 0` + `ubus up` leaves
+    # `up=false available=false NO_DEVICE` indefinitely (reproduced, 45 s).
+    #
+    # The normal post-SSR userspace rebuild is ~16 s (25 s outlier), so a bearer
+    # that is still down after BEARER_DOWN_RECOVER_SECS is STUCK, not transient.
+    # Re-drive it: `up` restores autostart, then re-arm `available` (the same
+    # action ModemManager-monitor uses) so netifd actually starts the proto.
+    # Only act when MM reports a modem object -- re-arming with no modem just
+    # makes the proto fail and clear the flag again (churn).  Cooldown-bounded.
+    IF_UP=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)
+    if [ "$IF_UP" != "true" ]; then
+        STALL_COUNT=0
+        BEARER_DOWN_SECS=$((BEARER_DOWN_SECS + CHECK_INTERVAL))
+        NOW=$(date +%s)
+        # Only re-drive an interface that is SUPPOSED to be up.  `ubus ...
+        # down` clears autostart, so gating on autostart respects an
+        # intentional ifdown while still catching the stuck case -- the proto's
+        # `set_available 0` does NOT clear autostart.
+        IF_AUTO=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.autostart' 2>/dev/null)
+        if [ "$IF_AUTO" = "true" ] && \
+           [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
+           [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ]; then
+            if mmcli -L 2>/dev/null | grep -q '/Modem/'; then
+                ZOMBIE_DOWN_SECS=0
+                logger -t modem-stall-watchdog "Bearer STUCK: netifd interface down ${BEARER_DOWN_SECS}s with a modem present; re-driving (up + re-arm availability)."
+                ubus call network.interface.modem up 2>/dev/null || true
+                ubus call network.interface.modem notify_proto '{"action":5,"available":true}' 2>/dev/null || true
+                LAST_BEARER_REARM=$NOW
+            else
+                logger -t modem-stall-watchdog "Bearer down ${BEARER_DOWN_SECS}s and ModemManager reports no modem object; waiting for MM to re-probe."
+                # Post-fatal ZOMBIE recovery (ledger §112.161, 2026-10-06).
+                #
+                # Measured 2026-10-06: after a fatal's crash-recovery restart the
+                # device can enter a TWO-LAYER zombie — (1) ModemManager is not on
+                # the bus (`mmcli -L` → "couldn't find the ModemManager process in
+                # the bus"; procd does NOT respawn a daemon that died without
+                # exiting) and (2) the modem is stuck in DMS `shutting-down`.
+                # Neither a modem/SSR restart nor either fix ALONE restores the
+                # bearer: measured, the QMI nudge alone left the bearer down, and
+                # the MM restart alone is not enough while the modem is
+                # `shutting-down`.  Recover BOTH.  The old loop only logged and
+                # waited forever, so a post-fatal zombie left the device without
+                # cellular until a cold reboot.  Cooldown-bounded; ⚠ recovers the
+                # SHALLOW zombie only (RF alive) — the DEEP one (RF `none`) does
+                # not respond (ledger §112.108 Case A).
+                ZOMBIE_DOWN_SECS=$((ZOMBIE_DOWN_SECS + CHECK_INTERVAL))
+                if [ "$ZOMBIE_DOWN_SECS" -ge "$ZOMBIE_NUDGE_SECS" ] && \
+                   [ $((NOW - LAST_ZOMBIE_NUDGE)) -ge "$ZOMBIE_NUDGE_COOLDOWN" ]; then
+                    if mmcli -L 2>&1 | grep -q "couldn't find the ModemManager"; then
+                        logger -t modem-stall-watchdog "ZOMBIE: ModemManager not on the bus; restarting modemmanager service"
+                        /etc/init.d/modemmanager restart >/dev/null 2>&1 || true
+                        sleep 5
+                    fi
+                    ZOMBIE_MODE=$(qmicli -d "$ZOMBIE_QMI_DEV" --dms-get-operating-mode 2>/dev/null | sed -n "s/.*Mode: '\(.*\)'/\1/p")
+                    case "$ZOMBIE_MODE" in
+                        shutting-down|offline|low-power|persistent-low-power)
+                            logger -t modem-stall-watchdog "ZOMBIE: DMS mode '${ZOMBIE_MODE}'; attempting --dms-set-operating-mode=online"
+                            qmicli -d "$ZOMBIE_QMI_DEV" --dms-set-operating-mode=online >/dev/null 2>&1 || true ;;
+                        *)
+                            logger -t modem-stall-watchdog "ZOMBIE: DMS mode '${ZOMBIE_MODE:-unknown}'; modem already online, no nudge" ;;
+                    esac
+                    LAST_ZOMBIE_NUDGE=$NOW
+                    ZOMBIE_DOWN_SECS=0
+                fi
+            fi
+        fi
+        sleep "$CHECK_INTERVAL"
+        continue
+    fi
+    BEARER_DOWN_SECS=0
+
+    # 4. Initialize counters on first run; do not poll QMI WDS during idle to preserve DRX sleep
+    NOW=$(date +%s)
+
+    # 5. Check traffic counters
+    CUR_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
+    CUR_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+
+    # Initialize counters on first run
+    if [ "$LAST_TX" -eq 0 ] && [ "$LAST_RX" -eq 0 ]; then
+        LAST_TX="$CUR_TX"
+        LAST_RX="$CUR_RX"
+        sleep "$CHECK_INTERVAL"
+        continue
+    fi
+
+    DELTA_TX=$((CUR_TX - LAST_TX))
+    DELTA_RX=$((CUR_RX - LAST_RX))
+
+    LAST_TX="$CUR_TX"
+    LAST_RX="$CUR_RX"
+
+    # Stall accumulation & keepalive logic:
+    if [ "$DELTA_RX" -gt 0 ]; then
+        # Actual incoming packets received: link healthy, reset stall counter
+        STALL_COUNT=0
+        PROBE_FAILS=0
+    elif [ "$DELTA_TX" -gt 0 ]; then
+        # Outgoing packets sent, but zero incoming packets received: accumulate stall duration
+        STALL_COUNT=$((STALL_COUNT + CHECK_INTERVAL))
+        logger -t modem-stall-watchdog "Unbalanced traffic detected: TX+$DELTA_TX, RX+$DELTA_RX (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
+
+        if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
+            # Verify if connectivity is actually stalled before taking action (non-ping DNS query)
+            if verify_rx_connectivity; then
+                logger -t modem-stall-watchdog "Connectivity probe succeeded and RX incremented; clearing stall counter."
+                STALL_COUNT=0
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+        fi
+    else
+        # DELTA_TX == 0 and DELTA_RX == 0: No new packets exchanged during this check interval
+        if [ "$STALL_COUNT" -gt 0 ]; then
+            # A stall is already in progress: continue accumulating stall duration until resolved
+            STALL_COUNT=$((STALL_COUNT + CHECK_INTERVAL))
+            logger -t modem-stall-watchdog "Pending stall continuing: zero RX observed (stall duration: ${STALL_COUNT}s/${STALL_TIMEOUT}s)"
+            if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
+                # Verify if connectivity is actually stalled before taking action
+                if verify_rx_connectivity; then
+                    logger -t modem-stall-watchdog "Connectivity probe succeeded and RX incremented; clearing stall counter."
+                    STALL_COUNT=0
+                    sleep "$CHECK_INTERVAL"
+                    continue
+                fi
+            fi
+        fi
+
+        # 6. Low-overhead Android-equivalent carrier keepalive (Option B: non-ping)
+        # Emulates Android DcTracker DataStallAlarm: refreshes RRC carrier context
+        # during idle periods via standard DNS + QMI NAS telemetry
+        if [ "$KEEPALIVE_ENABLED" = "1" ] && [ ! -f /tmp/disable_modem_keepalive ]; then
+            if [ $((NOW - LAST_KEEPALIVE)) -ge "$KEEPALIVE_INTERVAL" ]; then
+                LAST_KEEPALIVE="$NOW"
+                DNS_SERVER=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@["dns-server"][0]' 2>/dev/null)
+                [ -z "$DNS_SERVER" ] && DNS_SERVER="8.8.8.8"
+                RX_PRE=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                nslookup "${KEEPALIVE_TARGET:-openwrt.org}" "$DNS_SERVER" >/dev/null 2>&1 || true
+                RX_POST=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+                if [ $((NOW - LAST_KEEPALIVE_LOG)) -ge 60 ]; then
+                    LAST_KEEPALIVE_LOG="$NOW"
+                    if [ "$RX_POST" -gt "$RX_PRE" ]; then
+                        logger -t modem-keepalive "Option B Keepalive: Carrier RRC active (RX: $RX_PRE -> $RX_POST) via DNS to $DNS_SERVER"
+                    else
+                        logger -t modem-keepalive "Option B Keepalive: Carrier RRC probe sent via DNS to $DNS_SERVER"
+                    fi
+                fi
+                [ "$RX_POST" -gt "$RX_PRE" ] && LAST_RX="$RX_POST"
+                LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
+            fi
+        fi
+    fi
+
+    if [ "$STALL_COUNT" -ge "$STALL_TIMEOUT" ]; then
+
+            # Require the connectivity probe to fail PROBE_FAIL_MIN times in a row
+            # before touching the bearer. A single failed probe is not evidence of
+            # a stall - the modem drops the first uplink packet after every idle
+            # period (Doc 147 §5.4). Only a link that is still dead after several
+            # independent, individually-retrying probes is worth escalating on.
+            if verify_rx_connectivity; then
+                logger -t modem-stall-watchdog "Connectivity probe succeeded at the escalation gate; link is healthy, clearing stall counter."
+                PROBE_FAILS=0
+                STALL_COUNT=0
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+            PROBE_FAILS=$((PROBE_FAILS + 1))
+            if [ "$PROBE_FAILS" -lt "$PROBE_FAIL_MIN" ]; then
+                logger -t modem-stall-watchdog "Probe failed (${PROBE_FAILS}/${PROBE_FAIL_MIN}) - not escalating yet; a lost first packet after dormancy looks identical to a stall."
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+            logger -t modem-stall-watchdog "Probe failed ${PROBE_FAILS} times consecutively; treating as a genuine stall."
+
+            # Check cooldown period and attempt limit
+            NOW=$(date +%s)
+            if [ $((NOW - LAST_RECOVERY)) -lt "$COOLDOWN_SECS" ]; then
+                logger -t modem-stall-watchdog "Recovery skipped: within cooldown period ($((NOW - LAST_RECOVERY))s < ${COOLDOWN_SECS}s)"
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
+
+            if [ "$RECOVERY_FAILED" = "1" ]; then
+                # Recovery already attempted and failed; enforce extended cooldown (300s)
+                if [ $((NOW - LAST_RECOVERY)) -lt "$EXTENDED_COOLDOWN_SECS" ]; then
+                    logger -t modem-stall-watchdog "Recovery halted (persistent zero RX): within extended cooldown ($((NOW - LAST_RECOVERY))s < ${EXTENDED_COOLDOWN_SECS}s)"
+                    sleep "$CHECK_INTERVAL"
+                    continue
+                else
+                    # Reset failure flag after extended cooldown to permit one fresh attempt
+                    RECOVERY_FAILED=0
+                    RECOVERY_ATTEMPTS=0
+                fi
+            fi
+
+            # Execute recovery under shared lock (preserve variables in main shell)
+            exec 200>"$LOCKFILE"
+            flock -x 200
+
+                # 1. Capture comprehensive NAS serving-cell, system, and signal telemetry
+                WDS_DORMANCY=$(qmicli -p -d /dev/wwan0qmi0 --wds-get-dormancy-status 2>/dev/null | awk -F"'" '/Dormancy Status:/ {print $2}')
+                CELL_ID=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info 2>/dev/null | awk -F"'" '/Global Cell ID:/ {print $2}')
+                PHYS_CELL=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info 2>/dev/null | awk -F"'" '/Physical Cell ID:/ {print $2}' | head -n 1)
+                EARFCN=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-cell-location-info 2>/dev/null | awk -F"'" '/Absolute RF Channel Number:/ {print $2}')
+                SIG_RSRP=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info 2>/dev/null | awk -F"'" '/RSRP:/ {print $2}')
+                SIG_SNR=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-info 2>/dev/null | awk -F"'" '/SNR:/ {print $2}')
+                PREF_PATH=$(qmicli -p -d /dev/wwan0qmi0 --nas-get-system-info 2>/dev/null | awk -F"'" '/Preferred data path:/ {print $2}' | head -n 1)
+                BEARER_ID=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.bearers/ {print $2}' | tr -d ' \r\n')
+
+                logger -t modem-stall-watchdog "User-plane stall confirmed (${STALL_COUNT}s). Telemetry: WDS dormancy='${WDS_DORMANCY:-unknown}', Cell ID='${CELL_ID:-unknown}', PhysCell='${PHYS_CELL:-unknown}', EARFCN='${EARFCN:-unknown}', RSRP='${SIG_RSRP:-unknown}', SNR='${SIG_SNR:-unknown}', PrefDataPath='${PREF_PATH:-unknown}', Bearer='${BEARER_ID:-none}', TX=$CUR_TX, RX=$CUR_RX"
+
+                # 2. Stage 1: Command modem dormancy (wds-go-dormant) to reset traffic channel
+                logger -t modem-stall-watchdog "Stage 1 recovery: executing 'qmicli -p -d /dev/wwan0qmi0 --wds-go-dormant' to reset RRC channel..."
+                GO_DORMANT_RES=$(qmicli -p -d /dev/wwan0qmi0 --wds-go-dormant 2>&1)
+                GO_DORMANT_RC=$?
+                logger -t modem-stall-watchdog "Result of wds-go-dormant: rc=$GO_DORMANT_RC, output='${GO_DORMANT_RES}'"
+                sleep 1
+
+                # Wait for RX recovery after wds-go-dormant cycle
+                WAKE_RECOVERED=0
+                i=0
+                while [ "$i" -lt 6 ]; do
+                    sleep 1
+                    if verify_rx_connectivity; then
+                        WAKE_RECOVERED=1
+                        break
+                    fi
+                    i=$((i + 1))
+                done
+
+                if [ "$WAKE_RECOVERED" -eq 1 ]; then
+                    logger -t modem-stall-watchdog "Stage 1 SUCCESS: RX traffic successfully recovered via wds-go-dormant. No network teardown required."
+                    STALL_COUNT=0
+                    RECOVERY_ATTEMPTS=0
+                    RECOVERY_FAILED=0
+                else
+                    # 3. Stage 2: Emulate Android's data-call deactivation
+                    logger -t modem-stall-watchdog "Stage 1 insufficient (RX remained frozen). Escalating to Stage 2: emulating clean data-call deactivation..."
+
+                    # 3a. Disconnect netifd first to take control and stop auto-restart loop
+                    ubus call network.interface.modem down
+
+                    # Wait for netifd teardown
+                    i=0
+                    while [ "$i" -lt 15 ]; do
+                        st=$(ubus call network.interface.modem status 2>/dev/null)
+                        u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
+                        p=$(echo "$st" | jsonfilter -e '@.pending' 2>/dev/null)
+                        [ "$u" = "false" ] && [ "$p" = "false" ] && break
+                        sleep 1
+                        i=$((i + 1))
+                    done
+
+                    # 3b. Stop the specific WDS data bearer(s) in ModemManager
+                    INIT_BEARER=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.3gpp.eps.initial-bearer/ {print $2}' | tr -d ' \r\n')
+                    for b in $(mmcli -m any --output-keyvalue 2>/dev/null | grep -o '/org/freedesktop/ModemManager1/Bearer/[0-9]*'); do
+                        if [ -n "$INIT_BEARER" ] && [ "$b" = "$INIT_BEARER" ]; then
+                            continue
+                        fi
+                        logger -t modem-stall-watchdog "Disconnecting specific WDS bearer: $b"
+                        mmcli -b "$b" --disconnect 2>/dev/null || true
+                        # 3c. Delete the old ModemManager bearer object
+                        logger -t modem-stall-watchdog "Deleting obsolete ModemManager bearer: $b"
+                        mmcli -m any --delete-bearer="$b" 2>/dev/null || true
+                    done
+
+                    # 3c-WAIT: Confirm all non-initial bearers are gone from ModemManager's D-Bus
+                    # object tree before calling ifup. Without this, ModemManager may route QMI
+                    # WDS_STOP_NETWORK_RESP to the stale WDS client handle of the old bearer while
+                    # the new bearer is waiting for WDS_START_NETWORK_RESP — the classic "commands
+                    # issued to wrong bearer" stall race condition.
+                    i=0
+                    while [ "$i" -lt 10 ]; do
+                        remaining=$(mmcli -m any --output-keyvalue 2>/dev/null | grep -c '/org/freedesktop/ModemManager1/Bearer/[0-9]*' || echo 0)
+                        init_count=0
+                        [ -n "$INIT_BEARER" ] && init_count=1
+                        expected_max=$init_count
+                        if [ "$remaining" -le "$expected_max" ]; then
+                            logger -t modem-stall-watchdog "All stale bearers removed ($remaining remaining). Proceeding with ifup."
+                            break
+                        fi
+                        logger -t modem-stall-watchdog "Waiting for bearer cleanup ($remaining bearers still active, expect <=$expected_max)..."
+                        sleep 1
+                        i=$((i + 1))
+                    done
+
+                    # 3d. Wait for the old IP/context to disappear
+                    ip -4 addr flush dev wwan0 2>/dev/null || true
+                    sleep 2
+
+                    # 3e. Create exactly one new bearer via netifd
+                    logger -t modem-stall-watchdog "Creating exactly one new bearer via netifd ifup..."
+                    ubus call network.interface.modem up
+
+                    # Wait for netifd bringup
+                    i=0
+                    while [ "$i" -lt 25 ]; do
+                        st=$(ubus call network.interface.modem status 2>/dev/null)
+                        u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
+                        [ "$u" = "true" ] && break
+                        sleep 1
+                        i=$((i + 1))
+                    done
+
+                    # 3f. Verify RX traffic before declaring recovery
+                    NEW_BEARER=$(mmcli -m any --output-keyvalue 2>/dev/null | awk -F': ' '/modem.generic.bearers/ {print $2}' | tr -d ' \r\n')
+                    NEW_IP=$(ip -4 addr show dev wwan0 2>/dev/null | awk '/inet / {print $2}')
+                    logger -t modem-stall-watchdog "New bearer created: Bearer='${NEW_BEARER:-none}', IP='${NEW_IP:-none}'. Verifying RX traffic..."
+
+                    RX_RESTORED=0
+                    i=0
+                    while [ "$i" -lt 10 ]; do
+                        sleep 1
+                        if verify_rx_connectivity; then
+                            RX_RESTORED=1
+                            break
+                        fi
+                        i=$((i + 1))
+                    done
+
+                    if [ "$RX_RESTORED" -eq 1 ]; then
+                        logger -t modem-stall-watchdog "Stage 2 SUCCESS: RX traffic successfully restored on new bearer ($NEW_BEARER)."
+                        RECOVERY_ATTEMPTS=0
+                        RECOVERY_FAILED=0
+                        STALL_COUNT=0
+                    else
+                        logger -t modem-stall-watchdog "Stage 2 INSUFFICIENT: RF receiver frozen (RX remains 0). Escalating to Stage 3: Remoteproc SSR reset..."
+
+                        # Capture diagnostic snapshot before SSR
+                        {
+                            echo "=== MODEM STALL PRE-SSR DIAGNOSTIC CAPTURE ==="
+                            echo "Timestamp: $(date)"
+                            echo "Uptime: $(uptime)"
+                            echo "--- REMOTECPROC STATE ---"
+                            cat /sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state 2>/dev/null
+                            echo "--- WDS PACKET STATISTICS ---"
+                            qmicli -p -d /dev/wwan0qmi0 --wds-get-packet-statistics 2>/dev/null
+                            echo "--- MODEMMANAGER STATUS ---"
+                            mmcli -m any 2>/dev/null
+                        } > /tmp/modem_stall_diagnostics.log 2>&1
+
+                        # Disconnect netifd first
+                        ubus call network.interface.modem down 2>/dev/null || true
+
+                        # Stage 3: remoteproc SSR.
+                        # This is Android parity. Stock bam_dmux.c calls ssrestart_check() ->
+                        # subsystem_restart("modem") from 10 call sites, every one of them an
+                        # A2 power-collapse handshake timeout (UL_WAKEUP_TIMEOUT_MS = 2000).
+                        # Android therefore never lets a failed A2 handshake accumulate - it
+                        # resets the modem instead. Without that, the modem's sleep chain
+                        # stalls in rpm.sync and the firmware's own watchdog kills it with
+                        # "UT detects Q6 PC Voting failure" (surfaced as a2_power.c:1189).
+                        if [ "$(uci -q get modem-watchdog.recovery.ssr_enabled || echo 1)" = "1" ] && { [ -w "$MSM_SUBSYS_RESTART" ] || [ -f "$RPROC_STATE" ]; }; then
+                            logger -t modem-stall-watchdog "Stage 3 recovery: modem restart (stop -> start)..."
+                            modem_restart
+                            logger -t modem-stall-watchdog "Modem restart complete (state=$(cat "$RPROC_STATE" 2>/dev/null)); waiting for modem services..."
+                            sleep 10
+                        else
+                            logger -t modem-stall-watchdog "Stage 3 SSR disabled (modem-watchdog.recovery.ssr_enabled=0 or no restart lever present); preserving state."
+                        fi
+
+                        # Bring the bearer back up explicitly (the interface was taken down above).
+                        ubus call network.interface.modem up 2>/dev/null || true
+
+                        # Wait for netifd bringup (up to 25s)
+                        i=0
+                        while [ "$i" -lt 25 ]; do
+                            st=$(ubus call network.interface.modem status 2>/dev/null)
+                            u=$(echo "$st" | jsonfilter -e '@.up' 2>/dev/null)
+                            [ "$u" = "true" ] && break
+                            sleep 1
+                            i=$((i + 1))
+                        done
+
+                        # Verify RX traffic post-SSR
+                        RX_RESTORED=0
+                        i=0
+                        while [ "$i" -lt 10 ]; do
+                            sleep 1
+                            if verify_rx_connectivity; then
+                                RX_RESTORED=1
+                                break
+                            fi
+                            i=$((i + 1))
+                        done
+
+                        if [ "$RX_RESTORED" -eq 1 ]; then
+                            logger -t modem-stall-watchdog "Stage 3 SUCCESS: Remoteproc SSR restored RX traffic successfully."
+                            RECOVERY_ATTEMPTS=0
+                            RECOVERY_FAILED=0
+                            STALL_COUNT=0
+                        else
+                            RECOVERY_ATTEMPTS=$((RECOVERY_ATTEMPTS + 1))
+                            logger -t modem-stall-watchdog "Stage 3 INSUFFICIENT: RX remains 0 even after SSR (attempt $RECOVERY_ATTEMPTS/$MAX_RECOVERY_ATTEMPTS)."
+                            if [ "$RECOVERY_ATTEMPTS" -ge "$MAX_RECOVERY_ATTEMPTS" ]; then
+                                RECOVERY_FAILED=1
+                                logger -t modem-stall-watchdog "HALTING further recovery attempts to prevent churn. Preserving diagnostic telemetry."
+                            fi
+                        fi
+                    fi
+                fi
+            flock -u 200
+
+            LAST_RECOVERY=$(date +%s)
+            LAST_TX=$(cat /sys/class/net/wwan0/statistics/tx_packets 2>/dev/null || echo 0)
+            LAST_RX=$(cat /sys/class/net/wwan0/statistics/rx_packets 2>/dev/null || echo 0)
+            STALL_COUNT=0
+            PROBE_FAILS=0
+            sleep 5
+        fi
+
+    sleep "$CHECK_INTERVAL"
+done
