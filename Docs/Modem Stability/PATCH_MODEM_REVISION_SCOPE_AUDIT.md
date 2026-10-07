@@ -39,10 +39,10 @@ fixed peripheral window, so an address grep alone proves nothing):
 V2.0 carries the **same latent code defect**.
 
 **But code-identity is necessary, not sufficient, for exposure.** The fatal is a
-runtime condition, not a code property — see the correction under
-*Consequence worth flagging*. This distinction is the whole point: the AP-side patches
-are not coupled to a modem behaviour that *differs* by revision, but neither does
-identical code imply the fatal actually fires on the other board.
+runtime condition, not a code property — see *Correction (2026-10-07)* below. This
+distinction is the whole point: the AP-side patches are not coupled to a modem
+behaviour that *differs* by revision, but neither does identical code imply the fatal
+actually fires on the other board (it does not — UFI001B ran 12 h+ with a bearer).
 
 ---
 
@@ -128,13 +128,11 @@ present.
 4. **Everything else** — leave target-wide; the AP-side and SoC fixes are
    modem-revision-agnostic.
 
-### Correction (2026-10-07) — UFI001B exposure is UNPROVEN, not "likely"
+### Correction (2026-10-07) — UFI001B does NOT manifest the fatal (strong negative)
 
 An earlier draft of this section said UFI001B is **"likely exposed"** to the same
 `a2_power.c:1189` fatal as HMU05 once it carries a data bearer. **That was an
-over-claim** — it inferred exposure from code-identity alone. The empirical record
-points the other way: **UFI001B has run for hours without any crash**, on a build
-without the recent bam-dmux patches.
+over-claim** — it inferred exposure from code-identity alone.
 
 Exposure is a **runtime condition**, not a code property. The fatal requires *all* of:
 
@@ -148,15 +146,22 @@ bearer UP and `control=auto`**. Without traffic the A2 does not cycle and the fa
 does not appear — which is exactly why the §112.170 "`a2_pin=0` is safe" verdict was
 drawn without data and later retracted.
 
-So UFI001B's clean run means either (a) the soak did not meet those conditions (no
-sustained data bearer, or an older image whose driver never runtime-suspended), or
-(b) V2.0's runtime timing avoids the race despite the identical code. Either way there
-is **no basis to extend the HMU05 pin-hold to UFI001B.**
+**The empirical evidence is a decisive negative.** UFI001B ran **12 h+ with a data
+bearer up and traffic** — the exact condition that kills HMU05 — and did **not** crash.
+At HMU05's rate (≈1 fatal / 98 s) a 12 h run predicts **hundreds** of fatals; **zero**
+were observed. So UFI001B's manifestation rate is < ~0.2 % of HMU05's, i.e. effectively
+zero *as tested*.
 
-**Recommendation: do NOT extend `modem-a2-hold` to UFI001B.** If exposure must be
-settled, run a *controlled* soak — UFI001B, **data bearer up**, `control=auto`, with
-telemetry on `pc_vote`/`pc_unvote` and `a2_power` fatals (the same instrumentation that
-measured the HMU05 rate). Absent that, treat UFI001B as **untested**, not exposed.
+**Residual confound:** that run was on a build **without the recent bam-dmux patches**.
+If any of those changed the A2 runtime-suspend behaviour (e.g. made the device suspend
+where it previously stayed active), the comparison is not apples-to-apples. The
+definitive test would be the **current** image on UFI001B (bearer up, `control=auto`,
+with `pc_vote`/`a2_power` telemetry) — but the practical call does not wait on it.
+
+**Recommendation: do NOT extend `modem-a2-hold` to UFI001B.** The clean 12 h run is
+strong evidence it does not need it. Read the revision difference as a **runtime
+behavioural** one — V2.0 does not hit the race despite the identical A2 code — not as a
+missing-workaround.
 
 ---
 
