@@ -38,7 +38,7 @@ Two facts make this a *recurring* failure rather than a one-off:
 
 The ~900 s figure decomposes as **~300 s anchor + 600 s wait ≈ 900 s** (modem clock).
 
-This mechanism was proven causally by a single-constant A/B (see §3): changing the wait
+This mechanism was proven causally by a single-constant A/B (§112.162): changing the wait
 from `600000` ms to `60000` ms moved *both* the "stoped" message *and* the fatal from
 ~900 s to **360.687 s**.
 
@@ -65,14 +65,107 @@ later. It also carries every cost of touching the baseband:
   after the hash table; a wrong segment hash makes the modem die with
   `MPSS authentication failed: -19`. (Related trap: editing some `modem.bNN` *files* breaks
   auth even when `b01` hashes verify.)
-- **Lost on firmware restore.** `sysupgrade -n` restores the baseband from the 64 MB `modem`
-  partition via `msm-firmware-dumper`, silently reverting the patch.
-- **Not board-gated in software.** It is a property of the flashed firmware image, not of
-  the OS build.
+- **Lost on firmware restore — but re-appliable.** `sysupgrade -n` restores the baseband from
+  the 64 MB `modem` partition via `msm-firmware-dumper`, silently reverting the patch. It can
+  be made to **survive** `sysupgrade` by re-applying it automatically — see **§3**.
+- **Not board-gated in software by itself.** As a raw byte change it is a property of the
+  flashed image; the §3 hook adds a board gate.
 
 ---
 
-## 3. Option B — pure-software `himi-ok-guard` (CHOSEN)
+## 3. Making the modem binary patch survive `sysupgrade` (Option A, if you choose it)
+
+> This section exists so that a user who deliberately wants the **binary-patch** route has the
+> wiring to make it survive a firmware reflash. The **shipped** choice is still Option B (§4).
+> The retired implementation is recoverable from git — `git show 57024f2^:packages/msm-firmware-dumper/src/hmu05-patch-modem.c`.
+
+**The problem.** `/lib/firmware` is **not** in the sysupgrade image — it lives on the writable
+**overlay**. On the HMU05 the modem blobs are *dumped from the device's own `modem` partition*
+by `msm-firmware-dumper` on first boot. A `sysupgrade -n` (no keep-config) wipes the overlay,
+so `/lib/firmware` is re-created from the stock `modem` partition on the next boot. Any bytes
+you patched by hand are therefore **lost** — unless the patch is **re-applied automatically**
+each time the firmware is (re)provisioned.
+
+**The mechanism the project used before** (retired in `57024f2`). Instead of trying to make
+the patched bytes persist, the old `hmu05-patch-modem` patcher was **re-run on every
+provisioning**:
+
+1. A small HMU05-gated C program installed at **`/usr/sbin/hmu05-patch-modem`**, built by
+   `packages/msm-firmware-dumper/Makefile` (`Build/Compile` →
+   `$(TARGET_CC) … -o hmu05-patch-modem hmu05-patch-modem.c`; installed in `Package/…/install`).
+2. **Hook 1 — the dumper.** `packages/msm-firmware-dumper/files/msm-firmware-dumper.sh` calls
+   it right after it finishes copying the blobs into `/lib/firmware` and just before `sync`:
+   ```sh
+   if [ -x /usr/sbin/hmu05-patch-modem ]; then
+     /usr/sbin/hmu05-patch-modem "$FW" && log "HMU05 modem patch check completed"
+   fi
+   ```
+3. **Hook 2 — first boot.** `msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot` calls
+   it as belt-and-braces:
+   ```sh
+   if [ -x /usr/sbin/hmu05-patch-modem ]; then
+       /usr/sbin/hmu05-patch-modem /lib/firmware
+   fi
+   ```
+
+Because the dumper is a **one-shot guarded by the `/lib/firmware/DUMPED` marker**, the sequence
+after a `sysupgrade -n` is: overlay wiped → marker gone → dumper re-dumps stock blobs from the
+`modem` partition → **patcher re-applies the patch + re-signs** → marker set → reboot → the
+modem loads the patched image. The patch "survives" because it is **re-derived** on every
+provisioning, not because the bytes persist.
+
+**What the patcher did — the structure to copy:**
+
+1. **Gate on the board** — `is_hmu05_board()` checks `/tmp/sysinfo/board_name`,
+   `/proc/device-tree/model`, `/proc/device-tree/compatible`; exit 0 otherwise.
+2. **Locate** `modem.b16`, `modem.mdt`, `modem.b01` under the firmware dir (`argv[1]`, default
+   `/lib/firmware`); exit 0 if any is absent.
+3. **Idempotency** — if the patch site already holds the patched bytes, exit 0 (so re-runs are
+   free and the two hooks can both fire).
+4. **Patch `modem.b16` in place.**
+5. **Re-sign** — recompute SHA-256 of the patched `modem.b16` and write it into the segment
+   hash table (below).
+6. Return; the caller does `sync`.
+
+**Adapting it for Option A.** The retired patcher wrote the *retracted* No-Sleep bytes at
+`modem.b16` file offset `0x001117e0`. For the imei-wait deferral you change **step 4** only,
+and keep **step 5**:
+
+| | Retired (No-Sleep) | **Option A (imei wait)** |
+|---|---|---|
+| `modem.b16` file offset | `0x001117e0` | `0xc0d5f160 − 0xc0287000 = 0x00AD8160` |
+| stock bytes | — | `9f 64 00 00 00 c0 00 78` (`r0 = ##0x927c0` = 600000 ms) |
+| patched bytes | `00 c4 00 78 00 c0 9f 52` | `ff 7f ff 07 e0 c7 00 78` (`r0 = ##0x7fffffff` = 0x7fffffff ms) |
+
+**Re-signing (identical for both).** The firmware uses a per-segment SHA-256 table.
+`modem.mdt = modem.b00 ‖ modem.b01` and `len(modem.b00) = 916 (0x394)`. Segment *n*'s hash
+lives at `modem.b01 + 0x28 + 32·n`, i.e. `modem.mdt + 0x3bc + 32·n`. Since Option A changes
+only segment **16** (`modem.b16`):
+
+- `modem.b01` @ `0x0228` (`0x28 + 32·16`) ← SHA-256(patched `modem.b16`)
+- `modem.mdt` @ `0x05bc` (`0x394 + 0x228`) ← the same 32 bytes
+
+(The retired patcher wrote exactly these two offsets; the current Option-A builder
+`scratch/build_imei_wait.py` writes `b01 @ 0x228` and rebuilds `modem.mdt = b00 ‖ b01` — the
+same table. It additionally re-hashes segment **5** because the deployed test base image also
+carried a `modem.b05` change; on a **clean stock base only segment 16 changes**.)
+
+**Caveats.**
+
+- **MPSS auth.** `modem.b01` carries an RSA signature + certificate chain after the hash table.
+  A wrong hash — or editing a segment you did not re-hash — makes the modem die with
+  `MPSS authentication failed: -19`. Always re-hash **every** segment you changed.
+- **Keep the idempotency check in sync** with the patch bytes, or a re-run double-applies.
+- **The retired code is recoverable**: `git show 57024f2^:packages/msm-firmware-dumper/src/hmu05-patch-modem.c`,
+  and the `Makefile` / `msm-firmware-dumper.sh` / `99-msm89xx-firstboot` wiring in the `57024f2`
+  diff. Re-adding it means restoring the `Makefile` build+install and the two hooks above.
+- **Do not ship it on a device-agnostic branch.** The reason it was removed (`57024f2`) is that
+  `staging-main`/`main` are device-agnostic and must not carry a baseband patcher; if you go this
+  route, keep it HMU05-gated (the patcher already gates itself).
+
+---
+
+## 4. Option B — pure-software `himi-ok-guard` (CHOSEN)
 
 Rewrite NV item 2500 to `"HiMI_OK"` from the AP shortly after every modem boot. The RF
 task's `memcmp` then passes and **the deadline never arms** — the root cause is removed,
@@ -104,14 +197,14 @@ the modem clears the item again. Steady-state cost is one NV read per cycle.
 
 ---
 
-## 4. Comparison
+## 5. Comparison
 
 | Dimension | **A** — firmware binary patch | **B** — `himi-ok-guard` (chosen) |
 |---|---|---|
 | Nature | **Deferral** (deadline → ~24.9 days) | **Root-cause** (deadline never arms) |
 | Modifies baseband? | Yes (`modem.b16` + re-sign `b01`/`mdt`) | **No** |
 | MPSS-auth risk | Yes | **No** |
-| Survives `sysupgrade -n`? | No (firmware restored) | **Yes** (in the image) |
+| Survives `sysupgrade -n`? | Not by itself — **only with the §3 dumper/firstboot re-apply hook** | **Yes** (in the image; nothing to re-apply) |
 | Board scope | Flashed image (per-device) | **HMU05-gated init** (others untouched) |
 | Reversible? | Re-flash stock firmware | `uci set …himi_ok_enabled=0` |
 | Verified by | §112.162 A/B + §112.171 hash | §112.169 + §112.170 A/B |
@@ -119,7 +212,7 @@ the modem clears the item again. Steady-state cost is one NV read per cycle.
 
 ---
 
-## 5. Decision and rationale
+## 6. Decision and rationale
 
 **Chosen: Option B — the pure-software `himi-ok-guard`.**
 
@@ -129,8 +222,10 @@ the modem clears the item again. Steady-state cost is one NV read per cycle.
 2. **No baseband modification ⇒ no MPSS-auth exposure.** The project's standing rule is to
    never blind-patch a baseband. B needs no re-signing and cannot trip the
    `MPSS authentication failed: -19` trap.
-3. **It survives `sysupgrade`.** B lives in `base-files` inside the image and is re-enabled
-   by `97-himi-ok`; A is silently reverted by any `sysupgrade -n` / firmware restore.
+3. **It survives `sysupgrade` inherently.** B lives in `base-files` inside the image and is
+   re-enabled by `97-himi-ok`, with nothing to re-apply. A is reverted by any `sysupgrade -n`
+   / firmware restore and only survives if you also re-add the §3 re-apply hook — which itself
+   re-introduces a baseband patcher into a device-agnostic branch.
 4. **Gated and reversible.** The init is `board_name`-gated to `*hmu05*`, so no other board
    is affected, and it can be disabled with a single UCI key.
 5. **Android parity.** With the guard, `a2_pin=0` is safe, matching the stock Android
@@ -142,7 +237,7 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
 
 ---
 
-## 6. Operational notes
+## 7. Operational notes
 
 - The guard's deadline-relevant work happens in the window before the RF task reads item
   2500 (modem-up ~299 s on the test image); the default 20 s interval leaves ample margin.
@@ -153,7 +248,7 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
 
 ---
 
-## 7. SOP compliance statement
+## 8. SOP compliance statement
 
 - **Firmware modification:** none in the shipped fix. The baseband was **not** modified for
   Option B; the guard is AP-side userspace only.
@@ -170,10 +265,12 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
 - **Errors caught:** the guard was initially test-only and a plain flash regressed it
   (§112.171) — recorded and corrected by promoting it into the image; and an earlier
   cold-vs-warm reading of the gate was corrected to `a2_pin` (§112.170).
+- **Retired patcher:** the §3 re-apply mechanism is documented from the git history of the
+  removed `hmu05-patch-modem` (`57024f2`); it was **not** re-added to the tree.
 
 ---
 
-## 8. Achieved vs Expected
+## 9. Achieved vs Expected
 
 | Goal | Expected | Achieved |
 |---|---|---|
@@ -186,7 +283,7 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
 
 ---
 
-## 9. Evidence pointers
+## 10. Evidence pointers
 
 - **§112.162** — decisive A/B: the one-constant change that moved the fatal.
 - **§112.165–§112.168** — the `memcmp` / NV-item-2500 root cause.
@@ -197,3 +294,6 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
   `msm89xx/base-files/etc/init.d/himi-ok`,
   `msm89xx/base-files/etc/uci-defaults/97-himi-ok`;
   Option A tooling `scratch/build_imei_wait.py`, `scratch/patch_imei_max/`.
+- **Retired Option-A wiring (survive-`sysupgrade` hook, §3):** commit `57024f2` (removal) and
+  its parent `57024f2^` (the `hmu05-patch-modem.c` source, `Makefile`, `msm-firmware-dumper.sh`
+  hook, `99-msm89xx-firstboot` call).
