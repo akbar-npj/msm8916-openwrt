@@ -1,6 +1,6 @@
 # Demand-driven A2 power (Android `ul_wakeup` parity) — TESTED, NEGATIVE
 
-**Date:** 2026-10-07 · **Board:** HMU05 (`hmu05,250605v0s`) · **Branch:** `copy-main`
+**Date:** 2026-10-07 · **Board:** HMU05 (`hmu05,250605v0s`) · **Branch:** `staging-main`
 **Ledger:** `197_UZ801_PORT_LEDGER_AND_MANDATORY_SOP.md` (on `test/pure-software-modem`)
 
 ## Why this document exists

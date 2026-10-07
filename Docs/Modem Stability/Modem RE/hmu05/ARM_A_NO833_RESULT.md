@@ -5,7 +5,7 @@
 ## The question
 
 `test/pure-software-modem` runs `a2_pin=0` and (per ledger §112.170) "does not crash",
-while `copy-main` with `control=auto` fatals `a2_power.c:1189` every ~65-70 s once a
+while `staging-main` with `control=auto` fatals `a2_power.c:1189` every ~65-70 s once a
 data bearer is up. The **only behavioural driver difference** between the two branches
 is patch **833** (`bam-dmux-down-ack-serialisation`, HMU05-gated; the test branch does
 not have it — its extra patch 830 is pure `dev_err` logging). Is 833 implicated?
@@ -16,9 +16,9 @@ not have it — its extra patch 830 is pure `dev_err` logging). Is 833 implicate
   md5 `323075c0fa6ec41def32f82988e65461` (45528 B), verified free of the 833 strings
   (`bam_dmux: modem down-ack timeout before resume`, `pc_down_ack_*_count`). It carries
   the 825 ("stale edge … reconciling") and 831 ("release deferred") markers ⇒ it is the
-  copy-main series **minus 833** (its 820/821/831 predate commit `365eba1`, which only
+  staging-main series **minus 833** (its 820/821/831 predate commit `365eba1`, which only
   stripped inert `dev_err` probes).
-- Everything else unchanged: copy-main system + HiMI_OK guard.
+- Everything else unchanged: staging-main system + HiMI_OK guard.
 - Neutralised the `control=on` pin (`modem-a2-hold` stopped+disabled, bearer watchdog
   stopped), forced `power/control=auto`, restarted the modem to anchor U0, drove bursty
   traffic (2 pings / ~8 s period), watched `dmesg` for `fatal error received`.

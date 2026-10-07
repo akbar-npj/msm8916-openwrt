@@ -22,6 +22,7 @@ here** — the September-era reports are retained for history and are largely su
 
 ## Master Documentation Index
 
+- [**HMU05 ~900 s Fatal — Fix Options and the Decision**](HMU05_900S_FATAL_FIX_OPTIONS_AND_DECISION.md): ✅ **CURRENT — read this first.** The two ways to fix the ~900 s fatal (modem-firmware binary patch vs the pure-software `himi-ok-guard`), what we chose, and why.
 - [**Final HMU05 Modem Stability Resolution Report**](FINAL_HMU05_MODEM_STABILITY_RESOLUTION_REPORT.md): ⚠️ **SUPERSEDED** — the "4-pillar" architecture, including the No-Sleep firmware patch (Pillar 1), predates the 2026-10-06 root-cause finding.
 - [**MSM8916 Modem Stability Complete Engineering Report**](MSM8916_Modem_Stability_Complete_Engineering_Report.md): ⚠️ Ghidra decompilation of `LTE_ML1_SLEEPMGR_STM` and the **retracted** 900 s SCLK-drift theory.
 - [**Modem Firmware No-Sleep Patching Guide**](MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md): ⛔ **RETRACTED — do not follow** (baseband `modem.b16` patch opcodes for a false premise).
