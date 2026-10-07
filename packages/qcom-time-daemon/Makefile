@@ -3,8 +3,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qcom-time-daemon
-PKG_VERSION:=1.0
-PKG_RELEASE:=1
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=3
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_MAINTAINER:=OpenWrt MSM8916 Team
@@ -12,10 +12,10 @@ PKG_MAINTAINER:=OpenWrt MSM8916 Team
 include $(INCLUDE_DIR)/package.mk
 
 define Package/qcom-time-daemon
-	SECTION:=utils
-	CATEGORY:=Utilities
-	TITLE:=Qualcomm QMI Time Synchronization Daemon
-	DEPENDS:=+libqrtr +qrtr-utils
+  SECTION:=utils
+  CATEGORY:=Utilities
+  TITLE:=Qualcomm QMI Time Synchronization Daemon
+  DEPENDS:=+libqrtr +qrtr-utils
 endef
 
 define Package/qcom-time-daemon/description
@@ -31,11 +31,11 @@ endef
 
 define Build/Compile
 	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) \
-		-Wall -Wextra \
+		-O2 -Wall \
 		-o $(PKG_BUILD_DIR)/qcom-time-daemon \
 		$(PKG_BUILD_DIR)/qcom-time-daemon.c \
 		$(PKG_BUILD_DIR)/qmi_time.c \
-		-lqrtr
+		-lqrtr -lrt -lpthread
 endef
 
 define Package/qcom-time-daemon/install

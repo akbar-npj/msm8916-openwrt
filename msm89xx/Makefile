@@ -26,7 +26,10 @@ DEFAULT_PACKAGES += partx-utils e2fsprogs mkf2fs
 DEFAULT_PACKAGES += kmod-usb-chipidea kmod-usb-gadget-eth
 DEFAULT_PACKAGES += kmod-wcn36xx kmod-qcom-rproc-wcnss kmod-qcom-rproc
 DEFAULT_PACKAGES += kmod-rpmsg-wwan-ctrl kmod-bam-dmux kmod-qcom-rproc-modem
-DEFAULT_PACKAGES += rmtfs qcom-carrier-autocfg qcom-time-daemon
+# qcom-time-daemon is HMU05-only: its init gates on the board name (returns 0 on
+# any non-HMU05 board) and it only exists to anchor the HMU05 modem's ATS state.
+# It is pulled in by the generic-hmu05 DEVICE_PACKAGES, not as a default.
+DEFAULT_PACKAGES += rmtfs qcom-carrier-autocfg
 
 KERNELNAME:=Image
 

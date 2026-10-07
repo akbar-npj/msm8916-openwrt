@@ -18,8 +18,68 @@ start_service() {
 	esac
 
 	procd_open_instance
-	procd_set_param command "$PROG" -i 60
-	procd_set_param respawn 3600 5 0
+	procd_set_param command "$PROG"
+	# -r 0: no periodic ATS_USER re-anchor (stock-Android behaviour).
+	#
+	# Stock Android's time_daemon is purely indication-driven: it sends ONE
+	# ATS_USER SET (QMI 0x20) at boot, then sits in poll(..., -1) and issues a
+	# GET (0x21) only when the modem pushes a NITZ/tod indication.  It never
+	# performs a periodic write.  Evidence: time_daemon_decompiled.c
+	# FUN_000113d0 (boot SET, 5000 ms), FUN_00011670 (indication cb, sends
+	# nothing), FUN_000120d0 (refresh GET, 1000 ms); live strace shows
+	# poll([...], 3, -1) -- infinite timeout.
+	#
+	# A non-zero -r makes this daemon send an extra QMI 0x20 WRITE every N
+	# seconds: a modem-touching mechanism Android does not have, and one that
+	# resets the BAM-DMUX autosuspend timer.  The previous "-r 60 is required
+	# for parity" justification cited the 900 s SCLK sleep-manager maintenance
+	# timer, which is a RETRACTED premise -- measured a2_power.c:1189 fatal
+	# times are 172.353 / 918.195 / 1823.753 / 2729.267 s, so there is no fixed
+	# 900 s timer to desync.  See Docs/Modem Stability/README.md.
+	procd_append_param command -r 0
+	# -p: opt-in READ-ONLY modem-uptime telemetry (Doc 173).
+	#
+	# It sends only QMI_TIME_GENOFF_GET_REQ (0x0021) for ATS_RTC (base 0, the
+	# modem's OWN uptime counter) and ATS_TOD (base 1). It cannot write: the
+	# GET message has no offset TLV at all -- 14 bytes on the wire, against
+	# the write's 25, and that 11-byte difference IS the u64 offset field.
+	# Verified by the encoder test in
+	# Docs/Modem Stability/evidence/173_ats_rtc_readonly_poll/.
+	#
+	# Left DISABLED here on purpose. Doc 146 §9's experiment (no AP-initiated
+	# modem traffic while idle) is judged by fatal RATE over a long soak, and
+	# turning on a new periodic AP->modem exchange mid-experiment would
+	# confound it. Enable only for a soak where the modem-uptime anchor is
+	# wanted; the log line is
+	#   [QMI-TIME] MODEM-UPTIME rtc_ms=<n> tod_ms=<n> tod_minus_rtc_ms=<n>
+	#
+	#procd_append_param command -p
+	# -P: persistent ATS record (Doc 180), Android parity for /data/time/ats_N.
+	#
+	# Holds the last modem-CONFIRMED ATS_USER offset together with the ATS_RTC
+	# and AP wall readings from that moment.  Two uses:
+	#   1. Reset vs reboot, with no AP clock in the arithmetic.  ATS_RTC is the
+	#      modem's own uptime counter and only moves forwards while the modem
+	#      runs, so RTC_now < RTC_recorded proves the modem restarted, and
+	#      RTC_now > RTC_recorded measures how much modem time elapsed across
+	#      the AP's downtime.
+	#   2. Restoring the offset when the AP wall clock is manifestly unusable
+	#      (unset, or moved backwards across a reboot).  It never overrides a
+	#      plausible clock: a legitimate NTP step and a broken boot clock look
+	#      identical in one sample.
+	#
+	# /var/run is tmpfs, so the record lives on the overlay instead.  It adds
+	# NO QMI traffic -- it is filled from the ATS_RTC/ATS_TOD reads the
+	# handshake already performs -- and writes flash only on a boot or SSR
+	# handshake, plus a refresh that actually changes the offset.  The wire
+	# stays 14 bytes for the 0x0021 GET and 25 for the 0x0020 SET, so the
+	# read-only property of Doc 173 is untouched.
+	#
+	# Passed explicitly (rather than relying on the compiled-in default) so the
+	# path is visible in `ps`.  Use "-P none" to disable the path entirely.
+	procd_append_param command -P /etc/qcom-time/ats
+	procd_append_param command -v
+	procd_set_param respawn 30 5 0
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance
