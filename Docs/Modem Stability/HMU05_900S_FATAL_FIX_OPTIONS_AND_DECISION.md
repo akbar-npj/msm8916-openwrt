@@ -6,6 +6,7 @@ modem fatal is fixed and *why* this fix was chosen over the alternative.
 **Board:** HMU05 (`hmu05,250605v0s`) — MSM8916 / Snapdragon 410
 **Branch:** `main` (staging: `staging-main`)
 **Ledger:** `197_UZ801_PORT_LEDGER_AND_MANDATORY_SOP.md` §112.162, §112.165–§112.171
+**User guide:** `HMU05_900S_FATAL_FIX_USER_GUIDE.md` (step-by-step for both paths)
 
 > **In one line.** There are two ways to stop the ~900 s fatal: **(A)** patch the modem
 > firmware to push the deadline ~24.9 days out, or **(B)** rewrite one NV item from the
