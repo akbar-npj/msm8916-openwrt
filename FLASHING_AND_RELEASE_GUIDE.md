@@ -162,10 +162,16 @@ gh release upload -R akbar-npj/msm8916-openwrt v25.12.5-r1 \
   openwrt-msm89xx-msm8916-generic-uf02-squashfs-system.img \
   openwrt-msm89xx-msm8916-generic-uf02-squashfs-sysupgrade.bin \
   openwrt-msm89xx-msm8916-generic-uf02-firmware.zip \
+  openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
+  openwrt-msm89xx-msm8916-*-flash.sh \
   kmods-msm8916-25.12.5.tar.gz \
   sha256sums \
   --clobber
 ```
+
+> **Every release MUST include `*-squashfs-gpt_both0.bin` and `*-flash.sh` for each board.**
+> They are the two artifacts required to flash a device **from stock Android** (Scenario A).
+> Without them the release is unusable for first-time migration.
 
 ---
 
@@ -178,7 +184,15 @@ gh release upload -R akbar-npj/msm8916-openwrt v25.12.5-r1 \
 > Stock Android devices have a completely different partition table (GPT) layout, different bootloader/firmware partitions, and critical radio/calibration data (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) that must be preserved. Directly flashing OpenWrt partitions over stock Android will cause bootloops, soft bricks, or permanent loss of IMEI, MAC addresses, and RF calibration.
 
 To migrate from stock Android to OpenWrt safely, **you MUST use the automated flash script** generated during compilation in `openwrt/bin/targets/msm89xx/msm8916/`:
-- `openwrt-msm89xx-msm8916-<board>-flash.sh`
+
+- `openwrt-msm89xx-msm8916-<board>-flash.sh` — the flasher (mandatory)
+- `openwrt-msm89xx-msm8916-<board>-squashfs-gpt_both0.bin` — the OpenWrt GPT partition table
+- `openwrt-msm89xx-msm8916-<board>-squashfs-boot.img` — the kernel/boot image
+- `openwrt-msm89xx-msm8916-<board>-squashfs-system.img` — the rootfs image
+- `openwrt-msm89xx-msm8916-<board>-firmware.zip` — `aboot/hyp/rpm/sbl1/tz` blobs flashed by the script
+
+All five are published as GitHub Release assets for every board (see §5). Put them in the
+same directory and run the script from there.
 
 #### What the Script Automatically Handles:
 1. **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory.

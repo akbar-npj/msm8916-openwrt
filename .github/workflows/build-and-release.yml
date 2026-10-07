@@ -89,6 +89,8 @@ jobs:
           sha256sum openwrt-msm89xx-msm8916-*-squashfs-boot.img \
                     openwrt-msm89xx-msm8916-*-squashfs-system.img \
                     openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin \
+                    openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
+                    openwrt-msm89xx-msm8916-*-flash.sh \
                     openwrt-msm89xx-msm8916-*-firmware.zip \
                     kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
           cat sha256sums
@@ -121,6 +123,8 @@ jobs:
             openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-boot.img
             openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-system.img
             openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin
+            openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin
+            openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-flash.sh
             openwrt/bin/targets/msm89xx/msm8916/openwrt-msm89xx-msm8916-*-firmware.zip
             openwrt/bin/targets/msm89xx/msm8916/kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz
             openwrt/bin/targets/msm89xx/msm8916/sha256sums
