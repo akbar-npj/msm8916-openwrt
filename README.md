@@ -75,7 +75,7 @@ This allows the device to be recovered or reflashed using Qualcomm EDL tools suc
 From OpenWrt:
 
 ```bash
-reboot-fastboot
+reboot-bootloader
 ```
 
 The device reboots into **Fastboot mode**, allowing bootloader-level operations from the host.
