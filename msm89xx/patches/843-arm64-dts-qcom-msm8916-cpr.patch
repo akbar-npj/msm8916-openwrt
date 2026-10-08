@@ -1,0 +1,141 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8916.dtsi
+@@ -259,6 +259,25 @@
+ 		};
+ 	};
+ 
++	cpr_opp_table: opp-table-cpr {
++		compatible = "operating-points-v2-qcom-level";
++
++		cpr_opp1: opp1 {
++			opp-level = <1>;
++			qcom,opp-fuse-level = <1>;
++		};
++
++		cpr_opp2: opp2 {
++			opp-level = <2>;
++			qcom,opp-fuse-level = <2>;
++		};
++
++		cpr_opp3: opp3 {
++			opp-level = <3>;
++			qcom,opp-fuse-level = <3>;
++		};
++	};
++
+ 	firmware {
+ 		scm: scm {
+ 			compatible = "qcom,scm-msm8916", "qcom,scm";
+@@ -554,6 +573,59 @@
+ 				reg = <0xef 0x1>;
+ 				bits = <5 3>;
+ 			};
++
++			/*
++			 * CPR (Core Power Reduction) fuse corner data, QFPROM
++			 * row 27 (byte offset 0xd8).  The three fuse corners are
++			 * SVS/NORMAL/TURBO; each has a 6-bit initial-voltage field
++			 * (MSB is a sign bit, step 10 mV off the corner ceiling)
++			 * and a 12-bit target quotient, plus a shared 3-bit ring
++			 * oscillator select.
++			 */
++			cpr_init_voltage1: init-voltage1@dc {
++				reg = <0xdc 0x4>;
++				bits = <4 6>;
++			};
++
++			cpr_init_voltage2: init-voltage2@da {
++				reg = <0xda 0x4>;
++				bits = <2 6>;
++			};
++
++			cpr_init_voltage3: init-voltage3@d8 {
++				reg = <0xd8 0x4>;
++				bits = <0 6>;
++			};
++
++			cpr_quotient1: quotient1@dd {
++				reg = <0xdd 0x4>;
++				bits = <2 12>;
++			};
++
++			cpr_quotient2: quotient2@db {
++				reg = <0xdb 0x4>;
++				bits = <0 12>;
++			};
++
++			cpr_quotient3: quotient3@d8 {
++				reg = <0xd8 0x4>;
++				bits = <6 12>;
++			};
++
++			cpr_ring_osc1: ring-osc1@de {
++				reg = <0xde 0x4>;
++				bits = <6 3>;
++			};
++
++			cpr_ring_osc2: ring-osc2@de {
++				reg = <0xde 0x4>;
++				bits = <6 3>;
++			};
++
++			cpr_ring_osc3: ring-osc3@de {
++				reg = <0xde 0x4>;
++				bits = <6 3>;
++			};
+ 		};
+ 
+ 		rpm_msg_ram: sram@60000 {
+@@ -2563,6 +2635,52 @@
+ 			#clock-cells = <0>;
+ 		};
+ 
++		/*
++		 * The APCS/L2 SAW is the SPM that owns the PMIC arbiter and drives
++		 * the shared VDD_APC (PM8916 S2) rail.  Unlike the per-CPU SAWs its
++		 * SPM sequences are controlled by PSCI firmware; only the voltage
++		 * register interface is exposed as a regulator.
++		 */
++		apcs_saw: power-manager@b012000 {
++			compatible = "qcom,msm8916-saw2-v3.0-apcs", "qcom,saw2";
++			reg = <0x0b012000 0x1000>;
++
++			apcs_saw_reg: regulator {
++				regulator-min-microvolt = <1050000>;
++				regulator-max-microvolt = <1350000>;
++			};
++		};
++
++		cpr: power-controller@b018000 {
++			compatible = "qcom,msm8916-cpr", "qcom,cpr";
++			reg = <0x0b018000 0x1000>;
++			interrupts = <GIC_SPI 15 IRQ_TYPE_EDGE_RISING>;
++			clocks = <&xo_board>;
++			clock-names = "ref";
++			vdd-apc-supply = <&apcs_saw_reg>;
++			#power-domain-cells = <0>;
++			operating-points-v2 = <&cpr_opp_table>;
++
++			nvmem-cells = <&cpr_init_voltage1>,
++				      <&cpr_init_voltage2>,
++				      <&cpr_init_voltage3>,
++				      <&cpr_quotient1>,
++				      <&cpr_quotient2>,
++				      <&cpr_quotient3>,
++				      <&cpr_ring_osc1>,
++				      <&cpr_ring_osc2>,
++				      <&cpr_ring_osc3>;
++			nvmem-cell-names = "cpr_init_voltage1",
++					   "cpr_init_voltage2",
++					   "cpr_init_voltage3",
++					   "cpr_quotient1",
++					   "cpr_quotient2",
++					   "cpr_quotient3",
++					   "cpr_ring_osc1",
++					   "cpr_ring_osc2",
++					   "cpr_ring_osc3";
++		};
++
+ 		a53pll: clock@b016000 {
+ 			compatible = "qcom,msm8916-a53pll";
+ 			reg = <0x0b016000 0x40>;

@@ -1,0 +1,149 @@
+--- a/drivers/soc/qcom/spm.c
++++ b/drivers/soc/qcom/spm.c
+@@ -55,6 +55,7 @@
+ 	SPM_REG_AVS_CTL,
+ 	SPM_REG_AVS_LIMIT,
+ 	SPM_REG_RST,
++	SPM_REG_PMIC_DATA_3,
+ 	SPM_REG_NR,
+ };
+ 
+@@ -77,6 +78,8 @@
+ 	struct linear_range *range;
+ 	unsigned int ramp_delay;
+ 	unsigned int init_uV;
++	/* The APCS/L2 SAW is not bound to a CPU but drives a shared rail */
++	bool apcs_master;
+ };
+ 
+ struct spm_driver_data {
+@@ -158,6 +161,40 @@
+ 	.start_index[PM_SLEEP_MODE_SPC] = 5,
+ };
+ 
++static void smp_set_vdd_v3_0(void *data);
++
++/*
++ * The SAW v3.0 VCTL / PMIC_DATA_3 voltage selector is the raw PMIC VSET value:
++ * for the ULT_HF range 0 used by PM8916 S2 (VDD_APC), vlevel = (uV - 375000)
++ * / 12500, i.e. 1.15 V -> 62 (0x3e).  Range 1 (>= 0x60) needs the range-split
++ * bit and is not used for the CPU rail.
++ */
++static struct linear_range spm_v3_0_regulator_range =
++	REGULATOR_LINEAR_RANGE(375000, 0, 95, 12500);
++
++/*
++ * The APCS/L2 SAW at 0xb012000 carries the PMIC arbiter and is the master that
++ * drives the shared VDD_APC (PM8916 S2) rail.  Unlike the per-CPU SAWs its SPM
++ * sequence is owned by the secure/PSCI firmware, so only the voltage registers
++ * (VCTL/PMIC_DATA_3, kicked via RST and polled through PMIC_STS) are touched
++ * here.
++ */
++static const u16 spm_reg_offset_v3_0_apcs[SPM_REG_NR] = {
++	[SPM_REG_PMIC_STS]	= 0x14,
++	[SPM_REG_RST]		= 0x18,
++	[SPM_REG_VCTL]		= 0x1C,
++	[SPM_REG_PMIC_DATA_3]	= 0x4C,
++};
++
++static const struct spm_reg_data spm_reg_8916_apcs = {
++	.reg_offset = spm_reg_offset_v3_0_apcs,
++	.set_vdd = smp_set_vdd_v3_0,
++	.range = &spm_v3_0_regulator_range,
++	.init_uV = 1150000,
++	.ramp_delay = 1250,
++	.apcs_master = true,
++};
++
+ static const u16 spm_reg_offset_v2_3[SPM_REG_NR] = {
+ 	[SPM_REG_CFG]		= 0x08,
+ 	[SPM_REG_SPM_CTL]	= 0x30,
+@@ -385,6 +422,38 @@
+ 	}
+ }
+ 
++static void smp_set_vdd_v3_0(void *data)
++{
++	struct spm_driver_data *drv = data;
++	unsigned int vctl, data3, sts;
++	unsigned int vlevel = drv->volt_sel;
++
++	/* Kick the state machine back to idle */
++	spm_register_write(drv, SPM_REG_RST, 1);
++
++	/*
++	 * VCTL_PORT must be 0 for the PMIC_STS register to be updated, so the
++	 * vlevel is placed in bits [7:0] and the port field [18:16] is cleared.
++	 */
++	vctl = spm_register_read(drv, SPM_REG_VCTL);
++	vctl &= ~0x700FF;
++	vctl |= vlevel;
++	spm_register_write(drv, SPM_REG_VCTL, vctl);
++
++	data3 = spm_register_read(drv, SPM_REG_PMIC_DATA_3);
++	data3 &= ~0x700FF;
++	data3 |= vlevel;
++	spm_register_write(drv, SPM_REG_PMIC_DATA_3, data3);
++
++	if (read_poll_timeout_atomic(spm_register_read,
++				     sts, (sts & 0xFF) == vlevel,
++				     1, 1000, false,
++				     drv, SPM_REG_PMIC_STS))
++		dev_err_ratelimited(drv->dev,
++				    "timeout setting the voltage (%x %x)!\n",
++				    sts, vlevel);
++}
++
+ static int spm_get_cpu(struct device *dev)
+ {
+ 	int cpu;
+@@ -437,12 +506,17 @@
+ 
+ 	rdesc->linear_ranges = drv->reg_data->range;
+ 	rdesc->n_linear_ranges = 1;
++	rdesc->uV_step = rdesc->linear_ranges[0].step;
+ 	rdesc->n_voltages = rdesc->linear_ranges[rdesc->n_linear_ranges - 1].max_sel + 1;
+ 	rdesc->ramp_delay = drv->reg_data->ramp_delay;
+ 
+ 	ret = spm_get_cpu(dev);
+-	if (ret < 0)
+-		return ret;
++	if (ret < 0) {
++		if (!drv->reg_data->apcs_master)
++			return ret;
++		/* The APCS SAW is not bound to a CPU; run the writes on CPU0 */
++		ret = 0;
++	}
+ 
+ 	drv->reg_cpu = ret;
+ 	dev_dbg(dev, "SAW2 bound to CPU %d\n", drv->reg_cpu);
+@@ -485,6 +559,8 @@
+ 	  .data = &spm_reg_8909_cpu },
+ 	{ .compatible = "qcom,msm8916-saw2-v3.0-cpu",
+ 	  .data = &spm_reg_8916_cpu },
++	{ .compatible = "qcom,msm8916-saw2-v3.0-apcs",
++	  .data = &spm_reg_8916_apcs },
+ 	{ .compatible = "qcom,msm8939-saw2-v3.0-cpu",
+ 	  .data = &spm_reg_8939_cpu },
+ 	{ .compatible = "qcom,msm8974-saw2-v2.1-cpu",
+@@ -527,10 +603,16 @@
+ 	drv->dev = &pdev->dev;
+ 	platform_set_drvdata(pdev, drv);
+ 
+-	/* Write the SPM sequences first.. */
+-	addr = drv->reg_base + drv->reg_data->reg_offset[SPM_REG_SEQ_ENTRY];
+-	__iowrite32_copy(addr, drv->reg_data->seq,
+-			ARRAY_SIZE(drv->reg_data->seq) / 4);
++	/*
++	 * Write the SPM sequences first..  The APCS/L2 SAW does not declare a
++	 * SEQ_ENTRY register: its sequences belong to the secure/PSCI firmware
++	 * and must not be overwritten from Linux.
++	 */
++	if (drv->reg_data->reg_offset[SPM_REG_SEQ_ENTRY]) {
++		addr = drv->reg_base + drv->reg_data->reg_offset[SPM_REG_SEQ_ENTRY];
++		__iowrite32_copy(addr, drv->reg_data->seq,
++				ARRAY_SIZE(drv->reg_data->seq) / 4);
++	}
+ 
+ 	/*
+ 	 * ..and then the control registers.

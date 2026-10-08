@@ -1,0 +1,33 @@
+--- a/drivers/cpufreq/qcom-cpufreq-nvmem.c
++++ b/drivers/cpufreq/qcom-cpufreq-nvmem.c
+@@ -416,6 +416,12 @@
+ 	.genpd_names = qcs404_genpd_names,
+ };
+ 
++static const char *msm8916_genpd_names[] = { "cpr", NULL };
++
++static const struct qcom_cpufreq_match_data match_data_msm8916 = {
++	.genpd_names = msm8916_genpd_names,
++};
++
+ static const struct qcom_cpufreq_match_data match_data_ipq6018 = {
+ 	.get_version = qcom_cpufreq_ipq6018_name_version,
+ };
+@@ -614,6 +620,7 @@
+ static const struct of_device_id qcom_cpufreq_match_list[] __initconst __maybe_unused = {
+ 	{ .compatible = "qcom,apq8096", .data = &match_data_kryo },
+ 	{ .compatible = "qcom,msm8909", .data = &match_data_msm8909 },
++	{ .compatible = "qcom,msm8916", .data = &match_data_msm8916 },
+ 	{ .compatible = "qcom,msm8996", .data = &match_data_kryo },
+ 	{ .compatible = "qcom,qcs404", .data = &match_data_qcs404 },
+ 	{ .compatible = "qcom,ipq5332", .data = &match_data_kryo },
+--- a/drivers/cpufreq/cpufreq-dt-platdev.c
++++ b/drivers/cpufreq/cpufreq-dt-platdev.c
+@@ -147,6 +147,7 @@
+ 
+ 	{ .compatible = "qcom,apq8096", },
+ 	{ .compatible = "qcom,msm8909", },
++	{ .compatible = "qcom,msm8916", },
+ 	{ .compatible = "qcom,msm8996", },
+ 	{ .compatible = "qcom,msm8998", },
+ 	{ .compatible = "qcom,qcm2290", },
