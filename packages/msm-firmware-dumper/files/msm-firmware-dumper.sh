@@ -53,11 +53,26 @@ MODEM_DEV="$(find_part modem)"
 PERSIST_DEV="$(find_part persist)"
 
 # Mount partitions read-only
+MODEM_MOUNTED=0
 if [ -n "$MODEM_DEV" ]; then
-  mount -t vfat -o ro,nosuid,nodev,noexec,iocharset=iso8859-1,codepage=437 "$MODEM_DEV" "$MNT/modem" 2>/dev/null || \
-  mount -t vfat -o ro "$MODEM_DEV" "$MNT/modem" 2>/dev/null || log "WARN: modem mount failed on $MODEM_DEV"
+  if mount -t vfat -o ro,nosuid,nodev,noexec,iocharset=iso8859-1,codepage=437 "$MODEM_DEV" "$MNT/modem" 2>/dev/null || \
+     mount -t vfat -o ro "$MODEM_DEV" "$MNT/modem" 2>/dev/null; then
+    MODEM_MOUNTED=1
+  else
+    log "WARN: modem mount failed on $MODEM_DEV"
+  fi
 else
   log "WARN: modem partition not found"
+fi
+
+# The modem firmware is the entire purpose of this script.  If the modem
+# partition cannot be read we must NOT write the marker: the init script
+# short-circuits on the marker, so a false "success" here would permanently
+# skip the dump and leave the modem without mba.mbn/modem.mdt (offline).
+if [ "$MODEM_MOUNTED" -ne 1 ]; then
+  umount "$MNT/persist" 2>/dev/null || true
+  log "FAIL: modem partition unusable - NOT setting marker; will retry next boot"
+  exit 1
 fi
 
 if [ -n "$PERSIST_DEV" ]; then
@@ -145,6 +160,13 @@ sync
 umount "$MNT/modem" 2>/dev/null || true
 umount "$MNT/persist" 2>/dev/null || true
 rmdir "$MNT/persist" "$MNT/modem" 2>/dev/null || true
+
+# Refuse to mark as dumped unless the core modem firmware actually landed;
+# otherwise a silent extraction failure would be hidden forever by the marker.
+if [ ! -f "$FW/mba.mbn" ] && [ ! -f "$FW/modem.mdt" ]; then
+  log "FAIL: no modem firmware copied (mba.mbn/modem.mdt missing) - NOT setting marker"
+  exit 1
+fi
 
 # Set marker and reboot once
 touch "$MARKER"

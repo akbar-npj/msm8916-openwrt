@@ -368,8 +368,17 @@ gpt_field() {  # $1=partition-name  $2=Offset|Length  -> hex value (no 0x)
 
 wipe_rootfs_data() {
     local off_hex start count
+    # The GPT may have just been rewritten by flash_gpt (migrate mode), so
+    # re-read it instead of trusting the pre-flash dump in $GPT_DUMP: on an
+    # Android -> OpenWrt migration that dump is the *Android* GPT, which has
+    # no rootfs_data at all.  If rootfs_data is genuinely absent there is
+    # nothing to wipe - a fresh one is created and formatted on first boot.
+    GPT_DUMP="$(edl printgpt 2>&1)" || true
     off_hex="$(gpt_field rootfs_data Offset)"
-    [[ -n "$off_hex" ]] || die "rootfs_data not found in the device GPT"
+    if [[ -z "$off_hex" ]]; then
+        echo "[!] rootfs_data not present in the device GPT; skipping overlay wipe"
+        return 0
+    fi
     start=$(( 0x$off_hex / 512 ))
     count="$ROOTFS_DATA_WIPE_SECTORS"
     echo "[*] Wiping rootfs_data superblock (${count} sectors)..."
@@ -405,8 +414,11 @@ do_migrate() {
     flash_gpt
     flash_bootloader
     flash_boot_rootfs
-    wipe_rootfs_data
+    # Restore the radio partitions BEFORE the overlay wipe: restore_radio is the
+    # step that puts the modem/EFS blobs back at the new GPT offsets, so it must
+    # never be skipped because an unrelated later step aborted the script.
     restore_radio
+    wipe_rootfs_data
 
     echo
     echo "[+] Flash completed successfully"
