@@ -1,0 +1,110 @@
+--- a/Documentation/devicetree/bindings/power/avs/qcom,cpr.yaml
++++ b/Documentation/devicetree/bindings/power/avs/qcom,cpr.yaml
+@@ -21,6 +21,7 @@
+   compatible:
+     items:
+       - enum:
++          - qcom,msm8916-cpr
+           - qcom,qcs404-cpr
+       - const: qcom,cpr
+ 
+@@ -54,37 +55,71 @@
+     $ref: /schemas/types.yaml#/definitions/phandle
+     description: A phandle to the syscon used for writing ACC settings.
+ 
++  qcom,cpr-loop-disable:
++    type: boolean
++    description: |
++      Keep the CPR closed loop disabled.  Intended as a bring-up safety
++      lever: the fuse corners are still decoded and the hardware is
++      configured, but the voltage is never adjusted automatically.
++
+   nvmem-cells:
+-    items:
+-      - description: Corner 1 quotient offset
+-      - description: Corner 2 quotient offset
+-      - description: Corner 3 quotient offset
+-      - description: Corner 1 initial voltage
+-      - description: Corner 2 initial voltage
+-      - description: Corner 3 initial voltage
+-      - description: Corner 1 quotient
+-      - description: Corner 2 quotient
+-      - description: Corner 3 quotient
+-      - description: Corner 1 ring oscillator
+-      - description: Corner 2 ring oscillator
+-      - description: Corner 3 ring oscillator
+-      - description: Fuse revision
++    description: |
++      Fuse cells describing the three fuse corners.  qcs404 provides a
++      per-corner quotient offset and a fuse revision cell; msm8916 does
++      not (it derives the quotient offset from the difference between
++      adjacent corner quotients and ignores the revision).
++    oneOf:
++      - items:
++          - description: Corner 1 quotient offset
++          - description: Corner 2 quotient offset
++          - description: Corner 3 quotient offset
++          - description: Corner 1 initial voltage
++          - description: Corner 2 initial voltage
++          - description: Corner 3 initial voltage
++          - description: Corner 1 quotient
++          - description: Corner 2 quotient
++          - description: Corner 3 quotient
++          - description: Corner 1 ring oscillator
++          - description: Corner 2 ring oscillator
++          - description: Corner 3 ring oscillator
++          - description: Fuse revision
++      - items:
++          - description: Corner 1 initial voltage
++          - description: Corner 2 initial voltage
++          - description: Corner 3 initial voltage
++          - description: Corner 1 quotient
++          - description: Corner 2 quotient
++          - description: Corner 3 quotient
++          - description: Corner 1 ring oscillator
++          - description: Corner 2 ring oscillator
++          - description: Corner 3 ring oscillator
+ 
+   nvmem-cell-names:
+-    items:
+-      - const: cpr_quotient_offset1
+-      - const: cpr_quotient_offset2
+-      - const: cpr_quotient_offset3
+-      - const: cpr_init_voltage1
+-      - const: cpr_init_voltage2
+-      - const: cpr_init_voltage3
+-      - const: cpr_quotient1
+-      - const: cpr_quotient2
+-      - const: cpr_quotient3
+-      - const: cpr_ring_osc1
+-      - const: cpr_ring_osc2
+-      - const: cpr_ring_osc3
+-      - const: cpr_fuse_revision
++    oneOf:
++      - items:
++          - const: cpr_quotient_offset1
++          - const: cpr_quotient_offset2
++          - const: cpr_quotient_offset3
++          - const: cpr_init_voltage1
++          - const: cpr_init_voltage2
++          - const: cpr_init_voltage3
++          - const: cpr_quotient1
++          - const: cpr_quotient2
++          - const: cpr_quotient3
++          - const: cpr_ring_osc1
++          - const: cpr_ring_osc2
++          - const: cpr_ring_osc3
++          - const: cpr_fuse_revision
++      - items:
++          - const: cpr_init_voltage1
++          - const: cpr_init_voltage2
++          - const: cpr_init_voltage3
++          - const: cpr_quotient1
++          - const: cpr_quotient2
++          - const: cpr_quotient3
++          - const: cpr_ring_osc1
++          - const: cpr_ring_osc2
++          - const: cpr_ring_osc3
+ 
+ required:
+   - compatible
