@@ -1,0 +1,54 @@
+--- a/drivers/net/wireless/ath/wcn36xx/main.c
++++ b/drivers/net/wireless/ath/wcn36xx/main.c
+@@ -515,6 +515,17 @@
+ 			 key_conf->key,
+ 			 key_conf->keylen);
+ 
++	/*
++	 * Management Frame Protection (802.11w / WPA3).
++	 *
++	 * The BIP key (IGTK, AES-CMAC) is kept and used entirely in
++	 * software by mac80211: the firmware has no transmit path for
++	 * protecting group-addressed robust management frames.
++	 * Returning 1 tells mac80211 to handle this key in software.
++	 */
++	if (key_conf->cipher == WLAN_CIPHER_SUITE_AES_CMAC)
++		return 1;
++
+ 	mutex_lock(&wcn->conf_mutex);
+ 
+ 	switch (key_conf->cipher) {
+@@ -526,6 +537,17 @@
+ 		break;
+ 	case WLAN_CIPHER_SUITE_CCMP:
+ 		vif_priv->encrypt_type = WCN36XX_HAL_ED_CCMP;
++		/*
++		 * Management Frame Protection (802.11w / WPA3).
++		 *
++		 * wcn36xx_set_tx_mgmt() always marks management frames
++		 * with dpu_ne=1 (no hardware encryption), so the firmware
++		 * cannot protect robust management frames for us. Ask
++		 * mac80211 to CCMP-encrypt management frames in software
++		 * while the firmware keeps doing data-frame crypto.
++		 */
++		if (key_conf->flags & IEEE80211_KEY_FLAG_PAIRWISE)
++			key_conf->flags |= IEEE80211_KEY_FLAG_SW_MGMT_TX;
+ 		break;
+ 	case WLAN_CIPHER_SUITE_TKIP:
+ 		vif_priv->encrypt_type = WCN36XX_HAL_ED_TKIP;
+@@ -1422,6 +1444,7 @@
+ 		WLAN_CIPHER_SUITE_WEP104,
+ 		WLAN_CIPHER_SUITE_TKIP,
+ 		WLAN_CIPHER_SUITE_CCMP,
++		WLAN_CIPHER_SUITE_AES_CMAC,
+ 	};
+ 
+ 	ieee80211_hw_set(wcn->hw, TIMING_BEACON_ONLY);
+@@ -1431,6 +1454,7 @@
+ 	ieee80211_hw_set(wcn->hw, HAS_RATE_CONTROL);
+ 	ieee80211_hw_set(wcn->hw, SINGLE_SCAN_ON_ALL_BANDS);
+ 	ieee80211_hw_set(wcn->hw, REPORTS_TX_ACK_STATUS);
++	ieee80211_hw_set(wcn->hw, MFP_CAPABLE);
+ 
+ 	wcn->hw->wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
+ 		BIT(NL80211_IFTYPE_AP) |
