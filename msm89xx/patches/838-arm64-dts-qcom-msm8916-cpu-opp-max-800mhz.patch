@@ -1,0 +1,13 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8916.dtsi
+@@ -257,10 +257,6 @@
+ 			opp-hz = /bits/ 64 <800000000>;
+ 			opp-peak-kBps = <8528000>;
+ 		};
+-		opp-998400000 {
+-			opp-hz = /bits/ 64 <998400000>;
+-			opp-peak-kBps = <8528000>;
+-		};
+ 	};
+ 
+ 	firmware {
