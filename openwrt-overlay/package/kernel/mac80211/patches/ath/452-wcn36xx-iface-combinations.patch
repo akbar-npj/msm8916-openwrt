@@ -1,0 +1,53 @@
+--- a/drivers/net/wireless/ath/wcn36xx/main.c
++++ b/drivers/net/wireless/ath/wcn36xx/main.c
+@@ -1440,6 +1440,39 @@
+ 	vht_cap->vht_mcs.tx_mcs_map = vht_cap->vht_mcs.rx_mcs_map;
+ }
+ 
++/*
++ * Interface combinations.
++ *
++ * The firmware supports up to 2 BSSIDs, but this is a single radio with a
++ * single operating channel, so every interface shares one channel.  Declaring
++ * a combination lets mac80211 accept a second interface (e.g. a second AP for
++ * multi-SSID).  Without it mac80211 treats the wiphy as single-interface-only
++ * and rejects any second interface with -EBUSY.
++ *
++ * ONLY AP is listed.  Concurrent STA + AP is NOT supported: bringing up a
++ * station interface alongside the AP crashes the WCNSS firmware (remoteproc1
++ * fatal error), which also takes the modem down.  Restricting the combination
++ * to AP makes mac80211 reject a STA+AP request up front.  A single station
++ * (or a single ADHOC/MESH) interface still works via the interface_modes
++ * shortcut (total == 1) in ieee80211_check_combinations().  Note mac80211
++ * also rejects any combination that permits more than one IBSS interface.
++ */
++static const struct ieee80211_iface_limit wcn36xx_iface_limits[] = {
++	{
++		.max = 2,
++		.types = BIT(NL80211_IFTYPE_AP),
++	},
++};
++
++static const struct ieee80211_iface_combination wcn36xx_iface_combinations[] = {
++	{
++		.num_different_channels = 1,
++		.max_interfaces = 2,
++		.n_limits = ARRAY_SIZE(wcn36xx_iface_limits),
++		.limits = wcn36xx_iface_limits,
++	},
++};
++
+ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
+ {
+ 	static const u32 cipher_suites[] = {
+@@ -1464,6 +1497,10 @@
+ 		BIT(NL80211_IFTYPE_ADHOC) |
+ 		BIT(NL80211_IFTYPE_MESH_POINT);
+ 
++	wcn->hw->wiphy->iface_combinations = wcn36xx_iface_combinations;
++	wcn->hw->wiphy->n_iface_combinations =
++		ARRAY_SIZE(wcn36xx_iface_combinations);
++
+ 	wcn->hw->wiphy->bands[NL80211_BAND_2GHZ] = &wcn_band_2ghz;
+ 	if (wcn->rf_id != RF_IRIS_WCN3620)
+ 		wcn->hw->wiphy->bands[NL80211_BAND_5GHZ] = &wcn_band_5ghz;
