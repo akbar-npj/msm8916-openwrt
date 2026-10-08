@@ -413,11 +413,14 @@ do_migrate() {
     backup_radio
     flash_gpt
     flash_bootloader
-    flash_boot_rootfs
-    # Restore the radio partitions BEFORE the overlay wipe: restore_radio is the
-    # step that puts the modem/EFS blobs back at the new GPT offsets, so it must
-    # never be skipped because an unrelated later step aborted the script.
+    # Restore the device-unique radio/calibration partitions BEFORE writing the
+    # OpenWrt boot/rootfs images.  These blobs (modem firmware, NV/EFS, fsg, ...)
+    # are what make the modem work, so they are put back first: if a restore fails
+    # we abort while the boot/rootfs partitions still hold their previous (working)
+    # content, and the large boot/rootfs writes can never leave the device with a
+    # half-restored radio (modem offline / NV missing).
     restore_radio
+    flash_boot_rootfs
     wipe_rootfs_data
 
     echo

@@ -14,6 +14,14 @@ LOCKFILE="/var/lock/modem-bearer.lock"
 # Modem remoteproc control node (used by Stage 3 SSR recovery)
 RPROC_STATE="/sys/devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc0/state"
 
+# The modem remoteproc's device tag, as it appears in kernel log lines
+# (e.g. "qcom-q6v5-mss 4080000.remoteproc: fatal error received: ...").  The
+# fatal observer MUST match only the modem's own lines: the WCNSS/Wi-Fi firmware
+# (a204000.remoteproc, driver "qcom-wcnss-pil") uses the identical wording for its
+# own watchdog crash ("dog.c:1561:Watchdog startup timeout"), so an unfiltered
+# grep mis-reports a Wi-Fi crash as a MODEM fatal.
+MODEM_RPROC_TAG="4080000.remoteproc"
+
 # Default baseline fallback values
 STALL_TIMEOUT=30
 CHECK_INTERVAL=5
@@ -59,9 +67,10 @@ LAST_ZOMBIE_NUDGE=0
 ZOMBIE_NUDGE_COOLDOWN=120
 ZOMBIE_QMI_DEV="/dev/wwan0qmi0"
 
-# LAST_FATAL_COUNT lets the loop notice a NEW "fatal error received" line and log
-# it (step 1a).  A fatal is followed by a crash-recovery restart, which is what
-# can leave the modem in the post-fatal ZOMBIE handled at step 3.
+# LAST_FATAL_COUNT lets the loop notice a NEW modem "fatal error received" line
+# and log it (step 1a).  Only the modem remoteproc's own fatals are counted (see
+# MODEM_RPROC_TAG).  A fatal is followed by a crash-recovery restart, which is
+# what can leave the modem in the post-fatal ZOMBIE handled at step 3.
 LAST_FATAL_COUNT=0
 
 # Connectivity verification: standard DNS query to carrier/configured DNS.
@@ -161,7 +170,7 @@ mmcli -m any --signal-setup=0 >/dev/null 2>&1 || true
 # reports only NEW fatals -- a fatal that predates this watchdog run (e.g. before
 # a watchdog restart, or the crash that triggered a respawn) is history, not a
 # fresh event.  Log the baseline once so it is still visible.
-LAST_FATAL_COUNT=$(dmesg 2>/dev/null | grep -c "fatal error received")
+LAST_FATAL_COUNT=$(dmesg 2>/dev/null | grep "fatal error received" | grep -c "$MODEM_RPROC_TAG")
 case "$LAST_FATAL_COUNT" in ''|*[!0-9]*) LAST_FATAL_COUNT=0 ;; esac
 if [ "$LAST_FATAL_COUNT" -gt 0 ]; then
     logger -t modem-stall-watchdog "Fatal observer: ${LAST_FATAL_COUNT} pre-existing modem fatal(s) in this boot's dmesg (baseline; will report only NEW ones)."
@@ -194,15 +203,17 @@ while true; do
     fi
 
     # 1a. Fatal observer.  Count the modem's own "fatal error received" lines and
-    #     log any NEW one, so a fatal is visible in the watchdog's own log.  A
-    #     fatal is followed by a crash-recovery restart, which is what can leave
-    #     the modem in the post-fatal ZOMBIE handled at step 3 below.
-    FATAL_COUNT=$(dmesg 2>/dev/null | grep -c "fatal error received")
+    #     log any NEW one, so a fatal is visible in the watchdog's own log.  Only
+    #     the modem remoteproc is matched (MODEM_RPROC_TAG): the WCNSS/Wi-Fi
+    #     firmware reports its own watchdog crash with the same wording.  A fatal
+    #     is followed by a crash-recovery restart, which is what can leave the
+    #     modem in the post-fatal ZOMBIE handled at step 3 below.
+    FATAL_COUNT=$(dmesg 2>/dev/null | grep "fatal error received" | grep -c "$MODEM_RPROC_TAG")
     case "$FATAL_COUNT" in
         ''|*[!0-9]*) FATAL_COUNT="$LAST_FATAL_COUNT" ;;   # unreadable: keep the old value
     esac
     if [ "$FATAL_COUNT" -gt "$LAST_FATAL_COUNT" ]; then
-        _new=$(dmesg 2>/dev/null | grep "fatal error received" | tail -n $((FATAL_COUNT - LAST_FATAL_COUNT)) | sed 's/.*fatal error received: *//' | tr '\n' ' ')
+        _new=$(dmesg 2>/dev/null | grep "fatal error received" | grep "$MODEM_RPROC_TAG" | tail -n $((FATAL_COUNT - LAST_FATAL_COUNT)) | sed 's/.*fatal error received: *//' | tr '\n' ' ')
         logger -t modem-stall-watchdog "MODEM FATAL OBSERVED (count ${LAST_FATAL_COUNT} -> ${FATAL_COUNT}); site(s): ${_new:-unknown}"
     fi
     LAST_FATAL_COUNT="$FATAL_COUNT"
