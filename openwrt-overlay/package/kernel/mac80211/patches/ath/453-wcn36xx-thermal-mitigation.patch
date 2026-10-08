@@ -1,0 +1,233 @@
+From: HMU05 thermal work <dev@localhost>
+Subject: [PATCH] wcn36xx: expose firmware thermal mitigation as a cooling device
+
+The WCN36XX firmware implements WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ (178):
+levels 0..4 where 1..4 progressively disable TX AMPDU aggregation and reduce
+transmit power.  Android drives this from thermal-engine via
+/sys/.../wcnss/thermal_mitigation; the mainline driver never exposed it.
+
+Add the SMD command and register a thermal cooling device (type "wcn36xx",
+5 states) so the thermal core - or userspace through
+/sys/class/thermal/cooling_deviceN/cur_state - can drive it.  The SMD send
+blocks, so it is deferred to a workqueue and skipped until the WLAN
+firmware has started.
+
+The SMD response handler only completes the wait for a whitelist of reply
+types, so the matching SET_THERMAL_MITIGATION_RSP (179) must be registered
+too - otherwise the (valid) firmware reply is dropped and the request times
+out.
+---
+--- a/drivers/net/wireless/ath/wcn36xx/main.c	2026-10-09 04:46:10.046348908 +0545
++++ b/drivers/net/wireless/ath/wcn36xx/main.c	2026-10-09 04:50:03.740141063 +0545
+@@ -22,6 +22,7 @@
+ #include <linux/of.h>
+ #include <linux/of_address.h>
+ #include <linux/rpmsg.h>
++#include <linux/thermal.h>
+ #include <linux/soc/qcom/smem_state.h>
+ #include <linux/soc/qcom/wcnss_ctrl.h>
+ #include <net/ipv6.h>
+@@ -1619,6 +1620,83 @@
+ 	return ret;
+ }
+ 
++/* ---- Thermal mitigation ---- */
++
++/*
++ * The firmware exposes WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ (178): levels
++ * 0..4, where level 0 is normal operation and levels 1..4 progressively
++ * disable TX AMPDU aggregation and reduce transmit power. Register a thermal
++ * cooling device so the thermal core (or userspace via
++ * /sys/class/thermal/cooling_deviceN/cur_state) can drive it.
++ */
++static void wcn36xx_thermal_work(struct work_struct *work)
++{
++	struct wcn36xx *wcn = container_of(work, struct wcn36xx, thermal_work);
++	int ret;
++
++	/*
++	 * Skip until the WLAN firmware has been started at least once: the HAL
++	 * command would otherwise go unanswered and stall this work for the full
++	 * HAL_MSG_TIMEOUT.  This also makes the cooling device a no-op on a
++	 * modem-only device that never brings up a Wi-Fi interface.
++	 */
++	if (!wcn->smd_channel || wcn->first_boot)
++		return;
++
++	ret = wcn36xx_smd_set_thermal_mitigation(wcn,
++						 (u8)wcn->thermal_level);
++	if (ret)
++		wcn36xx_warn("setting thermal mitigation level %lu failed: %d\n",
++			     wcn->thermal_level, ret);
++	else
++		wcn36xx_dbg(WCN36XX_DBG_MAC,
++			    "thermal mitigation level %lu applied\n",
++			    wcn->thermal_level);
++}
++
++static int wcn36xx_thermal_get_max_state(struct thermal_cooling_device *cdev,
++					 unsigned long *state)
++{
++	*state = HAL_THERMAL_MITIGATION_LEVEL_4;
++	return 0;
++}
++
++static int wcn36xx_thermal_get_cur_state(struct thermal_cooling_device *cdev,
++					 unsigned long *state)
++{
++	struct wcn36xx *wcn = cdev->devdata;
++
++	*state = wcn->thermal_level;
++	return 0;
++}
++
++static int wcn36xx_thermal_set_cur_state(struct thermal_cooling_device *cdev,
++					 unsigned long state)
++{
++	struct wcn36xx *wcn = cdev->devdata;
++
++	if (state > HAL_THERMAL_MITIGATION_LEVEL_4)
++		return -EINVAL;
++	if (state == wcn->thermal_level)
++		return 0;
++
++	wcn->thermal_level = state;
++
++	/*
++	 * The SMD transaction blocks until the firmware replies (up to
++	 * HAL_MSG_TIMEOUT), so it must not run under the thermal zone lock the
++	 * caller holds. Defer the actual command to a workqueue.
++	 */
++	schedule_work(&wcn->thermal_work);
++	return 0;
++}
++
++static const struct thermal_cooling_device_ops wcn36xx_thermal_ops = {
++	.get_max_state	= wcn36xx_thermal_get_max_state,
++	.get_cur_state	= wcn36xx_thermal_get_cur_state,
++	.set_cur_state	= wcn36xx_thermal_set_cur_state,
++};
++
+ static int wcn36xx_probe(struct platform_device *pdev)
+ {
+ 	struct ieee80211_hw *hw;
+@@ -1698,11 +1776,22 @@
+ 	if (ret)
+ 		goto out_destroy_ept;
+ 
++	INIT_WORK(&wcn->thermal_work, wcn36xx_thermal_work);
++
+ 	wcn36xx_init_ieee80211(wcn);
+ 	ret = ieee80211_register_hw(wcn->hw);
+ 	if (ret)
+ 		goto out_unmap;
+ 
++	wcn->thermal_cdev = thermal_of_cooling_device_register(
++			wcn->dev->of_node, "wcn36xx", wcn,
++			&wcn36xx_thermal_ops);
++	if (IS_ERR(wcn->thermal_cdev)) {
++		wcn36xx_warn("failed to register thermal cooling device: %ld\n",
++			     PTR_ERR(wcn->thermal_cdev));
++		wcn->thermal_cdev = NULL;
++	}
++
+ 	return 0;
+ 
+ out_unmap:
+@@ -1722,6 +1811,10 @@
+ 	struct wcn36xx *wcn = hw->priv;
+ 	wcn36xx_dbg(WCN36XX_DBG_MAC, "platform remove\n");
+ 
++	if (wcn->thermal_cdev)
++		thermal_cooling_device_unregister(wcn->thermal_cdev);
++	cancel_work_sync(&wcn->thermal_work);
++
+ 	release_firmware(wcn->nv);
+ 
+ 	ieee80211_unregister_hw(hw);
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c	2026-05-03 04:46:05.000000000 +0545
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c	2026-10-09 05:13:41.320590481 +0545
+@@ -3296,6 +3296,43 @@
+ 	return ret;
+ }
+ 
++int wcn36xx_smd_set_thermal_mitigation(struct wcn36xx *wcn, u8 level)
++{
++	struct set_thermal_mitigation_req_msg msg_body;
++	int ret;
++
++	if (level > HAL_THERMAL_MITIGATION_LEVEL_4)
++		return -EINVAL;
++
++	mutex_lock(&wcn->hal_mutex);
++	INIT_HAL_MSG(msg_body, WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ);
++
++	/*
++	 * MODE_1 disables TX AMPDU aggregation and reduces transmit power.
++	 * MODE_2 is not supported by the firmware.
++	 */
++	msg_body.mode = HAL_THERMAL_MITIGATION_MODE_1;
++	msg_body.level = (enum wcn36xx_hal_thermal_mitigation_level_type)level;
++
++	PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
++
++	wcn36xx_dbg(WCN36XX_DBG_HAL, "hal thermal mitigation level %d\n", level);
++
++	ret = wcn36xx_smd_send_and_wait(wcn, msg_body.header.len);
++	if (ret) {
++		wcn36xx_err("Sending hal_thermal_mitigation failed\n");
++		goto out;
++	}
++	ret = wcn36xx_smd_rsp_status_check(wcn->hal_buf, wcn->hal_rsp_len);
++	if (ret) {
++		wcn36xx_err("hal_thermal_mitigation response failed err=%d\n", ret);
++		goto out;
++	}
++out:
++	mutex_unlock(&wcn->hal_mutex);
++	return ret;
++}
++
+ int wcn36xx_smd_rsp_process(struct rpmsg_device *rpdev,
+ 			    void *buf, int len, void *priv, u32 addr)
+ {
+@@ -3353,6 +3390,7 @@
+ 	case WCN36XX_HAL_EXIT_IMPS_RSP:
+ 	case WCN36XX_HAL_UPDATE_CHANNEL_LIST_RSP:
+ 	case WCN36XX_HAL_ADD_BCN_FILTER_RSP:
++	case WCN36XX_HAL_SET_THERMAL_MITIGATION_RSP:
+ 		memcpy(wcn->hal_buf, buf, len);
+ 		wcn->hal_rsp_len = len;
+ 		complete(&wcn->hal_rsp_compl);
+--- a/drivers/net/wireless/ath/wcn36xx/smd.h	2026-05-03 04:46:05.000000000 +0545
++++ b/drivers/net/wireless/ath/wcn36xx/smd.h	2026-10-09 04:49:58.457314550 +0545
+@@ -169,4 +169,6 @@
+ int wcn36xx_smd_add_beacon_filter(struct wcn36xx *wcn,
+ 				  struct ieee80211_vif *vif);
+ 
++int wcn36xx_smd_set_thermal_mitigation(struct wcn36xx *wcn, u8 level);
++
+ #endif	/* _SMD_H_ */
+--- a/drivers/net/wireless/ath/wcn36xx/wcn36xx.h	2026-05-03 04:46:05.000000000 +0545
++++ b/drivers/net/wireless/ath/wcn36xx/wcn36xx.h	2026-10-09 04:49:58.457452881 +0545
+@@ -33,6 +33,8 @@
+ #define WLAN_NV_FILE               "wlan/prima/WCNSS_qcom_wlan_nv.bin"
+ #define WCN36XX_AGGR_BUFFER_SIZE 64
+ 
++struct thermal_cooling_device;
++
+ extern unsigned int wcn36xx_dbg_mask;
+ 
+ enum wcn36xx_debug_mask {
+@@ -299,6 +301,11 @@
+ 
+ 	spinlock_t survey_lock;		/* protects chan_survey */
+ 	struct wcn36xx_chan_survey	*chan_survey;
++
++	/* Thermal mitigation (WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ) */
++	struct thermal_cooling_device	*thermal_cdev;
++	struct work_struct	thermal_work;
++	unsigned long		thermal_level;
+ };
+ 
+ static inline bool wcn36xx_is_fw_version(struct wcn36xx *wcn,

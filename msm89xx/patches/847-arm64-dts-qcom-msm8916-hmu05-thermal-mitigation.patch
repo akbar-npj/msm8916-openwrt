@@ -1,0 +1,79 @@
+From: HMU05 thermal work <dev@localhost>
+Subject: [PATCH] arm64: dts: qcom: msm8916-generic-hmu05: add Wi-Fi and PMIC thermal mitigation
+
+Bind the wcn36xx firmware thermal-mitigation interface as a cooling device on
+the CPU cluster sensor (Wi-Fi) and give pm8916-thermal a cooling device (CPU).
+---
+ arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts | 64 ++++++++++
+ 1 file changed
+
+--- a/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
+@@ -218,3 +218,67 @@
+         line-name = "ftest";
+     };
+ };
++
++/*
++ * Thermal mitigation for Wi-Fi and PMIC.
++ *
++ * Wi-Fi
++ * -----
++ * The WCN36XX firmware supports WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ: a
++ * mitigation level 0..4 where 0 is normal operation and 1..4 progressively
++ * disable TX AMPDU aggregation and reduce transmit power.  The wcn36xx driver
++ * exposes it as the "wcn36xx" cooling device.
++ *
++ * There is no dedicated WCNSS temperature sensor, so - exactly like Android's
++ * thermal-engine, which applies its "wlan" action once cpu0-1 reaches 60 C -
++ * trigger the mitigation from the CPU cluster sensor (tsens5 / cpu0-1).
++ * OpenWrt idles a few degrees warmer than Android, so the trip is placed at
++ * 65 C (clear of idle, well below the 75 C CPU-throttle trip).
++ *
++ * PMIC
++ * ----
++ * pm8916-thermal has a temperature sensor but no cooling device bound, so
++ * nothing acts on it.  Bind the CPU cooling device: the CPU's SMPS2 rail is the
++ * dominant load on the PMIC, so throttling the CPU also cools the PMIC.
++ */
++
++&wcnss_wifi {
++    #cooling-cells = <2>;
++};
++
++&{/thermal-zones/cpu0-1-thermal} {
++    trips {
++        wifi_alert: wifi-trip {
++            temperature = <65000>;
++            hysteresis = <3000>;
++            type = "passive";
++        };
++    };
++
++    cooling-maps {
++        wifi_map {
++            trip = <&wifi_alert>;
++            cooling-device = <&wcnss_wifi THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++        };
++    };
++};
++
++&{/thermal-zones/pm8916-thermal} {
++    trips {
++        pmic_alert: pmic-trip {
++            temperature = <90000>;
++            hysteresis = <5000>;
++            type = "passive";
++        };
++    };
++
++    cooling-maps {
++        pmic_map {
++            trip = <&pmic_alert>;
++            cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++                     <&CPU1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++                     <&CPU2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++                     <&CPU3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++        };
++    };
++};
