@@ -21,7 +21,7 @@
  	bool need_mem_protection;
  	bool has_alt_reset;
  	bool has_mba_logs;
-@@ -1981,6 +1988,138 @@
+@@ -1981,6 +1988,146 @@
  	return 0;
  }
  
@@ -57,6 +57,21 @@
 +	dev_info(qproc->dev, "msm_subsys: restarting %s\n", rproc->name);
 +
 +	if (rproc->state == RPROC_RUNNING || rproc->state == RPROC_ATTACHED) {
++		/*
++		 * rproc_shutdown() is reference-counted: it powers the
++		 * subsystem off only when the last user drops its reference.
++		 * rproc_boot() bumps that count even when it short-circuits on
++		 * an already-running rproc, so a stray duplicate "start" on
++		 * .../remoteproc0/state inflates it and the shutdown then
++		 * returns success without stopping anything -- the restart
++		 * would silently no-op and the pre-emptive SSR watchdog would
++		 * never cycle the modem.  A restart is a deliberate, privileged
++		 * reset, so collapse the count to a single reference first;
++		 * shutdown then owns the last one and really stops the
++		 * subsystem (the re-boot below leaves it healed at 1).
++		 */
++		atomic_set(&rproc->power, 1);
++
 +		ret = rproc_shutdown(rproc);
 +		if (ret) {
 +			dev_err(qproc->dev,
@@ -65,13 +80,6 @@
 +			goto out;
 +		}
 +
-+		/*
-+		 * rproc_shutdown() only powers the subsystem off once every
-+		 * user has dropped its reference.  If somebody else still holds
-+		 * one it returns success without stopping anything, and booting
-+		 * again would then be a silent no-op -- say so rather than
-+		 * pretend the restart happened.
-+		 */
 +		if (rproc->state != RPROC_OFFLINE) {
 +			dev_warn(qproc->dev,
 +				 "msm_subsys: %s still up after shutdown (power reference held elsewhere)\n",

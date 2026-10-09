@@ -1,0 +1,23 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -1197,10 +1197,17 @@
+ 
+ 	dev_dbg(dmux->dev, "open channel: %u\n", hdr->ch);
+ 
+-	if (__test_and_set_bit(hdr->ch, dmux->remote_channels)) {
++	/*
++	 * The channel may already be marked open if the modem re-issued
++	 * CMD_OPEN without a matching CMD_CLOSE -- e.g. after a modem-internal
++	 * restart that the AP did not observe as an SSR, so bam_dmux_power_off()
++	 * never cleared remote_channels.  The netdev can still be detached in
++	 * that case, and bailing out here would leave it detached and silently
++	 * kill the data path.  netif_device_attach() and the netdev-registration
++	 * work are both idempotent, so re-run them instead of returning early.
++	 */
++	if (__test_and_set_bit(hdr->ch, dmux->remote_channels))
+ 		dev_warn(dmux->dev, "Channel already open: %u\n", hdr->ch);
+-		return;
+-	}
+ 
+ 	if (netdev) {
+ 		netif_device_attach(netdev);
