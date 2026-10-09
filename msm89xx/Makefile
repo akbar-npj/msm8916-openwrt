@@ -41,6 +41,11 @@ DEFAULT_PACKAGES += bluez-daemon bluez-utils bluez-tools
 # device stuck in failing legacy PIN pairing.  Also provides the
 # `bt-ssp-guard status|repair` CLI.
 DEFAULT_PACKAGES += bt-ssp-guard
+# Bluetooth Serial Port Profile (SPP): a server (default-on) and an on-demand
+# client, with a uci-selectable bridge (a login shell on a pty, or TCP).  Needs
+# bluetoothd --compat for the local SDP socket (see the openwrt-overlay
+# bluetoothd.init override).
+DEFAULT_PACKAGES += bt-spp
 # qcom-time-daemon is HMU05-only: its init gates on the board name (returns 0 on
 # any non-HMU05 board) and it only exists to anchor the HMU05 modem's ATS state.
 # It is pulled in by the generic-hmu05 DEVICE_PACKAGES, not as a default.
