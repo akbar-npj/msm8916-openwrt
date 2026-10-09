@@ -1,15 +1,16 @@
 #!/bin/sh
-# Enable the HiMI_OK guard on HMU05 boards (ledger §112.169).
-# The modem's RF task memcmp()s NV item 2500 against "HiMI_OK"; the item is
-# cleared at every modem boot, so /usr/sbin/himi-ok-guard rewrites it after each
-# boot (cold + every SSR/crash restart) and the ~900 s deadline never arms.
+# Enable the HiMI_OK guard on the boards that manifest the ~900 s fatal
+# (ledger §112.169).  The modem's RF task memcmp()s NV item 2500 against
+# "HiMI_OK"; the item is cleared at every modem boot, so /usr/sbin/himi-ok-guard
+# rewrites it after each boot (cold + every SSR/crash restart) and the deadline
+# never arms.  The board gate lives in /lib/himi-ok.sh (hmu05 + uz801, the
+# confirmed HiMI boards -- not every HiMI-baseband board manifests the fatal).
 
 . /lib/functions.sh 2>/dev/null
+. /lib/himi-ok.sh 2>/dev/null
 
-case "$(board_name 2>/dev/null)" in
-	*hmu05*)
-		[ -x /etc/init.d/himi-ok ] && /etc/init.d/himi-ok enable
-		;;
-esac
+if himi_ok_board_match; then
+	[ -x /etc/init.d/himi-ok ] && /etc/init.d/himi-ok enable
+fi
 
 exit 0
