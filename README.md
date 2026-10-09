@@ -365,7 +365,7 @@ The Qualcomm baseband on these sticks can hit a **~900 s deadline** after a warm
 | Component | What it does |
 | :--- | :--- |
 | **`a2_pin` (HMU05)** | Holds the A2 power rail **on** in the `qcom_bam_dmux` driver so the modem is not power-collapsed mid-handshake. Enabled via device tree. |
-| **`himi-ok-guard`** | Rewrites the modem NV item `HiMI_OK` after **every** modem boot (cold and each SSR), so the RF task's identity check passes and the ~900 s deadline never arms. |
+| **`himi-ok-guard`** | Rewrites the modem NV item `HiMI_OK` after **every** modem boot (cold and each SSR), so the RF task's identity check passes and the ~900 s deadline never arms. Enabled on the HMU05 and UZ801 v3 boards; writes only when the item reads all-zero (factory data is never overwritten). |
 | **`modem-bearer-watchdog`** | Watches the modem and data bearer; performs a pre-emptive subsystem restart and recovers a zombie bearer/ModemManager without a reboot. |
 | **`qcom-time-daemon`** | Anchors the modem's time base (ATS) before LTE attach so the QMI time sync is valid. |
 
