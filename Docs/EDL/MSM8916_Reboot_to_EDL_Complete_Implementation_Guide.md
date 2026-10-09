@@ -88,7 +88,6 @@ The system now provides clean, safe commands for every standard and recovery ope
 | **`reboot-edl`** / `reboot edl` | **Qualcomm 9008 EDL** | `05c6:9008` | PBL BootROM | Unbrick, raw eMMC flashing (`flash.sh`, `edl`, `qdl`), GPT rewrite |
 | **`reboot-dload`** / `reboot dload` | **Qualcomm 9006 DLOAD** | `05c6:9006` | SBL1 Bootloader | RAM dump, raw mass storage direct disk access |
 | **`reboot-bootloader`** / `reboot bootloader` | **Fastboot Mode** | `18d1:d00d` / `05c6:9025` | `aboot` / `lk2nd` | Fastboot flashing (`fastboot flash boot ...`), kernel updates |
-| **`reboot-fastboot`** / `reboot fastboot` | **Fastboot Mode** | `18d1:d00d` / `05c6:9025` | `aboot` / `lk2nd` | Alias for fastboot bootloader mode |
 | **`reboot-recovery`** / `reboot recovery` | **Recovery Mode** | Android Recovery | `aboot` / `lk2nd` | Boots alternate recovery partition or recovery ramdisk |
 | **`reboot`** / `/sbin/reboot` | **Normal Reboot** | Composite Gadget (`1d6b:0104`) | SBL1 -> aboot -> OpenWrt | Standard system reboot with clean `/overlay` remount |
 | **`sysupgrade <image.bin>`** | **System Upgrade** | Composite Gadget (`1d6b:0104`) | `/lib/upgrade/stage2` | Full firmware upgrade while preserving `/dev/mmcblk0p15` config |
@@ -276,7 +275,7 @@ static int do_msm_poweroff(struct sys_off_data *data)
 1. **Low-Level Syscall Helper ([`packages/reboot-edl/src/reboot-mode-raw.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/src/reboot-mode-raw.c)):**
    Compiled to `/sbin/reboot-mode-raw`. Strictly dispatches `reboot(LINUX_REBOOT_CMD_RESTART2, cmd)`.
 2. **Safe Orchestrator ([`packages/reboot-edl/files/reboot-mode.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/files/reboot-mode.sh)):**
-   Installed to `/sbin/reboot-mode` and symlinked to `/sbin/reboot-edl`, `/sbin/reboot-dload`, `/sbin/reboot-bootloader`, `/sbin/reboot-fastboot`, `/sbin/reboot-recovery`.
+   Installed to `/sbin/reboot-mode` and symlinked to `/sbin/reboot-edl`, `/sbin/reboot-dload`, `/sbin/reboot-bootloader`, `/sbin/reboot-recovery`.
 
 #### Teardown Script Flow:
 ```sh
@@ -464,8 +463,6 @@ reboot-dload
 
 # Fastboot Mode (aboot / lk2nd 18d1:d00d)
 reboot-bootloader
-# or:
-reboot-fastboot
 
 # Android Recovery Mode
 reboot-recovery

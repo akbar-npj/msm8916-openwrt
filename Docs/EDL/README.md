@@ -21,8 +21,6 @@ reboot-dload
 
 # Reboot into Fastboot Bootloader Mode (aboot / lk2nd)
 reboot-bootloader
-# or:
-reboot-fastboot
 
 # Reboot into Android Recovery Mode
 reboot-recovery

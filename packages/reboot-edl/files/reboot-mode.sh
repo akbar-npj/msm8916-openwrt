@@ -3,7 +3,7 @@
 #
 # reboot-mode.sh - Safe shutdown and reboot-to-mode utility for Qualcomm MSM8916
 #
-# Supports: edl (9008), dload (9006), bootloader/fastboot, recovery, poweroff
+# Supports: edl (9008), dload (9006), bootloader, recovery, poweroff
 
 set -e
 
@@ -19,7 +19,6 @@ print_usage() {
 	echo "  edl        - Qualcomm 9008 Emergency Download Mode (PBL)"
 	echo "  dload      - Qualcomm 9006 Mass Storage / Dump Mode (SBL1)"
 	echo "  bootloader - Fastboot Mode (aboot)"
-	echo "  fastboot   - Fastboot Mode (aboot)"
 	echo "  recovery   - Recovery Mode (aboot)"
 	echo ""
 	echo "Options:"
@@ -32,7 +31,6 @@ case "$PROG" in
 	*edl*|*9008*)   MODE="edl" ;;
 	*dload*|*9006*) MODE="dload" ;;
 	*bootloader*)  MODE="bootloader" ;;
-	*fastboot*)    MODE="fastboot" ;;
 	*recovery*)    MODE="recovery" ;;
 	*)             MODE="edl" ;;
 esac

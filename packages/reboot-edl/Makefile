@@ -39,7 +39,6 @@ define Package/reboot-edl/install
 	ln -sf reboot-mode $(1)/sbin/reboot-edl
 	ln -sf reboot-mode $(1)/sbin/reboot-dload
 	ln -sf reboot-mode $(1)/sbin/reboot-bootloader
-	ln -sf reboot-mode $(1)/sbin/reboot-fastboot
 	ln -sf reboot-mode $(1)/sbin/reboot-recovery
 endef
 

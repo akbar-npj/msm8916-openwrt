@@ -25,7 +25,7 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
   * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
-* **⚙️ Reboot to Fastboot**: `reboot-fastboot` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
+* **⚙️ Reboot to Fastboot**: `reboot-bootloader` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
 * **🔧 Recovery Without Physical Access**: EDL and Fastboot reboot targets provide software-triggered recovery paths directly from a running OpenWrt system.
 
 ---
@@ -265,7 +265,7 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 | **USB Serial Console**   | `screen /dev/ttyACM0 115200`    | Direct root shell                |
 | **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (No encryption by default)  |
 | **EDL Recovery**         | `reboot-edl`                    | Qualcomm USB `05c6:9008`         |
-| **Fastboot Recovery**    | `reboot-fastboot`               | `fastboot devices`               |
+| **Fastboot Recovery**    | `reboot-bootloader`             | `fastboot devices`               |
 
 ---
 
