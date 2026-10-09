@@ -64,6 +64,35 @@ Device side: `Paired: yes / Bonded: yes`, `LegacyPairing: no`. A full SDP sessio
 (L2CAP / AVRCP / HFP / A2DP / OBEX records). This was reproduced with the OpenWrt-default
 `NoInputNoOutput` agent (Just Works) and with `DisplayYesNo` (passkey confirmed).
 
+### 3.1 The bond persists across a reboot (verified 2026-10-09)
+
+Rebooted the device and re-checked. The bond **and its link key** survive:
+
+| Check | Before reboot | After reboot |
+|---|---|---|
+| `bluetoothctl info C0:95:6D:45:9A:F3` | `Paired: yes / Bonded: yes` | `Paired: yes / Bonded: yes` |
+| `…/C0:95:6D:45:9A:F3/info` md5 (holds `[LinkKey]`) | `f8975a1bdc3a5c4015d2961ed0b5c9b5` | **identical** |
+| `…/02:00:C2:B9:10:3D/settings` md5 | `c166d0c91918551fb7efa4d32ae17c26` | **identical** |
+| `hci0` | UP RUNNING, 0 errors | UP RUNNING, 0 errors |
+| `btqca` / `btqcomsmd` loaded | yes | yes (auto-load) |
+
+Root fs is `overlayfs` with `/overlay` on `/dev/mmcblk0p15` (ext4), so `/var/lib/bluetooth` is
+on persistent storage. (A `sysupgrade -n` **would** wipe it — see the deployment trap.)
+
+**The stored link key still authenticates** (this is the real test, not just the on-disk file):
+
+- Device side: `hcitool cc C0:95:6D:45:9A:F3` → **`rc=0`**, and `hcitool con` shows
+  `< ACL C0:95:6D:45:9A:F3 handle 2 state 1 lm PERIPHERAL` — a baseband ACL link established
+  *using the stored key*. A missing/invalid key gives `Authentication Failed`, not a clean connect.
+- Host side: `bluetoothctl connect 02:00:C2:B9:10:3D` → `ServicesResolved: yes` (SDP completed
+  **over the authenticated link**) then `BREDR.ProfileUnavailable`.
+
+> **Note on `br-connection-profile-unavailable`:** a plain `bluetoothctl connect` between two
+> generic Linux hosts returns this. It is a **profile** error (neither side exposes a connectable
+> service — no A2DP/HID/PAN listener), **not** an authentication error. Do not read it as "pairing
+> broke". To prove the key works, use `hcitool cc` (link-level) or connect a real profile
+> (e.g. an RFCOMM server, or a phone with A2DP/HFP).
+
 ## 4. Packaging — `kmod-btqca` + `kmod-btqcomsmd`
 
 The modules are now proper kernel packages instead of hand-copied overlay files.
