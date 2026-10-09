@@ -227,3 +227,30 @@ OpenWrt generates a **random key per build** unless `openwrt/private-key.pem` al
 
 > **Rotating the key:** generate a new EC P-256 key pair, update the `APK_SIGNING_KEY` secret, replace the tracked public key in `msm89xx/base-files/etc/apk/keys/akbar-npj-v25.12.5.pem` **and** the heredoc in `99-msm89xx-firstboot`, then cut a release. Devices on the previous image self-heal from the stable URL; devices on the new image carry the new key directly.
 
+---
+
+## 9. Kernel-Module (kmod) Feed — the curated "build-only" set
+
+Kernel modules are **target-specific** (kernel version + config), so they are built into the *target* package directory, `openwrt/bin/targets/msm89xx/msm8916/packages/` — never the arch-generic `bin/packages/aarch64_generic/` tree. Because `msm89xx` is not an upstream OpenWrt target, there is **no upstream kmod feed** to fall back on: whatever this build does not compile simply cannot be installed.
+
+By default OpenWrt only builds the kmods selected in the image plus their dependencies. That left the feed and the `kmods-msm8916-<version>.tar.gz` offline bundle **incomplete** — e.g. `kmod-usb-net-rtl8152` was not built at all, so `apk add kmod-usb-net-rtl8152` failed even though the README suggested it.
+
+**Fix:** every `diffconfigs/<board>` appends a curated block of common USB/network kmods with
+
+```text
+CONFIG_PACKAGE_kmod-usb-net-rtl8152=m
+```
+
+The `=m` (build-only) value is the key: the module is **compiled and published into the feed**, but **not installed into the firmware image**. Users install it on demand with `apk add <name>`.
+
+- **Feed:** `…/releases/<version>/targets/msm89xx/msm8916/packages/`
+- **Offline bundle:** `kmods-msm8916-<version>.tar.gz` (a `tar` of that same directory — the two are always identical)
+
+### Why not `CONFIG_ALL_KMODS`
+
+`CONFIG_ALL_KMODS=y` would compile *every* kmod, but each kmod package `select`s its kernel dependencies, so it also forces ~227 extra **built-in** (`=y`) subsystems into the shipping kernel (cgroups/MEMCG, media/DVB/V4L2, DRM + framebuffer console, MPTCP, NFSD, …). That is a heavy change to a firmware whose kernel is deliberately tuned for this device (CPR rail, thermal, modem). The curated set pulls in only modest USB/network/storage subsystems and keeps the kernel lean.
+
+To extend the feed, add more `CONFIG_PACKAGE_kmod-<name>=m` lines to `diffconfigs/<board>`. To confirm a module is published, check for `kmod-<name>-*.apk` under `packages/`.
+
+> **Note:** the kmods tarball and the online feed are produced from the *same* directory in the same job, so they can never drift. A kmod is vermagic-bound to the kernel it was built against, so a module in this feed only loads on this exact kernel build.
+
