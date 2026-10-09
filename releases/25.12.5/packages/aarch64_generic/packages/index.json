@@ -4,6 +4,11 @@
   "packages": {
     "avahi-dbus-daemon": "0.9_rc4-r1",
     "bash": "5.3-r4",
+    "bluez-daemon": "5.83-r1",
+    "bluez-libs": "5.83-r1",
+    "bluez-tools": "2020.10.25~f6532173-r1",
+    "bluez-utils": "5.83-r1",
+    "bluez-utils-extra": "5.83-r1",
     "cgi-io": "2026.06.28~7314451c-r1",
     "coreutils": "9.9-r2",
     "coreutils-dd": "9.9-r2",
@@ -11,6 +16,7 @@
     "coreutils-od": "9.9-r2",
     "coreutils-sha1sum": "9.9-r2",
     "coreutils-shuf": "9.9-r2",
+    "coreutils-stty": "9.9-r2",
     "coreutils-timeout": "9.9-r2",
     "coreutils-truncate": "9.9-r2",
     "dbus": "1.16.2-r4",
@@ -23,6 +29,7 @@
     "libevdev": "1.13.4-r1",
     "libexpat": "2.8.1-r1",
     "libffi": "3.4.7-r1",
+    "libical": "3.0.20-r1",
     "libmbim": "1.32.0-r1",
     "libminiupnpc": "2.2.8-r1",
     "libnatpmp": "20230423-r2",
@@ -40,6 +47,7 @@
     "openssh-sftp-server": "10.3_p1-r1",
     "qmi-utils": "1.36.0-r1",
     "rrdtool1": "1.0.50-r7",
+    "xxd": "2025.11.26-r1",
     "zerotier": "1.16.0-r1"
   }
 }
