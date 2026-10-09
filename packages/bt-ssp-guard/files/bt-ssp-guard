@@ -1,0 +1,178 @@
+#!/bin/sh
+# bt-ssp-guard -- keep the WCNSS (WCN36xx) Bluetooth controller's Secure Simple
+# Pairing LMP-feature bit set.
+#
+# Why this exists
+# ---------------
+# The SSP LMP feature bit lives in NVM tag 6 (the 8-byte LMP features block),
+# byte 6, bit 3 (0x08).  When it is CLEAR the controller answers
+#   Read Simple Pairing Mode (OGF 0x03, OCF 0x0055)
+# with status 0x11 (Unsupported Feature), so BR/EDR pairing falls back to
+# legacy PIN pairing -- which also fails ("PIN or Key Missing").  The ONLY
+# repair is to rewrite NVM tag 6 with the bit set:
+#   hcitool cmd 0x3f 0x0b 0x01 0x06 0x08 <8 feature bytes>
+# "Write Simple Pairing Mode" (0x03 0x0056 0x01) does NOT help: with the
+# feature bit clear it returns 0x11 itself (verified live 2026-10-09).
+#
+# The BT NVM is RAM-only, so the check must run every boot.  A stock boot
+# already defaults to the good state (features ...3F 5B 87, SSP mode 01), so
+# in the normal case this script is a silent no-op -- it is insurance against
+# whatever cleared the bit, not a routine action.
+#
+# Usage:
+#   bt-ssp-guard status          report the feature bit / SSP mode, exit 0 if ok
+#   bt-ssp-guard repair [--wait] check and repair; --wait polls for hci0 first
+#
+# Exit: 0 ok / repaired; 1 degraded (status) or repair failed; 2 no controller.
+
+PROG=bt-ssp-guard
+
+log() {
+	logger -t "$PROG" "$*"
+	echo "$PROG: $*" >&2
+}
+
+# Print the 8 LMP-feature bytes (space separated) from
+# Read Local Supported Features (OGF 0x04, OCF 0x0003).  The command-complete
+# return is  num_cmd opcode_lo opcode_hi status <8 feature bytes>  so the
+# features are fields 5..12 of the last hex line.  Empty on failure.
+read_feat_bytes() {
+	hcitool cmd 0x04 0x0003 2>/dev/null \
+		| grep -E '^[[:space:]]*([0-9A-Fa-f]{2}[[:space:]])+[0-9A-Fa-f]{2}[[:space:]]*$' \
+		| tail -1 \
+		| awk 'NF>=12 {print $5,$6,$7,$8,$9,$10,$11,$12}'
+}
+
+# Print the SSP mode byte (the last field of the Read Simple Pairing Mode
+# return).  "01" = enabled; anything else (notably FF with status 0x11) = not.
+read_ssp_mode() {
+	hcitool cmd 0x03 0x0055 2>/dev/null \
+		| grep -E '^[[:space:]]*([0-9A-Fa-f]{2}[[:space:]])+[0-9A-Fa-f]{2}[[:space:]]*$' \
+		| tail -1 \
+		| awk '{print $NF}'
+}
+
+# Wait (up to N seconds, default 90) for hci0 to be registered and UP.
+wait_hci_up() {
+	_n=${1:-90}
+	_i=0
+	while [ "$_i" -lt "$_n" ]; do
+		if [ -e /sys/class/bluetooth/hci0 ] && \
+		   hciconfig hci0 2>/dev/null | grep -q 'UP'; then
+			return 0
+		fi
+		sleep 1
+		_i=$((_i + 1))
+	done
+	return 1
+}
+
+# Check and, if needed, repair the SSP feature bit.  Logs only when it acts.
+do_repair() {
+	FEAT=$(read_feat_bytes)
+	if [ -z "$FEAT" ]; then
+		log "ERROR: cannot read LMP features (no hci0 / controller not ready)"
+		return 2
+	fi
+	# shellcheck disable=SC2086
+	set -- $FEAT
+	# fields: $1..$8 = feature bytes 0..7 ; byte 6 = $7
+	F6=$7
+	B6=$((0x$F6))
+
+	if [ $((B6 & 0x08)) -eq 0 ]; then
+		NEW6=$(printf '%02X' $((B6 | 0x08)))
+		log "SSP feature bit CLEAR (tag6 byte6=$F6) -> rewriting tag6 byte6=$NEW6"
+		hcitool cmd 0x3f 0x0b 0x01 0x06 0x08 \
+			0x$1 0x$2 0x$3 0x$4 0x$5 0x$6 0x$NEW6 0x$8 >/dev/null 2>&1
+
+		# verify (re-read; do not trust the write)
+		FEAT=$(read_feat_bytes)
+		if [ -z "$FEAT" ]; then
+			log "ERROR: features unreadable after tag6 rewrite"
+			return 1
+		fi
+		# shellcheck disable=SC2086
+		set -- $FEAT
+		if [ $(( 0x$7 & 0x08 )) -ne 0 ]; then
+			log "repair OK: tag6 byte6 now $7 (SSP feature bit set)"
+		else
+			log "ERROR: tag6 rewrite did not take (byte6 still $7)"
+			return 1
+		fi
+	fi
+
+	# With the feature bit set, ensure SSP mode is enabled.  (Write SSP only
+	# works once the feature bit is present, which is why it comes second.)
+	MODE=$(read_ssp_mode)
+	if [ "$MODE" != "01" ]; then
+		log "SSP mode=$MODE -> Write Simple Pairing Mode=1"
+		hcitool cmd 0x03 0x0056 0x01 >/dev/null 2>&1
+		MODE=$(read_ssp_mode)
+		if [ "$MODE" = "01" ]; then
+			log "repair OK: SSP mode now 01"
+		else
+			log "ERROR: SSP mode still $MODE after Write SSP=1"
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+cmd_status() {
+	FEAT=$(read_feat_bytes)
+	if [ -z "$FEAT" ]; then
+		echo "$PROG: no hci0 / cannot read LMP features"
+		return 2
+	fi
+	# shellcheck disable=SC2086
+	set -- $FEAT
+	F6=$7
+	B6=$((0x$F6))
+	MODE=$(read_ssp_mode)
+	if [ $((B6 & 0x08)) -ne 0 ]; then
+		BIT="SSP bit SET"
+	else
+		BIT="SSP bit CLEAR"
+	fi
+
+	echo "features : $FEAT"
+	echo "  tag6 byte6 : $F6 ($BIT)"
+	echo "  SSP mode   : ${MODE:-?}"
+
+	if [ $((B6 & 0x08)) -ne 0 ] && [ "$MODE" = "01" ]; then
+		echo "verdict  : OK (Secure Simple Pairing enabled)"
+		return 0
+	fi
+	echo "verdict  : DEGRADED -- run '$PROG repair'"
+	return 1
+}
+
+cmd_repair() {
+	if [ "$1" = "--wait" ]; then
+		if ! wait_hci_up 90; then
+			log "no UP hci0 after 90s; trying to bring it up"
+			hciconfig hci0 up 2>/dev/null || true
+			sleep 2
+		fi
+	fi
+	do_repair
+}
+
+case "$1" in
+	status)
+		cmd_status
+		;;
+	repair)
+		cmd_repair "$2"
+		;;
+	""|--wait)
+		# default action, also used by the boot init script
+		cmd_repair --wait
+		;;
+	*)
+		echo "usage: $PROG {status|repair [--wait]}" >&2
+		exit 2
+		;;
+esac

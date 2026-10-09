@@ -28,6 +28,19 @@ DEFAULT_PACKAGES += kmod-wcn36xx kmod-qcom-rproc-wcnss kmod-qcom-rproc
 DEFAULT_PACKAGES += kmod-rpmsg-wwan-ctrl kmod-bam-dmux kmod-qcom-rproc-modem
 # Bluetooth over the WCNSS (Pronto/RIVA) core via the SMD transport.
 DEFAULT_PACKAGES += kmod-btqcomsmd kmod-btqca
+# BlueZ userspace so Bluetooth is usable out of the box: bluetoothd, the
+# bluetoothctl/hcitool/hciconfig/btmgmt tools (bluez-utils), and rfcomm/sdptool/
+# bt-agent (bluez-tools).  The kernel side (rfcomm/bnep/hidp over BT) is already
+# pulled in by kmod-bluetooth via kmod-btqcomsmd; without this the tools only
+# exist as ad-hoc overlay installs and are lost on a clean flash.
+DEFAULT_PACKAGES += bluez-daemon bluez-utils bluez-tools
+# Boot-time guard that keeps the WCNSS BT controller's Secure Simple Pairing
+# LMP-feature bit set (byte 6 bit 3 of NVM tag 6).  The BT NVM is RAM-only and
+# a stock boot already defaults to the good state, so this is a silent no-op
+# in the normal case; it exists so a cleared feature bit cannot leave the
+# device stuck in failing legacy PIN pairing.  Also provides the
+# `bt-ssp-guard status|repair` CLI.
+DEFAULT_PACKAGES += bt-ssp-guard
 # qcom-time-daemon is HMU05-only: its init gates on the board name (returns 0 on
 # any non-HMU05 board) and it only exists to anchor the HMU05 modem's ATS state.
 # It is pulled in by the generic-hmu05 DEVICE_PACKAGES, not as a default.
