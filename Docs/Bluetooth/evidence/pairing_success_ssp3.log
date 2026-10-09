@@ -1,0 +1,98 @@
+Waiting to connect to bluetoothd...[19P[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Media /org/bluez/hci0 
+[0;94m[bluetoothctl]> [0m[K	SupportedUUIDs: 0000110a-0000-1000-8000-00805f9b34fb
+[0;94m[bluetoothctl]> [0m[K	SupportedUUIDs: 0000110b-0000-1000-8000-00805f9b34fb
+[0;94m[bluetoothctl]> [0m[KAgent registered
+[0;94m[bluetoothctl]> [0mpower off
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 PowerState: on-disabling
+[0;94m[bluetoothctl]> [0m[Khci0 class of device changed: 0x000000
+[0;94m[bluetoothctl]> [0m[Khci0 new_settings: connectable discoverable bondable ssp br/edr le ll-privacy 
+[0;94m[bluetoothctl]> [0m[KChanging power off succeeded
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 PowerState: off
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Powered: no
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Discovering: no
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Class: 0x00000000 (0)
+[0;94m[bluetoothctl]> [0mpower on
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 PowerState: off-enabling
+[0;94m[bluetoothctl]> [0m[Khci0 class of device changed: 0x7c010c
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Class: 0x007c010c (8126732)
+[0;94m[bluetoothctl]> [0m[Khci0 new_settings: powered connectable discoverable bondable ssp br/edr le ll-privacy 
+[0;94m[bluetoothctl]> [0m[KChanging power on succeeded
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 PowerState: on
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Powered: yes
+[0;94m[bluetoothctl]> [0mscan on
+[0;94m[bluetoothctl]> [0m[KSetDiscoveryFilter success
+[0;94m[bluetoothctl]> [0m[KDiscovery started
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Discovering: yes
+[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Device 46:CF:E2:14:ED:2F 46-CF-E2-14-ED-2F
+[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Device 74:2E:23:7D:BC:C6 74-2E-23-7D-BC-C6
+[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Device 71:D5:17:E6:66:A4 71-D5-17-E6-66-A4
+[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Device 02:00:C2:B9:10:3D HMU05
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 74:2E:23:7D:BC:C6 RSSI: 0xffffffa1 (-95)
+[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Device 48:23:35:63:80:B3 TVSBT20000108
+[0;94m[bluetoothctl]> [0m[K[[0;92mNEW[0m] Device 04:29:E2:14:ED:2F 04-29-E2-14-ED-2F
+[0;94m[bluetoothctl]> [0mscan off
+[0;94m[bluetoothctl]> [0mpair 02:00:C2:B9:10:3D
+Attempting to pair with 02:00:C2:B9:10:3D
+[0;94m[bluetoothctl]> [0m[KDiscovery stopped
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 04:29:E2:14:ED:2F TxPower is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 04:29:E2:14:ED:2F RSSI is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 48:23:35:63:80:B3 RSSI is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D TxPower is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D RSSI is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 71:D5:17:E6:66:A4 RSSI is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 74:2E:23:7D:BC:C6 TxPower is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 74:2E:23:7D:BC:C6 RSSI is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 46:CF:E2:14:ED:2F TxPower is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 46:CF:E2:14:ED:2F RSSI is nil
+[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Controller C0:95:6D:45:9A:F3 Discovering: no
+[0;94m[bluetoothctl]> [0m[0;94m[HMU05]> [0m[K[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D Connected: yes
+[0;94m[HMU05]> [0m[KRequest confirmation
+[0;94m[HMU05]> [0m[1;39m[1;39m[agent] Confirm passkey 794608 (yes/no): [0m[0myes
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D Bonded: yes
+[0;94m[HMU05]> [0m[K[[0;91mDEL[0m] Device 71:D5:17:E6:66:A4 71-D5-17-E6-66-A4
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D UUIDs: 0000110c-0000-1000-8000-00805f9b34fb
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D UUIDs: 0000110e-0000-1000-8000-00805f9b34fb
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D UUIDs: 00001200-0000-1000-8000-00805f9b34fb
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D UUIDs: 00001800-0000-1000-8000-00805f9b34fb
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D UUIDs: 00001801-0000-1000-8000-00805f9b34fb
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D UUIDs: 0000180a-0000-1000-8000-00805f9b34fb
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D ServicesResolved: yes
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D Paired: yes
+[0;94m[HMU05]> [0m[KPairing successful
+[0;94m[HMU05]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D ServicesResolved: no
+[0;94m[HMU05]> [0m[K[[0;93mSIGNAL[0m] BREDR.Disconnected - org.bluez.Reason.Local, Connection terminated by local host
+[0;94m[HMU05]> [0m[K[[0;93mSIGNAL[0m] Disconnected - org.bluez.Reason.Local, Connection terminated by local host
+[0;94m[HMU05]> [0m[0;94m[bluetoothctl]> [0m[K[[0;93mCHG[0m] Device 02:00:C2:B9:10:3D Connected: no
+[0;94m[bluetoothctl]> [0myes
+[1;39mInvalid command in menu main: yes[0m
+[1;39m
+Use "help" for a list of available commands in a menu.
+Use "menu <submenu>" if you want to enter any submenu.
+Use "back" if you want to return to menu main.[0m
+[0;94m[bluetoothctl]> [0m[K[[0;91mDEL[0m] Device 48:23:35:63:80:B3 TVSBT20000108
+[0;94m[bluetoothctl]> [0m[K[[0;91mDEL[0m] Device 46:CF:E2:14:ED:2F 46-CF-E2-14-ED-2F
+[0;94m[bluetoothctl]> [0m[K[[0;91mDEL[0m] Device 04:29:E2:14:ED:2F 04-29-E2-14-ED-2F
+[0;94m[bluetoothctl]> [0m[K[[0;91mDEL[0m] Device 74:2E:23:7D:BC:C6 74-2E-23-7D-BC-C6
+[0;94m[bluetoothctl]> [0minfo 02:00:C2:B9:10:3D
+Device 02:00:C2:B9:10:3D (public)
+	Name: HMU05
+	Alias: HMU05
+	Class: 0x00000100 (256)
+	Icon: computer
+	Paired: yes
+	Bonded: yes
+	Trusted: no
+	Blocked: no
+	Connected: no
+	LegacyPairing: no
+	CablePairing: no
+	UUID: A/V Remote Control Target (0000110c-0000-1000-8000-00805f9b34fb)
+	UUID: A/V Remote Control        (0000110e-0000-1000-8000-00805f9b34fb)
+	UUID: PnP Information           (00001200-0000-1000-8000-00805f9b34fb)
+	UUID: Generic Access Profile    (00001800-0000-1000-8000-00805f9b34fb)
+	UUID: Generic Attribute Profile (00001801-0000-1000-8000-00805f9b34fb)
+	UUID: Device Information        (0000180a-0000-1000-8000-00805f9b34fb)
+	Modalias: usb:v1D6Bp0246d0553
+DBG: cs_proxies is empty
+[0;94m[bluetoothctl]> [0mquit
+[0;94m[bluetoothctl]> [0m[K

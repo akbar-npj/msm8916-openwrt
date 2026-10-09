@@ -1,0 +1,257 @@
+HCI sniffer - Bluetooth packet analyzer ver 5.83
+device: hci0 snap_len: 1500 filter: 0xffffffffffffffff
+2026-10-09 09:15:22.618370 > HCI Event: Connect Request (0x04) plen 10
+    bdaddr C0:95:6D:45:9A:F3 class 0x7c010c type ACL
+2026-10-09 09:15:22.618650 < HCI Command: Accept Connection Request (0x01|0x0009) plen 7
+    bdaddr C0:95:6D:45:9A:F3 role 0x01
+    Role: Peripheral
+2026-10-09 09:15:22.619517 > HCI Event: Command Status (0x0f) plen 4
+    Accept Connection Request (0x01|0x0009) status 0x00 ncmd 1
+2026-10-09 09:15:22.629650 > HCI Event: Connect Complete (0x03) plen 11
+    status 0x00 handle 15 bdaddr C0:95:6D:45:9A:F3 type ACL encrypt 0x00
+2026-10-09 09:15:22.629834 > HCI Event: Page Scan Repetition Mode Change (0x20) plen 7
+    bdaddr C0:95:6D:45:9A:F3 mode 0
+2026-10-09 09:15:22.630578 < HCI Command: Read Remote Supported Features (0x01|0x001b) plen 2
+    handle 15
+2026-10-09 09:15:22.631021 > HCI Event: Command Status (0x0f) plen 4
+    Read Remote Supported Features (0x01|0x001b) status 0x00 ncmd 1
+2026-10-09 09:15:22.631766 > HCI Event: Max Slots Change (0x1b) plen 3
+    handle 15 slots 5
+2026-10-09 09:15:22.873239 > HCI Event: Read Remote Supported Features (0x0b) plen 11
+    status 0x00 handle 15
+    Features: 0xbf 0xfe 0xcf 0xfe 0xdb 0xff 0x7b 0x87
+2026-10-09 09:15:22.873654 < HCI Command: Read Remote Extended Features (0x01|0x001c) plen 3
+    handle 15 page 1
+2026-10-09 09:15:22.874252 > HCI Event: Command Status (0x0f) plen 4
+    Read Remote Extended Features (0x01|0x001c) status 0x00 ncmd 1
+2026-10-09 09:15:22.929401 > HCI Event: Read Remote Extended Features (0x23) plen 13
+    status 0x00 handle 15 page 1 max 2
+    Features: 0x0b 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+2026-10-09 09:15:22.929813 < HCI Command: Remote Name Request (0x01|0x0019) plen 10
+    bdaddr C0:95:6D:45:9A:F3 mode 2 clkoffset 0x0000
+2026-10-09 09:15:22.929855 < ACL data: handle 15 flags 0x00 dlen 10
+    L2CAP(s): Info req: type 2
+2026-10-09 09:15:22.930462 > HCI Event: Command Status (0x0f) plen 4
+    Remote Name Request (0x01|0x0019) status 0x00 ncmd 1
+2026-10-09 09:15:22.930757 > HCI Event: IO Capability Response (0x32) plen 9
+    bdaddr C0:95:6D:45:9A:F3 capability 0x01 oob 0x00 auth 0x03
+    Capability: DisplayYesNo (OOB data not present)
+    Authentication: Dedicated Bonding (MITM Protection)
+2026-10-09 09:15:22.930772 > HCI Event: IO Capability Request (0x31) plen 6
+    bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:15:22.930952 < HCI Command: IO Capability Request Reply (0x01|0x002b) plen 9
+    bdaddr C0:95:6D:45:9A:F3 capability 0x03 oob 0x00 auth 0x02
+    Capability: NoInputNoOutput (OOB data not present)
+    Authentication: Dedicated Bonding (No MITM Protection)
+2026-10-09 09:15:22.931423 > HCI Event: Command Complete (0x0e) plen 10
+    IO Capability Request Reply (0x01|0x002b) ncmd 1
+    status 0x00 bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:15:22.932330 > HCI Event: Number of Completed Packets (0x13) plen 5
+    handle 15 packets 1
+2026-10-09 09:15:22.934360 > HCI Event: Remote Name Req Complete (0x07) plen 255
+    status 0x00 bdaddr C0:95:6D:45:9A:F3 name 'fedora'
+2026-10-09 09:15:24.275921 > HCI Event: User Confirmation Request (0x33) plen 10
+    bdaddr C0:95:6D:45:9A:F3 passkey 342513
+2026-10-09 09:15:24.276311 < HCI Command: User Confirmation Request Reply (0x01|0x002c) plen 6
+    bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:15:24.276687 > HCI Event: Command Complete (0x0e) plen 10
+    User Confirmation Request Reply (0x01|0x002c) ncmd 1
+    status 0x00 bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:15:24.348947 > HCI Event: Simple Pairing Complete (0x36) plen 7
+    status 0x05 bdaddr C0:95:6D:45:9A:F3
+    Error: Authentication Failure
+2026-10-09 09:15:24.612825 > HCI Event: Disconn Complete (0x05) plen 4
+    status 0x00 handle 15 reason 0x13
+    Reason: Remote User Terminated Connection
+2026-10-09 09:15:51.807889 < HCI Command: Write Scan Enable (0x03|0x001a) plen 1
+    enable 0
+2026-10-09 09:15:51.819067 > HCI Event: Command Complete (0x0e) plen 4
+    Write Scan Enable (0x03|0x001a) ncmd 1
+    status 0x00
+2026-10-09 09:16:26.972430 < HCI Command: Reset (0x03|0x0003) plen 0
+2026-10-09 09:16:26.998438 > HCI Event: Command Complete (0x0e) plen 4
+    Reset (0x03|0x0003) ncmd 1
+    status 0x00
+2026-10-09 09:16:26.998929 < HCI Command: Read Local Supported Features (0x04|0x0003) plen 0
+2026-10-09 09:16:26.999356 > HCI Event: Command Complete (0x0e) plen 12
+    Read Local Supported Features (0x04|0x0003) ncmd 1
+    status 0x00
+    Features: 0xff 0xfe 0x8f 0xfe 0xd8 0x3f 0x5b 0x87
+2026-10-09 09:16:26.999845 < HCI Command: Read Local Version Information (0x04|0x0001) plen 0
+2026-10-09 09:16:27.000077 > HCI Event: Command Complete (0x0e) plen 12
+    Read Local Version Information (0x04|0x0001) ncmd 1
+    status 0x00
+    HCI Version: 4.0 (0x6) HCI Revision: 0x0
+    LMP Version: 4.0 (0x6) LMP Subversion: 0x7d3
+    Manufacturer: Qualcomm (29)
+2026-10-09 09:16:27.000466 < HCI Command: Read BD ADDR (0x04|0x0009) plen 0
+2026-10-09 09:16:27.000651 > HCI Event: Command Complete (0x0e) plen 10
+    Read BD ADDR (0x04|0x0009) ncmd 1
+    status 0x00 bdaddr 02:00:C2:B9:10:3D
+2026-10-09 09:16:27.000975 < HCI Command: Read Local Supported Commands (0x04|0x0002) plen 0
+2026-10-09 09:16:27.001147 > HCI Event: Command Complete (0x0e) plen 68
+    Read Local Supported Commands (0x04|0x0002) ncmd 1
+    status 0x00
+    Commands: ffffff03ceffefffffffff7ff20fe8fe3ff783ff1c00000061ffffff7f0620f3
+              ff
+2026-10-09 09:16:27.001469 < HCI Command: Write Simple Pairing Mode (0x03|0x0056) plen 1
+    mode 0x01
+2026-10-09 09:16:27.001649 > HCI Event: Command Complete (0x0e) plen 4
+    Write Simple Pairing Mode (0x03|0x0056) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.001961 < HCI Command: Write Inquiry Mode (0x03|0x0045) plen 1
+    mode 2
+2026-10-09 09:16:27.002116 > HCI Event: Command Complete (0x0e) plen 4
+    Write Inquiry Mode (0x03|0x0045) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.002352 < HCI Command: Read Inquiry Response Transmit Power Level (0x03|0x0058) plen 0
+2026-10-09 09:16:27.002556 > HCI Event: Command Complete (0x0e) plen 5
+    Read Inquiry Response Transmit Power Level (0x03|0x0058) ncmd 1
+    status 0x00 level 2
+2026-10-09 09:16:27.002877 < HCI Command: Read Local Extended Features (0x04|0x0004) plen 1
+    page 1
+2026-10-09 09:16:27.003041 > HCI Event: Command Complete (0x0e) plen 14
+    Read Local Extended Features (0x04|0x0004) ncmd 1
+    status 0x00 page 1 max 2
+    Features: 0x01 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+2026-10-09 09:16:27.003306 < HCI Command: Read Buffer Size (0x04|0x0005) plen 0
+2026-10-09 09:16:27.003490 > HCI Event: Command Complete (0x0e) plen 11
+    Read Buffer Size (0x04|0x0005) ncmd 1
+    status 0x00
+    ACL MTU 1024:6 SCO MTU 50:8
+2026-10-09 09:16:27.003687 < HCI Command: Read Class of Device (0x03|0x0023) plen 0
+2026-10-09 09:16:27.003871 > HCI Event: Command Complete (0x0e) plen 7
+    Read Class of Device (0x03|0x0023) ncmd 1
+    status 0x00 class 0x000000
+2026-10-09 09:16:27.004073 < HCI Command: Read Local Name (0x03|0x0014) plen 0
+2026-10-09 09:16:27.004274 > HCI Event: Command Complete (0x0e) plen 252
+    Read Local Name (0x03|0x0014) ncmd 1
+    status 0x00 name ''
+2026-10-09 09:16:27.004754 < HCI Command: Read Voice Setting (0x03|0x0025) plen 0
+2026-10-09 09:16:27.004939 > HCI Event: Command Complete (0x0e) plen 6
+    Read Voice Setting (0x03|0x0025) ncmd 1
+    status 0x00 voice setting 0x006c
+2026-10-09 09:16:27.005154 < HCI Command: Read Number of Supported IAC (0x03|0x0038) plen 0
+2026-10-09 09:16:27.005327 > HCI Event: Command Complete (0x0e) plen 5
+    Read Number of Supported IAC (0x03|0x0038) ncmd 1
+    00 02 
+2026-10-09 09:16:27.005522 < HCI Command: Read Current IAC LAP (0x03|0x0039) plen 0
+2026-10-09 09:16:27.005701 > HCI Event: Command Complete (0x0e) plen 8
+    Read Current IAC LAP (0x03|0x0039) ncmd 1
+    IAC 0x9e8b33 (General Inquiry Access Code)
+2026-10-09 09:16:27.005901 < HCI Command: Write Connection Accept Timeout (0x03|0x0016) plen 2
+    timeout 32000
+2026-10-09 09:16:27.006068 > HCI Event: Command Complete (0x0e) plen 4
+    Write Connection Accept Timeout (0x03|0x0016) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.006264 < HCI Command: LE Read Local Supported Features (0x08|0x0003) plen 0
+2026-10-09 09:16:27.006439 > HCI Event: Command Complete (0x0e) plen 12
+    LE Read Local Supported Features (0x08|0x0003) ncmd 1
+    status 0x00 features 0x0f00000000000000 (Link Layer supports LE Encryption)
+2026-10-09 09:16:27.006633 < HCI Command: LE Read Buffer Size (0x08|0x0002) plen 0
+2026-10-09 09:16:27.006814 > HCI Event: Command Complete (0x0e) plen 7
+    LE Read Buffer Size (0x08|0x0002) ncmd 1
+    status 0x00 pktlen 0x0040 maxpkt 0x10
+2026-10-09 09:16:27.007016 < HCI Command: LE Read Supported States (0x08|0x001c) plen 0
+2026-10-09 09:16:27.007189 > HCI Event: Command Complete (0x0e) plen 12
+    LE Read Supported States (0x08|0x001c) ncmd 1
+    00 FF FF FF FF FF 03 00 00 
+2026-10-09 09:16:27.007385 < HCI Command: Set Event Mask (0x03|0x0001) plen 8
+    Mask: 0xfffffbff07f8bf3d
+2026-10-09 09:16:27.007601 > HCI Event: Command Complete (0x0e) plen 4
+    Set Event Mask (0x03|0x0001) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.007854 < HCI Command: Read Stored Link Key (0x03|0x000d) plen 7
+    bdaddr 00:00:00:00:00:00 all 1
+2026-10-09 09:16:27.008029 > HCI Event: Command Complete (0x0e) plen 8
+    Read Stored Link Key (0x03|0x000d) ncmd 1
+    status 0x00 max 8 num 0
+2026-10-09 09:16:27.008224 < HCI Command: Write Default Link Policy Settings (0x02|0x000f) plen 2
+    policy 0x07
+    Link policy: RSWITCH HOLD SNIFF 
+2026-10-09 09:16:27.008396 > HCI Event: Command Complete (0x0e) plen 4
+    Write Default Link Policy Settings (0x02|0x000f) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.008585 < HCI Command: Read Page Scan Activity (0x03|0x001b) plen 0
+2026-10-09 09:16:27.008760 > HCI Event: Command Complete (0x0e) plen 8
+    Read Page Scan Activity (0x03|0x001b) ncmd 1
+    status 0x00 interval 2048 window 18
+2026-10-09 09:16:27.008954 < HCI Command: Read Page Scan Type (0x03|0x0046) plen 0
+2026-10-09 09:16:27.009121 > HCI Event: Command Complete (0x0e) plen 5
+    Read Page Scan Type (0x03|0x0046) ncmd 1
+    00 00 
+2026-10-09 09:16:27.009315 < HCI Command: Read Local Extended Features (0x04|0x0004) plen 1
+    page 2
+2026-10-09 09:16:27.009486 > HCI Event: Command Complete (0x0e) plen 14
+    Read Local Extended Features (0x04|0x0004) ncmd 1
+    status 0x00 page 2 max 2
+    Features: 0x00 0x03 0x00 0x00 0x00 0x00 0x00 0x00
+2026-10-09 09:16:27.009682 < HCI Command: LE Set Event Mask (0x08|0x0001) plen 8
+    mask 0x3f00000000000000 (Reserved)
+2026-10-09 09:16:27.009859 > HCI Event: Command Complete (0x0e) plen 4
+    LE Set Event Mask (0x08|0x0001) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.010071 < HCI Command: LE Read Advertising Channel Tx Power (0x08|0x0007) plen 0
+2026-10-09 09:16:27.010283 > HCI Event: Command Complete (0x0e) plen 5
+    LE Read Advertising Channel Tx Power (0x08|0x0007) ncmd 1
+    status 0x00 level 0x2 (dBm)
+2026-10-09 09:16:27.010491 < HCI Command: LE Read Accept List Size (0x08|0x000f) plen 0
+2026-10-09 09:16:27.010674 > HCI Event: Command Complete (0x0e) plen 5
+    LE Read Accept List Size (0x08|0x000f) ncmd 1
+    00 80 
+2026-10-09 09:16:27.010895 < HCI Command: LE Clear Accept List (0x08|0x0010) plen 0
+2026-10-09 09:16:27.011087 > HCI Event: Command Complete (0x0e) plen 4
+    LE Clear Accept List (0x08|0x0010) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.011670 < HCI Command: Write LE Host Supported (0x03|0x006d) plen 2
+  01 00 
+2026-10-09 09:16:27.011834 > HCI Event: Command Complete (0x0e) plen 4
+    Write LE Host Supported (0x03|0x006d) ncmd 1
+    00 
+2026-10-09 09:16:27.011943 < HCI Command: Delete Stored Link Key (0x03|0x0012) plen 7
+    bdaddr 00:00:00:00:00:00 all 1
+2026-10-09 09:16:27.012113 > HCI Event: Command Complete (0x0e) plen 6
+    Delete Stored Link Key (0x03|0x0012) ncmd 1
+    status 0x00 deleted 0
+2026-10-09 09:16:27.012205 < HCI Command: Unknown (0x03|0x007a) plen 1
+  01 
+2026-10-09 09:16:27.012363 > HCI Event: Command Complete (0x0e) plen 4
+    Unknown (0x03|0x007a) ncmd 1
+    00 
+2026-10-09 09:16:27.012564 < HCI Command: Write Class of Device (0x03|0x0024) plen 3
+    class 0x000100
+2026-10-09 09:16:27.012735 > HCI Event: Command Complete (0x0e) plen 4
+    Write Class of Device (0x03|0x0024) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.015124 < HCI Command: Write Local Name (0x03|0x0013) plen 248
+    name 'HMU05'
+2026-10-09 09:16:27.015333 > HCI Event: Command Complete (0x0e) plen 4
+    Write Local Name (0x03|0x0013) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.015464 < HCI Command: Write Extended Inquiry Response (0x03|0x0052) plen 241
+    fec 0x00
+    Complete local name: 'HMU05'
+    TX power level: 2
+    Unknown type 0x10 with 8 bytes data
+    Complete service classes: 0x1800 0x1801 0x180a
+2026-10-09 09:16:27.015680 > HCI Event: Command Complete (0x0e) plen 4
+    Write Extended Inquiry Response (0x03|0x0052) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.017862 < HCI Command: Write Extended Inquiry Response (0x03|0x0052) plen 241
+    fec 0x00
+    Complete local name: 'HMU05'
+    TX power level: 2
+    Unknown type 0x10 with 8 bytes data
+    Complete service classes: 0x1800 0x1801 0x180a 0x110e
+2026-10-09 09:16:27.018080 > HCI Event: Command Complete (0x0e) plen 4
+    Write Extended Inquiry Response (0x03|0x0052) ncmd 1
+    status 0x00
+2026-10-09 09:16:27.019874 < HCI Command: Write Extended Inquiry Response (0x03|0x0052) plen 241
+    fec 0x00
+    Complete local name: 'HMU05'
+    TX power level: 2
+    Unknown type 0x10 with 8 bytes data
+    Complete service classes: 0x1800 0x1801 0x180a 0x110e 0x110c
+2026-10-09 09:16:27.020093 > HCI Event: Command Complete (0x0e) plen 4
+    Write Extended Inquiry Response (0x03|0x0052) ncmd 1
+    status 0x00

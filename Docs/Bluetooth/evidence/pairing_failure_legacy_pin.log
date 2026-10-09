@@ -1,0 +1,78 @@
+HCI sniffer - Bluetooth packet analyzer ver 5.83
+device: hci0 snap_len: 1500 filter: 0xffffffffffffffff
+2026-10-09 09:36:58.581361 < HCI Command: Inquiry (0x01|0x0001) plen 5
+    lap 0x9e8b33 len 8 num 0
+2026-10-09 09:36:58.581751 > HCI Event: Command Status (0x0f) plen 4
+    Inquiry (0x01|0x0001) status 0x00 ncmd 1
+2026-10-09 09:37:04.509937 > HCI Event: Inquiry Result (0x02) plen 15
+    bdaddr C0:95:6D:45:9A:F3 mode 1 clkoffset 0x3931 class 0x7c010c
+2026-10-09 09:37:08.770563 > HCI Event: Inquiry Complete (0x01) plen 1
+    status 0x00
+2026-10-09 09:37:08.772740 < HCI Command: Inquiry (0x01|0x0001) plen 5
+    lap 0x9e8b33 len 8 num 0
+2026-10-09 09:37:08.773177 > HCI Event: Command Status (0x0f) plen 4
+    Inquiry (0x01|0x0001) status 0x00 ncmd 1
+2026-10-09 09:37:16.584015 < HCI Command: Inquiry Cancel (0x01|0x0002) plen 0
+2026-10-09 09:37:16.584556 > HCI Event: Command Complete (0x0e) plen 4
+    Inquiry Cancel (0x01|0x0002) ncmd 1
+    status 0x00
+2026-10-09 09:37:16.592012 < HCI Command: Create Connection (0x01|0x0005) plen 13
+    bdaddr C0:95:6D:45:9A:F3 ptype 0xcc18 rswitch 0x01 clkoffset 0x0000
+    Packet type: DM1 DM3 DM5 DH1 DH3 DH5 
+2026-10-09 09:37:16.592537 > HCI Event: Command Status (0x0f) plen 4
+    Create Connection (0x01|0x0005) status 0x00 ncmd 1
+2026-10-09 09:37:20.002048 > HCI Event: Role Change (0x12) plen 8
+    status 0x00 bdaddr C0:95:6D:45:9A:F3 role 0x01
+    Role: Peripheral
+2026-10-09 09:37:20.010771 > HCI Event: Connect Complete (0x03) plen 11
+    status 0x00 handle 7 bdaddr C0:95:6D:45:9A:F3 type ACL encrypt 0x00
+2026-10-09 09:37:20.011007 > HCI Event: Page Scan Repetition Mode Change (0x20) plen 7
+    bdaddr C0:95:6D:45:9A:F3 mode 0
+2026-10-09 09:37:20.011592 < HCI Command: Read Remote Supported Features (0x01|0x001b) plen 2
+    handle 7
+2026-10-09 09:37:20.012117 > HCI Event: Command Status (0x0f) plen 4
+    Read Remote Supported Features (0x01|0x001b) status 0x00 ncmd 1
+2026-10-09 09:37:20.013158 > HCI Event: Max Slots Change (0x1b) plen 3
+    handle 7 slots 5
+2026-10-09 09:37:20.133293 > HCI Event: Read Remote Supported Features (0x0b) plen 11
+    status 0x00 handle 7
+    Features: 0xbf 0xfe 0xcf 0xfe 0xdb 0xff 0x7b 0x87
+2026-10-09 09:37:20.133689 < HCI Command: Read Remote Extended Features (0x01|0x001c) plen 3
+    handle 7 page 1
+2026-10-09 09:37:20.134240 > HCI Event: Command Status (0x0f) plen 4
+    Read Remote Extended Features (0x01|0x001c) status 0x00 ncmd 1
+2026-10-09 09:37:20.135634 > ACL data: handle 7 flags 0x02 dlen 10
+    L2CAP(s): Info req: type 2
+2026-10-09 09:37:20.367060 > HCI Event: Read Remote Extended Features (0x23) plen 13
+    status 0x00 handle 7 page 1 max 2
+    Features: 0x03 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+2026-10-09 09:37:20.367454 < HCI Command: Remote Name Request (0x01|0x0019) plen 10
+    bdaddr C0:95:6D:45:9A:F3 mode 2 clkoffset 0x0000
+2026-10-09 09:37:20.368121 > HCI Event: Command Status (0x0f) plen 4
+    Remote Name Request (0x01|0x0019) status 0x00 ncmd 1
+2026-10-09 09:37:20.424567 > HCI Event: Remote Name Req Complete (0x07) plen 255
+    status 0x00 bdaddr C0:95:6D:45:9A:F3 name 'fedora'
+2026-10-09 09:37:20.424826 < HCI Command: Authentication Requested (0x01|0x0011) plen 2
+    handle 7
+2026-10-09 09:37:20.425074 > HCI Event: Command Status (0x0f) plen 4
+    Authentication Requested (0x01|0x0011) status 0x00 ncmd 1
+2026-10-09 09:37:20.425269 > HCI Event: Link Key Request (0x17) plen 6
+    bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:37:20.425416 < HCI Command: Link Key Request Negative Reply (0x01|0x000c) plen 6
+    bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:37:20.425698 > HCI Event: Command Complete (0x0e) plen 10
+    Link Key Request Negative Reply (0x01|0x000c) ncmd 1
+    status 0x00 bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:37:20.425829 > HCI Event: PIN Code Request (0x16) plen 6
+    bdaddr C0:95:6D:45:9A:F3
+2026-10-09 09:37:50.626655 > HCI Event: Auth Complete (0x06) plen 3
+    status 0x06 handle 7
+    Error: PIN or Key Missing
+2026-10-09 09:37:50.638383 < HCI Command: Disconnect (0x01|0x0006) plen 3
+    handle 7 reason 0x13
+    Reason: Remote User Terminated Connection
+2026-10-09 09:37:50.638903 > HCI Event: Command Status (0x0f) plen 4
+    Disconnect (0x01|0x0006) status 0x00 ncmd 1
+2026-10-09 09:37:50.796014 > HCI Event: Disconn Complete (0x05) plen 4
+    status 0x00 handle 7 reason 0x16
+    Reason: Connection Terminated by Local Host

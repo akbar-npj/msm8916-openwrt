@@ -1,0 +1,164 @@
+# HMU05 <-> POCO M6 Pro 5G pairing attempt (decisive phone test)
+
+Date: 2026-10-09
+Device (HMU05, OpenWrt):  BD 02:00:C2:B9:10:3D, hci0 Bus SMD, Features ff fe 8f fe d8 3f 5b 87
+Device agent:              bt-agent -c NoInputNoOutput  (auto-confirm via `yes |`)
+Peer (POCO M6 Pro 5G):     BD 9C:9E:D5:52:D0:A3, class 0x5a020c, RSSI -46
+Capture:                   device-side `hcidump -x -t` on hci0
+
+## Result: FAIL at SSP DHKey check (status 0x05) — identical to the fedora/BCM4377 host
+
+Key sequence:
+  08:50:49.319  > Connect Request              bdaddr 9C:9E:D5:52:D0:A3
+  08:50:49.333  > Connect Complete             handle 11 status 0x00
+  08:50:50.350  > IO Capability Response       capability 0x01 (DisplayYesNo) auth 0x03 (Dedicated Bonding, MITM)
+  08:50:50.351  < IO Capability Request Reply  capability 0x03 (NoInputNoOutput) auth 0x02 (No MITM)  => Just Works
+  08:50:51.702  > User Confirmation Request    passkey 282754
+  08:50:51.702  < User Confirmation Request Reply  (auto-confirmed)
+  08:50:55.579  > Simple Pairing Complete      status 0x05  Error: Authentication Failure   <== FAIL
+  08:50:57.648  < Disconnect reason 0x13 (Remote User Terminated Connection)
+
+## Why this is decisive
+
+The POCO M6 Pro 5G is a known-good, independent Android BT host. The fedora/BCM4377
+host is a second known-good host. BOTH fail at the exact same HCI event:
+`Simple Pairing Complete (0x36) status 0x05 (Authentication Failure)`.
+
+The DHKey check (f3) is computed entirely inside the BR/EDR controller — the host
+only relays IO-capability and user-confirmation events. Two unrelated, healthy hosts
+producing the same controller-side authentication failure => the fault is in the
+HMU05 WCNSS BT controller/firmware, not in the host, the association model, the
+MITM setting, or the advertised BD address.
+
+## Full trace
+
+```text
+ash: pkill: not found
+HCI sniffer - Bluetooth packet analyzer ver 5.83
+device: hci0 snap_len: 1500 filter: 0xffffffffffffffff
+2026-10-09 08:50:15.640196 < HCI Command: Inquiry (0x01|0x0001) plen 5
+    lap 0x9e8b33 len 8 num 0
+2026-10-09 08:50:15.640602 > HCI Event: Command Status (0x0f) plen 4
+    Inquiry (0x01|0x0001) status 0x00 ncmd 1
+2026-10-09 08:50:16.817314 > HCI Event: Extended Inquiry Result (0x2f) plen 255
+    bdaddr 9C:9E:D5:52:D0:A3 mode 1 clkoffset 0x5580 class 0x5a020c rssi -46
+    Complete local name: 'POCO M6 Pro 5G'
+    Complete service classes: 0x1105 0x110a 0x110c 0x110e 0x1112 0x1115 0x1116 0x111f 0x112f 0x1200 0x1132
+    Unknown type 0x05 with 0 bytes data
+    Unknown type 0x07 with 128 bytes data
+2026-10-09 08:50:21.768554 > HCI Event: Extended Inquiry Result (0x2f) plen 255
+    bdaddr C0:95:6D:45:9A:F3 mode 1 clkoffset 0x06b1 class 0x7c010c rssi -48
+    Complete local name: 'fedora'
+    TX power level: 4
+    Unknown type 0x10 with 8 bytes data
+    Complete service classes: 0x1800 0x1801 0x180a 0x110e 0x110c 0x111f 0x111e 0x110a 0x110b 0x1133 0x1132 0x112f 0x1104 0x1106 0x1105 0x112e
+    Unknown type 0x07 with 32 bytes data
+2026-10-09 08:50:25.813050 > HCI Event: Inquiry Complete (0x01) plen 1
+    status 0x00
+2026-10-09 08:50:49.319529 > HCI Event: Connect Request (0x04) plen 10
+    bdaddr 9C:9E:D5:52:D0:A3 class 0x5a020c type ACL
+2026-10-09 08:50:49.319807 < HCI Command: Accept Connection Request (0x01|0x0009) plen 7
+    bdaddr 9C:9E:D5:52:D0:A3 role 0x01
+    Role: Peripheral
+2026-10-09 08:50:49.320640 > HCI Event: Command Status (0x0f) plen 4
+    Accept Connection Request (0x01|0x0009) status 0x00 ncmd 1
+2026-10-09 08:50:49.333358 > HCI Event: Connect Complete (0x03) plen 11
+    status 0x00 handle 11 bdaddr 9C:9E:D5:52:D0:A3 type ACL encrypt 0x00
+2026-10-09 08:50:49.333544 > HCI Event: Page Scan Repetition Mode Change (0x20) plen 7
+    bdaddr 9C:9E:D5:52:D0:A3 mode 1
+2026-10-09 08:50:49.334095 < HCI Command: Read Remote Supported Features (0x01|0x001b) plen 2
+    handle 11
+2026-10-09 08:50:49.334425 > HCI Event: Command Status (0x0f) plen 4
+    Read Remote Supported Features (0x01|0x001b) status 0x00 ncmd 1
+2026-10-09 08:50:49.391777 > HCI Event: Link Supervision Timeout Change (0x38) plen 4
+    handle 11 timeout 8000
+2026-10-09 08:50:49.394089 > HCI Event: Max Slots Change (0x1b) plen 3
+    handle 11 slots 5
+2026-10-09 08:50:49.396788 > HCI Event: Read Remote Supported Features (0x0b) plen 11
+    status 0x00 handle 11
+    Features: 0xff 0xfe 0x8f 0xfe 0xd8 0x3f 0x5b 0x87
+2026-10-09 08:50:49.397149 < HCI Command: Read Remote Extended Features (0x01|0x001c) plen 3
+    handle 11 page 1
+2026-10-09 08:50:49.397527 > HCI Event: Command Status (0x0f) plen 4
+    Read Remote Extended Features (0x01|0x001c) status 0x00 ncmd 1
+2026-10-09 08:50:49.630386 > HCI Event: Read Remote Extended Features (0x23) plen 13
+    status 0x00 handle 11 page 1 max 2
+    Features: 0x0b 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+2026-10-09 08:50:49.630504 < HCI Command: Remote Name Request (0x01|0x0019) plen 10
+    bdaddr 9C:9E:D5:52:D0:A3 mode 2 clkoffset 0x0000
+2026-10-09 08:50:49.630526 < ACL data: handle 11 flags 0x00 dlen 10
+    L2CAP(s): Info req: type 2
+2026-10-09 08:50:49.631005 > HCI Event: Command Status (0x0f) plen 4
+    Remote Name Request (0x01|0x0019) status 0x00 ncmd 1
+2026-10-09 08:50:49.631579 > ACL data: handle 11 flags 0x02 dlen 10
+    L2CAP(s): Info req: type 2
+2026-10-09 08:50:49.631625 < ACL data: handle 11 flags 0x00 dlen 16
+    L2CAP(s): Info rsp: type 2 result 0
+      Extended feature mask 0x02b8
+        Enhanced Retransmission mode
+        Streaming mode
+        FCS Option
+        Fixed Channels
+        Unicast Connectless Data Reception
+2026-10-09 08:50:49.635378 > HCI Event: Remote Name Req Complete (0x07) plen 255
+    status 0x00 bdaddr 9C:9E:D5:52:D0:A3 name 'POCO M6 Pro 5G'
+2026-10-09 08:50:49.635902 > HCI Event: Number of Completed Packets (0x13) plen 5
+    handle 11 packets 1
+2026-10-09 08:50:49.637140 > HCI Event: Number of Completed Packets (0x13) plen 5
+    handle 11 packets 1
+2026-10-09 08:50:49.641561 > ACL data: handle 11 flags 0x02 dlen 16
+    L2CAP(s): Info rsp: type 2 result 0
+      Extended feature mask 0x00b8
+        Enhanced Retransmission mode
+        Streaming mode
+        FCS Option
+        Fixed Channels
+2026-10-09 08:50:49.641745 < ACL data: handle 11 flags 0x00 dlen 10
+    L2CAP(s): Info req: type 3
+2026-10-09 08:50:49.809696 > HCI Event: Number of Completed Packets (0x13) plen 5
+    handle 11 packets 1
+2026-10-09 08:50:49.811551 > ACL data: handle 11 flags 0x02 dlen 10
+    L2CAP(s): Info req: type 3
+2026-10-09 08:50:49.811739 < ACL data: handle 11 flags 0x00 dlen 20
+    L2CAP(s): Info rsp: type 3 result 0
+      Fixed channel list 0x00000086
+        L2CAP Signalling Channel
+        L2CAP Connless
+2026-10-09 08:50:49.814652 > HCI Event: Number of Completed Packets (0x13) plen 5
+    handle 11 packets 1
+2026-10-09 08:50:49.815279 > ACL data: handle 11 flags 0x02 dlen 20
+    L2CAP(s): Info rsp: type 3 result 0
+      Fixed channel list 0x00000082
+        L2CAP Signalling Channel
+2026-10-09 08:50:50.350736 > HCI Event: IO Capability Response (0x32) plen 9
+    bdaddr 9C:9E:D5:52:D0:A3 capability 0x01 oob 0x00 auth 0x03
+    Capability: DisplayYesNo (OOB data not present)
+    Authentication: Dedicated Bonding (MITM Protection)
+2026-10-09 08:50:50.350774 > HCI Event: IO Capability Request (0x31) plen 6
+    bdaddr 9C:9E:D5:52:D0:A3
+2026-10-09 08:50:50.351156 < HCI Command: IO Capability Request Reply (0x01|0x002b) plen 9
+    bdaddr 9C:9E:D5:52:D0:A3 capability 0x03 oob 0x00 auth 0x02
+    Capability: NoInputNoOutput (OOB data not present)
+    Authentication: Dedicated Bonding (No MITM Protection)
+2026-10-09 08:50:50.351899 > HCI Event: Command Complete (0x0e) plen 10
+    IO Capability Request Reply (0x01|0x002b) ncmd 1
+    status 0x00 bdaddr 9C:9E:D5:52:D0:A3
+2026-10-09 08:50:51.702143 > HCI Event: User Confirmation Request (0x33) plen 10
+    bdaddr 9C:9E:D5:52:D0:A3 passkey 282754
+2026-10-09 08:50:51.702541 < HCI Command: User Confirmation Request Reply (0x01|0x002c) plen 6
+    bdaddr 9C:9E:D5:52:D0:A3
+2026-10-09 08:50:51.703113 > HCI Event: Command Complete (0x0e) plen 10
+    User Confirmation Request Reply (0x01|0x002c) ncmd 1
+    status 0x00 bdaddr 9C:9E:D5:52:D0:A3
+2026-10-09 08:50:55.579599 > HCI Event: Simple Pairing Complete (0x36) plen 7
+    status 0x05 bdaddr 9C:9E:D5:52:D0:A3
+    Error: Authentication Failure
+2026-10-09 08:50:57.648675 < HCI Command: Disconnect (0x01|0x0006) plen 3
+    handle 11 reason 0x13
+    Reason: Remote User Terminated Connection
+2026-10-09 08:50:57.649335 > HCI Event: Command Status (0x0f) plen 4
+    Disconnect (0x01|0x0006) status 0x00 ncmd 1
+2026-10-09 08:50:57.806112 > HCI Event: Disconn Complete (0x05) plen 4
+    status 0x00 handle 11 reason 0x16
+    Reason: Connection Terminated by Local Host
+```
