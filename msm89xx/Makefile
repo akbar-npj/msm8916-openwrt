@@ -32,6 +32,9 @@ DEFAULT_PACKAGES += kmod-btqcomsmd kmod-btqca
 # any non-HMU05 board) and it only exists to anchor the HMU05 modem's ATS state.
 # It is pulled in by the generic-hmu05 DEVICE_PACKAGES, not as a default.
 DEFAULT_PACKAGES += rmtfs qcom-carrier-autocfg
+# Interactive/debug helpers wanted on every board: `stty` (terminal control,
+# e.g. for the serial console) and `xxd` (hex dumps).
+DEFAULT_PACKAGES += coreutils-stty xxd
 
 KERNELNAME:=Image
 
