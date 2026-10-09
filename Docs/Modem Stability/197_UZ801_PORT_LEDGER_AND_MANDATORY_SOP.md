@@ -26199,13 +26199,29 @@ install step, so a released image carries the fix; for a quick iteration, deploy
 copying `foo.ko` to a *directory* keeps the local basename (`fresh_q6v5_mss.ko`) — always name the
 destination file explicitly.
 
+**★ FLASHED-IMAGE VERIFICATION (2026-10-10).** The fix is now **baked into a released image**, not just
+hand-deployed to the overlay. Full build `./build.sh build hmu05` (`make -j$(nproc)` = world, `BUILD_EXIT=0`,
+166 s) produced `…-squashfs-sysupgrade.bin` (sha256 `7a42cef6…`); the archive's `root` member equals the
+`system.img` we unpacked, and both packed modules match the root tree (`qcom_q6v5_mss.ko` = `10b96c79…`,
+`qcom_bam_dmux.ko` = `4233e73b…`). Flashed with a **config-preserving `sysupgrade`** (NOT `-n`):
+`platform_do_upgrade()` only formats `rootfs_data` when `UPGRADE_BACKUP` is empty, so the overlay — and
+therefore `/lib/firmware` (43.9 MB, `modem.mdt` `1a6f9507…` unchanged) — survives. Post-flash the device
+runs `r33051-f5dae5ece4` (25.12.5), `/rom` carries the fix, and the effective `/lib` modules were refreshed
+from `/rom` so the shadowed copies are byte-identical to the image. **The lever was then re-exercised on the
+flashed image:** clean `restart` → count `0→1`; **inflated-refcount** (`echo start` then `restart`) → count
+`1→2` with **0** `still up after shutdown` warnings; the modem cycled (bam-dmux re-opened `CMD_OPEN` 0..7),
+`wwan0` recovered with a fresh IP in ~10 s, and the count self-healed. (Overlay note: `rm` of an
+overlay-shadowed `.ko` would create an overlayfs whiteout that hides the new `/rom` file — refresh by
+overwriting, never by deleting.)
+
 **SOP.** Ground truth first: the failure was **reproduced on the live device before any code change**, and
 the refcount semantics were read from `remoteproc_core.c` (not inferred from the log). One change at a
 time: 826 (q6v5) and 850 (bam_dmux) are independent files. The 826 fix was validated to apply against a
-**pristine** upstream copy before being trusted. **No baseband (`modem.bNN`) was written; no re-signing.**
-**Open:** none — both patches are built, and patch 826 is live-verified (inflated-count restart cycles the
-modem and the count heals). Patch 850 was built into the same kernel build; its live exercise (a modem
-re-issuing `CMD_OPEN` for an already-open channel without an AP-SSR) has not been observed, so it remains
-defensive.
+**pristine** upstream copy before being trusted, then **verified on-device twice** (overlay deploy, then
+the flashed image). **No baseband (`modem.bNN`) was written; no re-signing.**
+**Open:** none — both patches are built into the released image, and patch 826 is live-verified on it
+(inflated-count restart cycles the modem and the count heals). Patch 850 was built into the same kernel
+build; its live exercise (a modem re-issuing `CMD_OPEN` for an already-open channel without an AP-SSR) has
+not been observed, so it remains defensive.
 
 ---

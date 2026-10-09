@@ -1,6 +1,6 @@
 # HMU05 — the dead `msm_subsys` SSR restart lever (fix) and patch 850 (bam-dmux re-attach)
 
-**Status:** ★ **VERIFIED LIVE (2026-10-10)** — patch 826's fix was deployed to HMU05 and the inflated-refcount restart now cycles the modem and heals the count; patch 850 built into the same kernel
+**Status:** ★ **VERIFIED LIVE + FLASHED (2026-10-10)** — patch 826's fix was deployed to HMU05, then baked into a full firmware image and flashed; the inflated-refcount restart now cycles the modem and heals the count; patch 850 built into the same image
 **Date:** 2026-10-10
 **Board:** HMU05 (`hmu05,250605v0s`) — MSM8916 / Snapdragon 410 · device `192.168.8.1`
 **Branch:** `staging-main`
@@ -183,7 +183,7 @@ While root-causing, two log strings were investigated:
 | Intent | Expected | Achieved | Status |
 | :-- | :-- | :-- | :-- |
 | Lever restarts the modem | `restart_count`++ + a real stop/boot | works at `power==1`; **silent no-op at `power>1`** | **MET (control) / NOT MET (inflated)** |
-| Fix: robust to an inflated count | restart regardless of count | `atomic_set(&rproc->power, 1)` before `rproc_shutdown()`; **live: inflated restart now cycles the modem and the count heals** | **★★★★★ MET — LIVE-VERIFIED 2026-10-10** |
+| Fix: robust to an inflated count | restart regardless of count | `atomic_set(&rproc->power, 1)` before `rproc_shutdown()`; **live: inflated restart now cycles the modem and the count heals; re-verified on the flashed image** | **★★★★★ MET — LIVE-VERIFIED + FLASHED 2026-10-10** |
 | Patch 850 closes the detached-netdev gap | re-attach on already-open | built into the same kernel; idempotency read in source | **MET (code); defensive (failure mode not observed live)** |
 | Option 1 (patch ModemManager) | remove the log line | not done — cosmetic, upstream-divergent | **NOT MET (by decision)** |
 
@@ -230,6 +230,33 @@ scp qcom_q6v5_mss.ko root@<dev>:/lib/modules/6.12.94/qcom_q6v5_mss.ko   # name t
 
 > **scp trap.** Copying `foo.ko` to a *directory* keeps the local basename (`fresh_q6v5_mss.ko`) and does
 > not replace `qcom_q6v5_mss.ko` — always name the destination file.
+
+### 6.3 Flashed-image verification (2026-10-10)
+
+The fix is now **baked into a released image**, not merely hand-deployed to the overlay. A full build
+`./build.sh build hmu05` (`make -j$(nproc)` = world, `BUILD_EXIT=0`, 166 s) produced
+`openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.bin` (sha256 `7a42cef6…`). Its `root` member is
+byte-for-byte the `system.img` we unpacked, and both packed modules match the root tree
+(`qcom_q6v5_mss.ko` = `10b96c79…`, `qcom_bam_dmux.ko` = `4233e73b…`).
+
+Flashed with a **config-preserving `sysupgrade`** (never `-n`). `platform_do_upgrade()` formats
+`rootfs_data` **only when `UPGRADE_BACKUP` is empty**, so a normal upgrade leaves the overlay intact and
+`/lib/firmware` (43.9 MB; `modem.mdt` `1a6f9507…`, unchanged) survives. After the flash the device runs
+`r33051-f5dae5ece4` (25.12.5); `/rom` carries the fix, and the effective `/lib` module was refreshed from
+`/rom` so the overlay-shadowed copy is byte-identical to the image.
+
+Re-exercised on the flashed image:
+
+| Step | Result |
+| :-- | :-- |
+| clean `restart` (`power==1`) | count `0→1`, modem cycles, bam-dmux re-opens `CMD_OPEN` 0..7 |
+| **inflated** (`echo start` then `restart`) | count `1→2`, **0** `still up after shutdown` warnings |
+| data path | `wwan0` recovers with a fresh IP in ~10 s |
+| count self-heal | count returns to a clean single reference |
+
+> **Overlay trap.** `rm` of an overlay-shadowed `.ko` creates an overlayfs whiteout that then hides the
+> **new** `/rom` file (module would appear missing at next load). Refresh an overlay module by
+> **overwriting** it from `/rom`, never by deleting it.
 
 ---
 
