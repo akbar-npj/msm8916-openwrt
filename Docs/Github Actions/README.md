@@ -79,6 +79,7 @@ jobs:
   - Installs board targets to `target/linux/msm89xx`.
   - Links project packages into `package/msm8916/`.
   - Applies essential patches and compatibility fixes.
+- Injects the persistent APK signing key: writes the `APK_SIGNING_KEY` repository secret to `openwrt/private-key.pem`. **The step fails hard if the secret is missing** — see §8.
 
 ### Step 5: Compile All Firmware Images
 - Runs `./build.sh build all` inside the container.
@@ -203,4 +204,53 @@ To prevent recompiling host utilities, toolchains, and re-downloading upstream s
 ### Performance Impact:
 - **First Build (Cold Cache)**: ~75 minutes.
 - **Successive Builds (Warm Cache)**: **~12–15 minutes** (5x speedup).
+
+---
+
+## 8. Package Feed Signing Key (persistent + on-device self-heal)
+
+OpenWrt's `apk` verifies the `packages.adb` index of every feed against a public key in `/etc/apk/keys/`. If no key on the device matches the key that signed the feed, `apk update` prints `UNTRUSTED signature` and skips the feed.
+
+OpenWrt generates a **random key per build** unless `openwrt/private-key.pem` already exists (`openwrt/package/Makefile`, `BUILD_KEY_APK_SEC`). If the CI job lets that happen, every release is signed with a different ephemeral key, so a device flashed with release *N* rejects release *N+1*'s feed — and a locally-built image can never trust the CI feed.
+
+### The persistent key
+
+- **Repository secret:** `APK_SIGNING_KEY` holds the EC P-256 private key (PEM).
+- **CI:** Step 4 writes it to `openwrt/private-key.pem` and **fails the build** if the secret is unset, so an ephemeral key can never be produced by accident again.
+- **Image:** the matching public key is embedded at `/etc/apk/keys/akbar-npj-v25.12.5.pem` via `msm89xx/base-files/`, and re-created by `99-msm89xx-firstboot`.
+- **Published:** the release job copies `openwrt/public-key.pem` both to the versioned dir and to the stable path:
+  `https://akbar-npj.github.io/msm8916-openwrt/public-key.pem`
+
+### On-device self-heal (`apk-key-refresh`)
+
+`msm89xx/base-files/usr/sbin/apk-key-refresh` (driven by `/etc/init.d/apk-key-refresh`, enabled from `96-apk-key-refresh`) fetches the **stable URL** at every boot and installs it when it differs from the on-disk key. This lets a device flashed with an image that embedded a stale key recover without a reflash. The install is conservative: the fetched file must be a well-formed PEM public key, and the on-disk key is only rewritten when it actually changed (no overlay churn per boot).
+
+> **Rotating the key:** generate a new EC P-256 key pair, update the `APK_SIGNING_KEY` secret, replace the tracked public key in `msm89xx/base-files/etc/apk/keys/akbar-npj-v25.12.5.pem` **and** the heredoc in `99-msm89xx-firstboot`, then cut a release. Devices on the previous image self-heal from the stable URL; devices on the new image carry the new key directly.
+
+---
+
+## 9. Kernel-Module (kmod) Feed — the curated "build-only" set
+
+Kernel modules are **target-specific** (kernel version + config), so they are built into the *target* package directory, `openwrt/bin/targets/msm89xx/msm8916/packages/` — never the arch-generic `bin/packages/aarch64_generic/` tree. Because `msm89xx` is not an upstream OpenWrt target, there is **no upstream kmod feed** to fall back on: whatever this build does not compile simply cannot be installed.
+
+By default OpenWrt only builds the kmods selected in the image plus their dependencies. That left the feed and the `kmods-msm8916-<version>.tar.gz` offline bundle **incomplete** — e.g. `kmod-usb-net-rtl8152` was not built at all, so `apk add kmod-usb-net-rtl8152` failed even though the README suggested it.
+
+**Fix:** every `diffconfigs/<board>` appends a curated block of common USB/network kmods with
+
+```text
+CONFIG_PACKAGE_kmod-usb-net-rtl8152=m
+```
+
+The `=m` (build-only) value is the key: the module is **compiled and published into the feed**, but **not installed into the firmware image**. Users install it on demand with `apk add <name>`.
+
+- **Feed:** `…/releases/<version>/targets/msm89xx/msm8916/packages/`
+- **Offline bundle:** `kmods-msm8916-<version>.tar.gz` (a `tar` of that same directory — the two are always identical)
+
+### Why not `CONFIG_ALL_KMODS`
+
+`CONFIG_ALL_KMODS=y` would compile *every* kmod, but each kmod package `select`s its kernel dependencies, so it also forces ~227 extra **built-in** (`=y`) subsystems into the shipping kernel (cgroups/MEMCG, media/DVB/V4L2, DRM + framebuffer console, MPTCP, NFSD, …). That is a heavy change to a firmware whose kernel is deliberately tuned for this device (CPR rail, thermal, modem). The curated set pulls in only modest USB/network/storage subsystems and keeps the kernel lean.
+
+To extend the feed, add more `CONFIG_PACKAGE_kmod-<name>=m` lines to `diffconfigs/<board>`. To confirm a module is published, check for `kmod-<name>-*.apk` under `packages/`.
+
+> **Note:** the kmods tarball and the online feed are produced from the *same* directory in the same job, so they can never drift. A kmod is vermagic-bound to the kernel it was built against, so a module in this feed only loads on this exact kernel build.
 
