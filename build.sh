@@ -241,9 +241,32 @@ clone_openwrt() {
 
     msg "Cloning OpenWrt..."
 
-    git clone \
-        https://git.openwrt.org/openwrt/openwrt.git \
-        "$OPENWRT_DIR"
+    if [ -d "$OPENWRT_DIR" ] && [ -n "$(ls -A "$OPENWRT_DIR" 2>/dev/null)" ]; then
+        # The destination exists but is not a git checkout.  This is the CI
+        # case: actions/cache restores openwrt/dl + openwrt/staging_dir/*, which
+        # pre-creates $OPENWRT_DIR without a .git.  git clone refuses a
+        # non-empty destination, so clone into a temp dir, move the cached
+        # subtrees into it, and swap the result into place (same filesystem,
+        # so the moves are renames).
+        local tmp
+        tmp="$(mktemp -d "${OPENWRT_DIR}.tmp.XXXXXX")"
+        git clone \
+            https://git.openwrt.org/openwrt/openwrt.git \
+            "$tmp/openwrt"
+        if [ -e "$OPENWRT_DIR/dl" ]; then
+            mv "$OPENWRT_DIR/dl" "$tmp/openwrt/"
+        fi
+        if [ -e "$OPENWRT_DIR/staging_dir" ]; then
+            mv "$OPENWRT_DIR/staging_dir" "$tmp/openwrt/"
+        fi
+        rm -rf "$OPENWRT_DIR"
+        mv "$tmp/openwrt" "$OPENWRT_DIR"
+        rmdir "$tmp"
+    else
+        git clone \
+            https://git.openwrt.org/openwrt/openwrt.git \
+            "$OPENWRT_DIR"
+    fi
 }
 
 check_openwrt_clean() {
