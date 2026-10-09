@@ -1,0 +1,21 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
+@@ -282,3 +282,18 @@
+         };
+     };
+ };
++
++/*
++ * Keep the modem's A2 (BAM) power domain alive on the HMU05 board.
++ *
++ * Its modem (HIMI_U01_MODEM_V1.0) can wedge its internal A2 quiesce
++ * handshake when the AP releases the A2 power vote (the runtime-PM
++ * autosuspend vote-down) and then asserts a2_power.c:1189.  The driver turns
++ * this property into pm_runtime_forbid() on &bam_dmux, i.e. it holds
++ * power/control=on forever -- the same thing the userspace modem-a2-hold
++ * script used to do.  The other boards (UFI001B, UZ801, MF800B) do not set
++ * it and keep the normal runtime-suspend behaviour.
++ */
++&bam_dmux {
++    qcom,a2-pin;
++};

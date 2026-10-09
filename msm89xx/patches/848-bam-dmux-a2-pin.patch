@@ -1,0 +1,180 @@
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -17,6 +17,7 @@
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
++#include <linux/property.h>
+ #include <linux/soc/qcom/smem.h>
+ #include <linux/soc/qcom/smem_state.h>
+ #include <linux/remoteproc/qcom_rproc.h>
+@@ -177,6 +178,19 @@
+ 	u64 cmd_open_no_a2_pc_count;
+ 	u64 cmd_unknown_count;
+ 	bool a2_pc_disabled;
++	/*
++	 * Set from the "qcom,a2-pin" device-tree property.  Only the boards
++	 * that need the modem's A2 kept powered (HMU05) set it; the A2 pin
++	 * itself is applied through pm_runtime_forbid() -- see the module
++	 * parameter and bam_dmux_apply_a2_pin() below.
++	 */
++	bool a2_pin_capable;
++	/*
++	 * Set in probe() when the modem has not yet asserted its power-control
++	 * line; the pin is then applied from bam_dmux_pc_irq() on the first
++	 * assert, so the forced resume can be acked by a live modem.
++	 */
++	bool a2_pin_pending;
+ 	atomic_t rx_queued_buffers;
+ 	struct delayed_work rx_rearm_work;
+ 	struct delayed_work rx_watchdog_work;
+@@ -318,6 +332,47 @@
+ 	return level;
+ }
+ 
++/*
++ * Board-gated A2 pin.
++ *
++ * The modem's A2 (BAM) power domain is voted DOWN in
++ * bam_dmux_runtime_suspend() -- the only caller of bam_dmux_pc_vote(dmux,
++ * false) -- one second after the last TX (the autosuspend delay).  On the
++ * HMU05 modem that power-collapse occasionally wedges the modem's internal
++ * quiesce handshake and it asserts a2_power.c:1189, so the userspace image
++ * used to hold power/control=on forever (the modem-a2-hold init script).
++ *
++ * Enforce the same invariant in the driver instead: pm_runtime_forbid() is
++ * exactly what writing "on" to power/control does -- it clears
++ * dev->power.runtime_auto and bumps the usage count, so the PM core never
++ * calls bam_dmux_runtime_suspend() and the A2 vote is never released.
++ *
++ * The pin is applied only on boards whose DT sets "qcom,a2-pin" (HMU05);
++ * the other boards' firmware (UFI001B = HIMU_U01_MODEM_V2.0, UZ801, ...)
++ * does not need it and must keep the normal runtime-suspend behaviour.
++ * The a2_pin module parameter flips the pin at run time for A/B soaks
++ * without reflashing:
++ *
++ *     echo 0 > /sys/module/qcom_bam_dmux/parameters/a2_pin   # control=auto
++ *     echo 1 > /sys/module/qcom_bam_dmux/parameters/a2_pin   # control=on
++ *
++ * The effective pin is a2_pin_capable (DT) && a2_pin (parameter).
++ */
++static bool a2_pin = true;
++static DEFINE_MUTEX(bam_dmux_pin_lock);
++static struct bam_dmux *bam_dmux_pin_dmux;
++
++static void bam_dmux_apply_a2_pin(struct bam_dmux *dmux)
++{
++	if (!dmux || !dmux->a2_pin_capable)
++		return;
++
++	if (a2_pin)
++		pm_runtime_forbid(dmux->dev);
++	else
++		pm_runtime_allow(dmux->dev);
++}
++
+ static bool bam_dmux_skb_dma_map(struct bam_dmux_skb_dma *skb_dma,
+ 				 enum dma_data_direction dir)
+ {
+@@ -2059,6 +2114,19 @@
+ 	complete_all(&dmux->pc_ack_completion);
+ 	wake_up_all(&dmux->pc_wait);
+ 
++	/*
++	 * Deferred A2 pin (see bam_dmux_probe()).  Applied here, once the modem
++	 * is awake, so the resume pm_runtime_forbid() triggers has a live modem
++	 * to answer its ack wait.  Runs OUTSIDE state_lock: the resume takes it.
++	 * This is a threaded handler, so sleeping is allowed.
++	 */
++	if (new_state && READ_ONCE(dmux->a2_pin_pending)) {
++		WRITE_ONCE(dmux->a2_pin_pending, false);
++		mutex_lock(&bam_dmux_pin_lock);
++		bam_dmux_apply_a2_pin(dmux);
++		mutex_unlock(&bam_dmux_pin_lock);
++	}
++
+ 	return IRQ_HANDLED;
+ }
+ 
+@@ -2726,6 +2794,30 @@
+ 	if (ret)
+ 		dev_warn(dev, "Failed to create rx_telemetry sysfs: %d\n", ret);
+ 
++	/*
++	 * Apply the board-gated A2 pin (see bam_dmux_apply_a2_pin()).  On a
++	 * board whose DT sets "qcom,a2-pin" this is equivalent to the
++	 * userspace `echo on > power/control`: the device is forced active and
++	 * the A2 down vote in bam_dmux_runtime_suspend() can never run.
++	 *
++	 * If the modem has not asserted its power-control line yet (the usual
++	 * case -- bam-dmux probes before the modem finishes booting), defer the
++	 * pin to the first pc-line assert in bam_dmux_pc_irq(): a
++	 * pm_runtime_forbid() here would force a resume whose 2 s ack wait
++	 * cannot be answered until the modem is up, logging a spurious
++	 * "pc-ack timeout during resume" at every boot.
++	 */
++	dmux->a2_pin_capable = device_property_read_bool(dev, "qcom,a2-pin");
++	if (dmux->a2_pin_capable) {
++		mutex_lock(&bam_dmux_pin_lock);
++		bam_dmux_pin_dmux = dmux;
++		if (READ_ONCE(dmux->pc_state))
++			bam_dmux_apply_a2_pin(dmux);
++		else
++			WRITE_ONCE(dmux->a2_pin_pending, true);
++		mutex_unlock(&bam_dmux_pin_lock);
++	}
++
+ 	return 0;
+ 
+ err_disable_pm:
+@@ -2776,6 +2868,13 @@
+ 	cancel_delayed_work_sync(&dmux->tx_retry_work);
+ 	cancel_work_sync(&dmux->tx_wakeup_work);
+ 
++	/* Release the A2 pin (pm_runtime_allow() balances the forbid's count) */
++	mutex_lock(&bam_dmux_pin_lock);
++	if (bam_dmux_pin_dmux == dmux)
++		bam_dmux_pin_dmux = NULL;
++	mutex_unlock(&bam_dmux_pin_lock);
++	pm_runtime_allow(dev);
++
+ 	/* Drop our own power vote */
+ 	pm_runtime_disable(dev);
+ 	pm_runtime_dont_use_autosuspend(dev);
+@@ -2832,6 +2931,36 @@
+ 		.of_match_table = bam_dmux_of_match,
+ 	},
+ };
++
++static int bam_dmux_a2_pin_set(const char *val, const struct kernel_param *kp)
++{
++	bool enable;
++	int ret = kstrtobool(val, &enable);
++
++	if (ret)
++		return ret;
++
++	mutex_lock(&bam_dmux_pin_lock);
++	a2_pin = enable;
++	bam_dmux_apply_a2_pin(bam_dmux_pin_dmux);
++	mutex_unlock(&bam_dmux_pin_lock);
++
++	return 0;
++}
++
++static int bam_dmux_a2_pin_get(char *buf, const struct kernel_param *kp)
++{
++	return sprintf(buf, "%d\n", a2_pin ? 1 : 0);
++}
++
++static const struct kernel_param_ops bam_dmux_a2_pin_ops = {
++	.set = bam_dmux_a2_pin_set,
++	.get = bam_dmux_a2_pin_get,
++};
++module_param_cb(a2_pin, &bam_dmux_a2_pin_ops, &a2_pin, 0644);
++MODULE_PARM_DESC(a2_pin,
++	"Hold the modem A2 powered on boards whose DT sets qcom,a2-pin (default 1)");
++
+ module_platform_driver(bam_dmux_driver);
+ 
+ MODULE_LICENSE("GPL v2");
