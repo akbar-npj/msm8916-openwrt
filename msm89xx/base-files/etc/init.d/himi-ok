@@ -1,9 +1,13 @@
 #!/bin/sh /etc/rc.common
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# himi-ok -- keep the HMU05 modem NV item 2500 == "HiMI_OK" so the RF task's
-# imei memcmp passes and the ~900 s deadline never arms after a WARM modem
-# restart.  See /usr/sbin/himi-ok-guard and ledger §112.165-§112.169.
+# himi-ok -- keep the modem NV item 2500 == "HiMI_OK" so the RF task's imei
+# memcmp passes and the ~900 s deadline never arms after a WARM modem restart.
+# See /usr/sbin/himi-ok-guard and ledger §112.165-§112.169.
+#
+# The gate is a board allow-list (see /lib/himi-ok.sh): the HiMI_OK fix applies
+# to the boards where the fatal is observed (hmu05, uz801), NOT to every board
+# that happens to carry a HiMI baseband (UFI001B V2.0 does not manifest it).
 
 START=97
 STOP=10
@@ -11,10 +15,8 @@ USE_PROCD=1
 
 start_service() {
 	. /lib/functions.sh
-	case "$(board_name)" in
-		*hmu05*) ;;
-		*) return 0 ;;
-	esac
+	. /lib/himi-ok.sh
+	himi_ok_board_match || return 0
 	procd_open_instance
 	procd_set_param command /usr/sbin/himi-ok-guard
 	procd_set_param respawn 3600 5 5

@@ -44,12 +44,21 @@ There are exactly two ways to stop it:
 ### 2.1 How it works
 
 A small service (`/usr/sbin/himi-ok-guard`, started by `/etc/init.d/himi-ok`) polls the modem
-over `/dev/rpmsg0` via `/usr/sbin/diag_nv`, reads NV item 2500, and — if it is not already
-`"HiMI_OK"` — writes `"HiMI_OK"` back. It re-checks continuously, so it covers the cold boot
-*and* every SSR/crash restart, and self-heals if the modem clears the item again. When the
-`memcmp` passes, **the deadline never arms**.
+over `/dev/rpmsg0` via `/usr/sbin/diag_nv`, reads NV item 2500, and — if the 128-byte item is
+**all-zero** (and not already `"HiMI_OK"`) — writes `"HiMI_OK"` back. It re-checks continuously,
+so it covers the cold boot *and* every SSR/crash restart, and self-heals if the modem clears the
+item again. When the `memcmp` passes, **the deadline never arms**.
 
-It is `board_name`-gated to `*hmu05*`, so it is inert on every other board.
+> **Safety (2026-10-09):** item 2500 is a generic factory-data item. The guard only ever writes
+> when the item reads back **all-zero**, so it can never overwrite real factory data on a modem
+> that stores something else there. Non-zero, non-`HiMI_OK` content is left untouched (one warning
+> is logged). DIAG access is serialized on `/var/lock/himi-ok-diag.lock` because `/dev/rpmsg0` is
+> exclusive-open.
+
+It is gated by `board_name` to the boards that **manifest** the fatal — `*hmu05*` and `*uz801*`
+(a UZ801 v3 with the same HiMI baseband needs the same fix) — so it is inert on every other board.
+The gate lives in `/lib/himi-ok.sh`; it is deliberately *not* "every HiMI-baseband board", because
+UFI001B (V2.0) carries the same baseband line but does not manifest the crash.
 
 ### 2.2 Verify it is running
 
@@ -81,6 +90,16 @@ uci commit modem-watchdog
 
 Tuning: `modem-watchdog.recovery.himi_ok_interval` (seconds between checks; default **20**,
 minimum 5).
+
+**Board gate.** The guard runs on the boards that manifest the fatal (`*hmu05*`, `*uz801*`).
+On another board that shares the HiMI baseband but is not in the list (e.g. `uf02`), enable it
+explicitly — the all-zero safety check makes this safe:
+
+```sh
+uci set modem-watchdog.recovery.himi_ok_boards='*hmu05* *uz801* *uf02*'
+uci commit modem-watchdog
+/etc/init.d/himi-ok enable && /etc/init.d/himi-ok restart
+```
 
 ### 2.4 Revert
 

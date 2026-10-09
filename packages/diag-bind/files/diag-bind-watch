@@ -22,6 +22,21 @@ INTERVAL="${DIAG_BIND_INTERVAL:-2}"
 
 log() { logger -t diag-bind "$1"; }
 
+# /root is on the ext4 overlay: a write here is a flash write.  On a persistent
+# bind failure the watch loop retries every $INTERVAL, so rewriting the status
+# file each retry would hammer the eMMC.  Write it only when the state CHANGES
+# (the file then records when the state last changed, not the last check).
+LAST_STATE=""
+write_status() {   # $1=state  $2=detail
+	[ "$1" = "$LAST_STATE" ] && return 0
+	LAST_STATE="$1"
+	{
+		echo "state=$1"
+		echo "time=$(date +%Y-%m-%dT%H:%M:%S)"
+		echo "$2"
+	} > "$STATUS"
+}
+
 # Wait (up to 60 s) for the SMD DIAG device to appear at boot.
 wait_dev() {
     i=0
@@ -43,21 +58,19 @@ bound() {
 rebind() {
     out=$(/usr/sbin/diag-bind 2>&1)
     rc=$?
-    ts=$(date +%Y-%m-%dT%H:%M:%S)
     if [ "$rc" -eq 0 ]; then
         log "bridge (re)established: $(echo "$out" | tr '\n' ' ')"
-        { echo "state=bound"; echo "time=$ts"; echo "$out"; } > "$STATUS"
+        write_status bound "$out"
     else
         log "diag-bind failed (rc=$rc): $(echo "$out" | tr '\n' ' ')"
-        { echo "state=failed"; echo "time=$ts"; echo "$out"; } > "$STATUS"
+        write_status failed "$out"
     fi
 }
 
 # --- start ---
 if wait_dev; then
     if bound "$DIAG"; then
-        ts=$(date +%Y-%m-%dT%H:%M:%S)
-        { echo "state=bound"; echo "time=$ts"; echo "(already bound at start)"; } > "$STATUS"
+        write_status bound "(already bound at start)"
         log "bridge already bound at start"
     else
         rebind

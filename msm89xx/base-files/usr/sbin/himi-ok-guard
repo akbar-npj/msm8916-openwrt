@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# himi-ok-guard -- keep the HMU05 modem NV item 2500 == "HiMI_OK".
+# himi-ok-guard -- keep the modem NV item 2500 == "HiMI_OK".
 #
 # WHY (ledger §112.165-§112.169):
 #   The modem's RF task reads NV item 2500 (NV_FACTORY_DATA_4_I) into
@@ -23,14 +23,27 @@
 #   self-heals if the modem clears the item again.  Writes only happen when the
 #   item is not already "HiMI_OK", so steady-state cost is one NV read / cycle.
 #
+# SAFETY -- only write when the item is ALL-ZERO (user feedback, 2026-10-09):
+#   Item 2500 is a generic NV_FACTORY_DATA item; on a non-HiMI modem it may hold
+#   real factory data.  A read's "status=0x0000" only means the READ SUCCEEDED,
+#   not that the payload is empty -- so we additionally require the 128-byte
+#   payload to be all-zero before writing.  Anything non-zero is left untouched.
+#
+# LOCK (user feedback, 2026-10-09):
+#   /dev/rpmsg0 is exclusive-open.  Serialize every DIAG use on a shared lock so
+#   concurrent users (another guard instance, a status probe, ...) do not collide
+#   and read nothing.  Other DIAG consumers should take the same lock.
+#
 # UCI (modem-watchdog.recovery):
 #   himi_ok_enabled   default 1   -- set 0 to disable
 #   himi_ok_interval  default 20  -- seconds between checks
+#   (the board gate lives in /lib/himi-ok.sh)
 
 DEV=/dev/rpmsg0
 NV=/usr/sbin/diag_nv
 ITEM=2500
 TOKEN=48694d495f4f4b                      # "HiMI_OK"
+DIAG_LOCK=/var/lock/himi-ok-diag.lock     # shared with other DIAG users
 
 ENABLED=$(uci -q get modem-watchdog.recovery.himi_ok_enabled 2>/dev/null || echo 1)
 INTERVAL=$(uci -q get modem-watchdog.recovery.himi_ok_interval 2>/dev/null || echo 20)
@@ -42,22 +55,58 @@ log() { logger -t himi-ok-guard "$*"; }
 case "$INTERVAL" in ''|*[!0-9]*) INTERVAL=20 ;; esac
 [ "$INTERVAL" -ge 5 ] || INTERVAL=5
 
+# Return 0 iff every byte of the 128-byte payload is 0x00.  diag_nv prints the
+# payload as "OOOO  xx xx ... xx  |ascii|" lines; keep only the hex byte columns.
+payload_all_zero() {
+	local hex
+	hex=$(printf '%s\n' "$1" \
+		| sed -n 's/^[0-9a-f][0-9a-f]*  \(.*\) |.*/\1/p' \
+		| tr -d ' \n')
+	[ -n "$hex" ] || return 1
+	case "$hex" in
+		*[!0]*) return 1 ;;
+	esac
+	return 0
+}
+
+# One poll cycle.  Runs under the DIAG lock (see the loop).
+warned_nonzero=
+do_cycle() {
+	local out w
+	out=$("$NV" read "$ITEM" 2>/dev/null)
+	if printf '%s' "$out" | grep -q "HiMI_OK"; then
+		return 0                           # already set -- nothing to do
+	fi
+	if ! printf '%s' "$out" | grep -q "status=0x0000"; then
+		return 0                           # read failed / item absent / SP locked
+	fi
+	if ! payload_all_zero "$out"; then
+		# Non-zero, non-HiMI_OK data: never clobber it.  Warn once.
+		[ -n "$warned_nonzero" ] || {
+			log "item $ITEM holds non-zero data (not HiMI_OK); leaving it untouched"
+			warned_nonzero=1
+		}
+		return 0
+	fi
+	w=$("$NV" write "$ITEM" "$TOKEN" 2>/dev/null)
+	if printf '%s' "$w" | grep -q "VERIFY: MATCH"; then
+		log "item $ITEM was cleared; wrote HiMI_OK"
+		warned_nonzero=
+	else
+		log "WARN: write did not verify: $(printf '%s' "$w" | head -n1)"
+	fi
+}
+
 log "start (item=$ITEM interval=${INTERVAL}s)"
 
+# Open the lock fd once; flock -x/-u on fd 200 (busybox flock, as the watchdog).
+exec 200>"$DIAG_LOCK"
+
 while :; do
-    if [ -c "$DEV" ]; then
-        out=$("$NV" read "$ITEM" 2>/dev/null)
-        if printf '%s' "$out" | grep -q "HiMI_OK"; then
-            :                                   # already set -- nothing to do
-        elif printf '%s' "$out" | grep -q "status=0x0000"; then
-            w=$("$NV" write "$ITEM" "$TOKEN" 2>/dev/null)
-            if printf '%s' "$w" | grep -q "VERIFY: MATCH"; then
-                log "item $ITEM was cleared; wrote HiMI_OK"
-            else
-                log "WARN: write did not verify: $(printf '%s' "$w" | head -n1)"
-            fi
-        fi
-        # else: read timed out / item absent / SP locked -- retry next cycle
-    fi
-    sleep "$INTERVAL"
+	if [ -c "$DEV" ]; then
+		flock -x 200
+		do_cycle
+		flock -u 200
+	fi
+	sleep "$INTERVAL"
 done
