@@ -164,3 +164,141 @@ CONFIG_PCRE2_JIT_ENABLED=y
 CONFIG_TARGET_msm89xx=y
 CONFIG_TARGET_msm89xx_msm8916=y
 CONFIG_TARGET_msm89xx_msm8916_DEVICE_generic-hmu05=y
+
+# --- Optional kernel modules: built into the published feed, NOT the image ---
+# All entries use "=m" (build-only): the module is compiled and lands in the target
+# package feed (and the offline kmods-msm8916 bundle) so users can install it on demand
+# with `apk add <name>`, but it is NOT baked into the firmware image.
+# This keeps the image lean while giving a useful, complete-enough kmod feed.
+
+# USB Ethernet adapters (LAN/WAN via a USB dongle)
+CONFIG_PACKAGE_kmod-usb-net-rtl8152=m
+CONFIG_PACKAGE_kmod-usb-net-rtl8150=m
+CONFIG_PACKAGE_kmod-usb-net-asix=m
+CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=m
+CONFIG_PACKAGE_kmod-usb-net-aqc111=m
+CONFIG_PACKAGE_kmod-usb-net-cdc-ether=m
+CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=m
+CONFIG_PACKAGE_kmod-usb-net-cdc-eem=m
+CONFIG_PACKAGE_kmod-usb-net-cdc-subset=m
+CONFIG_PACKAGE_kmod-usb-net-dm9601-ether=m
+CONFIG_PACKAGE_kmod-usb-net-smsc95xx=m
+CONFIG_PACKAGE_kmod-usb-net-smsc75xx=m
+CONFIG_PACKAGE_kmod-usb-net-mcs7830=m
+CONFIG_PACKAGE_kmod-usb-net-pegasus=m
+CONFIG_PACKAGE_kmod-usb-net-sr9700=m
+CONFIG_PACKAGE_kmod-usb-net-lan78xx=m
+CONFIG_PACKAGE_kmod-usb-net-rndis=m
+
+# USB cellular modems (additional WWAN devices)
+CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=m
+CONFIG_PACKAGE_kmod-usb-net-cdc-mbim=m
+CONFIG_PACKAGE_kmod-usb-net-huawei-cdc-ncm=m
+CONFIG_PACKAGE_kmod-usb-net-hso=m
+CONFIG_PACKAGE_kmod-usb-net-sierrawireless=m
+
+# USB serial (AT consoles, GPS, adapters)
+CONFIG_PACKAGE_kmod-usb-serial-option=m
+CONFIG_PACKAGE_kmod-usb-serial-wwan=m
+CONFIG_PACKAGE_kmod-usb-serial-qualcomm=m
+CONFIG_PACKAGE_kmod-usb-serial-ch341=m
+CONFIG_PACKAGE_kmod-usb-serial-ch348=m
+CONFIG_PACKAGE_kmod-usb-serial-cp210x=m
+CONFIG_PACKAGE_kmod-usb-serial-pl2303=m
+CONFIG_PACKAGE_kmod-usb-serial-ftdi=m
+CONFIG_PACKAGE_kmod-usb-serial-simple=m
+
+# USB Wi-Fi adapters
+CONFIG_PACKAGE_kmod-rt2800-usb=m
+CONFIG_PACKAGE_kmod-rtl8xxxu=m
+CONFIG_PACKAGE_kmod-mt7601u=m
+CONFIG_PACKAGE_kmod-ath9k-htc=m
+
+# USB storage + filesystems
+CONFIG_PACKAGE_kmod-usb-storage=m
+CONFIG_PACKAGE_kmod-usb-storage-uas=m
+CONFIG_PACKAGE_kmod-usb-storage-extras=m
+CONFIG_PACKAGE_kmod-fs-ntfs3=m
+
+# USB HID / misc
+CONFIG_PACKAGE_kmod-usb-acm=m
+CONFIG_PACKAGE_kmod-usb-hid=m
+CONFIG_PACKAGE_kmod-hid-generic=m
+
+# --- Optional modules, second batch: VPN/IPsec, more crypto, more filesystems ---
+# Same rule as above: "=m" builds the module into the feed but does NOT install it.
+
+# VPN / IPsec / tunneling
+CONFIG_PACKAGE_kmod-ipsec=m
+CONFIG_PACKAGE_kmod-ipsec4=m
+CONFIG_PACKAGE_kmod-ipsec6=m
+CONFIG_PACKAGE_kmod-ipt-ipsec=m
+CONFIG_PACKAGE_kmod-xfrm-interface=m
+CONFIG_PACKAGE_kmod-nft-xfrm=m
+CONFIG_PACKAGE_kmod-pptp=m
+CONFIG_PACKAGE_kmod-pppol2tp=m
+CONFIG_PACKAGE_kmod-l2tp-ip=m
+CONFIG_PACKAGE_kmod-l2tp-eth=m
+CONFIG_PACKAGE_kmod-batman-adv=m
+CONFIG_PACKAGE_kmod-gre6=m
+CONFIG_PACKAGE_kmod-ip6-tunnel=m
+CONFIG_PACKAGE_kmod-iptunnel4=m
+CONFIG_PACKAGE_kmod-iptunnel6=m
+
+# Encryption / crypto (IPsec, dm-crypt/LUKS, legacy ciphers)
+CONFIG_PACKAGE_kmod-crypto-cbc=m
+CONFIG_PACKAGE_kmod-crypto-xts=m
+CONFIG_PACKAGE_kmod-crypto-rsa=m
+CONFIG_PACKAGE_kmod-crypto-sha1=m
+CONFIG_PACKAGE_kmod-crypto-md5=m
+CONFIG_PACKAGE_kmod-crypto-authenc=m
+CONFIG_PACKAGE_kmod-crypto-des=m
+CONFIG_PACKAGE_kmod-crypto-arc4=m
+CONFIG_PACKAGE_kmod-crypto-cts=m
+CONFIG_PACKAGE_kmod-crypto-essiv=m
+CONFIG_PACKAGE_kmod-crypto-pcbc=m
+CONFIG_PACKAGE_kmod-crypto-xcbc=m
+CONFIG_PACKAGE_kmod-crypto-michael-mic=m
+CONFIG_PACKAGE_kmod-crypto-echainiv=m
+CONFIG_PACKAGE_kmod-crypto-chacha20poly1305=m
+CONFIG_PACKAGE_kmod-crypto-deflate=m
+CONFIG_PACKAGE_kmod-crypto-user=m
+CONFIG_PACKAGE_kmod-crypto-md4=m
+CONFIG_PACKAGE_kmod-crypto-rmd160=m
+
+# Filesystems
+CONFIG_PACKAGE_kmod-fs-xfs=m
+CONFIG_PACKAGE_kmod-fuse=m
+CONFIG_PACKAGE_kmod-loop=m
+CONFIG_PACKAGE_kmod-fs-msdos=m
+CONFIG_PACKAGE_kmod-fs-cifs=m
+CONFIG_PACKAGE_kmod-fs-ksmbd=m
+CONFIG_PACKAGE_kmod-fs-nfs=m
+CONFIG_PACKAGE_kmod-fs-nfs-v3=m
+CONFIG_PACKAGE_kmod-fs-nfs-v4=m
+CONFIG_PACKAGE_kmod-fs-nfsd=m
+CONFIG_PACKAGE_kmod-fs-nfs-common=m
+CONFIG_PACKAGE_kmod-fs-hfsplus=m
+CONFIG_PACKAGE_kmod-fs-isofs=m
+CONFIG_PACKAGE_kmod-fs-udf=m
+CONFIG_PACKAGE_kmod-fs-jfs=m
+CONFIG_PACKAGE_kmod-fs-nilfs2=m
+CONFIG_PACKAGE_kmod-fs-cramfs=m
+CONFIG_PACKAGE_kmod-fs-autofs4=m
+CONFIG_PACKAGE_kmod-fs-9p=m
+CONFIG_PACKAGE_kmod-fs-netfs=m
+CONFIG_PACKAGE_kmod-fs-exportfs=m
+CONFIG_PACKAGE_kmod-fs-smbfs-common=m
+CONFIG_PACKAGE_kmod-nls-cp1250=m
+CONFIG_PACKAGE_kmod-nls-cp1251=m
+CONFIG_PACKAGE_kmod-nls-iso8859-2=m
+CONFIG_PACKAGE_kmod-nls-iso8859-15=m
+CONFIG_PACKAGE_kmod-nls-cp932=m
+CONFIG_PACKAGE_kmod-nls-cp936=m
+CONFIG_PACKAGE_kmod-nls-koi8r=m
+CONFIG_PACKAGE_kmod-nls-ucs2-utils=m
+
+# Bluetooth (extra transports)
+CONFIG_PACKAGE_kmod-btmrvl=m
+CONFIG_PACKAGE_kmod-btmtkuart=m
+CONFIG_PACKAGE_kmod-btsdio=m
