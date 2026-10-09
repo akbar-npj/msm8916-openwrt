@@ -1,5 +1,7 @@
 # Porting Android's thermal control to OpenWrt — lever-by-lever result (HMU05)
 
+> **Correction (2026-10-08):** The raw idle CSVs do not support this report's claim of a settled +15 °C OpenWrt baseline. Idle captures differ by about 3–7 °C and are cooling transients; the ~14–15 °C difference is in load peaks. The source audit also makes a TSENS calibration offset unlikely and identifies Android's PA/modem thermal-engine path as the leading load-related hypothesis, not proven cause. See [the updated root-cause research](./HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md), which supersedes §3 and the baseline/DDR-fabric inference in §4. The CPU-trip A/B observations remain separately useful.
+
 **Question:** *"How can we mimic Android thermal control in OpenWrt?"* (prior thermal tests
 had "little success").
 
