@@ -190,8 +190,11 @@ the modem clears the item again. Steady-state cost is one NV read per cycle.
   RF-task read (modem-up ~299 s) gave **0 restarts / no fatal through modem-up 902 s** with
   LTE fully up; the no-write control **fataled**.
 - **§112.170** — cold-boot A/B, both at `a2_pin=0`: no guard → `lte_ml1_common_timer.c:390`
-  at modem ~363 s; guard ON → **0 crashes**. Android runs `a2_pin=0`, so
-  **`a2_pin=0` + guard = Android parity**.
+  at modem ~363 s; guard ON → **0 crashes**. The guard is the root-cause fix for the `lte_ml1`
+  fatal. **⚠ Corrected 2026-10-09:** §112.170 originally added *"Android runs `a2_pin=0`, so
+  `a2_pin=0` + guard = Android parity"* — that parity claim is **WRONG**. Android keeps the A2
+  **ON** (measured 0 A2 transitions / 120 s idle ⇒ ≈ `a2_pin=1`), so **Android parity = `a2_pin=1`**
+  — which is what HMU05 now ships (patch 849). See §6 and §10.
 - **§112.171** — the guard was initially test-only; it is now in the image and restored by
   `sysupgrade` (a plain copy-main flash had regressed it, which is what prompted the
   promotion to `main`).
@@ -229,8 +232,12 @@ the modem clears the item again. Steady-state cost is one NV read per cycle.
    re-introduces a baseband patcher into a device-agnostic branch.
 4. **Gated and reversible.** The init is `board_name`-gated to `*hmu05*`, so no other board
    is affected, and it can be disabled with a single UCI key.
-5. **Android parity.** With the guard, `a2_pin=0` is safe, matching the stock Android
-   configuration.
+5. **Android parity.** Android keeps the A2 **ON** (measured: 0 A2 transitions over a 120 s idle
+   window ⇒ ≈ `a2_pin=1`), so HMU05 ships the pin (`qcom,a2-pin` via DT, patch 849 →
+   `pm_runtime_forbid()` holds `power/control=on`) — the A2-ON configuration is the one that
+   matches Android. The earlier "Android = `a2_pin=0`" reading was a mis-inference from the
+   driver's `ul_powerdown()` *intent* (queue-empty gated, rarely fires), not from measurement;
+   and `a2_pin=0` is not safe under a data bearer anyway (`a2_power.c:1189` still fires).
 
 **Role of Option A going forward:** it is retained only as the *decisive experiment* that
 proved the mechanism (§112.162) and as a fallback diagnostic. It is **not** part of the
@@ -289,7 +296,8 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
 - **§112.162** — decisive A/B: the one-constant change that moved the fatal.
 - **§112.165–§112.168** — the `memcmp` / NV-item-2500 root cause.
 - **§112.169** — guard ON vs no-write control on the 60000 ms image.
-- **§112.170** — cold-boot A/B; `a2_pin` (not cold-vs-warm) is the gate; Android parity.
+- **§112.170** — cold-boot A/B; `a2_pin` (not cold-vs-warm) is the gate. ⚠ the "`a2_pin=0` =
+  Android parity" sub-claim is **corrected 2026-10-09**: Android holds the A2 ON ⇒ parity = `a2_pin=1`.
 - **§112.171** — promotion of the guard from test-only into the image.
 - **Artifacts:** `msm89xx/base-files/usr/sbin/{himi-ok-guard,diag_nv}`,
   `msm89xx/base-files/etc/init.d/himi-ok`,
