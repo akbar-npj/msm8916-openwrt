@@ -7,7 +7,20 @@
 
 A production-ready, fully open-source OpenWrt port for Qualcomm Snapdragon 410 (MSM8916 / MSM8939) based 4G LTE USB modems, dongles, and pocket routers.
 
-Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcomm WCN36xx Wi-Fi**, **USB ConfigFS CDC NCM/ACM**, **true persistent eMMC EXT4 overlay storage**, and working **reboot-to-EDL and reboot-to-Fastboot recovery paths**.
+Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcomm WCN36xx Wi-Fi with WPA3-SAE**, **Bluetooth (BlueZ 5.83 + SPP)**, **USB ConfigFS CDC NCM/ACM**, **mainline CPR CPU-rail scaling**, **true persistent eMMC EXT4 overlay storage**, and working **reboot-to-EDL and reboot-to-Fastboot recovery paths**.
+
+---
+
+## 🆕 Release Highlights
+
+Recent additions on top of the base port:
+
+* **🔵 Bluetooth** — the WCNSS BT core (SMD) with BlueZ 5.83, an SSP pairing-repair guard, and a Bluetooth **Serial Port Profile** server/client (a serial console or TCP bridge over Bluetooth).
+* **🔐 WPA3-SAE Wi-Fi** — PMF/SAE support in the wcn36xx driver, plus **multi-SSID** (two APs on the one radio).
+* **🌡️ Thermal & power** — the CPU rail is now managed by **mainline CPR** (matching Android's rail voltage), the top CPU OPP is capped at 800 MHz, and Wi-Fi + PMIC thermal mitigation is wired up on the HMU05.
+* **🛡️ Modem stability** — the A2 power rail is held on in the driver (`a2_pin=1`), the modem NV `HiMI_OK` marker is rewritten after every boot, and a bearer watchdog performs pre-emptive SSR recovery.
+* **🔑 Signed package feed with self-heal** — the OTA `apk` feed is signed with a pinned key, and every device re-syncs that key from a stable URL at boot.
+* **📡 Carrier auto-provisioning** — automatic SIM/carrier MBN deployment with the QMI time daemon anchoring the modem clock before LTE attach.
 
 ---
 
@@ -16,6 +29,10 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
 * **⚡ Plug-and-Play USB Networking**: High-speed **CDC NCM Ethernet** automatically bound to `br-lan` at `192.168.8.1/24` with a built-in DHCP server (avoids `192.168.1.x` subnet collisions with upstream home routers).
 * **📟 Built-in USB Serial Console**: Instant root shell on `/dev/ttyACM0` (115200 baud) over USB via CDC ACM for zero-setup terminal access, debugging, and recovery.
 * **📶 First-Boot Wi-Fi Auto-Start**: Automatically extracts Qualcomm WCNSS blobs, starts the remoteproc in-place, binds the physical radio path, and broadcasts an open `OpenWrt` 2.4 GHz AP (Channel 1, 2.412 GHz) on clean first boot.
+* **🔐 WPA3-SAE and Multi-SSID**: The wcn36xx driver advertises WPA3-SAE (PMF/IGTK), and the radio can host **two AP interfaces** at once. See [Wi-Fi](#-wi-fi).
+* **🔵 Bluetooth + Serial Port Profile**: WCNSS Bluetooth over SMD with BlueZ 5.83, an SSP pairing-repair guard, and an SPP server/client for a Bluetooth serial console or TCP bridge. See [Bluetooth](#-bluetooth).
+* **🌡️ Thermal & Power Management**: Mainline **CPR** CPU-rail scaling (Android-parity voltage), an 800 MHz CPU OPP cap, and Wi-Fi/PMIC thermal mitigation on the HMU05. See [Thermal & Power Management](#-thermal--power-management).
+* **🛡️ Modem Stability Guard**: The A2 power rail is pinned on (`a2_pin=1`), the modem's `HiMI_OK` NV marker is rewritten after every modem boot, and `modem-bearer-watchdog` performs pre-emptive SSR recovery. See [Modem Stability](#-modem-stability).
 * **🌐 4G LTE Cellular Data & Carrier Auto-Provisioning**: Native **ModemManager** integration with automatic SIM carrier detection (`qcom-carrier-autocfg`), dynamic APN and Qualcomm Carrier MBN deployment, safe empty PLMN home operator attachment, and continuous self-healing daemon monitoring (`modem-led-monitor`).
 * **💾 Permanent eMMC Storage**: Automated `/dev/mmcblk0p15` (`rootfs_data`) EXT4 formatting and mounting, with preinit filesystem checking and automatic safe repair using `e2fsck -p`, providing persistent overlay storage without unnecessarily formatting an existing filesystem.
 * **💡 Intuitive Hardware Status LEDs**:
@@ -24,21 +41,34 @@ Features modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcom
   * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
   * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
+* **🔑 Signed OTA Package Feed**: Pre-compiled `kmod-*` and application packages served over GitHub Pages, signed with a pinned key and self-healing on-device. See [Package Repository](#-official-package--kernel-driver-repository).
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
-* **⚙️ Reboot to Fastboot**: `reboot-bootloader` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
+* **⚙️ Reboot to Bootloader/Fastboot**: `reboot-bootloader` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
 * **🔧 Recovery Without Physical Access**: EDL and Fastboot reboot targets provide software-triggered recovery paths directly from a running OpenWrt system.
 
 ---
 
 ## 📟 Supported Devices
 
-| Board Target  | Profile Name      | Device Model               | SoC     | RAM    | Storage   | Features                                                                                |
-| :------------ | :---------------- | :------------------------- | :------ | :----- | :-------- | :-------------------------------------------------------------------------------------- |
-| **`hmu05`**   | `generic-hmu05`   | Generic HMU05 (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Ramoops, Reboot-to-EDL, Reboot-to-Fastboot                 |
-| **`ufi001b`** | `generic-ufi001b` | Generic UFI001B 4G Stick   | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot, Ramoops                 |
-| **`uz801`**   | `yiming-uz801v3`  | YiMing UZ801 v3 Dongle     | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot, Swapped LED mapping     |
-| **`uf02`**    | `generic-uf02`    | Generic UF02 / UF2 Stick   | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot                          |
-| **`mf800b`**  | `generic-mf800b`  | Generic MF800B 4G MiFi     | MSM8916 | 512 MB | 4 GB eMMC | USB NCM, ACM, Wi-Fi AP, LTE, Reboot-to-EDL, Reboot-to-Fastboot, bi-colour WLAN/WAN LEDs |
+| Board Target  | Profile Name      | Device Model               | SoC     | RAM    | Storage   | LED mapping             |
+| :------------ | :---------------- | :------------------------- | :------ | :----- | :-------- | :---------------------- |
+| **`hmu05`**   | `generic-hmu05`   | Generic HMU05 (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
+| **`ufi001b`** | `generic-ufi001b` | Generic UFI001B 4G Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
+| **`uz801`**   | `yiming-uz801v3`  | YiMing UZ801 v3 Dongle     | MSM8916 | 512 MB | 4 GB eMMC | Swapped (WLAN/WAN)      |
+| **`uf02`**    | `generic-uf02`    | Generic UF02 / UF2 Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
+| **`mf800b`**  | `generic-mf800b`  | Generic MF800B 4G MiFi     | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN      |
+
+### Per-board feature matrix
+
+| Board     | Bluetooth | WPA3-SAE / Multi-SSID | CPU CPR + 800 MHz cap | Wi-Fi/PMIC cooling maps | `a2_pin` modem hold | `qcom-time-daemon` |
+| :-------- | :-------: | :-------------------: | :-------------------: | :---------------------: | :-----------------: | :----------------: |
+| `hmu05`   |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         ✅         |
+| `ufi001b` |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `uz801`   |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `uf02`    |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `mf800b`  |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+
+> The Wi-Fi/PMIC cooling maps and the `a2_pin` modem-rail hold are **HMU05-only** (device-tree gated). Everything else applies to every board.
 
 ---
 
@@ -254,22 +284,119 @@ An existing EXT filesystem is **not reformatted merely because it requires repai
 
 ---
 
+## 📶 Wi-Fi
+
+The WCN36xx 2.4 GHz radio comes up automatically on first boot and broadcasts an **open** `OpenWrt` AP on channel 1. It is driven by the mainline `wcn36xx` driver plus a small set of mac80211 backport patches carried in this tree.
+
+* **WPA3-SAE (Personal)** is supported. Configure it from LuCI (*Network → Wireless → Edit → Wireless Security*) or UCI; a WPA3 client will negotiate SAE + PMF, and WPA2 clients continue to work unchanged.
+* **Multi-SSID** is supported: up to **two AP interfaces** on the same radio (for example a main SSID and a guest SSID).
+
+> [!WARNING]
+> **Concurrent STA + AP is not supported.** The WCNSS firmware crashes if the radio is asked to run a station and an AP at the same time — even on the same channel — which reboots the access point and takes the modem down with it. The driver advertises an AP-only interface combination so `wpa_supplicant`/`hostapd` refuse the combination up front. Use a second radio or a wired uplink if you need to bridge a Wi-Fi client.
+
+---
+
+## 🔵 Bluetooth
+
+The device's Bluetooth controller is the WCNSS core reached over the SMD transport (`kmod-btqcomsmd` + `kmod-btqca`), with **BlueZ 5.83** userspace (`bluetoothd`, `bluetoothctl`, `hcitool`, `btmgmt`, `rfcomm`, `sdptool`, `bt-agent`).
+
+Bring up the controller and pair from the console:
+
+```bash
+bluetoothctl
+[bluetooth]# power on
+[bluetooth]# scan on
+[bluetooth]# pair <BD_ADDR>
+```
+
+### SSP pairing guard (`bt-ssp-guard`)
+
+The controller's Secure Simple Pairing capability is gated by a single LMP-feature bit stored in Bluetooth NVM tag 6. If that bit is ever cleared, BR/EDR pairing falls back to legacy PIN pairing and fails. `bt-ssp-guard` checks the bit at boot and repairs it if needed:
+
+```bash
+bt-ssp-guard status    # report the feature bit / SSP mode
+bt-ssp-guard repair    # check and repair; add --wait to poll for hci0 first
+```
+
+In the normal case it is a silent no-op — it exists as insurance against a cleared feature bit.
+
+### Serial Port Profile (`bt-spp`)
+
+`bt-spp` provides a Bluetooth **SPP** endpoint, so a paired phone or PC can reach the device as a serial port:
+
+* A **server** (enabled at boot) listens on RFCOMM channel 1 and waits for an incoming connection.
+* A **client** is run on demand against a peer address.
+
+Both use a configurable **bridge** — either a login shell on a pty (a serial console over Bluetooth) or a local TCP socket:
+
+```bash
+uci show bt-spp           # current configuration
+uci set bt-spp.server.bridge='tcp'
+uci set bt-spp.server.tcp_port='5000'
+uci commit bt-spp
+/etc/init.d/bt-spp restart
+```
+
+> **Note:** `bluetoothd` runs with `--compat` so the local SDP Unix socket exists (required by `sdptool`/`rfcomm`). A `br-connection-profile-unavailable` error means the *profile* is missing, not that authentication failed.
+
+---
+
+## 🌡️ Thermal & Power Management
+
+These devices run hot in a small enclosure, and the modem's behaviour is sensitive to the power rails. This port brings the CPU rail and thermal policy in line with stock Android.
+
+* **CPU rail (mainline CPR)** — the CPU voltage is managed by mainline **CPR** (Core Power Reduction) rather than a fixed rail, matching Android's voltage for the silicon's fused speed bin. This lowers idle and mid-load CPU voltage versus a static setting.
+* **CPU OPP cap** — the top 998.4 MHz operating point is removed, so the CPUs run at up to **800 MHz** (matching Android's cap on these parts).
+* **Wi-Fi + PMIC thermal mitigation (HMU05)** — the `wcn36xx` driver exposes a cooling device that throttles the Wi-Fi transmit path, and the PMIC's thermal zone is bound to the CPU cooling device. Trips are triggered from the CPU cluster sensor, mirroring Android's `thermal-engine` "wlan" action.
+
+```bash
+# Inspect the thermal zones and their cooling devices
+for z in /sys/class/thermal/thermal_zone*; do
+    echo "$z: $(cat $z/type) = $(cat $z/temp)"
+done
+```
+
+---
+
+## 🛡️ Modem Stability
+
+The Qualcomm baseband on these sticks can hit a **~900 s deadline** after a warm modem restart, and it can wedge when the A2 (AP↔modem) power handshake fails under a data bearer. This port ships several **AP-side** mitigations that run automatically — no user action is required:
+
+| Component | What it does |
+| :--- | :--- |
+| **`a2_pin` (HMU05)** | Holds the A2 power rail **on** in the `qcom_bam_dmux` driver so the modem is not power-collapsed mid-handshake. Enabled via device tree. |
+| **`himi-ok-guard`** | Rewrites the modem NV item `HiMI_OK` after **every** modem boot (cold and each SSR), so the RF task's identity check passes and the ~900 s deadline never arms. |
+| **`modem-bearer-watchdog`** | Watches the modem and data bearer; performs a pre-emptive subsystem restart and recovers a zombie bearer/ModemManager without a reboot. |
+| **`qcom-time-daemon`** | Anchors the modem's time base (ATS) before LTE attach so the QMI time sync is valid. |
+
+Verify the guard is active:
+
+```bash
+logread | grep -i himi-ok        # guard activity
+ubus call network.interface.modem status   # data bearer state
+```
+
+> An **optional baseband binary patch** is also available for users who prefer it over the AP-side guard. The binary-patch code is deliberately **not shipped** in this firmware — see **[`Docs/Modem Stability/HMU05_900S_FATAL_FIX_USER_GUIDE.md`](Docs/Modem%20Stability/HMU05_900S_FATAL_FIX_USER_GUIDE.md)** ("Choose Your Fix") for the trade-offs and the manual procedure.
+
+---
+
 ## 🔌 Default Device Access
 
 | Service                  | Access Details                  | Default Credentials              |
 | :----------------------- | :------------------------------ | :------------------------------- |
 | **Web Interface (LuCI)** | `http://192.168.8.1`            | No password (set on first login) |
-| **Connectivity Watchdog**| LuCI: **Services $\to$ Watchcat**| Configurable auto-reboot watchdog|
+| **Modem Watchdog**       | Automatic (`modem-bearer-watchdog`) | Pre-emptive SSR + zombie recovery |
 | **SMS Management**       | LuCI: **Services $\to$ SMS**    | View / Send SMS via Web UI       |
 | **SSH Terminal**         | `ssh root@192.168.8.1`          | No password required             |
 | **USB Serial Console**   | `screen /dev/ttyACM0 115200`    | Direct root shell                |
-| **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (No encryption by default)  |
+| **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (WPA3-SAE configurable)     |
+| **Bluetooth**            | `bluetoothctl` / `bt-spp`       | SPP server on RFCOMM channel 1   |
 | **EDL Recovery**         | `reboot-edl`                    | Qualcomm USB `05c6:9008`         |
 | **Fastboot Recovery**    | `reboot-bootloader`             | `fastboot devices`               |
 
 ---
 
-## 📶 SIM Detection, Carrier Auto-Provisioning & Reboot Behavior
+## 📡 SIM Detection, Carrier Auto-Provisioning & Reboot Behavior
 
 When you plug in the modem stick with a SIM card inserted (or after swapping to a different cellular carrier), the stick will **automatically reboot once** after approximately 10–15 seconds of uptime.
 
@@ -342,15 +469,17 @@ logread -f -e carrier-autocfg
 
 This repository hosts a live APK feed on GitHub Pages with all pre-compiled Qualcomm MSM8916 kernel modules (`kmod-*`) and applications:
 
-### Repository Feeds URL
-
 * **Landing Page**: https://akbar-npj.github.io/msm8916-openwrt/
+
+The feed is **signed with a pinned key**. Every image ships the matching public key and a boot service (`apk-key-refresh`) that re-syncs it from a stable URL, so a device flashed with an older image can never be left rejecting the feed with `UNTRUSTED signature`.
 
 ### Enable Custom Feeds on Device
 
 ```bash
 cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
 https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
 EOF
 
 apk update
