@@ -65,10 +65,15 @@ jobs:
           APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
         run: |
           ./build.sh prepare
-          if [ -n "$APK_SIGNING_KEY" ]; then
-            echo "$APK_SIGNING_KEY" > openwrt/private-key.pem
-            echo "Injected persistent private signing key."
+          if [ -z "$APK_SIGNING_KEY" ]; then
+            echo "::error::APK_SIGNING_KEY secret is not set."
+            echo "::error::Without it the feed would be signed with a random, per-build key"
+            echo "::error::and every device would reject it with 'UNTRUSTED signature'."
+            echo "::error::Set the secret to the persistent EC P-256 private key and retry."
+            exit 1
           fi
+          printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
+          echo "Injected persistent private signing key."
 
       - name: Compile All Firmware Images (hmu05, ufi001b, uz801, uf02)
         run: |
@@ -101,7 +106,12 @@ jobs:
           mkdir -p /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages
           cp -a openwrt/bin/targets/msm89xx/msm8916/packages /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/targets/msm89xx/msm8916/
           cp -a openwrt/bin/packages/aarch64_generic /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages/
+          # Publish the feed signing key (public half of APK_SIGNING_KEY) both in
+          # the versioned release dir and at a stable, version-independent path.
+          # Devices run apk-key-refresh, which fetches the stable URL at boot to
+          # self-heal a stale embedded key (see msm89xx/base-files/usr/sbin/apk-key-refresh).
           [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/public-key.pem || true
+          [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/public-key.pem || true
 
       - name: Deploy Package Feeds to GitHub Pages (gh-pages branch)
         uses: peaceiris/actions-gh-pages@v4

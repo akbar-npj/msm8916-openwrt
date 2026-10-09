@@ -1,0 +1,9 @@
+#!/bin/sh
+# Enable the custom-feed signing-key self-heal service on every boot.  A device
+# flashed with an image that embedded a stale key would otherwise reject the
+# feed with "UNTRUSTED signature"; this keeps it in sync with the canonical key
+# at the stable URL.  See /usr/sbin/apk-key-refresh.
+
+[ -x /etc/init.d/apk-key-refresh ] && /etc/init.d/apk-key-refresh enable
+
+exit 0

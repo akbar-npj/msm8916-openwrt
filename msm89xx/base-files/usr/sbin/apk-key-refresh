@@ -1,0 +1,83 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# apk-key-refresh -- keep the akbar-npj custom-feed signing key in sync with
+# the canonical key published at a stable, version-independent URL.
+#
+# Why: the CI release job signs the package feed with a persistent key (the
+# repository secret APK_SIGNING_KEY).  An image embeds that key at build time,
+# but a device flashed with an older image -- or one built before the key was
+# pinned -- can carry a stale key and then reject every feed with
+# "UNTRUSTED signature" on `apk update`.  Fetching the key from the stable URL
+# at boot lets any device self-heal without a reflash.
+#
+# The install is intentionally conservative: the fetched file must be a
+# well-formed PEM public key, and the on-disk key is only replaced when it
+# actually differs (so we do not churn the overlay on every boot).
+
+KEY_URL="${KEY_URL:-https://akbar-npj.github.io/msm8916-openwrt/public-key.pem}"
+KEY_FILE="${KEY_FILE:-/etc/apk/keys/akbar-npj-v25.12.5.pem}"
+TMP_FILE="/tmp/.apk-key-refresh.$$"
+
+# Boot-time retries: the modem may not be attached yet when we start.
+RETRIES="${RETRIES:-15}"
+DELAY="${DELAY:-20}"
+
+log() { logger -t apk-key-refresh "$1"; }
+
+# Fetch URL -> TMP_FILE.  Prefer OpenWrt's uclient-fetch, fall back to BusyBox wget.
+fetch() {
+	if command -v uclient-fetch >/dev/null 2>&1; then
+		uclient-fetch -q -T 15 -O "$TMP_FILE" "$KEY_URL" 2>/dev/null && return 0
+	fi
+	if command -v wget >/dev/null 2>&1; then
+		wget -q -T 15 -O "$TMP_FILE" "$KEY_URL" 2>/dev/null && return 0
+	fi
+	return 1
+}
+
+# Validate + install TMP_FILE.  Returns:
+#   0 = key installed (changed)
+#   2 = already current (no change)
+#   1 = not a valid key (kept the existing one)
+install_key() {
+	[ "$(head -n1 "$TMP_FILE" 2>/dev/null)" = "-----BEGIN PUBLIC KEY-----" ] || return 1
+	grep -q -- "-----END PUBLIC KEY-----" "$TMP_FILE" 2>/dev/null || return 1
+	[ "$(wc -c < "$TMP_FILE" 2>/dev/null)" -ge 100 ] || return 1
+
+	if [ -f "$KEY_FILE" ] && cmp -s "$TMP_FILE" "$KEY_FILE"; then
+		return 2
+	fi
+
+	mkdir -p /etc/apk/keys
+	cat "$TMP_FILE" > "$KEY_FILE"
+	return 0
+}
+
+trap 'rm -f "$TMP_FILE"' EXIT
+
+i=0
+while [ "$i" -lt "$RETRIES" ]; do
+	if fetch; then
+		install_key
+		rc=$?
+		rm -f "$TMP_FILE"
+		case "$rc" in
+			0)
+				log "installed updated feed signing key"
+				exit 0
+				;;
+			2)
+				exit 0
+				;;
+			*)
+				log "fetched data from $KEY_URL is not a valid public key; keeping existing"
+				;;
+		esac
+	fi
+	i=$((i + 1))
+	[ "$i" -lt "$RETRIES" ] && sleep "$DELAY"
+done
+
+log "could not refresh feed signing key from $KEY_URL (offline?)"
+exit 1
