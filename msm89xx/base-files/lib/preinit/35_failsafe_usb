@@ -9,7 +9,7 @@
 #
 # This hook runs ONLY on the `failsafe` hook (never during a normal boot, where
 # S99 still owns the UDC).  It:
-#   1. blinks the red LED fast so the user can see failsafe was entered,
+#   1. blinks a status LED fast so the user can see failsafe was entered,
 #   2. mounts configfs and creates a minimal g1 gadget (NCM + ACM),
 #   3. binds the UDC so the host sees a new NIC and /dev/ttyACM0,
 #   4. assigns the failsafe IP (default 192.168.10.1/24) to the NCM netdev,
@@ -44,15 +44,20 @@ fs_log() {
 	done
 }
 
-# Fast-flash the red LED(s).  Board LED sysfs names (color:function):
+# Fast-flash the status LED(s).  Board LED sysfs names (color:function):
 #   hmu05    red:power
 #   ufi001b  red:power
 #   uf02     red
 #   mf800b   red:wlan red:wan red:charging
-#   uz801    (no red LED) -> fall back to any LED
+#   uz801    green:wlan (some units have no red LED)
+# Prefer red; if the board has none (e.g. uz801), fall back to green, then
+# to any LED at all, so the user always gets the fast-flash indication.
 fs_led_failsafe() {
 	local leds="" l
 	for l in /sys/class/leds/*red*; do
+		[ -d "$l" ] && leds="$leds $l"
+	done
+	[ -n "$leds" ] || for l in /sys/class/leds/*green*; do
 		[ -d "$l" ] && leds="$leds $l"
 	done
 	[ -n "$leds" ] || for l in /sys/class/leds/*; do

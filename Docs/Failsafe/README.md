@@ -31,8 +31,9 @@ firmware only adds the trigger and the reachability for a headless dongle.
 
 - A **single short press is enough** — no hold required. The press only has to
   land inside the 7-second window.
-- Watch the **red LED**: once failsafe is entered it **fast-flashes** (~12 Hz).
-- On the board with no red LED (UZ801 v3) another LED flashes instead.
+- Watch the **LED**: once failsafe is entered it **fast-flashes** (~12 Hz). It
+  uses the **red** LED where the board has one, otherwise the **green** LED
+  (UZ801 v3), otherwise any LED.
 
 **Option B — serial console.** If you have a UART connected to the kernel
 console (`ttyMSM0`, 115200), press **`f`** then Enter during the same window.
@@ -99,8 +100,9 @@ Notes:
 - **No new USB device on the host?** Try a different USB cable/port; the NCM
   gadget needs USB data lines, not a charge-only cable.
 - **Button did nothing?** The window is only 7 s from power-on. Press earlier.
-  On the MF800B the button GPIO was never verified live — use the serial `f`
-  key instead.
+  Only the HMU05 button is verified live; the UFI001B, UF02, UZ801 and MF800B
+  buttons are declared active-high/pull-down but not yet confirmed on hardware —
+  if yours does nothing, use the serial `f` key instead and report it.
 - **Everything is dead?** Fall back to EDL (section 3).
 
 ---
@@ -147,24 +149,33 @@ Then use the flashing tooling in [`Docs/EDL/`](../EDL/) and the project
 
 ## Reference — board specifics
 
-| Board   | Restart button GPIO | Polarity / bias   | Red LED(s)                       | Failsafe LED |
-|---------|---------------------|-------------------|----------------------------------|--------------|
-| HMU05   | `tlmm 37`           | active-high, pull-down | `red:power`                | `red:power`  |
-| UFI001B | `tlmm 37`           | active-low, pull-up    | `red:power`                | `red:power`  |
-| UF02    | `tlmm 23`           | active-low, pull-up    | `red`                      | `red`        |
-| UZ801   | `tlmm 23`           | active-low, pull-up    | *(none)*                   | any LED      |
-| MF800B  | `tlmm 102`          | active-low, pull-up    | `red:wlan`, `red:wan`, `red:charging` | all red LEDs |
+| Board   | Restart button GPIO | Polarity / bias        | Status LED(s)                    | Failsafe LED |
+|---------|---------------------|------------------------|----------------------------------|--------------|
+| HMU05   | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
+| UFI001B | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
+| UF02    | `tlmm 23`           | active-high, pull-down | `red`                            | `red`        |
+| UZ801   | `tlmm 23`           | active-high, pull-down | `green:wlan` (no red on some)    | `green:wlan` |
+| MF800B  | `tlmm 102`          | active-high, pull-down | `red:wlan`, `red:wan`, `red:charging` | all red LEDs |
 
-> ⚠ **The button's polarity and bias are board-specific and must match the
-> hardware, or the button is completely inert** (no edge ever reaches the
-> driver, so no uevent, so no failsafe). The HMU05 pinhole Restart button pulls
-> GPIO37 **up to VCC** when pressed, so the DTS must declare
-> `GPIO_ACTIVE_HIGH` + `bias-pull-down` (idle low, press = high). The stock
-> HMU05 Android DTS agrees (`key_freset`, flags `0x00`). Declaring it
-> active-low/pull-up — as the other boards (correctly) do — makes GPIO37 idle
-> high and the press produces no edge. Only HMU05 has been verified live so far
-> (2026-10-10); if a button does nothing, check `bias`/polarity against the
-> board's stock DTS.
+> ⚠ **The button's polarity and bias must match the hardware, or the button is
+> completely inert** (no edge ever reaches the driver, so no uevent, so no
+> failsafe). All five boards are now declared **`GPIO_ACTIVE_HIGH` +
+> `bias-pull-down`** (idle low, press = high), matching the verified HMU05
+> behaviour: its pinhole Restart button pulls GPIO37 **up to VCC** when pressed,
+> and the stock HMU05 Android DTS agrees (`key_freset`, flags `0x00`). The
+> earlier active-low/pull-up declarations made GPIO37 idle high, so a press
+> produced no edge.
+>
+> **Only HMU05 is verified live so far (2026-10-10).** The other four boards
+> were switched to the same active-high/pull-down configuration by request: if a
+> board's button turns out to be wired active-low, the fix is to revert that
+> board's patch (`GPIO_ACTIVE_HIGH` → `GPIO_ACTIVE_LOW`, `bias-pull-down` →
+> `bias-pull-up`) and report it. If a button does nothing, check the `bias` and
+> polarity against the board's stock DTS.
+
+> The failsafe LED fast-flashes on **red** where available, otherwise on
+> **green** (UZ801 v3 units without a red LED), otherwise on any LED — so the
+> indication works on every board.
 
 The button is the DT `button_restart` node (`KEY_RESTART` → button name
 `reset`). It is driven by `kmod-gpio-button-hotplug`, which emits button
@@ -184,8 +195,8 @@ the factory-reset hold.
   `192.168.1.1`). Verify in the built image's `lib/preinit/00_preinit.conf`.
 - `msm89xx/base-files/lib/preinit/35_failsafe_usb` brings up the preinit USB
   gadget (configfs `g1`: `ncm.usb0` + `acm.GS0`), assigns the address, blinks
-  the LED, and spawns the `ttyGS0` login shell. It runs on the `failsafe` hook
-  only.
+  the LED (red → green → any fallback), and spawns the `ttyGS0` login shell. It
+  runs on the `failsafe` hook only.
 - `msm89xx/base-files/etc/rc.button/reset` is the post-boot factory-reset
   handler (5 s hold; short press ignored).
 - The in-kernel `gpio_keys` driver (`CONFIG_KEYBOARD_GPIO`) is **disabled** so

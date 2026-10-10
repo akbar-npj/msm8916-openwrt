@@ -48,7 +48,7 @@ network stack broken, use **failsafe mode**:
 
 1. Power on (or reboot) the dongle.
 2. **Press the Restart button once within the first 7 seconds.** A single tap is
-   enough. The **red LED fast-flashes** when failsafe is active.
+   enough. The **LED fast-flashes** (red, else green) when failsafe is active.
 3. Reach the device at **`192.168.10.1`** (USB NIC) or **`/dev/ttyACM0`**
    (USB serial, 115200):
 

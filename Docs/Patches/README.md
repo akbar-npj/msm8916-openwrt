@@ -24,7 +24,7 @@ There are two patch sets:
 | :---- | :------ | :---------- |
 | [`801-arm64-dts-qcom-add-devices-makefile.patch`](../../msm89xx/patches/801-arm64-dts-qcom-add-devices-makefile.patch) | `arch/arm64/boot/dts/qcom/Makefile` | Registers the generic modem-stick DTBs (`hmu05`, `uf02`, `ufi001b`, `mf800b`) in the kernel build. |
 | [`802-arm64-dts-qcom-msm8916-label-reserved-memory.patch`](../../msm89xx/patches/802-arm64-dts-qcom-msm8916-label-reserved-memory.patch) | `msm8916.dtsi` | Adds the `reserved_memory:` label so board DTS files can append `ramoops` regions. |
-| [`803-arm64-dts-qcom-swap-leds-uz801.patch`](../../msm89xx/patches/803-arm64-dts-qcom-swap-leds-uz801.patch) | `msm8916-yiming-uz801v3.dts` | Gives the UZ801V3 LEDs standard `LED_FUNCTION_WLAN` / `LED_FUNCTION_WAN` roles. |
+| [`803-arm64-dts-qcom-uz801-leds-and-button.patch`](../../msm89xx/patches/803-arm64-dts-qcom-uz801-leds-and-button.patch) | `msm8916-yiming-uz801v3.dts` | Gives the UZ801V3 LEDs standard `LED_FUNCTION_WLAN` / `LED_FUNCTION_WAN` roles, and sets the reset button to active-high/pull-down (matching the other boards). |
 | [`804-arm64-dts-qcom-add-msm8916-generic-uf02.patch`](../../msm89xx/patches/804-arm64-dts-qcom-add-msm8916-generic-uf02.patch) | `msm8916-generic-uf02.dts` | Full board DTS for the UF02 stick (buttons, LEDs). |
 | [`805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`](../../msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch) | `msm8916-generic-hmu05.dts` | Full board DTS for the HMU05 stick (SIM/eSIM GPIO hogs, ramoops, LEDs, reset button). |
 | [`806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch`](../../msm89xx/patches/806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch) | `msm8916-generic-ufi001b.dts` | Full board DTS for the UFI001B stick (SIM GPIO hogs, ramoops, LEDs, reset button). |
@@ -147,14 +147,14 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 #### 804: Generic UF02 Board Device Tree
 - **Target**: `msm8916-generic-uf02.dts`
 - **Compatible**: `"uf02,250605v0s", "qcom,msm8916"`
-- **Purpose**: Reset button on GPIO 23 (active-low, pull-up) and tri-colour
+- **Purpose**: Reset button on GPIO 23 (active-high, pull-down) and tri-colour
   status LEDs — red (GPIO 72), green (GPIO 71, WAN), blue (GPIO 73, WLAN).
 
 #### 805: Generic HMU05 Board Device Tree
 - **Target**: `msm8916-generic-hmu05.dts`
 - **Purpose**:
   1. **Ramoops**: 1 MB at `0x8db00000` (256 KB record / 256 KB console / 256 KB pmsg).
-  2. **Reset key**: GPIO 37 (`key_freset`, active-low).
+  2. **Reset key**: GPIO 37 (`key_freset`, active-high, pull-down).
   3. **LEDs**: green GPIO 71 (WLAN), red GPIO 72 (POWER), blue GPIO 73 (WAN).
   4. **GPIO hogs** for SIM routing/power: `sim1_en` (GPIO 119, high), `sim2_en`
      (GPIO 14, low), `sim3_en` (GPIO 12, low), `sim_hotplug` (GPIO 114),
@@ -164,7 +164,7 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 - **Target**: `msm8916-generic-ufi001b.dts`
 - **Purpose**:
   1. **Ramoops**: 1 MB at `0x8db00000`.
-  2. **Reset key**: GPIO 37 (`key_freset`, active-low).
+  2. **Reset key**: GPIO 37 (`key_freset`, active-high, pull-down).
   3. **LEDs**: red GPIO 22 (POWER), green GPIO 21 (WAN), blue GPIO 20 (WLAN).
   4. **GPIO hogs**: `sim_en` (GPIO 1), `sim_sel` (GPIO 2), `4G_L3` (GPIO 68).
 
@@ -172,8 +172,9 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 - **Target**: `msm8916-generic-mf800b.dts`
 - **Purpose**: Board DTS for the MF800B stick: a 2100 mAh / 4.35 V LiPo fuel
   gauge (stock `qcom,v-cutoff-uv` 3.35 V, no `ocv-capacity-table`), the same
-  ramoops region at the top of the `0x8bd00000–0x8dbfffff` System RAM range, and
-  three active-high bi-colour LEDs (Wi-Fi green GPIO 73 / red GPIO 84,
+  ramoops region at the top of the `0x8bd00000–0x8dbfffff` System RAM range,
+  a reset button on GPIO 102 (active-high, pull-down), and three active-high
+  bi-colour LEDs (Wi-Fi green GPIO 73 / red GPIO 84,
   Cellular green GPIO 85 / red GPIO 72).
 
 ### 2.2 BAM-DMUX network driver

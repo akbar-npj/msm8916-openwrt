@@ -282,7 +282,7 @@ For the current project:
 msm89xx/patches/
 ├── 801-arm64-dts-qcom-add-devices-makefile.patch
 ├── 802-arm64-dts-qcom-msm8916-label-reserved-memory.patch
-├── 803-arm64-dts-qcom-swap-leds-uz801.patch
+├── 803-arm64-dts-qcom-uz801-leds-and-button.patch
 ├── 804-arm64-dts-qcom-add-msm8916-generic-uf02.patch
 ├── 805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch
 ├── 806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch
@@ -309,7 +309,7 @@ The current patch set includes:
 ```text
 801-arm64-dts-qcom-add-devices-makefile.patch
 802-arm64-dts-qcom-msm8916-label-reserved-memory.patch
-803-arm64-dts-qcom-swap-leds-uz801.patch
+803-arm64-dts-qcom-uz801-leds-and-button.patch
 804-arm64-dts-qcom-add-msm8916-generic-uf02.patch
 805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch
 806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch

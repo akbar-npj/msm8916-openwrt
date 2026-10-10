@@ -38,12 +38,12 @@
 + *   GPIO37 = key_freset
 + */
 +&button_restart {
-+	gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
++	gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
 +};
 +
 +&button_default {
 +	pins = "gpio37";
-+	bias-pull-up;
++	bias-pull-down;
 +};
 +
 +/*

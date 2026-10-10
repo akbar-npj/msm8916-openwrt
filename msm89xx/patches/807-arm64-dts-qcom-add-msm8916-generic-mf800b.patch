@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mf800b.dts
-@@ -0,0 +1,158 @@
+@@ -0,0 +1,159 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -108,15 +108,16 @@
 +
 +/*
 + * Single "reset" button, from the stock devicetree (key_freset = gpio102,
-+ * active low, KEY_RESTART). Not verified live.
++ * KEY_RESTART). Declared active-high/pull-down to match the other boards;
++ * not verified live.
 + */
 +&button_restart {
-+	gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
++	gpios = <&tlmm 102 GPIO_ACTIVE_HIGH>;
 +};
 +
 +&button_default {
 +	pins = "gpio102";
-+	bias-pull-up;
++	bias-pull-down;
 +};
 +
 +/*
