@@ -18,6 +18,12 @@ SRC=${SRC:-$(cd "$HERE/../../msm89xx/base-files" && pwd)}
 GUARD_SRC=$SRC/usr/sbin/himi-ok-guard
 BOARD_SRC=$SRC/lib/himi-ok.sh
 
+# The guard targets busybox ash (the on-device /bin/sh), which supports the
+# multi-digit fd redirect `exec 200>`. Debian/Ubuntu /bin/sh is dash, which does
+# NOT, so run the guard under a shell that does (bash by default; override with
+# e.g. GUARD_SH=busybox to exercise the on-device shell where it is available).
+GUARD_SH=${GUARD_SH:-bash}
+
 PASS=0; FAIL=0
 ROOT=$(mktemp -d "${TMPDIR:-/tmp}/himi-ok-test.XXXXXX"); trap 'rm -rf "$ROOT"' EXIT
 check() { local n=$1; shift
@@ -80,7 +86,7 @@ scenario() {
 }
 # run one poll cycle: the loop's first iteration runs at once; stop it before the sleep elapses
 run_once() {
-    PATH="$BIN:$PATH" sh "$T/guard" & local p=$!
+    PATH="$BIN:$PATH" "$GUARD_SH" "$T/guard" & local p=$!
     sleep 1.5; kill "$p" 2>/dev/null; wait "$p" 2>/dev/null
 }
 item_is_token() { [ "$(head -c 7 "$T/item")" = "HiMI_OK" ]; }
@@ -120,11 +126,11 @@ run_all() {
 
     # uci switches
     scenario off 'bytes(128)'; echo 0 > "$T/uci/modem-watchdog.recovery.himi_ok_enabled"
-    PATH="$BIN:$PATH" sh "$T/guard"; rc=$?
+    PATH="$BIN:$PATH" "$GUARD_SH" "$T/guard"; rc=$?
     check "himi_ok_enabled=0: exits 0 and touches nothing"     bash -c "[ $rc = 0 ] && [ ! -s '$T/nv.calls' ]"
 
     scenario noelf 'bytes(128)'; sed -i.bak "s#^NV=.*#NV=$T/missing#" "$T/guard"
-    PATH="$BIN:$PATH" sh "$T/guard"; rc=$?
+    PATH="$BIN:$PATH" "$GUARD_SH" "$T/guard"; rc=$?
     check "diag_nv missing: exit 1, no crash loop"             [ "$rc" = 1 ]
 
     # a poll interval below 5 s, or junk, is clamped
@@ -135,7 +141,7 @@ run_all() {
 
     # recovery after a modem restart clears the item again (interval 5 s so a second cycle fits)
     scenario restart 'bytes(128)'; echo 5 > "$T/uci/modem-watchdog.recovery.himi_ok_interval"
-    PATH="$BIN:$PATH" sh "$T/guard" & p=$!
+    PATH="$BIN:$PATH" "$GUARD_SH" "$T/guard" & p=$!
     sleep 1.5; head -c 128 /dev/zero > "$T/item"          # modem restarted: item cleared
     sleep 5; kill "$p" 2>/dev/null; wait "$p" 2>/dev/null
     check "item cleared mid-run (modem restart): written again" [ "$(nwrites)" = 2 ]
