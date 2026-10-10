@@ -17,6 +17,7 @@ Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualc
 
 Recent additions on top of the base port:
 
+* **🆘 Failsafe mode** — a single tap of the **Restart button** during the first 7 s of boot drops a headless dongle into a rescue shell over USB (`192.168.10.1` or `/dev/ttyACM0`); a **5-second hold** performs a factory reset.
 * **🔵 Bluetooth** — the WCNSS BT core (SMD) with BlueZ 5.83, an SSP pairing-repair guard, and a Bluetooth **Serial Port Profile** server/client (a serial console or TCP bridge over Bluetooth).
 * **🔐 WPA3-SAE Wi-Fi** — PMF/SAE support in the wcn36xx driver, plus **multi-SSID** (two APs on the one radio).
 * **🌡️ Thermal & power** — the CPU rail is now managed by **mainline CPR** (matching Android's rail voltage), the top CPU OPP is capped at 800 MHz, and Wi-Fi + PMIC thermal mitigation is wired up on the HMU05.
@@ -43,6 +44,7 @@ Recent additions on top of the base port:
   * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
   * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
+* **🆘 Failsafe Mode & Factory Reset**: A single Restart-button tap during the first 7 s of boot starts OpenWrt's pre-init rescue shell over a self-contained USB gadget (NCM + ACM) at `192.168.10.1` (or `/dev/ttyACM0`), so a broken config is recoverable on a screen-less dongle without opening it; a **5-second hold** wipes the overlay. See [Recovery and Reboot Modes](#-recovery-and-reboot-modes).
 * **🔑 Signed OTA Package Feed**: Pre-compiled `kmod-*` and application packages served over GitHub Pages, signed with a pinned key and self-healing on-device. See [Package Repository](#-official-package--kernel-driver-repository).
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
 * **⚙️ Reboot to Bootloader/Fastboot**: `reboot-bootloader` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
@@ -62,15 +64,15 @@ Recent additions on top of the base port:
 
 ### Per-board feature matrix
 
-| Board     | Bluetooth | WPA3-SAE / Multi-SSID | CPU CPR + 800 MHz cap | Wi-Fi/PMIC cooling maps | `a2_pin` modem hold | `qcom-time-daemon` |
-| :-------- | :-------: | :-------------------: | :-------------------: | :---------------------: | :-----------------: | :----------------: |
-| `hmu05`   |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         ✅         |
-| `ufi001b` |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `uz801`   |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `uf02`    |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `mf800b`  |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| Board     | Failsafe mode | Bluetooth | WPA3-SAE / Multi-SSID | CPU CPR + 800 MHz cap | Wi-Fi/PMIC cooling maps | `a2_pin` modem hold | `qcom-time-daemon` |
+| :-------- | :-----------: | :-------: | :-------------------: | :-------------------: | :---------------------: | :-----------------: | :----------------: |
+| `hmu05`   |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         ✅         |
+| `ufi001b` |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `uz801`   |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `uf02`    |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `mf800b`  |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
 
-> The Wi-Fi/PMIC cooling maps and the `a2_pin` modem-rail hold are **HMU05-only** (device-tree gated). Everything else applies to every board.
+> The Wi-Fi/PMIC cooling maps and the `a2_pin` modem-rail hold are **HMU05-only** (device-tree gated). Everything else applies to every board. Failsafe mode is enabled on **every board** (LED colour varies by board); it has been **live-verified on the HMU05** only.
 
 ---
 
@@ -86,8 +88,8 @@ its own USB gadget. To enter it:
 
 1. Power on (or reboot) the dongle.
 2. **Press the Restart button once within the first 7 seconds.** A single tap is
-   enough — no hold needed. The **LED fast-flashes** (red, else green) when
-   failsafe is active.
+   enough — no hold needed. The **LED fast-flashes** (~12 Hz; red where the board
+   has one, else green, else any) when failsafe is active.
 3. Reach the device at **`192.168.10.1`** (USB NIC) or **`/dev/ttyACM0`**
    (USB serial, 115200):
 
