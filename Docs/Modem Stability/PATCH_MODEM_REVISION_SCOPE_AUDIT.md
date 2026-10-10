@@ -158,7 +158,9 @@ where it previously stayed active), the comparison is not apples-to-apples. The
 definitive test would be the **current** image on UFI001B (bearer up, `control=auto`,
 with `pc_vote`/`a2_power` telemetry) — but the practical call does not wait on it.
 
-**Recommendation: do NOT extend `modem-a2-hold` to UFI001B.** The clean 12 h run is
+**Recommendation: do NOT extend the A2 pin to UFI001B.** (The pin is now the
+driver-side `qcom,a2-pin` property — patches 848/849 — not the removed
+`modem-a2-hold` userspace helper.) The clean 12 h run is
 strong evidence it does not need it. Read the revision difference as a **runtime
 behavioural** one — V2.0 does not hit the race despite the identical A2 code — not as a
 missing-workaround.

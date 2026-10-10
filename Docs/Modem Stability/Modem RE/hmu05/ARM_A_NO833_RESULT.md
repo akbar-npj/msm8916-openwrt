@@ -2,6 +2,11 @@
 
 **Date:** 2026-10-07 · **Device:** HMU05 `hmu05,250605v0s` @ 192.168.8.1 · **Ledger:** `197_UZ801_PORT_LEDGER_AND_MANDATORY_SOP.md`
 
+> **Note (2026-10-10):** the `control=on` pin referred to below was the userspace
+> `modem-a2-hold` helper, since **removed** — the pin now lives in the `qcom_bam_dmux`
+> driver (DT `qcom,a2-pin`, patches 848/849; toggle via
+> `/sys/module/qcom_bam_dmux/parameters/a2_pin`). The experiment results below are unchanged.
+
 ## The question
 
 `test/pure-software-modem` runs `a2_pin=0` and (per ledger §112.170) "does not crash",

@@ -5,6 +5,13 @@
 
 **Source revisions:** Android kernel branch cm-11.0 at c5dd03a3; OpenWrt build-tree kernel release 6.12.94.
 
+> **Note (2026-10-10) — the A2 pin is now in the driver, not userspace.** The
+> userspace `/usr/sbin/modem-a2-hold` helper referenced below was **removed**. The A2
+> pin is now held by the `qcom_bam_dmux` driver on boards whose device tree sets
+> `qcom,a2-pin` (HMU05; patches 848/849); toggle it with
+> `echo 0|1 > /sys/module/qcom_bam_dmux/parameters/a2_pin`. References to
+> `modem-a2-hold` below describe the earlier userspace mechanism.
+
 ## Bottom line
 
 The source comparison does **not** support a 15 °C error in OpenWrt's TSENS conversion. Android and OpenWrt use the same MSM8916 TSENS hardware sensor IDs, the same QFPROM calibration fields, the same 30/120 °C anchors, and effectively the same slope/intercept conversion. Unit normalization and integer rounding are far too small to explain a 15 °C delta.
@@ -138,7 +145,8 @@ Android default does not monitor `pa_therm0`; its `fusion` mitigation level is 0
 thresholds and level 1 only at 105 °C, while the LTE trace peaked near 62 °C on the board sensor.
 The trace also showed no runtime config push or modem action. Therefore copying this policy as a
 QMI modem-throttle solution would be unsupported. Do not change TSENS calibration, add speculative
-CPU hotplugging, lower thermal trips, alter voltage tables, or disable `modem-a2-hold` as a
+CPU hotplugging, lower thermal trips, alter voltage tables, or clear the A2 pin
+(`echo 0 > /sys/module/qcom_bam_dmux/parameters/a2_pin`; formerly `modem-a2-hold`) as a
 temperature fix on this evidence.
 
 The current recommendation is a **controlled, paired A/B before implementation**. The stored LTE
@@ -155,7 +163,8 @@ Recommended sequence:
 - If the gap persists, use reversible one-variable-at-a-time tests to isolate GPU, CPU/idle, radio TX, and rail-power contributions. Only then design a narrowly scoped policy change, with its temperature source, thresholds, action semantics, hysteresis, and rollback behavior verified first.
 - Preserve firmware and modem thermal protections. Do not infer PA mitigation from an open file descriptor alone, or infer a runtime policy from strings embedded in the binary.
 
-Keep OpenWrt's existing 75 °C CPU passive trip, current OPP settings, and `modem-a2-hold`
+Keep OpenWrt's existing 75 °C CPU passive trip, current OPP settings, and the A2 pin
+(`/sys/module/qcom_bam_dmux/parameters/a2_pin`; formerly `modem-a2-hold`)
 unchanged during the baseline. The saved 60 °C CPU-trip experiment did not lower peak TSENS
 meaningfully and imposed a large throughput penalty. The A2 workaround is a modem-stability
 measure; remove it only after the separate BAM-DMUX quiesce fault is fixed and validated.

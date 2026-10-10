@@ -10,7 +10,9 @@
 > Makefile build, and boot/dumper invocations are gone, so the "GAP: must be
 > cherry-picked" warning below is moot and the correct action is the opposite (do **not**
 > restore it). The remaining tiers are superseded by `msm89xx/patches/` 808–833 plus the
-> HMU05 `modem-a2-hold` pin. Current state: `Docs/Modem Stability/Modem RE/hmu05/`;
+> HMU05 A2 pin (now enforced by the `qcom_bam_dmux` driver — DT `qcom,a2-pin`, patches
+> 848/849; formerly the removed `modem-a2-hold` helper). Current state:
+> `Docs/Modem Stability/Modem RE/hmu05/`;
 > ledger `197_…SOP.md` §112.165–§112.171.
 
 Based on a thorough review of all 6 documents in `Docs/Modem Stability/` and the current `main` branch codebase.

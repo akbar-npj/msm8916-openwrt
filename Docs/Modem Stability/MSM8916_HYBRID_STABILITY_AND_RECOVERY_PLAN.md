@@ -10,8 +10,9 @@
 > been removed from the tree** (`57024f2`): its source, Makefile build/install, and
 > boot/dumper invocations are gone. **No `modem.b16` / `modem.mdt` / `modem.b01`
 > patching is performed or required.** The kernel/PM tiers below are superseded by the
-> AP-side fixes in `msm89xx/patches/` (808–833) plus the HMU05 `modem-a2-hold` pin for
-> the separate `a2_power.c:1189` fatal. Current state:
+> AP-side fixes in `msm89xx/patches/` (808–833) plus the HMU05 A2 pin (now enforced by
+> the `qcom_bam_dmux` driver — DT `qcom,a2-pin`, patches 848/849; formerly the removed
+> `modem-a2-hold` helper) for the separate `a2_power.c:1189` fatal. Current state:
 > `Docs/Modem Stability/Modem RE/hmu05/`; ledger `197_…SOP.md` §112.165–§112.171.
 
 **Target Platform:** Qualcomm MSM8916 (Snapdragon 410) 4G LTE USB Sticks / Routers (HMU05, Melbon White, HiMI UFI, UFI001B, UF02, UZ801)  

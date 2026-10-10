@@ -5,6 +5,13 @@
 **Target Live Device:** Root SSH shell on Android 4.4 / Linux 3.10.28 (`192.168.100.1`)  
 **Live OpenWrt Target:** OpenWrt 25.12.5 (`r33051-f5dae5ece4`) / Mainline Linux 6.12.94 at `192.168.8.1`  
 
+> **Note (2026-10-10) — the A2 pin is now in the driver, not userspace.** The
+> userspace `/usr/sbin/modem-a2-hold` helper mentioned below was **removed**. The A2
+> pin is now held by the `qcom_bam_dmux` driver on boards whose device tree sets
+> `qcom,a2-pin` (HMU05; patches 848/849); toggle it with
+> `echo 0|1 > /sys/module/qcom_bam_dmux/parameters/a2_pin`. References to
+> `modem-a2-hold` below describe the earlier userspace mechanism.
+
 > **Correction (2026-10-08) — read before using this proposal.** This document predates the
 > reconciled evidence in
 > [HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md](./HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md)
@@ -389,8 +396,9 @@ makes no promise of an 8–12 °C reduction because no intervention has demonstr
 - Treat Wi-Fi TX-power tuning as relevant only if Wi-Fi was active in the test and actual radio
   power is measured. A UCI value or assumed 20 dBm default is not proof of dissipated heat.
 - Treat the BAM-DMUX/A2 quiesce fix as a separate modem-stability project. After it is independently
-  fixed, runtime PM can be tested under modem stress; do not remove `modem-a2-hold` beforehand or
-  count an unmeasured temperature change as the expected result.
+  fixed, runtime PM can be tested under modem stress; do not clear the A2 pin beforehand
+  (`echo 0 > /sys/module/qcom_bam_dmux/parameters/a2_pin`; formerly the removed
+  `modem-a2-hold`) or count an unmeasured temperature change as the expected result.
 
 Do not change thermal trips unless a controlled test shows a safety or thermal-control need. The
 existing 60 °C OpenWrt trip experiment imposed a substantial throughput penalty without lowering

@@ -7,6 +7,13 @@
 1. **Stock ZTE Android 4.4 / Kernel 3.10.28** at `192.168.100.1`
 2. **OpenWrt 24.10 / Kernel 6.12.94** at `192.168.8.1` (100% Read-Only)
 
+> **Note (2026-10-10) — the A2 pin is now in the driver, not userspace.** The
+> userspace `/usr/sbin/modem-a2-hold` helper mentioned below was **removed**. The A2
+> pin is now held by the `qcom_bam_dmux` driver on boards whose device tree sets
+> `qcom,a2-pin` (HMU05; patches 848/849); toggle it with
+> `echo 0|1 > /sys/module/qcom_bam_dmux/parameters/a2_pin`. References to
+> `modem-a2-hold` below describe the earlier userspace mechanism.
+
 ---
 
 > ## ⚠ CORRECTION (2026-10-09) — read before using this document
@@ -102,12 +109,13 @@ Under the exact same 10 MB download over Jio 4G LTE (`speedtest.tele2.net`), we 
 
 ## 4. Architectural Root Cause Analysis
 
-### Cause 1: Modem A2 Domain Pinning (`modem-a2-hold`) — (+10°C Baseline Shift)
+### Cause 1: Modem A2 Domain Pinning (the A2 pin; formerly `modem-a2-hold`) — (+10°C Baseline Shift)
 * **On Android:** Qualcomm's downstream `bam_dmux.c` uses runtime power management (`ul_powerdown()` / `ul_wakeup()`). When network traffic pauses, the AP clears its vote on `SMSM_A2_POWER_CONTROL`. The modem baseband (Hexagon DSP, BAM DMA engines, shared memory buses) collapses the A2 clock/power domain into low-power sleep.
-* **On OpenWrt:** Cycling A2 power down and up triggers the `a2_power.c:1189` assertion crash in stock modem firmware. OpenWrt uses `/usr/sbin/modem-a2-hold` to force:
+* **On OpenWrt:** Cycling A2 power down and up triggers the `a2_power.c:1189` assertion crash in stock modem firmware. OpenWrt therefore holds the A2 pin — now enforced by the `qcom_bam_dmux` driver on boards whose DT sets `qcom,a2-pin` (HMU05; patches 848/849), which is equivalent to:
   ```sh
   echo on > /sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control
   ```
+  (formerly the removed userspace `/usr/sbin/modem-a2-hold` helper)
 * **Impact:** The modem baseband and its shared DMA engines run at full power 24/7, generating a continuous **~10°C thermal offset** across the entire PCB whenever a cellular connection is open.
 
 ### Cause 2: Missing CPU Core Voltage Scaling (CPR / VDD_APC) — (+3°C to +5°C Under Load)
@@ -155,7 +163,7 @@ To permanently bring OpenWrt's operating temperatures down to Android levels:
 
 ### Step 1: Resolve the `a2_power.c:1189` Quiesce Bug (Target: -10°C)
 * **Goal:** Enable BAM-DMUX runtime suspend (`control=auto`) so the modem baseband sleeps between packet bursts.
-* **Implementation:** Fix the down-ack serialisation handshake in `kmod-bam-dmux` (tracked in `Docs/Modem Stability/Modem RE/hmu05/A2_QUIESCE_ASYMMETRY.md`), allowing removal of `/usr/sbin/modem-a2-hold`.
+* **Implementation:** Fix the down-ack serialisation handshake in `kmod-bam-dmux` (tracked in `Docs/Modem Stability/Modem RE/hmu05/A2_QUIESCE_ASYMMETRY.md`), which would let the A2 pin be dropped (`echo 0 > /sys/module/qcom_bam_dmux/parameters/a2_pin`; the old userspace `modem-a2-hold` is already removed).
 
 ### Step 2: Wire the 1.05 V SMPS2 Regulator in Device Tree (Target: -3°C to -5°C Under Load)
 * **Goal:** Lower CPU core voltage from bootloader default (~1.20 V) to 1.05 V.

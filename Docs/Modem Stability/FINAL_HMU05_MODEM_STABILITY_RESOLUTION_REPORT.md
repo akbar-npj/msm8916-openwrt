@@ -8,7 +8,9 @@
 > Makefile build/install, and its invocations in `msm-firmware-dumper.sh` and
 > `99-msm89xx-firstboot` are gone, so **every `modem.b16` / `modem.mdt` / `modem.b01`
 > instruction below no longer applies**. "Pillar 1" is obsolete; the A2 `control=on`
-> pin-hold (`modem-a2-hold`) covers the separate `a2_power.c:1189` fatal. Current state:
+> pin-hold (now enforced by the `qcom_bam_dmux` driver — DT `qcom,a2-pin`, patches
+> 848/849; formerly the removed `modem-a2-hold` helper) covers the separate
+> `a2_power.c:1189` fatal. Current state:
 > `Docs/Modem Stability/Modem RE/hmu05/`; ledger `197_…SOP.md` §112.165–§112.171.
 
 # Qualcomm MSM8916 HMU05 Modem: Definitive Stability & Connectivity Resolution Report

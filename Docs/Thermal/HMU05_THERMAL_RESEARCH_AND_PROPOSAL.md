@@ -4,6 +4,13 @@
 **Comparison:** Stock ZTE Android 4.4 / Linux 3.10.28 vs. OpenWrt (Mainline Linux 6.12)  
 **Report Date:** October 2026  
 
+> **Note (2026-10-10) — the A2 pin is now in the driver, not userspace.** The
+> userspace `/usr/sbin/modem-a2-hold` helper mentioned below was **removed**. The A2
+> pin is now held by the `qcom_bam_dmux` driver on boards whose device tree sets
+> `qcom,a2-pin` (HMU05; patches 848/849); toggle it with
+> `echo 0|1 > /sys/module/qcom_bam_dmux/parameters/a2_pin`. References to
+> `modem-a2-hold` below describe the earlier userspace mechanism.
+
 > **Correction (2026-10-08) — read before using this report.** The raw CSVs behind this
 > report do **not** support a settled **+15 °C idle offset**. Recomputing them: OpenWrt −
 > Android idle means are **+3–7 °C**, and every idle capture is a cooling (or boot-warmup)
@@ -41,7 +48,7 @@ The TSENS mathematical conversion formula, calibration fuses, and hardware regis
 
 | Rank | Root Cause | Android Behavior | OpenWrt Behavior | Thermal Impact |
 |:---:|---|---|---|:---:|
-| **1** | **Modem A2 Power Domain** | Collapses into deep sleep when idle (`ul_powerdown`) | Pinned active 24/7 via `/usr/sbin/modem-a2-hold` | **+5°C to +7°C** |
+| **1** | **Modem A2 Power Domain** | Collapses into deep sleep when idle (`ul_powerdown`) | Pinned active 24/7 (driver A2 pin; formerly `/usr/sbin/modem-a2-hold`) | **+5°C to +7°C** |
 | **2** | **CPU Core Hotplugging** | `/system/bin/mpdecision` keeps CPU1–3 **offline** | All 4 cores online 100% of the time | **+3°C to +4°C** |
 | **3** | **CPU Voltage & CPR** | Dynamic closed-loop undervolting via CPR (~0.90V) | Fixed high bootloader voltage (~1.15V–1.25V) | **+3°C to +5°C** |
 | **4** | **Thermal Trip Points** | Active thermal mitigation starts at **60°C** | Passive trip point starts at **75°C** | **Sets +15°C ceiling** |
@@ -52,11 +59,11 @@ The TSENS mathematical conversion formula, calibration fuses, and hardware regis
 
 ## Earlier Root-Cause Hypotheses (not established)
 
-### 1. Modem A2 Power Domain Pinned Awake (`modem-a2-hold`)
+### 1. Modem A2 Power Domain Pinned Awake (the A2 pin; formerly `modem-a2-hold`)
 * **Stock Android:** In Qualcomm's downstream `bam_dmux.c`, runtime power management (`ul_powerdown()` / `ul_wakeup()`) is fully active. When no packets are transmitted over the cellular interface, the AP releases its vote on `SMSM_A2_POWER_CONTROL`. The modem baseband (Hexagon DSP, BAM DMA engines, shared memory buses) completely powers down the **A2 clock/power domain**.
-* **OpenWrt:** OpenWrt has an unresolved handshake bug with the HMU05 modem firmware where cycling A2 power down and back up causes the modem to assert `a2_power.c:1189` (A2 power-up quiesce timeout). To prevent the modem from crashing every ~60 seconds, OpenWrt added a workaround daemon:
+* **OpenWrt:** OpenWrt has an unresolved handshake bug with the HMU05 modem firmware where cycling A2 power down and back up causes the modem to assert `a2_power.c:1189` (A2 power-up quiesce timeout). To prevent the modem from crashing every ~60 seconds, OpenWrt holds the A2 pin — now enforced by the `qcom_bam_dmux` driver on boards whose DT sets `qcom,a2-pin` (HMU05; patches 848/849), equivalent to:
   ```sh
-  # /usr/sbin/modem-a2-hold
+  # the driver does what this used to do (the userspace modem-a2-hold was removed)
   echo on > /sys/devices/platform/soc@0/4080000.remoteproc/4080000.remoteproc:bam-dmux/power/control
   ```
 * **Consequence:** By holding `power/control = on`, BAM-DMUX never runtime-suspends. The modem's entire A2 power domain, DSP interfaces, and DMA clocks remain **energized 24 hours a day, 7 days a week**, dissipating continuous static and dynamic heat even when no traffic is passing through.
@@ -210,8 +217,8 @@ Add a patch in `msm89xx/patches/` updating `arch/arm64/boot/dts/qcom/msm8916-gen
 };
 ```
 
-#### 2. Resolve the Root Cause of `a2_power.c:1189` to Remove `modem-a2-hold`
-* As documented in `Docs/Modem Stability/Modem RE/hmu05/A2_QUIESCE_ASYMMETRY.md`, `modem-a2-hold` is only a band-aid preventing the quiesce timeout assert.
+#### 2. Resolve the Root Cause of `a2_power.c:1189` to Drop the A2 Pin
+* As documented in `Docs/Modem Stability/Modem RE/hmu05/A2_QUIESCE_ASYMMETRY.md`, the A2 pin (formerly the userspace `modem-a2-hold`, now the `qcom_bam_dmux` driver pin) is only a band-aid preventing the quiesce timeout assert.
 * Fix the `bam-dmux` down-ack serialisation / handshake in the kernel driver so that runtime PM can be re-enabled (`control=auto`).
 * Allowing the modem's A2 domain to collapse during idle intervals will yield the single largest temperature drop (~5°C to 7°C).
 

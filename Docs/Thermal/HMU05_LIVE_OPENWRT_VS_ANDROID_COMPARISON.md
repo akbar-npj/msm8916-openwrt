@@ -6,6 +6,13 @@
 * **Stock Android 4.4 / Linux 3.10.28:** Live SSH at `192.168.100.1` (Jio 4G LTE connected)
 * **OpenWrt 24.10 / Linux 6.12.94:** Live SSH at `192.168.8.1` (Jio 4G LTE connected via `wwan0`, 100% Read-Only Inspection)
 
+> **Note (2026-10-10) — the A2 pin is now in the driver, not userspace.** The
+> userspace `/usr/sbin/modem-a2-hold` helper referenced below was **removed**. The A2
+> pin is now held by the `qcom_bam_dmux` driver on boards whose device tree sets
+> `qcom,a2-pin` (HMU05; patches 848/849); toggle it with
+> `echo 0|1 > /sys/module/qcom_bam_dmux/parameters/a2_pin`. References to
+> `modem-a2-hold` below describe the earlier userspace mechanism.
+
 ---
 
 > ## ⚠ CORRECTION (2026-10-09) — read before using this document
