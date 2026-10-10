@@ -8,6 +8,22 @@ This guide documents the complete end-to-end workflow used for **building target
 
 > The body of every GitHub release is generated from this file (`body_path: FLASHING_AND_RELEASE_GUIDE.md` in the CI workflow). The latest entry is at the top.
 
+### v25.12.5-r4 (2026-10-10) — built from `main`
+
+*A maintenance release on top of r3: adds failsafe mode for headless dongles.*
+
+**Why this release** — The headline is **failsafe mode** for headless MSM8916 dongles (no screen, no serial console), plus the HiMI_OK guard extended to **UF02**. Every firmware fix from r3 is included.
+
+**🆘 Failsafe mode (new)** — Hold the button during boot to enter failsafe (7 s window; the LED flashes red→green): the device brings up a USB network gadget (`ncm.usb0` + `acm.GS0`) at **192.168.10.1** with a `ttyGS0` console, so a bricked or misconfigured unit can be recovered without opening it. A longer (5 s) hold performs a **factory reset**. Verified live on HMU05; enabled on all boards, with the button polarity corrected to active-high/pull-down (uz801 falls back to a green LED).
+
+**🛡️ Modem stability** — The HiMI_OK guard is now gated for **UF02** as well (the third confirmed board), and the guard's init ships as an rc.d symlink so it survives `sysupgrade`.
+
+**⬆️ Upgrading** — From r3: `sysupgrade` (keep config) is fine and preserves the overlay.
+
+**⚠️ Known issues** — See r3 below (overlay module shadowing; `sysupgrade -n` wipes the modem firmware; STA+AP Wi-Fi crashes the WCNSS firmware).
+
+---
+
 ### v25.12.5-r3 (2026-10-09) — built from `main` @ `e66d566`
 
 *A clean rebuild of r3 after the CI clone fix.*
@@ -36,23 +52,6 @@ This guide documents the complete end-to-end workflow used for **building target
 **⬆️ Upgrading** — From r2 (or any OpenWrt): `sysupgrade` (keep config) is fine and preserves the overlay. The old userspace `modem-a2-hold` is gone — the driver handles the A2 pin now; no action needed. After upgrading, verify the loaded `qcom_bam_dmux.ko` is the new one.
 
 **⚠️ Known issues / caveats** — Overlay shadowing: a stale `/overlay/upper/lib/modules/*.ko` survives `sysupgrade` and shadows the new image module (hash the *loaded* file, not `/rom`). `sysupgrade -n` wipes the modem firmware (re-dumped on first boot); keep config unless you intend a clean slate. STA+AP Wi-Fi mode crashes the WCNSS firmware.
-
----
-
-## Table of Contents
-0. [Release Notes](#release-notes)
-1. [Prerequisites & Build Environment](#1-prerequisites--build-environment)
-2. [Building Firmware Images](#2-building-firmware-images)
-3. [Building Extra Kernel Modules & CUPS](#3-building-extra-kernel-modules--cups)
-4. [Setting Up & Deploying Online Feeds (GitHub Pages)](#4-setting-up--deploying-online-feeds-github-pages)
-5. [Packaging & Publishing GitHub Releases](#5-packaging--publishing-github-releases)
-6. [Flashing Firmware to Device](#6-flashing-firmware-to-device)
-   - [Scenario A: Migrating from Stock Android to OpenWrt (Mandatory First-Time Flash Script)](#scenario-a-migrating-from-stock-android-to-openwrt-mandatory-first-time-flash-script)
-   - [Scenario B: Flashing / Upgrading a Device Already Running OpenWrt](#scenario-b-flashing--upgrading-a-device-already-running-openwrt)
-     - [Option 1: Fast Direct Flash via Qualcomm EDL (9008)](#option-1-fast-direct-flash-via-qualcomm-edl-9008)
-     - [Option 2: Non-Destructive Sysupgrade (SSH Command Line)](#option-2-non-destructive-sysupgrade-ssh-command-line)
-     - [Option 3: Non-Destructive Sysupgrade (LuCI Web GUI)](#option-3-non-destructive-sysupgrade-luci-web-gui)
-7. [Device Configuration & Testing Package Installation](#7-device-configuration--testing-package-installation)
 
 ---
 
