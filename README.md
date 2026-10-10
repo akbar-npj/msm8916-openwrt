@@ -68,11 +68,11 @@ Recent additions on top of the base port:
 | :-------- | :-----------: | :-------: | :-------------------: | :-------------------: | :---------------------: | :-----------------: | :----------------: |
 | `hmu05`   |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         ✅         |
 | `ufi001b` |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `uz801`   |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `uf02`    |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
+| `uz801`   |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         ✅          |         —          |
+| `uf02`    |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         ✅          |         —          |
 | `mf800b`  |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
 
-> The Wi-Fi/PMIC cooling maps and the `a2_pin` modem-rail hold are **HMU05-only** (device-tree gated). Everything else applies to every board. Failsafe mode is enabled on **every board** (LED colour varies by board); it has been **live-verified on the HMU05** only.
+> The Wi-Fi/PMIC cooling maps are **HMU05-only** (device-tree gated). The `a2_pin` modem-rail hold is enabled on the **HMU05, UZ801 and UF02** boards — all three carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge; `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it. Everything else applies to every board. Failsafe mode is enabled on **every board** (LED colour varies by board); it has been **live-verified on the HMU05** only.
 
 ---
 
@@ -396,7 +396,7 @@ The Qualcomm baseband on these sticks can hit a **~900 s deadline** after a warm
 
 | Component | What it does |
 | :--- | :--- |
-| **`a2_pin` (HMU05)** | Holds the A2 power rail **on** in the `qcom_bam_dmux` driver so the modem is not power-collapsed mid-handshake. Enabled via device tree. |
+| **`a2_pin` (HMU05, UZ801, UF02)** | Holds the A2 power rail **on** in the `qcom_bam_dmux` driver so the modem is not power-collapsed mid-handshake. Enabled via device tree on the three HiMI-baseband boards. |
 | **`himi-ok-guard`** | Rewrites the modem NV item `HiMI_OK` after **every** modem boot (cold and each SSR), so the RF task's identity check passes and the ~900 s deadline never arms. Enabled on the HMU05, UZ801 v3 and UF02 boards; writes only when the item reads all-zero (factory data is never overwritten). |
 | **`modem-bearer-watchdog`** | Watches the modem and data bearer; performs a pre-emptive subsystem restart and recovers a zombie bearer/ModemManager without a reboot. |
 | **`qcom-time-daemon`** | Anchors the modem's time base (ATS) before LTE attach so the QMI time sync is valid. |

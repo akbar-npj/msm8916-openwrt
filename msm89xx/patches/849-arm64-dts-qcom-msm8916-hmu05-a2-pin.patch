@@ -13,8 +13,8 @@
 + * autosuspend vote-down) and then asserts a2_power.c:1189.  The driver turns
 + * this property into pm_runtime_forbid() on &bam_dmux, i.e. it holds
 + * power/control=on forever -- the same thing the userspace modem-a2-hold
-+ * script used to do.  The other boards (UFI001B, UZ801, MF800B) do not set
-+ * it and keep the normal runtime-suspend behaviour.
++ * script used to do.  UF02 and UZ801 set the same property (patch 851);
++ * UFI001B and MF800B do not and keep the normal runtime-suspend behaviour.
 + */
 +&bam_dmux {
 +    qcom,a2-pin;

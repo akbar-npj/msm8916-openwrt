@@ -1,0 +1,41 @@
+--- a/arch/arm64/boot/dts/qcom/msm8916-generic-uf02.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-uf02.dts
+@@ -37,3 +37,18 @@
+ &gpio_leds_default {
+ 	pins = "gpio71", "gpio72", "gpio73";
+ };
++
++/*
++ * Keep the modem's A2 (BAM) power domain alive on the UF02 board.
++ *
++ * UF02 carries the same HIMI_U01_MODEM_V1.0 baseband as HMU05, which can
++ * wedge its internal A2 quiesce handshake when the AP releases the A2 power
++ * vote and then asserts a2_power.c:1189.  The driver turns this property
++ * into pm_runtime_forbid() on &bam_dmux, i.e. it holds power/control=on
++ * forever -- the same thing the userspace modem-a2-hold script used to do.
++ * UFI001B and MF800B do not set it and keep the normal runtime-suspend
++ * behaviour.
++ */
++&bam_dmux {
++	qcom,a2-pin;
++};
+--- a/arch/arm64/boot/dts/qcom/msm8916-yiming-uz801v3.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-yiming-uz801v3.dts
+@@ -35,3 +35,17 @@
+ &gpio_leds_default {
+ 	pins = "gpio6", "gpio7", "gpio8";
+ };
++
++/*
++ * Keep the modem's A2 (BAM) power domain alive on the UZ801 board.
++ *
++ * UZ801 shares the same HiMI baseband family as HMU05/UF02 and is exposed
++ * to the same A2 quiesce wedge (a2_power.c:1189).  The driver turns this
++ * property into pm_runtime_forbid() on &bam_dmux, i.e. it holds
++ * power/control=on forever -- the same thing the userspace modem-a2-hold
++ * script used to do.  UFI001B and MF800B do not set it and keep the normal
++ * runtime-suspend behaviour.
++ */
++&bam_dmux {
++	qcom,a2-pin;
++};

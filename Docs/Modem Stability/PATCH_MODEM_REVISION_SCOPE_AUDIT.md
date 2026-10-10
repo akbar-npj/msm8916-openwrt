@@ -165,6 +165,15 @@ strong evidence it does not need it. Read the revision difference as a **runtime
 behavioural** one — V2.0 does not hit the race despite the identical A2 code — not as a
 missing-workaround.
 
+> **Update 2026-10-10 — scope clarified.** This recommendation is specifically about
+> **UFI001B** (modem `MPSS.DPM.2.0.2`, V2.0), which is the only board the 12 h run
+> covered. It does **not** bar the other V1.0 boards. **UF02** carries the *same*
+> `HIMI_U01_MODEM_V1.0` baseband as HMU05, and **UZ801** is the same HiMI line, so
+> both are exposed to the identical `a2_power.c:1189` quiesce wedge. The pin was
+> therefore extended to **UF02 + UZ801** via **patch 851** (`qcom,a2-pin` on
+> `&bam_dmux` in each board DTS). UFI001B and MF800B remain on the normal
+> runtime-suspend path.
+
 ---
 
 ## Verification

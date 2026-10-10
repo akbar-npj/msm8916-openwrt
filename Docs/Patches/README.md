@@ -76,7 +76,7 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 | :---- | :---------- |
 | [`813-msm8916-reboot-to-edl-support.patch`](../../msm89xx/patches/813-msm8916-reboot-to-edl-support.patch) | Kernel support for warm-reboot into Emergency Download (EDL / 9008) mode, matching the `lk2nd` reset sequence. |
 
-### 1.6 Power rail, CPR & CPU (818, 824, 834, 838, 841–846)
+### 1.6 Power rail, CPR & CPU (818, 824, 834, 838, 841–846, 849, 851)
 
 | Patch | Description |
 | :---- | :---------- |
@@ -90,7 +90,8 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 | [`844-dt-bindings-qcom-cpr-msm8916.patch`](../../msm89xx/patches/844-dt-bindings-qcom-cpr-msm8916.patch) | Extends the `qcom,cpr.yaml` binding for the MSM8916 CPR variant. |
 | [`845-cpufreq-qcom-nvmem-add-msm8916.patch`](../../msm89xx/patches/845-cpufreq-qcom-nvmem-add-msm8916.patch) | Registers MSM8916 with `qcom-cpufreq-nvmem` and wires the `cpr` power domain. |
 | [`846-arm64-dts-qcom-msm8916-cpr-attach-cpus.patch`](../../msm89xx/patches/846-arm64-dts-qcom-msm8916-cpr-attach-cpus.patch) | Attaches the CPUs to the CPR genpd and sets their OPP fuse levels. |
-| [`849-arm64-dts-qcom-msm8916-hmu05-a2-pin.patch`](../../msm89xx/patches/849-arm64-dts-qcom-msm8916-hmu05-a2-pin.patch) | HMU05 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` so the driver holds the modem A2 powered. Only HMU05 sets it. |
+| [`849-arm64-dts-qcom-msm8916-hmu05-a2-pin.patch`](../../msm89xx/patches/849-arm64-dts-qcom-msm8916-hmu05-a2-pin.patch) | HMU05 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` so the driver holds the modem A2 powered. |
+| [`851-arm64-dts-qcom-uf02-uz801-a2-pin.patch`](../../msm89xx/patches/851-arm64-dts-qcom-uf02-uz801-a2-pin.patch) | UF02 + UZ801 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` on the other two HiMI-baseband boards. |
 
 ### 1.7 Thermal (847, 999)
 
@@ -278,10 +279,18 @@ the device is runtime-ACTIVE, so the forbid's resume is a no-op.
 
 #### 849: HMU05 DTS A2 Pin
 The device-tree half of 848: sets `qcom,a2-pin` on `&bam_dmux` for the HMU05
-board only. Its modem (`HIMI_U01_MODEM_V1.0`) can wedge its internal A2 quiesce
+board. Its modem (`HIMI_U01_MODEM_V1.0`) can wedge its internal A2 quiesce
 handshake when the AP releases the A2 power vote and then asserts
-`a2_power.c:1189`; holding the domain on is the workaround. The other boards
-(UFI001B, UZ801, MF800B) do not set it and keep normal runtime suspend.
+`a2_power.c:1189`; holding the domain on is the workaround. UF02 and UZ801 set
+the same property in patch 851; UFI001B and MF800B do not and keep normal
+runtime suspend.
+
+#### 851: UF02 + UZ801 DTS A2 Pin
+Extends 849's A2 pin to the other two boards on the same HiMI baseband line —
+UF02 (`HIMI_U01_MODEM_V1.0`, same as HMU05) and UZ801 (same HiMI family). Both
+are exposed to the identical `a2_power.c:1189` quiesce wedge, so both set
+`qcom,a2-pin` on `&bam_dmux`. UFI001B (modem `MPSS.DPM.2.0.2`, V2.0) and MF800B
+are left on the normal runtime-suspend path.
 
 #### 850: Re-Attach on Already-Open
 The channel can already be marked open if the modem re-issued `CMD_OPEN`
@@ -468,7 +477,7 @@ When developing or updating patches:
    stable identifiers, not a contiguous sequence — gaps (817, 829, 830, 835–837,
    839, 840) are removed/retired patches and must not be reused casually.
    - `801–807`: device-tree board enablement
-   - `808–850`: kernel drivers (BAM-DMUX, remoteproc, rpmsg, power, CPR, thermal)
+   - `808–851`: kernel drivers (BAM-DMUX, remoteproc, rpmsg, power, CPR, thermal)
    - `999`: trailing bug fixes that must sort last
 3. **Format**: unified diff (`diff -u` / `git diff`) with `a/...` and `b/...`
    paths.
@@ -481,4 +490,4 @@ When developing or updating patches:
 5. **Board-gating**: a few patches are only correct for a specific modem
    revision. Currently only **833** is gated (to HMU05 via
    `of_machine_is_compatible`). Board-specific behaviour is otherwise expressed
-   through DT properties (e.g. `qcom,a2-pin` in 849), not `#ifdef`s.
+   through DT properties (e.g. `qcom,a2-pin` in 849/851), not `#ifdef`s.
