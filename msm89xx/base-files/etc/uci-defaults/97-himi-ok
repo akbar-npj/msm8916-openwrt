@@ -3,8 +3,14 @@
 # (ledger §112.169).  The modem's RF task memcmp()s NV item 2500 against
 # "HiMI_OK"; the item is cleared at every modem boot, so /usr/sbin/himi-ok-guard
 # rewrites it after each boot (cold + every SSR/crash restart) and the deadline
-# never arms.  The board gate lives in /lib/himi-ok.sh (hmu05 + uz801, the
-# confirmed HiMI boards -- not every HiMI-baseband board manifests the fatal).
+# never arms.  The board gate lives in /lib/himi-ok.sh (hmu05 + uz801 + uf02,
+# the confirmed HiMI boards -- not every HiMI-baseband board manifests the fatal).
+#
+# NOTE: this uci-defaults runs only on a FRESH flash.  The image also ships
+# /etc/rc.d/S97himi-ok so the service is enabled on every boot (including
+# sysupgrade, where uci-defaults do not re-run); the runtime board gate in
+# start_service() is what actually decides whether the guard runs.  This script
+# is kept as a belt-and-braces fallback for the fresh-flash path.
 
 . /lib/functions.sh 2>/dev/null
 . /lib/himi-ok.sh 2>/dev/null

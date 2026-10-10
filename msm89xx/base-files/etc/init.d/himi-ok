@@ -6,8 +6,8 @@
 # See /usr/sbin/himi-ok-guard and ledger §112.165-§112.169.
 #
 # The gate is a board allow-list (see /lib/himi-ok.sh): the HiMI_OK fix applies
-# to the boards where the fatal is observed (hmu05, uz801), NOT to every board
-# that happens to carry a HiMI baseband (UFI001B V2.0 does not manifest it).
+# to the boards where the fatal is observed (hmu05, uz801, uf02), NOT to every
+# board that happens to carry a HiMI baseband (UFI001B V2.0 does not manifest it).
 
 START=97
 STOP=10
