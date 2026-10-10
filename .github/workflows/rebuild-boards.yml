@@ -1,0 +1,181 @@
+name: Rebuild Selected Boards & Update Release
+
+# Surgical board rebuild: builds ONLY the boards you name and replaces just their
+# assets in an existing release. It never builds "all", never touches the release
+# body/name, the package feed, or the shared kmods bundle — only the named boards'
+# image files plus a spliced sha256sums (so its per-board lines stay correct).
+#
+# Dispatch example:
+#   gh workflow run rebuild-boards.yml --ref main \
+#     -f boards="uf02 uz801" -f release_tag="v25.12.5-r4"
+
+on:
+  workflow_dispatch:
+    inputs:
+      boards:
+        description: "Space-separated board configs to build (e.g. 'uf02 uz801'). 'all' is refused."
+        required: true
+        type: string
+      release_tag:
+        description: "Existing release tag to update (e.g. v25.12.5-r4)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    name: Rebuild selected boards
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          BOARDS='${{ inputs.boards }}'
+          if [ -z "${BOARDS// }" ]; then
+            echo "::error::The 'boards' input is required."; exit 1
+          fi
+          for b in $BOARDS; do
+            if [ "$b" = "all" ]; then
+              echo "::error::This workflow refuses to build 'all'. Name the boards explicitly."; exit 1
+            fi
+            if [ ! -f "diffconfigs/$b" ]; then
+              echo "::error::Unknown board '$b' (no diffconfigs/$b)."; exit 1
+            fi
+          done
+          echo "Boards to build: $BOARDS"
+
+      - name: Free Disk Space on Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
+          sudo apt-get clean
+
+      - name: Determine Version
+        id: vars
+        run: |
+          VERSION=$(cat version 2>/dev/null || echo "25.12.5")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Cache OpenWrt Downloads & Toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+            openwrt/staging_dir/host
+          key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-${{ github.run_id }}
+          restore-keys: |
+            openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-
+            openwrt-cache-${{ steps.vars.outputs.version }}-
+            openwrt-cache-
+
+      - name: Build Docker Builder Image & Prepare OpenWrt Tree
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+        run: |
+          ./build.sh prepare
+          if [ -z "$APK_SIGNING_KEY" ]; then
+            echo "::error::APK_SIGNING_KEY secret is not set."; exit 1
+          fi
+          printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
+          echo "Injected persistent private signing key."
+
+      - name: Compile Selected Boards
+        run: |
+          ./build.sh build ${{ inputs.boards }}
+
+      - name: Collect built assets
+        run: |
+          set -euo pipefail
+          D=openwrt/bin/targets/msm89xx/msm8916
+          cd "$D"
+          shopt -s nullglob
+          NAMES=()
+          for pat in \
+            'openwrt-msm89xx-msm8916-*-squashfs-boot.img' \
+            'openwrt-msm89xx-msm8916-*-squashfs-system.img' \
+            'openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin' \
+            'openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin' \
+            'openwrt-msm89xx-msm8916-*-flash.sh' \
+            'openwrt-msm89xx-msm8916-*-firmware.zip'; do
+            for f in $pat; do NAMES+=("$f"); done
+          done
+
+          NBOARDS=$(echo '${{ inputs.boards }}' | wc -w)
+          EXPECTED=$((6 * NBOARDS))
+          echo "Matched ${#NAMES[@]} image files (expected ${EXPECTED} = 6 x ${NBOARDS} boards):"
+          printf '  %s\n' "${NAMES[@]}"
+          if [ "${#NAMES[@]}" -ne "$EXPECTED" ]; then
+            echo "::error::Expected ${EXPECTED} built image files but found ${#NAMES[@]} — refusing a partial upload."
+            exit 1
+          fi
+          printf '%s\n' "${NAMES[@]}" > /tmp/built-names.txt
+
+      - name: Replace board assets in the existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG='${{ inputs.release_tag }}'
+          D=openwrt/bin/targets/msm89xx/msm8916
+          mapfile -t NAMES < /tmp/built-names.txt
+
+          echo "Uploading ${#NAMES[@]} asset(s) to release ${TAG} (overwrite in place):"
+          printf '  %s\n' "${NAMES[@]}"
+          ( cd "$D" && gh release upload "$TAG" "${NAMES[@]}" --clobber )
+
+      - name: Refresh sha256sums for the rebuilt boards
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG='${{ inputs.release_tag }}'
+          D=openwrt/bin/targets/msm89xx/msm8916
+          mapfile -t NAMES < /tmp/built-names.txt
+
+          # New hashes for the rebuilt assets (bare basenames, same format as the release).
+          ( cd "$D" && sha256sum "${NAMES[@]}" > /tmp/new-hashes.txt )
+
+          # Pull the current sha256sums (covers every board) and splice the rebuilt lines.
+          mkdir -p /tmp/rel
+          gh release download "$TAG" -p sha256sums -O /tmp/sha256sums.old --clobber
+
+          python3 - <<'PY'
+          old = open('/tmp/sha256sums.old').read().splitlines()
+          new = {}
+          for line in open('/tmp/new-hashes.txt'):
+              parts = line.split(None, 1)
+              if len(parts) == 2:
+                  new[parts[1].strip()] = parts[0]
+          out, seen = [], set()
+          for line in old:
+              parts = line.split(None, 1)
+              name = parts[1].strip() if len(parts) == 2 else None
+              if name in new:
+                  out.append(f"{new[name]}  {name}")
+                  seen.add(name)
+              else:
+                  out.append(line)
+          for name, h in new.items():
+              if name not in seen:
+                  out.append(f"{h}  {name}")
+          open('/tmp/rel/sha256sums', 'w').write("\n".join(out) + "\n")
+          print(f"sha256sums: {len(seen)} line(s) updated, {len(new) - len(seen)} appended, {len(out)} total")
+          PY
+
+          gh release upload "$TAG" /tmp/rel/sha256sums --clobber
+
+      - name: Summary
+        run: |
+          echo "### Rebuilt boards: ${{ inputs.boards }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Assets replaced in release \`${{ inputs.release_tag }}\`:" >> $GITHUB_STEP_SUMMARY
+          while read -r n; do echo "- \`$n\`" >> $GITHUB_STEP_SUMMARY; done < /tmp/built-names.txt
+          echo "- \`sha256sums\` (rebuilt-board lines refreshed)" >> $GITHUB_STEP_SUMMARY
