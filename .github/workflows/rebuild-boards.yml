@@ -29,6 +29,11 @@ jobs:
     name: Rebuild selected boards
     runs-on: ubuntu-latest
 
+    env:
+      # gh cannot always infer the repo from the checkout's git remote on the
+      # runner, so pin it explicitly for every `gh release` call below.
+      GH_REPO: ${{ github.repository }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
