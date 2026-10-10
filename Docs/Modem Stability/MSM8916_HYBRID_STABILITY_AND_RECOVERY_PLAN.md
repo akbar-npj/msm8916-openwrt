@@ -97,8 +97,12 @@ Extensive testing on physical MSM8916 hardware demonstrated that **no single iso
 
 ## 3. Detailed Implementation Reference
 
-### 3.1 Tier 1: Firmware Patching (`hmu05-patch-modem`)
-Located at [`packages/msm-firmware-dumper/src/hmu05-patch-modem.c`](../../packages/msm-firmware-dumper/src/hmu05-patch-modem.c):
+### 3.1 Tier 1: Firmware Patching (`hmu05-patch-modem`) — REMOVED
+> **Removed from the tree** (`57024f2`); this tier is obsolete — see the correction banner
+> above. The retired source (`packages/msm-firmware-dumper/src/hmu05-patch-modem.c`) is
+> still readable from git history:
+> `git show 57024f2^:packages/msm-firmware-dumper/src/hmu05-patch-modem.c`.
+> The description below is retained for reference only; **no baseband patching is performed or required.**
 * Specifically validates HMU05 board identifiers.
 * Checks byte offsets:
   * Offset `0x001117e0` (`lte_ml1_sleepmgr_cfg`): Patches to `00 c4 00 78 00 c0 9f 52`.
