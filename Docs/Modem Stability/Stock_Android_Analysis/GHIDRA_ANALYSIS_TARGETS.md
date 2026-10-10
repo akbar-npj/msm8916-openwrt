@@ -7,7 +7,7 @@
 
 ## 1. Primary Binaries & Libraries Extracted
 
-All files are stored in [`Docs/Modem Stability/Stock_Android_Analysis/binaries/`](binaries) and [`vendor_libs/`](vendor_libs).
+All files are stored in `Docs/Modem Stability/Stock_Android_Analysis/binaries/` and `vendor_libs/` (local analysis artifacts, not committed to the repo).
 
 ### 1. `time_daemon` & `libtime_genoff.so`
 * **Purpose**: QMI Service 22 (ATS / Time Service) host synchronization.

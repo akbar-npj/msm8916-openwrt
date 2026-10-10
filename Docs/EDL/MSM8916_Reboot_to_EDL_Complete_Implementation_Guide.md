@@ -509,4 +509,7 @@ edl reset
 | [`packages/reboot-edl/Makefile`](../../packages/reboot-edl/Makefile) | OpenWrt package definition installing binaries and symlinks |
 | [`msm89xx/base-files/etc/init.d/umount-overlay`](../../msm89xx/base-files/etc/init.d/umount-overlay) | Base-files `STOP=98` service ensuring `/overlay` is cleanly remounted `ro` during standard `/sbin/reboot` |
 | [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Firstboot script enabling `umount-overlay` service |
-| [`Docs/EDL/MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md`](MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md) | In-depth technical analysis and step-by-step trace of procd shutdown and EXT4 state flags |
+
+> The former `MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md` (the in-depth trace of
+> procd shutdown and EXT4 state flags) was **consolidated into this guide** and removed from the
+> tree.

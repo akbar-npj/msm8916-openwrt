@@ -121,7 +121,7 @@ All requested targets have been pulled, decompiled, disassembled, and documented
 | `/system/bin/netmgrd` | ✅ RE Complete | [`51_ghidra_netmgrd_RE.txt`](51_ghidra_netmgrd_RE.txt) |
 | `/system/bin/wdsdaemon` | ✅ Replaced by netmgrd/libqmi | Documented in WDS specifications |
 | `/system/bin/qseecomd` | ✅ RE Complete | [`67_qseecomd_disasm.txt`](67_qseecomd_disasm.txt) |
-| `/system/bin/healthd` | ✅ RE Complete | [`hw_libs/`](hw_libs) |
+| `/system/bin/healthd` | ✅ RE Complete | `hw_libs/` (local analysis artifact, not committed) |
 | `/system/bin/thermal-engine` | ✅ RE Complete | [`52_ghidra_thermal_engine_RE.txt`](52_ghidra_thermal_engine_RE.txt) |
 | `/system/bin/mpdecision` | ✅ RE Complete | [`68_mpdecision_disasm.txt`](68_mpdecision_disasm.txt) |
 | `/system/vendor/lib/libril-qc-qmi-1.so` | ✅ RE Complete | [`69_libril_qc_qmi_1_symbols_and_summary.txt`](69_libril_qc_qmi_1_symbols_and_summary.txt) |

@@ -23,8 +23,12 @@
 | [`17_WHY_STOCK_ANDROID_DOES_NOT_CRASH.md`](17_WHY_STOCK_ANDROID_DOES_NOT_CRASH.md) | Deep comparative breakdown of the 4 stability mechanisms that prevent the 15-minute crash. |
 | [`23_MODEM_COMMUNICATION_PROTOCOL_TRACE.md`](23_MODEM_COMMUNICATION_PROTOCOL_TRACE.md) | Dynamic `strace`, `lsof`, and `/proc/PID/fd/` system call trace and QMI packet breakdown. |
 | [`GHIDRA_ANALYSIS_TARGETS.md`](GHIDRA_ANALYSIS_TARGETS.md) | Reverse engineering target list for Ghidra/IDA (`time_daemon`, `libril-qc-qmi-1.so`, `libqmiservices.so`). |
-| [`binaries/`](binaries) | Extracted vendor executables (`time_daemon`, `qmuxd`, `netmgrd`, `rild`, `rmt_storage`, `thermal-engine`). |
-| [`vendor_libs/`](vendor_libs) | Complete Qualcomm QMI, RIL, and Time shared libraries (`.so`). |
+| `binaries/` | Extracted vendor executables (`time_daemon`, `qmuxd`, `netmgrd`, `rild`, `rmt_storage`, `thermal-engine`). *(Local analysis artifact — not committed to the repo.)* |
+| `vendor_libs/` | Complete Qualcomm QMI, RIL, and Time shared libraries (`.so`). *(Local analysis artifact — not committed to the repo.)* |
+
+> The `binaries/`, `vendor_libs/` and `hw_libs/` directories are extracted stock-Android artifacts
+> kept **only on the analysis machine**; they are not part of this repository. The reports below
+> describe them.
 
 ---
 
