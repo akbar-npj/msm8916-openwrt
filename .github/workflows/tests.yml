@@ -1,0 +1,24 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell-tests:
+    name: Shell test suites
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hardware-free tests: no modem, no root, no OpenWrt. Each suite is a
+      # tests/<name>/run.sh that exits non-zero on failure. --self-check also
+      # applies mutants and requires each one to be caught.
+      - name: himi-ok-guard
+        run: bash tests/himi-ok-guard/run.sh --self-check
