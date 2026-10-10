@@ -329,7 +329,7 @@ makes no promise of an 8–12 °C reduction because no intervention has demonstr
 - Preserve device settings exactly as found. The latest snapshot reported BAM-DMUX
   `power/control=on` / `runtime_status=active` (an earlier snapshot reported `auto`/`suspended`);
   do not normalize or toggle it. Do not start/stop
-  [`modem-a2-hold`](../../msm89xx/base-files/usr/sbin/modem-a2-hold), alter Wi-Fi, or change any
+  the A2 pin ([patch 848](../../msm89xx/patches/848-bam-dmux-a2-pin.patch), formerly `modem-a2-hold`), alter Wi-Fi, or change any
   runtime power setting for this comparison.
 - Do not add fixed `opp-microvolt` values, lower the thermal trips, hotplug CPUs, add a modem QMI
   policy, or disable the A2 workaround as a temperature experiment.

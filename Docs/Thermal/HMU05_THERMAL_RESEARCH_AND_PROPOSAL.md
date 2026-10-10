@@ -17,7 +17,7 @@
 > at 55 °C. A current Android snapshot found `mpdecision` running with all four CPUs online,
 > and non-zero CPU0 `standalone_pc` and `pc` idle counters. CPR/voltage remains an unmeasured
 > source gap. See the full evidence and current recommendation in
-> [Docs/Modem Stability/HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md](Modem%20Stability/HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md),
+> [HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md](HMU05_OPENWRT_ANDROID_THERMAL_ROOT_CAUSE.md),
 > which supersedes this report's idle-baseline, root-cause, and action-plan conclusions. The
 > earlier CPU/A2 ideas below are retained as hypotheses, not validated solutions.
 

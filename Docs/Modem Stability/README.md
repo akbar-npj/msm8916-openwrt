@@ -34,6 +34,19 @@ here** — the September-era reports are retained for history and are largely su
 
 ---
 
+## Related documentation
+
+- **[Thermal & Power Management](../Thermal/README.md)** — the OpenWrt-vs-Android
+  thermal investigation (and the CPU-rail **CPR** port) now lives in `Docs/Thermal/`.
+  The rail-voltage work is a separate axis from the modem-stability work here; the
+  A2/PMIC-rail angle (which *is* modem-stability) stays in
+  [HMU05_A2_PMIC_RAIL_INVESTIGATION.md](HMU05_A2_PMIC_RAIL_INVESTIGATION.md).
+- **[Custom Packages](../Custom%20Packages/README.md)** — the modem/DIAG tooling
+  (`diag-bind`, `diag-efs`, `diag-logtool`, `qcom-time-daemon`, …) used throughout
+  these reports.
+
+---
+
 ## Quick Reference: Diagnostic Commands
 
 ```bash

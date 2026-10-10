@@ -94,7 +94,7 @@ Under the exact same 10 MB download over Jio 4G LTE (`speedtest.tele2.net`), we 
    * **Result:** Total PCB power collapses immediately, restoring the cool **48.0°C baseline in under 60 seconds**.
 
 2. **On OpenWrt:**
-   * **Pinned DMA & Baseband:** [`modem-a2-hold`](../../msm89xx/base-files/usr/sbin/modem-a2-hold) forces `control = on` on the BAM-DMUX remoteproc device.
+   * **Pinned DMA & Baseband:** the A2 pin ([patch 848](../../msm89xx/patches/848-bam-dmux-a2-pin.patch)) forces `control = on` on the BAM-DMUX remoteproc device (this replaced the older userspace `modem-a2-hold` helper).
    * **Hexagon DSP Pinned Awake:** The modem baseband is prevented from dropping `SMSM_A2_POWER_CONTROL`. The Hexagon DSP and BAM DMA engines run continuously at full power.
    * **Result:** Heat generated during the 10 MB download cannot fully dissipate because the modem is actively generating baseline power. The device halts cooling at **~59°C–61°C**, creating a permanent **+13°C gap** compared to Android.
 

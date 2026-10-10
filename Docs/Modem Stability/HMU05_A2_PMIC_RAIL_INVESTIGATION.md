@@ -1,7 +1,7 @@
 # HMU05 — #367 "PMIC lead": does a rail/PMIC difference make Android immune to `a2_power.c:1189`?
 
 **Task:** parked **#367** — *why is Android structurally immune to the `a2_power.c:1189`
-fatal?* The thermal work (`HMU05_ANDROID_THERMAL_CONTROL_PORT.md`) pointed at "system-level
+fatal?* The thermal work (`../Thermal/HMU05_ANDROID_THERMAL_CONTROL_PORT.md`) pointed at "system-level
 power (PMIC rails / DDR-fabric)" and tied it to #367, so this doc chases the **PMIC/rail**
 angle specifically.
 

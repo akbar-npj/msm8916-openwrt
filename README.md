@@ -381,6 +381,9 @@ for z in /sys/class/thermal/thermal_zone*; do
 done
 ```
 
+The full investigation — the OpenWrt-vs-Android comparison, the root-cause
+analysis, and the CPR port — is in **[`Docs/Thermal/`](Docs/Thermal/README.md)**.
+
 ---
 
 ## 🛡️ Modem Stability
@@ -535,6 +538,10 @@ apk add kmod-usb-net-rtl8152
 # Install WireGuard VPN
 apk add luci-app-wireguard
 ```
+
+The packages authored and vendored in this repo (DIAG tools, carrier autoconfig,
+Bluetooth SPP, LuCI apps, …) are documented in
+**[`Docs/Custom Packages/`](Docs/Custom%20Packages/README.md)**.
 
 ---
 
