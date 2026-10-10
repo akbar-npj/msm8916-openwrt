@@ -1,0 +1,168 @@
+#!/bin/sh
+# Failsafe-mode USB gadget bring-up for the headless MSM8916 USB dongles.
+#
+# These boards have NO Ethernet and no usable serial port, so OpenWrt's stock
+# failsafe flow is unreachable: the only network/console path is a userspace
+# ConfigFS USB gadget that is normally created at init S99 (uci-usb-gadget),
+# long after preinit.  When the user enters failsafe (reset button / `f` key),
+# preinit stops before init runs, so nothing ever brings the gadget up.
+#
+# This hook runs ONLY on the `failsafe` hook (never during a normal boot, where
+# S99 still owns the UDC).  It:
+#   1. blinks the red LED fast so the user can see failsafe was entered,
+#   2. mounts configfs and creates a minimal g1 gadget (NCM + ACM),
+#   3. binds the UDC so the host sees a new NIC and /dev/ttyACM0,
+#   4. assigns the failsafe IP (default 192.168.10.1/24) to the NCM netdev,
+#   5. spawns a root login shell on ttyGS0 (host: /dev/ttyACM0).
+#
+# SSH is handled by the stock failsafe_dropbear hook (99_10_failsafe_dropbear),
+# which is sourced after this file and therefore runs after us; it starts
+# dropbear on all interfaces, so `ssh root@192.168.10.1` works once usb0 is up.
+#
+# All gadget pieces are built into the kernel (CONFIG_USB_CONFIGFS=y,
+# CONFIG_USB_F_NCM=y, CONFIG_USB_F_ACM=y, CONFIG_USB_LIBCOMPOSITE=y,
+# CONFIG_USB_CHIPIDEA=y) so no modprobe is needed at preinit time.
+
+FS_GADGET_PATH=/sys/kernel/config/usb_gadget/g1
+FS_NETDEV=usb0
+FS_ACM_TTY=ttyGS0
+
+# The kernel picks the NCM netdev name; normally "usb0", but read the function's
+# own `ifname` attribute so we never depend on that guess.
+fs_ncm_ifname() {
+	local f="$FS_GADGET_PATH/functions/ncm.usb0/ifname" n=""
+	[ -r "$f" ] && n="$(cat "$f" 2>/dev/null)"
+	[ -n "$n" ] && echo "$n" || echo "$FS_NETDEV"
+}
+
+fs_log() {
+	local consoles="$(cat /sys/class/tty/console/active 2>/dev/null)"
+	[ -n "$consoles" ] || consoles=console
+	echo "failsafe-usb: $*" > /dev/kmsg 2>/dev/null
+	for c in $consoles; do
+		[ -c "/dev/$c" ] && echo "failsafe-usb: $*" >"/dev/$c"
+	done
+}
+
+# Fast-flash the red LED(s).  Board LED sysfs names (color:function):
+#   hmu05    red:power
+#   ufi001b  red:power
+#   uf02     red
+#   mf800b   red:wlan red:wan red:charging
+#   uz801    (no red LED) -> fall back to any LED
+fs_led_failsafe() {
+	local leds="" l
+	for l in /sys/class/leds/*red*; do
+		[ -d "$l" ] && leds="$leds $l"
+	done
+	[ -n "$leds" ] || for l in /sys/class/leds/*; do
+		[ -d "$l" ] && leds="$leds $l"
+	done
+
+	for l in $leds; do
+		[ -w "$l/trigger" ] || continue
+		echo timer >"$l/trigger" 2>/dev/null
+		echo 40 >"$l/delay_on" 2>/dev/null
+		echo 40 >"$l/delay_off" 2>/dev/null
+	done
+}
+
+fs_mount_configfs() {
+	grep -q " /sys/kernel/config configfs " /proc/mounts && return 0
+	mount -t configfs none /sys/kernel/config 2>/dev/null || return 1
+	return 0
+}
+
+fs_find_udc() {
+	ls /sys/class/udc/ 2>/dev/null | head -1
+}
+
+fs_usb_setup() {
+	fs_led_failsafe
+	fs_log "entered failsafe; bringing up USB gadget"
+
+	fs_mount_configfs || {
+		fs_log "ERROR: cannot mount configfs; no network/console (use serial 'f' key)"
+		return 0
+	}
+
+	# If a gadget already exists (should not in failsafe), leave it alone.
+	[ -d "$FS_GADGET_PATH" ] && {
+		fs_log "gadget already present, skipping creation"
+		return 0
+	}
+
+	mkdir -p "$FS_GADGET_PATH" 2>/dev/null || {
+		fs_log "ERROR: cannot create gadget dir"
+		return 0
+	}
+
+	local g="$FS_GADGET_PATH"
+
+	echo 0x1d6b >"$g/idVendor"
+	echo 0x0104 >"$g/idProduct"
+	echo 0x0100 >"$g/bcdDevice"
+	echo 0xef >"$g/bDeviceClass"
+	echo 0x02 >"$g/bDeviceSubClass"
+	echo 0x01 >"$g/bDeviceProtocol"
+
+	mkdir -p "$g/strings/0x409"
+	echo "0000000000" >"$g/strings/0x409/serialnumber"
+	echo "OpenWrt" >"$g/strings/0x409/manufacturer"
+	echo "OpenWrt Failsafe" >"$g/strings/0x409/product"
+
+	mkdir -p "$g/configs/c.1/strings/0x409"
+	echo "failsafe" >"$g/configs/c.1/strings/0x409/configuration"
+	echo 0xe0 >"$g/configs/c.1/bmAttributes"
+	echo 250 >"$g/configs/c.1/MaxPower"
+
+	# NCM ethernet function.
+	mkdir -p "$g/functions/ncm.usb0" 2>/dev/null
+	echo "02:1d:6b:00:00:01" >"$g/functions/ncm.usb0/dev_addr" 2>/dev/null
+	echo "02:1d:6b:00:00:02" >"$g/functions/ncm.usb0/host_addr" 2>/dev/null
+	ln -sf "$g/functions/ncm.usb0" "$g/configs/c.1/" 2>/dev/null
+
+	# ACM serial function (host: /dev/ttyACM0, device: /dev/ttyGS0).
+	mkdir -p "$g/functions/acm.GS0" 2>/dev/null
+	ln -sf "$g/functions/acm.GS0" "$g/configs/c.1/" 2>/dev/null
+
+	local udc="$(fs_find_udc)"
+	if [ -z "$udc" ]; then
+		fs_log "ERROR: no UDC found; serial 'f' key only"
+		return 0
+	fi
+	echo "$udc" >"$g/UDC" 2>/dev/null || {
+		fs_log "ERROR: failed to bind UDC $udc"
+		return 0
+	}
+	fs_log "gadget bound to UDC $udc"
+
+	# Bring up the NCM netdev and assign the failsafe address.
+	local netdev i
+	for i in 1 2 3 4 5 6 7 8 9 10; do
+		netdev="$(fs_ncm_ifname)"
+		[ -d "/sys/class/net/$netdev" ] && break
+		sleep 1
+	done
+
+	if [ -d "/sys/class/net/$netdev" ]; then
+		local ip="${pi_ip:-192.168.10.1}"
+		local mask="${pi_netmask:-255.255.255.0}"
+		local bcast="${pi_broadcast:-192.168.10.255}"
+		ip link set "$netdev" up 2>/dev/null
+		ip -4 address add "$ip/$mask" broadcast "$bcast" dev "$netdev" 2>/dev/null
+		fs_log "$netdev up at $ip (ssh root@$ip)"
+	else
+		fs_log "WARNING: NCM netdev did not appear"
+	fi
+
+	# Spawn a root login shell on the ACM tty.  Same proven pattern as
+	# 99_10_failsafe_login (which only covers kernel consoles).  Spawned
+	# unconditionally: the loop (re)opens the tty, so it works whether or
+	# not /dev/ttyGS0 exists yet and whenever the host connects.
+	start-stop-daemon -Sb -p /dev/null -- \
+		env -i ash -c "while true; do setsid -c env -i USER=root LOGNAME=root SHELL=/bin/ash TERM=vt102 ash --login <\"/dev/$FS_ACM_TTY\" >\"/dev/$FS_ACM_TTY\" 2>\"/dev/$FS_ACM_TTY\"; sleep 1; done"
+	fs_log "serial login shell started on /dev/$FS_ACM_TTY"
+}
+
+boot_hook_add failsafe fs_usb_setup

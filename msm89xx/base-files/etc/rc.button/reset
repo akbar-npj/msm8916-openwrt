@@ -1,0 +1,46 @@
+#!/bin/sh
+#
+# Reset button handler (factory reset only).
+#
+# The on-board Restart button (DT `button_restart`, KEY_RESTART -> "reset") is
+# the only user input on these headless dongles.  During the first few seconds
+# of boot it is also the failsafe trigger, handled separately by the preinit
+# hotplug daemon via /etc/rc.button/failsafe.
+#
+# Once the system is up, this handler runs.  button-hotplug reports SEEN as the
+# number of whole seconds the button was held, so on "released" it is the hold
+# duration.  We deliberately do NOT reboot on a short press (the stock handler
+# does, which makes the button dangerous on a device you reach only over the
+# network); only a >= 5 s hold performs a factory reset.
+#
+
+HOLD_SECONDS=5
+
+. /lib/functions.sh
+
+OVERLAY="$( grep ' /overlay ' /proc/mounts )"
+
+case "$ACTION" in
+pressed)
+	# Arm the long-press timer only when we could actually act on it, so a
+	# short press on a system without an overlay is a complete no-op.
+	[ -n "$OVERLAY" ] && return 5
+	return 0
+;;
+timeout)
+	# 5 s elapsed with the button still held.  The action happens on release
+	# (below), where SEEN carries the real hold time; nothing to do here.
+	return 0
+;;
+released)
+	if [ "$SEEN" -ge "$HOLD_SECONDS" ] 2>/dev/null && [ -n "$OVERLAY" ]; then
+		echo "FACTORY RESET" > /dev/console
+		logger -t reset-button "Reset button held ${SEEN}s: factory reset + reboot"
+		factoryreset -y && reboot &
+	fi
+	# Short press (< 5 s): do nothing.
+	return 0
+;;
+esac
+
+return 0

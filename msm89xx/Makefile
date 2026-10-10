@@ -53,6 +53,13 @@ DEFAULT_PACKAGES += rmtfs qcom-carrier-autocfg
 # Interactive/debug helpers wanted on every board: `stty` (terminal control,
 # e.g. for the serial console) and `xxd` (hex dumps).
 DEFAULT_PACKAGES += coreutils-stty xxd
+# Physical reset button bridge.  These dongles have no Ethernet and no
+# accessible UART, so the on-board Restart button (a `gpio-keys` node in the
+# DTS) is the only way to reach failsafe mode.  kmod-gpio-button-hotplug binds
+# that node and emits SUBSYSTEM=button uevents, which make procd's preinit
+# hotplug daemon run /etc/rc.button/failsafe (writing /tmp/failsafe_button) and
+# the post-boot /etc/rc.button/reset handler.  Without it the button is inert.
+DEFAULT_PACKAGES += kmod-gpio-button-hotplug
 
 KERNELNAME:=Image
 

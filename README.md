@@ -74,7 +74,31 @@ Recent additions on top of the base port:
 
 ## 🔄 Recovery and Reboot Modes
 
-OpenWrt provides software-triggered reboot paths for Qualcomm recovery modes.
+OpenWrt provides both an in-band rescue shell (**failsafe mode**) and
+software-triggered reboot paths for Qualcomm recovery modes.
+
+### Failsafe mode (recover a broken config)
+
+These dongles have no Ethernet and no serial header, so failsafe mode brings up
+its own USB gadget. To enter it:
+
+1. Power on (or reboot) the dongle.
+2. **Press the Restart button once within the first 7 seconds.** A single tap is
+   enough — no hold needed. The **red LED fast-flashes** when failsafe is active.
+3. Reach the device at **`192.168.10.1`** (USB NIC) or **`/dev/ttyACM0`**
+   (USB serial, 115200):
+
+   ```bash
+   ssh root@192.168.10.1
+   screen /dev/ttyACM0 115200
+   ```
+
+Inside, run `mount_root` to mount the overlay, repair `/etc/config/*`, or
+`firstboot && reboot` to reset to defaults. Full guide:
+[`Docs/Failsafe/`](Docs/Failsafe/README.md).
+
+> A **5-second hold** of the Restart button on a *running* system performs a
+> **factory reset + reboot**; a short press is ignored.
 
 ### Reboot to EDL
 
@@ -391,6 +415,8 @@ ubus call network.interface.modem status   # data bearer state
 | **USB Serial Console**   | `screen /dev/ttyACM0 115200`    | Direct root shell                |
 | **Wi-Fi Access Point**   | SSID: `OpenWrt` (2.4 GHz, Ch 1) | Open (WPA3-SAE configurable)     |
 | **Bluetooth**            | `bluetoothctl` / `bt-spp`       | SPP server on RFCOMM channel 1   |
+| **Failsafe Mode**        | Button tap ≤7 s → `ssh root@192.168.10.1` | Rescue shell (red LED flash) |
+| **Factory Reset**        | Hold Restart button 5 s         | Wipes overlay, then reboots      |
 | **EDL Recovery**         | `reboot-edl`                    | Qualcomm USB `05c6:9008`         |
 | **Fastboot Recovery**    | `reboot-bootloader`             | `fastboot devices`               |
 

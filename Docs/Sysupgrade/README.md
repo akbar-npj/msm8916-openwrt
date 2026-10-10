@@ -38,3 +38,29 @@ ssh root@192.168.8.1 "sysupgrade -F -v /tmp/sysupgrade.bin"
    - **Checked** (equivalent to `sysupgrade`): Preserves `/etc/config/*` and restored overlay.
    - **Unchecked** (equivalent to `sysupgrade -n`): Reformats `rootfs_data` partition as a clean EXT4 filesystem.
 6. Click **Continue** / **Flash**. The device enters Stage 2 ramfs, writes the kernel and rootfs to eMMC, and automatically reboots.
+
+---
+
+## Recovery if the device becomes unreachable
+
+These dongles have no Ethernet and no serial header, so if an upgrade leaves the
+network stack broken, use **failsafe mode**:
+
+1. Power on (or reboot) the dongle.
+2. **Press the Restart button once within the first 7 seconds.** A single tap is
+   enough. The **red LED fast-flashes** when failsafe is active.
+3. Reach the device at **`192.168.10.1`** (USB NIC) or **`/dev/ttyACM0`**
+   (USB serial, 115200):
+
+   ```bash
+   ssh root@192.168.10.1
+   screen /dev/ttyACM0 115200
+   ```
+
+4. Inside, run `mount_root` to mount the overlay, repair `/etc/config/*`, or
+   `firstboot && reboot` to reset to defaults. If a sysupgrade image is staged in
+   `/tmp`, failsafe runs the upgrade automatically instead of dropping to a shell.
+
+Full guide: [`Docs/Failsafe/`](../Failsafe/README.md). As a last resort, reflash
+via EDL/Fastboot ([`Docs/EDL/`](../EDL/)).
+

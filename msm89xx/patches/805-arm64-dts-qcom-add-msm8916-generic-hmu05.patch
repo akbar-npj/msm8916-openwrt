@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmu05.dts
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,227 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -38,16 +38,23 @@
 + *
 + *   GPIO37 = key_freset
 + *   direction = input
-+ *   polarity = active-low
-+ *   bias = pull-up
++ *   polarity = active-high
++ *   bias = pull-down
++ *
++ * The pinhole Restart button pulls GPIO37 up to VCC when pressed.
++ * With the internal pull-up the pin idles high and a press produces
++ * no edge (so no uevent); the correct configuration is an internal
++ * pull-down (idle low) with an active-high level (press = high).
++ * Verified live on the HMU05: with bias-pull-down every press/release
++ * toggles the pin 0->1->0 and raises IRQ 40.
 + */
 +&button_restart {
-+    gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
++    gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
 +};
 +
 +&button_default {
 +    pins = "gpio37";
-+    bias-pull-up;
++    bias-pull-down;
 +};
 +
 +/*
