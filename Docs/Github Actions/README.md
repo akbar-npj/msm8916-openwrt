@@ -13,7 +13,7 @@ graph TD
     A["Trigger: Git Tag (v*) or Workflow Dispatch"] --> B["GitHub Runner (ubuntu-latest)"]
     B --> C["Step 1-3: Checkout Repo, Strip Disk Bloat (+35GB), Set Version"]
     C --> D["Step 4: Build Docker Container & Run openwrt-prepare.sh"]
-    D --> E["Step 5: ./build.sh build all (hmu05, ufi001b, uz801, uf02)"]
+    D --> E["Step 5: ./build.sh build all (hmu05, ufi001b, uz801, uf02, mf800b)"]
     E --> F["Step 6: Build CUPS Print Server & Drivers in Container"]
     F --> G["Step 7: Bundle Offline Kmods & Compute sha256sums"]
     G --> H["Step 8-9: Deploy APK Feeds to GitHub Pages (gh-pages)"]
@@ -83,11 +83,12 @@ jobs:
 
 ### Step 5: Compile All Firmware Images
 - Runs `./build.sh build all` inside the container.
-- Compiles OpenWrt kernel (`boot.img`), SquashFS rootfs (`system.img`), and sysupgrade archives (`sysupgrade.bin`) across all 4 supported boards:
+- Compiles OpenWrt kernel (`boot.img`), SquashFS rootfs (`system.img`), and sysupgrade archives (`sysupgrade.bin`) across all 5 supported boards:
   1. `hmu05` (Generic MSM8916 4G USB Dongle / Router)
   2. `ufi001b` (Generic UFI001B 4G Stick)
   3. `uz801` (YiMing UZ801v3 4G Stick)
   4. `uf02` (Generic UF02 250605 V0S 4G Stick)
+  5. `mf800b` (Generic MF800B 4G MiFi)
 
 ### Step 6: Compile Extra Packages (CUPS Print Server)
 - Executes `make package/msm8916/cups/compile package/index V=s`.
@@ -95,12 +96,14 @@ jobs:
 
 ### Step 7: Package Offline Kmod Bundle & Checksums
 - Bundles all target-compiled `.apk` packages into `kmods-msm8916-<version>.tar.gz`.
-- Computes SHA-256 checksums across all flashable firmware images and the kmod archive:
+- Computes SHA-256 checksums across all flashable firmware images and the kmod archive (the board name is globbed, so every built board is covered automatically):
   ```bash
-  sha256sum openwrt-msm89xx-msm8916-generic-hmu05-* \
-            openwrt-msm89xx-msm8916-generic-ufi001b-* \
-            openwrt-msm89xx-msm8916-yiming-uz801v3-* \
-            openwrt-msm89xx-msm8916-generic-uf02-* \
+  sha256sum openwrt-msm89xx-msm8916-*-squashfs-boot.img \
+            openwrt-msm89xx-msm8916-*-squashfs-system.img \
+            openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin \
+            openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
+            openwrt-msm89xx-msm8916-*-flash.sh \
+            openwrt-msm89xx-msm8916-*-firmware.zip \
             kmods-msm8916-${VERSION}.tar.gz > sha256sums
   ```
 
@@ -113,7 +116,7 @@ jobs:
 - Deploys via `peaceiris/actions-gh-pages@v4` to the **`gh-pages`** branch with `keep_files: true` so prior versions are preserved.
 
 ### Step 10: Publish GitHub Release
-- Uses `softprops/action-gh-release@v2` with `prerelease: true`.
+- Uses `softprops/action-gh-release@v2` with `prerelease: false` (a tag push `v*` publishes a full release).
 - Automatically attaches all `.img`, `.bin`, `.zip`, and `.tar.gz` files along with `sha256sums` and release notes.
 
 ---

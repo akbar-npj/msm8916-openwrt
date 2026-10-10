@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains comprehensive documentation on OpenWrt firmware upgrades for Qualcomm Snapdragon 410 (MSM8916) 4G USB dongles (including HMU05, UFI001B, UZ801v3, and UF02).
+This directory contains comprehensive documentation on OpenWrt firmware upgrades for Qualcomm Snapdragon 410 (MSM8916) 4G USB dongles (including HMU05, UFI001B, UZ801v3, UF02, and MF800B).
 
 ## Documentation Index
 

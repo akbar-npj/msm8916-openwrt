@@ -78,7 +78,7 @@ This guide details the technical investigation, root cause diagnosis, and exact 
    - Additionally, if the mailbox controller (`apcs`) had not yet probed, `mbox_request_channel()` returned `-EPROBE_DEFER`, but the SMSM driver previously ignored this error and fell back to non-existent syscon entries instead of deferring probe.
 
 ### 2.3 Solution & Implementation
-Created kernel patch [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch):
+Created kernel patch [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch`](../msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch):
 - Skips requesting an outgoing mailbox channel for `smsm->local_host` (`host_id == smsm->local_host`).
 - Validates that a real, non-empty phandle exists in the device tree for `host_id` using `of_parse_phandle_with_args()` *before* calling `mbox_request_channel()`. If the entry is `<0>` or missing, it silently skips the mailbox request.
 - Propagates `-EPROBE_DEFER` cleanly if the mailbox provider is not yet ready.
@@ -109,7 +109,7 @@ Created kernel patch [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-reques
 5. In addition, `config_try_load(ctx, path)` in `block.c` did not test `access(path, R_OK)` before calling `uci_load(ctx, file, &pkg)`. Whenever the file was missing, `uci_load` failed and `block` spammed syslog with `unable to load configuration (fstab: Entry not found)` and `no usable configuration`.
 
 ### 3.3 Solution & Implementation
-1. **Pre-populate default fstab**: Created [`msm89xx/base-files/etc/config/fstab`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/config/fstab) with standard OpenWrt global block-mount settings:
+1. **Pre-populate default fstab**: Created [`msm89xx/base-files/etc/config/fstab`](../msm89xx/base-files/etc/config/fstab) with standard OpenWrt global block-mount settings:
    ```uci
    config global
    	option anon_swap '0'
@@ -120,7 +120,7 @@ Created kernel patch [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-reques
    	option check_fs '0'
    ```
    This ensures `/etc/config/fstab` is present on the rootfs from the very first instant of boot, satisfying early preinit and hotplug lookups.
-2. **Prevent speculative error spam in `fstools`**: Added patch [`openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch) to make `config_try_load()` check `if (access(path, R_OK)) return NULL;` before invoking `uci_load()`. Non-existent speculative paths (`/tmp/overlay/upper/...`) are skipped silently without logging errors.
+2. **Prevent speculative error spam in `fstools`**: Added patch [`openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch`](../openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch) to make `config_try_load()` check `if (access(path, R_OK)) return NULL;` before invoking `uci_load()`. Non-existent speculative paths (`/tmp/overlay/upper/...`) are skipped silently without logging errors.
 
 ---
 
@@ -133,7 +133,7 @@ Created kernel patch [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-reques
 ```
 
 ### 4.2 Root Cause Analysis
-1. The Qualcomm Remote File System daemon service [`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init) (START=15) and QRTR name server service [`packages/qrtr/files/qrtrns.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/qrtr/files/qrtrns.init) (START=60) contained:
+1. The Qualcomm Remote File System daemon service [`packages/rmtfs/files/rmtfs.init`](../packages/rmtfs/files/rmtfs.init) (START=15) and QRTR name server service [`packages/qrtr/files/qrtrns.init`](../packages/qrtr/files/qrtrns.init) (START=60) contained:
    ```sh
    load_modules() {
        modprobe qrtr 2>/dev/null || true
@@ -151,7 +151,7 @@ Created kernel patch [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-reques
    `ULOG_ERR` writes directly to syslog with `LOG_DAEMON | LOG_ERR`. Shell stderr redirection (`2>/dev/null || true`) only suppresses console output, leaving the syslog error active.
 
 ### 4.3 Solution & Implementation
-Modified [`packages/qrtr/files/qrtrns.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/qrtr/files/qrtrns.init) and [`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init):
+Modified [`packages/qrtr/files/qrtrns.init`](../packages/qrtr/files/qrtrns.init) and [`packages/rmtfs/files/rmtfs.init`](../packages/rmtfs/files/rmtfs.init):
 - Removed the call to `modprobe qrtr-tun`.
 - Replaced unconditional `modprobe qrtr` with a check against `/sys/module/qrtr`:
   ```sh
@@ -191,7 +191,7 @@ Because `CONFIG_QRTR=y` is built-in, `/sys/module/qrtr` already exists and no un
    ```
 
 ### 5.3 Solution & Implementation
-Created kernel patch [`msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch):
+Created kernel patch [`openwrt-overlay/package/kernel/mac80211/patches/ath/450-wcn36xx-only-send-mc-list-when-sta-associated.patch`](../openwrt-overlay/package/kernel/mac80211/patches/ath/450-wcn36xx-only-send-mc-list-when-sta-associated.patch):
 - Explicitly guards the `FIF_ALLMULTI` multicast list update behind the check:
   ```c
   /* FW handles MC filtering only when connected as STA */
@@ -230,6 +230,8 @@ The user log snippet included several lines tagged as `daemon.err`, `daemon.info
 - When collectd starts without the `syslog` output plugin enabled, it prints its standard startup banner and plugin load notifications to stderr.
 - **Verdict**: These messages are **completely normal operational notices** (`plugin successfully loaded`, `Initialization complete, entering read-loop`), not actual errors.
 
+> **Update:** `collectd` (and `watchcat`) have since been **removed from the firmware build** entirely, so this section is retained only as an analysis of the historical June-2026 log snippet — the daemon no longer ships.
+
 ### 6.2 ModemManager Hotplug Notice
 - **Cause**: At 1:01:42 PM, the system hotplug subsystem detected cellular modem USB / SMD interfaces while ModemManager was in the middle of launching on the system bus (`ModemManager (version 1.24.0) starting in system bus...`).
 - The hotplug script checked whether ModemManager was responding to D-Bus requests. Because it was still initializing, the hotplug script recorded an informational message (`daemon.info: hotplug: ModemManager not yet available`) and exited.
@@ -251,8 +253,8 @@ The user log snippet included several lines tagged as `daemon.err`, `daemon.info
 
 ### 7.2 Root Cause Analysis
 1. Qualcomm coprocessor firmwares for MSM8916 (Modem: `mba.mbn` / `modem.mdt`; WCNSS: `wcnss.mdt`) are proprietary Qualcomm binaries not distributable directly inside upstream OpenWrt squashfs images.
-2. Instead, OpenWrt packages [`msm-firmware-dumper`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/msm-firmware-dumper) to automatically mount the device's factory eMMC modem partition (`/dev/mmcblk0p6`) on the very first boot, extract the firmware files into `/lib/firmware/`, and create `/lib/firmware/DUMPED`.
-3. The firmware dumper service [`/etc/init.d/msm-firmware-dumper`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/msm-firmware-dumper/files/msm-firmware-dumper.init) executes at runlevel `START=95` (approx boot second 31).
+2. Instead, OpenWrt packages [`msm-firmware-dumper`](../packages/msm-firmware-dumper) to automatically mount the device's factory eMMC modem partition (`/dev/mmcblk0p6`) on the very first boot, extract the firmware files into `/lib/firmware/`, and create `/lib/firmware/DUMPED`.
+3. The firmware dumper service [`/etc/init.d/msm-firmware-dumper`](../packages/msm-firmware-dumper/files/msm-firmware-dumper.init) executes at runlevel `START=95` (approx boot second 31).
 4. However, during kernel module loading and service startup on the **first boot immediately after clean flashing**:
    - `remoteproc1` (WCNSS) probes at second 9.4 with `auto_boot = true`.
    - `remoteproc0` (Modem) is started at second 11.8 when `/etc/init.d/rmtfs` (START=15) launches and calls `rproc_start()`.
@@ -291,13 +293,13 @@ The user log snippet included several lines tagged as `daemon.err`, `daemon.info
        regulator-max-microvolt = <3075000>;
    };
    ```
-4. In Linux kernel regulator core ([`drivers/regulator/of_regulator.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/regulator/of_regulator.c#L106)), the `REGULATOR_CHANGE_VOLTAGE` capability is only enabled if the min and max constraints differ:
+4. In Linux kernel regulator core ([`drivers/regulator/of_regulator.c`](../openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/regulator/of_regulator.c%23L106)), the `REGULATOR_CHANGE_VOLTAGE` capability is only enabled if the min and max constraints differ:
    ```c
    /* Voltage change possible? */
    if (constraints->min_uV != constraints->max_uV)
        constraints->valid_ops_mask |= REGULATOR_CHANGE_VOLTAGE;
    ```
-5. When `usb-gadget` initializes and binds the UDC (`ci_hdrc.0`), the PHY driver executes `regulator_set_voltage_triplet()`. Because `min_uV == max_uV`, the regulator core checks `regulator_ops_is_valid(rdev, REGULATOR_CHANGE_VOLTAGE)` in [`drivers/regulator/core.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/regulator/core.c#L430) and rejects the call:
+5. When `usb-gadget` initializes and binds the UDC (`ci_hdrc.0`), the PHY driver executes `regulator_set_voltage_triplet()`. Because `min_uV == max_uV`, the regulator core checks `regulator_ops_is_valid(rdev, REGULATOR_CHANGE_VOLTAGE)` in [`drivers/regulator/core.c`](../openwrt/build_dir/target-aarch64_generic_musl/linux-msm89xx_msm8916/linux-6.12.94/drivers/regulator/core.c%23L430) and rejects the call:
    ```c
    rdev_err(rdev, "voltage operation not allowed\n");
    return -EPERM;
@@ -305,7 +307,7 @@ The user log snippet included several lines tagged as `daemon.err`, `daemon.info
 6. This caused the PHY `power_on` routine to fail and jump to `err_3p3`, leaving the PHY unreset and running on bootloader defaults.
 
 ### 8.3 Solution & Implementation
-Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch):
+Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](../msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch):
 - Expands the device tree constraints for `pm8916_l13` to reflect the USB HS PHY driver's required triplet:
   ```dts
   pm8916_l13: l13 {
@@ -336,7 +338,7 @@ Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-vol
 4. **Self-Healing Recovery**: Remoteproc caught the fatal exception, reloaded the DSP firmware (`mba.mbn` and `modem.mdt`), and restored the modem within 0.6 seconds. However, without locking runtime PM, DMA channels remained vulnerable.
 
 ### 9.3 Solution & Implementation (Device-Specific for HMU05)
-1. **New Init Service**: Created [`msm89xx/base-files/etc/init.d/hmu05-modem-pm`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/hmu05-modem-pm) (`START=96`). Scoped strictly to `board_name == *hmu05*`. Holds all `4080000.remoteproc` and `bam-dmux` nodes permanently active on boot:
+1. **New Init Service**: Created [`msm89xx/base-files/etc/init.d/hmu05-modem-pm`](../msm89xx/base-files/etc/init.d/hmu05-modem-pm) (`START=96`). Scoped strictly to `board_name == *hmu05*`. Holds all `4080000.remoteproc` and `bam-dmux` nodes permanently active on boot:
    ```sh
    for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "control"); do
        echo on > "$f" 2>/dev/null || true
@@ -345,8 +347,8 @@ Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-vol
        echo -1 > "$f" 2>/dev/null || true
    done
    ```
-2. **Supervisory Enforcement in `modem-led-monitor`**: In [`msm89xx/base-files/usr/sbin/modem-led-monitor`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/usr/sbin/modem-led-monitor), dynamically checks and locks `4080000.remoteproc:bam-dmux/power/control` to `on` during the 5-second health loop whenever running on HMU05.
-3. **Firstboot Provisioning**: Added HMU05-scoped runtime PM lock in [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
+2. **Supervisory Enforcement in `modem-led-monitor`**: In [`msm89xx/base-files/usr/sbin/modem-led-monitor`](../msm89xx/base-files/usr/sbin/modem-led-monitor), dynamically checks and locks `4080000.remoteproc:bam-dmux/power/control` to `on` during the 5-second health loop whenever running on HMU05.
+3. **Firstboot Provisioning**: Added HMU05-scoped runtime PM lock in [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
 
 ### 9.4 Verification & Results
 - Deployed to live hardware and monitored past the 913-second failure threshold.
@@ -359,17 +361,17 @@ Created kernel patch [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-vol
 
 | Component | Target File | Nature of Fix |
 | :--- | :--- | :--- |
-| **Qualcomm SMSM** | [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch) | Kernel patch: skip local host and validate DT phandles before `mbox_request_channel`. |
-| **FSTools / Preinit** | [`msm89xx/base-files/etc/config/fstab`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/config/fstab) | Shipped default `/etc/config/fstab` for preinit and early hotplug. |
-| **FSTools / Block** | [`openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch) | Check `access(path, R_OK)` before calling `uci_load()` in `config_try_load()`. |
-| **QRTR Daemons** | [`packages/qrtr/files/qrtrns.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/qrtr/files/qrtrns.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
-| **RMTFS Daemon** | [`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
-| **Wi-Fi WCN36xx** | [`msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/817-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Kernel patch: only send `WCN36XX_HAL_8023_MULTICAST_LIST_REQ` on associated STA interfaces. |
-| **PMIC / USB HS PHY** | [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch) | Kernel patch: widen L13 voltage range to 3.05V–3.3V so `regulator_set_voltage_triplet` succeeds. |
-| **HMU05 Modem PM** | [`msm89xx/base-files/etc/init.d/hmu05-modem-pm`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/hmu05-modem-pm) | Init service: lock `control=on` and `autosuspend=-1` for HMU05 remoteproc and BAM-DMUX. |
-| **HMU05 Health Guard** | [`msm89xx/base-files/usr/sbin/modem-led-monitor`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/usr/sbin/modem-led-monitor) | Continual check: ensure BAM-DMUX power control stays `on` across re-enumerations. |
-| **HMU05 Firstboot** | [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Firstboot script: configure HMU05 runtime PM locks upon initial flash. |
-| **Documentation** | [`Docs/Patches/README.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Patches/README.md) | Cataloged new patches 816, 817, and 818. |
-| **Documentation** | [`Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md) | Comprehensive engineering report, root-cause analysis, and live hardware verification. |
+| **Qualcomm SMSM** | [`msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch`](../msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch) | Kernel patch: skip local host and validate DT phandles before `mbox_request_channel`. |
+| **FSTools / Preinit** | [`msm89xx/base-files/etc/config/fstab`](../msm89xx/base-files/etc/config/fstab) | Shipped default `/etc/config/fstab` for preinit and early hotplug. |
+| **FSTools / Block** | [`openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch`](../openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch) | Check `access(path, R_OK)` before calling `uci_load()` in `config_try_load()`. |
+| **QRTR Daemons** | [`packages/qrtr/files/qrtrns.init`](../packages/qrtr/files/qrtrns.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
+| **RMTFS Daemon** | [`packages/rmtfs/files/rmtfs.init`](../packages/rmtfs/files/rmtfs.init) | Remove non-existent `qrtr-tun` modprobe and check `/sys/module/qrtr`. |
+| **Wi-Fi WCN36xx** | [`openwrt-overlay/package/kernel/mac80211/patches/ath/450-wcn36xx-only-send-mc-list-when-sta-associated.patch`](../openwrt-overlay/package/kernel/mac80211/patches/ath/450-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Kernel patch: only send `WCN36XX_HAL_8023_MULTICAST_LIST_REQ` on associated STA interfaces. |
+| **PMIC / USB HS PHY** | [`msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch`](../msm89xx/patches/818-arm64-dts-qcom-msm8916-pm8916-l13-voltage-range.patch) | Kernel patch: widen L13 voltage range to 3.05V–3.3V so `regulator_set_voltage_triplet` succeeds. |
+| **HMU05 Modem PM** | [`msm89xx/base-files/etc/init.d/hmu05-modem-pm`](../msm89xx/base-files/etc/init.d/hmu05-modem-pm) | Init service: lock `control=on` and `autosuspend=-1` for HMU05 remoteproc and BAM-DMUX. |
+| **HMU05 Health Guard** | [`msm89xx/base-files/usr/sbin/modem-led-monitor`](../msm89xx/base-files/usr/sbin/modem-led-monitor) | Continual check: ensure BAM-DMUX power control stays `on` across re-enumerations. |
+| **HMU05 Firstboot** | [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Firstboot script: configure HMU05 runtime PM locks upon initial flash. |
+| **Documentation** | [`Docs/Patches/README.md`](Patches/README.md) | Cataloged new patches 816, 817, and 818. |
+| **Documentation** | [`Docs/BOOT_ERRORS_INVESTIGATION_AND_FIXES.md`](BOOT_ERRORS_INVESTIGATION_AND_FIXES.md) | Comprehensive engineering report, root-cause analysis, and live hardware verification. |
 
 

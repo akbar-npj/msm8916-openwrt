@@ -31,7 +31,7 @@ This guide documents the complete end-to-end workflow used for **building target
 
 **📦 Package feeds & kmods** — **Curated kmod feed**: a hand-picked set of ~109 `=m` kernel modules (USB/network, VPN/IPsec, crypto, filesystems, BT transports) is now compiled into the published feed / offline kmods bundle, so you can `apk add` them without rebuilding. **APK feed signing-key pinning + self-heal**: the stable `public-key.pem` is embedded and `apk-key-refresh` self-heals a stale key at boot/firstboot. `coreutils-stty` and `xxd` ship on every board. Removed the non-working `reboot-fastboot` alias (only `reboot-bootloader` works on this platform).
 
-**📟 Supported devices** — `hmu05`, `ufi001b`, `uz801` (v3), `uf02` (build targets also include `mf800b`).
+**📟 Supported devices** — `hmu05`, `ufi001b`, `uz801` (v3), `uf02`, and `mf800b`.
 
 **⬆️ Upgrading** — From r2 (or any OpenWrt): `sysupgrade` (keep config) is fine and preserves the overlay. The old userspace `modem-a2-hold` is gone — the driver handles the A2 pin now; no action needed. After upgrading, verify the loaded `qcom_bam_dmux.ko` is the new one.
 
@@ -76,7 +76,7 @@ git status
 You can build firmware for individual boards or build all supported boards concurrently:
 
 ```bash
-# Build all boards in diffconfigs/ (hmu05, ufi001b, uz801, uf02)
+# Build all boards in diffconfigs/ (hmu05, ufi001b, uz801, uf02, mf800b)
 ./build.sh build all
 
 # Or build specific boards individually:
@@ -84,6 +84,7 @@ You can build firmware for individual boards or build all supported boards concu
 ./build.sh build ufi001b
 ./build.sh build uz801
 ./build.sh build uf02
+./build.sh build mf800b
 
 # Clean and rebuild (runs `make clean` before compiling):
 ./build.sh rebuild hmu05

@@ -285,7 +285,7 @@ shipped fix, and no baseband patcher (`hmu05-patch-modem`) remains in the tree.
 | Stop the ~900 s fatal | no fatal past 900 s modem-up | ✅ guard ON: 0 crashes through modem-up 902 s (§112.169); cold A/B 0 crashes (§112.170) |
 | No baseband modification | shipped fix touches no firmware | ✅ AP-side userspace only |
 | Survive `sysupgrade` | fix persists across a clean reflash | ✅ in `base-files` + `97-himi-ok` |
-| Board isolation | only the boards that manifest the fatal | ✅ `board_name`-gated init; `*hmu05* *uz801*` (widened 2026-10-09, §11) |
+| Board isolation | only the boards that manifest the fatal | ✅ `board_name`-gated init; `*hmu05* *uz801* *uf02*` (widened 2026-10-09, §11; UF02 added 2026-10-10 after user confirmation) |
 | Causality proven | move the fatal by one constant | ✅ §112.162: `600000→60000 ms` moved the fatal to 360.687 s |
 | Reversibility | disable without reflashing | ✅ `uci set modem-watchdog.recovery.himi_ok_enabled=0` |
 
@@ -316,7 +316,7 @@ confirmed the fix on a second board and raised four hardening points; all four a
 
 | # | Feedback | Change | Files |
 |---|---|---|---|
-| 1 | gate is HMU05-only; UZ801 v3 needs it too | board **allow-list** `*hmu05* *uz801*` (extensible via `uci …himi_ok_boards`); deliberately *not* "all HiMI boards" (UFI001B does not manifest) | `lib/himi-ok.sh`, `etc/init.d/himi-ok`, `etc/uci-defaults/97-himi-ok` |
+| 1 | gate is HMU05-only; UZ801 v3 needs it too | board **allow-list** `*hmu05* *uz801* *uf02*` (extensible via `uci …himi_ok_boards`); deliberately *not* "all HiMI boards" (UFI001B does not manifest) | `lib/himi-ok.sh`, `etc/init.d/himi-ok`, `etc/uci-defaults/97-himi-ok` |
 | 2 | only write when item 2500 is all-zero — a read's `status=0x0000` only means the read succeeded | parse the 128-byte payload; write **only** if all-zero, else leave it and warn once | `usr/sbin/himi-ok-guard` |
 | 3 | `/dev/rpmsg0` is exclusive-open; serialize DIAG use | `flock -x/-u` on `/var/lock/himi-ok-diag.lock` around every read/write | `usr/sbin/himi-ok-guard` |
 | 4 | `diag-bind-watch` rewrites `/root/diag-bind.status` every 2 s on a persistent failure (flash wear) | write the status file **only on a state change** | `packages/diag-bind/files/diag-bind-watch` |

@@ -82,7 +82,7 @@ Disassembly around `0x8b7eec54` – `0x8b7eed50`:
 
 ## 4. Why Kernel Patch 815 is the Definitive Fix
 
-In [`msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch):
+In [`msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](../../../msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch):
 
 ```c
 /*

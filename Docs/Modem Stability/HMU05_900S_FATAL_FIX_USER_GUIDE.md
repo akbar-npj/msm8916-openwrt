@@ -55,8 +55,9 @@ item again. When the `memcmp` passes, **the deadline never arms**.
 > is logged). DIAG access is serialized on `/var/lock/himi-ok-diag.lock` because `/dev/rpmsg0` is
 > exclusive-open.
 
-It is gated by `board_name` to the boards that **manifest** the fatal — `*hmu05*` and `*uz801*`
-(a UZ801 v3 with the same HiMI baseband needs the same fix) — so it is inert on every other board.
+It is gated by `board_name` to the boards that **manifest** the fatal — `*hmu05*`, `*uz801*`
+and `*uf02*` (all three carry the same HiMI baseband and need the same fix) — so it is inert on
+every other board.
 The gate lives in `/lib/himi-ok.sh`; it is deliberately *not* "every HiMI-baseband board", because
 UFI001B (V2.0) carries the same baseband line but does not manifest the crash.
 
@@ -91,9 +92,10 @@ uci commit modem-watchdog
 Tuning: `modem-watchdog.recovery.himi_ok_interval` (seconds between checks; default **20**,
 minimum 5).
 
-**Board gate.** The guard runs on the boards that manifest the fatal (`*hmu05*`, `*uz801*`).
-On another board that shares the HiMI baseband but is not in the list (e.g. `uf02`), enable it
-explicitly — the all-zero safety check makes this safe:
+**Board gate.** The guard runs on the boards that manifest the fatal (`*hmu05*`, `*uz801*`,
+`*uf02*`). Another board that shares the HiMI baseband but does not manifest the crash (e.g.
+`ufi001b`) is left out of the list — enable it explicitly if you want the belt-and-braces; the
+all-zero safety check makes this safe:
 
 ```sh
 uci set modem-watchdog.recovery.himi_ok_boards='*hmu05* *uz801* *uf02*'

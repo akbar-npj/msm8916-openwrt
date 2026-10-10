@@ -7,7 +7,7 @@
 
 ## 1. Primary Binaries & Libraries Extracted
 
-All files are stored in [`Docs/Modem Stability/Stock_Android_Analysis/binaries/`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/binaries/) and [`vendor_libs/`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/vendor_libs/).
+All files are stored in [`Docs/Modem Stability/Stock_Android_Analysis/binaries/`](binaries) and [`vendor_libs/`](vendor_libs).
 
 ### 1. `time_daemon` & `libtime_genoff.so`
 * **Purpose**: QMI Service 22 (ATS / Time Service) host synchronization.

@@ -206,7 +206,7 @@ To prevent the host kernel from putting BAM DMA channels to sleep during network
 1. **Disable Autosuspend Delay**: Set `autosuspend_delay_ms` to `-1`.
 2. **Force Power Control ON**: Set `power/control` to `on`.
 
-Applied dynamically via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) and `/etc/rc.local`:
+Applied dynamically via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) and `/etc/rc.local`:
 ```sh
 for f in $(find /sys/devices/platform/soc@0/4080000.remoteproc/ -name "control"); do
     echo on > "$f" 2>/dev/null || true
@@ -238,7 +238,7 @@ By running the native time synchronization daemon, the modem receives periodic t
 
 ### 3.4 Tier 4: Kernel Sysmon SSR Isolation Patch
 
-Patch [`msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) intercepts subsystem restart notifications in `drivers/remoteproc/qcom_sysmon.c`:
+Patch [`msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](../../msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) intercepts subsystem restart notifications in `drivers/remoteproc/qcom_sysmon.c`:
 
 ```c
 --- a/drivers/remoteproc/qcom_sysmon.c
@@ -349,8 +349,8 @@ wwan0     Link encap:UNSPEC  HWaddr 00-00-00-00-00-00-00-00-00-00-00-00-00-00-00
 
 | Component | Target Location | Description |
 | :--- | :--- | :--- |
-| **No-Sleep Patcher** | [`Docs/Modem Stability/MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md) | Python script and byte offsets for `modem.b16`, `modem.mdt`, and `modem.b01` |
-| **Sysmon SSR Isolation** | [`msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) | Kernel patch preventing WCNSS Wi-Fi crashes on modem restart |
-| **Runtime PM Setup** | [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Disables remoteproc/BAM-DMUX autosuspend power collapse |
-| **QMI Time Service** | [`Docs/Modem Stability/QUALCOMM_MSM8916_MODEM_TIME_SERVICE_REPORT.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/QUALCOMM_MSM8916_MODEM_TIME_SERVICE_REPORT.md) | Reverse-engineered QMI Service 22 IDL specification |
-| **RMTFS Package** | [`packages/rmtfs/`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/) | Shared memory NV filesystem server with full read-write EFS support |
+| **No-Sleep Patcher** | [`Docs/Modem Stability/MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md`](MODEM_FIRMWARE_NO_SLEEP_PATCH_GUIDE.md) | Python script and byte offsets for `modem.b16`, `modem.mdt`, and `modem.b01` |
+| **Sysmon SSR Isolation** | [`msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch`](../../msm89xx/patches/815-qcom-sysmon-ignore-wcnss-modem-ssr.patch) | Kernel patch preventing WCNSS Wi-Fi crashes on modem restart |
+| **Runtime PM Setup** | [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Disables remoteproc/BAM-DMUX autosuspend power collapse |
+| **QMI Time Service** | [`Docs/Modem Stability/QUALCOMM_MSM8916_MODEM_TIME_SERVICE_REPORT.md`](QUALCOMM_MSM8916_MODEM_TIME_SERVICE_REPORT.md) | Reverse-engineered QMI Service 22 IDL specification |
+| **RMTFS Package** | [`packages/rmtfs/`](../../packages/rmtfs) | Shared memory NV filesystem server with full read-write EFS support |

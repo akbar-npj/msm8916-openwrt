@@ -188,10 +188,10 @@ Patches 23 to 26 were applied to eliminate 2G/3G IRAT measurement gap crashes, l
 ## 6. Test Run 6: The Definitive DMA Fix (TX Channel Allocation on Power-On + 30s Grace Period)
 
 ### 6.1 Applied Fixes
-1. **Kernel Driver Patch ([`msm89xx/patches/808-bam-dmux-stats.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/808-bam-dmux-stats.patch)):**
+1. **Kernel Driver Patch ([`msm89xx/patches/808-bam-dmux-stats.patch`](../../msm89xx/patches/808-bam-dmux-stats.patch)):**
    - In `bam_dmux_power_on()`, immediately requests `dmux->tx = dma_request_chan(dev, "tx")` alongside `rx`.
    - Ensures that as soon as the modem powers on, both DMA pipes are fully allocated and ready, completely resolving `Failed to prepare TX DMA buffer`.
-2. **Userspace Grace Period ([`msm89xx/base-files/usr/sbin/modem-led-monitor`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/usr/sbin/modem-led-monitor)):**
+2. **Userspace Grace Period ([`msm89xx/base-files/usr/sbin/modem-led-monitor`](../../msm89xx/base-files/usr/sbin/modem-led-monitor)):**
    - Added a 30-second settling grace period (`[ "${iface_uptime:-0}" -lt 30 ]`) after `modem` interface reaches `up=true` before keepalive pings start, preventing boot-time recovery loops.
 ### 6.2 Build & Flash Verification
 * **Image:** `openwrt-msm89xx-msm8916-generic-hmu05-squashfs-sysupgrade.bin`
@@ -215,7 +215,7 @@ Patches 23 to 26 were applied to eliminate 2G/3G IRAT measurement gap crashes, l
 
 ### 7.1 Soak Test & 15-Minute Baseband Analysis
 * **Initial Observation:** During a 10s keepalive test, the modem ran with 0% packet loss up to 15.0m, but then stalled when left completely idle (`UE In Idle: 'yes'`). When active continuous traffic was sent, the session survived past 24 minutes without stall.
-* **Option A Implementation ([`msm89xx/base-files/usr/sbin/modem-led-monitor`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/usr/sbin/modem-led-monitor)):**
+* **Option A Implementation ([`msm89xx/base-files/usr/sbin/modem-led-monitor`](../../msm89xx/base-files/usr/sbin/modem-led-monitor)):**
   - Configured active 2-second heartbeat (`CHECK_INTERVAL=2`, `KEEPALIVE_INTERVAL=2`).
   - Added traffic-aware passive check (`rx_packets` delta > 0 skips artificial pings).
   - Throttled heavy `mmcli` DBus queries to once every 30s to keep CPU load average at ~0.30.

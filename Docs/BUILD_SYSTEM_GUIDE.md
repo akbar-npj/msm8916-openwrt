@@ -6,7 +6,7 @@ This guide details the architecture, operational workflow, script lifecycle, and
 
 ## 1. Overview & Architectural Principles
 
-The build system automates OpenWrt firmware generation for Qualcomm Snapdragon 410/412 (MSM8916/MSM8916v2) based 4G LTE USB dongles, mobile routers, and development boards (such as `hmu05`, `uf02`, `ufi001b`, `uz801`).
+The build system automates OpenWrt firmware generation for Qualcomm Snapdragon 410/412 (MSM8916/MSM8916v2) based 4G LTE USB dongles, mobile routers, and development boards (such as `hmu05`, `uf02`, `ufi001b`, `uz801`, `mf800b`).
 
 ### Three-Tier Script Architecture
 
@@ -141,6 +141,14 @@ When you run `./build.sh build <board>`:
 | `clean` | (none) | Runs `make clean` inside the OpenWrt tree (cleans target objects). |
 | `dirclean` | (none) | Runs `make dirclean` (cleans targets, toolchain, and staging directories). |
 | `distclean` | (none) | Runs `make distclean` (purges all build artifacts, downloads, and feeds). |
+| `guard` | `[--deep]` | Host-side check that the live OpenWrt tree matches the tracked sources (`msm89xx/`, `packages/`). `--deep` additionally asks `make` whether the next kernel build will re-prepare (wipe `build_dir`) or be incremental. Does **not** require Docker unless `--deep`. |
+| `kernel` | `[board]` | Rebuild only the kernel and its in-tree modules. Without a board, the existing `.config` is reused. |
+| `package` | `<name\|path> [board]` | Rebuild only one package, e.g. `qrtr` or `package/msm8916/qrtr`. |
+| `kmod` | `<name> [board]` | Rebuild only one kernel module (out-of-tree kmods build directly; in-tree modules fall back to the kernel target). |
+
+> [!TIP]
+> `DRY_RUN=1` can be prefixed to any build command to print the OpenWrt `make`
+> invocation instead of executing it (works with every build command).
 
 ---
 

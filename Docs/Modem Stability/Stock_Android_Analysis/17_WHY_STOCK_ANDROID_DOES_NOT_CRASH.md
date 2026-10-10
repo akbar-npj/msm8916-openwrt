@@ -80,9 +80,9 @@ To achieve identical 100% stability in OpenWrt:
 
 1. **Firmware No-Sleep Patch (or QMI Time Service)**:
    * By patching `FUN_c03987e0` (`lte_ml1_sleepmgr_cfg`) to return `-1`, we disable the 900s DRX sleep timer entirely, making the modem immune to clock drift even without Android's proprietary time daemon.
-2. **BAM-DMUX PM Lock ([`808-bam-dmux-stats.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/808-bam-dmux-stats.patch))**:
+2. **BAM-DMUX PM Lock ([`808-bam-dmux-stats.patch`](../../../msm89xx/patches/808-bam-dmux-stats.patch))**:
    * Hold `pm_runtime_resume_and_get()` while `wwan0` is UP, replicating stock Android's persistent DMA mode.
-3. **Read-Write RMTFS ([`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init))**:
+3. **Read-Write RMTFS ([`packages/rmtfs/files/rmtfs.init`](../../../packages/rmtfs/files/rmtfs.init))**:
    * Run with `-P -s` targeting `/dev/disk/by-partlabel/`.
 4. **Device Tree GPIO Alignment**:
    * Ensure `msm8916-generic-hmu05.dts` holds GPIO 119 HIGH and GPIO 114 LOW.

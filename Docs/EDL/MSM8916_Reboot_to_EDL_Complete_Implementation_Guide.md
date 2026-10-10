@@ -155,9 +155,9 @@ The sysupgrade workflow operates as follows:
    ```
 2. **Stage 1 (Backup):** OpenWrt archives network, wireless, and system configuration files into `/tmp/sysupgrade.tgz`.
 3. **Stage 2 (Ramdisk Pivot & Storage Flash):**
-   - The system executes [`/lib/upgrade/stage2`](file:///home/shaanair/Projects/msm8916-openwrt-clean/openwrt/package/base-files/files/lib/upgrade/stage2).
+   - The system executes [`/lib/upgrade/stage2`](../../openwrt/package/base-files/files/lib/upgrade/stage2).
    - Switches root filesystem to RAM (`tmpfs`), detaches all loop/overlay mounts, and mounts `/overlay` as **read-only (`MS_RDONLY`)**.
-   - [`/lib/upgrade/platform.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/lib/upgrade/platform.sh) identifies the target eMMC partitions (`boot` on `p12`/`p13`, `rootfs` on `p14`).
+   - [`/lib/upgrade/platform.sh`](../../msm89xx/base-files/lib/upgrade/platform.sh) identifies the target eMMC partitions (`boot` on `p12`/`p13`, `rootfs` on `p14`).
    - Writes the new Android boot image (kernel + initramfs) to `boot` partition and SquashFS rootfs to `rootfs` partition.
    - Restores configuration into the persistent EXT4 `/dev/mmcblk0p15` (`rootfs_data`).
 4. **Stage 3 (Clean Reboot):** Triggers `/sbin/reboot`. The base-files `umount-overlay` ensures `/overlay` is cleanly flushed before restart.
@@ -165,7 +165,7 @@ The sysupgrade workflow operates as follows:
 #### Vector B: Host-Driven Flashing via EDL or Fastboot
 When upgrading across major partition layout changes or unbricking:
 1. Put device into EDL mode: `reboot-edl`.
-2. Flash raw eMMC partitions using the generated [`msm89xx/image/flash.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/image/flash.sh) (installed as `openwrt-msm89xx-msm8916-<board>-flash.sh`), run from the build output directory. It is two-in-one — pick **`1` Migrate** (stock Android → OpenWrt) or **`2` Update** (existing OpenWrt; `boot` + `rootfs` only):
+2. Flash raw eMMC partitions using the generated [`msm89xx/image/flash.sh`](../../msm89xx/image/flash.sh) (installed as `openwrt-msm89xx-msm8916-<board>-flash.sh`), run from the build output directory. It is two-in-one — pick **`1` Migrate** (stock Android → OpenWrt) or **`2` Update** (existing OpenWrt; `boot` + `rootfs` only):
    ```bash
    cd openwrt/bin/targets/msm89xx/msm8916
    ./openwrt-msm89xx-msm8916-<board>-flash.sh
@@ -180,7 +180,7 @@ When upgrading across major partition layout changes or unbricking:
 
 ## 4. Kernel Patches & Subsystem Integration
 
-All kernel-level reboot and EDL support is consolidated in [`msm89xx/patches/813-msm8916-reboot-to-edl-support.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/813-msm8916-reboot-to-edl-support.patch).
+All kernel-level reboot and EDL support is consolidated in [`msm89xx/patches/813-msm8916-reboot-to-edl-support.patch`](../../msm89xx/patches/813-msm8916-reboot-to-edl-support.patch).
 
 ### 4.1 Device Tree Node (`arch/arm64/boot/dts/qcom/msm8916.dtsi`)
 ```dts
@@ -272,9 +272,9 @@ static int do_msm_poweroff(struct sys_off_data *data)
 
 ### 5.1 Two-Tier Architecture in `packages/reboot-edl/`
 
-1. **Low-Level Syscall Helper ([`packages/reboot-edl/src/reboot-mode-raw.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/src/reboot-mode-raw.c)):**
+1. **Low-Level Syscall Helper ([`packages/reboot-edl/src/reboot-mode-raw.c`](../../packages/reboot-edl/src/reboot-mode-raw.c)):**
    Compiled to `/sbin/reboot-mode-raw`. Strictly dispatches `reboot(LINUX_REBOOT_CMD_RESTART2, cmd)`.
-2. **Safe Orchestrator ([`packages/reboot-edl/files/reboot-mode.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/files/reboot-mode.sh)):**
+2. **Safe Orchestrator ([`packages/reboot-edl/files/reboot-mode.sh`](../../packages/reboot-edl/files/reboot-mode.sh)):**
    Installed to `/sbin/reboot-mode` and symlinked to `/sbin/reboot-edl`, `/sbin/reboot-dload`, `/sbin/reboot-bootloader`, `/sbin/reboot-recovery`.
 
 #### Teardown Script Flow:
@@ -354,7 +354,7 @@ exec /sbin/reboot-mode-raw "$MODE"
 
 ### 5.2 Normal Reboot Clean Umount Hook (`msm89xx/base-files/`)
 
-Created [`msm89xx/base-files/etc/init.d/umount-overlay`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/umount-overlay) (`STOP=98`):
+Created [`msm89xx/base-files/etc/init.d/umount-overlay`](../../msm89xx/base-files/etc/init.d/umount-overlay) (`STOP=98`):
 ```sh
 #!/bin/sh /etc/rc.common
 # Cleanly flush caches and remount rootfs/overlay read-only during system halt/reboot
@@ -378,7 +378,7 @@ shutdown() {
 	stop
 }
 ```
-Enabled automatically on first boot via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
+Enabled automatically on first boot via [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot).
 
 ---
 
@@ -503,10 +503,10 @@ edl reset
 
 | File | Purpose |
 | :--- | :--- |
-| [`msm89xx/patches/813-msm8916-reboot-to-edl-support.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/813-msm8916-reboot-to-edl-support.patch) | Kernel patch for IMEM cookies, SCM EDLOAD mode, PM8916 PON warm reset, PMIC arbiter halt, and PS_HOLD restart handler |
-| [`packages/reboot-edl/src/reboot-mode-raw.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/src/reboot-mode-raw.c) | Minimal AArch64 C binary for low-level `LINUX_REBOOT_CMD_RESTART2` dispatch |
-| [`packages/reboot-edl/files/reboot-mode.sh`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/files/reboot-mode.sh) | Orchestrator script for interface teardown, service stop, daemon termination, read-only remount, and SysRq sync |
-| [`packages/reboot-edl/Makefile`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/reboot-edl/Makefile) | OpenWrt package definition installing binaries and symlinks |
-| [`msm89xx/base-files/etc/init.d/umount-overlay`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/init.d/umount-overlay) | Base-files `STOP=98` service ensuring `/overlay` is cleanly remounted `ro` during standard `/sbin/reboot` |
-| [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Firstboot script enabling `umount-overlay` service |
-| [`Docs/EDL/MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/EDL/MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md) | In-depth technical analysis and step-by-step trace of procd shutdown and EXT4 state flags |
+| [`msm89xx/patches/813-msm8916-reboot-to-edl-support.patch`](../../msm89xx/patches/813-msm8916-reboot-to-edl-support.patch) | Kernel patch for IMEM cookies, SCM EDLOAD mode, PM8916 PON warm reset, PMIC arbiter halt, and PS_HOLD restart handler |
+| [`packages/reboot-edl/src/reboot-mode-raw.c`](../../packages/reboot-edl/src/reboot-mode-raw.c) | Minimal AArch64 C binary for low-level `LINUX_REBOOT_CMD_RESTART2` dispatch |
+| [`packages/reboot-edl/files/reboot-mode.sh`](../../packages/reboot-edl/files/reboot-mode.sh) | Orchestrator script for interface teardown, service stop, daemon termination, read-only remount, and SysRq sync |
+| [`packages/reboot-edl/Makefile`](../../packages/reboot-edl/Makefile) | OpenWrt package definition installing binaries and symlinks |
+| [`msm89xx/base-files/etc/init.d/umount-overlay`](../../msm89xx/base-files/etc/init.d/umount-overlay) | Base-files `STOP=98` service ensuring `/overlay` is cleanly remounted `ro` during standard `/sbin/reboot` |
+| [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot) | Firstboot script enabling `umount-overlay` service |
+| [`Docs/EDL/MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md`](MSM8916_Clean_Reboot_EDL_and_Filesystem_Safety_Analysis.md) | In-depth technical analysis and step-by-step trace of procd shutdown and EXT4 state flags |

@@ -196,7 +196,7 @@ All interaction is handled through `./build.sh`. You rarely need to call `docker
 # 3. Compile firmware for a specific board
 ./build.sh build hmu05
 
-# 4. Compile firmware for all supported boards (hmu05, ufi001b, uz801, uf02)
+# 4. Compile firmware for all supported boards (hmu05, ufi001b, uz801, uf02, mf800b)
 ./build.sh build all
 
 # 5. Clean and rebuild
@@ -236,7 +236,7 @@ In GitHub Actions workflows (e.g. [`.github/workflows/build-and-release.yml`](..
 1. Runner user is `runner` (`UID 1001`, `GID 127` or `1001`).
 2. `./build.sh prepare` automatically captures `HOST_UID=1001` and `HOST_GID=1001` from the runner environment.
 3. The image is built and starts `openwrt-builder`.
-4. Build targets output directly into `openwrt/bin/targets/msm89xx/default/`.
+4. Build targets output directly into `openwrt/bin/targets/msm89xx/msm8916/`.
 5. Checksum generation and release packaging read the files immediately without permission conflicts.
 
 ---

@@ -68,7 +68,7 @@ From our forensic analysis, the 4 specific mechanisms causing failure on OpenWrt
 
 ### Root Cause 2: BAM-DMUX 1-Second Autosuspend Flapping
 * **Android Solution**: BAM DMA descriptors remain permanently active; link dormancy is handled at protocol layer.
-* **OpenWrt Resolution**: In-kernel PM lock ([`808-bam-dmux-stats.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/808-bam-dmux-stats.patch)) holding `pm_runtime_resume_and_get()` while `wwan0` is UP.
+* **OpenWrt Resolution**: In-kernel PM lock ([`808-bam-dmux-stats.patch`](../../../msm89xx/patches/808-bam-dmux-stats.patch)) holding `pm_runtime_resume_and_get()` while `wwan0` is UP.
 
 ### Root Cause 3: RMTFS NV Sync Rejection
 * **Android Solution**: Direct read-write access to eMMC partitions.

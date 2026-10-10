@@ -97,7 +97,7 @@ Extensive testing on physical MSM8916 hardware demonstrated that **no single iso
 ## 3. Detailed Implementation Reference
 
 ### 3.1 Tier 1: Firmware Patching (`hmu05-patch-modem`)
-Located at [`packages/msm-firmware-dumper/src/hmu05-patch-modem.c`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/msm-firmware-dumper/src/hmu05-patch-modem.c):
+Located at [`packages/msm-firmware-dumper/src/hmu05-patch-modem.c`](../../packages/msm-firmware-dumper/src/hmu05-patch-modem.c):
 * Specifically validates HMU05 board identifiers.
 * Checks byte offsets:
   * Offset `0x001117e0` (`lte_ml1_sleepmgr_cfg`): Patches to `00 c4 00 78 00 c0 9f 52`.
@@ -105,7 +105,7 @@ Located at [`packages/msm-firmware-dumper/src/hmu05-patch-modem.c`](file:///home
 * Recomputes SHA-256 and updates `modem.mdt` and `modem.b01`.
 
 ### 3.2 Tier 2: DTS Pin Configuration & Kernel Power Management
-Located at [`msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch) and [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](file:///home/shaanair/Projects/msm8916-openwrt-clean/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot):
+Located at [`msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`](../../msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch) and [`msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`](../../msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot):
 * Configures TLMM GPIO hogs for `sim1_en` (119), `sim2_en` (14), `sim3_en` (12), and `sim_hotplug` (114).
 * Sets `led_g` (GPIO 71 / 4G RF power) to default ON, `led_b` (GPIO 73 / Wi-Fi) to default ON, and `led_r` (GPIO 72 / 4G type) to default OFF.
 * Automatically configures runtime PM on boot:
@@ -119,7 +119,7 @@ Located at [`msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`
   ```
 
 ### 3.3 Tier 3: Read-Write `rmtfs` Storage Service
-Located at [`packages/rmtfs/files/rmtfs.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/rmtfs/files/rmtfs.init) and [`packages/msm-firmware-dumper/files/msm-firmware-dumper.init`](file:///home/shaanair/Projects/msm8916-openwrt-clean/packages/msm-firmware-dumper/files/msm-firmware-dumper.init):
+Located at [`packages/rmtfs/files/rmtfs.init`](../../packages/rmtfs/files/rmtfs.init) and [`packages/msm-firmware-dumper/files/msm-firmware-dumper.init`](../../packages/msm-firmware-dumper/files/msm-firmware-dumper.init):
 * Procd service starts `/usr/sbin/rmtfs -P -s` with `oom_score_adj -17`.
 * Populates symlinks in `/dev/disk/by-partlabel/` for `modemst1`, `modemst2`, `fsg`, and `fsc`.
 * Starts `rmtfs` and pauses 1 second *before* triggering `remoteproc` start, preventing early EFS2 read drops.

@@ -116,19 +116,19 @@ All requested targets have been pulled, decompiled, disassembled, and documented
 
 | Target | Status | Location in Documentation |
 |:---|:---|:---|
-| `/system/bin/rild` | ✅ RE Complete | [`66_rild_disasm.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/66_rild_disasm.txt) |
-| `/system/bin/qmuxd` | ✅ RE Complete | [`58_qmuxd_full_disassembly.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/58_qmuxd_full_disassembly.txt), [`59`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/59_QMIPROXY_AND_QMUXD_REVERSE_ENGINEERING_REPORT.md) |
-| `/system/bin/netmgrd` | ✅ RE Complete | [`51_ghidra_netmgrd_RE.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/51_ghidra_netmgrd_RE.txt) |
+| `/system/bin/rild` | ✅ RE Complete | [`66_rild_disasm.txt`](66_rild_disasm.txt) |
+| `/system/bin/qmuxd` | ✅ RE Complete | [`58_qmuxd_full_disassembly.txt`](58_qmuxd_full_disassembly.txt), [`59`](59_QMIPROXY_AND_QMUXD_REVERSE_ENGINEERING_REPORT.md) |
+| `/system/bin/netmgrd` | ✅ RE Complete | [`51_ghidra_netmgrd_RE.txt`](51_ghidra_netmgrd_RE.txt) |
 | `/system/bin/wdsdaemon` | ✅ Replaced by netmgrd/libqmi | Documented in WDS specifications |
-| `/system/bin/qseecomd` | ✅ RE Complete | [`67_qseecomd_disasm.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/67_qseecomd_disasm.txt) |
-| `/system/bin/healthd` | ✅ RE Complete | [`hw_libs/`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/hw_libs/) |
-| `/system/bin/thermal-engine` | ✅ RE Complete | [`52_ghidra_thermal_engine_RE.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/52_ghidra_thermal_engine_RE.txt) |
-| `/system/bin/mpdecision` | ✅ RE Complete | [`68_mpdecision_disasm.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/68_mpdecision_disasm.txt) |
-| `/system/vendor/lib/libril-qc-qmi-1.so` | ✅ RE Complete | [`69_libril_qc_qmi_1_symbols_and_summary.txt`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/69_libril_qc_qmi_1_symbols_and_summary.txt) |
-| `libqmi.so`, `libqmiservices.so`, `libqmi_cci.so` | ✅ RE Complete | [`63`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/63_libqmiservices_full_disasm.txt), [`64`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/64_libqmi_cci_full_disasm.txt), [`65`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/65_MASTER_QMI_COMMANDS_AND_SERVICES_SPECIFICATION.md) |
-| `/init.rc`, `/init.qcom.rc`, `/init.qcom.ssr.sh` | ✅ Analyzed | Stored in [`Stock_Android_Analysis/`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/) |
-| `/sys/firmware/fdt` & Device Tree | ✅ 23 DTS Decompiled | [`dtb/stock_dts_3.dts`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/dtb/stock_dts_3.dts) |
-| `/firmware/image/modem.*` | ✅ Byte Offsets Verified | [`40`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/40_MASTER_CRASH_INVESTIGATION_GUIDE.md), [`53`](file:///home/shaanair/Projects/msm8916-openwrt-clean/Docs/Modem%20Stability/Stock_Android_Analysis/53_GHIDRA_STOCK_ANDROID_RE_REPORT.md) |
+| `/system/bin/qseecomd` | ✅ RE Complete | [`67_qseecomd_disasm.txt`](67_qseecomd_disasm.txt) |
+| `/system/bin/healthd` | ✅ RE Complete | [`hw_libs/`](hw_libs) |
+| `/system/bin/thermal-engine` | ✅ RE Complete | [`52_ghidra_thermal_engine_RE.txt`](52_ghidra_thermal_engine_RE.txt) |
+| `/system/bin/mpdecision` | ✅ RE Complete | [`68_mpdecision_disasm.txt`](68_mpdecision_disasm.txt) |
+| `/system/vendor/lib/libril-qc-qmi-1.so` | ✅ RE Complete | [`69_libril_qc_qmi_1_symbols_and_summary.txt`](69_libril_qc_qmi_1_symbols_and_summary.txt) |
+| `libqmi.so`, `libqmiservices.so`, `libqmi_cci.so` | ✅ RE Complete | [`63`](63_libqmiservices_full_disasm.txt), [`64`](64_libqmi_cci_full_disasm.txt), [`65`](65_MASTER_QMI_COMMANDS_AND_SERVICES_SPECIFICATION.md) |
+| `/init.rc`, `/init.qcom.rc`, `/init.qcom.ssr.sh` | ✅ Analyzed | Stored in [`Stock_Android_Analysis/`](.) |
+| `/sys/firmware/fdt` & Device Tree | ✅ 23 DTS Decompiled | [`dtb/stock_dts_3.dts`](dtb/stock_dts_3.dts) |
+| `/firmware/image/modem.*` | ✅ Byte Offsets Verified | [`40`](40_MASTER_CRASH_INVESTIGATION_GUIDE.md), [`53`](53_GHIDRA_STOCK_ANDROID_RE_REPORT.md) |
 
 ---
 *Report logged in Docs/Modem Stability/Stock_Android_Analysis/70_FULL_STOCK_ANDROID_ECOSYSTEM_MASTER_RE_REPORT.md*
