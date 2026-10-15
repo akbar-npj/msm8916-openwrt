@@ -72,6 +72,21 @@ define Device/generic-ufi001b
 endef
 TARGET_DEVICES += generic-ufi001b
 
+define Device/generic-ufi003-mb-v02
+	$(Device/msm8916)
+	DEVICE_VENDOR := UFI
+	DEVICE_MODEL := UFI003 MB V02
+	DEVICE_DTS := msm8916-generic-ufi003_mb_v02
+	SUPPORTED_DEVICES := ufi003,mb-v02
+	FILESYSTEMS := squashfs
+	GPT_TOT_SECTORS := 7634944
+	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		diag-efs diag-logtool
+endef
+TARGET_DEVICES += generic-ufi003-mb-v02
+
 define Device/generic-hmu05
 	$(Device/msm8916)
 	DEVICE_VENDOR := Generic

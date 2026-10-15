@@ -582,6 +582,7 @@ The MSM8916 target builds board-specific DTBs such as:
 
 ```text
 image-msm8916-generic-ufi001b.dtb
+image-msm8916-generic-ufi003_mb_v02.dtb
 image-msm8916-generic-hmu05.dtb
 image-msm8916-generic-uf02.dtb
 image-msm8916-yiming-uz801v3.dtb

@@ -13,7 +13,7 @@ graph TD
     A["Trigger: Git Tag (v*) or Workflow Dispatch"] --> B["GitHub Runner (ubuntu-latest)"]
     B --> C["Step 1-3: Checkout Repo, Strip Disk Bloat (+35GB), Set Version"]
     C --> D["Step 4: Build Docker Container & Run openwrt-prepare.sh"]
-    D --> E["Step 5: ./build.sh build all (hmu05, ufi001b, uz801, uf02, mf800b)"]
+    D --> E["Step 5: ./build.sh build all (hmu05, ufi001b, ufi003, uz801, uf02, mf800b)"]
     E --> F["Step 6: Build CUPS Print Server & Drivers in Container"]
     F --> G["Step 7: Bundle Offline Kmods & Compute sha256sums"]
     G --> H["Step 8-9: Deploy APK Feeds to GitHub Pages (gh-pages)"]
@@ -83,12 +83,13 @@ jobs:
 
 ### Step 5: Compile All Firmware Images
 - Runs `./build.sh build all` inside the container.
-- Compiles OpenWrt kernel (`boot.img`), SquashFS rootfs (`system.img`), and sysupgrade archives (`sysupgrade.bin`) across all 5 supported boards:
+- Compiles OpenWrt kernel (`boot.img`), SquashFS rootfs (`system.img`), and sysupgrade archives (`sysupgrade.bin`) across all 6 configured boards:
   1. `hmu05` (Generic MSM8916 4G USB Dongle / Router)
   2. `ufi001b` (Generic UFI001B 4G Stick)
-  3. `uz801` (YiMing UZ801v3 4G Stick)
-  4. `uf02` (Generic UF02 250605 V0S 4G Stick)
-  5. `mf800b` (Generic MF800B 4G MiFi)
+  3. `ufi003` (UFI003 MB V02 4G Stick)
+  4. `uz801` (YiMing UZ801v3 4G Stick)
+  5. `uf02` (Generic UF02 250605 V0S 4G Stick)
+  6. `mf800b` (Generic MF800B 4G MiFi)
 
 ### Step 6: Compile Extra Packages (CUPS Print Server)
 - Executes `make package/msm8916/cups/compile package/index V=s`.

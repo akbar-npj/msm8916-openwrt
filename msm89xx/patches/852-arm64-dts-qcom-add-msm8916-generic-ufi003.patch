@@ -1,0 +1,107 @@
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts
+@@ -0,0 +1,104 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "UFI003_MB_V02 4G Modem Stick";
++	compatible = "ufi003,mb-v02", "qcom,msm8916";
++};
++
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++	};
++};
++
++&button_restart {
++	gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
++};
++
++&button_default {
++	pins = "gpio37";
++	bias-pull-down;
++};
++
++/*
++ * Match the DTS class assignments used by UFI001B/UZ801/UF02. The shared LED
++ * scripts use their color fallbacks: green for Wi-Fi and blue for cellular.
++ */
++&{/leds} {
++	/delete-node/ led-r;
++	/delete-node/ led-g;
++	/delete-node/ led-b;
++
++	led-wan-green {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_GREEN>;
++		gpios = <&tlmm 21 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++	};
++
++	led-wlan-blue {
++		function = LED_FUNCTION_WLAN;
++		color = <LED_COLOR_ID_BLUE>;
++		gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++	};
++
++	led-power-red {
++		function = LED_FUNCTION_POWER;
++		color = <LED_COLOR_ID_RED>;
++		gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>;
++		default-state = "on";
++	};
++};
++
++&gpio_leds_default {
++	pins = "gpio20", "gpio21", "gpio22";
++};
++
++&tlmm {
++	esim_sel {
++		gpio-hog;
++		gpios = <0 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "esim_sel";
++	};
++
++	sim_en {
++		gpio-hog;
++		gpios = <1 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim_en";
++	};
++
++	sim_sel {
++		gpio-hog;
++		gpios = <2 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "sim_sel";
++	};
++
++	esim2_sel {
++		gpio-hog;
++		gpios = <3 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "esim2_sel";
++	};
++
++	lte_aux {
++		gpio-hog;
++		gpios = <68 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "4G_L3";
++	};
++};

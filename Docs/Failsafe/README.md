@@ -153,6 +153,7 @@ Then use the flashing tooling in [`Docs/EDL/`](../EDL/) and the project
 |---------|---------------------|------------------------|----------------------------------|--------------|
 | HMU05   | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
 | UFI001B | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
+| UFI003  | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
 | UF02    | `tlmm 23`           | active-high, pull-down | `red`                            | `red`        |
 | UZ801   | `tlmm 23`           | active-high, pull-down | `green:wlan` (no red on some)    | `green:wlan` |
 | MF800B  | `tlmm 102`          | active-high, pull-down | `red:wlan`, `red:wan`, `red:charging` | all red LEDs |
