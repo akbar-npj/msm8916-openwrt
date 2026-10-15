@@ -1,0 +1,23 @@
+{
+    "luci-app-modem-watchdog": {
+        "description": "Grant access to modem watchdog configuration",
+        "read": {
+            "uci": ["modem-watchdog"],
+            "file": {
+                "/etc/config/modem-watchdog": ["read"]
+            },
+            "ubus": {
+                "service": ["list"]
+            }
+        },
+        "write": {
+            "uci": ["modem-watchdog"],
+            "file": {
+                "/etc/config/modem-watchdog": ["write"]
+            },
+            "ubus": {
+                "service": ["list"]
+            }
+        }
+    }
+}

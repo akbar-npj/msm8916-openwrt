@@ -1,10 +1,40 @@
-# Release Notes
+﻿# Release Notes
 
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
 > This file is the body of every GitHub release (`body_path: RELEASE_NOTES.md` in
 > the CI workflow). It keeps the **latest 5** release entries, newest first. Older
 > entries live in the wiki and in this file's git history.
+
+---
+
+### v25.12.5-r4-mobile-fix (2026-10-15) — mobile-use stability (opt-in)
+
+*Built on top of v25.12.5-r4: keeps the stationary-default watchdog profile, adds an opt-in "mobile_optimized" mode for in-vehicle handovers.*
+
+**Why this release** — Three real-world problems were root-caused on a UZ801V3 running as a car router. Fix #1 (never overwrite a manually configured APN) was cherry-picked onto main by the maintainer (90d66ca0 + 1563610f1). Fix #3 (bam-dmux rc.local pin) was dropped after review: kernel patches 848/849/851 keep the bam-dmux child's `power/control` at `on` via DT; a userspace override is redundant and riskier.
+
+**New in this release — opt-in mobile watchdog profile**
+
+* `option mobile_optimized '1'` in `/etc/config/modem-watchdog` forces the validated mobile profile: `stall_timeout=30` / `check_interval=5`.
+* The shipped default stays `60 / 10` (Android DcTracker parity); stationary deployments are unaffected.
+* The watchdog script keeps a hard floor at 30/5 (the old 15/2 tuning caused too many Stage-2 interface teardowns).
+
+**What to set if you use the dongle in a car**
+```sh
+uci set modem-watchdog.general.mobile_optimized='1'
+uci commit modem-watchdog
+/etc/init.d/modem-bearer-watchdog restart
+```
+
+**Carriers/SIMs** — the autocfg fallback no longer silently overwrites a manually configured APN when it cannot identify the SIM. For a declarative, sysupgrade-proof setup, add your carrier to `/etc/qcom-carrier-autocfg/custom-apns.tsv` (Priority 1), e.g.:
+```tsv
+31084	RedteaGO	globaldata	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+```
+
+**Boards built** — all supported boards (hmu05, ufi001b, uz801, uf02, mf800b) plus the offline kmod bundle.
+
+**Checksums** — sha256sums are included in the release assets.
 
 ---
 

@@ -10,6 +10,26 @@ config watchdog 'general'
 	option check_interval '10'
 	option cooldown_seconds '60'
 
+	# Mobile-profile tuning (opt-in):
+	#
+	#   In a moving vehicle the modem hands over between cells every few
+	#   seconds.  Each handover can produce a short traffic-stall window on
+	#   the wwan bearer.  With the shipped 60 s timeout, the watchdog detects
+	#   a genuine stall only after the user has already experienced a full
+	#   minute of "no internet" -- then connection recovery takes another
+	#   ~16 s, and the *next* handover may arrive before the session is
+	#   stable again.  The result is a duty cycle: ~60 s blind, ~16 s
+	#   reconnect, blind again.
+	#
+	#   Set mobile_optimized to '1' to halve both timers.  This shortens the
+	#   blind window to ~35 s.  It also doubles the Stage-2 (interface
+	#   teardown) trigger rate, so leave it off for stationary deployments.
+	#   The safely-validated values are hard-coded in the watchdog script:
+	#   stall_timeout=30 / check_interval=5; never go below that.
+	#
+	#   Only users who actually carry the device in a vehicle need this.
+	option mobile_optimized '0'
+
 config keepalive 'keepalive'
 	# DISABLED: stock Android has no DNS keepalive.  It relies on the modem's
 	# own DRX/paging and on DcTracker's indication-driven dormancy state

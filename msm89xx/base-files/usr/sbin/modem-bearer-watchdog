@@ -185,8 +185,21 @@ while true; do
         continue
     fi
 
-    STALL_TIMEOUT=$(uci -q get modem-watchdog.general.stall_timeout || echo 30)
-    CHECK_INTERVAL=$(uci -q get modem-watchdog.general.check_interval || echo 5)
+    # Mobile-profile override (opt-in): in-vehicle deployments hit a stall
+    # window at every handover, so the blind-detection period must shrink
+    # below one DHCP/HSPA refresh.  mobile_optimized=1 forces the validated
+    # mobile values (30 s / 5 s) regardless of the shipped config; the floor
+    # is never lowered further -- the old 15 s/2 s setting drove too many
+    # Stage-2 interface teardowns and could wedge RTNL for the rest of
+    # the boot.
+    MOBILE_OPTIMIZED=$(uci -q get modem-watchdog.general.mobile_optimized || echo 0)
+    if [ "$MOBILE_OPTIMIZED" = "1" ]; then
+        STALL_TIMEOUT=30
+        CHECK_INTERVAL=5
+    else
+        STALL_TIMEOUT=$(uci -q get modem-watchdog.general.stall_timeout || echo 30)
+        CHECK_INTERVAL=$(uci -q get modem-watchdog.general.check_interval || echo 5)
+    fi
     COOLDOWN_SECS=$(uci -q get modem-watchdog.general.cooldown_seconds || echo 60)
     KEEPALIVE_ENABLED=$(uci -q get modem-watchdog.keepalive.enabled || echo 1)
     KEEPALIVE_INTERVAL=$(uci -q get modem-watchdog.keepalive.interval || echo 10)
