@@ -126,11 +126,13 @@ Template (condensed from `807-arm64-dts-qcom-add-msm8916-generic-mf800b.patch`):
 };
 
 /*
- * Charger + voltage-mode BMS. The ufi .dtsi enables BOTH pm8916_usbin and
- * pm8916_charger, which claim the same SPMI register / usb_vbus interrupt, so
- * only one can bind. Disable usbin and bind the charger (it also provides the
- * extcon session-valid the USB PHY needs). Keep this block unless your board
- * genuinely uses the usbin extcon instead.
+ * Battery charger and voltage-mode BMS are board-specific. In the pinned
+ * Linux 6.12 tree, the base PM8916 DTS leaves pm8916_charger disabled and
+ * msm8916-ufi.dtsi enables pm8916_usbin as the USB extcon. A battery-equipped
+ * board may need the MF800B-style charger/BMS setup instead; do not enable
+ * both paths because they share PMIC USB detection resources. A bus-powered
+ * stick without a battery should keep the usbin extcon and omit battery/BMS
+ * nodes.
  */
 &pm8916_usbin   { status = "disabled"; };
 &pm8916_charger {
@@ -206,10 +208,11 @@ TARGET_DEVICES += generic-<board>
 Notes:
 
 * **`DEVICE_DTS`** must equal the `.dts` basename you created in §1.
-* **`SUPPORTED_DEVICES`** is matched against the DTB `compatible` during a
-  `sysupgrade`. If it does not match, upgrades are refused. The convention here
-  is the *reverse* of the DTS `compatible` order
-  (`<board>,generic` ↔ `mf800b,generic`).
+* **`SUPPORTED_DEVICES`** must include the board identifier accepted by the
+  target's sysupgrade compatibility check. In this tree it normally matches
+  the board-specific first DTS compatible string (for example,
+  `compatible = "mf800b,generic", ...` with
+  `SUPPORTED_DEVICES := mf800b,generic`). Keep the spelling consistent.
 * **`DEVICE_PACKAGES`** — start from the common set above. Add board-unique
   packages only if the board needs them (example: `qcom-time-daemon` is
   `generic-hmu05`-only, because it anchors the HMU05 modem's ATS state and its
@@ -367,12 +370,17 @@ never bricks the modem NV.
 
 * `cat /tmp/sysinfo/board_name` → should print `<board>,generic`.
 * `ls /sys/class/leds/` → your named LEDs exist.
-* Long-press the reset button → device powers off (after the goodbye blink).
+* Button behavior depends on the DTS key code. On the UFI-family boards the
+  Restart input is `KEY_RESTART`: after boot, a short press is ignored and a
+  hold of at least five seconds performs factory reset plus reboot. It does
+  not power the device off; the goodbye-blink power-off handler applies only
+  to a separate `KEY_POWER` input.
 * Modem: `mmcli -L` shows the modem; `mmcli -m 0` shows signal / registration.
 * Wi-Fi: the `OpenWrt` AP is broadcast.
-* **Failsafe**: with the device off, press-and-hold the button ~7 s while
-  connecting USB; you should be able to reach `192.168.10.1` (root shell over
-  the USB gadget).
+* **Failsafe**: tap Restart once during the first seven seconds of boot; do not
+  hold it for seven seconds. You should be able to reach `192.168.10.1` (root
+  shell over the USB gadget). A long hold after boot invokes the reset-button
+  handler instead.
 
 ---
 
@@ -389,8 +397,9 @@ never bricks the modem NV.
    `rc.button/power` look for specific names (`green:wlan`, `green:wan`,
    `*:power`, `*:charging`). Either name your DTS LEDs to match, or add a
    board branch.
-4. **`SUPPORTED_DEVICES` ≠ DTS `compatible`.** A mismatch makes `sysupgrade`
-   refuse to apply the new image. Keep them consistent.
+4. **`SUPPORTED_DEVICES` must match the DTS board identity.** A mismatch can
+   make `sysupgrade` refuse to apply the image. Keep the board identifier
+   consistent with the first, board-specific `compatible` string.
 5. **`board_name` changes after merge.** Base-files scripts glob on it. Pick a
    stable first `compatible` string and don't rename it later.
 6. **Copied a diffconfig but forgot to change the `DEVICE_*` line.** You'll
@@ -411,7 +420,7 @@ never bricks the modem NV.
   - [ ] `button_restart` GPIO + `button_default` bias
   - [ ] charger / bms / usb extcon blocks (or a documented reason to omit)
   - [ ] battery node (if a cell is present)
-- [ ] **DBT registration** in `msm89xx/patches/801-...-makefile.patch`
+- [ ] **DTB registration** in `msm89xx/patches/801-...-makefile.patch`
 - [ ] **Device profile** in `msm89xx/image/msm8916.mk` (`TARGET_DEVICES += generic-<board>`)
   - [ ] `DEVICE_DTS` matches the `.dts` basename
   - [ ] `SUPPORTED_DEVICES` matches the DTS `compatible`

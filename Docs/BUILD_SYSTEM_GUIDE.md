@@ -6,7 +6,7 @@ This guide details the architecture, operational workflow, script lifecycle, and
 
 ## 1. Overview & Architectural Principles
 
-The build system automates OpenWrt firmware generation for Qualcomm Snapdragon 410/412 (MSM8916/MSM8916v2) based 4G LTE USB dongles, mobile routers, and development boards (such as `hmu05`, `uf02`, `ufi001b`, `uz801`, `mf800b`).
+The build system automates OpenWrt firmware generation for Qualcomm Snapdragon 410/412 (MSM8916/MSM8916v2) based 4G LTE USB dongles, mobile routers, and development boards (such as `hmu05`, `uf02`, `ufi001b`, `ufi003`, `uz801`, `mf800b`).
 
 ### Three-Tier Script Architecture
 
@@ -206,6 +206,26 @@ Primarily called by `build.sh` inside Docker, but can also be invoked manually i
    ```bash
    ./build.sh build <board>
    ```
+
+### Adding a Hardware Board
+
+Adding a physical board requires more than adding a DTS file; OpenWrt must
+register and select the board-specific DTB:
+
+1. Add a board DTS patch under `msm89xx/patches/`.
+2. Register its DTB in the Qualcomm `arch/arm64/boot/dts/qcom/Makefile` patch.
+3. Add a `Device/<profile>` entry to `msm89xx/image/msm8916.mk` with an
+   explicit `DEVICE_DTS`, unique `SUPPORTED_DEVICES`, appropriate packages,
+   and any board-specific GPT sector count.
+4. Add `diffconfigs/<board>` selecting the new profile.
+5. Verify the board RAM map, GPIO states, and eMMC/GPT geometry.
+6. Build with `./build.sh build <board>` and inspect the generated boot image
+   and embedded DTB before flashing.
+
+The tag release and selective rebuild workflows discover boards through
+`diffconfigs/`. The legacy manually dispatched `build.yml` still has a fixed
+device list and references the old `diffconfig_<board>` naming, so it is not a
+reliable UFI003 build path without separate maintenance.
 
 ---
 
