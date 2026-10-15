@@ -35,6 +35,9 @@ firmware only adds the trigger and the reachability for a headless dongle.
   uses the **red** LED where the board has one, otherwise the **green** LED
   (UZ801 v3), otherwise any LED.
 
+> **UZ801 status:** GPIO23 responds to the button and was observed high while
+> idle; its DTS now uses active-low/pull-up. The complete failsafe flow is not
+> working yet on UZ801, so do not rely on the button for recovery there.
 **Option B — serial console.** If you have a UART connected to the kernel
 console (`ttyMSM0`, 115200), press **`f`** then Enter during the same window.
 
@@ -99,9 +102,10 @@ Notes:
 
 - **No new USB device on the host?** Try a different USB cable/port; the NCM
   gadget needs USB data lines, not a charge-only cable.
-- **Button did nothing?** The window is only 7 s from power-on. Press earlier.
-  Only the HMU05 button is verified live; the UFI001B, UF02, UZ801 and MF800B
-  buttons are declared active-high/pull-down but not yet confirmed on hardware —
+- **Button did nothing?** The 7-second window starts during preinit, not
+  at power-on. HMU05's button-driven failsafe flow is verified.
+  UZ801's button response and idle level are verified, but its failsafe flow is
+  not working yet. UFI001B, UF02 and MF800B buttons are declared active-high/pull-down but not yet confirmed on hardware —
   if yours does nothing, use the serial `f` key instead and report it.
 - **Everything is dead?** Fall back to EDL (section 3).
 
@@ -154,7 +158,7 @@ Then use the flashing tooling in [`Docs/EDL/`](../EDL/) and the project
 | HMU05   | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
 | UFI001B | `tlmm 37`           | active-high, pull-down | `red:power`                      | `red:power`  |
 | UF02    | `tlmm 23`           | active-high, pull-down | `red`                            | `red`        |
-| UZ801   | `tlmm 23`           | active-high, pull-down | `green:wlan` (no red on some)    | `green:wlan` |
+| UZ801   | `tlmm 23`           | active-low, pull-up    | `green:wlan` (no red on some)    | `green:wlan` |
 | MF800B  | `tlmm 102`          | active-high, pull-down | `red:wlan`, `red:wan`, `red:charging` | all red LEDs |
 
 > ⚠ **The button's polarity and bias must match the hardware, or the button is
