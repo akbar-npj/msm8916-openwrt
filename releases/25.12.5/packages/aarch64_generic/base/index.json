@@ -64,6 +64,7 @@
     "logd": "2025.10.30~6f78fa49-r1",
     "lsblk": "2.41.5-r1",
     "lua": "5.1.5-r11",
+    "luci-app-modem-watchdog": "1.0-r1",
     "luci-app-sms-manager": "1.0.9-r20260225",
     "luci-app-usb-gadget": "1.0-r1",
     "mkf2fs": "1.16.0-r4",
