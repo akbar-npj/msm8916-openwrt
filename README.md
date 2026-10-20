@@ -491,7 +491,7 @@ Tuning lives in `/etc/config/sim-hotplug`: `idle_interval` (60), `active_interva
 The service uses `qmicli --device-open-proxy` (sharing the port with ModemManager through `qmi-proxy`), one short-lived client at a time, always under `timeout`; it never issues `mmcli -r` or an SSR itself. This avoids the `ClientIdsExhausted` failure that a naive `qmicli` poll loop causes.
 
 > [!IMPORTANT]
-> Hot-swap is implemented and verified on **HMUF02-V5 only**. It depends on that board's GPIO114 `sim_hotplug` node; the other boards have no such line. Full detail and the board matrix: **[`Docs/SIM_HOT_SWAP.md`](Docs/SIM_HOT_SWAP.md)**.
+> Hot-swap is implemented and verified on **HMUF02-V5 only** (GPIO114 `sim_hotplug`). The other boards' current DTS do not expose such a node, but the hardware **may** still have the line — this is **untested**. Device owners should verify it: full procedure and board matrix in **[`Docs/SIM_HOT_SWAP.md`](Docs/SIM_HOT_SWAP.md)**.
 
 ### Custom SIM Carrier Installation
 

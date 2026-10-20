@@ -1,13 +1,18 @@
 # Physical SIM Hot-Swap
 
 **Status:** implemented and live-verified on **HMUF02-V5 only**.
-**Scope:** not implemented on `uz801`, `ufi001b`, `ufi003`, `uf02` or `mf800b`.
+**Other boards:** **untested** — the hardware *may* expose a usable
+`sim_hotplug` line, but nobody has verified it yet. See
+[Testing on another board](#testing-on-another-board).
 **Service:** `sim-hotplug` (`/etc/init.d/sim-hotplug`, `/usr/sbin/sim-hotplug`).
 
-> **Board scope.** Only the HMUF02-V5 device tree exposes the `sim_hotplug`
-> line (TLMM GPIO114) as a userspace-controllable `gpio-leds` node. The
-> other boards have no such node, so the service cannot re-announce a card
-> there — see [Board support](#board-support).
+> **Board scope.** Hot-swap is **verified only on HMUF02-V5**, whose device tree
+> exposes the `sim_hotplug` line (TLMM GPIO114) as a
+> userspace-controllable `gpio-leds` node. The other boards' **current DTS
+> in this repo do not define such a node** — but that does **not** mean the
+> hardware lacks the line. It may be present and simply not exposed.
+> **Device owners should verify it** with the procedure below before assuming
+> hot-swap is unsupported on their board.
 
 ## Why this exists
 
@@ -98,34 +103,71 @@ when the same card goes back in. If a *different* card is inserted that quickly,
 run `/etc/init.d/sim-hotplug rescan` — or let the bearer watchdog's SSR
 re-initialise UIM when data fails.
 
-## Board support
+## Board status
 
-| Board | `sim_hotplug` node in DTS | Hot-swap |
+| Board | `sim_hotplug` node in current DTS | Hot-swap |
 | :--- | :--- | :--- |
 | `hmuf02v5` (HMUF02-V5) | **yes** — patch 805, `&tlmm 114` | **implemented + verified** |
-| `uz801` | no | not implemented |
-| `ufi001b` | no | not implemented |
-| `ufi003` | no | not implemented |
-| `uf02` | no | not implemented |
-| `mf800b` | no | not implemented |
+| `uz801` | not exposed | **untested — verify** |
+| `ufi001b` | not exposed | **untested — verify** |
+| `ufi003` | not exposed | **untested — verify** |
+| `uf02` | not exposed | **untested — verify** |
+| `mf800b` | not exposed | **untested — verify** |
 
-Only patch **805** defines `/sim-presence/sim_hotplug`
-(`gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>`). On the other boards the
-service still starts (it ships in the shared `base-files`) but
-`pulse_sim` finds no writable LED node and returns failure, so it
-cannot re-announce an inserted card.
+Only patch **805** currently defines `/sim-presence/sim_hotplug`
+(`gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>`). The service ships in the
+shared `base-files` and is `enabled 1` on every board. On a board
+with no writable `/sys/class/leds/sim_hotplug/brightness`,
+`pulse_sim` fails, so the service keeps polling UIM but can never
+re-announce an inserted card.
 
-## Enabling on another board
+## Testing on another board
 
-Not assumed to work. It requires all of:
+Please do this on real hardware. **Do not pulse a GPIO you have not identified**
+— a pulse on an unrelated line can disturb other hardware.
 
-1. A spare GPIO actually wired to the baseband's SIM re-detect line.
-2. A `gpio-leds` node exposing it (as patch 805 does for GPIO114).
-3. Confirming the modem reacts to a pulse on that board's firmware.
-4. An end-to-end swap test on real hardware.
+1. **Look for an existing node.**
 
-Do not enable it on a board without verifying 1–4; a pulse on an unrelated line
-can disturb other hardware.
+   ```sh
+   ls -l /sys/class/leds/ | grep -i sim
+   cat /sys/firmware/devicetree/base/sim-presence/sim_hotplug/gpios 2>/dev/null
+   grep -ril 'sim' /sys/firmware/devicetree/base/ 2>/dev/null | head
+   ```
+
+   If `/sys/class/leds/sim_hotplug/brightness` exists, the line is
+   already exposed — skip to step 3.
+
+2. **Find the line from the board.** Check the schematic / vendor DTS for a
+   GPIO wired to the baseband's SIM re-detect. Compare with the HMUF02-V5
+   wiring (GPIO114, active-high). If the line exists but is not exposed, add a
+   `gpio-leds` node like patch 805, or drive it temporarily with
+   `gpioset` (from `libgpiod-tools`).
+
+3. **Confirm the modem reacts.** With a card present:
+
+   ```sh
+   qmicli --device-open-proxy -d /dev/wwan0qmi0 --uim-get-card-status
+   echo 255 > /sys/class/leds/sim_hotplug/brightness; sleep 0.3
+   echo 0   > /sys/class/leds/sim_hotplug/brightness
+   sleep 3
+   qmicli --device-open-proxy -d /dev/wwan0qmi0 --uim-get-card-status
+   ```
+
+   Then the real case: remove the card (UIM should report
+   `possibly-removed`), reinsert it, pulse, and check whether UIM
+   reports `present` again.
+
+4. **Run the service end to end.**
+
+   ```sh
+   uci set sim-hotplug.general.enabled='1'; uci commit sim-hotplug
+   /etc/init.d/sim-hotplug restart
+   logread -f -e sim-hotplug     # then physically swap the card
+   ```
+
+5. **Report back** with the board name, GPIO number, polarity, pulse width, and
+   whether a physical swap recovered. That is what turns "untested" into
+   "supported".
 
 ## Implementation
 
