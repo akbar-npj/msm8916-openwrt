@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
-@@ -0,0 +1,274 @@
+@@ -0,0 +1,289 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -102,6 +102,18 @@
 +	};
 +};
 +
++/* Persistent kernel log (ramoops) -- same region as every other board. */
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++		ecc-size = <16>;
++	};
++};
++
 +/*
 + * Status LEDs, matching the stock Android gpio_leds node:
 + *
@@ -115,22 +127,25 @@
 +	/delete-node/ led-g;
 +	/delete-node/ led-b;
 +
-+	led-wifi-status {
-+		label = "wifistatus";
++	led-wlan-green {
++		function = LED_FUNCTION_WLAN;
++		color = <LED_COLOR_ID_GREEN>;
 +		gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
 +	};
 +
-+	led-4g-1 {
-+		label = "4g_1";
++	led-wwan-green {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_GREEN>;
 +		gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
 +	};
 +
-+	led-4g-2 {
-+		label = "4g_2";
++	led-wwan-red {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_RED>;
 +		gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
