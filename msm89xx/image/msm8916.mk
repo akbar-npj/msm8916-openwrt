@@ -117,4 +117,20 @@ define Device/generic-mf800b
 endef
 TARGET_DEVICES += generic-mf800b
 
+define Device/generic-mifid
+	$(Device/msm8916)
+	DEVICE_VENDOR := Generic
+	DEVICE_MODEL := MIFID
+	DEVICE_DTS := msm8916-generic-mifid
+	SUPPORTED_DEVICES := mifid,generic
+	FILESYSTEMS := squashfs
+	# Same eMMC size as the mf800b (0x748000 sectors).
+	GPT_TOT_SECTORS := 7634944
+	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		diag-efs diag-logtool
+endef
+TARGET_DEVICES += generic-mifid
+
 endif

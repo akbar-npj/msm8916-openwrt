@@ -1,0 +1,210 @@
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
+@@ -0,0 +1,207 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "MIFID 4G LTE USB WiFi Dongle";
++	compatible = "mifid,generic", "qcom,msm8916";
++
++	/*
++	 * 4.2 V Li-ion pack, per the stock Android DT:
++	 *   qcom,battery-type   = "qrd_4v2_2000mah"
++	 *   qcom,max-voltage-uv = 4200000
++	 *   qcom,v-cutoff-uv    = 3350000
++	 *   qcom,fcc-mah        = 2150
++	 * Do NOT copy the mf800b 4.35 V values: this is a 4.2 V cell.
++	 */
++	battery: battery {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion-polymer";
++
++		voltage-min-design-microvolt = <3350000>;
++		voltage-max-design-microvolt = <4200000>;
++		charge-full-design-microamp-hours = <2150000>;
++		charge-term-current-microamp = <100000>;
++
++		constant-charge-current-max-microamp = <1000000>;
++		constant-charge-voltage-max-microvolt = <4200000>;
++	};
++};
++
++/*
++ * Status LEDs, matching the stock Android gpio_leds node:
++ *
++ *   wifistatus  gpio73     4g_1  gpio85     4g_2  gpio84
++ *   4g_type     gpio72     bat1  gpio1      batl2 gpio0
++ *   batl3       gpio91     batl4 gpio100    ftest gpio32
++ *   sim_hotplug gpio114    (pulsed by /usr/sbin/sim-hotplug)
++ */
++&{/leds} {
++	/delete-node/ led-r;
++	/delete-node/ led-g;
++	/delete-node/ led-b;
++
++	led-wifi-status {
++		label = "wifistatus";
++		gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-4g-1 {
++		label = "4g_1";
++		gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-4g-2 {
++		label = "4g_2";
++		gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-4g-type {
++		label = "4g_type";
++		gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-bat1 {
++		label = "bat1";
++		gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-batl2 {
++		label = "batl2";
++		gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-batl3 {
++		label = "batl3";
++		gpios = <&tlmm 91 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-batl4 {
++		label = "batl4";
++		gpios = <&tlmm 100 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-ftest {
++		label = "ftest";
++		gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
++		default-state = "keep";
++		retain-state-suspended;
++	};
++
++	/*
++	 * SIM re-announce line.  Userspace pulses it low->high->low so the
++	 * baseband re-reads the slot after a physical swap.  Keep the exact
++	 * label: the service opens /sys/class/leds/sim_hotplug/brightness.
++	 */
++	led-sim-hotplug {
++		label = "sim_hotplug";
++		gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++};
++
++&gpio_leds_default {
++	pins = "gpio0", "gpio1", "gpio32", "gpio72", "gpio73",
++	       "gpio84", "gpio85", "gpio91", "gpio100", "gpio114";
++};
++
++/*
++ * SIM enable lines.  The stock DT exposes esim1_en/esim2_en/esim3_en as
++ * gpio-leds with default-state "keep" and Android userspace drives them.
++ * OpenWrt has no such userspace step, so hold the same electrical state
++ * with gpio hogs:
++ *
++ *   esim1_en  gpio119  HIGH  (physical SIM)
++ *   esim2_en  gpio112  LOW
++ *   esim3_en  gpio12   LOW
++ */
++&tlmm {
++	sim1_en {
++		gpio-hog;
++		gpios = <119 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "sim1_en";
++	};
++
++	sim2_en {
++		gpio-hog;
++		gpios = <112 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim2_en";
++	};
++
++	sim3_en {
++		gpio-hog;
++		gpios = <12 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim3_en";
++	};
++};
++
++/*
++ * Reset button.  The stock DT has flags 0x01 (GPIO_ACTIVE_LOW) and the
++ * line idles HIGH, so it is active-low with a pull-up -- the opposite of
++ * the mf800b/HMU05 wiring.  Do not copy their active-high/pull-down.
++ */
++&button_restart {
++	gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++	pins = "gpio102";
++	bias-pull-up;
++};
++
++/*
++ * PM8916 linear charger + VM-BMS, as in the stock DT
++ * (qcom,qpnp-linear-charger / qcom,qpnp-vm-bms).
++ */
++&pm8916_usbin {
++	status = "disabled";
++};
++
++&pm8916_charger {
++	monitored-battery = <&battery>;
++
++	qcom,fast-charge-safe-voltage = <4200000>;
++	qcom,fast-charge-safe-current = <1000000>;
++
++	status = "okay";
++};
++
++&pm8916_bms {
++	monitored-battery = <&battery>;
++	power-supplies = <&pm8916_charger>;
++
++	status = "okay";
++};
++
++&usb {
++	dr_mode = "peripheral";
++	extcon = <&pm8916_charger>;
++};
++
++&usb_hs_phy {
++	extcon = <&pm8916_charger>;
++};
