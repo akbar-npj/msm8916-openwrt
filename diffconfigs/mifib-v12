@@ -161,7 +161,7 @@ CONFIG_PACKAGE_zram-swap=y
 CONFIG_PCRE2_JIT_ENABLED=y
 CONFIG_TARGET_msm89xx=y
 CONFIG_TARGET_msm89xx_msm8916=y
-CONFIG_TARGET_msm89xx_msm8916_DEVICE_generic-mifid=y
+CONFIG_TARGET_msm89xx_msm8916_DEVICE_generic-mifib-v12=y
 # Failsafe mode: 7 s preinit window (single button press) + the preinit
 # USB-gadget IP used to reach the device while in failsafe.  IMAGEOPT and
 # PREINITOPT must BOTH be enabled, or the TARGET_PREINIT_* symbols stay
