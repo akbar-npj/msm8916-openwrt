@@ -1,0 +1,76 @@
+#!/bin/sh
+#
+# battery-charge-limit
+#
+# Caps charging at CHARGE_LIMIT% (default 85) to prolong battery life, while the
+# device keeps running off the USB/VBUS supply path.
+#
+# How it works on the PM8916 LBC charger:
+#   Writing 0 to the charger's `charge_enabled` node clears CHG_EN while leaving
+#   PSTG_EN set, so the system rail is still fed from VBUS and the battery is
+#   held without charging. As a belt-and-braces measure we also floor
+#   `constant_charge_current` to its 90 mA minimum.
+#   When capacity falls to CHARGE_RESUME% (hysteresis) we re-enable charging.
+#
+# If the charger is unplugged (online=0) the battery naturally powers the system
+# (VBAT is the system rail); nothing needs to be done and charging resumes
+# normally when USB returns and the cell is below the limit.
+
+LIMIT=85
+RESUME=80
+
+log() { logger -t battery-charge-limit "$1"; }
+
+find_battery() {
+	for d in /sys/class/power_supply/*; do
+		[ "$(cat "$d/type" 2>/dev/null)" = "Battery" ] && { echo "$d"; return 0; }
+	done
+	return 1
+}
+
+find_charger() {
+	for d in /sys/class/power_supply/*; do
+		[ "$(cat "$d/type" 2>/dev/null)" = "USB" ] && { echo "$d"; return 0; }
+	done
+	return 1
+}
+
+main() {
+	CHARGER=$(find_charger) || { log "no USB charger found"; exit 0; }
+	BATT=$(find_battery) || { log "no battery found"; exit 0; }
+
+	CE="$CHARGER/charge_enabled"
+	[ -w "$CE" ] || { log "charge_enabled not writable on $CHARGER"; exit 0; }
+
+	# Remember the charge current the driver/firmware picked at boot so we can
+	# restore it when we resume charging.
+	SAFE_CURRENT=$(cat "$CHARGER/constant_charge_current" 2>/dev/null)
+	[ -n "$SAFE_CURRENT" ] || SAFE_CURRENT=900000
+
+	log "monitoring $BATT (limit=${LIMIT}%, resume=${RESUME}%), charger $CHARGER"
+
+	while true; do
+		cap=$(cat "$BATT/capacity" 2>/dev/null)
+		onl=$(cat "$CHARGER/online" 2>/dev/null)
+
+		case "$cap" in
+			''|*[!0-9]*) sleep 15; continue;;
+		esac
+
+		if [ "$onl" = "1" ]; then
+			if [ "$cap" -ge "$LIMIT" ]; then
+				# Hold at the limit: stop charging, keep running off VBUS.
+				echo 0 > "$CE" 2>/dev/null
+				echo 90000 > "$CHARGER/constant_charge_current" 2>/dev/null
+			elif [ "$cap" -le "$RESUME" ]; then
+				# Resume normal charging.
+				echo "$SAFE_CURRENT" > "$CHARGER/constant_charge_current" 2>/dev/null
+				echo 1 > "$CE" 2>/dev/null
+			fi
+		fi
+
+		sleep 30
+	done
+}
+
+main "$@"

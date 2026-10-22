@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
-@@ -0,0 +1,309 @@
+@@ -0,0 +1,387 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -116,12 +116,16 @@
 +};
 +
 +/*
-+ * Status LEDs, matching the stock Android gpio_leds node:
++ * Status LEDs, mapped on hardware 2026-10-22 by lighting each GPIO alone
++ * and noting which physical lamp came on.  The panel has three green/red
++ * pairs, and the stock Android names do NOT describe what the GPIOs drive:
 + *
-+ *   wifistatus  gpio73     4g_1  gpio85     4g_2  gpio84
-+ *   4g_type     gpio72     bat1  gpio1      batl2 gpio0
-+ *   batl3       gpio91     batl4 gpio100    ftest gpio32
-+ *   sim_hotplug gpio114    (pulsed by /usr/sbin/sim-hotplug)
++ *   signal   green gpio85   red gpio72   (stock names: 4g_1 / 4g_type)
++ *   wi-fi    green gpio73   red gpio84   (stock names: wifistatus / 4g_2)
++ *   battery  green gpio0    red gpio1    (stock names: batl2 / bat1)
++ *
++ *   batl3 gpio91   batl4 gpio100   ftest gpio32   - not populated
++ *   sim_hotplug gpio114   - SIM re-announce pulse, not a lamp
 + */
 +&{/leds} {
 +	/delete-node/ led-r;
@@ -144,30 +148,31 @@
 +		retain-state-suspended;
 +	};
 +
-+	led-wwan-red {
-+		function = LED_FUNCTION_WAN;
++	led-wlan-red {
++		function = LED_FUNCTION_WLAN;
 +		color = <LED_COLOR_ID_RED>;
 +		gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
 +	};
 +
-+	led-4g-type {
-+		label = "4g_type";
++	led-wwan-red {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_RED>;
 +		gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
 +	};
 +
-+	led-bat1 {
-+		label = "bat1";
++	led-bat-red {
++		label = "red:bat";
 +		gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
 +	};
 +
-+	led-batl2 {
-+		label = "batl2";
++	led-bat-green {
++		label = "green:bat";
 +		gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>;
 +		default-state = "off";
 +		retain-state-suspended;
@@ -288,17 +293,90 @@
 +};
 +
 +/*
++/*
 + * Pack thermistor, exactly as the stock DT describes it (chan@30, label
-+ * "batt_therm", ratiometric, therm scale function).  The 10 ms settle time
-+ * is the closest value this binding allows to the 16 ms the stock DT asks
-+ * for; the channel is only sampled every 10 s, so the cost is irrelevant.
++ * "batt_therm", ratiometric, therm scale function).
++ *
++ * NOTE: qcom,hw-settle-time is in microseconds and the binding only accepts
++ * multiples of 100 us (<=1000) or multiples of 2000 us (>1000); any other
++ * value makes vadc_hw_settle_time_from_dt() return -EINVAL and the ENTIRE
++ * VADC driver probe fail (-22), which then cascades into the BMS being
++ * unable to get its thermistor ("deferred probe pending: ... Unable to get
++ * battery thermistor").  The stock DT asks for a 16 ms settle, so use
++ * <16000> (the exact 16 ms), NOT the invalid <10> that was here before.
 + */
 +&pm8916_vadc {
 +	channel@30 {
 +		reg = <VADC_LR_MUX1_BAT_THERM>;
 +		qcom,pre-scaling = <1 1>;
 +		qcom,ratiometric;
-+		qcom,hw-settle-time = <10>;
++		qcom,hw-settle-time = <16000>;
++	};
++};
++
++/*
++ * Thermal mitigation for Wi-Fi and PMIC (ported from the HMUF02-V5 board;
++ * both boards share the msm8916 SoC, so the same thermal-zones and cooling
++ * devices apply).
++ *
++ * Wi-Fi
++ * -----
++ * The WCN36XX firmware supports WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ: a
++ * mitigation level 0..4 where 0 is normal operation and 1..4 progressively
++ * disable TX AMPDU aggregation and reduce transmit power.  The wcn36xx driver
++ * exposes it as the "wcn36xx" cooling device.
++ *
++ * There is no dedicated WCNSS temperature sensor, so - exactly like Android's
++ * thermal-engine, which applies its "wlan" action once cpu0-1 reaches 60 C -
++ * trigger the mitigation from the CPU cluster sensor (tsens5 / cpu0-1).
++ * OpenWrt idles a few degrees warmer than Android, so the trip is placed at
++ * 65 C (clear of idle, well below the 75 C CPU-throttle trip).
++ *
++ * PMIC
++ * ----
++ * pm8916-thermal has a temperature sensor but no cooling device bound, so
++ * nothing acts on it.  Bind the CPU cooling device: the CPU's SMPS2 rail is the
++ * dominant load on the PMIC, so throttling the CPU also cools the PMIC.
++ */
++
++&wcnss_wifi {
++	#cooling-cells = <2>;
++};
++
++&{/thermal-zones/cpu0-1-thermal} {
++	trips {
++		wifi_alert: wifi-trip {
++			temperature = <65000>;
++			hysteresis = <3000>;
++			type = "passive";
++		};
++	};
++
++	cooling-maps {
++		wifi_map {
++			trip = <&wifi_alert>;
++			cooling-device = <&wcnss_wifi THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++		};
++	};
++};
++
++&{/thermal-zones/pm8916-thermal} {
++	trips {
++		pmic_alert: pmic-trip {
++			temperature = <90000>;
++			hysteresis = <5000>;
++			type = "passive";
++		};
++	};
++
++	cooling-maps {
++		pmic_map {
++			trip = <&pmic_alert>;
++			cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++					 <&CPU1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++					 <&CPU2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++					 <&CPU3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++		};
 +	};
 +};
 +
