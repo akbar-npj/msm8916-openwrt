@@ -479,6 +479,26 @@ return view.extend({
 		modems.forEach(function(modem) { o.value(modem.path, modem.displayName); });
 		o.placeholder = _('Please select a modem'); o.rmempty = false;
 
+		o = s.taboption('smstab', form.Value, 'ownnumber', _('Own number (SIM)'),
+			_('Filled in from the SIM when the operator provisioned it; many prepaid SIMs leave this blank, in which case you can type it here.'));
+		o.placeholder = _('Not provided by this SIM');
+		o.rmempty = true;
+
+		o = s.taboption('smstab', form.Button, '_autodetect');
+		o.title = _('Detect modem and SIM');
+		o.description = _('Points all four modem selectors at the first modem, sets the country prefix from the SIM and reads the own number when the SIM carries one. Values you set by hand are kept.');
+		o.inputtitle = _('Detect');
+		o.onclick = function() {
+			return fs.exec_direct('/usr/sbin/sms_manager_autoconfig', [ '--force', '--report' ])
+				.then(function(out) {
+					ui.addNotification(null, E('pre', { 'style': 'white-space:pre-wrap' }, out || _('No modem found')), 'info');
+					return uci.load('sms_manager');
+				})
+				.catch(function(e) {
+					ui.addNotification(null, E('p', {}, _('Detection failed') + ': ' + e.message), 'error');
+				});
+		};
+
 		o = s.taboption('smstab', form.Value, 'bnumber', _('Phone number to be blurred'),
 			_('The last 5 digits of this number will be blurred.'));
 		o.password = true;

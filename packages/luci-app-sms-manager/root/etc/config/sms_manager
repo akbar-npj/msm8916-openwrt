@@ -1,6 +1,6 @@
 
 config sms_manager
-	option pnumber '+48'
+	option pnumber ''
 	option prefix '1'
 	option lednotify '0'
 	option readport ''

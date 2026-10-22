@@ -1,0 +1,153 @@
+#!/bin/sh
+# Copyright 2026 Rafal Wabik (IceG) - From eko.one.pl forum
+# Licensed to the GNU General Public License v3.0.
+#
+# Auto-configure SMS Manager from the modem and the SIM.
+#
+#   * readport / sendport / ussdport / atport  <- the first ModemManager modem
+#   * pnumber                                  <- country prefix from the IMSI MCC
+#   * ownnumber                                <- only if the SIM provides it
+#
+# Many prepaid SIMs (and most Indian ones) never have EF_MSISDN written, so
+# QMI answers 'NotProvisioned' and AT+CNUM returns a bare OK.  That is a SIM
+# property, not an error: ownnumber stays untouched and the user can type it.
+# The IMSI, however, is always present, and its MCC is enough to set the
+# country prefix correctly (404 -> +91, 234 -> +44, ...).
+#
+# Usage:
+#   sms_manager_autoconfig            fill in what is missing, stay quiet
+#   sms_manager_autoconfig --force    also re-point the modem ports
+#   sms_manager_autoconfig --report   apply, then print a key=value summary
+#   sms_manager_autoconfig --status   read-only: print key=value, write nothing
+#
+# The flags may be combined; --status alone never touches uci.
+
+set -u
+
+SEC='@sms_manager[0]'
+FORCE=0
+STATUS=0
+REPORT=0
+
+for arg in "$@"; do
+	case "$arg" in
+		--force)  FORCE=1 ;;
+		--status) STATUS=1 ;;
+		--report) REPORT=1 ;;
+		*) echo "usage: $0 [--force] [--report] [--status]" >&2; exit 2 ;;
+	esac
+done
+
+changed=0
+
+uci -q get "sms_manager.$SEC" >/dev/null 2>&1 || {
+	[ "$STATUS" = "1" ] && echo "error=no sms_manager section"
+	exit 0
+}
+
+set_opt() {	# set_opt <option> <value>
+	local cur
+	cur=$(uci -q get "sms_manager.$SEC.$1")
+	[ "$cur" = "$2" ] && return 0
+	[ -n "$cur" ] && [ "$FORCE" != "1" ] && return 0
+	[ "$STATUS" = "1" ] && return 0
+	uci -q set "sms_manager.$SEC.$1=$2" && changed=1
+}
+
+# --- modem selection -------------------------------------------------------
+# ModemManager may still be enumerating when we run at boot, so poll briefly.
+MODEM=''
+i=0
+while [ "$i" -lt 15 ]; do
+	MODEM=$(mmcli -L 2>/dev/null |
+		sed -n 's#.*\(/org/freedesktop/ModemManager1/Modem/[0-9][0-9]*\).*#\1#p' |
+		head -1)
+	[ -n "$MODEM" ] && break
+	i=$((i + 1))
+	sleep 2
+done
+
+if [ -z "$MODEM" ]; then
+	{ [ "$STATUS" = "1" ] || [ "$REPORT" = "1" ]; } && echo "error=no modem"
+	exit 0
+fi
+
+MODEMNUM=${MODEM##*/}
+
+for opt in readport sendport ussdport atport; do
+	set_opt "$opt" "$MODEM"
+done
+
+# --- SIM identity ----------------------------------------------------------
+# Prefer the modem's own QMI port; fall back to the first QMI device.
+QMI=$(mmcli -m "$MODEMNUM" -K 2>/dev/null |
+	sed -n 's#.*\(wwan[0-9][0-9]*qmi[0-9][0-9]*\).*#/dev/\1#p' | head -1)
+[ -n "$QMI" ] || QMI=$(ls /dev/wwan*qmi* 2>/dev/null | head -1)
+
+IMSI=''
+MSISDN=''
+if [ -n "$QMI" ]; then
+	IMSI=$(qmicli -p -d "$QMI" --dms-uim-get-imsi 2>/dev/null |
+		sed -n "s/.*IMSI: '\([0-9][0-9]*\)'.*/\1/p" | head -1)
+	MSISDN=$(qmicli -p -d "$QMI" --dms-get-msisdn 2>/dev/null |
+		sed -n "s/.*[Nn]umber: *'\([+0-9][+0-9]*\)'.*/\1/p" | head -1)
+fi
+
+mcc_to_cc() {
+	case "$1" in
+	202) echo +30 ;; 204) echo +31 ;; 206) echo +32 ;; 208) echo +33 ;;
+	212) echo +377 ;; 213) echo +376 ;; 214) echo +34 ;; 216) echo +36 ;;
+	218) echo +387 ;; 219) echo +385 ;; 220) echo +381 ;; 222) echo +39 ;;
+	226) echo +40 ;; 228) echo +41 ;; 230) echo +420 ;; 231) echo +421 ;;
+	232) echo +43 ;; 234|235) echo +44 ;; 238) echo +45 ;; 240) echo +46 ;;
+	242) echo +47 ;; 244) echo +358 ;; 246) echo +370 ;; 247) echo +371 ;;
+	248) echo +372 ;; 250) echo +7 ;; 255) echo +380 ;; 257) echo +375 ;;
+	259) echo +373 ;; 260) echo +48 ;; 262) echo +49 ;; 266) echo +350 ;;
+	268) echo +351 ;; 270) echo +352 ;; 272) echo +353 ;; 274) echo +354 ;;
+	276) echo +355 ;; 278) echo +356 ;; 280) echo +357 ;; 282) echo +995 ;;
+	283) echo +374 ;; 284) echo +359 ;; 286) echo +90 ;; 288) echo +298 ;;
+	290) echo +299 ;; 293) echo +386 ;; 294) echo +389 ;; 297) echo +382 ;;
+	302) echo +1 ;; 310|311|312|313|314|315|316) echo +1 ;;
+	334) echo +52 ;; 404|405|406) echo +91 ;; 413) echo +94 ;;
+	420) echo +966 ;; 424) echo +971 ;; 425) echo +972 ;; 427) echo +974 ;;
+	429) echo +977 ;; 432) echo +98 ;; 440|441) echo +81 ;; 450) echo +82 ;;
+	454) echo +852 ;; 455) echo +853 ;; 460) echo +86 ;; 466) echo +886 ;;
+	470) echo +880 ;; 502) echo +60 ;; 505) echo +61 ;; 510) echo +62 ;;
+	515) echo +63 ;; 520) echo +66 ;; 525) echo +65 ;; 530) echo +64 ;;
+	602) echo +20 ;; 603) echo +213 ;; 604) echo +212 ;; 605) echo +216 ;;
+	624) echo +237 ;; 621) echo +234 ;; 639) echo +254 ;; 655) echo +27 ;;
+	724) echo +55 ;; 730) echo +56 ;; 732) echo +57 ;;
+	*) echo '' ;;
+	esac
+}
+
+MCC=''
+CC=''
+if [ -n "$IMSI" ]; then
+	MCC=$(printf '%s' "$IMSI" | cut -c1-3)
+	CC=$(mcc_to_cc "$MCC")
+	# A shipped default of +48 must not survive on a non-Polish SIM.
+	if [ "$STATUS" != "1" ] && [ "$(uci -q get "sms_manager.$SEC.pnumber")" = "+48" ]; then
+		uci -q set "sms_manager.$SEC.pnumber="
+		changed=1
+	fi
+	[ -n "$CC" ] && set_opt pnumber "$CC"
+fi
+
+# Only when the SIM actually carries a number; never invent one.
+[ -n "$MSISDN" ] && set_opt ownnumber "$MSISDN"
+
+[ "$changed" = "1" ] && uci -q commit sms_manager
+
+if [ "$STATUS" = "1" ] || [ "$REPORT" = "1" ]; then
+	echo "modem=$MODEM"
+	echo "qmi=$QMI"
+	echo "imsi=$IMSI"
+	echo "mcc=$MCC"
+	echo "prefix=$CC"
+	echo "ownnumber=$MSISDN"
+	echo "readport=$(uci -q get "sms_manager.$SEC.readport")"
+	echo "pnumber=$(uci -q get "sms_manager.$SEC.pnumber")"
+fi
+
+exit 0
