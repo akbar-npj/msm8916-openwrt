@@ -37,6 +37,38 @@ Nothing secret is baked in: the dropbear host key is generated at first boot.
   `misc`, matching the stock Android layout) — flash `<board>.img` there.
 * Other boards: one-shot boot over fastboot (`fastboot boot <board>.img`).
 
+## Enabling recovery on an install that already runs OpenWrt
+
+`flash.sh --mode repartition` rewrites the GPT, adds `misc` + `recovery`,
+installs the rescue image and wipes the overlay. It deliberately leaves
+`boot`, `rootfs`, the bootloader and the radio partitions untouched.
+
+That is enough for `reboot recovery` (aboot's stock BCB handling), but **not
+enough for the 3-strike failover**, which also needs:
+
+1. **`aboot.mbn` built with the failover code** (`BOOT_FAILOVER_COUNT`, see
+   `msm89xx/image/lk2nd-patches/001-…`). A board flashed before that patch has
+   an aboot that never touches the counter, so the failover silently does
+   nothing. Symptom: the last 512-byte block of `misc` stays all-zero across
+   reboots.
+2. **`S99recovery-bootcount` from `reboot-edl` r4 in the *running* rootfs.**
+   aboot increments the counter on every boot; only userspace clears it. With
+   the hook missing the counter never resets and a perfectly healthy board
+   drops into recovery every 3rd boot.
+
+So after repartitioning, run `flash.sh --mode update` once (boot + rootfs from
+the same build), and flash `aboot.mbn` if the board predates the failover
+patch. Verify from the running system:
+
+```sh
+ls -l /etc/rc.d/S99recovery-bootcount           # must exist
+dd if=/dev/mmcblk0p16 bs=512 skip=2047 count=1 2>/dev/null | od -An -tx1 | head -1
+#  43 46 4b 4c NN  -> counter NN, cleared to 00 by the hook after a healthy boot
+```
+
+`misc` is p16 and `recovery` p17 on every gated board, so these offsets are
+the same on `mf800b`, `mifib-v12` and `hmuf02v5`.
+
 ## Frozen binaries and how to rebuild them
 
 | File | Provenance |

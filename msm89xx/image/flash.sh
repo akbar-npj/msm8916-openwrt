@@ -59,7 +59,9 @@ Options:
   --mode migrate     Stock Android -> OpenWrt (repartition + bootloader).
   --mode update      Existing OpenWrt -> OpenWrt (boot + rootfs only).
   --mode repartition Existing OpenWrt -> new partition table (GPT + misc +
-                     recovery), wiping the overlay. boot/rootfs are kept.
+                     recovery), wiping the overlay. boot/rootfs are kept, so
+                     follow with --mode update on an older rootfs (see the
+                     recovery README: the boot-count hook lives in userspace).
   --erase-config     Update mode: wipe the rootfs_data overlay (factory clean).
   --keep-config      Update mode: keep /etc, packages and dumped firmware.
   --yes              Skip the interactive confirmation. Requires --mode.
@@ -681,6 +683,16 @@ do_repartition() {
     # filesystem currently on it, so ext4 would refuse to mount.  Zeroing the
     # superblock makes preinit format a fresh one sized to the new partition.
     wipe_rootfs_data
+
+    # boot/rootfs were deliberately left alone, so the running system may still
+    # predate the boot-count hook.  Say so here instead of letting the user
+    # discover it three boots later, when a healthy board drops into recovery.
+    echo
+    echo "[!] boot + rootfs were NOT touched.  If the installed image predates"
+    echo "    reboot-edl r4 it has no /etc/rc.d/S99recovery-bootcount, and the"
+    echo "    3-strike failover will send a healthy board to recovery every 3rd"
+    echo "    boot.  Run '--mode update' once to install the matching boot +"
+    echo "    rootfs (and make sure aboot carries the failover code)."
 
     echo
     echo "[+] Repartition completed successfully"
