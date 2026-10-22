@@ -106,6 +106,9 @@ apply()
 LAST=""
 
 while true; do
+        # Track AC transitions for the runtime estimate on the LuCI battery page.
+        /usr/sbin/battery-session tick 2>/dev/null
+
         BAT="$(find_battery)"
 
         if [ -z "$BAT" ]; then
