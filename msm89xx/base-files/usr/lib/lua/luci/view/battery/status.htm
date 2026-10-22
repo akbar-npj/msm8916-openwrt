@@ -5,15 +5,15 @@
 <fieldset class="cbi-section">
 <legend><%:Live status%></legend>
 <table width="100%">
-<tr><td width="40%"><%:Battery capacity%></td><td><%- d.cap %>%</td></tr>
-<tr><td><%:Battery voltage%></td><td><%- d.vnow %> &micro;V</td></tr>
-<tr><td><%:Battery temperature%></td><td><%- d.temp %></td></tr>
-<tr><td><%:Battery status%></td><td><%- d.status %></td></tr>
-<tr><td><%:Battery health%></td><td><%- d.health %></td></tr>
-<tr><td><%:Charger online%></td><td><%- d.online %></td></tr>
-<tr><td><%:Charge enabled%></td><td><%- d.ce %> (<%:0 = stopped at limit%>)</td></tr>
-<tr><td><%:Charge current%></td><td><%- d.curr %> &micro;A</td></tr>
-<tr><td><%:Charge voltage max%></td><td><%- d.cvmax %> &micro;V (<%:read-only%>)</td></tr>
+<tr><td width="40%"><%:Battery capacity%></td><td><%= d.cap %>%</td></tr>
+<tr><td><%:Battery voltage%></td><td><%= d.vnow %> &micro;V</td></tr>
+<tr><td><%:Battery temperature%></td><td><%= d.temp %></td></tr>
+<tr><td><%:Battery status%></td><td><%= d.status %></td></tr>
+<tr><td><%:Battery health%></td><td><%= d.health %></td></tr>
+<tr><td><%:Charger online%></td><td><%= d.online %></td></tr>
+<tr><td><%:Charge enabled%></td><td><%= d.ce %> (<%:0 = stopped at limit%>)</td></tr>
+<tr><td><%:Charge current%></td><td><%= d.curr %> &micro;A</td></tr>
+<tr><td><%:Charge voltage max%></td><td><%= d.cvmax %> &micro;V (<%:read-only%>)</td></tr>
 </table>
 </fieldset>
 
@@ -36,8 +36,8 @@
 <option value="1"<% if d.enabled=="1" then %> selected="selected"<% end %>>Yes</option>
 <option value="0"<% if d.enabled=="0" then %> selected="selected"<% end %>>No</option>
 </select></td></tr>
-<tr><td><%:Stop charging at%></td><td><input type="text" name="limit" value="<%- d.limit %>" size="4" /> %</td></tr>
-<tr><td><%:Resume at%></td><td><input type="text" name="resume" value="<%- d.resume %>" size="4" /> %</td></tr>
+<tr><td><%:Stop charging at%></td><td><input type="text" name="limit" value="<%= d.limit %>" size="4" /> %</td></tr>
+<tr><td><%:Resume at%></td><td><input type="text" name="resume" value="<%= d.resume %>" size="4" /> %</td></tr>
 <tr><td></td><td><button type="submit"><%:Save%></button></td></tr>
 </table>
 </form>
