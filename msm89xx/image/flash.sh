@@ -197,9 +197,18 @@ board_token() {
 # recovery images can never flash the wrong one; an unqualified match is only
 # accepted when it is unambiguous. Legacy '*DIAG*' boot-images from build
 # output directories are always excluded.
-find_optional_image() {
-    local dir="$1" pattern="$2" token candidates
+find_optional_image() {  # $1=dir  $2=pattern  [$3=exact filename]
+    local dir="$1" pattern="$2" exact="${3:-}" token candidates
     token="${BOARD_TOKEN:-$(board_token "${boot_path:-}")}"
+
+    # An exact name always wins.  A build directory can hold several
+    # '*recovery*' files (leftover '-embedded'/'-ext'/'-test' images from
+    # experiments) and the alphabetically first one is not necessarily the
+    # release image.
+    if [[ -n "$exact" && -f "$dir/$exact" ]]; then
+        printf '%s\n' "$dir/$exact"
+        return 0
+    fi
 
     if [[ -n "$token" ]]; then
         candidates=$(find "$dir" -maxdepth 1 -type f -name "$pattern" \
@@ -249,7 +258,7 @@ detect_images_migrate() {
     gpt_path=$(find_image "." "*-squashfs-gpt_both0.bin") || exit 1
     boot_path=$(find_image "." "*-squashfs-boot.img")     || exit 1
     rootfs_path=$(find_image "." "*-squashfs-system.img") || exit 1
-    recovery_path=$(find_optional_image "." "*recovery*.img")
+    recovery_path=$(find_optional_image "." "*recovery*.img" "recovery-${BOARD_TOKEN}.img")
 
     read_tot_sectors
 
@@ -266,7 +275,7 @@ detect_images_update() {
     echo "[*] Detecting OpenWrt images (board: $BOARD_TOKEN)..."
     boot_path=$(find_image "." "*-squashfs-boot.img")     || exit 1
     rootfs_path=$(find_image "." "*-squashfs-system.img") || exit 1
-    recovery_path=$(find_optional_image "." "*recovery*.img")
+    recovery_path=$(find_optional_image "." "*recovery*.img" "recovery-${BOARD_TOKEN}.img")
 
     echo "[+] Boot:   $(basename "$boot_path")"
     echo "[+] Rootfs: $(basename "$rootfs_path")"
@@ -301,7 +310,7 @@ detect_images_repartition() {
     resolve_board_token
     echo "[*] Detecting OpenWrt images (board: $BOARD_TOKEN)..."
     gpt_path=$(find_image "." "*-squashfs-gpt_both0.bin") || exit 1
-    recovery_path=$(find_optional_image "." "*recovery*.img")
+    recovery_path=$(find_optional_image "." "*recovery*.img" "recovery-${BOARD_TOKEN}.img")
 
     read_tot_sectors
 

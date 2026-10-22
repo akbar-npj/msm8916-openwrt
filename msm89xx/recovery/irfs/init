@@ -104,6 +104,18 @@ dropbear -p 22 -r /etc/dropbear/dropbear_ed25519_host_key -P /var/run/dropbear.p
 	done
 ) &
 
+# This shell is PID 1.  busybox 'reboot' without -f only signals PID 1 and
+# waits for init to act, which this init has no shutdown path for - a plain
+# 'reboot' over ssh (or on the console) would silently do nothing.  A trap on
+# PID 1 is not reliable here, so replace the applets with wrappers that force
+# the syscall.  The symlinks created by 'busybox --install -s' must be removed
+# first: '>' would otherwise follow them into the busybox binary itself.
+for _a in reboot poweroff halt; do
+	rm -f "/bin/$_a"
+	printf '#!/bin/busybox sh\nsync\nexec /bin/busybox %s -f "$@"\n' "$_a" > "/bin/$_a"
+	chmod +x "/bin/$_a"
+done
+
 while true; do
 	led green 1; sleep 1; led green 0; sleep 1
 done
