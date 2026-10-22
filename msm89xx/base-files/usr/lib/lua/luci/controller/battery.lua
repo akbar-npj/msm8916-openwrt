@@ -13,6 +13,27 @@ local function rd(p)
     return (v or ""):gsub("%s+$", "")
 end
 
+-- Human-friendly units: sysfs gives uV and uA; the BMS temp is tenths of C.
+local function fmt_v(ustr)
+    local n = tonumber(ustr)
+    if not n then return ustr end
+    return string.format("%.3f V", n / 1000000)
+end
+
+local function fmt_temp(raw)
+    local n = tonumber(raw)
+    if not n then return raw end
+    return string.format("%.1f C", n / 10)
+end
+
+local function fmt_cur(ustr)
+    local n = tonumber(ustr)
+    if not n then return ustr end
+    local ma = n / 1000
+    if ma >= 1000 then return string.format("%.2f A", ma / 1000) end
+    return string.format("%.0f mA", ma)
+end
+
 function action_status()
     local http = require "luci.http"
     local uci  = require "luci.model.uci".cursor()
@@ -45,11 +66,11 @@ function action_status()
     local d = {
         online  = rd(chg .. "/online"),
         ce      = rd(chg .. "/charge_enabled"),
-        curr    = rd(chg .. "/constant_charge_current"),
-        cvmax   = rd(chg .. "/constant_charge_voltage_max"),
+        curr    = fmt_cur(rd(chg .. "/constant_charge_current")),
+        cvmax   = fmt_v(rd(chg .. "/constant_charge_voltage_max")),
         cap     = rd(batt .. "/capacity"),
-        vnow    = rd(batt .. "/voltage_now"),
-        temp    = rd(batt .. "/temp"),
+        vnow    = fmt_v(rd(batt .. "/voltage_now")),
+        temp    = fmt_temp(rd(batt .. "/temp")),
         health  = rd(batt .. "/health"),
         status  = rd(batt .. "/status"),
         enabled = uci:get("battery", "@charge[0]", "enabled") or "1",

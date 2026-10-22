@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
-@@ -0,0 +1,387 @@
+@@ -0,0 +1,404 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -387,4 +387,21 @@
 +
 +&usb_hs_phy {
 +	extcon = <&pm8916_charger>;
++};
++
++/*
++ * Keep the modem's A2 (BAM) power domain alive on the MIFIB-V12 board.
++ *
++ * Its modem asserts a2_power.c:1216 ("A2 Assertion Failed") every ~30-60 s
++ * once a data bearer is up, whenever the AP releases the A2 power vote (the
++ * runtime-PM autosuspend vote-down) -- measured live 2026-10-22: 7 fatals in
++ * the logread window, each dropping the bearer for ~40 s.  The driver turns
++ * this property into pm_runtime_forbid() on &bam_dmux, i.e. it holds
++ * power/control=on forever.  Live A/B: hand-writing power/control=on stopped
++ * the fatals immediately (last fatal 4 s before the pin, none since).
++ * HMUF02-V5, UF02 and UZ801 set the same property (patches 849/851);
++ * UFI001B and MF800B do not and keep normal runtime suspend.
++ */
++&bam_dmux {
++	qcom,a2-pin;
 +};
