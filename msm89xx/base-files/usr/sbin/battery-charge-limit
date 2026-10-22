@@ -2,22 +2,20 @@
 #
 # battery-charge-limit
 #
-# Caps charging at CHARGE_LIMIT% (default 85) to prolong battery life, while the
-# device keeps running off the USB/VBUS supply path.
+# Caps charging at a configurable %% (default 85) to prolong battery life, while
+# the device keeps running off the USB/VBUS supply path.
 #
-# How it works on the PM8916 LBC charger:
-#   Writing 0 to the charger's `charge_enabled` node clears CHG_EN while leaving
-#   PSTG_EN set, so the system rail is still fed from VBUS and the battery is
-#   held without charging. As a belt-and-braces measure we also floor
-#   `constant_charge_current` to its 90 mA minimum.
-#   When capacity falls to CHARGE_RESUME% (hysteresis) we re-enable charging.
+# Config (uci, /etc/config/battery, section @charge[0]):
+#   enabled 0|1   - master switch for the limit
+#   limit   N     - stop charging at N %% (default 85)
+#   resume  N     - resume charging at N %% (default 80, hysteresis)
 #
-# If the charger is unplugged (online=0) the battery naturally powers the system
-# (VBAT is the system rail); nothing needs to be done and charging resumes
-# normally when USB returns and the cell is below the limit.
-
-LIMIT=85
-RESUME=80
+# On the PM8916 LBC charger, writing 0 to charge_enabled clears CHG_EN while
+# leaving PSTG_EN set, so the system rail is still fed from VBUS and the battery
+# is held without charging. As a belt-and-braces measure we also floor
+# constant_charge_current to its 90 mA minimum. When capacity falls to the resume
+# level we re-enable charging. If the charger is unplugged (online=0) the battery
+# naturally powers the system (VBAT is the system rail); nothing needs doing.
 
 log() { logger -t battery-charge-limit "$1"; }
 
@@ -47,9 +45,23 @@ main() {
 	SAFE_CURRENT=$(cat "$CHARGER/constant_charge_current" 2>/dev/null)
 	[ -n "$SAFE_CURRENT" ] || SAFE_CURRENT=900000
 
-	log "monitoring $BATT (limit=${LIMIT}%, resume=${RESUME}%), charger $CHARGER"
+	log "monitoring $BATT, charger $CHARGER (config uci battery.@charge[0])"
 
 	while true; do
+		ENABLED=$(uci -q get battery.@charge[0].enabled)
+		if [ "$ENABLED" = "0" ]; then
+			# Limit disabled: ensure charging is allowed.
+			echo 1 > "$CE" 2>/dev/null
+			echo "$SAFE_CURRENT" > "$CHARGER/constant_charge_current" 2>/dev/null
+			sleep 30
+			continue
+		fi
+
+		LIMIT=$(uci -q get battery.@charge[0].limit)
+		[ -z "$LIMIT" ] && LIMIT=85
+		RESUME=$(uci -q get battery.@charge[0].resume)
+		[ -z "$RESUME" ] && RESUME=80
+
 		cap=$(cat "$BATT/capacity" 2>/dev/null)
 		onl=$(cat "$CHARGER/online" 2>/dev/null)
 

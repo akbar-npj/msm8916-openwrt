@@ -1,0 +1,86 @@
+#!/bin/sh
+#
+# battery-ctl - view/control the battery and the charge limit
+# (pm8916 LBC charger on msm8916).
+#
+#   battery-ctl                 show live status + charge-limit config
+#   battery-ctl charge on|off   enable/disable charging immediately
+#   battery-ctl limit <pct>     stop charging at this % (uci)
+#   battery-ctl resume <pct>    resume charging at this % (uci)
+#   battery-ctl enable|disable  turn the charge-limit monitor on/off
+#
+# Config lives in uci: battery.@charge[0] { enabled, limit, resume }.
+#
+# Note: `charge on|off` is a one-shot sysfs nudge. The charge-limit monitor
+# (battery-charge-limit) is the automation; if it is enabled it will re-apply
+# its policy on the next loop. To hold charging off persistently, use
+# `battery-ctl disable` first (or set `limit 100`).
+
+BATT=/sys/class/power_supply/pm8916-bms-vm
+CHG=/sys/class/power_supply/pm8916-lbc-chgr
+
+rd() { [ -f "$1" ] && cat "$1" 2>/dev/null || echo "-"; }
+cfg() { uci -q get battery.@charge[0]."$1"; }
+restart_monitor() { /etc/init.d/battery-charge-limit restart >/dev/null 2>&1; }
+
+show() {
+	local cap volt temp stat health onl ce curr cvmax
+	cap=$(rd   "$BATT/capacity")
+	volt=$(rd  "$BATT/voltage_now")
+	temp=$(rd  "$BATT/temp")
+	stat=$(rd  "$BATT/status")
+	health=$(rd "$BATT/health")
+	onl=$(rd   "$CHG/online")
+	ce=$(rd    "$CHG/charge_enabled")
+	curr=$(rd  "$CHG/constant_charge_current")
+	cvmax=$(rd "$CHG/constant_charge_voltage_max")
+
+	echo "Battery (pm8916-bms-vm):"
+	echo "  capacity        : $cap %"
+	echo "  voltage_now     : $volt uV ($(awk -v v="$volt" 'BEGIN{printf "%.3f", (v+0)/1000000}') V)"
+	echo "  temp            : $temp ($(awk -v v="$temp" 'BEGIN{printf "%.1f", (v+0)/10}') C)"
+	echo "  status          : $stat"
+	echo "  health          : $health"
+	echo "Charger (pm8916-lbc-chgr):"
+	echo "  online          : $onl"
+	echo "  charge_enabled  : $ce  (0 = charge stopped)"
+	echo "  charge_current  : $curr uA"
+	echo "  charge_volt_max : $cvmax uV  (read-only)"
+	echo "Charge limit (uci battery.@charge[0]):"
+	echo "  enabled         : $(cfg enabled)"
+	echo "  limit           : $(cfg limit) %"
+	echo "  resume          : $(cfg resume) %"
+}
+
+set_ce() {
+	# One-shot sysfs write. Does NOT touch the monitor's `enabled` switch.
+	echo "$1" > "$CHG/charge_enabled" 2>/dev/null && echo "charge_enabled -> $1" || echo "FAILED (not writable)"
+}
+
+set_val() {
+	uci -q set battery.@charge[0]."$1"="$2"
+	uci -q commit battery
+	restart_monitor
+	echo "$1 -> $2 (monitor reloaded)"
+}
+
+case "$1" in
+	status|"")
+		show ;;
+	charge)
+		case "$2" in
+			on|1)  set_ce 1 ;;
+			off|0) set_ce 0 ;;
+			*) echo "usage: battery-ctl charge on|off" ;;
+		esac ;;
+	limit)
+		[ -n "$2" ] && set_val limit "$2" || echo "usage: battery-ctl limit <percent>" ;;
+	resume)
+		[ -n "$2" ] && set_val resume "$2" || echo "usage: battery-ctl resume <percent>" ;;
+	enable)
+		set_val enabled 1 ;;
+	disable)
+		set_val enabled 0 ;;
+	*)
+		echo "usage: battery-ctl [status|charge on|off|limit N|resume N|enable|disable]" ;;
+esac

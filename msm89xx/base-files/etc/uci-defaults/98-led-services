@@ -28,4 +28,9 @@ if [ -d /sys/class/leds/green:bat ] || [ -d /sys/class/leds/red:bat ]; then
         /etc/init.d/battery-charge-limit enable
 fi
 
+# Modem bearer watchdog: the mobility / handover-safe profile (auto_mobile is ON
+# by default in /etc/config/modem-watchdog) is only active once the service runs.
+[ -x /etc/init.d/modem-bearer-watchdog ] &&
+    /etc/init.d/modem-bearer-watchdog enable
+
 exit 0
