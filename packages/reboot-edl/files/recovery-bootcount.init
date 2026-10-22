@@ -1,0 +1,20 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Clear the lk2nd boot-failover counter.
+#
+# lk2nd counts consecutive boots that never reach userspace in the LAST
+# 512-byte block of the misc partition and boots the recovery partition
+# once the count reaches BOOT_FAILOVER_COUNT (3). Reaching this script
+# means the system booted, so zero the cookie and let the next boot start
+# counting from zero.
+#
+# The misc partition only exists on boards whose GPT carries it (mf800b,
+# mifib-v12: partitions 1-14 fixed, 15 rootfs_data, 16 misc, 17 recovery).
+
+START=99
+
+boot() {
+	[ -b /dev/mmcblk0p16 ] || return 0
+	dd if=/dev/zero of=/dev/mmcblk0p16 bs=512 count=1 seek=2047 2>/dev/null
+}

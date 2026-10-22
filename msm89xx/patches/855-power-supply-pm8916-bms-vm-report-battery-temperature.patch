@@ -1,0 +1,107 @@
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/errno.h>
++#include <linux/iio/consumer.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <linux/power_supply.h>
+@@ -60,9 +61,30 @@
+ 	unsigned int last_ocv;
+ 	time64_t last_ocv_time;
+ 	unsigned int vbat_now;
++	struct iio_channel *batt_therm;
++	int temp;
+ };
+ 
+ /*
++ * The pack thermistor is wired to the PMIC VADC rather than to the BMS
++ * block, so it has to be sampled separately.  The channel is optional: a
++ * board that leaves "batt-therm" out of the BMS node simply does not get
++ * a temperature and keeps using the room-temperature OCV table.
++ */
++static void pm8916_bms_vm_update_temp(struct pm8916_bms_vm_battery *bat)
++{
++	int temp;
++
++	if (!bat->batt_therm)
++		return;
++
++	if (iio_read_channel_processed(bat->batt_therm, &temp))
++		return;
++
++	bat->temp = temp;
++}
++
++/*
+  * The VM-BMS is voltage-only: there is no coulomb counter and no current
+  * sense, so the state of charge has to be derived from the voltage.
+  *
+@@ -111,7 +133,7 @@
+ 
+ 		val->intval = power_supply_batinfo_ocv2cap(info,
+ 							   pm8916_bms_vm_get_ocv(bat),
+-							   25);
++							   bat->temp / 1000);
+ 		if (val->intval < 0)
+ 			return val->intval;
+ 
+@@ -142,6 +164,14 @@
+ 		val->intval = bat->last_ocv;
+ 		return 0;
+ 
++	case POWER_SUPPLY_PROP_TEMP:
++		if (!bat->batt_therm)
++			return -ENODATA;
++
++		/* power_supply reports tenths of a degree Celsius */
++		val->intval = bat->temp / 100;
++		return 0;
++
+ 	default:
+ 		return -EINVAL;
+ 	}
+@@ -152,6 +182,7 @@
+ 	POWER_SUPPLY_PROP_CAPACITY,
+ 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+ 	POWER_SUPPLY_PROP_VOLTAGE_OCV,
++	POWER_SUPPLY_PROP_TEMP,
+ 	POWER_SUPPLY_PROP_HEALTH,
+ };
+ 
+@@ -176,6 +207,8 @@
+ 	 */
+ 	bat->vbat_now = vbat_data[PM8916_BMS_VM_FIFO_COUNT - 1] * 300;
+ 
++	pm8916_bms_vm_update_temp(bat);
++
+ 	power_supply_changed(bat->battery);
+ 
+ 	return IRQ_HANDLED;
+@@ -202,6 +235,15 @@
+ 		return -ENOMEM;
+ 
+ 	bat->dev = dev;
++	bat->temp = 25000; /* assume room temperature until measured */
++
++	bat->batt_therm = devm_iio_channel_get(dev, "batt-therm");
++	if (IS_ERR(bat->batt_therm)) {
++		if (PTR_ERR(bat->batt_therm) != -ENODEV)
++			return dev_err_probe(dev, PTR_ERR(bat->batt_therm),
++					     "Unable to get battery thermistor\n");
++		bat->batt_therm = NULL;
++	}
+ 
+ 	bat->regmap = dev_get_regmap(pdev->dev.parent, NULL);
+ 	if (!bat->regmap)
+@@ -244,6 +286,8 @@
+ 	bat->last_ocv = tmp * 300;
+ 	bat->vbat_now = bat->last_ocv;
+ 
++	pm8916_bms_vm_update_temp(bat);
++
+ 	psy_cfg.drv_data = bat;
+ 	psy_cfg.of_node = dev->of_node;
+ 

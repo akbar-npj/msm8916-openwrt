@@ -2,9 +2,16 @@
 
 ifeq ($(SUBTARGET),msm8916)
 
+# Custom per-device variables MUST be declared here.  `Device/Export` turns each
+# one into a target-specific variable, but it runs after every device has been
+# evaluated - so an undeclared variable is just a plain global and every device
+# ends up with the value of whichever device assigned one LAST.  That is how
+# hmuf02v5 silently got the mf800b/mifib-v12 `GPT_RECOVERY=1` layout.
+DEVICE_VARS += GPT_TOT_SECTORS GPT_RECOVERY
+
 define Build/generate-squashfs-gpt
 	chmod +x $(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh
-	TOT_SECTORS="$(GPT_TOT_SECTORS)" \
+	TOT_SECTORS="$(GPT_TOT_SECTORS)" RECOVERY="$(GPT_RECOVERY)" \
 	$(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh $@
 endef
 
@@ -23,6 +30,11 @@ define Device/msm8916
 	SOC := msm8916
 	# 4 GB eMMC fitted to the modem sticks; override per device when it differs.
 	GPT_TOT_SECTORS := 7569408
+	# Reset per device.  GPT_RECOVERY is NOT in OpenWrt's DEVICE_VARS, so it
+	# is a plain global: without this default it leaks from the first device
+	# that sets it to 1 into every device evaluated afterwards (observed:
+	# hmuf02v5 silently got misc+recovery even though it never asks for them).
+	GPT_RECOVERY := 0
 	CMDLINE := "earlycon console=tty0 console=ttyMSM0,115200 root=/dev/mmcblk0p14 rootfstype=squashfs rootwait"
 	FEATURES := squashfs
 	IMAGE/system.img := append-rootfs | append-metadata
@@ -94,6 +106,16 @@ define Device/generic-hmuf02v5
 	DEVICE_DTS := msm8916-generic-hmuf02v5
 	SUPPORTED_DEVICES := hmuf02v5,250605v0s hmu05,250605v0s
 	FILESYSTEMS := squashfs
+	# Real eMMC confirmed from the stock Android GPT: 0x748000 sectors
+	# (userdata fills to 0xE8FFBE00 of 0xE9000000). The 7569408 default
+	# leaves 32 MiB unused and puts the backup GPT header off the disk end.
+	GPT_TOT_SECTORS := 7634944
+	# Recovery partition enabled for testing on the safe board (EDL push
+	# button + batteryless, so a bad failover is always recoverable).  The
+	# button paths are unchanged: power-on -> EDL, 7 s window -> failsafe,
+	# 5 s hold -> factory reset.  Remove this line to go back to 15
+	# partitions and reclaim ~17 MB of rootfs_data.
+	GPT_RECOVERY := 1
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg qcom-time-daemon \
@@ -110,6 +132,8 @@ define Device/generic-mf800b
 	FILESYSTEMS := squashfs
 	# Slightly larger eMMC than the sticks (cat /sys/block/mmcblk0/size).
 	GPT_TOT_SECTORS := 7634944
+	# No EDL push-button: needs the recovery + misc partitions.
+	GPT_RECOVERY := 1
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
@@ -126,6 +150,8 @@ define Device/generic-mifib-v12
 	FILESYSTEMS := squashfs
 	# Same eMMC size as the mf800b (0x748000 sectors).
 	GPT_TOT_SECTORS := 7634944
+	# No EDL push-button: needs the recovery + misc partitions.
+	GPT_RECOVERY := 1
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \

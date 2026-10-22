@@ -7,6 +7,14 @@ openwrt/
 # Temporary build cache (if you ever create it)
 dl/
 
+# Recovery images (build output of ./build-recovery.sh)
+msm89xx/recovery/*.img
+
+# ...but the recovery initramfs is a frozen rootfs and IS checked in,
+# including the static busybox that lives under its bin/ directory.
+!msm89xx/recovery/irfs/bin/
+!msm89xx/recovery/irfs/bin/*
+
 # Python
 __pycache__/
 *.pyc

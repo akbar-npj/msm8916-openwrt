@@ -194,6 +194,41 @@ if [ ! -f "$BUILDDIR/lk2nd/build-lk1st-msm8916/emmc_appsboot.mbn" ]; then
 (
     cd "$BUILDDIR/lk2nd"
 
+    # Project patches (recovery key GPIO + boot-failover counter).
+    LK2ND_PATCHES="$(dirname "$TOPDIR")/msm89xx/image/lk2nd-patches"
+    if [ -d "$LK2ND_PATCHES" ]; then
+        for p in "$LK2ND_PATCHES"/*.patch; do
+            [ -f "$p" ] || continue
+            echo "[+] Applying $(basename "$p")"
+            patch -p1 --forward < "$p"
+        done
+    fi
+
+    # DEFINES must be set BEFORE the project include is read.
+    #
+    # Re-derive them on every run: strip any previously injected lines first,
+    # otherwise a changed setting would never take effect on a rebuild of an
+    # already-configured tree.
+    sed -i \
+        -e '/^DEFINES += RECOVERY_KEY_GPIO=/d' \
+        -e '/^DEFINES += RECOVERY_KEY_ACTIVE_LOW=/d' \
+        -e '/^DEFINES += BOOT_FAILOVER_COUNT=/d' \
+        project/lk1st-msm8916.mk
+    {
+        # The recovery key is OPT-IN.  It is board-specific, and a pin that
+        # does not match the board's own DTS (or one that idles low) makes
+        # every single boot land in recovery.  Enable it per board with
+        #   RECOVERY_KEY_GPIO=<n> [RECOVERY_KEY_ACTIVE_LOW=0|1]
+        # only after the pin has been verified from Linux on real hardware.
+        if [ -n "${RECOVERY_KEY_GPIO:-}" ]; then
+            echo "DEFINES += RECOVERY_KEY_GPIO=${RECOVERY_KEY_GPIO}"
+            echo "DEFINES += RECOVERY_KEY_ACTIVE_LOW=${RECOVERY_KEY_ACTIVE_LOW:-1}"
+        fi
+        echo 'DEFINES += BOOT_FAILOVER_COUNT=3'
+        cat project/lk1st-msm8916.mk
+    } > project/lk1st-msm8916.mk.new
+    mv project/lk1st-msm8916.mk.new project/lk1st-msm8916.mk
+
     grep -qxF 'DEFINES += USE_TARGET_HS200_CAPS=1' \
         project/lk1st-msm8916.mk || \
         echo 'DEFINES += USE_TARGET_HS200_CAPS=1' \

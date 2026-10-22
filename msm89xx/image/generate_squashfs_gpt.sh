@@ -33,11 +33,34 @@ ROOTFS_START=348194
 ROOTFS_SIZE=262144
 ROOTFS_END=$((ROOTFS_START + ROOTFS_SIZE - 1))
 
-# rootfs_data: remaining space
+# Optional recovery layout.  Only the two boards with no EDL push-button
+# (mf800b, mifib-v12) need it, so it is gated on RECOVERY (GPT_RECOVERY in
+# msm8916.mk).  misc and recovery are appended AFTER rootfs_data so every
+# partition number up to p14 stays put -- CMDLINE pins root=/dev/mmcblk0p14.
+MISC_SIZE=2048        # 1 MiB,   matches the stock Android layout
+RECOVERY_SIZE=32768   # 16 MiB,  matches the stock Android layout
+if [ -n "${RECOVERY:-}" ] && [ "${RECOVERY}" != "0" ]; then
+	RESERVED=$((MISC_SIZE + RECOVERY_SIZE))
+else
+	RESERVED=0
+fi
+
+# rootfs_data: remaining space, less the recovery tail when it is enabled
 ROOTFSDATA_START=$((ROOTFS_END + 1))
-ROOTFSDATA_SIZE=$((LAST_LBA - ROOTFSDATA_START + 1))
+ROOTFSDATA_SIZE=$((LAST_LBA - ROOTFSDATA_START + 1 - RESERVED))
 
 [ ${ROOTFSDATA_SIZE} -gt 0 ] || { echo "ERROR: No space for rootfs_data"; exit 1; }
+
+if [ "${RESERVED}" -gt 0 ]; then
+	MISC_START=$((ROOTFSDATA_START + ROOTFSDATA_SIZE))
+	RECOVERY_START=$((MISC_START + MISC_SIZE))
+	ROOTFSDATA_LINE="gpt.img15 : start=${ROOTFSDATA_START}, size=${ROOTFSDATA_SIZE}, type=1B81E7E6-F50D-419B-A739-2AEEF8DA3335, name=\"rootfs_data\""
+	EXTRA_PARTS="gpt.img16 : start=${MISC_START}, size=${MISC_SIZE}, type=20117F86-E985-4357-B9EE-374BC1D8487D, name=\"misc\"
+gpt.img17 : start=${RECOVERY_START}, size=${RECOVERY_SIZE}, type=20117F86-E985-4357-B9EE-374BC1D8487D, name=\"recovery\""
+else
+	ROOTFSDATA_LINE="gpt.img15 : start=${ROOTFSDATA_START}, type=1B81E7E6-F50D-419B-A739-2AEEF8DA3335, name=\"rootfs_data\""
+	EXTRA_PARTS=""
+fi
 
 truncate -s $((TOT_SECTORS * 512)) "${IMG}"
 
@@ -63,7 +86,8 @@ gpt.img11 : start=213026, size=2048, type=A053AA7F-40B8-4B1C-BA08-2F68AC71A4F4, 
 gpt.img12 : start=215074, size=2048, type=400FFDCD-22E0-47E7-9A23-F16ED9382388, name="aboot"
 gpt.img13 : start=217122, size=131072, type=20117F86-E985-4357-B9EE-374BC1D8487D, name="boot"
 gpt.img14 : start=${ROOTFS_START}, size=${ROOTFS_SIZE}, type=1B81E7E6-F50D-419B-A739-2AEEF8DA3335, name="rootfs"
-gpt.img15 : start=${ROOTFSDATA_START}, type=1B81E7E6-F50D-419B-A739-2AEEF8DA3335, name="rootfs_data"
+${ROOTFSDATA_LINE}
+${EXTRA_PARTS}
 EOF
 
 # Assemble gpt_both0.bin: primary header+entries + backup header

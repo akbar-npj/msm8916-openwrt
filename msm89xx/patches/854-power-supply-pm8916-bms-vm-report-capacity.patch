@@ -1,0 +1,86 @@
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -44,6 +44,13 @@
+ #define PM8916_BMS_VM_S1_SAMPLE_INTERVAL 10
+ #define PM8916_BMS_VM_S2_SAMPLE_INTERVAL 10
+ 
++/*
++ * The hardware only captures a true open-circuit voltage while the system
++ * is off or suspended.  A sample older than this is no longer
++ * representative of the current state of charge.
++ */
++#define PM8916_BMS_VM_OCV_TIMEOUT_S 180
++
+ struct pm8916_bms_vm_battery {
+ 	struct device *dev;
+ 	struct power_supply *battery;
+@@ -55,6 +62,24 @@
+ 	unsigned int vbat_now;
+ };
+ 
++/*
++ * The VM-BMS is voltage-only: there is no coulomb counter and no current
++ * sense, so the state of charge has to be derived from the voltage.
++ *
++ * Prefer the OCV captured by the hardware while the system was off or
++ * suspended; it is the only sample that is not distorted by the system
++ * load.  Once it goes stale, fall back to the running voltage.  That one
++ * sits below the true OCV while discharging, so the resulting capacity is
++ * a conservative (low) estimate rather than an optimistic one.
++ */
++static int pm8916_bms_vm_get_ocv(struct pm8916_bms_vm_battery *bat)
++{
++	if (ktime_get_seconds() - bat->last_ocv_time <= PM8916_BMS_VM_OCV_TIMEOUT_S)
++		return bat->last_ocv;
++
++	return bat->vbat_now;
++}
++
+ static int pm8916_bms_vm_battery_get_property(struct power_supply *psy,
+ 					      enum power_supply_property psp,
+ 					      union power_supply_propval *val)
+@@ -75,6 +100,23 @@
+ 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+ 		return 0;
+ 
++	case POWER_SUPPLY_PROP_CAPACITY:
++		/*
++		 * A pack can be described without any OCV tables, in which case
++		 * there is no way to map voltage to state of charge.  Report the
++		 * value as unavailable instead of failing the read.
++		 */
++		if (!info->ocv_table[0])
++			return -ENODATA;
++
++		val->intval = power_supply_batinfo_ocv2cap(info,
++							   pm8916_bms_vm_get_ocv(bat),
++							   25);
++		if (val->intval < 0)
++			return val->intval;
++
++		return 0;
++
+ 	case POWER_SUPPLY_PROP_HEALTH:
+ 		if (bat->vbat_now < info->voltage_min_design_uv)
+ 			val->intval = POWER_SUPPLY_HEALTH_DEAD;
+@@ -91,9 +133,10 @@
+ 	case POWER_SUPPLY_PROP_VOLTAGE_OCV:
+ 		/*
+ 		 * Hardware only reliably measures OCV when the system is off or suspended.
+-		 * We expose the last known OCV value on boot, invalidating it after 180 seconds.
++		 * We expose the last known OCV value on boot, invalidating it after
++		 * PM8916_BMS_VM_OCV_TIMEOUT_S seconds.
+ 		 */
+-		if (ktime_get_seconds() - bat->last_ocv_time > 180)
++		if (ktime_get_seconds() - bat->last_ocv_time > PM8916_BMS_VM_OCV_TIMEOUT_S)
+ 			return -ENODATA;
+ 
+ 		val->intval = bat->last_ocv;
+@@ -106,6 +149,7 @@
+ 
+ static enum power_supply_property pm8916_bms_vm_battery_properties[] = {
+ 	POWER_SUPPLY_PROP_STATUS,
++	POWER_SUPPLY_PROP_CAPACITY,
+ 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+ 	POWER_SUPPLY_PROP_VOLTAGE_OCV,
+ 	POWER_SUPPLY_PROP_HEALTH,

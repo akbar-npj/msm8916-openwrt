@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=reboot-edl
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_LICENSE:=GPL-2.0-only
 
@@ -40,6 +40,8 @@ define Package/reboot-edl/install
 	ln -sf reboot-mode $(1)/sbin/reboot-dload
 	ln -sf reboot-mode $(1)/sbin/reboot-bootloader
 	ln -sf reboot-mode $(1)/sbin/reboot-recovery
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/recovery-bootcount.init $(1)/etc/init.d/recovery-bootcount
 endef
 
 $(eval $(call BuildPackage,reboot-edl))

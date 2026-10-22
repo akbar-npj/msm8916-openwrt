@@ -1,0 +1,109 @@
+#!/bin/busybox sh
+# MSM8916 recovery initramfs init (PID 1).
+#
+# Console : USB ACM  -> host /dev/ttyACM0  (no auth, physical access only)
+# Network : USB NCM  -> 192.168.10.1, ssh root@192.168.10.1 with NO password
+#                     (OpenWrt 600-allow-blank-root-password.patch; /etc/passwd
+#                      field 2 must be empty, dropbear never reads /etc/shadow
+#                      because musl has no getspnam())
+# Escape  : /sbin/reboot-edl  -> Qualcomm EDL (05c6:9008)
+#
+# Never use 'exec' for redirection here: a redirection failure terminates a
+# non-interactive shell, which would kill PID 1.
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+/bin/busybox --install -s /bin 2>/dev/null
+
+say() {
+	echo "recovery: $*" >/dev/ttyGS0 2>/dev/null
+	echo "recovery: $*" >/dev/kmsg 2>/dev/null
+}
+led() {
+	for l in /sys/class/leds/*; do
+		case "$l" in *"$1"*) echo "$2" >"$l/brightness" 2>/dev/null ;; esac
+	done
+}
+
+mkdir -p /dev /proc /sys /tmp /var/run /etc/dropbear /root
+mount -t devtmpfs devtmpfs /dev 2>/dev/null
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts 2>/dev/null
+mount -t proc     none /proc 2>/dev/null
+mount -t sysfs    none /sys  2>/dev/null
+mount -t tmpfs    none /tmp  2>/dev/null
+mkdir -p /sys/kernel/config
+mount -t configfs none /sys/kernel/config 2>/dev/null
+chmod 700 /root
+
+led red 1
+
+G=/sys/kernel/config/usb_gadget/g1
+if [ ! -d "$G" ]; then
+	mkdir -p "$G"
+	echo 0x1d6b >"$G/idVendor"; echo 0x0104 >"$G/idProduct"
+	echo 0x0100 >"$G/bcdDevice"; echo 0xef >"$G/bDeviceClass"
+	echo 0x02 >"$G/bDeviceSubClass"; echo 0x01 >"$G/bDeviceProtocol"
+	mkdir -p "$G/strings/0x409"
+	echo 0000000000 >"$G/strings/0x409/serialnumber"
+	echo OpenWrt    >"$G/strings/0x409/manufacturer"
+	echo "OpenWrt Recovery" >"$G/strings/0x409/product"
+	mkdir -p "$G/configs/c.1/strings/0x409"
+	echo recovery >"$G/configs/c.1/strings/0x409/configuration"
+	echo 0xe0 >"$G/configs/c.1/bmAttributes"
+	echo 250  >"$G/configs/c.1/MaxPower"
+	mkdir -p "$G/functions/ncm.usb0"
+	echo 02:1d:6b:00:00:01 >"$G/functions/ncm.usb0/dev_addr"
+	echo 02:1d:6b:00:00:02 >"$G/functions/ncm.usb0/host_addr"
+	ln -sf "$G/functions/ncm.usb0" "$G/configs/c.1/"
+	mkdir -p "$G/functions/acm.GS0"
+	ln -sf "$G/functions/acm.GS0" "$G/configs/c.1/"
+	udc=$(ls /sys/class/udc 2>/dev/null | head -1)
+	[ -n "$udc" ] && echo "$udc" >"$G/UDC"
+fi
+
+i=0
+while [ $i -lt 10 ]; do
+	nd=$(cat "$G/functions/ncm.usb0/ifname" 2>/dev/null)
+	[ -n "$nd" ] && [ -d "/sys/class/net/$nd" ] && break
+	i=$((i+1)); sleep 1
+done
+[ -n "$nd" ] || nd=usb0
+ip link set "$nd" up 2>/dev/null
+ip addr add 192.168.10.1/24 dev "$nd" 2>/dev/null
+
+# Console. setsid -c gives the shell a controlling tty; the [ -c ] guard keeps
+# a redirection failure from aborting the spawner subshell.
+(
+	while true; do
+		if [ -c /dev/ttyGS0 ]; then
+			setsid -c /bin/ash -l </dev/ttyGS0 >/dev/ttyGS0 2>&1
+		fi
+		sleep 1
+	done
+) &
+
+if [ ! -f /etc/dropbear/dropbear_ed25519_host_key ]; then
+	dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key >/tmp/dbk.log 2>&1
+fi
+dropbear -p 22 -r /etc/dropbear/dropbear_ed25519_host_key -P /var/run/dropbear.pid >/tmp/db.log 2>&1
+
+# Re-emitted every 5 s: boot-time output is lost when the host is not reading
+# the ACM port yet.
+(
+	while true; do
+		sleep 5
+		{
+			echo "=== OpenWrt recovery ==="
+			echo "kernel:  $(uname -r)"
+			echo "console: /dev/ttyGS0 $([ -c /dev/ttyGS0 ] && echo ready || echo MISSING)"
+			echo "network: $(ip -br addr show 2>/dev/null | tr '\n' ' ')"
+			echo "ssh:     root@192.168.10.1 (no password)"
+			echo "edl:     run /sbin/reboot-edl"
+			echo "=== end ==="
+		} >/dev/ttyGS0 2>&1
+	done
+) &
+
+while true; do
+	led green 1; sleep 1; led green 0; sleep 1
+done
