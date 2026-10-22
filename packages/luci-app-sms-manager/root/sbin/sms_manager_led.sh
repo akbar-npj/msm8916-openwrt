@@ -8,6 +8,7 @@
 	LEDX=$(uci -q get sms_manager.@sms_manager[0].smsled)
 	SMSC=$(uci -q get sms_manager.@sms_manager[0].sms_count)
 	SMSD=$(echo $SMSC | tr -dc '0-9')
+	SMSD=${SMSD:-0}
 	LEDT="/sys/class/leds/$LEDX/trigger"
 	LEDON="/sys/class/leds/$LEDX/delay_on"
 	LEDOFF="/sys/class/leds/$LEDX/delay_off"
@@ -33,7 +34,9 @@ fi
 
 MODEM_NUM=$(echo $DEV | awk -F'/' '{print $NF}')
 
-SMS_LIST=$(mmcli -m $MODEM_NUM --messaging-list-sms  >/dev/null 2>&1)
+# Note: stdout is captured, not discarded -- redirecting it here made
+# SMS_LIST always empty, so the guard below exited on every run.
+SMS_LIST=$(mmcli -m "$MODEM_NUM" --messaging-list-sms 2>/dev/null)
 
 if [ -z "$SMS_LIST" ]; then
 	exit 0
