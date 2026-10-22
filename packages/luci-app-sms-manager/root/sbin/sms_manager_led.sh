@@ -15,6 +15,18 @@
 	TMON=$((1 * 1000))
 	TMOFF=$((5 * 1000))
 
+# sms_manager_autoconfig publishes readport a few seconds into boot, once
+# ModemManager has enumerated the modem.  Wait for it instead of exiting
+# before there is anything to do -- procd starts this helper first.
+if [ -z "$DEV" ]; then
+	i=0
+	while [ -z "$DEV" ] && [ $i -lt 15 ]; do
+		sleep 2
+		DEV=$(uci -q get sms_manager.@sms_manager[0].readport)
+		i=$((i + 1))
+	done
+fi
+
 if [ -z "$DEV" ]; then
 	exit 0
 fi

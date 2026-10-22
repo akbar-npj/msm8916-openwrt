@@ -9,13 +9,15 @@ STOP=01
 
 
 start_service() {
+    # Fill in the modem ports and the SIM-derived country prefix first: the
+    # LED helper below is a one-shot that needs readport.  Backgrounded
+    # because it polls ModemManager for up to ~30 s while it enumerates; the
+    # helper waits for the result.
+    [ -x /usr/sbin/sms_manager_autoconfig ] && /usr/sbin/sms_manager_autoconfig >/dev/null 2>&1 &
+
     procd_open_instance
     procd_set_param command /bin/sh "/sbin/sms_manager_led.sh"
     procd_close_instance
-
-    # Fill in the modem ports and the SIM-derived country prefix on boot.
-    # Background: it polls ModemManager for up to ~30 s while it enumerates.
-    [ -x /usr/sbin/sms_manager_autoconfig ] && /usr/sbin/sms_manager_autoconfig >/dev/null 2>&1 &
 }
 
 
