@@ -14,3 +14,4 @@ irfs/lib/libblobmsg_json*
 irfs/lib/libucode*
 irfs/lib/libjson-c*
 irfs/lib/libudebug*
+blobs/

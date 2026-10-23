@@ -88,6 +88,23 @@ check_board() {
         || die "Unknown board '$BOARD'. Known boards: $(list_boards | tr '\n' ' ')"
 }
 
+# Install this board's WiFi blobs into the initramfs tree.
+#
+# wcnss.mdt / the calibrated wlan NV / hostapd are per-board and are NOT
+# interchangeable, so each board keeps its own blobs/<board>/ directory and
+# only that directory is copied in.  Anything a previous board left behind is
+# removed first - a mixed tree would silently ship the wrong firmware.
+install_blobs() {
+    local b="$1" src="$RECOVERY_DIR/blobs/$b"
+    [ -d "$src" ] || die "No WiFi blobs for '$b'. Run:
+       ./msm89xx/recovery/fetch-device-blobs.sh $b root@<device>"
+    msg "Installing '$b' blobs (WCNSS firmware, hostapd, libs) into the initramfs"
+    rm -rf "$RECOVERY_DIR/irfs/lib/firmware"
+    find "$RECOVERY_DIR/irfs/lib" -maxdepth 1 -name 'lib*.so*' \
+        ! -name 'libc.so*' ! -name 'libgcc_s.so*' -delete
+    cp -a "$src/." "$RECOVERY_DIR/irfs/"
+}
+
 # The container-side build script (single-quoted heredoc: taken literally).
 # Reuses the patched kernel source and the OpenWrt toolchain from the prepared
 # tree, and swaps the recovery .config in for the build (restored afterwards).
@@ -222,6 +239,7 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
 fi
 
 for b in $BOARDS; do
+    install_blobs "$b"
     msg "Building recovery image for '$b' in the builder container"
     if ! docker_exec env BOARD="$b" RECOVERY_DIR="$CONTAINER_RECOVERY_DIR" \
             bash -c "$(container_script)"; then

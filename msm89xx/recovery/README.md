@@ -103,11 +103,17 @@ be committed**, they are copied from a live device before building:
 ./build-recovery.sh <board>
 ```
 
-The blobs go into `irfs/lib/firmware/` (git-ignored); `hostapd` + libs into
-`irfs/usr/sbin` + `irfs/lib`. The AP is **best-effort**: `init` runs it in a
-detached subshell, so a missing driver/firmware never blocks the USB/SSH
-rescue path. Clients join `OpenWrt-Recovery` with passphrase `recovery` over
-WPA2 or WPA3 and get a DHCP lease on `192.168.10.x`.
+The blobs are stored per board under `blobs/<board>/` (git-ignored) and
+`build-recovery.sh` copies **only that board's** directory into `irfs/`
+before the build, deleting the previous board's firmware and libs first.
+`wcnss.mdt` and the calibrated wlan NV are not interchangeable
+(hmuf02v5 `62bb56b2…` vs mifib-v12 `41d715d8…`), so a mixed tree would ship
+the wrong firmware silently.
+
+The AP is **best-effort**: `init` runs it in a detached subshell, so a missing
+driver/firmware never blocks the USB/SSH rescue path. Clients join
+`OpenWrt-Recovery` with passphrase `recovery` over WPA2 or WPA3 and get a
+DHCP lease on `192.168.10.x`.
 
 After an upstream version bump, rebuild the binary from the matching source,
 copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.

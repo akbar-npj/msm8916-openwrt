@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
 # fetch-device-blobs.sh <board> <user@host>
 #
-# Pull the per-board WiFi firmware and a SAE-capable hostapd (plus its shared
-# libs) from a LIVE device into the recovery irfs, so the recovery image can
-# bring up a WiFi AP without a USB cable. The blobs are device-specific
-# (calibrated NV) and must come from the real hardware, not a generic dump.
+# Pull the per-board WiFi firmware (wcnss.mdt + segments, wlan/prima NV) and a
+# SAE-capable hostapd + its shared libraries from a LIVE device into
+# msm89xx/recovery/blobs/<board>/.
 #
-# These fetched files are git-ignored (see msm89xx/recovery/.gitignore); run
-# this before build-recovery.sh <board>.
+# build-recovery.sh installs that directory into the initramfs for the SAME
+# board only.  The blobs are not interchangeable - wcnss.mdt and the calibrated
+# wlan NV are board-specific - so one directory per board is what stops a
+# mifib-v12 build from silently carrying hmuf02v5 firmware.
+#
+# The blobs are git-ignored; run this once per board before building it.
 set -euo pipefail
 
 BOARD="${1:?usage: $0 <board> <user@host>}"
 HOST="${2:?usage: $0 <board> <user@host>}"
 
 RECOVERY_DIR="$(cd "$(dirname "$0")" && pwd -P)"
-IRFS="$RECOVERY_DIR/irfs"
-FW="$IRFS/lib/firmware"
-mkdir -p "$FW/wlan/prima" "$IRFS/usr/sbin" "$IRFS/lib"
+DEST="$RECOVERY_DIR/blobs/$BOARD"
+FW="$DEST/lib/firmware"
+
+echo "[+] $BOARD <- $HOST"
+rm -rf "$DEST"
+mkdir -p "$FW/wlan/prima" "$DEST/usr/sbin" "$DEST/lib"
 
 echo "[+] fetching WCNSS processor firmware (wcnss.mdt + segments)"
 ssh "$HOST" 'ls /lib/firmware/wcnss.mdt /lib/firmware/wcnss.b* 2>/dev/null' | while read -r f; do
@@ -28,16 +34,22 @@ scp -p "$HOST:/lib/firmware/wlan/prima/WCNSS_qcom_wlan_nv.bin" "$FW/wlan/prima/"
     || echo "!! WCNSS_qcom_wlan_nv.bin not found on device; the AP may fail without it"
 
 echo "[+] fetching hostapd"
-scp -p "$HOST:/usr/sbin/hostapd" "$IRFS/usr/sbin/hostapd"
-chmod +x "$IRFS/usr/sbin/hostapd"
+scp -p "$HOST:/usr/sbin/hostapd" "$DEST/usr/sbin/hostapd"
+chmod +x "$DEST/usr/sbin/hostapd"
 
-echo "[+] copying hostapd shared libraries (skipping libc/ld-musl already in irfs)"
-ssh "$HOST" 'ldd /usr/sbin/hostapd' | grep -oE '/[^ ]+\.so[^ ]*' | sort -u | while read -r lib; do
+# hostapd's library closure, resolved ON THE DEVICE (the libs are aarch64 and
+# this host cannot ldd them).  The walk is transitive: libblobmsg_json pulls in
+# libjson-c, for example, and a missing indirect library makes hostapd exit
+# with no useful message.
+echo "[+] resolving hostapd's shared libraries (transitive)"
+LIBS=$(ssh "$HOST" 'set -- /usr/sbin/hostapd; seen=""; while [ $# -gt 0 ]; do f="$1"; shift; for l in $(ldd "$f" 2>/dev/null | grep -oE "/[^ ]+\.so[^ ]*"); do case " $seen " in *" $l "*) continue ;; esac; seen="$seen $l"; set -- "$@" "$l"; done; done; echo $seen')
+for lib in $LIBS; do
     case "$lib" in
-        */ld-musl*|*/libc.so*|*/libgcc_s.so*) continue ;;
+        */ld-musl*|*/libc.so*|*/libgcc_s*) continue ;;
     esac
-    scp -p "$HOST:$lib" "$IRFS/lib/" 2>/dev/null || true
+    scp -p "$HOST:$lib" "$DEST/lib/" 2>/dev/null || echo "!! could not fetch $lib"
 done
 
-echo "[+] done. Firmware and hostapd libs are git-ignored; now run:"
-echo "    ./build-recovery.sh $BOARD"
+echo "[+] stored under blobs/$BOARD:"
+find "$DEST" -type f | sed "s|^$RECOVERY_DIR/|    |"
+echo "[+] now run: ./build-recovery.sh $BOARD"
