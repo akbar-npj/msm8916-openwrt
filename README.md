@@ -199,6 +199,7 @@ Put the USB modem into **Qualcomm Emergency Download (EDL) Mode** using any of t
 * Short the hardware **EDL test points** while plugging the stick into a USB port.
 * From Android shell (where ADB is available): `adb reboot edl`
 * From OpenWrt shell: `reboot-edl`
+* From LuCI: **System → Reboot to EDL** (installed by the `reboot-edl` package). On boards with a recovery partition (`hmuf02v5` / `mf800b` / `mifib-v12`) the same menu also offers **System → Reboot to Recovery**.
 
 Verify that the host detects the device in Qualcomm EDL mode:
 
