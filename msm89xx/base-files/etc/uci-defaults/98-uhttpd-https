@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Serve LuCI over HTTPS by default.
+#
+# uhttpd already ships listen_https on 0.0.0.0:443 and [::]:443, so nothing has
+# to be added there; what is missing on a stock image is the certificate, which
+# uhttpd's init generates on first start from px5g.  px5g-mbedtls is pulled in
+# by every board's diffconfig for exactly this reason.
+#
+# redirect_https makes plain HTTP answer with a redirect instead of the UI, so
+# the browser always lands on the TLS listener.  It is deliberately NOT set when
+# px5g is missing: uhttpd passes -q regardless of whether the certificate could
+# be generated, which would leave HTTP pointing at a port that never opens.
+#
+# This cannot be shipped as /etc/config/uhttpd in the target base-files: that
+# tree is installed before the uhttpd package, and apk then refuses with
+# "trying to overwrite etc/config/uhttpd owned by base-files".
+
+[ -x /usr/sbin/px5g ] || exit 0
+[ -f /lib/libustream-ssl.so ] || exit 0
+
+uci -q get uhttpd.main >/dev/null || exit 0
+
+uci -q set uhttpd.main.redirect_https='1'
+uci -q commit uhttpd
+
+exit 0

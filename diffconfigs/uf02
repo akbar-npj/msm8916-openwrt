@@ -312,6 +312,7 @@ CONFIG_PACKAGE_kmod-nls-ucs2-utils=m
 CONFIG_PACKAGE_kmod-btmrvl=m
 CONFIG_PACKAGE_kmod-btmtkuart=m
 CONFIG_PACKAGE_kmod-btsdio=m
+CONFIG_PACKAGE_px5g-mbedtls=y
 
 
 
