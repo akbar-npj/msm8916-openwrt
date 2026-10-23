@@ -17,17 +17,28 @@
 # 8-byte payload).  To stay robust we read 32-byte chunks and scan a sliding
 # window for the press/release byte patterns (also tolerates 24-byte structs).
 
-DEV=""
-for d in /sys/class/input/input*; do
-    [ "$(cat "$d/name" 2>/dev/null)" = "pm8941_pwrkey" ] || continue
-    n=$(basename "$d")
-    num=$(echo "$n" | sed 's/input//')
-    ev="/dev/input/event$num"
-    [ -e "$ev" ] && { DEV="$ev"; break; }
-done
-[ -n "$DEV" ] || DEV=/dev/input/event0
-
 log() { logger -t pwrkey-monitor "$1"; }
+
+# The input device appears only once the PMIC pwrkey driver has probed, which can
+# be after this service starts.  Wait for it instead of exiting: a failed open
+# here would just make procd respawn us in a tight loop.
+find_dev() {
+    DEV=""
+    for d in /sys/class/input/input*; do
+        [ "$(cat "$d/name" 2>/dev/null)" = "pm8941_pwrkey" ] || continue
+        num=$(basename "$d" | sed 's/input//')
+        [ -e "/dev/input/event$num" ] && { DEV="/dev/input/event$num"; return 0; }
+    done
+    return 1
+}
+
+i=0
+while ! find_dev; do
+    i=$((i + 1))
+    [ "$i" -ge 60 ] && { log "no pm8941_pwrkey input device, giving up"; exit 1; }
+    sleep 1
+done
+
 log "monitoring $DEV (pwrkey keycode 0x74 / KEY_POWER)"
 
 press_ms=0
