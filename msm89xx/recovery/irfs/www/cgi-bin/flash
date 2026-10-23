@@ -1,0 +1,109 @@
+#!/bin/busybox sh
+# POST /cgi-bin/flash?mode=sysupgrade          body = OpenWrt sysupgrade tar
+# POST /cgi-bin/flash?mode=partition&target=X  body = raw image for partition X
+#
+# The body is buffered in /tmp (tmpfs) first: a truncated or short upload must
+# never touch the flash.  Nothing is written until the archive/image has been
+# validated and fits the target partition.
+. /www/cgi-bin/lib.sh
+hdr text/plain
+
+UPLOAD=/tmp/upload.img
+
+fail() {
+	echo "ERROR: $*"
+	rm -rf "$UPLOAD" /tmp/up
+	exit 0
+}
+
+# dd with the exit status preserved (ash has no pipefail).
+write_dev() {  # write_dev SRC DEV LABEL
+	dd if="$1" of="$2" bs=4096 conv=fsync 2>/tmp/dd.err
+	rc=$?
+	sed -n '$p' /tmp/dd.err
+	[ "$rc" -eq 0 ] || fail "writing $3 failed (dd exit $rc)"
+}
+
+[ "$REQUEST_METHOD" = POST ] || fail "POST required"
+
+mode=$(qs_get mode)
+target=$(qs_get target)
+len=${CONTENT_LENGTH:-0}
+[ "$len" -gt 0 ] 2>/dev/null || fail "empty request body"
+
+avail=$(df -k /tmp | awk 'NR==2 {print $4}')
+need=$(( len / 1024 + 2048 ))
+[ "${avail:-0}" -gt "$need" ] || fail "not enough free RAM: need ${need} KiB, have ${avail:-0} KiB"
+
+rm -rf "$UPLOAD" /tmp/up
+cat > "$UPLOAD" || fail "upload failed"
+got=$(wc -c < "$UPLOAD" | tr -d ' ')
+[ "$got" = "$len" ] || fail "short upload: got $got of $len bytes"
+echo "received $len bytes"
+
+case "$mode" in
+
+sysupgrade)
+	# Same layout the running system's /lib/upgrade/platform.sh expects:
+	# sysupgrade-<board>/{CONTROL,kernel,root}
+	members=$(tar tf "$UPLOAD" 2>/dev/null)
+	[ -n "$members" ] || fail "not a tar archive"
+	board=$(printf '%s\n' "$members" | grep -m1 -E '^(\./)?sysupgrade-[^/]+' | sed -e 's|^\./||' -e 's|/.*||')
+	[ -n "$board" ] || fail "no sysupgrade-<board>/ directory in the archive"
+	for m in kernel root; do
+		printf '%s\n' "$members" | grep -qx "$board/$m" || fail "archive is missing $board/$m"
+	done
+
+	boot=$(find_part boot) || fail "no 'boot' partition on this board"
+	rootfs=$(find_part rootfs) || fail "no 'rootfs' partition on this board"
+
+	mkdir -p /tmp/up
+	tar -xf "$UPLOAD" -C /tmp/up "$board/kernel" "$board/root" || fail "extracting the archive failed"
+
+	ks=$(wc -c < "/tmp/up/$board/kernel" | tr -d ' ')
+	rs=$(wc -c < "/tmp/up/$board/root" | tr -d ' ')
+	bs=$(part_size "$boot"); rsz=$(part_size "$rootfs")
+	[ "$ks" -le "$bs" ] || fail "kernel ($ks B) does not fit boot ($bs B)"
+	[ "$rs" -le "$rsz" ] || fail "rootfs ($rs B) does not fit rootfs ($rsz B)"
+
+	echo "board: $board"
+	echo "kernel: $ks bytes -> boot ($boot)"
+	write_dev "/tmp/up/$board/kernel" "$boot" "kernel"
+	echo "kernel written"
+
+	echo "rootfs: $rs bytes -> rootfs ($rootfs)"
+	write_dev "/tmp/up/$board/root" "$rootfs" "rootfs"
+	echo "rootfs written"
+
+	# sysupgrade -n: no config is preserved, so drop the overlay too.  Zeroing
+	# the head of the partition destroys the filesystem superblock; fstools
+	# then formats a fresh overlay on the next boot.
+	data=$(find_part rootfs_data)
+	if [ -n "$data" ]; then
+		echo "erasing overlay ($data)"
+		dd if=/dev/zero of="$data" bs=1M count=16 conv=fsync 2>/dev/null
+	fi
+	;;
+
+partition)
+	[ -n "$target" ] || fail "no target partition"
+	case "$target" in
+		*[!a-z0-9_]*) fail "invalid partition name '$target'" ;;
+	esac
+	dev=$(find_part "$target") || fail "no partition named '$target' on this board"
+	psz=$(part_size "$dev")
+	[ "$len" -le "$psz" ] || fail "image ($len B) does not fit $target ($psz B)"
+
+	echo "writing $len bytes to $target ($dev)"
+	write_dev "$UPLOAD" "$dev" "$target"
+	echo "$target written"
+	;;
+
+*)
+	fail "unknown mode '$mode'"
+	;;
+esac
+
+sync
+rm -rf "$UPLOAD" /tmp/up
+echo "DONE"

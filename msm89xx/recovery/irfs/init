@@ -126,6 +126,14 @@ dnsmasq -C /tmp/dnsmasq.conf -u root -k 2>/tmp/dnsmasq.err &
 	done
 ) &
 
+# Web UI: http://192.168.10.1/ - sysupgrade (-n), write a single partition, or
+# reboot into EDL.  Independent of the other services; -f keeps httpd in the
+# foreground so its log is captured (the applet would otherwise daemonize and
+# close stderr).
+(
+	httpd -f -p 80 -h /www 2>/tmp/httpd.log
+) &
+
 # Console. setsid -c gives the shell a controlling tty; the [ -c ] guard keeps
 # a redirection failure from aborting the spawner subshell.
 (
@@ -153,6 +161,7 @@ dropbear -p 22 -r /etc/dropbear/dropbear_ed25519_host_key -P /var/run/dropbear.p
 			echo "console: /dev/ttyGS0 $([ -c /dev/ttyGS0 ] && echo ready || echo MISSING)"
 			echo "network: $(ip -br addr show 2>/dev/null | tr '\n' ' ')"
 			echo "ssh:     root@192.168.10.1 (no password)"
+		echo "web:     http://192.168.10.1/ (sysupgrade -n, flash a partition, EDL)"
 		echo "dhcp:    dnsmasq on $DHCP_IF (192.168.10.2-20)"
 		echo "wifi:    hostapd wlan0 -> $BR, OpenWrt-Recovery (WPA2/WPA3, pass 'recovery')"
 		echo "edl:     run /sbin/reboot-edl"

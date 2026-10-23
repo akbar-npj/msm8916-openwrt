@@ -30,6 +30,9 @@ cmdline  empty — /init does everything
 * Root shell on `/dev/ttyGS0` (ACM console, no auth) and
   `ssh root@192.168.10.1` with **no password** (OpenWrt
   `600-allow-blank-root-password.patch`; `/etc/passwd` field 2 is empty)
+* Web UI on <http://192.168.10.1/> (busybox `httpd` + CGI in `/www`):
+  upload a `*-sysupgrade.bin` for a fresh install (`sysupgrade -n` semantics),
+  write a raw image to a single partition, reboot, or reboot into EDL
 * Status banner re-emitted every 5 s (boot-time output is lost when the host
   is not reading the ACM port yet)
 * Green LED blink = alive; `/sbin/reboot-edl` → EDL `05c6:9008`
@@ -108,6 +111,40 @@ WPA2 or WPA3 and get a DHCP lease on `192.168.10.x`.
 
 After an upstream version bump, rebuild the binary from the matching source,
 copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.
+
+## Web UI (flash from a browser)
+
+`busybox httpd` serves `/www` on port 80 and runs the CGIs in
+`/www/cgi-bin`:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /` | page: status, sysupgrade, single-partition flash, power buttons |
+| `GET /cgi-bin/info` | JSON: kernel, uptime, free RAM, partition list |
+| `POST /cgi-bin/flash?mode=sysupgrade` | body = `*-sysupgrade.bin` (tar) |
+| `POST /cgi-bin/flash?mode=partition&target=<name>` | body = raw image |
+| `POST /cgi-bin/power?action=reboot\|edl` | reset, or reset into EDL 9008 |
+
+The upload body is the **raw request body** (`fetch`/`XHR` send the File
+directly), not multipart, so the CGI is a plain `cat > /tmp/upload.img` -
+busybox httpd pipes the POST body to the CGI's stdin and sets
+`CONTENT_LENGTH`.
+
+Safety rules in `flash`:
+
+* the body is buffered in `/tmp` (tmpfs) and the size is checked against
+  `Content-Length` before anything is written - a short upload never touches
+  the flash;
+* the image must fit the target partition (size from
+  `/sys/class/block/*/size`);
+* `mode=sysupgrade` requires `sysupgrade-<board>/{kernel,root}` in the tar and
+  writes them to the `boot`/`rootfs` partitions, then zeroes the head of
+  `rootfs_data` so fstools formats a fresh overlay (that is what `-n` means);
+* partitions are resolved by `PARTNAME=` in `/sys/class/block/*/uevent`, so
+  the code needs no udev and no hard-coded partition numbers.
+
+There is **no authentication** - same trust model as the passwordless SSH
+root shell. Keep the recovery box on a network you control.
 
 ## Traps learned on hardware
 

@@ -1,0 +1,23 @@
+#!/bin/busybox sh
+# GET /cgi-bin/info - machine-readable status for the web UI.
+. /www/cgi-bin/lib.sh
+hdr application/json
+
+mem_total=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+mem_avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
+tmp_avail=$(df -k /tmp | awk 'NR==2 {print int($4/1024)}')
+uptime=$(cut -d. -f1 /proc/uptime)
+
+printf '{"kernel":"%s","uptime":%s,"mem_total":%s,"mem_available":%s,"tmp_available":%s,"parts":[\n' \
+	"$(uname -r)" "$uptime" "${mem_total:-0}" "${mem_avail:-0}" "${tmp_avail:-0}"
+
+first=1
+for d in /dev/mmcblk*p*; do
+	[ -b "$d" ] || continue
+	name=$(grep -i '^PARTNAME=' "/sys/class/block/${d##*/}/uevent" 2>/dev/null | cut -d= -f2)
+	[ -n "$name" ] || continue
+	[ "$first" = 1 ] || printf ',\n'
+	first=0
+	printf '{"name":"%s","dev":"%s","bytes":%s}' "$name" "$d" "$(part_size "$d")"
+done
+printf '\n]}\n'
