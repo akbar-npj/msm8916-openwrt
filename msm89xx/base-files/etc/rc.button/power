@@ -11,6 +11,8 @@
 #   * short press              -> nothing (anti-accidental)
 #   * two short presses        -> reboot      (within DBL_WINDOW ms)
 #   * long press (>= LONG_HOLD s, released) -> power off (shutdown)
+#                                              -> reboot when running on
+#                                                 VBUS (see vbus_online)
 #
 # NOTE: on USB/VBUS power the PMIC re-applies system power after a software
 # power-off, so "shutdown" may present as a reboot while tethered.  On battery
@@ -22,6 +24,24 @@ SHORT_MAX=2
 LONG_HOLD=4
 DBL_WINDOW=800
 STATE=/var/run/powerbtn.dbl
+
+# Is the board running from an external supply?
+#
+# A software power-off while tethered does not stay off: the PMIC re-applies
+# system power as soon as VBUS is present, and a key held long enough reaches
+# the PMIC's own hard reset (which, on mifib-v12, the bootloader maps to
+# recovery).  So a long press can never leave the board off while plugged in -
+# reboot deliberately instead of racing the PMIC.
+#
+# pm8916_lbc exposes the USB input as pm8916_usbin/online; any supply that
+# reports online=1 counts, and "no such file" simply means "on battery".
+vbus_online() {
+    for p in /sys/class/power_supply/*; do
+        [ -r "$p/online" ] || continue
+        [ "$(cat "$p/online" 2>/dev/null)" = "1" ] && return 0
+    done
+    return 1
+}
 
 LED=/sys/class/leds/red:wan
 [ -d "$LED" ] || LED=/sys/class/leds/green:wan
@@ -51,6 +71,14 @@ if [ "$SEEN" -le "$SHORT_MAX" ] 2>/dev/null; then
     exit 0
 elif [ "$SEEN" -ge "$LONG_HOLD" ] 2>/dev/null; then
     rm -f "$STATE"
+
+    if vbus_online; then
+        logger -t power-button "Power button held ${SEEN}s on VBUS: rebooting"
+        sync
+        reboot
+        exit 0
+    fi
+
     logger -t power-button "Power button held ${SEEN}s: powering off"
 
     max=$(cat "$LED/max_brightness" 2>/dev/null)
