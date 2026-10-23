@@ -136,6 +136,25 @@ grep -q "CONFIG_INITRAMFS_SOURCE=\"$IRFS\"" "$KSRC/.config" || {
     echo "ERROR: CONFIG_INITRAMFS_SOURCE did not survive olddefconfig" >&2
     exit 1
 }
+grep -q "^CONFIG_WCN36XX=y" "$KSRC/.config" || {
+    echo "ERROR: CONFIG_WCN36XX did not survive olddefconfig (check WLAN_VENDOR_ATH)" >&2
+    exit 1
+}
+
+# The in-tree wcn36xx lacks MFP_CAPABLE (needed for WPA3/SAE PMF).  Carry the
+# same OpenWrt mac80211 patch used for the backports driver so the recovery AP
+# can do WPA3.  Fatal if it does not apply: hostapd.conf requires PMF.
+# The kernel tree is reused between runs, so the patch is usually already in
+# place - a reverse dry-run detects that and keeps the step idempotent.
+WPA3_PATCH=/repo/openwrt/package/kernel/mac80211/patches/ath/451-wcn36xx-mfp-wpa3.patch
+if patch -d "$KSRC" -p1 -R --dry-run -f < "$WPA3_PATCH" >/dev/null 2>&1; then
+    echo "wcn36xx MFP/WPA3 patch already applied"
+else
+    patch -d "$KSRC" -p1 --forward < "$WPA3_PATCH" || {
+        echo "ERROR: wcn36xx MFP/WPA3 patch did not apply" >&2
+        exit 1
+    }
+fi
 
 # --- build the kernel + board DTBs -------------------------------------------
 make -C "$KSRC" ARCH=arm64 CROSS_COMPILE=aarch64-openwrt-linux-musl- -j$(nproc) Image dtbs

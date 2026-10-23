@@ -2,7 +2,8 @@
 # MSM8916 recovery initramfs init (PID 1).
 #
 # Console : USB ACM  -> host /dev/ttyACM0  (no auth, physical access only)
-# Network : USB NCM  -> 192.168.10.1, ssh root@192.168.10.1 with NO password
+# Network : br0 (USB NCM + WiFi AP) -> 192.168.10.1, one dnsmasq for both,
+#           ssh root@192.168.10.1 with NO password
 #                     (OpenWrt 600-allow-blank-root-password.patch; /etc/passwd
 #                      field 2 must be empty, dropbear never reads /etc/shadow
 #                      because musl has no getspnam())
@@ -68,14 +69,62 @@ while [ $i -lt 10 ]; do
 	i=$((i+1)); sleep 1
 done
 [ -n "$nd" ] || nd=usb0
+
+# Network: ONE bridge (br0) carrying the USB NCM link and, once the WiFi AP
+# comes up, wlan0 as well - the same shape as OpenWrt's br-lan.  A single
+# dnsmasq on br0 then serves USB and WiFi clients out of one pool, so a WiFi
+# client gets 192.168.10.x exactly like a USB host does, with no routing or
+# second subnet involved.
+BR=br0
 ip link set "$nd" up 2>/dev/null
-ip addr add 192.168.10.1/24 dev "$nd" 2>/dev/null
+if ip link add name "$BR" type bridge 2>/dev/null; then
+	ip link set "$BR" up 2>/dev/null
+	ip addr add 192.168.10.1/24 dev "$BR" 2>/dev/null
+	ip link set "$nd" master "$BR" 2>/dev/null
+	DHCP_IF="$BR"
+else
+	# No bridge support in the kernel: address the USB link directly so the
+	# rescue path never depends on the bridge.
+	ip addr add 192.168.10.1/24 dev "$nd" 2>/dev/null
+	DHCP_IF="$nd"
+fi
 
 mkdir -p /tmp
-# DHCP server (busybox udhcpd) so a connected host gets 192.168.10.2-20
-# automatically - no manual 'ip addr add' on the host side.  The interface is
-# usb0 for the ncm.usb0 function ($nd is kept in sync with it).
-udhcpd /etc/udhcpd.conf 2>/tmp/udhcpd.log &
+# DHCP + DNS (dnsmasq) so a client on USB *or* WiFi gets 192.168.10.2-20 with
+# no manual configuration.  /etc/dnsmasq.conf names br0; the interface is
+# substituted so the no-bridge fallback still serves DHCP on usb0.
+# dnsmasq, not busybox udhcpd: udhcpd always broadcasts its reply and wcn36xx
+# AP mode drops group-addressed frames on an encrypted BSS, so only a unicast
+# DHCP reply reaches a WPA2/WPA3 station.  -u root: the initramfs has no
+# 'nobody' account for dnsmasq to drop privileges to.
+sed "s|^interface=.*|interface=$DHCP_IF|" /etc/dnsmasq.conf >/tmp/dnsmasq.conf
+dnsmasq -C /tmp/dnsmasq.conf -u root -k 2>/tmp/dnsmasq.err &
+
+# Best-effort WiFi AP so the box is reachable without a USB cable.  A failure
+# here MUST NOT block the USB/SSH rescue path: everything runs in a detached
+# subshell, and wlan0 may never appear (no wcn36xx driver / no firmware).
+# hostapd joins wlan0 to br0 itself ('bridge=br0' in hostapd.conf), so there is
+# no separate 'ip link set wlan0 master' step and no second DHCP server.
+(
+	n=0
+	while [ $n -lt 30 ]; do
+		[ -d /sys/class/net/wlan0 ] && break
+		n=$((n+1)); sleep 1
+	done
+	[ -d /sys/class/net/wlan0 ] || exit 0
+	# wcn36xx publishes wlan0 ~2 s before its firmware bring-up settles;
+	# starting hostapd in that window makes it enable the AP and then tear it
+	# down again ~200 ms later.  Settle first, then keep hostapd in the
+	# FOREGROUND under a restart loop: 'hostapd -B' closes stderr, so a
+	# daemonized failure leaves no log at all.
+	sleep 3
+	ip link set wlan0 up 2>/dev/null
+	while true; do
+		hostapd /etc/hostapd.conf >>/tmp/hostapd.log 2>&1
+		echo "--- hostapd exited, retrying ---" >>/tmp/hostapd.log
+		sleep 5
+	done
+) &
 
 # Console. setsid -c gives the shell a controlling tty; the [ -c ] guard keeps
 # a redirection failure from aborting the spawner subshell.
@@ -104,8 +153,9 @@ dropbear -p 22 -r /etc/dropbear/dropbear_ed25519_host_key -P /var/run/dropbear.p
 			echo "console: /dev/ttyGS0 $([ -c /dev/ttyGS0 ] && echo ready || echo MISSING)"
 			echo "network: $(ip -br addr show 2>/dev/null | tr '\n' ' ')"
 			echo "ssh:     root@192.168.10.1 (no password)"
-		echo "dhcp:    udhcpd on $nd (192.168.10.2-20)"
-			echo "edl:     run /sbin/reboot-edl"
+		echo "dhcp:    dnsmasq on $DHCP_IF (192.168.10.2-20)"
+		echo "wifi:    hostapd wlan0 -> $BR, OpenWrt-Recovery (WPA2/WPA3, pass 'recovery')"
+		echo "edl:     run /sbin/reboot-edl"
 			echo "=== end ==="
 		} >/dev/ttyGS0 2>&1
 	done

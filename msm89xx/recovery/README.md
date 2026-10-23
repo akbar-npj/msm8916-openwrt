@@ -20,9 +20,13 @@ cmdline  empty — /init does everything
 ## What /init provides
 
 * USB ConfigFS gadget `1d6b:0104` with `ncm.usb0` + `acm.GS0`
-* Network `192.168.10.1/24` on the NCM interface; a built-in `udhcpd`
-  serves `192.168.10.2`-`.20` so the host gets an address automatically (no
-  manual `ip addr add` needed)
+* Network: `br0` bridges the USB NCM link and the WiFi AP, carrying
+  `192.168.10.1/24`; one `dnsmasq` serves `192.168.10.2`-`.20` on the bridge
+  (DHCP + DNS) so USB *and* WiFi clients get an address automatically — the
+  same shape as OpenWrt's `br-lan` + dnsmasq
+* WiFi AP `OpenWrt-Recovery`, WPA2-PSK **and** WPA3-SAE, passphrase
+  `recovery`, bridged into `br0` (best-effort: a missing driver/firmware
+  never blocks the USB/SSH path)
 * Root shell on `/dev/ttyGS0` (ACM console, no auth) and
   `ssh root@192.168.10.1` with **no password** (OpenWrt
   `600-allow-blank-root-password.patch`; `/etc/passwd` field 2 is empty)
@@ -79,6 +83,28 @@ the same on `mf800b`, `mifib-v12` and `hmuf02v5`.
 | `irfs/usr/sbin/dropbear` | bit-identical to the OpenWrt dropbear package build (`build_dir/.../root-msm89xx/usr/sbin/dropbear`) |
 | `irfs/lib/ld-musl-aarch64.so.1`, `libc.so`, `libgcc_s.so.1` | bit-identical to the toolchain rootfs copies (`build_dir/.../root-msm89xx/lib/`) |
 | `irfs/sbin/reboot-mode-raw` | built from `msm89xx/package/reboot-edl` sources |
+| `irfs/usr/sbin/dnsmasq` | bit-identical to the OpenWrt dnsmasq package build (`build_dir/.../root-msm89xx/usr/sbin/dnsmasq`); needs `libubox`/`libubus` from `irfs/lib` |
+| `irfs/usr/sbin/hostapd` + its `.so` libs (`irfs/lib/libnl*`, `libwolfssl*`/`libmbed*`) | **NOT frozen / not committed** - pulled per board from a live device by `fetch-device-blobs.sh` (a SAE-capable build; the board already serves WPA3 with it). See the note below. |
+| `irfs/etc/hostapd.conf` | WPA2 + WPA3 (SAE) AP `OpenWrt-Recovery`, passphrase `recovery` |
+
+### WiFi firmware and hostapd are fetched per board, not committed
+
+The recovery image brings up a **WiFi AP** (`wcn36xx`) so the box is reachable
+without a USB cable. Because the WCNSS processor firmware (`wcnss.mdt` +
+segments), the board-specific WiFi NV (`wlan/prima/WCNSS_qcom_wlan_nv.bin`),
+and the `hostapd` binary + its shared libs are **device-specific and must not
+be committed**, they are copied from a live device before building:
+
+```sh
+./msm89xx/recovery/fetch-device-blobs.sh <board> <user@device>
+./build-recovery.sh <board>
+```
+
+The blobs go into `irfs/lib/firmware/` (git-ignored); `hostapd` + libs into
+`irfs/usr/sbin` + `irfs/lib`. The AP is **best-effort**: `init` runs it in a
+detached subshell, so a missing driver/firmware never blocks the USB/SSH
+rescue path. Clients join `OpenWrt-Recovery` with passphrase `recovery` over
+WPA2 or WPA3 and get a DHCP lease on `192.168.10.x`.
 
 After an upstream version bump, rebuild the binary from the matching source,
 copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.
@@ -93,6 +119,20 @@ copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.
   `getspnam()`); `/etc/shadow` is dead weight but kept for the uid/gid lookup.
 * LED class names come from the `function`/`color` bindings, not the DT node
   names — the init matches `/sys/class/leds/*` by substring (`red`, `green`).
+* **wcn36xx AP mode drops group-addressed (broadcast/multicast) frames when
+  the BSS is encrypted.** Measured on hmuf02v5 with WPA2-PSK: 20 unicast
+  frames sent to the station arrived 20/20, while ~10 broadcast DHCP OFFERs
+  arrived 0 times. Consequence: busybox `udhcpd` (which always *broadcasts*
+  its reply) can never hand a lease to a WiFi client, and a client that sets
+  the DHCP broadcast flag still cannot get one. That is why the image runs
+  `dnsmasq`, which unicasts the reply to the client's MAC — DHCP then works
+  over WPA2/WPA3. Anything else that needs broadcast over WiFi (IPv6 RA,
+  mDNS) will not work; SSH/TCP/ARP-replies are unicast and do.
+* `hostapd` must be started **in the foreground under a restart loop**, not
+  with `-B`: `-B` calls `daemon()`, which closes stderr, so a startup failure
+  leaves a zero-byte log. Also wait ~3 s after `wlan0` appears — starting
+  hostapd in wcn36xx's firmware-bringup window enables the AP and tears it
+  down again ~200 ms later.
 
 ## Entering recovery on a buttonless board
 
