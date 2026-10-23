@@ -223,7 +223,7 @@ chmod +x openwrt-msm89xx-msm8916-<board>-flash.sh
 ./openwrt-msm89xx-msm8916-<board>-flash.sh
 ```
 
-The script is **two-in-one** and shows an interactive menu — choose **`1` (Migrate from stock Android to OpenWrt)** for a first-time migration:
+The script shows an interactive menu with **three** choices — **`1` Migrate** (stock Android → OpenWrt), **`2` Update** (existing OpenWrt → OpenWrt) and **`3` Repartition** (add the recovery partition) — choose **`1`** for a first-time migration:
 
 ```
 === OpenWrt MSM8916 EDL Flash Script ===
@@ -232,8 +232,11 @@ The script is **two-in-one** and shows an interactive menu — choose **`1` (Mig
      (DESTRUCTIVE: repartitions the eMMC, flashes the bootloader, wipes Android)
   2) Update an existing OpenWrt install
      (flashes boot + rootfs only; partition table left untouched)
+  3) Repartition an existing OpenWrt install
+     (rewrites the GPT, adds misc + recovery, wipes the overlay;
+      boot + rootfs are kept)
 
-Choice [1/2]:
+Choice [1/2/3]:
 ```
 
 *(For unattended use, `--mode migrate --yes` selects the same path; `./...flash.sh --help` lists all flags.)*
@@ -254,7 +257,7 @@ Choice [1/2]:
 If your device is already running OpenWrt and has already been repartitioned to the OpenWrt GPT layout:
 
 * **Recommended (Sysupgrade)**: Use the standard sysupgrade path to preserve configuration (see [Sysupgrade](#-sysupgrade)).
-* **Clean Re-flash via EDL**: Use the **same two-in-one `*-flash.sh`** and choose **`2` (Update an existing OpenWrt install)**. It flashes only `boot` + `rootfs` and never touches the partition table, bootloader or radio/calibration partitions:
+* **Clean Re-flash via EDL**: Use the **same `*-flash.sh`** (menu `2`, or `--mode update`) and choose **`2` (Update an existing OpenWrt install)**. It flashes only `boot` + `rootfs` and never touches the partition table, bootloader or radio/calibration partitions:
 
 ```bash
 cd openwrt/bin/targets/msm89xx/msm8916/
@@ -294,6 +297,33 @@ edl ws "$START" /tmp/zeros.bin
 # Reboot the device
 edl reset
 ```
+
+---
+
+### Scenario C: Repartition an Existing OpenWrt Install (add the recovery partition)
+
+If a device is already running OpenWrt but its image was built **without** the
+recovery partition (the 15-partition layout) and you want the rescue partition
+(see [the wiki *Recovery* page](https://github.com/akbar-npj/msm8916-openwrt/wiki/Recovery)),
+this mode rewrites the GPT to add `misc` + `recovery` and flashes the rescue
+image **without touching `boot`/`rootfs`**.
+
+> **Only applies to boards whose image ships a `recovery` partition** —
+> `hmuf02v5`, `mf800b` and `mifib-v12` are built with `GPT_RECOVERY=1`. On
+> the other four boards the script aborts before writing anything.
+
+It is menu `3` (`--mode repartition`): it rewrites the GPT, wipes the overlay
+(fast 2 MiB superblock wipe), and flashes `recovery-<board>.img`. Because
+`boot`/`rootfs` are kept, follow it with a normal update if you also want to
+change the running firmware:
+
+```bash
+./openwrt-msm89xx-msm8916-<board>-flash.sh --mode repartition --yes
+./openwrt-msm89xx-msm8916-<board>-flash.sh --mode update --keep-config --yes
+```
+
+See the wiki for the full recovery layout, the per-board key, and the 3-strike
+failover.
 
 ---
 
