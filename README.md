@@ -91,6 +91,13 @@ Want to port a new MSM8916 device? See **[`Docs/ADDING_A_DEVICE_BOARD.md`](Docs/
 OpenWrt provides both an in-band rescue shell (**failsafe mode**) and
 software-triggered reboot paths for Qualcomm recovery modes.
 
+On the three boards with the 17-partition layout (**hmuf02v5**, **mf800b**,
+**mifib-v12**) there is also a real **recovery partition**: hold the reset
+button at power-on, run `reboot-recovery`, use **System → Reboot to Recovery**
+in LuCI, or let the bootloader fall back to it after three failed boots.  See
+**[`Docs/RECOVERY/`](Docs/RECOVERY/)** for the layout, the key per board and the
+failover counter.
+
 ### Failsafe mode (recover a broken config)
 
 These dongles have no Ethernet and no serial header, so failsafe mode brings up
@@ -389,6 +396,8 @@ These devices run hot in a small enclosure, and the modem's behaviour is sensiti
 * **CPU rail (mainline CPR)** — the CPU voltage is managed by mainline **CPR** (Core Power Reduction) rather than a fixed rail, matching Android's voltage for the silicon's fused speed bin. This lowers idle and mid-load CPU voltage versus a static setting.
 * **CPU OPP cap** — the top 998.4 MHz operating point is removed, so the CPUs run at up to **800 MHz** (matching Android's cap on these parts).
 * **Wi-Fi + PMIC thermal mitigation (HMUF02-V5)** — the `wcn36xx` driver exposes a cooling device that throttles the Wi-Fi transmit path, and the PMIC's thermal zone is bound to the CPU cooling device. Trips are triggered from the CPU cluster sensor, mirroring Android's `thermal-engine` "wlan" action.
+* **Battery and charge limit (mifib-v12, mf800b)** — the PM8916 fuel gauge and charger are enabled (capacity, temperature, honest charge status) and charging is capped at **85 %** (resume at 80 %) to spare the cell.  A LuCI page, a battery LED monitor and `battery-ctl` ship in `luci-app-battery`.  See **[`Docs/BATTERY.md`](Docs/BATTERY.md)**.
+* **Power button (mifib-v12, mf800b)** — a long press powers off (or reboots cleanly while plugged in), a double press reboots.  See **[`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md)**.
 
 ```bash
 # Inspect the thermal zones and their cooling devices
@@ -428,7 +437,7 @@ ubus call network.interface.modem status   # data bearer state
 
 | Service                  | Access Details                  | Default Credentials              |
 | :----------------------- | :------------------------------ | :------------------------------- |
-| **Web Interface (LuCI)** | `http://192.168.8.1`            | No password (set on first login) |
+| **Web Interface (LuCI)** | `http://192.168.8.1` and `https://192.168.8.1` | No password (set on first login); HTTPS uses a self-signed cert — see [`Docs/HTTPS.md`](Docs/HTTPS.md) |
 | **Modem Watchdog**       | Automatic + LuCI (Services → Modem Watchdog) | Pre-emptive SSR, zombie recovery, auto handover profile |
 | **SMS Management**       | LuCI: **Services $\to$ SMS**    | View / Send SMS via Web UI       |
 | **SSH Terminal**         | `ssh root@192.168.8.1`          | No password required             |
