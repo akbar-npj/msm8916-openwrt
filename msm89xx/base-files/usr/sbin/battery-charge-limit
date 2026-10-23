@@ -34,26 +34,41 @@ find_charger() {
 }
 
 main() {
-	CHARGER=$(find_charger) || { log "no USB charger found"; exit 0; }
-	BATT=$(find_battery) || { log "no battery found"; exit 0; }
-
-	CE="$CHARGER/charge_enabled"
-	[ -w "$CE" ] || { log "charge_enabled not writable on $CHARGER"; exit 0; }
-
-	# Remember the charge current the driver/firmware picked at boot so we can
-	# restore it when we resume charging.
-	SAFE_CURRENT=$(cat "$CHARGER/constant_charge_current" 2>/dev/null)
-	[ -n "$SAFE_CURRENT" ] || SAFE_CURRENT=900000
-
-	log "monitoring $BATT, charger $CHARGER (config uci battery.@charge[0])"
+	SAFE_CURRENT=""
+	log "starting (config uci battery.@charge[0])"
 
 	while true; do
+		CHARGER=$(find_charger)
+		BATT=$(find_battery)
+
+		# The power-supply sysfs nodes may not exist yet on a fast boot;
+		# wait and retry instead of bailing out (a premature exit used to
+		# leave the battery uncapped until procd happened to respawn us).
+		if [ -z "$CHARGER" ] || [ -z "$BATT" ]; then
+			sleep 5
+			continue
+		fi
+
+		CE="$CHARGER/charge_enabled"
+		if [ ! -w "$CE" ]; then
+			sleep 5
+			continue
+		fi
+
+		# Capture the charge current the driver/firmware picked at boot, but
+		# only once: after we floor it to 90 mA on hold we must remember the
+		# original so resume restores the real value, not the floored one.
+		if [ -z "$SAFE_CURRENT" ]; then
+			SAFE_CURRENT=$(cat "$CHARGER/constant_charge_current" 2>/dev/null)
+			[ -n "$SAFE_CURRENT" ] || SAFE_CURRENT=900000
+		fi
+
 		ENABLED=$(uci -q get battery.@charge[0].enabled)
 		if [ "$ENABLED" = "0" ]; then
 			# Limit disabled: ensure charging is allowed.
 			echo 1 > "$CE" 2>/dev/null
 			echo "$SAFE_CURRENT" > "$CHARGER/constant_charge_current" 2>/dev/null
-			sleep 30
+			sleep 15
 			continue
 		fi
 
@@ -81,7 +96,7 @@ main() {
 			fi
 		fi
 
-		sleep 30
+		sleep 15
 	done
 }
 

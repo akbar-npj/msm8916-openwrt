@@ -1,0 +1,43 @@
+Report an honest POWER_SUPPLY_STATUS from the PM8916 BMS virtual monitor.
+
+The BMS previously reported STATUS=Charging whenever a charger was present
+(VBUS online), without checking whether the charger was actually charging.
+On this platform the battery-charge-limit monitor holds the battery by
+writing 0 to the charger's charge_enabled (clearing CHG_EN while PSTG_EN
+keeps the system rail fed from VBUS). In that state the battery is NOT
+being charged, yet userspace (and LuCI) kept showing "Charging".
+
+Query the supplying charger's CHARGE_ENABLED property: when it is off the
+battery is merely being held, so report POWER_SUPPLY_STATUS_NOT_CHARGING.
+
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -125,9 +125,25 @@
+ 
+ 		if (supplied < 0 && supplied != -ENODEV)
+ 			return supplied;
+-		else if (supplied && supplied != -ENODEV)
+-			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+-		else
++		else if (supplied && supplied != -ENODEV) {
++			union power_supply_propval charge = { 0 };
++
++			/*
++			 * The PM8916 LBC charger exposes a writable
++			 * charge_enabled property; when it is off the battery
++			 * is being *held* (the system rail is fed from VBUS via
++			 * PSTG_EN) rather than actually charged.  Report that as
++			 * "Not charging" instead of the misleading "Charging".
++			 * If the supplier does not report the property we fall
++			 * back to "Charging".
++			 */
++			if (power_supply_get_property_from_supplier(psy,
++					POWER_SUPPLY_PROP_CHARGE_ENABLED,
++					&charge) == 0 && !charge.intval)
++				val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
++			else
++				val->intval = POWER_SUPPLY_STATUS_CHARGING;
++		} else
+ 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+ 		return 0;
+ 
