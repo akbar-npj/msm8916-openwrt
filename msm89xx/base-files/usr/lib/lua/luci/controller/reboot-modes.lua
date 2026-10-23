@@ -11,6 +11,8 @@
 
 module("luci.controller.reboot-modes", package.seeall)
 
+local fs = require "nixio.fs"
+
 local MODES = {
     edl = {
         title = "Reboot to EDL",
@@ -21,23 +23,54 @@ local MODES = {
         title = "Reboot to Recovery",
         what  = "the recovery system",
         tool  = "/sbin/reboot-recovery",
+        -- Only meaningful where the 16-partition layout was actually written.
+        needs_recovery_partition = true,
     },
 }
+
+-- Is there a block partition named "recovery"?
+--
+-- Asking the block layer beats keeping a board list: the entry appears the
+-- moment a stick is repartitioned and never offers a button that would reboot
+-- into a partition the bootloader cannot find.  The name comes from
+-- generate_squashfs_gpt.sh, so it is the same one lk2nd matches on.
+local function has_recovery_partition()
+    local dir = fs.opendir("/sys/class/block")
+    if not dir then
+        return false
+    end
+
+    local found = false
+    local name
+    repeat
+        name = dir:read()
+        if name then
+            local uevent = fs.readfile("/sys/class/block/" .. name .. "/uevent")
+            if uevent and uevent:find("PARTNAME=recovery", 1, true) then
+                found = true
+            end
+        end
+    until not name or found
+
+    dir:close()
+    return found
+end
 
 function index()
     entry({"admin", "system", "reboot_edl"},
           call("action_reboot_mode", "edl"),
           _("Reboot to EDL"), 91)
 
-    entry({"admin", "system", "reboot_recovery"},
-          call("action_reboot_mode", "recovery"),
-          _("Reboot to Recovery"), 92)
+    if has_recovery_partition() then
+        entry({"admin", "system", "reboot_recovery"},
+              call("action_reboot_mode", "recovery"),
+              _("Reboot to Recovery"), 92)
+    end
 end
 
 function action_reboot_mode(mode)
     local http = require "luci.http"
     local sys  = require "luci.sys"
-    local fs   = require "nixio.fs"
 
     local m = MODES[mode]
     if not m then
@@ -45,9 +78,18 @@ function action_reboot_mode(mode)
         return
     end
 
-    -- The tool is only present when reboot-edl is installed.  Say so instead of
-    -- offering a button that would silently do nothing.
-    local available = fs.access(m.tool)
+    -- Re-check on POST as well as on menu build: a bookmarked URL, or a stick
+    -- repartitioned back to the 15-partition layout, must not get a page that
+    -- offers to reboot into nothing.
+    local reason
+    if not fs.access(m.tool) then
+        reason = "The reboot tool is not installed on this device."
+    elseif m.needs_recovery_partition and not has_recovery_partition() then
+        reason = "This device has no recovery partition, so there is nothing to boot into."
+    end
+
+    local available = (reason == nil)
+
     if available and http.formvalue("confirm") == "1" then
         luci.template.render("reboot_mode_go", { title = m.title })
         -- Detach: reboot-mode kills this CGI along with everything else, and
@@ -61,5 +103,6 @@ function action_reboot_mode(mode)
         what      = m.what,
         tool      = m.tool,
         available = available,
+        reason    = reason,
     })
 end

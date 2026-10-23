@@ -19,14 +19,9 @@ if [ -d /sys/class/leds/green:wan ] || [ -d /sys/class/leds/green:wlan ]; then
         /etc/init.d/wifi-led-monitor enable
 fi
 
-if [ -d /sys/class/leds/green:bat ] || [ -d /sys/class/leds/red:bat ]; then
-    [ -x /etc/init.d/battery-led-monitor ] &&
-        /etc/init.d/battery-led-monitor enable
-
-    # Cap charging at 85% (battery-charge-limit) on battery-equipped boards.
-    [ -x /etc/init.d/battery-charge-limit ] &&
-        /etc/init.d/battery-charge-limit enable
-fi
+# Battery services are not enabled here: they ship in luci-app-battery, which
+# only the battery-equipped boards (mf800b, mifib-v12) install.  That package's
+# init scripts are enabled automatically by default_postinst when it is installed.
 
 # Modem bearer watchdog: the mobility / handover-safe profile (auto_mobile is ON
 # by default in /etc/config/modem-watchdog) is only active once the service runs.

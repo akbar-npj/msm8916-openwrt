@@ -137,7 +137,7 @@ define Device/generic-mf800b
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
-		diag-efs diag-logtool
+		diag-efs diag-logtool luci-app-battery
 endef
 TARGET_DEVICES += generic-mf800b
 
@@ -155,7 +155,7 @@ define Device/generic-mifib-v12
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
-		diag-efs diag-logtool
+		diag-efs diag-logtool luci-app-battery
 endef
 TARGET_DEVICES += generic-mifib-v12
 

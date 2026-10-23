@@ -2,10 +2,8 @@
 <h2 name="content"><%=title%></h2>
 
 <% if not available then %>
-<p class="alert-message warning">
-	<%:The reboot tool is not installed, so this action is unavailable:%>
-	<code><%=tool%></code>
-</p>
+<p class="alert-message warning"><%=reason%></p>
+<p><%:Expected tool:%> <code><%=tool%></code></p>
 <% else %>
 <p><%:The device will reboot into %> <%=what%>.</p>
 
