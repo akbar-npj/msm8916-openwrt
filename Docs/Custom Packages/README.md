@@ -1,13 +1,13 @@
 # Custom Packages
 
-Beyond the upstream OpenWrt tree, this project ships **19 packages** under
+Beyond the upstream OpenWrt tree, this project ships **20 packages** under
 [`packages/`](../../packages/) — the tools, daemons and LuCI apps that make an
 MSM8916 USB dongle usable as a headless router with a Qualcomm baseband.
 
 They fall into two groups:
 
-- **Authored in-repo (11)** — written for this project, specific to the MSM8916
-  modem/DIAG/Bluetooth hardware.
+- **Authored in-repo (12)** — written for this project, specific to the MSM8916
+  modem/DIAG/Bluetooth/battery hardware.
 - **Vendored (8)** — upstream or third-party packages carried in-tree (often with
   local patches) so the firmware build is self-contained.
 
@@ -31,6 +31,7 @@ They fall into two groups:
 | [`qcom-carrier-autocfg`](../../packages/qcom-carrier-autocfg/) | Automatic **SIM detection, carrier-profile matching, APN provisioning** and a dynamic connection manager for the MSM8916 Snapdragon modem. |
 | [`qcom-time-daemon`](../../packages/qcom-time-daemon/) | **QMI Time synchronization** daemon: syncs host time with the modem's ATS/TOD and provides periodic keepalives to keep the modem DRX sleep state machine stable. |
 | [`reboot-edl`](../../packages/reboot-edl/) | Safely quiesces background services, remounts filesystems read-only, and reboots the device into **EDL (9008), DLOAD (9006), bootloader or recovery**. |
+| [`luci-app-battery`](../../packages/luci-app-battery/) | Battery status, **charge limit** and battery LEDs for the two battery boards (mifib-v12, mf800b): a LuCI page with capacity/voltage/temperature/health and the battery session, the 85 %/80 % charge-limit monitor (`charge_enabled` on the PM8916 LBC), the green/red LED monitor, and `battery-ctl`. Installed only where a pack exists. |
 | [`luci-app-modem-watchdog`](../../packages/luci-app-modem-watchdog/) | LuCI web UI for the **modem bearer watchdog** — status banner, enable/disable, the automatic `auto_mobile` handover profile (on by default) plus the manual `mobile_optimized` force mode, stall-timeout/check-interval, keepalive and recovery-escalation settings. |
 
 ## Vendored
