@@ -19,6 +19,9 @@ esac
 
 LED="/sys/class/leds/green:wlan"
 [ -d "$LED" ] || LED="/sys/class/leds/green:wan"
+# Red half of the same pair (mifib-v12, after the 2026-10-22 DT rename).
+LED_RED="/sys/class/leds/red:wlan"
+[ -d "$LED_RED" ] || LED_RED=""
 WIFI_IF="phy0-ap0"
 
 POLL_INTERVAL=2
@@ -48,6 +51,36 @@ set_green_blink()
         echo timer > "$LED/trigger" 2>/dev/null
         echo "$BLINK_ON" > "$LED/delay_on" 2>/dev/null
         echo "$BLINK_OFF" > "$LED/delay_off" 2>/dev/null
+}
+
+#
+# Red half of the Wi-Fi pair: solid = the AP should be up but is not,
+# blink = the radio was switched off on purpose (so it is not a fault).
+#
+set_red()
+{
+        [ -n "$LED_RED" ] && [ -e "$LED_RED/trigger" ] || return 0
+
+        case "$1" in
+                off)
+                        echo none > "$LED_RED/trigger" 2>/dev/null
+                        echo 0 > "$LED_RED/brightness" 2>/dev/null
+                        ;;
+                on)
+                        echo none > "$LED_RED/trigger" 2>/dev/null
+                        echo 1 > "$LED_RED/brightness" 2>/dev/null
+                        ;;
+                blink)
+                        echo timer > "$LED_RED/trigger" 2>/dev/null
+                        echo 500 > "$LED_RED/delay_on" 2>/dev/null
+                        echo 500 > "$LED_RED/delay_off" 2>/dev/null
+                        ;;
+        esac
+}
+
+wifi_radio_disabled()
+{
+        [ "$(uci -q get wireless.radio0.disabled)" = "1" ]
 }
 
 wifi_ap_present()
@@ -114,17 +147,27 @@ while true; do
 
                         wifi-down)
                                 set_green_off
-                                logger -t wifi-led-monitor \
-                                        "Wi-Fi AP unavailable: green OFF"
+
+                                if wifi_radio_disabled; then
+                                        set_red blink
+                                        logger -t wifi-led-monitor \
+                                                "Wi-Fi radio disabled: red BLINK"
+                                else
+                                        set_red on
+                                        logger -t wifi-led-monitor \
+                                                "Wi-Fi AP unavailable: red ON, green OFF"
+                                fi
                                 ;;
 
                         ap-ready)
+                                set_red off
                                 set_green_on
                                 logger -t wifi-led-monitor \
                                         "Wi-Fi AP ready, no clients: green ON"
                                 ;;
 
                         client-connected)
+                                set_red off
                                 set_green_blink
                                 logger -t wifi-led-monitor \
                                         "Wi-Fi client connected: green BLINK"

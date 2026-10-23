@@ -2,57 +2,99 @@
 #
 # Power button handler.
 #
-# button-hotplug reports SEEN as the number of whole seconds between the
-# previous event for this button and the current one, so on "released" it
-# is the time the button was held. A short press is ignored to protect
-# against accidental power-offs.
+# The power button is the PMIC pwrkey (pm8941_pwrkey), surfaced by procd as
+# BUTTON=power.  procd/button-hotplug report SEEN as the whole seconds the
+# button was held (on "released").
 #
+# Behaviour (kept clear of the PMIC own ~10-15 s hard-reset, which
+# power-cycles the board regardless of software):
+#   * short press              -> nothing (anti-accidental)
+#   * two short presses        -> reboot      (within DBL_WINDOW ms)
+#   * long press (>= LONG_HOLD s, released) -> power off (shutdown)
+#                                              -> reboot when running on
+#                                                 VBUS (see vbus_online)
+#
+# NOTE: on USB/VBUS power the PMIC re-applies system power after a software
+# power-off, so "shutdown" may present as a reboot while tethered.  On battery
+# it truly powers off.  This is a hardware property of the PMIC PON, not the
+# script.  To shut down, hold ~LONG_HOLD seconds and release; holding past
+# ~10-15 s lets the PMIC hard-reset (reboot) take over.
 
-HOLD_SECONDS=3
+SHORT_MAX=2
+LONG_HOLD=4
+DBL_WINDOW=800
+STATE=/var/run/powerbtn.dbl
 
-BLINK_COUNT=6
-BLINK_USEC=120000
+# Is the board running from an external supply?
+#
+# A software power-off while tethered does not stay off: the PMIC re-applies
+# system power as soon as VBUS is present, and a key held long enough reaches
+# the PMIC's own hard reset (which, on mifib-v12, the bootloader maps to
+# recovery).  So a long press can never leave the board off while plugged in -
+# reboot deliberately instead of racing the PMIC.
+#
+# pm8916_lbc exposes the USB input as pm8916_usbin/online; any supply that
+# reports online=1 counts, and "no such file" simply means "on battery".
+vbus_online() {
+    for p in /sys/class/power_supply/*; do
+        [ -r "$p/online" ] || continue
+        [ "$(cat "$p/online" 2>/dev/null)" = "1" ] && return 0
+    done
+    return 1
+}
+
+LED=/sys/class/leds/red:wan
+[ -d "$LED" ] || LED=/sys/class/leds/green:wan
+[ -d "$LED" ] || LED=/sys/class/leds/red:bat
+[ -d "$LED" ] || LED=/sys/class/leds/green:bat
+[ -d "$LED" ] || LED=/sys/class/leds/green:wlan
 
 [ "$ACTION" = "released" ] || exit 0
 
-[ "$SEEN" -ge "$HOLD_SECONDS" ] 2>/dev/null || exit 0
+SEEN="${SEEN%.*}"
+[ -n "$SEEN" ] || SEEN=0
 
-LED="/sys/class/leds/red:power"
-[ -d "$LED" ] || LED="/sys/class/leds/green:power"
-[ -d "$LED" ] || LED="/sys/class/leds/green:charging"
-[ -d "$LED" ] || LED="/sys/class/leds/red:charging"
-[ -d "$LED" ] || LED="/sys/class/leds/green:wan"
-[ -d "$LED" ] || LED="/sys/class/leds/blue:wan"
+now_ms=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime)
 
-blink_goodbye()
-{
-        local max
-        local i
+if [ "$SEEN" -le "$SHORT_MAX" ] 2>/dev/null; then
+    if [ -f "$STATE" ]; then
+        last=$(cat "$STATE" 2>/dev/null)
+        if [ -n "$last" ] && [ $((now_ms - last)) -le "$DBL_WINDOW" ] 2>/dev/null; then
+            rm -f "$STATE"
+            logger -t power-button "Double-press: rebooting"
+            sync
+            reboot
+            exit 0
+        fi
+    fi
+    echo "$now_ms" > "$STATE"
+    exit 0
+elif [ "$SEEN" -ge "$LONG_HOLD" ] 2>/dev/null; then
+    rm -f "$STATE"
 
-        [ -d "$LED" ] || return 0
+    if vbus_online; then
+        logger -t power-button "Power button held ${SEEN}s on VBUS: rebooting"
+        sync
+        reboot
+        exit 0
+    fi
 
-        max="$(cat "$LED/max_brightness" 2>/dev/null)"
-        [ -n "$max" ] || max=1
+    logger -t power-button "Power button held ${SEEN}s: powering off"
 
-        echo none > "$LED/trigger" 2>/dev/null
+    max=$(cat "$LED/max_brightness" 2>/dev/null)
+    [ -n "$max" ] || max=1
+    echo none > "$LED/trigger" 2>/dev/null
+    i=0
+    while [ "$i" -lt 6 ]; do
+        echo "$max" > "$LED/brightness" 2>/dev/null
+        usleep 120000
+        echo 0 > "$LED/brightness" 2>/dev/null
+        usleep 120000
+        i=$((i + 1))
+    done
 
-        i=0
-
-        while [ "$i" -lt "$BLINK_COUNT" ]; do
-
-                echo "$max" > "$LED/brightness" 2>/dev/null
-                usleep "$BLINK_USEC"
-
-                echo 0 > "$LED/brightness" 2>/dev/null
-                usleep "$BLINK_USEC"
-
-                i=$((i + 1))
-
-        done
-}
-
-logger -t power-button "Power button held ${SEEN}s: powering off"
-
-blink_goodbye
-
-exec /sbin/poweroff
+    exec /sbin/poweroff
+else
+    rm -f "$STATE"
+    exit 0
+fi

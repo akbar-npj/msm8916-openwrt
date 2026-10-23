@@ -1,0 +1,76 @@
+#!/bin/sh
+# led-boot: early boot LED feedback for mifib-v12 / HMU05-class boards.
+#
+# Runs as a procd service (START=01) AFTER the overlay is mounted, so it works
+# even when deployed via scp (unlike the preinit diag.sh path, which runs from
+# the squashfs before the overlay exists).  Blinks the battery LED by capacity:
+#   green:bat if capacity >= 20%, else red:bat  ->  "device is booting"
+# The per-LED monitor daemons (battery-led-monitor S96) override this with the
+# steady state when they start, so the blink self-terminates.
+#
+# If the box is in failsafe, also fast-blink both WiFi LEDs as a cue.
+
+GREEN_BAT="/sys/class/leds/green:bat"
+RED_BAT="/sys/class/leds/red:bat"
+WLAN_LEDS="red:wlan green:wlan"
+LOW_PCT=20
+
+led_off() {
+    [ -e "$1/trigger" ] || return 0
+    echo none > "$1/trigger" 2>/dev/null
+    echo 0 > "$1/brightness" 2>/dev/null
+}
+
+led_blink() {
+    [ -e "$1/trigger" ] || return 0
+    echo timer > "$1/trigger" 2>/dev/null
+    echo "$2" > "$1/delay_on" 2>/dev/null
+    echo "$3" > "$1/delay_off" 2>/dev/null
+}
+
+batt_capacity() {
+    local p cap
+    for p in /sys/class/power_supply/*; do
+        [ -d "$p" ] || continue
+        [ "$(cat "$p/type" 2>/dev/null)" = "Battery" ] || continue
+        cap=$(cat "$p/capacity" 2>/dev/null)
+        [ -n "$cap" ] && { echo "$cap"; return 0; }
+    done
+    echo ""
+}
+
+# The LED node may not exist yet right after overlay mount; wait for it.
+i=0
+while [ ! -e "$GREEN_BAT/trigger" ] && [ "$i" -lt 30 ]; do
+    sleep 1
+    i=$((i + 1))
+done
+[ -e "$GREEN_BAT/trigger" ] || exit 0
+
+cap=""
+i=0
+while [ "$i" -lt 4 ]; do
+    cap=$(batt_capacity)
+    case "$cap" in
+        ''|*[!0-9]*) sleep 1 ;;
+        *) break ;;
+    esac
+    i=$((i + 1))
+done
+
+led_off "$GREEN_BAT"
+led_off "$RED_BAT"
+
+if [ "$cap" != "" ] && [ "$cap" -lt "$LOW_PCT" ] 2>/dev/null; then
+    led_blink "$RED_BAT" 200 300
+else
+    led_blink "$GREEN_BAT" 200 300
+fi
+
+if [ "$(cat /proc/sys/kernel/hostname 2>/dev/null)" = "OpenWrt-failsafe" ]; then
+    for l in $WLAN_LEDS; do
+        led_blink "/sys/class/leds/$l" 100 100
+    done
+fi
+
+exit 0

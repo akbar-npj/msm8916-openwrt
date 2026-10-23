@@ -1,0 +1,407 @@
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
+@@ -0,0 +1,404 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/iio/qcom,spmi-vadc.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "HM-MIFIB-V12 4G LTE USB WiFi Dongle";
++	compatible = "mifib-v12,generic", "qcom,msm8916";
++
++	/*
++	 * 4.2 V Li-ion pack, per the stock Android DT:
++	 *   qcom,battery-type   = "qrd_4v2_2000mah"
++	 *   qcom,max-voltage-uv = 4200000
++	 *   qcom,v-cutoff-uv    = 3350000
++	 *   qcom,fcc-mah        = 2150
++	 * Do NOT copy the mf800b 4.35 V values: this is a 4.2 V cell.
++	 */
++	battery: battery {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion-polymer";
++
++		voltage-min-design-microvolt = <3350000>;
++		voltage-max-design-microvolt = <4200000>;
++		charge-full-design-microamp-hours = <2150000>;
++		charge-term-current-microamp = <100000>;
++
++		constant-charge-current-max-microamp = <1000000>;
++		constant-charge-voltage-max-microvolt = <4200000>;
++
++		factory-internal-resistance-micro-ohms = <140000>;
++
++		/*
++		 * OCV -> state-of-charge curves taken verbatim from the stock
++		 * Android DT (qcom,pc-temp-ocv-lut: 5 temperatures x 31 points,
++		 * 100 % down to 0 %).  Mainline parses these into
++		 * struct power_supply_battery_info.  pm8916_bms_vm does not use
++		 * them yet, so they are carried here so a SoC-capable driver has
++		 * the data.
++		 */
++		ocv-capacity-celsius = <(-20) 0 25 40 60>;
++
++		/* -20 C */
++		ocv-capacity-table-0 =
++			<4150000 100>, <4120000 95>, <4085000 90>, <4050000 85>,
++			<4015000 80>, <3950000 75>, <3906000 70>, <3864000 65>,
++			<3826000 60>, <3809000 55>, <3798000 50>, <3787000 45>,
++			<3776000 40>, <3755000 35>, <3735000 30>, <3715000 25>,
++			<3680000 20>, <3620000 16>, <3583000 13>, <3563000 11>,
++			<3553000 10>, <3533000 9>, <3520000 8>, <3490000 7>,
++			<3460000 6>, <3440000 5>, <3410000 4>, <3390000 3>,
++			<3370000 2>, <3360000 1>, <3350000 0>;
++
++		/* 0 C */
++		ocv-capacity-table-1 =
++			<4150000 100>, <4125000 95>, <4090000 90>, <4065000 85>,
++			<4022000 80>, <3989000 75>, <3949000 70>, <3902000 65>,
++			<3877000 60>, <3837000 55>, <3810000 50>, <3789000 45>,
++			<3776000 40>, <3755000 35>, <3735000 30>, <3715000 25>,
++			<3680000 20>, <3620000 16>, <3583000 13>, <3563000 11>,
++			<3553000 10>, <3533000 9>, <3520000 8>, <3490000 7>,
++			<3460000 6>, <3440000 5>, <3410000 4>, <3390000 3>,
++			<3370000 2>, <3360000 1>, <3350000 0>;
++
++		/* 25 C */
++		ocv-capacity-table-2 =
++			<4150000 100>, <4125000 95>, <4090000 90>, <4065000 85>,
++			<4022000 80>, <3989000 75>, <3949000 70>, <3902000 65>,
++			<3877000 60>, <3837000 55>, <3810000 50>, <3789000 45>,
++			<3776000 40>, <3755000 35>, <3735000 30>, <3715000 25>,
++			<3680000 20>, <3620000 16>, <3583000 13>, <3563000 11>,
++			<3553000 10>, <3533000 9>, <3520000 8>, <3490000 7>,
++			<3460000 6>, <3440000 5>, <3410000 4>, <3390000 3>,
++			<3370000 2>, <3360000 1>, <3350000 0>;
++
++		/* 40 C */
++		ocv-capacity-table-3 =
++			<4150000 100>, <4125000 95>, <4090000 90>, <4065000 85>,
++			<4022000 80>, <3989000 75>, <3949000 70>, <3902000 65>,
++			<3877000 60>, <3837000 55>, <3810000 50>, <3789000 45>,
++			<3776000 40>, <3755000 35>, <3735000 30>, <3715000 25>,
++			<3680000 20>, <3620000 16>, <3583000 13>, <3563000 11>,
++			<3553000 10>, <3533000 9>, <3520000 8>, <3490000 7>,
++			<3460000 6>, <3440000 5>, <3410000 4>, <3390000 3>,
++			<3370000 2>, <3360000 1>, <3350000 0>;
++
++		/* 60 C */
++		ocv-capacity-table-4 =
++			<4149000 100>, <4125000 95>, <4090000 90>, <4065000 85>,
++			<4022000 80>, <3989000 75>, <3949000 70>, <3902000 65>,
++			<3877000 60>, <3837000 55>, <3810000 50>, <3789000 45>,
++			<3776000 40>, <3755000 35>, <3735000 30>, <3715000 25>,
++			<3680000 20>, <3620000 16>, <3583000 13>, <3563000 11>,
++			<3553000 10>, <3533000 9>, <3520000 8>, <3490000 7>,
++			<3460000 6>, <3440000 5>, <3410000 4>, <3390000 3>,
++			<3370000 2>, <3360000 1>, <3350000 0>;
++	};
++};
++
++/* Persistent kernel log (ramoops) -- same region as every other board. */
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++		ecc-size = <16>;
++	};
++};
++
++/*
++ * Status LEDs, mapped on hardware 2026-10-22 by lighting each GPIO alone
++ * and noting which physical lamp came on.  The panel has three green/red
++ * pairs, and the stock Android names do NOT describe what the GPIOs drive:
++ *
++ *   signal   green gpio85   red gpio72   (stock names: 4g_1 / 4g_type)
++ *   wi-fi    green gpio73   red gpio84   (stock names: wifistatus / 4g_2)
++ *   battery  green gpio0    red gpio1    (stock names: batl2 / bat1)
++ *
++ *   batl3 gpio91   batl4 gpio100   ftest gpio32   - not populated
++ *   sim_hotplug gpio114   - SIM re-announce pulse, not a lamp
++ */
++&{/leds} {
++	/delete-node/ led-r;
++	/delete-node/ led-g;
++	/delete-node/ led-b;
++
++	led-wlan-green {
++		function = LED_FUNCTION_WLAN;
++		color = <LED_COLOR_ID_GREEN>;
++		gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-wwan-green {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_GREEN>;
++		gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-wlan-red {
++		function = LED_FUNCTION_WLAN;
++		color = <LED_COLOR_ID_RED>;
++		gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-wwan-red {
++		function = LED_FUNCTION_WAN;
++		color = <LED_COLOR_ID_RED>;
++		gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-bat-red {
++		label = "red:bat";
++		gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-bat-green {
++		label = "green:bat";
++		gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-batl3 {
++		label = "batl3";
++		gpios = <&tlmm 91 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-batl4 {
++		label = "batl4";
++		gpios = <&tlmm 100 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++
++	led-ftest {
++		label = "ftest";
++		gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
++		default-state = "keep";
++		retain-state-suspended;
++	};
++
++	/*
++	 * SIM re-announce line.  Userspace pulses it low->high->low so the
++	 * baseband re-reads the slot after a physical swap.  Keep the exact
++	 * label: the service opens /sys/class/leds/sim_hotplug/brightness.
++	 */
++	led-sim-hotplug {
++		label = "sim_hotplug";
++		gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
++		default-state = "off";
++		retain-state-suspended;
++	};
++};
++
++&gpio_leds_default {
++	pins = "gpio0", "gpio1", "gpio32", "gpio72", "gpio73",
++	       "gpio84", "gpio85", "gpio91", "gpio100", "gpio114";
++};
++
++/*
++ * SIM enable lines.  The stock DT exposes esim1_en/esim2_en/esim3_en as
++ * gpio-leds with default-state "keep" and Android userspace drives them.
++ * OpenWrt has no such userspace step, so hold the same electrical state
++ * with gpio hogs:
++ *
++ *   esim1_en  gpio119  HIGH  (physical SIM)
++ *   esim2_en  gpio112  LOW
++ *   esim3_en  gpio12   LOW
++ */
++&tlmm {
++	sim1_en {
++		gpio-hog;
++		gpios = <119 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "sim1_en";
++	};
++
++	sim2_en {
++		gpio-hog;
++		gpios = <112 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim2_en";
++	};
++
++	sim3_en {
++		gpio-hog;
++		gpios = <12 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim3_en";
++	};
++};
++
++/*
++ * Reset button.  The stock DT has flags 0x01 (GPIO_ACTIVE_LOW) and the
++ * line idles HIGH, so it is active-low with a pull-up -- the opposite of
++ * the mf800b/HMU05 wiring.  Do not copy their active-high/pull-down.
++ */
++&button_restart {
++	gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++	pins = "gpio102";
++	bias-pull-up;
++};
++
++/*
++ * PM8916 linear charger + VM-BMS, as in the stock DT
++ * (qcom,qpnp-linear-charger / qcom,qpnp-vm-bms).
++ */
++&pm8916_usbin {
++	status = "disabled";
++};
++
++&pm8916_charger {
++	monitored-battery = <&battery>;
++
++	qcom,fast-charge-safe-voltage = <4200000>;
++	qcom,fast-charge-safe-current = <1000000>;
++
++	status = "okay";
++};
++
++&pm8916_bms {
++	monitored-battery = <&battery>;
++	power-supplies = <&pm8916_charger>;
++
++	/* Pack NTC, sampled through the PMIC VADC rather than the BMS block. */
++	io-channels = <&pm8916_vadc VADC_LR_MUX1_BAT_THERM>;
++	io-channel-names = "batt-therm";
++
++	status = "okay";
++};
++
++/*
++/*
++ * Pack thermistor, exactly as the stock DT describes it (chan@30, label
++ * "batt_therm", ratiometric, therm scale function).
++ *
++ * NOTE: qcom,hw-settle-time is in microseconds and the binding only accepts
++ * multiples of 100 us (<=1000) or multiples of 2000 us (>1000); any other
++ * value makes vadc_hw_settle_time_from_dt() return -EINVAL and the ENTIRE
++ * VADC driver probe fail (-22), which then cascades into the BMS being
++ * unable to get its thermistor ("deferred probe pending: ... Unable to get
++ * battery thermistor").  The stock DT asks for a 16 ms settle, so use
++ * <16000> (the exact 16 ms), NOT the invalid <10> that was here before.
++ */
++&pm8916_vadc {
++	channel@30 {
++		reg = <VADC_LR_MUX1_BAT_THERM>;
++		qcom,pre-scaling = <1 1>;
++		qcom,ratiometric;
++		qcom,hw-settle-time = <16000>;
++	};
++};
++
++/*
++ * Thermal mitigation for Wi-Fi and PMIC (ported from the HMUF02-V5 board;
++ * both boards share the msm8916 SoC, so the same thermal-zones and cooling
++ * devices apply).
++ *
++ * Wi-Fi
++ * -----
++ * The WCN36XX firmware supports WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ: a
++ * mitigation level 0..4 where 0 is normal operation and 1..4 progressively
++ * disable TX AMPDU aggregation and reduce transmit power.  The wcn36xx driver
++ * exposes it as the "wcn36xx" cooling device.
++ *
++ * There is no dedicated WCNSS temperature sensor, so - exactly like Android's
++ * thermal-engine, which applies its "wlan" action once cpu0-1 reaches 60 C -
++ * trigger the mitigation from the CPU cluster sensor (tsens5 / cpu0-1).
++ * OpenWrt idles a few degrees warmer than Android, so the trip is placed at
++ * 65 C (clear of idle, well below the 75 C CPU-throttle trip).
++ *
++ * PMIC
++ * ----
++ * pm8916-thermal has a temperature sensor but no cooling device bound, so
++ * nothing acts on it.  Bind the CPU cooling device: the CPU's SMPS2 rail is the
++ * dominant load on the PMIC, so throttling the CPU also cools the PMIC.
++ */
++
++&wcnss_wifi {
++	#cooling-cells = <2>;
++};
++
++&{/thermal-zones/cpu0-1-thermal} {
++	trips {
++		wifi_alert: wifi-trip {
++			temperature = <65000>;
++			hysteresis = <3000>;
++			type = "passive";
++		};
++	};
++
++	cooling-maps {
++		wifi_map {
++			trip = <&wifi_alert>;
++			cooling-device = <&wcnss_wifi THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++		};
++	};
++};
++
++&{/thermal-zones/pm8916-thermal} {
++	trips {
++		pmic_alert: pmic-trip {
++			temperature = <90000>;
++			hysteresis = <5000>;
++			type = "passive";
++		};
++	};
++
++	cooling-maps {
++		pmic_map {
++			trip = <&pmic_alert>;
++			cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++					 <&CPU1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++					 <&CPU2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++					 <&CPU3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++		};
++	};
++};
++
++&usb {
++	dr_mode = "peripheral";
++	extcon = <&pm8916_charger>;
++};
++
++&usb_hs_phy {
++	extcon = <&pm8916_charger>;
++};
++
++/*
++ * Keep the modem's A2 (BAM) power domain alive on the MIFIB-V12 board.
++ *
++ * Its modem asserts a2_power.c:1216 ("A2 Assertion Failed") every ~30-60 s
++ * once a data bearer is up, whenever the AP releases the A2 power vote (the
++ * runtime-PM autosuspend vote-down) -- measured live 2026-10-22: 7 fatals in
++ * the logread window, each dropping the bearer for ~40 s.  The driver turns
++ * this property into pm_runtime_forbid() on &bam_dmux, i.e. it holds
++ * power/control=on forever.  Live A/B: hand-writing power/control=on stopped
++ * the fatals immediately (last fatal 4 s before the pin, none since).
++ * HMUF02-V5, UF02 and UZ801 set the same property (patches 849/851);
++ * UFI001B and MF800B do not and keep normal runtime suspend.
++ */
++&bam_dmux {
++	qcom,a2-pin;
++};

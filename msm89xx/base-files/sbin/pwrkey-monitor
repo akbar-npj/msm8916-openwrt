@@ -1,0 +1,76 @@
+#!/bin/sh
+# pwrkey-monitor: bridge the PMIC pwrkey (pm8941_pwrkey evdev) to the OpenWrt
+# button-hotplug handler /etc/rc.button/power.
+#
+# procd's hotplug.json only reacts to SUBSYSTEM=button uevents emitted by
+# kmod-gpio-button-hotplug (GPIO keys).  The PMIC pwrkey is a plain evdev input
+# device and never produces those, so /etc/rc.button/power is never invoked on
+# its own.  We translate its press/release into the same ACTION/SEEN/BUTTON
+# environment the gpio-button-hotplug path would have supplied.
+#
+# KEYCODE (verified live from a raw event0 capture):
+#   events are EV_KEY (type 0x01), code 0x74 = KEY_POWER (116), value 1=press / 0=release.
+#   (The /sys/class/input/input0/capabilities/key bitmap is NOT a reliable decoder
+#    here; trust the captured bytes.  Do NOT match 0x34.)
+#
+# STRUCT SIZE: this kernel uses 16-byte input_event structs (8-byte timeval +
+# 8-byte payload).  To stay robust we read 32-byte chunks and scan a sliding
+# window for the press/release byte patterns (also tolerates 24-byte structs).
+
+log() { logger -t pwrkey-monitor "$1"; }
+
+# The input device appears only once the PMIC pwrkey driver has probed, which can
+# be after this service starts.  Wait for it instead of exiting: a failed open
+# here would just make procd respawn us in a tight loop.
+find_dev() {
+    DEV=""
+    for d in /sys/class/input/input*; do
+        [ "$(cat "$d/name" 2>/dev/null)" = "pm8941_pwrkey" ] || continue
+        num=$(basename "$d" | sed 's/input//')
+        [ -e "/dev/input/event$num" ] && { DEV="/dev/input/event$num"; return 0; }
+    done
+    return 1
+}
+
+i=0
+while ! find_dev; do
+    i=$((i + 1))
+    [ "$i" -ge 60 ] && { log "no pm8941_pwrkey input device, giving up"; exit 1; }
+    sleep 1
+done
+
+log "monitoring $DEV (pwrkey keycode 0x74 / KEY_POWER)"
+
+press_ms=0
+buf=""
+
+exec 3<"$DEV" || { log "cannot open $DEV"; exit 1; }
+
+while true; do
+    chunk=$(dd bs=32 count=1 <&3 2>/dev/null | hexdump -e '32/1 "%02x "')
+    [ -z "$chunk" ] && continue
+    buf="$buf$chunk"
+    while :; do
+        case "$buf" in
+            *"01 00 74 00 01 00 00 00"*)
+                buf=$(echo "$buf" | sed 's/01 00 74 00 01 00 00 00//')
+                press_ms=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime)
+                log "press detected"
+                ;;
+            *"01 00 74 00 00 00 00 00"*)
+                buf=$(echo "$buf" | sed 's/01 00 74 00 00 00 00 00//')
+                if [ "$press_ms" -gt 0 ]; then
+                    now_ms=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime)
+                    dur_ms=$((now_ms - press_ms))
+                    press_ms=0
+                    dur_s=$(( (dur_ms + 500) / 1000 ))
+                    [ "$dur_s" -lt 1 ] && dur_s=0
+                    log "released after $dur_s s"
+                    ACTION=released SEEN=$dur_s BUTTON=power /etc/rc.button/power
+                fi
+                ;;
+            *) break ;;
+        esac
+    done
+    buf=$(echo "$buf" | tail -c 240)
+done

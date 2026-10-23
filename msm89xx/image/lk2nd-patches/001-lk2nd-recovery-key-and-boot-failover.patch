@@ -1,0 +1,164 @@
+--- a/lk2nd/device/keys.c
++++ b/lk2nd/device/keys.c
+@@ -2,6 +2,7 @@
+ /* Copyright (c) 2022 Nikita Travkin <nikita@trvn.ru> */
+ 
+ #include <debug.h>
++#include <config.h>
+ #include <dev/keys.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -12,6 +13,8 @@
+ 
+ #include <lk2nd/device/keys.h>
+ #include <lk2nd/hw/gpio.h>
++#include <platform/gpio.h>
++#include <platform/timer.h>
+ #include <lk2nd/init.h>
+ 
+ #include "device.h"
+@@ -82,6 +85,30 @@
+ 		keys_post_event(published_keys[i],
+ 				lk2nd_keys_pressed(published_keys[i]));
+ 	}
++#ifdef RECOVERY_KEY_GPIO
++	/* Board reset button on a TLMM GPIO (mf800b/mifib-v12: key_freset =
++	 * GPIO 102, active low, unused by every other board in this project).
++	 * Held at power-on it is reported as VOLUMEUP so that aboot's stock
++	 * key handling boots the recovery partition. */
++	gpio_tlmm_config(RECOVERY_KEY_GPIO, 0, GPIO_INPUT, GPIO_PULL_UP,
++			 GPIO_2MA, GPIO_ENABLE);
++
++	/* Let the TLMM config take effect before sampling.  Without this the
++	 * first read after the config returns 0, which the active-low test
++	 * below reports as "pressed" - every boot would land in recovery.
++	 * The stock target_volume_up() waits for the same reason. */
++	udelay(10000);
++
++#if defined(RECOVERY_KEY_ACTIVE_LOW) && RECOVERY_KEY_ACTIVE_LOW
++	if (!gpio_status(RECOVERY_KEY_GPIO))
++#else
++	if (gpio_status(RECOVERY_KEY_GPIO))
++#endif
++	{
++		dprintf(ALWAYS, "recovery key pressed");
++		keys_post_event(KEY_VOLUMEUP, 1);
++	}
++#endif
+ }
+ LK2ND_INIT(lk2nd_keys_publish);
+ 
+--- a/app/aboot/aboot.c
++++ b/app/aboot/aboot.c
+@@ -1501,6 +1501,89 @@
+ #endif
+ }
+ 
++#if defined(BOOT_FAILOVER_COUNT) && BOOT_FAILOVER_COUNT > 0
++/* Boot-failover counter, stored in the LAST 512-byte block of the misc
++ * partition (page 0 holds the FFBM cookie, page 1 the recovery BCB - the
++ * tail of the partition is unused).
++ *
++ * aboot increments the counter on every normal boot attempt and boots the
++ * recovery partition once it reaches BOOT_FAILOVER_COUNT. OpenWrt clears
++ * the cookie once the system is up (S99recovery-bootcount), so a healthy
++ * system resets it on every boot and never trips the failover. This is the
++ * only automatic rescue path for a board whose boot partition is broken
++ * and which has no dedicated recovery key.
++ *
++ * Returns 1 when the threshold is reached. */
++#define BOOT_FAILOVER_MAGIC 0x4C4B4643
++
++struct boot_failover_cookie {
++	uint32_t magic;
++	uint32_t count;
++	uint32_t reserved[126]; /* pad to a full 512-byte block */
++};
++
++static int boot_failover_check(void)
++{
++	struct boot_failover_cookie *cookie;
++	unsigned long long ptn_size;
++	uint64_t offset;
++	int index;
++	int ret = 0;
++
++	index = partition_get_index("misc");
++	if (index == INVALID_PTN)
++		return 0;
++
++	/* Nothing to fail over to: without a recovery partition this must stay
++	 * inert, otherwise we would set boot_into_recovery and make aboot try
++	 * to boot a partition that does not exist. */
++	if (partition_get_index("recovery") == INVALID_PTN)
++		return 0;
++
++	ptn_size = partition_get_size(index);
++	if (ptn_size < 512)
++		return 0;
++
++	cookie = memalign(CACHE_LINE, ROUNDUP(512, CACHE_LINE));
++	if (!cookie)
++		return 0;
++
++	offset = partition_get_offset(index) + ptn_size - 512;
++	mmc_set_lun(partition_get_lun(index));
++
++	if (mmc_read(offset, (uint32_t *)cookie, 512)) {
++		free(cookie);
++		return 0;
++	}
++
++	if (cookie->magic != BOOT_FAILOVER_MAGIC) {
++		cookie->magic = BOOT_FAILOVER_MAGIC;
++		cookie->count = 1;
++	} else {
++		cookie->count++;
++	}
++
++	dprintf(ALWAYS, "boot failover count: %u of %d",
++		cookie->count, BOOT_FAILOVER_COUNT);
++
++	ret = (cookie->count >= BOOT_FAILOVER_COUNT);
++	if (ret) {
++		/* Clear the counter as we hand over to recovery.  Otherwise the
++		 * count stays above the threshold and every later boot is forced
++		 * into recovery again, even after the system has been repaired -
++		 * the only thing that could clear it is the userspace hook that
++		 * a broken system never reaches. */
++		cookie->magic = 0;
++		cookie->count = 0;
++	}
++
++	if (mmc_write(offset, 512, (uint32_t *)cookie))
++		dprintf(CRITICAL, "boot failover: mmc write failed");
++	free(cookie);
++	return ret;
++}
++#endif
++
+ static bool check_format_bit(void)
+ {
+ 	bool ret = false;
+@@ -5602,6 +5685,21 @@
+ 		boot_into_fastboot = true;
+ 	#endif
+ 
++#if defined(BOOT_FAILOVER_COUNT) && BOOT_FAILOVER_COUNT > 0
++	/* Boot-failover: count consecutive boots that never reach userspace
++	 * (OpenWrt clears the counter in S99recovery-bootcount once the
++	 * system is up). After BOOT_FAILOVER_COUNT attempts, boot the
++	 * recovery partition instead - the only rescue path for a board
++	 * whose boot partition is broken and which has no dedicated key.
++	 * Runs before the reboot-reason check so an explicit reboot into
++	 * recovery is never counted. */
++	if (!boot_into_recovery && !boot_into_fastboot)
++	{
++		if (boot_failover_check())
++			boot_into_recovery = 1;
++	}
++#endif
++
+ #if USE_PON_REBOOT_REG
+ 	reboot_mode = check_hard_reboot_mode();
+ #else

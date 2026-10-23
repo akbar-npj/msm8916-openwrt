@@ -194,6 +194,81 @@ if [ ! -f "$BUILDDIR/lk2nd/build-lk1st-msm8916/emmc_appsboot.mbn" ]; then
 (
     cd "$BUILDDIR/lk2nd"
 
+    # Project patches (recovery key GPIO + boot-failover counter).
+    LK2ND_PATCHES="$(dirname "$TOPDIR")/msm89xx/image/lk2nd-patches"
+    if [ -d "$LK2ND_PATCHES" ]; then
+        for p in "$LK2ND_PATCHES"/*.patch; do
+            [ -f "$p" ] || continue
+            echo "[+] Applying $(basename "$p")"
+            patch -p1 --forward < "$p"
+        done
+    fi
+
+    # --- Per-board recovery-key selection -------------------------------------
+    # The recovery key is the GPIO lk2nd samples at power-on to decide whether
+    # to boot the recovery partition.  It is board-specific:
+    #   * mf800b / mifib-v12 are buttonless; their reset button is wired to
+    #     TLMM GPIO102 (active-low) and is safe to use as the recovery key.
+    #   * hmuf02v5 (== hmu05, same board) has its reset button on TLMM GPIO37,
+    #     which is ALSO the EDL strap: holding it at power-on drops the SoC
+    #     straight into EDL before lk2nd runs, so it can never act as a
+    #     recovery key.  Leave it unset there - recovery stays reachable via
+    #     `reboot recovery` and the 3-strike auto-failover.
+    # Derive the family from the firmware.zip path ($1); an explicit
+    # RECOVERY_KEY_GPIO env var still overrides the auto-detection.
+    FW_NAME="$(basename "${OUT_FILE%.zip}")"
+    _auto_gpio=""; _auto_low=""
+    case "$FW_NAME" in
+        *mifib-v12*|*mf800b*) _auto_gpio=102; _auto_low=1 ;;
+    esac
+    if [ -n "${RECOVERY_KEY_GPIO:-}" ]; then
+        RECOVERY_KEY_ACTIVE_LOW="${RECOVERY_KEY_ACTIVE_LOW:-1}"
+    else
+        RECOVERY_KEY_GPIO="$_auto_gpio"
+        RECOVERY_KEY_ACTIVE_LOW="$_auto_low"
+    fi
+    if [ -n "$RECOVERY_KEY_GPIO" ]; then
+        WANT_KEY_LINE="gpio=${RECOVERY_KEY_GPIO} active_low=${RECOVERY_KEY_ACTIVE_LOW:-1}"
+    else
+        WANT_KEY_LINE="none"
+    fi
+
+    # Force a rebuild when the recovery-key setting changes between boards, so a
+    # lk2nd binary cached from a previous board is never silently reused.
+    LK_BUILDDIR="$BUILDDIR/lk2nd/build-lk1st-msm8916"
+    KEY_STAMP="$BUILDDIR/.recovery_key.stamp"
+    if [ -f "$LK_BUILDDIR/emmc_appsboot.mbn" ] && \
+       [ "$(cat "$KEY_STAMP" 2>/dev/null)" != "$WANT_KEY_LINE" ]; then
+        echo "[+] recovery key setting changed ($(cat "$KEY_STAMP" 2>/dev/null || echo none) -> $WANT_KEY_LINE); forcing lk2nd rebuild"
+        rm -f "$LK_BUILDDIR/emmc_appsboot.mbn"
+    fi
+
+    # DEFINES must be set BEFORE the project include is read.
+    #
+    # Re-derive them on every run: strip any previously injected lines first,
+    # otherwise a changed setting would never take effect on a rebuild of an
+    # already-configured tree.
+    sed -i \
+        -e '/^DEFINES += RECOVERY_KEY_GPIO=/d' \
+        -e '/^DEFINES += RECOVERY_KEY_ACTIVE_LOW=/d' \
+        -e '/^DEFINES += BOOT_FAILOVER_COUNT=/d' \
+        project/lk1st-msm8916.mk
+    {
+        # The recovery key is OPT-IN.  It is board-specific, and a pin that
+        # does not match the board's own DTS (or one that idles low) makes
+        # every single boot land in recovery.  Enable it per board with
+        #   RECOVERY_KEY_GPIO=<n> [RECOVERY_KEY_ACTIVE_LOW=0|1]
+        # only after the pin has been verified from Linux on real hardware.
+        if [ -n "${RECOVERY_KEY_GPIO:-}" ]; then
+            echo "DEFINES += RECOVERY_KEY_GPIO=${RECOVERY_KEY_GPIO}"
+            echo "DEFINES += RECOVERY_KEY_ACTIVE_LOW=${RECOVERY_KEY_ACTIVE_LOW:-1}"
+        fi
+        echo 'DEFINES += BOOT_FAILOVER_COUNT=3'
+        cat project/lk1st-msm8916.mk
+    } > project/lk1st-msm8916.mk.new
+    mv project/lk1st-msm8916.mk.new project/lk1st-msm8916.mk
+    echo "$WANT_KEY_LINE" > "$KEY_STAMP"
+
     grep -qxF 'DEFINES += USE_TARGET_HS200_CAPS=1' \
         project/lk1st-msm8916.mk || \
         echo 'DEFINES += USE_TARGET_HS200_CAPS=1' \

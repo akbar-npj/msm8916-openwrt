@@ -42,13 +42,41 @@ Missing"). With the bit set, SSP runs normally and pairing succeeds.
 set), SSP mode `01`. `bluetoothd` also writes `Write SSP=1` at its own init. ⇒ A stock boot is
 already in the good state; **the fix is self-healing across a reboot and needs no init script.**
 
-### What is NOT proven
-The *original* failure — SSP active but `Simple Pairing Complete (0x36) status 0x05` — is **not
-reproducible now**, and its trigger is **unknown**. The BD-address hypothesis (SSP's f1/f2/f3 bind
-the BD_ADDR; bluez once reported a stale `00:90:4A:13:A0:72`) was checked against the fedora-side
-capture and is **not supported** — the failing exchange used `02:00:C2:B9:10:3D` throughout. What is
-proven is the feature-bit mechanism above and that a controller re-init (HCI reset / reboot)
-restores a working state.
+### ★ The `0x05` trigger — IDENTIFIED 2026-10-23 (host controller state; a power cycle fixes it)
+The original failure — SSP active but `Simple Pairing Complete (0x36) status 0x05` — recurred on
+**both** boards and is now explained. It is **host-side**, not device-side.
+
+Reproduction (Fedora 5.87 host; reproduced on `mifib-v12` **and** `hmuf05`, and against a POCO
+M6 Pro 5G): after a long session of scans and failed pair attempts, every pair fails with `0x05`
+even though both sides display and confirm the **same** passkey and the device returns
+`btd_adapter_confirm_reply() … success 1`. Just Works (NoInputNoOutput on both sides) fails the
+same way. Fresh bonds on both sides, `hciconfig reset`, and even a full device reboot do **not**
+clear it.
+
+Fix — the documented successful recipe (§3) power-cycled the **host** controller before pairing:
+
+```
+bluetoothctl
+  power off; sleep 3; power on; sleep 3
+  scan bredr          # `scan on` repeatedly misses this BR/EDR-only device
+  scan off
+  pair <bdaddr>
+```
+
+→ `Bonded: yes / Paired: yes`, and **both** sides then hold the same link key (the `info` files on
+the device and the host agree). The mgmt power cycle re-initialises the host controller; an HCI
+reset or a scan restart is not enough.
+
+⇒ Practical rule: **if pairing fails with `0x05`, power-cycle the host adapter first** — do not go
+looking at the device. This also explains the earlier `EBADE` (Invalid exchange) on RFCOMM: same
+stale host state, and it disappears after the power cycle.
+
+### What is still NOT proven
+The BD-address hypothesis (SSP's f1/f2/f3 bind the BD_ADDR; bluez once reported a stale
+`00:90:4A:13:A0:72`) was checked against the fedora-side capture and is **not supported** — the
+failing exchange used `02:00:C2:B9:10:3D` throughout. The NVM BD_ADDR tag (vendor `0x3f|0x000b`
+tag 1) is **empty** on both boards and NVM writes are accepted-but-not-persisted, so the address
+comes from lk2nd's `local-bd-address`; this is not the failure trigger.
 
 ## 3. Verified pairing
 
@@ -92,6 +120,21 @@ on persistent storage. (A `sysupgrade -n` **would** wipe it — see the deployme
 > service — no A2DP/HID/PAN listener), **not** an authentication error. Do not read it as "pairing
 > broke". To prove the key works, use `hcitool cc` (link-level) or connect a real profile
 > (e.g. an RFCOMM server, or a phone with A2DP/HFP).
+
+### 3.2 SPP verified end-to-end (2026-10-23)
+With the bond in place, a plain RFCOMM connect to channel 1 from the host reaches the `bt-spp`
+shell bridge:
+
+```
+RFCOMM CONNECTED to 02:00:10:D2:00:C2 channel 1
+~ # echo SPP_OK; uname -n
+SPP_OK
+mifib-v12
+```
+
+SDP advertises `Serial Port` (0x1101) on RFCOMM channel 1 (`sdptool browse`). Verified on
+`mifib-v12` (bonded) and `hmuf02v5` (unbonded — the shell bridge does not require authentication).
+This closes the end-to-end SPP check: pairing → bond on both sides → RFCOMM ch 1 → shell.
 
 ## 4. Packaging — `kmod-btqca` + `kmod-btqcomsmd`
 

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenWrt Recovery</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; font: 15px/1.45 system-ui, sans-serif;
+         background: #16181d; color: #dfe3ea; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: #9fb3c8; text-transform: uppercase;
+       letter-spacing: .06em; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .muted { color: #7f8b9c; font-size: 13px; }
+  .card { background: #1e2129; border: 1px solid #2c313c; border-radius: 10px;
+          padding: 16px; margin: 14px 0; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=file] { flex: 1 1 260px; padding: 8px; background: #171a20;
+                     border: 1px solid #2c313c; border-radius: 6px; color: #dfe3ea; }
+  select, button { padding: 8px 14px; border-radius: 6px; border: 1px solid #2c313c;
+                   background: #262b35; color: #dfe3ea; font-size: 14px; cursor: pointer; }
+  button.primary { background: #2f6feb; border-color: #2f6feb; color: #fff; }
+  button.danger  { background: #8a2b2b; border-color: #8a2b2b; color: #fff; }
+  button:disabled { opacity: .45; cursor: default; }
+  .bar { height: 6px; background: #262b35; border-radius: 3px; overflow: hidden; margin: 12px 0 0; }
+  .bar > i { display: block; height: 100%; width: 0; background: #2f6feb; transition: width .2s; }
+  pre { background: #101318; border: 1px solid #2c313c; border-radius: 6px; padding: 10px;
+        margin: 12px 0 0; max-height: 220px; overflow: auto; font-size: 12.5px;
+        white-space: pre-wrap; }
+  .warn { border-color: #6b4a1f; background: #241d12; color: #e8c48a; }
+  code { background: #262b35; padding: 1px 5px; border-radius: 4px; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #262b35;
+          font-size: 12px; color: #9fb3c8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OpenWrt Recovery</h1>
+  <div class="muted" id="status">loading...</div>
+
+  <div class="card warn">
+    This console has <b>no authentication</b> and can erase the flash. Anyone who can
+    reach <code>192.168.10.1</code> can use it — keep it on a trusted network only.
+  </div>
+
+  <div class="card">
+    <h2>Sysupgrade (fresh install)</h2>
+    <div class="muted">Upload a <code>*-sysupgrade.bin</code>. Writes <code>kernel</code> to
+      <code>boot</code>, <code>root</code> to <code>rootfs</code> and erases the overlay
+      (same as <code>sysupgrade -n</code>: no settings are kept).</div>
+    <div class="row" style="margin-top:12px">
+      <input type="file" id="f-sys">
+      <button class="primary" id="b-sys">Flash sysupgrade</button>
+    </div>
+    <div class="bar"><i id="p-sys"></i></div>
+    <pre id="o-sys" hidden></pre>
+  </div>
+
+  <div class="card">
+    <h2>Flash one partition</h2>
+    <div class="muted">Upload a raw image and write it to the selected partition
+      (e.g. <code>*-squashfs-boot.img</code> &rarr; <code>boot</code>,
+      <code>*-squashfs-system.img</code> &rarr; <code>rootfs</code>).</div>
+    <div class="row" style="margin-top:12px">
+      <select id="tgt"></select>
+      <input type="file" id="f-part">
+      <button class="danger" id="b-part">Flash partition</button>
+    </div>
+    <div class="bar"><i id="p-part"></i></div>
+    <pre id="o-part" hidden></pre>
+  </div>
+
+  <div class="card">
+    <h2>Power</h2>
+    <div class="row">
+      <button id="b-reboot">Reboot</button>
+      <button class="danger" id="b-edl">Reboot to EDL</button>
+    </div>
+    <div class="muted" style="margin-top:8px">EDL = Qualcomm 9008 mode, for a full
+      reflash with <code>flash.sh</code> / QFIL.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function fmt(b) { return (b / 1048576).toFixed(1) + " MB"; }
+
+async function refresh() {
+  try {
+    const j = await (await fetch("/cgi-bin/info", {cache: "no-store"})).json();
+    $("status").textContent =
+      j.kernel + " · up " + Math.floor(j.uptime / 60) + " min · RAM " +
+      j.mem_available + "/" + j.mem_total + " MB free · /tmp " + j.tmp_available + " MB";
+    const sel = $("tgt");
+    const keep = sel.value;
+    sel.innerHTML = "";
+    for (const p of j.parts) {
+      const o = document.createElement("option");
+      o.value = p.name;
+      o.textContent = p.name + "  (" + fmt(p.bytes) + ")";
+      sel.appendChild(o);
+    }
+    if (keep) sel.value = keep;
+  } catch (e) {
+    $("status").textContent = "status unavailable: " + e;
+  }
+}
+
+function log(id, text) {
+  const el = $(id);
+  el.hidden = false;
+  el.textContent += text;
+  el.scrollTop = el.scrollHeight;
+}
+
+function send(url, file, barId, outId, btnId, done) {
+  const bar = $(barId), btn = $(btnId), out = $(outId);
+  out.hidden = false; out.textContent = "";
+  btn.disabled = true;
+  bar.style.width = "0";
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", url);
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) bar.style.width = (e.loaded / e.total * 100).toFixed(1) + "%";
+  };
+  xhr.upload.onload = () => { bar.style.width = "100%"; log(outId, "upload complete, writing to flash...\n"); };
+  xhr.onload = () => { log(outId, xhr.responseText); btn.disabled = false; done && done(); };
+  xhr.onerror = () => { log(outId, "ERROR: request failed\n"); btn.disabled = false; };
+  xhr.send(file);
+}
+
+$("b-sys").onclick = () => {
+  const f = $("f-sys").files[0];
+  if (!f) return alert("Choose a sysupgrade image first.");
+  if (!confirm("Flash " + f.name + "?\n\nThis overwrites boot + rootfs and erases all settings.")) return;
+  send("/cgi-bin/flash?mode=sysupgrade", f, "p-sys", "o-sys", "b-sys", refresh);
+};
+
+$("b-part").onclick = () => {
+  const f = $("f-part").files[0];
+  if (!f) return alert("Choose an image first.");
+  const t = $("tgt").value;
+  if (!confirm("Write " + f.name + " to partition '" + t + "'?\n\nThis overwrites it completely.")) return;
+  send("/cgi-bin/flash?mode=partition&target=" + encodeURIComponent(t),
+       f, "p-part", "o-part", "b-part", refresh);
+};
+
+function power(action, msg) {
+  if (!confirm(msg)) return;
+  fetch("/cgi-bin/power?action=" + action, {method: "POST"})
+    .then(r => r.text()).then(t => alert(t));
+}
+
+$("b-reboot").onclick = () => power("reboot", "Reboot now?");
+$("b-edl").onclick = () => power("edl", "Reboot into EDL (9008)?\nThe board will stop booting until you reflash it.");
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

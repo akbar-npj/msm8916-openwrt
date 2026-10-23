@@ -8,6 +8,9 @@ PKG_RELEASE:=2
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/linux-msm/qrtr.git
 PKG_SOURCE_VERSION:=5923eea97377f4a3ed9121b358fd919e3659db7b
+# sha256 of the generated git tarball; without it download.mk force-refetches
+# the source on every build (a github hiccup then kills the whole build).
+PKG_MIRROR_HASH:=aae36fef8db1e5cde09fc91a3e38477267d27a76177ec803c1a36e75cacba24f
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE

@@ -1,0 +1,48 @@
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -71,17 +71,26 @@
+  * board that leaves "batt-therm" out of the BMS node simply does not get
+  * a temperature and keeps using the room-temperature OCV table.
+  */
+-static void pm8916_bms_vm_update_temp(struct pm8916_bms_vm_battery *bat)
++static int pm8916_bms_vm_update_temp(struct pm8916_bms_vm_battery *bat)
+ {
+-	int temp;
++	int temp, ret;
+ 
+ 	if (!bat->batt_therm)
+-		return;
++		return -ENODATA;
+ 
+-	if (iio_read_channel_processed(bat->batt_therm, &temp))
+-		return;
++	/*
++	 * iio_read_channel_processed() returns the IIO value type on success
++	 * (IIO_VAL_INT == 1), not 0 -- testing it for non-zero discarded every
++	 * good sample and left bat->temp at the 25000 placeholder.
++	 */
++	ret = iio_read_channel_processed(bat->batt_therm, &temp);
++	if (ret < 0) {
++		dev_warn_once(bat->dev, "battery thermistor read failed: %d\n", ret);
++		return ret;
++	}
+ 
+ 	bat->temp = temp;
++	return 0;
+ }
+ 
+ /*
+@@ -168,6 +177,13 @@
+ 		if (!bat->batt_therm)
+ 			return -ENODATA;
+ 
++		/*
++		 * Sample on demand: the VADC read sleeps, so doing it here (process
++		 * context) is both safe and always fresh.  The FIFO IRQ still keeps
++		 * bat->temp warm for the OCV->capacity conversion.
++		 */
++		pm8916_bms_vm_update_temp(bat);
++
+ 		/* power_supply reports tenths of a degree Celsius */
+ 		val->intval = bat->temp / 100;
+ 		return 0;

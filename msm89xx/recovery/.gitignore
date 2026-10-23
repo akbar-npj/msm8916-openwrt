@@ -1,0 +1,17 @@
+# Fetched per-board at build time by fetch-device-blobs.sh.
+# These are device-specific (calibrated WiFi NV / WCNSS firmware) and the
+# hostapd binary + its shared libs; they must NOT be committed.
+irfs/lib/firmware/
+irfs/usr/sbin/hostapd
+irfs/lib/libnl*
+irfs/lib/libwolfssl*
+irfs/lib/libmbed*
+irfs/lib/libssl*
+irfs/lib/libcrypto*
+irfs/lib/libubox*
+irfs/lib/libubus*
+irfs/lib/libblobmsg_json*
+irfs/lib/libucode*
+irfs/lib/libjson-c*
+irfs/lib/libudebug*
+blobs/

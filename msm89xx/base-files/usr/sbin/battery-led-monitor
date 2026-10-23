@@ -1,0 +1,140 @@
+#!/bin/sh
+#
+# Battery gauge LEDs (mifib-v12: green:bat / red:bat).
+#
+#   green solid      battery present, charge >= 15 %
+#   red solid        charge < 15 %, running on battery
+#   red blink        charge < 15 %, charging
+#   red fast blink   gauge present but unreadable (driver/thermistor fault)
+#   both off         no battery on this board (e.g. HMU05)
+#
+# The gauge is only there when the PMIC VADC and the BMS probe, so "no
+# battery" and "battery broken" are deliberately different states.
+
+case "${1:-}" in
+        -h|--help)
+                cat <<'USAGE'
+Usage: battery-led-monitor [--help]
+
+Drive the battery green/red pair from /sys/class/power_supply.  Started by
+procd (/etc/init.d/battery-led-monitor); takes no arguments.
+
+States:
+  green solid     charge >= 15 %
+  red solid       charge < 15 %, discharging
+  red blink       charge < 15 %, charging
+  red fast blink  battery device present but capacity unreadable
+  both off        no battery device (board has no pack)
+USAGE
+                exit 0
+                ;;
+esac
+
+GREEN="/sys/class/leds/green:bat"
+RED="/sys/class/leds/red:bat"
+
+POLL=5
+LOW_PCT=15
+BLINK_ON=500
+BLINK_OFF=500
+FAST_ON=150
+FAST_OFF=150
+
+led_set()
+{
+        local led="$1" mode="$2" on="${3:-500}" off="${4:-500}"
+
+        [ -n "$led" ] && [ -e "$led/trigger" ] || return 0
+
+        case "$mode" in
+                off)
+                        echo none > "$led/trigger" 2>/dev/null
+                        echo 0 > "$led/brightness" 2>/dev/null
+                        ;;
+                on)
+                        echo none > "$led/trigger" 2>/dev/null
+                        echo 1 > "$led/brightness" 2>/dev/null
+                        ;;
+                blink)
+                        echo timer > "$led/trigger" 2>/dev/null
+                        echo "$on" > "$led/delay_on" 2>/dev/null
+                        echo "$off" > "$led/delay_off" 2>/dev/null
+                        ;;
+        esac
+}
+
+find_battery()
+{
+        local p
+
+        for p in /sys/class/power_supply/*; do
+                [ -d "$p" ] || continue
+                [ "$(cat "$p/type" 2>/dev/null)" = "Battery" ] || continue
+                echo "$p"
+                return 0
+        done
+
+        return 1
+}
+
+apply()
+{
+        case "$1" in
+                none)
+                        led_set "$GREEN" off
+                        led_set "$RED" off
+                        ;;
+                error)
+                        led_set "$GREEN" off
+                        led_set "$RED" blink "$FAST_ON" "$FAST_OFF"
+                        ;;
+                low-charging)
+                        led_set "$GREEN" off
+                        led_set "$RED" blink "$BLINK_ON" "$BLINK_OFF"
+                        ;;
+                low)
+                        led_set "$GREEN" off
+                        led_set "$RED" on
+                        ;;
+                ok)
+                        led_set "$RED" off
+                        led_set "$GREEN" on
+                        ;;
+        esac
+}
+
+LAST=""
+
+while true; do
+        # Track AC transitions for the runtime estimate on the LuCI battery page.
+        /usr/sbin/battery-session tick 2>/dev/null
+
+        BAT="$(find_battery)"
+
+        if [ -z "$BAT" ]; then
+                STATE="none"
+        else
+                CAP="$(cat "$BAT/capacity" 2>/dev/null)"
+                STATUS="$(cat "$BAT/status" 2>/dev/null)"
+
+                if ! echo "$CAP" | grep -qE '^[0-9]+$'; then
+                        STATE="error"
+                elif [ "$CAP" -lt "$LOW_PCT" ]; then
+                        case "$STATUS" in
+                                Charging|Full) STATE="low-charging" ;;
+                                *)             STATE="low" ;;
+                        esac
+                else
+                        STATE="ok"
+                fi
+        fi
+
+        if [ "$STATE" != "$LAST" ]; then
+                apply "$STATE"
+                logger -t battery-led-monitor \
+                        "battery LED: $STATE${CAP:+ (capacity ${CAP}%, $STATUS)}"
+                LAST="$STATE"
+        fi
+
+        sleep "$POLL"
+done

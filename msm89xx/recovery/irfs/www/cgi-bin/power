@@ -1,0 +1,21 @@
+#!/bin/busybox sh
+# POST /cgi-bin/power?action=reboot|edl
+# The reply is flushed before the reset so the browser sees it.
+. /www/cgi-bin/lib.sh
+hdr text/plain
+
+[ "$REQUEST_METHOD" = POST ] || { echo "ERROR: POST required"; exit 0; }
+
+case "$(qs_get action)" in
+reboot)
+	echo "rebooting..."
+	( sleep 2; /bin/reboot ) >/dev/null 2>&1 &
+	;;
+edl)
+	echo "rebooting into EDL (05c6:9008)..."
+	( sleep 2; /sbin/reboot-edl ) >/dev/null 2>&1 &
+	;;
+*)
+	echo "ERROR: unknown action"
+	;;
+esac

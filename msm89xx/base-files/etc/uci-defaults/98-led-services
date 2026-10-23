@@ -1,17 +1,36 @@
 #!/bin/sh
 
-# Enable LED monitor services only on boards exposing the
-# standard LED names used by the modem/wifi monitors.
+#
+# Enable the LED monitor services on boards that expose the lamps they drive.
+# The names differ per board, so probe rather than assume:
+#
+#   mifib-v12   green:wan / red:wan (signal), green:wlan / red:wlan (Wi-Fi),
+#               green:bat / red:bat (battery)
+#   HMU05       red:power (no signal pair, no battery pack)
+#
+# A monitor whose LEDs are absent simply does nothing, so enabling it is safe.
+#
 
-if [ -d /sys/class/leds/red:power ] &&
-   ( [ -d /sys/class/leds/green:wlan ] || [ -d /sys/class/leds/green:wan ] ) &&
-   ( [ -d /sys/class/leds/blue:wan ] || [ -d /sys/class/leds/blue:wlan ] ); then
-
+if [ -d /sys/class/leds/green:wan ] || [ -d /sys/class/leds/green:wlan ]; then
     [ -x /etc/init.d/modem-led-monitor ] &&
         /etc/init.d/modem-led-monitor enable
 
     [ -x /etc/init.d/wifi-led-monitor ] &&
         /etc/init.d/wifi-led-monitor enable
 fi
+
+if [ -d /sys/class/leds/green:bat ] || [ -d /sys/class/leds/red:bat ]; then
+    [ -x /etc/init.d/battery-led-monitor ] &&
+        /etc/init.d/battery-led-monitor enable
+
+    # Cap charging at 85% (battery-charge-limit) on battery-equipped boards.
+    [ -x /etc/init.d/battery-charge-limit ] &&
+        /etc/init.d/battery-charge-limit enable
+fi
+
+# Modem bearer watchdog: the mobility / handover-safe profile (auto_mobile is ON
+# by default in /etc/config/modem-watchdog) is only active once the service runs.
+[ -x /etc/init.d/modem-bearer-watchdog ] &&
+    /etc/init.d/modem-bearer-watchdog enable
 
 exit 0

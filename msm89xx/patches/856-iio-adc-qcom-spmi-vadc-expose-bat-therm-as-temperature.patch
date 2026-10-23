@@ -1,0 +1,17 @@
+--- a/drivers/iio/adc/qcom-spmi-vadc.c
++++ b/drivers/iio/adc/qcom-spmi-vadc.c
+@@ -609,7 +609,13 @@
+ 	VADC_CHAN_NO_SCALE(P_MUX15_1_3, 1)
+ 	VADC_CHAN_NO_SCALE(P_MUX16_1_3, 1)
+ 
+-	VADC_CHAN_NO_SCALE(LR_MUX1_BAT_THERM, 0)
++	/*
++	 * LR_MUX1 is the dedicated battery thermistor input.  It is wired to
++	 * the internal 100 kOhm pull-up, which is what the downstream
++	 * "ratiometric" + therm scale-function pair describes, so expose it
++	 * as a temperature channel instead of a raw voltage.
++	 */
++	VADC_CHAN_TEMP(LR_MUX1_BAT_THERM, 0, SCALE_THERM_100K_PULLUP)
+ 	VADC_CHAN_VOLT(LR_MUX2_BAT_ID, 0, SCALE_DEFAULT)
+ 	VADC_CHAN_NO_SCALE(LR_MUX3_XO_THERM, 0)
+ 	VADC_CHAN_NO_SCALE(LR_MUX4_AMUX_THM1, 0)

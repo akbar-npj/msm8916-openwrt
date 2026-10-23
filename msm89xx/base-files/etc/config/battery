@@ -1,0 +1,4 @@
+config charge
+	option enabled '1'
+	option limit '85'
+	option resume '80'

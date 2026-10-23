@@ -1,0 +1,242 @@
+<%+header%>
+<h2 name="content"><%:Battery & Charge Limit%></h2>
+
+<style type="text/css">
+.bat-page .bat-cols {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14px;
+	align-items: stretch;
+}
+.bat-page .bat-col {
+	flex: 1 1 330px;
+	min-width: 285px;
+	margin: 0;
+}
+.bat-page .bat-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 14px;
+	padding: 9px 13px;
+	border-bottom: 1px solid rgba(128,128,128,.16);
+}
+.bat-page .bat-row:last-child { border-bottom: 0; }
+.bat-page .bat-row .lbl {
+	opacity: .72;
+	font-size: .93em;
+}
+.bat-page .bat-row .val {
+	font-weight: 600;
+	font-size: 1.06em;
+	text-align: right;
+	white-space: nowrap;
+}
+.bat-page .bat-row .val .hint {
+	font-weight: 400;
+	font-size: .78em;
+	opacity: .6;
+	margin-left: 6px;
+}
+.bat-page .bat-row.bat-hero .val { font-size: 1.3em; }
+.bat-page .val.bat-ok   { color: #35b558; }
+.bat-page .val.bat-warn { color: #e0a800; }
+.bat-page .val.bat-crit { color: #e05252; }
+.bat-page .val.bat-info { color: #3d8fd1; }
+.bat-page .bat-barwrap { padding: 0 13px 10px; }
+.bat-page .bat-bar {
+	height: 8px;
+	border-radius: 4px;
+	background: rgba(128,128,128,.25);
+	overflow: hidden;
+}
+.bat-page .bat-bar > span {
+	display: block;
+	height: 100%;
+	border-radius: 4px;
+	background: #35b558;
+}
+.bat-page .bat-barwrap.bat-warn .bat-bar > span { background: #e0a800; }
+.bat-page .bat-barwrap.bat-crit .bat-bar > span { background: #e05252; }
+.bat-page .bat-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 6px 0 2px;
+}
+.bat-page .bat-actions button {
+	flex: 1 1 210px;
+	min-height: 44px;
+	font-size: 1em;
+	font-weight: 600;
+}
+.bat-page .bat-note {
+	font-size: .85em;
+	opacity: .75;
+	margin: 12px 0 0;
+}
+.bat-page .cbi-value { padding: 4px 0; }
+</style>
+
+<div class="cbi-map bat-page">
+
+<div class="bat-cols">
+
+	<fieldset class="cbi-section bat-col">
+		<legend><%:Live status%></legend>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Charge%></span>
+			<span class="val <%=d.capclass%>"><%=d.cappct%>%</span>
+		</div>
+		<div class="bat-barwrap <%=d.capclass%>">
+			<div class="bat-bar"><span style="width:<%=d.cappct%>%"></span></div>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Battery status%></span>
+			<span class="val <%=d.stclass%>"><%=d.status%></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Health%></span>
+			<span class="val"><%=d.health%></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Battery voltage%></span>
+			<span class="val"><%=d.vnow%></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Battery temperature%></span>
+			<span class="val <%=d.tempclass%>"><%=d.temp%><% if d.tsensor == "vadc" then %><span class="hint"><%:VADC%></span><% end %></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Charger%></span>
+			<span class="val <%=d.chgclass%>"><% if d.online == "1" then %><%:Online%><% else %><%:Offline%><% end %></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Charge current%></span>
+			<span class="val"><%=d.curr%></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Charge enabled%></span>
+			<span class="val <%=d.ceclass%>"><% if d.ce == "1" then %><%:Yes%><% else %><%:No%><% end %></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Charge voltage max%></span>
+			<span class="val"><%=d.cvmax%></span>
+		</div>
+	</fieldset>
+
+	<fieldset class="cbi-section bat-col">
+		<legend><%:Runtime on battery%></legend>
+
+		<div class="bat-row bat-hero">
+			<span class="lbl"><%:On battery for%></span>
+			<span class="val bat-info"><% if d.onbat then %><%=d.uptime%><% else %><%:On AC power%><% end %></span>
+		</div>
+
+		<div class="bat-row bat-hero">
+			<span class="lbl"><%:Estimated remaining%></span>
+			<span class="val <%=d.capclass%>"><% if d.remain then %><%=d.remain%><% else %>&mdash;<% end %></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Discharge rate%></span>
+			<span class="val"><% if d.rate then %><%=d.rate%><% else %>&mdash;<% end %></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Estimated full runtime%></span>
+			<span class="val"><% if d.full then %><%=d.full%><% else %>&mdash;<% end %></span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Session start%></span>
+			<span class="val">
+				<% if d.rate then %>
+					<%=d.startcap%>% &rarr; <%=d.cappct%>%
+				<% elseif d.onbat then %>
+					<span class="hint"><%:needs about five minutes of discharge%></span>
+				<% else %>
+					&mdash;
+				<% end %>
+			</span>
+		</div>
+
+		<div class="bat-row">
+			<span class="lbl"><%:Last session%></span>
+			<span class="val"><% if d.lastsess then %><%=d.lastsess%><% else %>&mdash;<% end %></span>
+		</div>
+
+		<p class="bat-note">
+			<%:The estimate is derived from the capacity drop since the charger was unplugged, because the PM8916 gauge exposes no current_now.%>
+		</p>
+	</fieldset>
+
+</div>
+
+<fieldset class="cbi-section">
+	<legend><%:Charging control%></legend>
+
+	<form method="post" action="">
+		<input type="hidden" name="act" value="charge" />
+		<div class="bat-actions">
+			<button type="submit" class="cbi-button cbi-button-positive" name="val" value="1">
+				<%:Enable charging%>
+			</button>
+			<button type="submit" class="cbi-button cbi-button-negative" name="val" value="0">
+				<%:Disable charging%>
+			</button>
+		</div>
+	</form>
+
+	<p class="bat-note">
+		<%:Disabling charging only clears the charger enable bit; with the charger offline the PMIC ignores it. The charge limit below re-asserts the bit on its own schedule.%>
+	</p>
+</fieldset>
+
+<fieldset class="cbi-section">
+	<legend><%:Charge limit%></legend>
+
+	<form method="post" action="">
+		<input type="hidden" name="act" value="apply" />
+
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="bat_enabled"><%:Enabled%></label>
+			<div class="cbi-value-field">
+				<select id="bat_enabled" name="enabled">
+					<option value="1"<% if d.enabled == "1" then %> selected="selected"<% end %>><%:Yes%></option>
+					<option value="0"<% if d.enabled == "0" then %> selected="selected"<% end %>><%:No%></option>
+				</select>
+			</div>
+		</div>
+
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="bat_limit"><%:Stop charging at%></label>
+			<div class="cbi-value-field">
+				<input id="bat_limit" type="text" name="limit" value="<%=d.limit%>" size="4" /> %
+			</div>
+		</div>
+
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="bat_resume"><%:Resume at%></label>
+			<div class="cbi-value-field">
+				<input id="bat_resume" type="text" name="resume" value="<%=d.resume%>" size="4" /> %
+			</div>
+		</div>
+
+		<div class="cbi-page-actions">
+			<button type="submit" class="cbi-button cbi-button-apply"><%:Save & Apply%></button>
+		</div>
+	</form>
+</fieldset>
+
+</div>
+<%+footer%>

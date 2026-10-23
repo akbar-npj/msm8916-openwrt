@@ -1,0 +1,105 @@
+Add a writable CHARGE_ENABLED property to the pm8916 LBC charger.
+When written 0 the charge path (CHG_EN) is disabled while the supply
+path (PSTG_EN) stays enabled, so the system keeps running off VBUS
+and the battery is held without charging. Used by the
+battery-charge-limit monitor to cap charge at e.g. 85%.
+
+--- a/include/linux/power_supply.h
++++ b/include/linux/power_supply.h
+@@ -174,6 +174,7 @@
+ 	POWER_SUPPLY_PROP_MODEL_NAME,
+ 	POWER_SUPPLY_PROP_MANUFACTURER,
+ 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
++	POWER_SUPPLY_PROP_CHARGE_ENABLED,
+ };
+ 
+ enum power_supply_type {
+--- a/drivers/power/supply/power_supply_sysfs.c
++++ b/drivers/power/supply/power_supply_sysfs.c
+@@ -221,6 +221,7 @@
+ 	POWER_SUPPLY_ATTR(MODEL_NAME),
+ 	POWER_SUPPLY_ATTR(MANUFACTURER),
+ 	POWER_SUPPLY_ATTR(SERIAL_NUMBER),
++	POWER_SUPPLY_ATTR(CHARGE_ENABLED),
+ };
+ #define POWER_SUPPLY_ATTR_CNT ARRAY_SIZE(power_supply_attrs)
+ 
+--- a/drivers/power/supply/pm8916_lbc.c
++++ b/drivers/power/supply/pm8916_lbc.c
+@@ -62,6 +62,7 @@
+ 	struct regmap *regmap;
+ 	unsigned int reg[4];
+ 	bool online;
++	bool charge_enabled;
+ 	unsigned int charge_voltage_max;
+ 	unsigned int charge_voltage_safe;
+ 	unsigned int charge_current_max;
+@@ -108,10 +109,17 @@
+ 	if (ret)
+ 		goto error;
+ 
+-	ret = regmap_write(chg->regmap, chg->reg[LBC_CHGR] + PM8916_LBC_CHGR_CHG_CTRL,
+-			   PM8916_LBC_CHGR_CHG_EN | PM8916_LBC_CHGR_PSTG_EN);
+-	if (ret)
+-		goto error;
++	{
++		u8 ctrl = PM8916_LBC_CHGR_PSTG_EN;
++
++		if (chg->charge_enabled)
++			ctrl |= PM8916_LBC_CHGR_CHG_EN;
++		ret = regmap_write(chg->regmap,
++				   chg->reg[LBC_CHGR] + PM8916_LBC_CHGR_CHG_CTRL,
++				   ctrl);
++		if (ret)
++			goto error;
++	}
+ 
+ 	return ret;
+ 
+@@ -139,6 +147,10 @@
+ 		val->intval = chg->charge_current_max;
+ 		return 0;
+ 
++	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
++		val->intval = chg->charge_enabled;
++		return 0;
++
+ 	default:
+ 		return -EINVAL;
+ 	};
+@@ -154,6 +166,10 @@
+ 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
+ 		chg->charge_current_max = val->intval;
+ 		return pm8916_lbc_charger_configure(chg);
++
++	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
++		chg->charge_enabled = val->intval ? true : false;
++		return pm8916_lbc_charger_configure(chg);
+ 	default:
+ 		return -EINVAL;
+ 	}
+@@ -165,6 +181,8 @@
+ 	switch (psp) {
+ 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
+ 		return true;
++	case POWER_SUPPLY_PROP_CHARGE_ENABLED:
++		return true;
+ 	default:
+ 		return false;
+ 	}
+@@ -174,6 +192,7 @@
+ 	POWER_SUPPLY_PROP_ONLINE,
+ 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
+ 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
++	POWER_SUPPLY_PROP_CHARGE_ENABLED,
+ };
+ 
+ static irqreturn_t pm8916_lbc_charger_state_changed_irq(int irq, void *data)
+@@ -262,6 +281,7 @@
+ 		return -ENOMEM;
+ 
+ 	chg->dev = dev;
++	chg->charge_enabled = true;
+ 
+ 	chg->regmap = dev_get_regmap(pdev->dev.parent, NULL);
+ 	if (!chg->regmap)

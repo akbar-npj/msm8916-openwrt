@@ -40,7 +40,6 @@ USAGE
 		;;
 esac
 
-LED="/sys/class/leds/red:power"
 QMI="/sys/class/wwan/wwan0qmi0"
 MSS_NAME="4080000.remoteproc"
 
@@ -54,31 +53,84 @@ case "$(board_name 2>/dev/null)" in
         *) IS_HMU05=0 ;;
 esac
 
-
-set_red()
+#
+# The signal pair is green:wan / red:wan after the 2026-10-22 DT rename.
+# Older images call the red "4g_type" (mifib-v12) or "red:power" (HMU05), so
+# resolve the names instead of hardcoding one board's.
+#
+pick_led()
 {
-        [ -e "$LED/trigger" ] || return 1
+        for n in "$@"; do
+                [ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
+        done
 
-        case "$1" in
-                0)
-                        #
-                        # Modem healthy:
-                        # RED OFF
-                        #
-                        echo none > "$LED/trigger" 2>/dev/null
-                        echo 0 > "$LED/brightness" 2>/dev/null
+        return 1
+}
+
+LED=$(pick_led red:wan 4g_type red:power) || LED=""
+LED_GREEN=$(pick_led green:wan) || LED_GREEN=""
+
+led_set()
+{
+        local led="$1" mode="$2" on="${3:-500}" off="${4:-500}"
+
+        [ -n "$led" ] && [ -e "$led/trigger" ] || return 0
+
+        case "$mode" in
+                off)
+                        echo none > "$led/trigger" 2>/dev/null
+                        echo 0 > "$led/brightness" 2>/dev/null
                         ;;
-
-                1)
-                        #
-                        # Modem unhealthy / starting:
-                        # RED BLINK
-                        #
-                        echo timer > "$LED/trigger" 2>/dev/null
-                        echo 500 > "$LED/delay_on" 2>/dev/null
-                        echo 500 > "$LED/delay_off" 2>/dev/null
+                on)
+                        echo none > "$led/trigger" 2>/dev/null
+                        echo 1 > "$led/brightness" 2>/dev/null
+                        ;;
+                blink)
+                        echo timer > "$led/trigger" 2>/dev/null
+                        echo "$on" > "$led/delay_on" 2>/dev/null
+                        echo "$off" > "$led/delay_off" 2>/dev/null
                         ;;
         esac
+}
+
+#
+# Signal pair, per the panel:
+#   registered, no traffic   green solid
+#   registered, traffic      green blink
+#   up but not registered    red blink (searching)
+#   modem down / no SIM      red solid
+#
+apply_signal()
+{
+        case "$1" in
+                down)   led_set "$LED" on;    led_set "$LED_GREEN" off ;;
+                search) led_set "$LED" blink 500 500; led_set "$LED_GREEN" off ;;
+                idle)   led_set "$LED" off;   led_set "$LED_GREEN" on ;;
+                active) led_set "$LED" off;   led_set "$LED_GREEN" blink 250 250 ;;
+        esac
+}
+
+modem_registered()
+{
+        local st
+
+        [ -n "$MODEM_INDEX" ] || return 1
+
+        st=$(mmcli -m "$MODEM_INDEX" --output-keyvalue 2>/dev/null |
+             awk -F': ' '/modem.3gpp.registration-state/ {print $2}' |
+             tr -d ' \r\n')
+
+        [ "$st" = "home" ] || [ "$st" = "roaming" ]
+}
+
+wwan_traffic()
+{
+        local r t
+
+        r=$(cat /sys/class/net/wwan0/statistics/rx_bytes 2>/dev/null) || return 1
+        t=$(cat /sys/class/net/wwan0/statistics/tx_bytes 2>/dev/null) || return 1
+
+        echo "$((r + t))"
 }
 
 
@@ -193,7 +245,7 @@ modem_healthy()
 # subsystem has been confirmed healthy.
 #
 
-set_red 1
+apply_signal search
 
 BLUE_LED="/sys/class/leds/blue:wan"
 [ -d "$BLUE_LED" ] || BLUE_LED="/sys/class/leds/blue:wlan"
@@ -364,32 +416,73 @@ run_watchdog_cycle() {
 }
 
 
+REG_STATE=""
+REG_POLL=0
+LAST_TRAFFIC=""
+ACTIVE_HOLD=0
+
 while true; do
 
         if modem_healthy; then
-
-                STATE="healthy"
-                VALUE=0
-
+                HEALTHY=1
         else
-
-                STATE="failed"
-                VALUE=1
-
+                HEALTHY=0
+                REG_STATE=""
+                LAST_TRAFFIC=""
+                ACTIVE_HOLD=0
         fi
 
+        if [ "$HEALTHY" = "1" ]; then
+                #
+                # Registration costs a DBus round trip, so poll it far less
+                # often than the (sysfs-only) health check.
+                #
+                if [ "$REG_POLL" -le 0 ]; then
+                        if modem_registered; then
+                                REG_STATE="yes"
+                        else
+                                REG_STATE="no"
+                        fi
+
+                        REG_POLL=5
+                fi
+
+                REG_POLL=$((REG_POLL - 1))
+
+                if [ "$REG_STATE" = "yes" ]; then
+                        NOW=$(wwan_traffic) || NOW=""
+
+                        if [ -n "$NOW" ] && [ -n "$LAST_TRAFFIC" ] && [ "$NOW" != "$LAST_TRAFFIC" ]; then
+                                # Keep blinking for a few cycles after the last
+                                # packet, otherwise a single burst is invisible.
+                                ACTIVE_HOLD=5
+                        elif [ "$ACTIVE_HOLD" -gt 0 ]; then
+                                ACTIVE_HOLD=$((ACTIVE_HOLD - 1))
+                        fi
+
+                        LAST_TRAFFIC="$NOW"
+
+                        if [ "$ACTIVE_HOLD" -gt 0 ]; then
+                                STATE="active"
+                        else
+                                STATE="idle"
+                        fi
+                else
+                        STATE="search"
+                fi
+        else
+                STATE="down"
+        fi
 
         #
-        # Only update the LED when the health state changes.
+        # Only reprogram the LEDs when the state changes.
         #
-
         if [ "$STATE" != "$LAST" ]; then
 
-                set_red "$VALUE"
-
+                apply_signal "$STATE"
 
                 logger -t modem-led-monitor \
-                        "modem health: $STATE"
+                        "modem signal: $STATE"
 
                 LAST="$STATE"
         fi
@@ -398,7 +491,7 @@ while true; do
         #
         # Two-Pronged Keepalive & Safe Self-Healing Watchdog (HMUF02-V5 only)
         #
-        if [ "$STATE" = "healthy" ] && [ "$IS_HMU05" = "1" ]; then
+        if [ "$HEALTHY" = "1" ] && [ "$IS_HMU05" = "1" ]; then
                 run_watchdog_cycle
         fi
 

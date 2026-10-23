@@ -1,0 +1,90 @@
+#!/bin/sh
+#
+# battery-session -- record how long this unit has been running on battery.
+#
+#   battery-session tick     refresh the state file (called by battery-led-monitor)
+#   battery-session show     print the state file as key=value
+#   battery-session clear    forget the current session
+#
+# The state file is rewritten only when the AC state changes, so the 5 s poll
+# does not wear the overlay flash.
+#
+# Fields:
+#   online      1 = AC present, 0 = running on battery
+#   start       epoch when AC was lost (only while online=0)
+#   start_cap   capacity (%) at that moment
+#   last        duration (s) of the previous battery session
+#   last_cap    capacity (%) when that session ended
+#
+# The gauge exposes no current_now/power_now, so the runtime estimate has to
+# come from the capacity drop over the session (see the LuCI controller).
+
+STATE=/etc/battery-session
+
+get() {
+	local v
+	[ -f "$STATE" ] || return 1
+	v=$(sed -n "s/^$1=//p" "$STATE" 2>/dev/null | head -n1)
+	[ -n "$v" ] || return 1
+	echo "$v"
+}
+
+write_state() {
+	{
+		echo "online=$1"
+		[ -n "$2" ] && echo "start=$2"
+		[ -n "$3" ] && echo "start_cap=$3"
+		[ -n "$4" ] && echo "last=$4"
+		[ -n "$5" ] && echo "last_cap=$5"
+	} > "$STATE"
+}
+
+find_by_type() {
+	local p
+	for p in /sys/class/power_supply/*; do
+		[ -d "$p" ] || continue
+		[ "$(cat "$p/type" 2>/dev/null)" = "$1" ] || continue
+		echo "$p"
+		return 0
+	done
+	return 1
+}
+
+tick() {
+	local chg bat online cap start start_cap last now
+
+	chg=$(find_by_type Mains) || chg=$(find_by_type USB) || return 0
+	bat=$(find_by_type Battery) || return 0
+
+	online=$(cat "$chg/online" 2>/dev/null)
+	cap=$(cat "$bat/capacity" 2>/dev/null)
+	case "$cap" in ''|*[!0-9]*) cap=0 ;; esac
+
+	start=$(get start)
+	start_cap=$(get start_cap)
+	last=$(get last)
+
+	if [ "$online" = "1" ]; then
+		if [ -n "$start" ]; then
+			now=$(date +%s)
+			last=$((now - start))
+			write_state 1 "" "" "$last" "$cap"
+		elif [ "$(get online)" != "1" ]; then
+			write_state 1 "" "" "$last" ""
+		fi
+	else
+		if [ -z "$start" ]; then
+			write_state 0 "$(date +%s)" "$cap" "$last" ""
+		fi
+	fi
+}
+
+case "$1" in
+	tick)  tick ;;
+	show)  [ -f "$STATE" ] && cat "$STATE" || echo "online=" ;;
+	clear) rm -f "$STATE" ;;
+	*)
+		echo "Usage: $0 {tick|show|clear}" >&2
+		exit 1
+		;;
+esac
