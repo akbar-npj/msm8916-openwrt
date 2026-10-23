@@ -171,7 +171,7 @@ bring_up_bearer() {
 }
 
 poll_loop() {
-	local removed=0 last now st u iv miss=0
+	local removed=0 last now st u iv miss=0 err=0
 
 	# Without a writable sim_hotplug line, hot-swap can never make the modem
 	# re-read the slot, so the absent-reannounce loop would spin forever with
@@ -263,6 +263,27 @@ poll_loop() {
                 absent)
                     log "SIM removed (UIM absent)"
                     removed=1
+                    err=0
+                    ;;
+                unknown)
+                    # UIM answered an error (e.g. voltage-mismatch /
+                    # UimUninitialized): the baseband could not read the
+                    # card.  While the modem is out of service this is the
+                    # same situation as a removal - force a re-announce so
+                    # the baseband re-initialises the slot.  Only do this
+                    # while NOT registered (a transient QMI error on a
+                    # healthy link must not clobber it), and require two
+                    # consecutive checks (~10 s) to avoid flapping on a blip.
+                    if [ "$st" != "registered" ] && [ "$st" != "connected" ] && [ "$st" != "connecting" ]; then
+                        err=$((err + 1))
+                        if [ "$err" -ge 2 ]; then
+                            log "UIM error/uninitialized while searching - forcing re-announce"
+                            removed=1
+                            err=0
+                        fi
+                    else
+                        err=0
+                    fi
                     ;;
                 exhaust)
                     log "QMI client IDs exhausted - backing off 60 s"
