@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# Unread-SMS lamp.
+#
+# The package ships no default because the lamp names differ per board.  On
+# mifib-v12 the choice is red:wlan, the Wi-Fi pair's red half:
+#
+#   * the signal pair (green:wan / red:wan) is reprogrammed by
+#     modem-led-monitor on every state change, so an SMS blink there is wiped
+#     the moment traffic stops and the modem goes active -> idle;
+#   * red:wlan belongs to wifi-led-monitor, which also only writes on state
+#     change, but the Wi-Fi state is stable, so the blink survives;
+#   * batl3 / batl4 / ftest exist in the DTS but are not populated on this
+#     board, and sim_hotplug is a pulse line rather than a lamp.
+#
+# Probing for the lamp keeps other boards untouched (HMU05 exposes red:power
+# and has no Wi-Fi pair).  A user who picks a different lamp in LuCI keeps it:
+# only an empty setting is filled in, so a config-preserving upgrade does not
+# override the choice.
+#
+if [ -d /sys/class/leds/red:wlan ] &&
+   uci -q get sms_manager.@sms_manager[0] >/dev/null 2>&1; then
+
+    if [ -z "$(uci -q get sms_manager.@sms_manager[0].smsled)" ]; then
+        uci -q set sms_manager.@sms_manager[0].smsled='red:wlan'
+        uci -q set sms_manager.@sms_manager[0].sms_count='0'
+        uci -q commit sms_manager
+    fi
+fi
+
+exit 0
