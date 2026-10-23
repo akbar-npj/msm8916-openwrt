@@ -1,0 +1,46 @@
+#!/bin/sh
+# pwrkey-monitor: bridge the PMIC pwrkey (pm8941_pwrkey evdev) to the OpenWrt
+# button-hotplug handler /etc/rc.button/power.
+#
+# procd's hotplug.json only reacts to SUBSYSTEM=button uevents emitted by
+# kmod-gpio-button-hotplug (GPIO keys).  The PMIC pwrkey is a plain evdev input
+# device and never produces those, so /etc/rc.button/power is never invoked on
+# its own.  We translate its press/release into the same ACTION/SEEN/BUTTON
+# environment the gpio-button-hotplug path would have supplied.
+
+DEV=""
+for d in /sys/class/input/input*; do
+    [ "$(cat "$d/name" 2>/dev/null)" = "pm8941_pwrkey" ] || continue
+    n=$(basename "$d")
+    num=$(echo "$n" | sed 's/input//')
+    ev="/dev/input/event$num"
+    [ -e "$ev" ] && { DEV="$ev"; break; }
+done
+[ -n "$DEV" ] || DEV=/dev/input/event0
+
+log() { logger -t pwrkey-monitor "$1"; }
+log "monitoring $DEV"
+
+press_ms=0
+
+exec 3<"$DEV" || { log "cannot open $DEV"; exit 1; }
+
+while true; do
+    ev=$(dd bs=1 count=24 <&3 2>/dev/null | hexdump -e '24/1 "%02x "')
+    [ -z "$ev" ] && continue
+    case "$ev" in
+        *"01 00 74 00 01 00 00 00"*)
+            press_ms=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime)
+            ;;
+        *"01 00 74 00 00 00 00 00"*)
+            [ "$press_ms" -gt 0 ] || continue
+            now_ms=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime)
+            dur_ms=$((now_ms - press_ms))
+            press_ms=0
+            dur_s=$(( (dur_ms + 500) / 1000 ))
+            [ "$dur_s" -lt 1 ] && dur_s=0
+            log "released after $dur_s s"
+            ACTION=released SEEN=$dur_s BUTTON=power /etc/rc.button/power
+            ;;
+    esac
+done
