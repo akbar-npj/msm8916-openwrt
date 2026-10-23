@@ -7,28 +7,30 @@ There are two patch sets:
 
 | Set | Location | Count | Applied to |
 | :-- | :------- | :---- | :--------- |
-| **Kernel patches** | [`msm89xx/patches/`](../../msm89xx/patches/) | 43 | The Linux kernel source, via OpenWrt's `target/linux/msm89xx/patches/` |
+| **Kernel patches** | [`msm89xx/patches/`](../../msm89xx/patches/) | 52 | The Linux kernel source, via OpenWrt's `target/linux/msm89xx/patches/` |
 | **OpenWrt source patches** | [`openwrt-patches/`](../../openwrt-patches/) | 2 | The OpenWrt build tree itself (package recipes and build scripts) |
 
-> **Board support scope.** The board device trees target four MSM8916 4G modem
-> sticks: **HMU05**, **UF02**, **UFI001B** and **MF800B**, plus the upstream
-> **YiMing UZ801V3**.
+> **Board support scope.** The board device trees target seven MSM8916 devices:
+> **HMUF02-V5** (formerly HMU05), **UF02**, **UFI001B**, **UFI003_MB_V02**,
+> **MF800B**, **HM-MIFIB-V12** and the upstream **YiMing UZ801V3**.
 
 ---
 
 ## 1. Patches Overview
 
-### 1.1 Device Tree — board enablement (801–807)
+### 1.1 Device Tree — board enablement (801–807, 852, 853)
 
 | Patch | Targets | Description |
 | :---- | :------ | :---------- |
-| [`801-arm64-dts-qcom-add-devices-makefile.patch`](../../msm89xx/patches/801-arm64-dts-qcom-add-devices-makefile.patch) | `arch/arm64/boot/dts/qcom/Makefile` | Registers the generic modem-stick DTBs (`hmu05`, `uf02`, `ufi001b`, `mf800b`) in the kernel build. |
+| [`801-arm64-dts-qcom-add-devices-makefile.patch`](../../msm89xx/patches/801-arm64-dts-qcom-add-devices-makefile.patch) | `arch/arm64/boot/dts/qcom/Makefile` | Registers all six project DTBs (`hmuf02v5`, `uf02`, `ufi001b`, `ufi003_mb_v02`, `mf800b`, `mifib-v12`) in the kernel build. |
 | [`802-arm64-dts-qcom-msm8916-label-reserved-memory.patch`](../../msm89xx/patches/802-arm64-dts-qcom-msm8916-label-reserved-memory.patch) | `msm8916.dtsi` | Adds the `reserved_memory:` label so board DTS files can append `ramoops` regions. |
 | [`803-arm64-dts-qcom-uz801-leds-and-button.patch`](../../msm89xx/patches/803-arm64-dts-qcom-uz801-leds-and-button.patch) | `msm8916-yiming-uz801v3.dts` | Gives the UZ801V3 LEDs standard `LED_FUNCTION_WLAN` / `LED_FUNCTION_WAN` roles; preserves the reset button's active-low/pull-up mapping (GPIO23 idles high). |
 | [`804-arm64-dts-qcom-add-msm8916-generic-uf02.patch`](../../msm89xx/patches/804-arm64-dts-qcom-add-msm8916-generic-uf02.patch) | `msm8916-generic-uf02.dts` | Full board DTS for the UF02 stick (buttons, LEDs). |
-| [`805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`](../../msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch) | `msm8916-generic-hmu05.dts` | Full board DTS for the HMU05 stick (SIM/eSIM GPIO hogs, ramoops, LEDs, reset button). |
+| [`805-arm64-dts-qcom-add-msm8916-generic-hmuf02v5.patch`](../../msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmuf02v5.patch) | `msm8916-generic-hmuf02v5.dts` | Full board DTS for the HMUF02-V5 stick (SIM/eSIM GPIO hogs, ramoops, LEDs, reset button). |
 | [`806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch`](../../msm89xx/patches/806-arm64-dts-qcom-add-msm8916-generic-ufi001b.patch) | `msm8916-generic-ufi001b.dts` | Full board DTS for the UFI001B stick (SIM GPIO hogs, ramoops, LEDs, reset button). |
 | [`807-arm64-dts-qcom-add-msm8916-generic-mf800b.patch`](../../msm89xx/patches/807-arm64-dts-qcom-add-msm8916-generic-mf800b.patch) | `msm8916-generic-mf800b.dts` | Full board DTS for the MF800B stick (battery fuel-gauge, bi-colour LEDs, ramoops). |
+| [`852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch`](../../msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch) | `msm8916-generic-ufi003_mb_v02.dts` | Full board DTS for the UFI003_MB_V02 stick (SIM/eSIM GPIO hogs, tri-colour LEDs, reset button, ramoops). |
+| [`853-arm64-dts-qcom-add-msm8916-generic-mifib-v12.patch`](../../msm89xx/patches/853-arm64-dts-qcom-add-msm8916-generic-mifib-v12.patch) | `msm8916-generic-mifib-v12.dts` | Full board DTS for the HM-MIFIB-V12 dongle: 4.2 V battery + PM8916 LBC charger + VM-BMS with pack thermistor, 4-bar battery LEDs, dual-colour WLAN/WAN LEDs, thermal mitigation and the A2 pin. |
 
 ### 1.2 BAM-DMUX network driver (808–812, 814, 820, 821, 825, 828, 831–833, 848, 850)
 
@@ -50,7 +52,7 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 | [`828-bam-dmux-ack-stale-deassert.patch`](../../msm89xx/patches/828-bam-dmux-ack-stale-deassert.patch) | Acknowledges a missed deassert edge so the modem's `a2_task` does not time out (`a2_task.c:3179`). |
 | [`831-bam-dmux-defer-dma-release-to-powered-modem.patch`](../../msm89xx/patches/831-bam-dmux-defer-dma-release-to-powered-modem.patch) | Defers releasing DMA channels (which write BAM registers) until the modem/BAM is powered again — avoids the AP hang. |
 | [`832-bam-dmux-tx-stats-uaf.patch`](../../msm89xx/patches/832-bam-dmux-tx-stats-uaf.patch) | Snapshots `skb->len` before DMA submission; reading it after the completion callback is a use-after-free. |
-| [`833-bam-dmux-down-ack-serialisation.patch`](../../msm89xx/patches/833-bam-dmux-down-ack-serialisation.patch) | Android-parity: resume waits for the modem to ack the down vote before voting up. **Board-gated to HMU05.** |
+| [`833-bam-dmux-down-ack-serialisation.patch`](../../msm89xx/patches/833-bam-dmux-down-ack-serialisation.patch) | Android-parity: resume waits for the modem to ack the down vote before voting up. **Board-gated to HMUF02-V5.** |
 | [`848-bam-dmux-a2-pin.patch`](../../msm89xx/patches/848-bam-dmux-a2-pin.patch) | Driver support for the `qcom,a2-pin` DT property — holds the modem A2 power domain alive (`pm_runtime_forbid()`). |
 | [`850-bam-dmux-reattach-on-already-open.patch`](../../msm89xx/patches/850-bam-dmux-reattach-on-already-open.patch) | Re-attaches the netdev when the modem re-issues `CMD_OPEN` without a matching `CMD_CLOSE` (internal restart the AP did not see as an SSR). |
 
@@ -90,23 +92,40 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 | [`844-dt-bindings-qcom-cpr-msm8916.patch`](../../msm89xx/patches/844-dt-bindings-qcom-cpr-msm8916.patch) | Extends the `qcom,cpr.yaml` binding for the MSM8916 CPR variant. |
 | [`845-cpufreq-qcom-nvmem-add-msm8916.patch`](../../msm89xx/patches/845-cpufreq-qcom-nvmem-add-msm8916.patch) | Registers MSM8916 with `qcom-cpufreq-nvmem` and wires the `cpr` power domain. |
 | [`846-arm64-dts-qcom-msm8916-cpr-attach-cpus.patch`](../../msm89xx/patches/846-arm64-dts-qcom-msm8916-cpr-attach-cpus.patch) | Attaches the CPUs to the CPR genpd and sets their OPP fuse levels. |
-| [`849-arm64-dts-qcom-msm8916-hmu05-a2-pin.patch`](../../msm89xx/patches/849-arm64-dts-qcom-msm8916-hmu05-a2-pin.patch) | HMU05 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` so the driver holds the modem A2 powered. |
+| [`849-arm64-dts-qcom-hmuf02v5-a2-pin.patch`](../../msm89xx/patches/849-arm64-dts-qcom-hmuf02v5-a2-pin.patch) | HMUF02-V5 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` so the driver holds the modem A2 powered. |
 | [`851-arm64-dts-qcom-uf02-uz801-a2-pin.patch`](../../msm89xx/patches/851-arm64-dts-qcom-uf02-uz801-a2-pin.patch) | UF02 + UZ801 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` on the other two HiMI-baseband boards. |
 
 ### 1.7 Thermal (847, 999)
 
 | Patch | Description |
 | :---- | :---------- |
-| [`847-arm64-dts-qcom-msm8916-hmu05-thermal-mitigation.patch`](../../msm89xx/patches/847-arm64-dts-qcom-msm8916-hmu05-thermal-mitigation.patch) | HMU05 thermal zones and cooling maps for Wi-Fi (65 °C) and PMIC (90 °C). |
+| [`847-arm64-dts-qcom-hmuf02v5-thermal-mitigation.patch`](../../msm89xx/patches/847-arm64-dts-qcom-hmuf02v5-thermal-mitigation.patch) | HMUF02-V5 thermal zones and cooling maps for Wi-Fi (65 °C) and PMIC (90 °C). |
 | [`999-tsens-propagate-eprobe-defer.patch`](../../msm89xx/patches/999-tsens-propagate-eprobe-defer.patch) | Propagates `-EPROBE_DEFER` from TSENS NV calibration so the thermal sensor probes when QFPROM arrives late. |
 
-### 1.8 Other SoC (816)
+### 1.8 Power supply & battery (854–859)
+
+The PM8916 voltage-mode BMS (`pm8916_bms_vm`) and linear charger (`pm8916_lbc`)
+are the fuel gauge and charger of the battery-equipped boards (MF800B,
+HM-MIFIB-V12).  Upstream reports neither a usable state of charge nor a pack
+temperature, and the charger has no way to stop charging without also cutting
+the system rail — these six patches add all three.
+
+| Patch | Description |
+| :---- | :---------- |
+| [`854-power-supply-pm8916-bms-vm-report-capacity.patch`](../../msm89xx/patches/854-power-supply-pm8916-bms-vm-report-capacity.patch) | Derives `CAPACITY` from voltage — prefer the hardware OCV captured while off/suspended (valid for 180 s), else fall back to the live voltage so the estimate errs low, never high. |
+| [`855-power-supply-pm8916-bms-vm-report-battery-temperature.patch`](../../msm89xx/patches/855-power-supply-pm8916-bms-vm-report-battery-temperature.patch) | Reads the optional `batt-therm` IIO channel and reports `TEMP`; a board without the channel keeps the room-temperature OCV table. |
+| [`856-iio-adc-qcom-spmi-vadc-expose-bat-therm-as-temperature.patch`](../../msm89xx/patches/856-iio-adc-qcom-spmi-vadc-expose-bat-therm-as-temperature.patch) | Exposes VADC `LR_MUX1_BAT_THERM` as a temperature channel (internal 100 kΩ pull-up) instead of an unscaled raw voltage. |
+| [`857-power-supply-pm8916-lbc-add-charge-enabled.patch`](../../msm89xx/patches/857-power-supply-pm8916-lbc-add-charge-enabled.patch) | Adds the writable `CHARGE_ENABLED` property: writing 0 clears `CHG_EN` while `PSTG_EN` stays on, so the stick runs from VBUS with the battery held instead of charged. |
+| [`858-power-supply-pm8916-bms-vm-sample-temperature-on-demand.patch`](../../msm89xx/patches/858-power-supply-pm8916-bms-vm-sample-temperature-on-demand.patch) | Fixes the temperature read: `iio_read_channel_processed()` returns `IIO_VAL_INT` (1) on success, so the old non-zero test threw away every good sample and left 25 °C. |
+| [`859-power-supply-pm8916-bms-vm-report-honest-charge-status.patch`](../../msm89xx/patches/859-power-supply-pm8916-bms-vm-report-honest-charge-status.patch) | Reports `NOT_CHARGING` when the charger's `CHARGE_ENABLED` is off, instead of claiming `Charging` for any online VBUS. |
+
+### 1.9 Other SoC (816)
 
 | Patch | Description |
 | :---- | :---------- |
 | [`816-qcom-smsm-validate-mbox-before-request.patch`](../../msm89xx/patches/816-qcom-smsm-validate-mbox-before-request.patch) | Skips requesting a mailbox for the local host and validates the `mboxes` phandle first, silencing boot error spam. |
 
-### 1.9 OpenWrt source patches (openwrt-patches/)
+### 1.10 OpenWrt source patches (openwrt-patches/)
 
 | Patch | Targets | Description |
 | :---- | :------ | :---------- |
@@ -124,10 +143,12 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 - **Purpose**: The upstream kernel Makefile does not list our generic 4G dongle
   targets. This adds them to `dtb-$(CONFIG_ARCH_QCOM)`:
   ```makefile
-  dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-hmu05.dtb
+  dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-hmuf02v5.dtb
   dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-uf02.dtb
   dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-ufi001b.dtb
+  dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-ufi003_mb_v02.dtb
   dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-mf800b.dtb
+  dtb-$(CONFIG_ARCH_QCOM) += msm8916-generic-mifib-v12.dtb
   ```
 
 #### 802: MSM8916 Reserved Memory Node Label
@@ -151,8 +172,9 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 - **Purpose**: Reset button on GPIO 23 (active-high, pull-down) and tri-colour
   status LEDs — red (GPIO 72), green (GPIO 71, WAN), blue (GPIO 73, WLAN).
 
-#### 805: Generic HMU05 Board Device Tree
-- **Target**: `msm8916-generic-hmu05.dts`
+#### 805: Generic HMUF02-V5 Board Device Tree
+- **Target**: `msm8916-generic-hmuf02v5.dts`
+- **Compatible**: `"hmuf02v5,250605v0s", "qcom,msm8916"`
 - **Purpose**:
   1. **Ramoops**: 1 MB at `0x8db00000` (256 KB record / 256 KB console / 256 KB pmsg).
   2. **Reset key**: GPIO 37 (`key_freset`, active-high, pull-down).
@@ -177,6 +199,52 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
   a reset button on GPIO 102 (active-high, pull-down), and three active-high
   bi-colour LEDs (Wi-Fi green GPIO 73 / red GPIO 84,
   Cellular green GPIO 85 / red GPIO 72).
+
+#### 852: Generic UFI003_MB_V02 Board Device Tree
+- **Target**: `msm8916-generic-ufi003_mb_v02.dts`
+- **Compatible**: `"ufi003,mb-v02", "qcom,msm8916"`
+- **Purpose**: Board DTS for the UFI003_MB_V02 stick, built on `msm8916-ufi.dtsi`:
+  1. **Ramoops**: 1 MB at `0x8db00000` (256 KB record / console / pmsg).
+  2. **Reset key**: GPIO 37, active-high with pull-down — the same wiring as
+     UF02, UFI001B and HMUF02-V5.
+  3. **LEDs**: WAN green GPIO 21, WLAN blue GPIO 20, POWER red GPIO 22
+     (default on). The shared `led-r`/`led-g`/`led-b` nodes are deleted first,
+     so the generic LED scripts fall back to their colour defaults.
+  4. **GPIO hogs** for SIM routing: `esim_sel` (GPIO 0, low), `sim_en`
+     (GPIO 1, low), `sim_sel` (GPIO 2, high), `esim2_sel` (GPIO 3, low),
+     `lte_aux` (GPIO 68, low).
+
+#### 853: Generic HM-MIFIB-V12 Board Device Tree
+- **Target**: `msm8916-generic-mifib-v12.dts`
+- **Compatible**: `"mifib-v12,generic", "qcom,msm8916"`
+- **Purpose**: Board DTS for the HM-MIFIB-V12 dongle — the project's second
+  battery board (after the MF800B) and the only one with the full battery
+  indicator set:
+  1. **Battery**: `simple-battery` for the 4.2 V / 2150 mAh pack (stock
+     `qrd_4v2_2000mah`): 3.35–4.2 V, 1 A constant charge, 100 mA termination,
+     plus the stock OCV→state-of-charge table. **Do not copy the MF800B 4.35 V
+     values** — this is a 4.2 V cell.
+  2. **Charger**: `pm8916_lbc` with `monitored-battery`, fast-charge limited to
+     4.2 V / 1 A; `pm8916_usbin` is disabled because the LBC owns VBUS detection.
+  3. **Fuel gauge**: `pm8916_bms` with `monitored-battery`, `power-supplies` and
+     the pack thermistor on `batt-therm` (VADC `LR_MUX1_BAT_THERM`).
+  4. **VADC**: `channel@30` for the thermistor, ratiometric, 16 ms settle.
+     `qcom,hw-settle-time` is in microseconds and the binding only accepts
+     multiples of 100 µs (≤1000) or 2000 µs (>1000): the invalid `<10>` that was
+     here first made the whole VADC probe fail with `-EINVAL`, which then left
+     the BMS without a thermistor. Use `<16000>`.
+  5. **LEDs**: dual-colour WLAN (green GPIO 73 / red GPIO 84) and WAN
+     (green GPIO 85 / red GPIO 72), the 4-bar gauge (`green:bat` GPIO 0,
+     `red:bat` GPIO 1, `batl3` GPIO 91, `batl4` GPIO 100) and `ftest` (GPIO 32,
+     `default-state = "keep"`). All are `retain-state-suspended`.
+  6. **Reset key**: GPIO 102, **active-low with pull-up** — the opposite of the
+     MF800B/HMUF02-V5 wiring, so do not copy their active-high/pull-down flags.
+  7. **GPIO hogs**: `sim1_en` (GPIO 119, high), `sim2_en` (GPIO 112, low),
+     `sim3_en` (GPIO 12, low).
+  8. **Thermal**: the HMUF02-V5 mitigation maps (Wi-Fi 65 °C, PMIC 90 °C) are
+     reused — same SoC, same cooling devices.
+  9. **A2 pin**: `&bam_dmux { qcom,a2-pin; }`. The board carries the same HiMI
+     V1.0 baseband as HMUF02-V5/UF02/UZ801, so it gets the same modem hold.
 
 ### 2.2 BAM-DMUX network driver
 
@@ -264,12 +332,13 @@ accounting runs; reading `skb->len` then is a use-after-free (observed: one
 freed skb accounted ~4 GB). The patch snapshots the length while the skb is
 still owned.
 
-#### 833: Down-Ack Serialisation (board-gated to HMU05)
-Android parity (`bam_dmux.c ul_wakeup()`): on the HMU05 the resume waits for the
-modem to ack the down vote before voting up. A flag set by
+#### 833: Down-Ack Serialisation (board-gated to HMUF02-V5)
+Android parity (`bam_dmux.c ul_wakeup()`): on the HMUF02-V5 the resume waits for
+the modem to ack the down vote before voting up. A flag set by
 `bam_dmux_runtime_suspend()` and cleared by `bam_dmux_runtime_resume()` gates
-the wait. **Gated to HMU05** via `of_machine_is_compatible("hmu05,250605v0s")`,
-because the UFI001B shares the baseband line but does not manifest the fatal.
+the wait. **Gated to HMUF02-V5** via
+`of_machine_is_compatible("hmuf02v5,250605v0s")`, because the UFI001B shares the
+baseband line but does not manifest the fatal.
 
 #### 848: Board-Gated A2 Pin
 Adds the `qcom,a2-pin` DT property. When set, the driver calls
@@ -277,20 +346,21 @@ Adds the `qcom,a2-pin` DT property. When set, the driver calls
 the modem's A2 power domain alive. Applied from `bam_dmux_netdev_open()` once
 the device is runtime-ACTIVE, so the forbid's resume is a no-op.
 
-#### 849: HMU05 DTS A2 Pin
-The device-tree half of 848: sets `qcom,a2-pin` on `&bam_dmux` for the HMU05
-board. Its modem (`HIMI_U01_MODEM_V1.0`) can wedge its internal A2 quiesce
-handshake when the AP releases the A2 power vote and then asserts
+#### 849: HMUF02-V5 DTS A2 Pin
+The device-tree half of 848: sets `qcom,a2-pin` on `&bam_dmux` for the
+HMUF02-V5 board. Its modem (`HIMI_U01_MODEM_V1.0`) can wedge its internal A2
+quiesce handshake when the AP releases the A2 power vote and then asserts
 `a2_power.c:1189`; holding the domain on is the workaround. UF02 and UZ801 set
-the same property in patch 851; UFI001B and MF800B do not and keep normal
-runtime suspend.
+the same property in patch 851 and HM-MIFIB-V12 in patch 853; UFI001B and
+MF800B do not and keep normal runtime suspend.
 
 #### 851: UF02 + UZ801 DTS A2 Pin
 Extends 849's A2 pin to the other two boards on the same HiMI baseband line —
-UF02 (`HIMI_U01_MODEM_V1.0`, same as HMU05) and UZ801 (same HiMI family). Both
-are exposed to the identical `a2_power.c:1189` quiesce wedge, so both set
-`qcom,a2-pin` on `&bam_dmux`. UFI001B (modem `MPSS.DPM.2.0.2`, V2.0) and MF800B
-are left on the normal runtime-suspend path.
+UF02 (`HIMI_U01_MODEM_V1.0`, same as HMUF02-V5) and UZ801 (same HiMI family).
+Both are exposed to the identical `a2_power.c:1189` quiesce wedge, so both set
+`qcom,a2-pin` on `&bam_dmux` (HM-MIFIB-V12 sets it in its own board file, patch
+853). UFI001B (modem `MPSS.DPM.2.0.2`, V2.0) and MF800B are left on the normal
+runtime-suspend path.
 
 #### 850: Re-Attach on Already-Open
 The channel can already be marked open if the modem re-issued `CMD_OPEN`
@@ -371,7 +441,7 @@ Enables warm-reboot into EDL from `reboot edl`/`reboot dload`, replicating the
 
 #### 824: RPM Master Stats
 Adds the `qcom,rpm-master-stats` node with APSS/MPSS/PRONTO slices. Ground
-truth is the stock HMU05 DTS: `qcom,rpm-master-stats@60150` with
+truth is the stock HMUF02-V5 DTS: `qcom,rpm-master-stats@60150` with
 `qcom,master-offset = <0x1000>` and `qcom,masters = "APSS","MPSS","PRONTO"` →
 `0x60150`/`0x61150`/`0x62150` (stride `0x1000`, record `0x50` =
 `sizeof(struct rpm_master_stats)`).
@@ -421,12 +491,13 @@ Attaches the CPUs to the CPR genpd and sets their `qcom,opp-fuse-level`
 
 ### 2.7 Thermal
 
-#### 847: HMU05 Thermal Mitigation
+#### 847: HMUF02-V5 Thermal Mitigation
 The WCN36XX firmware supports `WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ` (level
 0–4; 1–4 progressively disable TX AMPDU aggregation and reduce transmit power),
 exposed as the `wcn36xx` cooling device. There is no dedicated WCNSS temperature
 sensor, so — like Android's thermal-engine — the trip is driven from the CPU
-cluster sensor (tsens5 / cpu0-1) at 65 °C; the PMIC trip is at 90 °C.
+cluster sensor (tsens5 / cpu0-1) at 65 °C; the PMIC trip is at 90 °C. The
+HM-MIFIB-V12 board file (853) reuses these same zones and cooling maps.
 
 #### 999: TSENS Propagate `-EPROBE_DEFER`
 `tsens_calibrate_nvmem()` reads QFPROM NVMEM cells; if the provider has not yet
@@ -438,7 +509,60 @@ if (ret == -EPROBE_DEFER)
     return ret;
 ```
 
-### 2.8 Other SoC
+### 2.8 Power supply & battery
+
+The battery path is three drivers: `pm8916_lbc` (linear charger),
+`pm8916_bms_vm` (voltage-mode fuel gauge) and `qcom-spmi-vadc` (the PMIC ADC
+that samples the pack thermistor). The first two are the only place in the tree
+where the user-visible battery numbers come from, and neither was usable on
+this platform without the patches below.
+
+#### 854: BMS-VM Reports Capacity
+The VM-BMS is voltage-only: there is no coulomb counter and no current sense,
+so state of charge has to be derived from voltage. The patch prefers the
+open-circuit voltage the hardware captured while the system was off or
+suspended — the only sample not distorted by system load — and treats it as
+valid for `PM8916_BMS_VM_OCV_TIMEOUT_S` (180 s). Past that it falls back to the
+live voltage, which reads low under load, so the resulting percentage is a
+conservative (low) estimate rather than an optimistic one.
+
+#### 855: BMS-VM Reports Battery Temperature
+The pack thermistor is wired to the PMIC VADC, not to the BMS block, so it has
+to be sampled separately through an optional `batt-therm` IIO channel. When the
+node does not provide one the driver simply reports no temperature and keeps
+using the room-temperature OCV table — a board without a thermistor is not
+broken by this patch.
+
+#### 856: VADC Exposes the Battery Thermistor as a Temperature
+`LR_MUX1_BAT_THERM` was registered with `VADC_CHAN_NO_SCALE`, i.e. as a raw
+voltage. It is wired to the internal 100 kΩ pull-up, which is exactly what the
+downstream "ratiometric + therm scale function" pair describes, so the channel
+is changed to `VADC_CHAN_TEMP(..., SCALE_THERM_100K_PULLUP)` and userspace
+reads millidegrees directly.
+
+#### 857: LBC Adds `CHARGE_ENABLED`
+The charger could not stop charging without also cutting power to the system.
+This adds a writable `POWER_SUPPLY_PROP_CHARGE_ENABLED` property (plus its
+sysfs attribute): writing 0 clears `CHG_EN` while `PSTG_EN` stays enabled, so
+the stick keeps running from VBUS and the battery is merely *held*. This is the
+kernel side of the charge limiter (`battery-charge-limit`, default 85 %).
+
+#### 858: Sample the Temperature On Demand
+`iio_read_channel_processed()` returns the IIO value type on success —
+`IIO_VAL_INT == 1`, not 0. The original `if (iio_read_channel_processed(...))`
+therefore discarded **every** good sample and left the temperature at the
+`25000` placeholder, so the gauge always looked like it was at 25 °C. The
+helper now returns an int, treats only `ret < 0` as failure (`-ENODATA` when no
+channel is configured) and is called on demand from the property getter.
+
+#### 859: Report an Honest Charge Status
+The BMS reported `STATUS=Charging` whenever a charger was present (VBUS online)
+without checking whether charging was actually enabled. With the charge limit
+holding the battery that is wrong, and LuCI showed "Charging" at 85 % forever.
+The driver now queries the supplying charger's `CHARGE_ENABLED` and reports
+`POWER_SUPPLY_STATUS_NOT_CHARGING` when it is off.
+
+### 2.9 Other SoC
 
 #### 816: SMSM Validate Mailbox Before Request
 In Linux 6.12, `mbox_request_channel()` prints `can't parse "mboxes" property`
@@ -450,7 +574,7 @@ over all hosts unconditionally, spamming boot errors. The patch:
 2. Uses `of_parse_phandle_with_args()` to validate the phandle first.
 3. Propagates `-EPROBE_DEFER` cleanly if the mailbox controller is still probing.
 
-### 2.9 OpenWrt source patches
+### 2.10 OpenWrt source patches
 
 #### 809: mac80211 wcn36xx Support
 Enables `kmod-wcn36xx` (WCN3660/3680 Wi-Fi) and `kmod-ath10k-sdio` in OpenWrt's
@@ -476,8 +600,9 @@ When developing or updating patches:
 2. **Numbering scheme**: three-digit, applied in lexical order. Numbers are
    stable identifiers, not a contiguous sequence — gaps (817, 829, 830, 835–837,
    839, 840) are removed/retired patches and must not be reused casually.
-   - `801–807`: device-tree board enablement
+   - `801–807`, `852–853`: device-tree board enablement
    - `808–851`: kernel drivers (BAM-DMUX, remoteproc, rpmsg, power, CPR, thermal)
+   - `854–859`: power supply & battery (PM8916 LBC charger, VM-BMS, VADC)
    - `999`: trailing bug fixes that must sort last
 3. **Format**: unified diff (`diff -u` / `git diff`) with `a/...` and `b/...`
    paths.
@@ -488,6 +613,6 @@ When developing or updating patches:
    [`openwrt-patches/`](../../openwrt-patches/) to the OpenWrt source tree
    before the kernel/package build.
 5. **Board-gating**: a few patches are only correct for a specific modem
-   revision. Currently only **833** is gated (to HMU05 via
+   revision. Currently only **833** is gated (to HMUF02-V5 via
    `of_machine_is_compatible`). Board-specific behaviour is otherwise expressed
-   through DT properties (e.g. `qcom,a2-pin` in 849/851), not `#ifdef`s.
+   through DT properties (e.g. `qcom,a2-pin` in 849/851/853), not `#ifdef`s.
