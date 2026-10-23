@@ -71,6 +71,12 @@ done
 ip link set "$nd" up 2>/dev/null
 ip addr add 192.168.10.1/24 dev "$nd" 2>/dev/null
 
+mkdir -p /tmp
+# DHCP server (busybox udhcpd) so a connected host gets 192.168.10.2-20
+# automatically - no manual 'ip addr add' on the host side.  The interface is
+# usb0 for the ncm.usb0 function ($nd is kept in sync with it).
+udhcpd /etc/udhcpd.conf 2>/tmp/udhcpd.log &
+
 # Console. setsid -c gives the shell a controlling tty; the [ -c ] guard keeps
 # a redirection failure from aborting the spawner subshell.
 (
@@ -98,6 +104,7 @@ dropbear -p 22 -r /etc/dropbear/dropbear_ed25519_host_key -P /var/run/dropbear.p
 			echo "console: /dev/ttyGS0 $([ -c /dev/ttyGS0 ] && echo ready || echo MISSING)"
 			echo "network: $(ip -br addr show 2>/dev/null | tr '\n' ' ')"
 			echo "ssh:     root@192.168.10.1 (no password)"
+		echo "dhcp:    udhcpd on $nd (192.168.10.2-20)"
 			echo "edl:     run /sbin/reboot-edl"
 			echo "=== end ==="
 		} >/dev/ttyGS0 2>&1

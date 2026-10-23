@@ -20,7 +20,9 @@ cmdline  empty — /init does everything
 ## What /init provides
 
 * USB ConfigFS gadget `1d6b:0104` with `ncm.usb0` + `acm.GS0`
-* Network `192.168.10.1/24` on the NCM interface; host just brings its side up
+* Network `192.168.10.1/24` on the NCM interface; a built-in `udhcpd`
+  serves `192.168.10.2`-`.20` so the host gets an address automatically (no
+  manual `ip addr add` needed)
 * Root shell on `/dev/ttyGS0` (ACM console, no auth) and
   `ssh root@192.168.10.1` with **no password** (OpenWrt
   `600-allow-blank-root-password.patch`; `/etc/passwd` field 2 is empty)
