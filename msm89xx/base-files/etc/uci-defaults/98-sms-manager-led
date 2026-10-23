@@ -13,12 +13,14 @@
 #   * batl3 / batl4 / ftest exist in the DTS but are not populated on this
 #     board, and sim_hotplug is a pulse line rather than a lamp.
 #
-# Probing for the lamp keeps other boards untouched (HMU05 exposes red:power
-# and has no Wi-Fi pair).  A user who picks a different lamp in LuCI keeps it:
-# only an empty setting is filled in, so a config-preserving upgrade does not
-# override the choice.
+# Gate on battery-equipped boards.  Those expose the full 6-LED set (3
+# green + 3 red pairs: signal, Wi-Fi, battery); boards without a battery pack
+# (e.g. HMU05, which only has red:power) must not get this default, since their
+# lamp names differ and red:wlan may not even exist.  A user who picks a
+# different lamp in LuCI keeps it: only an empty setting is filled in, so a
+# config-preserving upgrade does not override the choice.
 #
-if [ -d /sys/class/leds/red:wlan ] &&
+if { [ -d /sys/class/leds/green:bat ] || [ -d /sys/class/leds/red:bat ]; } &&
    uci -q get sms_manager.@sms_manager[0] >/dev/null 2>&1; then
 
     if [ -z "$(uci -q get sms_manager.@sms_manager[0].smsled)" ]; then
