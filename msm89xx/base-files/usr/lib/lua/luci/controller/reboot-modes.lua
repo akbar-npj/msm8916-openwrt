@@ -34,26 +34,24 @@ local MODES = {
 -- moment a stick is repartitioned and never offers a button that would reboot
 -- into a partition the bootloader cannot find.  The name comes from
 -- generate_squashfs_gpt.sh, so it is the same one lk2nd matches on.
+--
+-- nixio has no opendir(): the directory iterator is fs.dir().  Note that
+-- nixio.fs is a Lua table whose metatable is __index = itself, so a misspelt
+-- key raises "loop in gettable" rather than "attempt to call a nil value".
 local function has_recovery_partition()
-    local dir = fs.opendir("/sys/class/block")
-    if not dir then
+    local ok, iter, state, init = pcall(fs.dir, "/sys/class/block")
+    if not ok or not iter then
         return false
     end
 
-    local found = false
-    local name
-    repeat
-        name = dir:read()
-        if name then
-            local uevent = fs.readfile("/sys/class/block/" .. name .. "/uevent")
-            if uevent and uevent:find("PARTNAME=recovery", 1, true) then
-                found = true
-            end
+    for name in iter, state, init do
+        local uevent = fs.readfile("/sys/class/block/" .. name .. "/uevent")
+        if uevent and uevent:find("PARTNAME=recovery", 1, true) then
+            return true
         end
-    until not name or found
+    end
 
-    dir:close()
-    return found
+    return false
 end
 
 function index()
