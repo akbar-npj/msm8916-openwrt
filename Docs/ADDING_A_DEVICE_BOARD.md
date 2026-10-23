@@ -1,4 +1,4 @@
-# Adding a New Board (Device) to msm8916-openwrt
+# Adding a New Device Board to msm8916-openwrt
 
 This guide explains, step by step, everything required to add support for a
 new MSM8916-based board (a 4G dongle / MiFi / stick) to this firmware tree.
@@ -197,6 +197,8 @@ define Device/generic-<board>
 	FILESYSTEMS   := squashfs
 	# Only if your eMMC size differs from the 4 GB sticks:
 	# GPT_TOT_SECTORS := <cat /sys/block/mmcblk0/size>
+	# Only if you want the 17-partition layout (misc + recovery):
+	# GPT_RECOVERY := 1
 	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
@@ -215,12 +217,30 @@ Notes:
   `SUPPORTED_DEVICES := mf800b,generic`). Keep the spelling consistent.
 * **`DEVICE_PACKAGES`** — start from the common set above. Add board-unique
   packages only if the board needs them (example: `qcom-time-daemon` is
-  `generic-hmu05`-only, because it anchors the HMU05 modem's ATS state and its
-  init is a no-op on every other board).
+  `generic-hmuf02v5`-only, because it anchors the HMUF02-V5 modem's ATS state
+  and its init is a no-op on every other board). If your board has a battery,
+  add **`luci-app-battery`** — that package carries the LuCI page, the charge
+  limiter and the battery LED monitor. Do not ship those scripts in the target
+  base-files: every board would get them, including the ones with no cell.
 * **`GPT_TOT_SECTORS`** — only override when the eMMC is a different size. The
   default (`7569408`) is the 4 GB stick size. `flash.sh` now *reads* the real
   size out of the GPT at flash time, but the image's GPT itself is built from
   this value, so set it correctly for your hardware.
+* **`GPT_RECOVERY`** — set to `1` to append `misc` (1 MiB) and `recovery`
+  (16 MiB) partitions after `rootfs_data`, which is what the lk2nd boot-failover
+  and the LuCI *Reboot to Recovery* entry need. The offsets of `boot`/`rootfs`
+  do not move, so the flag can be added later, but the stick must then be
+  repartitioned (a full `flash.sh` run, not `sysupgrade`).
+* **⚠ `DEVICE_VARS`** — any new per-device variable **must** be declared at the
+  top of `msm8916.mk`:
+  ```makefile
+  DEVICE_VARS += GPT_TOT_SECTORS GPT_RECOVERY
+  ```
+  Without it the variable is a plain global, so each `define Device/...` block
+  inherits whatever the *previous* block left behind. That is exactly how
+  `generic-hmuf02v5` silently shipped the MF800B layout for a while: the last
+  device in the file won. If a new board mysteriously gets another board's
+  partition sizes, check `DEVICE_VARS` first.
 
 ---
 
@@ -271,6 +291,19 @@ If none of those LEDs exist on your board, the handler still powers off — it
 just skips the blink. **No change strictly required**, but if your board names
 its power/charging LED something else, add it to this fallback chain so users
 get the visual confirmation.
+
+Two behaviours worth knowing:
+
+* **A long press while VBUS is present reboots instead of powering off.** On a
+  battery board a power-off would look like a dead stick while it is still
+  plugged in, so the handler checks every `/sys/class/power_supply/*/online`
+  first and does a clean `sync; reboot` when one reads `1`.
+* **The handler only runs if the PMIC power key reaches userspace.**
+  `sbin/pwrkey-monitor` (started by `init.d/pwrkey-monitor`) finds the
+  `pm8941_pwrkey` input device, decodes keycode `0x74` (`KEY_POWER`) and writes
+  the hold duration to `/etc/rc.button/power`. It waits up to 60 s for the
+  input node, so it must **not** exit early on a slow boot — procd would
+  respawn it in a loop. Boards without a power key simply never trigger it.
 
 ### 4c. Services that already key off `board_name`
 
@@ -407,6 +440,17 @@ never bricks the modem NV.
    line must name *your* Device.
 7. **HiMI baseband boards need the himi-ok allow-list.** If your board carries
    a HiMI baseband, add it to `lib/himi-ok.sh` or the modem-OK gate won't run.
+8. **New `DEVICE_*` variable without a `DEVICE_VARS` entry.** The value leaks
+   into (or from) the next device block, because it is then a plain global.
+   Always add the name to `DEVICE_VARS` at the top of `msm8916.mk`.
+9. **Battery scripts in the target base-files.** They would ship to every board,
+   including the five with no cell, and put a dead page in the LuCI menu. Keep
+   them in `packages/luci-app-battery` and add that package to `DEVICE_PACKAGES`
+   on the battery boards only.
+10. **`reboot-recovery` without a recovery partition.** The LuCI entry checks
+    `/sys/class/block/*/uevent` for `PARTNAME=recovery` and hides itself when the
+    partition is absent, but the CLI tool still exists — make sure the GPT was
+    actually written with `GPT_RECOVERY=1` before telling users to use it.
 
 ---
 
@@ -425,7 +469,10 @@ never bricks the modem NV.
   - [ ] `DEVICE_DTS` matches the `.dts` basename
   - [ ] `SUPPORTED_DEVICES` matches the DTS `compatible`
   - [ ] `GPT_TOT_SECTORS` set if eMMC ≠ 4 GB
+  - [ ] `GPT_RECOVERY := 1` if the board should get `misc` + `recovery`
+  - [ ] any new `DEVICE_*` variable added to `DEVICE_VARS`
   - [ ] `DEVICE_PACKAGES` = common set + any board-unique packages
+  - [ ] `luci-app-battery` added **only** if the board has a battery
 - [ ] **base-files tweaks** (only if hardware differs)
   - [ ] `99-wifi-led` board skip/branch
   - [ ] `rc.button/power` LED fallback

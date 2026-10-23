@@ -82,7 +82,7 @@ Recent additions on top of the base port:
 
 ### 🛠️ Adding a new board
 
-Want to port a new MSM8916 device? See **[`Docs/ADDING_A_BOARD.md`](Docs/ADDING_A_BOARD.md)** — a step-by-step guide (DTS patch, qcom Makefile registration, `msm8916.mk` Device profile, `diffconfigs/`, base-files LED/button tweaks, build/flash/verify, and a copy/paste checklist), modelled on the [MF800B PR #2](https://github.com/akbar-npj/msm8916-openwrt/pull/2).
+Want to port a new MSM8916 device? See **[`Docs/ADDING_A_DEVICE_BOARD.md`](Docs/ADDING_A_DEVICE_BOARD.md)** — a step-by-step guide (DTS patch, qcom Makefile registration, `msm8916.mk` Device profile, `diffconfigs/`, base-files LED/button tweaks, build/flash/verify, and a copy/paste checklist), modelled on the [MF800B PR #2](https://github.com/akbar-npj/msm8916-openwrt/pull/2).
 
 ---
 
