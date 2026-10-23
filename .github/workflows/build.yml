@@ -14,11 +14,16 @@ on:
         required: false
         type: choice
         default: all
+        # GitHub choice inputs are a static list - keep in sync with diffconfigs/.
         options:
           - all
-          - uz801
-          - uf02
+          - hmuf02v5
+          - mf800b
           - mifib-v12
+          - uf02
+          - ufi001b
+          - ufi003
+          - uz801
 
 env:
   UPLOAD_FIRMWARE: true
@@ -34,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02","mifib-v12"]' || format('["{0}"]', inputs.device)) }}
+        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["hmuf02v5","mf800b","mifib-v12","uf02","ufi001b","ufi003","uz801"]' || format('["{0}"]', inputs.device)) }}
 
     steps:
     - name: Checkout
