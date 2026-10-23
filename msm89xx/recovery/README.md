@@ -177,16 +177,40 @@ root shell. Keep the recovery box on a network you control.
   hostapd in wcn36xx's firmware-bringup window enables the AP and tears it
   down again ~200 ms later.
 
-## Entering recovery on a buttonless board
+## Entering recovery
 
-All three triggers are handled by lk2nd (the aboot replacement built by
+### mifib-v12: the power button is enough (verified on hardware)
+
+Holding the **power button** (the PMIC `pm8941_pwrkey`) for ~20 s drives the
+PMIC into a KPDPWR hard reset. The board then comes up in the recovery image -
+verified on mifib-v12: 20 s hold from the running system, then recovery at
+`192.168.10.1` with USB **and** WiFi working and `reboot-edl` available.
+
+The entry therefore comes from the bootloader's hard-reboot-reason handling
+(the PON reason of a power-key reset), not from the recovery-key patch: the
+shipped aboot contains the failover code but **no** `recovery key pressed`
+string, i.e. `RECOVERY_KEY_GPIO` was never compiled into it. That is also why
+the GPIO102 key is **not needed** on mifib-v12 - it stays in the tree for
+mf800b and for anyone who wants a shorter hold than 20 s (enabling it means
+reflashing `aboot`, the one write that can brick the boot chain).
+
+Note the side effect on a tethered board: the same hard reset fires on a long
+hold while USB is plugged in, and VBUS re-powers the SoC, so a "power off"
+hold reads as a reboot into recovery rather than an off state.
+
+### The three software triggers
+
+All three are handled by lk2nd (the aboot replacement built by
 `generate_firmware.sh`):
 
-1. **Hold the reset button at power-on.** Both gated boards wire it to TLMM
-   GPIO 102 (active low, unused on every other board in this project). lk2nd
-   reports it as VOLUMEUP, which its stock key handling maps to "boot the
-   recovery partition". Enabled by `RECOVERY_KEY_GPIO=102` /
-   `RECOVERY_KEY_ACTIVE_LOW=1`.
+1. **Hold the reset button at power-on** (only if aboot was built with the
+   key - check with `strings /dev/disk/by-partlabel/aboot | grep 'recovery key'`).
+   Both gated boards wire the reset button to TLMM GPIO 102 (active low,
+   unused on every other board in this project). lk2nd reports it as
+   VOLUMEUP, which its stock key handling maps to "boot the recovery
+   partition". Enabled by `RECOVERY_KEY_GPIO=102` /
+   `RECOVERY_KEY_ACTIVE_LOW=1`. Not present in the aboot shipped on the
+   mifib-v12 test unit.
 2. **`reboot-recovery` from a running system.** Same infrastructure as
    `reboot-edl`: it sets the PON reboot reason to recovery, which lk2nd's
    `check_reboot_mode()` honours on the next boot. Works whenever OpenWrt is
