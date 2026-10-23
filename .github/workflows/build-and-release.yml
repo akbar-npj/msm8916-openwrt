@@ -75,7 +75,7 @@ jobs:
           printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
           echo "Injected persistent private signing key."
 
-      - name: Compile All Firmware Images (hmuf02v5, ufi001b, uz801, uf02, mf800b)
+      - name: Compile All Firmware Images (every diffconfigs/ entry - hmuf02v5, ufi001b, uz801, uf02, mf800b, mifib-v12)
         run: |
           ./build.sh build all
 

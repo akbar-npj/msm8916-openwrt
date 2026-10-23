@@ -1,5 +1,11 @@
 name: OpenWrt Builder
 
+# Manual per-board build.  "all" builds every diffconfigs/* entry; picking a
+# single device builds just that one.  Both paths go through ./build.sh, which
+# owns the OpenWrt checkout, the BSP sync and the docker toolchain - this
+# workflow must not reimplement any of that (it used to, against a tree layout
+# that no longer exists).
+
 on:
   workflow_dispatch:
     inputs:
@@ -12,115 +18,89 @@ on:
           - all
           - uz801
           - uf02
+          - mifib-v12
 
 env:
   UPLOAD_FIRMWARE: true
   TZ: Europe/Madrid
 
-jobs:
-  resolve-version:
-    runs-on: ubuntu-22.04
-    outputs:
-      openwrt_version: ${{ steps.resolve.outputs.version }}
-    steps:
-    - name: Resolve latest stable OpenWrt 25.12.x tag
-      id: resolve
-      run: |
-        VERSION=$(git ls-remote --tags https://git.openwrt.org/openwrt/openwrt.git 'v25.12.*' \
-          | grep -oP 'v25\.12\.\d+$' | sort -V | tail -1)
-        if [ -z "$VERSION" ]; then
-          echo "ERROR: Could not resolve a stable OpenWrt 25.12.x version"
-          exit 1
-        fi
-        echo "Resolved OpenWrt version: $VERSION"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+permissions:
+  contents: read
 
+jobs:
   build:
-    needs: resolve-version
     runs-on: ubuntu-22.04
 
     strategy:
       fail-fast: false
       matrix:
-        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02"]' || format('["{0}"]', inputs.device)) }}
+        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02","mifib-v12"]' || format('["{0}"]', inputs.device)) }}
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Initialization environment
+    - name: Free disk space on runner
+      run: |
+        sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
+        sudo apt-get clean
+
+    - name: Determine version
+      id: vars
+      run: |
+        VERSION="$(cat version 2>/dev/null || echo 25.12.5)"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "FILE_DATE=$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
+
+    - name: Cache OpenWrt downloads & toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          openwrt/dl
+          openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+          openwrt/staging_dir/host
+        key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-${{ github.run_id }}
+        restore-keys: |
+          openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
+          openwrt-cache-${{ steps.vars.outputs.version }}-
+          openwrt-cache-
+
+    - name: Build docker builder image & prepare OpenWrt tree
       env:
-        DEBIAN_FRONTEND: noninteractive
+        APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
       run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
-        sudo -E apt-get -qq update
-        sudo -E ./devenv/dependencies.sh
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-
-    - name: Clone OpenWrt source code
-      run: |
-        echo "Using OpenWrt ${{ needs.resolve-version.outputs.openwrt_version }}"
-        git clone https://git.openwrt.org/openwrt/openwrt.git openwrt
-        git -C openwrt checkout ${{ needs.resolve-version.outputs.openwrt_version }}
-
-    - name: Load msm89xx target and packages
-      run: |
-        chmod +x apply_patches.sh
-        ./apply_patches.sh openwrt
-        mv msm89xx openwrt/target/linux/msm89xx
-        mv packages openwrt/package/msm8916
-
-    - name: Update and install feeds
-      run: |
-        cd openwrt
-        rm -rf tmp
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-
-    - name: Load diffconfig
-      run: |
-        DEVICE="${{ matrix.device }}"
-        DIFFCONFIG="diffconfig_${DEVICE}"
-        [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
-
-    - name: Download package
-      id: package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec rm -f {} \; || true
+        ./build.sh prepare
+        if [ -z "$APK_SIGNING_KEY" ]; then
+          echo "::error::APK_SIGNING_KEY secret is not set."
+          echo "::error::Without it the feed would be signed with a random, per-build key"
+          echo "::error::and every device would reject it with 'UNTRUSTED signature'."
+          exit 1
+        fi
+        printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
 
     - name: Compile the firmware
-      id: compile
       run: |
-        cd openwrt
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "status=success" >> $GITHUB_OUTPUT
-        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        ./build.sh build ${{ matrix.device }}
 
     - name: Organize files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
+        cd openwrt/bin/targets/msm89xx/msm8916
         rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
+        echo "FIRMWARE=$PWD" >> "$GITHUB_ENV"
+        echo "status=success" >> "$GITHUB_OUTPUT"
 
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: openwrt_firmware_${{ matrix.device }}_${{needs.resolve-version.outputs.openwrt_version}}_${{ env.FILE_DATE }}
+        name: openwrt_firmware_${{ matrix.device }}_${{ steps.vars.outputs.version }}_${{ env.FILE_DATE }}
         path: |
           ${{ env.FIRMWARE }}/*-msm89xx-*-squashfs-gpt_both0.bin
           ${{ env.FIRMWARE }}/*-msm89xx-*-squashfs-boot.img
           ${{ env.FIRMWARE }}/*-msm89xx-*-squashfs-system.img
+          ${{ env.FIRMWARE }}/*-msm89xx-*-squashfs-sysupgrade.bin
           ${{ env.FIRMWARE }}/*-msm89xx-*.manifest
           ${{ env.FIRMWARE }}/*-msm89xx-*-flash.sh
           ${{ env.FIRMWARE }}/*-msm89xx-*-firmware.zip
