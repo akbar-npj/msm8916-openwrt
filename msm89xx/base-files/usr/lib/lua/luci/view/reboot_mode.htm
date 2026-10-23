@@ -1,0 +1,22 @@
+<%+header%>
+<h2 name="content"><%=title%></h2>
+
+<% if not available then %>
+<p class="alert-message warning">
+	<%:The reboot tool is not installed, so this action is unavailable:%>
+	<code><%=tool%></code>
+</p>
+<% else %>
+<p><%:The device will reboot into %> <%=what%>.</p>
+
+<p class="alert-message warning">
+	<%:Network access and LuCI will go down and will not come back until the device is power-cycled, flashed over USB, or booted again by hand.%>
+</p>
+
+<form method="post" action="">
+	<input type="hidden" name="confirm" value="1" />
+	<input type="submit" class="cbi-button cbi-button-action important" value="<%:Proceed%>" />
+</form>
+<% end %>
+
+<%+footer%>
