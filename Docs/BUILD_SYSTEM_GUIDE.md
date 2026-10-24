@@ -61,6 +61,21 @@ To maintain clean separation between upstream OpenWrt and custom Qualcomm hardwa
 > [!IMPORTANT]
 > Files under `openwrt/target/linux/msm89xx/` or `openwrt/package/msm8916/` are ephemeral copies. Any manual changes made directly inside `openwrt/` will be overwritten when `build.sh` synchronizes the BSP. Always make target changes in the root `msm89xx/` and `packages/` directories.
 
+### What ships where
+
+Package selection has three layers:
+
+| Layer | File | Scope |
+| :--- | :--- | :--- |
+| `DEFAULT_PACKAGES` | `msm89xx/Makefile` | every board — all shared packages |
+| `DEVICE_PACKAGES` | `msm89xx/image/msm8916.mk` | per device |
+| `diffconfigs/<board>` | `diffconfigs/` | per board: the `=m` driver feed, option symbols (busybox/kernel/package), the failsafe block, the device line, board-only packages |
+
+`build.sh` copies `diffconfigs/<board>` to `openwrt/.config` and runs
+`make defconfig`, so `DEFAULT_PACKAGES` land on every board automatically — a
+new board needs no package list of its own. `./build.sh guard` verifies the two
+invariants that keep this honest.
+
 ---
 
 ## 3. Containerized Build Environment
@@ -141,7 +156,7 @@ When you run `./build.sh build <board>`:
 | `clean` | (none) | Runs `make clean` inside the OpenWrt tree (cleans target objects). |
 | `dirclean` | (none) | Runs `make dirclean` (cleans targets, toolchain, and staging directories). |
 | `distclean` | (none) | Runs `make distclean` (purges all build artifacts, downloads, and feeds). |
-| `guard` | `[--deep]` | Host-side check that the live OpenWrt tree matches the tracked sources (`msm89xx/`, `packages/`). `--deep` additionally asks `make` whether the next kernel build will re-prepare (wipe `build_dir`) or be incremental. Does **not** require Docker unless `--deep`. |
+| `guard` | `[--deep]` | Host-side check that the live OpenWrt tree matches the tracked sources (`msm89xx/`, `packages/`), **plus the diffconfig invariants**: the `=m` module block identical on every board, and no diffconfig selecting a `DEFAULT_PACKAGES` package. `--deep` additionally asks `make` whether the next kernel build will re-prepare (wipe `build_dir`) or be incremental. Does **not** require Docker unless `--deep`. |
 | `kernel` | `[board]` | Rebuild only the kernel and its in-tree modules. Without a board, the existing `.config` is reused. |
 | `package` | `<name\|path> [board]` | Rebuild only one package, e.g. `qrtr` or `package/msm8916/qrtr`. |
 | `kmod` | `<name> [board]` | Rebuild only one kernel module (out-of-tree kmods build directly; in-tree modules fall back to the kernel target). |

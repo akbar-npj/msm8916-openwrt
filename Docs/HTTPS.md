@@ -10,7 +10,7 @@ exactly as before, and `https://<device>/` works as well.
 
 | Piece | Where |
 | :---- | :---- |
-| `px5g-mbedtls` | every `diffconfigs/<board>` (`CONFIG_PACKAGE_px5g-mbedtls=y`) |
+| `px5g-mbedtls` | every board — `DEFAULT_PACKAGES` in `msm89xx/Makefile` |
 | `listen_https 0.0.0.0:443` and `[::]:443` | uhttpd default config |
 | `redirect_https 0` | uhttpd default config — **deliberate** |
 | `cert /etc/uhttpd.crt`, `key /etc/uhttpd.key` | uhttpd default config |
@@ -88,8 +88,8 @@ netstat -ltn | grep -E ':80 |:443 '
 logread | grep -i uhttpd
 ```
 
-If `:443` is missing, `px5g-mbedtls` is not installed — the package list in
-`diffconfigs/<board>` is the thing to check.
+If `:443` is missing, `px5g-mbedtls` is not installed — check
+`DEFAULT_PACKAGES` in `msm89xx/Makefile` (it ships on every board).
 
 ---
 
