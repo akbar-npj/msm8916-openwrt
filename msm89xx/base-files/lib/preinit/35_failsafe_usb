@@ -82,6 +82,19 @@ fs_find_udc() {
 	ls /sys/class/udc/ 2>/dev/null | head -1
 }
 
+# The ACM function's tty shows up in sysfs, but preinit's /dev is a plain tmpfs
+# (512k, no devtmpfs population), so no node is created for it.  Without this the
+# login shell loops forever on a missing device while the gadget itself is fine
+# (the host still enumerates /dev/ttyACM0) -- the serial console just stays dead.
+fs_ensure_tty() {
+	local tty="$1" dev
+	[ -c "/dev/$tty" ] && return 0
+	dev="$(cat "/sys/class/tty/$tty/dev" 2>/dev/null)"
+	[ -n "$dev" ] || return 1
+	mknod "/dev/$tty" c "${dev%%:*}" "${dev##*:}" 2>/dev/null
+	[ -c "/dev/$tty" ]
+}
+
 # Serve DHCP on the gadget link so the host needs no manual configuration.
 # busybox udhcpd is not built into this image; dnsmasq is, so use that.  Started
 # detached so it survives the hand-over to the failsafe shell.
@@ -200,14 +213,16 @@ fs_usb_setup() {
 	# not /dev/ttyGS0 exists yet and whenever the host connects.  Wait for the
 	# node first and log it: a silent console is the failure mode that sends
 	# people looking for a cable problem.
-	for i in 1 2 3 4 5 6 7 8 9 10; do
-		[ -c "/dev/$FS_ACM_TTY" ] && break
+	i=0
+	while [ "$i" -lt 10 ]; do
+		fs_ensure_tty "$FS_ACM_TTY" && break
 		sleep 1
+		i=$((i + 1))
 	done
 	if [ -c "/dev/$FS_ACM_TTY" ]; then
-		fs_log "ACM tty /dev/$FS_ACM_TTY present; starting login shell"
+		fs_log "ACM tty /dev/$FS_ACM_TTY ready; starting login shell"
 	else
-		fs_log "WARNING: /dev/$FS_ACM_TTY missing; serial console unavailable (network only)"
+		fs_log "WARNING: /dev/$FS_ACM_TTY could not be created; serial console disabled (network only)"
 	fi
 	start-stop-daemon -Sb -p /dev/null -- \
 		env -i ash -c "while true; do setsid -c env -i USER=root LOGNAME=root SHELL=/bin/ash TERM=vt102 ash --login <\"/dev/$FS_ACM_TTY\" >\"/dev/$FS_ACM_TTY\" 2>\"/dev/$FS_ACM_TTY\"; sleep 1; done"
