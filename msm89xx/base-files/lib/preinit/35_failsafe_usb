@@ -82,6 +82,33 @@ fs_find_udc() {
 	ls /sys/class/udc/ 2>/dev/null | head -1
 }
 
+# Serve DHCP on the gadget link so the host needs no manual configuration.
+# busybox udhcpd is not built into this image; dnsmasq is, so use that.  Started
+# detached so it survives the hand-over to the failsafe shell.
+fs_dhcp_start() {
+	local netdev="$1" ip="$2"
+	local base="$(echo "$ip" | cut -d. -f1-3)"
+
+	if [ ! -x /usr/sbin/dnsmasq ]; then
+		fs_log "WARNING: no dnsmasq; set $ip/24 on the host manually"
+		return 0
+	fi
+
+	start-stop-daemon -Sb -p /tmp/failsafe-dnsmasq.pid -x /usr/sbin/dnsmasq -- \
+		--interface="$netdev" --bind-interfaces --except-interface=lo \
+		--dhcp-range="$base.10,$base.50,12h" \
+		--dhcp-option=3,"$ip" --dhcp-option=6,"$ip" \
+		--dhcp-authoritative --no-resolv --no-hosts --no-daemon \
+		--leasefile-ro >/dev/null 2>&1
+
+	sleep 1
+	if pgrep -f "dnsmasq.*--interface=$netdev" >/dev/null 2>&1; then
+		fs_log "DHCP server on $netdev ($base.10-$base.50)"
+	else
+		fs_log "WARNING: DHCP server did not start; set $ip/24 manually"
+	fi
+}
+
 fs_usb_setup() {
 	fs_led_failsafe
 	fs_log "entered failsafe; bringing up USB gadget"
@@ -157,6 +184,7 @@ fs_usb_setup() {
 		ip link set "$netdev" up 2>/dev/null
 		ip -4 address add "$ip/$mask" broadcast "$bcast" dev "$netdev" 2>/dev/null
 		fs_log "$netdev up at $ip (ssh root@$ip)"
+		fs_dhcp_start "$netdev" "$ip"
 	else
 		fs_log "WARNING: NCM netdev did not appear"
 	fi
@@ -164,7 +192,18 @@ fs_usb_setup() {
 	# Spawn a root login shell on the ACM tty.  Same proven pattern as
 	# 99_10_failsafe_login (which only covers kernel consoles).  Spawned
 	# unconditionally: the loop (re)opens the tty, so it works whether or
-	# not /dev/ttyGS0 exists yet and whenever the host connects.
+	# not /dev/ttyGS0 exists yet and whenever the host connects.  Wait for the
+	# node first and log it: a silent console is the failure mode that sends
+	# people looking for a cable problem.
+	for i in 1 2 3 4 5 6 7 8 9 10; do
+		[ -c "/dev/$FS_ACM_TTY" ] && break
+		sleep 1
+	done
+	if [ -c "/dev/$FS_ACM_TTY" ]; then
+		fs_log "ACM tty /dev/$FS_ACM_TTY present; starting login shell"
+	else
+		fs_log "WARNING: /dev/$FS_ACM_TTY missing; serial console unavailable (network only)"
+	fi
 	start-stop-daemon -Sb -p /dev/null -- \
 		env -i ash -c "while true; do setsid -c env -i USER=root LOGNAME=root SHELL=/bin/ash TERM=vt102 ash --login <\"/dev/$FS_ACM_TTY\" >\"/dev/$FS_ACM_TTY\" 2>\"/dev/$FS_ACM_TTY\"; sleep 1; done"
 	fs_log "serial login shell started on /dev/$FS_ACM_TTY"

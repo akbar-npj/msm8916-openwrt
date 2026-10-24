@@ -66,9 +66,9 @@ screen /dev/ttyACM0 115200      # or: picocom -b 115200 /dev/ttyACM0
 
 > The failsafe address is deliberately `192.168.10.1`, different from the normal
 > LAN address `192.168.8.1`, so a half-broken network config cannot collide with
-> it. On the host, give the new USB NIC an address in `192.168.10.0/24` (most
-> desktop environments do this automatically over DHCP-less link-local; if not,
-> run `ip addr add 192.168.10.2/24 dev <usb-nic>`).
+> it. Failsafe runs a DHCP server on the gadget link (dnsmasq, pool
+> `192.168.10.10`-`.50`), so the host normally picks up an address by itself. If
+> it does not, run `ip addr add 192.168.10.2/24 dev <usb-nic>`.
 
 ### What to do once inside
 
