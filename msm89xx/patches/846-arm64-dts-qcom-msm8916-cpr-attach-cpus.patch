@@ -64,7 +64,7 @@
  		};
  		opp-800000000 {
  			opp-hz = /bits/ 64 <800000000>;
- 			opp-peak-kBps = <8528000>;
+ 			opp-peak-kBps = <0>;
 +			required-opps = <&cpr_opp3>;
  		};
  	};
