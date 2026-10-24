@@ -545,6 +545,76 @@ deep_prepare_stamp() {
     " 2>/dev/null || true
 }
 
+# The diffconfigs are seven hand-maintained copies of what is left after the
+# dedup: everything identical across all boards now lives in DEFAULT_PACKAGES
+# (msm89xx/Makefile).  What remains per board is the =m kernel-module block,
+# the busybox/kernel/package option symbols, the failsafe tuning, the device
+# selector, and genuinely per-board packages.  Two invariants keep that
+# arrangement honest:
+#
+#   1. the =m block is byte-identical in every diffconfig.  Those modules must
+#      stay EXTERNAL (=m), never built in, so they cannot move to
+#      DEFAULT_PACKAGES -- that would force the tristates to =y;
+#   2. no package selected in a diffconfig is also a DEFAULT_PACKAGES entry,
+#      otherwise the dedup has silently regressed.
+diffconfig_guard() {
+
+    local f base ref="" bad=0
+    local mfile dfile blk
+
+    mfile="$(mktemp)"
+    dfile="$(mktemp)"
+    blk="$(mktemp)"
+
+    # DEFAULT_PACKAGES names, one per line (handles the backslash
+    # continuations and ignores the surrounding comments).
+    awk '
+        /^DEFAULT_PACKAGES/ { collecting = 1 }
+        collecting {
+            line = $0
+            sub(/^DEFAULT_PACKAGES[[:space:]]*\+?=[[:space:]]*/, "", line)
+            print line
+            if (line !~ /\\[[:space:]]*$/) collecting = 0
+        }
+    ' "$REPO_DIR/msm89xx/Makefile" \
+        | tr -d '\\' | tr -s '[:space:]' '\n' | sed '/^$/d' | sort -u > "$mfile"
+
+    for f in "$DIFFCONFIG_DIR"/*; do
+
+        base="$(basename "$f")"
+
+        # Invariant 1: identical =m block on every board.
+        grep '=m$' "$f" | sort > "$blk"
+        if [ -z "$ref" ]; then
+            ref="$base"
+            cp "$blk" "$dfile.ref"
+        elif ! cmp -s "$dfile.ref" "$blk"; then
+            warn "DRIFT: the =m kernel-module block differs between $ref and $base."
+            warn "Those modules must stay external (=m); fix the outlier, or update"
+            warn "every diffconfig together."
+            bad=1
+        fi
+
+        # Invariant 2: no overlap with DEFAULT_PACKAGES.
+        grep '^CONFIG_PACKAGE_' "$f" \
+            | sed -e 's/^CONFIG_PACKAGE_//' -e 's/=.*//' | sort -u > "$dfile"
+        if [ -s "$dfile" ] && comm -12 "$dfile" "$mfile" | grep -q .; then
+            warn "DRIFT: $base still selects package(s) that are DEFAULT_PACKAGES:"
+            comm -12 "$dfile" "$mfile" | sed 's/^/    /'
+            warn "Remove them from the diffconfig -- DEFAULT_PACKAGES covers them."
+            bad=1
+        fi
+    done
+
+    rm -f "$mfile" "$dfile" "$dfile.ref" "$blk"
+
+    if [ "$bad" -eq 0 ]; then
+        ok "diffconfigs: =m block identical on every board, no DEFAULT_PACKAGES overlap."
+    fi
+
+    return "$bad"
+}
+
 guard_check() {
 
     local deep=0
@@ -555,6 +625,8 @@ guard_check() {
     fi
 
     msg "Checking the live OpenWrt tree against the tracked sources..."
+
+    diffconfig_guard || return 1
 
     if ! bsp_drift; then
         warn "DRIFT: the live OpenWrt tree does not match the tracked sources."
