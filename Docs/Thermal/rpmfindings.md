@@ -202,3 +202,40 @@ FIX: patch 860 adds `.sync_state = icc_sync_state` to msm8916_noc_driver. After 
 consumers probe, the core clears the init state and re-commits the real aggregation
 (with the 834 experiment: 0/0 -> RPM default policy, i.e. Android parity since Android's
 3.10 kernel never votes BIMC at all). Same-session bench + idle-temp A/B to follow.
+
+## 12. Patch 860 flash result — MEM_CLK CRACKED (2026-10-24)
+
+Image built with patch 860 (`.sync_state = icc_sync_state` in msm8916_noc_driver) on top of
+the 834/838/846 opp-peak=0 experiment. Flashed config-preserving (14:08 build, 635 s).
+
+POST-FLASH VERIFICATION:
+
+- interconnect_summary: mas_apss / slv_ebi_ch0 node aggregates dropped from 2147483647
+  (INT_MAX) to 0/0 — sync_state FIRED and the init state was cleared and re-committed.
+- DDR benchmark (same session, same script, governor pinned performance @ 800 MHz):
+
+  | test            | pre-860 (boot-vote held) | post-860      | Android (prior session) |
+  |-----------------|--------------------------|---------------|-------------------------|
+  | dd /dev/zero    | 3.0 GB/s                 | 1.4-1.6 GB/s  | 0.66 GB/s               |
+  | page-cache 20x  | 0.37 s                   | 0.44 s        | ~0.8 s-equiv            |
+  | pipe 2 GiB      | 6.7 s                    | 10.8 s        | -                       |
+
+  The AP's INT_MAX boot-init commit WAS the MEM_CLK holder. One line of driver code halved
+  the DDR/BIMC clock domain. Remaining 2.3x vs Android is open (other voters? RPM default
+  floor? bench path differences on 3.10?).
+
+SANITY: wwan0 attached (10.110.5.113), internet OK, cpufreq max 800 MHz (838 edit intact).
+
+IDLE THERMAL (30-min logger, device idle after boot+bench):
+
+- OWRT pm8916: 56.5 -> 51.2-52.3 C plateau (still slowly descending at 30 min).
+- AND pm8916 same day: 44.6-45.5 C. Gap now ~7 C (recorded baseline gap was ~11.8 C).
+- CAUTION: a single session-start snapshot on the OLD image read 49.8 C, so the idle
+  improvement is NOT cleanly proven by today's data alone (ambient/time-of-day confounds;
+  boot residual heat). The DDR bandwidth change is DEFINITIVE; the idle-temp delta needs a
+  multi-hour soak. The load-side repeat of the equal-tput loopback A/B on this image is the
+  cleaner thermal test (that is where a 2-4.7x bandwidth difference should show up).
+
+NEXT: multi-hour idle soak + equal-tput loopback A/B on this image; then decide whether
+opp-peak=0 + sync_state ships as-is (closest to Android: AP never votes) or real per-OPP
+avg/peak values replace the zeros.
