@@ -70,14 +70,15 @@ Recent additions on top of the base port:
 | Board     | Failsafe mode | Bluetooth | WPA3-SAE / Multi-SSID | CPU CPR + 800 MHz cap | Wi-Fi/PMIC cooling maps | `a2_pin` modem hold | `qcom-time-daemon` |
 | :-------- | :-----------: | :-------: | :-------------------: | :-------------------: | :---------------------: | :-----------------: | :----------------: |
 | `hmuf02v5`   |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         ✅         |
-| `ufi001b` |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `ufi003`  |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `uz801`   |      ✅       |    ❌     |          ✅           |          ✅           |           —             |         ✅          |         —          |
-| `uf02`    |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         ✅          |         —          |
-| `mf800b`  |      ✅       |    ✅     |          ✅           |          ✅           |           —             |         —           |         —          |
-| `mifib-v12` |    ✅       |    ✅     |          ✅           |          ✅           |           —             |         ✅          |         —          |
+| `ufi001b` |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         —           |         —          |
+| `ufi003`  |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         —           |         —          |
+| `uz801`   |      ✅       |    ❌     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
+| `uf02`    |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
+| `mf800b`  |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         —           |         —          |
+| `mifib-v12` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 
 * UZ801 v3 has no Bluetooth antenna; its image includes the software, but Bluetooth is unavailable on that board.
+* **Concurrent AP+STA** (Station Mode) is available on **every board** — the service, the mac80211 patches and `luci-app-wifi-sta` are all target-wide; see [the guide](Docs/WiFi/AP_STA_AND_LUCI_APP.md).
 
 ### Per-board hardware features
 
@@ -95,7 +96,7 @@ Recent additions on top of the base port:
 * **Power button** — only mifib-v12 and mf800b have a `pm8941_pwrkey`; see [`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md).
 * **SIM hot-swap** — the `sim-hotplug` service ships and is enabled on **every** board.  The table marks where the `sim_hotplug` line has been **confirmed**: HMUF02-V5 (verified end-to-end, ~15 s) and mifib-v12 (same modem family, enabled, not yet soaked).  A `—` means the line is untested on that board, not that the service is missing — see [`Docs/SIM_HOT_SWAP.md`](Docs/SIM_HOT_SWAP.md).
 
-> The Wi-Fi/PMIC cooling maps are **HMUF02-V5-only** (device-tree gated). The `a2_pin` modem-rail hold is enabled on the **HMUF02-V5, UZ801, UF02 and HM-MIFIB-V12** boards — all four carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge; `UFI003`, `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it. Everything else applies to every board. Failsafe mode is enabled on **every board** (LED colour varies by board); it has been **live-verified on the HMUF02-V5** only.
+> The Wi-Fi/PMIC cooling maps are in the **shared `msm8916-ufi.dtsi`** (patch 861), which every board in the target includes, so all seven boards get them. The `a2_pin` modem-rail hold is enabled on the **HMUF02-V5, UZ801, UF02 and HM-MIFIB-V12** boards — all four carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge; `UFI003`, `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it. Everything else applies to every board. Failsafe mode is enabled on **every board** (LED colour varies by board); it has been **live-verified on the HMUF02-V5** only.
 
 ### 🛠️ Adding a new board
 

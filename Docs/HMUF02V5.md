@@ -53,8 +53,8 @@ This board enables everything the project ships:
   same HiMI baseband exposed to the `a2_power.c:1189` quiesce wedge
 - **`qcom-time-daemon`** — HMUF02-V5-**only**; anchors the modem's ATS state
   (its init is a no-op on every other board)
-- **Wi-Fi + PMIC thermal mitigation** (patch 847) — the HMUF02-V5-specific
-  cooling maps
+- **Wi-Fi + PMIC thermal mitigation** (patch 861) — the maps live in the shared
+  `msm8916-ufi.dtsi`, so every board gets them
 - recovery partition
 - Bluetooth, WPA3-SAE, multi-SSID
 - CPU CPR and the 800 MHz cap

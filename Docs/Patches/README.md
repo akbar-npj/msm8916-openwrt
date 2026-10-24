@@ -95,11 +95,11 @@ fixes for the AP↔modem data path across modem restarts and A2 power collapses.
 | [`849-arm64-dts-qcom-hmuf02v5-a2-pin.patch`](../../msm89xx/patches/849-arm64-dts-qcom-hmuf02v5-a2-pin.patch) | HMUF02-V5 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` so the driver holds the modem A2 powered. |
 | [`851-arm64-dts-qcom-uf02-uz801-a2-pin.patch`](../../msm89xx/patches/851-arm64-dts-qcom-uf02-uz801-a2-pin.patch) | UF02 + UZ801 DTS half of the A2 pin (848): sets `qcom,a2-pin` on `&bam_dmux` on the other two HiMI-baseband boards. |
 
-### 1.7 Thermal (847, 999)
+### 1.7 Thermal (861, 999)
 
 | Patch | Description |
 | :---- | :---------- |
-| [`847-arm64-dts-qcom-hmuf02v5-thermal-mitigation.patch`](../../msm89xx/patches/847-arm64-dts-qcom-hmuf02v5-thermal-mitigation.patch) | HMUF02-V5 thermal zones and cooling maps for Wi-Fi (65 °C) and PMIC (90 °C). |
+| [`861-arm64-dts-qcom-msm8916-ufi-thermal-mitigation.patch`](../../msm89xx/patches/861-arm64-dts-qcom-msm8916-ufi-thermal-mitigation.patch) | Thermal zones and cooling maps for Wi-Fi (65 °C) and PMIC (90 °C), added to the **shared** `msm8916-ufi.dtsi` so every board in the target gets them. |
 | [`999-tsens-propagate-eprobe-defer.patch`](../../msm89xx/patches/999-tsens-propagate-eprobe-defer.patch) | Propagates `-EPROBE_DEFER` from TSENS NV calibration so the thermal sensor probes when QFPROM arrives late. |
 
 ### 1.8 Power supply & battery (854–859)
@@ -496,8 +496,9 @@ The WCN36XX firmware supports `WCN36XX_HAL_SET_THERMAL_MITIGATION_REQ` (level
 0–4; 1–4 progressively disable TX AMPDU aggregation and reduce transmit power),
 exposed as the `wcn36xx` cooling device. There is no dedicated WCNSS temperature
 sensor, so — like Android's thermal-engine — the trip is driven from the CPU
-cluster sensor (tsens5 / cpu0-1) at 65 °C; the PMIC trip is at 90 °C. The
-HM-MIFIB-V12 board file (853) reuses these same zones and cooling maps.
+cluster sensor (tsens5 / cpu0-1) at 65 °C; the PMIC trip is at 90 °C. Patch
+861 puts them in `msm8916-ufi.dtsi`, which every board file includes, so all
+seven boards share one copy.
 
 #### 999: TSENS Propagate `-EPROBE_DEFER`
 `tsens_calibrate_nvmem()` reads QFPROM NVMEM cells; if the provider has not yet
