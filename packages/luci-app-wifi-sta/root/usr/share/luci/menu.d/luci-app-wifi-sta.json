@@ -1,0 +1,28 @@
+{
+	"admin/network/wifi-sta": {
+		"title": "Station Mode",
+		"order": 30,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-wifi-sta" ]
+		}
+	},
+	"admin/network/wifi-sta/overview": {
+		"title": "Overview",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "wifi-sta/overview"
+		}
+	},
+	"admin/network/wifi-sta/config": {
+		"title": "Configuration",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "wifi-sta/config"
+		}
+	}
+}

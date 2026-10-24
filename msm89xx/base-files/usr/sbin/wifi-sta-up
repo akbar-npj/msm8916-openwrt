@@ -1,0 +1,338 @@
+#!/bin/sh
+# Late STA bring-up for concurrent AP+STA on wcn36xx.
+#
+# Usage: wifi-sta-up sta   -- wait for the AP, create the STA vif, run
+#                              wpa_supplicant in the FOREGROUND (procd respawns)
+#        wifi-sta-up dhcp  -- wait for the STA to associate, run udhcpc in the
+#                              FOREGROUND (procd respawns)
+#
+# Why not a wifi-iface: netifd's wifi script restarts the phy whenever the
+# wireless config changes -- and a phy restart with a managed iface present
+# crashes the WCNSS firmware (boot_exception_c_handlers.c:108, Data Abort at
+# 0x8b6b301c).  Adding the vif with "iw" against an already-beaconing AP is the
+# path that was verified working (AP serving a phone while the STA was
+# associated to another AP, both carrying traffic).
+#
+# Why not netifd for the netdev either: netifd has no device object for a vif it
+# did not create, so "option device 'phy0-sta0'" fails with NO_DEVICE.  udhcpc
+# is run directly instead, with a handler that does not install a default route
+# (the LTE link must stay the default).
+
+. /lib/functions.sh
+
+MODE="${1:-sta}"
+
+config_load wifista || exit 0
+config_get_bool enabled main enabled 0
+# "status" is also useful while disabled (the page shows the state either way).
+if [ "$MODE" != "status" ] && [ "$enabled" != 1 ]; then
+	exit 0
+fi
+
+config_get ssid main ssid
+config_get key main key
+config_get macaddr main macaddr
+config_get_bool dhcp main dhcp 1
+config_get timeout_s main wait_ap_timeout 60
+config_get radio main radio radio0
+config_get recover_after main recover_after 60
+
+if [ "$MODE" = "dhcp" ] && [ "$dhcp" != 1 ]; then
+	exit 0
+fi
+
+find_ap() {
+	local i
+	for i in $(iw dev 2>/dev/null | awk '$1 == "Interface" { print $2 }'); do
+		[ "$(iw dev "$i" info 2>/dev/null | awk '/^[[:space:]]*type/ { print $2 }')" = "AP" ] && {
+			echo "$i"
+			return 0
+		}
+	done
+	return 1
+}
+
+find_sta() {
+	local i
+	# Prefer the vif this service creates; fall back to any managed vif.
+	for i in $(iw dev 2>/dev/null | awk '$1 == "Interface" { print $2 }'); do
+		case "$i" in
+		phy*-sta0) echo "$i"; return 0 ;;
+		esac
+	done
+	for i in $(iw dev 2>/dev/null | awk '$1 == "Interface" { print $2 }'); do
+		[ "$(iw dev "$i" info 2>/dev/null | awk '/^[[:space:]]*type/ { print $2 }')" = "managed" ] && {
+			echo "$i"
+			return 0
+		}
+	done
+	return 1
+}
+
+ap_state() {
+	ubus call "hostapd.$1" get_status 2>/dev/null |
+		jsonfilter -e '@.status' 2>/dev/null
+}
+
+# Channel of the upstream BSS for a given SSID, read from a scan on the STA vif.
+# Scanning from a managed vif is exactly what wpa_supplicant does, so this is the
+# same operation, just earlier.
+scan_channel() {
+	local iface="$1" want="$2"
+	iw dev "$iface" scan 2>/dev/null | awk -v want="$want" '
+		/^BSS / { ssid = ""; ch = "" }
+		/^[[:space:]]*SSID: / {
+			ssid = $0
+			sub(/^[[:space:]]*SSID: /, "", ssid)
+		}
+		# iw prints "DS Parameter set: channel N" in the plain beacon block and
+		# "\t\t * primary channel: N" under HT operation -- match both.
+		/DS Parameter set:/ { ch = $NF }
+		/primary channel:/ { ch = $NF }
+		ssid == want && ch != "" { print ch; exit }
+	'
+}
+
+# Read the channel the AP is actually beaconing on.
+ap_channel() {
+	iw dev "$1" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }'
+}
+
+bring_up_sta() {
+	[ -n "$ssid" ] || { logger -t wifi-sta "wifista.main.ssid is empty; not starting"; exit 1; }
+
+	# Wait for the AP to finish starting.  hostapd restarts the phy at boot, so
+	# the vif exists well before it is ENABLED; creating the STA in that window
+	# is exactly what we are avoiding.
+	local waited=0 ap="" phy sta_if conf
+	while [ "$waited" -lt "$timeout_s" ]; do
+		ap="$(find_ap)"
+		if [ -n "$ap" ] && [ "$(ap_state "$ap")" = "ENABLED" ]; then
+			break
+		fi
+		ap=""
+		sleep 1
+		waited=$((waited + 1))
+	done
+
+	[ -n "$ap" ] || {
+		logger -t wifi-sta "AP did not reach ENABLED in ${timeout_s}s; not starting STA"
+		exit 1
+	}
+
+	phy="$(iw dev "$ap" info 2>/dev/null | awk '/wiphy/ { print "phy" $2; exit }')"
+	[ -n "$phy" ] || { logger -t wifi-sta "cannot resolve phy for $ap"; exit 1; }
+
+	sta_if="${phy}-sta0"
+
+	# A stale vif from a previous run must go, or "interface add" fails -EEXIST.
+	iw dev "$sta_if" del 2>/dev/null
+	if [ -n "$macaddr" ]; then
+		iw phy "$phy" interface add "$sta_if" type managed addr "$macaddr"
+	else
+		iw phy "$phy" interface add "$sta_if" type managed
+	fi || { logger -t wifi-sta "failed to create $sta_if"; exit 1; }
+	# A down netdev cannot scan (iw returns ENETDOWN) and mac80211 will not let
+	# it associate either; wpa_supplicant brings it up itself only later.
+	ip link set "$sta_if" up 2>/dev/null
+
+	# ---- channel sync -------------------------------------------------
+	# One radio, one channel: the STA can only join an upstream that sits on
+	# the same channel as our AP (the driver refuses otherwise -- verified:
+	# "Authentication request to the driver failed" loop, no crash).  So scan
+	# for the target SSID now, and if it is elsewhere, move OUR AP -- with the
+	# STA vif deleted first, because a phy restart with a managed iface present
+	# is the firmware crash.
+	radio="${radio:-radio0}"
+	up_ch="$(scan_channel "$sta_if" "$ssid")"
+	ap_ch="$(ap_channel "$ap")"
+
+	if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
+		logger -t wifi-sta "upstream '$ssid' is on channel $up_ch, AP is on $ap_ch; moving the AP"
+		iw dev "$sta_if" del 2>/dev/null
+		uci set "wireless.${radio}.channel=$up_ch"
+		uci commit wireless
+		wifi reload >/dev/null 2>&1
+
+		# Wait for the AP to come back on the new channel before re-creating
+		# the STA vif.
+		w=0
+		while [ "$w" -lt 30 ]; do
+			ap="$(find_ap)"
+			[ -n "$ap" ] && [ "$(ap_channel "$ap")" = "$up_ch" ] &&
+				[ "$(ap_state "$ap")" = "ENABLED" ] && break
+			sleep 1
+			w=$((w + 1))
+		done
+		[ -n "$ap" ] || { logger -t wifi-sta "AP did not come back after channel change"; exit 1; }
+		logger -t wifi-sta "AP moved to channel $up_ch; re-creating $sta_if"
+
+		iw dev "$sta_if" del 2>/dev/null
+		if [ -n "$macaddr" ]; then
+			iw phy "$phy" interface add "$sta_if" type managed addr "$macaddr"
+		else
+			iw phy "$phy" interface add "$sta_if" type managed
+		fi || { logger -t wifi-sta "failed to re-create $sta_if"; exit 1; }
+		ip link set "$sta_if" up 2>/dev/null
+	elif [ -n "$up_ch" ]; then
+		logger -t wifi-sta "upstream '$ssid' on channel $up_ch matches the AP"
+	else
+		logger -t wifi-sta "WARNING: '$ssid' not found in the scan; leaving the channel alone"
+	fi
+
+	conf="/var/run/wpa_supplicant-${sta_if}.conf"
+	{
+		echo "ctrl_interface=/var/run/wpa_supplicant"
+		echo "network={"
+		echo "	ssid=\"$ssid\""
+		[ -n "$key" ] && echo "	psk=\"$key\""
+		echo "}"
+	} > "$conf"
+	# A leftover socket makes wpa_supplicant exit with "ctrl_iface exists".
+	rm -f "/var/run/wpa_supplicant/${sta_if}"
+
+	logger -t wifi-sta "$sta_if created on $phy ($ap ENABLED after ${waited}s); ssid '$ssid'"
+
+	exec wpa_supplicant -D nl80211 -i "$sta_if" -c "$conf"
+}
+
+run_dhcp() {
+	local sta_if i=0
+	# The STA instance owns the vif; wait for it to exist and associate.
+	while [ "$i" -lt 90 ]; do
+		sta_if="$(find_sta)"
+		[ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected" && break
+		sta_if=""
+		sleep 1
+		i=$((i + 1))
+	done
+
+	[ -n "$sta_if" ] || { logger -t wifi-sta "dhcp: no associated STA vif after 90s"; exit 1; }
+
+	logger -t wifi-sta "dhcp: $sta_if associated after ${i}s; starting udhcpc"
+	# -f: stay in the foreground (procd supervises).  The handler installs the
+	# address only, never a default route.
+	exec udhcpc -f -i "$sta_if" -p "/var/run/udhcpc-${sta_if}.pid" \
+		-s /usr/sbin/wifi-sta-dhcp.sh
+}
+
+# Kill matching processes.  pgrep -f is used instead of pkill because busybox
+# pkill does not reliably support -f here.
+kill_matching() {
+	pgrep -f "$1" 2>/dev/null | while read -r p; do
+		[ "$p" != "$" ] && kill "$p" 2>/dev/null
+	done
+}
+
+# Tear the STA down and let procd bring it back.  Deleting the vif alone is NOT
+# enough: wpa_supplicant keeps running on the dead netdev (verified), so the
+# instance would never be respawned and would never re-create the vif.
+recycle_sta() {
+	local sta_if="$1"
+	[ -n "$sta_if" ] && iw dev "$sta_if" del 2>/dev/null
+	kill_matching "wpa_supplicant -D nl80211 -i ${sta_if:-phy}"
+	kill_matching "udhcpc -f -i ${sta_if:-phy}"
+	sleep 10
+}
+
+run_watchdog() {
+	local sta_if ap ap_ch up_ch down=0 miss=0
+
+	while true; do
+		sleep 15
+
+		sta_if="$(find_sta)"
+		if [ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
+			down=0
+			miss=0
+			continue
+		fi
+
+		down=$((down + 15))
+		[ "$down" -lt "$recover_after" ] && continue
+
+		if [ -z "$sta_if" ]; then
+			logger -t wifi-sta "watchdog: STA vif missing for ${down}s; recycling"
+			recycle_sta ""
+			down=0
+			continue
+		fi
+
+		# Disconnected long enough to be a real problem.  Is the channel the
+		# reason?  (One radio: the STA can only join an upstream that sits on
+		# the same channel as our AP.)
+		ap="$(find_ap)"
+		ap_ch="$(ap_channel "$ap")"
+		up_ch="$(scan_channel "$sta_if" "$ssid")"
+
+		if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
+			logger -t wifi-sta "watchdog: down ${down}s and upstream '$ssid' moved to channel $up_ch (AP on $ap_ch); recycling the STA"
+			recycle_sta "$sta_if"
+		else
+			# Upstream simply absent / wrong PSK / AP channel already right:
+			# nothing to fix here, and logging every minute would flood the
+			# ring buffer.  First occurrence, then one in five (~5 min).
+			miss=$((miss + 1))
+			if [ "$miss" -eq 1 ] || [ $((miss % 5)) -eq 0 ]; then
+				logger -t wifi-sta "watchdog: down ${down}s, no channel mismatch (upstream=${up_ch:-not seen} ap=${ap_ch:-none}); leaving it to wpa_supplicant"
+			fi
+		fi
+		down=0
+	done
+}
+
+# Machine-readable state for the LuCI page: key=value lines, nothing else.
+run_status() {
+	local ap sta val
+
+	echo "enabled=$enabled"
+	echo "ssid=$ssid"
+	echo "macaddr=$macaddr"
+	echo "dhcp=$dhcp"
+	echo "radio=$radio"
+	echo "recover_after=$recover_after"
+
+	ap="$(find_ap)"
+	sta="$(find_sta)"
+	echo "ap_iface=$ap"
+	echo "sta_iface=$sta"
+
+	if [ -n "$ap" ]; then
+		echo "ap_state=$(ap_state "$ap")"
+		echo "ap_channel=$(ap_channel "$ap")"
+		echo "ap_ssid=$(iw dev "$ap" info 2>/dev/null | awk '/^[[:space:]]*ssid/ { sub(/^[[:space:]]*ssid /, ""); print; exit }')"
+		echo "ap_clients=$(iw dev "$ap" station dump 2>/dev/null | grep -c '^Station')"
+	fi
+
+	if [ -n "$sta" ]; then
+		if iw dev "$sta" link 2>/dev/null | grep -q "^Connected"; then
+			echo "sta_connected=1"
+			echo "sta_ssid=$(iw dev "$sta" link 2>/dev/null | awk -F': ' '/SSID:/ { print $2; exit }')"
+			echo "sta_bssid=$(iw dev "$sta" link 2>/dev/null | awk '/^Connected to/ { print $3; exit }')"
+			echo "sta_channel=$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')"
+			echo "sta_signal=$(iw dev "$sta" link 2>/dev/null | awk '/signal:/ { print $2 " " $3; exit }')"
+			echo "sta_bitrate=$(iw dev "$sta" link 2>/dev/null | awk '/tx bitrate:/ { print $3 " " $4; exit }')"
+		else
+			echo "sta_connected=0"
+		fi
+		echo "sta_ip=$(ip -4 -br addr show "$sta" 2>/dev/null | awk '{ print $3; exit }')"
+	fi
+
+	# Do the two roles sit on the same channel? (One radio: they must.)
+	if [ -n "$ap" ] && [ -n "$sta" ]; then
+		val="$(ap_channel "$ap")"
+		if [ -n "$val" ] && [ "$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')" = "$val" ]; then
+			echo "channel_match=1"
+		else
+			echo "channel_match=0"
+		fi
+	fi
+}
+
+case "$MODE" in
+sta)  bring_up_sta ;;
+dhcp) run_dhcp ;;
+watchdog) run_watchdog ;;
+status)   run_status ;;
+*)    echo "usage: $0 sta|dhcp|watchdog|status" >&2; exit 1 ;;
+esac

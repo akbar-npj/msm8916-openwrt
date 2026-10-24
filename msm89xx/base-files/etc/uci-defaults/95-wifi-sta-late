@@ -1,0 +1,21 @@
+#!/bin/sh
+# Add the netifd interface the late-STA service binds to.  It is declared here
+# rather than as a wifi-iface on purpose: see Docs/WiFi/WCN36XX_AP_STA_RE.md
+# (a wifi-iface makes netifd restart the phy, which crashes the WCNSS firmware).
+#
+# auto=0: the device only exists once wifi-sta-up creates it, so netifd must not
+# try to bring the interface up at boot.
+
+uci -q get network.stawan >/dev/null || {
+	uci set network.stawan=interface
+	uci set network.stawan.proto='dhcp'
+	uci set network.stawan.device='phy0-sta0'
+	uci set network.stawan.defaultroute='0'
+	uci set network.stawan.peerdns='0'
+	uci set network.stawan.auto='0'
+	uci commit network
+}
+
+[ -x /etc/init.d/wifi-sta-late ] && /etc/init.d/wifi-sta-late enable
+
+exit 0

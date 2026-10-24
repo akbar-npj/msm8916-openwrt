@@ -1,0 +1,34 @@
+# Late-brought-up STA (concurrent AP+STA) for the wcn36xx radio.
+#
+# Deliberately NOT a wifi-iface in /etc/config/wireless: any wifi-iface there
+# makes netifd restart the whole phy, and a phy restart with a managed iface
+# present crashes the WCNSS firmware (Data Abort 0x8b6b301c).  The service
+# /etc/init.d/wifi-sta-late instead creates the vif with "iw" once the AP is
+# beaconing, which is the proven-safe path.
+#
+# Enable with:
+#   uci set wifista.main.enabled=1
+#   uci set wifista.main.ssid='MyUpstream'
+#   uci set wifista.main.key='secret'
+#   uci commit wifista
+#   /etc/init.d/wifi-sta-late restart
+#
+# See Docs/WiFi/WCN36XX_AP_STA_RE.md.
+
+config sta 'main'
+	option enabled '0'
+	# STA MAC must differ from the AP's, or mac80211 clones the AP address and
+	# "ip link set up" fails with a bogus "No error information".
+	option macaddr '00:11:22:33:44:77'
+	option ssid ''
+	option key ''
+	# Run udhcpc on the STA link.  No default route is installed either way.
+	option dhcp '1'
+	# Radio whose channel is moved to match the upstream: one radio can only be
+	# on one channel, so the AP follows the STA's channel automatically.
+	option radio 'radio0'
+	# Seconds to wait for hostapd to report the AP ENABLED before giving up.
+	option wait_ap_timeout '60'
+	# Watchdog: how long the STA may stay disconnected before it is recycled
+	# (which re-runs the channel sync).  Polled every 15 s.
+	option recover_after '60'
