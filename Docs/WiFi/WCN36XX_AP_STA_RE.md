@@ -90,3 +90,61 @@ What the downstream driver does that wcn36xx does not:
    the 454-457 robustness fixes in place.
 4. Sequence diff against `Docs/WiFi/reference/` for hypotheses 2-3.
 5. Firmware blob changes only if 1-4 fail (see layout above).
+
+## Attempt 1 (2026-10-24) — implemented, flashed, measured
+
+Branch `test/wcn36xx-ap-sta` (from `staging-main` 70da8a6), commit 777f6d8.
+
+### Code
+
+* **452 (rewritten)** — two combinations instead of one:
+  `{AP}<=2` (keeps the verified multi-SSID behaviour) and
+  `{AP}<=1, {managed}<=1` (one channel). ADHOC/MESH stay out of the limits;
+  including them makes wiphy registration fail. Live `iw phy phy0 info`:
+  `* #{ AP } <= 2` and `* #{ AP } <= 1, #{ managed } <= 1`.
+* **458 (new)** — `wcn36xx_pmc_enter_bmps_state()` refuses BMPS while more than
+  one vif is in `wcn->vif_list`, mirroring qcacld. Note this is
+  belt-and-braces only: mac80211 already forces `IEEE80211_CONF_PS` off
+  whenever an AP vif is running (`ieee80211_recalc_ps()` sets `count = 0` on
+  AP), so the guard mostly buys a debug breadcrumb.
+
+### Measured on hmuf02v5 (kernel 6.12.94, mac80211 6.18.26)
+
+| step | result |
+| --- | --- |
+| `iw phy phy0 interface add sta0 type managed` | OK |
+| `ip link set sta0 up` | **fails** — mac80211 clones the AP vif's address, RTNETLINK returns a bogus "No error information" |
+| same, after `ip link set sta0 address 00:11:22:33:44:55` | OK, interface UP |
+| scan with AP beaconing | OK, 3 BSSes, no firmware error, `remoteproc0/1` = running |
+| auth / assoc | OK — `RX AssocResp ... status=0`, `sta0: associated` |
+| ~100 ms later | **AP sends Disassoc, reason 5 (DISASSOC_AP_BUSY)** |
+| GTK install | fails `nl80211: kernel reports: key not allowed` (= `nl80211_key_allowed()`: STATION requires `wdev->connected`) — a consequence of the disassoc, not a key bug |
+
+Controls, all reproducing the identical failure:
+
+* AP vif **down**, plain STA only (no concurrency at all).
+* `key_mgmt=WPA-PSK` and `key_mgmt=SAE` (the AP advertises `PSK SAE`, MFP-capable,
+  group/pairwise CCMP).
+* after a clean reboot (no stale firmware BSS state).
+
+### Conclusion
+
+The concurrency plumbing works: the combination is accepted, the second vif
+comes up, the radio keeps beaconing, scanning and associating all succeed and
+the firmware does **not** crash. The link cannot complete because of a
+**STA-path / AP-interop problem that also exists in plain STA mode** — so it is
+not caused by AP+STA and must be cleared before concurrency can be judged.
+
+`hidden1` (3e:77:2f:9e:02:15, ch6) serves other clients fine (host `wld0` is
+associated to it), so either this AP has a policy we do not satisfy, or the
+wcn36xx STA path is broken against it. A second, known-good AP is required to
+tell the two apart.
+
+### Next steps (revised)
+
+1. Reproduce STA against a second AP (phone hotspot / the Android unit's
+   hotspot). If it connects there, the issue is AP policy; if it fails there
+   too, it is the wcn36xx STA path (capture with the a204000 dump reader).
+2. Only then re-test AP+STA, this time with `iw phy phy0 interface add ... addr`
+   so the duplicate-MAC window never happens.
+3. Keep 454-457 in the image for the crash capture.
