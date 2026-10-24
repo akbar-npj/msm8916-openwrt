@@ -316,3 +316,45 @@ any APSS->EBI request. RPM firmware policy may floor MEM_CLK higher for a master
 active (zero) request than for an unvoted master. Not testable without RPM introspection
 (rpm_log reads block). Practically irrelevant: 1.5 GB/s >> this device's data-path needs,
 and thermal parity is achieved.
+
+## 15. RPM introspection — actual MEM_CLK measured (2026-10-24)
+
+### 15a. The reads do NOT block (prior-session caveat revised)
+
+Android rpm_stats / rpm_log read fine with `timeout -t N` (busybox syntax) and bounded
+reads (`head -c`). rpm_stats: RPM has never entered xosd/vmin since boot (count 0,
+7552 s). rpm_log content is raw binary records (the driver hex-dumps them) — no ASCII
+clock decisions; the right introspection tool was the GCC registers, not the log.
+
+### 15b. Android AP side: bimc_clk rate = 0 (never voted)
+
+/sys/kernel/debug/clk/: `bimc_clk` (the RPM MEM_CLK object, r_id 0) reads **rate 0** —
+Android's AP never calls clk_set_rate on it. Branch clocks report bimc_msmbus 400 MHz,
+bimc_a_clk ~200 MHz (AP-framework values, not the DDR root). No clk_measure on this BSP.
+
+### 15c. OpenWrt hardware truth via /dev/mem (STRICT_DEVMEM off, devmem present)
+
+GCC base 0x1800000. BIMC PLL (mode 0x23000, L/M/N 0x23004/8/0c, status 0x2301c),
+bimc_ddr_clk_src RCG2 (cmd 0x32004, cfg 0x32008; src_sel bits [10:8], div bits [4:0]):
+
+- BIMC PLL L=55 M=25 N=48 -> 19.2 MHz x (55 + 25/48) = **1066 MHz configured** (PLL max),
+  but status_reg = 0: the PLL is NOT running.
+- DDR RCG cfg = 0x103: src_sel = 1 (GPLL0, L=41 M=2 N=3 = 800 MHz), div = 3+1 = 4
+  -> **actual MEM_CLK = 200 MHz** on the 860 image. Matches the benchmark ceiling
+  (200 MHz x 8 B = 1.6 GB/s vs memset 1.5 GB/s = 94%).
+- Under full DDR load the RCG stays 0x103 and the PLL stays off: **RPM pins MEM_CLK at
+  its 200 MHz floor; the AP has no lever** (commit-0 state).
+
+### 15d. Conclusion — MEM_CLK parity; the 2.3x is the CPU path
+
+- Android: bimc_clk never set -> RPM default policy. OpenWrt post-860: commit-0 -> the
+  SAME RPM default floor (200 MHz, GPLL0/4, PLL off). The explicit-0-vs-never-voted
+  hypothesis of §14b is REFUTED — both states land at the same hardware config.
+- The residual 2.3x memset gap (1.5 vs 0.667 GB/s) is the CPU/uaccess path (6.12 vs
+  3.10), NOT the DDR clock: Android's 667 MB/s sits below the same 1.6 GB/s ceiling.
+- Caveat: Android's own register read is not possible (/dev/mem read returns EFAULT on
+  I/O space on 3.10; no devmem applet) — the parity call rests on bimc_clk rate 0 + the
+  benchmark-ceiling consistency, not a direct register comparison.
+- Risk note: MEM_CLK stays 200 MHz under load — heavy-throughput scenarios (NAT, bulk
+  LTE) cannot raise it while opp-peak=0. RPM WILL raise it when asked (the old image
+  drove 1066 MHz). If a throughput ceiling ever matters, per-OPP votes re-enable scaling.
