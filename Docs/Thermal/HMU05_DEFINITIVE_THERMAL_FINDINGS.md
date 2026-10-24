@@ -1,3 +1,22 @@
+> **CORRECTION 2026-10-24 (LATE):** the "bus voting is thermally inert / OS-independent"
+> conclusion below is PARTIALLY OVERTURNED by `Docs/Thermal/rpmfindings.md`: the shared RPM
+> firmware holds the BIMC/DDR (MEM_CLK) clock at MAX under OpenWrt but at ~1/4 rate under
+> Android (measured 4-7x DDR bandwidth difference at identical CPU frequency), because the
+> votes each OS sends differ (OpenWrt's cpu0 opp-peak-kBps vote maps to the 1066 MHz PLL max;
+> Android's msm_bus never votes MEM_CLK up). Read rpmfindings.md first for the RPM/DDR story.
+>
+CORRECTION - 2026-10-24 (READ FIRST before acting on the bus-voting or DDR-scaling sections below)
+
+The bus-voting claims in this file are SUPERSEDED by Docs/Thermal/HMU05_LIVE_BUS_VOTING_AB.md (corrected audit, 2026-10-24).
+
+What changed:
+- OpenWrt DOES vote bus bandwidth. Live interconnect_summary shows mas_apss / slv_ebi_ch0 cpu0 peak = 8,528,000 kBps tracking CPU frequency. The interconnect driver (CONFIG_INTERCONNECT_QCOM_MSM8916=y, patch 834) is alive and sends RPM votes with correct mainline RPM IDs (slv_ebi_ch0 slv_rpm_id=0, bimc_snoc 99/130, snoc_bimc 101/132, pcnoc_snoc 29/45).
+- The RPM firmware is SHARED silicon (not OS-dependent). Android (msm_bus) and OpenWrt (interconnect) send identical RPM bandwidth votes to the same RPM, which scales the DDR/BIMC clock identically for either OS. Therefore bus voting CANNOT explain an OpenWrt-vs-Android temperature gap. If anything Android votes more bandwidth and would run the bus hotter.
+- The prior bimc_ddr_clk_src = 800 MHz implies bus does not scale reading was a Linux-view artifact: that clock is RPM-managed with NO freq table, so Linux cannot observe RPM-driven frequency changes.
+
+ACTION: do NOT port Android msm_bus IDs (wrong namespace, unnecessary). The bus-voting lever is CLOSED for the OS-gap question. Run a CONTROLLED equal-throughput A/B instead (see the corrected audit doc).
+
+---
 # HMU05: Definitive Thermal Findings & Empirical Ground Truth
 
 **Date:** October 8, 2026  
@@ -37,7 +56,10 @@
 > [HMU05_CPU_RAIL_CPR_PORT.md](./HMU05_CPU_RAIL_CPR_PORT.md).
 >
 > The sensor tables and load/cooldown profiles below remain useful **raw observations**; the
-> *causal* attributions (especially the A2 pin) do not.
+> *causal* attributions (especially the A2 pin and the 60/75 °C trip) do not.
+>
+> **2026-10-24 — GPU cap is thermally inert here; real remaining cause is bus voting.**
+> Both HMU05 builds are **headless modem sticks with no display and no GPU workload**. The Adreno 306 is clock-gated/off when unused, so Android's 200 MHz GPU cap (its `ss`/GPU action) changes **nothing** — an idle GPU draws ~0 W at 310 MHz or 200 MHz alike. The GPU cap is therefore irrelevant to the OpenWrt↔Android gap, and OpenWrt (patch 847) never even ported a GPU cooling device (only Wi‑Fi @65 °C + PMIC @90 °C). After the CPR/CPU-rail fix (cause #2, done), the **only remaining quantified differentiator** for the load-dependent +12 °C is **AP interconnect / DDR bandwidth voting**: Android's AP is an RPM bus client (`MSM_BUS_SCALING`, ~107 call sites, 17 `/d/msm-bus-dbg` clients) that scales the fabric/AXI/DDR corners down under LTE load, while OpenWrt votes **no** bus bandwidth and leaves the fabric at its default higher-power state (Android-differential axis A17). The decisive test is the paired A/B: compare `bimc`/`snoc`/`pcnoc` clock rates and CX/MX corner voltages under matched idle vs LTE load.
 
 ---
 
@@ -109,7 +131,7 @@ Under the exact same 10 MB download over Jio 4G LTE (`speedtest.tele2.net`), we 
 
 ## 4. Architectural Root Cause Analysis
 
-### Cause 1: Modem A2 Domain Pinning (the A2 pin; formerly `modem-a2-hold`) — (+10°C Baseline Shift)
+### Cause 1: Modem A2 Domain Pinning (the A2 pin; formerly `modem-a2-hold`) — (+10°C Baseline Shift)  ⚠ *REFUTED as a thermal-gap cause — see correction box above*
 * **On Android:** Qualcomm's downstream `bam_dmux.c` uses runtime power management (`ul_powerdown()` / `ul_wakeup()`). When network traffic pauses, the AP clears its vote on `SMSM_A2_POWER_CONTROL`. The modem baseband (Hexagon DSP, BAM DMA engines, shared memory buses) collapses the A2 clock/power domain into low-power sleep.
 * **On OpenWrt:** Cycling A2 power down and up triggers the `a2_power.c:1189` assertion crash in stock modem firmware. OpenWrt therefore holds the A2 pin — now enforced by the `qcom_bam_dmux` driver on boards whose DT sets `qcom,a2-pin` (HMU05; patches 848/849), which is equivalent to:
   ```sh
@@ -137,7 +159,7 @@ Under the exact same 10 MB download over Jio 4G LTE (`speedtest.tele2.net`), we 
   $$\frac{(1.20\text{ V})^2}{(1.05\text{ V})^2} \approx 1.306 \implies \mathbf{+30.6\%\text{ higher dynamic power dissipation on OpenWrt}}$$
   When processing network packets at 800 MHz, OpenWrt produces substantially more heat per packet.
 
-### Cause 3: Disparate Thermal Mitigation Trip Points
+### Cause 3: Disparate Thermal Mitigation Trip Points  ⚠ *REFUTED as a fix — see correction box above*
 * **On Android:** Kernel DTS sets passive throttling at **60°C** (`qcom,limit-temp = <60>`). Userspace `thermal-engine` monitors GPU at 55°C and WLAN at 60°C.
 * **On OpenWrt:** Mainline DTS sets passive throttling at **75°C** (`cpu0_1_alert0`).
 * **Impact:** Between 55°C and 75°C, OpenWrt applies **zero thermal limits**, allowing heat to accumulate freely during sustained network transfers until 75°C is reached.
@@ -161,7 +183,7 @@ Under the exact same 10 MB download over Jio 4G LTE (`speedtest.tele2.net`), we 
 
 To permanently bring OpenWrt's operating temperatures down to Android levels:
 
-### Step 1: Resolve the `a2_power.c:1189` Quiesce Bug (Target: -10°C)
+### Step 1: Resolve the `a2_power.c:1189` Quiesce Bug (Target: -10°C)  ⚠ *Not a thermal fix — A2 pinning is parity with Android; this is a modem-stability task only*
 * **Goal:** Enable BAM-DMUX runtime suspend (`control=auto`) so the modem baseband sleeps between packet bursts.
 * **Implementation:** Fix the down-ack serialisation handshake in `kmod-bam-dmux` (tracked in `Docs/Modem Stability/Modem RE/hmu05/A2_QUIESCE_ASYMMETRY.md`), which would let the A2 pin be dropped (`echo 0 > /sys/module/qcom_bam_dmux/parameters/a2_pin`; the old userspace `modem-a2-hold` is already removed).
 
@@ -169,6 +191,13 @@ To permanently bring OpenWrt's operating temperatures down to Android levels:
 * **Goal:** Lower CPU core voltage from bootloader default (~1.20 V) to 1.05 V.
 * **Implementation:** In `msm89xx/patches/805-arm64-dts-qcom-add-msm8916-generic-hmu05.patch`, bind `cpu-supply = <&pm8916_s2>` and add `opp-microvolt = <1050000>` across the 200/400/800 MHz OPP table.
 
-### Step 3: Lower Passive Thermal Trip Point to 65°C
+### Step 3: Lower Passive Thermal Trip Point to 65°C  ⚠ *REFUTED — 75→60 °C gave 0 °C benefit and −37 % throughput*
 * **Goal:** Prevent long sustained LTE downloads from pushing die temperatures into the 70°C+ range.
 * **Implementation:** Override `cpu0_1_alert0` in `msm8916-generic-hmu05.dts` to set `temperature = <65000>`.
+
+### Step 4: AP Interconnect / DDR Bandwidth Voting (Target: close the remaining +12°C load gap)
+* **Goal:** Make the OpenWrt AP scale the fabric/AXI/DDR corners down under LTE load, like Android's RPM bus client (`MSM_BUS_SCALING` / `MSM_DEVFREQ_DEVBW`).
+* **Why:** This is the **only remaining quantified differentiator** after the CPR/CPU-rail fix (cause #2, done). Android votes bus bandwidth (~107 call sites, 17 live `/d/msm-bus-dbg` clients); OpenWrt votes **none**, leaving the interconnect at its default higher-power state — a die-wide, load-proportional heater (Android-differential axis A17, `project_android_ap_is_an_rpm_client.md`).
+* **Implementation (proposed, not yet done):** Enable an `INTERCONNECT_QCOM` + `DEVFREQ_DEVBW` path that votes bandwidth for the CPU/GPU/display masters, or statically lower the `bimc`/`snoc`/`pcnoc` corner under load. **Validate first** with the paired A/B (compare `bimc`/`snoc`/`pcnoc` clock rates and CX/MX corner voltages under matched idle vs LTE load) before committing — do not guess the corner.
+
+> **Note (2026-10-24):** the GPU thermal cap that Android applies is **thermally inert** on these headless devices (no GPU workload → Adreno 306 clock-gated/off), so porting a GPU cooling device would have zero effect and was correctly not done in patch 847.

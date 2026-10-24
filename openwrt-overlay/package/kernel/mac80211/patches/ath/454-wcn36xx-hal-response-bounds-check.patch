@@ -1,0 +1,27 @@
+From 88a240d86d3d64521f9194abe185ac71cc74d0bd Mon Sep 17 00:00:00 2001
+Subject: [PATCH] wifi: wcn36xx: fix heap overflow from oversized firmware HAL response
+
+The firmware response dispatcher copies all synchronous HAL responses
+into the 4096-byte hal_buf without validating the response length. A
+response exceeding WCN36XX_HAL_BUF_SIZE causes a heap buffer overflow
+with firmware-controlled content.
+
+Backport of mainline 88a240d86d, context adjusted for SET_THERMAL_MITIGATION_RSP
+(patch 453).
+---
+ drivers/net/wireless/ath/wcn36xx/smd.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -3391,6 +3391,10 @@
+ 	case WCN36XX_HAL_UPDATE_CHANNEL_LIST_RSP:
+ 	case WCN36XX_HAL_ADD_BCN_FILTER_RSP:
+ 	case WCN36XX_HAL_SET_THERMAL_MITIGATION_RSP:
++		if (len > WCN36XX_HAL_BUF_SIZE) {
++			wcn36xx_warn("HAL response too large: %d\n", len);
++			break;
++		}
+ 		memcpy(wcn->hal_buf, buf, len);
+ 		wcn->hal_rsp_len = len;
+ 		complete(&wcn->hal_rsp_compl);
