@@ -1,0 +1,44 @@
+--- a/drivers/net/wireless/ath/wcn36xx/pmc.c
++++ b/drivers/net/wireless/ath/wcn36xx/pmc.c
+@@ -20,11 +20,41 @@
+ 
+ #define WCN36XX_BMPS_FAIL_THREHOLD 3
+ 
++/*
++ * Concurrency: BMPS is a per-BSS firmware power mode that assumes the radio
++ * is dedicated to a single station.  When more than one interface is running
++ * (e.g. AP + STA), keep the radio awake -- qcacld disables BMPS in
++ * concurrency for the same reason.
++ *
++ * mac80211 already forces PS off whenever an AP vif is running, so this is a
++ * belt-and-braces guard covering the window in which a second interface is
++ * brought up while the station is already in BMPS.
++ */
++static bool wcn36xx_has_concurrent_vifs(struct wcn36xx *wcn)
++{
++	struct wcn36xx_vif *tmp;
++	int count = 0;
++
++	list_for_each_entry(tmp, &wcn->vif_list, list) {
++		if (++count > 1)
++			return true;
++	}
++
++	return false;
++}
++
+ int wcn36xx_pmc_enter_bmps_state(struct wcn36xx *wcn,
+ 				 struct ieee80211_vif *vif)
+ {
+ 	int ret = 0;
+ 	struct wcn36xx_vif *vif_priv = wcn36xx_vif_to_priv(vif);
++
++	if (wcn36xx_has_concurrent_vifs(wcn)) {
++		wcn36xx_dbg(WCN36XX_DBG_PMC,
++			    "concurrency: not entering BMPS\n");
++		return 0;
++	}
++
+ 	/* TODO: Make sure the TX chain clean */
+ 	ret = wcn36xx_smd_enter_bmps(wcn, vif);
+ 	if (!ret) {
