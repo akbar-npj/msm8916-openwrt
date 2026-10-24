@@ -148,3 +148,51 @@ tell the two apart.
 2. Only then re-test AP+STA, this time with `iw phy phy0 interface add ... addr`
    so the duplicate-MAC window never happens.
 3. Keep 454-457 in the image for the crash capture.
+
+## Attempt 1 RESULT — STA+AP WORKS (2026-10-24)
+
+Against a normal AP (`androidap`, Android hotspot, ch6) both interfaces run at
+the same time on the single wcn36xx radio:
+
+| | evidence |
+| --- | --- |
+| AP serving a client | `iw dev phy0-ap0 station dump` -> `Station 1a:73:65:b1:ee:83`, -54 dBm, rx 200 565 B |
+| STA associated | `iw dev sta0 link` -> `Connected to 8e:aa:47:8a:a1:6c (androidap)`, -52 dBm, rx 905 886 B |
+| same channel | both `channel 6 (2437 MHz), width 20 MHz` |
+| data path | DHCP 10.162.21.33, gw ping 10.3 ms avg, 8.8.8.8 44.9 ms |
+| 90 s soak | 6/6 checks: STA connected + gateway ping OK + AP up; no wcn36xx/firmware error; `remoteproc1` running |
+
+A phone associated to `Hmu05-White` *while* the device stayed associated to
+`androidap` — the concurrency case, end to end.
+
+### What actually mattered
+
+1. **452** (combination `{AP}<=1,{managed}<=1`) — without it mac80211 refuses the
+   second interface outright.
+2. **A distinct MAC on the second vif.** mac80211 clones the AP vif's address
+   for a new interface, and `ip link set sta0 up` then fails with a bogus
+   "No error information". `iw phy phy0 interface add sta0 type managed addr ...`
+   avoids the window entirely.
+
+This also **retires the "STA+AP crashes the WCNSS firmware" finding**: that
+observation was almost certainly the duplicate-MAC configuration, not
+concurrency. With distinct MACs the firmware never faltered — 454-457 were in
+the image but nothing in the log suggests they were exercised.
+
+### Caveats / what is still needed for a feature
+
+* **Single channel only** (`num_different_channels = 1`). The AP must sit on the
+  STA's channel; if it does not, mac80211 refuses to move the beaconing AP and
+  the association fails. OpenWrt has to keep `wireless.radio0.channel` in sync
+  with the upstream AP (or the STA must follow the AP's channel).
+* The STA vif was created by hand. `wifi reload` tears the phy down and takes
+  `sta0` with it, so it is not persistent. A real feature means a second
+  `wifi-iface` (`mode=sta`) in `/etc/config/wireless`, letting netifd own both.
+* The STA became the default route (`default via 10.162.21.74 dev sta0`) and
+  displaced the modem's path. Needs policy routing (metric / mwan3) so the
+  modem stays primary.
+* STA tx bitrate reported 1-2 Mbit/s against a -52 dBm AP — worth checking rate
+  control / powersave once the feature is config-driven.
+* `hidden1` (3e:77:2f:9e:02:15) still disassociates with reason 5 in *plain* STA
+  mode. That is AP-specific and unrelated to concurrency, but it means not every
+  AP will work for testing.
