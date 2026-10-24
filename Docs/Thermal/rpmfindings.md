@@ -239,3 +239,38 @@ IDLE THERMAL (30-min logger, device idle after boot+bench):
 NEXT: multi-hour idle soak + equal-tput loopback A/B on this image; then decide whether
 opp-peak=0 + sync_state ships as-is (closest to Android: AP never votes) or real per-OPP
 avg/peak values replace the zeros.
+
+## 13. Equal-tput loopback A/B on the 860 image — parity (2026-10-24)
+
+Same-session, matched-rate rerun of the equal-throughput loopback A/B (method doc
+`HMU05_EQUAL_TPUT_LOOPBACK_AB.md`), both legs back-to-back with one harness
+(K=4 parallel 4 MB loopback fetches, rate set by client usleep, 5 s logger):
+
+| Metric | OpenWrt (860 image) | Android |
+|---|---|---|
+| Throughput | 10.74 MB/s (161 iters, usleep 1.4 s) | 11.07 MB/s (166 iters, usleep 1.43 s) |
+| pm8916 idle baseline | 44.4 C (settled ~2.5 h post-boot) | 43.6-44.1 C |
+| pm8916 rise under load | ~+0.5 C max (44.4 -> 44.3-45.1, flat) | ~0 C (43.6-44.1 -> 43.2-44.4, flat) |
+| CPU busy under load | 10.0% | 3.4% |
+| post-load recovery | back to 43.6-44.2 C in 2 min | - |
+
+- On the OLD image (prior session, same 10.8 MB/s): OWRT +3.2 C still climbing at 36% busy
+  vs AND +1.9 C at 24%. On the 860 image: BOTH flat at ~44-45 C. The load-heat divergence at
+  matched rate is GONE (cross-session caveat applies to the old numbers; the same-session
+  flat-vs-flat result is the reliable one).
+- IDLE PARITY TODAY: OWRT 43.6-44.3 C vs AND 43.2-44.4 C. The recorded ~11.8 C idle gap
+  (55.4 vs 43.6) is GONE on the 860 image. Important sequencing lesson: the 30-min post-boot
+  logger's '51-52 C plateau' was NOT equilibrium — the board kept draining boot/bench heat
+  for ~2 h (long thermal time constant). Idle-gap claims need a settled baseline (>=2 h),
+  not a 30-min logger.
+- OWRT still burns ~3x the CPU per byte in the synthetic path (10.0% vs 3.4% busy) — the
+  uhttpd/wget-vs-busybox harness asymmetry noted in the method doc persists — but it is
+  thermally inert at this rate now.
+- SURPRISE (cross-session, unexplained): per-iteration service time collapsed on BOTH units
+  vs the prior session (OWRT ~2.1 s -> ~0.07 s; AND ~0.69 -> ~0.03 s). Same binaries, same
+  servers. Do NOT compare absolute busy%/rates across sessions; possible state/harness
+  confound (page-cache state, thermal-engine, background load). OWRT's rate at usleep
+  400 ms today was ~33 MB/s.
+
+VERDICT: with patch 860 (+ opp-peak=0), OpenWrt matches Android thermally at idle AND at
+matched 10.9 MB/s loopback load. The thermal-gap goal is closed on this evidence.
