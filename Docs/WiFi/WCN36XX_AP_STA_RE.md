@@ -442,3 +442,38 @@ moved.  Caveats: this runs at bring-up only — if the upstream later moves chan
 moving the AP channel briefly disconnects its own clients (normal for a channel
 change, no CSA is sent).
 
+
+### Watchdog (2026-10-24) — recovery without a reboot
+
+The channel sync above only runs at bring-up, so a later upstream channel change
+(reboot, CSA) would leave the STA down until someone restarted the service.  A
+third procd instance, `wifi-sta-up watchdog`, closes that:
+
+- polls every 15 s; a connected STA resets the counter
+- after `recover_after` seconds (default 60) down, it scans and compares the
+  upstream's channel with the AP's
+- **mismatch** -> log, delete the STA vif, kill wpa_supplicant + udhcpc, and let
+  procd respawn the `sta`/`dhcp` instances, which re-run the sync
+- **no mismatch** (upstream absent, wrong PSK) -> leave it to wpa_supplicant;
+  logged once and then one in five cycles so the ring buffer is not flooded
+- **vif missing entirely** -> recycle; without this the instance stays alive
+  forever holding a dead netdev
+
+**Verified live** by simulating the failure (delete the vif, move the AP to
+channel 1 while no STA vif exists, so the reload is safe):
+
+```
+18:15:03 wifi-sta: watchdog: down 60s and upstream 'androidap' moved to channel 6 (AP on 1); recycling the STA
+18:15:10 wifi-sta: upstream 'androidap' is on channel 6, AP is on 1; moving the AP
+18:15:11 wifi-sta: AP moved to channel 6; re-creating phy0-sta0
+18:15:13 wifi-sta: dhcp: phy0-sta0 associated after 59s; starting udhcpc
+18:15:43 wifi-sta: dhcp: 10.162.21.33/24 on phy0-sta0
+```
+
+~40 s from detection to a working link, 0 firmware crashes.
+
+**Non-obvious finding:** deleting the vif does **not** make wpa_supplicant exit
+(pid unchanged, procd never respawns), so "just delete the vif and let procd
+sort it out" does not work — the watchdog has to kill the processes explicitly.
+`pkill -f` is unreliable in this busybox, so `pgrep -f` + `kill` is used.
+

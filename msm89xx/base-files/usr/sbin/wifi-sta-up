@@ -32,6 +32,7 @@ config_get macaddr main macaddr
 config_get_bool dhcp main dhcp 1
 config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
+config_get recover_after main recover_after 60
 
 if [ "$MODE" = "dhcp" ] && [ "$dhcp" != 1 ]; then
 	exit 0
@@ -212,8 +213,74 @@ run_dhcp() {
 		-s /usr/sbin/wifi-sta-dhcp.sh
 }
 
+# Kill matching processes.  pgrep -f is used instead of pkill because busybox
+# pkill does not reliably support -f here.
+kill_matching() {
+	pgrep -f "$1" 2>/dev/null | while read -r p; do
+		[ "$p" != "$" ] && kill "$p" 2>/dev/null
+	done
+}
+
+# Tear the STA down and let procd bring it back.  Deleting the vif alone is NOT
+# enough: wpa_supplicant keeps running on the dead netdev (verified), so the
+# instance would never be respawned and would never re-create the vif.
+recycle_sta() {
+	local sta_if="$1"
+	[ -n "$sta_if" ] && iw dev "$sta_if" del 2>/dev/null
+	kill_matching "wpa_supplicant -D nl80211 -i ${sta_if:-phy}"
+	kill_matching "udhcpc -f -i ${sta_if:-phy}"
+	sleep 10
+}
+
+run_watchdog() {
+	local sta_if ap ap_ch up_ch down=0 miss=0
+
+	while true; do
+		sleep 15
+
+		sta_if="$(find_sta)"
+		if [ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
+			down=0
+			miss=0
+			continue
+		fi
+
+		down=$((down + 15))
+		[ "$down" -lt "$recover_after" ] && continue
+
+		if [ -z "$sta_if" ]; then
+			logger -t wifi-sta "watchdog: STA vif missing for ${down}s; recycling"
+			recycle_sta ""
+			down=0
+			continue
+		fi
+
+		# Disconnected long enough to be a real problem.  Is the channel the
+		# reason?  (One radio: the STA can only join an upstream that sits on
+		# the same channel as our AP.)
+		ap="$(find_ap)"
+		ap_ch="$(ap_channel "$ap")"
+		up_ch="$(scan_channel "$sta_if" "$ssid")"
+
+		if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
+			logger -t wifi-sta "watchdog: down ${down}s and upstream '$ssid' moved to channel $up_ch (AP on $ap_ch); recycling the STA"
+			recycle_sta "$sta_if"
+		else
+			# Upstream simply absent / wrong PSK / AP channel already right:
+			# nothing to fix here, and logging every minute would flood the
+			# ring buffer.  First occurrence, then one in five (~5 min).
+			miss=$((miss + 1))
+			if [ "$miss" -eq 1 ] || [ $((miss % 5)) -eq 0 ]; then
+				logger -t wifi-sta "watchdog: down ${down}s, no channel mismatch (upstream=${up_ch:-not seen} ap=${ap_ch:-none}); leaving it to wpa_supplicant"
+			fi
+		fi
+		down=0
+	done
+}
+
 case "$MODE" in
 sta)  bring_up_sta ;;
 dhcp) run_dhcp ;;
-*)    echo "usage: $0 sta|dhcp" >&2; exit 1 ;;
+watchdog) run_watchdog ;;
+*)    echo "usage: $0 sta|dhcp|watchdog" >&2; exit 1 ;;
 esac

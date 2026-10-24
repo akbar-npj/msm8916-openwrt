@@ -29,3 +29,6 @@ config sta 'main'
 	option radio 'radio0'
 	# Seconds to wait for hostapd to report the AP ENABLED before giving up.
 	option wait_ap_timeout '60'
+	# Watchdog: how long the STA may stay disconnected before it is recycled
+	# (which re-runs the channel sync).  Polled every 15 s.
+	option recover_after '60'
