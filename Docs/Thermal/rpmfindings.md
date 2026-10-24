@@ -358,3 +358,35 @@ bimc_ddr_clk_src RCG2 (cmd 0x32004, cfg 0x32008; src_sel bits [10:8], div bits [
 - Risk note: MEM_CLK stays 200 MHz under load — heavy-throughput scenarios (NAT, bulk
   LTE) cannot raise it while opp-peak=0. RPM WILL raise it when asked (the old image
   drove 1066 MHz). If a throughput ceiling ever matters, per-OPP votes re-enable scaling.
+
+## 16. Direct register comparison via static busybox (2026-10-24)
+
+Tooling: zoobab/busybox-static-for-android (ELF 32-bit ARM EABI5, static, BusyBox
+v1.16.0 2010) — COMPATIBLE with the msm8916 Android unit (armv7l userland; gotcha: the
+binary must be NAMED `busybox`, it multiplexes on argv[0]). Installed at
+/data/local/tmp/busybox; provides devmem/od/hexdump/httpd that the stock busybox lacks.
+
+Direct GCC register comparison (same addresses, both units):
+
+| register | OpenWrt (860) | Android |
+|---|---|---|
+| BIMC PLL mode/L/M/N | 0x104000 / 55 / 25 / 48 | identical |
+| BIMC PLL status | 0 (off) | 0 (off) |
+| GPLL0 L/M/N | 41 / 2 / 3 (800 MHz) | identical |
+| DDR RCG cfg (0x32008) | 0x103: GPLL0 div 4 = **200 MHz** | 0x101: GPLL0 div 2 = **400 MHz** |
+
+CORRECTIONS to §15d:
+
+1. The explicit-0-vs-never-voted hypothesis is CONFIRMED, not refuted: voting 0 lands the
+   RCG at div 4 (200 MHz); Android's never-voted default sits at div 2 (400 MHz). The
+   earlier Android memset (667 MB/s) is far below its own 3.2 GB/s ceiling — CPU-path-bound,
+   so the benchmark never revealed this.
+2. The original patch-834 values decode exactly: 3200000 kBps / 8 = 400 MHz (the Android
+   default), 8528000 / 8 = 1066 MHz (PLL max). With patch 860 now clearing the INT_MAX
+   floor, `opp-peak = 3200000` at every OPP would hold a CONSTANT 400 MHz = exact Android
+   clock parity; `0` gives 200 MHz (cooler still, but under-voted vs Android).
+
+Open ship-form decision: keep 0 (thermally proven, extra headroom, slight throughput
+cap of 1.6 GB/s) or switch to constant 3200000 (exact Android clock state). An idle+load
+A/B on 3200000 is the clean next test; thermal parity is expected either way (Android
+itself runs 400 MHz and is the cool reference).
