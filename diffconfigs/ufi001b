@@ -23,12 +23,10 @@ CONFIG_MODEMMANAGER_WITH_MBIM=y
 CONFIG_MODEMMANAGER_WITH_NETIFD=y
 CONFIG_MODEMMANAGER_WITH_QMI=y
 CONFIG_MODEMMANAGER_WITH_QRTR=y
-CONFIG_PACKAGE_kmod-8021q=m
 CONFIG_PACKAGE_kmod-bluetooth-6lowpan=m
 CONFIG_PACKAGE_kmod-bluetooth=m
 CONFIG_PACKAGE_kmod-bonding=m
 CONFIG_PACKAGE_kmod-btmtk=m
-CONFIG_PACKAGE_kmod-btrtl=m
 CONFIG_PACKAGE_kmod-btusb=m
 CONFIG_PACKAGE_kmod-fs-btrfs=m
 CONFIG_PACKAGE_kmod-fs-exfat=m
@@ -38,7 +36,6 @@ CONFIG_PACKAGE_kmod-hci-uart=m
 CONFIG_PACKAGE_kmod-ipt-tproxy=m
 CONFIG_PACKAGE_kmod-l2tp=m
 CONFIG_PACKAGE_kmod-nft-tproxy=m
-CONFIG_PACKAGE_kmod-sched-bbr=m
 CONFIG_PACKAGE_kmod-sched-cake=m
 CONFIG_PACKAGE_kmod-usb-printer=m
 CONFIG_PACKAGE_kmod-veth=m
@@ -143,7 +140,6 @@ CONFIG_PACKAGE_kmod-iptunnel6=m
 # Encryption / crypto (IPsec, dm-crypt/LUKS, legacy ciphers)
 CONFIG_PACKAGE_kmod-crypto-cbc=m
 CONFIG_PACKAGE_kmod-crypto-xts=m
-CONFIG_PACKAGE_kmod-crypto-rsa=m
 CONFIG_PACKAGE_kmod-crypto-sha1=m
 CONFIG_PACKAGE_kmod-crypto-md5=m
 CONFIG_PACKAGE_kmod-crypto-authenc=m
@@ -195,7 +191,6 @@ CONFIG_PACKAGE_kmod-nls-ucs2-utils=m
 
 # Bluetooth (extra transports)
 CONFIG_PACKAGE_kmod-btmrvl=m
-CONFIG_PACKAGE_kmod-btmtkuart=m
 CONFIG_PACKAGE_kmod-btsdio=m
 
 
