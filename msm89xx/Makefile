@@ -53,6 +53,15 @@ DEFAULT_PACKAGES += rmtfs qcom-carrier-autocfg
 # Interactive/debug helpers wanted on every board: `stty` (terminal control,
 # e.g. for the serial console) and `xxd` (hex dumps).
 DEFAULT_PACKAGES += coreutils-stty xxd
+# nohup/timeout: same story -- wanted on every board.  They used to sit only in
+# the hmuf02v5 and mifib-v12 diffconfigs.
+DEFAULT_PACKAGES += coreutils-nohup coreutils-timeout
+# LuCI apps maintained in this repo.  They used to be hand-copied into every
+# diffconfig, which is how ufi003 silently came to miss
+# luci-app-modem-watchdog; living here they ship on every board (and on any
+# future board) by default.
+DEFAULT_PACKAGES += luci-app-cpu-perf luci-app-modem-watchdog luci-app-sms-manager \
+	luci-app-tailscale luci-app-usb-gadget luci-app-wifi-sta
 # Physical reset button bridge.  These dongles have no Ethernet and no
 # accessible UART, so the on-board Restart button (a `gpio-keys` node in the
 # DTS) is the only way to reach failsafe mode.  kmod-gpio-button-hotplug binds
