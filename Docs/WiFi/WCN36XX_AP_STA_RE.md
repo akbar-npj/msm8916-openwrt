@@ -395,3 +395,50 @@ default route still via wwan0 (LTE)
    `/etc/init.d/wifi-sta-late start`; measured 0 firmware crashes, and the STA
    comes back with its lease.
 
+
+## Channel is shared: the AP follows the STA (2026-10-24)
+
+The station has no channel of its own — it goes where the upstream is.  With one
+radio there is only one channel at a time, so a mismatch is fatal to the STA:
+
+```
+AP forced to channel 1, upstream on channel 6:
+phy0-sta0: Trying to authenticate with 2a:2a:8a:9d:f5:2c (SSID='androidap' freq=2437 MHz)
+phy0-sta0: SME: Authentication request to the driver failed
+phy0-sta0: CTRL-EVENT-SSID-TEMP-DISABLED ... auth_failures=2 duration=28
+```
+
+**Measured:** no firmware crash, no lease, just a growing back-off loop — the
+driver refuses rather than dragging the AP off-channel.
+
+So `wifi-sta-up sta` now syncs the channel itself, **before** the STA connects:
+
+1. AP is ENABLED (any channel).
+2. Create the STA vif and `ip link set up` it — a down netdev cannot scan
+   (`iw scan` returns ENETDOWN), which is what the first implementation missed.
+3. `iw dev <sta> scan` and read the target SSID's channel.  Parsing gotcha:
+   `iw` prints the channel as `\t\t * primary channel: N` under HT operation, not
+   as a bare `primary channel:` line — the first regex silently matched nothing.
+4. If it differs from the AP's channel: **delete the STA vif**, `uci set
+   wireless.<radio>.channel`, `wifi reload`, wait for the AP to come back
+   ENABLED on the new channel, then re-create the STA vif.
+5. Connect.
+
+Step 4's reload is only safe because the STA vif is gone first — the same
+invariant as everywhere else in this document.
+
+Live result (AP deliberately set to ch1, upstream on ch6):
+
+```
+wifi-sta: upstream 'androidap' is on channel 6, AP is on 1; moving the AP
+wifi-sta: AP moved to channel 6; re-creating phy0-sta0
+wifi-sta: phy0-sta0 created on phy0 (phy0-ap0 ENABLED after 0s); ssid 'androidap'
+wifi-sta: dhcp: phy0-sta0 associated after 4s; 10.162.21.33/24
+```
+
+`option radio 'radio0'` in `/etc/config/wifista` selects which radio's channel is
+moved.  Caveats: this runs at bring-up only — if the upstream later moves channel
+(CSA/reboot), the STA drops and stays down until the service is restarted; and
+moving the AP channel briefly disconnects its own clients (normal for a channel
+change, no CSA is sent).
+

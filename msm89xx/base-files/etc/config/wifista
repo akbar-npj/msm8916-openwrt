@@ -22,7 +22,10 @@ config sta 'main'
 	option macaddr '00:11:22:33:44:77'
 	option ssid ''
 	option key ''
+	# Run udhcpc on the STA link.  No default route is installed either way.
+	option dhcp '1'
+	# Radio whose channel is moved to match the upstream: one radio can only be
+	# on one channel, so the AP follows the STA's channel automatically.
+	option radio 'radio0'
 	# Seconds to wait for hostapd to report the AP ENABLED before giving up.
 	option wait_ap_timeout '60'
-	# netifd interface to bring up on the STA vif (created by uci-defaults).
-	option network 'stawan'
