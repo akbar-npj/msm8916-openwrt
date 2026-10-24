@@ -1,0 +1,128 @@
+#!/bin/sh
+# Create the STA vif on the wcn36xx phy, associate, and (optionally) get a lease.
+#
+# Why not a wifi-iface: netifd's wifi script restarts the phy whenever the
+# wireless config changes -- and a phy restart with a managed iface present
+# crashes the WCNSS firmware (boot_exception_c_handlers.c:108, Data Abort at
+# 0x8b6b301c).  Adding the vif with "iw" against an already-beaconing AP is the
+# path that was verified working (AP serving a phone while the STA was
+# associated to another AP, both carrying traffic).
+#
+# Why not netifd for the netdev either: netifd has no device object for a vif it
+# did not create, so "option device 'phy0-sta0'" fails with NO_DEVICE.  udhcpc
+# is run directly instead, with a handler that does not install a default route
+# (the LTE link must stay the default).
+#
+# procd supervises this script; it ends up exec'ing udhcpc (or sleeping).
+
+. /lib/functions.sh
+
+config_load wifista || exit 0
+config_get_bool enabled main enabled 0
+[ "$enabled" = 1 ] || exit 0
+
+config_get ssid main ssid
+config_get key main key
+config_get macaddr main macaddr
+config_get_bool dhcp main dhcp 1
+config_get timeout_s main wait_ap_timeout 60
+
+[ -n "$ssid" ] || { logger -t wifi-sta "wifista.main.ssid is empty; not starting"; exit 1; }
+
+find_ap() {
+	local i
+	for i in $(iw dev 2>/dev/null | awk '$1 == "Interface" { print $2 }'); do
+		[ "$(iw dev "$i" info 2>/dev/null | awk '/^[[:space:]]*type/ { print $2 }')" = "AP" ] && {
+			echo "$i"
+			return 0
+		}
+	done
+	return 1
+}
+
+ap_state() {
+	ubus call "hostapd.$1" get_status 2>/dev/null |
+		jsonfilter -e '@.status' 2>/dev/null
+}
+
+# Wait for the AP to finish starting.  hostapd restarts the phy at boot, so the
+# vif exists well before it is ENABLED; creating the STA in that window is what
+# we are avoiding.
+waited=0
+ap=""
+while [ "$waited" -lt "$timeout_s" ]; do
+	ap="$(find_ap)"
+	if [ -n "$ap" ] && [ "$(ap_state "$ap")" = "ENABLED" ]; then
+		break
+	fi
+	ap=""
+	sleep 1
+	waited=$((waited + 1))
+done
+
+if [ -z "$ap" ]; then
+	logger -t wifi-sta "AP did not reach ENABLED in ${timeout_s}s; not starting STA"
+	exit 1
+fi
+
+phy="$(iw dev "$ap" info 2>/dev/null | awk '/wiphy/ { print "phy" $2; exit }')"
+[ -n "$phy" ] || { logger -t wifi-sta "cannot resolve phy for $ap"; exit 1; }
+
+sta_if="${phy}-sta0"
+
+# A stale vif from a previous run must go, or "interface add" fails with -EEXIST.
+iw dev "$sta_if" del 2>/dev/null
+if [ -n "$macaddr" ]; then
+	iw phy "$phy" interface add "$sta_if" type managed addr "$macaddr"
+else
+	iw phy "$phy" interface add "$sta_if" type managed
+fi || { logger -t wifi-sta "failed to create $sta_if"; exit 1; }
+
+conf="/var/run/wpa_supplicant-${sta_if}.conf"
+{
+	echo "ctrl_interface=/var/run/wpa_supplicant"
+	echo "network={"
+	echo "	ssid=\"$ssid\""
+	[ -n "$key" ] && echo "	psk=\"$key\""
+	echo "}"
+} > "$conf"
+
+logger -t wifi-sta "$sta_if created on $phy ($ap ENABLED after ${waited}s); ssid '$ssid'"
+
+# A leftover instance (or its control socket) makes the new one exit with
+# "ctrl_iface exists and seems to be in use" -- clean both up first.
+pidf="/var/run/wpa_supplicant-${sta_if}.pid"
+if [ -f "$pidf" ]; then
+	kill "$(cat "$pidf")" 2>/dev/null
+	sleep 1
+fi
+rm -f "/var/run/wpa_supplicant/${sta_if}"
+
+if ! wpa_supplicant -B -D nl80211 -i "$sta_if" -c "$conf" -P "$pidf"; then
+	logger -t wifi-sta "wpa_supplicant failed to start on $sta_if"
+	exit 1
+fi
+
+# Association can take a few seconds; only then is a DHCP request meaningful.
+i=0
+while [ "$i" -lt 30 ]; do
+	iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected" && break
+	sleep 1
+	i=$((i + 1))
+done
+
+if iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
+	logger -t wifi-sta "$sta_if associated after ${i}s"
+else
+	logger -t wifi-sta "WARNING: $sta_if not associated after 30s"
+fi
+
+if [ "$dhcp" = 1 ]; then
+	# -f: stay in the foreground (procd supervises).  The handler does not
+	# install a default route.
+	exec udhcpc -f -i "$sta_if" -p "/var/run/udhcpc-${sta_if}.pid" \
+		-s /usr/sbin/wifi-sta-dhcp.sh
+fi
+
+# Nothing to supervise: stay alive so procd does not treat this as a crash.
+exec sleep 2147483647
