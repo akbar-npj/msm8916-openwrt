@@ -94,16 +94,21 @@ fs_dhcp_start() {
 		return 0
 	fi
 
+	# --conf-file= makes the invocation hermetic: /etc/dnsmasq.conf exists in
+	# this image and would otherwise be read.  --log-facility matters because
+	# preinit has no syslogd, so without it a failure is completely silent.
 	start-stop-daemon -Sb -p /tmp/failsafe-dnsmasq.pid -x /usr/sbin/dnsmasq -- \
-		--interface="$netdev" --bind-interfaces --except-interface=lo \
+		--conf-file= --interface="$netdev" --bind-interfaces \
+		--except-interface=lo \
 		--dhcp-range="$base.10,$base.50,12h" \
 		--dhcp-option=3,"$ip" --dhcp-option=6,"$ip" \
 		--dhcp-authoritative --no-resolv --no-hosts --no-daemon \
-		--leasefile-ro >/dev/null 2>&1
+		--leasefile-ro --log-dhcp --log-facility=/tmp/failsafe-dnsmasq.log \
+		>/dev/null 2>&1
 
 	sleep 1
 	if pgrep -f "dnsmasq.*--interface=$netdev" >/dev/null 2>&1; then
-		fs_log "DHCP server on $netdev ($base.10-$base.50)"
+		fs_log "DHCP server on $netdev ($base.10-$base.50; log /tmp/failsafe-dnsmasq.log)"
 	else
 		fs_log "WARNING: DHCP server did not start; set $ip/24 manually"
 	fi
