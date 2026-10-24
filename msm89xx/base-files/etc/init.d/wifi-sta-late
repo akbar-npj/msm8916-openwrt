@@ -61,3 +61,16 @@ stop_service() {
 		esac
 	done
 }
+
+service_triggers() {
+	# Save & Apply in LuCI commits /etc/config/wifista; the config.change event
+	# then calls reload_service() below.  procd_add_reload_trigger() only works
+	# from service_triggers() -- inside start_service() it is silently dropped.
+	procd_add_reload_trigger "wifista"
+}
+
+reload_service() {
+	# procd's default reload is a bare start(), which leaves the already-running
+	# instances untouched -- a changed SSID/key would never take effect.
+	restart
+}

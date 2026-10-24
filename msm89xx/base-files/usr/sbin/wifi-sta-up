@@ -24,7 +24,10 @@ MODE="${1:-sta}"
 
 config_load wifista || exit 0
 config_get_bool enabled main enabled 0
-[ "$enabled" = 1 ] || exit 0
+# "status" is also useful while disabled (the page shows the state either way).
+if [ "$MODE" != "status" ] && [ "$enabled" != 1 ]; then
+	exit 0
+fi
 
 config_get ssid main ssid
 config_get key main key
@@ -278,9 +281,58 @@ run_watchdog() {
 	done
 }
 
+# Machine-readable state for the LuCI page: key=value lines, nothing else.
+run_status() {
+	local ap sta val
+
+	echo "enabled=$enabled"
+	echo "ssid=$ssid"
+	echo "macaddr=$macaddr"
+	echo "dhcp=$dhcp"
+	echo "radio=$radio"
+	echo "recover_after=$recover_after"
+
+	ap="$(find_ap)"
+	sta="$(find_sta)"
+	echo "ap_iface=$ap"
+	echo "sta_iface=$sta"
+
+	if [ -n "$ap" ]; then
+		echo "ap_state=$(ap_state "$ap")"
+		echo "ap_channel=$(ap_channel "$ap")"
+		echo "ap_ssid=$(iw dev "$ap" info 2>/dev/null | awk '/^[[:space:]]*ssid/ { sub(/^[[:space:]]*ssid /, ""); print; exit }')"
+		echo "ap_clients=$(iw dev "$ap" station dump 2>/dev/null | grep -c '^Station')"
+	fi
+
+	if [ -n "$sta" ]; then
+		if iw dev "$sta" link 2>/dev/null | grep -q "^Connected"; then
+			echo "sta_connected=1"
+			echo "sta_ssid=$(iw dev "$sta" link 2>/dev/null | awk -F': ' '/SSID:/ { print $2; exit }')"
+			echo "sta_bssid=$(iw dev "$sta" link 2>/dev/null | awk '/^Connected to/ { print $3; exit }')"
+			echo "sta_channel=$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')"
+			echo "sta_signal=$(iw dev "$sta" link 2>/dev/null | awk '/signal:/ { print $2 " " $3; exit }')"
+			echo "sta_bitrate=$(iw dev "$sta" link 2>/dev/null | awk '/tx bitrate:/ { print $3 " " $4; exit }')"
+		else
+			echo "sta_connected=0"
+		fi
+		echo "sta_ip=$(ip -4 -br addr show "$sta" 2>/dev/null | awk '{ print $3; exit }')"
+	fi
+
+	# Do the two roles sit on the same channel? (One radio: they must.)
+	if [ -n "$ap" ] && [ -n "$sta" ]; then
+		val="$(ap_channel "$ap")"
+		if [ -n "$val" ] && [ "$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')" = "$val" ]; then
+			echo "channel_match=1"
+		else
+			echo "channel_match=0"
+		fi
+	fi
+}
+
 case "$MODE" in
 sta)  bring_up_sta ;;
 dhcp) run_dhcp ;;
 watchdog) run_watchdog ;;
-*)    echo "usage: $0 sta|dhcp|watchdog" >&2; exit 1 ;;
+status)   run_status ;;
+*)    echo "usage: $0 sta|dhcp|watchdog|status" >&2; exit 1 ;;
 esac

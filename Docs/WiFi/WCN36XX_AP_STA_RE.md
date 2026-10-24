@@ -477,3 +477,56 @@ channel 1 while no STA vif exists, so the reload is safe):
 sort it out" does not work — the watchdog has to kill the processes explicitly.
 `pkill -f` is unreliable in this busybox, so `pgrep -f` + `kill` is used.
 
+
+
+### LuCI app — `luci-app-wifi-sta` (2026-10-25)
+
+Network → **Station Mode** (order 30, right after Wireless).  Two views:
+
+- **Overview** — live status polled every 5 s from `wifi-sta-up status`
+  (AP iface/state/channel/clients, STA iface/state/SSID/BSSID/channel/signal/
+  bitrate/address), a channel-mismatch warning, a "station still configured in
+  the wireless config" crash-risk warning, and Restart / Stop / Start / Show log.
+- **Configuration** — the whole `/etc/config/wifista` section (`enabled`, `ssid`,
+  `key`, `macaddr`, `dhcp`, `radio`, `recover_after`, `wait_ap_timeout`) plus a
+  **Scan** button that runs `iwinfo <ap_iface> scan` and can drop the SSID
+  straight into the field.
+
+The wireless config is untouched: the page writes only `wifista`.
+
+ACL (`/usr/share/rpcd/acl.d/luci-app-wifi-sta.json`): read = uci `wifista` +
+`wireless`, exec `/usr/sbin/wifi-sta-up`, `/etc/init.d/wifi-sta-late`,
+`/usr/sbin/iw`, `/usr/bin/iwinfo`, `/sbin/logread`; write = uci `wifista` +
+exec the init script.  Verified through a real session
+(`ubus call file exec` with `ubus_rpc_session`) — all five execs return 0.
+
+**Two procd traps found while wiring Save & Apply:**
+
+1. `procd_add_reload_trigger` **only works from a top-level
+   `service_triggers()` function**.  Called from inside `start_service()` it is
+   silently dropped — `ubus call service list` then shows `"triggers": [ ]` and
+   nothing ever fires.  (firewall/dnsmasq/log all use the separate function.)
+2. procd's default `reload` is a bare `start()`, which leaves already-running
+   instances untouched, so a changed SSID/key would never take effect.  The
+   script therefore defines `reload_service() { restart; }`.
+
+Verified end-to-end over the same RPC path LuCI uses
+(`uci set` → `uci apply` with a session): the config commits and the `sta`
+instance is restarted (pid changes, re-associates, same lease) in <1 s.
+
+**Build trap:** a package in `packages/` is picked up by `include/scan.mk`,
+which greps the Makefile for the literal string `call BuildPackage`.  A luci
+Makefile that only has `include $(TOPDIR)/feeds/luci/luci.mk` produces **no
+Kconfig symbol at all** — `defconfig` silently omits it and the package is not
+in the image.  The convention in this tree is a trailing comment:
+
+```make
+include $(TOPDIR)/feeds/luci/luci.mk
+
+# call BuildPackage - OpenWrt buildroot signature
+```
+
+**Overlay trap:** deleting a file straight out of `/overlay/upper/...` does not
+make the merged view fall back to the image copy — `/etc/init.d/wifi-sta-late`
+kept serving the deleted inode until the next reboot.  Reboot (or `rm` through
+the merged path, which whiteouts) after editing an overlay file in place.

@@ -1,0 +1,30 @@
+{
+	"luci-app-wifi-sta": {
+		"description": "Grant access to Station Mode configuration",
+		"read": {
+			"uci": [ "wifista", "wireless" ],
+			"ubus": {
+				"service": [ "list" ]
+			},
+			"file": {
+				"/etc/config/wifista": [ "read" ],
+				"/usr/sbin/wifi-sta-up": [ "exec" ],
+				"/etc/init.d/wifi-sta-late": [ "exec" ],
+				"/usr/sbin/iw": [ "exec" ],
+				"/usr/bin/iwinfo": [ "exec" ],
+				"/sbin/logread": [ "exec" ]
+			}
+		},
+		"write": {
+			"uci": [ "wifista" ],
+			"ubus": {
+				"service": [ "list" ]
+			},
+			"file": {
+				"/etc/config/wifista": [ "write" ],
+				"/usr/sbin/wifi-sta-up": [ "exec" ],
+				"/etc/init.d/wifi-sta-late": [ "exec" ]
+			}
+		}
+	}
+}
