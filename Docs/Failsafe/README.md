@@ -251,3 +251,12 @@ Wi-Fi config by hand.
 meanings that differ only by timing.  Tap it once (< 1 s) inside the first 7 s
 for failsafe.  Never hold it during boot unless you intend a factory reset.
 
+
+> **Serial console node:** preinit's `/dev` is a 512k tmpfs with no devtmpfs
+> population, so the kernel creates no node for the ACM function even though the
+> host enumerates `/dev/ttyACM0` normally. `35_failsafe_usb` therefore creates
+> it itself (`mknod /dev/ttyGS0 c <major> <minor>` from
+> `/sys/class/tty/ttyGS0/dev`) before spawning the login shell. Verified
+> 2026-10-24: node removed, `fs_ensure_tty` recreates it (242:0), the host reads
+> the BusyBox banner off `/dev/ttyACM0`.
+
