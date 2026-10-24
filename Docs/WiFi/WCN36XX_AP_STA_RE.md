@@ -243,3 +243,82 @@ engine plus a BSS bring-up in flight is the new ingredient.
 
 Until one of these is proven, **ship AP-only**; AP+STA stays a manual/experimental
 configuration.
+
+## E1/E2 (2026-10-24) — the crash is the PHY RESTART, not the STA vif
+
+### E1: retested with a known-good upstream and fixed MACs
+
+Config: AP `Hmu05-White` (ch6, default MAC) + STA `wifinet1` -> `androidap`
+(psk2, `macaddr='00:11:22:33:44:77'`, **no** `random`). This removes both
+confounds of the first attempt (the broken `hidden1` upstream and
+`macaddr=random`).
+
+Result: **crash, byte-identical signature** —
+
+```
+[ 29.260] wcn36xx: firmware WLAN version '...' / API 1.5.1.2
+[ 29.301] phy0-ap0 created, br-lan blocking/disabled, allmulti+promisc
+[ 29.374] phy0-ap0 left allmulti/promisc        <- vif DELETED
+[ 29.513] phy0-ap0 created again                <- vif RE-ADDED
+[ 29.977] Data Abort Exception at 0x8b6b301c    <- 0.46 s later
+```
+
+⇒ `hidden1` and `macaddr=random` are **exonerated**. The retry-storm
+hypothesis is dead.
+
+### AP-only control
+
+AP-only boot is clean (**0 crashes**) and still logs the same two
+`command failed: Not supported (-95)` from `radio0` plus
+`hostapd: Restart interface for phy phy0`. So the restart path runs on every
+boot and is harmless **without** a managed iface in the phy config.
+
+### E2: runtime `wifi reload` with the STA configured
+
+`uci set wireless.wifinet1.disabled=0; wifi reload` →
+
+```
+[ 78.291] phy0-ap0 left allmulti/promisc        <- AP vif deleted
+[ 78.869] phy0-ap0 created again
+[ 79.168] Data Abort Exception at 0x8b6b301c    <- 0.30 s later
+```
+
+**No STA vif was ever created in this run** (`dmesg` has no `sta0`/managed vif
+at all). The only difference from the clean AP-only reload is that
+wpa_supplicant is running with a managed BSS in the phy config; it restarts at
+the same instant (`supp-global-ctrl-iface-init ... bind(PF_UNIX): Address in
+use`) and its scan lands while the AP BSS is being re-created.
+
+**Conclusion:** the firmware dies on a *phy restart* (hostapd
+`Restart interface`) whenever a wpa_supplicant-managed iface is configured on
+that phy. The manual AP+STA test never restarted the phy — it only did
+`iw phy phy0 interface add` against an already-beaconing AP — which is exactly
+why it worked.
+
+⇒ Any design that routes the STA through `/etc/config/wireless` will hit this,
+because netifd's wifi script restarts the whole phy whenever the wireless config
+changes (including at every boot). **AP+STA must not use a `wifi-iface`.**
+
+### Secondary: kernel oops 30 s after the firmware crash
+
+When netifd retried `ip link set phy0-ap0 up` on the dead firmware:
+
+```
+[ 109.276] Unable to handle kernel paging request at ffff800080cf5004
+           ESR 0x96000007, FSC 0x07 (level 3 translation fault), WnR = 0
+[ 109.441] pc : __memcpy+0x110/0x260
+[ 109.447] lr : wcn36xx_smd_load_nv+0x94/0x170 [wcn36xx]
+[ 109.537] drv_start+0x30/0x50 [mac80211]
+           ieee80211_do_open+0x258 -> __dev_open -> dev_change_flags
+```
+
+`wcn36xx_smd_load_nv()` does
+`memcpy(wcn->hal_buf + sizeof(msg_body), &nv_d->table + fm_offset, 3072)`
+with `nv_d = wcn->nv->data`; here `x1` (source) is `ffff800080cf5004` — not a
+firmware-loader allocation at all. The cached `wcn->nv` is only released in
+`wcn36xx_remove()` and is **not** set to NULL, and `wcn36xx_start()` trusts it.
+Most consistent reading: after the SSR the driver is re-entered on a `wcn`
+whose firmware blob has already been released. **Not yet proven** — needs a
+`wcn->nv` pointer print or a KASAN build. Consequence regardless: a crashed
+WCNSS makes the kernel oops on every netifd retry instead of failing cleanly.
+
