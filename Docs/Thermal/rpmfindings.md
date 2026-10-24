@@ -156,3 +156,49 @@ though the boot-vote + bus_clk_desc chain above makes the AP side the near-certa
   with all fds redirected to /dev/null, or ssh hangs until timeout.
 - Android has no /tmp (use /data/local/tmp); OpenWrt busybox sleep is integer-only but usleep
   exists; `dd bs=4M` on a pipe returns one pipe-buffer (~64 KB) — use `bs=65536 count=64`.
+
+## 10. SSR-lever EINVAL — root cause (resolved 2026-10-24)
+
+`echo restart > /sys/kernel/debug/msm_subsys/modem` returned EINVAL on the DEPLOYED image,
+while `printf restart` (no trailing whitespace) worked, and `printf ' restart'` (leading
+space) also worked. Probes: trailing-newline rejected, trailing-whitespace variants
+untested-but-implied, leading whitespace accepted -> the deployed store trims LEADING
+whitespace only (skip_spaces + raw strcmp), not both ends.
+
+Neither committed revision of patch 826 does that (a23256e 2026-10-02 and 505b071 both have
+full `strstrip`; the v25.12.5-r6 tag is identical to HEAD). Conclusion: the flashed image's
+qcom_q6v5_mss.c was patched from an OLDER, never-committed 826 revision that lived in the
+untracked openwrt tree (stale quilt state at flash time; `openwrt/target` is not git-tracked
+and build.sh syncs patch FILES, but an already-applied patch may not be re-applied).
+
+Practical rule for the CURRENTLY deployed image: invoke the SSR lever as `printf restart >
+/sys/kernel/debug/msm_subsys/modem` (NO trailing newline/space). The quirk self-heals with the
+next flash (current tree = full strstrip).
+
+Also noted: a dmesg restart line (t=26779 s) fired ~35 min before any deliberate SSR this
+session — almost certainly the modem-bearer-watchdog recovery path (its invocation evidently
+works, i.e. it does not append a trailing newline). Unconfirmed; watchdog script not located
+at the expected paths (/root/modem-bearer-watchdog*).
+
+## 11. Experiment: removing the AP opp-peak vote does NOT drop MEM_CLK (2026-10-24)
+
+Built and flashed an image (branch test/rpm-mem-clk, commits d976793/e9e4bee/90b1bbd/21ed566)
+with patches 834/838/846 edited so cpu0's `opp-peak-kBps` is 0 at every OPP (the AP never
+drives mas_apss/slv_ebi_ch0 up). Post-flash verification:
+
+- interconnect_summary: cpu0 client votes 0/0 (was peak 8,528,000). The mas_apss /
+  slv_ebi_ch0 node aggregates still read 2147483647 (INT_MAX boot-init state).
+- DDR benchmark UNCHANGED: memset 3.0 GB/s (x3, same 1.41-1.45 s), page-cache 1.28 GiB in
+  0.37 s (~3.4 GB/s), pipe 2 GiB in 6.7 s. Pre-flash baseline on the same session was
+  identical.
+
+CONCLUSION: the live AP opp-peak vote was NOT the MEM_CLK holder. The holder is the
+INT_MAX boot-init commit from icc_node_add() (init_avg/init_peak = INT_MAX when the
+provider registers without get_bw), which msm8916.c never clears because it is the only
+qcom ICC platform without `.sync_state = icc_sync_state`. Every subsequent re-commit
+re-aggregates the INT_MAX floor, so MEM_CLK stays latched at max forever.
+
+FIX: patch 860 adds `.sync_state = icc_sync_state` to msm8916_noc_driver. After all
+consumers probe, the core clears the init state and re-commits the real aggregation
+(with the 834 experiment: 0/0 -> RPM default policy, i.e. Android parity since Android's
+3.10 kernel never votes BIMC at all). Same-session bench + idle-temp A/B to follow.
