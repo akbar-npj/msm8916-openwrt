@@ -160,6 +160,19 @@ never respawns), so the watchdog kills it explicitly.
   the wireless config"** — that one is the crash risk from §2
 - buttons: **Restart service**, **Stop**, **Start**, **Show log**
 
+The status contract is **one `key=value` per line, nothing else**.  Every value
+has CR/LF folded to spaces before it is printed (an SSID may legally contain a
+newline, and a raw one would otherwise inject a second key).  A **missing** key
+means "unknown / not applicable" and the page renders a dash — `sta_signal` and
+`sta_bitrate` are absent when the station is not connected, and the whole
+`sta_*` block is absent when there is no station interface at all.
+
+Parsing notes, because `iw` output is not stable across versions: the SSID is
+taken with `sed 's/^\s*SSID: //'` rather than `awk -F': '` (an SSID may itself
+contain `": "`), and the signal/bitrate fields are located by label rather than
+by position (iw can print `signal: -55 [-60, -58] dBm`, and older builds put
+`tx bitrate:` on the same line as `signal:`).
+
 ### Configuration
 
 The whole `wifista` section (table in §4) plus a **Scan** button that runs

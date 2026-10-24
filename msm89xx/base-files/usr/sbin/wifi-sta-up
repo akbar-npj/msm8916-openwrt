@@ -37,6 +37,11 @@ config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
 
+# A UCI field the user cleared ("") would make the arithmetic tests below fail
+# with "bad number"; fall back to the default in that case.
+case "$recover_after" in ''|*[!0-9]*) recover_after=60 ;; esac
+case "$timeout_s" in ''|*[!0-9]*) timeout_s=60 ;; esac
+
 if [ "$MODE" = "dhcp" ] && [ "$dhcp" != 1 ]; then
 	exit 0
 fi
@@ -282,49 +287,69 @@ run_watchdog() {
 }
 
 # Machine-readable state for the LuCI page: key=value lines, nothing else.
-run_status() {
-	local ap sta val
+# "key=value", one per line.  An SSID may legally contain a newline, which would
+# break the line protocol (and could inject a second key), so fold CR/LF to
+# spaces before printing.
+kv() {
+	printf '%s=%s\n' "$1" "$(printf '%s' "$2" | tr '\n\r' '  ')"
+}
 
-	echo "enabled=$enabled"
-	echo "ssid=$ssid"
-	echo "macaddr=$macaddr"
-	echo "dhcp=$dhcp"
-	echo "radio=$radio"
-	echo "recover_after=$recover_after"
+run_status() {
+	local ap sta link sta_ch ap_ch
+
+	kv enabled "$enabled"
+	kv ssid "$ssid"
+	kv macaddr "$macaddr"
+	kv dhcp "$dhcp"
+	kv radio "$radio"
+	kv recover_after "$recover_after"
 
 	ap="$(find_ap)"
 	sta="$(find_sta)"
-	echo "ap_iface=$ap"
-	echo "sta_iface=$sta"
+	kv ap_iface "$ap"
+	kv sta_iface "$sta"
 
 	if [ -n "$ap" ]; then
-		echo "ap_state=$(ap_state "$ap")"
-		echo "ap_channel=$(ap_channel "$ap")"
-		echo "ap_ssid=$(iw dev "$ap" info 2>/dev/null | awk '/^[[:space:]]*ssid/ { sub(/^[[:space:]]*ssid /, ""); print; exit }')"
-		echo "ap_clients=$(iw dev "$ap" station dump 2>/dev/null | grep -c '^Station')"
+		ap_ch="$(ap_channel "$ap")"
+		kv ap_state "$(ap_state "$ap")"
+		kv ap_channel "$ap_ch"
+		# "ssid <name>" -- a hidden SSID prints the bare word, so require the
+		# space and let the empty result through.
+		kv ap_ssid "$(iw dev "$ap" info 2>/dev/null | sed -n 's/^[[:space:]]*ssid //p' | head -n 1)"
+		kv ap_clients "$(iw dev "$ap" station dump 2>/dev/null | grep -c '^Station')"
 	fi
 
 	if [ -n "$sta" ]; then
-		if iw dev "$sta" link 2>/dev/null | grep -q "^Connected"; then
-			echo "sta_connected=1"
-			echo "sta_ssid=$(iw dev "$sta" link 2>/dev/null | awk -F': ' '/SSID:/ { print $2; exit }')"
-			echo "sta_bssid=$(iw dev "$sta" link 2>/dev/null | awk '/^Connected to/ { print $3; exit }')"
-			echo "sta_channel=$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')"
-			echo "sta_signal=$(iw dev "$sta" link 2>/dev/null | awk '/signal:/ { print $2 " " $3; exit }')"
-			echo "sta_bitrate=$(iw dev "$sta" link 2>/dev/null | awk '/tx bitrate:/ { print $3 " " $4; exit }')"
+		# Read the link block once: it is parsed several times below, and a
+		# flap between two separate "iw" calls would produce a mixed answer.
+		link="$(iw dev "$sta" link 2>/dev/null)"
+
+		if printf '%s\n' "$link" | grep -q '^Connected'; then
+			sta_ch="$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')"
+			kv sta_connected 1
+			# "SSID: my: net" must keep its colon; -F': ' would cut it to "my".
+			kv sta_ssid "$(printf '%s\n' "$link" | sed -n 's/^[[:space:]]*SSID: //p' | head -n 1)"
+			kv sta_bssid "$(printf '%s\n' "$link" | awk '/^Connected to/ { print $3; exit }')"
+			kv sta_channel "$sta_ch"
+			# Field after the label, not $2/$3: iw may print the signal as
+			# "-55 [-60, -58] dBm", and older builds put "tx bitrate:" on the
+			# same line as "signal:".
+			kv sta_signal "$(printf '%s\n' "$link" | awk '/signal:/ { for (i = 1; i <= NF; i++) if ($i == "signal:") { print $(i + 1) " dBm"; exit } }')"
+			kv sta_bitrate "$(printf '%s\n' "$link" | awk '/tx bitrate:/ { for (i = 1; i <= NF; i++) if ($i == "bitrate:") { print $(i + 1) " " $(i + 2); exit } }')"
 		else
-			echo "sta_connected=0"
+			kv sta_connected 0
 		fi
-		echo "sta_ip=$(ip -4 -br addr show "$sta" 2>/dev/null | awk '{ print $3; exit }')"
+
+		kv sta_ip "$(ip -4 -br addr show "$sta" 2>/dev/null | awk '{ print $3; exit }')"
 	fi
 
-	# Do the two roles sit on the same channel? (One radio: they must.)
+	# Do the two roles sit on the same channel?  (One radio: they must.)
+	# Reuse the values already printed so the two answers cannot disagree.
 	if [ -n "$ap" ] && [ -n "$sta" ]; then
-		val="$(ap_channel "$ap")"
-		if [ -n "$val" ] && [ "$(iw dev "$sta" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }')" = "$val" ]; then
-			echo "channel_match=1"
+		if [ -n "$ap_ch" ] && [ -n "$sta_ch" ] && [ "$sta_ch" = "$ap_ch" ]; then
+			kv channel_match 1
 		else
-			echo "channel_match=0"
+			kv channel_match 0
 		fi
 	fi
 }
