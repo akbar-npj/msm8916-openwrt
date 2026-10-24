@@ -54,12 +54,12 @@
  
  		opp-200000000 {
  			opp-hz = /bits/ 64 <200000000>;
- 			opp-peak-kBps = <3200000>;
+ 			opp-peak-kBps = <0>;
 +			required-opps = <&cpr_opp1>;
  		};
  		opp-400000000 {
  			opp-hz = /bits/ 64 <400000000>;
- 			opp-peak-kBps = <3200000>;
+ 			opp-peak-kBps = <0>;
 +			required-opps = <&cpr_opp2>;
  		};
  		opp-800000000 {
