@@ -196,3 +196,50 @@ the image but nothing in the log suggests they were exercised.
 * `hidden1` (3e:77:2f:9e:02:15) still disassociates with reason 5 in *plain* STA
   mode. That is AP-specific and unrelated to concurrency, but it means not every
   AP will work for testing.
+
+## netifd-managed AP+STA CRASHES the WCNSS firmware (2026-10-24)
+
+Config: AP (`default_radio0`, default MAC) + STA (`wifinet1`, `mode=sta`,
+`macaddr='random'`, SSID `hidden1`), `radio0.channel='6'`.
+
+Boot log:
+
+```
+[  29.965] qcom-wcnss-pil a204000.remoteproc: fatal error received:
+           boot_exception_c_handlers.c:108:Data Abort Exception at 0x8b6b301c
+[  29.977] remoteproc remoteproc1: handling crash #1
+[  79.665] ... same signature ... handling crash #2
+[  89.566] wcn36xx: ERROR Timeout! No SMD response to req 24 in 10000ms
+[  89.566] wcn36xx: ERROR Sending hal_set_bsskey failed
+[  99.806] wcn36xx: ERROR Timeout! No SMD response to req 127 (delete_sta_self)
+[ 109.832] wcn36xx: ERROR Timeout! No SMD response to req 2 (hal_stop)
+```
+
+Result: `remoteproc1` = `crashed`, no usable wiphy, load average 10.6, LuCI
+unresponsive. Recovery required a reboot with the STA iface disabled.
+
+Two cfg80211 WARNs accompany it (`cfg80211_register_netdevice` during hostapd's
+interface creation and `cfg80211_scan_done` at scan.c:1193 from
+`ieee80211_sched_scan_stopped`) - the scan bookkeeping across two vifs is
+already wrong before the firmware dies.
+
+### Why the manual test passed
+
+The successful run created the AP first (netifd), then added `sta0` by hand and
+let wpa_supplicant associate. Here netifd creates **both** interfaces and starts
+hostapd and wpa_supplicant concurrently, and wpa_supplicant immediately scans
+for `hidden1` while hostapd is configuring the AP BSS. The single wcn36xx scan
+engine plus a BSS bring-up in flight is the new ingredient.
+
+### Candidate workarounds (untested)
+
+1. `option bssid='<upstream BSSID>'` on the STA iface - wpa_supplicant then
+   skips scanning and goes straight to auth, removing the concurrent-scan window.
+2. Bring the STA up only after the AP is established (init/hotplug script doing
+   `ifup` on the STA network a few seconds after `phy0-ap0` appears).
+3. Firmware-level: decode PC `0x8b6b301c` (load base `0x8b600000`, offset
+   `0xB301C`) in `wcnss.mdt` - the first hard fault address we have for the
+   concurrency path.
+
+Until one of these is proven, **ship AP-only**; AP+STA stays a manual/experimental
+configuration.
