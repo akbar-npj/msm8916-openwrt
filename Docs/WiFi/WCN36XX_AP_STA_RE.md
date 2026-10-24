@@ -322,3 +322,69 @@ whose firmware blob has already been released. **Not yet proven** — needs a
 `wcn->nv` pointer print or a KASAN build. Consequence regardless: a crashed
 WCNSS makes the kernel oops on every netifd retry instead of failing cleanly.
 
+
+## E4 (2026-10-24) — late-STA service: SHIPPED, boot-verified
+
+The E1/E2/P1 results reduce the bug to one sentence: **a phy restart while a
+managed iface is configured on that phy kills the WCNSS firmware**.  netifd's
+wifi script restarts the phy on every wireless-config change (including every
+boot), so an AP+STA setup expressed as two `wifi-iface` stanzas can never be
+safe.  The verified-safe path is the manual one: let the AP come up first, then
+add the STA vif with `iw` and let wpa_supplicant associate.
+
+`/etc/init.d/wifi-sta-late` automates exactly that, as two procd instances:
+
+| instance | command | does |
+|---|---|---|
+| `sta` | `wifi-sta-up sta` | polls `hostapd.<ap>.get_status` until `ENABLED`, then `iw phy <phy> interface add <phy>-sta0 type managed addr <mac>`, writes the wpa config, and `exec`s `wpa_supplicant` in the foreground |
+| `dhcp` | `wifi-sta-up dhcp` | waits for `iw dev <sta> link` to report `Connected`, then `exec`s `udhcpc -f` with `wifi-sta-dhcp.sh` |
+
+Both are `procd_set_param respawn 3600 5 0`, so either one dying is repaired.
+`wpa_supplicant -B` is deliberately **not** used: it daemonises to PPID 1 and
+procd can no longer supervise it (observed: only udhcpc was supervised).
+
+Files:
+
+- `/etc/config/wifista` — `enabled` (default **0**), `macaddr`, `ssid`, `key`,
+  `dhcp` (default 1), `wait_ap_timeout` (default 60).
+- `/usr/sbin/wifi-sta-up` — both modes.
+- `/usr/sbin/wifi-sta-dhcp.sh` — minimal udhcpc handler: address + connected
+  route only, **never a default route** (the LTE link must stay the default).
+- `/etc/uci-defaults/95-wifi-sta-late` — enables the service.
+
+### Why not netifd for the STA netdev
+
+`option device 'phy0-sta0'` on a netifd interface fails with
+`errors: [{subsystem: interface, code: NO_DEVICE}]` — netifd has no device
+object for a vif it did not create, and `ubus list` shows no
+`network.device.phy0-sta0`.  udhcpc is therefore run directly.  The trade-off is
+that the lease is invisible to LuCI/ubus (it is a plain `ip addr`), which is
+acceptable for a concurrent-AP+STA feature.
+
+### Verification (HMU05, image `c24dd181`)
+
+Boot, no manual step:
+
+```
+wifi-sta: phy0-sta0 created on phy0 (phy0-ap0 ENABLED after 0s); ssid 'androidap'
+wifi-sta: phy0-sta0 associated after 2s
+wifi-sta: dhcp: 10.162.21.33/24 on phy0-sta0
+dmesg | grep -c "handling crash"  ->  0
+phy0-sta0  UP  10.162.21.33/24      phy0-ap0  ssid Hmu05-White  ch6
+ping -I 10.162.21.33 8.8.8.8 -> 0% loss, 56-96 ms
+default route still via wwan0 (LTE)
+```
+
+### Caveats
+
+1. **`wifi reload` / LuCI wireless save while the STA is up restarts the phy
+   with `phy0-sta0` present → same firmware crash.**  Stop the service first:
+   `/etc/init.d/wifi-sta-late stop; wifi reload; /etc/init.d/wifi-sta-late start`.
+   A wrapper around `/sbin/wifi` would remove this footgun and is not written.
+2. **A fast stop/start cycle can log one `SME: Authentication request to the
+   driver failed`** and put the BSSID on wpa_supplicant's 10 s ignore list; it
+   recovers by itself (observed during `restart`, not at boot).
+3. The STA gets **no default route by design**.  To use it as an uplink, add a
+   route/policy rule yourself.
+4. `enabled` ships **0**; this is opt-in.
+
