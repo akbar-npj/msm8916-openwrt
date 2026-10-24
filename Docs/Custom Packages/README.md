@@ -74,11 +74,22 @@ diag_nv --help
 
 ---
 
-## How they get into the image
+## What ships where
 
-The packages are selected per-board in each target's `diffconfig` / `modules.mk`
-and built by [`build.sh`](../../build.sh). They are also published to the signed
-APK feed (see the main [README → Official Package & Kernel Driver
+| Layer | File | Scope |
+| :--- | :--- | :--- |
+| `DEFAULT_PACKAGES` | [`msm89xx/Makefile`](../../msm89xx/Makefile) | every board — all shared packages |
+| `DEVICE_PACKAGES` | [`msm8916.mk`](../../msm89xx/image/msm8916.mk) | per device |
+| `diffconfigs/<board>` | [`diffconfigs/`](../../diffconfigs/) | per board: the `=m` driver feed, option symbols, failsafe tuning, the device line, board-only packages |
+
+Everything identical across the seven boards used to be hand-copied into each
+`diffconfigs/<board>`; it now lives in `DEFAULT_PACKAGES`, so an eighth board
+gets it automatically. The `=m` entries stay in the diffconfigs on purpose —
+they are external modules and `DEFAULT_PACKAGES` would force them built-in.
+`./build.sh guard` checks both invariants.
+
+Packages are built by [`build.sh`](../../build.sh) and also published to the
+signed APK feed (see the main [README → Official Package & Kernel Driver
 Repository](../../README.md#-official-package--kernel-driver-repository)), so
 they can be installed on-device with `apk add`.
 

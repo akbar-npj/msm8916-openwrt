@@ -1,16 +1,17 @@
 # Physical SIM Hot-Swap
 
 **Status:** implemented and live-verified on **HMUF02-V5 only**.
-**Other boards:** **untested** — the hardware *may* expose a usable
-`sim_hotplug` line, but nobody has verified it yet. See
+**Other boards:** **HM-MIFIB-V12 defines the same line** (patch 853, TLMM
+GPIO114) but is unverified; the remaining boards do not define it, so the
+service stays inert there. See
 [Testing on another board](#testing-on-another-board).
 **Service:** `sim-hotplug` (`/etc/init.d/sim-hotplug`, `/usr/sbin/sim-hotplug`).
 
 > **Board scope.** Hot-swap is **verified only on HMUF02-V5**, whose device tree
 > exposes the `sim_hotplug` line (TLMM GPIO114) as a
-> userspace-controllable `gpio-leds` node. The other boards' **current DTS
-> in this repo may have defined such a node but it needs testing**. It may be
-> present and simply not exposed.
+> userspace-controllable `gpio-leds` node. **HM-MIFIB-V12's DTS defines the
+> same node** (patch 853) but has not been verified on hardware. The other
+> boards' DTS does not define it, so the service disables itself there.
 > **Device owners should verify it** with the procedure below before assuming
 > hot-swap is unsupported on their board.
 
@@ -108,27 +109,22 @@ re-initialise UIM when data fails.
 | Board | `sim_hotplug` node in current DTS | Hot-swap |
 | :--- | :--- | :--- |
 | `hmuf02v5` (HMUF02-V5) | **yes** — patch 805, `&tlmm 114` | **implemented + verified** |
+| `mifib-v12` (HM-MIFIB-V12) | **yes** — patch 853, `&tlmm 114` | **implemented, unverified** |
 | `uz801` | not in current patch | **untested — verify** |
 | `ufi001b` | not in current patch | **untested — verify** |
 | `ufi003` | not in current patch | **untested — verify** |
 | `uf02` | not in current patch | **untested — verify** |
 | `mf800b` | not in current patch | **untested — verify** |
 
-Only patch **805** currently defines `/sim-presence/sim_hotplug`
-(`gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>`). The service ships in the
-shared `base-files` and is `enabled 1` on every board.
+Patches **805** (hmuf02v5) and **853** (mifib-v12) define
+`/sim-presence/sim_hotplug` (`gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>`). The
+service ships in the shared `base-files` and is `enabled 1` on every board.
 
-> **Node gate (not in release r6).** As shipped, `sim-hotplug` starts on
-> every board and only `pulse_sim` checks for the line. On a board with no
-> writable `/sys/class/leds/sim_hotplug/brightness`, `pulse_sim` fails, so a
-> card-less or card-lost board spins the absent-reannounce loop forever (a
-> UIM check every ~6 s and a log line every ~30 s) and can never recover an
-> insertion. A fix is drafted that **gates the service on the node**: the init
-> script skips cleanly (`logger: no sim_hotplug line on this board - disabled`)
-> when the line is absent, `rescan` becomes a no-op, and the direct-start path
-> idles instead of spinning. Until that lands, the only effect on other boards
-> is wasted QMI polls and log spam — hot-swap is simply inert there. Boards
-> that *do* expose the node are unaffected and self-activate the gate.
+> **Node gate (shipped).** `sim-hotplug` gates itself on the node: when
+> `/sys/class/leds/sim_hotplug/brightness` is absent or not writable, the init
+> script skips cleanly (`logger: no sim_hotplug line on this board - disabled`),
+> `rescan` becomes a no-op, and nothing spins. Boards that *do* expose the node
+> self-activate and behave exactly as verified on HMUF02-V5.
 
 ## Testing on another board
 

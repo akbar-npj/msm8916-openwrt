@@ -328,8 +328,11 @@ CI / release flow builds one image + kmod feed per diffconfig.
 Copy an existing one as a starting point:
 
 ```sh
-cp diffconfigs/mf800b diffconfigs/<board>
+cp diffconfigs/uf02 diffconfigs/<board>
 ```
+
+(`uf02` is the minimal template; `mf800b` also carries three `amneziawg`
+lines you would have to delete.)
 
 Then edit it:
 
@@ -341,13 +344,19 @@ Then edit it:
   ```
 * **Failsafe**: the 7-second preinit window and the `192.168.10.1` preinit IP
   are already the defaults. Keep the `CONFIG_IMAGEOPT=y` / `CONFIG_PREINITOPT=y`
-  / `CONFIG_TARGET_PREINIT_*` block (copied from mf800b) so they stay explicit
+  / `CONFIG_TARGET_PREINIT_*` block (copied from uf02) so they stay explicit
   and are not reset by `make defconfig`.
 * Add any **board-specific package selections** (e.g. `qcom-time-daemon` if
   your board is HMU05-class).
 * The large `=m` block is the **optional kmod feed** — modules built into the
   package feed but *not* baked into the image, so users can `apk add` them on
   demand. Copy it verbatim; trim only if you are sure a module is unwanted.
+  These stay `=m` on purpose — external modules, never built in — so they live
+  in the diffconfig and cannot move to `DEFAULT_PACKAGES`.
+* **Nothing else is needed for shared packages**: everything identical across
+  boards (the whole LuCI web stack, ModemManager/QMI, the tools) already ships
+  via `DEFAULT_PACKAGES` in `msm89xx/Makefile`. `./build.sh guard` fails if the
+  `=m` block drifts between boards or a diffconfig re-selects a default.
 
 After editing, validate it builds before committing (§7).
 
@@ -372,7 +381,7 @@ Add one row to the supported-devices table so users can find the board:
 ```sh
 ./build.sh list                 # confirm <board> is now listed
 ./build.sh prepare              # first time only: clone + prepare the OpenWrt tree
-./build.sh guard                # verify the live tree matches msm89xx/ + packages/
+./build.sh guard                # verify the live tree matches msm89xx/ + packages/ and the diffconfig invariants hold
 ./build.sh build <board>        # build the firmware image + kmod feed
 ```
 
@@ -477,7 +486,7 @@ never bricks the modem NV.
   - [ ] `99-wifi-led` board skip/branch
   - [ ] `rc.button/power` LED fallback
   - [ ] `himi-ok.sh` / `modem-led-monitor` allow-lists (HiMI boards only)
-- [ ] **diffconfig** `diffconfigs/<board>` (copied from `mf800b`, device line fixed)
+- [ ] **diffconfig** `diffconfigs/<board>` (copied from `uf02`, device line fixed)
 - [ ] **README.md** supported-devices table row
 - [ ] `./build.sh build <board>` succeeds; flash + verify on hardware
 

@@ -148,8 +148,8 @@ never respawns), so the watchdog kills it explicitly.
 
 ## 6. The LuCI app (`luci-app-wifi-sta`)
 
-**Network → Station Mode** (order 30, after *Wireless*).  Enabled in all seven
-`diffconfigs`, so every board image carries it.
+**Network → Station Mode** (order 30, after *Wireless*).  Ships on every board
+via `DEFAULT_PACKAGES` (`msm89xx/Makefile`), so every image carries it.
 
 ### Overview
 
@@ -246,7 +246,7 @@ End-to-end through uhttpd as that login:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| No **Station Mode** entry in the menu | package not in the image | `apk info -e luci-app-wifi-sta`; rebuild with the app in the diffconfig |
+| No **Station Mode** entry in the menu | package not in the image | `apk info -e luci-app-wifi-sta`; it is a `DEFAULT_PACKAGES` entry — check `msm89xx/Makefile` |
 | Overview shows *not connected*, log repeats `SME: Authentication request to the driver failed` | the upstream is on a different channel and was not found by the scan | check the upstream is in range (`iwinfo phy0-ap0 scan`); the service re-syncs on the next restart |
 | `RTNETLINK answers: No error information` on `ip link set up` | vif got the AP's MAC | set `wifista.main.macaddr` to a distinct address |
 | `ctrl_iface exists and seems to be in use` | a stale `wpa_supplicant` | `/etc/init.d/wifi-sta-late restart` (the service removes the stale socket) |
