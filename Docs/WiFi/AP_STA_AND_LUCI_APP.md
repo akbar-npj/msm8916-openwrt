@@ -177,6 +177,40 @@ The app writes **only** `/etc/config/wifista`.
   `/etc/init.d/wifi-sta-late`, `/usr/sbin/iw`, `/usr/bin/iwinfo`, `/sbin/logread`
 - write: uci `wifista`; exec `/usr/sbin/wifi-sta-up` and the init script
 
+**Verified with a restricted login.**  Root has `read '*' / write '*'` in
+`/etc/config/rpcd`, so a root session bypasses ACLs entirely and proves nothing —
+the check has to run as a login that holds *only* the `luci-app-wifi-sta` group.
+A temporary such login was created, exercised, and removed:
+
+| Call (as the restricted login) | Result |
+|---|---|
+| `exec /usr/sbin/wifi-sta-up status` | allowed |
+| `exec /etc/init.d/wifi-sta-late running` | allowed |
+| `exec /usr/bin/iwinfo phy0-ap0 scan` | allowed |
+| `exec /sbin/logread -e wifi-sta` | allowed |
+| `exec /bin/sh -c id` | **denied** |
+| `read /etc/shadow` | **denied** |
+| `read /etc/config/wireless` | **denied** |
+| `uci get wifista` | allowed |
+| `uci set wifista` | allowed |
+| `uci apply` | allowed — commits, and the service restarts |
+| `uci get wireless` (radio list) | allowed, read-only |
+| `uci set wireless` | **denied** |
+| `uci get network` | **denied** |
+
+End-to-end through uhttpd as that login:
+`/cgi-bin/luci/admin/network/wifi-sta/{overview,config}` → **200**, while
+`/admin/network/wireless` and `/admin/status/overview` → **403**.  The menu
+`depends.acl` gate works as well, since the routes resolve.
+
+> **Note on the ACL shape.**  Every other app in the tree lists
+> `"ubus": { "file": [ "exec" ] }` next to the file paths, but rpcd enforces the
+> `file` and `uci` objects through their own scopes: with this app's ACL (which
+> has no `ubus.file` entry) `session access` reports `ubus file.exec` = *false*
+> while the actual `file exec` call succeeds.  So the entry is not required —
+> it is only the answer `session access` gives.  Nothing in the page consults
+> that answer.
+
 ---
 
 ## 7. Verification record
@@ -189,7 +223,8 @@ The app writes **only** `/etc/config/wifista`.
 | 2026-10-24 | Channel sync (AP forced to ch1, upstream ch6) | AP moved to ch6, connected 4 s later |
 | 2026-10-24 | Watchdog (simulated upstream move) | detected at 60 s, recovered in ~40 s, 0 crashes |
 | 2026-10-24 | `stop` → `wifi reload` → `start` | 0 crashes |
-| 2026-10-25 | LuCI app on the flashed image | both views HTTP 200; all five ACL execs return 0 through a real session |
+| 2026-10-25 | LuCI app on the flashed image | both views HTTP 200 |
+| 2026-10-25 | ACL, exercised as a **restricted** login (root bypasses ACLs) | every call the page makes is allowed; `/bin/sh` exec, `/etc/shadow`, `uci set wireless` denied; restricted user gets 200 on both views and 403 on Wireless/Status |
 | 2026-10-25 | Save & Apply path (`uci set` RPC → `uci apply`) | config committed, `sta` instance restarted in <1 s, re-associated, same lease |
 
 ---
