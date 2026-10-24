@@ -147,3 +147,29 @@ define KernelPackage/btqcomsmd/description
 endef
 
 $(eval $(call KernelPackage,btqcomsmd))
+
+define KernelPackage/sched-bbr
+  SUBMENU:=$(NETWORK_SUPPORT_MENU)
+  TITLE:=BBR TCP congestion control
+  DEPENDS:=@TARGET_msm89xx
+  KCONFIG:=CONFIG_TCP_CONG_BBR
+  FILES:=$(LINUX_DIR)/net/ipv4/tcp_bbr.ko
+  AUTOLOAD:=$(call AutoLoad,30,tcp_bbr)
+endef
+
+define KernelPackage/sched-bbr/description
+  Google's BBR (Bottleneck Bandwidth and Round-trip propagation time) TCP
+  congestion control.  Model-based instead of loss-based: it measures the
+  link's bandwidth and RTT and paces packets to match, instead of filling
+  buffers until they drop -- the usual cause of bufferbloat latency spikes
+  on LTE bearers.
+
+  Installing it only makes BBR *available*.  Switch to it at runtime with
+  `sysctl -w net.ipv4.tcp_congestion_control=bbr` (or per-destination with
+  `ip route change ... congctl bbr`); the kernel default stays cubic.
+
+  The module itself is already built by the target kernel config
+  (CONFIG_TCP_CONG_BBR=m); this package only ships it in the feed.
+endef
+
+$(eval $(call KernelPackage,sched-bbr))

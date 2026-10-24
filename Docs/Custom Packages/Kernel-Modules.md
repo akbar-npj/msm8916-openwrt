@@ -15,6 +15,7 @@ not-yet-upstream Qualcomm drivers the MSM8916 port needs. They are gated to
 | `kmod-bam-dmux` | `qcom_bam_dmux` | ✅ | Qualcomm **BAM-DMUX** WWAN network driver — the `wwan0` data interface. This is the driver that carries the A2 pin and the many AP-side stability fixes (see [Docs/Modem Stability/](../Modem%20Stability/)). |
 | `kmod-btqca` | `btqca` | ❌ dependency | Qualcomm **Bluetooth helper** routines (ROM patch / NVM download, BD address). Provides `qca_set_bdaddr_rome()`; no platform driver of its own, loaded as a dependency of `kmod-btqcomsmd`. |
 | `kmod-btqcomsmd` | `btqcomsmd` | ✅ | **HCI over Qualcomm SMD** — bridges Bluetooth onto the WCNSS shared-memory channels. Binds to the `qcom,wcnss-bt` platform device created when the WCNSS remoteproc boots, so `wcnss.mdt` must be present. |
+| `kmod-sched-bbr` | `tcp_bbr` | ✅ | Google's **BBR TCP congestion control** — model-based (measures bandwidth/RTT) instead of loss-based, so it avoids filling the carrier's buffers on LTE links. Selected `=m` in every diffconfig, so it ships in the kmod feed and is installed on demand (`apk add kmod-sched-bbr`). Autoload only makes it *available* — switch with `sysctl -w net.ipv4.tcp_congestion_control=bbr`. The module is built by the target kernel config (`CONFIG_TCP_CONG_BBR=m`); this package just ships it. |
 
 > **Autoload** uses OpenWrt's `AutoProbe`, which writes a `modules.d` alias so the
 > listed modules load at boot. Modules marked ❌ are intentionally left
