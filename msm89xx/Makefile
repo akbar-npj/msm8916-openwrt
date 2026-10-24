@@ -62,6 +62,39 @@ DEFAULT_PACKAGES += coreutils-nohup coreutils-timeout
 # future board) by default.
 DEFAULT_PACKAGES += luci-app-cpu-perf luci-app-modem-watchdog luci-app-sms-manager \
 	luci-app-tailscale luci-app-usb-gadget luci-app-wifi-sta
+# Upstream userspace packages that every board used to select by hand: 112
+# CONFIG_PACKAGE lines byte-identical in all seven diffconfigs.  They live
+# here now so the diffconfigs hold only genuinely per-board choices; an
+# eighth board gets them automatically.  (Busybox/kernel/package option
+# symbols and the =m kernel-module block stay in the diffconfigs -
+# DEFAULT_PACKAGES cannot express those.)
+DEFAULT_PACKAGES += \
+	avahi-dbus-daemon bash blkid cgi-io coreutils-od dbus \
+	etherwake glib2 ip-tiny kmod-crypto-acompress kmod-crypto-kpp \
+	kmod-crypto-lib-chacha20 kmod-crypto-lib-chacha20poly1305 \
+	kmod-crypto-lib-curve25519 kmod-crypto-lib-poly1305 \
+	kmod-lib-lzo kmod-tun kmod-udptunnel4 kmod-udptunnel6 \
+	kmod-wireguard kmod-zram libatomic libattr \
+	libavahi-dbus-support libdaemon libdbus libexpat libfdisk \
+	libffi libiwinfo libiwinfo-data libltdl liblua liblucihttp \
+	liblucihttp-lua liblucihttp-ucode libmbim libminiupnpc \
+	libmount libnatpmp libncurses libpcre2 libqmi libqrtr-glib \
+	libreadline librrd1 libsensors libstdcpp libsysfs \
+	libtraceevent libtracefs libubus-lua lm-sensors lsblk lua luci \
+	luci-app-filemanager luci-app-firewall \
+	luci-app-package-manager luci-app-wol luci-base luci-lib-base \
+	luci-lib-ip luci-lib-json luci-lib-jsonc luci-lib-nixio \
+	luci-lib-uqr luci-light luci-lua-runtime luci-mod-admin-full \
+	luci-mod-network luci-mod-rpc luci-mod-status luci-mod-system \
+	luci-proto-ipv6 luci-proto-modemmanager luci-proto-ppp \
+	luci-proto-wireguard luci-theme-bootstrap modemmanager \
+	mount-utils mtools nano openssh-sftp-avahi-service \
+	openssh-sftp-client openssh-sftp-server px5g-mbedtls qmi-utils \
+	resize2fs resolveip rpcd rpcd-mod-file rpcd-mod-iwinfo \
+	rpcd-mod-luci rpcd-mod-rrdns rpcd-mod-ucode rrdtool1 sfdisk \
+	strace sysfsutils terminfo trace-cmd tune2fs ucode-mod-html \
+	ucode-mod-log ucode-mod-lua ucode-mod-math uhttpd \
+	uhttpd-mod-ubus wireguard-tools zerotier zram-swap
 # Physical reset button bridge.  These dongles have no Ethernet and no
 # accessible UART, so the on-board Restart button (a `gpio-keys` node in the
 # DTS) is the only way to reach failsafe mode.  kmod-gpio-button-hotplug binds
