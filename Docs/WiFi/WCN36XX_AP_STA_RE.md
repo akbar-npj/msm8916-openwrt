@@ -388,3 +388,10 @@ default route still via wwan0 (LTE)
    route/policy rule yourself.
 4. `enabled` ships **0**; this is opt-in.
 
+
+5. **`wifi reload` briefly bounces `br-lan`** (the USB gadget is a bridge
+   port), so an SSH session over the gadget link is dropped mid-command.  The
+   verified sequence is: `/etc/init.d/wifi-sta-late stop` -> `wifi reload` ->
+   `/etc/init.d/wifi-sta-late start`; measured 0 firmware crashes, and the STA
+   comes back with its lease.
+
