@@ -40,19 +40,19 @@
  
  		opp-200000000 {
  			opp-hz = /bits/ 64 <200000000>;
-+			opp-peak-kBps = <0>;
++			opp-peak-kBps = <3200000>;
  		};
  		opp-400000000 {
  			opp-hz = /bits/ 64 <400000000>;
-+			opp-peak-kBps = <0>;
++			opp-peak-kBps = <3200000>;
  		};
  		opp-800000000 {
  			opp-hz = /bits/ 64 <800000000>;
-+			opp-peak-kBps = <0>;
++			opp-peak-kBps = <3200000>;
  		};
  		opp-998400000 {
  			opp-hz = /bits/ 64 <998400000>;
-+			opp-peak-kBps = <0>;
++			opp-peak-kBps = <3200000>;
  		};
  	};
  
