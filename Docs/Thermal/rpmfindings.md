@@ -274,3 +274,45 @@ Same-session, matched-rate rerun of the equal-throughput loopback A/B (method do
 
 VERDICT: with patch 860 (+ opp-peak=0), OpenWrt matches Android thermally at idle AND at
 matched 10.9 MB/s loopback load. The thermal-gap goal is closed on this evidence.
+
+## 14. Loose ends: the watchdog SSR attribution + the remaining 2.3x DDR (2026-10-24)
+
+### 14a. modem-bearer-watchdog — found, and the 26779 s attribution REVISED
+
+The script is `/usr/sbin/modem-bearer-watchdog` (802 lines), procd-managed by
+`/etc/init.d/modem-bearer-watchdog` (START=96, respawn 3600 5 5), uci `modem-watchdog.*`,
+enabled, and demonstrably alive (logread: bearer re-drive at boot, mobility profiling).
+
+Its ONLY SSR lever is line 268: `echo restart > /sys/kernel/debug/msm_subsys/modem` —
+WITH a trailing newline — gated by `modem-watchdog.recovery.ssr_enabled` (default 1).
+
+- On the OLD image that store returned EINVAL (leading-trim-only parser; trailing newline
+  rejected). The lever was DEAD. Therefore the unexplained 26779 s restart on the old image
+  was NOT a watchdog SSR. Prior-session attribution ("almost certainly the watchdog") is
+  REVISED: most likely it was kernel-side rproc auto-recovery after a modem fatal (no
+  msm_subsys write, still bumps restart_count). Old dmesg is gone (two reboots since), so
+  this cannot be confirmed from logs.
+- On the NEW image (full strstrip) `echo restart\n` WORKS — the watchdog's lever is
+  functional again. Self-healed exactly as predicted in §10.
+
+### 14b. The remaining 2.3x DDR vs Android — real, but the benchmark is mixed
+
+Same-day Android re-bench: 667-679 MB/s (== prior session's 0.66 GB/s, so NOT session
+drift). OWRT post-860: 1.4-1.6 GB/s. During live OWRT DDR load, EVERY AP ICC voter reads
+0/0 (mas_apss, cpu0, mas_usb_hs, mas_tcu0/1, mas_gfx) — the gap is NOT an AP vote.
+
+Re-reading the old controls changes the interpretation: on the OLD image the dd benchmark
+scaled PROPORTIONALLY with CPU freq (753 MB/s @200 MHz vs 3.0 GB/s @800 MHz) — a
+CPU-uaccess-bound regime — while post-860 @800 MHz it dropped to 1.5. So the benchmark is a
+MIXED CPU+memory metric: the 3.0 -> 1.5 halving is causally the ICC change (controlled A/B,
+only variable), but "Android holds DDR at ~1/4 rate" was an INFERENCE from a benchmark whose
+Android number (667 MB/s) may itself be CPU-path-bound on the 3.10 kernel. What remains
+PROVEN: OpenWrt pinned MEM_CLK at PLL max 24/7 via the INT_MAX boot vote, and patch 860
+fixed it with a 2x reduction in the measured domain + thermal parity (§13).
+
+Leading hypothesis for the residual 2.3x (OPEN, curiosity-only): explicit-0 commits vs
+never-voted. OWRT's ICC core actively commits 0 to RPM on every set; Android never sends
+any APSS->EBI request. RPM firmware policy may floor MEM_CLK higher for a master with an
+active (zero) request than for an unvoted master. Not testable without RPM introspection
+(rpm_log reads block). Practically irrelevant: 1.5 GB/s >> this device's data-path needs,
+and thermal parity is achieved.
