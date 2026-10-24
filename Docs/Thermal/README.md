@@ -40,7 +40,7 @@ mainline Linux 6.12.94.
 | :--- | :--- | :--- |
 | **CPU rail (mainline CPR)** — 1.15 V → **1.0625 V**, Android parity | ✅ Done | Patches 841–846; [`HMU05_CPU_RAIL_CPR_PORT.md`](HMU05_CPU_RAIL_CPR_PORT.md) |
 | **CPU OPP cap** — top 998.4 MHz OPP removed, CPUs ≤ **800 MHz** | ✅ Done | See root-cause report |
-| **Wi-Fi + PMIC thermal mitigation** — `wcn36xx` cooling device + PMIC cooling map | ✅ Done | Patch 453 / 847; [README → Thermal & Power](../../README.md#-thermal--power-management) |
+| **Wi-Fi + PMIC thermal mitigation** — `wcn36xx` cooling device + PMIC cooling map | ✅ Done | Patch 453 / 861; [README → Thermal & Power](../../README.md#-thermal--power-management) |
 
 ---
 

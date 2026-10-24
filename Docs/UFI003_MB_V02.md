@@ -51,8 +51,9 @@ The profile follows the UFI001B baseline:
 - WPA3-SAE and multi-SSID;
 - CPU CPR and the 800 MHz cap.
 
-It leaves HMU05-specific Wi-Fi/PMIC cooling maps, the `a2_pin` modem hold, and
-`qcom-time-daemon` outside the UFI003 profile. These optional board-specific
+It leaves the `a2_pin` modem hold and `qcom-time-daemon` outside the UFI003
+profile; the Wi-Fi/PMIC cooling maps come from the shared `msm8916-ufi.dtsi`
+(patch 861) and are included. These optional board-specific
 features are separate from the validated button, LED, and SIM behavior.
 
 The current UFI common DTS enables the `pm8916_usbin` USB extcon; the PM8916
