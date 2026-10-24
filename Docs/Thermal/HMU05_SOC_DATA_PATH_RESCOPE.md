@@ -1,3 +1,15 @@
+CORRECTION - 2026-10-24 (READ FIRST before acting on the bus-voting or DDR-scaling sections below)
+
+The bus-voting claims in this file are SUPERSEDED by Docs/Thermal/HMU05_LIVE_BUS_VOTING_AB.md (corrected audit, 2026-10-24).
+
+What changed:
+- OpenWrt DOES vote bus bandwidth. Live interconnect_summary shows mas_apss / slv_ebi_ch0 cpu0 peak = 8,528,000 kBps tracking CPU frequency. The interconnect driver (CONFIG_INTERCONNECT_QCOM_MSM8916=y, patch 834) is alive and sends RPM votes with correct mainline RPM IDs (slv_ebi_ch0 slv_rpm_id=0, bimc_snoc 99/130, snoc_bimc 101/132, pcnoc_snoc 29/45).
+- The RPM firmware is SHARED silicon (not OS-dependent). Android (msm_bus) and OpenWrt (interconnect) send identical RPM bandwidth votes to the same RPM, which scales the DDR/BIMC clock identically for either OS. Therefore bus voting CANNOT explain an OpenWrt-vs-Android temperature gap. If anything Android votes more bandwidth and would run the bus hotter.
+- The prior bimc_ddr_clk_src = 800 MHz implies bus does not scale reading was a Linux-view artifact: that clock is RPM-managed with NO freq table, so Linux cannot observe RPM-driven frequency changes.
+
+ACTION: do NOT port Android msm_bus IDs (wrong namespace, unnecessary). The bus-voting lever is CLOSED for the OS-gap question. Run a CONTROLLED equal-throughput A/B instead (see the corrected audit doc).
+
+---
 # HMU05: SoC data-path thermal work — re-scope
 
 **Date:** 2026-10-09
