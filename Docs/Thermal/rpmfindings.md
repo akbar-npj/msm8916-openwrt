@@ -390,3 +390,29 @@ Open ship-form decision: keep 0 (thermally proven, extra headroom, slight throug
 cap of 1.6 GB/s) or switch to constant 3200000 (exact Android clock state). An idle+load
 A/B on 3200000 is the clean next test; thermal parity is expected either way (Android
 itself runs 400 MHz and is the cool reference).
+
+## 17. opp-peak=3200000 shipped to the test device — 400 MHz verified (2026-10-24)
+
+Patches 834/838/846 switched from opp-peak=0 to constant 3200000 (built 15:57, commit
+pending), flashed config-preserving. Post-flash register truth (same devmem method):
+
+- DDR RCG cfg = **0x101 = GPLL0 (800 MHz) / 2 = 400 MHz — EXACT Android parity**
+  (Android reads 0x101 on the same register; §16).
+- BIMC PLL status 0 (off) — same as Android. ICC summary: cpu0 peak vote 3200000 live.
+- Sanity: wwan0 attached, internet OK.
+- Benchmark: memset back to ~3.0 GB/s (the CPU-bound regime under the 3.2 GB/s clock
+  ceiling — Android's regime too).
+
+State of the MEM_CLK ladder (all register-verified today):
+
+| opp-peak | MEM_CLK | notes |
+|---|---|---|
+| (pre-860 INT_MAX) | 1066 MHz (PLL on) | the bug |
+| 0 | 200 MHz (GPLL0/4) | RPM floor; coolest; 1.6 GB/s cap |
+| **3200000** | **400 MHz (GPLL0/2)** | **Android parity (current)** |
+| 8528000 | 1066 MHz | PLL max; never ship |
+
+2.5-h idle soak running (soak400.log) to compare the settled pm8916 vs the 200 MHz
+settled baseline (43.6-44.3 C) and Android same-day (43.2-45.5 C). Android itself runs
+400 MHz and is the cool reference, so parity is expected; the soak quantifies what the
+extra 200 MHz costs vs the 0-value build.
