@@ -416,3 +416,32 @@ State of the MEM_CLK ladder (all register-verified today):
 settled baseline (43.6-44.3 C) and Android same-day (43.2-45.5 C). Android itself runs
 400 MHz and is the cool reference, so parity is expected; the soak quantifies what the
 extra 200 MHz costs vs the 0-value build.
+
+
+### S17 addendum - 400 MHz idle soak final (2.5 h, 150 samples)
+
+Raw log: Docs/Thermal/data/hmuf02v5-soak400-2026-10-24.log (epoch + pm8916 milli-C,
+60 s samples, device idle throughout, opp-peak=3200000 image).
+
+| window | min / mean / max (pm8916) |
+|---|---|
+| first 10 min | 48.4 / 49.3 / 50.7 (flash+bench residual) |
+| 25-40% (~1 h) | 39.5 / 41.3 / 46.9 |
+| 50-75% | 39.3 / 41.0 / 43.8 |
+| last 20% (settled) | 39.7 / 40.6 / 42.2 |
+
+Readings:
+
+- The 400 MHz build settles at ~40.6 C - at or below the Android same-day idle band
+  (43.2-45.5 C). The thermal-gap goal holds at the exact Android clock.
+- The earlier same-day readings (200 MHz build settled 43.6-44.3 at ~2.5 h; the
+  51-52 C plateau at 30 min) were both still draining - this soak extended to 2.5 h
+  and was STILL creeping down (mean 41.3 -> 40.6 between middle and last windows).
+  True equilibrium takes longer than any session-long logger; treat idle comparisons
+  as settled trend, not absolute equilibrium.
+- A strict 200-vs-400 idle attribution is confounded (ambient dropped across the
+  afternoon/evening; boot-drain tails overlap). What is clean: at the exact Android
+  clock the unit matches-or-beats the Android idle band, which is the goal metric.
+- Future definitive idle A/B (optional): same-session crossover (200 MHz and 400 MHz
+  images flashed back-to-back on one evening, each >=3 h soak, simultaneous Android
+  reference) - or accept the goal as met on the evidence above.
