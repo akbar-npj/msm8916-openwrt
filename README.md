@@ -20,7 +20,7 @@ Recent additions on top of the base port:
 * **📲 Physical SIM hot-swap** — pull the card and insert another: `sim-hotplug` detects the swap, re-announces the card to the baseband, re-reads it through ModemManager and restores data in **~15 s**, with **no reboot** (even a different carrier).
 * **🆘 Failsafe mode** — a single tap of the **Restart button** during the first 7 s of boot drops a headless dongle into a rescue shell over USB (`192.168.10.1` or `/dev/ttyACM0`); a **5-second hold** performs a factory reset.
 * **🔵 Bluetooth** — the WCNSS BT core (SMD) with BlueZ 5.83, an SSP pairing-repair guard, and a Bluetooth **Serial Port Profile** server/client (a serial console or TCP bridge over Bluetooth).
-* **🔐 WPA3-SAE Wi-Fi** — PMF/SAE support in the wcn36xx driver, plus **multi-SSID** (two APs on the one radio).
+* **🔐 WPA3-SAE Wi-Fi** — PMF/SAE support in the wcn36xx driver, plus **multi-SSID** (two APs on the one radio) and **concurrent AP+STA** (the radio keeps serving its AP while it joins another network as a client).
 * **🌡️ Thermal & power** — the CPU rail is now managed by **mainline CPR** (matching Android's rail voltage), the top CPU OPP is capped at 800 MHz, and Wi-Fi + PMIC thermal mitigation is wired up on the HMUF02-V5.
 * **🛡️ Modem stability** — the A2 power rail is held on in the driver (`a2_pin=1`), the modem NV `HiMI_OK` marker is rewritten after every boot, and a bearer watchdog performs pre-emptive SSR recovery.
 * **🔑 Signed package feed with self-heal** — the OTA `apk` feed is signed with a pinned key, and every device re-syncs that key from a stable URL at boot.
@@ -384,9 +384,13 @@ The WCN36xx 2.4 GHz radio comes up automatically on first boot and broadcasts an
 
 * **WPA3-SAE (Personal)** is supported. Configure it from LuCI (*Network → Wireless → Edit → Wireless Security*) or UCI; a WPA3 client will negotiate SAE + PMF, and WPA2 clients continue to work unchanged.
 * **Multi-SSID** is supported: up to **two AP interfaces** on the same radio (for example a main SSID and a guest SSID).
+* **Concurrent AP + STA** is supported: the radio keeps beaconing its AP **and** joins another network as a client. Configure it from **Network → Station Mode** (or `/etc/config/wifista`) — see [Concurrent AP+STA and the Station Mode LuCI app](Docs/WiFi/AP_STA_AND_LUCI_APP.md). The station is created by a service **after** the AP is up; it is deliberately *not* a `wifi-iface`, because netifd restarts the phy on every wireless change and a phy restart with a station interface configured crashes the WCNSS firmware.
 
-> [!WARNING]
-> **Concurrent STA + AP is not supported.** The WCNSS firmware crashes if the radio is asked to run a station and an AP at the same time — even on the same channel — which reboots the access point and takes the modem down with it. The driver advertises an AP-only interface combination so `wpa_supplicant`/`hostapd` refuse the combination up front. Use a second radio or a wired uplink if you need to bridge a Wi-Fi client.
+> [!NOTE]
+> Saving anything under *Network → Wireless* while station mode is running restarts the phy and hits that same firmware bug. Stop the service first:
+> ```sh
+> /etc/init.d/wifi-sta-late stop; wifi reload; /etc/init.d/wifi-sta-late start
+> ```
 
 ---
 

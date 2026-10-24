@@ -1,7 +1,10 @@
 # WCN36xx AP+STA — reverse-engineering survey and reference map (2026-10-24)
 
-Status: survey complete; implementation not started. Companion to the WPA3 work
-(patches 451-453) and the iface-combination crash recorded earlier this year.
+Status: survey complete; implementation shipped (see
+[`AP_STA_AND_LUCI_APP.md`](AP_STA_AND_LUCI_APP.md) for the user-facing guide —
+service, `luci-app-wifi-sta`, configuration and troubleshooting). Companion to the
+WPA3 work (patches 451-453) and the iface-combination crash recorded earlier this
+year.
 
 ## Goal and prior state
 
