@@ -209,3 +209,45 @@ the factory-reset hold.
 - The in-kernel `gpio_keys` driver (`CONFIG_KEYBOARD_GPIO`) is **disabled** so
   `kmod-gpio-button-hotplug` can bind the `gpio-keys` DT node; otherwise the
   built-in driver claims it first and the button produces no hotplug uevents.
+
+### Post-mortem: why a 5 s hold wipes the overlay, and why failsafe cannot
+
+Two independent button paths exist, and they look identical from the outside:
+
+| boot path | what runs | overlay mounted? | can it wipe? |
+|---|---|---|---|
+| press inside the 7 s window | `30_failsafe_wait` sets `FAILSAFE` -> `40_run_failsafe_hook` **blocks** | **no** — preinit never reaches `80_mount_root` | **never** |
+| press missed the window (normal boot) | `/etc/rc.button/reset` via `button-hotplug` | **yes** (mounted ~1-2 s in) | **yes, on release** |
+
+`40_run_failsafe_hook` parks in `while [ ! -e /tmp/sysupgrade ]; do lock -w /tmp/.failsafe; done`,
+which is *before* `80_mount_root` in the preinit chain.  So inside failsafe
+`/overlay` is genuinely unmounted, `rc.button/reset` sees an empty
+`OVERLAY` variable and refuses to act.  A press that reaches failsafe is safe.
+
+The trap is the other row.  `rc.button/reset` evaluates `released`
+**independently** of `pressed`:
+
+```sh
+released)
+	if [ "$SEEN" -ge "$HOLD_SECONDS" ] 2>/dev/null && [ -n "$OVERLAY" ]; then
+		factoryreset -y && reboot &
+	fi
+```
+
+There is no state carried from the `pressed` event, so a press that started
+*before* `/overlay` existed still wipes the box if it is released at >= 5 s
+after `button-hotplug` probed.  Nothing prompts, nothing prints on the console,
+and the reboot happens in the background — on a loaded box (e.g. while the WCNSS
+firmware is crash-looping) it can take several seconds, so the unit looks like it
+"did not restart".
+
+**Observed consequence (2026-10-24):** a 5 s hold during boot that missed the
+7 s window factory-reset the unit.  The overlay came back as defaults (45 MB,
+`.fs_state -> 2`), `/etc/config/wireless` was gone, the radio came up as
+`OpenWrt` on channel 1, and the box was reachable only after re-creating the
+Wi-Fi config by hand.
+
+**Rule of thumb:** on these dongles the Restart button has *two* destructive
+meanings that differ only by timing.  Tap it once (< 1 s) inside the first 7 s
+for failsafe.  Never hold it during boot unless you intend a factory reset.
+
