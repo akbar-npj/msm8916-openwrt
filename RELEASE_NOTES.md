@@ -82,11 +82,13 @@ Modem: LTE attached, `wwan0` up with a default route, 0 crashes. The other
 boards compile from the same tree and are built by CI; they have **not** been
 flashed with this branch.
 
-**⚠️ Upgrading — use `sysupgrade -o`** — The 44-file modem firmware set in
-`/lib/firmware` lives on the overlay and is **not** in any `keep.d` list, so a
-plain config-preserving `sysupgrade` drops it and the modem will not load.
-`sysupgrade -o` (preserve changed files) keeps it, and is what this release was
-verified with. If you do flash plainly, re-copy `/lib/firmware` before rebooting.
+**⬆️ Upgrading** — A normal config-preserving `sysupgrade` (or `sysupgrade -n`) is fine.
+The 44-file modem firmware set in `/lib/firmware` lives on the overlay and is not
+in any `keep.d` list, so the flash drops it — but the first boot re-dumps it from
+the modem partitions: `msm-firmware-dumper` (`START=95`) looks for
+`/lib/firmware/DUMPED` and, when it is missing, re-extracts the set and restarts
+the remoteprocs. This release was verified with `sysupgrade -o`, which kept the
+overlay and skipped the dump; both paths work.
 
 **📄 Full changeset** — `git log 66c03f9..v25.12.6-r1` (4 commits: the guard,
 the patch rebase, BBR, and the build-tooling fix).
