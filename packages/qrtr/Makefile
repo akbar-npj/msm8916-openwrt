@@ -55,8 +55,6 @@ endef
 define Package/qrtr-utils/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	-$(CP) $(PKG_INSTALL_DIR)/usr/bin/qrtr* $(1)/usr/bin/
-	$(INSTALL_DIR) $(1)/usr/sbin
-	-$(CP) $(PKG_INSTALL_DIR)/usr/sbin/qrtr-ns $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qrtrns.init $(1)/etc/init.d/qrtrns
 endef

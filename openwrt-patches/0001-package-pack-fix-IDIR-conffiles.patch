@@ -1,0 +1,11 @@
+--- a/include/package-pack.mk
++++ b/include/package-pack.mk
+@@ -573,7 +573,7 @@
+ 	# Some package (base-files) manually append stuff to conffiles
+ 	# Append stuff from it and delete the CONTROL directory since everything else should be migrated
+ 	if [ -f $$(IDIR_$(1))/CONTROL/conffiles ]; then \
+-		echo $$$$(IDIR_$(1))/CONTROL/conffiles >> $$(IDIR_$(1))/lib/apk/packages/$(1)$$(ABIV_$(1)).conffiles; \
++		echo $$(IDIR_$(1))/CONTROL/conffiles >> $$(IDIR_$(1))/lib/apk/packages/$(1)$$(ABIV_$(1)).conffiles; \
+ 		for file in $$$$(cat $$(IDIR_$(1))/CONTROL/conffiles); do \
+ 			[ -f $$(IDIR_$(1))/$$$$file ] || continue; \
+ 			csum=$$$$($(MKHASH) sha256 $$(IDIR_$(1))/$$$$file); \
