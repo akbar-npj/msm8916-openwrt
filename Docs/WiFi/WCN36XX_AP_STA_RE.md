@@ -202,11 +202,13 @@ the image but nothing in the log suggests they were exercised.
 
 ## netifd-managed AP+STA CRASHES the WCNSS firmware (2026-10-24)
 
-> **SUPERSEDED 2026-10-26 — see the last section, *Attempt 2*.** On the v25.12.6
-> image (backports 6.18.55) a config-managed `wifi-iface mode=sta` survives
-> `wifi reload` with zero firmware crashes (6/6 reloads), and mac80211 derives a
-> distinct per-vif MAC by itself. The crash below was real on 6.18.26 but is fixed
-> upstream; the conclusion that AP+STA must not use a `wifi-iface` no longer holds.
+> **PARTLY SUPERSEDED 2026-10-26 — see *Attempt 2* and *Attempt 3*.** On the
+> v25.12.6 image (backports 6.18.55) a config-managed `wifi-iface mode=sta`
+> survives `wifi reload` with zero firmware crashes (6/6 reloads), and mac80211
+> derives a distinct per-vif MAC by itself — the `Data Abort 0x8b6b301c` below is
+> fixed upstream. It is still not shippable: *Attempt 3* measured ~1 in 3 boots
+> associating, with the rest losing the radio's scan state. The service-based
+> design was kept for that reason, not because of the crash.
 
 Config: AP (`default_radio0`, default MAC) + STA (`wifinet1`, `mode=sta`,
 `macaddr='random'`, SSID `hidden1`), `radio0.channel='6'`.
@@ -580,9 +582,11 @@ live HMUF02-V5 running the v25.12.6-r1 image (kernel 6.12.112, backports 6.18.55
   **not needed to make a config-managed STA safe** — the driver change landed
   upstream between 6.18.26 and 6.18.55.
 * The premise behind the service-based Station Mode ("a `wifi-iface` STA crashes
-  the firmware, so it must not go through netifd") no longer holds on 25.12.6.
+  the firmware, so it must not go through netifd") no longer holds on 25.12.6 —
+  but *Attempt 3* then showed the `wifi-iface` route is unreliable for a
+  different reason (scan-state loss), so the service was kept anyway.
   `openwrt-patches/811` (the phy-restart guard) is still correct and still
-  needed for the service-based design, but it is no longer the only way.
+  needed for the service-based design.
 
 ### What is still open (not a driver problem)
 
@@ -593,14 +597,67 @@ connected across all six reloads. So the remaining gap is netifd/network
 plumbing (the dummy `proto=none` interface used for the test, carrier handling,
 and how netifd restarts the STA), not the wcn36xx driver.
 
-### Next steps
+### Outcome
 
-1. Re-run the config-managed STA against a real `network` (not `proto=none`) and
-   find what issues the `DEAUTH_LEAVING` 10 s after association.
-2. Decide the product direction: keep the service-based Station Mode (works
-   today, guard-protected, LuCI app exists) or move to a `wifi-iface` and retire
-   the service. Moving would remove `wifi-sta-late`, `wifi-sta-up` and
-   `openwrt-patches/811` — but it also loses the multi-profile
-   `wifista.ap.*` model and the wrong-PSK alert, which would need rebuilding on
-   top of netifd/wpa_supplicant.
-3. Only if a crash reappears under load: revisit the CONFIG_BSS ordering.
+Both open questions were answered on 2026-10-26 and the port was dropped — see
+*Attempt 3* below. The `DEAUTH_LEAVING` loop was an artifact of the dummy
+`proto=none` interface: with `proto='dhcp'` the station stayed associated and got
+a lease. The product decision went to keeping the service, because a
+config-managed station only associates on about a third of boots.
+
+## Attempt 3 (2026-10-26) — reliability measured: NOT adopted
+
+Attempt 2 proved the *crash* is gone, so the obvious next step was to move Station
+Mode onto a plain `wifi-iface` and retire `wifi-sta-late` / `wifi-sta-up` /
+`openwrt-patches/811`. That port was built and measured, and it was **abandoned**:
+a config-managed STA associates on roughly a third of boots, and a failed attempt
+leaves the radio unusable until the next boot. The service-based design was kept.
+
+### The failure
+
+```
+wpa_supplicant: phy0-sta0: CTRL-EVENT-SCAN-FAILED ret=-16 retry=1     (once a second, forever)
+iw dev phy0-sta0 scan   -> command failed: Resource busy (-16)
+iw dev phy0-ap0   scan  -> command failed: Resource busy (-16)
+```
+
+`-EBUSY` is returned by `wcn36xx_hw_scan()` while `wcn->scan_req` is set. When a
+scan loses its completion event the field is never cleared, so **every** later
+scan on that phy fails for the rest of the boot — including hostapd's ACS:
+
+```
+hostapd: Failed to request acs scan ret=-16 (Resource busy) - try to scan after 5 seconds
+```
+
+With `radio0.channel='auto'` that second consequence is fatal on its own: the AP
+cannot pick a channel, so it comes up without an SSID and nothing works. A fixed
+channel does not prevent the wedge, but it keeps the AP usable when it happens.
+
+### Measurements (HMUF02-V5, v25.12.6-r1, backports 6.18.55)
+
+| design | when the STA appears | channel | boots | connected |
+| --- | --- | --- | --- | --- |
+| config-managed `wifi-iface` | same `setup()` as the AP (boot) | `auto` | 3 | 1 |
+| config-managed `wifi-iface` | same `setup()` as the AP (boot) | fixed | 3 | 1 |
+| config-managed `wifi-iface` | `wifi reload` after the AP is up | `auto` | 2 | 2 |
+| config-managed `wifi-iface` | `ifup` a minute after boot | `auto` | 2 | 1 |
+| config-managed + driver patch waiting for AP-ENABLED | boot | both | 2 | 1 |
+| **service (`wifi-sta-late`)** | after the AP is up | fixed | 3 | 2 |
+
+Neither design is reliable, and the difference between them is not significant.
+The ordering tricks (late `wifi reload`, `ifup`, waiting for `AP-ENABLED`) help
+sometimes and fail sometimes — the race is inside the firmware's single scan
+engine, not in netifd's sequencing. The service keeps its `recover_after`
+watchdog, which retries after a failed attempt; that is the only practical
+difference.
+
+### What this means for the tree
+
+* Station Mode stays on the service (`wifista` + `wifi-sta-late` + `wifi-sta-up`
+  + `wifi-sta-guard` + `openwrt-patches/811` + `luci-app-wifi-sta`).
+* `radio0.channel` must stay **fixed** on any board that uses Station Mode.
+  `auto` turns a wedged scan into a dead AP.
+* The Attempt 2 findings still stand and are worth keeping: the 6.18.26
+  `Data Abort 0x8b6b301c` does not reproduce on 6.18.55, `sme.c` is gone, and
+  mac80211 derives a distinct per-vif MAC by itself. Only the *product* decision
+  went the other way.

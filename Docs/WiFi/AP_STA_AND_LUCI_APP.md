@@ -53,6 +53,13 @@ It is also kept out of netifd: netifd has no device object for a vif it did not
 create, so `option device 'phy0-sta0'` fails with `NO_DEVICE`.  `udhcpc` is run
 directly instead.
 
+> **Status of the crash (2026-10-26).**  The `0x8b6b301c` abort does **not**
+> reproduce on the 25.12.6 backports (6.18.55): a managed station survives
+> `wifi reload` 6/6 with zero crashes.  The design above is kept for a second,
+> independent reason — a managed station only associates on about one boot in
+> three, and the failures lose the radio's scan state.  See
+> [WCN36XX_AP_STA_RE.md](WCN36XX_AP_STA_RE.md#attempt-3-2026-10-26--reliability-measured-not-adopted).
+
 ---
 
 ## 3. Quick start (LuCI)
@@ -357,6 +364,18 @@ End-to-end through uhttpd as that login:
   ```
 - **Single channel.**  AP and station share one radio, so the AP must sit on the
   upstream's channel.  There is no second channel to put the AP on.
+- **Keep `wireless.radio0.channel` fixed — never `auto`.**  `auto` makes hostapd
+  run an ACS scan at every AP start.  wcn36xx can lose a scan and then answer
+  every later scan with `-EBUSY` for the rest of the boot; with `auto` that also
+  kills the AP (it never picks a channel and comes up without an SSID), so the
+  whole radio is dead until the next reboot.  A fixed channel keeps the AP
+  usable and lets the service's `recover_after` watchdog retry the station.
+- **A plain `wifi-iface mode=sta` is not a replacement.**  It was ported and
+  measured on 2026-10-26 (backports 6.18.55, so no firmware crash): it
+  associates on about one boot in three, and the failures lose the radio's scan
+  state exactly as above.  The service exists because of that, not only because
+  of the old crash — see
+  [WCN36XX_AP_STA_RE.md](WCN36XX_AP_STA_RE.md#attempt-3-2026-10-26--reliability-measured-not-adopted).
 - **No default route from the lease.**  The station gets an address and can be
   reached on its subnet, but the mobile bearer stays the default path.
 - The station is not visible to netifd/LuCI *Wireless* — that is intentional.
