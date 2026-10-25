@@ -1,0 +1,22 @@
+wpa_cli: dispatch CTRL-EVENT-SSID-TEMP-DISABLED to the action script
+
+The event dispatch in wpa_cli_action_process() has no generic fallback, so a
+rejected password (reason=WRONG_KEY) never reaches an action script.  Station
+mode uses that event to tell the user which saved network needs its password
+re-entered.
+
+diff --git a/wpa_supplicant/wpa_cli.c b/wpa_supplicant/wpa_cli.c
+index 9bf96c4..abcacae 100644
+--- a/wpa_supplicant/wpa_cli.c
++++ b/wpa_supplicant/wpa_cli.c
+@@ -4501,6 +4501,10 @@ static void wpa_cli_action_process(const char *msg)
+ 		printf("wpa_supplicant is terminating - stop monitoring\n");
+ 		if (!reconnect)
+ 			wpa_cli_quit = 1;
++	} else if (str_starts(pos, "CTRL-EVENT-SSID-TEMP-DISABLED")) {
++		/* Not in the dispatch list (there is no generic fallback), so a
++		 * rejected password would never reach an action script. */
++		wpa_cli_exec(action_file, ifname, pos);
+ 	}
+ }
+ 

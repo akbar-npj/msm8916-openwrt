@@ -48,12 +48,25 @@ return view.extend({
 
 				return kv;
 			}).catch(function() { return {}; })
-		]);
+		]).then(function(data) {
+			// One-time migration of the legacy single wifista.main.ssid/key
+			// pair into a saved-network profile (committed on Save).
+			var aps = uci.sections('wifista', 'ap');
+			var main = uci.get('wifista', 'main');
+
+			if (!aps.length && main && main.ssid) {
+				var s = uci.add('wifista', 'ap');
+				s.ssid = main.ssid;
+				if (main.key) s.key = main.key;
+			}
+
+			return data;
+		});
 	},
 
 	render: function(data) {
 		var st = data[2];
-		var m, s, o;
+		var m, s, s2, o;
 
 		m = new form.Map('wifista', _('Station Mode'),
 			_('A client interface on the same radio as the access point. ' +
@@ -66,19 +79,9 @@ return view.extend({
 			_('Off by default. The interface is created a few seconds after the access point is up.'));
 		o.rmempty = false;
 
-		o = s.option(form.Value, 'ssid', _('Upstream SSID'));
-		o.placeholder = 'MyHomeWiFi';
-		// Deliberately optional: with no SSID the station just stays idle, so
-		// the form can be saved before the user knows what to join -- pick a
-		// network from the scan below, then Save & Apply.
-
 		o = s.option(form.Value, 'hostname', _('Hostname to announce'),
 			_('Sent to the upstream network as the DHCP hostname (option 12), so the upstream router can resolve this device by name. Leave empty to use the system hostname (%s).').format(st.hostname || 'OpenWrt'));
 		o.placeholder = st.hostname || _('(system hostname)');
-
-		o = s.option(form.Value, 'key', _('Password'));
-		o.password = true;
-		o.placeholder = _('(leave empty for an open network)');
 
 		o = s.option(form.Value, 'macaddr', _('Station MAC address'),
 			_('Must differ from the access point\u2019s address, otherwise the interface cannot be brought up.'));
@@ -110,6 +113,26 @@ return view.extend({
 		o = s.option(form.Value, 'wait_ap_timeout', _('Wait for the AP at start (seconds)'));
 		o.datatype = 'uinteger';
 		o.placeholder = '60';
+
+		s2 = m.section(form.TypedSection, 'ap', _('Saved networks'),
+			_('Every enabled row is handed to wpa_supplicant; it joins whichever is in range and moves on to the next one when a password is rejected. A rejected password is reported on the Status page.'));
+		s2.add = true;
+		s2.remove = true;
+		s2.anonymous = true;
+		s2.addbtitle = _('Add network');
+
+		o = s2.option(form.Value, 'ssid', _('SSID'));
+		o.rmempty = false;
+		o.placeholder = 'MyHomeWiFi';
+
+		o = s2.option(form.Value, 'key', _('Password'));
+		o.password = true;
+		o.placeholder = _('(leave empty for an open network)');
+
+		o = s2.option(form.Flag, 'disabled', _('Disabled'),
+			_('Keep the row but never try it.'));
+		o.default = o.disabled;
+		o.editable = true;
 
 		var scanBox = E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('Nearby networks')),
@@ -154,7 +177,17 @@ return view.extend({
 								E('td', { 'class': 'td' }, E('button', {
 									'class': 'cbi-button cbi-button-action',
 									'click': function() {
-										var input = document.querySelector('input[id$="wifista.main.ssid"]');
+										// Fill the first empty SSID field of the saved-network
+										// rows (LuCI ids them <section>.ssid).
+										var inputs = document.querySelectorAll('input[id$=".ssid"]');
+										var input = null;
+
+										for (var i = 0; i < inputs.length; i++) {
+											if (!inputs[i].value) {
+												input = inputs[i];
+												break;
+											}
+										}
 
 										if (input) {
 											input.value = c.ssid;
@@ -162,7 +195,7 @@ return view.extend({
 											ui.addNotification(null, E('p', {}, _('SSID set to %s \u2014 remember to Save & Apply.').format(c.ssid)));
 										}
 										else {
-											ui.addNotification(null, E('p', {}, _('SSID: %s').format(c.ssid)));
+											ui.addNotification(null, E('p', {}, _('SSID: %s \u2014 add a network row first (or clear an existing one).').format(c.ssid)));
 										}
 									}
 								}, _('Use')))
