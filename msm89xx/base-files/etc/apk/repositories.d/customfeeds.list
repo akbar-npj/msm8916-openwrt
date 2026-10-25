@@ -1,0 +1,16 @@
+# Upstream OpenWrt 25.12.6 prebuilt binary packages (aarch64_generic).
+#
+# Signed with OpenWrt's release key at /etc/apk/keys/openwrt-25.12.pem.
+# Provides the full OpenWrt package set -- incl. telephony, which our own
+# feeds do not build -- without rebuilding anything ourselves.
+#
+# Do NOT add an upstream targets/ feed: the kernel and all kmod-* packages
+# are vermagic-locked to our custom 6.12.94 build and come only from our
+# targets feed (distfeeds.list). An upstream kernel has a different vermagic
+# hash and would break every kmod.
+https://downloads.openwrt.org/releases/25.12.6/packages/aarch64_generic/base/packages.adb
+https://downloads.openwrt.org/releases/25.12.6/packages/aarch64_generic/luci/packages.adb
+https://downloads.openwrt.org/releases/25.12.6/packages/aarch64_generic/packages/packages.adb
+https://downloads.openwrt.org/releases/25.12.6/packages/aarch64_generic/routing/packages.adb
+https://downloads.openwrt.org/releases/25.12.6/packages/aarch64_generic/telephony/packages.adb
+https://downloads.openwrt.org/releases/25.12.6/packages/aarch64_generic/video/packages.adb
