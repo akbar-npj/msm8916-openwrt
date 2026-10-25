@@ -1,0 +1,35 @@
+From 4550000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] wifi: wcn36xx: fix NULL deref in the RX survey path
+
+The survey update on every received frame dereferences
+wcn->hw->wiphy->bands[band] without a NULL check.  On a 2GHz-only part
+(rf_id == RF_IRIS_WCN3620) the 5GHz band is never registered, and
+wcn36xx_rx_skb() feeds it hw->conf.chandef.chan->band unchecked.  During a
+vif/phy teardown (AP+STA channel sync, service restart, wcn36xx stop) that
+channel pointer is stale or zeroed, so band reads as a value with no
+registered band and bands[band] is NULL -- sband->channels then panics the
+kernel from IRQ context.
+
+Observed on HMUF02-V5: Oops at wcn36xx_rx_skb+0x168 (inlined
+wcn36xx_update_survey) right after a vif-delete storm while testing station
+mode, kernel panic, device reboot.
+
+The survey is best-effort telemetry (iw survey); skip the update when the
+band is not registered.
+
+---
+ drivers/net/wireless/ath/wcn36xx/txrx.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/drivers/net/wireless/ath/wcn36xx/txrx.c
++++ b/drivers/net/wireless/ath/wcn36xx/txrx.c
+@@ -286,6 +286,9 @@ static void wcn36xx_update_survey(struct wcn36xx *wcn, int rssi, int snr,
+ 		idx = wcn->hw->wiphy->bands[NL80211_BAND_2GHZ]->n_channels;
+ 
+ 	sband = wcn->hw->wiphy->bands[band];
++	if (!sband)
++		return;
++
+ 	channel = sband->channels;
+ 
+ 	for (i = 0; i < sband->n_channels; i++, channel++) {
