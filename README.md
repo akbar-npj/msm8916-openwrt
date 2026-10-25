@@ -9,7 +9,7 @@ A production-ready, fully open-source OpenWrt port for Qualcomm Snapdragon 410 (
 
 Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcomm WCN36xx Wi-Fi with WPA3-SAE**, **Bluetooth (BlueZ 5.83 + SPP)**, **USB ConfigFS CDC NCM/ACM**, **mainline CPR CPU-rail scaling**, **true persistent eMMC EXT4 overlay storage**, and working **reboot-to-EDL and reboot-to-Fastboot recovery paths**.
 
-> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Release notes](RELEASE_NOTES.md)
+> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Release notes](RELEASE_NOTES.md)
 
 ---
 
@@ -25,6 +25,7 @@ Recent additions on top of the base port:
 * **🛡️ Modem stability** — the A2 power rail is held on in the driver (`a2_pin=1`), the modem NV `HiMI_OK` marker is rewritten after every boot, and a bearer watchdog performs pre-emptive SSR recovery.
 * **🔑 Signed package feed with self-heal** — the OTA `apk` feed is signed with a pinned key, and every device re-syncs that key from a stable URL at boot.
 * **📡 Carrier auto-provisioning** — automatic SIM/carrier MBN deployment with the QMI time daemon anchoring the modem clock before LTE attach.
+* **🚦 BBR TCP congestion control is the default** — the image no longer uses CUBIC. BBR is model-based (it measures the bearer's bandwidth and RTT) instead of loss-based, so it does not mistake LTE radio loss for congestion and does not fill the base station's buffer. Result: **latency stays near idle under a full-speed download** instead of climbing to hundreds of milliseconds. See [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md).
 
 ---
 
@@ -38,6 +39,7 @@ Recent additions on top of the base port:
 * **🌡️ Thermal & Power Management**: Mainline **CPR** CPU-rail scaling (Android-parity voltage), an 800 MHz CPU OPP cap, and Wi-Fi/PMIC thermal mitigation on the HMUF02-V5. See [Thermal & Power Management](#-thermal--power-management).
 * **🛡️ Modem Stability Guard**: The A2 power rail is pinned on (`a2_pin=1`), the modem's `HiMI_OK` NV marker is rewritten after every modem boot, and `modem-bearer-watchdog` performs pre-emptive SSR recovery. See [Modem Stability](#-modem-stability).
 * **🌐 4G LTE Cellular Data & Carrier Auto-Provisioning**: Native **ModemManager** integration with automatic SIM carrier detection (`qcom-carrier-autocfg`), dynamic APN and Qualcomm Carrier MBN deployment, safe empty PLMN home operator attachment, and continuous self-healing daemon monitoring (`modem-led-monitor`).
+* **🚦 BBR TCP Congestion Control**: `tcp_bbr` is preinstalled, autoloaded and selected at boot via `/etc/sysctl.d/10-bbr.conf`. On an LTE bearer this keeps RTT flat under load (no bufferbloat), survives radio loss without collapsing the window, and paces the sender to suit the modem's grant-based uplink. See [BBR Congestion Control](Docs/BBR_TCP_CONGESTION_CONTROL.md).
 * **💾 Permanent eMMC Storage**: Automated `/dev/mmcblk0p15` (`rootfs_data`) EXT4 formatting and mounting, with preinit filesystem checking and automatic safe repair using `e2fsck -p`, providing persistent overlay storage without unnecessarily formatting an existing filesystem.
 * **💡 Intuitive Hardware Status LEDs**:
 

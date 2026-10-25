@@ -164,9 +164,10 @@ define KernelPackage/sched-bbr/description
   buffers until they drop -- the usual cause of bufferbloat latency spikes
   on LTE bearers.
 
-  Installing it only makes BBR *available*.  Switch to it at runtime with
-  `sysctl -w net.ipv4.tcp_congestion_control=bbr` (or per-destination with
-  `ip route change ... congctl bbr`); the kernel default stays cubic.
+  The image makes BBR the default congestion control via
+  /etc/sysctl.d/10-bbr.conf (net.ipv4.tcp_congestion_control=bbr), which
+  applies at boot because tcp_bbr is autoloaded.  Override per-destination
+  with `ip route change ... congctl bbr`.
 
   The module itself is already built by the target kernel config
   (CONFIG_TCP_CONG_BBR=m); this package only ships it in the feed.
