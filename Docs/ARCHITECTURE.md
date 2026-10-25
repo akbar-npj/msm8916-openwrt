@@ -36,7 +36,7 @@ is silently overwritten. Change the source in layer 1 instead.
 | `build-recovery.sh` | Builds the per-board recovery/rescue boot image (host-side). |
 | `devenv/` | Docker **builder** definition: `Dockerfile`, `docker-compose.yml`, `dependencies.sh`, `.env`. |
 | `msm89xx/` | **BSP source of truth** — the OpenWrt `target/linux/msm89xx` target, kernel patches, kernel config, base-files, image + recovery recipes, `Makefile` (`DEFAULT_PACKAGES`), `modules.mk`. |
-| `openwrt-patches/` | 3 patches applied **to the OpenWrt tree itself** (`include/package-pack.mk`, mac80211 `ath.mk`, `rstrip.sh`). |
+| `openwrt-patches/` | 4 patches applied **to the OpenWrt tree itself** (`include/package-pack.mk`, mac80211 `ath.mk`, `rstrip.sh`, netifd's wifi driver — `wifi-scripts` shell **and** ucode `mac80211.sh`). |
 | `openwrt-overlay/` | Per-package / per-feed **source patches** merged into `openwrt/` via `cp -a` before the build (wcn36xx, hostapd, libqmi, modemmanager, …). |
 | `packages/` | 21 custom userspace apps + LuCI modules; copied to `package/msm8916/`. |
 | `diffconfigs/` | 7 per-board kernel/package configs (`hmuf02v5`, `uf02`, `ufi001b`, `ufi003`, `uz801`, `mf800b`, `mifib-v12`). |
@@ -69,16 +69,27 @@ one layer silently collides at image-assembly time.
 | Ship a new program / LuCI app | `packages/&lt;name&gt;/` | `build.sh` | copied to `openwrt/package/msm8916/` |
 | Image contents / defaults / package selection | `msm89xx/base-files/`, `msm89xx/Makefile`, `msm89xx/image/`, `diffconfigs/` | image build | copied / compiled in |
 
-**Two invariants enforced by `build.sh`:**
+**Three invariants enforced by `build.sh`:**
 
 1. **`cp -a` never deletes.** `openwrt-overlay/` is merged with `cp -a`, which
    copies *over* but never removes. A patch you rename or delete from
    `openwrt-overlay/` leaves the old file behind in `openwrt/` until you delete
-   it by hand. (See `PATCHES_AND_PACKAGING.md` §2.)
+   it by hand. (See `PATCHES_AND_PACKAGING.md` §2.) Because the overlay merge
+   cannot remove files, deleting the stale copy from `openwrt/` is a required
+   part of every overlay removal.
 2. **BSP drift is fatal.** After syncing, `build.sh` runs `assert_bsp_synced()`,
    a `diff -rq` of `msm89xx/` and `packages/` against the live `openwrt/` tree.
    Any divergence aborts the build — a live tree missing patches would otherwise
    produce a silently wrong kernel. Run `./build.sh guard [--deep]` to check.
+3. **A changed patch tree forces a re-prepare.** `ensure_prepared()` normally
+   takes a fast path when `.builder-state` already records the current OpenWrt
+   version: it only re-syncs the BSP and skips `openwrt-prepare.sh` — which is
+   what applies `openwrt-patches/` and merges `openwrt-overlay/`. That meant a
+   newly added or edited patch in either tree was silently ignored by every
+   later build. `.builder-state` now also records `TREE_SHA`, a content hash of
+   `openwrt-patches/` + `openwrt-overlay/`; if it no longer matches, the fast
+   path is refused and the full preparation re-runs. (A state file predating
+   `TREE_SHA` cannot prove sync, so it also triggers a re-prepare — once.)
 
 The **diffconfig guard** additionally enforces: (a) the `=m` kernel-module
 block is *identical* across all seven boards, and (b) no diffconfig selects a
