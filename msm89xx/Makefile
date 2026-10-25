@@ -56,6 +56,16 @@ DEFAULT_PACKAGES += coreutils-stty xxd
 # nohup/timeout: same story -- wanted on every board.  They used to sit only in
 # the hmuf02v5 and mifib-v12 diffconfigs.
 DEFAULT_PACKAGES += coreutils-nohup coreutils-timeout
+# BBR TCP congestion control.  Google's BBR is model-based (it paces on
+# measured bandwidth and RTT) where the default CUBIC is loss-based, and on
+# LTE links that matters: the bursty loss CUBIC treats as congestion drags
+# throughput down.  Installing the module only makes BBR *available* -- the
+# active control stays cubic (net.ipv4.tcp_congestion_control) until an
+# operator opts in with `sysctl -w net.ipv4.tcp_congestion_control=bbr`.
+# It was hand-copied into every diffconfig as =m before; the kernel symbol
+# stays =m so it is a preinstalled, autoloaded external module, NOT compiled
+# into vmlinux.
+DEFAULT_PACKAGES += kmod-sched-bbr
 # LuCI apps maintained in this repo.  They used to be hand-copied into every
 # diffconfig, which is how ufi003 silently came to miss
 # luci-app-modem-watchdog; living here they ship on every board (and on any
