@@ -202,6 +202,12 @@ the image but nothing in the log suggests they were exercised.
 
 ## netifd-managed AP+STA CRASHES the WCNSS firmware (2026-10-24)
 
+> **SUPERSEDED 2026-10-26 — see the last section, *Attempt 2*.** On the v25.12.6
+> image (backports 6.18.55) a config-managed `wifi-iface mode=sta` survives
+> `wifi reload` with zero firmware crashes (6/6 reloads), and mac80211 derives a
+> distinct per-vif MAC by itself. The crash below was real on 6.18.26 but is fixed
+> upstream; the conclusion that AP+STA must not use a `wifi-iface` no longer holds.
+
 Config: AP (`default_radio0`, default MAC) + STA (`wifinet1`, `mode=sta`,
 `macaddr='random'`, SSID `hidden1`), `radio0.channel='6'`.
 
@@ -536,3 +542,65 @@ include $(TOPDIR)/feeds/luci/luci.mk
 make the merged view fall back to the image copy — `/etc/init.d/wifi-sta-late`
 kept serving the deleted inode until the next reboot.  Reboot (or `rm` through
 the merged path, which whiteouts) after editing an overlay file in place.
+
+## Attempt 2 (2026-10-26) — the config-managed STA WORKS on 25.12.6
+
+Branch `test/wcn36xx-config-sta` (from `staging-main` `a130b5d`). Tested on the
+live HMUF02-V5 running the v25.12.6-r1 image (kernel 6.12.112, backports 6.18.55).
+
+**Headline: the E2 crash does not reproduce.** A real `wifi-iface` with
+`mode='sta'` in `/etc/config/wireless`, a second vif on the same radio, and
+`wifi reload` — the exact sequence that produced
+`Data Abort Exception at 0x8b6b301c` on 6.18.26 — is clean on 6.18.55:
+
+| test | result |
+| --- | --- |
+| `wifi reload` with a config-managed STA + AP | **0 crashes**, `remoteproc1: running`, both vifs present |
+| the AP vif's full delete/re-add cycle (the old trigger) | ran, logged only benign `hal_delete_bss err=5` / `hal_remove_bsskey err=16` / `hal_delete_sta_self err=7` |
+| STA association | `phy0-sta0: associated`, same lease |
+| **6 consecutive `wifi reload`** | **6/6 clean**, `crashes=0`, STA re-associated after every one |
+
+### Two structural facts about backports 6.18.55
+
+1. **`sme.c` no longer exists.** The SME layer was folded into `main.c` (1711
+   lines); `wcn36xx_smd_config_bss` is now called from `main.c:561/834/890/937`.
+   Any future patch that used to target `sme.c` must target `main.c`. This is
+   also why 450-453/458/459 still apply — none of them touched `sme.c`.
+2. **The wiphy still advertises one address** (`n_addresses` / `addresses[]` are
+   never set), **but mac80211 now derives a distinct one anyway**: with no
+   `macaddr` configured the STA vif came up as `06:00:c2:b9:10:3c` while the AP
+   is `02:00:c2:b9:10:3c` — same OUI, local bit set. The 6.18.26
+   "clone the AP's address, then `ip link set up` fails with a bogus *No error
+   information*" problem is gone. **Hypothesis 2 (per-vif MACs) is resolved
+   upstream.**
+
+### What this retires
+
+* The ranked hypotheses 1-3 (IMPS/BMPS guard, per-vif MACs, CONFIG_BSS split) are
+  **not needed to make a config-managed STA safe** — the driver change landed
+  upstream between 6.18.26 and 6.18.55.
+* The premise behind the service-based Station Mode ("a `wifi-iface` STA crashes
+  the firmware, so it must not go through netifd") no longer holds on 25.12.6.
+  `openwrt-patches/811` (the phy-restart guard) is still correct and still
+  needed for the service-based design, but it is no longer the only way.
+
+### What is still open (not a driver problem)
+
+With **no** `macaddr` the STA associates successfully (`RX AssocResp status=0`)
+and then deauthenticates ~10 s later with `Reason: 3=DEAUTH_LEAVING` — a *local*
+teardown, repeated in a loop. With `macaddr='00:11:22:33:44:77'` it stayed
+connected across all six reloads. So the remaining gap is netifd/network
+plumbing (the dummy `proto=none` interface used for the test, carrier handling,
+and how netifd restarts the STA), not the wcn36xx driver.
+
+### Next steps
+
+1. Re-run the config-managed STA against a real `network` (not `proto=none`) and
+   find what issues the `DEAUTH_LEAVING` 10 s after association.
+2. Decide the product direction: keep the service-based Station Mode (works
+   today, guard-protected, LuCI app exists) or move to a `wifi-iface` and retire
+   the service. Moving would remove `wifi-sta-late`, `wifi-sta-up` and
+   `openwrt-patches/811` — but it also loses the multi-profile
+   `wifista.ap.*` model and the wrong-PSK alert, which would need rebuilding on
+   top of netifd/wpa_supplicant.
+3. Only if a crash reappears under load: revisit the CONFIG_BSS ordering.
