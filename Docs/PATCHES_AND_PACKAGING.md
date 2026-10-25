@@ -41,6 +41,19 @@ sync step copies the tracked sources into the tree:
 5. `openwrt-patches/*.patch` are applied with `patch -p1`, each one first
    dry-run so a stale patch cannot break the build.
 
+⚠ **The merge never deletes.**  If you *rename or remove* a patch in
+`openwrt-overlay/`, the old file stays in `openwrt/` and quilt applies both
+copies — the second application fails with `Hunk #1 FAILED` and the build dies
+at the mac80211 prepare step.  After a rename/removal, delete the stale copy
+from the prepared tree by hand:
+
+```sh
+rm openwrt/package/kernel/mac80211/patches/ath/<old-name>.patch
+```
+
+(The reverse case is safe: a *new* file in the overlay simply appears in the
+tree, and an *edited* file is overwritten by the sync.)
+
 `./build.sh guard [--deep]` verifies the live tree still matches the tracked
 sources — run it when a build behaves as if it used an old patch set.
 
