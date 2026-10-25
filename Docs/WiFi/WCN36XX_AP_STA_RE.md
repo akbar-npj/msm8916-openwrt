@@ -656,7 +656,9 @@ difference.
 * Station Mode stays on the service (`wifista` + `wifi-sta-late` + `wifi-sta-up`
   + `wifi-sta-guard` + `openwrt-patches/811` + `luci-app-wifi-sta`).
 * `radio0.channel` must stay **fixed** on any board that uses Station Mode.
-  `auto` turns a wedged scan into a dead AP.
+  `auto` turns a wedged scan into a dead AP.  `wifi-sta-up` now enforces it:
+  `ensure_fixed_channel` pins `auto` to the AP's current channel, or to 6 when
+  the AP has none, and restarts the radio.
 * The Attempt 2 findings still stand and are worth keeping: the 6.18.26
   `Data Abort 0x8b6b301c` does not reproduce on 6.18.55, `sme.c` is gone, and
   mac80211 derives a distinct per-vif MAC by itself. Only the *product* decision

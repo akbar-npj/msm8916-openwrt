@@ -180,6 +180,41 @@ ap_channel() {
 	iw dev "$1" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }'
 }
 
+# A failed scan plus channel='auto' is a dead AP: hostapd's ACS needs a scan,
+# and when that fails the AP comes up with neither a channel nor an SSID, so
+# nothing on the radio works until the next boot.  Station Mode is what makes a
+# scan failure likely -- wcn36xx can lose one and then answer every later scan
+# with -EBUSY for the rest of the boot -- so while it is enabled the radio must
+# have a concrete channel.  Adopt the channel the AP is already beaconing on
+# when there is one (that costs nothing); otherwise pin 6 and restart the radio
+# so the AP can actually start.
+ensure_fixed_channel() {
+	local radio="$1" cur ap ch action=""
+
+	cur="$(uci -q get "wireless.${radio}.channel")"
+	[ "$cur" = "auto" ] || return 0
+
+	ap="$(find_ap)"
+	ch=""
+	[ -n "$ap" ] && ch="$(ap_channel "$ap")"
+	if [ -z "$ch" ]; then
+		ch=6
+		# An AP with no channel needs a reconfigure to pick the new one;
+		# no AP at all means the radio is down and needs a plain start.
+		if [ -n "$ap" ]; then action=reload; else action=up; fi
+	fi
+
+	logger -t wifi-sta "radio '$radio' had channel 'auto'; pinning it to $ch (a failed ACS scan would leave the AP with no channel at all)"
+	uci set "wireless.${radio}.channel=$ch"
+	uci commit wireless
+
+	# Nothing to restart when the AP is already beaconing on that channel.
+	[ "$action" = "reload" ] && wifi reload >/dev/null 2>&1
+	[ "$action" = "up" ] && wifi up >/dev/null 2>&1
+
+	return 0
+}
+
 # Channel of the first saved network that is visible in a scan on the STA
 # vif.  Sets UP_CH and UP_SSID (empty when none is in range).
 scan_any_channel() {
@@ -215,6 +250,10 @@ bring_up_sta() {
 		sleep 300
 		exit 1
 	}
+
+	# Never leave the radio on channel 'auto' while we are about to scan: if
+	# the scan is lost, ACS cannot run either and the AP never gets a channel.
+	ensure_fixed_channel "${radio:-radio0}"
 
 	# Wait for the AP to finish starting.  hostapd restarts the phy at boot, so
 	# the vif exists well before it is ENABLED; creating the STA in that window

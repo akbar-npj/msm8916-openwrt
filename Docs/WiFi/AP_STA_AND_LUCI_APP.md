@@ -169,6 +169,8 @@ The station has **no channel of its own**: it must sit on the same channel as
 the AP it is associated to, and the AP is the one that has to move.  At
 bring-up the service therefore:
 
+0. refuses to run on `channel='auto'` (see below) — it pins the radio to a
+   concrete channel first,
 1. creates the vif and `ip link set up`s it (a DOWN netdev cannot scan),
 2. scans for the saved networks and reads the channel of the **first one in
    range**,
@@ -179,6 +181,17 @@ bring-up the service therefore:
 
 A mismatch is otherwise silent and confusing: `SME: Authentication request to
 the driver failed` in a growing back-off loop, and no lease — but no crash.
+
+**Why `auto` is refused.**  With `channel='auto'` hostapd runs an ACS scan at
+every AP start, and wcn36xx can lose a scan and then answer every later one
+with `-EBUSY` until the next boot.  When ACS is the victim the AP comes up with
+**no channel and no SSID**, so the whole radio is dead — a failed station
+attempt takes the access point with it.  `ensure_fixed_channel` in
+`wifi-sta-up` therefore runs before anything else: it adopts the channel the AP
+is already beaconing on when there is one (no disruption, no reload), and
+otherwise pins **6** and restarts the radio so the AP can actually start.  The
+log line is `radio 'radio0' had channel 'auto'; pinning it to N`.  Once pinned,
+step 3 above may still move the AP to the upstream's channel as usual.
 
 The AP's own clients see a brief drop when the channel changes (no CSA is sent).
 
@@ -370,6 +383,8 @@ End-to-end through uhttpd as that login:
   kills the AP (it never picks a channel and comes up without an SSID), so the
   whole radio is dead until the next reboot.  A fixed channel keeps the AP
   usable and lets the service's `recover_after` watchdog retry the station.
+  The service enforces this: on start it pins `auto` to the AP's current
+  channel, or to **6** when the AP has none, and logs `pinning it to N`.
 - **A plain `wifi-iface mode=sta` is not a replacement.**  It was ported and
   measured on 2026-10-26 (backports 6.18.55, so no firmware crash): it
   associates on about one boot in three, and the failures lose the radio's scan
