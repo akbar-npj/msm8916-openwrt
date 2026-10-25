@@ -12,8 +12,9 @@ to confuse:
 
 Both are built from [`msm89xx/recovery/`](../../msm89xx/recovery/) — see that
 README for what is inside the image (USB NCM + ACM gadget, SSH on
-`192.168.10.1`, the browser uploader, the WiFi AP `OpenWrt-Recovery`).  This
-page is about the **partition** and how to get into it.
+`192.168.10.1`, the browser uploader, the WiFi AP `OpenWrt-Recovery`, and the
+optional WiFi **station**).  This page is about the **partition** and how to get
+into it.
 
 ---
 
@@ -123,7 +124,27 @@ strings /dev/mmcblk0p12 2>/dev/null | grep -c "boot failover"   # aboot patched?
 
 ---
 
-## 5. See also
+## 5. Reaching the rescue image without a cable
+
+The image always raises the AP `OpenWrt-Recovery` (WPA2/WPA3, passphrase
+`recovery`) and serves `192.168.10.1` on it, so a phone or laptop can drive the
+web UI with no USB connection.  That is enough when the box is next to you.
+
+If it is not — the stick is mounted in a box, or the AP's passphrase is not
+something you want to type on a phone — join the **upstream** network instead:
+open the web UI, use **WiFi station → Scan → Join**, and the box also appears on
+your own LAN under a DHCP address.  Both run at once: the AP keeps
+`192.168.10.1`, the station takes a second address upstream.  The join is not
+persisted (the initramfs is rebuilt on every boot), so do it again after a
+reboot.
+
+See *AP and station at the same time* in
+[`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) for the
+details and the traps.
+
+---
+
+## 6. See also
 
 * [`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) — the image
   itself: what `/init` starts, how to rebuild the frozen binaries, the web UI.

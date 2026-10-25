@@ -158,20 +158,39 @@ grep -q "^CONFIG_WCN36XX=y" "$KSRC/.config" || {
     exit 1
 }
 
-# The in-tree wcn36xx lacks MFP_CAPABLE (needed for WPA3/SAE PMF).  Carry the
-# same OpenWrt mac80211 patch used for the backports driver so the recovery AP
-# can do WPA3.  Fatal if it does not apply: hostapd.conf requires PMF.
-# The kernel tree is reused between runs, so the patch is usually already in
-# place - a reverse dry-run detects that and keeps the step idempotent.
-WPA3_PATCH=/repo/openwrt/package/kernel/mac80211/patches/ath/451-wcn36xx-mfp-wpa3.patch
-if patch -d "$KSRC" -p1 -R --dry-run -f < "$WPA3_PATCH" >/dev/null 2>&1; then
-    echo "wcn36xx MFP/WPA3 patch already applied"
-else
-    patch -d "$KSRC" -p1 --forward < "$WPA3_PATCH" || {
-        echo "ERROR: wcn36xx MFP/WPA3 patch did not apply" >&2
+# --- carry the wcn36xx driver series ------------------------------------------
+# The production image runs the mac80211 *backports* driver, which gets these
+# from openwrt-overlay/package/kernel/mac80211/patches/ath/.  The recovery
+# kernel builds the driver that ships *inside* the kernel tree, so the same
+# patches have to be applied to that source - otherwise the two images run
+# different drivers and a recovery AP+STA behaves differently from the system
+# it is rescuing.  Only 451 (MFP/WPA3) used to be carried; 450/452/458 are what
+# make concurrent AP+STA usable and 459 is the RX-survey NULL-deref panic.
+#
+# All six apply cleanly to 6.12.112.  The kernel tree is reused between runs,
+# so each patch is probed with a reverse dry-run first and skipped if present.
+PATCH_DIR=/repo/openwrt-overlay/package/kernel/mac80211/patches/ath
+WCN36XX_PATCHES=(
+    450-wcn36xx-only-send-mc-list-when-sta-associated.patch
+    451-wcn36xx-mfp-wpa3.patch
+    452-wcn36xx-iface-combinations.patch
+    453-wcn36xx-thermal-mitigation.patch
+    458-wcn36xx-bmps-concurrency-guard.patch
+    459-wcn36xx-rx-survey-null-band.patch
+)
+for p in "${WCN36XX_PATCHES[@]}"; do
+    f="$PATCH_DIR/$p"
+    [ -f "$f" ] || { echo "ERROR: $f is missing" >&2; exit 1; }
+    if patch -d "$KSRC" -p1 -R --dry-run -f < "$f" >/dev/null 2>&1; then
+        echo "wcn36xx: $p already applied"
+        continue
+    fi
+    patch -d "$KSRC" -p1 --forward < "$f" || {
+        echo "ERROR: $p did not apply" >&2
         exit 1
     }
-fi
+    echo "wcn36xx: applied $p"
+done
 
 # --- build the kernel + board DTBs -------------------------------------------
 make -C "$KSRC" ARCH=arm64 CROSS_COMPILE=aarch64-openwrt-linux-musl- -j$(nproc) Image dtbs

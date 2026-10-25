@@ -27,6 +27,10 @@ cmdline  empty — /init does everything
 * WiFi AP `OpenWrt-Recovery`, WPA2-PSK **and** WPA3-SAE, passphrase
   `recovery`, bridged into `br0` (best-effort: a missing driver/firmware
   never blocks the USB/SSH path)
+* WiFi **station** on a second vif (`wlan1`), opt-in: join an existing
+  network from the web UI and the box also answers on *your* LAN, without a
+  USB cable and without giving up the AP.  Not bridged into `br0` — it takes
+  its own lease (see *AP and station at the same time*)
 * Root shell on `/dev/ttyGS0` (ACM console, no auth) and
   `ssh root@192.168.10.1` with **no password** (OpenWrt
   `600-allow-blank-root-password.patch`; `/etc/passwd` field 2 is empty)
@@ -87,7 +91,7 @@ the same on `mf800b`, `mifib-v12` and `hmuf02v5`.
 | `irfs/lib/ld-musl-aarch64.so.1`, `libc.so`, `libgcc_s.so.1` | bit-identical to the toolchain rootfs copies (`build_dir/.../root-msm89xx/lib/`) |
 | `irfs/sbin/reboot-mode-raw` | built from `msm89xx/package/reboot-edl` sources |
 | `irfs/usr/sbin/dnsmasq` | bit-identical to the OpenWrt dnsmasq package build (`build_dir/.../root-msm89xx/usr/sbin/dnsmasq`); needs `libubox`/`libubus` from `irfs/lib` |
-| `irfs/usr/sbin/hostapd` + its `.so` libs (`irfs/lib/libnl*`, `libwolfssl*`/`libmbed*`) | **NOT frozen / not committed** - pulled per board from a live device by `fetch-device-blobs.sh` (a SAE-capable build; the board already serves WPA3 with it). See the note below. |
+| `irfs/usr/sbin/hostapd`, `irfs/usr/sbin/iw`, `irfs/usr/sbin/wpa_supplicant` + their `.so` libs (`irfs/lib/libnl*`, `libwolfssl*`/`libmbed*`) | **NOT frozen / not committed** - pulled per board from a live device by `fetch-device-blobs.sh` (a SAE-capable build; the board already serves WPA3 with it). `wpa_supplicant` is a **symlink to `hostapd`**: OpenWrt ships one multicall `wpad` behind both names, and the fetch script checks that on the device before falling back to a second binary. See the note below. |
 | `irfs/etc/hostapd.conf` | WPA2 + WPA3 (SAE) AP `OpenWrt-Recovery`, passphrase `recovery` |
 
 ### WiFi firmware and hostapd are fetched per board, not committed
@@ -118,6 +122,91 @@ DHCP lease on `192.168.10.x`.
 After an upstream version bump, rebuild the binary from the matching source,
 copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.
 
+## AP and station at the same time
+
+The image can run the AP **and** join an upstream network. Both live on the
+same radio: `wlan0` is the AP (hostapd → `br0`), `wlan1` is a managed vif that
+`wpa_supplicant` drives. That needs wcn36xx interface-combination support, i.e.
+patch **452** — so the recovery kernel carries the whole six-patch series
+(450/451/452/453/458/459) and runs the *same driver* as the system it is
+rescuing. `build-recovery.sh` applies them to the in-tree 6.12 source and
+aborts the build if one does not apply.
+
+Why the station is worth having: a stick in recovery that only runs an AP is
+reachable from whatever can see `OpenWrt-Recovery`; with the station joined it
+is also on the network you already use, so you can rescue it from your desk
+without reconfiguring your laptop.
+
+### How it is wired
+
+* The station is **not** bridged into `br0`. `br0` is `192.168.10.1/24` with its
+  own DHCP server; bridging an upstream LAN into it would answer DHCP on
+  somebody else's network. `wlan1` takes its own lease instead, so the box ends
+  up with a second address on the upstream link.
+* The profile is `/etc/wifi-sta.conf` (wpa_supplicant syntax). **It does not
+  survive a reboot**: `/etc` is the initramfs, rebuilt from scratch every boot.
+  Joining is a per-session action.
+* With no profile the station costs nothing — `/init` polls for the file and
+  never creates `wlan1`.
+
+### What /init does
+
+1. Wait for `wlan0`, then 3 s for the wcn36xx firmware to settle. Starting a
+   scan inside the bring-up window is what loses the driver's scan state, after
+   which every scan answers `-EBUSY` until the next boot — the same failure the
+   production `wifi-sta-up` guards against.
+2. `iw phy phy0 interface add wlan1 type managed`, `ip link set wlan1 up`.
+3. `wpa_supplicant -D nl80211 -i wlan1 -c /etc/wifi-sta.conf` in the
+   foreground under a restart loop. The loop re-arms when the profile is
+   rewritten (join again) or deleted (leave).
+4. Once `iw dev wlan1 link` reports `Connected to`, run
+   `udhcpc -i wlan1`. The hook is `irfs/usr/share/udhcpc/default.script` —
+   busybox ships none, and without one udhcpc gets a lease and installs nothing.
+5. Leaving flushes the address and deletes `wlan1`.
+
+### Configuring it
+
+Web UI → **WiFi station**: *Scan*, pick a network (or type the SSID of a hidden
+one), enter the passphrase, *Join*. *Leave* removes the profile.
+
+The browser builds the `wpa_supplicant` config, not the CGI: the initramfs has
+no URL decoder and no `wpa_passphrase`, and building it client-side lets the
+SSID go over the wire as a **hex string** (`ssid=4d79204e6574…`, a native
+wpa_supplicant form) so no quoting is involved. Only the passphrase needs
+escaping (`"` and `\`). The CGI writes the file and `killall wpa_supplicant`
+makes the supervisor re-read it.
+
+From a shell the same thing by hand — `wpa_passphrase` is not in the initramfs
+either, so it is a heredoc:
+
+```sh
+cat > /etc/wifi-sta.conf <<'EOF'
+network={
+	ssid=4d79204e6574776f726b
+	psk="secret"
+}
+EOF
+killall wpa_supplicant        # /init restarts it with the new profile
+```
+
+`ssid=` also accepts a quoted plain string; the hex form is what the UI uses
+because it cannot be broken by a quote in the network name.
+
+### Traps
+
+* **A UI scan needs `wlan1` too.** The CGI creates the vif if no profile
+  exists yet and leaves it behind. Harmless — the supervisor deletes and re-adds
+  it when it starts.
+* **A scan can still wedge the driver** (`-EBUSY` forever) if its completion
+  event is lost. The AP keeps working — it is on a fixed channel and never runs
+  ACS — but no further scan succeeds until a reboot. The CGI caps the scan at
+  20 s so the page cannot hang on it.
+* **`-EBUSY` is also what breaks a `channel=auto` AP** on this driver: hostapd
+  runs an ACS scan at every start, so a lost scan leaves the AP with no channel
+  at all. `hostapd.conf` therefore pins `channel=6`; do not switch it to `auto`.
+* The station shares the radio with the AP, so throughput on both is halved.
+  Fine for SSH and the web UI, which is all this link is for.
+
 ## Web UI (flash from a browser)
 
 `busybox httpd` serves `/www` on port 80 and runs the CGIs in
@@ -130,6 +219,10 @@ copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.
 | `POST /cgi-bin/flash?mode=sysupgrade` | body = `*-sysupgrade.bin` (tar) |
 | `POST /cgi-bin/flash?mode=partition&target=<name>` | body = raw image |
 | `POST /cgi-bin/power?action=reboot\|edl` | reset, or reset into EDL 9008 |
+| `GET /cgi-bin/wifi?action=status` | station state: `state \t ssid \t signal \t ip` |
+| `GET /cgi-bin/wifi?action=scan` | one BSS per line: `ssid \t bssid \t signal \t freq \t security` |
+| `POST /cgi-bin/wifi?action=join` | body = wpa_supplicant config → `/etc/wifi-sta.conf` |
+| `POST /cgi-bin/wifi?action=leave` | delete the profile, drop the link |
 
 The upload body is the **raw request body** (`fetch`/`XHR` send the File
 directly), not multipart, so the CGI is a plain `cat > /tmp/upload.img` -

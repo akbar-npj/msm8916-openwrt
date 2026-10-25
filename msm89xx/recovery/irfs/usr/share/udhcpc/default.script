@@ -1,0 +1,25 @@
+#!/bin/sh
+# Minimal busybox udhcpc hook for the recovery station link (wlan1).
+#
+# The initramfs ships no /usr/share/udhcpc/default.script, and udhcpc does
+# nothing at all without one -- it hands the lease to the script and expects it
+# to configure the interface.  Only the four events udhcpc actually sends are
+# handled; there is no NTP/classless-route handling because a rescue box does
+# not need either.
+
+case "$1" in
+deconfig)
+	ip addr flush dev "$IFACE" 2>/dev/null
+	;;
+bound|renew)
+	ip addr flush dev "$IFACE" 2>/dev/null
+	ip addr add "$IP/$mask" dev "$IFACE" 2>/dev/null
+	[ -n "$router" ] && ip route replace default via "$router" dev "$IFACE" 2>/dev/null
+	: >/etc/resolv.conf
+	for r in $dns; do
+		echo "nameserver $r" >>/etc/resolv.conf
+	done
+	;;
+esac
+
+exit 0

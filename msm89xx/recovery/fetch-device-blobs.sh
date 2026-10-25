@@ -33,16 +33,31 @@ echo "[+] fetching wlan/prima NV (WCNSS_qcom_wlan_nv.bin)"
 scp -p "$HOST:/lib/firmware/wlan/prima/WCNSS_qcom_wlan_nv.bin" "$FW/wlan/prima/" \
     || echo "!! WCNSS_qcom_wlan_nv.bin not found on device; the AP may fail without it"
 
-echo "[+] fetching hostapd"
+echo "[+] fetching hostapd / wpa_supplicant"
 scp -p "$HOST:/usr/sbin/hostapd" "$DEST/usr/sbin/hostapd"
 chmod +x "$DEST/usr/sbin/hostapd"
 
-# hostapd's library closure, resolved ON THE DEVICE (the libs are aarch64 and
-# this host cannot ldd them).  The walk is transitive: libblobmsg_json pulls in
-# libjson-c, for example, and a missing indirect library makes hostapd exit
-# with no useful message.
-echo "[+] resolving hostapd's shared libraries (transitive)"
-LIBS=$(ssh "$HOST" 'set -- /usr/sbin/hostapd; seen=""; while [ $# -gt 0 ]; do f="$1"; shift; for l in $(ldd "$f" 2>/dev/null | grep -oE "/[^ ]+\.so[^ ]*"); do case " $seen " in *" $l "*) continue ;; esac; seen="$seen $l"; set -- "$@" "$l"; done; done; echo $seen')
+# OpenWrt ships ONE multicall binary ('wpad') behind both names.  When the
+# device does the same, the station daemon is a symlink and costs nothing in
+# the initramfs; otherwise fetch the real second binary.
+if ssh "$HOST" '[ "$(readlink -f /usr/sbin/hostapd)" = "$(readlink -f /usr/sbin/wpa_supplicant)" ]'; then
+    ln -sf hostapd "$DEST/usr/sbin/wpa_supplicant"
+    echo "    wpa_supplicant -> hostapd (same multicall binary on the device)"
+else
+    scp -p "$HOST:/usr/sbin/wpa_supplicant" "$DEST/usr/sbin/wpa_supplicant"
+    chmod +x "$DEST/usr/sbin/wpa_supplicant"
+fi
+
+echo "[+] fetching iw"
+scp -p "$HOST:/usr/sbin/iw" "$DEST/usr/sbin/iw"
+chmod +x "$DEST/usr/sbin/iw"
+
+# Library closure of BOTH binaries, resolved ON THE DEVICE (the libs are
+# aarch64 and this host cannot ldd them).  The walk is transitive:
+# libblobmsg_json pulls in libjson-c, for example, and a missing indirect
+# library makes the daemon exit with no useful message.
+echo "[+] resolving hostapd + iw shared libraries (transitive)"
+LIBS=$(ssh "$HOST" 'set -- /usr/sbin/hostapd /usr/sbin/iw; seen=""; while [ $# -gt 0 ]; do f="$1"; shift; for l in $(ldd "$f" 2>/dev/null | grep -oE "/[^ ]+\.so[^ ]*"); do case " $seen " in *" $l "*) continue ;; esac; seen="$seen $l"; set -- "$@" "$l"; done; done; echo $seen')
 for lib in $LIBS; do
     case "$lib" in
         */ld-musl*|*/libc.so*|*/libgcc_s*) continue ;;
