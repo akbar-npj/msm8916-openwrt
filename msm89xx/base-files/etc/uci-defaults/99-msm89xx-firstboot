@@ -56,22 +56,22 @@ sed -i \
     2>/dev/null || true
 
 cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/packages/packages.adb
 EOF
 
 # Ensure repository signing key for akbar-npj custom feeds exists.
 #
 # This is the public half of the persistent key the CI release job signs the
 # package feed with (repo secret APK_SIGNING_KEY).  It is also embedded in the
-# image at /etc/apk/keys/akbar-npj-v25.12.5.pem via base-files.  The apk-key-refresh
+# image at /etc/apk/keys/akbar-npj-v25.12.6.pem via base-files.  The apk-key-refresh
 # service keeps it in sync with the canonical key published at a stable URL, so a
 # device flashed with an older image self-heals instead of rejecting the feed with
 # "UNTRUSTED signature".
-if [ ! -f /etc/apk/keys/akbar-npj-v25.12.5.pem ]; then
+if [ ! -f /etc/apk/keys/akbar-npj-v25.12.6.pem ]; then
     mkdir -p /etc/apk/keys
-    cat << 'EOF' > /etc/apk/keys/akbar-npj-v25.12.5.pem
+    cat << 'EOF' > /etc/apk/keys/akbar-npj-v25.12.6.pem
 -----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEVuQP6A+xWmNj1/rPFN+9adeTnVrG
 oxFMGAsoNcx1eInT4k6nu3H8Azjzaluvuk1VPQ11tE+XaIgDBEI8rms84A==

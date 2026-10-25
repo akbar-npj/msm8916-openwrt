@@ -334,6 +334,45 @@ prepared_version() {
     ' "$OPENWRT_DIR/.builder-state"
 }
 
+# Content hash of the trees that openwrt-prepare.sh copies into the OpenWrt
+# tree: openwrt-patches/ (`patch -p1`) and openwrt-overlay/ (`cp -a`).
+#
+# The fast path in ensure_prepared() below skips openwrt-prepare.sh entirely, so
+# without this a newly added or edited patch in either tree would be silently
+# ignored by every later build. Paths are relative so the hash is identical on
+# the host and inside the builder container (see openwrt-prepare.sh).
+tree_fingerprint() {
+
+    local dir
+
+    for dir in "$@"; do
+
+        [ -d "$dir" ] || continue
+
+        (
+            cd "$dir" || exit 1
+            find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum
+        )
+    done | sha256sum | cut -d' ' -f1
+}
+
+# True when the live tree was prepared from exactly these two trees. A state
+# file written before the fingerprint existed cannot prove that, so it fails.
+prepared_tree_in_sync() {
+
+    local recorded current
+
+    [ -f "$OPENWRT_DIR/.builder-state" ] || return 1
+
+    recorded="$(awk -F= '/^TREE_SHA=/ { print $2 }' "$OPENWRT_DIR/.builder-state")"
+
+    [ -n "$recorded" ] || return 1
+
+    current="$(tree_fingerprint "$REPO_DIR/openwrt-patches" "$REPO_DIR/openwrt-overlay")"
+
+    [ "$recorded" = "$current" ]
+}
+
 prepare_tree() {
 
     local version="$1"
@@ -502,13 +541,19 @@ ensure_prepared() {
 
     prepared="$(prepared_version || true)"
 
-    if [ "$prepared" = "$version" ]; then
+    if [ "$prepared" = "$version" ] && prepared_tree_in_sync; then
 
         ok "OpenWrt tree already prepared for $version."
 
         sync_bsp
 
         return
+    fi
+
+    if [ "$prepared" = "$version" ]; then
+
+        warn "openwrt-patches/ or openwrt-overlay/ changed since the tree was prepared."
+        warn "Re-running the full preparation so the live tree picks the change up."
     fi
 
     prepare_tree "$version"

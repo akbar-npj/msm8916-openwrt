@@ -7,7 +7,7 @@ name: Rebuild Selected Boards & Update Release
 #
 # Dispatch example:
 #   gh workflow run rebuild-boards.yml --ref main \
-#     -f boards="uf02 uz801" -f release_tag="v25.12.5-r4"
+#     -f boards="uf02 uz801" -f release_tag="v25.12.6-r1"
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
         required: true
         type: string
       release_tag:
-        description: "Existing release tag to update (e.g. v25.12.5-r4)"
+        description: "Existing release tag to update (e.g. v25.12.6-r1)"
         required: true
         type: string
 
@@ -65,7 +65,7 @@ jobs:
       - name: Determine Version
         id: vars
         run: |
-          VERSION=$(cat version 2>/dev/null || echo "25.12.5")
+          VERSION=$(cat version 2>/dev/null || echo "25.12.6")
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Cache OpenWrt Downloads & Toolchain

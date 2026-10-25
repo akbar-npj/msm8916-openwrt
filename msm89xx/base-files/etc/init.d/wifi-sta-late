@@ -10,9 +10,12 @@
 #   sta  - creates the vif, then runs wpa_supplicant in the foreground
 #   dhcp - waits for association, then runs udhcpc in the foreground
 #
-# CAVEAT: "wifi reload" (or saving wireless settings in LuCI) restarts the phy
-# while the STA vif exists, which hits the same firmware bug.  Stop this service
-# first, reload wifi, then start it again.
+# PHY RESTARTS ARE HANDLED: netifd's wireless setup/teardown call
+# /usr/sbin/wifi-sta-guard, which stops this service before the phy is touched
+# and restarts it afterwards (openwrt-patches/811).  So "wifi reload" and
+# Save & Apply in LuCI are safe with the station up.  Anything that resets the
+# radio WITHOUT going through netifd (a raw "iw dev wlan0 del", a driver
+# rebind, "rmmod wcn36xx") still hits the bug -- stop this service first.
 
 START=95
 STOP=10

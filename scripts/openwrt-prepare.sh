@@ -438,6 +438,34 @@ fix_luci_branch_metadata() {
 }
 
 ###############################################################################
+# Tree fingerprint
+###############################################################################
+
+# Content hash of the trees that are copied into the OpenWrt tree:
+# openwrt-patches/ (applied with `patch -p1`) and openwrt-overlay/ (merged
+# with `cp -a`). build.sh records this so that its fast path -- which skips
+# this script entirely -- can tell whether the prepared tree still matches
+# them. Without it a newly added or edited patch would be silently ignored by
+# every later build, the same failure mode the BSP drift check exists to catch.
+#
+# Paths are relative (the function cd's first) so the hash is identical whether
+# it is computed on the host or inside the builder container.
+tree_fingerprint() {
+
+    local dir
+
+    for dir in "$@"; do
+
+        [ -d "$dir" ] || continue
+
+        (
+            cd "$dir" || exit 1
+            find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum
+        )
+    done | sha256sum | cut -d' ' -f1
+}
+
+###############################################################################
 # Builder state
 ###############################################################################
 
@@ -448,6 +476,7 @@ write_builder_state() {
     cat > "$STATE_FILE" <<EOF
 OPENWRT_VERSION=$OPENWRT_VERSION
 PREPARED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+TREE_SHA=$(tree_fingerprint "$OPENWRT_PATCHES_DIR" "$REPO_DIR/openwrt-overlay")
 EOF
 }
 

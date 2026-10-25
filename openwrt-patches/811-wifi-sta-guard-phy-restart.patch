@@ -1,0 +1,131 @@
+wifi-scripts: take Station Mode down around a phy restart
+
+wcn36xx's firmware dies when the phy is restarted while wpa_supplicant owns
+a managed interface on it:
+
+  boot_exception_c_handlers.c:108: Data Abort Exception at 0x8b6b301c
+
+Station Mode is deliberately not a wifi-iface -- it is created by the
+wifi-sta-late service with iw after the AP is up -- so netifd has no idea it
+exists.  Any wireless-config change (wifi reload, Save & Apply in LuCI, a
+channel change) therefore restarts the phy underneath a live station and
+crashes the firmware, taking the AP down with it.
+
+Bracket the driver with the guard, which stops the service before the phy is
+touched and restarts it once the phy is configured:
+
+  setup()     wifi-sta-guard down ... wifi-sta-guard up
+  teardown()  wifi-sta-guard down
+
+Teardown deliberately does not restart the station: the matching setup does,
+and a teardown with no setup after it (radio disabled, reboot) is exactly when
+it must stay down.  A stopped station leaves a flag behind, so a "down" that
+was a no-op (boot, disabled, station already down) does not cause a spurious
+"up", and the service's own channel-change reload cannot kill itself.
+
+Both verbs are no-ops when Station Mode is disabled, so the hook is
+unconditional.
+
+Two drivers are patched because wifi-scripts ships both and installs the ucode
+one over the shell one when CONFIG_WIFI_SCRIPTS_UCODE=y (the default, and what
+this target builds).  Patching only the shell driver would silently do
+nothing.
+
+--- a/package/network/config/wifi-scripts/files/lib/netifd/wireless/mac80211.sh
++++ b/package/network/config/wifi-scripts/files/lib/netifd/wireless/mac80211.sh
+@@ -1154,6 +1154,16 @@
+ 		return 1
+ 	}
+ 
++	# Station Mode guard: see openwrt-patches/811 and /usr/sbin/wifi-sta-guard.
++	# A phy restart with wpa_supplicant owning a managed interface crashes the
++	# wcn36xx firmware, and Station Mode is not a wifi-iface, so netifd knows
++	# nothing about it.  Stop it here, before any phy state is touched, and give
++	# it back at the end of setup.  Both verbs are no-ops when Station Mode is
++	# disabled; "up" only restarts the service if "down" stopped a running one.
++	if [ -x /usr/sbin/wifi-sta-guard ]; then
++		/usr/sbin/wifi-sta-guard down
++	fi
++
+ 	set_default ifname_prefix "$phy$vif_phy_suffix-"
+ 
+ 	local wdev
+@@ -1240,6 +1250,10 @@
+ 
+ 	for_each_interface "ap sta adhoc mesh monitor" mac80211_set_vif_txpower
+ 	wireless_set_up
++
++	if [ -x /usr/sbin/wifi-sta-guard ]; then
++		/usr/sbin/wifi-sta-guard up
++	fi
+ }
+ 
+ _list_phy_interfaces() {
+@@ -1261,6 +1275,14 @@
+ }
+ 
+ drv_mac80211_teardown() {
++	# The phy is about to be reset: take Station Mode down first (no-op when
++	# disabled or already down).  "up" is deliberately NOT called here -- the
++	# matching drv_mac80211_setup() restores the station, and a teardown with no
++	# setup after it (radio disabled, reboot) is exactly when it must stay down.
++	if [ -x /usr/sbin/wifi-sta-guard ]; then
++		/usr/sbin/wifi-sta-guard down
++	fi
++
+ 	json_select data
+ 	json_get_vars phy radio
+ 	json_select ..
+--- a/package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh
++++ b/package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh
+@@ -42,6 +42,22 @@
+ 	system(`ucode /usr/share/hostap/wdev.uc ${name} set_config '{}'`);
+ }
+ 
++// Station Mode guard.
++//
++// wcn36xx's firmware dies on a phy restart while wpa_supplicant owns a managed
++// interface on that phy (Data Abort at 0x8b6b301c).  Station Mode is created by
++// the wifi-sta-late service with iw -- it is deliberately NOT a wifi-iface -- so
++// netifd knows nothing about it and used to restart the phy underneath a live
++// station.  Stop it before the phy is touched and give it back afterwards.
++// Both verbs are no-ops when Station Mode is disabled; "up" only restarts the
++// service if "down" actually stopped a running station.
++function sta_guard(action) {
++	if (!fs.access('/usr/sbin/wifi-sta-guard', 'x'))
++		return;
++	if (system(`/usr/sbin/wifi-sta-guard ${action}`))
++		log(`wifi-sta-guard ${action} failed`);
++}
++
+ function get_channel_frequency(band, channel) {
+ 	if (channel < 1)
+ 		return null;
+@@ -166,6 +182,9 @@
+ 		netifd.set_retry(false);
+ 		return 1;
+ 	}
++
++	sta_guard('down');
++
+ 	data.phy_suffix = phy_suffix(data.config.radio, ":");
+ 	data.vif_phy_suffix = phy_suffix(data.config.radio, ".");
+ 	data.ifname_prefix = data.config.ifname_prefix;
+@@ -309,6 +328,8 @@
+ 
+ 	netifd.set_up();
+ 
++	sta_guard('up');
++
+ 	return 0
+ }
+ 
+@@ -318,6 +339,8 @@
+ 	if (ARGV[2] == "#mlo")
+ 		return 0;
+ 
++	sta_guard('down');
++
+ 	if (!data.data?.phy) {
+ 		log('Bug: PHY is undefined for device');
+ 		return 1;

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag (e.g. v25.12.5, leave empty to use current version)"
+        description: "Release tag (e.g. v25.12.6, leave empty to use current version)"
         required: false
         default: ""
 
@@ -40,12 +40,17 @@ jobs:
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
-            TAG="v25.12.5"
+            TAG="v25.12.6"
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          VERSION=$(cat version 2>/dev/null || echo "25.12.5")
+          VERSION=$(cat version 2>/dev/null || echo "25.12.6")
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Building for Tag: ${TAG}, OpenWrt Version: ${VERSION}"
+          # Devices point CONFIG_VERSION_REPO at releases/<base>, where base is
+          # the version WITHOUT the -rN suffix (see sync-version.sh).  Publish
+          # the feed there as well, or every device gets a 404.
+          BASE="${VERSION%-r*}"
+          echo "base=${BASE}" >> $GITHUB_OUTPUT
+          echo "Building for Tag: ${TAG}, OpenWrt Version: ${VERSION}, Feed base: ${BASE}"
 
       - name: Cache OpenWrt Downloads & Toolchain
         uses: actions/cache@v4
@@ -102,15 +107,26 @@ jobs:
 
       - name: Prepare GitHub Pages Feed Repository
         run: |
-          mkdir -p /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/targets/msm89xx/msm8916
-          mkdir -p /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages
-          cp -a openwrt/bin/targets/msm89xx/msm8916/packages /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/targets/msm89xx/msm8916/
-          cp -a openwrt/bin/packages/aarch64_generic /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/packages/
-          # Publish the feed signing key (public half of APK_SIGNING_KEY) both in
-          # the versioned release dir and at a stable, version-independent path.
-          # Devices run apk-key-refresh, which fetches the stable URL at boot to
+          set -euo pipefail
+          # Two paths, on purpose:
+          #   releases/<base>     what devices actually read.  CONFIG_VERSION_REPO
+          #                       is written by sync-version.sh as releases/<base>,
+          #                       i.e. WITHOUT the -rN suffix, so a rebuild of the
+          #                       same OpenWrt version keeps a working feed.
+          #   releases/<version>  the exact release, so a specific build stays
+          #                       identifiable and reproducible.
+          # Publishing only the second one leaves every device with a 404 feed.
+          for DIR in $(printf '%s\n' "${{ steps.vars.outputs.base }}" "${{ steps.vars.outputs.version }}" | sort -u); do
+            echo "Publishing feed to releases/${DIR}"
+            mkdir -p "/tmp/gh-pages-site/releases/${DIR}/targets/msm89xx/msm8916"
+            mkdir -p "/tmp/gh-pages-site/releases/${DIR}/packages"
+            cp -a openwrt/bin/targets/msm89xx/msm8916/packages "/tmp/gh-pages-site/releases/${DIR}/targets/msm89xx/msm8916/"
+            cp -a openwrt/bin/packages/aarch64_generic "/tmp/gh-pages-site/releases/${DIR}/packages/"
+            # Public half of APK_SIGNING_KEY, per release dir.
+            [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem "/tmp/gh-pages-site/releases/${DIR}/public-key.pem" || true
+          done
+          # Stable, version-independent key path used by apk-key-refresh to
           # self-heal a stale embedded key (see msm89xx/base-files/usr/sbin/apk-key-refresh).
-          [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/releases/${{ steps.vars.outputs.version }}/public-key.pem || true
           [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/public-key.pem || true
 
       - name: Deploy Package Feeds to GitHub Pages (gh-pages branch)

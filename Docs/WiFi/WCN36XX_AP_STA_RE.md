@@ -380,10 +380,14 @@ default route still via wwan0 (LTE)
 
 ### Caveats
 
-1. **`wifi reload` / LuCI wireless save while the STA is up restarts the phy
-   with `phy0-sta0` present → same firmware crash.**  Stop the service first:
-   `/etc/init.d/wifi-sta-late stop; wifi reload; /etc/init.d/wifi-sta-late start`.
-   A wrapper around `/sbin/wifi` would remove this footgun and is not written.
+1. ~~**`wifi reload` / LuCI wireless save while the STA is up restarts the phy
+   with `phy0-sta0` present → same firmware crash.**~~ **CLOSED in 25.12.6.**
+   `openwrt-patches/811` brackets `drv_mac80211_setup()` with
+   `wifi-sta-guard down` … `up` and calls `down` from
+   `drv_mac80211_teardown()`, so netifd can no longer restart the phy under a
+   live station.  Only non-netifd radio resets (raw `iw dev del`, `rmmod`,
+   driver rebind) still need the manual
+   `/etc/init.d/wifi-sta-late stop; …; start` sequence.
 2. **A fast stop/start cycle can log one `SME: Authentication request to the
    driver failed`** and put the BSSID on wpa_supplicant's 10 s ignore list; it
    recovers by itself (observed during `restart`, not at boot).
@@ -393,10 +397,9 @@ default route still via wwan0 (LTE)
 
 
 5. **`wifi reload` briefly bounces `br-lan`** (the USB gadget is a bridge
-   port), so an SSH session over the gadget link is dropped mid-command.  The
-   verified sequence is: `/etc/init.d/wifi-sta-late stop` -> `wifi reload` ->
-   `/etc/init.d/wifi-sta-late start`; measured 0 firmware crashes, and the STA
-   comes back with its lease.
+   port), so an SSH session over the gadget link is dropped mid-command.  Since
+   25.12.6 the station no longer needs to be stopped by hand — the netifd hook
+   does it — and it comes back with its lease on its own.
 
 
 ## Channel is shared: the AP follows the STA (2026-10-24)

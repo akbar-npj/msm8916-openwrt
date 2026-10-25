@@ -108,8 +108,10 @@ When you run `./build.sh build <board>`:
    ├── Clones upstream OpenWrt if 'openwrt/.git' is missing
    ├── Checks out the requested version/tag (e.g. v25.12.5 or main)
    │
-   ├── If .builder-state version matches current version:
+   ├── If .builder-state version AND TREE_SHA match:
    │   └── sync_bsp: Fast sync of msm89xx/, packages/, and patches into openwrt/
+   │       (TREE_SHA is a content hash of openwrt-patches/ + openwrt-overlay/; if
+   │        either changed, the fast path is refused -- see step 7)
    │
    └── If .builder-state does not match or is missing:
        └── prepare_tree: Runs scripts/openwrt-prepare.sh in container
@@ -121,7 +123,7 @@ When you run `./build.sh build <board>`:
            ├── Applies mac80211 OpenWrt patch (package/kernel/mac80211/ath.mk)
            ├── Updates and installs OpenWrt package feeds
            ├── Applies ModemManager / LuCI compatibility fixes
-           └── Records OPENWRT_VERSION and timestamp in .builder-state
+           └── Records OPENWRT_VERSION, timestamp and TREE_SHA in .builder-state
 
 4. prepare_config <board>
    ├── Copies diffconfigs/<board> to openwrt/.config
@@ -253,6 +255,19 @@ When developing kernel drivers, device trees, or packages:
   2. Refreshes `openwrt/package/msm8916/` from `packages/`.
   3. Updates patches under `openwrt/package/system/<pkg>/patches/`.
   4. Re-applies runtime fixes (e.g. ModemManager init script fix).
+
+**What the fast path does NOT do:** it never touches `openwrt-patches/` or
+`openwrt-overlay/`, because those are applied by `openwrt-prepare.sh`. A new or
+edited patch in either tree therefore used to be silently ignored by every
+later build. `.builder-state` now records `TREE_SHA` (a content hash of both
+trees); if it does not match, `ensure_prepared` refuses the fast path and runs
+the full preparation. Editing `openwrt-patches/*.patch` or anything under
+`openwrt-overlay/` therefore costs one re-prepare (feeds re-installed), not a
+full kernel rebuild — `build_dir` is untouched.
+
+Note that `TREE_SHA` does **not** help with *deleted* overlay files: the merge
+is `cp -a`, so a patch removed from `openwrt-overlay/` stays in `openwrt/` and
+must be deleted there by hand.
 
 ---
 

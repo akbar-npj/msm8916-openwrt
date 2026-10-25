@@ -7,9 +7,9 @@ This project maintains changes in **five** categories. The first three are sourc
 
 | Set | Location | Count | Applied to |
 | :-- | :------- | :---- | :--------- |
-| **Kernel patches** | [`msm89xx/patches/`](../../msm89xx/patches/) | 52 | The Linux kernel source, via OpenWrt's `target/linux/msm89xx/patches/` |
-| **OpenWrt source patches** | [`openwrt-patches/`](../../openwrt-patches/) | 3 | The OpenWrt build tree itself (package recipes and build scripts) |
-| **OpenWrt package patches** | [`openwrt-overlay/`](../../openwrt-overlay/) | 15 | Individual OpenWrt packages and host tools (mac80211/wcn36xx, hostapd, libqmi, fstools, elfutils) |
+| **Kernel patches** | [`msm89xx/patches/`](../../msm89xx/patches/) | 53 | The Linux kernel source, via OpenWrt's `target/linux/msm89xx/patches/` |
+| **OpenWrt source patches** | [`openwrt-patches/`](../../openwrt-patches/) | 4 | The OpenWrt build tree itself (package recipes and build scripts) |
+| **OpenWrt package patches** | [`openwrt-overlay/`](../../openwrt-overlay/) | 11 | Individual OpenWrt packages and host tools (mac80211/wcn36xx, hostapd, libqmi, fstools, elfutils) |
 | **Custom packages** | [`packages/`](../../packages/) | 21 | Userspace apps and LuCI modules copied to `package/msm8916/` |
 | **BSP / board support** | [`msm89xx/`](../../msm89xx/) | -- | Base-files, image, kernel config, modules, recovery shipped to the rootfs |
 
@@ -135,6 +135,7 @@ the system rail — these six patches add all three.
 | [`0001-package-pack-fix-IDIR-conffiles.patch`](../../openwrt-patches/0001-package-pack-fix-IDIR-conffiles.patch) | `include/package-pack.mk` | Fixes a latent `$(...)`-counting bug that made `make package/install` emit `IDIR_<pkg>: command not found` whenever a package (e.g. `base-files`) is repacked. Corrects `$$(IDIR_$(1))` to `$(IDIR_$(1))` while preserving the intended shell command substitutions and the apk `$`-ABI separator. |
 | [`809-mac80211-enable-wcn36xx.patch`](../../openwrt-patches/809-mac80211-enable-wcn36xx.patch) | `package/kernel/mac80211/ath.mk` | Enables the `wcn36xx` (and `ath10k-sdio`) kernel modules on the `msm89xx` target. |
 | [`810-rstrip-skip-carrier-mcfg.patch`](../../openwrt-patches/810-rstrip-skip-carrier-mcfg.patch) | `scripts/rstrip.sh` | Excludes the bundled carrier MCFG blobs from `rstrip` — they are modem firmware (`\x7fELF`), not AP executables, and stripping corrupts them. |
+| [`811-wifi-sta-guard-phy-restart.patch`](../../openwrt-patches/811-wifi-sta-guard-phy-restart.patch) | `package/network/config/wifi-scripts/` — **both** `files/lib/netifd/wireless/mac80211.sh` (shell) and `files-ucode/lib/netifd/wireless/mac80211.sh` (ucode) | **Makes a radio restart safe while Station Mode is up.** `setup()` brackets the driver bring-up with `wifi-sta-guard down` … `wifi-sta-guard up`, and `teardown()` calls `wifi-sta-guard down`. Station Mode is not a `wifi-iface`, so netifd used to restart the phy underneath a live `wpa_supplicant` and crash the WCNSS firmware (`boot_exception_c_handlers.c:108: Data Abort Exception at 0x8b6b301c`). **Both drivers are patched** because wifi-scripts installs `files-ucode/` over `files/` when `CONFIG_WIFI_SCRIPTS_UCODE=y` (the default, and what this target builds) — patching only the shell driver would silently do nothing. See [Docs/WiFi/](../WiFi/). |
 
 ---
 
@@ -153,11 +154,8 @@ be deleted from the prepared tree by hand (see `Docs/PATCHES_AND_PACKAGING.md` s
 | [`450-wcn36xx-only-send-mc-list-when-sta-associated.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/450-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Only pushes the multicast (MC) address list to firmware once the STA is associated -- avoids a firmware warning/crash when the list is set pre-association. |
 | [`451-wcn36xx-mfp-wpa3.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/451-wcn36xx-mfp-wpa3.patch) | Adds Management Frame Protection (MFP) / WPA3 support to wcn36xx. |
 | [`452-wcn36xx-iface-combinations.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/452-wcn36xx-iface-combinations.patch) | Declares the AP+STA concurrent interface combination so the chip can run station mode alongside the AP. |
-| [`453-wcn36xx-thermal-mitigation.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/453-wcn36xx-thermal-mitigation.patch) | Exposes the firmware thermal-mitigation state as a Linux cooling device. |
-| [`454-wcn36xx-hal-response-bounds-check.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/454-wcn36xx-hal-response-bounds-check.patch) | Fixes a heap overflow from an oversized firmware HAL response (bounds-checks the message length). |
-| [`455-wcn36xx-oob-print-reg-info-indication.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/455-wcn36xx-oob-print-reg-info-indication.patch) | Fixes an out-of-bounds read from a firmware-supplied count in the print-reg-info indication. |
-| [`456-wcn36xx-oob-trigger-ba-response.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/456-wcn36xx-oob-trigger-ba-response.patch) | Fixes an out-of-bounds read from a short 'trigger BA' firmware message. |
-| [`457-wcn36xx-tx-ack-timer-uaf.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/457-wcn36xx-tx-ack-timer-uaf.patch) | Fixes a potential use-after-free in the TX-ack timer. |
+| [`453-wcn36xx-thermal-mitigation.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/453-wcn36xx-thermal-mitigation.patch) | Exposes the firmware thermal-mitigation state as a Linux cooling device. **Rebased onto backports 6.18.55 for 25.12.6** (hunk 2 gained the `WCN36XX_HAL_SET_THERMAL_MITIGATION_RSP` case). |
+| ~~454~~ … ~~457~~ | **Dropped in 25.12.6 — now upstream.** Backports went 6.18.26 → 6.18.55 and absorbed all four: the HAL-response length check (`HAL response too large`, smd.c:3403), the print-reg-info truncation guard (smd.c ~2870), the trigger-BA length check (smd.c:2661) and the TX-ack timer shutdown (`timer_shutdown_sync(&wcn->tx_ack_timer)`, dxe.c:1058). They were deleted from the overlay; keeping them would have made the series fail to apply. |
 | [`458-wcn36xx-bmps-concurrency-guard.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/458-wcn36xx-bmps-concurrency-guard.patch) | Guards the BMPS (power-save) state machine against concurrent enable/disable. |
 | [`459-wcn36xx-rx-survey-null-band.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/459-wcn36xx-rx-survey-null-band.patch) | **Fixes a kernel PANIC** (NULL deref in the RX survey path when `wiphy->bands[band]` is NULL on a 2.4 GHz-only WCN with a stale chandef at vif teardown). **LIVE-VERIFIED**, flashed `c1216b14`, zero panics since. |
 
@@ -695,15 +693,22 @@ These are modem firmware images, not AP executables. The patch excludes
 ### 2.11 OpenWrt package patches (`openwrt-overlay/`)
 
 Merged into the tree by `build.sh` before the package build (a `cp -a` that shadows upstream
-package sources). The ten wcn36xx patches (450-459) harden the Wi-Fi driver against
-firmware-supplied malformed messages: out-of-bounds reads (454, 455, 456), a use-after-free
-in the TX-ack timer (457), a BMPS power-save concurrency guard (458), and -- most important --
-**459**, a NULL-deref PANIC in the RX survey path that was **LIVE-VERIFIED** (flashed
-`c1216b14`, zero panics since). 451/452 add WPA3/MFP and AP+STA concurrency; 453 exposes
-firmware thermal mitigation as a cooling device. `hostapd` 900 dispatches `SSID-TEMP-DISABLED`
+package sources). The wcn36xx series is **six** patches (450-453, 458, 459) as of 25.12.6: the
+four hardening patches (454-457) were absorbed by backports 6.18.55 and deleted. What remains:
+451/452 add WPA3/MFP and AP+STA concurrency; 453 exposes firmware thermal mitigation as a
+cooling device (rebased onto 6.18.55); 458 is a BMPS power-save concurrency guard; and -- most
+important -- **459**, a NULL-deref PANIC in the RX survey path that was **LIVE-VERIFIED**
+(flashed `c1216b14`, zero panics since). `hostapd` 900 dispatches `SSID-TEMP-DISABLED`
 on a wrong-PSK failure (drives the `wifi-sta-wpa-event` LuCI red alert). `libqmi` 001/002
 fix a PDC config-load segfault and split the upload into 256-byte chunks -- both required by
 `qcom-carrier-autocfg`. `fstools` 0001 and `elfutils` 100 are build/runtime robustness fixes.
+
+> **Upgrading the backports tree.** The overlay merge never deletes, so when a patch becomes
+> upstream you must remove it from **both** `openwrt-overlay/` and the prepared
+> `openwrt/` tree, or the series fails with `1 out of 2 hunks FAILED` and the whole
+> `package/kernel/mac80211` build dies. Always regenerate a rebased patch against the
+> pristine `openwrt/dl/backports-<ver>.tar.zst` with the preceding patches already applied,
+> then replay 450 → 451 → 452 → 453 → 458 → 459 to confirm zero rejects.
 
 ### 2.12 Custom packages (`packages/`)
 

@@ -2,7 +2,7 @@
 # sync-version.sh - single source of truth for the project release version.
 #
 # Usage:
-#   ./sync-version.sh 25.12.5-r5        # set version + propagate to all diffconfigs
+#   ./sync-version.sh 25.12.6-r1        # set version + propagate to all diffconfigs
 #   ./sync-version.sh                   # re-propagate current version (no change)
 #
 # The repo `version` file is the ONLY place you bump the number. This script
@@ -27,7 +27,7 @@ fi
 BASE="${VER%-r*}"
 REL="${VER##*-}"
 
-BLOCK=$(printf 'CONFIG_VERSIONOPT=y\nCONFIG_VERSION_FILENAMES=n\nCONFIG_VERSION_DIST="msm8916-openwrt"\nCONFIG_VERSION_NUMBER="%s"\nCONFIG_VERSION_CODE=""\nCONFIG_VERSION_REPO="https://akbar-npj.github.io/msm8916-openwrt/releases/%s/packages"\nCONFIG_VERSION_HOME_URL="https://github.com/akbar-npj/msm8916-openwrt"\nCONFIG_VERSION_BUG_URL="https://github.com/akbar-npj/msm8916-openwrt/issues"' "$VER" "$BASE")
+BLOCK=$(printf 'CONFIG_VERSIONOPT=y\nCONFIG_VERSION_FILENAMES=n\nCONFIG_VERSION_DIST="msm8916-openwrt"\nCONFIG_VERSION_NUMBER="%s"\nCONFIG_VERSION_CODE=""\nCONFIG_VERSION_REPO="https://akbar-npj.github.io/msm8916-openwrt/releases/%s"\nCONFIG_VERSION_HOME_URL="https://github.com/akbar-npj/msm8916-openwrt"\nCONFIG_VERSION_BUG_URL="https://github.com/akbar-npj/msm8916-openwrt/issues"' "$VER" "$BASE")
 
 for f in "$REPO_DIR"/diffconfigs/*; do
   [ -f "$f" ] || continue
