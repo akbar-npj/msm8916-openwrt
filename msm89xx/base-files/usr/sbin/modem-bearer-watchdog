@@ -404,10 +404,22 @@ while true; do
         # down` clears autostart, so gating on autostart respects an
         # intentional ifdown while still catching the stuck case -- the proto's
         # `set_available 0` does NOT clear autostart.
+        #
+        # ... but a proto CONNECT failure is a third case that also clears
+        # autostart, and it is NOT an intentional ifdown.  Measured 2026-10-25
+        # on hmuf02v5: the first LTE attach after a cold boot timed out
+        # (ModemManager "Network timeout"), netifd recorded MM_CONNECT_FAILED
+        # and left the interface down with autostart=false -- while the modem
+        # itself re-registered and attached seconds later.  The autostart gate
+        # then skipped the interface on every check and the bearer stayed down
+        # for over an hour with no default route.  A recorded connect error is
+        # never a user ifdown (a clean ifdown leaves errors empty), so re-drive
+        # those too.
         IF_AUTO=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.autostart' 2>/dev/null)
-        if [ "$IF_AUTO" = "true" ] && \
-           [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
-           [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ]; then
+        IF_ERR=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.errors[0].code' 2>/dev/null)
+        if [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
+           [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ] && \
+           { [ "$IF_AUTO" = "true" ] || [ "$IF_ERR" = "MM_CONNECT_FAILED" ]; }; then
             if mmcli -L 2>/dev/null | grep -q '/Modem/'; then
                 ZOMBIE_DOWN_SECS=0
                 logger -t modem-stall-watchdog "Bearer STUCK: netifd interface down ${BEARER_DOWN_SECS}s with a modem present; re-driving (up + re-arm availability)."

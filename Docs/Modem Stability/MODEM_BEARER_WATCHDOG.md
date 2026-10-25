@@ -123,7 +123,17 @@ The actual recovery it triggers is unchanged:
 1. **Stall detected** → verify with a retrying DNS probe (the first uplink
    packet after RRC-idle is routinely dropped, so a single probe would be a
    false stall).
-2. **Bearer down & stuck** → re-arm the interface (`ifup modem`).
+2. **Bearer down & stuck** → re-arm the interface (`ifup modem`).  The
+   stuck test is `autostart=true` (a down interface that is *supposed* to be
+   up) **or** a recorded `MM_CONNECT_FAILED` error — a proto connect failure
+   is never an intentional `ifdown` (a clean ifdown leaves `errors` empty),
+   and netifd leaves autostart false in that state.  Live case 2026-10-25: the
+   first LTE attach after a cold boot timed out (`Network timeout`), the
+   interface went down with `autostart=false` while the modem itself
+   re-registered and attached seconds later — the autostart-only gate then
+   skipped it on every check and the bearer stayed down for over an hour with
+   no default route.  The re-drive itself is `ubus call network.interface.modem
+   up` + `notify_proto {action:5, available:true}`, cooldown-bounded at 60 s.
 3. **Zombie modem** (no ModemManager object after a fatal) → a bounded
    `qmicli --dms-set-operating-mode=online` nudge.
 4. **Last resort** → modem subsystem restart via the async `msm_subsys` node

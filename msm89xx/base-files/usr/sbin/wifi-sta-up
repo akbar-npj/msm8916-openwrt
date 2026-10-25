@@ -36,6 +36,7 @@ config_get_bool dhcp main dhcp 1
 config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
+config_get hostname main hostname
 
 # A UCI field the user cleared ("") would make the arithmetic tests below fail
 # with "bad number"; fall back to the default in that case.
@@ -79,6 +80,21 @@ ap_state() {
 		jsonfilter -e '@.status' 2>/dev/null
 }
 
+# Hostname announced to the upstream network.  Sent as DHCP option 12 when
+# dhcp=1, so the upstream DHCP server (and its DNS) can resolve this device by
+# name.  Empty config = the system hostname: system.@system[0].hostname, else
+# the kernel's, else a plain default.
+sta_hostname() {
+	local h
+	if [ -n "$hostname" ]; then
+		printf '%s' "$hostname"
+		return 0
+	fi
+	h="$(uci -q get system.@system[0].hostname 2>/dev/null)"
+	[ -n "$h" ] || h="$(cat /proc/sys/kernel/hostname 2>/dev/null)"
+	printf '%s' "${h:-OpenWrt}"
+}
+
 # Channel of the upstream BSS for a given SSID, read from a scan on the STA vif.
 # Scanning from a managed vif is exactly what wpa_supplicant does, so this is the
 # same operation, just earlier.
@@ -104,7 +120,17 @@ ap_channel() {
 }
 
 bring_up_sta() {
-	[ -n "$ssid" ] || { logger -t wifi-sta "wifista.main.ssid is empty; not starting"; exit 1; }
+	# An enabled service with no SSID is a legitimate state: the operator
+	# saves the form first and picks the network from a scan afterwards.
+	# procd respawns us (threshold 0 = never give up), so a bare exit 1 turns
+	# into a 5-second log-spam loop -- back off for five minutes instead.
+	# Setting a real SSID restarts us immediately through the config.change
+	# trigger, so the wait never delays a working setup.
+	[ -n "$ssid" ] || {
+		logger -t wifi-sta "wifista.main.ssid is empty; station mode idle"
+		sleep 300
+		exit 1
+	}
 
 	# Wait for the AP to finish starting.  hostapd restarts the phy at boot, so
 	# the vif exists well before it is ENABLED; creating the STA in that window
@@ -214,11 +240,14 @@ run_dhcp() {
 
 	[ -n "$sta_if" ] || { logger -t wifi-sta "dhcp: no associated STA vif after 90s"; exit 1; }
 
-	logger -t wifi-sta "dhcp: $sta_if associated after ${i}s; starting udhcpc"
+	logger -t wifi-sta "dhcp: $sta_if associated after ${i}s; starting udhcpc (hostname '$(sta_hostname)')"
 	# -f: stay in the foreground (procd supervises).  The handler installs the
-	# address only, never a default route.
+	# address only, never a default route.  -x hostname: announces our name to
+	# the upstream DHCP server (option 12) -- the configured one, else the
+	# system hostname.
 	exec udhcpc -f -i "$sta_if" -p "/var/run/udhcpc-${sta_if}.pid" \
-		-s /usr/sbin/wifi-sta-dhcp.sh
+		-s /usr/sbin/wifi-sta-dhcp.sh \
+		-x "hostname:$(sta_hostname)"
 }
 
 # Kill matching processes.  pgrep -f is used instead of pkill because busybox
@@ -303,6 +332,9 @@ run_status() {
 	kv dhcp "$dhcp"
 	kv radio "$radio"
 	kv recover_after "$recover_after"
+	# Effective announce-hostname (configured value or the system default) so
+	# the LuCI page can show what would actually be sent.
+	kv hostname "$(sta_hostname)"
 
 	ap="$(find_ap)"
 	sta="$(find_sta)"

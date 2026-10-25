@@ -68,7 +68,13 @@ return view.extend({
 
 		o = s.option(form.Value, 'ssid', _('Upstream SSID'));
 		o.placeholder = 'MyHomeWiFi';
-		o.rmempty = false;
+		// Deliberately optional: with no SSID the station just stays idle, so
+		// the form can be saved before the user knows what to join -- pick a
+		// network from the scan below, then Save & Apply.
+
+		o = s.option(form.Value, 'hostname', _('Hostname to announce'),
+			_('Sent to the upstream network as the DHCP hostname (option 12), so the upstream router can resolve this device by name. Leave empty to use the system hostname (%s).').format(st.hostname || 'OpenWrt'));
+		o.placeholder = st.hostname || _('(system hostname)');
 
 		o = s.option(form.Value, 'key', _('Password'));
 		o.password = true;
@@ -113,7 +119,19 @@ return view.extend({
 				'class': 'cbi-button cbi-button-action',
 				'click': ui.createHandlerFn(this, function() {
 					var out = document.getElementById('wifi-sta-scan');
-					var iface = st.ap_iface || 'phy0-ap0';
+
+					// Scan the AP interface reported by wifi-sta-up status, and only
+					// when it exists -- a blind 'phy0-ap0' fallback would exec iwinfo
+					// against a possibly non-existent interface while the radio is
+					// still coming up.  The scan itself is read-only (a netlink
+					// hardware scan); it never touches the wireless config.
+					var iface = st.ap_iface;
+
+					if (!iface) {
+						while (out.firstChild) out.removeChild(out.firstChild);
+						out.appendChild(E('em', {}, _('The access point interface was not found \u2014 is Wi-Fi up? Try again in a moment.')));
+						return;
+					}
 
 					out.textContent = _('Scanning\u2026');
 
