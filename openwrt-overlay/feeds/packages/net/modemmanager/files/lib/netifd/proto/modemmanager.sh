@@ -724,13 +724,35 @@ proto_modemmanager_setup() {
 	append_param "${username:+user=${username}}"
 	append_param "${password:+password=${password}}"
 
+	# A simple-connect failure is almost always transient on a cellular link
+	# (network still 'searching' at cold boot, a one-shot 3GPP reject such as
+	# EMM cause 15, or a slow attach that outlives the 120 s mmcli timeout).
+	# The OLD default called proto_block_restart() here, which makes netifd
+	# bring the interface down AND clear its autostart flag (netifd
+	# interface.c: interface_set_down() -> autostart = false).  After that
+	# NOTHING re-drives the interface: netifd only auto-configures a down
+	# interface when available && autostart && enabled (interface.c:
+	# interface_check_state), ModemManager-monitor only re-arms `available`,
+	# and the modem-bearer-watchdog re-drive gates on autostart=true to
+	# respect an intentional `ifdown`.  The result is a permanently dead
+	# `up=false autostart=false` interface until someone manually runs
+	# `ifup`/`modemmanager restart` -- observed on UZ801V3 boot 2026-10-24
+	# (simple-connect NetworkTimeout at 13:30:57, modem self-registered
+	# 2 s later, interface dead until manual recovery).
+	#
+	# Never latch the interface dead for a transient connect failure:
+	# report the error and let netifd retry (setup returns 1, netifd's
+	# proto task respawns with its backoff while autostart stays true).
+	# For boards that explicitly want a faster full re-probe instead of a
+	# plain retry, the legacy opt-in `force_connection` is kept: it now
+	# reports MM_INTERFACE_RESTART (no restart-block in either branch).
 	mmcli --modem="${device}" --timeout 120 --simple-connect="${connectargs}" || {
 		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
-			echo "Connection failed -> attempting restart"
+			echo "Connection failed -> requesting interface restart (force_connection=1)"
 			proto_notify_error "${interface}" MM_INTERFACE_RESTART
 		else
+			echo "Connection failed (transient) -> returning error for netifd retry"
 			proto_notify_error "${interface}" MM_CONNECT_FAILED
-			proto_block_restart "${interface}"
 		fi
 		return 1
 	}
