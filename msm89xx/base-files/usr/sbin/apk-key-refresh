@@ -14,6 +14,14 @@
 # The install is intentionally conservative: the fetched file must be a
 # well-formed PEM public key, and the on-disk key is only replaced when it
 # actually differs (so we do not churn the overlay on every boot).
+#
+# Four callers, and the contract every one of them relies on: the refresh is
+# best-effort and NEVER blocks or fails the caller -- it only warns (syslog
+# and stderr) when the key was stale or a refresh attempt failed:
+#   /etc/init.d/apk-key-refresh     boot, retries through the modem delay
+#   /etc/hotplug.d/iface/99-...     any interface coming up
+#   /etc/apk/commit_hooks.d/10-...  before an apk package commit
+#   /etc/profile.d/99-...           interactive apk update/add/upgrade/fix
 
 # --- --help ---------------------------------------------------------------
 case "${1:-}" in
@@ -49,7 +57,14 @@ TMP_FILE="/tmp/.apk-key-refresh.$$"
 RETRIES="${RETRIES:-15}"
 DELAY="${DELAY:-20}"
 
-log() { logger -t apk-key-refresh "$1"; }
+# Every message goes to syslog AND to stderr: the boot-time caller only
+# needs the log, but the apk commit hook and the interactive-shell wrapper
+# must show the user a stale key or a failed refresh attempt (they never
+# propagate a failure -- the apk command always continues).
+log() {
+	logger -t apk-key-refresh "$1"
+	echo "apk-key-refresh: $1" >&2
+}
 
 # Fetch URL -> TMP_FILE.  Prefer OpenWrt's uclient-fetch, fall back to BusyBox wget.
 fetch() {
@@ -75,7 +90,7 @@ install_key() {
 		return 2
 	fi
 
-	mkdir -p /etc/apk/keys
+	mkdir -p "$(dirname "$KEY_FILE")"
 	cat "$TMP_FILE" > "$KEY_FILE"
 	return 0
 }
@@ -90,14 +105,14 @@ while [ "$i" -lt "$RETRIES" ]; do
 		rm -f "$TMP_FILE"
 		case "$rc" in
 			0)
-				log "installed updated feed signing key"
+				log "the feed signing key was stale; installed the updated key"
 				exit 0
 				;;
 			2)
 				exit 0
 				;;
 			*)
-				log "fetched data from $KEY_URL is not a valid public key; keeping existing"
+				log "WARNING: data from $KEY_URL is not a valid public key; keeping the existing key (it may be stale)"
 				;;
 		esac
 	fi
@@ -105,5 +120,6 @@ while [ "$i" -lt "$RETRIES" ]; do
 	[ "$i" -lt "$RETRIES" ] && sleep "$DELAY"
 done
 
-log "could not refresh feed signing key from $KEY_URL (offline?)"
+log "WARNING: could not refresh the feed signing key from $KEY_URL (offline?); the on-disk key may be stale"
+log "if apk reports UNTRUSTED signature, run: apk-key-refresh && apk update"
 exit 1

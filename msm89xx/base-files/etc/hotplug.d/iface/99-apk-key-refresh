@@ -1,0 +1,16 @@
+#!/bin/sh
+# Refresh the feed signing key whenever a network interface comes up.
+#
+# The boot-time run (init.d/apk-key-refresh) may have found no network yet --
+# the modem takes about a minute to attach -- and a device that gets its
+# connection later (WWAN attach, station associate, WAN cable) would keep a
+# stale key until the next reboot.  One attempt, no retries: a hotplug script
+# must never block, and apk-key-refresh is a no-op when the key already
+# matches (it only replaces the file on an actual difference).
+
+[ "$ACTION" = "ifup" ] || exit 0
+[ "$INTERFACE" = "lo" ] && exit 0
+
+RETRIES=1 DELAY=0 /usr/sbin/apk-key-refresh
+
+exit 0
