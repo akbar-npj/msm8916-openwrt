@@ -3,12 +3,15 @@
 This document is the complete catalog of every patch this project maintains, with
 a plain-language explanation of what each one does and why it exists.
 
-There are two patch sets:
+This project maintains changes in **five** categories. The first three are source patches; the last two are shipped artifacts built from `openwrt-overlay/`, `packages/` and `msm89xx/`.
 
 | Set | Location | Count | Applied to |
 | :-- | :------- | :---- | :--------- |
 | **Kernel patches** | [`msm89xx/patches/`](../../msm89xx/patches/) | 52 | The Linux kernel source, via OpenWrt's `target/linux/msm89xx/patches/` |
-| **OpenWrt source patches** | [`openwrt-patches/`](../../openwrt-patches/) | 2 | The OpenWrt build tree itself (package recipes and build scripts) |
+| **OpenWrt source patches** | [`openwrt-patches/`](../../openwrt-patches/) | 3 | The OpenWrt build tree itself (package recipes and build scripts) |
+| **OpenWrt package patches** | [`openwrt-overlay/`](../../openwrt-overlay/) | 15 | Individual OpenWrt packages and host tools (mac80211/wcn36xx, hostapd, libqmi, fstools, elfutils) |
+| **Custom packages** | [`packages/`](../../packages/) | 21 | Userspace apps and LuCI modules copied to `package/msm8916/` |
+| **BSP / board support** | [`msm89xx/`](../../msm89xx/) | -- | Base-files, image, kernel config, modules, recovery shipped to the rootfs |
 
 > **Board support scope.** The board device trees target seven MSM8916 devices:
 > **HMUF02-V5** (formerly HMU05), **UF02**, **UFI001B**, **UFI003_MB_V02**,
@@ -129,8 +132,93 @@ the system rail — these six patches add all three.
 
 | Patch | Targets | Description |
 | :---- | :------ | :---------- |
+| [`0001-package-pack-fix-IDIR-conffiles.patch`](../../openwrt-patches/0001-package-pack-fix-IDIR-conffiles.patch) | `include/package-pack.mk` | Fixes a latent `$(...)`-counting bug that made `make package/install` emit `IDIR_<pkg>: command not found` whenever a package (e.g. `base-files`) is repacked. Corrects `$$(IDIR_$(1))` to `$(IDIR_$(1))` while preserving the intended shell command substitutions and the apk `$`-ABI separator. |
 | [`809-mac80211-enable-wcn36xx.patch`](../../openwrt-patches/809-mac80211-enable-wcn36xx.patch) | `package/kernel/mac80211/ath.mk` | Enables the `wcn36xx` (and `ath10k-sdio`) kernel modules on the `msm89xx` target. |
 | [`810-rstrip-skip-carrier-mcfg.patch`](../../openwrt-patches/810-rstrip-skip-carrier-mcfg.patch) | `scripts/rstrip.sh` | Excludes the bundled carrier MCFG blobs from `rstrip` — they are modem firmware (`\x7fELF`), not AP executables, and stripping corrupts them. |
+
+---
+
+### 1.11 OpenWrt package patches (`openwrt-overlay/`)
+
+These are patches against individual OpenWrt **packages** (and host tools). They live in
+[`openwrt-overlay/`](../../openwrt-overlay/) and are merged into the tree by `build.sh`
+(`cp -a openwrt-overlay/. openwrt/`) **before** the package build, so they shadow or extend
+the upstream package sources. Because the merge never deletes, a renamed/removed patch must
+be deleted from the prepared tree by hand (see `Docs/PATCHES_AND_PACKAGING.md` section 2).
+
+#### 1.11.1 wcn36xx Wi-Fi driver fixes (`package/kernel/mac80211/patches/ath/`)
+
+| Patch | Description |
+| :---- | :---------- |
+| [`450-wcn36xx-only-send-mc-list-when-sta-associated.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/450-wcn36xx-only-send-mc-list-when-sta-associated.patch) | Only pushes the multicast (MC) address list to firmware once the STA is associated -- avoids a firmware warning/crash when the list is set pre-association. |
+| [`451-wcn36xx-mfp-wpa3.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/451-wcn36xx-mfp-wpa3.patch) | Adds Management Frame Protection (MFP) / WPA3 support to wcn36xx. |
+| [`452-wcn36xx-iface-combinations.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/452-wcn36xx-iface-combinations.patch) | Declares the AP+STA concurrent interface combination so the chip can run station mode alongside the AP. |
+| [`453-wcn36xx-thermal-mitigation.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/453-wcn36xx-thermal-mitigation.patch) | Exposes the firmware thermal-mitigation state as a Linux cooling device. |
+| [`454-wcn36xx-hal-response-bounds-check.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/454-wcn36xx-hal-response-bounds-check.patch) | Fixes a heap overflow from an oversized firmware HAL response (bounds-checks the message length). |
+| [`455-wcn36xx-oob-print-reg-info-indication.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/455-wcn36xx-oob-print-reg-info-indication.patch) | Fixes an out-of-bounds read from a firmware-supplied count in the print-reg-info indication. |
+| [`456-wcn36xx-oob-trigger-ba-response.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/456-wcn36xx-oob-trigger-ba-response.patch) | Fixes an out-of-bounds read from a short 'trigger BA' firmware message. |
+| [`457-wcn36xx-tx-ack-timer-uaf.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/457-wcn36xx-tx-ack-timer-uaf.patch) | Fixes a potential use-after-free in the TX-ack timer. |
+| [`458-wcn36xx-bmps-concurrency-guard.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/458-wcn36xx-bmps-concurrency-guard.patch) | Guards the BMPS (power-save) state machine against concurrent enable/disable. |
+| [`459-wcn36xx-rx-survey-null-band.patch`](../../openwrt-overlay/package/kernel/mac80211/patches/ath/459-wcn36xx-rx-survey-null-band.patch) | **Fixes a kernel PANIC** (NULL deref in the RX survey path when `wiphy->bands[band]` is NULL on a 2.4 GHz-only WCN with a stale chandef at vif teardown). **LIVE-VERIFIED**, flashed `c1216b14`, zero panics since. |
+
+#### 1.11.2 Other package / host-tool patches
+
+| Patch | Target | Description |
+| :---- | :----- | :---------- |
+| [`900-wpa-cli-dispatch-ssid-temp-disabled.patch`](../../openwrt-overlay/package/network/services/hostapd/patches/900-wpa-cli-dispatch-ssid-temp-disabled.patch) | `hostapd` | When a client fails WPA with a wrong PSK, hostapd dispatches an `SSID-TEMP-DISABLED` event so `wifi-sta-wpa-event` can flag the bad credential (drives the LuCI red alert). |
+| [`0001-block-skip-nonexistent-fstab-in-config-try-load.patch`](../../openwrt-overlay/package/system/fstools/patches/0001-block-skip-nonexistent-fstab-in-config-try-load.patch) | `fstools` | Skips a non-existent fstab entry at config-try-load (router flash-storage robustness). |
+| [`100-aarch64-use-sys-uio.patch`](../../openwrt-overlay/tools/elfutils/patches/100-aarch64-use-sys-uio.patch) | `tools/elfutils` | Build fix: include `<sys/uio.h>` on aarch64. |
+| [`001-fix-pdc-load-config-segfault.patch`](../../openwrt-overlay/feeds/packages/libs/libqmi/patches/001-fix-pdc-load-config-segfault.patch) | `libqmi` | Fixes a segfault when loading a PDC (carrier) config. |
+| [`002-qmicli-pdc-chunk-256.patch`](../../openwrt-overlay/feeds/packages/libs/libqmi/patches/002-qmicli-pdc-chunk-256.patch) | `libqmi` | Splits PDC config upload into 256-byte chunks (interop with the modem PDC loader). |
+
+### 1.12 Custom packages (`packages/`)
+
+21 userspace apps and LuCI modules. `build.sh` copies each `packages/<name>/` into
+`openwrt/package/msm8916/<name>/` (and any `packages/<name>/patches/` into the matching
+upstream package). All are **downstream-only** unless noted.
+
+| Package | Purpose |
+| :------ | :------ |
+| `ats-probe` | Reads the modem ATS_RTC uptime via QMI (true modem uptime) -- feeds SSR/watchdog detection. |
+| `bt-spp` | Bluetooth Serial Port Profile (SPP) server/client for serial-over-BT access. |
+| `bt-ssp-guard` | Guards the WCNSS Bluetooth Secure Simple Pairing feature bit. |
+| `cups` | Common UNIX Printing System server daemon (`cupsd`) for USB printers. |
+| `diag-bind` | Binds the SMD DIAG endpoints to `rpmsg_chrdev` (creates `/dev/rpmsg0`, `/dev/rpmsg1`). |
+| `diag-efs` | Reads/writes the modem EFS (decrypted on the fly) over the SMD DIAG channel. |
+| `diag-logtool` | Qualcomm DIAG client: F3 log masks, capture and listen over SMD DIAG. |
+| `luci-app-battery` | LuCI: battery status, charge limit and battery LED. |
+| `luci-app-cpu-perf` | LuCI: CPU performance information and management. |
+| `luci-app-modem-watchdog` | LuCI support for the Modem Watchdog. |
+| `luci-app-sms-manager` | LuCI SMS management via ModemManager. |
+| `luci-app-tailscale` | LuCI for Tailscale. |
+| `luci-app-usb-gadget` | LuCI for the USB Gadget Manager. |
+| `luci-app-wifi-sta` | LuCI for concurrent Station Mode (AP+STA). |
+| `msm-firmware-dumper` | Qualcomm firmware partition dump utility (modem/WCNSS). |
+| `qcom-carrier-autocfg` | SIM Carrier Auto-Provisioning Engine -- selects/activates the MCFG/PDC carrier config from the inserted SIM (Jio/MCFG work). |
+| `qcom-time-daemon` | QMI Time Synchronization Daemon -- sets system time from the cellular network. |
+| `qrtr` | Qualcomm IPC Router userspace library (transport for DIAG/RMTFS/tqft). |
+| `reboot-edl` | Safely reboots the SoC into EDL / DLOAD / Fastboot modes (wraps the kernel EDL support). |
+| `rmtfs` | Qualcomm Remote Filesystem service daemon (serves the modem EFS over QRTR). |
+| `uci-usb-gadget` | UCI-based USB gadget manager (configures ethernet/serial USB functions). |
+
+### 1.13 BSP / board support (`msm89xx/`)
+
+The board-support layer is **not** a single patch but a directory `msm89xx/` that `build.sh`
+copies into `target/linux/msm89xx` (and merges `base-files/` into the rootfs). It comprises:
+
+| Component | Role |
+| :-------- | :--- |
+| `patches/` | The kernel patches documented in section 1.1-1.9 (copied to `target/linux/msm89xx/patches/`). |
+| `base-files/` | Files shipped into the rootfs: `etc/apk/repositories.d/customfeeds.list` (upstream 25.12.x feeds), `etc/apk/keys/*` (our signing key + `openwrt-25.12.pem`), init scripts (`himi-ok-guard`, `modem-bearer-watchdog`), failsafe USB gadget, and commit hooks. |
+| `image/` | Image generation (supported boards, recovery image assembly). |
+| `config-6.12`, `config-6.12-recovery` | Kernel config for the main and recovery builds. |
+| `modules.mk` | Kernel-package (`kmod-*`) definitions for the target. |
+| `msm8916/` | Shared SoC-level DTS/build fragments. |
+| `recovery/` | The headless recovery initramfs (USB gadget + dnsmasq + dropbear). |
+| `Makefile` | Target makefile (device/profile definitions). |
+
+> The device trees themselves (801-807, 852, 853) are kernel patches in `msm89xx/patches/`,
+> not part of this BSP directory.
 
 ---
 
@@ -577,6 +665,19 @@ over all hosts unconditionally, spamming boot errors. The patch:
 
 ### 2.10 OpenWrt source patches
 
+#### 0001: package-pack IDIR / conffiles fix
+The upstream `include/package-pack.mk` used `$$(IDIR_$(1))` (three dollar signs) in a Make
+context where two are required: Make expands `$(...)` once and passes the result to the
+shell, whereas `$$(...)` is passed to the shell as a literal `$(...)` and the shell then
+tries to run `IDIR_base-files` as a command -> `command not found`, build dies at
+`package/install`. The fix changes every `$$(IDIR_$(1))` / `$$$$(IDIR_$(1))` to
+`$(IDIR_$(1))` without touching the intended shell command substitutions
+(`$$$$(cat ...)`, `$$$$(MKHASH ...)`), the shell variables (`$$$$FILE`, `$$$$CONTROL`), or
+the apk `$`-ABI separator (`$(1)$$(ABIV_$(1))` must stay three-`$`). The bug is latent in
+both the v25.12.5 and v25.12.6 upstream tags and only triggers when a package ipk is
+repacked (e.g. a clean `rebuild`), so it was masked by incremental builds that reused a
+cached ipk.
+
 #### 809: mac80211 wcn36xx Support
 Enables `kmod-wcn36xx` (WCN3660/3680 Wi-Fi) and `kmod-ath10k-sdio` in OpenWrt's
 mac80211 package: adds the `@TARGET_msm89xx` dependency to `kmod-ath`, defines
@@ -591,6 +692,51 @@ These are modem firmware images, not AP executables. The patch excludes
 
 ---
 
+### 2.11 OpenWrt package patches (`openwrt-overlay/`)
+
+Merged into the tree by `build.sh` before the package build (a `cp -a` that shadows upstream
+package sources). The ten wcn36xx patches (450-459) harden the Wi-Fi driver against
+firmware-supplied malformed messages: out-of-bounds reads (454, 455, 456), a use-after-free
+in the TX-ack timer (457), a BMPS power-save concurrency guard (458), and -- most important --
+**459**, a NULL-deref PANIC in the RX survey path that was **LIVE-VERIFIED** (flashed
+`c1216b14`, zero panics since). 451/452 add WPA3/MFP and AP+STA concurrency; 453 exposes
+firmware thermal mitigation as a cooling device. `hostapd` 900 dispatches `SSID-TEMP-DISABLED`
+on a wrong-PSK failure (drives the `wifi-sta-wpa-event` LuCI red alert). `libqmi` 001/002
+fix a PDC config-load segfault and split the upload into 256-byte chunks -- both required by
+`qcom-carrier-autocfg`. `fstools` 0001 and `elfutils` 100 are build/runtime robustness fixes.
+
+### 2.12 Custom packages (`packages/`)
+
+The 21 apps are catalogued in table 1.12. The ones carrying project-critical logic:
+
+- `qcom-carrier-autocfg` -- selects/activates the MCFG/PDC carrier profile from the SIM
+  (Jio/MCFG work); depends on libqmi 001/002.
+- `luci-app-modem-watchdog` + the `modem-bearer-watchdog` base-file script -- SSR/zombie
+  recovery (re-registers the bearer, nudges ModemManager when it dies).
+- `qcom-time-daemon` -- sets the system clock from cellular time.
+- `rmtfs` / `qrtr` -- the QRTR/EFS transport the above rely on.
+- `reboot-edl` -- wraps the kernel EDL support for recovery.
+- `uci-usb-gadget` / `luci-app-usb-gadget` -- USB gadget (ethernet/serial) management,
+  including the failsafe gadget.
+- `diag-bind` / `diag-efs` / `diag-logtool` -- the SMD DIAG toolchain for modem debug.
+
+### 2.13 BSP / board support (`msm89xx/`)
+
+The BSP is a directory, not a patch. `build.sh` copies it to `target/linux/msm89xx` and merges
+`base-files/` into the rootfs. Highlights:
+
+- `base-files/etc/apk/repositories.d/customfeeds.list` adds the **upstream 25.12.x binary
+  feeds** at *runtime* (so users can `apk add` any upstream package -- including telephony and
+  video -- without rebuilding), while `CONFIG_VERSION_REPO` points `apk` at our own
+  kmod/userspace repo for the vermagic-locked kernel modules.
+- `base-files/etc/apk/keys/` ships our signing key plus `openwrt-25.12.pem` (the upstream
+  25.12.x apk key) so those feeds are trusted.
+- `config-6.12` / `config-6.12-recovery` pin the kernel configuration; `modules.mk` defines
+  the `kmod-*` packages; `recovery/` is the headless recovery initramfs (USB gadget + dnsmasq
+  + dropbear).
+
+---
+
 ## 3. Maintenance and Patch Ingestion Workflow
 
 When developing or updating patches:
@@ -598,6 +744,9 @@ When developing or updating patches:
 1. **Source location**:
    - Kernel patches → [`msm89xx/patches/`](../../msm89xx/patches/)
    - OpenWrt build-tree patches → [`openwrt-patches/`](../../openwrt-patches/)
+   - OpenWrt package patches -> [`openwrt-overlay/`](../../openwrt-overlay/) (merged into the tree by `build.sh` before the package build)
+   - Custom packages -> [`packages/`](../../packages/) (copied to `package/msm8916/` by `build.sh`)
+   - BSP / board support -> [`msm89xx/`](../../msm89xx/) (base-files, image, config, modules, recovery)
 2. **Numbering scheme**: three-digit, applied in lexical order. Numbers are
    stable identifiers, not a contiguous sequence — gaps (817, 829, 830, 835–837,
    839, 840) are removed/retired patches and must not be reused casually.
