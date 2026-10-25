@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # apk-key-refresh -- keep the akbar-npj custom-feed signing key in sync with
-# the canonical key published at a stable, version-independent URL.
+# the canonical key published at a stable, version-independent URL, and warn
+# when the feed's kernel does not match the device's (kmod-* packages are
+# vermagic-locked to one kernel build).
 #
 # Why: the CI release job signs the package feed with a persistent key (the
 # repository secret APK_SIGNING_KEY).  An image embeds that key at build time,
@@ -32,7 +34,8 @@ Usage: apk-key-refresh [--help]
 Fetch the akbar-npj package-feed signing key from the canonical URL and install
 it in /etc/apk/keys when it differs from the copy on disk.  Run at boot by
 procd (/etc/init.d/apk-key-refresh) so a device carrying a stale key self-heals
-without a reflash.
+without a reflash.  Also warns when the feed's kernel package differs from the
+installed one (kmod-* installs would fail on the vermagic constraint).
 
 Environment overrides:
   KEY_URL    key URL                (default: the project's public-key.pem)
@@ -95,31 +98,57 @@ install_key() {
 	return 0
 }
 
+# --- kernel/feed consistency -------------------------------------------------
+# kmod-* packages are built against one exact kernel: the vermagic is part of
+# the kernel package version (kernel-<kver>~<hash>-r<N>), so a kmod taken from
+# a feed built for a different kernel cannot be installed -- apk just fails
+# with an opaque "unable to satisfy dependencies" on the kernel constraint.
+# Compare the feed's available kernel package with the installed one and warn.
+# Same contract as the key refresh: warn, never block.  The check reads apk's
+# index cache, so it reflects the last `apk update` -- a stale cache can only
+# MISS a mismatch, never report a false one.
+kernel_check() {
+	installed=$(apk list -I 2>/dev/null | awk '$1 ~ /^kernel-[0-9]/ { print $1; exit }')
+	available=$(apk list -a 2>/dev/null | awk '$1 ~ /^kernel-[0-9]/ { print $1; exit }')
+
+	[ -n "$installed" ] && [ -n "$available" ] || return 0
+	[ "$installed" = "$available" ] && return 0
+
+	log "WARNING: package-feed kernel mismatch: the feed provides $available, but this device has $installed installed"
+	log "kmod-* packages from this feed will NOT install (kernel vermagic mismatch) -- reflash the matching image, or use packages built for your kernel"
+}
+
 trap 'rm -f "$TMP_FILE"' EXIT
 
 i=0
+rc=1
 while [ "$i" -lt "$RETRIES" ]; do
 	if fetch; then
 		install_key
-		rc=$?
-		rm -f "$TMP_FILE"
-		case "$rc" in
+		case "$?" in
 			0)
 				log "the feed signing key was stale; installed the updated key"
-				exit 0
+				rc=0
 				;;
 			2)
-				exit 0
+				rc=0
 				;;
 			*)
 				log "WARNING: data from $KEY_URL is not a valid public key; keeping the existing key (it may be stale)"
 				;;
 		esac
+		rm -f "$TMP_FILE"
+		[ "$rc" = 0 ] && break
 	fi
 	i=$((i + 1))
 	[ "$i" -lt "$RETRIES" ] && sleep "$DELAY"
 done
 
-log "WARNING: could not refresh the feed signing key from $KEY_URL (offline?); the on-disk key may be stale"
-log "if apk reports UNTRUSTED signature, run: apk-key-refresh && apk update"
-exit 1
+if [ "$rc" != 0 ]; then
+	log "WARNING: could not refresh the feed signing key from $KEY_URL (offline?); the on-disk key may be stale"
+	log "if apk reports UNTRUSTED signature, run: apk-key-refresh && apk update"
+fi
+
+kernel_check
+
+exit "$rc"

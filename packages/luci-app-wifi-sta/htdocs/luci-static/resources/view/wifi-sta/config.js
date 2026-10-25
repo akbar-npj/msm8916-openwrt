@@ -51,13 +51,17 @@ return view.extend({
 		]).then(function(data) {
 			// One-time migration of the legacy single wifista.main.ssid/key
 			// pair into a saved-network profile (committed on Save).
+			// uci.add() returns the new section ID (a string) -- set options
+				// through uci.set(), never as properties on that string.
 			var aps = uci.sections('wifista', 'ap');
 			var main = uci.get('wifista', 'main');
+			var hasProfile = aps.some(function(sec) { return sec.ssid; });
 
-			if (!aps.length && main && main.ssid) {
-				var s = uci.add('wifista', 'ap');
-				s.ssid = main.ssid;
-				if (main.key) s.key = main.key;
+			if (!hasProfile && main && main.ssid) {
+				var sid = uci.add('wifista', 'ap');
+				uci.set('wifista', sid, 'ssid', main.ssid);
+				if (main.key)
+					uci.set('wifista', sid, 'key', main.key);
 			}
 
 			return data;
