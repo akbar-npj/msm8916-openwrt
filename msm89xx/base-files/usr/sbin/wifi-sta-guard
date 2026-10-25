@@ -1,0 +1,118 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# wifi-sta-guard -- make a phy (radio) restart safe while Station Mode is up.
+#
+# The wcn36xx firmware dies on a phy restart whenever wpa_supplicant owns a
+# managed interface on that phy:
+#
+#   boot_exception_c_handlers.c:108: Data Abort Exception at 0x8b6b301c
+#
+# netifd restarts the phy on EVERY wireless-config change (and at boot), so the
+# netifd wireless setup path brackets the driver setup with:
+#
+#     wifi-sta-guard down ; <drv_mac80211_setup> ; wifi-sta-guard up
+#
+# "down" stops the late-STA service.  procd then kills wpa_supplicant and
+# udhcpc, and stop_service() deletes phy*-sta0.  We additionally verify that no
+# managed STA iface and no wpa_supplicant survive, so the phy restart cannot
+# race us.  "up" restarts the service only if "down" actually stopped a running
+# station -- that keeps a boot-time or no-op reload from starting it early, and
+# keeps the service's OWN channel-change reload (which already deleted the vif
+# before calling wifi reload) from killing itself.
+#
+# Both verbs are no-ops when Station Mode is disabled, so the hook can call them
+# unconditionally.  See Docs/WiFi/WCN36XX_AP_STA_RE.md and
+# Docs/WiFi/AP_STA_AND_LUCI_APP.md.
+
+set -u
+
+SERVICE=/etc/init.d/wifi-sta-late
+FLAG=/var/run/wifi-sta-guard.stopped
+
+enabled() {
+	[ "$(uci -q get wifista.main.enabled)" = "1" ]
+}
+
+# vifs this service creates (phy0-sta0, phy1-sta0, ...)
+sta_vifs() {
+	iw dev 2>/dev/null |
+		awk '$1 == "Interface" { print $2 }' |
+		grep -E '^phy[0-9]+-sta[0-9]+$'
+}
+
+# wpa_supplicant instances attached to one of those vifs
+sta_supplicants() {
+	pgrep -f 'wpa_supplicant .*-i phy[0-9]+-sta[0-9]+' 2>/dev/null
+}
+
+# A station is "up" (and therefore must be stopped before a phy restart) when
+# either the vif or the supplicant exists.  During the service's own
+# channel-change reload the vif has already been deleted and wpa_supplicant is
+# not yet started, so this returns false and "down" correctly does nothing.
+station_up() {
+	[ -n "$(sta_vifs)" ] || [ -n "$(sta_supplicants)" ]
+}
+
+down() {
+	enabled || return 0
+	station_up || return 0
+
+	rm -f "$FLAG"
+
+	# procd stop is synchronous and kills every instance (wpa_supplicant,
+	# udhcpc, the watchdog, wpa_cli); stop_service() deletes the vif.
+	[ -x "$SERVICE" ] && "$SERVICE" stop 2>/dev/null
+
+	# Belt-and-braces: the crash needs wpa_supplicant on a managed iface, so
+	# make sure neither survives before the caller restarts the phy.
+	local p i
+	for p in $(sta_supplicants); do
+		kill "$p" 2>/dev/null
+	done
+	for i in $(sta_vifs); do
+		iw dev "$i" del 2>/dev/null
+	done
+
+	# Verify.  procd stop is synchronous but the netdev teardown is not.
+	local n=0
+	while [ "$n" -lt 10 ]; do
+		[ -z "$(sta_vifs)" ] && [ -z "$(sta_supplicants)" ] && break
+		sleep 1
+		n=$((n + 1))
+	done
+
+	: > "$FLAG"
+	logger -t wifi-sta-guard "station stopped for a phy restart"
+	return 0
+}
+
+up() {
+	[ -f "$FLAG" ] || return 0
+	rm -f "$FLAG"
+	enabled || return 0
+	# The service waits for the AP to reach ENABLED before creating the vif,
+	# so starting it here (just after the phy is configured) is safe.
+	logger -t wifi-sta-guard "phy restarted; restarting the station"
+	[ -x "$SERVICE" ] && "$SERVICE" start 2>/dev/null
+	return 0
+}
+
+case "${1:-}" in
+	down)
+		down
+		;;
+	up)
+		up
+		;;
+	status)
+		printf 'enabled=%s station_up=%s stopped=%s\n' \
+			"$(enabled && echo 1 || echo 0)" \
+			"$(station_up && echo 1 || echo 0)" \
+			"$([ -f "$FLAG" ] && echo 1 || echo 0)"
+		;;
+	*)
+		echo "usage: $0 down|up|status" >&2
+		exit 1
+		;;
+esac

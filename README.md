@@ -388,9 +388,9 @@ The WCN36xx 2.4 GHz radio comes up automatically on first boot and broadcasts an
 * **Concurrent AP + STA** is supported: the radio keeps beaconing its AP **and** joins another network as a client. Configure it from **Network → Station Mode** (or `/etc/config/wifista`) — see [Concurrent AP+STA and the Station Mode LuCI app](Docs/WiFi/AP_STA_AND_LUCI_APP.md). The station is created by a service **after** the AP is up; it is deliberately *not* a `wifi-iface`, because netifd restarts the phy on every wireless change and a phy restart with a station interface configured crashes the WCNSS firmware.
 
 > [!NOTE]
-> Saving anything under *Network → Wireless* while station mode is running restarts the phy and hits that same firmware bug. Stop the service first:
+> Saving anything under *Network → Wireless* restarts the phy — the very thing that crashes the firmware. That is handled: netifd's wireless driver is wrapped by `wifi-sta-guard` (`openwrt-patches/811`), which stops the station before the phy is touched and restarts it afterwards, so **`wifi reload` and Save & Apply are safe with station mode up**. Only a radio reset that bypasses netifd (a raw `iw dev del`, `rmmod wcn36xx`, a driver rebind) still needs the manual sequence:
 > ```sh
-> /etc/init.d/wifi-sta-late stop; wifi reload; /etc/init.d/wifi-sta-late start
+> /etc/init.d/wifi-sta-late stop; <the thing>; /etc/init.d/wifi-sta-late start
 > ```
 
 ---

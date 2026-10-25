@@ -301,6 +301,8 @@ End-to-end through uhttpd as that login:
 | 2026-10-25 | LuCI app on the flashed image | both views HTTP 200 |
 | 2026-10-25 | ACL, exercised as a **restricted** login (root bypasses ACLs) | every call the page makes is allowed; `/bin/sh` exec, `/etc/shadow`, `uci set wireless` denied; restricted user gets 200 on both views and 403 on Wireless/Status |
 | 2026-10-25 | Save & Apply path (`uci set` RPC → `uci apply`) | config committed, `sta` instance restarted in <1 s, re-associated, same lease |
+| 2026-10-26 | **Guard, live on 25.12.5 with the station associated** — `uci set wireless.radio0.channel=6; wifi reload` (forces teardown+setup) | **`crashes=0`**. Syslog: `18:59:28 wifi-sta-guard: station stopped for a phy restart` → `18:59:29 wifi-sta-guard: phy restarted; restarting the station`. `wpa_supplicant` PID 1709 → 25687 (the service really was stopped). AP back on ch11 (station channel-sync), station re-associated in 4 s, same lease `10.162.21.33` |
+| 2026-10-26 | Control: `wifi reload` with an **unchanged** wireless config | guard does **not** fire (netifd does not touch the phy when nothing changed) — 0 crashes, supplicant PID unchanged. The crash needs a config change; a bare reload is a no-op |
 
 ---
 
@@ -314,23 +316,45 @@ End-to-end through uhttpd as that login:
 | `ctrl_iface exists and seems to be in use` | a stale `wpa_supplicant` | `/etc/init.d/wifi-sta-late restart` (the service removes the stale socket) |
 | Station connects, no address | upstream has no DHCP, or `dhcp=0` | enable DHCP upstream / set `dhcp=1` |
 | AP's clients drop for a second at start-up | the AP followed the upstream's channel | expected; only when the channels differed |
-| AP reboots / modem drops when saving **Wireless** settings | a phy restart while the STA vif exists — the bug in §2 | stop the service, save, start it again (§9) |
+| AP reboots / modem drops when saving **Wireless** settings | a phy restart while the STA vif exists — the bug in §2 | **fixed since 25.12.6**: netifd brackets the phy restart with `wifi-sta-guard` (`openwrt-patches/811`), so this should no longer happen. If it does, check `/usr/sbin/wifi-sta-guard status` and `logread \| grep wifi-sta` (§9) |
 
 ---
 
 ## 9. Caveats
 
-- **`wifi reload` (or saving anything under Network → Wireless) with the station
-  up still crashes the firmware.**  Use:
+- **`wifi reload` and **Save & Apply** are safe with the station up** (since
+  25.12.6).  `openwrt-patches/811` hooks netifd's wireless driver:
+
+  | netifd call | guard action |
+  | :--- | :--- |
+  | `setup()` | `wifi-sta-guard down` … phy configured … `wifi-sta-guard up` |
+  | `teardown()` | `wifi-sta-guard down` (the matching setup restarts it) |
+
+  The hook is in **both** drivers wifi-scripts ships — `files/` (shell) and
+  `files-ucode/` (ucode) — because the ucode one is installed over the shell
+  one when `CONFIG_WIFI_SCRIPTS_UCODE=y`, which is the default and what this
+  target builds.
+
+  `down` stops `wifi-sta-late` (which kills `wpa_supplicant`/`udhcpc` and
+  deletes `phy0-sta0`) and waits until both are really gone; `up` restarts it
+  only if `down` actually stopped something, so boot and no-op reloads do not
+  start the station early and the service's own channel-change reload cannot
+  kill itself.  Both verbs are no-ops when Station Mode is disabled.
+
+  ```sh
+  wifi-sta-guard status
+  # enabled=1 station_up=1 stopped=0
+  ```
+
+  What is **still** a footgun: anything that resets the radio *without* going
+  through netifd — a raw `iw dev wlan0 del`, `rmmod wcn36xx`, a driver rebind.
+  For those, stop the service first:
 
   ```sh
   /etc/init.d/wifi-sta-late stop
-  wifi reload
+  # ...do the thing...
   /etc/init.d/wifi-sta-late start
   ```
-
-  The service's own channel sync does exactly this internally (it deletes the
-  vif before reloading).
 - **Single channel.**  AP and station share one radio, so the AP must sit on the
   upstream's channel.  There is no second channel to put the AP on.
 - **No default route from the lease.**  The station gets an address and can be
