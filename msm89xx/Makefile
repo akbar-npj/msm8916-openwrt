@@ -66,6 +66,10 @@ DEFAULT_PACKAGES += coreutils-nohup coreutils-timeout
 # stays =m so it is a preinstalled, autoloaded external module, NOT compiled
 # into vmlinux.
 DEFAULT_PACKAGES += kmod-sched-bbr
+# wpa_cli is the station-mode event monitor: it attaches to the STA's
+# wpa_supplicant ctrl socket and runs wifi-sta-wpa-event, which flags a
+# rejected password for the LuCI page (wifi-sta-wpa-event).
+DEFAULT_PACKAGES += wpa-cli
 # LuCI apps maintained in this repo.  They used to be hand-copied into every
 # diffconfig, which is how ufi003 silently came to miss
 # luci-app-modem-watchdog; living here they ship on every board (and on any

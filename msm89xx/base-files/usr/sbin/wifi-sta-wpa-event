@@ -1,0 +1,50 @@
+#!/bin/sh
+# wpa_cli action script for the station interface.
+#
+# Started by wifi-sta-late as:  wpa_cli -a /usr/sbin/wifi-sta-wpa-event -i phy0-sta0
+# wpa_cli calls it as:          wifi-sta-wpa-event <ifname> <EVENT ...>
+#
+# Keeps a per-SSID "wrong password" flag in /var/run/wifi-sta-wrongkey that
+# wifi-sta-up status prints and the LuCI page shows, so the user knows which
+# saved network needs its password re-entered.  The file is cleared on every
+# station start (passwords may have changed) and per SSID on connect.
+
+FLAG=/var/run/wifi-sta-wrongkey
+
+IFNAME="$1"
+[ -n "$IFNAME" ] || exit 0
+shift
+EVENT="$*"
+
+flag_add() {
+	if [ -f "$FLAG" ] && grep -qxF "$1" "$FLAG" 2>/dev/null; then
+		return 0
+	fi
+	echo "$1" >> "$FLAG"
+	logger -t wifi-sta "wrong password for '$1' ($IFNAME): re-enter it in Station Mode > Configuration and Save & Apply"
+}
+
+flag_clear() {
+	[ -f "$FLAG" ] || return 0
+	grep -vxF "$1" "$FLAG" > "${FLAG}.tmp" 2>/dev/null
+	mv "${FLAG}.tmp" "$FLAG"
+}
+
+case "$EVENT" in
+	CTRL-EVENT-SSID-TEMP-DISABLED*WRONG_KEY*)
+		# CTRL-EVENT-SSID-TEMP-DISABLED id=0 ssid="name" auth_failures=1
+		# duration=20 reason=WRONG_KEY
+		s=$(printf '%s\n' "$EVENT" | sed -n 's/.* ssid="\([^"]*\)".*/\1/p')
+		[ -n "$s" ] && flag_add "$s"
+		;;
+	CONNECTED*)
+		# wpa_cli passes the bare CONNECTED for this event; the SSID of the
+		# network it joined is in the WPA_ID_STR environment variable.
+		[ -n "$WPA_ID_STR" ] && flag_clear "$WPA_ID_STR"
+		;;
+	CTRL-EVENT-NETWORK-NOT-FOUND*)
+		logger -t wifi-sta "none of the saved networks is in range"
+		;;
+esac
+
+exit 0

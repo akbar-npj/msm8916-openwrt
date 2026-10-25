@@ -62,6 +62,9 @@ function statusTable(st) {
 		row(_('Address'), st.sta_ip)
 	] : [ row(_('Station interface'), _('not present')) ];
 
+	if (st.profiles)
+		sta.push(row(_('Saved networks'), st.profiles));
+
 	return E('div', {}, [
 		E('table', { 'class': 'table' }, [ E('tbody', {}, ap) ]),
 		E('h4', {}, _('Station')),
@@ -69,19 +72,29 @@ function statusTable(st) {
 	]);
 }
 
-function warnBox(st) {
+function warnBoxes(st) {
+	var boxes = [];
+
+	if (st.wrong_key) {
+		var bad = st.wrong_key.split(/ +/).filter(Boolean);
+		boxes.push(E('div', { 'class': 'alert-message error' }, [
+			E('strong', {}, _('Wrong password: ')),
+			_('the saved network %s rejected the password. Open the Configuration tab, correct it and Save & Apply \u2014 the device keeps trying the other saved networks meanwhile.').format(bad.map(function(s) { return '\u2018' + s + '\u2019' }).join(', '))
+		]));
+	}
+
 	if (st.ap_channel && st.sta_channel && st.ap_channel != st.sta_channel)
-		return E('div', { 'class': 'alert-message warning' }, [
+		boxes.push(E('div', { 'class': 'alert-message warning' }, [
 			E('strong', {}, _('Channel mismatch. ')),
 			_('The access point is on channel %s but the station is on %s. One radio can only use one channel \u2014 restart the service to make the AP follow the upstream.').format(st.ap_channel, st.sta_channel)
-		]);
+		]));
 
 	if (st.enabled == '1' && st.sta_connected != '1')
-		return E('div', { 'class': 'alert-message warning' }, [
+		boxes.push(E('div', { 'class': 'alert-message warning' }, [
 			_('Station mode is enabled but the station is not connected. The watchdog retries every %s s; see the log below for the reason.').format(st.recover_after || '60')
-		]);
+		]));
 
-	return null;
+	return boxes;
 }
 
 function wirelessConflict() {
@@ -122,8 +135,9 @@ return view.extend({
 			var w = wirelessConflict();
 			if (w) warn.appendChild(w);
 
-			var m = warnBox(s);
-			if (m) warn.appendChild(m);
+			warnBoxes(s).forEach(function(m) {
+				if (m) warn.appendChild(m);
+			});
 		}
 
 		function run(args, msg) {

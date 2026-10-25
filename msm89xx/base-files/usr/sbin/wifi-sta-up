@@ -29,14 +29,75 @@ if [ "$MODE" != "status" ] && [ "$enabled" != 1 ]; then
 	exit 0
 fi
 
-config_get ssid main ssid
-config_get key main key
 config_get macaddr main macaddr
 config_get_bool dhcp main dhcp 1
 config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
 config_get hostname main hostname
+
+# ---- saved networks ----------------------------------------------------
+# Any number of networks can be saved as wifista.ap sections.  The generated
+# wpa_supplicant.conf gets one network block per enabled profile and
+# wpa_supplicant picks whichever is in range, moving on to the next when a
+# password is rejected (reported to the user, see wifi-sta-wpa-event).
+# A single legacy wifista.main.ssid/key pair still works: it is used when no
+# ap section exists (the LuCI page migrates it on first save).
+#
+# The three lists are parallel, newline-terminated, 1-based indexed.
+PROFILE_SSID=""
+PROFILE_KEY=""
+PROFILE_OFF=""
+
+add_profile() {
+	PROFILE_SSID="${PROFILE_SSID}$1
+"
+	PROFILE_KEY="${PROFILE_KEY}$2
+"
+	PROFILE_OFF="${PROFILE_OFF}$3
+"
+}
+
+profile_load() {
+	local ssid key disabled
+	config_get ssid "$1" ssid
+	config_get key "$1" key
+	config_get_bool disabled "$1" disabled 0
+	[ -n "$ssid" ] || return 0
+	add_profile "$ssid" "$key" "$disabled"
+}
+config_foreach profile_load ap
+
+# Legacy single-network fallback.
+if [ -z "$PROFILE_SSID" ]; then
+	config_get ssid main ssid
+	config_get key main key
+	[ -n "$ssid" ] && add_profile "$ssid" "$key" 0
+fi
+
+# profile_field <list> <index>
+profile_field() {
+	printf '%s' "$1" | sed -n "$2p"
+}
+
+PROFILE_COUNT=$(printf '%s' "$PROFILE_SSID" | grep -c .)
+PROFILE_ENABLED=0
+ssid=""
+_i=1
+while [ "$_i" -le "$PROFILE_COUNT" ]; do
+	_s="$(profile_field "$PROFILE_SSID" "$_i")"
+	_o="$(profile_field "$PROFILE_OFF" "$_i")"
+	if [ "$_o" != "1" ]; then
+		PROFILE_ENABLED=$((PROFILE_ENABLED + 1))
+		[ -n "$ssid" ] || ssid="$_s"
+	fi
+	_i=$((_i + 1))
+done
+
+# Escape a value for a quoted string in wpa_supplicant.conf.
+conf_escape() {
+	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
 
 # A UCI field the user cleared ("") would make the arithmetic tests below fail
 # with "bad number"; fall back to the default in that case.
@@ -119,15 +180,38 @@ ap_channel() {
 	iw dev "$1" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }'
 }
 
+# Channel of the first saved network that is visible in a scan on the STA
+# vif.  Sets UP_CH and UP_SSID (empty when none is in range).
+scan_any_channel() {
+	local iface="$1" i s off ch
+	UP_CH=""
+	UP_SSID=""
+	i=1
+	while [ "$i" -le "$PROFILE_COUNT" ]; do
+		s="$(profile_field "$PROFILE_SSID" "$i")"
+		off="$(profile_field "$PROFILE_OFF" "$i")"
+		if [ "$off" != "1" ] && [ -n "$s" ]; then
+			ch="$(scan_channel "$iface" "$s")"
+			if [ -n "$ch" ]; then
+				UP_CH="$ch"
+				UP_SSID="$s"
+				return 0
+			fi
+		fi
+		i=$((i + 1))
+	done
+	return 1
+}
+
 bring_up_sta() {
-	# An enabled service with no SSID is a legitimate state: the operator
-	# saves the form first and picks the network from a scan afterwards.
-	# procd respawns us (threshold 0 = never give up), so a bare exit 1 turns
-	# into a 5-second log-spam loop -- back off for five minutes instead.
-	# Setting a real SSID restarts us immediately through the config.change
-	# trigger, so the wait never delays a working setup.
-	[ -n "$ssid" ] || {
-		logger -t wifi-sta "wifista.main.ssid is empty; station mode idle"
+	# An enabled service with no saved network is a legitimate state: the
+	# operator saves the form first and picks the networks from a scan
+	# afterwards.  procd respawns us (threshold 0 = never give up), so a bare
+	# exit 1 turns into a 5-second log-spam loop -- back off for five minutes
+	# instead.  Saving a network restarts us immediately through the
+	# config.change trigger, so the wait never delays a working setup.
+	[ "$PROFILE_ENABLED" -ge 1 ] || {
+		logger -t wifi-sta "no saved network configured; station mode idle"
 		sleep 300
 		exit 1
 	}
@@ -171,15 +255,17 @@ bring_up_sta() {
 	# One radio, one channel: the STA can only join an upstream that sits on
 	# the same channel as our AP (the driver refuses otherwise -- verified:
 	# "Authentication request to the driver failed" loop, no crash).  So scan
-	# for the target SSID now, and if it is elsewhere, move OUR AP -- with the
-	# STA vif deleted first, because a phy restart with a managed iface present
-	# is the firmware crash.
+	# for the saved networks now, and if the first one in range is elsewhere,
+	# move OUR AP -- with the STA vif deleted first, because a phy restart with
+	# a managed iface present is the firmware crash.
 	radio="${radio:-radio0}"
-	up_ch="$(scan_channel "$sta_if" "$ssid")"
+	scan_any_channel "$sta_if"
+	up_ch="$UP_CH"
+	up_ssid="$UP_SSID"
 	ap_ch="$(ap_channel "$ap")"
 
 	if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
-		logger -t wifi-sta "upstream '$ssid' is on channel $up_ch, AP is on $ap_ch; moving the AP"
+		logger -t wifi-sta "upstream '$up_ssid' is on channel $up_ch, AP is on $ap_ch; moving the AP"
 		iw dev "$sta_if" del 2>/dev/null
 		uci set "wireless.${radio}.channel=$up_ch"
 		uci commit wireless
@@ -206,23 +292,41 @@ bring_up_sta() {
 		fi || { logger -t wifi-sta "failed to re-create $sta_if"; exit 1; }
 		ip link set "$sta_if" up 2>/dev/null
 	elif [ -n "$up_ch" ]; then
-		logger -t wifi-sta "upstream '$ssid' on channel $up_ch matches the AP"
+		logger -t wifi-sta "upstream '$up_ssid' on channel $up_ch matches the AP"
 	else
-		logger -t wifi-sta "WARNING: '$ssid' not found in the scan; leaving the channel alone"
+		logger -t wifi-sta "WARNING: none of the $PROFILE_ENABLED saved network(s) seen in the scan; leaving the channel alone"
 	fi
 
 	conf="/var/run/wpa_supplicant-${sta_if}.conf"
+	# A fresh start: passwords may have changed, so stale "wrong password"
+	# flags from a previous run must not survive.
+	rm -f /var/run/wifi-sta-wrongkey
 	{
 		echo "ctrl_interface=/var/run/wpa_supplicant"
-		echo "network={"
-		echo "	ssid=\"$ssid\""
-		[ -n "$key" ] && echo "	psk=\"$key\""
-		echo "}"
+		_i=1
+		while [ "$_i" -le "$PROFILE_COUNT" ]; do
+			_s="$(profile_field "$PROFILE_SSID" "$_i")"
+			_k="$(profile_field "$PROFILE_KEY" "$_i")"
+			_o="$(profile_field "$PROFILE_OFF" "$_i")"
+			if [ "$_o" != "1" ] && [ -n "$_s" ]; then
+				# A newline inside an SSID cannot be written as a quoted string;
+				# skip that profile rather than emit a broken conf.
+				if [ "$(printf '%s' "$_s" | wc -l)" != "0" ]; then
+					logger -t wifi-sta "skipping a saved network: newline in SSID"
+				else
+					echo "network={"
+					echo "	ssid=\"$(conf_escape "$_s")\""
+					[ -n "$_k" ] && echo "	psk=\"$(conf_escape "$_k")\""
+					echo "}"
+				fi
+			fi
+			_i=$((_i + 1))
+		done
 	} > "$conf"
 	# A leftover socket makes wpa_supplicant exit with "ctrl_iface exists".
 	rm -f "/var/run/wpa_supplicant/${sta_if}"
 
-	logger -t wifi-sta "$sta_if created on $phy ($ap ENABLED after ${waited}s); ssid '$ssid'"
+	logger -t wifi-sta "$sta_if created on $phy ($ap ENABLED after ${waited}s); $PROFILE_ENABLED saved network(s), primary '$ssid'"
 
 	exec wpa_supplicant -D nl80211 -i "$sta_if" -c "$conf"
 }
@@ -297,18 +401,20 @@ run_watchdog() {
 		# the same channel as our AP.)
 		ap="$(find_ap)"
 		ap_ch="$(ap_channel "$ap")"
-		up_ch="$(scan_channel "$sta_if" "$ssid")"
+		scan_any_channel "$sta_if"
+		up_ch="$UP_CH"
 
 		if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
-			logger -t wifi-sta "watchdog: down ${down}s and upstream '$ssid' moved to channel $up_ch (AP on $ap_ch); recycling the STA"
+			logger -t wifi-sta "watchdog: down ${down}s and upstream '$UP_SSID' moved to channel $up_ch (AP on $ap_ch); recycling the STA"
 			recycle_sta "$sta_if"
 		else
 			# Upstream simply absent / wrong PSK / AP channel already right:
 			# nothing to fix here, and logging every minute would flood the
 			# ring buffer.  First occurrence, then one in five (~5 min).
+			# A rejected password is reported by wifi-sta-wpa-event instead.
 			miss=$((miss + 1))
 			if [ "$miss" -eq 1 ] || [ $((miss % 5)) -eq 0 ]; then
-				logger -t wifi-sta "watchdog: down ${down}s, no channel mismatch (upstream=${up_ch:-not seen} ap=${ap_ch:-none}); leaving it to wpa_supplicant"
+				logger -t wifi-sta "watchdog: down ${down}s, no channel mismatch (upstream=${UP_SSID:-not seen} ch=${up_ch:-none} ap=${ap_ch:-none}); leaving it to wpa_supplicant"
 			fi
 		fi
 		down=0
@@ -332,6 +438,13 @@ run_status() {
 	kv dhcp "$dhcp"
 	kv radio "$radio"
 	kv recover_after "$recover_after"
+	# Saved networks (enabled profiles) and any whose password was rejected
+	# since the last start (space-separated SSIDs).
+	kv profiles "$PROFILE_ENABLED"
+	wk=""
+	[ -f /var/run/wifi-sta-wrongkey ] &&
+		wk="$(tr '\n' ' ' < /var/run/wifi-sta-wrongkey | sed 's/ *$//')"
+	kv wrong_key "$wk"
 	# Effective announce-hostname (configured value or the system default) so
 	# the LuCI page can show what would actually be sent.
 	kv hostname "$(sta_hostname)"
