@@ -8,6 +8,91 @@
 
 ---
 
+### v25.12.6-r1 (2026-10-26) — built from `test/25.12.6`
+
+*BBR by default, and Station Mode finally survives a Wi-Fi settings change.*
+
+**Why this release** — Two things that have annoyed every user of this port are
+fixed. Changing anything under *Network → Wireless* used to crash the Wi-Fi
+firmware whenever Station Mode was up, because netifd restarts the radio
+underneath a station it does not know about; that restart is now bracketed by a
+guard. And TCP was CUBIC, which misreads radio loss as congestion — on an LTE
+bearer that means a bulk download fills the base station's buffer and your SSH
+session becomes unusable. BBR is now the default. Underneath, the tree moves to
+OpenWrt **v25.12.6** (Linux **6.12.112**, mac80211/backports **6.18.55**).
+
+**🚦 BBR is the default TCP congestion control (new)** — CUBIC's core assumption
+is that packet loss means congestion. On a cellular link it is false: loss comes
+from fading, handovers and the ~10 % block error rate that LTE's link adaptation
+aims for, and an eNodeB buffers hundreds of milliseconds. A loss-based sender
+fills that buffer *before* it sees the loss that tells it to stop, so a download
+pins RTT at several hundred milliseconds and everything interactive stalls.
+BBR measures the delivery rate and the minimum RTT instead and paces to that
+model, keeping the pipe full with no standing queue. `tcp_bbr` was already
+preinstalled and autoloaded; what changed is that `/etc/sysctl.d/10-bbr.conf`
+now selects it at boot (`/etc/init.d/boot` loads the module at `START=10`,
+`/etc/init.d/sysctl` applies the sysctl at `START=11`). The qdisc stays
+`fq_codel` — BBR has paced internally since 4.20. Revert per boot with
+`sysctl -w net.ipv4.tcp_congestion_control=cubic`, or permanently by removing
+that file. Full rationale, limits and an A/B latency recipe:
+[`Docs/BBR_TCP_CONGESTION_CONTROL.md`](Docs/BBR_TCP_CONGESTION_CONTROL.md).
+
+**📶 A radio restart no longer kills Station Mode (new)** — Station Mode is
+deliberately *not* a `wifi-iface`; it is created by a service after the AP is up,
+because a phy restart with a managed interface present crashes the WCNSS
+firmware (`Data Abort Exception at 0x8b6b301c`). The catch was that netifd knew
+nothing about it, so *Save & Apply* restarted the phy underneath a live station
+and took the AP down with it. `/usr/sbin/wifi-sta-guard` now brackets the
+driver: `setup()` runs `down` before the phy is touched and `up` once it is
+configured, `teardown()` runs `down` only (the matching setup restores it, and a
+teardown with no setup after it — radio disabled, reboot — is exactly when the
+station must stay down). `down` stops the service, kills any surviving
+supplicant, deletes `phy0-sta0` and waits until both are really gone; `up`
+restarts it only if `down` actually stopped something, so boot and no-op reloads
+do not start the station early and the service's own channel-change reload
+cannot kill itself. Both verbs are no-ops when Station Mode is disabled. Only
+radio resets that bypass netifd (a raw `iw dev del`, `rmmod wcn36xx`) still need
+the manual sequence.
+
+**⬆️ OpenWrt v25.12.6 / Linux 6.12.112** — The backports bump from 6.18.26 to
+6.18.55 broke the wcn36xx series: patch 453 no longer applied. It was rebased
+against the pristine 6.18.55 tree, and four hardening patches (454–457: HAL
+response bounds, print-reg-info truncation, trigger-BA length, TX-ack timer
+shutdown) are now upstream and were deleted. The remaining six (450–453, 458,
+459) replay with zero rejects, and 459 — the RX-survey NULL dereference panic —
+is unchanged and still carried.
+
+**🔧 Build & release plumbing** — `build.sh` no longer silently ignores a new or
+edited file in `openwrt-patches/` or `openwrt-overlay/` on an incremental build:
+`.builder-state` records a content hash of both trees (`TREE_SHA`) and the fast
+path is refused when it no longer matches. The CI feed is now published to
+`releases/<base>` **and** `releases/<version>` — devices read the base path
+(`CONFIG_VERSION_REPO` has no `-rN` suffix), and previously only the versioned
+path was written, so a fresh release served a 404 feed.
+
+**🧪 Tested on HMUF02-V5** — `sysupgrade -o` from `25.12.5-r6`, then verified
+live: `ubus call system board` reports `25.12.6-r1` / kernel `6.12.112`;
+`/proc/sys/net/ipv4/tcp_congestion_control` = `bbr` with `tcp_bbr` loaded and
+in use; the guard is present with its hooks in the installed (ucode) driver; and
+a forced phy restart (`uci set wireless.radio0.channel=6; wifi reload`)
+produced **0 firmware crashes**, the syslog pair `station stopped for a phy
+restart` → `phy restarted; restarting the station`, a recycled
+`wpa_supplicant` PID, and the AP and station both back with the same lease.
+Modem: LTE attached, `wwan0` up with a default route, 0 crashes. The other
+boards compile from the same tree and are built by CI; they have **not** been
+flashed with this branch.
+
+**⚠️ Upgrading — use `sysupgrade -o`** — The 44-file modem firmware set in
+`/lib/firmware` lives on the overlay and is **not** in any `keep.d` list, so a
+plain config-preserving `sysupgrade` drops it and the modem will not load.
+`sysupgrade -o` (preserve changed files) keeps it, and is what this release was
+verified with. If you do flash plainly, re-copy `/lib/firmware` before rebooting.
+
+**📄 Full changeset** — `git log 66c03f9..v25.12.6-r1` (4 commits: the guard,
+the patch rebase, BBR, and the build-tooling fix).
+
+---
+
 ### v25.12.5-r6 (2026-10-19) — built from `main`
 
 *Swap the SIM without rebooting — and the board finally carries its real name.*

@@ -53,7 +53,7 @@ jobs:
     - name: Determine version
       id: vars
       run: |
-        VERSION="$(cat version 2>/dev/null || echo 25.12.5)"
+        VERSION="$(cat version 2>/dev/null || echo 25.12.6)"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "FILE_DATE=$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
 

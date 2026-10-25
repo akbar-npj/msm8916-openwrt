@@ -1,6 +1,6 @@
 # OpenWrt for Qualcomm Snapdragon 410 (MSM8916) 4G LTE USB Sticks & Modems
 
-[![OpenWrt Version](https://img.shields.io/badge/OpenWrt-25.12.5-blue.svg)](https://openwrt.org/)
+[![OpenWrt Version](https://img.shields.io/badge/OpenWrt-25.12.6-blue.svg)](https://openwrt.org/)
 [![Kernel](https://img.shields.io/badge/Linux_Kernel-6.12-green.svg)](https://kernel.org/)
 [![Architecture](https://img.shields.io/badge/Arch-aarch64-orange.svg)](https://en.wikipedia.org/wiki/AArch64)
 [![License](https://img.shields.io/badge/License-GPL--2.0-lightgrey.svg)](LICENSE)
@@ -632,9 +632,9 @@ The feed is **signed with a pinned key**. Every image ships the matching public 
 
 ```bash
 cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/packages/packages.adb
 EOF
 
 apk update
