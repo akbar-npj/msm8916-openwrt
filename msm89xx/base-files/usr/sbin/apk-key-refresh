@@ -39,7 +39,7 @@ installed one (kmod-* installs would fail on the vermagic constraint).
 
 Environment overrides:
   KEY_URL    key URL                (default: the project's public-key.pem)
-  KEY_FILE   install path           (default: /etc/apk/keys/akbar-npj-v25.12.5.pem)
+  KEY_FILE   install path           (default: /etc/apk/keys/akbar-npj-v25.12.6.pem)
   RETRIES    attempts at boot       (default 15)
   DELAY      seconds between tries  (default 20)
 
@@ -53,7 +53,7 @@ USAGE
 esac
 
 KEY_URL="${KEY_URL:-https://akbar-npj.github.io/msm8916-openwrt/public-key.pem}"
-KEY_FILE="${KEY_FILE:-/etc/apk/keys/akbar-npj-v25.12.5.pem}"
+KEY_FILE="${KEY_FILE:-/etc/apk/keys/akbar-npj-v25.12.6.pem}"
 TMP_FILE="/tmp/.apk-key-refresh.$$"
 
 # Boot-time retries: the modem may not be attached yet when we start.
