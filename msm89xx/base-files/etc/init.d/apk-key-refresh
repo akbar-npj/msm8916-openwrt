@@ -11,7 +11,14 @@ USE_PROCD=1
 start_service() {
 	procd_open_instance
 	procd_set_param command /usr/sbin/apk-key-refresh
-	procd_set_param respawn 3600 5 5
+	# No `respawn` here: this is a one-shot, not a daemon.  The script
+	# carries its own boot-time retry loop (15 tries, 20 s apart) to ride
+	# out the modem attach delay, and it exits 1 (with a log line) when the
+	# feed URL stays unreachable.  With `respawn 3600 5 5` procd counted that
+	# expected offline exit as a crash and respawned it, so every boot before
+	# the modem is up ended in "Instance apk-key-refresh::instance1 s in a
+	# crash loop 6 crashes" -- a false alarm on a device whose whole job is
+	# being offline for the first minute.
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance
