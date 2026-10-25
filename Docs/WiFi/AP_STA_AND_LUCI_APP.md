@@ -53,6 +53,13 @@ It is also kept out of netifd: netifd has no device object for a vif it did not
 create, so `option device 'phy0-sta0'` fails with `NO_DEVICE`.  `udhcpc` is run
 directly instead.
 
+> **Status of the crash (2026-10-26).**  The `0x8b6b301c` abort does **not**
+> reproduce on the 25.12.6 backports (6.18.55): a managed station survives
+> `wifi reload` 6/6 with zero crashes.  The design above is kept for a second,
+> independent reason — a managed station only associates on about one boot in
+> three, and the failures lose the radio's scan state.  See
+> [WCN36XX_AP_STA_RE.md](WCN36XX_AP_STA_RE.md#attempt-3-2026-10-26--reliability-measured-not-adopted).
+
 ---
 
 ## 3. Quick start (LuCI)
@@ -162,6 +169,8 @@ The station has **no channel of its own**: it must sit on the same channel as
 the AP it is associated to, and the AP is the one that has to move.  At
 bring-up the service therefore:
 
+0. refuses to run on `channel='auto'` (see below) — it pins the radio to a
+   concrete channel first,
 1. creates the vif and `ip link set up`s it (a DOWN netdev cannot scan),
 2. scans for the saved networks and reads the channel of the **first one in
    range**,
@@ -172,6 +181,17 @@ bring-up the service therefore:
 
 A mismatch is otherwise silent and confusing: `SME: Authentication request to
 the driver failed` in a growing back-off loop, and no lease — but no crash.
+
+**Why `auto` is refused.**  With `channel='auto'` hostapd runs an ACS scan at
+every AP start, and wcn36xx can lose a scan and then answer every later one
+with `-EBUSY` until the next boot.  When ACS is the victim the AP comes up with
+**no channel and no SSID**, so the whole radio is dead — a failed station
+attempt takes the access point with it.  `ensure_fixed_channel` in
+`wifi-sta-up` therefore runs before anything else: it adopts the channel the AP
+is already beaconing on when there is one (no disruption, no reload), and
+otherwise pins **6** and restarts the radio so the AP can actually start.  The
+log line is `radio 'radio0' had channel 'auto'; pinning it to N`.  Once pinned,
+step 3 above may still move the AP to the upstream's channel as usual.
 
 The AP's own clients see a brief drop when the channel changes (no CSA is sent).
 
@@ -357,6 +377,20 @@ End-to-end through uhttpd as that login:
   ```
 - **Single channel.**  AP and station share one radio, so the AP must sit on the
   upstream's channel.  There is no second channel to put the AP on.
+- **Keep `wireless.radio0.channel` fixed — never `auto`.**  `auto` makes hostapd
+  run an ACS scan at every AP start.  wcn36xx can lose a scan and then answer
+  every later scan with `-EBUSY` for the rest of the boot; with `auto` that also
+  kills the AP (it never picks a channel and comes up without an SSID), so the
+  whole radio is dead until the next reboot.  A fixed channel keeps the AP
+  usable and lets the service's `recover_after` watchdog retry the station.
+  The service enforces this: on start it pins `auto` to the AP's current
+  channel, or to **6** when the AP has none, and logs `pinning it to N`.
+- **A plain `wifi-iface mode=sta` is not a replacement.**  It was ported and
+  measured on 2026-10-26 (backports 6.18.55, so no firmware crash): it
+  associates on about one boot in three, and the failures lose the radio's scan
+  state exactly as above.  The service exists because of that, not only because
+  of the old crash — see
+  [WCN36XX_AP_STA_RE.md](WCN36XX_AP_STA_RE.md#attempt-3-2026-10-26--reliability-measured-not-adopted).
 - **No default route from the lease.**  The station gets an address and can be
   reached on its subnet, but the mobile bearer stays the default path.
 - The station is not visible to netifd/LuCI *Wireless* — that is intentional.
