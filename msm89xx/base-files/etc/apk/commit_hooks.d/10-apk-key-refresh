@@ -1,0 +1,12 @@
+#!/bin/sh
+# apk commit hook: refresh the feed signing key before a package operation
+# commits, so a key that rotated while the device was running cannot make the
+# next install fail with "UNTRUSTED signature".
+#
+# One attempt, no retries (apk only reaches the commit stage after a
+# successful download, so the network is proven up).  ALWAYS exit 0: a
+# non-zero pre-commit hook aborts the whole transaction.
+
+RETRIES=1 DELAY=0 /usr/sbin/apk-key-refresh
+
+exit 0
