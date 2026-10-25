@@ -59,7 +59,9 @@ directly instead.
 
 1. **Network → Station Mode → Configuration**
 2. Tick **Enable station mode**
-3. **Upstream SSID** — type it, or press **Scan** and use *Use* on a row
+3. **Upstream SSID** — *optional*: type it, or leave it empty and press **Scan**
+   and use *Use* on a row (the station stays idle until an SSID is set, so the
+   form can be saved first and filled in later)
 4. **Password** (leave empty for an open network)
 5. **Station MAC address** — must differ from the AP's MAC (the default
    `00:11:22:33:44:77` is fine)
@@ -88,10 +90,11 @@ uci commit wifista
 | Option | Default | Meaning |
 |---|---|---|
 | `enabled` | `0` | Master switch.  Off by default — the service exits immediately. |
-| `ssid` | *(empty)* | Upstream network to join.  Empty = the service refuses to start (logged). |
+| `ssid` | *(empty)* | Upstream network to join.  **Optional** — with it empty the station simply stays idle (logged once, then retried every 5 min), so the form can be saved before the network is known; pick one from the scan and Save & Apply afterwards. |
 | `key` | *(empty)* | WPA/WPA2/WPA3 passphrase.  Empty = open network. |
 | `macaddr` | `00:11:22:33:44:77` | Address for the station vif.  **Must differ from the AP's** — mac80211 clones the AP's address onto a new vif, and `ip link set up` then fails with a misleading `RTNETLINK answers: No error information`. |
 | `dhcp` | `1` | Run `udhcpc`.  The lease installs **only** the address — no default route, so the LTE/mobile path stays the default. |
+| `hostname` | *(empty)* | Name announced to the upstream network as DHCP option 12 (`udhcpc -x hostname:…`), so the upstream router can resolve this device by name.  Empty = the system hostname (`system.@system[0].hostname`, else the kernel's). |
 | `radio` | `radio0` | Which radio's channel follows the upstream. |
 | `recover_after` | `60` | Seconds the station may stay down before the watchdog recycles it. `0` disables the check. |
 | `wait_ap_timeout` | `60` | How long the service waits for hostapd to report `ENABLED` before giving up (it retries on the next start). |
@@ -181,6 +184,17 @@ commits `wifista` and restarts the service — a changed SSID or key takes effec
 without a reboot.
 
 The app writes **only** `/etc/config/wifista`.
+
+The scan is a pure read-only operation — a netlink hardware scan on the AP
+interface, never on the station vif and never touching the wireless config (no
+phy restart, no `wifi reload`).  It only runs when the status output actually
+reports an AP interface; otherwise the button explains that Wi-Fi is not up
+instead of exec'ing against a guessed name.  Verified on-device 2026-10-25:
+`iwinfo phy0-ap0 scan` — directly and through rpcd `file exec` (the exact LuCI
+path) — is inert with the service disabled, with an orphan managed vif present,
+and with the AP interface down (it just returns a netlink error); no firmware
+error, no restart, uptime unaffected.  A device reboot seen around a scan click
+on 2026-10-25 was the unrelated cold power loss documented in the modem notes.
 
 ### Permissions
 
