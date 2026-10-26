@@ -1,0 +1,53 @@
+#!/bin/sh
+# Fast-blink the status LED for the first 7 s of boot: that is exactly the
+# failsafe window (CONFIG_TARGET_PREINIT_TIMEOUT=7), during which one short
+# press of the Restart button lands the box in failsafe.  On a headless dongle
+# the window is otherwise invisible -- you cannot see a prompt or a console.
+#
+# Registered before 30_failsafe_wait, so it runs first and the blink is already
+# going while the button is being polled.  The blink runs in the background so
+# preinit is not delayed; it stops itself after the window and leaves the LED
+# solid (the DTS default), which is what the modem monitor expects to inherit.
+#
+# The blink is deliberately slower than the "failsafe entered" cue (40/40 in
+# 35_failsafe_usb) so the two are distinguishable: 100/100 = "press now",
+# 40/40 = "you are in failsafe".
+
+WINDOW_SECS=7
+FAST_ON=100
+FAST_OFF=100
+
+fs_window_led() {
+	local l led=""
+
+	# Board LED names: red:power (hmuf02v5, ufi001b, ufi003), red:wan or red
+	# (mf800b, uf02).  Fall back to any red LED, then to anything at all, so
+	# uz801 (green only) still gets the cue.
+	for l in /sys/class/leds/red:power /sys/class/leds/red:wan /sys/class/leds/red; do
+		[ -e "$l/trigger" ] && { led="$l"; break; }
+	done
+	[ -n "$led" ] || for l in /sys/class/leds/*red*; do
+		[ -e "$l/trigger" ] && { led="$l"; break; }
+	done
+	[ -n "$led" ] || for l in /sys/class/leds/*; do
+		[ -e "$l/trigger" ] && { led="$l"; break; }
+	done
+	[ -n "$led" ] || return 0
+
+	echo "failsafe-window: fast-blink ${led##*/} for ${WINDOW_SECS}s" > /dev/kmsg 2>/dev/null
+
+	(
+		echo timer > "$led/trigger" 2>/dev/null
+		echo "$FAST_ON" > "$led/delay_on" 2>/dev/null
+		echo "$FAST_OFF" > "$led/delay_off" 2>/dev/null
+
+		sleep "$WINDOW_SECS"
+
+		# Only hand the LED back if nobody claimed it meanwhile.
+		[ "$(cat "$led/trigger" 2>/dev/null)" = "timer" ] || exit 0
+		echo none > "$led/trigger" 2>/dev/null
+		echo 1 > "$led/brightness" 2>/dev/null
+	) &
+}
+
+boot_hook_add preinit_main fs_window_led

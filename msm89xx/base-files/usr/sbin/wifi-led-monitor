@@ -27,6 +27,8 @@ WIFI_IF="phy0-ap0"
 POLL_INTERVAL=2
 BLINK_ON=250
 BLINK_OFF=250
+BLINK_FAST_ON=100
+BLINK_FAST_OFF=100
 
 set_green_off()
 {
@@ -51,6 +53,20 @@ set_green_blink()
         echo timer > "$LED/trigger" 2>/dev/null
         echo "$BLINK_ON" > "$LED/delay_on" 2>/dev/null
         echo "$BLINK_OFF" > "$LED/delay_off" 2>/dev/null
+}
+
+#
+# AP+STA: the radio is serving its own AP *and* associated upstream.  That is
+# the one state where this box is a repeater, so it gets its own much faster
+# toggle, distinguishable at a glance from "a client joined the AP".
+#
+set_green_blink_fast()
+{
+        [ -e "$LED/trigger" ] || return 1
+
+        echo timer > "$LED/trigger" 2>/dev/null
+        echo "$BLINK_FAST_ON" > "$LED/delay_on" 2>/dev/null
+        echo "$BLINK_FAST_OFF" > "$LED/delay_off" 2>/dev/null
 }
 
 #
@@ -103,6 +119,33 @@ wifi_ap_up()
         return 0
 }
 
+#
+# The station vif is created by wifi-sta-up (it is deliberately NOT a
+# wifi-iface), so discover it instead of assuming phy0-sta0.
+#
+sta_if()
+{
+        local n
+
+        for n in /sys/class/net/*; do
+                case "${n##*/}" in
+                        *-sta*) echo "${n##*/}"; return 0 ;;
+                esac
+        done
+
+        return 1
+}
+
+sta_associated()
+{
+        local i
+
+        i="$(sta_if)" || return 1
+        [ -n "$i" ] || return 1
+
+        iw dev "$i" link 2>/dev/null | grep -q "^Connected"
+}
+
 wifi_has_clients()
 {
         wifi_ap_up || return 1
@@ -127,6 +170,10 @@ while true; do
         if ! wifi_ap_up; then
 
                 STATE="wifi-down"
+
+        elif sta_associated; then
+
+                STATE="ap-sta"
 
         elif wifi_has_clients; then
 
@@ -164,6 +211,13 @@ while true; do
                                 set_green_on
                                 logger -t wifi-led-monitor \
                                         "Wi-Fi AP ready, no clients: green ON"
+                                ;;
+
+                        ap-sta)
+                                set_red off
+                                set_green_blink_fast
+                                logger -t wifi-led-monitor \
+                                        "Wi-Fi AP+STA active: green FAST BLINK"
                                 ;;
 
                         client-connected)
