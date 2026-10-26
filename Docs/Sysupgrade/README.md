@@ -7,6 +7,7 @@ This directory contains comprehensive documentation on OpenWrt firmware upgrades
 ## Documentation Index
 
 - [**MSM8916 Sysupgrade & LuCI Architecture Guide**](MSM8916_Sysupgrade_and_LuCI_Architecture_Guide.md): Complete architectural deep-dive, root cause analysis of intermittent LuCI failures, technical fixes in `platform.sh`, CLI and LuCI option reference, and step-by-step procedures.
+- [**First boot after a clean install: the firmware dump (and the 45 s)**](FIRST_BOOT_FIRMWARE_DUMP.md): Why `sysupgrade -n` leaves the box with *no* firmware until the first boot finishes extracting it from the overlay — the failed `-2` loads, the measured 39 s vs 17 s timeline, and why it is not a regression.
 
 ---
 
