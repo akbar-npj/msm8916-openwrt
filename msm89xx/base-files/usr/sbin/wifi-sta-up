@@ -35,6 +35,8 @@ config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
 config_get hostname main hostname
+config_get_bool uplink main uplink 1
+config_get route_metric main route_metric 100
 
 # ---- saved networks ----------------------------------------------------
 # Any number of networks can be saved as wifista.ap sections.  The generated
@@ -370,6 +372,32 @@ bring_up_sta() {
 	exec wpa_supplicant -D nl80211 -i "$sta_if" -c "$conf"
 }
 
+# Keep the netifd interface that owns the station's L3 in step with the
+# wifista.main options.  netifd -- not a private udhcpc -- is what installs the
+# address, the default route and the upstream DNS, because it also removes them
+# when the lease or the vif goes away, and the firewall zone already binds it.
+# The route carries a metric so the modem keeps priority while it has a default
+# route of its own: the station is a fallback uplink, not a replacement.
+apply_netifd() {
+	local want_proto want_dr want_metric changed=0
+
+	uci -q get network.stawan >/dev/null || return 0
+
+	[ "$dhcp" = 1 ] && want_proto=dhcp || want_proto=none
+	[ "$uplink" = 1 ] && want_dr=1 || want_dr=0
+	want_metric="${route_metric:-100}"
+
+	[ "$(uci -q get network.stawan.proto)" = "$want_proto" ] || { uci -q set network.stawan.proto="$want_proto"; changed=1; }
+	[ "$(uci -q get network.stawan.defaultroute)" = "$want_dr" ] || { uci -q set network.stawan.defaultroute="$want_dr"; changed=1; }
+	[ "$(uci -q get network.stawan.peerdns)" = "$want_dr" ] || { uci -q set network.stawan.peerdns="$want_dr"; changed=1; }
+	[ "$(uci -q get network.stawan.metric)" = "$want_metric" ] || { uci -q set network.stawan.metric="$want_metric"; changed=1; }
+
+	if [ "$changed" = 1 ]; then
+		uci -q commit network
+		logger -t wifi-sta "uplink: stawan proto=$want_proto defaultroute=$want_dr peerdns=$want_dr metric=$want_metric"
+	fi
+}
+
 run_dhcp() {
 	local sta_if i=0
 	# The STA instance owns the vif; wait for it to exist and associate.
@@ -383,14 +411,45 @@ run_dhcp() {
 
 	[ -n "$sta_if" ] || { logger -t wifi-sta "dhcp: no associated STA vif after 90s"; exit 1; }
 
-	logger -t wifi-sta "dhcp: $sta_if associated after ${i}s; starting udhcpc (hostname '$(sta_hostname)')"
-	# -f: stay in the foreground (procd supervises).  The handler installs the
-	# address only, never a default route.  -x hostname: announces our name to
-	# the upstream DHCP server (option 12) -- the configured one, else the
-	# system hostname.
-	exec udhcpc -f -i "$sta_if" -p "/var/run/udhcpc-${sta_if}.pid" \
-		-s /usr/sbin/wifi-sta-dhcp.sh \
-		-x "hostname:$(sta_hostname)"
+	apply_netifd
+
+	if [ "$dhcp" != 1 ]; then
+		logger -t wifi-sta "dhcp: disabled for $sta_if"
+		while :; do sleep 3600; done
+	fi
+
+	logger -t wifi-sta "dhcp: $sta_if associated after ${i}s; bringing up stawan (hostname '$(sta_hostname)')"
+	ifup stawan 2>/dev/null
+
+	# netifd runs its own DHCP client; give it 20 s before falling back to the
+	# private udhcpc (address only -- the historical path, kept for the case
+	# where netifd cannot bind the vif).
+	i=0
+	while [ "$i" -lt 20 ]; do
+		ip -4 addr show dev "$sta_if" 2>/dev/null | grep -q "inet " && break
+		sleep 1
+		i=$((i + 1))
+	done
+
+	if ! ip -4 addr show dev "$sta_if" 2>/dev/null | grep -q "inet "; then
+		logger -t wifi-sta "dhcp: netifd gave no address in 20s; falling back to udhcpc"
+		exec udhcpc -f -i "$sta_if" -p "/var/run/udhcpc-${sta_if}.pid" \
+			-s /usr/sbin/wifi-sta-dhcp.sh \
+			-x "hostname:$(sta_hostname)"
+	fi
+
+	# Stay in the foreground (procd would otherwise respawn us every few
+	# seconds) and re-issue the bring-up if the address ever disappears --
+	# recycling the vif drops it.
+	while :; do
+		sleep 30
+		sta_if="$(find_sta)"
+		[ -n "$sta_if" ] || continue
+		ip -4 addr show dev "$sta_if" 2>/dev/null | grep -q "inet " && continue
+		iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected" || continue
+		logger -t wifi-sta "dhcp: address lost on $sta_if; ifup stawan"
+		ifup stawan 2>/dev/null
+	done
 }
 
 # Kill matching processes.  pgrep -f is used instead of pkill because busybox

@@ -109,10 +109,20 @@ return view.extend({
 			return true;
 		};
 
-		o = s.option(form.Flag, 'dhcp', _('Request an address (DHCP)'),
-			_('The lease is installed without a default route \u2014 the mobile link stays the default path.'));
-		o.default = '1';
-		o.rmempty = false;
+	o = s.option(form.Flag, 'dhcp', _('Request an address (DHCP)'),
+		_('Ask the upstream access point for an address.'));
+	o.default = '1';
+	o.rmempty = false;
+
+	o = s.option(form.Flag, 'uplink', _('Use this link as an internet uplink'),
+		_('When the modem has no data connection, send traffic and DNS through the upstream access point. The modem keeps priority while it has a default route, so this only takes over when the mobile link is down.'));
+	o.default = '1';
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'route_metric', _('Uplink route metric'),
+		_('Higher than the modem\u2019s, so the mobile link stays the default route while it works.'));
+	o.datatype = 'uinteger';
+	o.placeholder = '100';
 
 		o = s.option(form.ListValue, 'radio', _('Radio whose channel follows the upstream'));
 		uci.sections('wireless', 'wifi-device', function(dev) {

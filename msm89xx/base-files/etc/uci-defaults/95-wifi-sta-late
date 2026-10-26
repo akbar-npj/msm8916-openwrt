@@ -10,8 +10,13 @@ uci -q get network.stawan >/dev/null || {
 	uci set network.stawan=interface
 	uci set network.stawan.proto='dhcp'
 	uci set network.stawan.device='phy0-sta0'
-	uci set network.stawan.defaultroute='0'
-	uci set network.stawan.peerdns='0'
+	# The station is a fallback uplink: it takes a default route and the
+	# upstream DNS, but with a metric so the modem keeps priority while it has
+	# a route of its own.  wifi-sta-up keeps these in step with the
+	# wifista.main uplink/route_metric options on every start.
+	uci set network.stawan.defaultroute='1'
+	uci set network.stawan.peerdns='1'
+	uci set network.stawan.metric='100'
 	uci set network.stawan.auto='0'
 	uci commit network
 }

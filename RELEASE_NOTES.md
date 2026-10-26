@@ -125,6 +125,20 @@ before it is applied, a password typed without an SSID is rejected, and deleting
 a row works again. Note that a browser which cached the previous view keeps
 showing the old page — hard-reload once after upgrading.
 
+**🌐 Station Mode can carry the internet when the modem cannot (fix)** — The
+station used to be address-only: its DHCP client deliberately installed **no
+default route** ("the LTE link must stay the default"), so a device with no SIM
+had a connected Wi-Fi link and no internet at all. The station's L3 is now owned
+by the netifd interface `stawan`: it takes the address, a **default route with
+metric 100** and the upstream **DNS**, and the firewall zone already masquerades
+it. The modem keeps priority while it has a route, so the station is a
+*fallback* uplink — it takes over when the mobile link is down and steps aside
+when it comes back. Two new options in **Network → Station Mode →
+Configuration**: *Use this link as an internet uplink* (on by default) and
+*Uplink route metric* (100). This also removes the second DHCP client that was
+competing with the first for the same address, whose lease renewal used to flush
+the address the route pointed at.
+
 **📡 Station Mode never runs on `channel='auto'` (fix)** — A lost scan on
 wcn36xx leaves the phy answering every later scan with `-EBUSY` until the next
 boot. With `wireless.radio0.channel='auto'` that is not just a failed station:
