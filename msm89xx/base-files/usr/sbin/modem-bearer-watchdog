@@ -414,12 +414,14 @@ while true; do
         # then skipped the interface on every check and the bearer stayed down
         # for over an hour with no default route.  A recorded connect error is
         # never a user ifdown (a clean ifdown leaves errors empty), so re-drive
-        # those too.
+        # those too.  Accept both MM_CONNECT_FAILED (default) &
+        # MM_INTERFACE_RESTART (force_connection=1): either can be produced by
+        # the modemmanager proto for this exact transient boot-timeout.
         IF_AUTO=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.autostart' 2>/dev/null)
         IF_ERR=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.errors[0].code' 2>/dev/null)
         if [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
            [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ] && \
-           { [ "$IF_AUTO" = "true" ] || [ "$IF_ERR" = "MM_CONNECT_FAILED" ]; }; then
+           { [ "$IF_AUTO" = "true" ] || [ "$IF_ERR" = "MM_CONNECT_FAILED" ] || [ "$IF_ERR" = "MM_INTERFACE_RESTART" ]; }; then
             if mmcli -L 2>/dev/null | grep -q '/Modem/'; then
                 ZOMBIE_DOWN_SECS=0
                 logger -t modem-stall-watchdog "Bearer STUCK: netifd interface down ${BEARER_DOWN_SECS}s with a modem present; re-driving (up + re-arm availability)."
