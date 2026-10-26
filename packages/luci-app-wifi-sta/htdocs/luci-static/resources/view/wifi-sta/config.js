@@ -120,10 +120,14 @@ return view.extend({
 
 		s2 = m.section(form.TypedSection, 'ap', _('Saved networks'),
 			_('Every enabled row is handed to wpa_supplicant; it joins whichever is in range and moves on to the next one when a password is rejected. A rejected password is reported on the Status page.'));
-		s2.add = true;
-		s2.remove = true;
+		// form.TypedSection spells these addremove / addbtntitle.  The CBI
+		// property names (add / remove / addbtitle) are silently ignored, which
+		// left the section with no Add button at all: a fresh config has zero
+		// wifista.ap rows, so there was no SSID field to fill and the scan's
+		// Use button could only report "add a network row first".
+		s2.addremove = true;
 		s2.anonymous = true;
-		s2.addbtitle = _('Add network');
+		s2.addbtntitle = _('Add network');
 
 		o = s2.option(form.Value, 'ssid', _('SSID'));
 		o.rmempty = false;
@@ -135,7 +139,7 @@ return view.extend({
 
 		o = s2.option(form.Flag, 'disabled', _('Disabled'),
 			_('Keep the row but never try it.'));
-		o.default = o.disabled;
+		o.default = '0';
 		o.editable = true;
 
 		var scanBox = E('div', { 'class': 'cbi-section' }, [
