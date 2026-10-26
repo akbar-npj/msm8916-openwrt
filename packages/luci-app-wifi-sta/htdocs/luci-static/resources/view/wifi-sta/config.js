@@ -48,29 +48,36 @@ return view.extend({
 
 				return kv;
 			}).catch(function() { return {}; })
-		]).then(function(data) {
-			// One-time migration of the legacy single wifista.main.ssid/key
-			// pair into a saved-network profile (committed on Save).
-			// uci.add() returns the new section ID (a string) -- set options
-				// through uci.set(), never as properties on that string.
-			var aps = uci.sections('wifista', 'ap');
-			var main = uci.get('wifista', 'main');
-			var hasProfile = aps.some(function(sec) { return sec.ssid; });
-
-			if (!hasProfile && main && main.ssid) {
-				var sid = uci.add('wifista', 'ap');
-				uci.set('wifista', sid, 'ssid', main.ssid);
-				if (main.key)
-					uci.set('wifista', sid, 'key', main.key);
-			}
-
-			return data;
-		});
+		]);
 	},
 
 	render: function(data) {
 		var st = data[2];
 		var m, s, s2, o;
+
+		// uci is only reliably populated by the time the view renders: the
+		// view's load() resolves before the fetched state is applied, so a
+		// uci.sections() call in load() sees nothing and would add a row on
+		// every visit.  Do the migration and the default row here instead.
+		var aps = uci.sections('wifista', 'ap');
+		var main = uci.get('wifista', 'main');
+
+		// One-time migration of the legacy single wifista.main.ssid/key pair
+		// into a saved-network profile (committed on Save).  uci.add() returns
+		// the new section ID (a string) -- set options through uci.set().
+		if (!aps.some(function(sec) { return sec.ssid; }) && main && main.ssid) {
+			var sid = uci.add('wifista', 'ap');
+			uci.set('wifista', sid, 'ssid', main.ssid);
+			if (main.key)
+				uci.set('wifista', sid, 'key', main.key);
+		}
+
+		// Always show one row, so the SSID and password boxes are there
+		// without having to press Add network first.  An empty row is
+		// harmless: wifi-sta-up skips profiles with an empty ssid, and the
+		// section is only committed if the user saves the form.
+		if (!uci.sections('wifista', 'ap').length)
+			uci.add('wifista', 'ap');
 
 		m = new form.Map('wifista', _('Station Mode'),
 			_('A client interface on the same radio as the access point. ' +
@@ -136,6 +143,18 @@ return view.extend({
 		o = s2.option(form.Value, 'key', _('Password'));
 		o.password = true;
 		o.placeholder = _('(leave empty for an open network)');
+		// Catch a mistyped PSK before it is applied: wpa_supplicant only
+		// reports it later as "wrong password" and the row silently stays
+		// unused.  Empty means an open network.
+		o.validate = function(section_id, value) {
+			if (!value)
+				return true;
+			if (value.length == 64 && /^[0-9a-fA-F]{64}$/.test(value))
+				return true;
+			if (value.length >= 8 && value.length <= 63)
+				return true;
+			return _('A WPA password is 8 to 63 characters (or 64 hex digits).');
+		};
 
 		o = s2.option(form.Flag, 'disabled', _('Disabled'),
 			_('Keep the row but never try it.'));
@@ -185,28 +204,81 @@ return view.extend({
 								E('td', { 'class': 'td' }, E('button', {
 									'class': 'cbi-button cbi-button-action',
 									'click': function() {
-										// Fill the first empty SSID field of the saved-network
-										// rows (LuCI ids them <section>.ssid).
+										// The saved-network rows are <input id="widget.cbid.wifista.<sid>.ssid">.
 										var inputs = document.querySelectorAll('input[id$=".ssid"]');
-										var input = null;
+										var input = null, same = null;
 
 										for (var i = 0; i < inputs.length; i++) {
 											if (!inputs[i].value) {
 												input = inputs[i];
 												break;
 											}
+											if (inputs[i].value == c.ssid)
+												same = inputs[i];
+										}
+
+										function keyOf(el) {
+											return el ? document.getElementById(el.id.replace(/\.ssid$/, '.key')) : null;
+										}
+
+										// Already saved: just put the cursor in its password.
+										if (!input && same) {
+											input = same;
+											input.scrollIntoView({ block: 'center' });
+											var k0 = keyOf(input);
+
+											if (k0)
+												k0.focus();
+
+											ui.addNotification(null, E('p', {}, _('%s is already saved. Change its password above if needed, then Save & Apply.').format(c.ssid)));
+											return;
 										}
 
 										if (input) {
+											var open = /^none$/i.test((c.enc || '').trim());
+											var keyInput = keyOf(input);
+
 											input.value = c.ssid;
 											input.dispatchEvent(new Event('change'));
-											ui.addNotification(null, E('p', {}, _('SSID set to %s \u2014 remember to Save & Apply.').format(c.ssid)));
+											input.scrollIntoView({ block: 'center' });
+
+											if (open) {
+												ui.addNotification(null, E('p', {}, _('%s is an open network \u2014 no password needed. Press Save & Apply.').format(c.ssid)));
+											}
+											else if (keyInput) {
+												keyInput.focus();
+												ui.addNotification(null, E('p', {}, _('SSID set to %s \u2014 type its password above, then Save & Apply.').format(c.ssid)));
+											}
+
+											return;
 										}
-										else {
-											ui.addNotification(null, E('p', {}, _('SSID: %s \u2014 add a network row first (or clear an existing one).').format(c.ssid)));
-										}
+
+										// Every row already has a different SSID: add one,
+										// exactly like the Add network button, then fill it.
+										// handleAdd() saves the form and re-renders, so the new
+										// row exists in the DOM when the promise resolves.
+										return Promise.resolve(s2.handleAdd(null)).then(function() {
+											var all = document.querySelectorAll('input[id$=".ssid"]');
+											var last = all[all.length - 1];
+
+											if (!last)
+												return;
+
+											last.value = c.ssid;
+											last.dispatchEvent(new Event('change'));
+											last.scrollIntoView({ block: 'center' });
+
+											var k1 = keyOf(last);
+
+											if (k1)
+												k1.focus();
+
+											ui.addNotification(null, E('p', {}, _('Added %s \u2014 type its password above, then Save & Apply.').format(c.ssid)));
+										}).catch(function(e) {
+											ui.addNotification(null, E('p', {}, _('Could not add %s: %s').format(c.ssid, e)));
+										});
 									}
-								}, _('Use')))
+}, _('Use')))
 							]);
 						});
 
@@ -228,8 +300,32 @@ return view.extend({
 			}, _('Scan'))
 		]);
 
+		// One line that answers "did it connect?" without leaving the tab.
+		var statusText = null;
+		var statusClass = 'alert-message';
+
+		if (st.wrong_key) {
+			statusText = _('Wrong password for %s \u2014 correct it above and save again.').format(st.wrong_key);
+			statusClass += ' warning';
+		}
+		else if (st.enabled != '1') {
+			statusText = _('Station mode is disabled.');
+		}
+		else if (st.sta_connected == '1') {
+			statusText = _('Connected to %s').format(st.sta_ssid || '?');
+			if (st.sta_ip)
+				statusText += ' \u2014 ' + st.sta_ip;
+			if (st.sta_signal)
+				statusText += ' (' + st.sta_signal + ')';
+		}
+		else {
+			statusText = _('Not connected. A saved network is tried in order; a rejected password is reported here.');
+		}
+
 		return m.render().then(function(node) {
-			return E('div', {}, [ node, scanBox ]);
+			var kids = [ E('div', { 'class': statusClass }, statusText ), node, scanBox ];
+
+			return E('div', {}, kids);
 		});
 	}
 });
