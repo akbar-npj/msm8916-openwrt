@@ -181,80 +181,6 @@ dnsmasq -C /tmp/dnsmasq.conf -u root -k 2>/tmp/dnsmasq.err &
 	done
 ) &
 
-# ---- WiFi station (AP+STA) -------------------------------------------------
-# Joins an existing network so the box is reachable on the user's LAN without a
-# USB cable.  The profile is /etc/wifi-sta.conf (wpa_supplicant format), written
-# by the web UI; with no profile the station stays off and the AP runs alone.
-#
-# Deliberately NOT bridged into br0: br0 is 192.168.10.1/24 with its own DHCP
-# server, so bridging an upstream LAN into it would answer DHCP on someone
-# else's network.  The station takes its own lease instead, and the box ends up
-# with a second address on the upstream.
-(
-	while true; do
-		# Nothing to do until a profile exists (the web UI writes it).
-		while [ ! -s /etc/wifi-sta.conf ]; do sleep 5; done
-
-		# The AP has to be beaconing first: starting the station while hostapd
-		# is still configuring the AP is what loses the wcn36xx scan state,
-		# after which the radio answers every scan with -EBUSY until the next
-		# boot.  Wait for wlan0, then let the firmware settle (same 3 s as the
-		# AP path above).
-		n=0
-		while [ $n -lt 60 ]; do
-			[ -d /sys/class/net/wlan0 ] && break
-			n=$((n+1)); sleep 1
-		done
-		if [ ! -d /sys/class/net/wlan0 ]; then
-			sleep 10
-			continue
-		fi
-		sleep 3
-
-		# wpa_supplicant cannot create its own interface; one vif is enough.
-		iw dev wlan1 del 2>/dev/null
-		iw phy phy0 interface add wlan1 type managed 2>/dev/null
-		ip link set wlan1 up 2>/dev/null
-
-		# Run until the profile is removed (leave) or the daemon exits.
-		while [ -s /etc/wifi-sta.conf ]; do
-			wpa_supplicant -D nl80211 -i wlan1 -c /etc/wifi-sta.conf \
-				>>/tmp/wpa.log 2>&1
-			echo "--- wpa_supplicant exited, retrying ---" >>/tmp/wpa.log
-			sleep 5
-		done
-
-		# Profile gone: drop the link and go back to waiting.
-		ip addr flush dev wlan1 2>/dev/null
-		iw dev wlan1 del 2>/dev/null
-	done
-) &
-
-# DHCP on the station link, once it associates.  busybox udhcpc needs a hook
-# script and the initramfs ships none by default; ours is
-# irfs/usr/share/udhcpc/default.script.
-(
-	while true; do
-		i=0
-		while [ $i -lt 150 ]; do
-			# No station vif at all (no profile / left the network): nothing
-			# to wait for, so don't spin through the whole 300 s window.
-			[ -d /sys/class/net/wlan1 ] || { i=150; break; }
-			iw dev wlan1 link 2>/dev/null | grep -q "Connected to" && break
-			i=$((i+1)); sleep 2
-		done
-		if [ $i -lt 150 ]; then
-			if udhcpc -i wlan1 -q -n -t 5 -T 3 >>/tmp/udhcpc.log 2>&1; then
-				sleep 600
-			else
-				sleep 15
-			fi
-		else
-			sleep 10
-		fi
-	done
-) &
-
 # The eMMC is probed ~1 s AFTER this init starts, so the mdev -s near the top
 # ran too early to create /dev/mmcblk0*.  Without those nodes nothing can read
 # or write the flash: the web UI's "write a partition" fails, and so does any
@@ -294,16 +220,6 @@ dropbear -p 22 -r /etc/dropbear/dropbear_ed25519_host_key -P /var/run/dropbear.p
 		echo "web:     http://192.168.10.1/ (sysupgrade -n, flash a partition, EDL)"
 		echo "dhcp:    dnsmasq on $DHCP_IF (192.168.10.2-20)"
 		echo "wifi:    hostapd wlan0 -> $BR, OpenWrt-Recovery (WPA2/WPA3, pass 'recovery')"
-		_link=$(iw dev wlan1 link 2>/dev/null)
-		_sta=$(printf '%s\n' "$_link" | sed -n 's/^[[:space:]]*SSID: //p' | head -1)
-		_sig=$(printf '%s\n' "$_link" | sed -n 's/^[[:space:]]*signal: \([-0-9.]*\) dBm/\1/p' | head -1)
-		if [ -n "$_sta" ]; then
-			echo "sta:     connected to '$_sta' ($_sig dBm)"
-		elif [ -s /etc/wifi-sta.conf ]; then
-			echo "sta:     connecting..."
-		else
-			echo "sta:     off (join a network from the web UI)"
-		fi
 		echo "edl:     run /sbin/reboot-edl"
 			echo "=== end ==="
 		} >/dev/ttyGS0 2>&1

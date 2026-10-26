@@ -74,27 +74,6 @@
   </div>
 
   <div class="card">
-    <h2>WiFi station</h2>
-    <div class="muted">Join an existing network so the box is reachable on your LAN
-      without a USB cable. The recovery AP (<code>OpenWrt-Recovery</code>) keeps
-      running either way; this is a second, separate address.</div>
-    <div class="row" style="margin-top:12px">
-      <button id="b-scan">Scan</button>
-      <select id="w-list" style="flex:1 1 260px"></select>
-      <span class="pill" id="w-state">...</span>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <input type="text" id="w-ssid" placeholder="network name (type it for a hidden one)">
-      <input type="password" id="w-psk" placeholder="passphrase (blank = open network)">
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="primary" id="b-join">Join</button>
-      <button class="danger" id="b-leave">Leave</button>
-    </div>
-    <pre id="o-w" hidden></pre>
-  </div>
-
-  <div class="card">
     <h2>Power</h2>
     <div class="row">
       <button id="b-reboot">Reboot</button>
@@ -179,104 +158,8 @@ function power(action, msg) {
 $("b-reboot").onclick = () => power("reboot", "Reboot now?");
 $("b-edl").onclick = () => power("edl", "Reboot into EDL (9008)?\nThe board will stop booting until you reflash it.");
 
-/* ---- WiFi station ------------------------------------------------------ */
-/* The CGI answers tab-separated lines, not JSON: SSIDs are arbitrary bytes and
-   quoting them into JSON in shell is where that would break. */
-function chan(f) { return f === 2484 ? 14 : f < 2484 ? (f - 2407) / 5 : (f - 5000) / 5; }
-
-function hexEnc(s) {
-  let o = "";
-  for (const b of new TextEncoder().encode(s)) o += b.toString(16).padStart(2, "0");
-  return o;
-}
-
-/* Built here rather than in the CGI: no URL decoder in the initramfs, and a hex
-   SSID needs no quoting at all.  A quote or backslash in the passphrase is the
-   only thing that has to be escaped. */
-function wpaConf(ssid, psk) {
-  const l = ["ctrl_interface=/var/run/wpa_supplicant", "network={", "\tssid=" + hexEnc(ssid)];
-  if (psk) {
-    l.push('\tpsk="' + psk.replace(/[\\"]/g, c => "\\" + c) + '"');
-    l.push("\tkey_mgmt=WPA-PSK SAE", "\tieee80211w=1");
-  } else {
-    l.push("\tkey_mgmt=NONE");
-  }
-  l.push("\tscan_ssid=1", "}");
-  return l.join("\n") + "\n";
-}
-
-async function wrefresh() {
-  try {
-    const t = await (await fetch("/cgi-bin/wifi?action=status", {cache: "no-store"})).text();
-    const f = t.trim().split("\t");
-    $("w-state").textContent =
-      f[0] === "connected"  ? "connected: " + f[1] + " (" + f[2] + " dBm, " + f[3] + ")" :
-      f[0] === "connecting" ? "connecting..." : "off";
-  } catch (e) { $("w-state").textContent = "unknown"; }
-}
-
-$("b-scan").onclick = async () => {
-  const out = $("o-w"), btn = $("b-scan");
-  out.hidden = false; out.textContent = "scanning (a few seconds)...\n";
-  btn.disabled = true;
-  try {
-    const t = await (await fetch("/cgi-bin/wifi?action=scan", {cache: "no-store"})).text();
-    const rows = [];
-    for (const line of t.split("\n")) {
-      if (!line) continue;
-      if (line.startsWith("ERROR")) { out.textContent = line + "\n"; return; }
-      const f = line.split("\t");
-      if (f.length !== 5) continue;
-      rows.push({ssid: f[0], sig: parseInt(f[2], 10) || 0,
-                 freq: parseInt(f[3], 10) || 0, sec: f[4]});
-    }
-    rows.sort((a, b) => b.sig - a.sig);
-    const sel = $("w-list"), seen = new Set();
-    sel.innerHTML = "";
-    for (const r of rows) {
-      if (seen.has(r.ssid)) continue;   /* one row per SSID: keep the strongest */
-      seen.add(r.ssid);
-      const o = document.createElement("option");
-      o.value = r.ssid;
-      o.textContent = r.ssid + "  (" + r.sig + " dBm, ch " + chan(r.freq) + ", " + r.sec + ")";
-      sel.appendChild(o);
-    }
-    out.textContent = rows.length ? rows.length + " BSS, " + seen.size + " networks\n"
-                                  : "no networks found\n";
-    if (sel.value) $("w-ssid").value = sel.value;
-  } catch (e) {
-    out.textContent = "ERROR: " + e + "\n";
-  } finally { btn.disabled = false; }
-};
-
-$("w-list").onchange = () => { $("w-ssid").value = $("w-list").value; };
-
-$("b-join").onclick = async () => {
-  const ssid = $("w-ssid").value, psk = $("w-psk").value;
-  if (!ssid) return alert("Pick a network from the list, or type its name.");
-  if (psk && (psk.length < 8 || psk.length > 63))
-    return alert("A WPA passphrase must be 8-63 characters. Leave it blank for an open network.");
-  if (!confirm("Join '" + ssid + "'?")) return;
-  const out = $("o-w");
-  out.hidden = false; out.textContent = "";
-  const t = await (await fetch("/cgi-bin/wifi?action=join",
-                               {method: "POST", body: wpaConf(ssid, psk)})).text();
-  out.textContent = t;
-  $("w-psk").value = "";
-  setTimeout(wrefresh, 3000);
-};
-
-$("b-leave").onclick = async () => {
-  if (!confirm("Leave the joined network?")) return;
-  const out = $("o-w");
-  out.hidden = false; out.textContent = "";
-  out.textContent = await (await fetch("/cgi-bin/wifi?action=leave", {method: "POST"})).text();
-  setTimeout(wrefresh, 3000);
-};
-
 refresh();
-wrefresh();
-setInterval(() => { refresh(); wrefresh(); }, 15000);
+setInterval(refresh, 15000);
 </script>
 </body>
 </html>

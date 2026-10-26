@@ -121,6 +121,10 @@ install_blobs() {
     find "$RECOVERY_DIR/irfs/lib" -maxdepth 1 -name 'lib*.so*' \
         ! -name 'libc.so*' ! -name 'libgcc_s.so*' -delete
     cp -a "$src/." "$RECOVERY_DIR/irfs/"
+    # A blobs directory fetched before the station mode was removed still
+    # carries the wpa_supplicant symlink; drop it so a stale tree cannot put it
+    # back into the image.
+    rm -f "$RECOVERY_DIR/irfs/usr/sbin/wpa_supplicant"
 }
 
 # Copy the wireless + WCNSS modules out of the production root into the

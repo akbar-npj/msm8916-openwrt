@@ -33,20 +33,9 @@ echo "[+] fetching wlan/prima NV (WCNSS_qcom_wlan_nv.bin)"
 scp -p "$HOST:/lib/firmware/wlan/prima/WCNSS_qcom_wlan_nv.bin" "$FW/wlan/prima/" \
     || echo "!! WCNSS_qcom_wlan_nv.bin not found on device; the AP may fail without it"
 
-echo "[+] fetching hostapd / wpa_supplicant"
+echo "[+] fetching hostapd"
 scp -p "$HOST:/usr/sbin/hostapd" "$DEST/usr/sbin/hostapd"
 chmod +x "$DEST/usr/sbin/hostapd"
-
-# OpenWrt ships ONE multicall binary ('wpad') behind both names.  When the
-# device does the same, the station daemon is a symlink and costs nothing in
-# the initramfs; otherwise fetch the real second binary.
-if ssh "$HOST" '[ "$(readlink -f /usr/sbin/hostapd)" = "$(readlink -f /usr/sbin/wpa_supplicant)" ]'; then
-    ln -sf hostapd "$DEST/usr/sbin/wpa_supplicant"
-    echo "    wpa_supplicant -> hostapd (same multicall binary on the device)"
-else
-    scp -p "$HOST:/usr/sbin/wpa_supplicant" "$DEST/usr/sbin/wpa_supplicant"
-    chmod +x "$DEST/usr/sbin/wpa_supplicant"
-fi
 
 echo "[+] fetching iw"
 scp -p "$HOST:/usr/sbin/iw" "$DEST/usr/sbin/iw"

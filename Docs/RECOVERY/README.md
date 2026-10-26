@@ -144,19 +144,15 @@ build, flash, verification, and what to check when USB does not come up — is
 
 The image always raises the AP `OpenWrt-Recovery` (WPA2/WPA3, passphrase
 `recovery`) and serves `192.168.10.1` on it, so a phone or laptop can drive the
-web UI with no USB connection.  That is enough when the box is next to you.
+web UI with no USB connection.  A client that joins it gets a `192.168.10.x`
+lease from the same dnsmasq that serves USB — but **no default route and no DNS
+server**, so joining the AP never takes the client's internet away.
 
-If it is not — the stick is mounted in a box, or the AP's passphrase is not
-something you want to type on a phone — join the **upstream** network instead:
-open the web UI, use **WiFi station → Scan → Join**, and the box also appears on
-your own LAN under a DHCP address.  Both run at once: the AP keeps
-`192.168.10.1`, the station takes a second address upstream.  The join is not
-persisted (the initramfs is rebuilt on every boot), so do it again after a
-reboot.
-
-See *AP and station at the same time* in
-[`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) for the
-details and the traps.
+That is the only wireless path: there is no station mode, so the box does not
+join your LAN and does not appear on your normal address space.  Use the AP, or
+plug in USB.  *Why there is no WiFi station mode* in
+[`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) has the
+reasoning, and git history (`a43efba`) has the code if it is ever wanted back.
 
 ---
 
