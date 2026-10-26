@@ -161,6 +161,10 @@ reasoning, and git history (`a43efba`) has the code if it is ever wanted back.
 * [`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) — the image
   itself: the step-by-step build/flash/run procedure, what `/init` starts, how
   to rebuild the frozen binaries, the web UI.
+* [`RECOVERY_FIELD_NOTES.md`](RECOVERY_FIELD_NOTES.md) — why it is built this
+  way: every failure hit on hardware (the missing devtmpfs that silently killed
+  DHCP, the missing eMMC nodes, the modular wireless stack, the DHCP lease that
+  killed the host's internet, the `dd` that did not land) with cause and fix.
 * [`Docs/EDL/`](../EDL/) — getting into EDL, and the firehose quirks of these
   sticks.
 * [`Docs/POWER_BUTTON.md`](../POWER_BUTTON.md) — the button that triggers the
