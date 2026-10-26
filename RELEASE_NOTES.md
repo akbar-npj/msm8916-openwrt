@@ -139,6 +139,17 @@ Configuration**: *Use this link as an internet uplink* (on by default) and
 competing with the first for the same address, whose lease renewal used to flush
 the address the route pointed at.
 
+**🔇 No SIM now means a dark modem LED (change)** — With a SIM missing the
+modem can never register, so `modem-led-monitor` used to sit in its
+"searching" state and blink red forever — indistinguishable from "no coverage".
+A confirmed `sim-missing` from ModemManager now switches the modem LEDs
+**off**, red and blue, and leaves the rest of the panel logic untouched: red
+solid still means the modem subsystem is down, red blink still means "up and
+searching", green still means registered. Inserting a SIM brings the normal
+indication back on the next poll. A failed `mmcli` query never produces the
+dark state — it keeps the previous behaviour, so a broken query cannot hide a
+broken modem.
+
 **📡 Station Mode never runs on `channel='auto'` (fix)** — A lost scan on
 wcn36xx leaves the phy answering every later scan with `-EBUSY` until the next
 boot. With `wireless.radio0.channel='auto'` that is not just a failed station:

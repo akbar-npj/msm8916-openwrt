@@ -107,7 +107,34 @@ apply_signal()
                 search) led_set "$LED" blink 500 500; led_set "$LED_GREEN" off ;;
                 idle)   led_set "$LED" off;   led_set "$LED_GREEN" on ;;
                 active) led_set "$LED" off;   led_set "$LED_GREEN" blink 250 250 ;;
+                # No SIM: the modem can never register, so the panel shows
+                # nothing for it instead of blinking "searching" forever.
+                nosim)  led_set "$LED" off;   led_set "$LED_GREEN" off ;;
         esac
+}
+
+#
+# Is the SIM positively missing?  Only a confirmed answer counts: if
+# ModemManager is not reachable we keep the old behaviour (red solid for an
+# unhealthy modem, red blink while searching), because a dark panel must never
+# be the result of a failed query.
+#
+modem_sim_missing()
+{
+        local kv reason sim
+
+        [ -n "$MODEM_INDEX" ] || return 1
+
+        kv=$(mmcli -m "$MODEM_INDEX" --output-keyvalue 2>/dev/null) || return 1
+        [ -n "$kv" ] || return 1
+
+        reason=$(printf '%s\n' "$kv" | awk -F': ' '/modem.generic.state-failed-reason/ {print $2}' | tr -d ' \r\n')
+        sim=$(printf '%s\n' "$kv" | awk -F': ' '/^modem.generic.sim / {print $2}' | tr -d ' \r\n')
+
+        [ "$reason" = "sim-missing" ] && return 0
+        [ -z "$sim" ] || [ "$sim" = "--" ] && return 0
+
+        return 1
 }
 
 modem_registered()
@@ -262,6 +289,11 @@ set_blue_led() {
                         echo timer > "$BLUE_LED/trigger" 2>/dev/null
                         echo 500 > "$BLUE_LED/delay_on" 2>/dev/null
                         echo 9500 > "$BLUE_LED/delay_off" 2>/dev/null
+                        ;;
+                off)
+                        [ "$(cat "$BLUE_LED/trigger" 2>/dev/null)" = "none" ] && return 0
+                        echo none > "$BLUE_LED/trigger" 2>/dev/null
+                        echo 0 > "$BLUE_LED/brightness" 2>/dev/null
                         ;;
                 idle)
                         [ "$cur_off" = "1000" ] && return 0
@@ -420,6 +452,7 @@ REG_STATE=""
 REG_POLL=0
 LAST_TRAFFIC=""
 ACTIVE_HOLD=0
+SIM_MISSING=0
 
 while true; do
 
@@ -438,6 +471,13 @@ while true; do
                 # often than the (sysfs-only) health check.
                 #
                 if [ "$REG_POLL" -le 0 ]; then
+                        # Same DBus round trip, so ask about the SIM here too.
+                        if modem_sim_missing; then
+                                SIM_MISSING=1
+                        else
+                                SIM_MISSING=0
+                        fi
+
                         if modem_registered; then
                                 REG_STATE="yes"
                         else
@@ -449,7 +489,11 @@ while true; do
 
                 REG_POLL=$((REG_POLL - 1))
 
-                if [ "$REG_STATE" = "yes" ]; then
+                if [ "$SIM_MISSING" = "1" ]; then
+                        # Nothing to register to: keep the panel dark instead of
+                        # blinking "searching" forever.
+                        STATE="nosim"
+                elif [ "$REG_STATE" = "yes" ]; then
                         NOW=$(wwan_traffic) || NOW=""
 
                         if [ -n "$NOW" ] && [ -n "$LAST_TRAFFIC" ] && [ "$NOW" != "$LAST_TRAFFIC" ]; then
@@ -491,8 +535,11 @@ while true; do
         #
         # Two-Pronged Keepalive & Safe Self-Healing Watchdog (HMUF02-V5 only)
         #
-        if [ "$HEALTHY" = "1" ] && [ "$IS_HMU05" = "1" ]; then
+        if [ "$HEALTHY" = "1" ] && [ "$IS_HMU05" = "1" ] && [ "$SIM_MISSING" != "1" ]; then
                 run_watchdog_cycle
+        elif [ "$SIM_MISSING" = "1" ]; then
+                # No SIM: the blue (data) LED has nothing to report either.
+                set_blue_led off
         fi
 
 
