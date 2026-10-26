@@ -111,6 +111,20 @@ buttons, and an `iwinfo` scan with a *Use* button — so nothing has to be put
 into `/etc/config/wireless` by hand. Guide:
 [`Docs/WiFi/AP_STA_AND_LUCI_APP.md`](Docs/WiFi/AP_STA_AND_LUCI_APP.md).
 
+**⌨️ Station Mode: the SSID and password boxes are always there (fix)** — The
+saved-networks section used the CBI-era `add`/`remove` option names, which
+`form.TypedSection` silently ignores, so the page rendered with **no *Add
+network* button and no Delete button at all**. A device with no saved profile
+therefore had no field to type into, and the scan's *Use* button could only
+answer *"add a network row first"* — the network was visible but could never be
+saved. The section now uses `addremove`/`addbtntitle`, and the form always
+keeps **one empty SSID/password row at the end**: type into it and press *Save &
+Apply*, or press *Scan* → *Use* and the row is filled with the cursor already in
+its password field. A password is checked (8–63 characters, or 64 hex digits)
+before it is applied, a password typed without an SSID is rejected, and deleting
+a row works again. Note that a browser which cached the previous view keeps
+showing the old page — hard-reload once after upgrading.
+
 **📡 Station Mode never runs on `channel='auto'` (fix)** — A lost scan on
 wcn36xx leaves the phy answering every later scan with `-EBUSY` until the next
 boot. With `wireless.radio0.channel='auto'` that is not just a failed station:
