@@ -12,7 +12,8 @@
 #   1. blinks a status LED fast so the user can see failsafe was entered,
 #   2. mounts configfs and creates a minimal g1 gadget (NCM + ACM),
 #   3. binds the UDC so the host sees a new NIC and /dev/ttyACM0,
-#   4. assigns the failsafe IP (default 192.168.10.1/24) to the NCM netdev,
+#   4. assigns the failsafe IP (default 192.168.10.1/24) to the NCM netdev
+#      and serves DHCP on it (.10-.50) so the host needs no manual config,
 #   5. spawns a root login shell on ttyGS0 (host: /dev/ttyACM0).
 #
 # SSH is handled by the stock failsafe_dropbear hook (99_10_failsafe_dropbear),
@@ -110,11 +111,17 @@ fs_dhcp_start() {
 	# --conf-file= makes the invocation hermetic: /etc/dnsmasq.conf exists in
 	# this image and would otherwise be read.  --log-facility matters because
 	# preinit has no syslogd, so without it a failure is completely silent.
+	#
+	# NO default router (option 3) and NO DNS server (option 6), and --port=0
+	# so dnsmasq is a pure DHCP server.  Failsafe has no WAN: advertising itself
+	# as the gateway makes the host replace its default route the moment the
+	# dongle is plugged in, i.e. "plugging it in kills my internet".  The lease
+	# is address + prefix only; the host keeps its own route and resolver and
+	# still reaches $ip over the subnet route.
 	start-stop-daemon -Sb -p /tmp/failsafe-dnsmasq.pid -x /usr/sbin/dnsmasq -- \
 		--conf-file= --interface="$netdev" --bind-interfaces \
-		--except-interface=lo \
+		--except-interface=lo --port=0 \
 		--dhcp-range="$base.10,$base.50,12h" \
-		--dhcp-option=3,"$ip" --dhcp-option=6,"$ip" \
 		--dhcp-authoritative --no-resolv --no-hosts --no-daemon \
 		--leasefile-ro --log-dhcp --log-facility=/tmp/failsafe-dnsmasq.log \
 		>/dev/null 2>&1

@@ -3,6 +3,7 @@
 # hostapd binary + its shared libs; they must NOT be committed.
 irfs/lib/firmware/
 irfs/usr/sbin/hostapd
+irfs/usr/sbin/iw
 irfs/lib/libnl*
 irfs/lib/libwolfssl*
 irfs/lib/libmbed*
@@ -15,3 +16,6 @@ irfs/lib/libucode*
 irfs/lib/libjson-c*
 irfs/lib/libudebug*
 blobs/
+# Copied out of the production build by build-recovery.sh - they must match the
+# kernel that is packed into the image, so they are never committed.
+irfs/lib/modules/

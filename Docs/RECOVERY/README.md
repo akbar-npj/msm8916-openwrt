@@ -5,15 +5,16 @@ to confuse:
 
 | | Rescue image | Recovery partition |
 | :-- | :-- | :-- |
-| What it is | a self-contained kernel + initramfs you boot from eMMC | a 16 MiB partition holding that image |
+| What it is | the production kernel + a rescue initramfs, booted from eMMC | a 16 MiB partition holding that image |
 | Lives in | `recovery-<board>.img` in the release | partition **p17** (`recovery`) |
 | How you start it | write it to `boot` with EDL/fastboot | power-on key, `reboot recovery`, or 3 failed boots |
 | Needs | nothing but the image | `GPT_RECOVERY=1` **and** a patched `aboot` |
 
 Both are built from [`msm89xx/recovery/`](../../msm89xx/recovery/) — see that
 README for what is inside the image (USB NCM + ACM gadget, SSH on
-`192.168.10.1`, the browser uploader, the WiFi AP `OpenWrt-Recovery`).  This
-page is about the **partition** and how to get into it.
+`192.168.10.1`, the browser uploader, the WiFi AP `OpenWrt-Recovery`, and the
+optional WiFi **station**).  This page is about the **partition** and how to get
+into it.
 
 ---
 
@@ -104,6 +105,22 @@ ls -l /etc/rc.d/S99recovery-bootcount
 strings /dev/mmcblk0p12 2>/dev/null | grep -c "boot failover"   # aboot patched?
 ```
 
+Flashing the image into `recovery` from a running system:
+
+```sh
+cat msm89xx/recovery/<board>.img | ssh root@192.168.10.1 'cat > /tmp/r.img'
+ssh root@192.168.10.1 'dd if=/tmp/r.img of=/dev/mmcblk0p17 bs=1M conv=fsync; sync'
+ssh root@192.168.10.1 'echo 3 > /proc/sys/vm/drop_caches; \
+    dd if=/dev/mmcblk0p17 bs=11991040 count=1 2>/dev/null | sha256sum'
+```
+
+`conv=fsync` is load-bearing: without it the write is still in the page cache
+when you reboot, the readback confirms data that never reached the flash, and
+the box comes back on the *previous* image.  The full procedure — prerequisites,
+build, flash, verification, and what to check when USB does not come up — is
+*Step by step: build, flash and run it* in
+[`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md).
+
 ---
 
 ## 4. Traps
@@ -123,10 +140,31 @@ strings /dev/mmcblk0p12 2>/dev/null | grep -c "boot failover"   # aboot patched?
 
 ---
 
-## 5. See also
+## 5. Reaching the rescue image without a cable
+
+The image always raises the AP `OpenWrt-Recovery` (WPA2/WPA3, passphrase
+`recovery`) and serves `192.168.10.1` on it, so a phone or laptop can drive the
+web UI with no USB connection.  A client that joins it gets a `192.168.10.x`
+lease from the same dnsmasq that serves USB — but **no default route and no DNS
+server**, so joining the AP never takes the client's internet away.
+
+That is the only wireless path: there is no station mode, so the box does not
+join your LAN and does not appear on your normal address space.  Use the AP, or
+plug in USB.  *Why there is no WiFi station mode* in
+[`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) has the
+reasoning, and git history (`a43efba`) has the code if it is ever wanted back.
+
+---
+
+## 6. See also
 
 * [`msm89xx/recovery/README.md`](../../msm89xx/recovery/README.md) — the image
-  itself: what `/init` starts, how to rebuild the frozen binaries, the web UI.
+  itself: the step-by-step build/flash/run procedure, what `/init` starts, how
+  to rebuild the frozen binaries, the web UI.
+* [`RECOVERY_FIELD_NOTES.md`](RECOVERY_FIELD_NOTES.md) — why it is built this
+  way: every failure hit on hardware (the missing devtmpfs that silently killed
+  DHCP, the missing eMMC nodes, the modular wireless stack, the DHCP lease that
+  killed the host's internet, the `dd` that did not land) with cause and fix.
 * [`Docs/EDL/`](../EDL/) — getting into EDL, and the firehose quirks of these
   sticks.
 * [`Docs/POWER_BUTTON.md`](../POWER_BUTTON.md) — the button that triggers the

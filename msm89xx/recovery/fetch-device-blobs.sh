@@ -37,12 +37,16 @@ echo "[+] fetching hostapd"
 scp -p "$HOST:/usr/sbin/hostapd" "$DEST/usr/sbin/hostapd"
 chmod +x "$DEST/usr/sbin/hostapd"
 
-# hostapd's library closure, resolved ON THE DEVICE (the libs are aarch64 and
-# this host cannot ldd them).  The walk is transitive: libblobmsg_json pulls in
-# libjson-c, for example, and a missing indirect library makes hostapd exit
-# with no useful message.
-echo "[+] resolving hostapd's shared libraries (transitive)"
-LIBS=$(ssh "$HOST" 'set -- /usr/sbin/hostapd; seen=""; while [ $# -gt 0 ]; do f="$1"; shift; for l in $(ldd "$f" 2>/dev/null | grep -oE "/[^ ]+\.so[^ ]*"); do case " $seen " in *" $l "*) continue ;; esac; seen="$seen $l"; set -- "$@" "$l"; done; done; echo $seen')
+echo "[+] fetching iw"
+scp -p "$HOST:/usr/sbin/iw" "$DEST/usr/sbin/iw"
+chmod +x "$DEST/usr/sbin/iw"
+
+# Library closure of BOTH binaries, resolved ON THE DEVICE (the libs are
+# aarch64 and this host cannot ldd them).  The walk is transitive:
+# libblobmsg_json pulls in libjson-c, for example, and a missing indirect
+# library makes the daemon exit with no useful message.
+echo "[+] resolving hostapd + iw shared libraries (transitive)"
+LIBS=$(ssh "$HOST" 'set -- /usr/sbin/hostapd /usr/sbin/iw; seen=""; while [ $# -gt 0 ]; do f="$1"; shift; for l in $(ldd "$f" 2>/dev/null | grep -oE "/[^ ]+\.so[^ ]*"); do case " $seen " in *" $l "*) continue ;; esac; seen="$seen $l"; set -- "$@" "$l"; done; done; echo $seen')
 for lib in $LIBS; do
     case "$lib" in
         */ld-musl*|*/libc.so*|*/libgcc_s*) continue ;;

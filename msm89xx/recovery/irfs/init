@@ -26,7 +26,19 @@ led() {
 }
 
 mkdir -p /dev /proc /sys /tmp /var/run /etc/dropbear /root
-mount -t devtmpfs devtmpfs /dev 2>/dev/null
+# The OpenWrt kernel is built WITHOUT devtmpfs (CONFIG_DEVTMPFS is not set -
+# OpenWrt populates /dev with mdev), so a devtmpfs mount fails and /dev stays
+# empty.  That breaks everything that needs a node, silently:
+#   * dnsmasq dies with "failed to seed the random number generator" (/dev/urandom
+#     missing) -> no DHCP on USB or WiFi,
+#   * the console shell's '>/dev/ttyGS0' creates a REGULAR FILE and the console
+#     stays dead,
+#   * every '2>/dev/null' in this script creates a file called 'null'.
+# So: tmpfs + mdev -s, which builds the nodes from /sys.
+if ! mount -t devtmpfs devtmpfs /dev 2>/dev/null; then
+	mount -t tmpfs tmpfs /dev 2>/dev/null
+	mdev -s 2>/dev/null
+fi
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts 2>/dev/null
 mount -t proc     none /proc 2>/dev/null
@@ -62,6 +74,42 @@ if [ ! -d "$G" ]; then
 	[ -n "$udc" ] && echo "$udc" >"$G/UDC"
 fi
 
+# The gadget's nodes (/dev/ttyGS0, the NCM netdev) only exist now - refresh
+# /dev again, or the console below finds no ttyGS0 and never starts.
+mdev -s 2>/dev/null
+
+# Kernel modules.  The production kernel builds the wireless stack as MODULES
+# (only configfs, the USB gadget and the WCNSS/SMD plumbing are built in), so
+# there is no wlan0 - and therefore no AP - until they are loaded.  The
+# initramfs has no kmodloader, so load them by hand in dependency order:
+#
+#   wcn36xx        -> mac80211 -> cfg80211 -> compat
+#   qcom_wcnss_pil -> qcom_common, qcom_pil_info, mdt_loader  (WCNSS firmware)
+#
+# Best-effort by design: a kernel with these built in has no /lib/modules and
+# simply skips the step, and any failure only costs the WiFi AP - the USB
+# console, DHCP and SSH must never depend on it.  Started before the console
+# because the WCNSS firmware boot is the long pole (~5 s).
+if [ -d /lib/modules ]; then
+	for m in mdt_loader qcom_common qcom_pil_info qcom_wcnss_pil \
+		 compat cfg80211 mac80211 wcn36xx; do
+		f=$(ls /lib/modules/*/"$m".ko 2>/dev/null | head -1)
+		[ -n "$f" ] || continue
+		insmod "$f" 2>>/tmp/modules.err
+	done
+fi
+
+# Console. setsid -c gives the shell a controlling tty; the [ -c ] guard keeps
+# a redirection failure from aborting the spawner subshell.
+(
+	while true; do
+		if [ -c /dev/ttyGS0 ]; then
+			setsid -c /bin/ash -l </dev/ttyGS0 >/dev/ttyGS0 2>&1
+		fi
+		sleep 1
+	done
+) &
+
 i=0
 while [ $i -lt 10 ]; do
 	nd=$(cat "$G/functions/ncm.usb0/ifname" 2>/dev/null)
@@ -76,6 +124,7 @@ done
 # client gets 192.168.10.x exactly like a USB host does, with no routing or
 # second subnet involved.
 BR=br0
+ip link set lo up 2>/dev/null
 ip link set "$nd" up 2>/dev/null
 if ip link add name "$BR" type bridge 2>/dev/null; then
 	ip link set "$BR" up 2>/dev/null
@@ -108,9 +157,15 @@ dnsmasq -C /tmp/dnsmasq.conf -u root -k 2>/tmp/dnsmasq.err &
 (
 	n=0
 	while [ $n -lt 30 ]; do
-		[ -d /sys/class/net/wlan0 ] && break
+		[ -d /sys/class/ieee80211/phy0 ] && break
 		n=$((n+1)); sleep 1
 	done
+	[ -d /sys/class/ieee80211/phy0 ] || exit 0
+	# The backports mac80211 the production kernel uses does NOT create a
+	# default netdev, so the AP interface has to be made explicitly - a wiphy
+	# alone gives 'iw dev' nothing and hostapd no interface.  '__ap' (not 'AP')
+	# is the type hostapd expects.
+	[ -d /sys/class/net/wlan0 ] || iw phy phy0 interface add wlan0 type __ap 2>/dev/null
 	[ -d /sys/class/net/wlan0 ] || exit 0
 	# wcn36xx publishes wlan0 ~2 s before its firmware bring-up settles;
 	# starting hostapd in that window makes it enable the AP and then tear it
@@ -126,6 +181,17 @@ dnsmasq -C /tmp/dnsmasq.conf -u root -k 2>/tmp/dnsmasq.err &
 	done
 ) &
 
+# The eMMC is probed ~1 s AFTER this init starts, so the mdev -s near the top
+# ran too early to create /dev/mmcblk0*.  Without those nodes nothing can read
+# or write the flash: the web UI's "write a partition" fails, and so does any
+# hand-run dd.  Wait for the block device, then rescan /dev once.
+i=0
+while [ $i -lt 20 ]; do
+	[ -d /sys/block/mmcblk0 ] && break
+	i=$((i+1)); sleep 1
+done
+mdev -s 2>/dev/null
+
 # Web UI: http://192.168.10.1/ - sysupgrade (-n), write a single partition, or
 # reboot into EDL.  Independent of the other services; -f keeps httpd in the
 # foreground so its log is captured (the applet would otherwise daemonize and
@@ -134,16 +200,6 @@ dnsmasq -C /tmp/dnsmasq.conf -u root -k 2>/tmp/dnsmasq.err &
 	httpd -f -p 80 -h /www 2>/tmp/httpd.log
 ) &
 
-# Console. setsid -c gives the shell a controlling tty; the [ -c ] guard keeps
-# a redirection failure from aborting the spawner subshell.
-(
-	while true; do
-		if [ -c /dev/ttyGS0 ]; then
-			setsid -c /bin/ash -l </dev/ttyGS0 >/dev/ttyGS0 2>&1
-		fi
-		sleep 1
-	done
-) &
 
 if [ ! -f /etc/dropbear/dropbear_ed25519_host_key ]; then
 	dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key >/tmp/dbk.log 2>&1
