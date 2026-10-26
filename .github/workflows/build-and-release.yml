@@ -40,7 +40,9 @@ jobs:
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
-            TAG="v25.12.6"
+            # No tag given and not a tag push: derive it from the version file,
+            # so a manual dispatch cannot publish "v25.12.6" for an r1 build.
+            TAG="v$(cat version 2>/dev/null || echo 25.12.6)"
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           VERSION=$(cat version 2>/dev/null || echo "25.12.6")
