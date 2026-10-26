@@ -1917,14 +1917,28 @@ body.login .logoImg img.brand-logo,
 body.login .logoImg img.mobile-hide,
 body.login .logoImg img.login-icon,
 body.login .logoImg img {
-    max-height: 68px !important;
     width: 68px !important;
+    height: 68px !important;
+    max-width: 68px !important;
+    max-height: 68px !important;
     border-radius: 50% !important;
     display: inline-block !important;
     filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.75)) !important;
     transition: transform 0.2s ease !important;
     object-fit: cover !important;
     margin: 0 0 0.15rem 0 !important;
+}
+
+/* Defensive: guarantee the login icon is small even if the logo markup
+   ever loses the .logoImg wrapper or the brand-logo class. */
+body.login img.login-icon,
+body.login .login-icon {
+    width: 68px !important;
+    height: 68px !important;
+    max-width: 68px !important;
+    max-height: 68px !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
 }
 
 body.login .logoImg img:hover {

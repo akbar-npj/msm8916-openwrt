@@ -40,7 +40,7 @@
 <link rel="icon" href="{{ media }}/logo.png" sizes="144x144">
 <link rel="apple-touch-icon-precomposed" href="{{ media }}/logo.png" sizes="144x144">
 
-<link rel="stylesheet" href="{{ media }}/cascade.css">
+<link rel="stylesheet" href="{{ media }}/cascade.css?v=2">
 <link rel="shortcut icon" href="{{ media }}/favicon.ico">
 {% if (dispatched?.css): %}
 <link rel="stylesheet" href="{{ resource }}/{{ dispatched.css }}">

@@ -8,10 +8,16 @@ include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Feelgood Theme
 LUCI_DEPENDS:=+luci-base
+PKG_RELEASE:=3
 PKG_LICENSE:=Apache-2.0
 
 CONFIG_LUCI_UTMIN:=
 LUCI_MINIFY_UT:=0
+# csstidy mangles the login-page cascade (it drops/mis-orders the
+# `body.login .main-left{display:none}` and `.main-left .brand-logo{28px}`
+# rules, leaving the sidebar LoginIcon.png at its natural 1016px and
+# covering the login form). Ship the unminified CSS so the cascade is exact.
+LUCI_MINIFY_CSS:=0
 
 define Package/luci-theme-feelgood/postrm
 #!/bin/sh
