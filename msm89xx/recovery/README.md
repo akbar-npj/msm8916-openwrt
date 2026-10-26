@@ -206,8 +206,8 @@ story — there is no station mode (see *Why there is no WiFi station mode*).
   point a client's default route (or its resolver) at a link with no internet,
   so merely connecting to the recovery link would kill the user's network
 * WiFi AP `OpenWrt-Recovery`, WPA2-PSK **and** WPA3-SAE, passphrase
-  `recovery`, bridged into `br0` (best-effort: a missing driver/firmware
-  never blocks the USB/SSH path)
+  `recovery`, 802.11n (HT20, short GI) with WMM, bridged into `br0`
+  (best-effort: a missing driver/firmware never blocks the USB/SSH path)
 * Root shell on `/dev/ttyGS0` (ACM console, no auth) and
   `ssh root@192.168.10.1` with **no password** (OpenWrt
   `600-allow-blank-root-password.patch`; `/etc/passwd` field 2 is empty)
@@ -382,6 +382,12 @@ root shell. Keep the recovery box on a network you control.
 * **`hostapd.conf` pins `channel=6` on purpose.** With `channel=auto` hostapd
   runs an ACS scan at every start, and a lost scan completion on this driver
   leaves the AP with no channel at all — a dead AP rather than a degraded one.
+* **`ieee80211n=1` and `wmm_enabled=1` are both required for HT.** With only
+  `hw_mode=g` the AP runs 802.11g (long preamble, no aggregation, ~2 Mbit/s tx
+  measured); an HT AP that carries no WMM information element makes stations
+  fall back to legacy rates anyway. Both are set, with `ht_capab=[HT20]` so
+  the AP stays inside the one pinned channel. Verified on hmuf02v5: the phone
+  associates at MCS 4 / 39 Mbit/s with `WMM/WME: yes`.
 
 * **The production kernel has no devtmpfs.** `mount -t devtmpfs /dev` fails and
   leaves `/dev` empty; everything that needs a node then fails *silently*
