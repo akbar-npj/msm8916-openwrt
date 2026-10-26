@@ -48,9 +48,10 @@ Recent additions on top of the base port:
 * **💾 Permanent eMMC Storage**: Automated `/dev/mmcblk0p15` (`rootfs_data`) EXT4 formatting and mounting, with preinit filesystem checking and automatic safe repair using `e2fsck -p`, providing persistent overlay storage without unnecessarily formatting an existing filesystem.
 * **💡 Intuitive Hardware Status LEDs**:
 
-  * 🟢 **Green LED** (`green:wlan`): Wi-Fi AP state and wireless client transmission.
+  * 🟢 **Green LED** (`green:wlan`): Wi-Fi AP state and wireless client transmission. Solid = AP ready, 250 ms blink = a client joined, **100 ms blink = AP + station (repeater) both active**.
   * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
-  * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator.
+  * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator. It also **fast-blinks for the first 7 s of every boot** — the failsafe window, i.e. "a single tap now enters rescue mode".
+  * ⚫ **No SIM** = both modem LEDs (red and blue) are **off**: the modem cannot register, so there is nothing to report.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🆘 Failsafe Mode & Factory Reset**: A single Restart-button tap during the first 7 s of boot starts OpenWrt's pre-init rescue shell over a self-contained USB gadget (NCM + ACM) at `192.168.10.1` (or `/dev/ttyACM0`), so a broken config is recoverable on a screen-less dongle without opening it; a **5-second hold** wipes the overlay. See [Recovery and Reboot Modes](#-recovery-and-reboot-modes).
 * **🔑 Signed OTA Package Feed**: Pre-compiled `kmod-*` and application packages served over GitHub Pages, signed with a pinned key and self-healing on-device. See [Package Repository](#-official-package--kernel-driver-repository).
@@ -130,8 +131,10 @@ its own USB gadget. To enter it:
 
 1. Power on (or reboot) the dongle.
 2. **Press the Restart button once within the first 7 seconds.** A single tap is
-   enough — no hold needed. The **LED fast-flashes** (~12 Hz; red where the board
-   has one, else green, else any) when failsafe is active.
+   enough — no hold needed. The **red LED fast-blinks (100 ms) for exactly those
+   7 s**, so you can see the window without a console. Once failsafe is active
+   the LED switches to a faster **40 ms blink** (~12 Hz; red where the board has
+   one, else green, else any) — so "press now" and "you are in" look different.
 3. Reach the device at **`192.168.10.1`** (USB NIC) or **`/dev/ttyACM0`**
    (USB serial, 115200):
 
