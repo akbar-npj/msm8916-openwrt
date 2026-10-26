@@ -43,8 +43,8 @@ wireless modules in dependency order, and creates the AP interface itself
 no default netdev). Verified on HMUF02-V5: 11.4 MiB into p17, the USB gadget
 enumerates, DHCP leases `192.168.10.9`, SSH and the web UI answer, all 21
 `mmcblk` nodes exist, and `wlan0` beacons `OpenWrt-Recovery` on channel 6 in
-**802.11n with WMM** — 39 Mbit/s to a phone, against ~2 Mbit/s when hostapd was
-left at 802.11g. The AP is **DHCP-only**: no router and no DNS in the lease, so
+**802.11n with WMM** — 39 Mbit/s RX from a phone, against ~2 Mbit/s of
+throughput when hostapd was left at 802.11g. The AP is **DHCP-only**: no router and no DNS in the lease, so
 joining it does not hijack the client's default route. AP+STA was dropped from
 the rescue image on purpose (two vifs, a second daemon and the whole `-EBUSY`
 scan-wedge family for a benefit the AP already gives); the code is in history at
