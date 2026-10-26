@@ -65,11 +65,16 @@ return view.extend({
 		// One-time migration of the legacy single wifista.main.ssid/key pair
 		// into a saved-network profile (committed on Save).  uci.add() returns
 		// the new section ID (a string) -- set options through uci.set().
-		if (!aps.some(function(sec) { return sec.ssid; }) && main && main.ssid) {
+		// The legacy options are dropped once they have been copied: without
+		// that, deleting the last saved network would resurrect it on the next
+		// visit (the migration would see no profile and copy main.ssid again).
+		if (!aps.length && main && main.ssid) {
 			var sid = uci.add('wifista', 'ap');
 			uci.set('wifista', sid, 'ssid', main.ssid);
 			if (main.key)
 				uci.set('wifista', sid, 'key', main.key);
+			uci.unset('wifista', 'main', 'ssid');
+			uci.unset('wifista', 'main', 'key');
 		}
 
 		// Always show one row, so the SSID and password boxes are there
@@ -137,8 +142,22 @@ return view.extend({
 		s2.addbtntitle = _('Add network');
 
 		o = s2.option(form.Value, 'ssid', _('SSID'));
-		o.rmempty = false;
 		o.placeholder = 'MyHomeWiFi';
+		// Empty has to stay valid: the form always shows one spare row, and a
+		// row without an SSID is skipped by wifi-sta-up.  Requiring it made the
+		// whole form invalid on load, which silently blocks both the Add button
+		// (its save aborts on the failed parse) and Save.
+		o.validate = function(section_id, value) {
+			if (!value) {
+				var k = document.getElementById('widget.cbid.wifista.' + section_id + '.key');
+				if (k && k.value)
+					return _('Enter the network name (SSID) for this password.');
+				return true;
+			}
+			if (value.length > 32)
+				return _('An SSID is at most 32 characters.');
+			return true;
+		};
 
 		o = s2.option(form.Value, 'key', _('Password'));
 		o.password = true;
