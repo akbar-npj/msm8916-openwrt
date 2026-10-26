@@ -17,3 +17,6 @@ irfs/lib/libucode*
 irfs/lib/libjson-c*
 irfs/lib/libudebug*
 blobs/
+# Copied out of the production build by build-recovery.sh - they must match the
+# kernel that is packed into the image, so they are never committed.
+irfs/lib/modules/

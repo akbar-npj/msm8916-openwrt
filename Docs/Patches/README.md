@@ -209,7 +209,7 @@ copies into `target/linux/msm89xx` (and merges `base-files/` into the rootfs). I
 | `patches/` | The kernel patches documented in section 1.1-1.9 (copied to `target/linux/msm89xx/patches/`). |
 | `base-files/` | Files shipped into the rootfs: `etc/apk/repositories.d/customfeeds.list` (upstream 25.12.x feeds), `etc/apk/keys/*` (our signing key + `openwrt-25.12.pem`), init scripts (`himi-ok-guard`, `modem-bearer-watchdog`), failsafe USB gadget, and commit hooks. |
 | `image/` | Image generation (supported boards, recovery image assembly). |
-| `config-6.12`, `config-6.12-recovery` | Kernel config for the main and recovery builds. |
+| `config-6.12` | Kernel config for the production build. `config-6.12-recovery` is **legacy/unused**: the recovery image no longer builds a kernel, it reuses the production one (see `build-recovery.sh`). |
 | `modules.mk` | Kernel-package (`kmod-*`) definitions for the target. |
 | `msm8916/` | Shared SoC-level DTS/build fragments. |
 | `recovery/` | The headless recovery initramfs (USB gadget + dnsmasq + dropbear). |
@@ -736,9 +736,10 @@ The BSP is a directory, not a patch. `build.sh` copies it to `target/linux/msm89
   kmod/userspace repo for the vermagic-locked kernel modules.
 - `base-files/etc/apk/keys/` ships our signing key plus `openwrt-25.12.pem` (the upstream
   25.12.x apk key) so those feeds are trusted.
-- `config-6.12` / `config-6.12-recovery` pin the kernel configuration; `modules.mk` defines
-  the `kmod-*` packages; `recovery/` is the headless recovery initramfs (USB gadget + dnsmasq
-  + dropbear).
+- `config-6.12` pins the kernel configuration; `modules.mk` defines the `kmod-*`
+  packages; `recovery/` is the headless recovery initramfs (USB gadget + dnsmasq +
+  dropbear + the WiFi modules), packed onto the production kernel as a ramdisk.
+  `config-6.12-recovery` is kept for reference only — nothing builds it any more.
 
 ---
 

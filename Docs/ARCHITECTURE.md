@@ -109,7 +109,7 @@ container for the actual compilation.
 | `scripts/openwrt-version.sh` | host | **Version manager.** Reads/writes `devenv/.env` (`OPENWRT_VERSION`). Decides which OpenWrt tag/branch `openwrt/` is checked out at. Never clones, never touches Docker. Delegated by `build.sh version`. |
 | `scripts/openwrt-prepare.sh` | **inside container** | **Tree preparer.** Installs the `msm89xx` target + project `packages`, applies `openwrt-overlay/` (`cp -a`), applies `openwrt-patches/` (`patch -p1`), updates/installs feeds, applies compatibility fixes, records prep state. Never clones, never reads `.env`, never invokes Docker. |
 | `sync-version.sh` | host | **Release version SSoT.** Bumps the `version` file and rewrites the `CONFIG_VERSION_*` block in every `diffconfigs/*` so a flashed system reports the right version. |
-| `build-recovery.sh` | host (→ container) | Builds the per-board recovery/rescue image → `msm89xx/recovery/&lt;board&gt;.img` (kernel from `config-6.12-recovery` + embedded initramfs). |
+| `build-recovery.sh` | host (no container) | Builds the per-board recovery/rescue image → `msm89xx/recovery/&lt;board&gt;.img` = the board's **production kernel** (lifted out of its `-squashfs-boot.img`) + a gzipped cpio of `msm89xx/recovery/irfs` as the ramdisk. No kernel is compiled. |
 | `devenv/Dockerfile` | build-time | Defines the `devenv-builder` image: `ubuntu:22.04` + all OpenWrt build deps (`dependencies.sh`) + a non-root `builder` user whose UID/GID match the host. |
 | `devenv/docker-compose.yml` | host | Defines the `builder` service; bind-mounts the repo at `/repo`; working dir `/repo/openwrt`; host networking. |
 | `devenv/dependencies.sh` | build-time (in image) | `apt-get` install of every toolchain/build dependency baked into the image. |

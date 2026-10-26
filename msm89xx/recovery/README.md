@@ -8,14 +8,194 @@ from the repo root; output lands here as `<board>.img`.
 ## What the image is
 
 ```
-kernel   Linux from the patched OpenWrt source, config msm89xx/config-6.12-recovery
-         (devtmpfs, configfs, libcomposite, usb_f_ncm, usb_f_acm built in —
-         the initramfs carries no modules), with the initramfs below embedded
-         via CONFIG_INITRAMFS_SOURCE
-initramfs irfs/ — busybox (static) + dropbear + reboot-mode-raw + /init
-pack     gzip -9 Image | append board DTB | mkbootimg --ramdisk /dev/null
-cmdline  empty — /init does everything
+kernel   the board's PRODUCTION kernel, lifted verbatim out of
+         openwrt/bin/targets/msm89xx/msm8916/
+           msm8916-openwrt-msm89xx-msm8916-generic-<board>-squashfs-boot.img
+         (gzipped Image with the board DTB already appended)
+ramdisk  gzip -9 of a newc cpio of irfs/ — busybox (static) + dropbear +
+         reboot-mode-raw + /init + the kernel modules /init insmods
+cmdline  earlycon console=ttyMSM0,115200 panic=5
+         (the production "root=/dev/mmcblk0p14 rootfstype=squashfs" is dropped:
+          /init runs from the initramfs and never switch_roots)
 ```
+
+There is **no second kernel**. The rescue image runs the exact kernel the
+device boots normally, so it can never drift from the thing it is rescuing.
+The earlier recipe built its own kernel from `msm89xx/config-6.12-recovery`
+(devtmpfs on, wcn36xx built in) and that drift is precisely what left the first
+AP+STA image with a dead USB port: the production kernel has
+**`CONFIG_DEVTMPFS` off** (OpenWrt mounts a tmpfs and runs `mdev`) and builds the
+wireless stack as **modules**.
+
+Both consequences are handled, and both are easy to reintroduce by accident:
+
+* **No devtmpfs.** `/init` mounts a tmpfs on `/dev` and runs `mdev -s` instead. Skip
+  that and `/dev` stays empty: dnsmasq dies with *"failed to seed the random
+  number generator"* (no `/dev/urandom`) so there is no DHCP on USB or WiFi,
+  `>/dev/ttyGS0` silently creates a **regular file** so the console never
+  appears, and every `2>/dev/null` creates a file called `null`.
+* **Wireless is modular.** `wcn36xx`, `mac80211`, `cfg80211`, `compat` and the
+  WCNSS remoteproc set are `.ko` files. `build-recovery.sh` copies them into
+  the initramfs and `/init` insmods them in dependency order. Without them the
+  image boots perfectly, has no `wlan0`, and no AP.
+
+## Step by step: build, flash and run it
+
+The whole procedure, in the order it has to happen. `<board>` is `hmuf02v5`,
+`mf800b`, `mifib-v12`, `ufi003_mb_v02` or `ufi001b`.
+
+### 0. Prerequisites
+
+* **The board's production image must already be built.** The recovery image
+  steals its kernel and its modules from there, so there is nothing to compile
+  but there is something to find:
+
+  ```sh
+  ./build.sh <board>          # produces openwrt/bin/targets/msm89xx/msm8916/
+                              #   ...-generic-<board>-squashfs-boot.img
+                              # and build_dir/.../root-msm89xx/lib/modules/<ver>/
+  ./build-recovery.sh <board> # fails loudly if either is missing
+  ```
+
+* Host tools: `python3`, `cpio` (GNU, for `--reproducible`), `gzip`. No docker
+  and no kernel build are involved any more.
+
+### 1. Fetch the board's WiFi blobs (once per board)
+
+The WCNSS firmware, the calibrated wlan NV and `hostapd` are device-specific
+and are **not** committed. Pull them from a board that already runs OpenWrt
+with a working AP:
+
+```sh
+./msm89xx/recovery/fetch-device-blobs.sh <board> root@<running-box>
+```
+
+They land in `msm89xx/recovery/blobs/<board>/` (git-ignored). Skip this and
+step 2 stops with *"No WiFi blobs for ..."*.
+
+### 2. Build
+
+```sh
+./build-recovery.sh <board>              # or: ./build-recovery.sh all
+DRY_RUN=1 ./build-recovery.sh <board>    # show paths + module source, write nothing
+```
+
+Expected output ends with the sizes and a sha256:
+
+```
+==> Installing '<board>' blobs (WCNSS firmware, hostapd, libs) into the initramfs
+==> Installing kernel modules (6.12.112) into the initramfs
+==> Packing <board>: production kernel + recovery initramfs
+    kernel   6585767 bytes (from the production boot image)
+    ramdisk  5401367 bytes gzip (12069376 bytes cpio)
+    image    11991040 bytes (11.44 MiB)
+```
+
+11.44 MiB has to fit the 16 MiB `recovery` partition (`p17`). A future kernel
+or module set that pushes it past 16 MiB would be silently truncated by the
+flash below, so compare `stat -c %s <board>.img` with the partition size.
+
+### 3. Flash it to the recovery partition
+
+From the **running system** (production or an older recovery), over SSH:
+
+```sh
+cat msm89xx/recovery/<board>.img | ssh root@192.168.10.1 'cat > /tmp/r.img'
+ssh root@192.168.10.1 'sha256sum /tmp/r.img'      # must match the build output
+ssh root@192.168.10.1 'dd if=/tmp/r.img of=/dev/mmcblk0p17 bs=1M conv=fsync; sync'
+```
+
+**`conv=fsync` is not optional.** Without it `dd` returns as soon as the data is
+in the page cache; `sync` only *starts* writeback, and a `reboot` issued right
+after resets the controller with pages still dirty. Measured on hmuf02v5:
+`dd` reported `11991040 bytes copied, 0.085 s, 134 MB/s`, the immediate readback
+matched the new hash — and the next boot ran the **previous** image, because
+the whole write was lost. A real write takes ~1.25 s at ~9 MB/s.
+
+Verify against the flash, not against the cache:
+
+```sh
+ssh root@192.168.10.1 'echo 3 > /proc/sys/vm/drop_caches; \
+    dd if=/dev/mmcblk0p17 bs=11991040 count=1 2>/dev/null | sha256sum'
+```
+
+That must equal `sha256sum msm89xx/recovery/<board>.img`. Reading it back
+*without* dropping the cache proves nothing — it reads the page cache you just
+filled.
+
+If the running system has no `/dev/mmcblk0p17` (an older recovery image built
+before the block-node fix), run `mdev -s` once first.
+
+### 4. Boot into it
+
+```sh
+ssh root@<box> reboot-recovery -f
+```
+
+`-f` matters: the graceful path (`ifdown -a`, `killall5`, `umount -a`) hangs
+when a modem bearer is up and the box just sits there. From inside recovery the
+equivalent is `reboot-mode-raw recovery`.
+
+On a gated board the power button also works: hold it ~20 s for a PMIC hard
+reset, which lands in recovery (see *Entering recovery* below).
+
+### 5. Check it came up — over USB first
+
+1. Host `dmesg`: `1d6b:0104` *OpenWrt / OpenWrt Recovery*, a new
+   `/dev/ttyACM*` and a new network interface.
+2. The host should get a `192.168.10.x` lease within ~10 s. **If it does not,
+   the box still answers**: put a static `192.168.10.2/24` on that interface and
+   `ssh root@192.168.10.1`. DHCP is a convenience, not a dependency.
+3. On the box:
+
+   ```sh
+   ls /sys/class/net                 # br0  lo  usb0  wlan0
+   iw dev                            # wlan0, type AP, ssid OpenWrt-Recovery
+   ls /dev | grep mmcblk             # the eMMC nodes must be there
+   ps w | grep -E 'hostapd|dnsmasq|dropbear|httpd'
+   ```
+
+4. Console: the ACM port gives a root shell with no login. It is re-spawned if
+   it dies, and the banner is re-emitted every 5 s because boot-time output is
+   lost when nobody is reading the port yet.
+
+### 6. If USB does not come up at all
+
+Work down this list — every row is a real failure seen on hardware:
+
+| Symptom | Cause | Check |
+|---|---|---|
+| no ACM, no NIC | gadget never bound | `ls /sys/class/udc`, `cat /sys/kernel/config/usb_gadget/g1/UDC` |
+| gadget present, console dead | `/dev/ttyGS0` missing, so the shell's redirection made a *file* | `ls -l /dev/ttyGS0` |
+| no DHCP, box still pings | `/dev/urandom` missing, so dnsmasq exited | `cat /tmp/dnsmasq.err` |
+| `/dev` almost empty | devtmpfs mount attempted on a kernel without it | `ls /dev` — `console`/`null`/`urandom` must exist |
+| no `wlan0` | modules missing from the initramfs, or WCNSS firmware absent | `cat /proc/modules`, `cat /tmp/modules.err`, `dmesg | grep -i wcn` |
+| `phy0` but no `wlan0` | backports mac80211 creates no default netdev | `iw phy phy0 interface add wlan0 type __ap` |
+
+The first four are the same root cause (no devtmpfs). The `mdev` block at the
+top of `/init` is the fix and must not be "simplified" back to a bare
+`mount -t devtmpfs`.
+
+### 7. Getting back to production
+
+Recovery is **opt-in and one-shot**: the bootloader reads the PON reason once.
+So:
+
+* **Unplug and replug the board** (or just `reboot`) — it boots production. A
+  recovery that is wedged, half-configured or stuck in a bad WiFi join is
+  always escaped this way. Nothing in the recovery image writes the boot
+  partition.
+* `reboot-mode-raw bootloader` → fastboot; `/sbin/reboot-edl` → EDL
+  `05c6:9008` for a full reflash.
+
+### 8. WiFi
+
+* The **AP** is on by default: `OpenWrt-Recovery`, WPA2-PSK or WPA3-SAE,
+  passphrase `recovery`, bridged into `br0`, so a WiFi client gets a
+  `192.168.10.x` lease from the same dnsmasq as USB.
+* The **station** is opt-in: web UI → *WiFi station* → *Scan* → pick → *Join*.
+  It is per-session (`/etc` is the initramfs) and is not bridged into `br0` —
+  see *AP and station at the same time*.
 
 ## What /init provides
 
@@ -93,6 +273,7 @@ the same on `mf800b`, `mifib-v12` and `hmuf02v5`.
 | `irfs/usr/sbin/dnsmasq` | bit-identical to the OpenWrt dnsmasq package build (`build_dir/.../root-msm89xx/usr/sbin/dnsmasq`); needs `libubox`/`libubus` from `irfs/lib` |
 | `irfs/usr/sbin/hostapd`, `irfs/usr/sbin/iw`, `irfs/usr/sbin/wpa_supplicant` + their `.so` libs (`irfs/lib/libnl*`, `libwolfssl*`/`libmbed*`) | **NOT frozen / not committed** - pulled per board from a live device by `fetch-device-blobs.sh` (a SAE-capable build; the board already serves WPA3 with it). `wpa_supplicant` is a **symlink to `hostapd`**: OpenWrt ships one multicall `wpad` behind both names, and the fetch script checks that on the device before falling back to a second binary. See the note below. |
 | `irfs/etc/hostapd.conf` | WPA2 + WPA3 (SAE) AP `OpenWrt-Recovery`, passphrase `recovery` |
+| `irfs/lib/modules/<ver>/*.ko` | **NOT frozen / not committed** - copied out of `build_dir/.../root-msm89xx/lib/modules/<ver>/` on every build, so they always match the packed kernel: `mdt_loader`, `qcom_common`, `qcom_pil_info`, `qcom_wcnss_pil`, `compat`, `cfg80211`, `mac80211`, `wcn36xx` (the list is `RECOVERY_MODULES` in `build-recovery.sh` and must stay in sync with the `insmod` loop in `/init`) |
 
 ### WiFi firmware and hostapd are fetched per board, not committed
 
@@ -127,10 +308,11 @@ copy it into `irfs/`, and re-run `./build-recovery.sh <board>`.
 The image can run the AP **and** join an upstream network. Both live on the
 same radio: `wlan0` is the AP (hostapd → `br0`), `wlan1` is a managed vif that
 `wpa_supplicant` drives. That needs wcn36xx interface-combination support, i.e.
-patch **452** — so the recovery kernel carries the whole six-patch series
-(450/451/452/453/458/459) and runs the *same driver* as the system it is
-rescuing. `build-recovery.sh` applies them to the in-tree 6.12 source and
-aborts the build if one does not apply.
+patch **452** — and it comes for free: the recovery image ships the production
+kernel's `wcn36xx.ko`/`mac80211.ko` (the backports build), which already carries
+the whole six-patch series (450/451/452/453/458/459). There is nothing to apply
+at recovery-build time, and the rescue image runs the *same driver* as the
+system it is rescuing.
 
 Why the station is worth having: a stick in recovery that only runs an AP is
 reachable from whatever can see `OpenWrt-Recovery`; with the station joined it
@@ -269,6 +451,25 @@ root shell. Keep the recovery box on a network you control.
   leaves a zero-byte log. Also wait ~3 s after `wlan0` appears — starting
   hostapd in wcn36xx's firmware-bringup window enables the AP and tears it
   down again ~200 ms later.
+
+* **The production kernel has no devtmpfs.** `mount -t devtmpfs /dev` fails and
+  leaves `/dev` empty; everything that needs a node then fails *silently*
+  (dnsmasq: no `/dev/urandom`; the console: `>/dev/ttyGS0` creates a regular
+  file; every `2>/dev/null` creates a file named `null`). `/init` falls back to
+  `mount -t tmpfs` + `mdev -s`.
+* **The eMMC is probed ~1 s after `/init` starts**, so the first `mdev -s` runs
+  before `/sys/block/mmcblk0` exists and no `/dev/mmcblk0*` node is ever created.
+  Consequence: the web UI's "write a partition" fails and a hand-run `dd` says
+  *"can't open '/dev/mmcblk0p17': No such file or directory"*. `/init` waits for
+  `/sys/block/mmcblk0` and rescans.
+* **The backports mac80211 creates no default netdev.** Loading the modules
+  gives you `phy0` and `iw phy` works, but `iw dev` is empty and hostapd has no
+  interface. The AP interface must be made explicitly with
+  `iw phy phy0 interface add wlan0 type __ap` (`__ap`, not `AP`).
+* **`dd` to the recovery partition without `conv=fsync` loses the write.** It
+  returns from the page cache, a readback confirms the new data, and the next
+  boot still runs the old image. Always `conv=fsync`, then verify after
+  `echo 3 > /proc/sys/vm/drop_caches`.
 
 ## Entering recovery
 
