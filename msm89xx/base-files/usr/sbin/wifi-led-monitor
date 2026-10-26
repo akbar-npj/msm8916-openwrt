@@ -30,6 +30,15 @@ BLINK_OFF=250
 BLINK_FAST_ON=100
 BLINK_FAST_OFF=100
 
+. /lib/batteryless.sh 2>/dev/null || true
+
+# The AP+STA fast blink is a headless-dongle cue: on a battery board the same
+# lamp carries the charge indication, so the plain client blink stays.
+BATTERY_BOARD=0
+if command -v is_battery_board >/dev/null 2>&1 && is_battery_board; then
+        BATTERY_BOARD=1
+fi
+
 set_green_off()
 {
         [ -e "$LED/trigger" ] || return 1
@@ -180,7 +189,7 @@ while true; do
 
                 STATE="wifi-down"
 
-        elif sta_uplink_active; then
+        elif [ "$BATTERY_BOARD" = "0" ] && sta_uplink_active; then
 
                 STATE="ap-sta"
 

@@ -148,7 +148,9 @@ solid still means the modem subsystem is down, red blink still means "up and
 searching", green still means registered. Inserting a SIM brings the normal
 indication back on the next poll. A failed `mmcli` query never produces the
 dark state — it keeps the previous behaviour, so a broken query cannot hide a
-broken modem.
+broken modem. Applies to the **batteryless dongles only**: on `mifib-v12` /
+`mf800b` the same lamps carry the charge indication, so those boards keep the
+old behaviour.
 
 **🔴 The failsafe window is visible (new)** — On a headless dongle the first
 7 s of boot — the window in which one short press of the Restart button enters
@@ -157,13 +159,18 @@ failsafe — looked exactly like any other boot. The status LED now **fast-blink
 (`05_failsafe_window_led`) starts the blink before the button is polled, so the
 cue covers the whole window, and it is deliberately slower than the 40/40 blink
 shown once failsafe is actually entered — so "press now" and "you are in" are
-distinguishable.
+distinguishable. Batteryless boards only: on a battery board the lamp is the
+charge indicator, and a blink at boot reads as a fault.
 
 **📶 AP+STA gets its own Wi-Fi indication (new)** — When the radio is serving
 its own access point **and** associated upstream (repeater mode), the Wi-Fi LED
 now toggles **very fast (100/100 ms)** instead of the 250 ms "a client joined the
 AP" blink. The states stay distinct: green solid = AP ready, green 250 ms = AP
 with clients, green 100 ms = AP + station both active, red = AP missing.
+"Both active" means the station has an address, not merely that an association
+was attempted — wcn36xx reports the link ~100 ms before the 4-way handshake
+finishes, so a station with a stale key would otherwise blink the LED every
+minute. Batteryless boards only.
 
 **📡 Station Mode never runs on `channel='auto'` (fix)** — A lost scan on
 wcn36xx leaves the phy answering every later scan with `-EBUSY` until the next

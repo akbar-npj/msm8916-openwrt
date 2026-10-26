@@ -48,6 +48,7 @@ MODEM_INITIALIZED=0
 MODEM_INDEX=""
 
 . /lib/functions.sh 2>/dev/null || true
+. /lib/batteryless.sh 2>/dev/null || true
 case "$(board_name 2>/dev/null)" in
         *hmu05*|*hmuf02v5*) IS_HMU05=1 ;;
         *) IS_HMU05=0 ;;
@@ -454,6 +455,13 @@ LAST_TRAFFIC=""
 ACTIVE_HOLD=0
 SIM_MISSING=0
 
+# The no-SIM dark state is a headless-dongle cue.  On a battery board the
+# same lamps carry the charge indication, so the old "searching" blink stays.
+BATTERY_BOARD=0
+if command -v is_battery_board >/dev/null 2>&1 && is_battery_board; then
+        BATTERY_BOARD=1
+fi
+
 while true; do
 
         if modem_healthy; then
@@ -472,7 +480,7 @@ while true; do
                 #
                 if [ "$REG_POLL" -le 0 ]; then
                         # Same DBus round trip, so ask about the SIM here too.
-                        if modem_sim_missing; then
+                        if [ "$BATTERY_BOARD" = "0" ] && modem_sim_missing; then
                                 SIM_MISSING=1
                         else
                                 SIM_MISSING=0

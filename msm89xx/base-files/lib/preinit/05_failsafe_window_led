@@ -13,12 +13,18 @@
 # 35_failsafe_usb) so the two are distinguishable: 100/100 = "press now",
 # 40/40 = "you are in failsafe".
 
+. /lib/batteryless.sh
+
 WINDOW_SECS=7
 FAST_ON=100
 FAST_OFF=100
 
 fs_window_led() {
 	local l led=""
+
+	# Battery boards drive their lamps from luci-app-battery; a boot blink
+	# there would be read as a charge fault.
+	is_battery_board && return 0
 
 	# Board LED names: red:power (hmuf02v5, ufi001b, ufi003), red:wan or red
 	# (mf800b, uf02).  Fall back to any red LED, then to anything at all, so
