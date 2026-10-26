@@ -1,0 +1,21 @@
+{#
+    Feelgood is a theme for LuCI. It is based on luci-theme-bootstrap and MUI
+    luci-theme-feelgood
+        Copyright 2018-2026 Akbar NPJ <https://github.com/akbar-npj/luci-theme-feelgood>
+        Copyright 2018 Yan Lan Shen
+
+    Licensed to the public under the Apache License 2.0
+-#}
+
+	{% if (!blank_page): %}
+				</div>
+			</div>
+		</div>
+		<footer class="mobile-hide" style="display:none !important">
+			<ul class="breadcrumb pull-right" id="modemenu" style="display:none"></ul>
+		</footer>
+
+		<script>L.require('menu-feelgood')</script>
+	{% endif %}
+</body>
+</html>

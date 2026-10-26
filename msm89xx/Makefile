@@ -76,6 +76,13 @@ DEFAULT_PACKAGES += wpa-cli
 # future board) by default.
 DEFAULT_PACKAGES += luci-app-cpu-perf luci-app-modem-watchdog luci-app-sms-manager \
 	luci-app-tailscale luci-app-usb-gadget luci-app-wifi-sta
+# The LuCI theme this repo maintains (packages/luci-theme-feelgood).  Its
+# uci-defaults takes luci.main.mediaurlbase over from the stock bootstrap
+# default, so a fresh image - and a config-preserving upgrade from an older
+# build - both come up in Feelgood, while a deliberate choice of another theme
+# is left alone.  luci-theme-bootstrap stays installed: LuCI falls back to it
+# if the Feelgood templates ever fail to compile.
+DEFAULT_PACKAGES += luci-theme-feelgood
 # Upstream userspace packages that every board used to select by hand: 112
 # CONFIG_PACKAGE lines byte-identical in all seven diffconfigs.  They live
 # here now so the diffconfigs hold only genuinely per-board choices; an
