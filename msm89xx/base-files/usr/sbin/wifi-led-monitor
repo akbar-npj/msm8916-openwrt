@@ -136,14 +136,23 @@ sta_if()
         return 1
 }
 
-sta_associated()
+#
+# A transient "Connected" is not enough.  wcn36xx reports the link as soon as
+# the AssocResp arrives -- roughly 100 ms BEFORE the 4-way handshake completes --
+# and tears it down again when the handshake fails.  Sampling that window made
+# the LED flicker between "AP ready" and "AP+STA active" once a minute while a
+# station with a stale key kept retrying.  Requiring an address means the
+# uplink actually works, not that an association was merely attempted.
+#
+sta_uplink_active()
 {
         local i
 
         i="$(sta_if)" || return 1
         [ -n "$i" ] || return 1
 
-        iw dev "$i" link 2>/dev/null | grep -q "^Connected"
+        iw dev "$i" link 2>/dev/null | grep -q "^Connected" || return 1
+        ip -4 addr show dev "$i" 2>/dev/null | grep -q "inet "
 }
 
 wifi_has_clients()
@@ -171,7 +180,7 @@ while true; do
 
                 STATE="wifi-down"
 
-        elif sta_associated; then
+        elif sta_uplink_active; then
 
                 STATE="ap-sta"
 
