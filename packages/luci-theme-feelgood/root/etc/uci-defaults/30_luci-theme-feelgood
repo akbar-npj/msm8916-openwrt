@@ -11,14 +11,20 @@ set_opt() {
 		changed=1
 	fi
 }
-
 set_opt themes.Feelgood /luci-static/feelgood
 set_opt themes.FeelgoodHighContrast /luci-static/feelgood
 set_opt theme_feelgood.color dark
 set_opt theme_feelgood.nav horizontal
 
-if [ "$PKG_UPGRADE" != 1 ] && [ $changed = 1 ]; then
-	set_opt main.mediaurlbase /luci-static/feelgood
+# Make Feelgood the active theme on a fresh install (first boot after a flash
+# that does not keep configuration, e.g. sysupgrade -n).  luci-base already
+# ships luci.main.mediaurlbase (= /luci-static/bootstrap), so set_opt only sets
+# it when absent and would never switch -- force it here.  Do NOT touch it when
+# the package is merely being upgraded (PKG_UPGRADE=1), so a users manual theme
+# choice survives an apk upgrade.
+if [ "$PKG_UPGRADE" != 1 ]; then
+	uci set "luci.main.mediaurlbase=/luci-static/feelgood"
+	changed=1
 fi
 
 if [ $changed = 1 ]; then
