@@ -68,14 +68,17 @@ screen /dev/ttyACM0 115200      # or: picocom -b 115200 /dev/ttyACM0
 > LAN address `192.168.8.1`, so a half-broken network config cannot collide with
 > it. Failsafe runs a DHCP server on the gadget link (dnsmasq, pool
 > `192.168.10.10`-`.50`), so the host normally picks up an address by itself. If
-> it does not, run `ip addr add 192.168.10.2/24 dev <usb-nic>`.
+> it does not, run `ip addr add 192.168.10.2/24 dev <usb-nic>`.  The lease
+> carries **no default router and no DNS server**: failsafe has no WAN, and
+> advertising itself as the gateway would replace the host's default route the
+> moment the dongle is plugged in.
 
 > **No WiFi in failsafe — by design.** Failsafe is a *pre-init* environment:
 > it runs from the read-only squashfs **before** the wireless config is applied,
 > and wcn36xx needs its firmware (which lives on the overlay) plus a
-> `hostapd`/`wpa_supplicant` daemon to be useful.  The **recovery image** is
-> the one that offers WiFi — an AP *and* an optional upstream station, so a
-> rescued box can be driven from your own LAN.  Keeping failsafe USB-only also
+> `hostapd` daemon to be useful.  The **recovery image** is the one that offers
+> WiFi: an AP, so a box that is not next to a cable can still be driven from a
+> phone or laptop.  Keeping failsafe USB-only also
 > keeps its 7 s window and its "can never wipe the overlay" property intact.
 > See [`Docs/RECOVERY/README.md`](../RECOVERY/README.md) §5.
 
