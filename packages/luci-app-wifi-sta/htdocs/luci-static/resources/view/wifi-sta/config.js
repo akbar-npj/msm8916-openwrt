@@ -77,11 +77,10 @@ return view.extend({
 			uci.unset('wifista', 'main', 'key');
 		}
 
-		// Always show one row, so the SSID and password boxes are there
-		// without having to press Add network first.  An empty row is
-		// harmless: wifi-sta-up skips profiles with an empty ssid, and the
-		// section is only committed if the user saves the form.
-		if (!uci.sections('wifista', 'ap').length)
+		// Always leave one empty row at the end, so the SSID and password boxes
+		// are there without pressing Add network first.  A row without an SSID
+		// is skipped by wifi-sta-up, so an unused spare row costs nothing.
+		if (!uci.sections('wifista', 'ap').some(function(sec) { return !sec.ssid; }))
 			uci.add('wifista', 'ap');
 
 		m = new form.Map('wifista', _('Station Mode'),
