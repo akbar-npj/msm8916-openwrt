@@ -2657,6 +2657,16 @@ body.lang_pl.login .cbi-value-title {
         width: 100%;
     }
 
+    /* In horizontal nav mode the sidebar is display:none, which would also hide
+       the mobile drawer. Re-enable it at mobile widths so the hamburger can
+       actually open it; otherwise handleSidebarToggle applies the scroll lock
+       (overflow:hidden on .main-right) over an invisible drawer and the page
+       scroll stays frozen. The doubled .main-left raises specificity above
+       the horizontal display:none !important rule. */
+    html[data-theme-nav="horizontal"] .logged-in .main-left.main-left {
+        display: block !important;
+    }
+
     .logged-in header {
         width: calc(100% - 2rem);
     }

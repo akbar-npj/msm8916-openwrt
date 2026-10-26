@@ -1364,7 +1364,10 @@ return baseclass.extend({
 		// 7. Initialize custom scrollbar on desktop
 		this.initScrollBar();
 
-		// 8. Initialize Smart Colorizer
+		// 8. Safety net: never leave the page scroll locked by a stray drawer
+		this._bindScrollLockGuard();
+
+		// 9. Initialize Smart Colorizer
 		Colorizer.init();
 	},
 
@@ -1745,10 +1748,39 @@ return baseclass.extend({
 		if (mainRight) mainRight.style.overflowY = '';
 	},
 
-	handleResize(ev) {
+		handleResize(ev) {
 		if (window.innerWidth > 992) {
 			this._closeDrawer();
 		}
+	},
+
+	_bindScrollLockGuard() {
+		if (this._scrollLockBound) return;
+		this._scrollLockBound = true;
+
+		// The mobile drawer (handleSidebarToggle) sets .main-right overflow:hidden to
+		// freeze page scroll while the drawer is open. If the user navigates by
+		// clicking a link inside the drawer, that lock is never cleared and the
+		// page can no longer scroll. Release it on any real navigation and
+		// defensively on every page load.
+		var release = function() {
+			var mr = document.querySelector('.main-right');
+			if (mr && mr.style.overflowY === 'hidden') mr.style.overflowY = '';
+		};
+
+		document.addEventListener('click', function(e) {
+			var t = e.target;
+			while (t && t !== document) {
+				if (t.tagName === 'A' && t.getAttribute('href') && t.getAttribute('href') !== '#') {
+					release();
+					break;
+				}
+				t = t.parentNode;
+			}
+		});
+
+		window.addEventListener('load', release);
+		release();
 	},
 
 	setupPasswordToggle() {
