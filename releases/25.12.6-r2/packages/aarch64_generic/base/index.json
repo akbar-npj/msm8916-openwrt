@@ -68,7 +68,7 @@
     "luci-app-modem-watchdog": "1.0-r1",
     "luci-app-sms-manager": "1.1.4-r20261023",
     "luci-app-tailscale": "1.2.6-r1",
-    "luci-app-update-notify": "1.0-r1",
+    "luci-app-update-notify": "1.0-r2",
     "luci-app-usb-gadget": "1.0-r1",
     "luci-app-wifi-sta": "1.0-r7",
     "luci-theme-feelgood": "1-r24",
