@@ -8,6 +8,30 @@
 
 ---
 
+### v25.12.6-r2 (2026-10-28) — built from `main`
+
+*An update you can see, a theme you can pick, and LEDs that only light for something you can act on.*
+
+**Why this release** — r1 works, but it cannot tell you that it is out of date, and its LEDs still announce states some boards do not have. r2 adds an **"updates available" notice to the dashboard**, gives **Feelgood three palettes** (dark, light, colourful) with a switch in the header, and reworks the LED cues so each board shows only what it can actually do. It also removes the "the package is installed but the service never starts" trap that a config-preserving flash leaves behind, and adds the tooling to push a single package to the live feed without rebuilding firmware.
+
+**🔔 The dashboard tells you when there is an update (new)** — `luci-app-update-notify` runs `apk update` in the background every 6 h (retrying after 15 min on failure, so a dongle whose bearer is still coming up at boot does not wait a whole cycle) and puts **"N package updates are available"** on the dashboard with a link to the package manager. It renders **nothing** while the device is current. Two details that make the number trustworthy: it counts only `apk list --upgradable --world`, so the version-pinned `base-files`, `kernel` and `libc` are never advertised as installable; and it de-duplicates across repositories, because these devices carry the same package in the stock OpenWrt feed and in our own distfeeds (66 raw lines, 39 real updates on mifib-v12). The check is deliberately *not* in the page: the dashboard re-runs its loader every 5 s, and an `apk update` per poll would both hammer the feed and block the page on a dead uplink.
+
+**🎨 Feelgood: three palettes, a sidebar that stays put (new)** — The theme is no longer one dark skin. `data-theme-style` on `<html>` selects **dark** (default), **light** (cream canvas, warm ink) or **colourful** (violet canvas, cyan accent), set before first paint so no page — the login screen included — flashes the wrong palette. The switch sits in the header and stores its choice under its own key, separate from the horizontal/vertical layout, so changing one never resets the other. Colour now carries meaning rather than decoration: five token sets (ok / warn / error / info / idle) drive every status surface, and a palette may only move lightness and saturation — red stays fault, amber stays degradation. Structurally, the vertical sidebar opens a section in a panel **beside** it instead of expanding in place, so the tabs below never move; **Network → Interfaces** becomes a compact list (identity left, one value per line in a fixed label column, actions right) at one type size per line. Also fixed: the sidebar scrollbar clamped its offset to `[0, max]` after every re-measure — an unclamped negative offset made it emit `translate(-0px, --53px)`, which the browser rejects, freezing the menu with no scrollbar to bring it back.
+
+**💡 LED cues now match the board** — On the battery boards (`mifib-v12`, `mf800b`) the second LED pair reports **charging and faults only**; the modem and Wi-Fi cues live on the lamps that exist there, and the boot blink no longer encodes capacity — a level cannot be read off a blink, and LuCI reports it properly. The battery lamp names differ per board (`green:bat`/`red:bat` vs `green:charging`/`red:charging`), so they are resolved rather than hardcoded. `battery-led` also treats **"Not charging"** as charge complete, so a full pack stops looking like a fault. The rescue and flash states are now distinct: failsafe fast-blinks **both** Wi-Fi LEDs at 40/40 (the same cue the USB gadget gives once the rescue shell is up), and a `sysupgrade` in progress slow-blinks `green:wlan` alone at 500/500, so a flash cannot be mistaken for a rescue prompt and a rescue cannot be mistaken for a battery problem.
+
+**🧹 A keep-config flash no longer leaves a stale package database (fix)** — Flashing with `--keep-config` keeps the overlay, and the overlay wins over the image. Three artefacts then make a freshly shipped package look broken: **whiteouts** for paths that moved between packages hide the new image's files (the service silently never starts), the previous image's `/lib/apk/db/installed` makes `apk info -W` lie and `apk add` hit file conflicts, and the previous image's `/etc/apk/world` makes apk treat a package the new image added as unwanted. `apk-overlay-heal` now runs from preinit **once per image change** and repairs all three: it drops whiteouts whose path the image ships, merges the world, and merges the database with the image's while keeping packages installed from the feed. It never deletes the database — apk cannot rebuild it from the filesystem — and it deliberately does nothing on an ordinary boot or an ordinary `apk add`, because a whiteout is also how a legitimate `apk del` removes a file.
+
+**📦 Fixes reach a device without a 34 MB flash (new)** — The LED monitors and the station helpers moved out of `base-files` into [`msm89xx-scripts`](https://github.com/akbar-npj/msm8916-openwrt/tree/main/packages/msm89xx-scripts), so an LED or repeater fix is now a package. A new workflow, `publish-package.yml`, rebuilds one package, splices it into the already-published `releases/25.12.6` feed and re-signs the index, so the fix arrives with `apk upgrade`. Boot-critical pieces (`/etc/diag.sh`, the preinit hooks, `lib/batteryless.sh`) deliberately stay in the image.
+
+**⬆️ Upgrading** — From r1: `sysupgrade` (keep config) is fine and preserves the overlay; the first boot after the flash runs the overlay heal automatically. The theme and the update notice are ordinary packages and also reach an r1 device through the feed with `apk upgrade` once r2's feed is published — the LED cues and the heal live in the image, so those need the flash.
+
+**🧪 Tested on mifib-v12** — The theme (1-r24) and the update notice were built here, installed on a running r1 device and verified end to end: `apk add` enables and starts the service, a check writes `{"count":39,…}` in 8 s, the read the page performs returns it, and the notice renders nothing at zero. The **mf800b** `charging` LED pair compiles from the same tree but has **not** been run on hardware — if you have one, please flash it and report what the pair does.
+
+**⚠️ Known issues** — `sysupgrade -n` wipes the overlay and the modem firmware (re-dump from the stock image); STA+AP Wi-Fi can crash the WCNSS firmware; the update notice needs an uplink, so it stays silent until its first successful check.
+
+---
+
 ### v25.12.6-r1 (2026-10-26) — built from `main`
 
 *A rescue image that can actually rescue, BBR by default, HTTPS everywhere — and a modem bearer that can no longer latch itself dead.*
@@ -421,41 +445,4 @@ Feelgood theme, and the build/feed work.
 
 **⬆️ Upgrading** — From r3: `sysupgrade` (keep config) is fine and preserves the overlay.
 
-**⚠️ Known issues** — See r3 below (overlay module shadowing; `sysupgrade -n` wipes the modem firmware; STA+AP Wi-Fi crashes the WCNSS firmware).
-
----
-
-### v25.12.5-r3 (2026-10-09) — built from `main` @ `e66d566`
-
-*A clean rebuild of r3 after the CI clone fix.*
-
-**Why this release** — A modem-stability and feature release on top of r2. The headline: the software modem-restart (SSR) lever now actually works (it was silently dead in r2), paired with AP-side fixes that eliminate the recurring ~900 s baseband watchdog crash on HMU05. It also folds in Bluetooth, WPA3, thermal/CPR, and a safer two-in-one flasher.
-
-**🛡️ Modem stability (most important)**
-- **SSR restart lever fixed (kernel patch 826).** In r2, writing to `/sys/kernel/debug/msm_subsys/modem` to restart a wedged modem did nothing — a stray duplicate `start` inflated the remoteproc power refcount so `rproc_shutdown` short-circuited. Now `atomic_set(&rproc->power, 1)` is forced before shutdown, so the restart really cycles the modem and the refcount self-heals.
-- **bam-dmux re-attach on already-open (kernel patch 850).** After an SSR, the BAM-DMUX data channel re-attaches correctly even when already open, preventing a "Channel already open" / QMI-port-loss stall.
-- **A2 power pin moved into the kernel driver (patches 848/849).** The A2 modem-power pin is now held by `qcom_bam_dmux` from `netdev_open` instead of a userspace script. This removes a class of `a2_power.c:1189` crashes and makes the pin reliable across suspend/resume and SSR. (The old `modem-a2-hold` userspace scripts are removed.)
-- **HiMI_OK guard hardened (GitHub issue #5).** The root-cause fix for the ~900 s baseband deadline: it rewrites the `HiMI_OK` handshake after every modem boot, gated to HiMI baseband boards, and only writes when NV item 2500 reads all-zeros. DIAG rpmsg access is now serialized and the diag-bind-watch no longer rewrites the status file every 2 s.
-- **Corrected A2-parity claim.** Earlier docs described Android parity as `a2_pin=0`; measured behaviour shows Android actually holds the A2 ON (`a2_pin=1`). HMU05 now ships `a2_pin=1` via device-tree, matching Android.
-
-**🔵 Bluetooth (new)** — BlueZ userspace shipped in the image; `kmod-btqca` + `kmod-btqcomsmd` packaged. `bt-ssp-guard` fixes SSP pairing by gating on the NVM LMP-feature bit; bond persists across reboot (verified). `bt-spp` adds an SPP serial server (default-on) + on-demand client with a uci bridge. Bluetooth is not usable on UZ801 v3 because the board has no Bluetooth antenna.
-
-**📶 Wi-Fi (new)** — **WPA3-SAE / 802.11w (MFP)** enabled on wcn36xx (firmware already supported PMF/IGTK; only the driver needed patching). **AP-only interface combinations** allow multiple SSIDs (up to 2 APs) on one radio — do NOT enable STA+AP concurrent mode (it crashes the WCNSS firmware). Wi-Fi thermal mitigation wired up (wcn36xx HAL thermal command + cooling device).
-
-**🌡️ Thermal & power (new)** — **Mainline CPR** CPU-rail voltage scaling ported: the CPU rail now tracks frequency and matches Android's voltage (≈1.15 V → 1.0625 V at load), closing the last meaningful voltage gap. Top CPU OPP capped at 800 MHz; PMIC thermal mitigation added.
-
-**🔧 Flashing & recovery** — **Two-in-one `flash.sh`** (Migrate + Update) with a validated safety backup of all radio/calibration partitions (`fsc fsg modemst1 modemst2 modem persist sec`) — the script aborts before writing if any backup is missing or short. Fixed two bugs that left the modem partition zeroed after a migrate flash (IMEI read as all-zeros → modem attaches but stays detached). Radio/calibration restored *before* boot/rootfs. Wi-Fi fatals no longer miscounted as modem fatals. CI release fixed (the runner's `actions/cache` pre-creating `openwrt/` broke the clone) — this r3 is a clean rebuild from `main`.
-
-**📦 Package feeds & kmods** — **Curated kmod feed**: a hand-picked set of ~109 `=m` kernel modules (USB/network, VPN/IPsec, crypto, filesystems, BT transports) is now compiled into the published feed / offline kmods bundle, so you can `apk add` them without rebuilding. **APK feed signing-key pinning + self-heal**: the stable `public-key.pem` is embedded and `apk-key-refresh` self-heals a stale key at boot/firstboot. `coreutils-stty` and `xxd` ship on every board. Removed the non-working `reboot-fastboot` alias (only `reboot-bootloader` works on this platform).
-
-**📟 Supported devices** — `hmu05`, `ufi001b`, `uz801` (v3), `uf02`, and `mf800b`.
-
-**⬆️ Upgrading** — From r2 (or any OpenWrt): `sysupgrade` (keep config) is fine and preserves the overlay. The old userspace `modem-a2-hold` is gone — the driver handles the A2 pin now; no action needed. After upgrading, verify the loaded `qcom_bam_dmux.ko` is the new one.
-
-**⚠️ Known issues / caveats** — Overlay shadowing: a stale `/overlay/upper/lib/modules/*.ko` survives `sysupgrade` and shadows the new image module (hash the *loaded* file, not `/rom`). `sysupgrade -n` wipes the modem firmware (re-dumped on first boot); keep config unless you intend a clean slate. STA+AP Wi-Fi mode crashes the WCNSS firmware.
-
----
-
-*Earlier releases — `v25.12.5-r2`, `v25.12.5`, `v25.12.5-rc1` — predate this
-release-notes format and carried the build guide as their body. See the
-[releases page](https://github.com/akbar-npj/msm8916-openwrt/releases).*
+**⚠️ Known issues** — Overlay files shadow the image after a config-preserving flash (now repaired automatically, see r2); `sysupgrade -n` wipes the modem firmware; STA+AP Wi-Fi crashes the WCNSS firmware. The original write-ups are in the r3 entry, in this file's git history.
