@@ -27,18 +27,47 @@ single point of failure.
 
 ## Roster
 
-| Board (codename) | Silkscreen / marketing | Maintainer | Files owned |
-|------------------|------------------------|------------|-------------|
-| `hmuf02v5`       | HMUF02-V5 (was HMU05)  | @akbar-npj | device table + DTS patches 805/847/849 |
-| `uf02`           | UF02 (V1.0 HiMI)       | @akbar-npj | DTS patches 804/851 |
-| `uz801`          | UZ801 (v3)             | @isprogrammer, @giraygokirmak | patches 803/851, `diffconfigs/uz801` |
-| `ufi003`         | UFI003 MB V02          | @isprogrammer | patch 852, `diffconfigs/ufi003` |
-| `ufi001b`        | UFI001B (V2.0)         | @akbar-npj | device table + DTS patch |
-| `mf800b`         | MF800B                 | @akbar-npj | device table + DTS patch |
+One row per supported board. **Hardware** is the state of the maintainer's unit
+— `bench` (on the desk and testable), `field` (in daily use), `dead` (owned but
+not bootable) or `none` (no unit at all). It is the column that decides whether
+a release candidate has actually been tested on that board, so keep it honest
+and update it when a unit arrives, dies or is repaired.
 
-> The `msm89xx/image/msm8916.mk` device table cannot be line-split by
-> CODEOWNERS, so it stays lead-owned; board maintainers review their block by
-> convention.
+| Board (codename) | Silkscreen / marketing | Compatible | Maintainer(s) | Hardware | Owns |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `hmuf02v5` | HMUF02-V5 (was HMU05) | `hmuf02v5,250605v0s` (legacy `hmu05,250605v0s`) | @akbar-npj | bench | patches 805, 849; `diffconfigs/hmuf02v5` |
+| `mifib-v12` | HM-MIFIB-V12 | `mifib-v12,generic` | @akbar-npj | bench | patch 853; `diffconfigs/mifib-v12` |
+| `ufi001b` | UFI001B (V2.0) | `ufi001b,250605v0s` | @akbar-npj | **dead** — owned, repair pending | patch 806; `diffconfigs/ufi001b` |
+| `mf800b` | MF800B | `mf800b,generic` | @akbar-npj | **none — needs a tester** | patch 807; `diffconfigs/mf800b` |
+| `uf02` | UF02 (250605 V0S) | `uf02,250605v0s` | @akbar-npj | **none — needs a tester** | patches 804, 851; `diffconfigs/uf02` |
+| `uz801` | UZ801 (v3) | `yiming,uz801-v3` | @isprogrammer, @giraygokirmak | bench (@isprogrammer) + field, daily in-vehicle (@giraygokirmak) | patches 803, 851; `diffconfigs/uz801` |
+| `ufi003` | UFI003 MB V02 | `ufi003,mb-v02` | @isprogrammer | bench | patch 852; `diffconfigs/ufi003` |
+
+Boards with **no working unit** (`dead` or `none`) are still maintained — the
+code is kept current and the image builds — but nothing in a release has been
+flashed on them, and a bug there is found by a user, not by us. Those rows are
+what issue [#13](https://github.com/akbar-npj/msm8916-openwrt/issues/13) is
+asking for.
+
+### Shared files (lead-owned)
+
+Not owned by any one board, because they affect all of them:
+
+- `msm89xx/image/msm8916.mk` — the device table (one file, cannot be line-split
+  by `CODEOWNERS`; board maintainers review their own block by convention)
+- patches 801/802 (DTS skeleton, reserved-memory labels), 818/824/834/838/843/846
+  (PMIC, RPM stats, CPU interconnect/OPP/CPR), 861 (Wi-Fi/PMIC thermal
+  mitigation in `msm8916-ufi.dtsi`, shared by the UFI-family boards)
+- `build.sh`, `diffconfigs/*` shared options, `msm89xx/base-files/`,
+  `msm89xx/modules.mk`, the CI workflows and `RELEASE_NOTES.md`
+
+### Keeping this current
+
+This table and `CODEOWNERS` are one record in two forms: `CODEOWNERS` is what
+GitHub enforces, this file is what a human reads. Change them in the same
+commit — a name in one and not the other is how a board quietly loses its
+reviewer. When a board gains or loses an owner, update issue #13's mirrored
+table as well.
 
 ## Duties
 
