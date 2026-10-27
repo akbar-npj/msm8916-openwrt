@@ -9,7 +9,7 @@ A production-ready, fully open-source OpenWrt port for Qualcomm Snapdragon 410 (
 
 Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcomm WCN36xx Wi-Fi with WPA3-SAE**, **Bluetooth (BlueZ 5.83 + SPP)**, **USB ConfigFS CDC NCM/ACM**, **mainline CPR CPU-rail scaling**, **true persistent eMMC EXT4 overlay storage**, and working **reboot-to-EDL and reboot-to-Fastboot recovery paths**.
 
-> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Release notes](RELEASE_NOTES.md)
+> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [Upstreaming Strategy](Docs/OPENWRT_UPSTREAMING_STRATEGY.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Release notes](RELEASE_NOTES.md)
 
 ---
 
@@ -52,7 +52,8 @@ Recent additions on top of the base port:
   * 🔵 **Blue LED** (`blue:wan`): 4G LTE registration, data bearer, and internet activity.
   * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator. It also **fast-blinks for the first 7 s of every boot** — the failsafe window, i.e. "a single tap now enters rescue mode".
   * ⚫ **No SIM** = both modem LEDs (red and blue) are **off**: the modem cannot register, so there is nothing to report.
-  * The three headless cues above (boot blink, no-SIM dark, AP+STA fast blink) are **batteryless boards only** — on `mifib-v12` / `mf800b` the same lamps are the charge indication and `luci-app-battery` owns them.
+  * The boot blink is **batteryless boards only** — the battery boards blink their own battery lamp at boot. No-SIM and AP+STA apply everywhere.
+  * 🔋 **Battery boards** (`mifib-v12`, `mf800b`) get three pairs instead: `wan`, `wlan` and `bat`/`charging`. The third pair reports **charging and faults only** — green slow-blink = charging, green solid = complete, red fast-blink = gauge fault, off = discharging normally. Capacity lives in LuCI, not on a lamp.
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🆘 Failsafe Mode & Factory Reset**: A single Restart-button tap during the first 7 s of boot starts OpenWrt's pre-init rescue shell over a self-contained USB gadget (NCM + ACM) at `192.168.10.1` (or `/dev/ttyACM0`), so a broken config is recoverable on a screen-less dongle without opening it; a **5-second hold** wipes the overlay. See [Recovery and Reboot Modes](#-recovery-and-reboot-modes).
 * **🔑 Signed OTA Package Feed**: Pre-compiled `kmod-*` and application packages served over GitHub Pages, signed with a pinned key and self-healing on-device. See [Package Repository](#-official-package--kernel-driver-repository).

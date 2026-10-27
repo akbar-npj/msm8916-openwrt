@@ -1,86 +1,82 @@
 #!/bin/sh
-# Board-specific LED state machine for mifib-v12 / HMU05-class boards.
+# Board-specific LED state machine for the battery boards (mifib-v12, mf800b).
 #
-# OpenWrt's preinit calls set_state preinit (and preinit_regular), the
-# failsafe path calls set_state failsafe, and the main boot calls set_state done.
-# The stock diag.sh is gated on DTS led-* aliases which this board does not
-# define, so nothing blinked. This version drives the LEDs directly:
+# OpenWrt's preinit calls set_state preinit (and preinit_regular), the failsafe
+# path calls set_state failsafe, and sysupgrade calls set_state upgrade
+# (/lib/upgrade/common.sh).  The stock diag.sh is gated on DTS led-* aliases
+# which these boards do not define, so nothing blinked.  This version drives
+# the LEDs directly:
 #
-#   preinit        reset the battery pair, then blink the BATTERY LED by capacity
-#                  (green:bat if capacity >= 20%, else red:bat) -> "booting"
-#   failsafe       fast-blink BOTH WiFi LEDs (red:wlan + green:wlan) ->
-#                  distinct "failsafe armed" indication
-#   done           no-op: the per-LED monitor daemons (battery-led-monitor,
-#                  wifi-led-monitor) own the steady states and override the
-#                  boot blink when they start (S95/S96).  The WiFi LEDs are left
-#                  untouched here so their DTS default blink survives preinit and
-#                  the wifi-led-monitor takes over at S95 as normal.
+#   preinit     blink the battery lamp -> "booting".  The colour does NOT
+#               encode capacity: a level cannot be read off a blink, and LuCI
+#               reports it.  The battery pair is the only one free this early
+#               (the Wi-Fi lamp still carries its DTS default and no monitor
+#               has started yet).
+#   failsafe    fast-blink BOTH Wi-Fi LEDs at 40/40 -- the same cue
+#               35_failsafe_usb gives once the rescue shell is up.  The battery
+#               lamp is left alone: red:bat means "fault" now, and a rescue
+#               must not read as a battery problem.
+#   upgrade     slow-blink green:wlan alone at 500/500.  A flash in progress
+#               must not look like a rescue prompt, so it is deliberately a
+#               different LED and a different rate.
+#   done        no-op: the monitor daemons (battery-led-monitor,
+#               wifi-led-monitor, modem-led-monitor) own the steady states and
+#               override the boot blink when they start.
 #
-# NOTE: the boot-blink capacity threshold (20%) is intentionally a touch higher
-# than battery-led-monitor's steady-state LOW_PCT (15%) so a low pack is more
-# visible during the cold-start window.
+# NOTE: the battery lamp names differ per board (mifib-v12 green:bat/red:bat,
+# mf800b green:charging/red:charging), so they are resolved, not hardcoded.
 
 . /lib/functions/leds.sh
 
-GREEN_BAT="/sys/class/leds/green:bat"
-RED_BAT="/sys/class/leds/red:bat"
-WLAN_LEDS="red:wlan green:wlan"
+WLAN_GREEN="/sys/class/leds/green:wlan"
+WLAN_RED="/sys/class/leds/red:wlan"
 
-LOW_PCT=20
+pick_led() {
+    for n in "$@"; do
+        [ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
+    done
+    return 1
+}
+
+BAT_GREEN="$(pick_led green:bat green:charging)" || BAT_GREEN=""
+BAT_RED="$(pick_led red:bat red:charging)" || BAT_RED=""
 
 led_off() {
-    [ -e "$1/trigger" ] || return 0
+    [ -n "$1" ] && [ -e "$1/trigger" ] || return 0
     echo none > "$1/trigger" 2>/dev/null
     echo 0 > "$1/brightness" 2>/dev/null
 }
 
 led_blink() {
-    [ -e "$1/trigger" ] || return 0
+    [ -n "$1" ] && [ -e "$1/trigger" ] || return 0
     echo timer > "$1/trigger" 2>/dev/null
     echo "$2" > "$1/delay_on" 2>/dev/null
     echo "$3" > "$1/delay_off" 2>/dev/null
 }
 
-batt_capacity() {
-    local p cap
-    for p in /sys/class/power_supply/*; do
-        [ -d "$p" ] || continue
-        [ "$(cat "$p/type" 2>/dev/null)" = "Battery" ] || continue
-        cap=$(cat "$p/capacity" 2>/dev/null)
-        [ -n "$cap" ] && { echo "$cap"; return 0; }
-    done
-    echo ""
-}
-
-boot_led_for_capacity() {
-    local cap i
-    for i in 1 2 3 4; do
-        cap=$(batt_capacity)
-        case "$cap" in
-            ''|*[!0-9]*) sleep 1 ;;
-            *) break ;;
-        esac
-    done
-    case "$cap" in
-        ''|*[!0-9]*) echo "$GREEN_BAT" ;;
-        *) [ "$cap" -lt "$LOW_PCT" ] && echo "$RED_BAT" || echo "$GREEN_BAT" ;;
-    esac
-}
-
 set_led_state() {
     case "$1" in
         preinit|preinit_regular)
-            # Reset the battery pair, then a capacity-aware battery blink.
-            # WiFi LEDs are intentionally left alone (DTS default + monitor).
-            led_off "$GREEN_BAT"; led_off "$RED_BAT"
-            led_blink "$(boot_led_for_capacity)" 200 300
+            # Reset the battery pair, then a plain "booting" blink.
+            led_off "$BAT_RED"
+            led_blink "$BAT_GREEN" 200 300
             ;;
         failsafe)
-            # Distinct indication: both WiFi LEDs fast-blink.
-            for l in $WLAN_LEDS; do led_blink "/sys/class/leds/$l" 100 100; done
+            # Same set and rate as 35_failsafe_usb: every red LED except the
+            # battery lamp, then green if the board has no red at all.
+            for l in /sys/class/leds/*red*; do
+                case "${l##*/}" in *bat*|*charging*) continue ;; esac
+                led_blink "$l" 40 40
+            done
+            ls /sys/class/leds/*red* >/dev/null 2>&1 ||
+                for l in /sys/class/leds/*green*; do
+                    case "${l##*/}" in *bat*|*charging*) continue ;; esac
+                    led_blink "$l" 40 40
+                done
             ;;
         upgrade)
-            for l in $WLAN_LEDS; do led_blink "/sys/class/leds/$l" 100 100; done
+            led_off "$WLAN_RED"
+            led_blink "$WLAN_GREEN" 500 500
             ;;
         done)
             # Monitors own the steady states; nothing to clear here.

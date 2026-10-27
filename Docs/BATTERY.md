@@ -86,19 +86,29 @@ charger's `CHARGE_ENABLED` and report:
 
 ## LEDs
 
-`battery-led-monitor` polls every few seconds and drives `green:bat` /
-`red:bat`:
+`battery-led-monitor` polls every few seconds and drives the battery pair —
+`green:bat` / `red:bat` on mifib-v12, `green:charging` / `red:charging` on
+mf800b (the names are resolved per board; mf800b's `red:charging` is bound to
+the kernel trigger `pm8916-bms-vm-charging`, and the monitor takes the lamp
+over so both boards behave the same):
 
 | Pattern | Meaning |
 | :------ | :------ |
-| green solid | pack present, charge ≥ 15 % |
-| red solid | charge < 15 %, discharging |
-| red blink | charge < 15 %, charging |
-| red fast blink | gauge present but capacity unreadable (driver/thermistor fault) |
-| both off | no battery device — a board without a pack |
+| green slow blink (1 s) | charging |
+| green solid | charge complete |
+| red fast blink (150 ms) | gauge present but capacity unreadable (driver/thermistor fault) |
+| both off | discharging normally, or no battery device |
+
+The pair reports **charge state and faults only**. Capacity is deliberately not
+encoded: a percentage cannot be read off a blink, and a threshold colour is not
+memorable. Capacity, runtime estimate, voltage, temperature and the charge limit
+are on the Battery page in LuCI.
 
 "No battery" and "battery broken" are deliberately different states: the first
 is silent, the second blinks fast.
+
+The boot blink in `/etc/diag.sh` is a plain "booting" blink on `green:bat` —
+it no longer colour-codes capacity either.
 
 ---
 

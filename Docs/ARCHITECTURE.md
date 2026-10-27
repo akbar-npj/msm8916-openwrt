@@ -4,6 +4,7 @@
 > Companion docs (do **not** duplicate here):
 > - [BUILD_SYSTEM_GUIDE.md](BUILD_SYSTEM_GUIDE.md) — full `build.sh` command reference.
 > - [PATCHES_AND_PACKAGING.md](PATCHES_AND_PACKAGING.md) — which change goes in which folder, and how to add one.
+> - [OPENWRT_UPSTREAMING_STRATEGY.md](OPENWRT_UPSTREAMING_STRATEGY.md) — roadmap for upstreaming changes to official OpenWrt.
 > - [msm8916-openwrt-build-flow.md](msm8916-openwrt-build-flow.md) — the BSP-as-source-of-truth design note.
 > - [Docker/README.md](Docker/README.md) — the builder container in detail.
 

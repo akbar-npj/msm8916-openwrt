@@ -11,10 +11,11 @@
 #   batteryless dongles (HMU05, UZ801,  the lamps are the only feedback a
 #   UF02, UFI001B, UFI003, ...)         headless box has
 #
-# The cues written for the dongles -- the failsafe-window blink, the no-SIM
-# dark state and the AP+STA fast blink -- therefore only apply when this probe
-# says "no battery": on a battery board they would fight the charge
-# indication the user is watching.
+# Only the failsafe-window blink is gated on this probe: it is a boot-time cue
+# on the same lamp the battery monitor owns, and on a battery board diag.sh
+# already blinks the battery pair to say "booting".  The no-SIM dark state and
+# the AP+STA fast blink drive the signal and Wi-Fi pairs, which have nothing to
+# do with the charge indication, so they run on every board.
 #
 # Two probes, because the two answers become available at different times: the
 # luci-app-battery marker is on disk from preinit onwards, while the fuel gauge

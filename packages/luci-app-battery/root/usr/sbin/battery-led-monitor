@@ -1,14 +1,26 @@
 #!/bin/sh
 #
-# Battery gauge LEDs (mifib-v12: green:bat / red:bat).
+# Battery gauge LEDs.
 #
-#   green solid      battery present, charge >= 15 %
-#   red solid        charge < 15 %, running on battery
-#   red blink        charge < 15 %, charging
-#   red fast blink   gauge present but unreadable (driver/thermistor fault)
-#   both off         no battery on this board (e.g. HMU05)
+#   mifib-v12   green:bat / red:bat
+#   mf800b      green:charging / red:charging
 #
-# The gauge is only there when the PMIC VADC and the BMS probe, so "no
+#   green blink 1000/1000   charging
+#   green solid             charge complete
+#   red fast blink 150/150  gauge present but unreadable (driver/thermistor fault)
+#   both off                discharging normally, no battery, or no gauge
+#
+# The pair carries CHARGE STATE ONLY.  Capacity is deliberately not encoded:
+# a percentage cannot be read off a blink pattern, and LuCI already reports it
+# with the runtime estimate (Status -> Overview and the Battery page).  The one
+# exception is the unreadable gauge, which is a fault rather than a level.
+#
+# mf800b binds red:charging to the kernel trigger "pm8916-bms-vm-charging", so
+# the first write here takes the lamp over (trigger=none) and the green half
+# carries the charging indication instead -- the same green = charging /
+# red = fault pairing mifib-v12 uses.
+#
+# The gauge only exists once the PMIC VADC and the BMS have probed, so "no
 # battery" and "battery broken" are deliberately different states.
 
 case "${1:-}" in
@@ -20,25 +32,34 @@ Drive the battery green/red pair from /sys/class/power_supply.  Started by
 procd (/etc/init.d/battery-led-monitor); takes no arguments.
 
 States:
-  green solid     charge >= 15 %
-  red solid       charge < 15 %, discharging
-  red blink       charge < 15 %, charging
-  red fast blink  battery device present but capacity unreadable
-  both off        no battery device (board has no pack)
+  green blink 1000/1000   charging
+  green solid             charge complete
+  red fast blink 150/150  battery device present but capacity unreadable
+  both off                discharging, no battery device, or no gauge
+
+Capacity is not shown on the LEDs -- use LuCI (Status -> Overview, Battery).
 USAGE
                 exit 0
                 ;;
 esac
 
-GREEN="/sys/class/leds/green:bat"
-RED="/sys/class/leds/red:bat"
-
 POLL=5
-LOW_PCT=15
-BLINK_ON=500
-BLINK_OFF=500
+BLINK_ON=1000
+BLINK_OFF=1000
 FAST_ON=150
 FAST_OFF=150
+
+pick_led()
+{
+        for n in "$@"; do
+                [ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
+        done
+
+        return 1
+}
+
+GREEN=$(pick_led green:bat green:charging) || GREEN=""
+RED=$(pick_led red:bat red:charging) || RED=""
 
 led_set()
 {
@@ -80,25 +101,21 @@ find_battery()
 apply()
 {
         case "$1" in
-                none)
+                none|idle)
                         led_set "$GREEN" off
                         led_set "$RED" off
+                        ;;
+                charging)
+                        led_set "$RED" off
+                        led_set "$GREEN" blink "$BLINK_ON" "$BLINK_OFF"
+                        ;;
+                full)
+                        led_set "$RED" off
+                        led_set "$GREEN" on
                         ;;
                 error)
                         led_set "$GREEN" off
                         led_set "$RED" blink "$FAST_ON" "$FAST_OFF"
-                        ;;
-                low-charging)
-                        led_set "$GREEN" off
-                        led_set "$RED" blink "$BLINK_ON" "$BLINK_OFF"
-                        ;;
-                low)
-                        led_set "$GREEN" off
-                        led_set "$RED" on
-                        ;;
-                ok)
-                        led_set "$RED" off
-                        led_set "$GREEN" on
                         ;;
         esac
 }
@@ -119,13 +136,12 @@ while true; do
 
                 if ! echo "$CAP" | grep -qE '^[0-9]+$'; then
                         STATE="error"
-                elif [ "$CAP" -lt "$LOW_PCT" ]; then
-                        case "$STATUS" in
-                                Charging|Full) STATE="low-charging" ;;
-                                *)             STATE="low" ;;
-                        esac
                 else
-                        STATE="ok"
+                        case "$STATUS" in
+                                Charging) STATE="charging" ;;
+                                Full)     STATE="full" ;;
+                                *)        STATE="idle" ;;
+                        esac
                 fi
         fi
 

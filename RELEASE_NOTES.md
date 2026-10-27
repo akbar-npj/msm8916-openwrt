@@ -148,9 +148,8 @@ solid still means the modem subsystem is down, red blink still means "up and
 searching", green still means registered. Inserting a SIM brings the normal
 indication back on the next poll. A failed `mmcli` query never produces the
 dark state — it keeps the previous behaviour, so a broken query cannot hide a
-broken modem. Applies to the **batteryless dongles only**: on `mifib-v12` /
-`mf800b` the same lamps carry the charge indication, so those boards keep the
-old behaviour.
+broken modem. Applies on **every board**: it drives the signal pair, which has
+nothing to do with the battery lamps.
 
 **🔴 The failsafe window is visible (new)** — On a headless dongle the first
 7 s of boot — the window in which one short press of the Restart button enters
@@ -159,8 +158,9 @@ failsafe — looked exactly like any other boot. The status LED now **fast-blink
 (`05_failsafe_window_led`) starts the blink before the button is polled, so the
 cue covers the whole window, and it is deliberately slower than the 40/40 blink
 shown once failsafe is actually entered — so "press now" and "you are in" are
-distinguishable. Batteryless boards only: on a battery board the lamp is the
-charge indicator, and a blink at boot reads as a fault.
+distinguishable. **Batteryless boards only** — on `mifib-v12` / `mf800b` the
+battery pair already blinks "booting" from `diag.sh`, and two LEDs blinking at
+boot for two different reasons is worse than one.
 
 **📶 AP+STA gets its own Wi-Fi indication (new)** — When the radio is serving
 its own access point **and** associated upstream (repeater mode), the Wi-Fi LED
@@ -170,7 +170,34 @@ with clients, green 100 ms = AP + station both active, red = AP missing.
 "Both active" means the station has an address, not merely that an association
 was attempted — wcn36xx reports the link ~100 ms before the 4-way handshake
 finishes, so a station with a stale key would otherwise blink the LED every
-minute. Batteryless boards only.
+minute. Applies on every board (the Wi-Fi lamp, not the battery pair).
+
+**🔋 The battery lamps now mean charging and faults only (change)** — The
+battery pair used to encode capacity: green solid above 15 %, red solid below,
+red blink while low and charging. A level cannot be read off a blink, and the
+colour depended on a threshold nobody remembers, so the pair now reports only
+**what the charger is doing**: green slow-blink = charging, green solid =
+charge complete, red fast-blink = the gauge is present but unreadable (a real
+fault), both off = discharging normally. Capacity, runtime estimate and charge
+limit stay in LuCI (Status → Overview and the Battery page). The boot blink in
+`diag.sh` no longer colour-codes capacity either — it is a plain "booting"
+blink.
+
+**🔧 mf800b's battery lamps work at all now (fix)** — `battery-led-monitor`
+had `green:bat`/`red:bat` hardcoded, which is mifib-v12's naming; mf800b calls
+the pair `green:charging`/`red:charging`, so on that board the monitor found
+nothing and the low-battery indication simply did not exist. The names are now
+resolved per board. mf800b binds `red:charging` to the kernel trigger
+`pm8916-bms-vm-charging`; the monitor takes the lamp over (`trigger=none`) and
+the green half carries "charging" instead, so both boards behave the same.
+
+**🆘 Failsafe and a flash no longer look identical (fix)** — `diag.sh` used the
+same 100/100 blink on the Wi-Fi pair for both `failsafe` and `upgrade`, so a
+rescue prompt and a firmware write were indistinguishable. Failsafe is now
+40/40 on every red LED — matching the cue `35_failsafe_usb` gives once the
+rescue shell is up — and a flash is a calm 500/500 on **green:wlan only**.
+`35_failsafe_usb` also stopped grabbing every red LED: on a battery board that
+included `red:bat`, so entering failsafe lit the battery fault colour.
 
 **📡 Station Mode never runs on `channel='auto'` (fix)** — A lost scan on
 wcn36xx leaves the phy answering every later scan with `-EBUSY` until the next

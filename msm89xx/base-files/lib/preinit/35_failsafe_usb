@@ -49,13 +49,24 @@ fs_log() {
 #   hmuf02v5    red:power
 #   ufi001b  red:power
 #   uf02     red
-#   mf800b   red:wlan red:wan red:charging
+#   mf800b   green:wlan red:wlan green:wan red:wan green:charging red:charging
+#   mifib-v12 green:wlan red:wlan green:wan red:wan green:bat red:bat
 #   uz801    green:wlan (some units have no red LED)
-# Prefer red; if the board has none (e.g. uz801), fall back to green, then
-# to any LED at all, so the user always gets the fast-flash indication.
+#
+# Prefer red, but never the battery lamp: on the battery boards
+# red:bat/red:charging means "battery fault", and a rescue prompt must not look
+# like one.  Without a red LED (uz801) fall back to green, then to any LED at
+# all, so the user always gets the fast-flash.
 fs_led_failsafe() {
-	local leds="" l
+	local leds="" l n
 	for l in /sys/class/leds/*red*; do
+		n="${l##*/}"
+		case "$n" in *bat*|*charging*) continue ;; esac
+		[ -d "$l" ] && leds="$leds $l"
+	done
+	[ -n "$leds" ] || for l in /sys/class/leds/*green*; do
+		n="${l##*/}"
+		case "$n" in *bat*|*charging*) continue ;; esac
 		[ -d "$l" ] && leds="$leds $l"
 	done
 	[ -n "$leds" ] || for l in /sys/class/leds/*green*; do
