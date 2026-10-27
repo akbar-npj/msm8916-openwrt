@@ -138,9 +138,15 @@ while true; do
                         STATE="error"
                 else
                         case "$STATUS" in
-                                Charging) STATE="charging" ;;
-                                Full)     STATE="full" ;;
-                                *)        STATE="idle" ;;
+                                Charging)     STATE="charging" ;;
+                                Full)         STATE="full" ;;
+                                # VBUS present but the charger is holding off:
+                                # either the pack is topped up or the 85 %
+                                # limit paused it.  "Not charging" while
+                                # unplugged reads as Discharging, so this is
+                                # still "plugged and done".
+                                "Not charging") STATE="full" ;;
+                                *)            STATE="idle" ;;
                         esac
                 fi
         fi
