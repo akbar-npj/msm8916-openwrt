@@ -1,0 +1,241 @@
+name: Publish Single Package
+
+# Hotfix path for ONE package: rebuild it against the same toolchain and kernel
+# as the released firmware, splice the new .apk into the ALREADY PUBLISHED feed
+# and re-sign the index. Devices then pick it up with a plain
+#
+#     apk update && apk add <package>
+#
+# instead of a ~40 MB firmware reflash.
+#
+# Why the published feed is downloaded first: `make package/index` indexes
+# whatever .apk files sit in openwrt/bin/packages. A single-package build fills
+# exactly one directory, so re-indexing without the published tree would publish
+# an index that lists one package and silently drops every other one from
+# `apk search` / `apk add`.
+#
+# The feed URL never changes (releases/<base>/...), so no device needs a new
+# repository line and no key needs re-trusting.
+#
+# Dispatch example:
+#   gh workflow run publish-package.yml --ref main \
+#     -f package=msm89xx-scripts -f bump=true
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to rebuild (directory name under packages/)"
+        required: true
+        type: string
+      base:
+        description: "Feed base to publish into (releases/<base>). Empty = derive from ./version"
+        required: false
+        default: ""
+        type: string
+      board:
+        description: "Board config to build with (only matters for kmod packages)"
+        required: false
+        default: "hmuf02v5"
+        type: string
+      bump:
+        description: "Increment PKG_RELEASE first (otherwise devices keep the same version and see no update)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+# Two hotfixes must not race on the gh-pages branch.
+concurrency:
+  group: publish-package
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build & publish ${{ inputs.package }}
+    runs-on: ubuntu-latest
+
+    env:
+      PKG: ${{ inputs.package }}
+      BOARD: ${{ inputs.board }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free Disk Space on Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
+          sudo apt-get clean
+
+      - name: Resolve feed base and package
+        id: vars
+        run: |
+          set -euo pipefail
+          BASE="${{ inputs.base }}"
+          if [ -z "$BASE" ]; then
+            BASE="$(sed 's/-r[0-9]*$//' version)"
+          fi
+          echo "base=${BASE}" >> $GITHUB_OUTPUT
+          if [ ! -f "packages/${PKG}/Makefile" ]; then
+            echo "::error::packages/${PKG}/Makefile does not exist."
+            echo "Known packages:"
+            ls packages/
+            exit 1
+          fi
+          echo "Feed base: ${BASE}"
+          echo "Package : ${PKG} (board ${BOARD})"
+
+      - name: Bump PKG_RELEASE
+        if: inputs.bump
+        run: |
+          set -euo pipefail
+          MK="packages/${PKG}/Makefile"
+          OLD="$(sed -n 's/^PKG_RELEASE:=\([0-9]*\)$/\1/p' "$MK" | head -1)"
+          if [ -z "$OLD" ]; then
+            echo "::error::No numeric PKG_RELEASE:=<n> line in ${MK}; bump it by hand."
+            exit 1
+          fi
+          NEW=$((OLD + 1))
+          awk -v old="$OLD" -v new="$NEW" '
+            !done && $0 ~ /^PKG_RELEASE:=[0-9]+$/ {
+              print "PKG_RELEASE:=" new; done = 1; next
+            }
+            { print }
+          ' "$MK" > "$MK.new" && mv "$MK.new" "$MK"
+          echo "PKG_RELEASE ${OLD} -> ${NEW}"
+          echo "::warning::packages/${PKG}/Makefile was bumped to PKG_RELEASE:=${NEW} in this run only. Commit it, or the next build starts from ${OLD} again."
+
+      - name: Cache OpenWrt Downloads & Toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+            openwrt/staging_dir/host
+          key: openwrt-cache-${{ steps.vars.outputs.base }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-${{ github.run_id }}
+          restore-keys: |
+            openwrt-cache-${{ steps.vars.outputs.base }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
+            openwrt-cache-${{ steps.vars.outputs.base }}-
+            openwrt-cache-
+
+      - name: Build Docker Builder Image & Prepare OpenWrt Tree
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          ./build.sh prepare
+          if [ -z "$APK_SIGNING_KEY" ]; then
+            echo "::error::APK_SIGNING_KEY secret is not set."
+            echo "::error::The re-signed index would be signed with a random per-build key"
+            echo "::error::and every device would reject it with 'UNTRUSTED signature'."
+            exit 1
+          fi
+          printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
+          echo "Injected persistent private signing key."
+
+      - name: Fetch the published feed
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BASE="${{ steps.vars.outputs.base }}"
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/gh-pages \
+            || { echo "::error::Cannot clone the gh-pages branch."; exit 1; }
+          SRC="/tmp/gh-pages/releases/${BASE}"
+          if [ ! -d "$SRC/packages/aarch64_generic" ]; then
+            echo "::error::No published feed at releases/${BASE} on gh-pages."
+            echo "::error::Publish a full release for this base first, or pass the right 'base'."
+            exit 1
+          fi
+          mkdir -p openwrt/bin/packages openwrt/bin/targets/msm89xx/msm8916/packages
+          cp -a "$SRC/packages/aarch64_generic/." openwrt/bin/packages/aarch64_generic/
+          if [ -d "$SRC/targets/msm89xx/msm8916/packages" ]; then
+            cp -a "$SRC/targets/msm89xx/msm8916/packages/." openwrt/bin/targets/msm89xx/msm8916/packages/
+          fi
+          echo "Restored feed from releases/${BASE}:"
+          for d in openwrt/bin/packages/aarch64_generic/*/; do
+            printf '  %-60s %s apks\n' "$d" "$(ls "$d" | grep -c '\.apk$')"
+          done | tee /tmp/feed-before.txt
+
+      - name: Build the package
+        run: ./build.sh package "$PKG" "$BOARD"
+
+      - name: Re-index and re-sign the feed
+        run: |
+          docker compose -f devenv/docker-compose.yml exec -T builder bash -c "
+            umask 022
+            cd /repo/openwrt
+            make package/index V=s
+          "
+
+      - name: Verify nothing fell out of the feed
+        run: |
+          set -euo pipefail
+          echo "After re-index:"
+          for d in openwrt/bin/packages/aarch64_generic/*/; do
+            printf '  %-60s %s apks\n' "$d" "$(ls "$d" | grep -c '\.apk$')"
+          done
+          # A package must never disappear because of a hotfix.
+          before="$(awk '{print $2}' /tmp/feed-before.txt | awk '{s+=$1} END {print s+0}')"
+          after="$(for d in openwrt/bin/packages/aarch64_generic/*/; do ls "$d" | grep -c '\.apk$'; done | awk '{s+=$1} END {print s+0}')"
+          if [ "$after" -lt "$before" ]; then
+            echo "::error::Feed shrank from ${before} to ${after} packages - refusing to publish."
+            exit 1
+          fi
+          echo "OK: ${before} -> ${after} packages"
+
+      - name: Publish to gh-pages
+        run: |
+          set -euo pipefail
+          BASE="${{ steps.vars.outputs.base }}"
+          FULL="$(cat version)"
+          for DIR in $(printf '%s\n' "$BASE" "$FULL" | sort -u); do
+            DEST="/tmp/gh-pages/releases/${DIR}"
+            [ -d "$DEST/packages/aarch64_generic" ] || continue
+            echo "Updating releases/${DIR}"
+            cp -a openwrt/bin/packages/aarch64_generic/. "$DEST/packages/aarch64_generic/"
+            if [ -d "$DEST/targets/msm89xx/msm8916/packages" ]; then
+              cp -a openwrt/bin/targets/msm89xx/msm8916/packages/. "$DEST/targets/msm89xx/msm8916/packages/"
+            fi
+            [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem "$DEST/public-key.pem" || true
+          done
+          [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem /tmp/gh-pages/public-key.pem || true
+          cd /tmp/gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::warning::Nothing changed on gh-pages - was PKG_RELEASE bumped?"
+            exit 0
+          fi
+          git commit -m "feed: publish ${PKG} into releases/${BASE} (${FULL})"
+          git push origin gh-pages
+
+      - name: Summarise
+        if: always()
+        run: |
+          set -euo pipefail
+          BASE="${{ steps.vars.outputs.base }}"
+          {
+            echo "### Published \`${PKG}\`"
+            echo
+            echo "Feed: https://akbar-npj.github.io/msm8916-openwrt/releases/${BASE}/packages/aarch64_generic/"
+            echo
+            echo "Built:"
+            find openwrt/bin/packages -name "${PKG}-*.apk" -printf '  %f\n' 2>/dev/null || true
+            echo
+            echo "On the device:"
+            echo '```'
+            echo "apk update"
+            echo "apk add ${PKG}"
+            echo '```'
+            echo
+            echo "> \`PKG_RELEASE\` was bumped for this build only - commit packages/${PKG}/Makefile."
+          } >> $GITHUB_STEP_SUMMARY

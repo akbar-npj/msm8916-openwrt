@@ -158,6 +158,38 @@ apk update
 apk add cups-daemon cups-client kmod-sched-cake kmod-usb-printer kmod-bluetooth
 ```
 
+### Hotfixing a single package (no firmware rebuild)
+
+[`publish-package.yml`](../../.github/workflows/publish-package.yml) is a second,
+narrowly scoped workflow: rebuild **one** package against the same toolchain and
+kernel as the release, splice it into the published feed and re-sign the index.
+The feed URL is unchanged, so no device needs a new repository line or a new key.
+
+```bash
+gh workflow run publish-package.yml --ref main -f package=msm89xx-scripts
+# -> apk update && apk add msm89xx-scripts   on the device
+```
+
+Inputs: `package` (required), `base` (default `./version` minus `-rN`), `board`
+(default `hmuf02v5`; only matters for `kmod-*`, which are vermagic-locked) and
+`bump` (default `true`, increments `PKG_RELEASE` — without it devices see the same
+version and do nothing).
+
+Two details matter for correctness:
+
+1. **The published feed is downloaded first.** `make package/index` indexes
+   whatever is in `openwrt/bin/packages`, so re-indexing a fresh tree would
+   publish an index containing only the rebuilt package and every other package
+   would vanish from `apk search`/`apk add`. The job restores `releases/<base>`
+   from `gh-pages` into `openwrt/bin/` before building, then refuses to publish
+   if the package count dropped.
+2. **It re-signs with `APK_SIGNING_KEY`.** A missing secret is a hard failure —
+   a per-build random key would make every device reject the feed with
+   `UNTRUSTED signature`.
+
+See [**Docs/Custom Packages → Shipping a package without a reflash**](../Custom%20Packages/README.md#shipping-a-package-without-a-reflash)
+for the operational details and the traps.
+
 ---
 
 ## 6. How to Trigger & Replace Pre-Release Tags
