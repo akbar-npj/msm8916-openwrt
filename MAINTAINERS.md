@@ -1,9 +1,11 @@
 # Maintainers
 
-This project uses **per-board maintainers**: each device has a hardware owner
-who keeps its device-tree patches and config current, tests release candidates
-on real hardware, and reviews PRs that touch their board. The lead owns the
-shared build pipeline and the device table.
+This project uses **per-board maintainers**: each device has one or more
+hardware owners who keep its device-tree patches and config current, test
+release candidates on real hardware, and review PRs that touch their board. The
+lead owns the shared build pipeline and the device table. A board with two
+owners is deliberate — it is one more person who can flash and one fewer
+single point of failure.
 
 ## Branch protection and review flow
 
@@ -29,7 +31,7 @@ shared build pipeline and the device table.
 |------------------|------------------------|------------|-------------|
 | `hmuf02v5`       | HMUF02-V5 (was HMU05)  | @akbar-npj | device table + DTS patches 805/847/849 |
 | `uf02`           | UF02 (V1.0 HiMI)       | @akbar-npj | DTS patches 804/851 |
-| `uz801`          | UZ801                  | @isprogrammer | patches 803/851, `diffconfigs/uz801` |
+| `uz801`          | UZ801 (v3)             | @isprogrammer, @giraygokirmak | patches 803/851, `diffconfigs/uz801` |
 | `ufi003`         | UFI003 MB V02          | @isprogrammer | patch 852, `diffconfigs/ufi003` |
 | `ufi001b`        | UFI001B (V2.0)         | @akbar-npj | device table + DTS patch |
 | `mf800b`         | MF800B                 | @akbar-npj | device table + DTS patch |
