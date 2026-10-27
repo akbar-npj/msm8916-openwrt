@@ -75,7 +75,7 @@ DEFAULT_PACKAGES += wpa-cli
 # luci-app-modem-watchdog; living here they ship on every board (and on any
 # future board) by default.
 DEFAULT_PACKAGES += luci-app-cpu-perf luci-app-modem-watchdog luci-app-sms-manager \
-	luci-app-tailscale luci-app-usb-gadget luci-app-wifi-sta
+	luci-app-tailscale luci-app-update-notify luci-app-usb-gadget luci-app-wifi-sta
 # The LuCI theme this repo maintains (packages/luci-theme-feelgood).  Its
 # uci-defaults takes luci.main.mediaurlbase over from the stock bootstrap
 # default, so a fresh image - and a config-preserving upgrade from an older

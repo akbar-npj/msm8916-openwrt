@@ -1,0 +1,114 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# update-notify -- keep /tmp/update-notify.json current so the LuCI dashboard
+# can show "N package updates available".
+#
+# Why a daemon and not a boot script: the check needs a working uplink, and on
+# these dongles that means the modem is attached and the bearer is up, which is
+# minutes after boot and can come and go.  A failed check keeps the previous
+# answer and retries in 15 minutes instead of waiting for the next full cycle.
+#
+# The result is a tiny JSON file rather than a ubus call: the LuCI side then
+# needs only a file read ACL, and the banner still works when the daemon is
+# stopped (it simply shows the last known state).
+#
+# Log: logread -e update-notify
+
+set -u
+
+OUT=/tmp/update-notify.json
+INTERVAL=${INTERVAL:-21600}   # 6 h between successful checks
+RETRY=${RETRY:-900}           # 15 min after a failed one
+FIRST_DELAY=${FIRST_DELAY:-300}
+
+log() {
+	logger -t update-notify "$1"
+}
+
+MODE="${1:---once}"
+
+case "$MODE" in
+	-h|--help)
+		cat <<'USAGE'
+Usage: update-notify [--once | --daemon | --help]
+
+  --once     Refresh the index and rewrite /tmp/update-notify.json.  Exits
+             non-zero when the index could not be refreshed (offline).
+  --daemon   Refresh now, then every INTERVAL seconds (default 6 h).  A failed
+             refresh keeps the previous result and retries after RETRY
+             seconds (default 15 min).  Started by /etc/init.d/update-notify.
+  --help     Show this help and exit.
+
+Environment: INTERVAL, RETRY, FIRST_DELAY (seconds).
+Log: logread -e update-notify
+USAGE
+		exit 0
+		;;
+	--once|--daemon)
+		;;
+	*)
+		echo "update-notify: unknown option '$1' (try --help)" >&2
+		exit 1
+		;;
+esac
+
+# Print the number of packages apk could upgrade.
+#
+# --world is the important flag: base-files, kernel and libc are version-pinned
+# in /etc/apk/world, so they can never be upgraded from the feed.  Without
+# --world apk would count them and the banner would advertise updates that
+# cannot be installed.
+count_upgradable() {
+	local list
+
+	if ! list="$(apk list --upgradable --world 2>/dev/null)"; then
+		list="$(apk list --upgradable 2>/dev/null)" || return 1
+	fi
+
+	# One line per package *per repository*, and this device has the same
+	# package in two feeds (the stock OpenWrt one and our own distfeeds), so
+	# a plain line count reports every package twice.  Dedupe on the
+	# name-version field; the first field of an `apk list` line is exactly
+	# that, e.g. "luci-base-26.288.56989~75a306d".
+	printf '%s\n' "$list" | awk 'NF && !seen[$1]++' | grep -c . || true
+}
+
+check_once() {
+	local count
+
+	# A stale index would report yesterday's answer, so refresh first.  No
+	# route, no DNS or an untrusted key all land here.
+	if ! apk update >/dev/null 2>&1; then
+		log "apk update failed (offline?); keeping the previous result"
+		return 1
+	fi
+
+	count="$(count_upgradable)" || count=0
+
+	printf '{"count":%s,"checked":%s}\n' "$count" "$(date +%s)" > "$OUT.tmp" &&
+		mv -f "$OUT.tmp" "$OUT" || {
+			rm -f "$OUT.tmp"
+			log "could not write $OUT"
+			return 1
+		}
+
+	log "$count package update(s) available"
+	return 0
+}
+
+if [ "$MODE" != "--daemon" ]; then
+	check_once
+	exit $?
+fi
+
+# --daemon
+delay="$FIRST_DELAY"
+while :; do
+	sleep "$delay"
+	if check_once; then
+		delay="$INTERVAL"
+	else
+		delay="$RETRY"
+	fi
+done

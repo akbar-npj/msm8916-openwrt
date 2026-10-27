@@ -1,0 +1,10 @@
+{
+    "luci-app-update-notify": {
+        "description": "Read the cached package-update count for the dashboard notice",
+        "read": {
+            "file": {
+                "/tmp/update-notify.json": [ "read" ]
+            }
+        }
+    }
+}
