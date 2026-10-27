@@ -341,8 +341,14 @@ merge_db() {
 
 	awk -v list="$pkgs" '
 		BEGIN {
-			RS = ""; ORS = "\n\n"
+			# Read the keep list BEFORE switching to paragraph mode:
+			# with RS = "" a getline returns a whole blank-line
+			# separated block, so a list of two names would arrive as
+			# one "a\nb" key and never match.
+			RS = "\n"
 			while ((getline p < list) > 0) keep[p] = 1
+			close(list)
+			RS = ""; ORS = "\n\n"
 		}
 		FNR == 1 { file++ }
 		{
