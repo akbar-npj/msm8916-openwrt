@@ -1,10 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# apk-overlay-heal -- repair the two overlay artefacts that make a freshly
-# flashed image look broken on a device whose configuration was kept.
+# apk-overlay-heal -- repair the overlay artefacts that make a freshly flashed
+# image look broken on a device whose configuration was kept.
 #
-# Both only appear when a device keeps its overlay across an image change
+# They only appear when a device keeps its overlay across an image change
 # (flash.sh --keep-config, or a config-preserving sysupgrade).  The overlay is
 # mounted over /rom, so anything it holds wins over the image -- including
 # things the image no longer agrees with:
@@ -40,6 +40,23 @@
 #      database on the next transaction, leaving the files on disk but unowned
 #      -- which is how a package "disappears" one boot after a flash.  Merged
 #      the same way: image entries plus whatever was added on the overlay.
+#
+#   4. OVERLAY COPIES OF PACKAGE FILES.  Every "apk add"/"apk upgrade" on a
+#      running system writes that package's files into the overlay, and the
+#      overlay wins over /rom -- so the boot after the next flash still runs
+#      the OLD files while "apk list" reports the new version (the database is
+#      the image's).  Seen in the wild with the theme: 1-r24 was installed and
+#      reported, but uhttpd served r1's cascade.css and r1's header.ut, so the
+#      UI looked untouched.
+#
+#      The rule is upstream's, from "sysupgrade -o": keep "all changed files in
+#      /, except those from packages but including changed confs" -- package
+#      files are dropped so the new image supplies them, and only conffiles
+#      survive (sbin/sysupgrade, build_list_of_backup_overlay_files).  Applied
+#      in place: an overlay file is removed when the image ships the same path
+#      with different content, unless it is a conffile.  Only paths the image
+#      ships are touched, so a package installed from the feed -- which has no
+#      image counterpart -- is left exactly as it is.
 #
 # scripts.tar.gz is deliberately NOT touched: its entries are keyed by package
 # version and hash, so a stale entry is simply never looked up, and merging
@@ -77,15 +94,20 @@ log() {
 case "$MODE" in
 	-h|--help)
 		cat <<'USAGE'
-Usage: apk-overlay-heal [--boot | --whiteouts | --help]
+Usage: apk-overlay-heal [--boot | --whiteouts | --shadowed | --help]
 
   --boot        (default) If the image changed since the overlay was written,
-                remove the whiteouts that hide files the running image ships
-                and merge the overlay's package database with the image's
-                (image records win, overlay-only packages are kept).  A no-op
-                on an ordinary boot.  Run from /lib/preinit/85_apk_overlay_heal.
+                remove the whiteouts that hide files the running image ships,
+                restore package files the image now ships in a different
+                version, and merge the overlay's package database and world
+                with the image's (image entries win, overlay-only packages are
+                kept).  A no-op on an ordinary boot.  Run from
+                /lib/preinit/85_apk_overlay_heal.
   --whiteouts   Only the whiteout pass, without the image-change check.  For
                 manual use.
+  --shadowed    Only the package-file pass, without the image-change check.
+                Removes overlay copies of files the image ships differently;
+                conffiles and feed-only packages are left alone.
   --help        Show this help and exit.
 
 The marker /etc/apk/.image_id records which image's database was merged in, so
@@ -93,7 +115,7 @@ the merge runs once per image change, not every boot.
 USAGE
 		exit 0
 		;;
-	--boot|--whiteouts)
+	--boot|--whiteouts|--shadowed)
 		;;
 	*)
 		echo "apk-overlay-heal: unknown option '$MODE' (try --help)" >&2
@@ -129,7 +151,66 @@ heal_whiteouts() {
 }
 
 # --------------------------------------------------------------------------
-# 2. Merge the overlay's package database with the image's.
+# 2. Overlay copies of package files that the image now ships differently.
+# --------------------------------------------------------------------------
+# Paths whose content the image owns and the user must not be denied: apk's
+# own bookkeeping (rebuilt by the other passes), and the one-shot scripts that
+# are deleted after they run.
+conffile_list() {
+	local out="$1"
+
+	# "<path> <sha256>" per line, from the image and from the merged view.
+	cat "$ROM"/lib/apk/packages/*.conffiles_static \
+	    /lib/apk/packages/*.conffiles_static 2>/dev/null | awk '{ print $1 }' > "$out"
+
+	# /etc/sysupgrade.conf and /lib/upgrade/keep.d name extra paths to keep.
+	sed -ne '/^[[:space:]]*$/d; /^#/d; p' \
+		/etc/sysupgrade.conf /lib/upgrade/keep.d/* 2>/dev/null |
+	while read -r path; do
+		find "$path" \( -type f -o -type l \) 2>/dev/null
+	done >> "$out"
+
+	sort -u -o "$out" "$out"
+}
+
+heal_shadowed() {
+	local f p removed=0 list=/tmp/.apk-heal-conffiles.$$
+
+	command -v cmp >/dev/null 2>&1 || return 0
+	conffile_list "$list"
+
+	for f in $(find "$UPPER" \( -type f -o -type l \) 2>/dev/null); do
+		p="${f#"$UPPER"}"
+
+		case "$p" in
+			/etc/uci-defaults/*|/lib/apk/*|/etc/apk/*|/run|/run/*|/tmp|/tmp/*)
+				continue
+				;;
+		esac
+
+		# The user's files.  Never reverted, however old they are.
+		grep -qxF "$p" "$list" 2>/dev/null && continue
+
+		# Only what the image also ships: a package installed from the feed
+		# has no /rom counterpart and must survive untouched.
+		[ -e "$ROM$p" ] || [ -L "$ROM$p" ] || continue
+
+		if [ -L "$f" ]; then
+			[ "$(readlink "$f")" = "$(readlink "$ROM$p" 2>/dev/null)" ] && continue
+		elif [ -f "$ROM$p" ] && cmp -s "$f" "$ROM$p"; then
+			continue
+		fi
+
+		rm -f "$f" && removed=$((removed + 1))
+	done
+
+	rm -f "$list"
+	[ "$removed" -gt 0 ] &&
+		log "restored $removed package file(s) the image ships in a different version"
+}
+
+# --------------------------------------------------------------------------
+# 3. Merge the overlay's package database with the image's.
 # --------------------------------------------------------------------------
 image_id() {
 	if command -v md5sum >/dev/null 2>&1; then
@@ -219,7 +300,7 @@ merge_db() {
 }
 
 # --------------------------------------------------------------------------
-# 3. The "world" -- the list of packages apk considers explicitly installed.
+# 4. The "world" -- the list of packages apk considers explicitly installed.
 # --------------------------------------------------------------------------
 # /etc/apk/world is shadowed by the overlay exactly like the database.  A world
 # from the previous image does not list a package the new image added, and apk
@@ -277,6 +358,7 @@ reconcile_db() {
 		[ "$(cat "$UPPER/$MARKER_REL" 2>/dev/null)" = "$id" ] && return 0
 
 	heal_whiteouts
+	heal_shadowed
 	merge_world
 	merge_db
 	mkdir -p "$UPPER/$(dirname "$MARKER_REL")" 2>/dev/null
@@ -286,6 +368,11 @@ reconcile_db() {
 
 if [ "$MODE" = "--whiteouts" ]; then
 	heal_whiteouts
+	exit 0
+fi
+
+if [ "$MODE" = "--shadowed" ]; then
+	heal_shadowed
 	exit 0
 fi
 

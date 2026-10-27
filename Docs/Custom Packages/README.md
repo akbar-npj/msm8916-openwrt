@@ -64,7 +64,7 @@ Some on-device programs ship in `msm89xx/base-files/` rather than as a package
 | `himi-ok-guard` | Rewrites the modem NV `HiMI_OK` marker after every modem boot. |
 | `modem-bearer-watchdog` | Watches the modem/bearer, performs pre-emptive SSR and zombie recovery (logs as `modem-stall-watchdog`). |
 | `apk-key-refresh` | Re-syncs the pinned APK feed signing key at boot. |
-| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, and merges the stale package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
+| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, drops overlay copies of package files the image now ships in a different version, and merges the stale `/etc/apk/world` and package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
 | `battery-led-monitor` | Drives the battery pair (charge state and faults only). Ships with `luci-app-battery`. |
 
 The LED monitors, the boot blink and the Wi-Fi station helpers used to be listed
@@ -186,18 +186,34 @@ therefore restores the published tree first and asserts the count never shrinks.
   database on the next transaction** — the files stay on disk, the record does
   not. This is the one that bites a boot *after* the flash: the package works,
   then quietly disappears.
+- **Overlay copies of package files shadow the image.** The overlay always wins.
+  A file a package owns gets copied up the first time anything writes to it, and
+  that copy then outlives every flash — so after an image change the merged view
+  serves the *old* file while `apk info` reports the new version. No error is
+  logged anywhere: the daemon just runs the previous release. A LuCI theme is the
+  loudest case, because the stylesheet and the template that links it are both
+  stale, so the page looks untouched and `apk` swears the update landed.
 
-All three are repaired **automatically** by
+All four are repaired **automatically** by
 [`apk-overlay-heal`](../../msm89xx/base-files/usr/sbin/apk-overlay-heal), run
 from `/lib/preinit/85_apk_overlay_heal` — after the overlay is mounted, before
 any init script — and **only on the first boot after an image change**. It
 
 1. removes every whiteout whose path the running image ships (whiteouts under
    `/etc/uci-defaults` are left alone — they are how OpenWrt records that a
-   one-shot script already ran), and
-2. merges `/etc/apk/world` the same way (image entries plus anything added on
+   one-shot script already ran),
+2. drops overlay copies of package files that differ from the image's, so the
+   merged view serves the file the image actually ships. This is upstream's
+   `sysupgrade -o` rule (*"preserve all changed files in /, except those from
+   packages but including changed confs"*) applied at boot instead of at
+   upgrade time: conffiles — `*.conffiles_static`, `/etc/sysupgrade.conf`,
+   `/lib/upgrade/keep.d` — are never reverted, and neither is anything the image
+   does not ship, which is how a package installed from the feed keeps its
+   files. A file that already matches the image is left as it is, so the pass
+   does nothing on a device that was never hand-edited,
+3. merges `/etc/apk/world` the same way (image entries plus anything added on
    the overlay), and
-3. merges the overlay's database with the image's: the image wins for every
+4. merges the overlay's database with the image's: the image wins for every
    package it ships, and packages installed from the feed are kept. It refuses
    the merge and keeps the overlay copy if the result would not parse.
 
