@@ -1,0 +1,295 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# apk-overlay-heal -- repair the two overlay artefacts that make a freshly
+# flashed image look broken on a device whose configuration was kept.
+#
+# Both only appear when a device keeps its overlay across an image change
+# (flash.sh --keep-config, or a config-preserving sysupgrade).  The overlay is
+# mounted over /rom, so anything it holds wins over the image -- including
+# things the image no longer agrees with:
+#
+#   1. WHITEOUTS.  A path that moved from one package to another (say
+#      /usr/sbin/wifi-led-monitor leaving base-files for msm89xx-scripts) can
+#      leave a whiteout -- a 0,0 character device -- on the overlay.  The new
+#      image ships the file, /rom has it, the package database lists it, and
+#      the merged view still shows nothing, so the service silently never
+#      starts.  On the boot after a flash, a whiteout for a path the running
+#      image ships is stale by definition and is removed.  Whiteouts for paths
+#      the image does NOT ship are the user's own deletions and are left alone.
+#
+#      /etc/uci-defaults is excluded on purpose: those whiteouts are how
+#      OpenWrt records "this one-shot script already ran".  Removing them makes
+#      every uci-default re-run on the next boot.
+#
+#   2. A STALE PACKAGE DATABASE.  /lib/apk/db/installed is copied up to the
+#      overlay the first time apk writes it, so after an image change the
+#      device keeps the PREVIOUS image's view of who owns what.  That is not
+#      just cosmetic: "apk add msm89xx-scripts" fails with a file conflict
+#      because the stale database still says base-files owns those files.
+#
+#      The two databases are merged rather than replaced -- the image's records
+#      win for every package the image ships, and records that exist only on
+#      the overlay (packages the user installed from the feed) are kept.  A
+#      plain delete would leave those packages installed but unowned.
+#
+#   3. A STALE "WORLD".  /etc/apk/world lists the packages apk considers
+#      explicitly installed, and it is shadowed by the overlay the same way.  A
+#      world from the previous image does not list a package the new image
+#      added; apk then treats that package as unwanted and drops it from the
+#      database on the next transaction, leaving the files on disk but unowned
+#      -- which is how a package "disappears" one boot after a flash.  Merged
+#      the same way: image entries plus whatever was added on the overlay.
+#
+# scripts.tar.gz is deliberately NOT touched: its entries are keyed by package
+# version and hash, so a stale entry is simply never looked up, and merging
+# tarballs is not worth the risk of corrupting it.
+#
+# Scope: this runs ONCE per image change, from
+# /lib/preinit/85_apk_overlay_heal, and does nothing on an ordinary boot.  That
+# matters -- a whiteout is also how a legitimate "apk del" removes a file the
+# image ships, so healing on every boot would resurrect packages the user
+# uninstalled.  Only the boot after a flash is unambiguous: there the image's
+# package set is authoritative.
+#
+# Nothing here is needed for a package UPDATE.  "apk add" rewrites its own
+# database and the files, and takes effect immediately -- exactly like upstream
+# OpenWrt.
+#
+# Log: logread -e apk-overlay-heal
+
+set -u
+
+OVERLAY=/overlay
+UPPER="$OVERLAY/upper"
+ROM=/rom
+DB_REL=lib/apk/db/installed
+WORLD_REL=etc/apk/world
+MARKER_REL=etc/apk/.image_id
+
+MODE="${1:---boot}"
+
+log() {
+	logger -t apk-overlay-heal "$1"
+	echo "apk-overlay-heal: $1" > /dev/kmsg 2>/dev/null
+}
+
+case "$MODE" in
+	-h|--help)
+		cat <<'USAGE'
+Usage: apk-overlay-heal [--boot | --whiteouts | --help]
+
+  --boot        (default) If the image changed since the overlay was written,
+                remove the whiteouts that hide files the running image ships
+                and merge the overlay's package database with the image's
+                (image records win, overlay-only packages are kept).  A no-op
+                on an ordinary boot.  Run from /lib/preinit/85_apk_overlay_heal.
+  --whiteouts   Only the whiteout pass, without the image-change check.  For
+                manual use.
+  --help        Show this help and exit.
+
+The marker /etc/apk/.image_id records which image's database was merged in, so
+the merge runs once per image change, not every boot.
+USAGE
+		exit 0
+		;;
+	--boot|--whiteouts)
+		;;
+	*)
+		echo "apk-overlay-heal: unknown option '$MODE' (try --help)" >&2
+		exit 1
+		;;
+esac
+
+[ -d "$UPPER" ] || exit 0
+
+# --------------------------------------------------------------------------
+# 1. Whiteouts that hide files the image ships.
+# --------------------------------------------------------------------------
+heal_whiteouts() {
+	local w p removed=0
+
+	for w in $(find "$UPPER" -type c 2>/dev/null); do
+		p="${w#"$UPPER"}";
+
+		case "$p" in
+			/etc/uci-defaults/*)
+				continue
+				;;
+		esac
+
+		# Only resurrect what the running image actually provides.
+		[ -e "$ROM$p" ] || [ -L "$ROM$p" ] || continue
+
+		rm -f "$w" && removed=$((removed + 1))
+	done
+
+	[ "$removed" -gt 0 ] &&
+		log "removed $removed whiteout(s) hiding files shipped by the image"
+}
+
+# --------------------------------------------------------------------------
+# 2. Merge the overlay's package database with the image's.
+# --------------------------------------------------------------------------
+image_id() {
+	if command -v md5sum >/dev/null 2>&1; then
+		cat "$ROM/$DB_REL" "$ROM/$WORLD_REL" 2>/dev/null | md5sum | cut -d' ' -f1
+	else
+		cat "$ROM/$DB_REL" "$ROM/$WORLD_REL" 2>/dev/null | cksum | tr ' ' '-'
+	fi
+}
+
+merge_db() {
+	local img="$ROM/$DB_REL"
+	# Work through the MERGED path, not the upper directory: writing through
+	# the mount is what lets overlayfs replace the file properly, and it is
+	# the same file apk itself would touch.
+	local cur="/$DB_REL"
+	local tmp="/$DB_REL.merge.$$"
+	local want got bad
+
+	[ -s "$img" ] || return 0
+
+	# Only an overlay copy can be stale.  With none, the image's database is
+	# already the one in effect and there is nothing to merge.
+	if [ ! -f "$UPPER/$DB_REL" ]; then
+		return 0
+	fi
+
+	# Both files are blank-line separated records.  The image copy is read
+	# first and wins on a name collision; records only present in the overlay
+	# copy (packages installed from the feed) are appended afterwards.
+	awk '
+		BEGIN { RS = ""; ORS = "\n\n" }
+		FNR == 1 { file++ }
+		{
+			name = ""
+			for (i = 1; i <= NF; i++)
+				if (substr($i, 1, 2) == "P:") { name = $i; break }
+			if (name == "") next
+
+			if (file == 1) {
+				if (!(name in img)) order[++n] = name
+				img[name] = $0
+			} else if (!(name in img)) {
+				extra[++m] = $0
+			}
+		}
+		END {
+			for (i = 1; i <= n; i++) print img[order[i]]
+			for (i = 1; i <= m; i++) print extra[i]
+		}
+	' "$img" "$cur" > "$tmp" 2>/dev/null
+
+	# Never leave a half-written database behind: the merged record count
+	# must equal the image count plus the overlay-only count.
+	want=$(( $(grep -c '^P:' "$img") + $(awk '
+		BEGIN { RS = "" }
+		FNR == 1 { f++ }
+		{
+			n = ""
+			for (i = 1; i <= NF; i++)
+				if (substr($i, 1, 2) == "P:") { n = $i; break }
+			if (f == 1) seen[n] = 1
+			else if (!(n in seen)) c++
+		}
+		END { print c + 0 }
+	' "$img" "$cur") ))
+	got=$(grep -c '^P:' "$tmp" 2>/dev/null || echo 0)
+
+	# Every record in an apk "v2" database starts with its C: checksum line.
+	# A record that does not is not something apk can read back, so refuse to
+	# write it rather than leave the device with an unparseable database.
+	bad=$(awk 'BEGIN { RS = "" } substr($0, 1, 2) != "C:" { c++ } END { print c + 0 }' "$tmp" 2>/dev/null || echo 1)
+
+	if [ ! -s "$tmp" ] || [ "$got" -ne "$want" ] || [ "$bad" -ne 0 ]; then
+		log "WARNING: database merge failed ($got/$want records, $bad malformed), keeping the overlay copy"
+		rm -f "$tmp"
+		return 1
+	fi
+
+	cp -f "$cur" "$cur.bak" 2>/dev/null || true
+	mv -f "$tmp" "$cur" || {
+		log "WARNING: could not replace the package database, keeping the overlay copy"
+		return 1
+	}
+
+	log "merged the package database with the image one ($got records)"
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# 3. The "world" -- the list of packages apk considers explicitly installed.
+# --------------------------------------------------------------------------
+# /etc/apk/world is shadowed by the overlay exactly like the database.  A world
+# from the previous image does not list a package the new image added, and apk
+# then treats that package as unwanted and drops it from the database on the
+# next transaction -- the files stay, the record does not.  Same merge: the
+# image's list wins, packages added on the overlay (installed from the feed)
+# are kept.
+merge_world() {
+	local img="$ROM/$WORLD_REL"
+	local cur="/$WORLD_REL"
+	local tmp="/$WORLD_REL.merge.$$"
+	local want got
+
+	[ -s "$img" ] || return 0
+	[ -f "$UPPER/$WORLD_REL" ] || return 0
+
+	awk '
+		FNR == 1 { file++ }
+		{
+			line = $0
+			sub(/^[ \t]+/, "", line)
+			sub(/[ \t]+$/, "", line)
+			if (line == "" || (line in seen)) next
+			seen[line] = 1
+			order[++n] = line
+		}
+		END { for (i = 1; i <= n; i++) print order[i] }
+	' "$img" "$cur" > "$tmp" 2>/dev/null
+
+	want=$(grep -c . "$img")
+	got=$(grep -c . "$tmp" 2>/dev/null || echo 0)
+
+	if [ ! -s "$tmp" ] || [ "$got" -lt "$want" ]; then
+		log "WARNING: world merge failed ($got/$want entries), keeping the overlay copy"
+		rm -f "$tmp"
+		return 1
+	fi
+
+	mv -f "$tmp" "$cur" || {
+		log "WARNING: could not replace /$WORLD_REL, keeping the overlay copy"
+		return 1
+	}
+
+	[ "$got" -gt "$want" ] &&
+		log "merged /$WORLD_REL ($want from the image, $((got - want)) extra)"
+	return 0
+}
+
+reconcile_db() {
+	local id
+	id="$(image_id)"
+	[ -n "$id" ] || return 0
+
+	[ -f "$UPPER/$MARKER_REL" ] &&
+		[ "$(cat "$UPPER/$MARKER_REL" 2>/dev/null)" = "$id" ] && return 0
+
+	heal_whiteouts
+	merge_world
+	merge_db
+	mkdir -p "$UPPER/$(dirname "$MARKER_REL")" 2>/dev/null
+	echo "$id" > "$UPPER/$MARKER_REL" 2>/dev/null ||
+		log "WARNING: could not write /$MARKER_REL"
+}
+
+if [ "$MODE" = "--whiteouts" ]; then
+	heal_whiteouts
+	exit 0
+fi
+
+# --boot: only act when the overlay was written by a different image.
+reconcile_db
+
+exit 0

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+#
+# Repair the overlay after an image change, before rcS starts anything that
+# needs the files.  Runs after 80_mount_root (so /overlay and /rom are
+# mounted) and before every init script.
+#
+# See /usr/sbin/apk-overlay-heal for what it does and why.
+#
+preinit_apk_overlay_heal() {
+	[ -x /usr/sbin/apk-overlay-heal ] || return 0
+
+	/usr/sbin/apk-overlay-heal --boot
+
+	return 0
+}
+
+boot_hook_add preinit_main preinit_apk_overlay_heal

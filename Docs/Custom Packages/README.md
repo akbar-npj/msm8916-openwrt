@@ -63,6 +63,7 @@ Some on-device programs ship in `msm89xx/base-files/` rather than as a package
 | `himi-ok-guard` | Rewrites the modem NV `HiMI_OK` marker after every modem boot. |
 | `modem-bearer-watchdog` | Watches the modem/bearer, performs pre-emptive SSR and zombie recovery (logs as `modem-stall-watchdog`). |
 | `apk-key-refresh` | Re-syncs the pinned APK feed signing key at boot. |
+| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, and merges the stale package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
 | `battery-led-monitor` | Drives the battery pair (charge state and faults only). Ships with `luci-app-battery`. |
 
 The LED monitors, the boot blink and the Wi-Fi station helpers used to be listed
@@ -169,39 +170,52 @@ therefore restores the published tree first and asserts the count never shrinks.
 - **The package must already be in the feed.** This publishes into an existing
   `releases/<base>/`; a package that was never part of a release has no feed
   entry to extend — cut a release first.
-- **A device keeps its own copy of the package database.** After flashing with
-  `flash.sh --keep-config` (or a config-preserving sysupgrade) the overlay holds
-  the *previous* image's `/lib/apk/db/installed`, which shadows the new one: it
-  reports stale ownership (`apk info -W`) and can refuse an install.
 - **Moving a file between packages leaves a whiteout.** When a path stops being
   owned by `base-files` and starts being owned by a new package, the preserved
   overlay can still carry a whiteout (a `0,0` character device) for it. The new
   package installs, `apk info` lists it, the symlinks exist in `/rom` — and the
-  merged view still shows nothing, so the service silently never starts. This is
-  what a package split looks like on a device that was flashed with
-  `--keep-config`.
+  merged view still shows nothing, so the service silently never starts.
+- **The package database is the previous image's.** `/lib/apk/db/installed` is
+  copied up to the overlay the first time apk writes it, so after an image
+  change the device keeps the old view of who owns what — `apk info -W` names
+  the wrong package, and `apk add` can fail with a file conflict.
+- **So is `/etc/apk/world`.** It lists the packages apk considers explicitly
+  installed. A world from the previous image does not list a package the new
+  image added, so apk treats that package as unwanted and **drops it from the
+  database on the next transaction** — the files stay on disk, the record does
+  not. This is the one that bites a boot *after* the flash: the package works,
+  then quietly disappears.
 
-  Both are one-time cleanup after such a flash:
+All three are repaired **automatically** by
+[`apk-overlay-heal`](../../msm89xx/base-files/usr/sbin/apk-overlay-heal), run
+from `/lib/preinit/85_apk_overlay_heal` — after the overlay is mounted, before
+any init script — and **only on the first boot after an image change**. It
 
-  ```sh
-  # stale package database
-  rm -f /overlay/upper/lib/apk/db/installed \
-        /overlay/upper/lib/apk/db/scripts.tar.gz \
-        /overlay/upper/lib/apk/db/triggers \
-        /overlay/upper/lib/apk/db/lock
+1. removes every whiteout whose path the running image ships (whiteouts under
+   `/etc/uci-defaults` are left alone — they are how OpenWrt records that a
+   one-shot script already ran), and
+2. merges `/etc/apk/world` the same way (image entries plus anything added on
+   the overlay), and
+3. merges the overlay's database with the image's: the image wins for every
+   package it ships, and packages installed from the feed are kept. It refuses
+   the merge and keeps the overlay copy if the result would not parse.
 
-  # whiteouts hiding files the new image ships
-  find /overlay/upper -type c -not -path '*/etc/uci-defaults/*' \
-       -exec rm -f {} +
+The image change is tracked by `/etc/apk/.image_id` (an md5 of the image's
+database); on an ordinary boot the hook returns immediately.
 
-  reboot
-  ```
+The gate matters: a whiteout is *also* how a legitimate `apk del` removes a file
+the image ships, so healing on every boot would resurrect packages the user
+uninstalled. Right after a flash there is no such ambiguity — the new image's
+package set is authoritative.
 
-  (`rm` alone is not enough — the merged view keeps the deleted inode until the
-  next boot. Whiteouts under `/etc/uci-defaults` are *normal*: they are the
-  scripts that already ran, and deleting them makes them run a second time.)
+> **No reboot is needed after `apk add`.** A package update goes through apk
+> normally and takes effect immediately, exactly like upstream OpenWrt. The
+> heal only exists because *this project* keeps the overlay across a firmware
+> flash; it is part of the boot the flash already costs, not an extra one.
 
-  Verify with `apk info -W /usr/sbin/wifi-led-monitor` and `ps w | grep led`.
+Check it with `logread -e apk-overlay-heal`, `apk info -W <file>` and
+`ps w | grep led` (busybox `pgrep` truncates names to 15 characters, so
+`pgrep modem-led-monitor` silently matches nothing).
 
 ## Related docs
 
