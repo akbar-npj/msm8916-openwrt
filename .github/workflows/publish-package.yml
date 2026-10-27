@@ -4,9 +4,11 @@ name: Publish Single Package
 # as the released firmware, splice the new .apk into the ALREADY PUBLISHED feed
 # and re-sign the index. Devices then pick it up with a plain
 #
-#     apk update && apk add <package>
+#     apk update && apk upgrade <package>
 #
-# instead of a ~40 MB firmware reflash.
+# instead of a ~40 MB firmware reflash.  Not "apk add": the package is
+# already installed and in the world file, so apk add considers it
+# satisfied and does nothing.
 #
 # Why the published feed is downloaded first: `make package/index` indexes
 # whatever .apk files sit in openwrt/bin/packages. A single-package build fills
@@ -247,7 +249,7 @@ jobs:
             echo "On the device:"
             echo '```'
             echo "apk update"
-            echo "apk add ${PKG}"
+            echo "apk upgrade ${PKG}"
             echo '```'
             echo
             echo "> \`PKG_RELEASE\` was bumped for this build only - commit packages/${PKG}/Makefile."
