@@ -50,7 +50,7 @@ define Device/yiming-uz801v3
 	DEVICE_MODEL := uz801v3
 	SUPPORTED_DEVICES := yiming,uz801-v3
 	FILESYSTEMS := squashfs
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool
@@ -63,7 +63,7 @@ define Device/generic-uf02
 	DEVICE_MODEL := UF02 (250605 V0S)
 	SUPPORTED_DEVICES := uf02,250605v0s
 	FILESYSTEMS := squashfs
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool
@@ -77,7 +77,7 @@ define Device/generic-ufi001b
 	DEVICE_DTS := msm8916-generic-ufi001b
 	SUPPORTED_DEVICES := ufi001b,250605v0s
 	FILESYSTEMS := squashfs
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool
@@ -92,7 +92,7 @@ define Device/generic-ufi003-mb-v02
 	SUPPORTED_DEVICES := ufi003,mb-v02
 	FILESYSTEMS := squashfs
 	GPT_TOT_SECTORS := 7634944
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool
@@ -116,7 +116,7 @@ define Device/generic-hmuf02v5
 	# 5 s hold -> factory reset.  Remove this line to go back to 15
 	# partitions and reclaim ~17 MB of rootfs_data.
 	GPT_RECOVERY := 1
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg qcom-time-daemon \
 		diag-efs diag-logtool
@@ -134,7 +134,7 @@ define Device/generic-mf800b
 	GPT_TOT_SECTORS := 7634944
 	# No EDL push-button: needs the recovery + misc partitions.
 	GPT_RECOVERY := 1
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool luci-app-battery
@@ -152,7 +152,7 @@ define Device/generic-mifib-v12
 	GPT_TOT_SECTORS := 7634944
 	# No EDL push-button: needs the recovery + misc partitions.
 	GPT_RECOVERY := 1
-	DEVICE_PACKAGES := wpad-basic-wolfssl rmtfs uci-usb-gadget \
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool luci-app-battery

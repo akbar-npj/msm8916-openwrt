@@ -1,5 +1,5 @@
 #!/bin/sh /etc/rc.common
-# Early boot LED feedback (capacity-aware battery blink).
+# Early boot LED feedback: a plain "booting" blink on the battery lamp.
 # Runs post-overlay (START=01) so it works when deployed via scp, unlike the
 # preinit diag.sh path which runs from the squashfs. The battery-led-monitor
 # (S96) overrides the blink with the steady state when it starts.

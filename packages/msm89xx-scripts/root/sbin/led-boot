@@ -1,0 +1,37 @@
+#!/bin/sh
+# led-boot: early boot LED feedback for the battery boards (mifib-v12, mf800b).
+#
+# Runs as a procd service (START=01) AFTER the overlay is mounted, so it works
+# even when deployed with scp -- unlike the preinit diag.sh path, which runs
+# from the squashfs before the overlay exists.  It blinks the battery lamp as a
+# plain "booting" cue; the colour deliberately does NOT encode capacity (a level
+# cannot be read off a blink, and LuCI reports it).  battery-led-monitor (S96)
+# overrides the blink with the charge state when it starts, so it self-terminates.
+#
+# Failsafe indication is not done here: diag.sh and 35_failsafe_usb own it, and
+# a second pattern on the same lamps would only conflict.
+
+GREEN_BAT=""
+for n in green:bat green:charging; do
+    [ -e "/sys/class/leds/$n/trigger" ] && { GREEN_BAT="/sys/class/leds/$n"; break; }
+done
+
+# The LED node may not exist yet right after the overlay mount; wait for it.
+i=0
+while [ -z "$GREEN_BAT" ] && [ "$i" -lt 30 ]; do
+    sleep 1
+    for n in green:bat green:charging; do
+        [ -e "/sys/class/leds/$n/trigger" ] && { GREEN_BAT="/sys/class/leds/$n"; break; }
+    done
+    i=$((i + 1))
+done
+
+[ -n "$GREEN_BAT" ] || exit 0
+
+echo none > "$GREEN_BAT/trigger" 2>/dev/null
+echo 0 > "$GREEN_BAT/brightness" 2>/dev/null
+echo timer > "$GREEN_BAT/trigger" 2>/dev/null
+echo 200 > "$GREEN_BAT/delay_on" 2>/dev/null
+echo 300 > "$GREEN_BAT/delay_off" 2>/dev/null
+
+exit 0
