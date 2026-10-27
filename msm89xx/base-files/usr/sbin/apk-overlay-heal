@@ -58,6 +58,13 @@
 #      ships are touched, so a package installed from the feed -- which has no
 #      image counterpart -- is left exactly as it is.
 #
+#      One case inverts: a package the user UPGRADED from the feed is newer
+#      than the image, and reverting it would be a silent downgrade.  The
+#      version in the overlay's database is the only thing that tells the two
+#      apart, so files of a package the overlay records at a higher version
+#      than the image are kept -- and the database merge keeps that record with
+#      them, rather than leaving newer files under an older record.
+#
 # scripts.tar.gz is deliberately NOT touched: its entries are keyed by package
 # version and hash, so a stale entry is simply never looked up, and merging
 # tarballs is not worth the risk of corrupting it.
@@ -106,8 +113,10 @@ Usage: apk-overlay-heal [--boot | --whiteouts | --shadowed | --help]
   --whiteouts   Only the whiteout pass, without the image-change check.  For
                 manual use.
   --shadowed    Only the package-file pass, without the image-change check.
-                Removes overlay copies of files the image ships differently;
-                conffiles and feed-only packages are left alone.
+                Removes overlay copies of files the image ships differently.
+                Conffiles, packages installed only from the feed, and packages
+                the overlay holds at a higher version than the image are left
+                alone.
   --help        Show this help and exit.
 
 The marker /etc/apk/.image_id records which image's database was merged in, so
@@ -170,14 +179,98 @@ conffile_list() {
 		find "$path" \( -type f -o -type l \) 2>/dev/null
 	done >> "$out"
 
-	sort -u -o "$out" "$out"
+	# busybox sort accepts "-o" and then ignores it: it prints the result
+	# instead of rewriting the file, which at preinit means dumping the whole
+	# list to the console.  Sort into a second file and move it back.
+	sort -u "$out" > "$out.sorted" && mv -f "$out.sorted" "$out"
+}
+
+# --------------------------------------------------------------------------
+# 2a. Which packages the overlay holds at a HIGHER version than the image.
+# --------------------------------------------------------------------------
+# A package upgraded from the feed after the flash is newer than the image's
+# copy of it, and reverting its files would be a silent downgrade.  The version
+# is the only thing that distinguishes the two cases -- the overlay always has
+# the files either way -- so it is read from the two databases.
+#
+# Same shape as apk's "installed" file: P: names the package, V: its version.
+db_versions() {
+	awk '/^P:/ { pkg = substr($0, 3) }
+	     /^V:/ { print pkg, substr($0, 3) }' "$1" 2>/dev/null
+}
+
+# "<", "=" or ">" for two apk version strings.  apk itself is the authority;
+# the fallback only has to order the numeric versions the feed uses, and is
+# reached only if apk cannot run this early in the boot.
+vercmp() {
+	local r
+
+	r="$(apk version -t "$1" "$2" 2>/dev/null)"
+	case "$r" in
+		"<"|"="|">")
+			echo "$r"
+			return 0
+			;;
+	esac
+
+	[ "$1" = "$2" ] && { echo "="; return 0; }
+
+	if [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V 2>/dev/null | tail -n 1)" = "$1" ]; then
+		echo ">"
+	else
+		echo "<"
+	fi
+}
+
+# Package names, one per line, that the overlay records at a higher version
+# than the image does.
+newer_pkgs() {
+	local out="$1" img="$ROM/$DB_REL" ovl="$UPPER/$DB_REL"
+	local pkg ov iv
+
+	: > "$out"
+	[ -s "$img" ] && [ -s "$ovl" ] || return 0
+
+	db_versions "$img" > "$out.img"
+	db_versions "$ovl" > "$out.ovl"
+
+	awk 'NR == FNR { v[$1] = $2; next }
+	     ($1 in v) && v[$1] != $2 { print $1, $2, v[$1] }' \
+		"$out.img" "$out.ovl" |
+	while read -r pkg ov iv; do
+		[ "$(vercmp "$ov" "$iv")" = ">" ] && echo "$pkg"
+	done > "$out"
+
+	rm -f "$out.img" "$out.ovl"
+}
+
+# Every file path a database lists, as "<path> <package>".
+db_paths() {
+	awk '/^P:/ { pkg = substr($0, 3) }
+	     /^F:/ { dir = substr($0, 3) }
+	     /^R:/ {
+		f = substr($0, 3)
+		print (dir == "" ? "/" f : "/" dir "/" f), pkg
+	     }' "$1" 2>/dev/null
 }
 
 heal_shadowed() {
-	local f p removed=0 list=/tmp/.apk-heal-conffiles.$$
+	local f p removed=0 list=/tmp/.apk-heal-keep.$$ pkgs=/tmp/.apk-heal-newer.$$
 
 	command -v cmp >/dev/null 2>&1 || return 0
 	conffile_list "$list"
+
+	# Same list, different reason: the files of a package the overlay holds at
+	# a higher version than the image were upgraded from the feed, and
+	# reverting them would downgrade it behind the user's back.
+	newer_pkgs "$pkgs"
+	if [ -s "$pkgs" ]; then
+		db_paths "$UPPER/$DB_REL" |
+		awk -v list="$pkgs" '
+			BEGIN { while ((getline p < list) > 0) keep[p] = 1 }
+			($2 in keep) { print $1 }
+		' >> "$list"
+	fi
 
 	for f in $(find "$UPPER" \( -type f -o -type l \) 2>/dev/null); do
 		p="${f#"$UPPER"}"
@@ -204,7 +297,7 @@ heal_shadowed() {
 		rm -f "$f" && removed=$((removed + 1))
 	done
 
-	rm -f "$list"
+	rm -f "$list" "$pkgs"
 	[ "$removed" -gt 0 ] &&
 		log "restored $removed package file(s) the image ships in a different version"
 }
@@ -227,6 +320,7 @@ merge_db() {
 	# the same file apk itself would touch.
 	local cur="/$DB_REL"
 	local tmp="/$DB_REL.merge.$$"
+	local pkgs=/tmp/.apk-heal-newer.$$
 	local want got bad
 
 	[ -s "$img" ] || return 0
@@ -238,10 +332,18 @@ merge_db() {
 	fi
 
 	# Both files are blank-line separated records.  The image copy is read
-	# first and wins on a name collision; records only present in the overlay
-	# copy (packages installed from the feed) are appended afterwards.
-	awk '
-		BEGIN { RS = ""; ORS = "\n\n" }
+	# first and wins on a name collision, EXCEPT where the overlay records the
+	# package at a higher version -- that is a package upgraded from the feed,
+	# and its files are kept by the pass above, so its record must be kept with
+	# them.  Records only present in the overlay copy (packages installed from
+	# the feed) are appended afterwards.
+	newer_pkgs "$pkgs"
+
+	awk -v list="$pkgs" '
+		BEGIN {
+			RS = ""; ORS = "\n\n"
+			while ((getline p < list) > 0) keep[p] = 1
+		}
 		FNR == 1 { file++ }
 		{
 			name = ""
@@ -252,12 +354,17 @@ merge_db() {
 			if (file == 1) {
 				if (!(name in img)) order[++n] = name
 				img[name] = $0
+			} else if (substr(name, 3) in keep) {
+				newer[name] = $0
 			} else if (!(name in img)) {
 				extra[++m] = $0
 			}
 		}
 		END {
-			for (i = 1; i <= n; i++) print img[order[i]]
+			for (i = 1; i <= n; i++) {
+				nm = order[i]
+				print ((nm in newer) ? newer[nm] : img[nm])
+			}
 			for (i = 1; i <= m; i++) print extra[i]
 		}
 	' "$img" "$cur" > "$tmp" 2>/dev/null
@@ -285,16 +392,18 @@ merge_db() {
 
 	if [ ! -s "$tmp" ] || [ "$got" -ne "$want" ] || [ "$bad" -ne 0 ]; then
 		log "WARNING: database merge failed ($got/$want records, $bad malformed), keeping the overlay copy"
-		rm -f "$tmp"
+		rm -f "$tmp" "$pkgs"
 		return 1
 	fi
 
 	cp -f "$cur" "$cur.bak" 2>/dev/null || true
 	mv -f "$tmp" "$cur" || {
 		log "WARNING: could not replace the package database, keeping the overlay copy"
+		rm -f "$pkgs"
 		return 1
 	}
 
+	rm -f "$pkgs"
 	log "merged the package database with the image one ($got records)"
 	return 0
 }

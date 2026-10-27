@@ -210,12 +210,19 @@ any init script — and **only on the first boot after an image change**. It
    `/lib/upgrade/keep.d` — are never reverted, and neither is anything the image
    does not ship, which is how a package installed from the feed keeps its
    files. A file that already matches the image is left as it is, so the pass
-   does nothing on a device that was never hand-edited,
+   does nothing on a device that was never hand-edited. And a package you
+   *upgraded* from the feed is newer than the image — reverting it would be a
+   silent downgrade — so its files are kept too, and step 4 keeps the matching
+   database record instead of the image's. That one needs a version compare
+   (`apk version -t`, falling back to `sort -V`), because the overlay has the
+   files in both cases and only the recorded version tells them apart,
 3. merges `/etc/apk/world` the same way (image entries plus anything added on
    the overlay), and
 4. merges the overlay's database with the image's: the image wins for every
-   package it ships, and packages installed from the feed are kept. It refuses
-   the merge and keeps the overlay copy if the result would not parse.
+   package it ships — unless the overlay records a *higher* version, in which
+   case that record is kept so it still matches the files step 2 preserved —
+   and packages installed from the feed are kept. It refuses the merge and
+   keeps the overlay copy if the result would not parse.
 
 The image change is tracked by `/etc/apk/.image_id` (an md5 of the image's
 database); on an ordinary boot the hook returns immediately.
