@@ -218,6 +218,41 @@ Check it with `logread -e apk-overlay-heal`, `apk info -W <file>` and
 `ps w | grep led` (busybox `pgrep` truncates names to 15 characters, so
 `pgrep modem-led-monitor` silently matches nothing).
 
+### Adding a new package
+
+A package that is new to the tree is invisible to the build until the scan
+notices it, and the failure does not say so:
+
+    make[1]: *** No rule to make target 'package/msm8916/<name>/compile'.  Stop.
+    WARNING: your configuration is out of sync. Please run make menuconfig...
+
+`include/scan.mk` builds the package list with
+`grep 'call (Build/DefaultTargets|BuildPackage|KernelPackage)'` over every
+`Makefile` — a text search, not a parse. A `luci.mk` package's only build call
+lives *inside* `luci.mk`, so its `Makefile` must carry the trailing comment
+line that makes it match:
+
+    include $(TOPDIR)/feeds/luci/luci.mk
+
+    # call BuildPackage - OpenWrt buildroot signature
+
+Without it the directory is skipped in silence. A files-only package (no
+`src/`) also needs an empty `Build/Compile` — otherwise the default rule runs
+`make -C $(PKG_BUILD_DIR)` and fails with "No targets specified and no makefile
+found" — and any `rc.d` symlink it wants must be created explicitly, because
+nothing runs `default_postinst` at build time.
+
+After adding one, refresh the scan and the config (`./build.sh package <name>`
+does the sync; the container commands are):
+
+    rm -f tmp/info/.files-packageinfo* tmp/info/.overrides-packageinfo* \
+          tmp/.packageinfo tmp/.packagedeps
+    make prepare-tmpinfo && make defconfig
+
+`CONFIG_DEFAULT_<name>=y` comes from `DEFAULT_PACKAGES`; `CONFIG_PACKAGE_<name>=y`
+only appears after the metadata has been regenerated, so run `defconfig` a
+second time — the first pass is what writes the `DEFAULT_` symbol.
+
 ## Related docs
 
 - [**Kernel-Modules.md**](Kernel-Modules.md) — the in-repo `kmod-*` drivers.
