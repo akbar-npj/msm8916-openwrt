@@ -36,11 +36,19 @@
 
 <meta name="application-name" content="{{ striptags(boardinfo.hostname ?? '?') }} - LuCI">
 <meta name="apple-mobile-web-app-title" content="{{ striptags(boardinfo.hostname ?? '?') }} - LuCI">
-<meta name="msapplication-TileImage" content="{{ media }}/logo.png" />
-<link rel="icon" href="{{ media }}/logo.png" sizes="144x144">
-<link rel="apple-touch-icon-precomposed" href="{{ media }}/logo.png" sizes="144x144">
+<meta name="msapplication-TileImage" content="{{ media }}/apple-touch-icon.png" />
+<link rel="icon" href="{{ media }}/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="{{ media }}/apple-touch-icon.png">
+<link rel="apple-touch-icon-precomposed" href="{{ media }}/apple-touch-icon.png">
 
-<link rel="stylesheet" href="{{ media }}/cascade.css?v=2">
+{# The ?v= here is the only cache key these files have: uhttpd sends no
+   Cache-Control for /luci-static, so a browser keeps whatever it fetched
+   under that URL. Bump it (and PKG_RELEASE) whenever a stylesheet or
+   js/theme.js changes, or an upgraded theme will render from the old copy. -#}
+<link rel="stylesheet" href="{{ media }}/cascade.css?v=3">
+<link rel="stylesheet" href="{{ media }}/theme.css?v=24">
+<link rel="stylesheet" href="{{ media }}/light.css?v=24">
+<link rel="stylesheet" href="{{ media }}/colourful.css?v=24">
 <link rel="shortcut icon" href="{{ media }}/favicon.ico">
 {% if (dispatched?.css): %}
 <link rel="stylesheet" href="{{ resource }}/{{ dispatched.css }}">
@@ -55,9 +63,12 @@
 	(function() {
 		var serverNav = '{{ initial_nav }}';
 		var nav = localStorage.getItem('luci-theme-feelgood-nav') || serverNav || 'horizontal';
-		document.documentElement.setAttribute('data-theme-color', 'dark');
+		var style = 'dark';
+		try { style = localStorage.getItem('luci-theme-feelgood-style') || 'dark'; } catch (e) {}
+		if (style !== 'light' && style !== 'colourful') style = 'dark';
+		document.documentElement.setAttribute('data-theme-color', style);
 		document.documentElement.setAttribute('data-theme-nav', nav);
-		document.documentElement.setAttribute('data-theme-style', 'modern');
+		document.documentElement.setAttribute('data-theme-style', style);
 	})();
 </script>
 </head>
@@ -98,6 +109,11 @@
 						<span id="nav_layout_btn" class="label theme-toggle-btn nav-toggle" title="{{ _('Toggle Navigation: Horizontal / Vertical') }}">
 							<span class="toggle-icon">⬌</span>
 							<span class="nav-label">Horizontal</span>
+						</span>
+						<span id="theme_switch" class="theme-switch" role="group" aria-label="{{ _('Colour theme') }}">
+							<button type="button" data-style="dark" aria-pressed="true" title="{{ _('Dark') }}"><span class="switch-icon" aria-hidden="true">◐</span><span class="switch-label">{{ _('Dark') }}</span></button>
+							<button type="button" data-style="light" aria-pressed="false" title="{{ _('Light') }}"><span class="switch-icon" aria-hidden="true">☀</span><span class="switch-label">{{ _('Light') }}</span></button>
+							<button type="button" data-style="colourful" aria-pressed="false" title="{{ _('Colourful') }}"><span class="switch-icon" aria-hidden="true">✦</span><span class="switch-label">{{ _('Colourful') }}</span></button>
 						</span>
 						<span id="logout_btn" class="label logout" style="display:none">
 							<a href="{{ dispatcher.build_url('admin/logout') }}">{{ _('Log out') }}</a>

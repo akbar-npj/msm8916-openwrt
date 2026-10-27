@@ -1,0 +1,1478 @@
+/**
+ *  Feelgood — theme structure
+ *
+ *  The palette-independent visual layer: canvas, header, navigation, cards,
+ *  tables, forms, the interface list.  Everything here is scoped to
+ *  html[data-theme-style], which the header applies before first paint.
+ *
+ *  Colour comes from the tokens in §1.  Those values are the dark palette;
+ *  light.css (and, later, colourful.css) redefines them under its own
+ *  attribute value and inherits every rule below unchanged.
+ *
+ *  It restyles the stock LuCI markup only — nothing is injected, so every
+ *  page (and every tab on it) keeps exactly the information it had.
+ *
+ *  Structure:
+ *    1. Design tokens
+ *    2. Canvas, header & navigation
+ *    3. Tabs, cards, tables, forms, buttons
+ *    4. Network > Interfaces list
+ *    5. Network tables (Devices, Wireless, DHCP)
+ *    6. Responsive & motion
+ *
+ *  luci-theme-feelgood — Apache-2.0
+ */
+
+/* --------------------------------------------------------------------------
+   1. DESIGN TOKENS
+   -------------------------------------------------------------------------- */
+
+html[data-theme-style] {
+    /* Raw channels.  Rules compose them with their own alpha, so one palette
+       swap recolours every wash, ring and shadow without touching a rule. */
+    --bw-accent-rgb: 56 189 248;
+    --bw-indigo-rgb: 129 140 248;
+    --bw-violet-rgb: 192 132 252;
+    --bw-ink-rgb: 9 14 24;
+    --bw-card-rgb: 20 27 41;
+    --bw-panel-rgb: 19 27 42;
+    --bw-deep-rgb: 12 18 30;
+    --bw-slate-rgb: 148 163 184;
+    --bw-hi-rgb: 255 255 255;
+    --bw-shadow-rgb: 0 0 0;
+
+    --state-ok-rgb: 52 211 153;
+    --state-warn-rgb: 251 191 36;
+    --state-error-rgb: 251 113 133;
+
+    /* Named colours */
+    --bw-accent: #38bdf8;
+    --bw-indigo: #818cf8;
+    --bw-violet: #c084fc;
+    --bw-violet-fg: #d8b4fe;
+    --bw-canvas: #070b12;
+    --bw-canvas-deep: #06121f;
+    --bw-text: #eef2f9;
+    --bw-text-dim: #9fb0c7;
+    --bw-text-faint: #8b9cb5;
+    --bw-on-accent: #e0f2fe;
+    --bw-on-accent-strong: #f0f9ff;
+    --bw-on-danger: #fecdd3;
+
+    --bw-grad: linear-gradient(135deg, var(--bw-accent) 0%, var(--bw-indigo) 55%, var(--bw-violet) 100%);
+    --bw-grad-soft: linear-gradient(135deg, rgb(var(--bw-accent-rgb) / .18), rgb(var(--bw-indigo-rgb) / .14) 55%, rgb(var(--bw-violet-rgb) / .18));
+
+    --bw-surface: rgb(var(--bw-card-rgb) / .72);
+    --bw-line: rgb(var(--bw-slate-rgb) / .16);
+
+    --bw-radius: 20px;
+    --bw-radius-sm: 12px;
+    --bw-shadow: 0 18px 40px -24px rgb(var(--bw-shadow-rgb) / .95), 0 2px 6px -2px rgb(var(--bw-shadow-rgb) / .5);
+    --bw-ring: 0 0 0 1px rgb(var(--bw-accent-rgb) / .45), 0 0 0 4px rgb(var(--bw-accent-rgb) / .12);
+
+    /* Meaning-aware states.  Every status surface -- a pill, a badge, an
+       alert, a temperature -- resolves through one of these five sets, so a
+       palette swap redefines them once instead of restyling each page:
+         ok     carrier present, lease active, service running
+         warn   degraded: high temperature, throttling, restart pending
+         error  a fault: carrier absent, no internet, failed service
+         info   neutral information that is not a judgement
+         idle   unknown / not applicable                                     */
+    --state-ok-fg: #6ee7b7;
+    --state-ok-bg: rgb(var(--state-ok-rgb) / .14);
+    --state-ok-line: rgb(var(--state-ok-rgb) / .30);
+
+    --state-warn-fg: #fbbf24;
+    --state-warn-bg: rgb(var(--state-warn-rgb) / .14);
+    --state-warn-line: rgb(var(--state-warn-rgb) / .35);
+
+    --state-error-fg: #fb7185;
+    --state-error-bg: rgb(var(--state-error-rgb) / .18);
+    --state-error-line: rgb(var(--state-error-rgb) / .45);
+
+    --state-info-fg: #7dd3fc;
+    --state-info-bg: rgb(var(--bw-accent-rgb) / .14);
+    --state-info-line: rgb(var(--bw-accent-rgb) / .35);
+
+    --state-idle-fg: var(--bw-text-dim);
+    --state-idle-bg: rgb(var(--bw-slate-rgb) / .12);
+    --state-idle-line: rgb(var(--bw-slate-rgb) / .28);
+}
+
+/* --------------------------------------------------------------------------
+   2. CANVAS, HEADER & NAVIGATION
+   -------------------------------------------------------------------------- */
+
+html[data-theme-style] body.logged-in,
+html[data-theme-style] body.logged-in .main {
+    background-color: var(--bw-canvas) !important;
+    background-image:
+        radial-gradient(1100px 620px at 12% -12%, rgb(var(--bw-accent-rgb) / .12), transparent 62%),
+        radial-gradient(900px 520px at 100% 0%, rgb(var(--bw-violet-rgb) / .10), transparent 58%),
+        radial-gradient(700px 500px at 50% 120%, rgb(var(--bw-indigo-rgb) / .08), transparent 60%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+html[data-theme-style] .logged-in header {
+    background: rgb(var(--bw-ink-rgb) / .72) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    border-bottom: 1px solid var(--bw-line) !important;
+    box-shadow: 0 1px 0 rgb(var(--bw-hi-rgb) / .03), 0 12px 30px -24px rgb(var(--bw-shadow-rgb) / .9);
+}
+
+html[data-theme-style] .logged-in header .brand-name {
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--bw-text);
+}
+
+html[data-theme-style] .logged-in .main-left .nav-container {
+    background: linear-gradient(180deg, rgb(var(--bw-panel-rgb) / .96), rgb(var(--bw-deep-rgb) / .96));
+    border: 1px solid var(--bw-line);
+    border-radius: var(--bw-radius);
+    box-shadow: var(--bw-shadow);
+}
+
+html[data-theme-style] .nav a,
+html[data-theme-style] .slide-menu a {
+    border-radius: 10px;
+    transition: background-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+html[data-theme-style] .nav > .slide > .menu.active,
+html[data-theme-style] .nav > .slide > .menu:hover,
+html[data-theme-style] .slide-menu > li > a:hover {
+    background-image: var(--bw-grad-soft);
+}
+
+html[data-theme-style] .nav > .slide > .menu.active {
+    box-shadow: inset 0 -2px 0 0 var(--bw-accent);
+}
+
+html[data-theme-style] .slide-menu > li.active > a {
+    background-image: var(--bw-grad-soft);
+    box-shadow: inset 2px 0 0 0 var(--bw-accent);
+}
+
+/* --- Sidebar flyout -------------------------------------------------------
+   Hovering a sidebar tab opens its pages beside the sidebar, not under it:
+   an inline accordion pushes every tab below the open one down, so reaching
+   the sixth tab means crossing five open submenus or scrolling.  The panel is
+   appended to .main-left rather than to the scrolling box, which clips. */
+html[data-theme-style] .fg-flyout {
+    position: absolute;
+    left: calc(100% + 8px);
+    z-index: 2100;
+    min-width: 190px;
+    max-width: 280px;
+    padding: 7px;
+    border-radius: 14px;
+    /* A floating panel has to read as a layer above the page, and in the light
+       palette the card tint is only a shade off the canvas, so the border and
+       shadow carry the separation rather than the fill. */
+    border: 1px solid rgb(var(--bw-slate-rgb) / .3);
+    background: linear-gradient(180deg, rgb(var(--bw-panel-rgb) / .99), rgb(var(--bw-deep-rgb) / .99));
+    box-shadow: 0 18px 44px -18px rgb(var(--bw-shadow-rgb) / .8), 0 2px 10px rgb(var(--bw-shadow-rgb) / .35);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-6px);
+    transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+}
+
+html[data-theme-style] .fg-flyout.show {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+}
+
+html[data-theme-style] .fg-flyout-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+html[data-theme-style] .fg-flyout-menu > li {
+    margin: 0;
+}
+
+html[data-theme-style] .fg-flyout-menu > li > a {
+    display: block;
+    padding: .42rem .7rem;
+    border-radius: 9px;
+    color: var(--bw-text-dim);
+    font-size: .82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+html[data-theme-style] .fg-flyout-menu > li > a:hover {
+    color: var(--bw-text);
+    background-image: var(--bw-grad-soft);
+}
+
+html[data-theme-style] .fg-flyout-menu > li.active > a {
+    color: var(--bw-text);
+    background-image: var(--bw-grad-soft);
+    box-shadow: inset 2px 0 0 0 var(--bw-accent);
+}
+
+/* Drawer mode has no sidebar to fly out of. */
+@media screen and (max-width: 992px) {
+    html[data-theme-style] .fg-flyout {
+        display: none !important;
+    }
+}
+
+html[data-theme-style] .theme-toggle-btn {
+    background-color: rgb(var(--bw-slate-rgb) / .10);
+    border-color: var(--bw-line);
+}
+
+html[data-theme-style] .theme-toggle-btn:hover {
+    border-color: rgb(var(--bw-accent-rgb) / .55);
+    box-shadow: 0 6px 18px -10px rgb(var(--bw-accent-rgb) / .8);
+}
+
+/* Palette switch ---------------------------------------------------------- */
+
+html[data-theme-style] .theme-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px;
+    margin-left: 2px;
+    height: 32px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background-color: rgb(var(--bw-slate-rgb) / .10);
+    border: 1px solid var(--bw-line);
+}
+
+html[data-theme-style] .theme-switch button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--bw-text-dim);
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    cursor: pointer;
+    transition: background-color .15s, color .15s, box-shadow .15s;
+}
+
+html[data-theme-style] .theme-switch button:hover {
+    color: var(--bw-text);
+    background-color: rgb(var(--bw-slate-rgb) / .14);
+}
+
+html[data-theme-style] .theme-switch button[aria-pressed="true"] {
+    color: var(--bw-accent);
+    background-color: rgb(var(--bw-accent-rgb) / .22);
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-accent-rgb) / .45);
+}
+
+html[data-theme-style] .theme-switch .switch-icon {
+    font-size: .9rem;
+    line-height: 1;
+}
+
+/* Horizontal nav puts the brand, the whole menu and these controls on one
+   row; below ~1240px the labels have to go or the log-out pill is pushed past
+   the right edge. */
+@media screen and (max-width: 1240px) {
+    html[data-theme-style] .theme-switch button {
+        padding: 0 8px;
+    }
+
+    html[data-theme-style] .theme-switch .switch-label {
+        display: none;
+    }
+
+    html[data-theme-style] .nav-toggle .nav-label {
+        display: none;
+    }
+
+    html[data-theme-style] .nav-toggle {
+        padding: 0 10px;
+    }
+}
+
+/* cascade.css gives the wrapper its own padding and tint while the <a> paints
+   the pill, so the red rounded box hung 5px below the grey one and, in
+   horizontal nav, was clipped by the header edge.  Let the anchor be the pill:
+   the wrapper keeps the height and drops its own chrome. */
+html[data-theme-style] .label.logout {
+    display: inline-flex;
+    margin-left: 4px;
+    align-items: center;
+    height: 32px;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+html[data-theme-style] .label.logout a {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+@media screen and (max-width: 992px) {
+    /* The header has no room for two labels next to the nav toggle. */
+    html[data-theme-style] .theme-switch button {
+        padding: 0 7px;
+    }
+
+    html[data-theme-style] .theme-switch .switch-label {
+        display: none;
+    }
+
+    .header-left .brand {
+        min-width: 0;
+        overflow: hidden;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   3. TABS, CARDS, TABLES, FORMS, BUTTONS
+   -------------------------------------------------------------------------- */
+
+/* --- Page title ----------------------------------------------------------- */
+
+html[data-theme-style] .cbi-map > h2,
+html[data-theme-style] .cbi-map-descr + h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -.015em;
+    color: var(--bw-text);
+}
+
+html[data-theme-style] .cbi-map-descr {
+    color: var(--bw-text-dim);
+    line-height: 1.55;
+}
+
+/* --- One size per line ----------------------------------------------------
+   A label and the value it names share a line, so they share a size; rank
+   comes from weight and colour only.  Two rules used to break that: cascade
+   sized `.ifacebox-body .nowrap > strong` at .84rem while the value beside it
+   inherited the container's smaller size, so "Received bytes:" stood taller
+   than its number, and the interface list went the other way with a .6rem
+   micro-label under a .9rem value.  Neither reads as a decision, so the label
+   always inherits the line. */
+html[data-theme-style] .nowrap > strong {
+    font-size: inherit !important;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+/* --- Tabs as a segmented control ----------------------------------------- */
+
+html[data-theme-style] .cbi-tabmenu {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 5px;
+    margin-bottom: 18px;
+    border: 1px solid var(--bw-line) !important;
+    border-radius: 999px;
+    background: rgb(var(--bw-slate-rgb) / .10);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+html[data-theme-style] .cbi-tabmenu li {
+    padding: .48rem 1.05rem !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    transition: background-color .18s ease, color .18s ease;
+}
+
+html[data-theme-style] .cbi-tabmenu li a {
+    font-size: .84rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+html[data-theme-style] .cbi-tabmenu li.cbi-tab-disabled a {
+    color: var(--bw-text-dim);
+}
+
+html[data-theme-style] .cbi-tabmenu li:hover {
+    background: rgb(var(--bw-slate-rgb) / .12) !important;
+}
+
+/* The selected tab used to fade from cyan to transparent across the pill,
+ * which left its right half indistinguishable from the track.  A flat tint
+ * plus a 1px accent ring keeps the whole pill readable at any width. */
+html[data-theme-style] .cbi-tabmenu li.cbi-tab {
+    background-color: rgb(var(--bw-accent-rgb) / .22) !important;
+    background-image: none !important;
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-accent-rgb) / .55), 0 8px 20px -14px rgb(var(--bw-accent-rgb) / .9);
+}
+
+html[data-theme-style] .cbi-tabmenu li.cbi-tab a {
+    color: var(--bw-on-accent-strong) !important;
+}
+
+html[data-theme-style] .cbi-tabmenu + div,
+html[data-theme-style] .cbi-tabmenu + form,
+html[data-theme-style] .cbi-tabmenu + embed {
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+/* --- Cards --------------------------------------------------------------- */
+
+html[data-theme-style] .cbi-section,
+html[data-theme-style] .cbi-map,
+html[data-theme-style] fieldset {
+    background-color: var(--bw-surface) !important;
+    border: 1px solid var(--bw-line) !important;
+    border-radius: var(--bw-radius) !important;
+    box-shadow: var(--bw-shadow);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+html[data-theme-style] .cbi-section {
+    padding: 1.5rem 1.6rem;
+}
+
+html[data-theme-style] .cbi-section > h3,
+html[data-theme-style] .panel-title,
+html[data-theme-style] legend {
+    color: var(--bw-text) !important;
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -.005em;
+    padding-bottom: .9rem !important;
+}
+
+html[data-theme-style] .cbi-section > h3 {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+html[data-theme-style] .cbi-section > h3::before {
+    content: "";
+    width: 4px;
+    height: 18px;
+    border-radius: 999px;
+    background-image: var(--bw-grad);
+    box-shadow: 0 0 12px rgb(var(--bw-accent-rgb) / .6);
+}
+
+/* --- Tables -------------------------------------------------------------- */
+
+html[data-theme-style] table,
+html[data-theme-style] .table {
+    border: 1px solid var(--bw-line) !important;
+    border-radius: var(--bw-radius-sm) !important;
+    background-color: transparent !important;
+    overflow: hidden;
+}
+
+html[data-theme-style] table > tbody > tr > td,
+html[data-theme-style] table > tbody > tr > th,
+html[data-theme-style] table > thead > tr > td,
+html[data-theme-style] table > thead > tr > th,
+html[data-theme-style] .table > .tbody > .tr > .td,
+html[data-theme-style] .table > .tbody > .tr > .th {
+    border-top: 1px solid rgb(var(--bw-slate-rgb) / .10) !important;
+    padding: .7rem .9rem !important;
+}
+
+html[data-theme-style] table > thead > tr > th,
+html[data-theme-style] .cbi-section-table-titles .cbi-section-table-cell,
+html[data-theme-style] .tr.cbi-section-table-titles {
+    background: rgb(var(--bw-slate-rgb) / .08) !important;
+    color: var(--bw-text-dim) !important;
+    font-size: .72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+html[data-theme-style] div > table > tbody > tr:nth-of-type(2n),
+html[data-theme-style] div > .table > .tbody > .tr:nth-of-type(2n) {
+    background-color: rgb(var(--bw-slate-rgb) / .04) !important;
+}
+
+html[data-theme-style] table > tbody > tr:hover,
+html[data-theme-style] .table > .tbody > .tr:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .07) !important;
+}
+
+/* --- Forms --------------------------------------------------------------- */
+
+html[data-theme-style] .cbi-value {
+    padding: .55rem 0;
+}
+
+html[data-theme-style] .cbi-value-title {
+    color: var(--bw-text-dim);
+    font-weight: 600;
+}
+
+html[data-theme-style] input[type="text"],
+html[data-theme-style] input[type="password"],
+html[data-theme-style] input[type="number"],
+html[data-theme-style] select,
+html[data-theme-style] textarea,
+html[data-theme-style] .cbi-input-text,
+html[data-theme-style] .cbi-input-password,
+html[data-theme-style] .cbi-input-select {
+    background-color: rgb(var(--bw-ink-rgb) / .65) !important;
+    border: 1px solid var(--bw-line) !important;
+    border-radius: 10px !important;
+    padding: .45rem .7rem !important;
+    color: var(--bw-text) !important;
+    height: auto !important;
+    min-height: 2.1rem;
+    transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+html[data-theme-style] input[type="text"]:focus,
+html[data-theme-style] input[type="password"]:focus,
+html[data-theme-style] input[type="number"]:focus,
+html[data-theme-style] select:focus,
+html[data-theme-style] textarea:focus {
+    border-color: rgb(var(--bw-accent-rgb) / .65) !important;
+    box-shadow: 0 0 0 3px rgb(var(--bw-accent-rgb) / .14);
+    outline: none;
+}
+
+html[data-theme-style] .cbi-dropdown {
+    background-color: rgb(var(--bw-ink-rgb) / .65) !important;
+    border: 1px solid var(--bw-line) !important;
+    border-radius: 10px !important;
+    height: auto !important;
+    min-height: 2.1rem;
+}
+
+/* --- Buttons ------------------------------------------------------------- */
+
+html[data-theme-style] .cbi-button,
+html[data-theme-style] .btn,
+html[data-theme-style] button {
+    border-radius: 999px !important;
+    font-weight: 600;
+    letter-spacing: .01em;
+    transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease;
+}
+
+html[data-theme-style] .cbi-button-apply,
+html[data-theme-style] .cbi-button-save,
+html[data-theme-style] .cbi-button-action,
+html[data-theme-style] .cbi-button-add,
+html[data-theme-style] .cbi-button-positive,
+html[data-theme-style] .cbi-button-reset {
+    background-image: var(--bw-grad) !important;
+    background-color: transparent !important;
+    border: none !important;
+    color: var(--bw-canvas-deep) !important;
+    box-shadow: 0 10px 24px -14px rgb(var(--bw-accent-rgb) / .95);
+}
+
+html[data-theme-style] .cbi-button-apply:hover,
+html[data-theme-style] .cbi-button-save:hover,
+html[data-theme-style] .cbi-button-action:hover,
+html[data-theme-style] .cbi-button-add:hover,
+html[data-theme-style] .cbi-button-reset:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px -14px rgb(var(--bw-accent-rgb) / 1);
+}
+
+html[data-theme-style] .cbi-button-neutral,
+html[data-theme-style] .cbi-button-edit {
+    background-color: rgb(var(--bw-slate-rgb) / .12) !important;
+    border: 1px solid var(--bw-line) !important;
+    color: var(--bw-text) !important;
+}
+
+html[data-theme-style] .cbi-button-neutral:hover,
+html[data-theme-style] .cbi-button-edit:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .16) !important;
+    border-color: rgb(var(--bw-accent-rgb) / .5) !important;
+    transform: translateY(-1px);
+}
+
+html[data-theme-style] .cbi-button-remove {
+    background-color: rgb(var(--state-error-rgb) / .14) !important;
+    border: 1px solid rgb(var(--state-error-rgb) / .45) !important;
+    color: var(--bw-on-danger) !important;
+}
+
+html[data-theme-style] .cbi-button-remove:hover {
+    background-color: rgb(var(--state-error-rgb) / .22) !important;
+    transform: translateY(-1px);
+}
+
+/* --- Alerts -------------------------------------------------------------- */
+
+html[data-theme-style] .alert-message {
+    border-radius: var(--bw-radius-sm);
+    border-left-width: 3px !important;
+    line-height: 1.5;
+}
+
+/* --- Configuration / Changes ---------------------------------------------
+   A pending uci change is a <ins>/<del>/<var> row.  cascade.css paints them
+   with the pale stock fills (#CCFFCC, #FFCCCC, #EEEEEE) while the text keeps
+   the palette's near-white, so the whole list read at ~1.1:1.  The rows take
+   the state tokens instead: added is the green of a healthy carrier, removed
+   the pink of a fault, and a changed key is neutral slate.  The legend chips
+   are 10px colour keys, so those stay solid rather than washed. */
+html[data-theme-style] .uci-change-list ins,
+html[data-theme-style] .uci-change-legend-label ins {
+    border-color: var(--state-ok-line);
+    background-color: var(--state-ok-bg);
+    color: var(--state-ok-fg);
+}
+
+html[data-theme-style] .uci-change-list del,
+html[data-theme-style] .uci-change-legend-label del {
+    border-color: var(--state-error-line);
+    background-color: var(--state-error-bg);
+    color: var(--state-error-fg);
+}
+
+html[data-theme-style] .uci-change-list var,
+html[data-theme-style] .uci-change-legend-label var {
+    border-color: var(--state-idle-line);
+    background-color: var(--state-idle-bg);
+    color: var(--state-idle-fg);
+}
+
+html[data-theme-style] .uci-change-legend-label > ins,
+html[data-theme-style] .uci-change-legend-label var ins {
+    background-color: var(--state-ok-fg);
+}
+
+html[data-theme-style] .uci-change-legend-label > del,
+html[data-theme-style] .uci-change-legend-label var del {
+    background-color: var(--state-error-fg);
+}
+
+html[data-theme-style] .uci-change-legend-label > var {
+    background-color: var(--state-idle-fg);
+}
+
+/* --------------------------------------------------------------------------
+   4. NETWORK > INTERFACES — COMPACT LIST
+   --------------------------------------------------------------------------
+ * One row per interface: identity on the left, every value as an inline
+ * "label value" chip in the middle, actions on the right.  The whole list of
+ * a typical router fits on one screen, unlike a card grid.
+ */
+
+html[data-theme-style] body.node-network-network #cbi-network-interface {
+    background: var(--bw-surface) !important;
+    border: 1px solid var(--bw-line) !important;
+    border-radius: var(--bw-radius) !important;
+    box-shadow: var(--bw-shadow);
+    padding: 1.35rem 1.5rem .9rem;
+}
+
+html[data-theme-style] #cbi-network-interface > h3 {
+    margin-bottom: .3rem;
+}
+
+html[data-theme-style] #cbi-network-interface > table.cbi-section-table {
+    display: block;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    overflow: visible;
+    margin-top: .45rem;
+}
+
+html[data-theme-style] #cbi-network-interface > table > tbody {
+    display: block;
+}
+
+html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row {
+    display: grid;
+    /* 170px is enough for the longest interface name in practice; the values
+       column gets the rest so "Protocol: ModemManager" and the modem's
+       MM_FAILED_REASON error stay on one line. */
+    grid-template-columns: minmax(150px, 170px) minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 3px 16px;
+    margin: 0 !important;
+    padding: 9px 2px;
+    border: none;
+    border-bottom: 1px solid rgb(var(--bw-slate-rgb) / .12);
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+    transition: background-color .16s ease;
+}
+
+html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row:last-child {
+    border-bottom: none;
+}
+
+html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .05);
+}
+
+/* #maincontent is here to outrank the generic network-table cell rule in
+   section 5, which carries an id as well. */
+html[data-theme-style] #maincontent #cbi-network-interface tr.cbi-section-table-row > td {
+    display: block;
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+}
+
+/* --- Identity ------------------------------------------------------------ */
+
+html[data-theme-style] #cbi-network-interface .ifacebox {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding-top: 1px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-head {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: var(--bw-text) !important;
+}
+
+/* The zone colour stays, but as a dot: as a solid background it left white
+   text on pale green (contrast 1.3:1). */
+html[data-theme-style] #cbi-network-interface .ifacebox-head::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgb(var(--zone-color-rgb, 56, 189, 248));
+    box-shadow: 0 0 0 3px rgba(var(--zone-color-rgb, 56, 189, 248), .16);
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-head strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .95rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--bw-text);
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .3rem;
+    padding: 3px 0 0 16px !important;
+    color: var(--bw-text-faint);
+    font-size: .8rem;
+    min-height: 0;
+}
+
+/* LuCI wraps the extra device icons in a span holding literal "(" and ")"
+   text; drop the text, keep the icons. */
+html[data-theme-style] #cbi-network-interface .ifacebox-body > span:not(:first-child) {
+    font-size: 0;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body > span:first-child {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .3rem;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body img {
+    width: 14px;
+    height: 14px;
+    opacity: .8;
+    vertical-align: middle;
+}
+
+/* --- Interface glyphs ----------------------------------------------------
+   LuCI paints 48px multicolour device icons at 14px, where they read as
+   smudges.  Each device type gets a 26px chip with a single-weight glyph
+   drawn from the same family, tinted by category (never by state, so the
+   red/amber/green state colours stay unambiguous).  Mapping is by the icon
+   LuCI already renders, so it follows the device type, not the interface
+   name. ------------------------------------------------------------------ */
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container {
+    --iface-glyph: none;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    margin-right: 2px;
+    border-radius: 8px;
+    background-color: rgb(var(--bw-slate-rgb) / .10);
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-slate-rgb) / .26);
+    color: var(--bw-text);
+    vertical-align: middle;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container > img.middle {
+    display: none;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container::before {
+    content: "";
+    width: 17px;
+    height: 17px;
+    background-color: currentColor;
+    -webkit-mask: var(--iface-glyph) center / contain no-repeat;
+    mask: var(--iface-glyph) center / contain no-repeat;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container[data-glyph="switch"] {
+    --iface-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='8' width='18' height='10' rx='2.5'/%3E%3Crect x='6' y='5' width='3' height='3' rx='1'/%3E%3Crect x='10.5' y='5' width='3' height='3' rx='1'/%3E%3Crect x='15' y='5' width='3' height='3' rx='1'/%3E%3Cpath d='M8 13h8'/%3E%3C/svg%3E");
+    color: var(--bw-accent);
+    background-color: rgb(var(--bw-accent-rgb) / .12);
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-accent-rgb) / .32);
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container[data-glyph="port"] {
+    --iface-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='8' width='17' height='9.5' rx='2'/%3E%3Cpath d='M7.5 8V5.8M11 8V5.8M14.5 8V5.8M18 8V5.8'/%3E%3Cpath d='M8 12.5h8'/%3E%3C/svg%3E");
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container[data-glyph="wifi"] {
+    --iface-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 8.5a15 15 0 0 1 19 0'/%3E%3Cpath d='M5.5 12a11 11 0 0 1 13 0'/%3E%3Cpath d='M8.5 15.5a7 7 0 0 1 7 0'/%3E%3Ccircle cx='12' cy='19' r='1.3' fill='%23000' stroke='none'/%3E%3C/svg%3E");
+    color: var(--bw-violet-fg);
+    background-color: rgb(var(--bw-violet-rgb) / .14);
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-violet-rgb) / .34);
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container[data-glyph="globe"] {
+    --iface-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M3.5 12h17'/%3E%3Cellipse cx='12' cy='12' rx='4' ry='8.5'/%3E%3C/svg%3E");
+    color: var(--state-info-fg);
+    background-color: rgb(var(--bw-accent-rgb) / .10);
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-accent-rgb) / .28);
+}
+
+/* Until menu-feelgood.js has classified the icon (or if it never runs),
+   enlarge LuCI's own image instead of drawing a chip. */
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container:not([data-glyph]) {
+    width: auto;
+    height: auto;
+    background: none;
+    box-shadow: none;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container:not([data-glyph])::before {
+    display: none;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body .cbi-tooltip-container:not([data-glyph]) > img.middle {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    opacity: .85;
+}
+
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body > br {
+    display: none;
+}
+
+html[data-theme-style] #cbi-network-interface .ifacebox-body > small {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .68rem;
+    color: var(--bw-text-faint);
+    letter-spacing: .01em;
+    margin-left: .15rem;
+}
+
+/* --- Values -------------------------------------------------------------- */
+
+/* One value per line, like the stock theme, but with a fixed label column so
+   the values line up instead of trailing their labels. */
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] {
+    /* One size for the whole block: label, value, pill and packet count.  A
+       row that mixes .6rem labels with .9rem values (and .72rem pills) reads
+       as three different kinds of text where there is only one. */
+    --iface-fs: .8rem;
+    /* The label column is sized here so the carrier pill can line up with the
+       other values while its label stays in the same column as theirs.
+       84px is the natural width of the longest label ("Information:") at this
+       size; narrower and it runs into the value text. */
+    --iface-label-w: 84px;
+    --iface-label-gap: .5rem;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] > div > br {
+    display: none;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span.nowrap {
+    display: flex;
+    align-items: baseline;
+    gap: var(--iface-label-gap, .5rem);
+    /* Roles not listed below (error, information, …) sort after the common
+       ones, so a row-specific line never pushes the shared fields down. */
+    order: 8;
+    min-width: 0;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    white-space: nowrap;
+    line-height: 1.38;
+    font-size: var(--iface-fs, .8rem);
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span.nowrap > strong {
+    flex: 0 0 var(--iface-label-w, 84px);
+    min-width: var(--iface-label-w, 84px);
+    text-align: left;
+    font-weight: 600;
+    color: var(--bw-text-faint);
+    white-space: nowrap;
+    line-height: inherit;
+}
+
+/* Keep the stock badge pills — icon plus role colour — because that is the
+   theme's visual language; only tighten them so the lines stay compact. */
+html[data-theme-style] :is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) table.cbi-section-table .badge-colored {
+    margin: 0;
+    padding: .08rem .45rem !important;
+    font-size: .72rem !important;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] .badge-rx { color: var(--state-ok-fg) !important; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] .badge-tx { color: var(--bw-violet-fg) !important; }
+
+/* A pill is a container, not a smaller font: its text matches the line it
+   sits on, the same as the plain values.  This covers every interface detail
+   line — the network list, the wireless rows, the overview cards and the
+   signal cell — so a badge never reads as a footnote to its own label. */
+html[data-theme-style] :is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent :is(.nowrap, td[data-name="_badge"]) .badge-colored {
+    font-size: inherit !important;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] .iface-pkts {
+    font-size: inherit;
+    color: var(--bw-text-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Reading order: state, addresses, protocol, uptime, traffic, hardware. */
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="carrier"] { order: 1; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="ip"]      { order: 2; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="protocol"]{ order: 3; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="uptime"]  { order: 4; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="rx"]      { order: 5; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="tx"]      { order: 6; }
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="mac"]     { order: 7; }
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="carrier"] {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin-left: calc(var(--iface-label-w, 84px) + var(--iface-label-gap, .5rem));
+    padding: .1rem .5rem;
+    border-radius: 999px;
+    background: rgb(var(--bw-slate-rgb) / .14);
+    box-shadow: inset 0 0 0 1px rgb(var(--bw-slate-rgb) / .2);
+    font-size: inherit;
+    font-weight: 600;
+    color: var(--bw-text-dim);
+}
+
+/* The pill only holds the state, so its label is lifted back out into the
+   label column: absolute, measured from the pill's own left edge. */
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="carrier"] > strong {
+    display: block;
+    position: absolute;
+    left: calc(-1 * (var(--iface-label-w, 84px) + var(--iface-label-gap, .5rem)));
+    width: var(--iface-label-w, 84px);
+    font-size: inherit;
+    font-weight: 600;
+    color: var(--bw-text-faint);
+    white-space: nowrap;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="carrier"]::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="carrier"][data-state="ok"] {
+    background: var(--state-ok-bg);
+    box-shadow: inset 0 0 0 1px var(--state-ok-line);
+    color: var(--state-ok-fg);
+}
+
+/* Meaning-aware rows: an interface that reports an error is a fault, not a
+   fact, so the line turns red instead of reading like the rest of the values.
+   "Not started on boot" is informational and stays quiet. */
+html[data-theme-style] #cbi-network-interface [data-role="error"],
+html[data-theme-style] #cbi-network-interface [data-role="error"] strong {
+    color: var(--state-error-fg) !important;
+}
+
+html[data-theme-style] #cbi-network-interface [data-role="info"],
+html[data-theme-style] #cbi-network-interface [data-role="info"] strong {
+    color: var(--bw-text-dim) !important;
+}
+
+/* Absent is a fault, so it gets the theme's danger red rather than the pale
+   pink used for secondary "remove" affordances. */
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span[data-role="carrier"]:not([data-state="ok"]) {
+    background: var(--state-error-bg);
+    box-shadow: inset 0 0 0 1px var(--state-error-line);
+    color: var(--state-error-fg);
+}
+
+/* --- Actions ------------------------------------------------------------- */
+
+html[data-theme-style] #cbi-network-interface td.cbi-section-actions {
+    /* cascade.css pins this cell with align-self: flex-end (row bottom);
+       in a grid that reads as "end", which floats the buttons far from the
+       name in a tall row. */
+    align-self: start;
+    justify-self: end;
+}
+
+html[data-theme-style] :is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) table.cbi-section-table td.cbi-section-actions > div {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* One control shape for every row action on the Network pages.  The stock
+   theme paints Edit and Delete in their own colours, which reads as a
+   different kind of control next to Restart / Stop. */
+html[data-theme-style] :is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) table.cbi-section-table td.cbi-section-actions .cbi-button {
+    padding: .3rem .7rem !important;
+    font-size: .72rem !important;
+    line-height: 1.2;
+    min-height: 0;
+    /* background-image too: Add / Scan / Apply in these rows carry the
+       primary gradient, which would leave this light label at ~2.4:1. */
+    background-image: none !important;
+    background-color: rgb(var(--bw-slate-rgb) / .12) !important;
+    border: 1px solid rgb(var(--bw-slate-rgb) / .32) !important;
+    color: var(--bw-text) !important;
+    box-shadow: none;
+}
+
+html[data-theme-style] :is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) table.cbi-section-table td.cbi-section-actions .cbi-button:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .18) !important;
+    border-color: rgb(var(--bw-accent-rgb) / .55) !important;
+    color: var(--bw-on-accent-strong) !important;
+}
+
+/* The packet counter is one token; letting it break turns
+   "(606492 Pkts.)" into two lines under a one-line pill. */
+html[data-theme-style] #cbi-network-interface .iface-pkts {
+    white-space: nowrap;
+}
+
+/* --- Devices tab --------------------------------------------------------- */
+
+html[data-theme-style] #cbi-network-device table {
+    background-color: rgb(var(--bw-ink-rgb) / .35) !important;
+}
+
+html[data-theme-style] #cbi-network-device td[data-name="name"] {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--bw-text);
+    font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   5. NETWORK / STATUS / SYSTEM / MODEM / SERVICES TABLES
+   -------------------------------------------------------------------------- */
+
+/* Ordinary LuCI tables on these pages get the same language as the interface
+   list: hairline rows, micro-label headers, badge pills and pill actions,
+   instead of the stock filled header band and zebra striping.
+
+   The #maincontent id is load-bearing: cascade.css paints table headers and
+   rows from rules that outrank a plain class chain (and several use
+   !important), so these overrides carry an id to win.  Some tables (e.g. the
+   nftables view) are the grid-table variant with <tr> as direct children and
+   no <thead>/<tbody> wrapper, so the selectors below cover both shapes. */
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table {
+    border-color: var(--bw-line) !important;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > thead > tr > th,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tbody > tr.cbi-section-table-titles > th,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr.cbi-section-table-titles > th,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr.table-titles > th,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr > th {
+    background: transparent !important;
+    border-top: none !important;
+    border-bottom: 1px solid var(--bw-line) !important;
+    color: var(--bw-text-faint) !important;
+    font-size: .62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    padding-bottom: .5rem !important;
+}
+
+/* No zebra: rows are separated by the same hairline as the interface list. */
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tbody > tr,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr {
+    background-color: transparent !important;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tbody > tr > td,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr > td {
+    border-top: 1px solid rgb(var(--bw-slate-rgb) / .12) !important;
+    padding: .6rem .8rem !important;
+    vertical-align: middle;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tbody > tr:first-child > td,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr:first-child > td {
+    border-top: none !important;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tbody > tr:hover,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table > tr:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .06) !important;
+}
+
+/* Wireless rows put Channel and Bitrate on one line separated by a literal
+   "|".  Same treatment as the interface list: one value per line, labels in
+   a fixed column.  font-size: 0 on the container hides the separators. */
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table td[data-name="_stat"] > div,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table td[data-name="_stat"] > div > div {
+    /* LuCI separates the values with bare "|" text nodes, and the SSID row
+       keeps them in the outer div while Channel/Bitrate uses an inner one, so
+       both levels have to drop to 0.  Every real child restores its own size. */
+    font-size: 0;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table td[data-name="_stat"] > div > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+}
+
+/* The radio description is the row's heading; <big> would inherit the 0 above. */
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table td[data-name="_stat"] > div > big {
+    font-size: 1.02rem;
+    line-height: 1.3;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table td[data-name="_stat"] span.nowrap {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    font-size: .8rem;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table.cbi-section-table td[data-name="_stat"] span.nowrap > strong {
+    flex: 0 0 var(--iface-label-w, 84px);
+    min-width: var(--iface-label-w, 84px);
+    font-weight: 600;
+    color: var(--bw-text-faint);
+    white-space: nowrap;
+}
+
+/* Plain data tables on these pages (Status overview/leases/processes, System
+   startup, Modem SMS, …) are not .cbi-section-table, so they kept the stock
+   filled header band and zebra striping.  Give them the same hairline rows
+   and micro-label headers as the interface list. */
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > thead > tr > th,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tbody > tr > th,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tr > th {
+    background: transparent !important;
+    border-top: none !important;
+    border-bottom: 1px solid var(--bw-line) !important;
+    color: var(--bw-text-faint) !important;
+    font-size: .62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    padding-bottom: .5rem !important;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tbody > tr,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tr {
+    background-color: transparent !important;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tbody > tr > td,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tr > td {
+    border-top: 1px solid rgb(var(--bw-slate-rgb) / .12) !important;
+    padding: .6rem .8rem !important;
+    vertical-align: middle;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tbody > tr:first-child > td,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tr:first-child > td {
+    border-top: none !important;
+}
+
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tbody > tr:hover,
+html[data-theme-style] body:is([data-page^="admin-network"], [data-page^="admin-status"], [data-page^="admin-system"], [data-page^="admin-modem"], [data-page^="admin-services"]) #maincontent table:not(.cbi-section-table) > tr:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .06) !important;
+}
+
+/* Card containment ---------------------------------------------------------
+   Every card is a rounded, clipped-looking surface, so nothing inside may
+   paint outside it.  LuCI's plain <table>s (DHCP leases, associated stations,
+   routes, syslog, firewall rules, ...) are full of nowrap pills, badges and
+   buttons, and one unbreakable token -- a DUID, an IPv6 address -- can pin a
+   column at ~200px.  Their min-content width then exceeds the card and the
+   last column (STATIC LEASE, the Disconnect button) used to bleed past the
+   rounded edge.
+
+   Three layers, all page-agnostic so a new page cannot reintroduce it:
+   1. let long values break so the table can actually shrink;
+   2. floor the hostname column of the lease/station tables;
+   3. scroll the table's own wrapper if it still cannot fit, and fall back to
+      scrolling the card when :has() is unavailable. */
+
+html[data-theme-style] #maincontent .cbi-section table > tbody > tr > td,
+html[data-theme-style] #maincontent .cbi-section table > tr > td,
+html[data-theme-style] #maincontent .cbi-section table > tbody > tr > th,
+html[data-theme-style] #maincontent .cbi-section table > tr > th {
+    overflow-wrap: anywhere;
+}
+
+/* Only the tables whose first column holds a hostname need the floor;
+   elsewhere a wide first column just wastes row space. */
+html[data-theme-style] #maincontent .cbi-section table:is(.leases, .leases6, .assoclist) > tbody > tr > td:first-child {
+    min-width: 8rem;
+}
+
+html[data-theme-style] #maincontent .cbi-section:has(> table),
+html[data-theme-style] #maincontent .cbi-section :is(div, form, fieldset):has(> table) {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+/* The interface rows keep every value on one line; when the value column is
+   squeezed (vertical nav on a 1000px window) those nowrap lines painted past
+   the card.  Let them wrap instead of clipping the value. */
+html[data-theme-style] #cbi-network-interface [id$="-ifc-description"] {
+    min-width: 0;
+}
+
+/* Beats the nowrap declared on td[data-name="_ifacestat"] span.nowrap above. */
+html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] [id$="-ifc-description"] .nowrap {
+    white-space: normal;
+    /* break-word, not anywhere: "ModemManager" must never lose its last
+       letter to the next line. */
+    overflow-wrap: break-word;
+}
+
+/* Flex/grid children default to min-width:auto, which is what lets a wide
+   table stretch a card instead of scrolling inside it. */
+html[data-theme-style] #maincontent .cbi-section,
+html[data-theme-style] #maincontent .cbi-section-node {
+    min-width: 0;
+}
+
+/* No :has() (browser older than late 2023): fall back to scrolling the whole
+   card rather than letting the table paint outside it. */
+@supports not selector(:has(*)) {
+    html[data-theme-style] #maincontent .cbi-section {
+        overflow-x: auto;
+    }
+}
+
+/* --------------------------------------------------------------------------
+6. RESPONSIVE & MOTION
+   -------------------------------------------------------------------------- */
+
+@media screen and (max-width: 992px) {
+    html[data-theme-style] .logged-in .main-right {
+        padding-top: 4.2rem;
+    }
+
+    /* cascade.css floors form controls at 15rem and lays the add-row out as a
+       nowrap inline-flex with -3px side margins; on a 390px phone the field
+       column is ~90px, so both painted past the card edge. */
+    html[data-theme-style] .cbi-value input[type="text"],
+    html[data-theme-style] .cbi-value input[type="password"],
+    html[data-theme-style] .cbi-value-field .cbi-dropdown,
+    html[data-theme-style] .cbi-value-field .cbi-input-select {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    html[data-theme-style] .cbi-section-create {
+        display: flex;
+        flex-wrap: wrap;
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    /* Save / Apply sit in an inline span; two buttons are wider than the
+       ~90px field column on a phone. */
+    html[data-theme-style] .cbi-value-field .control-group {
+        display: inline-flex;
+        flex-wrap: wrap;
+        max-width: 100%;
+    }
+}
+
+/* The value column needs ~485px for the modem's MM_FAILED_REASON error line.
+   Below that the three columns cannot hold it, so identity and actions keep
+   the first line and the values take the whole width underneath. */
+@media screen and (max-width: 1300px) {
+    html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row {
+        grid-template-columns: minmax(0, 1fr) max-content;
+        gap: 6px 14px;
+    }
+
+    html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] {
+        grid-column: 1 / -1;
+        order: 3;
+    }
+
+    html[data-theme-style] #cbi-network-interface td.cbi-section-actions {
+        order: 2;
+    }
+}
+
+/* Below this width the three columns stop fitting: identity and actions keep
+   the first line, the values move to their own full-width line. */
+@media screen and (max-width: 780px) {
+    html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row {
+        grid-template-columns: minmax(0, 1fr) max-content;
+        gap: 6px 12px;
+        padding: 11px 2px;
+    }
+
+    html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] {
+        grid-column: 1 / -1;
+        order: 3;
+    }
+
+    html[data-theme-style] #cbi-network-interface td.cbi-section-actions {
+        order: 2;
+    }
+}
+
+@media screen and (max-width: 620px) {
+    html[data-theme-style] .cbi-section {
+        padding: 1.1rem 1rem;
+    }
+
+    /* cascade.css pins the label column at 240px (min 200px), which leaves a
+       phone-sized form field ~90px wide -- narrower than one button.  Stack
+       the label above the field instead of squeezing it. */
+    html[data-theme-style] .cbi-value {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    html[data-theme-style] .cbi-value-title {
+        flex: 0 0 auto;
+        min-width: 0;
+        max-width: none;
+        padding-right: 0;
+        margin-bottom: .35rem;
+    }
+
+    html[data-theme-style] #cbi-network-interface {
+        padding: 1.1rem 1rem .8rem;
+    }
+
+    html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] > div {
+        gap: 2px;
+    }
+
+    html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] {
+        /* The label column stays wide enough for "Information:"; the type
+           itself never shrinks, or the label would drift out of step with the
+           value it names. */
+        --iface-label-w: 84px;
+    }
+
+    /* Long IPv6/MAC values wrap instead of pushing the row sideways. */
+    html[data-theme-style] #cbi-network-interface td[data-name="_ifacestat"] span.nowrap {
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+
+    /* Four action buttons no longer fit beside the name on a phone: give them
+       their own line under the values. */
+    html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html[data-theme-style] #cbi-network-interface td.cbi-section-actions {
+        grid-column: 1;
+        order: 4;
+        justify-self: start;
+    }
+
+    html[data-theme-style] #cbi-network-interface td.cbi-section-actions > div {
+        justify-content: flex-start;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html[data-theme-style] #cbi-network-interface tr.cbi-section-table-row:hover {
+        background-color: transparent;
+    }
+}

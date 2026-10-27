@@ -1,0 +1,267 @@
+/**
+ *  Feelgood — Light palette
+ *
+ *  Reuses every rule in theme.css and only redefines colour.  The values are
+ *  chosen for the same contrast floor as the dark palette: body copy >= 7:1 on
+ *  the card, secondary text >= 4.5:1, and every state colour keeps its hue
+ *  role (red = fault, amber = degradation, green = healthy, blue = fact).
+ *
+ *  Scoped to html[data-theme-style="light"], which the header sets before
+ *  first paint from localStorage.
+ *
+ *  luci-theme-feelgood — Apache-2.0
+ */
+
+html[data-theme-style="light"] {
+    color-scheme: light;
+
+    /* Raw channels ------------------------------------------------------- */
+    --bw-accent-rgb: 3 105 161;
+    --bw-indigo-rgb: 67 56 202;
+    --bw-violet-rgb: 124 58 237;
+    --bw-ink-rgb: 255 255 255;      /* glass surfaces are white in daylight */
+    --bw-card-rgb: 253 248 238;
+    --bw-panel-rgb: 249 241 224;
+    --bw-deep-rgb: 243 234 216;
+    --bw-slate-rgb: 146 128 100;
+    --bw-hi-rgb: 255 255 255;
+    --bw-shadow-rgb: 15 23 42;
+
+    --state-ok-rgb: 4 120 87;
+    --state-warn-rgb: 180 83 9;
+    --state-error-rgb: 185 28 28;
+
+    /* Named colours ------------------------------------------------------ */
+    --bw-accent: #0369a1;
+    --bw-indigo: #4338ca;
+    --bw-violet: #7c3aed;
+    --bw-violet-fg: #6d28d9;
+    --bw-canvas: #f6efe1;
+    --bw-canvas-deep: #efe5d2;
+    --bw-text: #241d14;
+    --bw-text-dim: #5b4f3f;
+    --bw-text-faint: #6f6353;
+    /* on-accent = text on a solid accent fill (white); on-accent-strong = text
+       on an accent wash (dark). */
+    --bw-on-accent: #ffffff;
+    --bw-on-accent-strong: #0b3a52;
+    --bw-on-danger: #7f1d1d;
+
+    --bw-grad: linear-gradient(135deg, #0369a1 0%, #4338ca 55%, #7c3aed 100%);
+    --bw-grad-soft: linear-gradient(135deg, rgb(var(--bw-accent-rgb) / .10), rgb(var(--bw-indigo-rgb) / .08) 55%, rgb(var(--bw-violet-rgb) / .10));
+
+    --bw-surface: rgb(var(--bw-card-rgb) / .92);
+    --bw-line: rgb(var(--bw-slate-rgb) / .22);
+
+    --bw-shadow: 0 14px 30px -22px rgb(var(--bw-shadow-rgb) / .45), 0 2px 5px -2px rgb(var(--bw-shadow-rgb) / .12);
+    --bw-ring: 0 0 0 1px rgb(var(--bw-accent-rgb) / .55), 0 0 0 4px rgb(var(--bw-accent-rgb) / .14);
+
+    /* Meaning-aware states ------------------------------------------------ */
+    --state-ok-fg: #047857;
+    --state-ok-bg: rgb(var(--state-ok-rgb) / .10);
+    --state-ok-line: rgb(var(--state-ok-rgb) / .32);
+
+    --state-warn-fg: #b45309;
+    --state-warn-bg: rgb(var(--state-warn-rgb) / .10);
+    --state-warn-line: rgb(var(--state-warn-rgb) / .34);
+
+    --state-error-fg: #b91c1c;
+    --state-error-bg: rgb(var(--state-error-rgb) / .09);
+    --state-error-line: rgb(var(--state-error-rgb) / .38);
+
+    --state-info-fg: #0369a1;
+    --state-info-bg: rgb(var(--bw-accent-rgb) / .09);
+    --state-info-line: rgb(var(--bw-accent-rgb) / .32);
+
+    --state-idle-fg: #64748b;
+    --state-idle-bg: rgb(var(--bw-slate-rgb) / .10);
+    --state-idle-line: rgb(var(--bw-slate-rgb) / .26);
+}
+
+/* cascade.css defines the base palette on :root, so a light override needs
+   the extra attribute specificity to win.  Same names, daylight values. */
+html[data-theme-style="light"] {
+    --bg-canvas: #f6efe1;
+    --bg-card: #fdf8ee;
+    --bg-card-header: #f9f1e0;
+    --bg-card-sub: #f6efdf;
+
+    --bg-row-odd: #fdf8ee;
+    --bg-row-even: #faf3e5;
+    --bg-row-hover: #f1e4c9;
+
+    --bg-input: #fffdf8;
+    --border-input: #d9cdb6;
+    --border-input-focus: #0369a1;
+
+    --header-bg: #fdf8ee;
+    --sidebar-bg: #fdf8ee;
+    --dropdown-bg: #fffdf8;
+    --dropdown-hover-bg: rgb(var(--bw-accent-rgb) / .08);
+    --dropdown-active-bg: rgb(var(--bw-accent-rgb) / .14);
+
+    --border-color: #e7dcc6;
+    --border-subtle: rgb(60 45 25 / .08);
+    --shadow-color: rgb(60 45 25 / .12);
+
+    --text-heading: #241d14;
+    --text-color: #2e261c;
+    --text-muted: #6b5f4f;
+    --text-description: #574c3f;
+    --accent-color: #0369a1;
+    --accent-hover: #0284c7;
+
+    --data-num: #0369a1;
+    --data-good: #047857;
+    --data-warn: #b45309;
+    --data-danger: #be123c;
+    --data-neutral: #334155;
+
+    --nav-text: #3a3128;
+    --nav-hover-bg: rgb(15 23 42 / .06);
+    --nav-active-text: #0369a1;
+    --nav-active-bg: rgb(var(--bw-accent-rgb) / .10);
+
+    --sig-excellent: #047857;
+    --sig-excellent-bg: rgb(4 120 87 / .12);
+    --sig-good: #0369a1;
+    --sig-good-bg: rgb(3 105 161 / .12);
+    --sig-fair: #b45309;
+    --sig-fair-bg: rgb(180 83 9 / .12);
+    --sig-poor: #be123c;
+    --sig-poor-bg: rgb(190 18 60 / .12);
+    --sig-noise: #64748b;
+    --sig-noise-bg: rgb(100 116 139 / .12);
+
+    --rate-gigabit: #7c3aed;
+    --rate-gigabit-bg: rgb(124 58 237 / .12);
+    --rate-fast: #047857;
+    --rate-fast-bg: rgb(4 120 87 / .12);
+    --rate-normal: #0369a1;
+    --rate-normal-bg: rgb(3 105 161 / .12);
+    --rate-low: #64748b;
+    --rate-low-bg: rgb(100 116 139 / .12);
+
+    --tx-color: #6d28d9;
+    --tx-bg: rgb(124 58 237 / .12);
+    --rx-color: #047857;
+    --rx-bg: rgb(4 120 87 / .12);
+
+    --band-6g: #7c3aed;
+    --band-6g-bg: rgb(124 58 237 / .12);
+    --band-5g: #0369a1;
+    --band-5g-bg: rgb(3 105 161 / .12);
+    --band-2g: #b45309;
+    --band-2g-bg: rgb(180 83 9 / .12);
+
+    --bar-good: linear-gradient(90deg, #047857, #10b981);
+    --bar-normal: linear-gradient(90deg, #0369a1, #0ea5e9);
+    --bar-warning: linear-gradient(90deg, #b45309, #f59e0b);
+    --bar-critical: linear-gradient(90deg, #b91c1c, #ef4444);
+
+    --port-up: #047857;
+    --port-up-bg: rgb(4 120 87 / .14);
+    --port-down: #94a3b8;
+    --port-down-bg: rgb(100 116 139 / .14);
+
+    --temp-cool: #0369a1;
+    --temp-cool-bg: rgb(3 105 161 / .12);
+    --temp-normal: #047857;
+    --temp-normal-bg: rgb(4 120 87 / .12);
+    --temp-hot: #b45309;
+    --temp-hot-bg: rgb(180 83 9 / .12);
+    --temp-critical: #be123c;
+    --temp-critical-bg: rgb(190 18 60 / .14);
+
+    --badge-border: rgb(15 23 42 / .12);
+}
+
+/* Canvas washes: the dark palette floats colour over black; daylight needs a
+   much fainter tint or the page reads as blue paper. */
+html[data-theme-style="light"] body.logged-in,
+html[data-theme-style="light"] body.logged-in .main {
+    background-color: var(--bw-canvas) !important;
+    background-image:
+        radial-gradient(1100px 620px at 12% -12%, rgb(var(--bw-accent-rgb) / .07), transparent 62%),
+        radial-gradient(900px 520px at 100% 0%, rgb(var(--bw-violet-rgb) / .05), transparent 58%);
+}
+
+html[data-theme-style="light"] .logged-in header {
+    background: rgb(253 248 238 / .88) !important;
+    border-bottom: 1px solid rgb(var(--bw-slate-rgb) / .18) !important;
+}
+
+/* cascade.css hardcodes the active nav pills for the dark canvas (#485267 and
+   the #F24C7C submenu); restate them on the palette's own wash. */
+html[data-theme-style="light"] .main > .main-left .nav > .slide > .menu.active,
+html[data-theme-style="light"] .main > .main-left .nav > .slide > .menu:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .14) !important;
+    color: var(--bw-accent) !important;
+}
+
+/* On cream the cascade's magenta pill reads as a different design language;
+   the selected submenu uses the palette accent instead. */
+html[data-theme-style="light"] .main > .main-left .nav > .slide > .slide-menu > .active {
+    background-color: var(--bw-accent) !important;
+}
+
+/* LuCI ships the alert colours for the dark canvas: amber text on an amber
+   wash is 1.6:1 in daylight.  Same hue roles, readable on white. */
+html[data-theme-style="light"] .alert-message.warning,
+html[data-theme-style="light"] .alert-message.warning > h4,
+html[data-theme-style="light"] .alert-message.warning a:not(.btn) {
+    color: #92400e !important;
+}
+
+html[data-theme-style="light"] .alert-message.warning {
+    background-color: #fffbeb !important;
+    border-color: #f59e0b !important;
+}
+
+html[data-theme-style="light"] .alert-message.error,
+html[data-theme-style="light"] .alert-message.error > h4,
+html[data-theme-style="light"] .alert-message.error a:not(.btn) {
+    color: #991b1b !important;
+}
+
+html[data-theme-style="light"] .alert-message.error {
+    background-color: #fef2f2 !important;
+    border-color: #dc2626 !important;
+}
+
+html[data-theme-style="light"] .alert-message.notice,
+html[data-theme-style="light"] .alert-message.notice > h4,
+html[data-theme-style="light"] .alert-message.notice a:not(.btn) {
+    color: #075985 !important;
+}
+
+html[data-theme-style="light"] .alert-message.notice {
+    background-color: #f0f9ff !important;
+    border-color: #0284c7 !important;
+}
+
+/* cascade.css paints the sidebar links #fff with a descendant selector that
+   beats any plain .nav a rule, so the palette has to restate it. */
+html[data-theme-style="light"] .main > .main-left .nav > li a,
+html[data-theme-style="light"] .main-left .slide-menu a,
+html[data-theme-style="light"] .main-left .nav > .slide > .menu.active,
+html[data-theme-style="light"] .main-left .brand,
+html[data-theme-style="light"] .main-left .brand-name {
+    color: var(--bw-text) !important;
+}
+
+html[data-theme-style="light"] .main-left .slide-menu a {
+    color: var(--bw-text-dim) !important;
+}
+
+/* The selected submenu sits on a saturated pill, so its label must be white
+   regardless of the two rules above. */
+html[data-theme-style="light"] .main-left .slide-menu li.active > a {
+    color: #ffffff !important;
+}
+
+/* The mobile drawer scrim stays dark in both palettes: it dims the page, it is
+   not part of the surface hierarchy. */
+html[data-theme-style="light"] .darkMask {
+    background-color: rgb(15 23 42 / .38) !important;
+}

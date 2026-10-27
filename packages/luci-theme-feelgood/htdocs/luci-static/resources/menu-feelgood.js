@@ -623,6 +623,7 @@ const Colorizer = {
 
 		// 2. Role-tag the interface status rows (Network -> Interfaces)
 		this.colorizeIfaceRows();
+		this.classifyIfaceGlyphs();
 
 		// 3. Colour the CPU scaling governors (Services -> CPU Performance)
 		this.colorizeGovernors();
@@ -696,6 +697,54 @@ const Colorizer = {
 			}
 			else if ((role === 'rx' || role === 'tx') && !row.querySelector('.badge-traffic')) {
 				this.wrapTrafficCounter(row, labelEl, role);
+			}
+		}
+	},
+
+	/**
+	 * Network -> Interfaces: classify each device icon so theme.css can draw
+	 * its own glyph.
+	 *
+	 * The icon alone is not enough: LuCI paints a wireless station device
+	 * (phy0-sta0) with the *ethernet_disabled* icon, so a station interface
+	 * would show a port.  The device name printed next to the icon is the
+	 * reliable signal, so it wins over the file name.
+	 */
+	classifyIfaceGlyphs() {
+		const boxes = document.querySelectorAll('#cbi-network-interface .ifacebox-body');
+
+		for (let i = 0; i < boxes.length; i++) {
+			const icons = boxes[i].querySelectorAll('.cbi-tooltip-container');
+
+			for (let j = 0; j < icons.length; j++) {
+				const icon = icons[j];
+				const img = icon.querySelector('img');
+				const src = ((img && img.getAttribute('src')) || '').toLowerCase();
+
+				// The device name follows the icon: a text node on some pages, a
+				// <span> on others.  The tooltip that lives inside the icon span is
+				// not a sibling, so it cannot be mistaken for the name.
+				let label = '';
+				for (let n = icon.nextSibling; n && !label; n = n.nextSibling) {
+					if (n.nodeType === 3)
+						label = n.nodeValue.trim().toLowerCase();
+					else if (n.nodeType === 1 && !/cbi-tooltip/.test(n.className || ''))
+						label = (n.textContent || '').trim().toLowerCase();
+				}
+
+				let glyph = '';
+
+				if (/^(phy\d|wlan\d|sta\d|wlan)/.test(label) || /wifi/.test(src))
+					glyph = 'wifi';
+				else if (/bridge|switch|vlan/.test(src))
+					glyph = 'switch';
+				else if (/tunnel|wireguard|vrf/.test(src))
+					glyph = 'globe';
+				else if (/ethernet|port_/.test(src))
+					glyph = 'port';
+
+				if (glyph && icon.getAttribute('data-glyph') !== glyph)
+					icon.setAttribute('data-glyph', glyph);
 			}
 		}
 	},
@@ -1070,6 +1119,15 @@ const Colorizer = {
 		let modified = false;
 		let result = text;
 
+		// iwinfo reports dBm with two decimals ("25.00 dBm", "-95.00 dBm").
+		// At this precision the zeros are noise, so drop them before the RF
+		// rules wrap the value: 25.00 -> 25, -95.00 -> -95, 25.50 -> 25.5.
+		if (/\d\.\d+\s*dBm/i.test(result)) {
+			result = result
+				.replace(/(\d+)\.0+(?=\s*dBm)/gi, '$1')
+				.replace(/(\d+\.\d*?)0+(?=\s*dBm)/gi, '$1');
+		}
+
 		// 0. CPU frequency (e.g. "998.4 MHz", "1.2 GHz", "200 MHz").
 		//    MHz is never a WiFi channel, so it is unambiguous; GHz is only
 		//    treated as a CPU clock when the cell says it is a frequency,
@@ -1312,9 +1370,10 @@ return baseclass.extend({
 			});
 		}
 
-		// 2. Lock to Dark Theme
+		// 2. Lock the base palette to dark.  Beauty mode (the only visual style)
+		//    is layered on top of this palette and is applied before first paint
+		//    by the header template.
 		document.documentElement.setAttribute('data-theme-color', 'dark');
-		document.documentElement.setAttribute('data-theme-style', 'modern');
 		localStorage.removeItem('luci-theme-feelgood-color');
 	},
 
@@ -1363,6 +1422,9 @@ return baseclass.extend({
 
 		// 7. Initialize custom scrollbar on desktop
 		this.initScrollBar();
+
+		// 7b. Open sidebar sections on hover, like the horizontal menu
+		this.bindMenuHover();
 
 		// 8. Safety net: never leave the page scroll locked by a stray drawer
 		this._bindScrollLockGuard();
@@ -1423,7 +1485,11 @@ return baseclass.extend({
 			if (hasChildren) {
 				var liClass = 'slide' + (isActive ? ' active' : '');
 				var aClass = 'menu' + (isActive ? ' active' : '');
-				if (isActive)
+				/* On a wide screen a section's pages live in the hover flyout,
+				   so the sidebar stays a flat list of tabs -- the same shape as
+				   the horizontal bar, where nothing expands in place either.
+				   Only the touch drawer expands inline, since it has no hover. */
+				if (isActive && window.innerWidth <= 992)
 					submenu.style.display = 'block';
 				else
 					submenu.style.display = 'none';
@@ -1657,38 +1723,33 @@ return baseclass.extend({
 		var slideMenu = a.nextElementSibling;
 		if (!slideMenu) return;
 
+		/* With a mouse on a wide screen the section's pages live in the flyout,
+		   so a click pins that panel open instead of pushing the sidebar apart. */
+		if (this._lastPointerType !== 'touch' && window.innerWidth > 992) {
+			if (this._flyoutPinned === slide) {
+				this._hideFlyout();
+			} else {
+				if (this._flyoutSlide !== slide)
+					this._showFlyout(slide);
+				this._flyoutPinned = slide;
+			}
+
+			ev.preventDefault();
+			ev.stopPropagation();
+			return;
+		}
+
 		var isOpen = slideMenu.style.display === 'block' || a.classList.contains('active');
 
-		// Close other open submenus
+		this._setMenuOpen(slide, !isOpen);
+
+		// A click is deliberate, so it may tidy up: one section at a time.
 		var allActiveMenus = document.querySelectorAll('.main-left .nav > .slide > .slide-menu');
 		for (var i = 0; i < allActiveMenus.length; i++) {
 			var menu = allActiveMenus[i];
-			if (menu !== slideMenu) {
-				SlideAnimations.stop(menu);
-				SlideAnimations.slideUp(menu, 'fast');
-				menu.classList.remove('active');
-				if (menu.previousElementSibling)
-					menu.previousElementSibling.classList.remove('active');
-				if (menu.parentNode)
-					menu.parentNode.classList.remove('active');
-			}
+			if (menu !== slideMenu)
+				this._setMenuOpen(menu.parentNode, false);
 		}
-
-		if (isOpen) {
-			SlideAnimations.slideUp(slideMenu, 'fast', () => {
-				a.classList.remove('active');
-				slideMenu.classList.remove('active');
-				slide.classList.remove('active');
-			});
-		} else {
-			a.classList.add('active');
-			slideMenu.classList.add('active');
-			slide.classList.add('active');
-			SlideAnimations.slideDown(slideMenu, 'fast');
-		}
-
-		if (this.oScroll)
-			this.oScroll.setSize(200);
 
 		// On mobile the menu is an overlay drawer. Tapping a category there must
 		// dismiss the drawer (and jump to its first sub-page) so the content
@@ -1712,6 +1773,222 @@ return baseclass.extend({
 		ev.stopPropagation();
 	},
 
+	/**
+	 * Open or close one sidebar section.  The click handler and the hover
+	 * handler both go through here, so the two paths animate, highlight and
+	 * re-measure the scrollbar identically.
+	 */
+	_setMenuOpen(slide, open) {
+		if (!slide)
+			return;
+
+		var a = slide.firstElementChild;
+		var slideMenu = a ? a.nextElementSibling : null;
+		if (!a || !slideMenu || slideMenu.tagName !== 'UL')
+			return;
+
+		var isOpen = slideMenu.style.display === 'block';
+		if (open === isOpen)
+			return;
+
+		if (open) {
+			SlideAnimations.slideDown(slideMenu, 'fast');
+			a.classList.add('active');
+			slideMenu.classList.add('active');
+			slide.classList.add('active');
+		} else {
+			SlideAnimations.slideUp(slideMenu, 'fast');
+			a.classList.remove('active');
+			slideMenu.classList.remove('active');
+			slide.classList.remove('active');
+		}
+
+		if (this.oScroll)
+			this.oScroll.setSize(200);
+	},
+
+	/**
+	/**
+	 * Hover shows a section's pages in a panel beside the sidebar instead of
+	 * expanding them in place.  Expanding in place pushes every tab below it
+	 * down, so reaching the sixth tab means dragging the pointer across five
+	 * open submenus (or scrolling); a flyout leaves the sidebar at a constant
+	 * height, so every tab stays exactly where it was.
+	 *
+	 * The panel is a child of `.main-left`, not of the scrolling box, because
+	 * `.navbar-container` clips its content and the sidebar scrolls by
+	 * transform -- a panel inside it would be cut off at the sidebar edge.
+	 *
+	 * "Is this a real hover?" is decided per event from `pointerType`, not
+	 * from a `(hover: hover)` media query: that query reports the *primary*
+	 * input, so a tablet with a mouse, a touchscreen laptop in tablet mode or a
+	 * browser with device emulation on all report `none` and the sidebar would
+	 * look inert.  Touch keeps the inline accordion.
+	 */
+	bindMenuHover() {
+		var navBox = document.querySelector('#navBox');
+		if (!navBox || navBox._feelgoodHoverBound)
+			return;
+
+		navBox._feelgoodHoverBound = true;
+
+		var self = this;
+		var panel = this._ensureFlyout();
+
+		var HOVER_DELAY = 160;
+		var CLOSE_DELAY = 240;
+		var pending = null;
+		var openTimer = null;
+		var closeTimer = null;
+
+		var cancelOpen = function () {
+			if (openTimer) {
+				clearTimeout(openTimer);
+				openTimer = null;
+			}
+			pending = null;
+		};
+
+		var cancelClose = function () {
+			if (closeTimer) {
+				clearTimeout(closeTimer);
+				closeTimer = null;
+			}
+		};
+
+		var scheduleClose = function () {
+			cancelClose();
+			closeTimer = setTimeout(function () {
+				closeTimer = null;
+				if (!self._flyoutPinned)
+					self._hideFlyout();
+			}, CLOSE_DELAY);
+		};
+
+		navBox.addEventListener('pointerover', function (ev) {
+			if (ev.pointerType === 'touch' || window.innerWidth <= 992)
+				return;
+
+			var li = ev.target.closest ? ev.target.closest('li') : null;
+			var top = (li && li.parentNode && li.parentNode.classList.contains('nav')) ? li : null;
+
+			if (!top) {
+				cancelOpen();
+				return;
+			}
+
+			if (pending === top)
+				return;
+
+			cancelOpen();
+
+			if (!top.classList.contains('slide'))
+				return;
+
+			pending = top;
+			openTimer = setTimeout(function () {
+				openTimer = null;
+				pending = null;
+				cancelClose();
+
+				if (self._flyoutSlide !== top || !panel.classList.contains('show')) {
+					self._flyoutPinned = null;
+					self._showFlyout(top);
+				}
+			}, HOVER_DELAY);
+		});
+
+		navBox.addEventListener('pointerleave', function () {
+			cancelOpen();
+			if (self._flyoutSlide)
+				scheduleClose();
+		});
+
+		/* Crossing the gap between the tab and the panel leaves the sidebar, so
+		   the close is deferred and entering the panel cancels it. */
+		panel.addEventListener('pointerenter', cancelClose);
+		panel.addEventListener('pointerleave', function () {
+			if (!self._flyoutPinned)
+				scheduleClose();
+		});
+
+		/* The click handler needs to know whether the press came from a finger
+		   (inline accordion) or a mouse (pin the panel). */
+		navBox.addEventListener('pointerdown', function (ev) {
+			self._lastPointerType = ev.pointerType;
+		}, true);
+
+		document.addEventListener('keydown', function (ev) {
+			if (ev.key === 'Escape' && self._flyoutSlide)
+				self._hideFlyout();
+		});
+
+		window.addEventListener('resize', function () {
+			self._hideFlyout();
+		});
+
+		/* The sidebar scrolls by transform, so the panel's anchor can move
+		   without any scroll event; close rather than let it drift. */
+		navBox.addEventListener('wheel', function () {
+			self._hideFlyout();
+		}, { passive: true });
+	},
+
+	_ensureFlyout() {
+		if (this._flyout)
+			return this._flyout;
+
+		var host = document.querySelector('.main-left') || document.body;
+		var panel = document.createElement('div');
+		panel.className = 'fg-flyout';
+		panel.setAttribute('aria-hidden', 'true');
+		host.appendChild(panel);
+
+		this._flyout = panel;
+		return panel;
+	},
+
+	_showFlyout(slide) {
+		var menu = slide.querySelector(':scope > ul.slide-menu');
+		if (!menu)
+			return;
+
+		var panel = this._ensureFlyout();
+		var hostRect = panel.parentElement.getBoundingClientRect();
+		var itemRect = slide.getBoundingClientRect();
+
+		/* The sidebar's own copy carries inline display/height left over from
+		   the inline accordion, so build a clean list from it. */
+		var list = menu.cloneNode(true);
+		list.removeAttribute('style');
+		list.className = 'fg-flyout-menu';
+
+		panel.innerHTML = '';
+		panel.appendChild(list);
+
+		/* Measure at the top edge first, then clamp so the panel never hangs
+		   off the bottom of the window. */
+		panel.style.top = '0px';
+		panel.classList.add('show');
+		panel.setAttribute('aria-hidden', 'false');
+
+		var top = itemRect.top - hostRect.top;
+		var max = window.innerHeight - panel.offsetHeight - 12;
+		panel.style.top = Math.max(12, Math.min(top, max)) + 'px';
+
+		this._flyoutSlide = slide;
+	},
+
+	_hideFlyout() {
+		this._flyoutPinned = null;
+		this._flyoutSlide = null;
+
+		if (!this._flyout)
+			return;
+
+		this._flyout.classList.remove('show');
+		this._flyout.setAttribute('aria-hidden', 'true');
+	},
 	handleSidebarToggle(ev) {
 		var mainLeft = document.querySelector('.main-left');
 		var darkMask = document.querySelector('.darkMask');
@@ -1766,6 +2043,11 @@ return baseclass.extend({
 		var release = function() {
 			var mr = document.querySelector('.main-right');
 			if (mr && mr.style.overflowY === 'hidden') mr.style.overflowY = '';
+			/* Safety net: never leave the loading overlay covering the page,
+		   which would make the scrollbar and content unreachable after a
+		   navigation that never re-runs the menu render. */
+			var lo = document.querySelector('.loading');
+			if (lo) { lo.style.opacity = '0'; lo.style.visibility = 'hidden'; }
 		};
 
 		document.addEventListener('click', function(e) {
@@ -1779,8 +2061,11 @@ return baseclass.extend({
 			}
 		});
 
-		window.addEventListener('load', release);
-		release();
+		['load', 'pageshow', 'popstate', 'hashchange'].forEach(function(ev) {
+			window.addEventListener(ev, release);
+		});
+		if (document.readyState !== 'loading') release();
+		else document.addEventListener('DOMContentLoaded', release);
 	},
 
 	setupPasswordToggle() {
@@ -1831,22 +2116,78 @@ return baseclass.extend({
 	},
 
 	initScrollBar() {
-		if (typeof window.MyScrollBar === 'function' && window.innerWidth > 992) {
-			var navBox = document.getElementById('navBox');
-			if (navBox && navBox.querySelector('.nav')) {
-				try {
-					this.oScroll = new window.MyScrollBar({
-						selId: 'navBox',
-						time: 100,
-						bgColor: 'transparent',
-						barColor: 'rgba(131, 157, 214, 0.48)',
-						enterColor: 'rgba(131, 157, 214, 0.8)',
-						enterShow: false
-					});
-				} catch (e) {
-					console.warn('MyScrollBar init failed:', e);
-				}
-			}
+		if (typeof window.MyScrollBar !== 'function' || window.innerWidth <= 992) return;
+		var navBox = document.getElementById('navBox');
+		if (!navBox || !navBox.querySelector('.nav')) return;
+		try {
+			this.oScroll = new window.MyScrollBar({
+				selId: 'navBox',
+				time: 100,
+				bgColor: 'transparent',
+				barColor: 'rgba(131, 157, 214, 0.48)',
+				enterColor: 'rgba(131, 157, 214, 0.8)',
+				enterShow: false
+			});
+		} catch (e) {
+			console.warn('MyScrollBar init failed:', e);
+			return;
+		}
+		/* The menu is rendered asynchronously and web fonts (icomoon) finish
+		   loading *after* MyScrollBar's first 100ms size pass, and submenu
+		   slide animations change the sidebar height over several hundred ms.
+		   That first pass therefore under-reports (or over-reports) the scroll
+		   height and leaves the custom scrollbar in the wrong show/hide state.
+		   Nothing recomputes it, so after expanding Status/System, navigating,
+		   resizing the window, or finishing font load the scrollbar can stay
+		   gone (or stuck on) when the sidebar actually overflows.  Resync once
+		   layout/fonts have settled, on resize, and whenever the sidebar or its
+		   content changes size (covers slide animations and async reflow). */
+		var self = this;
+		var pendingClamp = null;
+		var resync = function () {
+			var s = self.oScroll;
+			if (!s || typeof s.setSize !== 'function') return;
+			s.setSize(0);
+			/* setSize() clamps iScrollTop to the new range but never moves the
+			   content: after a section collapses the menu gets shorter, the
+			   offset stays where it was, and the sidebar keeps the old
+			   translateY.  The first entries then sit above the visible box
+			   while the bar is gone (nothing overflows any more), so the wheel
+			   handler -- which only runs while bYShow is true -- cannot bring
+			   them back.  Snap the offset into range once setSize() has
+			   re-measured (it runs its measurement in a 100ms timer). */
+			if (pendingClamp) clearTimeout(pendingClamp);
+			pendingClamp = setTimeout(function () {
+				pendingClamp = null;
+				/* ScrollY clamps to (iScrollH - iWrapperH) with no floor, so a
+				   menu shorter than the box leaves iScrollTop NEGATIVE.  Its
+				   setTransLate() then emits "translate(-0px, --53px)", which
+				   the browser drops as invalid, freezing the sidebar at the
+				   previous offset.  Clamp to [0, max] before re-applying. */
+				var max = Math.max(0, s.iScrollH - s.iWrapperH);
+				var top = Math.min(Math.max(0, s.iScrollTop), max);
+				if (top !== s.iScrollTop) s.iScrollTop = top;
+				if (typeof s.setTransLate === 'function') s.setTransLate(0);
+				if (typeof s.setYTop === 'function' && s.iScrollH > 0 && s.iYBoxH)
+					s.setYTop(top / s.iScrollH * s.iYBoxH);
+			}, 130);
+		};
+		if (document.readyState === 'complete') resync();
+		else window.addEventListener('load', resync);
+		if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function')
+			document.fonts.ready.then(resync);
+		window.addEventListener('resize', resync);
+		if (typeof MutationObserver === 'function') {
+			if (this._navObserver) { try { this._navObserver.disconnect(); } catch (e) {} }
+			this._navObserver = new MutationObserver(resync);
+			this._navObserver.observe(navBox, { childList: true, subtree: true });
+		}
+		if (typeof ResizeObserver === 'function') {
+			if (this._navRO) { try { this._navRO.disconnect(); } catch (e) {} }
+			this._navRO = new ResizeObserver(resync);
+			var content = navBox.querySelector('.nav') || navBox.firstElementChild;
+			try { this._navRO.observe(navBox); } catch (e) {}
+			if (content && content !== navBox) { try { this._navRO.observe(content); } catch (e) {} }
 		}
 	}
 });

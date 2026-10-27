@@ -181,8 +181,9 @@ code {
 }
 
 abbr {
-    color: #005470;
+    color: var(--accent-color);
     text-decoration: underline;
+    text-decoration-style: dotted;
     cursor: help;
 }
 
@@ -500,7 +501,7 @@ fieldset > fieldset {
     width: 100%;
     display: block;
     line-height: 1;
-    color: #404040;
+    color: var(--text-heading);
     font-size: 1.4rem;
     padding-bottom: 1rem;
     margin: 0;
@@ -663,11 +664,13 @@ td > table > tbody > tr > td,
     transform: translateY(-1px);
 }
 
+/* 0.60 left disabled labels at ~3.8:1 — below AA even though they are
+   inactive.  0.75 still reads as disabled and clears 4.5:1. */
 .btn:disabled,
 .cbi-button:disabled {
     cursor: not-allowed;
     pointer-events: none;
-    opacity: 0.60;
+    opacity: 0.75;
     box-shadow: none;
 }
 
@@ -678,22 +681,23 @@ td > table > tbody > tr > td,
 .cbi-button-reload.important,
 .cbi-button-action.important {
 	color: #fff;
-    background-color: #F24C7C;
+    background-color: #db2777;
 }
 
 .cbi-page-actions .cbi-button-save,
 .cbi-button-add.important,
 .cbi-button-save.important,
-.cbi-button-positive.important {
+.cbi-button-positive.important,
+.cbi-button-reset.important {
     color: #fff;
-    background-color: #468ea4;
+    background-color: #0e7490;
 }
 
+/* #d9534f left white 13px labels at 3.96:1 ("Perform reset" on Flash). */
 .cbi-button-remove.important,
-.cbi-button-reset.important,
 .cbi-button-negative.important {
     color: #fff;
-    background-color: #d9534f;
+    background-color: #dc2626;
 }
 
 .cbi-button-find,
@@ -701,36 +705,45 @@ td > table > tbody > tr > td,
 .cbi-button-up,
 .cbi-button-down,
 .cbi-button-neutral {
-    border: 1px solid #468ea4;
+    border: 1px solid rgba(125, 211, 252, .5);
     background-color: transparent;
-    color: #468ea4;
+    color: #7dd3fc;
 }
 
 .cbi-button-edit,
 .cbi-button-apply,
 .cbi-button-reload,
 .cbi-button-action {
-	color: #F24C7C;
-    border: 1px solid #F24C7C;
+	color: #fb7185;
+    border: 1px solid #fb7185;
     background-color: transparent;
 }
 
 .cbi-page-actions .cbi-button-apply + .cbi-button-save,
 .cbi-button-add,
 .cbi-button-save,
-.cbi-button-positive {
-    color: #468ea4;
-    border: 1px solid #468ea4;
+.cbi-button-positive,
+.cbi-button-reset {
+    color: #7dd3fc;
+    border: 1px solid rgba(125, 211, 252, .5);
     background-color: transparent;
 }
 
 .cbi-section-remove > .cbi-button,
 .cbi-button-remove,
-.cbi-button-reset,
 .cbi-button-negative {
-    color: #354057;
-    border: 1px solid #354057;
-    background-color: transparent;
+    /* 10% tint was indistinguishable from the card behind it. */
+    color: #fecdd3;
+    border: 1px solid rgba(251, 113, 133, .55);
+    background-color: rgba(251, 113, 133, .16);
+}
+
+.cbi-section-remove > .cbi-button:hover,
+.cbi-button-remove:hover,
+.cbi-button-negative:hover {
+    background-color: rgba(251, 113, 133, .28);
+    border-color: rgba(251, 113, 133, .8);
+    color: #fff1f2;
 }
 
 .cbi-page-actions .cbi-button-link:first-child {
@@ -869,7 +882,7 @@ th[data-sort-direction="desc"]::after {
 }
 
 .tabs > li a {
-    color: #468EA4;
+    color: #7dd3fc;
     font-size: 14px;
     position: relative;
     z-index: 1;
@@ -932,7 +945,11 @@ th[data-sort-direction="desc"]::after {
 
 .cbi-value-description {
     font-size: small;
-    opacity: 0.5;
+    /* Descriptions are paragraphs, not metadata: --text-description keeps
+       them dimmer than body copy but well clear of AA at 13px. */
+    color: var(--text-description);
+    opacity: 1;
+    line-height: 1.55;
     padding: 0.5rem 0 0 0;
 }
 
@@ -1100,9 +1117,9 @@ th[data-sort-direction="desc"]::after {
 
 .cbi-dropdown > .more,
 .cbi-dropdown > ul > li[placeholder] {
-    color: #777;
+    color: #94a3b8;
     font-weight: bold;
-    text-shadow: 1px 1px 0px #fff;
+    text-shadow: none;
     display: none;
 }
 
@@ -1588,13 +1605,19 @@ td > .ifacebadge,
 
 .ifacebox-head {
     padding: .5em;
-    background: var(--bg-card-header);
+    /* LuCI sets the zone colour inline on this element.  Used as a solid fill
+       it put #f8fafc text on pale green (1.3:1).  Keep the colour as an accent
+       strip plus a faint wash and keep the text on a dark surface. */
+    background-color: var(--bg-card-header) !important;
+    background-image: linear-gradient(90deg, rgba(var(--zone-color-rgb, 56, 189, 248), .22), transparent 72%);
+    border-left: 3px solid rgb(var(--zone-color-rgb, 56, 189, 248));
     border-radius: 15px 15px 0 0;
     color: var(--text-heading);
 }
 
 .ifacebox-head.active {
-    background: #0284c7;
+    background: #0369a1 !important;
+    border-left-color: transparent;
     color: #ffffff;
 }
 
@@ -1734,6 +1757,44 @@ small {
     margin: -1.5rem 0 0 -.5rem;
 }
 
+/* Zone badges are filled with an inline zone colour, and the "empty" variant
+   with a light grey hatch.  Both are light fills, so every label inside them
+   must be dark whatever the palette says: the accent colour ordinary text
+   inherits sat at 1.1:1, and the "unspecified" entry (an <em>) was white on
+   the    #eee fill.  Not scoped to #maincontent, so it also reaches the
+   interface-edit modal, which is mounted outside it. */
+#maincontent .zonebadge,
+#maincontent .zonebadge > strong,
+#maincontent .zonebadge > em,
+#maincontent .zonebadge-empty,
+#maincontent .zonebadge-empty > strong,
+#modal_overlay .zonebadge,
+#modal_overlay .zonebadge > strong,
+#modal_overlay .zonebadge > em,
+#modal_overlay .zonebadge-empty,
+#modal_overlay .zonebadge-empty > strong {
+    /* Only the labels that sit directly on the zone colour go dark.  The
+       .ifacebadge chips inside keep their own dark card background, so they
+       keep the palette's light text.  The #maincontent / #modal_overlay ids
+       are load-bearing: the --data-num rule below paints every table td
+       strong in the accent and outranks a class-only selector, and the
+       interface-edit modal lives in the overlay, outside #maincontent. */
+    color: #0b1220 !important;
+}
+
+/* Station Mode paints its own status pills inline (white on #4caf50, 2.8:1)
+   and nests a LuCI badge inside them, which then drew green on green.  Only
+   !important can outrank an inline declaration. */
+[data-page^="admin-network"] span[style*="#4caf50"] {
+    background: #2e7d32 !important;
+}
+
+[data-page^="admin-network"] span[style*="#4caf50"] .badge-colored {
+    background: rgba(255, 255, 255, .92) !important;
+    color: #14532d !important;
+    box-shadow: none !important;
+}
+
 .zonebadge-empty {
     background: repeating-linear-gradient(45deg,rgba(204,204,204,0.5),rgba(204,204,204,0.5) 5px,rgba(255,255,255,0.5) 5px,rgba(255,255,255,0.5) 10px);
     color: #404040;
@@ -1741,17 +1802,47 @@ small {
 
 .zone-forwards {
     display: flex;
+    align-items: center;
+    gap: .35rem;
     min-width: 10rem;
 }
 
+/* Each side is sized by its content instead of taking a 45% share.  The
+   forward target ("REJECT all others") is wider than half of the ~290px the
+   column gets, so a percentage basis wrapped it onto two lines while the
+   arrow in the middle kept its 10%. */
 .zone-forwards > * {
-    flex: 1 1 45%;
+    /* Grow to share the row, but never below the content: the forward target
+       ("REJECT all others") is wider than the 45% share it used to get, which
+       wrapped it onto a second line. */
+    flex: 1 1 auto;
+    min-width: max-content;
+    white-space: nowrap;
 }
 
 .zone-forwards > span {
-    flex-basis: 10%;
-    text-align: center;
+    flex: 0 0 auto;
     padding: 0 .25rem;
+    text-align: center;
+}
+
+/* The zone table's Input / Output selects are width:100% of a cell the table
+   is free to squeeze: with the vertical sidebar they collapsed to 56px and
+   clipped "accept" to "acc" and "reject" to "rej".  max-content floors each
+   one at its own widest option, so the word always fits however wide the
+   column ends up; the table wrapper already scrolls when the sum is too wide. */
+html[data-theme-style] body[data-page^="admin-network-firewall"] #maincontent .cbi-section-table td select {
+    min-width: max-content;
+}
+
+/* ...and that floor widens the table past its card below ~1200px, which pushed
+   the Edit/Delete buttons off the right edge.  Letting the two long headers
+   wrap gives back ~80px, so the table fits and the actions stay on screen. */
+@media (max-width: 1200px) {
+    html[data-theme-style] body[data-page^="admin-network-firewall"] #maincontent .cbi-section-table th,
+    html[data-theme-style] body[data-page^="admin-network-firewall"] #maincontent .cbi-section-table .th {
+        white-space: normal !important;
+    }
 }
 
 .zone-forwards .zone-src,
@@ -1811,7 +1902,7 @@ header > .container > .pull-right > * {
 }
 
 .notice {
-    background-color: #468EA4;
+    background-color: #0e7490;
 }
 
 .showSide {
@@ -2399,7 +2490,7 @@ body.login footer {
 }
 
 .logged-in .main-right .alert-message a {
-    background-color: #468EA4;
+    background-color: #0e7490;
     color: #fff;
     padding: .5rem .8rem;
     font-size: 16px;
@@ -3117,13 +3208,13 @@ body.lang_pl.login .cbi-value-title {
 }
 
 [data-indicator]:not([data-style="inactive"]) {
-    background-color: #468EA4 !important;
+    background-color: #0e7490 !important;
     color: #fff !important;
 }
 
 [data-indicator][data-style="inactive"] {
-    background-color: #bfbfbf !important;
-    color: #555 !important;
+    background-color: #cbd5e1 !important;
+    color: #1f2937 !important;
 }
 
 #logout_btn {
@@ -3353,6 +3444,9 @@ html[data-theme-color="dark"] {
     --text-heading: #f8fafc;
     --text-color: #f1f5f9;
     --text-muted: #94a3b8;
+    /* Long-form help text under form fields.  --text-muted is tuned for
+       one-line metadata; at 13px over a paragraph it reads as grey mush. */
+    --text-description: #b8c7db;
     --accent-color: #38bdf8;
     --accent-hover: #7dd3fc;
 
@@ -3376,7 +3470,7 @@ html[data-theme-color="dark"] {
     --sig-good-bg: rgba(56, 189, 248, 0.2);
     --sig-fair: #fbbf24;
     --sig-fair-bg: rgba(251, 191, 36, 0.2);
-    --sig-poor: #f43f5e;
+    --sig-poor: #fb7185;
     --sig-poor-bg: rgba(244, 63, 94, 0.25);
     --sig-noise: #94a3b8;
     --sig-noise-bg: rgba(148, 163, 184, 0.18);
@@ -3392,7 +3486,7 @@ html[data-theme-color="dark"] {
     --rate-low-bg: rgba(148, 163, 184, 0.18);
 
     /* Traffic direction */
-    --tx-color: #c084fc;
+    --tx-color: #d8b4fe;
     --tx-bg: rgba(192, 132, 252, 0.2);
     --rx-color: #34d399;
     --rx-bg: rgba(52, 211, 153, 0.2);
@@ -3487,12 +3581,15 @@ html[data-theme-color="dark"] .cbi-value-field,
     color: var(--text-heading) !important;
 }
 
-/* Number and metric highlighting in dark mode */
-html[data-theme-color="dark"] .cbi-value-field > div,
+/* Number and metric highlighting in dark mode.
+ * The :not() keeps help text out of it: .cbi-value-description is also a
+ * direct child div of .cbi-value-field, and painting it in --data-num made
+ * whole paragraphs read as highlighted numbers. */
+html[data-theme-color="dark"] .cbi-value-field > div:not(.cbi-value-description),
 html[data-theme-color="dark"] .cbi-value-field strong,
 html[data-theme-color="dark"] table td strong,
 html[data-theme-color="dark"] .table .td strong,
-:root .cbi-value-field > div,
+:root .cbi-value-field > div:not(.cbi-value-description),
 :root .cbi-value-field strong,
 :root table td strong,
 :root .table .td strong {
@@ -3501,9 +3598,12 @@ html[data-theme-color="dark"] .table .td strong,
 }
 
 html[data-theme-color="dark"] .cbi-value-description,
+:root .cbi-value-description {
+    color: var(--text-description) !important;
+}
+
 html[data-theme-color="dark"] .cbi-section-descr,
 html[data-theme-color="dark"] .cbi-map-descr,
-:root .cbi-value-description,
 :root .cbi-section-descr,
 :root .cbi-map-descr {
     color: var(--text-muted) !important;
@@ -4129,9 +4229,10 @@ html[data-theme-nav="vertical"] .logged-in .main-right {
     align-items: center;
 }
 
+/* #ef4444 put white 13px text at 3.76:1; one shade darker clears AA. */
 .label.logout a {
     color: #ffffff !important;
-    background-color: #ef4444;
+    background-color: #dc2626;
     height: 32px;
     padding: 0 0.85rem;
     border-radius: 16px;
@@ -4223,7 +4324,7 @@ html[data-theme-nav="vertical"] .logged-in .main-right {
 }
 
 .badge-sep {
-    color: #64748b;
+    color: #94a3b8;
     font-weight: 600;
     margin: 0 3px;
 }
@@ -4978,8 +5079,8 @@ div[style*="grid-template-columns"] > .ifacebox > .ifacebox-head:first-child,
 }
 
 .feelgood-log-row.log-sev-debug {
-    border-left-color: #475569;
-    opacity: 0.75;
+    border-left-color: #64748b;
+    opacity: 0.9;
 }
 
 /* Row Internal Elements */
@@ -4987,7 +5088,7 @@ div[style*="grid-template-columns"] > .ifacebox > .ifacebox-head:first-child,
     flex: 0 0 42px;
     text-align: right;
     user-select: none;
-    color: #475569;
+    color: #94a3b8;
     font-size: 0.75rem;
     padding-right: 4px;
 }
@@ -4995,11 +5096,11 @@ div[style*="grid-template-columns"] > .ifacebox > .ifacebox-head:first-child,
 .feelgood-log-row.log-sev-err .log-num { color: #f87171; font-weight: 600; }
 .feelgood-log-row.log-sev-warn .log-num { color: #fbbf24; font-weight: 600; }
 .feelgood-log-row.log-sev-notice .log-num { color: #34d399; font-weight: 600; }
-.feelgood-log-row.log-sev-info .log-num { color: #64748b; }
+.feelgood-log-row.log-sev-info .log-num { color: #94a3b8; }
 
 .feelgood-log-row .log-time {
     flex: 0 0 auto;
-    color: #64748b;
+    color: #94a3b8;
     font-size: 0.78rem;
     user-select: text;
 }
@@ -5016,8 +5117,10 @@ div[style*="grid-template-columns"] > .ifacebox > .ifacebox-head:first-child,
     letter-spacing: 0.02em;
     user-select: none;
 }
+/* 0.85 opacity pulled the facility label down to 4.5:1; the badge already
+   separates it by size, so keep it fully opaque. */
 .feelgood-log-row .log-badge .log-badge-fac {
-    opacity: 0.85;
+    opacity: 1;
 }
 .feelgood-log-row .log-badge .log-badge-sep {
     opacity: 0.5;
@@ -5252,4 +5355,43 @@ body.login .cbi-page-actions {
     margin-left: auto !important;
     margin-right: auto !important;
 }
+
+/* --------------------------------------------------------------------------
+   STATUS & SYSTEM PAGES
+   -------------------------------------------------------------------------- */
+
+/* The realtime and channel-analysis charts are built by JS with an inline
+   white panel and a black border, while every label carries inline
+   fill:#eee - white on white, 1.1:1.  Repaint the panel to the card surface
+   so the light labels and the gridlines read as intended. */
+[data-page^="admin-status"] div[style*="background:#fff"] {
+    background: var(--bg-card) !important;
+    border-color: var(--border-color) !important;
+    border-radius: 10px;
+}
+
+[data-page^="admin-status"] div[style*="background:#fff"] svg line {
+    stroke: rgba(148, 163, 184, .28) !important;
+}
+
+/* File manager: its status bar is hardcoded #f9f9f9 and inherits the light
+   body text, so "No file selected." came out at 1.04:1. */
+#status-bar {
+    background: var(--bg-card-sub) !important;
+    color: var(--text-color) !important;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Row actions are emoji spans coloured pure blue / pure red; the colour only
+   matters when the emoji font is missing, so use the theme's tones. */
+#maincontent .edit-button { color: #7dd3fc !important; }
+#maincontent .delete-button { color: #fb7185 !important; }
+
+/* luci-apps paint status text with the bare keywords green/red (e.g. usb-gadget
+   "Active", tailscale "NOT RUNNING").  rgb(0,128,0) and rgb(255,0,0) both fail
+   4.5:1 on the dark cards and even on white, so lift them to AA-compliant
+   bright tones.  Only !important can outrank an inline style attribute. */
+#maincontent span[style*="color:green"] { color: #4ade80 !important; }
+#maincontent span[style*="color:red"] { color: #f87171 !important; }
 

@@ -15,6 +15,7 @@
 			<ul class="breadcrumb pull-right" id="modemenu" style="display:none"></ul>
 		</footer>
 
+		<script src="{{ media }}/js/theme.js?v=24"></script>
 		<script>L.require('menu-feelgood')</script>
 	{% endif %}
 </body>

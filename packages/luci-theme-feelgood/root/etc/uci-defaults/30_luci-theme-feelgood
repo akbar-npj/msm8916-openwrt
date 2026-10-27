@@ -6,15 +6,13 @@ set_opt() {
 	local key=$1
 	local val=$2
 
-	if ! uci -q get "luci.$key" 2>/dev/null; then
+	if ! uci -q get "luci.$key" >/dev/null 2>&1; then
 		uci set "luci.$key=$val"
 		changed=1
 	fi
 }
 set_opt themes.Feelgood /luci-static/feelgood
 set_opt themes.FeelgoodHighContrast /luci-static/feelgood
-set_opt theme_feelgood.color dark
-set_opt theme_feelgood.nav horizontal
 
 # Make Feelgood the active theme on a fresh install (first boot after a flash
 # that does not keep configuration, e.g. sysupgrade -n).  luci-base already

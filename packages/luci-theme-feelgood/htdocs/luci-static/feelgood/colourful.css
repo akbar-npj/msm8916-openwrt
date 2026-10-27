@@ -1,0 +1,232 @@
+/**
+ *  Feelgood — Colourful palette
+ *
+ *  A vivid dusk: violet canvas, cyan primary, fuchsia secondary.  Same
+ *  contrast floor as the other palettes (body copy >= 7:1 on the card) and the
+ *  same hue roles for meaning — the accent is cyan precisely so that the red
+ *  of a fault stays unambiguous next to it.
+ *
+ *  Scoped to html[data-theme-style="colourful"].
+ *
+ *  luci-theme-feelgood — Apache-2.0
+ */
+
+html[data-theme-style="colourful"] {
+    color-scheme: dark;
+
+    /* Raw channels ------------------------------------------------------- */
+    --bw-accent-rgb: 34 211 238;
+    --bw-indigo-rgb: 129 140 248;
+    --bw-violet-rgb: 232 121 249;
+    --bw-ink-rgb: 20 8 43;
+    --bw-card-rgb: 45 20 78;
+    --bw-panel-rgb: 58 26 96;
+    --bw-deep-rgb: 34 14 60;
+    --bw-slate-rgb: 167 139 250;
+    --bw-hi-rgb: 255 255 255;
+    --bw-shadow-rgb: 8 2 20;
+
+    --state-ok-rgb: 74 222 128;
+    --state-warn-rgb: 251 191 36;
+    --state-error-rgb: 255 92 122;
+
+    /* Named colours ------------------------------------------------------ */
+    --bw-accent: #22d3ee;
+    --bw-indigo: #818cf8;
+    --bw-violet: #e879f9;
+    --bw-violet-fg: #f0abfc;
+    --bw-canvas: #14082b;
+    --bw-canvas-deep: #1e0b3d;
+    --bw-text: #f5f3ff;
+    --bw-text-dim: #c4b5fd;
+    --bw-text-faint: #a78bfa;
+    --bw-on-accent: #04212b;
+    --bw-on-accent-strong: #ecfeff;
+    --bw-on-danger: #ffe4e6;
+
+    --bw-grad: linear-gradient(135deg, #22d3ee 0%, #818cf8 45%, #e879f9 100%);
+    --bw-grad-soft: linear-gradient(135deg, rgb(var(--bw-accent-rgb) / .20), rgb(var(--bw-indigo-rgb) / .16) 45%, rgb(var(--bw-violet-rgb) / .20));
+
+    --bw-surface: rgb(var(--bw-card-rgb) / .78);
+    --bw-line: rgb(var(--bw-slate-rgb) / .24);
+
+    --bw-shadow: 0 18px 40px -22px rgb(var(--bw-shadow-rgb) / .95), 0 2px 6px -2px rgb(var(--bw-shadow-rgb) / .6);
+    --bw-ring: 0 0 0 1px rgb(var(--bw-accent-rgb) / .55), 0 0 0 4px rgb(var(--bw-accent-rgb) / .16);
+
+    /* Meaning-aware states ------------------------------------------------ */
+    --state-ok-fg: #4ade80;
+    --state-ok-bg: rgb(var(--state-ok-rgb) / .16);
+    --state-ok-line: rgb(var(--state-ok-rgb) / .36);
+
+    --state-warn-fg: #fbbf24;
+    --state-warn-bg: rgb(var(--state-warn-rgb) / .16);
+    --state-warn-line: rgb(var(--state-warn-rgb) / .38);
+
+    --state-error-fg: #ff5c7a;
+    --state-error-bg: rgb(var(--state-error-rgb) / .18);
+    --state-error-line: rgb(var(--state-error-rgb) / .45);
+
+    --state-info-fg: #22d3ee;
+    --state-info-bg: rgb(var(--bw-accent-rgb) / .14);
+    --state-info-line: rgb(var(--bw-accent-rgb) / .38);
+
+    --state-idle-fg: #a78bfa;
+    --state-idle-bg: rgb(var(--bw-slate-rgb) / .14);
+    --state-idle-line: rgb(var(--bw-slate-rgb) / .30);
+}
+
+/* cascade.css palette, restated in violet --------------------------------- */
+html[data-theme-style="colourful"] {
+    --bg-canvas: #14082b;
+    --bg-card: #2d144e;
+    --bg-card-header: #3a1a60;
+    --bg-card-sub: #24103f;
+
+    --bg-row-odd: #2a1249;
+    --bg-row-even: #331759;
+    --bg-row-hover: #44206f;
+
+    --bg-input: #24103f;
+    --border-input: #4c2a7a;
+    --border-input-focus: #22d3ee;
+
+    --header-bg: #24103f;
+    --sidebar-bg: #24103f;
+    --dropdown-bg: #331759;
+    --dropdown-hover-bg: rgb(var(--bw-accent-rgb) / .16);
+    --dropdown-active-bg: rgb(var(--bw-accent-rgb) / .26);
+
+    --border-color: #46286f;
+    --border-subtle: rgb(255 255 255 / .08);
+    --shadow-color: rgb(8 2 20 / .65);
+
+    --text-heading: #fdf4ff;
+    --text-color: #f5f3ff;
+    --text-muted: #c4b5fd;
+    --text-description: #d8cdfb;
+    --accent-color: #22d3ee;
+    --accent-hover: #67e8f9;
+
+    --data-num: #22d3ee;
+    --data-good: #4ade80;
+    --data-warn: #fbbf24;
+    --data-danger: #ff5c7a;
+    --data-neutral: #e9d5ff;
+
+    --nav-text: #e9d5ff;
+    --nav-hover-bg: rgb(255 255 255 / .08);
+    --nav-active-text: #22d3ee;
+    --nav-active-bg: rgb(var(--bw-accent-rgb) / .16);
+
+    --sig-excellent: #4ade80;
+    --sig-excellent-bg: rgb(74 222 128 / .2);
+    --sig-good: #22d3ee;
+    --sig-good-bg: rgb(34 211 238 / .2);
+    --sig-fair: #fbbf24;
+    --sig-fair-bg: rgb(251 191 36 / .2);
+    --sig-poor: #ff5c7a;
+    --sig-poor-bg: rgb(255 92 122 / .22);
+    --sig-noise: #a78bfa;
+    --sig-noise-bg: rgb(167 139 250 / .18);
+
+    --rate-gigabit: #e879f9;
+    --rate-gigabit-bg: rgb(232 121 249 / .2);
+    --rate-fast: #4ade80;
+    --rate-fast-bg: rgb(74 222 128 / .2);
+    --rate-normal: #22d3ee;
+    --rate-normal-bg: rgb(34 211 238 / .2);
+    --rate-low: #a78bfa;
+    --rate-low-bg: rgb(167 139 250 / .18);
+
+    --tx-color: #f0abfc;
+    --tx-bg: rgb(232 121 249 / .2);
+    --rx-color: #4ade80;
+    --rx-bg: rgb(74 222 128 / .2);
+
+    --band-6g: #e879f9;
+    --band-6g-bg: rgb(232 121 249 / .2);
+    --band-5g: #22d3ee;
+    --band-5g-bg: rgb(34 211 238 / .2);
+    --band-2g: #fbbf24;
+    --band-2g-bg: rgb(251 191 36 / .2);
+
+    --bar-good: linear-gradient(90deg, #059669, #4ade80);
+    --bar-normal: linear-gradient(90deg, #0891b2, #22d3ee);
+    --bar-warning: linear-gradient(90deg, #d97706, #fbbf24);
+    --bar-critical: linear-gradient(90deg, #e11d48, #ff5c7a);
+
+    --port-up: #4ade80;
+    --port-up-bg: rgb(74 222 128 / .22);
+    --port-down: #a78bfa;
+    --port-down-bg: rgb(167 139 250 / .2);
+
+    --temp-cool: #22d3ee;
+    --temp-cool-bg: rgb(34 211 238 / .2);
+    --temp-normal: #4ade80;
+    --temp-normal-bg: rgb(74 222 128 / .2);
+    --temp-hot: #fbbf24;
+    --temp-hot-bg: rgb(251 191 36 / .2);
+    --temp-critical: #ff5c7a;
+    --temp-critical-bg: rgb(255 92 122 / .26);
+
+    --badge-border: rgb(255 255 255 / .14);
+}
+
+/* Canvas: three colour pools instead of the dark palette's two. */
+html[data-theme-style="colourful"] body.logged-in,
+html[data-theme-style="colourful"] body.logged-in .main {
+    background-color: var(--bw-canvas) !important;
+    background-image:
+        radial-gradient(1100px 620px at 8% -14%, rgb(var(--bw-accent-rgb) / .16), transparent 60%),
+        radial-gradient(900px 520px at 100% 0%, rgb(var(--bw-violet-rgb) / .16), transparent 58%),
+        radial-gradient(760px 520px at 50% 120%, rgb(var(--bw-indigo-rgb) / .14), transparent 62%);
+}
+
+html[data-theme-style="colourful"] .logged-in header {
+    background: rgb(36 16 63 / .78) !important;
+}
+
+/* cascade.css hardcodes the active top-level pill (#485267) for the dark
+   canvas; on violet that reads as grey, so restate it on the accent wash. */
+html[data-theme-style="colourful"] .main > .main-left .nav > .slide > .menu.active,
+html[data-theme-style="colourful"] .main > .main-left .nav > .slide > .menu:hover {
+    background-color: rgb(var(--bw-accent-rgb) / .14) !important;
+    color: var(--bw-accent) !important;
+}
+
+/* LuCI's alert colours assume a neutral dark canvas; over violet the amber
+   wash turns muddy brown.  Keep the hue role, lift the text. */
+html[data-theme-style="colourful"] .alert-message.warning,
+html[data-theme-style="colourful"] .alert-message.warning > h4,
+html[data-theme-style="colourful"] .alert-message.warning a:not(.btn) {
+    color: #fde68a !important;
+}
+
+/* A 14% amber wash composites to brown over violet, so the panel keeps the
+   violet surface and the meaning moves to the border and the text. */
+html[data-theme-style="colourful"] .alert-message.warning {
+    background-color: rgb(var(--bw-panel-rgb) / .96) !important;
+    border: 1px solid rgb(var(--state-warn-rgb) / .45) !important;
+    border-left: 3px solid var(--state-warn-fg) !important;
+}
+
+html[data-theme-style="colourful"] .alert-message.error,
+html[data-theme-style="colourful"] .alert-message.error > h4,
+html[data-theme-style="colourful"] .alert-message.error a:not(.btn) {
+    color: #fecdd3 !important;
+}
+
+html[data-theme-style="colourful"] .alert-message.error {
+    background-color: rgb(var(--bw-panel-rgb) / .96) !important;
+    border: 1px solid rgb(var(--state-error-rgb) / .45) !important;
+    border-left: 3px solid var(--state-error-fg) !important;
+}
+
+/* The selected submenu pill is fuchsia in this palette. */
+html[data-theme-style="colourful"] .main > .main-left .nav > .slide > .slide-menu > .active {
+    background-color: #c026d3 !important;
+}
+
+html[data-theme-style="colourful"] .main-left .slide-menu li.active > a {
+    color: #ffffff !important;
+}
