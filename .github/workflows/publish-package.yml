@@ -169,7 +169,9 @@ jobs:
 
       - name: Re-index and re-sign the feed
         run: |
-          docker compose -f devenv/docker-compose.yml exec -T builder bash -c "
+          # A login shell, like build.sh's docker_exec uses: the OpenWrt tree
+          # expects the environment bash -lc sets up.
+          docker compose -f devenv/docker-compose.yml exec -T builder bash -lc "
             umask 022
             cd /repo/openwrt
             make package/index V=s
