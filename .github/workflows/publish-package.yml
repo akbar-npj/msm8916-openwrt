@@ -161,7 +161,7 @@ jobs:
           fi
           echo "Restored feed from releases/${BASE}:"
           for d in openwrt/bin/packages/aarch64_generic/*/; do
-            printf '  %-60s %s apks\n' "$d" "$(ls "$d" | grep -c '\.apk$')"
+            printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done | tee /tmp/feed-before.txt
 
       - name: Build the package
@@ -180,13 +180,24 @@ jobs:
       - name: Verify nothing fell out of the feed
         run: |
           set -euo pipefail
+          # find | wc -l, not "ls | grep -c": grep exits 1 on a count of zero,
+          # and the build creates empty sections (telephony, video) that the
+          # published feed never had, so set -e killed the job on a healthy feed.
+          count_apks() {
+            local total=0 n d
+            for d in openwrt/bin/packages/aarch64_generic/*/; do
+              n="$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
+              total=$((total + n))
+            done
+            echo "$total"
+          }
           echo "After re-index:"
           for d in openwrt/bin/packages/aarch64_generic/*/; do
-            printf '  %-60s %s apks\n' "$d" "$(ls "$d" | grep -c '\.apk$')"
+            printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done
           # A package must never disappear because of a hotfix.
-          before="$(awk '{print $2}' /tmp/feed-before.txt | awk '{s+=$1} END {print s+0}')"
-          after="$(for d in openwrt/bin/packages/aarch64_generic/*/; do ls "$d" | grep -c '\.apk$'; done | awk '{s+=$1} END {print s+0}')"
+          before="$(awk '{s += $2} END {print s+0}' /tmp/feed-before.txt)"
+          after="$(count_apks)"
           if [ "$after" -lt "$before" ]; then
             echo "::error::Feed shrank from ${before} to ${after} packages - refusing to publish."
             exit 1
