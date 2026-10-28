@@ -207,8 +207,19 @@ jobs:
 
       - name: Re-index and re-sign the feed
         run: |
-          # A login shell, like build.sh's docker_exec uses: the OpenWrt tree
-          # expects the environment bash -lc sets up.
+          # In feed-maintenance mode nothing has run "make defconfig" yet, and
+          # "make package/index" falls through to menuconfig and dies on a
+          # terminal.  Mirror build.sh's prepare_config.  A login shell, like
+          # build.sh's docker_exec uses: the OpenWrt tree expects the
+          # environment bash -lc sets up.
+          if [ ! -f openwrt/.config ]; then
+            docker compose -f devenv/docker-compose.yml exec -T builder bash -lc "
+              umask 022
+              cd /repo/openwrt
+              cp /repo/diffconfigs/${BOARD} .config
+              make defconfig V=sc
+            "
+          fi
           docker compose -f devenv/docker-compose.yml exec -T builder bash -lc "
             umask 022
             cd /repo/openwrt
