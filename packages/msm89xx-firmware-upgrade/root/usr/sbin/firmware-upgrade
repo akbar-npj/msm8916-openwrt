@@ -27,6 +27,7 @@ if [ -z "$MANIFEST_URL" ]; then
 fi
 
 TMP="$(mktemp -d /tmp/firmware-upgrade.XXXXXX)"
+DL="/tmp/firmware-upgrade.bin"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
@@ -77,6 +78,7 @@ load_manifest() {
 	LATEST_VER="$(fetch_field version)"
 	LATEST_URL="$(fetch_field sysupgrade)"
 	LATEST_SHA="$(fetch_field sha256)"
+	LATEST_SIZE="$(fetch_field size)"
 	LATEST_NOTES="$(fetch_field notes)"
 	LATEST_MIN="$(fetch_field min_version)"
 	[ -n "$LATEST_VER" ] || { log "no manifest entry for board '$BOARD'"; return 1; }
@@ -84,7 +86,7 @@ load_manifest() {
 }
 
 download_and_verify() {
-	local out="$TMP/firmware.bin" sum
+	local out="$DL" sum
 	log "downloading $LATEST_URL"
 	wget -q -O "$out" "$LATEST_URL" || { log "download failed"; return 1; }
 	sum="$(sha256sum "$out" | awk '{print $1}')"
@@ -96,6 +98,14 @@ download_and_verify() {
 	echo "$out"
 }
 
+verify_local() {
+	local sum
+	[ -f "$DL" ] || return 1
+	sum="$(sha256sum "$DL" | awk '{print $1}')"
+	[ "$sum" = "$LATEST_SHA" ] || return 1
+	return 0
+}
+
 do_upgrade() {
 	local out min_ok=1
 	[ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$(current_version)" && min_ok=0
@@ -103,7 +113,13 @@ do_upgrade() {
 		log "current version is older than the supported minimum ($LATEST_MIN); refusing automatic upgrade"
 		return 1
 	fi
-	out="$(download_and_verify)" || return 1
+	# Reuse an image already downloaded and sha256-verified by the UI's download step.
+	if verify_local; then
+		out="$DL"
+		log "reusing verified local image $out"
+	else
+		out="$(download_and_verify)" || return 1
+	fi
 	log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
 	sysupgrade "$out"
 }
@@ -114,7 +130,7 @@ check)
 	cur="$(current_version)"
 	avail=0; version_greater "$LATEST_VER" "$cur" && avail=1
 	now="$(date +%s)"
-	echo "{\"available\":$avail,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"notes\":\"$LATEST_NOTES\",\"checked\":$now}"
+	echo "{\"available\":$avail,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"size\":$LATEST_SIZE,\"notes\":\"$LATEST_NOTES\",\"checked\":$now}"
 	;;
 	status)
 		load_manifest || { echo "no update information for this board"; exit 0; }

@@ -5,8 +5,10 @@
             "file": {
                 "/tmp/update-notify.json": [ "read" ],
                 "/tmp/firmware-upgrade-notify.json": [ "read" ],
+                "/tmp/firmware-upgrade.bin": [ "stat" ],
                 "/usr/sbin/firmware-upgrade": [ "exec" ],
-                "/usr/sbin/firmware-upgrade upgrade": [ "exec" ]
+                "/usr/sbin/firmware-upgrade upgrade": [ "exec" ],
+                "/usr/sbin/firmware-upgrade download": [ "exec" ]
             }
         }
     }

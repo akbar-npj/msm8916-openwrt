@@ -101,10 +101,12 @@ def main():
         fname = os.path.basename(img)
         url = "%s/%s" % (base_url, fname)
         sha = sha256_of(img)
+        size = os.path.getsize(img)
         entry = {
             "version": args.version,
             "sysupgrade": url,
             "sha256": sha,
+            "size": size,
             "min_version": args.min_version or "",
             "notes": args.notes,
         }
