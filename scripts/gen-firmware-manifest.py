@@ -8,8 +8,11 @@
 # sysupgrade image, computes its sha256, and writes a manifest that the
 # firmware-upgrade script on the device can consume.
 #
-# The manifest is published next to the images on GitHub Pages, so its
-# sysupgrade URLs point under <pages-base>/releases/<base>/targets/msm89xx/msm8916.
+# The manifest itself is published to GitHub Pages, but the sysupgrade
+# images are NOT copied there by the CI (only packages + the manifest are).
+# So the per-board `sysupgrade` URL must point at the GitHub *Release asset*
+# download URL, not the Pages path.  Pass --release-base for that; if omitted
+# it falls back to the Pages path (which would 404 on the image).
 
 import argparse
 import hashlib
@@ -76,6 +79,12 @@ def main():
     ap.add_argument("--version", required=True, help="full version, e.g. 25.12.6-r2")
     ap.add_argument("--pages-base", required=True,
                     help="GitHub Pages base URL, no trailing slash")
+    ap.add_argument("--release-base", default=None,
+                    help="Base URL for the actual sysupgrade image download, e.g. "
+                         "https://github.com/owner/repo/releases/download/v1.2.3. "
+                         "Defaults to <pages-base>/releases/<base>/targets/msm89xx/msm8916 "
+                         "if omitted; prefer the release-asset URL because the CI does "
+                         "not publish the .bin images to GitHub Pages.")
     ap.add_argument("--out", required=True, help="output firmware.json path")
     ap.add_argument("--min-version", default=None,
                     help="minimum supported version (refuses auto-upgrade below)")
@@ -99,7 +108,7 @@ def main():
             sys.stderr.write("warning: no sysupgrade image for device %s\n" % device)
             continue
         fname = os.path.basename(img)
-        url = "%s/%s" % (base_url, fname)
+        url = "%s/%s" % (args.release_base or base_url, fname)
         sha = sha256_of(img)
         size = os.path.getsize(img)
         entry = {
