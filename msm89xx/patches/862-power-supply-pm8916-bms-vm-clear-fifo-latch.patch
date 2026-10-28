@@ -1,0 +1,44 @@
+Clear the BMS FIFO "sample done" latch after draining it.
+
+The VM-BMS keeps STATUS2.FIFO_CNT_SD set until DATA_CTL2 bit 2
+(FIFO_CNT_SD_CLR) is written.  While that bit is set the block raises no
+further fifo_update_done interrupt, so the handler runs exactly once per
+boot and vbat_now keeps that single sample for the rest of the uptime.
+capacity is derived from vbat_now (the probe-time OCV is only trusted for
+the first 180 s), so the gauge freezes at whatever the first sample was:
+on mifib-v12 it locks at 100 %, which makes battery-charge-limit disable
+charging permanently because the 85 % threshold always looks exceeded.
+
+Mirror what the downstream qpnp-vm-bms driver does after reading the FIFO
+and clear the latch so the FSM can hand over the next batch.
+
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -38,6 +38,8 @@
+ #define PM8916_BMS_VM_S2_SAMPLE_INTERVAL_CTL 0x56
+ #define PM8916_BMS_VM_S3_S7_OCV_DATA0 0x6A
+ #define PM8916_BMS_VM_BMS_FIFO_REG_0_LSB 0xC0
++#define PM8916_BMS_VM_DATA_CTL2 0x43
++#define PM8916_BMS_VM_FIFO_CNT_SD_CLR BIT(2)
+ 
+ /* Using only 1 fifo is broken in hardware */
+ #define PM8916_BMS_VM_FIFO_COUNT 2 /* 2 .. 8 */
+@@ -239,6 +241,18 @@
+ 	 */
+ 	bat->vbat_now = vbat_data[PM8916_BMS_VM_FIFO_COUNT - 1] * 300;
+ 
++	/*
++	 * Release the FIFO latch.  FIFO_CNT_SD stays set until it is
++	 * cleared here, and while it is set the BMS does not signal
++	 * another "fifo update done" -- the first sample after probe
++	 * would be the only one ever taken, freezing vbat_now (and the
++	 * capacity derived from it) for the rest of the boot.
++	 */
++	ret = regmap_write(bat->regmap, bat->reg + PM8916_BMS_VM_DATA_CTL2,
++		   PM8916_BMS_VM_FIFO_CNT_SD_CLR);
++	if (ret)
++		dev_warn_once(bat->dev, "failed to clear BMS FIFO: %d\n", ret);
++
+ 	pm8916_bms_vm_update_temp(bat);
+ 
+ 	power_supply_changed(bat->battery);
