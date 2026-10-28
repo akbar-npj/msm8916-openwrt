@@ -179,26 +179,43 @@ jobs:
         run: |
           set -euo pipefail
           BASE="${{ steps.vars.outputs.base }}"
+          FULL="$(cat version)"
           : > /tmp/feed-deleted.txt
-          # Both trees: the one that gets indexed, and the one that gets
-          # committed.  Copying the build output over gh-pages never removes
-          # anything, so a file dropped only locally would come straight back.
+          # The tree that gets indexed, plus every release directory the
+          # publish step writes to (base and full version).  Copying the build
+          # output over gh-pages never removes anything, so a file dropped in
+          # only one place would come straight back.
+          DIRS=""
+          for d in openwrt/bin/packages/aarch64_generic/*/; do
+            if [ -d "$d" ]; then DIRS="$DIRS $d"; fi
+          done
+          for DIR in $(printf '%s\n' "$BASE" "$FULL" | sort -u); do
+            for d in "/tmp/gh-pages/releases/${DIR}/packages/aarch64_generic/"*/; do
+              if [ -d "$d" ]; then DIRS="$DIRS $d"; fi
+            done
+          done
+
           for f in $DELETE_LIST; do
             case "$f" in
               *.apk) ;;
               *) echo "::error::Not an .apk filename: $f"; exit 1 ;;
             esac
             found=0
-            for d in openwrt/bin/packages/aarch64_generic/*/ "/tmp/gh-pages/releases/${BASE}/packages/aarch64_generic/"*/; do
-              [ -d "$d" ] || continue
+            in_build=0
+            for d in $DIRS; do
               if [ -f "$d/$f" ]; then
                 rm -f "$d/$f"
                 echo "removed ${d}/${f}"
                 found=1
+                case "$d" in openwrt/bin/*) in_build=1 ;; esac
               fi
             done
             [ "$found" -eq 1 ] || { echo "::error::$f is not in the feed."; exit 1; }
-            echo "$f" >> /tmp/feed-deleted.txt
+            # Only a deletion from the tree that gets indexed changes the
+            # expected package count; a snapshot-only cleanup does not.
+            if [ "$in_build" -eq 1 ]; then
+              echo "$f" >> /tmp/feed-deleted.txt
+            fi
           done
 
       - name: Build the package
