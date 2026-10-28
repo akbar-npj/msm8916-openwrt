@@ -55,23 +55,28 @@ esac
 
 # Print the number of packages apk could upgrade.
 #
-# --world is the important flag: base-files, kernel and libc are version-pinned
-# in /etc/apk/world, so they can never be upgraded from the feed.  Without
-# --world apk would count them and the banner would advertise updates that
-# cannot be installed.
+# Ask the solver, not the index.  `apk list --upgradable` reports every package
+# with a newer version in the feed, including ones /etc/apk/world pins to the
+# version already installed -- base-files, kernel and libc are pinned that way
+# in the image, and a hand pin behaves the same.  `--world` does not filter
+# those out: in apk-tools 3.0.5 it only adds the world packages to the
+# selection, and `apk list --installed --world` prints exactly the same set as
+# `apk list --installed`.  Counting the list therefore advertised an update
+# that `apk upgrade` then refused to install.
+#
+# `apk upgrade --simulate` runs the real solver against those constraints, so
+# a pinned package simply does not appear.  It also prints one line per
+# package, so the same package in two feeds (the stock OpenWrt one and our own
+# distfeeds) cannot be counted twice.
 count_upgradable() {
-	local list
+	local plan
 
-	if ! list="$(apk list --upgradable --world 2>/dev/null)"; then
-		list="$(apk list --upgradable 2>/dev/null)" || return 1
-	fi
+	plan="$(apk upgrade --simulate 2>/dev/null)" || return 1
 
-	# One line per package *per repository*, and this device has the same
-	# package in two feeds (the stock OpenWrt one and our own distfeeds), so
-	# a plain line count reports every package twice.  Dedupe on the
-	# name-version field; the first field of an `apk list` line is exactly
-	# that, e.g. "luci-base-26.288.56989~75a306d".
-	printf '%s\n' "$list" | awk 'NF && !seen[$1]++' | grep -c . || true
+	# "(2/3) Upgrading nano (9.2-r1 -> 9.3-r1)".  Only upgrades count: an
+	# "Installing" line is a new dependency pulled in by an upgrade, not an
+	# update of anything the user has.
+	printf '%s\n' "$plan" | grep -c '^([0-9][0-9]*/[0-9][0-9]*) Upgrading ' || true
 }
 
 check_once() {
@@ -84,7 +89,12 @@ check_once() {
 		return 1
 	fi
 
-	count="$(count_upgradable)" || count=0
+	# A solver failure means the world is inconsistent or an index is broken;
+	# reporting 0 would silently hide every update, so keep the last answer.
+	if ! count="$(count_upgradable)"; then
+		log "could not work out the upgrade plan; keeping the previous result"
+		return 1
+	fi
 
 	printf '{"count":%s,"checked":%s}\n' "$count" "$(date +%s)" > "$OUT.tmp" &&
 		mv -f "$OUT.tmp" "$OUT" || {
