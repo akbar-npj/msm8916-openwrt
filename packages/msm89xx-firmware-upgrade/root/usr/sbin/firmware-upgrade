@@ -33,10 +33,13 @@ board_name() {
 }
 
 current_version() {
-	local rev
-	rev="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_REVISION")"
-	[ -z "$rev" ] && rev="$(uci -q get "${PKG_CFG}.version" 2>/dev/null)"
-	echo "$rev" | tr ' ' '-'
+	# DISTRIB_RELEASE (e.g. 25.12.6-r2) matches the manifest version scheme.
+	# DISTRIB_REVISION is a git hash and must NOT be used for comparison.
+	local ver
+	ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_RELEASE")"
+	[ -z "$ver" ] && ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_REVISION")"
+	[ -z "$ver" ] && ver="$(uci -q get "${PKG_CFG}.version" 2>/dev/null)"
+	echo "$ver" | tr ' ' '-'
 }
 
 version_greater() {
