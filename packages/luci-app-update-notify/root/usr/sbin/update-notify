@@ -18,6 +18,7 @@
 set -u
 
 OUT=/tmp/update-notify.json
+FIRM_OUT=/tmp/firmware-upgrade-notify.json
 INTERVAL=${INTERVAL:-21600}   # 6 h between successful checks
 RETRY=${RETRY:-900}           # 15 min after a failed one
 FIRST_DELAY=${FIRST_DELAY:-300}
@@ -79,6 +80,25 @@ count_upgradable() {
 	printf '%s\n' "$plan" | grep -c '^([0-9][0-9]*/[0-9][0-9]*) Upgrading ' || true
 }
 
+firmware_check() {
+	# Optional: only meaningful when msm89xx-firmware-upgrade is installed.
+	# Writes /tmp/firmware-upgrade-notify.json for the dashboard banner; when
+	# the package is absent we still record that so the UI can explain it.
+	if ! command -v firmware-upgrade >/dev/null 2>&1; then
+		printf '{"available":false,"installed":false,"checked":%s}\n' "$(date +%s)" > "$FIRM_OUT"
+		return 0
+	fi
+
+	# firmware-upgrade check fetches the manifest and prints a single JSON line;
+	# on failure (offline) it prints nothing, so keep the previous answer.
+	firmware-upgrade check > "$FIRM_OUT.tmp" 2>/dev/null && [ -s "$FIRM_OUT.tmp" ] && \
+		mv -f "$FIRM_OUT.tmp" "$FIRM_OUT" || {
+		rm -f "$FIRM_OUT.tmp"
+		log "firmware-upgrade check failed; keeping previous result"
+	}
+	return 0
+}
+
 check_once() {
 	local count
 
@@ -104,6 +124,7 @@ check_once() {
 		}
 
 	log "$count package update(s) available"
+	firmware_check
 	return 0
 }
 

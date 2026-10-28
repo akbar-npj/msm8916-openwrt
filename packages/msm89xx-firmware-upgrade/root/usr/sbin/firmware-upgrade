@@ -109,12 +109,13 @@ do_upgrade() {
 }
 
 case "$1" in
-	check)
-		load_manifest || exit 0
-		cur="$(current_version)"
-		avail=0; version_greater "$LATEST_VER" "$cur" && avail=1
-		echo "{\"available\":$avail,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"notes\":\"$LATEST_NOTES\"}"
-		;;
+check)
+	load_manifest || exit 0
+	cur="$(current_version)"
+	avail=0; version_greater "$LATEST_VER" "$cur" && avail=1
+	now="$(date +%s)"
+	echo "{\"available\":$avail,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"notes\":\"$LATEST_NOTES\",\"checked\":$now}"
+	;;
 	status)
 		load_manifest || { echo "no update information for this board"; exit 0; }
 		cur="$(current_version)"
