@@ -1,0 +1,65 @@
+pm8916-bms-vm: use the vendor vbat LSB (293 uV, not 300)
+
+The BMS reports the battery through a 1/3 divider at 97656 uV per bit, so
+one LSB is 97656 / 1000 * 3 = 292.97 uV.  The downstream qpnp-vm-bms
+driver converts exactly that way and the OCV table in the board DTS was
+measured against it, but mainline used 300 uV -- 2.4 % high, which shifts
+every capacity point down by roughly nine percentage points at 85 %.
+
+Measured on mifib-v12 (pack at rest, charger held off): the gauge read
+4.299 V against 4.184 V at the battery connector, i.e. ~292 uV/LSB.  It
+also made a healthy full pack report "Over voltage" (4.33 V against a
+4.2 V design maximum).
+
+Introduce PM8916_BMS_VM_VBAT_LSB_UV and use it for the FIFO sample, the
+probe-time OCV and the resume OCV.
+
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -41,6 +41,19 @@
+ #define PM8916_BMS_VM_DATA_CTL2 0x43
+ #define PM8916_BMS_VM_FIFO_CNT_SD_CLR BIT(2)
+ 
++/*
++ * Vbat LSB.  The BMS reports the battery through a 1/3 divider at
++ * 97656 uV per bit, i.e. 97656 / 1000 * 3 = 292.97 uV per LSB.  The
++ * downstream qpnp-vm-bms driver uses exactly that (V_PER_BIT_MUL_FACTOR
++ * 97656 / V_PER_BIT_DIV_FACTOR 1000, then VBATT_MUL_FACTOR 3), and the
++ * OCV table in the board DTS was measured against it -- so the two have
++ * to agree or every capacity point is shifted.  Mainline used 300, which
++ * reads 2.4 % high: a full 4.2 V pack showed up as 4.33 V (and tripped
++ * the over-voltage health flag).  Measured on mifib-v12: gauge 4.299 V
++ * vs 4.184 V at the connector, i.e. ~293 uV/LSB.
++ */
++#define PM8916_BMS_VM_VBAT_LSB_UV 293
++
+ /* Using only 1 fifo is broken in hardware */
+ #define PM8916_BMS_VM_FIFO_COUNT 2 /* 2 .. 8 */
+ 
+@@ -239,7 +252,7 @@
+ 	 * Just use the last measured value for now to report the current
+ 	 * battery voltage.
+ 	 */
+-	bat->vbat_now = vbat_data[PM8916_BMS_VM_FIFO_COUNT - 1] * 300;
++	bat->vbat_now = vbat_data[PM8916_BMS_VM_FIFO_COUNT - 1] * PM8916_BMS_VM_VBAT_LSB_UV;
+ 
+ 	/*
+ 	 * Release the FIFO latch.  FIFO_CNT_SD stays set until it is
+@@ -329,7 +342,7 @@
+ 		goto comm_error;
+ 
+ 	bat->last_ocv_time = ktime_get_seconds();
+-	bat->last_ocv = tmp * 300;
++	bat->last_ocv = tmp * PM8916_BMS_VM_VBAT_LSB_UV;
+ 	bat->vbat_now = bat->last_ocv;
+ 
+ 	pm8916_bms_vm_update_temp(bat);
+@@ -399,7 +412,7 @@
+ 			       bat->reg + PM8916_BMS_VM_S3_S7_OCV_DATA0, &tmp, 2);
+ 
+ 	bat->last_ocv_time = ktime_get_seconds();
+-	bat->last_ocv = tmp * 300;
++	bat->last_ocv = tmp * PM8916_BMS_VM_VBAT_LSB_UV;
+ 
+ 	ret = regmap_write(bat->regmap,
+ 			   bat->reg + PM8916_SEC_ACCESS, PM8916_SEC_MAGIC);
