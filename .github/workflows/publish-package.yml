@@ -299,7 +299,12 @@ jobs:
             echo "::warning::Nothing changed on gh-pages - was PKG_RELEASE bumped?"
             exit 0
           fi
-          git commit -m "feed: publish ${PKG} into releases/${BASE} (${FULL})"
+          if [ -n "$PKG" ]; then
+            MSG="feed: publish ${PKG} into releases/${BASE} (${FULL})"
+          else
+            MSG="feed: maintain releases/${BASE} (${FULL})"
+          fi
+          git commit -m "$MSG"
           git push origin gh-pages
 
       - name: Summarise
