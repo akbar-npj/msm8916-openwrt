@@ -27,8 +27,9 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: "Package to rebuild (directory name under packages/)"
-        required: true
+        description: "Package to rebuild (directory name under packages/). Empty = feed maintenance only: no build, just prune and re-index."
+        required: false
+        default: ""
         type: string
       base:
         description: "Feed base to publish into (releases/<base>). Empty = derive from ./version"
@@ -45,6 +46,11 @@ on:
         required: false
         default: true
         type: boolean
+      delete:
+        description: "Space-separated .apk filenames to remove from the feed (e.g. a superseded build). The index is regenerated without them."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -56,7 +62,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Build & publish ${{ inputs.package }}
+    name: ${{ inputs.package || 'Feed maintenance' }}
     runs-on: ubuntu-latest
 
     env:
@@ -84,7 +90,7 @@ jobs:
             BASE="$(sed 's/-r[0-9]*$//' version)"
           fi
           echo "base=${BASE}" >> $GITHUB_OUTPUT
-          if [ ! -f "packages/${PKG}/Makefile" ]; then
+          if [ -n "$PKG" ] && [ ! -f "packages/${PKG}/Makefile" ]; then
             echo "::error::packages/${PKG}/Makefile does not exist."
             echo "Known packages:"
             ls packages/
@@ -94,7 +100,7 @@ jobs:
           echo "Package : ${PKG} (board ${BOARD})"
 
       - name: Bump PKG_RELEASE
-        if: inputs.bump
+        if: inputs.bump && inputs.package != ''
         run: |
           set -euo pipefail
           MK="packages/${PKG}/Makefile"
@@ -166,7 +172,37 @@ jobs:
             printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done | tee /tmp/feed-before.txt
 
+      - name: Delete obsolete packages from the feed
+        if: inputs.delete != ''
+        env:
+          DELETE_LIST: ${{ inputs.delete }}
+        run: |
+          set -euo pipefail
+          BASE="${{ steps.vars.outputs.base }}"
+          : > /tmp/feed-deleted.txt
+          # Both trees: the one that gets indexed, and the one that gets
+          # committed.  Copying the build output over gh-pages never removes
+          # anything, so a file dropped only locally would come straight back.
+          for f in $DELETE_LIST; do
+            case "$f" in
+              *.apk) ;;
+              *) echo "::error::Not an .apk filename: $f"; exit 1 ;;
+            esac
+            found=0
+            for d in openwrt/bin/packages/aarch64_generic/*/ "/tmp/gh-pages/releases/${BASE}/packages/aarch64_generic/"*/; do
+              [ -d "$d" ] || continue
+              if [ -f "$d/$f" ]; then
+                rm -f "$d/$f"
+                echo "removed ${d}/${f}"
+                found=1
+              fi
+            done
+            [ "$found" -eq 1 ] || { echo "::error::$f is not in the feed."; exit 1; }
+            echo "$f" >> /tmp/feed-deleted.txt
+          done
+
       - name: Build the package
+        if: inputs.package != ''
         run: ./build.sh package "$PKG" "$BOARD"
 
       - name: Re-index and re-sign the feed
@@ -197,14 +233,19 @@ jobs:
           for d in openwrt/bin/packages/aarch64_generic/*/; do
             printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done
-          # A package must never disappear because of a hotfix.
+          # A package must never disappear because of a hotfix.  Deliberate
+          # deletions are subtracted first, so anything else shrinking is a bug.
           before="$(awk '{s += $2} END {print s+0}' /tmp/feed-before.txt)"
           after="$(count_apks)"
-          if [ "$after" -lt "$before" ]; then
-            echo "::error::Feed shrank from ${before} to ${after} packages - refusing to publish."
+          deleted=0
+          if [ -s /tmp/feed-deleted.txt ]; then
+            deleted="$(wc -l < /tmp/feed-deleted.txt)"
+          fi
+          if [ "$after" -lt "$((before - deleted))" ]; then
+            echo "::error::Feed shrank from ${before} to ${after} packages (${deleted} deleted on purpose) - refusing to publish."
             exit 1
           fi
-          echo "OK: ${before} -> ${after} packages"
+          echo "OK: ${before} -> ${after} packages (${deleted} deleted on purpose)"
 
       - name: Publish to gh-pages
         run: |
@@ -245,6 +286,11 @@ jobs:
             echo
             echo "Built:"
             find openwrt/bin/packages -name "${PKG}-*.apk" -printf '  %f\n' 2>/dev/null || true
+            if [ -s /tmp/feed-deleted.txt ]; then
+              echo
+              echo "Removed from the feed:"
+              sed 's/^/  /' /tmp/feed-deleted.txt
+            fi
             echo
             echo "On the device:"
             echo '```'
