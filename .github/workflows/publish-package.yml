@@ -171,6 +171,8 @@ jobs:
           for d in openwrt/bin/packages/aarch64_generic/*/; do
             printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done | tee /tmp/feed-before.txt
+          find openwrt/bin/packages/aarch64_generic -maxdepth 2 -name '*.apk' -printf '%f\n' \
+            | sort > /tmp/feed-before-files.txt
 
       - name: Delete obsolete packages from the feed
         if: inputs.delete != ''
@@ -268,6 +270,28 @@ jobs:
           deleted=0
           if [ -s /tmp/feed-deleted.txt ]; then
             deleted="$(wc -l < /tmp/feed-deleted.txt)"
+          fi
+
+          # The build deletes every superseded version of the package it
+          # rebuilds (scripts/ipkg-remove), so a hotfix legitimately turns N
+          # files into 1: rebuilding update-notify r3 removed r1 and r2 and
+          # the feed "shrank" by one for no reason.  Leave the rebuilt
+          # package out of both sides of the comparison, since its own old
+          # versions are not a package falling out, but require that it
+          # produced a file.  Deletions of its own versions are ignored too,
+          # or they would be subtracted twice.
+          if [ -n "$PKG" ]; then
+            before_pkg="$(awk -v p="$PKG-" 'index($0, p) == 1' /tmp/feed-before-files.txt | wc -l)"
+            after_pkg="$(find openwrt/bin/packages/aarch64_generic -name "$PKG-*.apk" | wc -l)"
+            if [ "$after_pkg" -lt 1 ]; then
+              echo "::error::The build produced no $PKG .apk - refusing to publish."
+              exit 1
+            fi
+            if [ -s /tmp/feed-deleted.txt ]; then
+              deleted="$(awk -v p="$PKG-" 'index($0, p) != 1' /tmp/feed-deleted.txt | wc -l)"
+            fi
+            before=$((before - before_pkg))
+            after=$((after - after_pkg))
           fi
           if [ "$after" -lt "$((before - deleted))" ]; then
             echo "::error::Feed shrank from ${before} to ${after} packages (${deleted} deleted on purpose) - refusing to publish."
