@@ -70,7 +70,7 @@
     "luci-app-tailscale": "1.2.6-r1",
     "luci-app-update-notify": "1.0-r3",
     "luci-app-usb-gadget": "1.0-r1",
-    "luci-app-wifi-sta": "1.0-r7",
+    "luci-app-wifi-sta": "1.0-r9",
     "luci-theme-feelgood": "1-r24",
     "mkf2fs": "1.16.0-r4",
     "mount-utils": "2.41.5-r1",
