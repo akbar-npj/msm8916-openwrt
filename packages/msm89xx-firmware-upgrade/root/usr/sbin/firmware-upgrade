@@ -1,0 +1,130 @@
+#!/bin/sh
+# firmware-upgrade - check for, download, verify and apply a published firmware
+# image for this board.  Works with the firmware.json manifest that the release
+# pipeline publishes next to the images.
+#
+#   firmware-upgrade check     -> JSON {available,current,latest,board,url,sha256,notes}
+#   firmware-upgrade status    -> one-line human summary
+#   firmware-upgrade download  -> fetch + verify, print the temp image path
+#   firmware-upgrade upgrade   -> download + verify, then sysupgrade (keep config)
+#
+# Safety model:
+#   * only an entry whose key matches /tmp/sysinfo/board_name is ever used
+#   * the image sha256 (from the manifest) is checked before any flash
+#   * sysupgrade keeps the config (no -n) so the overlay and the modem
+#     firmware that live there survive the upgrade
+
+. /lib/functions.sh
+
+PKG_CFG="firmware"
+MANIFEST_URL="$(uci -q get ${PKG_CFG}.manifest_url 2>/dev/null)"
+[ -z "$MANIFEST_URL" ] && MANIFEST_URL="https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/firmware.json"
+
+TMP="$(mktemp -d /tmp/firmware-upgrade.XXXXXX)"
+cleanup() { rm -rf "$TMP"; }
+trap cleanup EXIT
+
+log() { logger -t firmware-upgrade "$*"; echo "$*" >&2; }
+
+board_name() {
+	uci -q get "${PKG_CFG}.board" 2>/dev/null \
+		|| cat /tmp/sysinfo/board_name 2>/dev/null \
+		|| cat /proc/device-tree/model 2>/dev/null
+}
+
+current_version() {
+	local rev
+	rev="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_REVISION")"
+	[ -z "$rev" ] && rev="$(uci -q get "${PKG_CFG}.version" 2>/dev/null)"
+	echo "$rev" | tr ' ' '-'
+}
+
+version_greater() {
+	local a="$1" b="$2" ra rb na nb xa xb
+	[ "$a" = "$b" ] && return 1
+	ra="${a%%-*}"; rb="${b%%-*}"
+	na="${a##*-}"; nb="${b##*-}"
+	while [ -n "$ra" ] || [ -n "$rb" ]; do
+		xa="${ra%%.*}"; xb="${rb%%.*}"
+		[ "$ra" != "$xa" ] && ra="${ra#*.}" || ra=""
+		[ "$rb" != "$xb" ] && rb="${rb#*.}" || rb=""
+		xa="${xa:-0}"; xb="${xb:-0}"
+		[ "$xa" -gt "$xb" ] 2>/dev/null && return 0
+		[ "$xb" -gt "$xa" ] 2>/dev/null && return 1
+	done
+	na="${na#r}"; nb="${nb#r}"
+	[ "${na:-0}" -gt "${nb:-0}" ] 2>/dev/null && return 0
+	return 1
+}
+
+fetch_field() {
+	echo "$MANIFEST" | jsonfilter -e "@.boards['${BOARD}'].$1" 2>/dev/null
+}
+
+load_manifest() {
+	MANIFEST="$(wget -q -O - "$MANIFEST_URL" 2>/dev/null)"
+	[ -n "$MANIFEST" ] || { log "cannot fetch manifest from $MANIFEST_URL"; return 1; }
+	BOARD="$(board_name)"
+	LATEST_VER="$(fetch_field version)"
+	LATEST_URL="$(fetch_field sysupgrade)"
+	LATEST_SHA="$(fetch_field sha256)"
+	LATEST_NOTES="$(fetch_field notes)"
+	LATEST_MIN="$(fetch_field min_version)"
+	[ -n "$LATEST_VER" ] || { log "no manifest entry for board '$BOARD'"; return 1; }
+	return 0
+}
+
+download_and_verify() {
+	local out="$TMP/firmware.bin" sum
+	log "downloading $LATEST_URL"
+	wget -q -O "$out" "$LATEST_URL" || { log "download failed"; return 1; }
+	sum="$(sha256sum "$out" | awk '{print $1}')"
+	if [ "$sum" != "$LATEST_SHA" ]; then
+		log "sha256 mismatch: got $sum expected $LATEST_SHA"
+		return 1
+	fi
+	log "verified sha256 $sum"
+	echo "$out"
+}
+
+do_upgrade() {
+	local out min_ok=1
+	[ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$(current_version)" && min_ok=0
+	if [ "$min_ok" -eq 0 ]; then
+		log "current version is older than the supported minimum ($LATEST_MIN); refusing automatic upgrade"
+		return 1
+	fi
+	out="$(download_and_verify)" || return 1
+	log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
+	sysupgrade "$out"
+}
+
+case "$1" in
+	check)
+		load_manifest || exit 0
+		cur="$(current_version)"
+		avail=0; version_greater "$LATEST_VER" "$cur" && avail=1
+		echo "{\"available\":$avail,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"notes\":\"$LATEST_NOTES\"}"
+		;;
+	status)
+		load_manifest || { echo "no update information for this board"; exit 0; }
+		cur="$(current_version)"
+		if version_greater "$LATEST_VER" "$cur"; then
+			echo "update available: $cur -> $LATEST_VER ($LATEST_URL)"
+		else
+			echo "up to date ($cur); latest is $LATEST_VER"
+		fi
+		;;
+	download)
+		load_manifest || exit 1
+		download_and_verify
+		;;
+	upgrade)
+		load_manifest || exit 1
+		do_upgrade
+		;;
+	*)
+		echo "usage: $0 {check|status|download|upgrade}" >&2
+		exit 1
+		;;
+esac
