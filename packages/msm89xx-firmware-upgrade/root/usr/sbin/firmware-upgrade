@@ -158,12 +158,22 @@ check)
 		load_manifest || exit 1
 		download_and_verify
 		;;
+	apply)
+		# Long download + flash must not run inside the rpcd ubus call:
+		# rpcd runs with `-t 30`, so a synchronous exec is killed after 30 s
+		# and the download never completes.  Detach the real work and return
+		# immediately; the dashboard polls /tmp/firmware-upgrade.bin for
+		# progress and /tmp/firmware-upgrade.failed for errors.
+		rm -f /tmp/firmware-upgrade.failed
+		setsid sh -c 'if /usr/sbin/firmware-upgrade upgrade >/tmp/firmware-upgrade-apply.log 2>&1; then :; else echo failed >/tmp/firmware-upgrade.failed; fi' >/dev/null 2>&1 &
+		echo started
+		;;
 	upgrade)
 		load_manifest || exit 1
 		do_upgrade
 		;;
 	*)
-		echo "usage: $0 {check|status|download|upgrade}" >&2
+		echo "usage: $0 {check|status|download|apply|upgrade}" >&2
 		exit 1
 		;;
 esac

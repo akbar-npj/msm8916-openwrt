@@ -29,6 +29,7 @@ var JUST_FILE  = '/tmp/firmware-upgrade-just-upgraded.json';
 var RELEASE_FILE = '/etc/openwrt_release';
 var UPGRADE_CMD = '/usr/sbin/firmware-upgrade';
 var DL_PATH = '/tmp/firmware-upgrade.bin';
+var FAIL_FILE = '/tmp/firmware-upgrade.failed';
 
 var LS_LAST = 'msm89xx.fw.last';
 var LS_ACK  = 'msm89xx.fw.ack';
@@ -146,8 +147,11 @@ return baseclass.extend({
 			showAvail = true;
 		}
 
-		if (!this.node && !showAvail && !showDone)
+		if (!showAvail && !showDone) {
+			if (this.node && this.node.parentNode)
+				this.node.parentNode.removeChild(this.node);
 			return null;
+		}
 		if (!this.node)
 			this.node = this.build();
 
@@ -170,6 +174,17 @@ return baseclass.extend({
 			this.availNode.style.display = '';
 		} else {
 			this.availNode.style.display = 'none';
+		}
+
+		/* Place the banner at the very TOP of the page content instead of as a
+		 * section at the bottom of the status overview.  Returning null keeps
+		 * the framework from wrapping it in a titled cbi-section. */
+		var top = document.querySelector('#maincontent');
+		if (top) {
+			if (top.firstChild !== this.node)
+				top.insertBefore(this.node, top.firstChild);
+			this.node.style.display = '';
+			return null;
 		}
 
 		return this.node;
@@ -217,33 +232,42 @@ return baseclass.extend({
 		this.label.textContent = _('Downloading firmware and verifying checksum...');
 
 		var self = this;
+		/* 'apply' starts the download + flash DETACHED and returns at once:
+		 * rpcd runs with `-t 30`, so a synchronous download would be killed
+		 * after 30 s.  We then poll the image size for progress. */
+		fs.exec(UPGRADE_CMD, [ 'apply' ]).catch(function () {});
 		this.poll = setInterval(function () { self.pollProgress(); }, 1000);
-
-		fs.exec(UPGRADE_CMD, [ 'download' ]).then(function () {
-			clearInterval(self.poll);
-			self.setProgress(100);
-			self.label.textContent = _('Checksum verified. Rebooting to apply...');
-			/* The upgrade flashes the image and reboots, so this call normally
-			 * does not return; a dropped connection here is expected. */
-			fs.exec(UPGRADE_CMD, [ 'upgrade' ]).catch(function () {});
-		}).catch(function () {
-			clearInterval(self.poll);
-			self.progress.style.display = 'none';
-			self.label.textContent = _('Download failed - check network and system log.');
-			self.busy = false;
-			self.btn.disabled = false;
-			self.btn.textContent = _('Retry upgrade');
-		});
 	},
 
 	pollProgress() {
 		var self = this;
+
+		/* The detached job writes this marker if the download or verify failed. */
+		fs.read(FAIL_FILE).then(function () {
+			self.failUpgrade();
+		}).catch(function () {});
+
 		fs.stat(DL_PATH).then(function (st) {
 			if (self.fwSize && st && st.size) {
 				var pct = Math.min(100, Math.round(100 * st.size / self.fwSize));
 				self.setProgress(pct);
+				if (st.size >= self.fwSize) {
+					clearInterval(self.poll);
+					self.label.textContent = _('Checksum verified. Rebooting to apply...');
+				}
 			}
 		}).catch(function () {});
+	},
+
+	failUpgrade() {
+		if (!this.busy)
+			return;
+		clearInterval(this.poll);
+		this.progress.style.display = 'none';
+		this.label.textContent = _('Download failed - check network and system log.');
+		this.busy = false;
+		this.btn.disabled = false;
+		this.btn.textContent = _('Retry upgrade');
 	},
 
 	setProgress(pct) {
