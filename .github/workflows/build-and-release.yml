@@ -120,6 +120,7 @@ jobs:
             --bin-dir "$BIN" \
             --version "$VERSION" \
             --pages-base "$PAGES_BASE" \
+            --release-base "https://github.com/akbar-npj/msm8916-openwrt/releases/download/${{ steps.vars.outputs.tag }}" \
             --out "$BIN/firmware.json" \
             --min-version "${BASE}-r1" \
             --notes "OpenWrt ${VERSION} for MSM8916"
