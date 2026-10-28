@@ -22,5 +22,6 @@ uci -q get network.stawan >/dev/null || {
 }
 
 [ -x /etc/init.d/wifi-sta-late ] && /etc/init.d/wifi-sta-late enable
+[ -x /etc/init.d/uplink-manager ] && /etc/init.d/uplink-manager enable
 
 exit 0

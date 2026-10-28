@@ -8,6 +8,20 @@
 
 ---
 
+### Packages — dual-uplink failover (msm89xx-scripts r4, luci-app-wifi-sta r8)
+
+*A health-checked choice between the LTE modem and the Wi-Fi station, with a user policy and no netifd/radio churn.*
+
+**Why** — The station fallback used to install an address only and never became a real second uplink; the modem stayed the only default route and a dead station left the LAN stranded. uplink-manager now arbitrates the default route between wwan0 (modem) and phy0-sta0 (station) with ping health probes and a policy (auto / modem / sta), and points dnsmasq at the active link (station DNS defaults to 8.8.8.8 8.8.4.4).
+
+**How it stays safe** — netifd still owns the modem and never touches phy0-sta0; the manager only adds/removes a metric-40 STA override and a metric-100 STA candidate, leaving the modem at 50. If the manager dies, modem-first service survives. A lingering DHCP lease after an unclean udhcpc exit is ignored unless the vif still carries an address, so a stale lease can never be read as a live link. No radio restart, so the WCNSS firmware never crashes.
+
+**LuCI** — Network to Station Mode to Uplink shows live per-link state and lets you set the policy; saving restarts the manager.
+
+See Docs/WiFi/UPLINK_FAILOVER.md for the route ladder, probe tuning and the STA-down behaviour.
+
+---
+
 ### v25.12.6-r2 (2026-10-28) — built from `main`
 
 *An update you can see, a theme you can pick, and LEDs that only light for something you can act on.*

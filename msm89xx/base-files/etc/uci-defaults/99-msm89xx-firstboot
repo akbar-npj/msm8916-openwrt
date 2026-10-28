@@ -17,10 +17,12 @@ set network.modem.apn='jionet'
 set network.modem.allowedmode='4g'
 set network.modem.preferredmode='none'
 set network.modem.ifname='wwan0'
+set network.modem.metric='50'
 EOF
 
 uci -q del_list firewall.@zone[1].network='modem' 2>/dev/null || true
 uci add_list firewall.@zone[1].network='modem'
+uci add_list firewall.@zone[1].device='phy0-sta0'
 
 # Device specific initialization
 

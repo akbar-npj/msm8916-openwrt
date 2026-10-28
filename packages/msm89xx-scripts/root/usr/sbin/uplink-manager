@@ -1,0 +1,171 @@
+#!/bin/sh
+# uplink-manager: chooses the active default route between the LTE modem (wwan0)
+# and the Wi-Fi station (phy0-sta0), with health probes and a user policy.
+#
+# Route ladder (lower metric wins):
+#   40  STA override   -- installed only when the STA must win (active link)
+#   50  modem default  -- installed by netifd, normalized to 50 here
+#  100  STA candidate  -- installed by wifi-sta-dhcp.sh on lease (modem wins while present)
+#
+# netifd owns the modem L3; wifi-sta-dhcp.sh owns the STA L3.  This manager only
+# adds/removes the 40 override and the 100 candidate, and points dnsmasq at the
+# active link's DNS.  If this manager dies, the netifd + dhcp routes still give
+# modem-first service (modem 50 < STA 100).
+
+. /lib/functions.sh
+
+PIDFILE=/var/run/uplink-manager.pid
+JSON=/tmp/uplink.json
+LEASE=/tmp/wifi-sta-lease
+
+policy="auto"
+probe_target="1.1.1.1"
+probe_interval=30
+probe_timeout=3
+fail_threshold=3
+recover_threshold=2
+override_metric=40
+modem_metric=50
+sta_metric=100
+
+config_load uplink
+config_get policy general policy "$policy"
+config_get probe_target general probe_target "$probe_target"
+config_get probe_interval general probe_interval "$probe_interval"
+config_get probe_timeout general probe_timeout "$probe_timeout"
+config_get fail_threshold general fail_threshold "$fail_threshold"
+config_get recover_threshold general recover_threshold "$recover_threshold"
+config_get override_metric general override_metric "$override_metric"
+config_get dns_override general sta_dns ""
+
+modem_ok=0; modem_dev=""; modem_gw=""
+sta_ok=0; sta_dev=""; sta_gw=""; sta_dns=""
+modem_good=0; modem_bad=0; sta_good=0; sta_bad=0
+prev_active=""; prev_dns_value=""
+
+probe() {
+	ping -I "$1" -c 1 -w "$probe_timeout" "$probe_target" >/dev/null 2>&1
+}
+
+read_modem() {
+	modem_ok=0; modem_dev=""; modem_gw=""
+	local up
+	up=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)
+	[ "$up" = "true" ] || return
+	modem_dev=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)
+	modem_gw=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.route[@.target="0.0.0.0/0"].nexthop' 2>/dev/null | head -1)
+	[ -n "$modem_dev" ] && [ -n "$modem_gw" ] && modem_ok=1
+}
+
+read_sta() {
+	sta_ok=0; sta_dev=""; sta_gw=""; sta_dns=""
+	[ -f "$LEASE" ] || return
+	local dev gw dns
+	dev=$(sed -n 's/^interface=//p' "$LEASE")
+	gw=$(sed -n 's/^router=//p' "$LEASE")
+	dns=$(sed -n 's/^dns=//p' "$LEASE")
+	# The lease may linger after an unclean udhcpc exit; only trust it while the
+	# vif still carries an address.  Leave the fields empty otherwise so the
+	# status JSON never reports a stale device/gateway for a down link.
+	[ -n "$dev" ] && [ -n "$gw" ] && 		ip -4 addr show dev "$dev" 2>/dev/null | grep -q "inet " || return
+	sta_dev="$dev"; sta_gw="$gw"; sta_dns="$dns"; sta_ok=1
+}
+
+apply_dns() {
+	# Track the exact server string so a change of the STA DNS (e.g. after a
+	# DHCP renew) is applied even when the STA stays the active link.
+	local a="$1"
+	local want="$sta_dns_eff"
+	[ "$a" = "sta" ] || want=""
+	[ "$want" = "$prev_dns_value" ] && return
+	prev_dns_value="$want"
+	uci -q del dhcp.@dnsmasq[0].server
+	if [ -n "$want" ]; then
+		for s in $want; do uci add_list dhcp.@dnsmasq[0].server="$s"; done
+	fi
+	uci commit dhcp
+	/etc/init.d/dnsmasq reload 2>/dev/null
+}
+
+write_json() {
+	cat > "$JSON" <<EOF
+{
+  "active": "$active",
+  "policy": "$policy",
+  "modem": { "present": $modem_ok, "healthy": $modem_healthy, "device": "$modem_dev", "gateway": "$modem_gw" },
+  "sta": { "present": $sta_ok, "healthy": $sta_healthy, "device": "$sta_dev", "gateway": "$sta_gw", "dns": "$sta_dns_eff" },
+  "since": "$(date +%s)"
+}
+EOF
+}
+
+cycle() {
+	read_modem; read_sta
+	sta_dns_eff="$dns_override"; [ -z "$sta_dns_eff" ] && sta_dns_eff="$sta_dns"
+
+	if [ "$modem_ok" = 1 ]; then
+		if probe "$modem_dev"; then modem_good=$((modem_good+1)); modem_bad=0
+		else modem_bad=$((modem_bad+1)); modem_good=0; fi
+	else modem_good=0; modem_bad=$fail_threshold; fi
+	modem_healthy=$( [ "$modem_ok" = 1 ] && [ "$modem_bad" -lt "$fail_threshold" ] && echo 1 || echo 0 )
+
+	if [ "$sta_ok" = 1 ]; then
+		if probe "$sta_dev"; then sta_good=$((sta_good+1)); sta_bad=0
+		else sta_bad=$((sta_bad+1)); sta_good=0; fi
+	else sta_good=0; sta_bad=$fail_threshold; fi
+	sta_healthy=$( [ "$sta_ok" = 1 ] && [ "$sta_bad" -lt "$fail_threshold" ] && echo 1 || echo 0 )
+
+	# Normalize the modem default route to our metric (no traffic interruption).
+	if [ "$modem_ok" = 1 ]; then
+		ip route show default 2>/dev/null | grep -q "via $modem_gw dev $modem_dev" && 			ip route replace default via "$modem_gw" dev "$modem_dev" metric "$modem_metric"
+	fi
+
+	# STA candidate route tracks policy + presence.
+	if [ "$sta_ok" = 1 ] && [ "$policy" != "modem" ]; then
+		ip route replace default via "$sta_gw" dev "$sta_dev" metric "$sta_metric"
+	else
+		ip route del default metric "$sta_metric" dev "$sta_dev" 2>/dev/null
+	fi
+
+	# Decide the active link.
+	active="none"
+	case "$policy" in
+		modem)
+			[ "$modem_healthy" = 1 ] && active="modem" ;;
+		sta)
+			if [ "$sta_healthy" = 1 ]; then active="sta"
+			elif [ "$modem_healthy" = 1 ]; then active="modem"; fi ;;
+		*)
+			if [ "$modem_healthy" = 1 ]; then active="modem"
+			elif [ "$sta_healthy" = 1 ]; then active="sta"; fi ;;
+	esac
+
+	# Apply the STA override when the STA is the active link.
+	if [ "$active" = "sta" ]; then
+		ip route replace default via "$sta_gw" dev "$sta_dev" metric "$override_metric"
+	else
+		ip route del default metric "$override_metric" 2>/dev/null
+	fi
+
+	apply_dns "$active"
+
+	if [ "$active" != "$prev_active" ]; then
+		logger -t uplink "active=$active (policy=$policy, modem present=$modem_ok healthy=$modem_healthy, sta present=$sta_ok healthy=$sta_healthy)"
+		prev_active="$active"
+	fi
+	write_json
+}
+
+wake=0
+trap 'wake=1' USR1
+
+while true; do
+	wake=0
+	cycle
+	i=0
+	while [ "$i" -lt "$probe_interval" ]; do
+		sleep 1
+		[ "$wake" = 1 ] && break
+		i=$((i + 1))
+	done
+done
