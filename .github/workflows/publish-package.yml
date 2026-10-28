@@ -220,6 +220,15 @@ jobs:
             fi
           done
 
+      # The single-package build pulls in the board's selected kmods, and a
+      # kmod build needs linux-<ver>/.config in the kernel build dir. On a fresh
+      # runner that file does not exist until the kernel is configured, so the
+      # kmod compile fails with "No rule to make target .../.config". Prepare
+      # (configure + build) the kernel tree first so the .config is present.
+      - name: Prepare the kernel tree
+        if: inputs.package != ''
+        run: ./build.sh kernel "$BOARD"
+
       - name: Build the package
         if: inputs.package != ''
         run: ./build.sh package "$PKG" "$BOARD"
