@@ -75,7 +75,7 @@
     "mkf2fs": "1.16.0-r4",
     "mount-utils": "2.41.5-r1",
     "msm-firmware-dumper": "1.1-r1",
-    "msm89xx-scripts": "1.0-r1",
+    "msm89xx-scripts": "1.0-r5",
     "mt7601u-firmware": "20260221-r1",
     "mwifiex-sdio-firmware": "20260221-r1",
     "netifd": "2026.02.26~cbb83a18-r2",
