@@ -6,7 +6,7 @@ LUCI_DEPENDS:=+luci-base +rpcd-mod-file
 LUCI_PKGARCH:=all
 
 PKG_VERSION:=1.0
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 PKG_MAINTAINER:=akbar-npj
 PKG_LICENSE:=GPL-2.0-only
 

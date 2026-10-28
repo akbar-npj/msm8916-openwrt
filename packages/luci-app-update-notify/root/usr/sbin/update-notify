@@ -27,18 +27,28 @@ log() {
 	logger -t update-notify "$1"
 }
 
+# Current firmware version as reported by the image (DISTRIB_RELEASE, e.g.
+# 25.12.6-r2); matches the manifest version scheme.
+current_version() {
+	. /etc/openwrt_release 2>/dev/null
+	echo "${DISTRIB_RELEASE:-unknown}" | tr ' ' '-'
+}
+
 MODE="${1:---once}"
 
 case "$MODE" in
 	-h|--help)
 		cat <<'USAGE'
-Usage: update-notify [--once | --daemon | --help]
+Usage: update-notify [--once | --daemon | --boot | --help]
 
   --once     Refresh the index and rewrite /tmp/update-notify.json.  Exits
              non-zero when the index could not be refreshed (offline).
   --daemon   Refresh now, then every INTERVAL seconds (default 6 h).  A failed
              refresh keeps the previous result and retries after RETRY
              seconds (default 15 min).  Started by /etc/init.d/update-notify.
+  --boot     Lightweight post-reboot hook: only turn a pending firmware-upgrade
+             marker into /tmp/firmware-upgrade-just-upgraded.json.  Needs no
+             network.  Run by /etc/init.d/update-notify at boot.
   --help     Show this help and exit.
 
 Environment: INTERVAL, RETRY, FIRST_DELAY (seconds).
@@ -46,7 +56,7 @@ Log: logread -e update-notify
 USAGE
 		exit 0
 		;;
-	--once|--daemon)
+	--once|--daemon|--boot)
 		;;
 	*)
 		echo "update-notify: unknown option '$1' (try --help)" >&2
@@ -99,8 +109,32 @@ firmware_check() {
 	return 0
 }
 
+# If a firmware-upgrade run left a pending marker (written just before
+# sysupgrade and preserved across it by /etc/sysupgrade.conf), we have just
+# booted back up after an upgrade.  Surface that for the dashboard's
+# "Upgrade complete" banner and clear the marker so it only fires once.
+firmware_just_upgraded() {
+	local marker="/etc/firmware-upgrade-state.json"
+	[ -f "$marker" ] || return 0
+	local pending from to
+	pending="$(jsonfilter -e '@.pending' -i "$marker" 2>/dev/null)"
+	[ "$pending" = "true" ] || { rm -f "$marker"; return 0; }
+	from="$(jsonfilter -e '@.from' -i "$marker" 2>/dev/null)"
+	to="$(current_version)"
+	printf '{"upgraded":true,"from":"%s","to":"%s","ts":%s}\n' \
+		"$from" "$to" "$(date +%s)" > /tmp/firmware-upgrade-just-upgraded.json.tmp \
+		&& mv -f /tmp/firmware-upgrade-just-upgraded.json.tmp \
+		       /tmp/firmware-upgrade-just-upgraded.json
+	rm -f "$marker"
+	return 0
+}
+
 check_once() {
 	local count
+
+	# Detect a just-completed firmware upgrade first: this needs no network,
+	# so it works even on a failed refresh below.
+	firmware_just_upgraded
 
 	# A stale index would report yesterday's answer, so refresh first.  No
 	# route, no DNS or an untrusted key all land here.
@@ -127,6 +161,13 @@ check_once() {
 	firmware_check
 	return 0
 }
+
+if [ "$MODE" = "--boot" ]; then
+	# Lightweight post-reboot hook: only surface a completed upgrade, no index
+	# refresh (which would need a working uplink).  Started by the init script.
+	firmware_just_upgraded
+	exit 0
+fi
 
 if [ "$MODE" != "--daemon" ]; then
 	check_once

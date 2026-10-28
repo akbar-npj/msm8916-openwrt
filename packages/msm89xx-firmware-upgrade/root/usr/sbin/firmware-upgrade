@@ -106,6 +106,18 @@ verify_local() {
 	return 0
 }
 
+mark_pending() {
+	local state="/etc/firmware-upgrade-state.json"
+	local from to ts
+	from="$(current_version)"
+	to="$LATEST_VER"
+	ts="$(date +%s)"
+	cat > "$state" <<JSON
+{"pending":true,"from":"$from","to":"$to","ts":$ts}
+JSON
+	grep -qxF "$state" /etc/sysupgrade.conf 2>/dev/null || echo "$state" >> /etc/sysupgrade.conf
+}
+
 do_upgrade() {
 	local out min_ok=1
 	[ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$(current_version)" && min_ok=0
@@ -121,6 +133,7 @@ do_upgrade() {
 		out="$(download_and_verify)" || return 1
 	fi
 	log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
+	mark_pending
 	sysupgrade "$out"
 }
 
