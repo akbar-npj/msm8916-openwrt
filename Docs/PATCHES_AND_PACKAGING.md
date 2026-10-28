@@ -251,6 +251,40 @@ never blocking.
 `/overlay/upper/etc/apk/repositories.d/*.list` from an older image it shadows
 the fixed file — remove it and reboot.
 
+### Installing a local build with `--allow-untrusted` — the upgrade trap
+
+When you smoke-test a locally built `.apk` without first publishing it to the
+feed, you install it with `apk add --allow-untrusted ./pkg.apk`.  This works,
+but it records the package with **no repository origin**.  The consequence:
+
+- `apk upgrade` and `apk add <pkg>` (the normal path, and what LuCI's
+  *Software → Upgrade* button calls) will **not** replace it.  apk treats the
+  installed copy as already satisfying the request and silently does nothing —
+  even though `apk version -l '<'` still lists it as upgradable (a misleading
+  hint, because that comparison is version-only and ignores provenance).
+- LuCI's upgrade button calls `apk` *without* `--available`, so it no-ops the
+  same way: the user sees "already up to date" / nothing happens.
+
+**Fix — force the swap to the repo version:**
+
+```sh
+apk update
+apk upgrade --available <pkg>...
+```
+
+`--available` tells apk to upgrade to the version present in the configured
+repositories, even when the installed copy came from a local / `--allow-untrusted`
+source.  After this runs once the package now carries a proper feed origin, and
+**future** CI-published bumps then upgrade normally through `apk upgrade` and
+LuCI.
+
+**Rule of thumb for testing:** use `--allow-untrusted` only for a quick local
+smoke test.  Before considering a package "upgraded" — or before handing the
+device to LuCI-driven upgrades — re-sync it to the feed with
+`apk upgrade --available` (or simply `apk add` it from the feed).  Never leave a
+device in the `--allow-untrusted`-only state if you intend to upgrade it via
+LuCI afterwards.
+
 ---
 
 ## 10. Commit flow
