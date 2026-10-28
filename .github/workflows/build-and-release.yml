@@ -107,6 +107,24 @@ jobs:
                     kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
           cat sha256sums
 
+      - name: Generate firmware.json Manifest
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+          BASE: ${{ steps.vars.outputs.base }}
+          PAGES_BASE: https://akbar-npj.github.io/msm8916-openwrt
+        run: |
+          set -euo pipefail
+          BIN=openwrt/bin/targets/msm89xx/msm8916
+          python3 scripts/gen-firmware-manifest.py \
+            --mk msm89xx/image/msm8916.mk \
+            --bin-dir "$BIN" \
+            --version "$VERSION" \
+            --pages-base "$PAGES_BASE" \
+            --out "$BIN/firmware.json" \
+            --min-version "${BASE}-r1" \
+            --notes "OpenWrt ${VERSION} for MSM8916"
+          echo "Generated $BIN/firmware.json"
+
       - name: Prepare GitHub Pages Feed Repository
         run: |
           set -euo pipefail
@@ -124,6 +142,10 @@ jobs:
             mkdir -p "/tmp/gh-pages-site/releases/${DIR}/packages"
             cp -a openwrt/bin/targets/msm89xx/msm8916/packages "/tmp/gh-pages-site/releases/${DIR}/targets/msm89xx/msm8916/"
             cp -a openwrt/bin/packages/aarch64_generic "/tmp/gh-pages-site/releases/${DIR}/packages/"
+            # Firmware upgrade manifest consumed by msm89xx-firmware-upgrade.
+            [ -f openwrt/bin/targets/msm89xx/msm8916/firmware.json ] && \
+              cp openwrt/bin/targets/msm89xx/msm8916/firmware.json \
+                 "/tmp/gh-pages-site/releases/${DIR}/targets/msm89xx/msm8916/firmware.json"
             # Public half of APK_SIGNING_KEY, per release dir.
             [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem "/tmp/gh-pages-site/releases/${DIR}/public-key.pem" || true
           done

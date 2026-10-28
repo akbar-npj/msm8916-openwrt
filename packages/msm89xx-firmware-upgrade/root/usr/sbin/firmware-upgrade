@@ -18,7 +18,13 @@
 
 PKG_CFG="firmware"
 MANIFEST_URL="$(uci -q get ${PKG_CFG}.manifest_url 2>/dev/null)"
-[ -z "$MANIFEST_URL" ] && MANIFEST_URL="https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/firmware.json"
+if [ -z "$MANIFEST_URL" ]; then
+  # Derive the manifest path from this device's own release so the URL stays
+  # correct across 25.12.6 -> 25.12.7 bumps without a hardcoded version.
+  _ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_RELEASE")"
+  _base="${_ver%-r*}"
+  MANIFEST_URL="https://akbar-npj.github.io/msm8916-openwrt/releases/${_base}/targets/msm89xx/msm8916/firmware.json"
+fi
 
 TMP="$(mktemp -d /tmp/firmware-upgrade.XXXXXX)"
 cleanup() { rm -rf "$TMP"; }
