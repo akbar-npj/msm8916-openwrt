@@ -110,6 +110,32 @@ check_image() {
         return 1
     fi
 
+    # Reclaim caches and make sure there is actually room to stage the image.
+    # stage2 copies the archive into a tmpfs ramfs before pivoting into it, so
+    # the flash needs roughly the image size again in RAM on top of the copy
+    # already sitting in /tmp.  A starved run used to die silently between the
+    # validation below and pre_upgrade, then reboot into the old system.
+    sync
+    echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+    local img_kb avail_kb tmp_kb need_kb
+    img_kb=$(( ($(wc -c < "$fw_image" 2>/dev/null || echo 0) + 1023) / 1024 ))
+    avail_kb=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo 2>/dev/null)
+    tmp_kb=$(df -k /tmp 2>/dev/null | awk 'NR==2{print $4}')
+    need_kb=$(( img_kb * 2 + 32768 ))
+
+    log_upgrade "Staging needs ${need_kb} kB (image ${img_kb} kB); ${avail_kb:-?} kB RAM available, ${tmp_kb:-?} kB free in /tmp"
+
+    if [ -n "$avail_kb" ] && [ "$avail_kb" -lt "$need_kb" ]; then
+        log_upgrade "ERROR: Not enough free memory to flash: ${avail_kb} kB available, need ${need_kb} kB. Stop services (modemmanager, tailscale, wifi) and retry."
+        return 1
+    fi
+
+    if [ -n "$tmp_kb" ] && [ "$tmp_kb" -lt "$img_kb" ]; then
+        log_upgrade "ERROR: /tmp has ${tmp_kb} kB free, image needs ${img_kb} kB"
+        return 1
+    fi
+
     log_upgrade "Image validation successful for '$fw_image'"
     return 0
 }
