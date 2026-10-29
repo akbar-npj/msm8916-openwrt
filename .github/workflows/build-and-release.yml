@@ -10,6 +10,10 @@ on:
         description: "Release tag (e.g. v25.12.6, leave empty to use current version)"
         required: false
         default: ""
+      boards:
+        description: "Targeted release: space-separated board ids to build (empty = all). Boards not built keep their previous manifest entry."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -82,9 +86,21 @@ jobs:
           printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
           echo "Injected persistent private signing key."
 
-      - name: Compile All Firmware Images (every diffconfigs/ entry)
+      - name: Compile Firmware Images
+        env:
+          # Empty = every board.  A non-empty list is a targeted fix release:
+          # only those boards are rebuilt, and the manifest merge keeps the
+          # other boards on their last published version.
+          BOARDS: ${{ github.event.inputs.boards }}
         run: |
-          ./build.sh build all
+          set -euo pipefail
+          if [ -z "${BOARDS// /}" ]; then
+            echo "Building all boards."
+            ./build.sh build all
+          else
+            echo "Building boards: $BOARDS"
+            ./build.sh build $BOARDS
+          fi
 
       - name: Compile Extra Packages (CUPS Print Server & Drivers)
         run: |
@@ -112,9 +128,29 @@ jobs:
           VERSION: ${{ steps.vars.outputs.version }}
           BASE: ${{ steps.vars.outputs.base }}
           PAGES_BASE: https://akbar-npj.github.io/msm8916-openwrt
+          # Deliberate floor for automatic upgrades, NOT "${BASE}-r1": a per-base
+          # floor would make every cross-version jump (25.12.6 -> 25.12.7)
+          # un-flashable, and do_upgrade would refuse it after the UI offered it.
+          # Bump this only when a release is genuinely not flashable from older
+          # builds (config/partition layout change).
+          MIN_VERSION: "25.12.6-r1"
         run: |
           set -euo pipefail
           BIN=openwrt/bin/targets/msm89xx/msm8916
+          PREV=/tmp/prev-firmware.json
+          rm -f "$PREV"
+          # The published manifest is shared by all boards.  Pull the current one
+          # in so boards that this run did NOT rebuild keep their entry: a
+          # targeted single-board fix release must not erase the other six.
+          if curl -fsS --max-time 30 "$PAGES_BASE/firmware.json" -o "$PREV"; then
+            echo "Merging into the published manifest:"
+            python3 -c 'import json,sys; d=json.load(open("/tmp/prev-firmware.json")); print("  release", d.get("release"), "-", len(d.get("boards",{})), "board keys")'
+          else
+            echo "No published manifest yet; generating a fresh one."
+            rm -f "$PREV"
+          fi
+          MERGE=""
+          if [ -f "$PREV" ]; then MERGE="--merge $PREV"; fi
           python3 scripts/gen-firmware-manifest.py \
             --mk msm89xx/image/msm8916.mk \
             --bin-dir "$BIN" \
@@ -122,7 +158,8 @@ jobs:
             --pages-base "$PAGES_BASE" \
             --release-base "https://github.com/akbar-npj/msm8916-openwrt/releases/download/${{ steps.vars.outputs.tag }}" \
             --out "$BIN/firmware.json" \
-            --min-version "${BASE}-r1" \
+            --min-version "$MIN_VERSION" \
+            $MERGE \
             --notes "OpenWrt ${VERSION} for MSM8916"
           echo "Generated $BIN/firmware.json"
 
@@ -153,6 +190,11 @@ jobs:
           # Stable, version-independent key path used by apk-key-refresh to
           # self-heal a stale embedded key (see msm89xx/base-files/usr/sbin/apk-key-refresh).
           [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/public-key.pem || true
+          # Version-independent "latest" manifest.  Devices ask for this first,
+          # so a 25.12.6 device still discovers a 25.12.7 release; the per-base
+          # copy above stays as the fallback for older firmware.
+          cp openwrt/bin/targets/msm89xx/msm8916/firmware.json /tmp/gh-pages-site/firmware.json
+          echo "Published root firmware.json (release $(python3 -c 'import json;print(json.load(open("/tmp/gh-pages-site/firmware.json"))["release"])'))"
 
       - name: Deploy Package Feeds to GitHub Pages (gh-pages branch)
         uses: peaceiris/actions-gh-pages@v4

@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm89xx-firmware-upgrade
 PKG_VERSION:=1.0
-PKG_RELEASE:=5
+PKG_RELEASE:=8
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=akbar-npj

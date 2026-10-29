@@ -13,6 +13,11 @@
 # So the per-board `sysupgrade` URL must point at the GitHub *Release asset*
 # download URL, not the Pages path.  Pass --release-base for that; if omitted
 # it falls back to the Pages path (which would 404 on the image).
+#
+# --merge carries forward the entries of boards that were NOT rebuilt in this
+# run.  Without it a single-board fix release would overwrite the shared
+# manifest with a one-entry file and every other device would silently lose
+# its update entry.
 
 import argparse
 import hashlib
@@ -86,6 +91,10 @@ def main():
                          "if omitted; prefer the release-asset URL because the CI does "
                          "not publish the .bin images to GitHub Pages.")
     ap.add_argument("--out", required=True, help="output firmware.json path")
+    ap.add_argument("--merge", default=None, metavar="PATH",
+                    help="existing firmware.json to merge into: boards that are "
+                         "not rebuilt in this run keep their previous entry, so a "
+                         "targeted single-board release does not erase the others")
     ap.add_argument("--min-version", default=None,
                     help="minimum supported version (refuses auto-upgrade below)")
     ap.add_argument("--notes", default="", help="optional global notes string")
@@ -100,7 +109,20 @@ def main():
     base_url = "%s/releases/%s/targets/msm89xx/msm8916" % (args.pages_base, base)
 
     boards = {}
+    if args.merge and os.path.isfile(args.merge):
+        try:
+            with open(args.merge) as fh:
+                prev = json.load(fh)
+            boards = dict(prev.get("boards") or {})
+            sys.stderr.write("merging into %s: %d existing board keys carried forward\n"
+                             % (args.merge, len(boards)))
+        except (ValueError, OSError) as exc:
+            sys.stderr.write("warning: cannot read %s (%s); generating a fresh manifest\n"
+                             % (args.merge, exc))
+            boards = {}
+
     missing = []
+    built = set()
     for device, supported in devices:
         img = find_sysupgrade(args.bin_dir, device)
         if img is None:
@@ -125,6 +147,7 @@ def main():
             continue
         for sd in supported:
             boards[sd] = dict(entry)
+            built.add(sd)
 
     manifest = {
         "manifest_version": 1,
@@ -142,8 +165,8 @@ def main():
 
     n_boards = len(boards)
     sys.stderr.write(
-        "wrote %s: %d board keys from %d devices (%d without images)\n"
-        % (args.out, n_boards, len(devices), len(missing))
+        "wrote %s: %d board keys (%d rebuilt now, %d carried forward) from %d devices (%d without images)\n"
+        % (args.out, n_boards, len(built), n_boards - len(built), len(devices), len(missing))
     )
     if not boards:
         sys.exit("error: manifest has zero boards; aborting")

@@ -3,7 +3,8 @@
 # image for this board.  Works with the firmware.json manifest that the release
 # pipeline publishes next to the images.
 #
-#   firmware-upgrade check     -> JSON {available,current,latest,board,url,sha256,notes}
+#   firmware-upgrade check     -> JSON {available,blocked,current,latest,board,url,
+#                                        sha256,size,min_version,notes}
 #   firmware-upgrade status    -> one-line human summary
 #   firmware-upgrade download  -> fetch + verify, print the temp image path
 #   firmware-upgrade upgrade   -> download + verify, then sysupgrade (keep config)
@@ -13,17 +14,30 @@
 #   * the image sha256 (from the manifest) is checked before any flash
 #   * sysupgrade keeps the config (no -n) so the overlay and the modem
 #     firmware that live there survive the upgrade
+#
+# Set FIRMWARE_MANIFEST_URL to test against a specific manifest.
 
 . /lib/functions.sh
 
 PKG_CFG="firmware"
-MANIFEST_URL="$(uci -q get ${PKG_CFG}.manifest_url 2>/dev/null)"
-if [ -z "$MANIFEST_URL" ]; then
-  # Derive the manifest path from this device's own release so the URL stays
-  # correct across 25.12.6 -> 25.12.7 bumps without a hardcoded version.
-  _ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_RELEASE")"
-  _base="${_ver%-r*}"
-  MANIFEST_URL="https://akbar-npj.github.io/msm8916-openwrt/releases/${_base}/targets/msm89xx/msm8916/firmware.json"
+PAGES_BASE="https://akbar-npj.github.io/msm8916-openwrt"
+
+# Manifest candidates, tried in order:
+#   1. the version-independent root manifest -- this is what lets a device on
+#      25.12.6 discover a 25.12.7 release; a URL derived from our own version
+#      would pin us to releases/25.12.6 forever.
+#   2. this device's own release dir -- the only path that existed before the
+#      root manifest was published, so older Pages trees still work.
+_ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_RELEASE")"
+_base="${_ver%-r*}"
+# Testing / fork override: FIRMWARE_MANIFEST_URL=/path/or/url.  A single URL,
+# so the fallback list below is bypassed.
+MANIFEST_URL="${FIRMWARE_MANIFEST_URL:-}"
+if [ -n "$MANIFEST_URL" ]; then
+  MANIFEST_URLS="$MANIFEST_URL"
+else
+  MANIFEST_URLS="$PAGES_BASE/firmware.json
+$PAGES_BASE/releases/${_base}/targets/msm89xx/msm8916/firmware.json"
 fi
 
 TMP="$(mktemp -d /tmp/firmware-upgrade.XXXXXX)"
@@ -72,10 +86,23 @@ fetch_field() {
 }
 
 load_manifest() {
-	MANIFEST="$(wget -q -O - "$MANIFEST_URL" 2>/dev/null)"
-	[ -n "$MANIFEST" ] || { log "cannot fetch manifest from $MANIFEST_URL"; return 1; }
+	local u body
 	BOARD="$(board_name)"
-	LATEST_VER="$(fetch_field version)"
+	MANIFEST=""
+	for u in $MANIFEST_URLS; do
+		body="$(wget -q -O - "$u" 2>/dev/null)"
+		[ -n "$body" ] || continue
+		MANIFEST="$body"
+		LATEST_VER="$(fetch_field version)"
+		# A manifest without our board key (e.g. a targeted single-board
+		# release published before this board existed) is not an answer.
+		if [ -n "$LATEST_VER" ]; then
+			MANIFEST_URL="$u"
+			break
+		fi
+		MANIFEST=""
+	done
+	[ -n "$MANIFEST" ] || { log "no manifest entry for board '$BOARD' at any known URL"; return 1; }
 	LATEST_URL="$(fetch_field sysupgrade)"
 	LATEST_SHA="$(fetch_field sha256)"
 	LATEST_SIZE="$(fetch_field size)"
@@ -141,15 +168,28 @@ case "$1" in
 check)
 	load_manifest || exit 0
 	cur="$(current_version)"
-	avail=0; version_greater "$LATEST_VER" "$cur" && avail=1
+	avail=0; blocked=0
+	if version_greater "$LATEST_VER" "$cur"; then
+		avail=1
+		# do_upgrade refuses anything below min_version, so never advertise an
+		# upgrade that pressing the button would then fail to apply.
+		if [ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$cur"; then
+			avail=0; blocked=1
+			log "update $LATEST_VER is published but needs at least $LATEST_MIN; flash it manually"
+		fi
+	fi
 	now="$(date +%s)"
-	echo "{\"available\":$avail,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"size\":$LATEST_SIZE,\"notes\":\"$LATEST_NOTES\",\"checked\":$now}"
+	echo "{\"available\":$avail,\"blocked\":$blocked,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"size\":$LATEST_SIZE,\"min_version\":\"$LATEST_MIN\",\"notes\":\"$LATEST_NOTES\",\"checked\":$now}"
 	;;
 	status)
 		load_manifest || { echo "no update information for this board"; exit 0; }
 		cur="$(current_version)"
 		if version_greater "$LATEST_VER" "$cur"; then
-			echo "update available: $cur -> $LATEST_VER ($LATEST_URL)"
+			if [ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$cur"; then
+				echo "update $cur -> $LATEST_VER published, but it needs at least $LATEST_MIN (manual flash)"
+			else
+				echo "update available: $cur -> $LATEST_VER ($LATEST_URL)"
+			fi
 		else
 			echo "up to date ($cur); latest is $LATEST_VER"
 		fi
