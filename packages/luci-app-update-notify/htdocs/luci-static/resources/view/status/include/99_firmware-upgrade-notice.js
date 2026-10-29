@@ -125,14 +125,6 @@ return baseclass.extend({
 		if (showDone && lsGet(LS_ACK) === doneTo)
 			showDone = false;
 
-		if (showDone) {
-			this.doneTo = doneTo;
-			var dmsg = (doneFrom)
-				? _('Firmware upgrade complete: %s -> %s. Your settings were kept.').replace('%s', doneFrom).replace('%s', doneTo)
-				: _('Firmware upgrade complete. You are now running %s.').replace('%s', doneTo);
-			this.doneLabel.textContent = dmsg;
-		}
-
 		/* ---- "update available" banner ---- */
 		var showAvail;
 		if (justUpgraded) {
@@ -152,10 +144,19 @@ return baseclass.extend({
 				this.node.parentNode.removeChild(this.node);
 			return null;
 		}
+
+		/* Build BEFORE touching any child: on the first load after an upgrade
+		 * showDone is true while this.node is still null, and this.doneLabel
+		 * only exists once build() has run. */
 		if (!this.node)
 			this.node = this.build();
 
 		if (showDone) {
+			this.doneTo = doneTo;
+			var dmsg = (doneFrom)
+				? _('Firmware upgrade complete: %s -> %s. Your settings were kept.').replace('%s', doneFrom).replace('%s', doneTo)
+				: _('Firmware upgrade complete. You are now running %s.').replace('%s', doneTo);
+			this.doneLabel.textContent = dmsg;
 			this.doneNode.style.display = '';
 		} else {
 			this.doneNode.style.display = 'none';
