@@ -15,7 +15,7 @@ The upstream repo is the source of truth.  After editing the theme there,
 re-sync it here:
 
     rsync -a --delete --exclude='.git' \
-        "$HOME/Projects/Openwrt Custom Packages/luci-theme-feelgood/luci-theme-feelgood/" \
+        ~/Projects/luci-theme-feelgood/luci-theme-feelgood/ \
         packages/luci-theme-feelgood/
 
 `--delete` matters: a file removed upstream must disappear here too, or it
@@ -255,3 +255,32 @@ Notes for maintainers:
   together with `PKG_RELEASE` whenever one of those files changes, otherwise
   an upgraded theme keeps rendering from the copy the browser already has
   (this is what made a fixed separator look unfixed after an upgrade).
+* The phone layout lives in one `@media (max-width: 600px)` block at the end
+  of cascade.css.  It exists because the 992px block only narrows the chrome:
+  it keeps tables in columns, so a five-column table left ~70px per cell,
+  ellipsised the text and dropped the type to 10.9px.  The phone block restacks
+  rows two-up with their `data-title` label above each value.
+* The drawer was dead on every phone until r25.  The closed state is
+  `html[data-theme-nav="vertical"] .logged-in .main-left` — (0,3,1) with
+  `width: 0 !important` — and the open state was `.logged-in .main-left.active`
+  at (0,3,0), so it lost, and `menu-feelgood.js`'s `.open` class was not in any
+  rule at all.  The hamburger animated the inline width to 100% and the element
+  stayed 0px.  The open rule now matches that specificity and honours both
+  classes.
+* `Processes Page Table Layout` pins six desktop columns by `min-width` (about
+  700px).  Unscoped it forced an 826px table into a 366px card, so it is behind
+  `@media (min-width: 993px)`; 601–992px stacks like the phone.
+* A real `<table class="table">` needs `display: block` below 992px before its
+  rows can become flex containers — the 992px block sets `.tr { display: flex }`
+  but a table-row parent ignores it.
+* Form controls go to 16px on phones: below that iOS Safari zooms the page on
+  focus and leaves it zoomed.
+* Two-cell status rows are 38/62 rather than 50/50 — the label is "Hostname",
+  the value is a firmware string, and an even split broke it over five lines.
+* Tabs scroll horizontally instead of wrapping; five of them wrapped onto two
+  lines and still painted 4px past the card edge.
+* The header is a fixed 3.5rem bar with a hard budget: at 420px the hostname
+  goes, at 360px the poll-status chip, at 340px the brand mark.  Without that
+  `.header-left` (min-width: 0) collapsed to 0 and the hamburger vanished.
+* The viewport meta is `width=device-width, initial-scale=1.0` — no
+  `user-scalable=0`, matching the stock Bootstrap theme, so pinch-zoom works.

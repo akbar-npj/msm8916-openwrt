@@ -22,7 +22,7 @@
 <head>
 <meta charset="utf-8">
 <title>{{ striptags(`${boardinfo.hostname ?? '?'}${dispatched?.title ? ` - ${_(dispatched.title)}` : ''}`) }} - LuCI</title>
-<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+<meta content="width=device-width, initial-scale=1.0" name="viewport" />
 <meta name="format-detection" content="telephone=no, email=no" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -45,10 +45,10 @@
    Cache-Control for /luci-static, so a browser keeps whatever it fetched
    under that URL. Bump it (and PKG_RELEASE) whenever a stylesheet or
    js/theme.js changes, or an upgraded theme will render from the old copy. -#}
-<link rel="stylesheet" href="{{ media }}/cascade.css?v=3">
-<link rel="stylesheet" href="{{ media }}/theme.css?v=24">
-<link rel="stylesheet" href="{{ media }}/light.css?v=24">
-<link rel="stylesheet" href="{{ media }}/colourful.css?v=24">
+<link rel="stylesheet" href="{{ media }}/cascade.css?v=25">
+<link rel="stylesheet" href="{{ media }}/theme.css?v=25">
+<link rel="stylesheet" href="{{ media }}/light.css?v=25">
+<link rel="stylesheet" href="{{ media }}/colourful.css?v=25">
 <link rel="shortcut icon" href="{{ media }}/favicon.ico">
 {% if (dispatched?.css): %}
 <link rel="stylesheet" href="{{ resource }}/{{ dispatched.css }}">
