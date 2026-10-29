@@ -10,6 +10,16 @@
 
 . /lib/functions.sh
 
+# /etc/config/battery is a conffile, so an upgraded device keeps its old copy
+# and never gets the guard section from the image.  Add it once.
+if ! uci -q get battery.guard >/dev/null 2>&1; then
+	uci -q set battery.guard=guard
+	uci -q set battery.guard.enabled='1'
+	uci -q set battery.guard.action='poweroff'
+	uci -q set battery.guard.poll_ms='200'
+	uci -q commit battery
+fi
+
 enabled=1
 ACTION=poweroff
 POLL=200
