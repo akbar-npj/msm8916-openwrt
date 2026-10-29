@@ -106,6 +106,52 @@ conf_escape() {
 case "$recover_after" in ''|*[!0-9]*) recover_after=60 ;; esac
 case "$timeout_s" in ''|*[!0-9]*) timeout_s=60 ;; esac
 
+# Two recycles that do not clear the refusal mean the scan is parked in the
+# driver; only a radio restart clears that.
+RESTART_AFTER=2
+
+# A radio restart costs the whole radio (the AP drops, clients re-associate), so
+# a restart that does not clear the refusal must not be repeated on a loop: the
+# file holds "<attempts> <epoch of the last attempt>" and each further attempt
+# waits longer.  It is removed as soon as the station associates again.
+RADIO_STATE=/var/run/wifi-sta-radio
+
+# Minimum gap before attempt N (1-based): none, 5 min, 15 min, 30 min, then 1 h.
+radio_wait() {
+	case "$1" in
+	1) echo 0 ;;
+	2) echo 300 ;;
+	3) echo 900 ;;
+	4) echo 1800 ;;
+	*) echo 3600 ;;
+	esac
+}
+
+# Read the attempt counter.  Sets RADIO_N (the attempt about to be made) and
+# RADIO_WAIT (seconds still to wait before it is allowed; 0 = go now).
+radio_budget() {
+	local n=0 t=0 now gap
+	RADIO_N=1
+	RADIO_WAIT=0
+	if [ -f "$RADIO_STATE" ]; then
+		read -r n t < "$RADIO_STATE" 2>/dev/null
+	fi
+	case "$n" in ''|*[!0-9]*) n=0 ;; esac
+	case "$t" in ''|*[!0-9]*) t=0 ;; esac
+	RADIO_N=$((n + 1))
+	gap=$(radio_wait "$RADIO_N")
+	now=$(date +%s)
+	RADIO_WAIT=$((t + gap - now))
+	[ "$RADIO_WAIT" -ge 0 ] || RADIO_WAIT=0
+	return 0
+}
+
+# Record the attempt before making it, so a crash or a reboot during the
+# restart cannot reset the ladder.
+radio_spent() {
+	printf '%s %s\n' "$RADIO_N" "$(date +%s)" > "$RADIO_STATE"
+}
+
 if [ "$MODE" = "dhcp" ] && [ "$dhcp" != 1 ]; then
 	exit 0
 fi
@@ -158,12 +204,10 @@ sta_hostname() {
 	printf '%s' "${h:-OpenWrt}"
 }
 
-# Channel of the upstream BSS for a given SSID, read from a scan on the STA vif.
-# Scanning from a managed vif is exactly what wpa_supplicant does, so this is the
-# same operation, just earlier.
-scan_channel() {
-	local iface="$1" want="$2"
-	iw dev "$iface" scan 2>/dev/null | awk -v want="$want" '
+# Channel of the upstream BSS for a given SSID, parsed from scan output on stdin.
+scan_parse() {
+	local want="$1"
+	awk -v want="$want" '
 		/^BSS / { ssid = ""; ch = "" }
 		/^[[:space:]]*SSID: / {
 			ssid = $0
@@ -217,18 +261,35 @@ ensure_fixed_channel() {
 	return 0
 }
 
-# Channel of the first saved network that is visible in a scan on the STA
-# vif.  Sets UP_CH and UP_SSID (empty when none is in range).
+# Channel of the first saved network that is visible in a scan on the STA vif.
+# Sets UP_CH and UP_SSID (empty when none is in range) and SCAN_REFUSED, which is
+# 1 when the kernel refused the scan outright rather than returning results.
+#
+# One scan for all profiles: a scan per saved SSID multiplied the load on the
+# radio by the number of networks, and every scan is a chance to wedge.
 scan_any_channel() {
-	local iface="$1" i s off ch
+	local iface="$1" i s off ch out
 	UP_CH=""
 	UP_SSID=""
+	SCAN_REFUSED=0
+	out="$(iw dev "$iface" scan 2>&1)"
+	case "$out" in
+	*"Resource busy"*|*"(-16)"*)
+		# -EBUSY: a scan is parked in mac80211 and every later request is
+		# rejected.  Retrying cannot help -- only a driver reload clears it.
+		SCAN_REFUSED=1
+		return 1
+		;;
+	*"command failed"*)
+		return 1
+		;;
+	esac
 	i=1
 	while [ "$i" -le "$PROFILE_COUNT" ]; do
 		s="$(profile_field "$PROFILE_SSID" "$i")"
 		off="$(profile_field "$PROFILE_OFF" "$i")"
 		if [ "$off" != "1" ] && [ -n "$s" ]; then
-			ch="$(scan_channel "$iface" "$s")"
+			ch="$(printf '%s\n' "$out" | scan_parse "$s")"
 			if [ -n "$ch" ]; then
 				UP_CH="$ch"
 				UP_SSID="$s"
@@ -279,7 +340,11 @@ bring_up_sta() {
 	phy="$(iw dev "$ap" info 2>/dev/null | awk '/wiphy/ { print "phy" $2; exit }')"
 	[ -n "$phy" ] || { logger -t wifi-sta "cannot resolve phy for $ap"; exit 1; }
 
-	sta_if="${phy}-sta0"
+	# Pin the name to phy0-sta0 regardless of the live phy index.  A driver
+	# reload renumbers the phy (phy0 -> phy1 ...), and a stable vif name keeps the
+	# firewall zone, the stawan network device and the wpa_cli -i phy0-sta0 in
+	# /etc/init.d/wifi-sta-late valid without anyone tracking the current index.
+	sta_if="phy0-sta0"
 
 	# A stale vif from a previous run must go, or "interface add" fails -EEXIST.
 	iw dev "$sta_if" del 2>/dev/null
@@ -439,8 +504,39 @@ recycle_sta() {
 	sleep 10
 }
 
+# The only cure for a scan parked in cfg80211/mac80211 is a full driver
+# unload + reload.  "wifi down; wifi up" is NOT enough: it never unregisters
+# the wiphy, so the stuck scan state survives (verified -- the scan was still
+# refused with -EBUSY after down/up, and only rmmod/modprobe cleared it).  A
+# reload renumbers the phy (phy0 -> phy1), but bring_up_sta pins the vif name
+# to phy0-sta0 so the firewall zone, the stawan device and wpa_cli -i phy0-sta0
+# stay valid; interfaces are discovered by regex, not by index.
+#
+# wifi-sta-guard brackets the reload so a managed vif is never up while the
+# driver is removed and re-probed (the WCNSS firmware aborts otherwise), and it
+# also stops this service -- including this watchdog -- so the sequence runs
+# detached.  netifd's own setup hook re-runs wifi-sta-guard up after wifi up.
+radio_restart() {
+	nohup setsid sh -c '
+		/usr/sbin/wifi-sta-guard down
+		wifi down >/dev/null 2>&1
+		sleep 1
+		rmmod wcn36xx 2>/dev/null
+		sleep 2
+		modprobe wcn36xx 2>/dev/null
+		sleep 3
+		i=0
+		while [ "$i" -lt 15 ]; do
+			iw dev 2>/dev/null | grep -qE "phy[0-9]+-ap0" && break
+			wifi up >/dev/null 2>&1
+			sleep 2
+			i=$((i + 1))
+		done
+	' </dev/null >/dev/null 2>&1 &
+}
+
 run_watchdog() {
-	local sta_if ap ap_ch up_ch down=0 miss=0
+	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0
 
 	while true; do
 		sleep 15
@@ -449,6 +545,10 @@ run_watchdog() {
 		if [ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
 			down=0
 			miss=0
+			# A working link ends the refusal streak: the next -EBUSY is a
+			# new episode and deserves its own recycle, not an instant reload.
+			recycles=0
+			rm -f "$RADIO_STATE"
 			continue
 		fi
 
@@ -469,6 +569,37 @@ run_watchdog() {
 		ap_ch="$(ap_channel "$ap")"
 		scan_any_channel "$sta_if"
 		up_ch="$UP_CH"
+
+		# wcn36xx can park a scan in cfg80211/mac80211 and then reject every
+		# later one with -EBUSY, so the channel check below can never succeed:
+		# UP_CH stays empty and we would log "no channel mismatch" forever while
+		# the station stays down.  A refused scan is the signal to recycle, and to
+		# reload the wcn36xx driver if recycling does not clear it.
+		if [ "$SCAN_REFUSED" = 1 ]; then
+			recycles=$((recycles + 1))
+			if [ "$recycles" -ge "$RESTART_AFTER" ]; then
+				radio_budget
+				if [ "$RADIO_WAIT" -gt 0 ]; then
+					waits=$((waits + 1))
+					# One line per ~10 min of waiting, not per pass.
+					if [ "$waits" -eq 1 ] || [ $((waits % 8)) -eq 0 ]; then
+						logger -t wifi-sta "watchdog: scans still refused; radio restart $RADIO_N not due for another $((RADIO_WAIT / 60)) min"
+					fi
+					recycles=0
+					down=0
+					continue
+				fi
+				waits=0
+				radio_spent
+				logger -t wifi-sta "watchdog: scans still refused after $recycles recycles; restarting the radio (attempt $RADIO_N)"
+				radio_restart
+				exit 0
+			fi
+			logger -t wifi-sta "watchdog: scan refused (-EBUSY), recycling the STA"
+			recycle_sta "$sta_if"
+			down=0
+			continue
+		fi
 
 		if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
 			logger -t wifi-sta "watchdog: down ${down}s and upstream '$UP_SSID' moved to channel $up_ch (AP on $ap_ch); recycling the STA"
