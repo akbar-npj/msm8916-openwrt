@@ -5,7 +5,6 @@
 'require ui';
 'require poll';
 
-var MGR_INITD = '/etc/init.d/uplink-manager';
 var STATUS_FILE = '/tmp/uplink.json';
 
 function getStatus() {
@@ -113,14 +112,6 @@ return view.extend({
 		});
 	},
 
-	/* form.Map has no .on() event API in this LuCI version; hook the
-	 * apply path instead and restart the manager after the config commits. */
-	handleSaveApply: function (ev, mode) {
-		return this.super('handleSaveApply', [ev, mode]).then(function () {
-			return fs.exec(MGR_INITD, ['restart']);
-		});
-	},
-
-	handleSave: null,
-	handleReset: null
+	/* Saving is handled by the default view implementation; the manager
+	 * re-reads /etc/config/uplink when procd signals a config change. */
 });
