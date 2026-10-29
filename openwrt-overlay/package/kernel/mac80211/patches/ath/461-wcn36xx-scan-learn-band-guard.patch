@@ -1,0 +1,35 @@
+From 4610000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] wifi: wcn36xx: only tag scan-learn frames as 5GHz when that band exists
+
+wcn36xx_rx_skb() decodes the band of a hardware-scan frame from the BD
+descriptor and marks it NL80211_BAND_5GHZ whenever the descriptor says the
+frame did not come from the 2GHz radio.  On a 2GHz-only part
+(rf_id == RF_IRIS_WCN3620) the wiphy registers no 5GHz band at all, so
+ieee80211_rx_list() trips WARN_ON(!sband) and drops the frame:
+
+  WARNING: CPU: 0 PID: 0 at net/mac80211/rx.c:5354
+  ieee80211_rx_list+0x548/0xaac [mac80211]
+
+On a soaking HM-MIFIB-V12 (WCN3620, AP+STA on 2.4GHz) this repeats in bursts
+of ~20 frames 276 ms apart, ~35 warnings per boot.  The frames are dropped
+either way, so the only cost is a false alarm that buries real anomalies in
+the log -- which is exactly what a corruption hunt cannot afford.
+
+Only take the 5GHz branch when the band is actually registered.
+
+---
+ drivers/net/wireless/ath/wcn36xx/txrx.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/wireless/ath/wcn36xx/txrx.c
++++ b/drivers/net/wireless/ath/wcn36xx/txrx.c
+@@ -370,7 +370,8 @@
+ 		 */
+ 		u8 hwch = (bd->reserved0 << 4) + bd->rx_ch;
+ 
+-		if (bd->rf_band != 1 && hwch <= sizeof(ab_rx_ch_map) && hwch >= 1) {
++		if (bd->rf_band != 1 && hwch <= sizeof(ab_rx_ch_map) && hwch >= 1 &&
++		    wcn->hw->wiphy->bands[NL80211_BAND_5GHZ]) {
+ 			status.band = NL80211_BAND_5GHZ;
+ 			status.freq = ieee80211_channel_to_frequency(ab_rx_ch_map[hwch - 1],
+ 								     status.band);
