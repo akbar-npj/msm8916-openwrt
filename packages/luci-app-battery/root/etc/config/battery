@@ -2,3 +2,8 @@ config charge
 	option enabled '1'
 	option limit '85'
 	option resume '80'
+
+config guard
+	option enabled '1'
+	option action 'poweroff'
+	option poll_ms '200'
