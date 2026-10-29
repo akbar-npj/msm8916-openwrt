@@ -92,10 +92,6 @@ return view.extend({
 		var rt = s.option(form.Value, 'recover_threshold', _('Successes to mark up'));
 		rt.datatype = 'uinteger'; rt.default = '2';
 
-		function restart() { return fs.exec(MGR_INITD, ['restart']); }
-		m.on('save', restart);
-		m.on('apply', restart);
-
 		var status = E('div', { 'id': 'uplink-status' });
 		function paint(j) {
 			while (status.firstChild) status.removeChild(status.firstChild);
@@ -117,7 +113,14 @@ return view.extend({
 		});
 	},
 
-	handleSaveApply: null,
+	/* form.Map has no .on() event API in this LuCI version; hook the
+	 * apply path instead and restart the manager after the config commits. */
+	handleSaveApply: function (ev, mode) {
+		return this.super('handleSaveApply', [ev, mode]).then(function () {
+			return fs.exec(MGR_INITD, ['restart']);
+		});
+	},
+
 	handleSave: null,
 	handleReset: null
 });
