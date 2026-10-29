@@ -15,7 +15,7 @@ The upstream repo is the source of truth.  After editing the theme there,
 re-sync it here:
 
     rsync -a --delete --exclude='.git' \
-        ~/Projects/luci-theme-feelgood/luci-theme-feelgood/ \
+        "$HOME/Projects/Openwrt Custom Packages/luci-theme-feelgood/luci-theme-feelgood/" \
         packages/luci-theme-feelgood/
 
 `--delete` matters: a file removed upstream must disappear here too, or it
