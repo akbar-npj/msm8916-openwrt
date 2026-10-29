@@ -1,0 +1,61 @@
+ipv4: free inet_opt and ireq_opt after an RCU grace period
+
+Backport of upstream e3f33b0a1d89 ("ipv4: free inet_opt and ireq_opt
+after an RCU grace period"), which is CVE-2026-98432 and is queued for
+6.12.113 as 11a03ce3c4a6.  Our tree is 6.12.112, so we carry it here.
+
+tcp_v4_syn_recv_sock() hands ownership of ireq->ireq_opt to the child
+socket (newinet->inet_opt) without copying it.  A retransmitted SYN for
+the same request socket can be processed on another CPU at the same
+time and send a SYNACK from tcp_check_req(); tcp_v4_send_synack() and
+inet_csk_route_req() read ireq->ireq_opt under rcu_read_lock() only,
+and ip_build_and_send_pkt() / ip_options_build() then read opt->optlen.
+
+Since 079096f103fa ("tcp/dccp: install syn_recv requests into ehash
+table") request sockets are processed without the listener lock, so
+nothing stops the child socket from being freed while the SYNACK is
+still being built.  TCP child sockets do not have SOCK_RCU_FREE, and
+inet_sock_destruct() released inet_opt with a plain kfree() -> UAF in
+ip_options_build().
+
+The same race exists for request-socket migration
+(net.ipv4.tcp_migrate_req=1, or a BPF_SK_REUSEPORT_SELECT_OR_MIGRATE
+program): reqsk_timer_handler() clones the request socket with
+inet_reqsk_clone() so the old socket and the clone share ireq_opt, and
+reqsk_migrate_reset() clears the pointer in the old one, while another
+CPU holding a reference on the old socket may still be using the
+options.  tcp_v4_reqsk_destructor() also used a plain kfree().
+
+All readers are already RCU-protected and the other paths that replace
+inet_opt (do_ip_setsockopt(), cipso_v4_sock_setattr(), ...) already use
+kfree_rcu(), so switch these two destructors over as well.  kfree_rcu()
+is NULL-safe, and struct ip_options_rcu carries the struct rcu_head as
+its first member, so no other change is needed.
+
+Reachable on this router from the WAN side by a peer that opens TCP
+connections with IP options and races a SYN retransmission against the
+handshake; low probability per attempt, but it is a remotely triggerable
+use-after-free, so it is worth the two lines.
+
+--- a/net/ipv4/af_inet.c
++++ b/net/ipv4/af_inet.c
+@@ -155,7 +155,7 @@
+ 	WARN_ON_ONCE(sk->sk_wmem_queued);
+ 	WARN_ON_ONCE(sk_forward_alloc_get(sk));
+ 
+-	kfree(rcu_dereference_protected(inet->inet_opt, 1));
++	kfree_rcu(rcu_dereference_protected(inet->inet_opt, 1), rcu);
+ 	dst_release(rcu_dereference_protected(sk->sk_dst_cache, 1));
+ 	dst_release(rcu_dereference_protected(sk->sk_rx_dst, 1));
+ }
+--- a/net/ipv4/tcp_ipv4.c
++++ b/net/ipv4/tcp_ipv4.c
+@@ -1219,7 +1219,7 @@
+  */
+ static void tcp_v4_reqsk_destructor(struct request_sock *req)
+ {
+-	kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
++	kfree_rcu(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1), rcu);
+ }
+ 
+ #ifdef CONFIG_TCP_MD5SIG
