@@ -1,0 +1,43 @@
+From 8650000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] power: supply: pm8916_bms_vm: clear the FIFO latch at probe
+
+FIFO_CNT_SD lives in the PMIC, and the PMIC keeps running across a Linux
+reboot -- only removing the pack resets it.  Patch 862 clears the latch in
+the IRQ handler, which is fine for a boot that starts with the latch
+clear, but a unit that ever ran a kernel without that clear arrives with
+the bit already set.  While it is set the block raises no
+fifo_update_done, so the handler never runs, so nothing ever clears it:
+the gauge stays frozen for that boot and for every following warm reboot.
+
+Observed on a mifib-v12 flashed from a kernel that predated 862: 0
+pm8916_vm_bms interrupts in 3+ minutes, voltage pinned at 4.1606 V,
+capacity 100 %, charge_enabled 0 (the 85 % limit looks permanently
+exceeded).  A full power cycle of the same image made it tick normally
+(1 -> 2 -> 4 IRQs in four minutes), which identifies this as an
+inherited latch rather than a wiring or enable problem.
+
+Clear the latch once in probe, after the block is enabled and before the
+IRQ is requested, so the next sample can raise the first interrupt.
+
+--- a/drivers/power/supply/pm8916_bms_vm.c
++++ b/drivers/power/supply/pm8916_bms_vm.c
+@@ -336,6 +336,19 @@
+ 	if (ret)
+ 		goto comm_error;
+ 
++	/*
++	 * Release a latch inherited from a previous boot.  FIFO_CNT_SD lives
++	 * in the PMIC, which keeps running across a Linux reboot, so a unit
++	 * that ever ran a kernel without the handler-side clear comes up with
++	 * the bit already set -- and while it is set the block raises no
++	 * fifo_update_done, so the handler (the only place that clears it)
++	 * never runs.  Clear it once here so the next sample can interrupt.
++	 */
++	ret = regmap_write(bat->regmap, bat->reg + PM8916_BMS_VM_DATA_CTL2,
++			   PM8916_BMS_VM_FIFO_CNT_SD_CLR);
++	if (ret)
++		goto comm_error;
++
+ 	ret = regmap_bulk_read(bat->regmap,
+ 			       bat->reg + PM8916_BMS_VM_S3_S7_OCV_DATA0, &tmp, 2);
+ 	if (ret)
