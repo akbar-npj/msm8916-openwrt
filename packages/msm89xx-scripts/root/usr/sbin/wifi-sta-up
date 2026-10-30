@@ -35,6 +35,7 @@ config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
 config_get scan_probe_after main scan_probe_after 15
+config_get poll_down main poll_down 5
 config_get hostname main hostname
 config_get_bool uplink main uplink 1
 config_get route_metric main route_metric 100
@@ -112,6 +113,14 @@ case "$timeout_s" in ''|*[!0-9]*) timeout_s=60 ;; esac
 # scan result and needs one to have run).
 case "$scan_probe_after" in ''|*[!0-9]*) scan_probe_after=15 ;; esac
 [ "$scan_probe_after" -le "$recover_after" ] || scan_probe_after=$recover_after
+# Watchdog poll interval.  POLL_UP (the link is fine) is deliberately slow --
+# the only work is a cheap `iw dev link`.  While CONFIRMING a refused scan the
+# loop switches to poll_down so the driver reload happens within seconds, not a
+# full poll later.  A clean-but-down link stays on POLL_UP, so an upstream that
+# is merely absent does NOT trigger a scan every few seconds forever.
+POLL_UP=15
+case "$poll_down" in ''|*[!0-9]*) poll_down=5 ;; esac
+[ "$poll_down" -ge 1 ] || poll_down=5
 
 # A refused scan means the scan is parked in the driver; the ONLY cure is a
 # driver reload (rmmod/modprobe) -- recycle_sta cannot clear a parked scan_req,
@@ -547,10 +556,10 @@ radio_restart() {
 }
 
 run_watchdog() {
-	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0
+	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0 poll=$POLL_UP
 
 	while true; do
-		sleep 15
+		sleep "$poll"
 
 		sta_if="$(find_sta)"
 		if [ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
@@ -559,11 +568,14 @@ run_watchdog() {
 			# A working link ends the refusal streak: the next -EBUSY is a
 			# new episode and deserves its own recycle, not an instant reload.
 			recycles=0
+			poll=$POLL_UP
 			rm -f "$RADIO_STATE"
 			continue
 		fi
 
-		down=$((down + 15))
+		down=$((down + poll))
+		# Default for the next sleep; the refusal branch below shortens it.
+		poll=$POLL_UP
 
 		# ---- wedge check: probe EARLY, at scan_probe_after ----
 		# A refused scan is a specific wedge signal and the probe is read-only,
@@ -597,7 +609,11 @@ run_watchdog() {
 					radio_restart
 					exit 0
 				fi
-				logger -t wifi-sta "watchdog: scan refused (-EBUSY) ($recycles/$RESTART_AFTER); re-probing next poll"
+				# A refusal is being confirmed: poll fast so the next probe is
+				# seconds away, not a full poll later.  Only while confirming --
+				# a clean-but-down link stays on POLL_UP (see the constants).
+				poll=$poll_down
+				logger -t wifi-sta "watchdog: scan refused (-EBUSY) ($recycles/$RESTART_AFTER); re-probing in ${poll_down}s"
 				continue
 			fi
 
