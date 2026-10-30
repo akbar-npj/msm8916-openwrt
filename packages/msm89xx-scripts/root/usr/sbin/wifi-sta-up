@@ -34,9 +34,10 @@ config_get_bool dhcp main dhcp 1
 config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
-config_get scan_probe_after main scan_probe_after 5
-config_get poll_up main poll_up 5
+config_get scan_probe_after main scan_probe_after 8
+config_get poll_up main poll_up 8
 config_get poll_down main poll_down 5
+config_get startup_grace main startup_grace 30
 config_get hostname main hostname
 config_get_bool uplink main uplink 1
 config_get route_metric main route_metric 100
@@ -111,21 +112,29 @@ case "$timeout_s" in ''|*[!0-9]*) timeout_s=60 ;; esac
 # The wedge check probes the scan at this many seconds of downtime, well before
 # recover_after, because a refused scan is a specific signal and the probe is
 # read-only.  It must not exceed recover_after (the channel check reuses the
-# scan result and needs one to have run).  Keep it <= poll_up so the probe fires
-# on the first poll after a drop (otherwise it needs several polls to reach the
-# threshold and recovery is slower); raise it to give a normal reconnect more
-# time before the first probe (fewer false reloads).
-case "$scan_probe_after" in ''|*[!0-9]*) scan_probe_after=5 ;; esac
+# scan result and needs one to have run).  Keep it == poll_up so the probe fires
+# on the FIRST poll after a drop; if it is larger the threshold is only reached
+# after several polls and recovery is slower.  Raise both together to give a
+# normal reconnect more time before the first probe (fewer false reloads):
+# 8 s survives a slow re-association, 5 s is the aggressive end.
+case "$scan_probe_after" in ''|*[!0-9]*) scan_probe_after=8 ;; esac
 [ "$scan_probe_after" -le "$recover_after" ] || scan_probe_after=$recover_after
-# Watchdog poll interval.  poll_up is the idle/connected poll (the only work is
-# a cheap `iw dev link`, so it can be short to notice a drop quickly).
+# Watchdog poll interval.  poll_up is the idle/connected poll; it is also the
+# first probe delay, so it doubles as the margin a normal reconnect gets before
+# the watchdog decides the scan is wedged (see scan_probe_after above).
 # poll_down is used while CONFIRMING a refused scan so the driver reload happens
 # within seconds.  A clean-but-down link stays on poll_up, so an upstream that
 # is merely absent does not trigger a scan every few seconds forever.
-case "$poll_up" in ''|*[!0-9]*) poll_up=5 ;; esac
-[ "$poll_up" -ge 1 ] || poll_up=5
+case "$poll_up" in ''|*[!0-9]*) poll_up=8 ;; esac
+[ "$poll_up" -ge 1 ] || poll_up=8
 case "$poll_down" in ''|*[!0-9]*) poll_down=5 ;; esac
 [ "$poll_down" -ge 1 ] || poll_down=5
+# No wedge probe for this many seconds after the STA vif appears.  A fresh vif
+# makes wpa_supplicant run its own first scan, and a probe colliding with it
+# looks exactly like a wedge (-EBUSY).  A healthy association here takes ~13 s,
+# so this must stay well above that; it costs nothing in the steady state,
+# where the vif is already up and only the link drops.
+case "$startup_grace" in ''|*[!0-9]*) startup_grace=30 ;; esac
 
 # A refused scan means the scan is parked in the driver; the ONLY cure is a
 # driver reload (rmmod/modprobe) -- recycle_sta cannot clear a parked scan_req,
@@ -562,11 +571,27 @@ radio_restart() {
 
 run_watchdog() {
 	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0 poll=$poll_up
+	local last_sta="" vif_age=0
 
 	while true; do
 		sleep "$poll"
 
 		sta_if="$(find_sta)"
+		# A vif that just appeared (first start, or a driver reload) restarts both
+		# clocks.  Downtime accumulated while no vif existed must not count as a
+		# wedge, and the startup_grace window below covers wpa_supplicant's own
+		# first scan.
+		if [ "$sta_if" != "$last_sta" ]; then
+			last_sta="$sta_if"
+			down=0
+			vif_age=0
+			recycles=0
+		fi
+		# vif_age advances whether the link is up or not, so the grace applies
+		# only to a vif that is still new -- not to every reconnect.
+		if [ -n "$sta_if" ]; then
+			vif_age=$((vif_age + poll))
+		fi
 		if [ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
 			down=0
 			miss=0
@@ -587,14 +612,14 @@ run_watchdog() {
 		# so there is no reason to wait the full recover_after.  The reload only
 		# fires after RESTART_AFTER consecutive refusals, which is what confirms
 		# a wedge rather than wpa_supplicant's own (transient) reconnect scan.
-		if [ -n "$sta_if" ] && [ "$down" -ge "$scan_probe_after" ]; then
+		if [ -n "$sta_if" ] && [ "$down" -ge "$scan_probe_after" ] && [ "$vif_age" -ge "$startup_grace" ]; then
 			scan_any_channel "$sta_if"
 			up_ch="$UP_CH"
 
 			if [ "$SCAN_REFUSED" = 1 ]; then
 				# Do NOT recycle the STA and do NOT reset down here.  recycle_sta
 				# cannot clear a parked scan_req; keeping down means the next
-				# probe is one poll (~15 s) away, so the wedge is confirmed and
+				# probe is one poll_down away, so the wedge is confirmed and
 				# the driver reloaded in ~2 polls, not after a long recycle loop.
 				recycles=$((recycles + 1))
 				if [ "$recycles" -ge "$RESTART_AFTER" ]; then
