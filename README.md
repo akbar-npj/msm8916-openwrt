@@ -17,6 +17,8 @@ Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualc
 
 Recent additions on top of the base port:
 
+* **⬆️ In-device firmware upgrade (r3+)** — the device checks the published `firmware.json`, downloads the image for **its own board**, verifies the SHA-256 and flashes it — from **System → Firmware Upgrade** in LuCI or `firmware-upgrade` on the console. No `scp`, no manual download; settings are kept by default (untick **Keep settings** for `sysupgrade -n`), and a `min_version` floor refuses a jump the device could not apply. **This is the first release with it: r1/r2 have no client, so flash r3 by hand once — from r3 on, every release updates itself.**
+* **📦 Custom packages that update without a reflash** — the LED monitors, station-mode helpers, watchdog and upgrade pages live in `packages/` rather than `base-files`, so a fix reaches devices as a **signed package hotfix** (`apk update && apk upgrade <name>`) instead of a 35 MB flash. CI rebuilds the one package against the released toolchain and kernel, splices it into the live feed and re-signs the index; `luci-app-update-notify` shows "N package updates are available" on the dashboard.
 * **📲 Physical SIM hot-swap** — pull the card and insert another: `sim-hotplug` detects the swap, re-announces the card to the baseband, re-reads it through ModemManager and restores data in **~15 s**, with **no reboot** (even a different carrier).
 * **🆘 Rescue image in the recovery partition** — on `hmuf02v5`, `mf800b` and `mifib-v12` the `recovery` partition holds a self-contained rescue system that boots the **production kernel** and brings up USB **and** a Wi-Fi AP (`OpenWrt-Recovery`, 802.11n + WMM) with a web UI to reflash the rootfs, write a single partition or reboot to EDL. Its DHCP lease is address-only, so joining it never hijacks the client's internet. See [`Docs/RECOVERY/`](Docs/RECOVERY/).
 * **🛟 Failsafe mode** — a single tap of the **Restart button** during the first 7 s of boot drops a headless dongle into a rescue shell over USB (`192.168.10.1` or `/dev/ttyACM0`); a **5-second hold** performs a factory reset. The failsafe DHCP lease carries no router and no DNS, so plugging the dongle in does not replace the host's default route.
@@ -54,9 +56,10 @@ Recent additions on top of the base port:
   * ⚫ **No SIM** = both modem LEDs (red and blue) are **off**: the modem cannot register, so there is nothing to report.
   * The boot blink is **batteryless boards only** — the battery boards blink their own battery lamp at boot. No-SIM and AP+STA apply everywhere.
   * 🔋 **Battery boards** (`mifib-v12`, `mf800b`) get three pairs instead: `wan`, `wlan` and `bat`/`charging`. The third pair reports **charging and faults only** — green slow-blink = charging, green solid = complete, red fast-blink = gauge fault, off = discharging normally. Capacity lives in LuCI, not on a lamp.
+* **⬆️ Self-Updating Firmware (r3+)**: The device reads the published `firmware.json`, downloads the image for its board, verifies the SHA-256 and hands it to `sysupgrade` — from **System → Firmware Upgrade** or `firmware-upgrade check|download|apply|upgrade`. The configuration is kept unless you ask for a clean install (`--no-keep`). See [Upgrading from the device](#-upgrading-from-the-device-r3-and-later).
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🆘 Failsafe Mode & Factory Reset**: A single Restart-button tap during the first 7 s of boot starts OpenWrt's pre-init rescue shell over a self-contained USB gadget (NCM + ACM) at `192.168.10.1` (or `/dev/ttyACM0`), so a broken config is recoverable on a screen-less dongle without opening it; a **5-second hold** wipes the overlay. See [Recovery and Reboot Modes](#-recovery-and-reboot-modes).
-* **🔑 Signed OTA Package Feed**: Pre-compiled `kmod-*` and application packages served over GitHub Pages, signed with a pinned key and self-healing on-device. See [Package Repository](#-official-package--kernel-driver-repository).
+* **🔑 Signed OTA Package Feed**: Pre-compiled `kmod-*` and application packages served over GitHub Pages, signed with a pinned key and self-healing on-device. This project's own tools ship here too, so a fix is an `apk upgrade` rather than a reflash. See [Package Repository](#-official-package--kernel-driver-repository).
 * **🚑 Reboot to Qualcomm EDL**: `reboot-edl` cleanly triggers Qualcomm Emergency Download (EDL / USB `05c6:9008`) mode without requiring hardware test-point access.
 * **⚙️ Reboot to Bootloader/Fastboot**: `reboot-bootloader` switches the device into Qualcomm Fastboot mode for bootloader-level recovery and flashing.
 * **🔧 Recovery Without Physical Access**: EDL and Fastboot reboot targets provide software-triggered recovery paths directly from a running OpenWrt system.
@@ -673,6 +676,20 @@ apk add luci-app-wireguard
 # Install the modem bearer watchdog web UI
 apk add luci-app-modem-watchdog
 ```
+
+### Update This Project's Own Packages (no reflash)
+
+The tools this project authors — the modem and Wi-Fi LED monitors, the station-mode helpers, the watchdog and upgrade pages — live in [`packages/`](packages/), **not** in `base-files`. A fix therefore reaches the device as a signed package update instead of a 35 MB image:
+
+```bash
+apk update
+apk upgrade msm89xx-scripts            # the LED/station helpers
+apk upgrade luci-app-firmware-upgrade  # the upgrade page
+```
+
+CI rebuilds the one changed package against the **same toolchain and kernel** as the released firmware, splices it into this feed and re-signs the index with the pinned key — so no repository line and no key ever change on the device. `luci-app-update-notify` puts a *"N package updates are available"* notice on the dashboard.
+
+What a hotfix **cannot** carry is anything baked into the image — the kernel, a driver, a preinit hook, `base-files`. Those need a firmware release, which the device then installs itself (see [Upgrading from the device](#-upgrading-from-the-device-r3-and-later)). The full process is in [Releases & Hotfixes](https://github.com/akbar-npj/msm8916-openwrt/wiki/How-Releases-and-Hotfixes-Work).
 
 The packages authored and vendored in this repo (DIAG tools, carrier autoconfig,
 Bluetooth SPP, LuCI apps, …) are documented in
