@@ -8,6 +8,7 @@
 #   firmware-upgrade status    -> one-line human summary
 #   firmware-upgrade download  -> fetch + verify, print the temp image path
 #   firmware-upgrade upgrade   -> download + verify, then sysupgrade (keep config)
+#   firmware-upgrade upgrade --no-keep -> download + verify, then sysupgrade -n (erase settings)
 #
 # Safety model:
 #   * only an entry whose key matches /tmp/sysinfo/board_name is ever used
@@ -146,7 +147,7 @@ JSON
 }
 
 do_upgrade() {
-	local out min_ok=1
+	local out min_ok=1 keep="${1:-keep}"
 	[ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$(current_version)" && min_ok=0
 	if [ "$min_ok" -eq 0 ]; then
 		log "current version is older than the supported minimum ($LATEST_MIN); refusing automatic upgrade"
@@ -159,9 +160,14 @@ do_upgrade() {
 	else
 		out="$(download_and_verify)" || return 1
 	fi
-	log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
 	mark_pending
-	sysupgrade "$out"
+	if [ "$keep" = "nokeep" ]; then
+		log "applying upgrade to $LATEST_VER (sysupgrade -n, settings erased)"
+		sysupgrade -n "$out"
+	else
+		log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
+		sysupgrade "$out"
+	fi
 }
 
 case "$1" in
@@ -204,16 +210,26 @@ check)
 		# and the download never completes.  Detach the real work and return
 		# immediately; the dashboard polls /tmp/firmware-upgrade.bin for
 		# progress and /tmp/firmware-upgrade.failed for errors.
+		shift
+		_keep=keep
+		[ "$1" = "--no-keep" ] && _keep=nokeep
 		rm -f /tmp/firmware-upgrade.failed
-		setsid sh -c 'if /usr/sbin/firmware-upgrade upgrade >/tmp/firmware-upgrade-apply.log 2>&1; then :; else echo failed >/tmp/firmware-upgrade.failed; fi' >/dev/null 2>&1 &
+		if [ "$_keep" = nokeep ]; then
+			setsid sh -c 'if /usr/sbin/firmware-upgrade upgrade --no-keep >/tmp/firmware-upgrade-apply.log 2>&1; then :; else echo failed >/tmp/firmware-upgrade.failed; fi' >/dev/null 2>&1 &
+		else
+			setsid sh -c 'if /usr/sbin/firmware-upgrade upgrade >/tmp/firmware-upgrade-apply.log 2>&1; then :; else echo failed >/tmp/firmware-upgrade.failed; fi' >/dev/null 2>&1 &
+		fi
 		echo started
 		;;
 	upgrade)
+		shift
+		_keep=keep
+		[ "$1" = "--no-keep" ] && _keep=nokeep
 		load_manifest || exit 1
-		do_upgrade
+		do_upgrade "$_keep"
 		;;
 	*)
-		echo "usage: $0 {check|status|download|apply|upgrade}" >&2
+		echo "usage: $0 {check|status|download|apply|upgrade} [--no-keep]" >&2
 		exit 1
 		;;
 esac

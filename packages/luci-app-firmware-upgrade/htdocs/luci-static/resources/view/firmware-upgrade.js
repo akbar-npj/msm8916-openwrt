@@ -48,6 +48,7 @@ return view.extend({
 		var logNode = E('pre', {
 			'style': 'max-height:14em;overflow:auto;background:#111;color:#ddd;padding:8px;border-radius:4px;display:none;white-space:pre-wrap;font-size:90%'
 		}, '');
+		var keepCb = E('input', { 'type': 'checkbox', 'id': 'fu-keep', 'checked': 'checked' });
 		var upBtn = E('button', {
 			'class': 'cbi-button cbi-button-apply',
 			'click': function() { startUpgrade(); }
@@ -110,23 +111,35 @@ return view.extend({
 		function startUpgrade() {
 			if (!state.info || parseInt(state.info.available, 10) !== 1)
 				return;
-			ui.showModal(_('Firmware upgrade'), [
-				E('p', _('Download, verify and flash %s? The device will reboot and keep its settings.').format(state.info.latest)),
-				E('div', { 'class': 'right' }, [
-					E('button', { 'class': 'btn', 'click': ui.hideModal }, _('Cancel')),
-					' ',
-					E('button', {
-						'class': 'cbi-button cbi-button-apply',
-						'click': function() {
-							ui.hideModal();
-							ui.addNotification(null, E('p', _('Upgrade started — downloading, verifying and flashing. The device will reboot.')), 'info');
-							fs.exec(BIN, [ 'apply' ]).then(function() {
-								poll.add(pollApply, 3);
-							});
-						}
-					}, _('Upgrade'))
-				])
-			]);
+
+			var noKeep = !keepCb.checked;
+			var args = noKeep ? [ 'apply', '--no-keep' ] : [ 'apply' ];
+			var msg = noKeep
+				? _('Download, verify and flash %s, ERASING all settings? The device will reboot to defaults.').format(state.info.latest)
+				: _('Download, verify and flash %s? The device will reboot and keep its settings.').format(state.info.latest);
+
+			var body = [ E('p', {}, msg) ];
+			if (noKeep)
+				body.push(E('p', { 'style': 'color:#b71c1c;font-weight:bold' },
+					_('All settings will be erased, including Wi-Fi, Station Mode, network and modem configuration.')));
+			body.push(E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'btn', 'click': ui.hideModal }, _('Cancel')),
+				' ',
+				E('button', {
+					'class': 'cbi-button cbi-button-apply',
+					'click': function() {
+						ui.hideModal();
+						ui.addNotification(null, E('p', noKeep
+							? _('Upgrade started — downloading, verifying and flashing. The device will reboot to defaults.')
+							: _('Upgrade started — downloading, verifying and flashing. The device will reboot.')), 'info');
+						fs.exec(BIN, args).then(function() {
+							poll.add(pollApply, 3);
+						});
+					}
+				}, _('Upgrade'))
+			]));
+
+			ui.showModal(_('Firmware upgrade'), body);
 		}
 
 		renderStatus();
@@ -134,8 +147,18 @@ return view.extend({
 		return E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, _('Firmware Upgrade')),
 			E('div', { 'class': 'cbi-map-descr' },
-				_('Check for a newer firmware image published for this board and install it. Your settings are preserved.')),
+				_('Check for a newer firmware image published for this board and install it.')),
 			E('div', { 'class': 'cbi-section' }, [ statusNode ]),
+			E('div', { 'class': 'cbi-section' }, [
+				E('div', { 'class': 'cbi-value' }, [
+					E('label', { 'class': 'cbi-value-title', 'for': 'fu-keep' }, _('Keep settings')),
+					E('div', { 'class': 'cbi-value-field' }, [
+						keepCb,
+						E('div', { 'class': 'cbi-value-description' },
+							_('Uncheck to erase all settings on upgrade (sysupgrade -n). This wipes the overlay and your configuration.'))
+					])
+				])
+			]),
 			E('div', { 'class': 'cbi-page-actions' }, [
 				E('button', { 'class': 'cbi-button', 'click': function() { refresh(); } }, _('Check again')),
 				' ',
