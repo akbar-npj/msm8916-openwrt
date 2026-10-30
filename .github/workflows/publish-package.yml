@@ -257,57 +257,53 @@ jobs:
       - name: Verify nothing fell out of the feed
         run: |
           set -euo pipefail
+          # Compare package NAMES, not .apk file counts.
+          #
+          # A rebuild prunes every superseded version of whatever it compiles
+          # (scripts/ipkg-remove), and a single-package build ALSO rebuilds that
+          # package's dependencies when the tree is newer than the published
+          # feed.  Counting files then reports a "shrink" that never happened --
+          # measured 2026-10-31: publishing luci-app-firmware-upgrade also
+          # rebuilt msm89xx-firmware-upgrade r9 -> r10 and pruned r8 + r9, so the
+          # feed went 225 -> 225 files while the old check computed 225 -> 224
+          # and refused to publish a perfectly good feed.
+          #
           # find | wc -l, not "ls | grep -c": grep exits 1 on a count of zero,
           # and the build creates empty sections (telephony, video) that the
           # published feed never had, so set -e killed the job on a healthy feed.
-          count_apks() {
-            local total=0 n d
-            for d in openwrt/bin/packages/aarch64_generic/*/; do
-              n="$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
-              total=$((total + n))
-            done
-            echo "$total"
+          pkgname() {
+            sed -E 's/-[0-9][^-]*-r[0-9]+\.apk$//'
           }
           echo "After re-index:"
           for d in openwrt/bin/packages/aarch64_generic/*/; do
             printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done
-          # A package must never disappear because of a hotfix.  Deliberate
-          # deletions are subtracted first, so anything else shrinking is a bug.
-          before="$(awk '{s += $2} END {print s+0}' /tmp/feed-before.txt)"
-          after="$(count_apks)"
-          deleted=0
+
+          # /tmp/feed-before-files.txt holds the restored feed's basenames.
+          pkgname < /tmp/feed-before-files.txt | sort -u > /tmp/feed-before-names.txt
+          find openwrt/bin/packages/aarch64_generic -name '*.apk' -printf '%f\n' \
+            | pkgname | sort -u > /tmp/feed-after-names.txt
+          : > /tmp/feed-deleted-names.txt
           if [ -s /tmp/feed-deleted.txt ]; then
-            deleted="$(wc -l < /tmp/feed-deleted.txt)"
+            pkgname < /tmp/feed-deleted.txt | sort -u > /tmp/feed-deleted-names.txt
           fi
 
-          # The build deletes every superseded version of the package it
-          # rebuilds (scripts/ipkg-remove), so a hotfix legitimately turns N
-          # files into 1: rebuilding update-notify r3 removed r1 and r2 and
-          # the feed "shrank" by one for no reason.  Leave the rebuilt
-          # package out of both sides of the comparison, since its own old
-          # versions are not a package falling out, but require that it
-          # produced a file.  Deletions of its own versions are ignored too,
-          # or they would be subtracted twice.
-          if [ -n "$PKG" ]; then
-            before_pkg="$(awk -v p="$PKG-" 'index($0, p) == 1' /tmp/feed-before-files.txt | wc -l)"
-            after_pkg="$(find openwrt/bin/packages/aarch64_generic -name "$PKG-*.apk" | wc -l)"
-            if [ "$after_pkg" -lt 1 ]; then
-              echo "::error::The build produced no $PKG .apk - refusing to publish."
-              exit 1
-            fi
-            if [ -s /tmp/feed-deleted.txt ]; then
-              deleted="$(awk -v p="$PKG-" 'index($0, p) != 1' /tmp/feed-deleted.txt | wc -l)"
-            fi
-            before=$((before - before_pkg))
-            after=$((after - after_pkg))
-          fi
-          if [ "$after" -lt "$((before - deleted))" ]; then
-            echo "::error::Feed shrank from ${before} to ${after} packages (${deleted} deleted on purpose) - refusing to publish."
+          # The rebuilt package must actually have produced a file.
+          if [ -n "$PKG" ] && ! grep -qx -- "$PKG" /tmp/feed-after-names.txt; then
+            echo "::error::The build produced no $PKG .apk - refusing to publish."
             exit 1
           fi
-          echo "OK: ${before} -> ${after} packages (${deleted} deleted on purpose)"
 
+          # A package must never disappear because of a hotfix.  Deliberate
+          # deletions are allowed to, so they are subtracted first.
+          lost="$(comm -23 /tmp/feed-before-names.txt /tmp/feed-after-names.txt \
+                  | comm -23 - /tmp/feed-deleted-names.txt || true)"
+          if [ -n "$lost" ]; then
+            echo "::error::These packages fell out of the feed - refusing to publish:"
+            printf '  %s\n' $lost
+            exit 1
+          fi
+          echo "OK: $(wc -l < /tmp/feed-before-names.txt) -> $(wc -l < /tmp/feed-after-names.txt) package names, none lost"
       - name: Publish to gh-pages
         run: |
           set -euo pipefail
