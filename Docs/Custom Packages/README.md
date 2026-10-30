@@ -1,12 +1,12 @@
 # Custom Packages
 
-Beyond the upstream OpenWrt tree, this project ships **24 packages** under
+Beyond the upstream OpenWrt tree, this project ships **26 packages** under
 [`packages/`](../../packages/) — the tools, daemons and LuCI apps that make an
 MSM8916 USB dongle usable as a headless router with a Qualcomm baseband.
 
 They fall into two groups:
 
-- **Authored in-repo (15)** — written for this project, specific to the MSM8916
+- **Authored in-repo (17)** — written for this project, specific to the MSM8916
   modem/DIAG/Bluetooth/battery hardware.
 - **Vendored (9)** — upstream or third-party packages carried in-tree (often with
   local patches) so the firmware build is self-contained.
@@ -33,6 +33,8 @@ They fall into two groups:
 | [`reboot-edl`](../../packages/reboot-edl/) | Safely quiesces background services, remounts filesystems read-only, and reboots the device into **EDL (9008), DLOAD (9006), bootloader or recovery**. |
 | [`luci-app-battery`](../../packages/luci-app-battery/) | Battery status, **charge limit** and battery LEDs for the two battery boards (mifib-v12, mf800b): a LuCI page with capacity/voltage/temperature/health and the battery session, the 85 %/80 % charge-limit monitor (`charge_enabled` on the PM8916 LBC), the green/red LED monitor, and `battery-ctl`. Installed only where a pack exists. |
 | [`msm89xx-scripts`](../../packages/msm89xx-scripts/) | The **userspace half of the board support** as a package: the modem and Wi-Fi LED monitors with their procd services, the boot blink (`led-boot`), and the Wi-Fi station (repeater) helpers that `luci-app-wifi-sta` drives. These used to live in the target's `base-files`, which meant an LED or station fix cost a full firmware flash; as a package they can be pushed through the signed feed (see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash)). Boot-critical pieces deliberately stay in `base-files`: `/etc/diag.sh`, the `/lib/preinit` hooks and `/lib/batteryless.sh`. |
+| [`msm89xx-firmware-upgrade`](../../packages/msm89xx-firmware-upgrade/) | The **in-device firmware upgrade engine**. `firmware-upgrade check` reads `firmware.json` — the manifest the release pipeline publishes next to the images — and prints availability as JSON for this board; `download` fetches the image and verifies its SHA-256; `apply [--no-keep]` hands it to `sysupgrade` (keeping the configuration, or wiping it with `-n`); `upgrade` does all three. `apply` detaches with `setsid`, because rpcd's 30 s timeout is shorter than a 35 MB LTE download. |
+| [`luci-app-firmware-upgrade`](../../packages/luci-app-firmware-upgrade/) | LuCI page for the above — *System → Firmware Upgrade*. Shows the running version, the published version for this board, the image size and the release notes, then downloads, verifies and flashes, with a **Keep settings** box (default on; untick for a clean install). Ships in `DEFAULT_PACKAGES`, so every board has it from r3 on. |
 | [`luci-app-wifi-sta`](../../packages/luci-app-wifi-sta/) | LuCI support for **Station Mode** (concurrent AP+STA): configures the late-brought-up station interface of the wcn36xx radio without touching the wireless config. |
 | [`luci-app-modem-watchdog`](../../packages/luci-app-modem-watchdog/) | LuCI web UI for the **modem bearer watchdog** — status banner, enable/disable, the automatic `auto_mobile` handover profile (on by default) plus the manual `mobile_optimized` force mode, stall-timeout/check-interval, keepalive and recovery-escalation settings. |
 | [`luci-app-update-notify`](../../packages/luci-app-update-notify/) | Dashboard notice for **available package updates**. A small daemon runs `apk update` every 6 h and writes `/tmp/update-notify.json`; the LuCI dashboard include renders "N package updates are available" with a link to the package manager, and nothing at all when the device is current. Counts the `Upgrading` lines of `apk upgrade --simulate`, so the version-pinned `base-files`/`kernel`/`libc` — and anything else pinned in `/etc/apk/world` — are never advertised. (`apk list --upgradable --world` looked right but is not: `--world` only adds world packages to the selection, so a pinned package still counted.) |
@@ -115,8 +117,13 @@ The feed URL does not change, so devices pick it up with:
 
 ```sh
 apk update
-apk add msm89xx-scripts
+apk upgrade msm89xx-scripts   # 'apk add' if the package is not installed yet
 ```
+
+This only works for files that belong to a **package**. The kernel, a driver, a
+preinit hook or `base-files` are baked into the image and can only change with a
+firmware release — which devices then install themselves through *System →
+Firmware Upgrade* (see [Releases & Hotfixes](https://github.com/akbar-npj/msm8916-openwrt/wiki/How-Releases-and-Hotfixes-Work)).
 
 ### Dispatch
 

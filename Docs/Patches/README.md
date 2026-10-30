@@ -172,7 +172,7 @@ be deleted from the prepared tree by hand (see `Docs/PATCHES_AND_PACKAGING.md` s
 
 ### 1.12 Custom packages (`packages/`)
 
-21 userspace apps and LuCI modules. `build.sh` copies each `packages/<name>/` into
+26 userspace apps and LuCI modules. `build.sh` copies each `packages/<name>/` into
 `openwrt/package/msm8916/<name>/` (and any `packages/<name>/patches/` into the matching
 upstream package). All are **downstream-only** unless noted.
 
@@ -187,12 +187,17 @@ upstream package). All are **downstream-only** unless noted.
 | `diag-logtool` | Qualcomm DIAG client: F3 log masks, capture and listen over SMD DIAG. |
 | `luci-app-battery` | LuCI: battery status, charge limit and battery LED. |
 | `luci-app-cpu-perf` | LuCI: CPU performance information and management. |
+| `luci-app-firmware-upgrade` | LuCI: in-device firmware upgrade page (checks `firmware.json`, downloads, verifies, flashes; keep-settings or `-n`). |
 | `luci-app-modem-watchdog` | LuCI support for the Modem Watchdog. |
 | `luci-app-sms-manager` | LuCI SMS management via ModemManager. |
 | `luci-app-tailscale` | LuCI for Tailscale. |
+| `luci-app-update-notify` | LuCI: dashboard notice when `apk` has package updates (6 h poll, respects pins). |
 | `luci-app-usb-gadget` | LuCI for the USB Gadget Manager. |
+| `luci-theme-feelgood` | The Feelgood LuCI theme (login-page CSS shipped unminified). |
 | `luci-app-wifi-sta` | LuCI for concurrent Station Mode (AP+STA). |
 | `msm-firmware-dumper` | Qualcomm firmware partition dump utility (modem/WCNSS). |
+| `msm89xx-firmware-upgrade` | CLI behind the upgrade page: `check`/`download`/`apply [--no-keep]`/`upgrade`. |
+| `msm89xx-scripts` | Userspace board support: modem/Wi-Fi LED monitors, boot blink, station-mode helpers. |
 | `qcom-carrier-autocfg` | SIM Carrier Auto-Provisioning Engine -- selects/activates the MCFG/PDC carrier config from the inserted SIM (Jio/MCFG work). |
 | `qcom-time-daemon` | QMI Time Synchronization Daemon -- sets system time from the cellular network. |
 | `qrtr` | Qualcomm IPC Router userspace library (transport for DIAG/RMTFS/tqft). |

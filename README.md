@@ -9,7 +9,7 @@ A production-ready, fully open-source OpenWrt port for Qualcomm Snapdragon 410 (
 
 Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcomm WCN36xx Wi-Fi with WPA3-SAE**, **Bluetooth (BlueZ 5.83 + SPP)**, **USB ConfigFS CDC NCM/ACM**, **mainline CPR CPU-rail scaling**, **true persistent eMMC EXT4 overlay storage**, and working **reboot-to-EDL and reboot-to-Fastboot recovery paths**.
 
-> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [Upstreaming Strategy](Docs/OPENWRT_UPSTREAMING_STRATEGY.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Releasing Firmware](Docs/RELEASING_FIRMWARE.md) · [Release notes](RELEASE_NOTES.md)
+> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [Upstreaming Strategy](Docs/OPENWRT_UPSTREAMING_STRATEGY.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Releasing Firmware](Docs/RELEASING_FIRMWARE.md) · [Releases & Hotfixes](https://github.com/akbar-npj/msm8916-openwrt/wiki/How-Releases-and-Hotfixes-Work) · [Release notes](RELEASE_NOTES.md)
 
 ---
 
@@ -388,6 +388,17 @@ mount_root: switching to ext4 overlay
 ```
 
 An existing EXT filesystem is **not reformatted merely because it requires repair**. A new EXT4 filesystem is created only when no existing EXT filesystem is detected.
+
+### ⬆️ Upgrading from the device (r3 and later)
+
+From **r3** the device finds, verifies and installs new releases by itself — no `scp`, no manual download:
+
+* **LuCI** — *System → Firmware Upgrade*. Shows the running version, the published version for this board, the image size and the release notes, then downloads, checks the SHA-256 and flashes. **Keep settings** is ticked by default; untick it for a clean install (`sysupgrade -n`).
+* **CLI** — `firmware-upgrade check` (JSON availability), `download`, `apply [--no-keep]`, or `upgrade [--no-keep]` for all three.
+
+The client reads `firmware.json`, the manifest the release pipeline publishes next to the images, and compares it with this device's `DISTRIB_RELEASE`. It honours a `min_version` floor, so a device that is too old to jump is told to flash once by hand rather than being handed an image it cannot apply.
+
+> **Devices on r1/r2 have no upgrade client** and must be flashed to r3 once by hand. From r3 on, every release updates in place. The engine is `msm89xx-firmware-upgrade`, the page is `luci-app-firmware-upgrade` (both in `DEFAULT_PACKAGES`). See [How Releases and Hotfixes Work](https://github.com/akbar-npj/msm8916-openwrt/wiki/How-Releases-and-Hotfixes-Work).
 
 ---
 

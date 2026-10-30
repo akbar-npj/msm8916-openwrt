@@ -13,7 +13,7 @@ graph TD
     A["Trigger: Git Tag (v*) or Workflow Dispatch"] --> B["GitHub Runner (ubuntu-latest)"]
     B --> C["Step 1-3: Checkout Repo, Strip Disk Bloat (+35GB), Set Version"]
     C --> D["Step 4: Build Docker Container & Run openwrt-prepare.sh"]
-    D --> E["Step 5: ./build.sh build all (hmu05, ufi001b, ufi003, uz801, uf02, mf800b)"]
+    D --> E["Step 5: ./build.sh build all (hmuf02v5, ufi001b, ufi003, uz801, uf02, mf800b, mifib-v12)"]
     E --> F["Step 6: Build CUPS Print Server & Drivers in Container"]
     F --> G["Step 7: Bundle Offline Kmods & Compute sha256sums"]
     G --> H["Step 8-9: Deploy APK Feeds to GitHub Pages (gh-pages)"]
@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag (e.g. v25.12.5-r1, leave empty to use current version)"
+        description: "Release tag (e.g. v25.12.6-r1, leave empty to use current version)"
         required: false
         default: ""
 
@@ -52,7 +52,7 @@ jobs:
 ```
 
 ### Key Trigger Modes:
-1. **Tag Push (`v*`)**: Pushing a tag like `v25.12.5-rc1` or `v25.12.5-r1` automatically executes the entire build and creates the corresponding release.
+1. **Tag Push (`v*`)**: Pushing a tag like `v25.12.6-rc1` or `v25.12.6-r1` automatically executes the entire build and creates the corresponding release.
 2. **Manual Dispatch (`workflow_dispatch`)**: Allows manual triggering from the GitHub Actions UI with custom release tag parameters without pushing new git commits.
 
 ---
@@ -68,7 +68,7 @@ jobs:
 
 ### Step 3: Determine Release Tag & Version
 - Extracts the tag from `${GITHUB_REF}` or workflow input.
-- Reads `version` file (`25.12.5`) to format release names and paths.
+- Reads `version` file (`25.12.6`) to format release names and paths.
 
 ### Step 4: Build Docker Image & Prepare OpenWrt Tree
 - Invokes `./build.sh prepare`.
@@ -141,15 +141,15 @@ The workflow automatically serves an OpenWrt APK package repository over GitHub 
 
 ### Feed URLs:
 - **Target Drivers & Kmods**:
-  `https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages`
+  `https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages`
 - **Base Architecture Packages**:
-  `https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base`
+  `https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base`
 
 ### On-Device Configuration:
 Add these repositories to `/etc/apk/repositories.d/customfeeds.list`:
 ```text
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/targets/msm89xx/msm8916/packages
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.5/packages/aarch64_generic/base
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base
 ```
 
 Install packages over the air:
@@ -167,7 +167,7 @@ The feed URL is unchanged, so no device needs a new repository line or a new key
 
 ```bash
 gh workflow run publish-package.yml --ref main -f package=msm89xx-scripts
-# -> apk update && apk add msm89xx-scripts   on the device
+# -> apk update && apk upgrade msm89xx-scripts   on the device
 ```
 
 Inputs: `package` (required), `base` (default `./version` minus `-rN`), `board`
@@ -190,6 +190,24 @@ Two details matter for correctness:
 See [**Docs/Custom Packages → Shipping a package without a reflash**](../Custom%20Packages/README.md#shipping-a-package-without-a-reflash)
 for the operational details and the traps.
 
+### Rebuilding selected boards (surgical release update)
+
+[`rebuild-boards.yml`](../../.github/workflows/rebuild-boards.yml) rebuilds **only**
+the boards you name and replaces just their assets in an existing release. It
+never builds `all` (`'all'` is refused), and it does not touch the release body,
+the release name, the package feed or the shared kmods bundle — only the named
+boards' image files plus a spliced `sha256sums`, so the per-board lines stay
+correct.
+
+```bash
+gh workflow run rebuild-boards.yml --ref main \
+  -f boards="uf02 uz801" -f release_tag="v25.12.6-r3"
+```
+
+Use it when one board's image was wrong but the tree, the version and the feed
+are fine — a full `build-and-release.yml` would take ~1.5 h to replace four
+files.
+
 ---
 
 ## 6. How to Trigger & Replace Pre-Release Tags
@@ -202,10 +220,10 @@ git checkout main
 git pull origin main
 
 # 2. Update the local tag to the latest commit
-git tag -f v25.12.5-rc1
+git tag -f v25.12.6-rc1
 
 # 3. Force push the tag to GitHub to trigger the action
-git push origin v25.12.5-rc1 --force
+git push origin v25.12.6-rc1 --force
 ```
 
 GitHub Actions will immediately pick up the tag update, compile all 4 boards, update the GitHub Pages feed, and overwrite the release assets with the newly compiled build.
@@ -253,7 +271,7 @@ OpenWrt generates a **random key per build** unless `openwrt/private-key.pem` al
 
 - **Repository secret:** `APK_SIGNING_KEY` holds the EC P-256 private key (PEM).
 - **CI:** Step 4 writes it to `openwrt/private-key.pem` and **fails the build** if the secret is unset, so an ephemeral key can never be produced by accident again.
-- **Image:** the matching public key is embedded at `/etc/apk/keys/akbar-npj-v25.12.5.pem` via `msm89xx/base-files/`, and re-created by `99-msm89xx-firstboot`.
+- **Image:** the matching public key is embedded at `/etc/apk/keys/akbar-npj-v25.12.6.pem` via `msm89xx/base-files/`, and re-created by `99-msm89xx-firstboot`.
 - **Published:** the release job copies `openwrt/public-key.pem` both to the versioned dir and to the stable path:
   `https://akbar-npj.github.io/msm8916-openwrt/public-key.pem`
 
@@ -261,7 +279,7 @@ OpenWrt generates a **random key per build** unless `openwrt/private-key.pem` al
 
 `msm89xx/base-files/usr/sbin/apk-key-refresh` (driven by `/etc/init.d/apk-key-refresh`, enabled from `96-apk-key-refresh`) fetches the **stable URL** at every boot and installs it when it differs from the on-disk key. This lets a device flashed with an image that embedded a stale key recover without a reflash. The install is conservative: the fetched file must be a well-formed PEM public key, and the on-disk key is only rewritten when it actually changed (no overlay churn per boot).
 
-> **Rotating the key:** generate a new EC P-256 key pair, update the `APK_SIGNING_KEY` secret, replace the tracked public key in `msm89xx/base-files/etc/apk/keys/akbar-npj-v25.12.5.pem` **and** the heredoc in `99-msm89xx-firstboot`, then cut a release. Devices on the previous image self-heal from the stable URL; devices on the new image carry the new key directly.
+> **Rotating the key:** generate a new EC P-256 key pair, update the `APK_SIGNING_KEY` secret, replace the tracked public key in `msm89xx/base-files/etc/apk/keys/akbar-npj-v25.12.6.pem` **and** the heredoc in `99-msm89xx-firstboot`, then cut a release. Devices on the previous image self-heal from the stable URL; devices on the new image carry the new key directly.
 
 ---
 

@@ -69,7 +69,7 @@ Defines the `builder` service configuration:
 ### 2.4. `devenv/.env`
 Stores project-level configuration:
 ```env
-OPENWRT_VERSION=v25.12.5
+OPENWRT_VERSION=v25.12.6
 ```
 *(Dynamic user IDs are no longer stored here to avoid hardcoded environment pollution across different developer systems).*
 

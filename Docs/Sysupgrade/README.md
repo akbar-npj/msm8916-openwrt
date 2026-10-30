@@ -42,6 +42,39 @@ ssh root@192.168.8.1 "sysupgrade -F -v /tmp/sysupgrade.bin"
 
 ---
 
+### 3. Built-in upgrade page (r3 and later)
+
+From **r3** the device can find, verify and install a new release on its own —
+no `scp` and no manual download:
+
+* **LuCI** — *System → Firmware Upgrade* (`/cgi-bin/luci/admin/system/firmware-upgrade`).
+  It shows the running version, the published version for this board, the image
+  size and the release notes, then downloads, checks the SHA-256 and flashes.
+  A **Keep settings** box is ticked by default; untick it for `sysupgrade -n`.
+* **CLI** —
+
+  ```bash
+  firmware-upgrade check          # JSON: available, version, url, sha256, size
+  firmware-upgrade status
+  firmware-upgrade download       # fetch + sha256 verify into /tmp
+  firmware-upgrade apply [--no-keep]
+  firmware-upgrade upgrade [--no-keep]   # check + download + apply
+  ```
+
+The client reads `firmware.json`, the manifest the release pipeline publishes
+next to the images, and compares it with this device's `DISTRIB_RELEASE`. It
+honours a `min_version` floor, so a device that is too old to jump is told to
+flash once by hand instead of being handed an image it cannot apply.
+
+> **Devices on r1/r2 have no client.** They must be flashed to r3 manually; from
+> r3 on, every release updates in place. See
+> [How Releases and Hotfixes Work](https://github.com/akbar-npj/msm8916-openwrt/wiki/How-Releases-and-Hotfixes-Work).
+
+The engine ships as `msm89xx-firmware-upgrade` and the page as
+`luci-app-firmware-upgrade` (in `DEFAULT_PACKAGES`, so every board has it).
+
+---
+
 ## Recovery if the device becomes unreachable
 
 These dongles have no Ethernet and no serial header, so if an upgrade leaves the

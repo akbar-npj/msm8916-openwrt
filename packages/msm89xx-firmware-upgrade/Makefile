@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm89xx-firmware-upgrade
 PKG_VERSION:=1.0
-PKG_RELEASE:=9
+PKG_RELEASE:=10
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=akbar-npj
@@ -22,8 +22,8 @@ endef
 define Package/$(PKG_NAME)/description
 	Consults the firmware.json manifest the release pipeline publishes next to the
 	images, reports when a newer image exists for this board, and applies it via
-	sysupgrade (config preserved).  Companion to luci-app-update-notify, which
-	surfaces the result; the LuCI half is added separately.
+	sysupgrade (config preserved).  The LuCI half is luci-app-firmware-upgrade,
+	which drives this CLI from System -> Firmware Upgrade.
 
 	The backend (firmware-upgrade) is intentionally CLI-only and testable without
 	the UI: 'firmware-upgrade check' prints availability as JSON, 'download' fetches
