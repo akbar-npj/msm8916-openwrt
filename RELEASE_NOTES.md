@@ -12,23 +12,29 @@
 
 *Station Mode that heals itself, a gauge that stops lying, and a unit that keeps running when the pack is pulled.*
 
-**Why this release** — r2's Station Mode worked only while nothing went wrong: one unanswered scan left the radio parked and the station dead until a reboot, a freshly created station could reload a perfectly healthy radio, and a station without an address of its own never came up at all. Separately, the battery gauge could freeze at 100 % after a flash, and pulling the pack powered the unit off instead of letting it run. r3 fixes all of these, plus a mac80211 WARN and a CVE backport.
+> 🆕 **This is the first release with in-device firmware upgrade.** See the upgrade-path note below before you update.
 
-**📶 Station Mode now recovers by itself (fix)** — A scan the firmware never answers used to park `scan_req` inside mac80211, and every later scan then failed with `-EBUSY`, so the station could never associate again until a reboot. The driver now bounds the wait at 15 s, and the watchdog escalates: one refused scan is re-probed after 5 s, a second refusal restarts the radio (`wifi down` → `rmmod`/`modprobe wcn36xx` → `wifi up`), which is the only thing that clears a parked scan. Detection went from ~180 s to ~20 s, and a measured recovery — wedge → reload → re-associate — completes in about 40 s. Two related fixes: a firmware indication that arrives *after* that timeout no longer completes the same scan a second time (it tainted the kernel with two mac80211 WARNs at `scan.c:461/464`), and the station is given its own MAC address derived from the access point's (last octet + 1) when `macaddr` is left empty — an `iw`-created vif otherwise clones the AP's address, and the kernel then refuses to open it with a misleading `RTNETLINK answers: No error information`.
-
-**⏱️ A normal association is no longer mistaken for a wedge (fix)** — The watchdog counted downtime from before the station interface existed, so a vif created 6 s earlier could be probed while wpa_supplicant was still doing its own initial scan, confirmed as "stuck", and answered with a driver reload of a radio that was never wedged. The downtime clock now starts when the vif appears, and the first probe waits `startup_grace` (30 s), which is comfortably longer than the 12–15 s a healthy association takes here. Verified: a fresh vif produces 0 probes and 0 reloads, while a real wedge still probes at 8 s, confirms 5 s later and reloads at 11 s. The Wi-Fi LED follows a reload too — the monitor discovers the AP interface instead of hardcoding `phy0-ap0`, a name that changes every time the driver is reloaded.
-
-**🔋 The gauge no longer freezes at 100 % (fix)** — The BMS FIFO latch lives in the PMIC, which keeps running across a Linux reboot, so a unit that had ever booted a kernel without the clear came up with the bit already set. While it is set the block raises no "fifo update done" interrupt, and the handler was the only place that cleared it — so it never ran again and the gauge reported one frozen sample for the rest of the boot. The latch is now cleared once at probe, which covers every boot including a warm reboot with no power cycle.
-
-**🔋 The reported voltage was 2.4 % high (fix)** — The driver scaled the BMS reading with a 300 µV LSB; the vendor value is 293 µV. That made every pack look over-voltage, which in turn made a genuine 85 % look like 76 % and skewed the charge limit.
-
-**🔌 Pulling the battery no longer shuts the unit down** — A userspace guard polled the pack every 200 ms and powered off when it disappeared. It could not work: a pack pulled under load collapses the rail in under 100 ms, and a cold start with no pack never comes up at all. Worse, its only demonstrated effect was powering off a unit that was being fed over USB. The guard is removed; the unit now runs as long as the rail holds.
-
-**📡 A mac80211 WARN on scan results (fix)** — `wcn36xx` tagged scan-learn frames as 5 GHz whenever the report's band was not 1 and the channel fell in 1–25. A WCN3620 registers no 5 GHz band, so mac80211 dereferenced a NULL `wiphy->bands[]` and hit `WARN_ON(!sband)` at `rx.c:5354`. The band is now checked before the frame is tagged.
-
-**🔐 Security** — Backports the IPv4 `inet_opt`/`ireq_opt` use-after-free fix (CVE-2026-98432), where the option buffers were freed before the RCU grace period had elapsed.
-
-**🧰 Also in this release** — The firmware-upgrade page detaches its download and flash from the rpcd call, so a slow 34 MB download is no longer killed by rpcd's 30 s timeout, and the result banner renders at the top of the page; the update notice no longer throws on its first load after an upgrade; and `base-files` now fails loudly when a flash cannot be staged instead of proceeding as if it had.
+- 🆕 **In-device firmware upgrade (new — first release with it)**
+  - The **System → Firmware Upgrade** page, the `firmware.json` manifest and the detached download/flash flow ship for the first time in r3.
+  - ⚠️ **Flash to r3 manually once.** Devices on r1/r2 have no upgrade page, so they cannot pull r3 over the air — flash the r3 sysupgrade image (keep-config is fine). Every release *after* r3 can then upgrade itself from the page.
+  - The page checks a version-independent URL first, then the release-dir fallback, downloads in the background (rpcd's 30 s timeout no longer kills a 34 MB download), verifies the sha256 and runs `sysupgrade` **without `-n`**, then shows an **"Upgrade complete: r2 → r3"** banner on next boot.
+- 📶 **Station Mode now recovers by itself (fix)**
+  - A scan the firmware never answers used to park `scan_req` in mac80211, so every later scan failed with `-EBUSY` and the station could not associate again until a reboot. The driver now bounds the wait at 15 s and the watchdog escalates: one refused scan is re-probed after 5 s, a second restarts the radio (`wifi down` → `rmmod`/`modprobe wcn36xx` → `wifi up`). Detection ~180 s → ~20 s; full recovery ~40 s.
+  - A firmware indication that lands *after* the timeout no longer completes the same scan twice — that used to taint the kernel with two mac80211 WARNs at `scan.c:461/464`.
+  - The station is now given its own MAC derived from the AP's (last octet + 1) when `macaddr` is empty — an `iw`-created vif otherwise clones the AP address and the kernel refuses to open it with a misleading `RTNETLINK answers: No error information`.
+  - A normal (re)association is no longer mistaken for a wedge: the downtime clock starts when the vif appears and the first probe waits `startup_grace` (30 s), comfortably longer than the 12–15 s a healthy association takes here. The Wi-Fi LED also follows a reload (the monitor discovers the AP vif instead of hardcoding `phy0-ap0`).
+- 🔋 **Battery gauge (fix) — mifib-v12 and mf800b only**
+  - The gauge no longer freezes at 100 %. The BMS FIFO latch lives in the PMIC and survives a Linux reboot; it is now cleared once at probe, covering warm reboots too.
+  - The reported voltage was 2.4 % high (300 µV LSB vs the vendor 293 µV), making a real 85 % look like 76 %. Fixed to 293 µV.
+  - 🔌 Pulling the battery no longer shuts the unit down. The old userspace guard polled every 200 ms and powered off when the pack vanished — but a pack pulled under load collapses the rail in <100 ms and a cold start with no pack never came up. The guard is removed; the unit runs as long as the rail holds.
+  - *These battery fixes apply to mifib-v12 and mf800b only (boards with a PMIC BMS and a removable pack).*
+- 📡 **Wi-Fi (fix)** — A mac80211 WARN on scan results is fixed: `wcn36xx` tagged scan-learn frames as 5 GHz whenever the report's band was not 1, dereferencing a NULL `wiphy->bands[]` on the 2 GHz-only part (`rx.c:5354` `WARN_ON(!sband)`). The band is now checked before tagging.
+- 🔀 **Dual-uplink failover (new)** — `uplink-manager` arbitrates the default route between the LTE modem (wwan0) and the Wi-Fi station (phy0-sta0) with ping health probes and a policy (auto / modem / sta), and points dnsmasq at the active link. See the **Packages** section below.
+- 🔐 **Security** — Backports the IPv4 `inet_opt`/`ireq_opt` use-after-free fix (**CVE-2026-98432**), where the option buffers were freed before the RCU grace period had elapsed.
+- 🧰 **Also in this release**
+  - `luci-app-update-notify` no longer throws on its first load after an upgrade, and the notice renders at the top of the page.
+  - `base-files` now fails loudly when a flash cannot be staged instead of proceeding as if it had.
+  - Packages: `msm89xx-scripts` r7, `luci-app-wifi-sta` r11.
 
 ---
 
