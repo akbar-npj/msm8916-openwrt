@@ -114,27 +114,25 @@ the **published package feed** does — an unchanged `PKG_RELEASE` means
 ## 4. `RELEASE_NOTES.md`
 
 This file *is* the release body (`body_path: RELEASE_NOTES.md` in the workflow).
-It keeps the **five newest entries, newest first**, separated by `---`. Older
-entries live in the wiki and in git history.
+It holds the notes for **the current release only** — one `### v…` entry, no
+older releases. (Historical notes live in the wiki and in git history.)
 
-Entry shape:
+Entry shape — concise, bulleted, one release only:
 
 ```markdown
 ### v25.12.6-r4 (YYYY-MM-DD) — built from `main`
 
-*One-line summary in plain language.*
+> 🆕 **First-release highlights** — one-line caveat if the upgrade path needs a manual step.
 
-**Why this release** — what was broken or missing, in user terms.
-
-**🎯 Headline fix (fix)** — what changed, why it mattered, and the evidence it works.
+- 🎯 **Headline fix (fix)** — what changed and why it mattered, in user terms.
+- 🔋 **Another fix** — symptom → cause → fix, kept to one or two lines.
+- 🔐 **Security** — backported CVE-… if any.
+- 🧰 **Also** — small fixes, as a final bullet or two.
 ```
 
 Write for someone who owns the device, not for someone who reads the diff: lead
-with the symptom they would have seen, then the cause, then the fix. Add a
-`**⚠️ Known issues**` line if anything is still open.
-
-When you add the sixth entry, delete the oldest and inline any "see rN below"
-cross-references so nothing dangles.
+with the symptom they would have seen, then the cause, then the fix. Keep it
+bulleted and scannable; add a `**⚠️ Known issues**` bullet if anything is still open.
 
 ## 5. Pre-flight
 
@@ -262,7 +260,7 @@ manifest lands.
 ## Checklist
 
 - [ ] `version` bumped (`-rN` incremented)
-- [ ] `RELEASE_NOTES.md` entry added, still five entries, cross-references fixed
+- [ ] `RELEASE_NOTES.md` updated with **only this release's** notes (no older entries, no dangling cross-references)
 - [ ] `PKG_RELEASE` bumped for every package whose files changed
 - [ ] `./build.sh guard` in sync
 - [ ] one board built locally, image `DISTRIB_RELEASE` matches `version`
