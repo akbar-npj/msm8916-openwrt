@@ -15,7 +15,7 @@ LUCI_PKGARCH:=all
 LUCI_DEPENDS:=+luci-lua-runtime
 
 PKG_VERSION:=1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_LICENSE:=GPL-2.0-only
 
 define Package/luci-app-battery/conffiles
