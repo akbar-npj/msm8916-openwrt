@@ -1,0 +1,20 @@
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -2747,6 +2747,17 @@
+ 	case WCN36XX_HAL_SCAN_IND_COMPLETED:
+ 		cancel_delayed_work(&wcn->scan_timeout);
+ 		mutex_lock(&wcn->scan_lock);
++		/*
++		 * The scan may already have been completed for us.  The watchdog
++		 * above aborts a scan the firmware never answers, and the firmware
++		 * can still deliver its indication afterwards.  Completing that
++		 * second time would report the end of a scan mac80211 no longer has
++		 * (WARN_ON in __ieee80211_scan_completed).
++		 */
++		if (!wcn->scan_req) {
++			mutex_unlock(&wcn->scan_lock);
++			break;
++		}
+ 		wcn->scan_req = NULL;
+ 		if (wcn->scan_aborted)
+ 			scan_info.aborted = true;
