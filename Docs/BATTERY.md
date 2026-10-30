@@ -84,6 +84,23 @@ charger's `CHARGE_ENABLED` and report:
 
 ---
 
+## Battery removal
+
+There is deliberately **no** guard service.  The PM8916 LBC can only
+supplement the pack, not replace it, so pulling the cell leaves the AP running
+on VBUS for a moment and then the rail collapses — on a loaded system that is a
+hard brownout with no chance to sync.
+
+A 200 ms poller shipped in 1.0-r2 and was removed in 1.0-r3.  It could never
+win that race (measured: the collapse beats even a 1 s sampler), and its only
+demonstrated effect was powering off a USB-powered unit that did not need to
+shut down.  The unit now keeps running for as long as the rail holds.
+
+The driver still reports `POWER_SUPPLY_PROP_PRESENT` and logs
+`battery removed`, so the event stays visible in `dmesg` after the fact.
+
+---
+
 ## LEDs
 
 `battery-led-monitor` polls every few seconds and drives the battery pair —
