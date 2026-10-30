@@ -8,7 +8,31 @@
 
 ---
 
-### Packages — dual-uplink failover (msm89xx-scripts r4, luci-app-wifi-sta r8)
+### v25.12.6-r3 (2026-10-30) — built from `main`
+
+*Station Mode that heals itself, a gauge that stops lying, and a unit that keeps running when the pack is pulled.*
+
+**Why this release** — r2's Station Mode worked only while nothing went wrong: one unanswered scan left the radio parked and the station dead until a reboot, a freshly created station could reload a perfectly healthy radio, and a station without an address of its own never came up at all. Separately, the battery gauge could freeze at 100 % after a flash, and pulling the pack powered the unit off instead of letting it run. r3 fixes all of these, plus a mac80211 WARN and a CVE backport.
+
+**📶 Station Mode now recovers by itself (fix)** — A scan the firmware never answers used to park `scan_req` inside mac80211, and every later scan then failed with `-EBUSY`, so the station could never associate again until a reboot. The driver now bounds the wait at 15 s, and the watchdog escalates: one refused scan is re-probed after 5 s, a second refusal restarts the radio (`wifi down` → `rmmod`/`modprobe wcn36xx` → `wifi up`), which is the only thing that clears a parked scan. Detection went from ~180 s to ~20 s, and a measured recovery — wedge → reload → re-associate — completes in about 40 s. Two related fixes: a firmware indication that arrives *after* that timeout no longer completes the same scan a second time (it tainted the kernel with two mac80211 WARNs at `scan.c:461/464`), and the station is given its own MAC address derived from the access point's (last octet + 1) when `macaddr` is left empty — an `iw`-created vif otherwise clones the AP's address, and the kernel then refuses to open it with a misleading `RTNETLINK answers: No error information`.
+
+**⏱️ A normal association is no longer mistaken for a wedge (fix)** — The watchdog counted downtime from before the station interface existed, so a vif created 6 s earlier could be probed while wpa_supplicant was still doing its own initial scan, confirmed as "stuck", and answered with a driver reload of a radio that was never wedged. The downtime clock now starts when the vif appears, and the first probe waits `startup_grace` (30 s), which is comfortably longer than the 12–15 s a healthy association takes here. Verified: a fresh vif produces 0 probes and 0 reloads, while a real wedge still probes at 8 s, confirms 5 s later and reloads at 11 s. The Wi-Fi LED follows a reload too — the monitor discovers the AP interface instead of hardcoding `phy0-ap0`, a name that changes every time the driver is reloaded.
+
+**🔋 The gauge no longer freezes at 100 % (fix)** — The BMS FIFO latch lives in the PMIC, which keeps running across a Linux reboot, so a unit that had ever booted a kernel without the clear came up with the bit already set. While it is set the block raises no "fifo update done" interrupt, and the handler was the only place that cleared it — so it never ran again and the gauge reported one frozen sample for the rest of the boot. The latch is now cleared once at probe, which covers every boot including a warm reboot with no power cycle.
+
+**🔋 The reported voltage was 2.4 % high (fix)** — The driver scaled the BMS reading with a 300 µV LSB; the vendor value is 293 µV. That made every pack look over-voltage, which in turn made a genuine 85 % look like 76 % and skewed the charge limit.
+
+**🔌 Pulling the battery no longer shuts the unit down** — A userspace guard polled the pack every 200 ms and powered off when it disappeared. It could not work: a pack pulled under load collapses the rail in under 100 ms, and a cold start with no pack never comes up at all. Worse, its only demonstrated effect was powering off a unit that was being fed over USB. The guard is removed; the unit now runs as long as the rail holds.
+
+**📡 A mac80211 WARN on scan results (fix)** — `wcn36xx` tagged scan-learn frames as 5 GHz whenever the report's band was not 1 and the channel fell in 1–25. A WCN3620 registers no 5 GHz band, so mac80211 dereferenced a NULL `wiphy->bands[]` and hit `WARN_ON(!sband)` at `rx.c:5354`. The band is now checked before the frame is tagged.
+
+**🔐 Security** — Backports the IPv4 `inet_opt`/`ireq_opt` use-after-free fix (CVE-2026-98432), where the option buffers were freed before the RCU grace period had elapsed.
+
+**🧰 Also in this release** — The firmware-upgrade page detaches its download and flash from the rpcd call, so a slow 34 MB download is no longer killed by rpcd's 30 s timeout, and the result banner renders at the top of the page; the update notice no longer throws on its first load after an upgrade; and `base-files` now fails loudly when a flash cannot be staged instead of proceeding as if it had.
+
+---
+
+### Packages — dual-uplink failover (msm89xx-scripts r7, luci-app-wifi-sta r11)
 
 *A health-checked choice between the LTE modem and the Wi-Fi station, with a user policy and no netifd/radio churn.*
 
@@ -441,22 +465,4 @@ Feelgood theme, and the build/feed work.
 
 **⬆️ Upgrading** — From r4: `sysupgrade` (keep config) is fine and preserves the overlay. The new watchdog options default sensibly, so an existing `modem-watchdog` config carries over unchanged.
 
-**⚠️ Known issues** — See r4 below (overlay module shadowing; `sysupgrade -n` wipes the modem firmware; STA+AP Wi-Fi crashes the WCNSS firmware).
-
----
-
-### v25.12.5-r4 (2026-10-10) — built from `main`
-
-*A maintenance release on top of r3: adds failsafe mode for headless dongles.*
-
-**Why this release** — The headline is **failsafe mode** for headless MSM8916 dongles (no screen, no serial console), plus the HiMI_OK guard extended to **UF02**. Every firmware fix from r3 is included.
-
-**🆘 Failsafe mode (new)** — Hold the button during boot to enter failsafe (7 s window; the LED flashes red→green): the device brings up a USB network gadget (`ncm.usb0` + `acm.GS0`) at **192.168.10.1** with a `ttyGS0` console, so a bricked or misconfigured unit can be recovered without opening it. A longer (5 s) hold performs a **factory reset**. Verified live on HMU05; enabled on all boards, with the button polarity corrected to active-high/pull-down (uz801 falls back to a green LED).
-
-**🛡️ Modem stability** — The HiMI_OK guard is now gated for **UF02** as well (the third confirmed board), and the guard's init ships as an rc.d symlink so it survives `sysupgrade`.
-
-**🧪 Tested only on HMU05 — your testing is needed** — This build has been validated **only on the HMU05**. The failsafe mode was verified live on HMU05; the other boards (`ufi001b`, `uz801` v3, `uf02`, `mf800b`) compile from the same tree but have **not** been tested on this release. If you run one of them — or any HMU05 setup different from the default — please flash it and **report back**: which board, what you exercised (boot, Wi-Fi, Bluetooth where an antenna is fitted, modem attach + data, failsafe), and the result. Positive confirmations are as useful as failures — please open an issue so we can fold findings into the next release.
-
-**⬆️ Upgrading** — From r3: `sysupgrade` (keep config) is fine and preserves the overlay.
-
-**⚠️ Known issues** — Overlay files shadow the image after a config-preserving flash (now repaired automatically, see r2); `sysupgrade -n` wipes the modem firmware; STA+AP Wi-Fi crashes the WCNSS firmware. The original write-ups are in the r3 entry, in this file's git history.
+**⚠️ Known issues** — Overlay files shadow the image after a config-preserving flash; `sysupgrade -n` wipes the modem firmware; STA+AP Wi-Fi crashes the WCNSS firmware. Write-ups are in this file's git history.
