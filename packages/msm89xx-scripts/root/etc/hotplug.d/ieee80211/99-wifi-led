@@ -1,6 +1,13 @@
 #!/bin/sh
 
-[ "$DEVICENAME" = "phy0" ] || exit 0
+# The phy index changes on every driver reload (rmmod/modprobe), so accept any
+# phy -- there is a single wifi phy on these boards.  The 2 s poll in
+# wifi-led-monitor is the authoritative LED driver; this only gives an
+# immediate set on radio add/remove.
+case "$DEVICENAME" in
+	phy*) ;;
+	*) exit 0 ;;
+esac
 
 #
 # Radio auto-enable. Runs on every board.
