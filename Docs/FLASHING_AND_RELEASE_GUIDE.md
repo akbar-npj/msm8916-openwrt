@@ -8,4 +8,4 @@
 
 Release notes for each version live in [`RELEASE_NOTES.md`](../RELEASE_NOTES.md).
 The process for cutting one — branch model, version bump, CI, verification — is
-[`RELEASING.md`](RELEASING.md).
+[`RELEASING_FIRMWARE.md`](RELEASING_FIRMWARE.md).

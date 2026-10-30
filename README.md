@@ -9,7 +9,7 @@ A production-ready, fully open-source OpenWrt port for Qualcomm Snapdragon 410 (
 
 Features a modern **Linux 6.12 mainline kernel**, **ModemManager 1.24**, **Qualcomm WCN36xx Wi-Fi with WPA3-SAE**, **Bluetooth (BlueZ 5.83 + SPP)**, **USB ConfigFS CDC NCM/ACM**, **mainline CPR CPU-rail scaling**, **true persistent eMMC EXT4 overlay storage**, and working **reboot-to-EDL and reboot-to-Fastboot recovery paths**.
 
-> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [Upstreaming Strategy](Docs/OPENWRT_UPSTREAMING_STRATEGY.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Releasing](Docs/RELEASING.md) · [Release notes](RELEASE_NOTES.md)
+> 📚 **Docs:** [Wiki](https://github.com/akbar-npj/msm8916-openwrt/wiki) · [Build & Flashing Reference](https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference) · [Architecture](Docs/ARCHITECTURE.md) · [Upstreaming Strategy](Docs/OPENWRT_UPSTREAMING_STRATEGY.md) · [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md) · [Stock Android Debug Toolkit](Docs/STOCK_ANDROID_SSH_AND_DEBUG_TOOLKIT_GUIDE.md) · [Releasing Firmware](Docs/RELEASING_FIRMWARE.md) · [Release notes](RELEASE_NOTES.md)
 
 ---
 
