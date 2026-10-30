@@ -333,6 +333,7 @@ End-to-end through uhttpd as that login:
 | No **Station Mode** entry in the menu | package not in the image | `apk info -e luci-app-wifi-sta`; it is a `DEFAULT_PACKAGES` entry — check `msm89xx/Makefile` |
 | Overview shows *not connected*, log repeats `SME: Authentication request to the driver failed` | the upstream is on a different channel and was not found by the scan | check the upstream is in range (`iwinfo phy0-ap0 scan`); the service re-syncs on the next restart |
 | `RTNETLINK answers: No error information` on `ip link set up` | vif got the AP's MAC | leave `wifista.main.macaddr` empty (derived) or set a distinct address |
+| The page fails with `RPC call to uci/get failed with ubus code 4: Resource not found` | the live `/etc/config/wifista` is missing, so `uci.load('wifista')` is rejected before the form renders.  `base-files` ships the file, so this means it was deleted — and a plain `rm` leaves an overlay **whiteout** that hides the image copy across reboots | `rm` the whiteout (`rm /overlay/upper/etc/config/wifista`) and reboot, or copy it back with `cp /rom/etc/config/wifista /etc/config/wifista` |
 | `ctrl_iface exists and seems to be in use` | a stale `wpa_supplicant` | `/etc/init.d/wifi-sta-late restart` (the service removes the stale socket) |
 | Station connects, no address | upstream has no DHCP, or `dhcp=0` | enable DHCP upstream / set `dhcp=1` |
 | AP's clients drop for a second at start-up | the AP followed the upstream's channel | expected; only when the channels differed |
