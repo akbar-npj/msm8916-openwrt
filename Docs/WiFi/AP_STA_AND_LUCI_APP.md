@@ -105,7 +105,7 @@ uci commit wifista
 |---|---|---|
 | `enabled` | `0` | Master switch.  Off by default — the service exits immediately. |
 | `ssid` / `key` | *(empty)* | **Legacy single network** — only used while no `ap` section exists (the LuCI page migrates the pair into a row on first save).  `ssid` empty = no network at all; the station stays idle (logged once, then retried every 5 min). |
-| `macaddr` | `00:11:22:33:44:77` | Address for the station vif.  **Must differ from the AP's** — mac80211 clones the AP's address onto a new vif, and `ip link set up` then fails with a misleading `RTNETLINK answers: No error information`. |
+| `macaddr` | *(empty — derived)* | Address for the station vif.  Leave it empty and the service derives one from the AP's (last octet + 1, stable across reboots).  It **must differ from the AP's**: an `iw`-created vif otherwise clones the AP's address and `ip link set up` fails with a misleading `RTNETLINK answers: No error information`. |
 | `dhcp` | `1` | Run `udhcpc`.  The lease installs **only** the address — no default route, so the LTE/mobile path stays the default. |
 | `hostname` | *(empty)* | Name announced to the upstream network as DHCP option 12 (`udhcpc -x hostname:…`), so the upstream router can resolve this device by name.  Empty = the system hostname (`system.@system[0].hostname`, else the kernel's). |
 | `radio` | `radio0` | Which radio's channel follows the upstream. |
@@ -332,7 +332,7 @@ End-to-end through uhttpd as that login:
 |---|---|---|
 | No **Station Mode** entry in the menu | package not in the image | `apk info -e luci-app-wifi-sta`; it is a `DEFAULT_PACKAGES` entry — check `msm89xx/Makefile` |
 | Overview shows *not connected*, log repeats `SME: Authentication request to the driver failed` | the upstream is on a different channel and was not found by the scan | check the upstream is in range (`iwinfo phy0-ap0 scan`); the service re-syncs on the next restart |
-| `RTNETLINK answers: No error information` on `ip link set up` | vif got the AP's MAC | set `wifista.main.macaddr` to a distinct address |
+| `RTNETLINK answers: No error information` on `ip link set up` | vif got the AP's MAC | leave `wifista.main.macaddr` empty (derived) or set a distinct address |
 | `ctrl_iface exists and seems to be in use` | a stale `wpa_supplicant` | `/etc/init.d/wifi-sta-late restart` (the service removes the stale socket) |
 | Station connects, no address | upstream has no DHCP, or `dhcp=0` | enable DHCP upstream / set `dhcp=1` |
 | AP's clients drop for a second at start-up | the AP followed the upstream's channel | expected; only when the channels differed |
