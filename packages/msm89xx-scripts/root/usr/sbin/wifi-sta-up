@@ -335,6 +335,19 @@ scan_any_channel() {
 	return 1
 }
 
+# wcn36xx hands every vif the same perm_addr, so a station created without an
+# explicit address ends up with the AP's own MAC and the kernel refuses to
+# bring it up ("No error information", nothing in dmesg).  Derive a stable,
+# distinct address from the AP's instead: the same one every boot, never the
+# AP's, and different on every unit because it is derived from the hardware.
+derive_sta_mac() {
+	local mac last
+	mac="$(cat "/sys/class/net/$1/address" 2>/dev/null)" || return 1
+	[ -n "$mac" ] || return 1
+	last=$((0x${mac##*:}))
+	printf '%s:%02x\n' "${mac%:*}" "$(((last + 1) % 256))"
+}
+
 bring_up_sta() {
 	# An enabled service with no saved network is a legitimate state: the
 	# operator saves the form first and picks the networks from a scan
@@ -380,16 +393,27 @@ bring_up_sta() {
 	# /etc/init.d/wifi-sta-late valid without anyone tracking the current index.
 	sta_if="phy0-sta0"
 
+	# A MAC of its own -- see derive_sta_mac.
+	sta_mac="$macaddr"
+	[ -n "$sta_mac" ] || sta_mac="$(derive_sta_mac "$ap")"
+
 	# A stale vif from a previous run must go, or "interface add" fails -EEXIST.
 	iw dev "$sta_if" del 2>/dev/null
-	if [ -n "$macaddr" ]; then
-		iw phy "$phy" interface add "$sta_if" type managed addr "$macaddr"
+	if [ -n "$sta_mac" ]; then
+		iw phy "$phy" interface add "$sta_if" type managed addr "$sta_mac"
 	else
 		iw phy "$phy" interface add "$sta_if" type managed
 	fi || { logger -t wifi-sta "failed to create $sta_if"; exit 1; }
 	# A down netdev cannot scan (iw returns ENETDOWN) and mac80211 will not let
 	# it associate either; wpa_supplicant brings it up itself only later.
-	ip link set "$sta_if" up 2>/dev/null
+	# Back off rather than let procd respawn us every 5 s: a vif that cannot be
+	# opened is a configuration fault, and hot-looping only churns the radio.
+	if ! ip link set "$sta_if" up 2>/dev/null; then
+		logger -t wifi-sta "cannot bring $sta_if up (MAC $sta_mac); retrying in 5 min"
+		iw dev "$sta_if" del 2>/dev/null
+		sleep 300
+		exit 1
+	fi
 
 	# ---- channel sync -------------------------------------------------
 	# One radio, one channel: the STA can only join an upstream that sits on
@@ -424,13 +448,13 @@ bring_up_sta() {
 		[ -n "$ap" ] || { logger -t wifi-sta "AP did not come back after channel change"; exit 1; }
 		logger -t wifi-sta "AP moved to channel $up_ch; re-creating $sta_if"
 
-		iw dev "$sta_if" del 2>/dev/null
-		if [ -n "$macaddr" ]; then
-			iw phy "$phy" interface add "$sta_if" type managed addr "$macaddr"
-		else
-			iw phy "$phy" interface add "$sta_if" type managed
-		fi || { logger -t wifi-sta "failed to re-create $sta_if"; exit 1; }
-		ip link set "$sta_if" up 2>/dev/null
+			iw dev "$sta_if" del 2>/dev/null
+			if [ -n "$sta_mac" ]; then
+				iw phy "$phy" interface add "$sta_if" type managed addr "$sta_mac"
+			else
+				iw phy "$phy" interface add "$sta_if" type managed
+			fi || { logger -t wifi-sta "failed to re-create $sta_if"; exit 1; }
+			ip link set "$sta_if" up 2>/dev/null
 	elif [ -n "$up_ch" ]; then
 		logger -t wifi-sta "upstream '$up_ssid' on channel $up_ch matches the AP"
 	else
