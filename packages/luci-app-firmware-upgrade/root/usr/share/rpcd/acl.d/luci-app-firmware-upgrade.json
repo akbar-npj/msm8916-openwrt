@@ -1,0 +1,17 @@
+{
+	"luci-app-firmware-upgrade": {
+		"description": "Grant access to the firmware upgrade checker",
+		"read": {
+			"file": {
+				"/usr/sbin/firmware-upgrade": [ "exec" ],
+				"/tmp/firmware-upgrade.failed": [ "read" ],
+				"/tmp/firmware-upgrade-apply.log": [ "read" ]
+			}
+		},
+		"write": {
+			"file": {
+				"/usr/sbin/firmware-upgrade": [ "exec" ]
+			}
+		}
+	}
+}
