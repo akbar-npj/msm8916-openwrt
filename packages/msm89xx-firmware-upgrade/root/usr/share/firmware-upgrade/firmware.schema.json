@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "msm89xx firmware manifest",
+  "type": "object",
+  "required": ["manifest_version", "release", "boards"],
+  "properties": {
+    "manifest_version": { "type": "integer", "const": 1 },
+    "release": { "type": "string", "description": "OpenWrt release, e.g. 25.12.6" },
+    "generated": { "type": "string", "format": "date-time" },
+    "boards": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["version", "sysupgrade", "sha256"],
+        "properties": {
+          "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-r[0-9]+$" },
+          "revision": { "type": "string" },
+          "sysupgrade": { "type": "string", "format": "uri" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "size": { "type": "integer", "minimum": 1 },
+          "min_version": { "type": "string", "description": "oldest version this image can upgrade from" },
+          "notes": { "type": "string", "format": "uri" },
+          "published": { "type": "string", "format": "date" }
+        }
+      }
+    }
+  }
+}

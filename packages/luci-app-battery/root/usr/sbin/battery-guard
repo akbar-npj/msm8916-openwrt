@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Shut down cleanly when the battery is pulled.
+#
+# PM8916's linear charger can only supplement the pack, not replace it: with
+# the pack gone the AP runs from VBUS until the rail collapses, and on a
+# loaded system that is a hard brownout with no sync.  The LBC reports
+# presence in BAT_IF INT_RT_STS bit 0 (exposed as POWER_SUPPLY_PROP_PRESENT
+# by patch 864); poll it and power off before the rail goes away.
+
+. /lib/functions.sh
+
+# /etc/config/battery is a conffile, so an upgraded device keeps its old copy
+# and never gets the guard section from the image.  Add it once.
+if ! uci -q get battery.guard >/dev/null 2>&1; then
+	uci -q set battery.guard=guard
+	uci -q set battery.guard.enabled='1'
+	uci -q set battery.guard.action='poweroff'
+	uci -q set battery.guard.poll_ms='200'
+	uci -q commit battery
+fi
+
+enabled=1
+ACTION=poweroff
+POLL=200
+
+config_load battery
+config_get_bool enabled guard enabled 1
+config_get ACTION guard action poweroff
+config_get POLL guard poll_ms 200
+
+[ "$enabled" = 1 ] || exit 0
+
+# busybox sleep only accepts whole seconds, so use usleep for sub-second polls.
+delay() {
+	if [ -x /bin/usleep ]; then
+		usleep $((POLL * 1000))
+	else
+		sleep 1
+	fi
+}
+
+batt_present() {
+	for f in /sys/class/power_supply/pm8916-lbc-*/present; do
+		[ -r "$f" ] || continue
+		cat "$f"
+		return
+	done
+}
+
+while :; do
+	present=$(batt_present)
+
+	if [ "$present" = "0" ]; then
+		logger -t battery-guard "battery removed, action: $ACTION"
+		sync
+		case "$ACTION" in
+		poweroff) poweroff ;;
+		halt) halt ;;
+		esac
+		exit 0
+	fi
+
+	delay
+done

@@ -1758,27 +1758,11 @@ small {
 }
 
 /* Zone badges are filled with an inline zone colour, and the "empty" variant
-   with a light grey hatch.  Both are light fills, so every label inside them
-   must be dark whatever the palette says: the accent colour ordinary text
-   inherits sat at 1.1:1, and the "unspecified" entry (an <em>) was white on
-   the    #eee fill.  Not scoped to #maincontent, so it also reaches the
-   interface-edit modal, which is mounted outside it. */
-#maincontent .zonebadge,
-#maincontent .zonebadge > strong,
-#maincontent .zonebadge > em,
-#maincontent .zonebadge-empty,
-#maincontent .zonebadge-empty > strong,
-#modal_overlay .zonebadge,
-#modal_overlay .zonebadge > strong,
-#modal_overlay .zonebadge > em,
-#modal_overlay .zonebadge-empty,
-#modal_overlay .zonebadge-empty > strong {
-    /* Only the labels that sit directly on the zone colour go dark.  The
-       .ifacebadge chips inside keep their own dark card background, so they
-       keep the palette's light text.  The #maincontent / #modal_overlay ids
-       are load-bearing: the --data-num rule below paints every table td
-       strong in the accent and outranks a class-only selector, and the
-       interface-edit modal lives in the overlay, outside #maincontent. */
+   with a light grey hatch.  Both are light fills, so their labels must be
+   dark whatever the palette says - the accent colour used for ordinary
+   <strong> elements sat at 1.1:1 on them. */
+#maincontent .zonebadge strong,
+#maincontent .zonebadge-empty strong {
     color: #0b1220 !important;
 }
 
@@ -1802,47 +1786,17 @@ small {
 
 .zone-forwards {
     display: flex;
-    align-items: center;
-    gap: .35rem;
     min-width: 10rem;
 }
 
-/* Each side is sized by its content instead of taking a 45% share.  The
-   forward target ("REJECT all others") is wider than half of the ~290px the
-   column gets, so a percentage basis wrapped it onto two lines while the
-   arrow in the middle kept its 10%. */
 .zone-forwards > * {
-    /* Grow to share the row, but never below the content: the forward target
-       ("REJECT all others") is wider than the 45% share it used to get, which
-       wrapped it onto a second line. */
-    flex: 1 1 auto;
-    min-width: max-content;
-    white-space: nowrap;
+    flex: 1 1 45%;
 }
 
 .zone-forwards > span {
-    flex: 0 0 auto;
-    padding: 0 .25rem;
+    flex-basis: 10%;
     text-align: center;
-}
-
-/* The zone table's Input / Output selects are width:100% of a cell the table
-   is free to squeeze: with the vertical sidebar they collapsed to 56px and
-   clipped "accept" to "acc" and "reject" to "rej".  max-content floors each
-   one at its own widest option, so the word always fits however wide the
-   column ends up; the table wrapper already scrolls when the sum is too wide. */
-html[data-theme-style] body[data-page^="admin-network-firewall"] #maincontent .cbi-section-table td select {
-    min-width: max-content;
-}
-
-/* ...and that floor widens the table past its card below ~1200px, which pushed
-   the Edit/Delete buttons off the right edge.  Letting the two long headers
-   wrap gives back ~80px, so the table fits and the actions stay on screen. */
-@media (max-width: 1200px) {
-    html[data-theme-style] body[data-page^="admin-network-firewall"] #maincontent .cbi-section-table th,
-    html[data-theme-style] body[data-page^="admin-network-firewall"] #maincontent .cbi-section-table .th {
-        white-space: normal !important;
-    }
+    padding: 0 .25rem;
 }
 
 .zone-forwards .zone-src,
@@ -2510,6 +2464,10 @@ body.login footer {
    Processes Table & General Table Column Alignment
    ========================================================================== */
 
+@media screen and (min-width: 993px) {
+/* Fixed desktop column layout: PID/Owner/%CPU/%MEM each carry a
+   min-width and the six columns need ~700px.  Scoped to >992px so the
+   narrow layout can restack the rows instead of scrolling sideways. */
 /* Processes Page Table Layout */
 .node-status-processes .table,
 .node-status-processes table {
@@ -2623,6 +2581,7 @@ body.login footer {
 .node-status-processes .td:nth-child(6) input,
 .node-status-processes td:nth-child(6) input {
     margin: 0 2px !important;
+}
 }
 
 .node-status-iptables > .main div > .cbi-map > form {
@@ -4145,9 +4104,18 @@ html[data-theme-nav="vertical"] .logged-in .main-right {
         transition: width 0.25s ease;
     }
 
+    /* The closed rule above carries an attribute selector
+     * (html[data-theme-nav="vertical"] .logged-in .main-left, 0,3,1), so a
+     * plain .logged-in .main-left.active (0,3,0) lost to it and the drawer
+     * stayed 0px wide no matter what the menu script did -- the hamburger was
+     * dead on every phone.  Match that specificity and carry the .open class
+     * the menu script actually toggles. */
+    html[data-theme-nav] .logged-in .main-left.active,
+    html[data-theme-nav] .logged-in .main-left.open,
     .logged-in .main-left.active,
-    html[data-theme-nav="vertical"] .logged-in .main-left.active {
+    .logged-in .main-left.open {
         width: 100% !important;
+        z-index: 3000 !important;
     }
 
     .logged-in .main-left .nav-container {
@@ -5395,3 +5363,381 @@ body.login .cbi-page-actions {
 #maincontent span[style*="color:green"] { color: #4ade80 !important; }
 #maincontent span[style*="color:red"] { color: #f87171 !important; }
 
+/* ==========================================================================
+   PHONE LAYOUT (<= 600px)
+   --------------------------------------------------------------------------
+   The 992px block above is the desktop -> tablet step: it keeps the table in
+   columns and only narrows the chrome.  Below ~600px the columns stop working
+   (a five-column table leaves ~70px per cell, so cells are ellipsised to
+   "CPU t..." and the type drops to 11px), so this block restacks rows, floors
+   the type at a readable size and sizes every control for a finger.
+
+   Everything is prefixed with html[data-theme-style] so it also outranks the
+   html[data-theme-style]-prefixed rules in theme.css, which loads after this
+   file.
+   ========================================================================== */
+@media screen and (max-width: 600px) {
+
+    /* --- 1. Type floor ---------------------------------------------------
+     * Table cells were inheriting 0.85em from a 12.8px body (10.9px on
+     * screen).  Nothing in a table may go below 13px on a phone. */
+    html[data-theme-style] body .td,
+    html[data-theme-style] body .th,
+    html[data-theme-style] body td,
+    html[data-theme-style] body th {
+        font-size: 13px;
+    }
+
+    /* Pure identifiers (PID, DUID, MAC) are 0.85em of that, i.e. 11px. */
+    html[data-theme-style] body #maincontent [data-meta="id"] {
+        font-size: 12.5px;
+    }
+
+    html[data-theme-style] body .cbi-value-description,
+    html[data-theme-style] body .cbi-section-descr,
+    html[data-theme-style] body .cbi-map-descr {
+        font-size: 12.5px;
+    }
+
+    /* --- 2. Tables: two labelled cells per line, everything wraps ---------
+     * Rows are flex containers at <=992px.  Giving every cell an equal share
+     * and letting it grow to the full width when it needs it is what keeps a
+     * five-column table readable without a horizontal scrollbar. */
+    html[data-theme-style] body .tr {
+        align-items: flex-start;
+    }
+
+    /* A real <table> cannot lay out flex rows until it stops being a table. */
+    html[data-theme-style] body .table,
+    html[data-theme-style] body table.table {
+        display: block;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    html[data-theme-style] body .td,
+    html[data-theme-style] body .th,
+    html[data-theme-style] body .td.cbi-section-table-cell,
+    html[data-theme-style] body .th.cbi-section-table-cell,
+    html[data-theme-style] body .td.cbi-value-field,
+    html[data-theme-style] body .th.cbi-value-field {
+        flex: 1 1 50%;
+        min-width: 0;
+        max-width: 100%;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        overflow-wrap: anywhere;
+        text-align: left;
+        padding: 0.3rem 0.4rem;
+        box-sizing: border-box;
+    }
+
+    /* Two-cell status rows ("Hostname | mifib-v12", "Firmware Version | ..."):
+     * the label is short and the value is a long firmware string, so 50/50
+     * wasted a third of the line on the label and broke the value over five
+     * lines.  Give the label its content width plus a little, the value the
+     * rest. */
+    html[data-theme-style] body .td:first-child:nth-last-child(2),
+    html[data-theme-style] body .th:first-child:nth-last-child(2) {
+        flex: 0 1 38%;
+    }
+
+    html[data-theme-style] body .td:last-child:nth-child(2),
+    html[data-theme-style] body .th:last-child:nth-child(2) {
+        flex: 1 1 62%;
+    }
+
+    /* Widgets and action rows always take the whole line. */
+    html[data-theme-style] body .td.cbi-value-field,
+    html[data-theme-style] body .th.cbi-value-field,
+    html[data-theme-style] body .td.cbi-section-actions,
+    html[data-theme-style] body .td[data-type="button"],
+    html[data-theme-style] body .td[data-type="fvalue"] {
+        flex: 1 1 100%;
+    }
+
+    /* The per-cell label that the 992px block turns on.  Dim and small so it
+     * reads as a caption rather than as a second value. */
+    html[data-theme-style] body .td[data-title]::before {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--text-muted);
+        margin-bottom: 1px;
+        white-space: normal;
+    }
+
+    /* Table rows are cards now: separate them, and let the section breathe. */
+    html[data-theme-style] body .cbi-section-table {
+        width: 100%;
+        margin: 0;
+    }
+
+    html[data-theme-style] body .cbi-section-table-row {
+        padding: 0.5rem 0;
+    }
+
+    /* --- 3. Form controls -------------------------------------------------
+     * iOS Safari zooms the whole page when a focused field is under 16px, and
+     * the page then stays zoomed after blur.  16px is the fix, not a taste
+     * call. */
+    html[data-theme-style] body input[type="text"],
+    html[data-theme-style] body input[type="password"],
+    html[data-theme-style] body input[type="number"],
+    html[data-theme-style] body input[type="search"],
+    html[data-theme-style] body input[type="email"],
+    html[data-theme-style] body textarea,
+    html[data-theme-style] body select {
+        font-size: 16px !important;
+        min-height: 40px;
+        box-sizing: border-box;
+    }
+
+    /* LuCI's own dropdown widget (CBI.Dropdown) renders text in a span, so it
+     * needs the bump too, or the control sits next to a 16px native select
+     * looking shrunken. */
+    html[data-theme-style] body .cbi-dropdown,
+    html[data-theme-style] body .cbi-dropdown > ul > li {
+        font-size: 15px;
+    }
+
+    /* --- 4. Touch targets -------------------------------------------------
+     * 34px-tall buttons with 13px labels are a desktop size.  40px is the
+     * smallest that is comfortable with a thumb. */
+    html[data-theme-style] body .cbi-button,
+    html[data-theme-style] body .btn,
+    html[data-theme-style] body button,
+    html[data-theme-style] body input[type="submit"],
+    html[data-theme-style] body input[type="button"] {
+        min-height: 40px;
+        font-size: 14px;
+        padding: 0 0.9rem;
+        box-sizing: border-box;
+    }
+
+    /* Button groups ("Update lists... / Upload Package... / Configure apk")
+     * are a nowrap inline row of three buttons and painted 27px past the
+     * right edge of the Software page. */
+    html[data-theme-style] body #maincontent .control-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem;
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    /* Checkboxes and radios are 13px natively - give them a real hit area. */
+    html[data-theme-style] body input[type="checkbox"],
+    html[data-theme-style] body input[type="radio"] {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* The colour switch is a segmented icon control, not a text button; the
+     * rule above would give each segment 0.9rem of padding and squash it. */
+    html[data-theme-style] body .theme-switch button {
+        min-height: 32px;
+        height: 32px;
+        width: 32px;
+        padding: 0;
+        font-size: 13px;
+    }
+
+    /* --- 5. Drawer navigation --------------------------------------------
+     * The drawer is the only navigation on a phone, and its links were 21px
+     * tall because the padding sat on the <li> and the <a> filled nothing. */
+    html[data-theme-style] body .main-left .nav > .slide > .slide-menu > li {
+        padding: 0;
+        margin: 2px 0;
+    }
+
+    html[data-theme-style] body .main-left .nav > .slide > .slide-menu > li > a {
+        display: flex;
+        align-items: center;
+        min-height: 46px;
+        padding: 0 2rem;
+        box-sizing: border-box;
+    }
+
+    html[data-theme-style] body .main-left .nav > .slide > .menu {
+        display: flex;
+        align-items: center;
+        min-height: 46px;
+        padding: 0 1rem;
+        box-sizing: border-box;
+    }
+
+    /* --- 6. Header --------------------------------------------------------
+     * Floating bar at <=992px.  At 390px the hostname was ellipsised to
+     * "mifib b...", which reads as a rendering bug; tighten the gaps and give
+     * the controls the room instead. */
+    html[data-theme-style] body .header-container {
+        gap: 0.35rem;
+    }
+
+    html[data-theme-style] body .header-left {
+        gap: 0.4rem;
+        min-width: 0;
+    }
+
+    html[data-theme-style] body .btn-con {
+        gap: 0.3rem;
+    }
+
+    html[data-theme-style] body .showSide {
+        display: inline-flex !important;
+        flex: 0 0 40px;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        margin-right: 0;
+        padding: 0;
+    }
+
+    html[data-theme-style] body .showSide:before {
+        height: 18px;
+        width: 22px;
+    }
+
+    html[data-theme-style] body .header-left .brand-logo {
+        height: 26px;
+        width: 26px;
+    }
+
+    html[data-theme-style] body .theme-toggle-btn,
+    html[data-theme-style] body .label.logout a {
+        height: 34px;
+        padding: 0 0.7rem;
+        font-size: 0.78rem;
+    }
+
+    /* --- 7. Tabs ----------------------------------------------------------
+     * Five tabs wrapped onto two lines inside a rounded card and the last one
+     * still painted 4px past the right edge.  One scrollable row instead. */
+    html[data-theme-style] body .tabs,
+    html[data-theme-style] body .cbi-tabmenu {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        gap: 0.15rem;
+        margin: 0;
+        padding: 0 0.4rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    html[data-theme-style] body .tabs::-webkit-scrollbar,
+    html[data-theme-style] body .cbi-tabmenu::-webkit-scrollbar {
+        display: none;
+    }
+
+    html[data-theme-style] body .tabs > li,
+    html[data-theme-style] body .cbi-tabmenu > li {
+        flex: 0 0 auto;
+        padding: 0.55rem 0.8rem;
+        min-height: 40px;
+        box-sizing: border-box;
+    }
+
+    html[data-theme-style] body .tabs > li > a,
+    html[data-theme-style] body .cbi-tabmenu > li > a {
+        padding: 0;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+
+    /* --- 8. Page chrome ---------------------------------------------------
+     * The map title sat 16px to the left of the section content it heads, so
+     * it looked pinned to the card edge. */
+    html[data-theme-style] body #maincontent .cbi-map > h2,
+    html[data-theme-style] body #maincontent #view > h2 {
+        padding: 0 1rem;
+        margin: 1rem 0 0.25rem;
+    }
+
+    html[data-theme-style] body #maincontent .cbi-map > .cbi-map-descr,
+    html[data-theme-style] body #maincontent #view > .cbi-map-descr {
+        padding: 0 1rem 0.6rem;
+    }
+
+    /* Error pages (404 / dispatch failure) render bare into .container. */
+    html[data-theme-style] body #maincontent > .container > h2,
+    html[data-theme-style] body #maincontent > .container > p,
+    html[data-theme-style] body #maincontent > .container > pre {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        margin-left: 0;
+        margin-right: 0;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* A real <table class="table"> keeps display:table above 600px, so the flex
+ * rows the 992px block sets up never laid out.  Below the sidebar breakpoint
+ * every table stacks, whatever element it is built from. */
+@media screen and (max-width: 992px) {
+    html[data-theme-style] body table.table {
+        display: block;
+        width: 100%;
+    }
+
+    /* The header floats 0.75rem below the top edge, and scrolled content
+     * showed through that gap -- obvious in the light palette, where the
+     * amber "No password set" card painted a band above the bar. */
+    html[data-theme-style] body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 0.75rem;
+        background: var(--bg-canvas);
+        z-index: 1999;
+        pointer-events: none;
+    }
+}
+
+/* 390px is the common phone width; 360px still exists.  Below 420px the
+ * hostname cannot share the bar with the theme switch and "Log out" without
+ * being clipped to three characters, so the logo carries the identity. */
+@media screen and (max-width: 420px) {
+    html[data-theme-style] body .header-left .brand-name {
+        display: none;
+    }
+
+    /* Reclaim the bar for the controls instead: three 32px segments plus a
+     * 0.7rem-padded "Log out" pushed the hamburger off the left edge. */
+    html[data-theme-style] body .theme-switch button {
+        width: 30px;
+        height: 30px;
+        min-height: 30px;
+    }
+
+    html[data-theme-style] body .label.logout a {
+        padding: 0 0.55rem;
+    }
+}
+
+/* The poll-status chip ("Refreshing") is informational; below this width it
+ * is the only thing that can give and the drawer button is not. */
+@media screen and (max-width: 360px) {
+    html[data-theme-style] body #indicators {
+        display: none !important;
+    }
+}
+
+@media screen and (max-width: 340px) {
+    html[data-theme-style] body .header-left .brand {
+        display: none !important;
+    }
+
+    html[data-theme-style] body .theme-switch button {
+        width: 28px;
+    }
+}

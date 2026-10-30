@@ -1,0 +1,94 @@
+Report battery presence from the pm8916 LBC.
+
+The driver never exposed POWER_SUPPLY_PROP_PRESENT and only ever
+requested the usb_vbus interrupt, even though pm8916.dtsi already
+declares "bat_pres" (BAT_IF INT_RT_STS bit 0) on the charger node.
+Consequently userspace could not tell that the pack had been pulled:
+the AP keeps running from VBUS alone until the rail collapses, which on
+a loaded system is a hard brownout with no chance to sync.
+
+Request the bat_pres interrupt, expose PRESENT, and emit a warning when
+the pack goes away so battery-guard can power the system down cleanly.
+
+---
+--- a/drivers/power/supply/pm8916_lbc.c
++++ b/drivers/power/supply/pm8916_lbc.c
+@@ -30,6 +30,7 @@
+ #define PM8916_INT_RT_STS 0x10
+ 
+ #define PM8916_LBC_USB_USBIN_VALID BIT(1)
++#define PM8916_LBC_BAT_IF_BATT_PRES BIT(0)
+ 
+ #define PM8916_LBC_CHGR_VDD_MAX 0x40
+ #define PM8916_LBC_CHGR_VDD_SAFE 0x41
+@@ -63,6 +64,7 @@
+ 	unsigned int reg[4];
+ 	bool online;
+ 	bool charge_enabled;
++	bool batt_present;
+ 	unsigned int charge_voltage_max;
+ 	unsigned int charge_voltage_safe;
+ 	unsigned int charge_current_max;
+@@ -151,6 +153,10 @@
+ 		val->intval = chg->charge_enabled;
+ 		return 0;
+ 
++	case POWER_SUPPLY_PROP_PRESENT:
++		val->intval = chg->batt_present;
++		return 0;
++
+ 	default:
+ 		return -EINVAL;
+ 	};
+@@ -193,8 +199,29 @@
+ 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
+ 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
+ 	POWER_SUPPLY_PROP_CHARGE_ENABLED,
++	POWER_SUPPLY_PROP_PRESENT,
+ };
+ 
++static irqreturn_t pm8916_lbc_batt_pres_irq(int irq, void *data)
++{
++	struct pm8916_lbc_charger *chg = data;
++	unsigned int tmp;
++	int ret;
++
++	ret = regmap_read(chg->regmap, chg->reg[LBC_BAT_IF] + PM8916_INT_RT_STS, &tmp);
++	if (ret)
++		return IRQ_HANDLED;
++
++	chg->batt_present = !!(tmp & PM8916_LBC_BAT_IF_BATT_PRES);
++
++	if (!chg->batt_present)
++		dev_warn(chg->dev, "battery removed\n");
++
++	power_supply_changed(chg->charger);
++
++	return IRQ_HANDLED;
++}
++
+ static irqreturn_t pm8916_lbc_charger_state_changed_irq(int irq, void *data)
+ {
+ 	struct pm8916_lbc_charger *chg = data;
+@@ -360,6 +387,21 @@
+ 	if (ret)
+ 		return ret;
+ 
++	irq = platform_get_irq_byname(pdev, "bat_pres");
++	if (irq < 0)
++		return irq;
++
++	ret = devm_request_threaded_irq(dev, irq, NULL, pm8916_lbc_batt_pres_irq,
++					IRQF_ONESHOT, "pm8916_lbc_bat_pres", chg);
++	if (ret)
++		return ret;
++
++	ret = regmap_read(chg->regmap, chg->reg[LBC_BAT_IF] + PM8916_INT_RT_STS, &tmp);
++	if (ret)
++		goto comm_error;
++
++	chg->batt_present = !!(tmp & PM8916_LBC_BAT_IF_BATT_PRES);
++
+ 	ret = regmap_read(chg->regmap, chg->reg[LBC_USB] + PM8916_INT_RT_STS, &tmp);
+ 	if (ret)
+ 		goto comm_error;

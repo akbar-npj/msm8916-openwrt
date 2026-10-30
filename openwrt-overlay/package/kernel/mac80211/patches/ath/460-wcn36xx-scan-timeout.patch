@@ -1,0 +1,102 @@
+--- a/drivers/net/wireless/ath/wcn36xx/main.c
++++ b/drivers/net/wireless/ath/wcn36xx/main.c
+@@ -285,6 +285,8 @@
+ 
+ 	wcn36xx_dbg(WCN36XX_DBG_MAC, "mac stop\n");
+ 
++	cancel_delayed_work_sync(&wcn->scan_timeout);
++
+ 	mutex_lock(&wcn->scan_lock);
+ 	if (wcn->scan_req) {
+ 		struct cfg80211_scan_info scan_info = {
+@@ -652,11 +654,41 @@
+ 	return ret;
+ }
+ 
++/*
++ * The firmware is not obliged to answer a scan request.  When it stays silent
++ * wcn->scan_req is never cleared and every later scan is rejected with -EBUSY,
++ * which leaves the station unable to associate until the module is reloaded.
++ * Bound the wait and complete the scan ourselves.
++ */
++#define WCN36XX_SCAN_TIMEOUT_MS	15000
++
++static void wcn36xx_scan_timeout_work(struct work_struct *work)
++{
++	struct wcn36xx *wcn = container_of(to_delayed_work(work),
++					   struct wcn36xx, scan_timeout);
++	struct cfg80211_scan_info scan_info = {
++		.aborted = true,
++	};
++
++	mutex_lock(&wcn->scan_lock);
++	if (!wcn->scan_req) {
++		mutex_unlock(&wcn->scan_lock);
++		return;
++	}
++	wcn->scan_req = NULL;
++	mutex_unlock(&wcn->scan_lock);
++
++	wcn36xx_warn("scan did not complete in %d ms, aborting\n",
++		     WCN36XX_SCAN_TIMEOUT_MS);
++	ieee80211_scan_completed(wcn->hw, &scan_info);
++}
++
+ static int wcn36xx_hw_scan(struct ieee80211_hw *hw,
+ 			   struct ieee80211_vif *vif,
+ 			   struct ieee80211_scan_request *hw_req)
+ {
+ 	struct wcn36xx *wcn = hw->priv;
++	int ret;
+ 
+ 	if (!wcn36xx_firmware_get_feat_caps(wcn->fw_feat_caps, SCAN_OFFLOAD)) {
+ 		/* fallback to mac80211 software scan */
+@@ -684,7 +716,19 @@
+ 	mutex_unlock(&wcn->scan_lock);
+ 
+ 	wcn36xx_smd_update_channel_list(wcn, &hw_req->req);
+-	return wcn36xx_smd_start_hw_scan(wcn, vif, &hw_req->req);
++
++	ret = wcn36xx_smd_start_hw_scan(wcn, vif, &hw_req->req);
++	if (ret) {
++		/* A refused scan is never followed by an indication. */
++		mutex_lock(&wcn->scan_lock);
++		wcn->scan_req = NULL;
++		mutex_unlock(&wcn->scan_lock);
++		return ret;
++	}
++
++	schedule_delayed_work(&wcn->scan_timeout,
++			      msecs_to_jiffies(WCN36XX_SCAN_TIMEOUT_MS));
++	return 0;
+ }
+ 
+ static void wcn36xx_cancel_hw_scan(struct ieee80211_hw *hw,
+@@ -1741,6 +1785,7 @@
+ 	mutex_init(&wcn->conf_mutex);
+ 	mutex_init(&wcn->hal_mutex);
+ 	mutex_init(&wcn->scan_lock);
++	INIT_DELAYED_WORK(&wcn->scan_timeout, wcn36xx_scan_timeout_work);
+ 	__skb_queue_head_init(&wcn->amsdu);
+ 
+ 	wcn->hal_buf = devm_kmalloc(wcn->dev, WCN36XX_HAL_BUF_SIZE, GFP_KERNEL);
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -2745,6 +2745,7 @@
+ 		scan_info.aborted = true;
+ 		fallthrough;
+ 	case WCN36XX_HAL_SCAN_IND_COMPLETED:
++		cancel_delayed_work(&wcn->scan_timeout);
+ 		mutex_lock(&wcn->scan_lock);
+ 		wcn->scan_req = NULL;
+ 		if (wcn->scan_aborted)
+--- a/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
++++ b/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
+@@ -267,6 +267,7 @@
+ 	struct ieee80211_vif	*sw_scan_vif;
+ 	struct mutex		scan_lock;
+ 	bool			scan_aborted;
++	struct delayed_work	scan_timeout;
+ 
+ 	/* DXE channels */
+ 	struct wcn36xx_dxe_ch	dxe_tx_l_ch;	/* TX low */

@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 LUCI_TITLE:=Feelgood Theme
 LUCI_DEPENDS:=+luci-base
 PKG_VERSION:=1
-PKG_RELEASE:=24
+PKG_RELEASE:=25
 PKG_LICENSE:=Apache-2.0
 
 CONFIG_LUCI_UTMIN:=

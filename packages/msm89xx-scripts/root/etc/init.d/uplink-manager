@@ -12,3 +12,15 @@ start_service() {
 	procd_set_param stderr 1
 	procd_close_instance
 }
+
+# Re-read /etc/config/uplink in place (no route flap) after a config change.
+reload_service() {
+	local pid
+	pid="$(cat /var/run/uplink-manager.pid 2>/dev/null)"
+	[ -n "$pid" ] && kill -USR1 "$pid" 2>/dev/null
+	return 0
+}
+
+service_triggers() {
+	procd_add_reload_trigger uplink
+}

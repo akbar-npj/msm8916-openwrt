@@ -6,7 +6,7 @@ case "${1:-}" in
 		cat <<'USAGE'
 Usage: wifi-led-monitor [--help]
 
-Drive the green WLAN LED: off when the AP interface (phy0-ap0) has no client,
+Drive the green WLAN LED: off when the AP interface has no client,
 on when it has one, blinking while the AP is coming up.  Started by procd
 (/etc/init.d/wifi-led-monitor); takes no arguments.
 
@@ -22,7 +22,26 @@ LED="/sys/class/leds/green:wlan"
 # Red half of the same pair (mifib-v12, after the 2026-10-22 DT rename).
 LED_RED="/sys/class/leds/red:wlan"
 [ -d "$LED_RED" ] || LED_RED=""
-WIFI_IF="phy0-ap0"
+
+#
+# The AP vif name embeds the phy index, which changes every time the driver is
+# reloaded (rmmod/modprobe) or the radio restarted.  The STA self-heal watchdog
+# reloads the driver in normal operation, so "phy0-ap0" is not a safe
+# assumption -- discover the AP vif by pattern instead (the station vif is
+# already discovered the same way by sta_if()).
+#
+ap_if()
+{
+	local n
+
+	for n in /sys/class/net/*; do
+		case "${n##*/}" in
+			*-ap*) echo "${n##*/}"; return 0 ;;
+		esac
+	done
+
+	return 1
+}
 
 POLL_INTERVAL=2
 BLINK_ON=250
@@ -101,22 +120,27 @@ wifi_radio_disabled()
 
 wifi_ap_present()
 {
-        [ -d "/sys/class/net/$WIFI_IF" ] || return 1
+	local if
 
-        return 0
+	if="$(ap_if)" || return 1
+	[ -d "/sys/class/net/$if" ] || return 1
+
+	return 0
 }
 
 wifi_ap_up()
 {
-        wifi_ap_present || return 1
+	local if
 
-        # The interface must be administratively/radio operational.
-        #
-        # For mac80211 AP interfaces operstate may be "up" or "unknown",
-        # so don't rely solely on /sys/class/net/.../operstate.
-        iw dev "$WIFI_IF" info >/dev/null 2>&1 || return 1
+	if="$(ap_if)" || return 1
 
-        return 0
+	# The interface must be administratively/radio operational.
+	#
+	# For mac80211 AP interfaces operstate may be "up" or "unknown",
+	# so don't rely solely on /sys/class/net/.../operstate.
+	iw dev "$if" info >/dev/null 2>&1 || return 1
+
+	return 0
 }
 
 #
@@ -157,12 +181,15 @@ sta_uplink_active()
 
 wifi_has_clients()
 {
-        wifi_ap_up || return 1
+	local if
 
-        iw dev "$WIFI_IF" station dump 2>/dev/null |
-                grep -q '^Station '
+	if="$(ap_if)" || return 1
+	iw dev "$if" info >/dev/null 2>&1 || return 1
 
-        return $?
+	iw dev "$if" station dump 2>/dev/null |
+		grep -q '^Station '
+
+	return $?
 }
 
 #

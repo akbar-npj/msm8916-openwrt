@@ -5,7 +5,6 @@
 'require ui';
 'require poll';
 
-var MGR_INITD = '/etc/init.d/uplink-manager';
 var STATUS_FILE = '/tmp/uplink.json';
 
 function getStatus() {
@@ -92,10 +91,6 @@ return view.extend({
 		var rt = s.option(form.Value, 'recover_threshold', _('Successes to mark up'));
 		rt.datatype = 'uinteger'; rt.default = '2';
 
-		function restart() { return fs.exec(MGR_INITD, ['restart']); }
-		m.on('save', restart);
-		m.on('apply', restart);
-
 		var status = E('div', { 'id': 'uplink-status' });
 		function paint(j) {
 			while (status.firstChild) status.removeChild(status.firstChild);
@@ -117,7 +112,6 @@ return view.extend({
 		});
 	},
 
-	handleSaveApply: null,
-	handleSave: null,
-	handleReset: null
+	/* Saving is handled by the default view implementation; the manager
+	 * re-reads /etc/config/uplink when procd signals a config change. */
 });

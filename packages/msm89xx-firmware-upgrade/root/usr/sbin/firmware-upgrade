@@ -1,0 +1,219 @@
+#!/bin/sh
+# firmware-upgrade - check for, download, verify and apply a published firmware
+# image for this board.  Works with the firmware.json manifest that the release
+# pipeline publishes next to the images.
+#
+#   firmware-upgrade check     -> JSON {available,blocked,current,latest,board,url,
+#                                        sha256,size,min_version,notes}
+#   firmware-upgrade status    -> one-line human summary
+#   firmware-upgrade download  -> fetch + verify, print the temp image path
+#   firmware-upgrade upgrade   -> download + verify, then sysupgrade (keep config)
+#
+# Safety model:
+#   * only an entry whose key matches /tmp/sysinfo/board_name is ever used
+#   * the image sha256 (from the manifest) is checked before any flash
+#   * sysupgrade keeps the config (no -n) so the overlay and the modem
+#     firmware that live there survive the upgrade
+#
+# Set FIRMWARE_MANIFEST_URL to test against a specific manifest.
+
+. /lib/functions.sh
+
+PKG_CFG="firmware"
+PAGES_BASE="https://akbar-npj.github.io/msm8916-openwrt"
+
+# Manifest candidates, tried in order:
+#   1. the version-independent root manifest -- this is what lets a device on
+#      25.12.6 discover a 25.12.7 release; a URL derived from our own version
+#      would pin us to releases/25.12.6 forever.
+#   2. this device's own release dir -- the only path that existed before the
+#      root manifest was published, so older Pages trees still work.
+_ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_RELEASE")"
+_base="${_ver%-r*}"
+# Testing / fork override: FIRMWARE_MANIFEST_URL=/path/or/url.  A single URL,
+# so the fallback list below is bypassed.
+MANIFEST_URL="${FIRMWARE_MANIFEST_URL:-}"
+if [ -n "$MANIFEST_URL" ]; then
+  MANIFEST_URLS="$MANIFEST_URL"
+else
+  MANIFEST_URLS="$PAGES_BASE/firmware.json
+$PAGES_BASE/releases/${_base}/targets/msm89xx/msm8916/firmware.json"
+fi
+
+TMP="$(mktemp -d /tmp/firmware-upgrade.XXXXXX)"
+DL="/tmp/firmware-upgrade.bin"
+cleanup() { rm -rf "$TMP"; }
+trap cleanup EXIT
+
+log() { logger -t firmware-upgrade "$*"; echo "$*" >&2; }
+
+board_name() {
+	uci -q get "${PKG_CFG}.board" 2>/dev/null \
+		|| cat /tmp/sysinfo/board_name 2>/dev/null \
+		|| cat /proc/device-tree/model 2>/dev/null
+}
+
+current_version() {
+	# DISTRIB_RELEASE (e.g. 25.12.6-r2) matches the manifest version scheme.
+	# DISTRIB_REVISION is a git hash and must NOT be used for comparison.
+	local ver
+	ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_RELEASE")"
+	[ -z "$ver" ] && ver="$(. /etc/openwrt_release 2>/dev/null; echo "$DISTRIB_REVISION")"
+	[ -z "$ver" ] && ver="$(uci -q get "${PKG_CFG}.version" 2>/dev/null)"
+	echo "$ver" | tr ' ' '-'
+}
+
+version_greater() {
+	local a="$1" b="$2" ra rb na nb xa xb
+	[ "$a" = "$b" ] && return 1
+	ra="${a%%-*}"; rb="${b%%-*}"
+	na="${a##*-}"; nb="${b##*-}"
+	while [ -n "$ra" ] || [ -n "$rb" ]; do
+		xa="${ra%%.*}"; xb="${rb%%.*}"
+		[ "$ra" != "$xa" ] && ra="${ra#*.}" || ra=""
+		[ "$rb" != "$xb" ] && rb="${rb#*.}" || rb=""
+		xa="${xa:-0}"; xb="${xb:-0}"
+		[ "$xa" -gt "$xb" ] 2>/dev/null && return 0
+		[ "$xb" -gt "$xa" ] 2>/dev/null && return 1
+	done
+	na="${na#r}"; nb="${nb#r}"
+	[ "${na:-0}" -gt "${nb:-0}" ] 2>/dev/null && return 0
+	return 1
+}
+
+fetch_field() {
+	echo "$MANIFEST" | jsonfilter -e "@.boards['${BOARD}'].$1" 2>/dev/null
+}
+
+load_manifest() {
+	local u body
+	BOARD="$(board_name)"
+	MANIFEST=""
+	for u in $MANIFEST_URLS; do
+		body="$(wget -q -O - "$u" 2>/dev/null)"
+		[ -n "$body" ] || continue
+		MANIFEST="$body"
+		LATEST_VER="$(fetch_field version)"
+		# A manifest without our board key (e.g. a targeted single-board
+		# release published before this board existed) is not an answer.
+		if [ -n "$LATEST_VER" ]; then
+			MANIFEST_URL="$u"
+			break
+		fi
+		MANIFEST=""
+	done
+	[ -n "$MANIFEST" ] || { log "no manifest entry for board '$BOARD' at any known URL"; return 1; }
+	LATEST_URL="$(fetch_field sysupgrade)"
+	LATEST_SHA="$(fetch_field sha256)"
+	LATEST_SIZE="$(fetch_field size)"
+	LATEST_NOTES="$(fetch_field notes)"
+	LATEST_MIN="$(fetch_field min_version)"
+	[ -n "$LATEST_VER" ] || { log "no manifest entry for board '$BOARD'"; return 1; }
+	return 0
+}
+
+download_and_verify() {
+	local out="$DL" sum
+	log "downloading $LATEST_URL"
+	wget -q -O "$out" "$LATEST_URL" || { log "download failed"; return 1; }
+	sum="$(sha256sum "$out" | awk '{print $1}')"
+	if [ "$sum" != "$LATEST_SHA" ]; then
+		log "sha256 mismatch: got $sum expected $LATEST_SHA"
+		return 1
+	fi
+	log "verified sha256 $sum"
+	echo "$out"
+}
+
+verify_local() {
+	local sum
+	[ -f "$DL" ] || return 1
+	sum="$(sha256sum "$DL" | awk '{print $1}')"
+	[ "$sum" = "$LATEST_SHA" ] || return 1
+	return 0
+}
+
+mark_pending() {
+	local state="/etc/firmware-upgrade-state.json"
+	local from to ts
+	from="$(current_version)"
+	to="$LATEST_VER"
+	ts="$(date +%s)"
+	cat > "$state" <<JSON
+{"pending":true,"from":"$from","to":"$to","ts":$ts}
+JSON
+	grep -qxF "$state" /etc/sysupgrade.conf 2>/dev/null || echo "$state" >> /etc/sysupgrade.conf
+}
+
+do_upgrade() {
+	local out min_ok=1
+	[ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$(current_version)" && min_ok=0
+	if [ "$min_ok" -eq 0 ]; then
+		log "current version is older than the supported minimum ($LATEST_MIN); refusing automatic upgrade"
+		return 1
+	fi
+	# Reuse an image already downloaded and sha256-verified by the UI's download step.
+	if verify_local; then
+		out="$DL"
+		log "reusing verified local image $out"
+	else
+		out="$(download_and_verify)" || return 1
+	fi
+	log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
+	mark_pending
+	sysupgrade "$out"
+}
+
+case "$1" in
+check)
+	load_manifest || exit 0
+	cur="$(current_version)"
+	avail=0; blocked=0
+	if version_greater "$LATEST_VER" "$cur"; then
+		avail=1
+		# do_upgrade refuses anything below min_version, so never advertise an
+		# upgrade that pressing the button would then fail to apply.
+		if [ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$cur"; then
+			avail=0; blocked=1
+			log "update $LATEST_VER is published but needs at least $LATEST_MIN; flash it manually"
+		fi
+	fi
+	now="$(date +%s)"
+	echo "{\"available\":$avail,\"blocked\":$blocked,\"current\":\"$cur\",\"latest\":\"$LATEST_VER\",\"board\":\"$BOARD\",\"url\":\"$LATEST_URL\",\"sha256\":\"$LATEST_SHA\",\"size\":$LATEST_SIZE,\"min_version\":\"$LATEST_MIN\",\"notes\":\"$LATEST_NOTES\",\"checked\":$now}"
+	;;
+	status)
+		load_manifest || { echo "no update information for this board"; exit 0; }
+		cur="$(current_version)"
+		if version_greater "$LATEST_VER" "$cur"; then
+			if [ -n "$LATEST_MIN" ] && version_greater "$LATEST_MIN" "$cur"; then
+				echo "update $cur -> $LATEST_VER published, but it needs at least $LATEST_MIN (manual flash)"
+			else
+				echo "update available: $cur -> $LATEST_VER ($LATEST_URL)"
+			fi
+		else
+			echo "up to date ($cur); latest is $LATEST_VER"
+		fi
+		;;
+	download)
+		load_manifest || exit 1
+		download_and_verify
+		;;
+	apply)
+		# Long download + flash must not run inside the rpcd ubus call:
+		# rpcd runs with `-t 30`, so a synchronous exec is killed after 30 s
+		# and the download never completes.  Detach the real work and return
+		# immediately; the dashboard polls /tmp/firmware-upgrade.bin for
+		# progress and /tmp/firmware-upgrade.failed for errors.
+		rm -f /tmp/firmware-upgrade.failed
+		setsid sh -c 'if /usr/sbin/firmware-upgrade upgrade >/tmp/firmware-upgrade-apply.log 2>&1; then :; else echo failed >/tmp/firmware-upgrade.failed; fi' >/dev/null 2>&1 &
+		echo started
+		;;
+	upgrade)
+		load_manifest || exit 1
+		do_upgrade
+		;;
+	*)
+		echo "usage: $0 {check|status|download|apply|upgrade}" >&2
+		exit 1
+		;;
+esac

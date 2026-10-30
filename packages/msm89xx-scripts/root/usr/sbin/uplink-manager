@@ -18,25 +18,28 @@ PIDFILE=/var/run/uplink-manager.pid
 JSON=/tmp/uplink.json
 LEASE=/tmp/wifi-sta-lease
 
-policy="auto"
-probe_target="1.1.1.1"
-probe_interval=30
-probe_timeout=3
-fail_threshold=3
-recover_threshold=2
-override_metric=40
-modem_metric=50
-sta_metric=100
+load_config() {
+	policy="auto"
+	probe_target="1.1.1.1"
+	probe_interval=30
+	probe_timeout=3
+	fail_threshold=3
+	recover_threshold=2
+	override_metric=40
+	modem_metric=50
+	sta_metric=100
+	dns_override=""
 
-config_load uplink
-config_get policy general policy "$policy"
-config_get probe_target general probe_target "$probe_target"
-config_get probe_interval general probe_interval "$probe_interval"
-config_get probe_timeout general probe_timeout "$probe_timeout"
-config_get fail_threshold general fail_threshold "$fail_threshold"
-config_get recover_threshold general recover_threshold "$recover_threshold"
-config_get override_metric general override_metric "$override_metric"
-config_get dns_override general sta_dns ""
+	config_load uplink
+	config_get policy general policy "$policy"
+	config_get probe_target general probe_target "$probe_target"
+	config_get probe_interval general probe_interval "$probe_interval"
+	config_get probe_timeout general probe_timeout "$probe_timeout"
+	config_get fail_threshold general fail_threshold "$fail_threshold"
+	config_get recover_threshold general recover_threshold "$recover_threshold"
+	config_get override_metric general override_metric "$override_metric"
+	config_get dns_override general sta_dns ""
+}
 
 modem_ok=0; modem_dev=""; modem_gw=""
 sta_ok=0; sta_dev=""; sta_gw=""; sta_dns=""
@@ -157,10 +160,18 @@ cycle() {
 }
 
 wake=0
-trap 'wake=1' USR1
+reload=0
+trap 'wake=1; reload=1' USR1
+
+load_config
 
 while true; do
 	wake=0
+	if [ "$reload" = 1 ]; then
+		reload=0
+		load_config
+		logger -t uplink "reloaded config (policy=$policy, probe=$probe_target every ${probe_interval}s)"
+	fi
 	cycle
 	i=0
 	while [ "$i" -lt "$probe_interval" ]; do

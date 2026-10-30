@@ -58,14 +58,10 @@ return baseclass.extend({
 		var count = (state && typeof(state.count) == 'number') ? state.count : 0;
 
 		if (count < 1) {
-			/* Never rendered yet: leave the dashboard untouched. */
-			if (this.node == null)
-				return null;
-
-			/* Rendered before but now current: hide instead of removing, so the
-			 * node keeps its place when the count comes back. */
-			this.node.style.display = 'none';
-			return this.node;
+			/* Nothing to show: remove any banner we placed earlier. */
+			if (this.node && this.node.parentNode)
+				this.node.parentNode.removeChild(this.node);
+			return null;
 		}
 
 		if (this.node == null)
@@ -81,8 +77,18 @@ return baseclass.extend({
 			? _('Last checked %s.').replace('%s', new Date(state.checked * 1000).toLocaleString())
 			: '';
 
-		this.node.style.display = '';
+		/* Place the banner at the TOP of the page content, like the firmware
+		 * notice, instead of as a section at the bottom.  Returning null keeps
+		 * the framework from wrapping it in a titled cbi-section. */
+		var top = document.querySelector('#maincontent');
+		if (top) {
+			if (top.firstChild !== this.node)
+				top.insertBefore(this.node, top.firstChild);
+			this.node.style.display = '';
+			return null;
+		}
 
+		this.node.style.display = '';
 		return this.node;
 	}
 });
