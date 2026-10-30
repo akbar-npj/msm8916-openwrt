@@ -766,9 +766,17 @@ check_board() {
 
 prepare_config() {
 
-    local board="$1"
+    local board="$1" release
 
     msg "Preparing configuration for $board..."
+
+    # The diffconfigs carry CONFIG_VERSION_NUMBER, which is what ends up in
+    # /etc/openwrt_release as DISTRIB_RELEASE.  It is a hand-maintained copy of
+    # the `version` file, so it silently goes stale on every release -- r3's
+    # images shipped reporting r2, which makes a device believe it is always one
+    # release behind and re-offer the same update forever.  Stamp it from the
+    # single source of truth here.
+    release="$(tr -d '[:space:]' < "$REPO_DIR/version" 2>/dev/null || true)"
 
     # Guarded so DRY_RUN leaves the tree untouched: without it, a dry run would
     # still replace .config with the bare diffconfig and, because the following
@@ -778,7 +786,10 @@ prepare_config() {
     else
         docker_exec sh -c "
             cd $CONTAINER_OPENWRT_DIR &&
-            cp $CONTAINER_REPO_DIR/diffconfigs/$board .config
+            cp $CONTAINER_REPO_DIR/diffconfigs/$board .config &&
+            if [ -n '$release' ]; then
+                sed -i 's|^CONFIG_VERSION_NUMBER=.*|CONFIG_VERSION_NUMBER=\"$release\"|' .config
+            fi
         "
     fi
 
