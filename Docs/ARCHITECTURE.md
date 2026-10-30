@@ -42,7 +42,7 @@ is silently overwritten. Change the source in layer 1 instead.
 | `packages/` | 21 custom userspace apps + LuCI modules; copied to `package/msm8916/`. |
 | `diffconfigs/` | 7 per-board kernel/package configs (`hmuf02v5`, `uf02`, `ufi001b`, `ufi003`, `uz801`, `mf800b`, `mifib-v12`). |
 | `openwrt/` | The **prepared OpenWrt tree** (clone + patches + overlays). Build artifact — do not edit, do not commit. |
-| `version` | Release version string (e.g. `25.12.5-r5`); source of truth for `sync-version.sh`. |
+| `version` | Release version string (e.g. `25.12.6-r3`); source of truth for `sync-version.sh`. |
 | `tests/` | Test harness (e.g. `tests/himi-ok-guard/run.sh`). |
 | `TBR/` | "To-be-reviewed" packages staged but not yet promoted into `packages/`. |
 | `Docs/` | This documentation tree. |

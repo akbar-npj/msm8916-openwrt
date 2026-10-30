@@ -7,6 +7,7 @@
 > 🆕 **First release with in-device firmware upgrade** — flash to r3 manually once, then future releases self-upgrade from the page.
 
 - 🆕 **Firmware upgrade (new)** — System → Firmware Upgrade page + `firmware.json` manifest; downloads in the background (rpcd's 30 s timeout no longer kills it), verifies sha256 and runs `sysupgrade` without `-n`. r1/r2 have no page, so flash r3 by hand first.
+- 🧩 **Upgrade page (package)** — *System → Firmware Upgrade* ships as `luci-app-firmware-upgrade`; if the menu entry is missing, `apk update && apk add luci-app-firmware-upgrade`. It carries a **Keep settings** box — untick it for a clean `sysupgrade -n`.
 - 📶 **Station Mode self-heals (fix)** — a scan the firmware never answers used to wedge the radio (`-EBUSY`) until reboot; now bounded at 15 s with a watchdog that re-probes, then reloads the driver. Also fixes the double-scan-completion WARN and gives the station its own derived MAC; a normal (re)association is no longer mistaken for a wedge.
 - 🔋 **Battery (fix, mifib-v12 & mf800b only)** — gauge no longer freezes at 100 % (FIFO latch cleared at probe); voltage scale corrected (293 µV vs 300 µV, was ~2.4 % high); pulling the pack no longer powers the unit off.
 - 📡 **Wi-Fi (fix)** — fixed a mac80211 WARN (`rx.c:5354`) where 2.4 GHz scan frames were mis-tagged as 5 GHz.
