@@ -1,0 +1,71 @@
+{
+  "base_url": "https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916",
+  "boards": {
+    "hmu05,250605v0s": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "856c5529fcd7a58ee5747633231a217d077c635e32f88aab0770d3fb1c6227b7",
+      "size": 34949422,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-hmuf02v5-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "hmuf02v5,250605v0s": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "856c5529fcd7a58ee5747633231a217d077c635e32f88aab0770d3fb1c6227b7",
+      "size": 34949422,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-hmuf02v5-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "mf800b,generic": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "979eafb6d1615a5abf55a76fc6e868cc3c99ee7e1222e81dcba253276f19c42d",
+      "size": 34939158,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-mf800b-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "mifib-v12,generic": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "13fcfaa6016e5ffb4fd44adf26a3ec91332667e7edfac8e15fcb0ae63d6fde7c",
+      "size": 34949404,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-mifib-v12-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "uf02,250605v0s": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "a92e6dc60a9350f07abe11aea455591b52800608f0b55c07d1d91ef213e35aa4",
+      "size": 34939156,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-uf02-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "ufi001b,250605v0s": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "ccaa231058f45f0cfca55bf5461bb079b94d89ac72eb38bc09cc4bcb1ec29e6c",
+      "size": 34939162,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-ufi001b-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "ufi003,mb-v02": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "a1a3bf4cca8b8a8460cd08e4146fa5c60fb1ecd8a2dad6c908aa6fae0950f5fd",
+      "size": 34939164,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-generic-ufi003-mb-v02-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    },
+    "yiming,uz801-v3": {
+      "min_version": "25.12.6-r1",
+      "notes": "OpenWrt 25.12.6-r3 for MSM8916",
+      "sha256": "5f7cdf33fec70cba1306212e02db7a6d8ea23137eaafa8026e46ae81f30fb34d",
+      "size": 34939159,
+      "sysupgrade": "https://github.com/akbar-npj/msm8916-openwrt/releases/download/v25.12.6-r3/msm8916-openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-sysupgrade.bin",
+      "version": "25.12.6-r3"
+    }
+  },
+  "manifest_version": 1,
+  "release": "25.12.6-r3"
+}
