@@ -34,7 +34,8 @@ config_get_bool dhcp main dhcp 1
 config_get timeout_s main wait_ap_timeout 60
 config_get radio main radio radio0
 config_get recover_after main recover_after 60
-config_get scan_probe_after main scan_probe_after 15
+config_get scan_probe_after main scan_probe_after 5
+config_get poll_up main poll_up 5
 config_get poll_down main poll_down 5
 config_get hostname main hostname
 config_get_bool uplink main uplink 1
@@ -110,15 +111,19 @@ case "$timeout_s" in ''|*[!0-9]*) timeout_s=60 ;; esac
 # The wedge check probes the scan at this many seconds of downtime, well before
 # recover_after, because a refused scan is a specific signal and the probe is
 # read-only.  It must not exceed recover_after (the channel check reuses the
-# scan result and needs one to have run).
-case "$scan_probe_after" in ''|*[!0-9]*) scan_probe_after=15 ;; esac
+# scan result and needs one to have run).  Keep it <= poll_up so the probe fires
+# on the first poll after a drop (otherwise it needs several polls to reach the
+# threshold and recovery is slower); raise it to give a normal reconnect more
+# time before the first probe (fewer false reloads).
+case "$scan_probe_after" in ''|*[!0-9]*) scan_probe_after=5 ;; esac
 [ "$scan_probe_after" -le "$recover_after" ] || scan_probe_after=$recover_after
-# Watchdog poll interval.  POLL_UP (the link is fine) is deliberately slow --
-# the only work is a cheap `iw dev link`.  While CONFIRMING a refused scan the
-# loop switches to poll_down so the driver reload happens within seconds, not a
-# full poll later.  A clean-but-down link stays on POLL_UP, so an upstream that
-# is merely absent does NOT trigger a scan every few seconds forever.
-POLL_UP=15
+# Watchdog poll interval.  poll_up is the idle/connected poll (the only work is
+# a cheap `iw dev link`, so it can be short to notice a drop quickly).
+# poll_down is used while CONFIRMING a refused scan so the driver reload happens
+# within seconds.  A clean-but-down link stays on poll_up, so an upstream that
+# is merely absent does not trigger a scan every few seconds forever.
+case "$poll_up" in ''|*[!0-9]*) poll_up=5 ;; esac
+[ "$poll_up" -ge 1 ] || poll_up=5
 case "$poll_down" in ''|*[!0-9]*) poll_down=5 ;; esac
 [ "$poll_down" -ge 1 ] || poll_down=5
 
@@ -556,7 +561,7 @@ radio_restart() {
 }
 
 run_watchdog() {
-	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0 poll=$POLL_UP
+	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0 poll=$poll_up
 
 	while true; do
 		sleep "$poll"
@@ -568,14 +573,14 @@ run_watchdog() {
 			# A working link ends the refusal streak: the next -EBUSY is a
 			# new episode and deserves its own recycle, not an instant reload.
 			recycles=0
-			poll=$POLL_UP
+			poll=$poll_up
 			rm -f "$RADIO_STATE"
 			continue
 		fi
 
 		down=$((down + poll))
 		# Default for the next sleep; the refusal branch below shortens it.
-		poll=$POLL_UP
+		poll=$poll_up
 
 		# ---- wedge check: probe EARLY, at scan_probe_after ----
 		# A refused scan is a specific wedge signal and the probe is read-only,
@@ -611,7 +616,7 @@ run_watchdog() {
 				fi
 				# A refusal is being confirmed: poll fast so the next probe is
 				# seconds away, not a full poll later.  Only while confirming --
-				# a clean-but-down link stays on POLL_UP (see the constants).
+				# a clean-but-down link stays on poll_up (see the constants).
 				poll=$poll_down
 				logger -t wifi-sta "watchdog: scan refused (-EBUSY) ($recycles/$RESTART_AFTER); re-probing in ${poll_down}s"
 				continue
