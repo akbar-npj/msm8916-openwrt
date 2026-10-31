@@ -1,0 +1,19 @@
+{
+    "luci-app-uf896-simsel": {
+        "description": "Grant access to the UF896 SIM slot selection helper",
+        "read": {
+            "uci": [ "uf896-simsel" ],
+            "file": {
+                "/usr/sbin/uf896-simsel status": [ "exec" ]
+            }
+        },
+        "write": {
+            "uci": [ "uf896-simsel" ],
+            "file": {
+                "/usr/sbin/uf896-simsel status": [ "exec" ],
+                "/usr/sbin/uf896-simsel apply": [ "exec" ],
+                "/etc/init.d/uf896-simsel restart": [ "exec" ]
+            }
+        }
+    }
+}

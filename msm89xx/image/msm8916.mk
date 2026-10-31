@@ -175,7 +175,8 @@ define Device/generic-uf896
     DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
         block-mount f2fs-tools tar \
         msm-firmware-dumper reboot-edl qcom-carrier-autocfg qmi-utils \
-        diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify
+        diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify \
+        luci-app-uf896-simsel
 endef
 TARGET_DEVICES += generic-uf896
 endif

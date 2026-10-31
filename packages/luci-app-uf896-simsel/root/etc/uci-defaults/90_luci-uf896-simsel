@@ -1,0 +1,12 @@
+#!/bin/sh
+# Board-gate: only the UF896 (v1.1) selects its SIM via AT+SIMSEL.  Other
+# boards use GPIO sim_en/sim_sel hogs and must never run this helper.  Enable
+# the auto re-apply watchdog by default on UF896 so a dropped modem comes back
+# with the correct SIM bound.
+case "$(board_name)" in
+    *uf896*)
+        uci -q set uf896-simsel.simsel.enabled='1'
+        uci -q commit uf896-simsel
+        ;;
+esac
+exit 0

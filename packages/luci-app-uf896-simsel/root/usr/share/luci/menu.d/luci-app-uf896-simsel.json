@@ -1,0 +1,13 @@
+{
+    "admin/services/uf896-simsel": {
+        "title": "UF896 SIM",
+        "order": 75,
+        "action": {
+            "type": "view",
+            "path": "uf896-simsel/config"
+        },
+        "depends": {
+            "acl": [ "luci-app-uf896-simsel" ]
+        }
+    }
+}

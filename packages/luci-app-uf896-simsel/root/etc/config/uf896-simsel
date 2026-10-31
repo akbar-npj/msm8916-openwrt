@@ -1,0 +1,3 @@
+config uf896-simsel 'simsel'
+	option enabled '0'
+	option simsel_cmd 'AT+SIMSEL=0,1,1,1'

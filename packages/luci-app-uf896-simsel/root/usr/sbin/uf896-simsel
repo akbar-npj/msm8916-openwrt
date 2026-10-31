@@ -1,0 +1,104 @@
+#!/bin/sh
+#
+# uf896-simsel - UF896 (v1.1) SIM-slot selection helper for LuCI.
+#
+# The UF896 modem chooses its physical SIM through an AT command
+# (AT+SIMSEL), not through an AP GPIO the way ufi001b/ufi003 do.  Stock
+# firmware's sim1.sh issues "AT+SIMSEL=0,1,1,1" to bind SIM1.  This script
+# exposes the same command to LuCI and, when enabled, re-applies it every
+# time the modem recovers from a disconnect.
+
+SIMSEL_CMD="AT+SIMSEL=0,1,1,1"
+QMI_DEV="/dev/wwan0qmi0"
+LOCK="/var/lock/uf896-simsel.lock"
+STATE_FILE="/tmp/.uf896_simsel_applied"
+MODEM_IDX=""
+
+log() { logger -t uf896-simsel "$*"; }
+
+modem_index() {
+    mmcli -L 2>/dev/null | grep -o 'Modem/[0-9][0-9]*' | grep -o '[0-9][0-9]*' | head -n1
+}
+
+modem_state() {
+    [ -n "$MODEM_IDX" ] || MODEM_IDX=$(modem_index)
+    [ -n "$MODEM_IDX" ] || { echo none; return; }
+    st=$(timeout 6 mmcli -m "$MODEM_IDX" -K 2>/dev/null |          awk -F': ' '/modem.generic.state /{print $2; exit}')
+    if [ -z "$st" ]; then
+        MODEM_IDX=$(modem_index)
+        echo unknown
+        return
+    fi
+    echo "$st"
+}
+
+apply_simsel() {
+    [ -n "$MODEM_IDX" ] || MODEM_IDX=$(modem_index)
+    [ -n "$MODEM_IDX" ] || { echo "no-modem"; return 1; }
+    local resp rc
+    resp=$(timeout 15 mmcli -m "$MODEM_IDX" --command="$SIMSEL_CMD" 2>&1)
+    rc=$?
+    echo "$resp"
+    if [ "$rc" -eq 0 ]; then
+        touch "$STATE_FILE"
+        log "applied $SIMSEL_CMD (modem $MODEM_IDX)"
+    else
+        log "apply failed (rc=$rc): $resp"
+    fi
+    return $rc
+}
+
+status_out() {
+    [ -n "$MODEM_IDX" ] || MODEM_IDX=$(modem_index)
+    local idx st sim iccid op
+    idx="$MODEM_IDX"
+    [ -z "$idx" ] && idx=none
+    st=$(modem_state)
+    if [ "$idx" != "none" ]; then
+        sim=$(timeout 6 mmcli -m "$MODEM_IDX" -K 2>/dev/null |               awk -F': ' '/modem.generic.sim /{print $2; exit}')
+        iccid=$(timeout 6 mmcli -m "$MODEM_IDX" --sim="$MODEM_IDX" -K 2>/dev/null |                 awk -F': ' '/^sim.iccid /{print $2; exit}')
+        op=$(timeout 6 mmcli -m "$MODEM_IDX" -K 2>/dev/null |              awk -F': ' '/modem.generic.3gpp.operator-name /{print $2; exit}')
+    fi
+    local applied=0; [ -e "$STATE_FILE" ] && applied=1
+    echo "modem_index=$idx"
+    echo "state=$st"
+    echo "sim=$sim"
+    echo "iccid=$iccid"
+    echo "operator=$op"
+    echo "simsel_applied=$applied"
+    echo "simsel_cmd=$SIMSEL_CMD"
+}
+
+monitor_loop() {
+    local st applied=0
+    sleep 10
+    while true; do
+        st=$(modem_state)
+        case "$st" in
+            none|disabled|unknown)
+                applied=0
+                rm -f "$STATE_FILE"
+                ;;
+            registered|connected|connecting)
+                if [ "$applied" -eq 0 ]; then
+                    apply_simsel >/dev/null 2>&1
+                    applied=1
+                fi
+                ;;
+        esac
+        sleep 15
+    done
+}
+
+arg="$1"
+[ -z "$arg" ] && arg=status
+case "$arg" in
+    status)  status_out ;;
+    apply)   apply_simsel ;;
+    monitor) monitor_loop ;;
+    -h|--help)
+        echo "Usage: uf896-simsel {status|apply|monitor} | -h|--help"
+        exit 0
+        ;;
+    *) echo "unknown subcommand: $arg" >&2; exit 1 ;;
+esac
