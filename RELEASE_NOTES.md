@@ -15,8 +15,9 @@
 - 🔐 **Security** — backported IPv4 `inet_opt`/`ireq_opt` use-after-free (**CVE-2026-98432**).
 - 🧰 **Also** — `luci-app-update-notify` no longer errors after upgrade; `base-files` fails loudly if a flash can't be staged.
 
-**Packages** (`msm89xx-scripts` r7, `luci-app-wifi-sta` r11):
+**Packages** (`msm89xx-scripts` r7, `luci-app-wifi-sta` r11, `msm89xx-firmware-upgrade` r10, `luci-app-firmware-upgrade` r3):
 
+- In-device upgrade: the *System → Firmware Upgrade* page and the `firmware-upgrade` engine behind it, now with a **Keep settings** toggle (untick for `sysupgrade -n`). Both are in the feed, so `apk update && apk add luci-app-firmware-upgrade` adds the page to an r3 image that predates it.
 - Dual-uplink failover manager (modem + Wi-Fi station) with ping health probes and a user policy; netifd still owns the modem, no radio restart.
 - Station Mode: multi-network profiles, wrong-password reporting, and the self-heal watchdog.
 - LEDs, battery monitor, and firmware-upgrade tooling moved into packages so fixes arrive via `apk upgrade`.
