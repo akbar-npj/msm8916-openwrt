@@ -1,0 +1,122 @@
+From: OpenWrt MSM8916 Maintainers
+Subject: [PATCH] arm64: dts: qcom: add msm8916-generic-uf896 (UF896 v1.1)
+
+Add the UF896 v1.1 4G LTE router device tree, based on msm8916-ufi.dtsi.
+Batteryless UFI-family board; SIM slot is selected by the modem via the
+AT+SIMSEL command (handled in userspace), not by AP-side GPIO.
+
+diff --git arch/arm64/boot/dts/qcom/msm8916-generic-uf896.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-uf896.dts
+new file mode 100644
+index 00000000..1400edfd
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-uf896.dts
+@@ -0,0 +1,109 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++    model = "UF896 4G LTE Router";
++    compatible = "uf896,v1.1", "qcom,msm8916";
++};
++
++/*
++ * Persistent kernel log (ramoops) - same region as every other board.
++ * Makes kernel panics recoverable (pstore). Was missing in the original
++ * PR #1 submission; restored here to match the other board DTS patches.
++ */
++&reserved_memory {
++    ramoops@8db00000 {
++        compatible = "ramoops";
++        reg = <0x0 0x8db00000 0x0 0x00100000>;
++        record-size = <0x00040000>;
++        console-size = <0x00040000>;
++        pmsg-size = <0x00040000>;
++    };
++};
++
++&button_restart {
++    gpios = <&tlmm 35 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++    pins = "gpio35", "gpio107";
++    bias-pull-up;
++};
++
++&led_r {
++    function = LED_FUNCTION_STATUS;
++    gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>;
++};
++
++&led_g {
++    function = LED_FUNCTION_STATUS;
++    gpios = <&tlmm 9 GPIO_ACTIVE_HIGH>;
++};
++
++&led_b {
++    function = LED_FUNCTION_STATUS;
++    gpios = <&tlmm 10 GPIO_ACTIVE_HIGH>;
++};
++
++&gpio_leds_default {
++    pins = "gpio8", "gpio9", "gpio10",
++           "gpio77", "gpio78", "gpio81", "gpio82", "gpio83", "gpio84";
++};
++
++/ {
++    leds-extra {
++        compatible = "gpio-leds";
++
++        led-charger-blue {
++            function = LED_FUNCTION_CHARGING;
++            color = <LED_COLOR_ID_BLUE>;
++            gpios = <&tlmm 77 GPIO_ACTIVE_HIGH>;
++        };
++
++        led-charger-red {
++            function = LED_FUNCTION_CHARGING;
++            color = <LED_COLOR_ID_RED>;
++            gpios = <&tlmm 78 GPIO_ACTIVE_HIGH>;
++        };
++
++        led-network-blue {
++            function = LED_FUNCTION_WAN;
++            color = <LED_COLOR_ID_BLUE>;
++            gpios = <&tlmm 81 GPIO_ACTIVE_HIGH>;
++        };
++
++        led-network-red {
++            function = LED_FUNCTION_WAN;
++            color = <LED_COLOR_ID_RED>;
++            gpios = <&tlmm 82 GPIO_ACTIVE_HIGH>;
++        };
++
++        led-wifi-green {
++            function = LED_FUNCTION_WLAN;
++            color = <LED_COLOR_ID_GREEN>;
++            gpios = <&tlmm 83 GPIO_ACTIVE_HIGH>;
++        };
++
++        led-data-link-blue {
++            function = LED_FUNCTION_LAN;
++            color = <LED_COLOR_ID_BLUE>;
++            gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
++        };
++    };
++};
++
++/*
++ * SIM selection on this board is NOT done via AP-side GPIO like
++ * hmu05/ufi001b/uf02. Stock Android switches SIM slots with an AT command
++ * (sim1.sh: AT+SIMSEL=0,1,1,1) sent to the modem over /dev/smd11; if the
++ * physical SIM is not selected, add a userspace helper that issues it.
++ * The more important bring-up step is handled in etc/init.d/uf896-modem-online:
++ * the modem boots into DMS operating mode "factory-test" (RF disabled) and
++ * must be set to "online" before ModemManager probes it.
++ */

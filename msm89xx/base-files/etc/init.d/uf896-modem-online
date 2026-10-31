@@ -1,0 +1,43 @@
+#!/bin/sh /etc/rc.common
+
+START=60
+
+boot() {
+    start
+}
+
+start() {
+    . /lib/functions.sh
+    local board="$(board_name)"
+    case "$board" in
+        *uf896*)
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    # This board's modem boots into DMS operating mode "factory-test"
+    # (RF disabled, no network registration possible) instead of "online".
+    # Stock Android never hit this because its own modem init sequence set
+    # the mode explicitly; nothing does that under OpenWrt yet. Must run
+    # before ModemManager (START=70) probes the modem, or its SIM/
+    # registration checks fail against a radio-off modem.
+    local dev="/dev/wwan0qmi0"
+    local i=0
+    while [ ! -e "$dev" ] && [ "$i" -lt 30 ]; do
+        sleep 1
+        i=$((i + 1))
+    done
+    [ -e "$dev" ] || {
+        logger -t uf896-modem-online "$dev never appeared, giving up"
+        return 0
+    }
+
+    logger -t uf896-modem-online "Setting modem operating mode to online..."
+    if qmicli -d "$dev" -p --dms-set-operating-mode=online >/dev/null 2>&1; then
+        logger -t uf896-modem-online "Modem operating mode set to online"
+    else
+        logger -t uf896-modem-online "Failed to set modem operating mode"
+    fi
+}

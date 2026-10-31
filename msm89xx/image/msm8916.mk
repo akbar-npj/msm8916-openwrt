@@ -159,4 +159,23 @@ define Device/generic-mifib-v12
 endef
 TARGET_DEVICES += generic-mifib-v12
 
+
+define Device/generic-uf896
+    $(Device/msm8916)
+    DEVICE_VENDOR := Generic
+    DEVICE_MODEL  := UF896 (v1.1)
+    DEVICE_DTS    := msm8916-generic-uf896
+    SUPPORTED_DEVICES := uf896,v1.1
+    FILESYSTEMS   := squashfs
+    # Batteryless UFI-family stick (same 4 GB eMMC as ufi003); the build
+    # default GPT_TOT_SECTORS is used.  flash.sh reads the real size at
+    # flash time, so a mismatch only leaves a little unused space.
+    # qmi-utils provides qmicli, needed by etc/init.d/uf896-modem-online
+    # to switch the modem out of factory-test mode at boot.
+    DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
+        block-mount f2fs-tools tar \
+        msm-firmware-dumper reboot-edl qcom-carrier-autocfg qmi-utils \
+        diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify
+endef
+TARGET_DEVICES += generic-uf896
 endif

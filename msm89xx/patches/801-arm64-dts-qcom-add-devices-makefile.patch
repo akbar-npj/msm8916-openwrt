@@ -6,7 +6,7 @@ the qcom Makefile.
 
 --- a/arch/arm64/boot/dts/qcom/Makefile
 +++ b/arch/arm64/boot/dts/qcom/Makefile
-@@ -50,6 +50,12 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsu
+@@ -50,6 +50,13 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsu
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-gt58.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-j3ltetw.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-j5.dtb
@@ -16,6 +16,7 @@ the qcom Makefile.
 +dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-mf800b.dtb
 +dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-ufi003_mb_v02.dtb
 +dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-mifib-v12.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-generic-uf896.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-j5x.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-rossa.dtb
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-samsung-serranove.dtb

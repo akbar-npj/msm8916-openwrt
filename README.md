@@ -77,6 +77,7 @@ Recent additions on top of the base port:
 | **`uf02`**    | `generic-uf02`    | Generic UF02 / UF2 Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`mf800b`**  | `generic-mf800b`  | Generic MF800B 4G MiFi     | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN      |
 | **`mifib-v12`** | `generic-mifib-v12` | HM-MIFIB-V12 4G LTE Dongle | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN, 4-bar battery, SIM hot-swap |
+| **`uf896`**     | `generic-uf896`     | UF896 (v1.1) 4G LTE Router  | MSM8916 | 512 MB | 4 GB eMMC | Tri-colour + charger/network/wifi/data LEDs |
 
 ### Per-board feature matrix
 
@@ -89,6 +90,7 @@ Recent additions on top of the base port:
 | `uf02`    |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 | `mf800b`  |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         —           |         —          |
 | `mifib-v12` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
+| `uf896` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 
 * UZ801 v3 has no Bluetooth antenna; its image includes the software, but Bluetooth is unavailable on that board.
 * **Concurrent AP+STA** (Station Mode) is available on **every board** — the service, the mac80211 patches and `luci-app-wifi-sta` are all target-wide; see [the guide](Docs/WiFi/AP_STA_AND_LUCI_APP.md).
@@ -104,6 +106,7 @@ Recent additions on top of the base port:
 | `uf02`    |           —            |      —       |         —          |      —       |
 | `mf800b`  |           ✅           |      ✅      |         ✅         |      —       |
 | `mifib-v12` |         ✅           |      ✅      |         ✅         |      ✅      |
+| `uf896` |         —           |      —      |         —         |      —      |
 
 * **Recovery partition** — the 17-partition layout (`misc` + `recovery`).  A `—` means the board keeps the 15-partition layout; see [`Docs/RECOVERY/`](Docs/RECOVERY/).
 * **Power button** — only mifib-v12 and mf800b have a `pm8941_pwrkey`; see [`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md).
