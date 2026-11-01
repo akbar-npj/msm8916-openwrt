@@ -18,26 +18,59 @@ start() {
     esac
 
     # This board's modem boots into DMS operating mode "factory-test"
-    # (RF disabled, no network registration possible) instead of "online".
-    # Stock Android never hit this because its own modem init sequence set
-    # the mode explicitly; nothing does that under OpenWrt yet. Must run
-    # before ModemManager (START=70) probes the modem, or its SIM/
-    # registration checks fail against a radio-off modem.
+    # (RF disabled, no network registration possible) instead of
+    # "online". Stock Android never hit this because its own modem
+    # init sequence set the mode explicitly; nothing does that under
+    # OpenWrt yet. Must run before modemmanager (START=70) probes the
+    # modem, or its SIM/registration checks fail against a radio-off
+    # modem and it reports "state: failed / sim-missing".
+    #
+    # Hardened against a slow first boot (e.g. right after a sysupgrade):
+    #   - wait longer for the QMI port to appear,
+    #   - retry the set, and
+    #   - verify the resulting mode with --dms-get-operating-mode instead
+    #     of trusting a single qmicli exit code.  A modem left in
+    #     factory-test is exactly what shows up as sim-missing.
     local dev="/dev/wwan0qmi0"
     local i=0
-    while [ ! -e "$dev" ] && [ "$i" -lt 30 ]; do
+    local max_wait=60
+    while [ ! -e "$dev" ] && [ "$i" -lt "$max_wait" ]; do
         sleep 1
         i=$((i + 1))
     done
-    [ -e "$dev" ] || {
-        logger -t uf896-modem-online "$dev never appeared, giving up"
+    if [ ! -e "$dev" ]; then
+        logger -t uf896-modem-online "$dev never appeared after ${max_wait}s, giving up"
         return 0
-    }
-
-    logger -t uf896-modem-online "Setting modem operating mode to online..."
-    if qmicli -d "$dev" -p --dms-set-operating-mode=online >/dev/null 2>&1; then
-        logger -t uf896-modem-online "Modem operating mode set to online"
-    else
-        logger -t uf896-modem-online "Failed to set modem operating mode"
     fi
+
+    local out mode attempt=0
+    while :; do
+        attempt=$((attempt + 1))
+
+        logger -t uf896-modem-online "Setting modem operating mode to online (attempt ${attempt})..."
+        qmicli -d "$dev" -p --dms-set-operating-mode=online >/dev/null 2>&1 \
+            || logger -t uf896-modem-online "qmicli set online failed (attempt ${attempt})"
+
+        # Verify, do not trust the exit code alone.
+        out=$(qmicli -d "$dev" -p --dms-get-operating-mode 2>/dev/null)
+        case "$out" in
+            *factory-test*)         mode=factory-test ;;
+            *persistent-low-power*) mode=persistent-low-power ;;
+            *low-power*)            mode=low-power ;;
+            *online*)               mode=online ;;
+            *)                      mode=unknown ;;
+        esac
+        logger -t uf896-modem-online "Modem operating mode is now '${mode}'"
+
+        [ "$mode" = "online" ] && return 0
+
+        # Still factory-test / low-power / unknown: the modem may not have
+        # been ready yet.  Give it a moment and retry a bounded number of
+        # times before giving up (the service must not fail the boot).
+        [ "$attempt" -ge 5 ] && break
+        sleep 5
+    done
+
+    logger -t uf896-modem-online "Modem did not reach online mode after ${attempt} attempts (last: '${mode}')"
+    return 0
 }
