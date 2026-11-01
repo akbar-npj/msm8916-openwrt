@@ -1,0 +1,89 @@
+diff --git a/app/aboot/aboot.c b/app/aboot/aboot.c
+index b44a5c26..8fbdd25a 100644
+--- a/app/aboot/aboot.c
++++ b/app/aboot/aboot.c
+@@ -4683,11 +4683,72 @@ void cmd_continue(const char *arg, void *data, unsigned sz)
+ 
+ void cmd_reboot(const char *arg, void *data, unsigned sz)
+ {
++	/*
++	 * Honour the standard reboot reasons so a headless board can be
++	 * steered without a recovery key or an EDL button:
++	 *   fastboot reboot recovery -> boot the recovery partition
++	 *   fastboot reboot edl      -> Emergency Download (Sahara / 9008)
++	 *   fastboot reboot bootloader -> fastboot again
++	 * An unknown reason (or none) keeps the plain reboot.
++	 *
++ * android-tools sends "reboot-<reason>" (see cmd_reboot_to_recovery()
++ * below); clients that send "reboot:<reason>" land here with the
++	 * leading ':' still attached, because the dispatcher only strips a
++	 * space, so skip it before comparing.
++	 */
++	if (arg && *arg == ':')
++		arg++;
++
++	if (arg && arg[0]) {
++		if (!strcmp(arg, "recovery")) {
++			dprintf(INFO, "rebooting the device - recovery\n");
++			fastboot_okay("");
++			reboot_device(RECOVERY_MODE);
++			return;
++		}
++		if (!strcmp(arg, "edl") || !strcmp(arg, "dload")) {
++			dprintf(INFO, "rebooting the device - EDL\n");
++			fastboot_okay("");
++			reboot_device(EMERGENCY_DLOAD);
++			return;
++		}
++		if (!strcmp(arg, "bootloader") || !strcmp(arg, "fastboot")) {
++			dprintf(INFO, "rebooting the device - bootloader\n");
++			fastboot_okay("");
++			reboot_device(FASTBOOT_MODE);
++			return;
++		}
++	}
++
+ 	dprintf(INFO, "rebooting the device\n");
+ 	fastboot_okay("");
+ 	reboot_device(0);
+ }
+ 
++/*
++ * "reboot-<reason>" needs a prefix entry of its own: the dispatcher only
++ * accepts a match that is followed by a space, the end of the command, or a
++ * ':' -- a '-' after the prefix is rejected as a substring hit.
++ */
++static void cmd_reboot_to_recovery(const char *arg, void *data, unsigned sz)
++{
++	cmd_reboot("recovery", data, sz);
++}
++
++static void cmd_reboot_to_edl(const char *arg, void *data, unsigned sz)
++{
++	cmd_reboot("edl", data, sz);
++}
++
++/*
++ * android-tools rejects "fastboot reboot edl" client-side ("unknown reboot
++ * target"), so EDL also gets an oem command: "fastboot oem edl".
++ */
++static void cmd_oem_edl(const char *arg, void *data, unsigned sz)
++{
++	cmd_reboot("edl", data, sz);
++}
++
+ void cmd_set_active(const char *arg, void *data, unsigned sz)
+ {
+ 	char *p, *sp = NULL;
+@@ -5344,6 +5405,11 @@ void aboot_fastboot_register_commands(void)
+ 						{"boot", cmd_boot},
+ 						{"continue", cmd_continue},
+ 						{"reboot", cmd_reboot},
++						{"reboot:", cmd_reboot},
++						{"reboot-recovery", cmd_reboot_to_recovery},
++						{"reboot-edl", cmd_reboot_to_edl},
++						{"reboot-dload", cmd_reboot_to_edl},
++						{"oem edl", cmd_oem_edl},
+ 						{"reboot-bootloader", cmd_reboot_bootloader},
+ #if !ABOOT_STANDALONE
+ 						{"oem unlock", cmd_oem_unlock},

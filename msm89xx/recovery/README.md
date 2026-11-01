@@ -226,6 +226,9 @@ Nothing secret is baked in: the dropbear host key is generated at first boot.
   `mifib-v12`) have a dedicated 16 MiB `recovery` GPT partition (plus 1 MiB
   `misc`, matching the stock Android layout) — flash `<board>.img` there.
 * Other boards: one-shot boot over fastboot (`fastboot boot <board>.img`).
+* From the bootloader, `fastboot reboot recovery` boots the partition and
+  `fastboot oem edl` drops straight into EDL `05c6:9008` — see
+  [`Docs/RECOVERY`](../../Docs/RECOVERY/README.md#2-entering-recovery).
 
 ## Enabling recovery on an install that already runs OpenWrt
 

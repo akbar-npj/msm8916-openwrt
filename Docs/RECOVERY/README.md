@@ -7,7 +7,7 @@ to confuse:
 | :-- | :-- | :-- |
 | What it is | the production kernel + a rescue initramfs, booted from eMMC | a 16 MiB partition holding that image |
 | Lives in | `recovery-<board>.img` in the release | partition **p17** (`recovery`) |
-| How you start it | write it to `boot` with EDL/fastboot | power-on key, `reboot recovery`, or 3 failed boots |
+| How you start it | write it to `boot` with EDL/fastboot | power-on key, `reboot recovery`, `fastboot reboot recovery`, or 3 failed boots |
 | Needs | nothing but the image | `GPT_RECOVERY=1` **and** a patched `aboot` |
 
 Both are built from [`msm89xx/recovery/`](../../msm89xx/recovery/) — see that
@@ -81,6 +81,24 @@ clears it once userspace is up.  At `count >= 3` the bootloader clears the
 cookie and boots the recovery partition instead.  A healthy system resets the
 counter on every boot and never trips it — this is the only rescue path for a
 board whose boot partition is broken **and** which has no recovery key.
+
+### d) From the bootloader (`fastboot`)
+
+A stick that is already sitting in fastboot can be steered without any key or
+button.  `msm89xx/image/lk2nd-patches/002-fastboot-reboot-reasons.patch`
+teaches `aboot` the standard reboot reasons:
+
+```sh
+fastboot reboot recovery     # boot the recovery partition (RECOVERY_MODE)
+fastboot oem edl             # Emergency Download, 05c6:9008
+fastboot reboot bootloader   # back to fastboot (stock behaviour)
+```
+
+`fastboot reboot edl` does **not** work with android-tools: the *client*
+rejects `edl` as an unknown reboot target before it ever talks to the device,
+which is why the EDL path is also exposed as `fastboot oem edl`.  An `aboot`
+built before that patch answers both with
+`FAILED (remote: 'unknown command')`.
 
 ---
 
