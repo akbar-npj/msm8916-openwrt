@@ -241,7 +241,7 @@ frozen and re-uploaded unchanged to every release (see
 
 | Board | File | Size | sha256 | kernel from | Hardware-verified |
 | :---- | :--- | ---: | :----- | :---------- | :---------------- |
-| `mifib-v12` | `mifib-v12.img` | 11 862 016 | `9edfc760d169a114868f3bc46663f593a318d1eda45d2f8a7fd1e6a2ba52c91f` | its own `boot.img` (2026-11-01 build) | 2026-11-01 — flashed to p17, boots, SSH on 192.168.10.1.  WiFi AP not re-tested on this binary. |
+| `mifib-v12` | `mifib-v12.img` | 11 862 016 | `9edfc760d169a114868f3bc46663f593a318d1eda45d2f8a7fd1e6a2ba52c91f` | its own `boot.img` (2026-11-01 build) | 2026-11-01 — p17 boot + `fastboot boot`; SSH, web UI, **WiFi AP `OpenWrt-Recovery` on wlan0** |
 | `hmuf02v5` | `hmuf02v5.img` | 11 986 944 | `538397cd4392ace6553adb0335628978d186e6d422161faedab534a69256677f` | the device's own p13 (25.12.6-r2 kernel) | 2026-11-01 — `fastboot boot` + p17 boot; SSH, web UI, `reboot-edl`, **WiFi AP `OpenWrt-Recovery` on wlan0 (hostapd, ch 6)** |
 
 `mf800b` also sets `GPT_RECOVERY=1` but has **no image yet** (the board is not
