@@ -239,20 +239,46 @@ booted on hardware beats one built from today's tree, so a good image is
 frozen and re-uploaded unchanged to every release (see
 `Docs/RELEASING_FIRMWARE.md` §7.1).
 
-| Board | File | Size | sha256 | cut from `boot.img` | Hardware-verified |
-| :---- | :--- | ---: | :----- | :------------------- | :---------------- |
-| `mifib-v12` | `mifib-v12.img` | 11 862 016 | `9edfc760d169a114868f3bc46663f593a318d1eda45d2f8a7fd1e6a2ba52c91f` | `3649f57c9008e2a7…` | 2026-11-01 — flashed to p17, boots, SSH on 192.168.10.1 |
-| `hmuf02v5` | `hmuf02v5.img` | 11 986 944 | `516777aa803a24d7e7979a388e9640c19ad3dadd74a452d679f9d50b841f0f93` | `cf46e1551fcd4bcd…` | 2026-11-01 — `fastboot boot`, boots, SSH on 192.168.10.1, web UI, `reboot-edl` present |
+| Board | File | Size | sha256 | kernel from | Hardware-verified |
+| :---- | :--- | ---: | :----- | :---------- | :---------------- |
+| `mifib-v12` | `mifib-v12.img` | 11 862 016 | `9edfc760d169a114868f3bc46663f593a318d1eda45d2f8a7fd1e6a2ba52c91f` | its own `boot.img` (2026-11-01 build) | 2026-11-01 — flashed to p17, boots, SSH on 192.168.10.1.  WiFi AP not re-tested on this binary. |
+| `hmuf02v5` | `hmuf02v5.img` | 11 986 944 | `538397cd4392ace6553adb0335628978d186e6d422161faedab534a69256677f` | the device's own p13 (25.12.6-r2 kernel) | 2026-11-01 — `fastboot boot` + p17 boot; SSH, web UI, `reboot-edl`, **WiFi AP `OpenWrt-Recovery` on wlan0 (hostapd, ch 6)** |
 
 `mf800b` also sets `GPT_RECOVERY=1` but has **no image yet** (the board is not
 on the bench), so `flash.sh` stops at its recovery step there.
 
-**Known limitation (both frozen images):** the WiFi AP never comes up.  `/init`
-runs `iw phy phy0 interface add wlan0 type __ap`, which oopses inside
-`ieee80211_if_add` (level-1 translation fault) about 2.8 s in; the oops kills
-only the `iw` process, so USB/SSH, the web UI and `reboot-edl` are unaffected.
-Confirmed on hmuf02v5; mifib-v12 shares the recipe.  Fix it in the next
-deliberate rebuild — not by rebuilding per release.
+### The kernel and the modules must come from one build
+
+The image carries the production kernel plus `cfg80211`/`mac80211`/`wcn36xx`
+copied out of the build tree.  Both report `vermagic=6.12.112`, so a mismatched
+pair stays invisible until the image runs: the 2026-11-01 `hmuf02v5` image
+paired an Oct-29 CI kernel with Nov-1 local modules, and `iw ... type __ap`
+oopsed in `ieee80211_if_add` (level-1 translation fault) about 2.8 s in — no
+`wlan0`, no AP, while USB/SSH, the web UI and `reboot-edl` were unaffected.
+Rebuilding with the kernel and the modules taken from the *same* build fixed it.
+
+`build-recovery.sh` now fingerprints both (decompressed size + the UTS banner,
+which records the builder host and the toolchain) and **refuses to build a
+mixed pair**.  Two ways to satisfy it:
+
+* rebuild the board (`./build.sh <board>`) so its `boot.img` matches the tree, or
+* pair the image with what a device actually runs:
+
+  ```sh
+  D=root@<device>
+  ssh $D 'dd if=/dev/mmcblk0p13 of=/tmp/boot.img bs=4096; mkdir -p /tmp/km'
+  ssh $D 'cp /rom/lib/modules/*/mdt_loader.ko /rom/lib/modules/*/qcom_common.ko \
+      /rom/lib/modules/*/qcom_pil_info.ko /rom/lib/modules/*/qcom_wcnss_pil.ko \
+      /rom/lib/modules/*/compat.ko /rom/lib/modules/*/cfg80211.ko \
+      /rom/lib/modules/*/mac80211.ko /rom/lib/modules/*/wcn36xx.ko /tmp/km/'
+  scp $D:/tmp/boot.img /tmp/hmu/boot.img
+  scp "$D:/tmp/km/*.ko" /tmp/hmu/km/
+  RECOVERY_BOOT_IMG=/tmp/hmu/boot.img RECOVERY_MODULE_DIR=/tmp/hmu/km \
+      ./build-recovery.sh hmuf02v5
+  ```
+
+  Read the modules from `/rom`, never `/lib/modules` — an overlay copy would
+  shadow the installed one.
 
 `*.img` is git-ignored (24 MB of build output), so the hashes above are the
 record: keep the files attached to a release, and check them with
@@ -265,8 +291,9 @@ Rebuild **only** on purpose, never "because there is a new release":
 * a security fix in the kernel the image carries,
 * a DTB change for that board (panel, eMMC, regulator).
 
-After rebuilding, boot it on hardware, confirm SSH + `reboot-edl`, and update
-the table.  `build-recovery.sh` refuses to build without
+After rebuilding, boot it on hardware, confirm SSH, `reboot-edl` **and the WiFi
+AP** (`iw dev` → `wlan0`, type AP, SSID `OpenWrt-Recovery`), and update the
+table.  `build-recovery.sh` refuses to build without
 `blobs/<board>/` (WCNSS firmware + calibrated wlan NV), which is why this is a
 local step and not a CI one.
 

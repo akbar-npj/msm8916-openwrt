@@ -19,7 +19,10 @@
 #            recipe built a SECOND kernel from msm89xx/config-6.12-recovery and
 #            that drift is what left the first AP+STA image without USB.
 #   ramdisk: gzip -9 of a newc cpio of msm89xx/recovery/irfs, plus the kernel
-#            modules the initramfs needs (RECOVERY_MODULES below)
+#            modules the initramfs needs (RECOVERY_MODULES below).  Those
+#            modules must come from the SAME build as the kernel: they share
+#            a vermagic, so a mixed pair only shows up as a WiFi oops at run
+#            time.  check_kernel_pairing() refuses one.
 #   cmdline: earlycon console=ttyMSM0,115200 panic=5
 #            (the production "root=/dev/mmcblk0p14 rootfstype=squashfs" is
 #            dropped: /init runs from the initramfs and never switch_roots, so
@@ -89,14 +92,74 @@ check_board() {
         || die "Unknown board '$BOARD'. Known boards: $(list_boards | tr '\n' ' ')"
 }
 
+# The kernel always comes out of a production boot image.  RECOVERY_BOOT_IMG
+# overrides which one - used to pair the initramfs with the kernel a device
+# actually runs (dump p13, point here) instead of whatever bin/targets holds.
 production_image() {
+    if [ -n "${RECOVERY_BOOT_IMG:-}" ]; then
+        echo "$RECOVERY_BOOT_IMG"
+        return 0
+    fi
     echo "$REPO_DIR/openwrt/bin/targets/msm89xx/msm8916/msm8916-openwrt-msm89xx-msm8916-generic-$1-squashfs-boot.img"
+}
+
+# Kernel build identity: decompressed size plus the UTS banner.  Modules are
+# built against exactly one kernel build, and the banner is the only trace of
+# that build that survives into a boot image.  Accepts an ANDROID! boot image or
+# a raw Image.
+kernel_id() {
+    python3 - "$1" <<'PY'
+import re, struct, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+if d[:8] == b'ANDROID!':
+    ksize = struct.unpack('<I', d[8:12])[0]
+    page = struct.unpack('<I', d[36:40])[0]
+    d = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(d[page:page + ksize])
+m = re.search(rb'Linux version [^\x00]{0,200}', d)
+if not m:
+    sys.exit('%s: no UTS banner' % sys.argv[1])
+print(len(d), m.group(0).decode(errors='replace'))
+PY
+}
+
+# The kernel the modules in build_dir were built against.
+tree_kernel() {
+    ls -t "$REPO_DIR"/openwrt/build_dir/target-*/linux-msm89xx_msm8916/Image 2>/dev/null | head -1
+}
+
+# Refuse to pair a production kernel with modules from a different build.
+#
+# They have the same vermagic (6.12.112), so the mismatch is invisible until the
+# image runs: the 2026-11-01 hmuf02v5 image shipped an Oct-29 CI kernel with
+# locally built Nov-1 modules and its WiFi AP oopsed in ieee80211_if_add while
+# USB, SSH and the web UI stayed fine.
+check_kernel_pairing() {
+    local prod="$1" tk
+    if [ -n "${RECOVERY_MODULE_DIR:-}" ]; then
+        msg "Modules from $RECOVERY_MODULE_DIR (explicit - pairing is the caller's)"
+        return 0
+    fi
+    tk="$(tree_kernel)"
+    [ -n "$tk" ] || die "No built kernel under openwrt/build_dir/*/linux-msm89xx_msm8916/Image.
+       Build it first: ./build.sh <board>"
+    if [ "$(kernel_id "$prod")" != "$(kernel_id "$tk")" ]; then
+        die "The production boot image and the built modules come from DIFFERENT kernel builds:
+       boot image : $(kernel_id "$prod")
+       build tree : $(kernel_id "$tk")
+       Pairing them gives an image whose WiFi modules oops on load.
+       Rebuild the board (./build.sh <board>) so its boot.img matches the tree, or
+       pass RECOVERY_BOOT_IMG / RECOVERY_MODULE_DIR for a matching pair."
+    fi
 }
 
 # Newest root-msm89xx/lib/modules/<ver> that actually contains wcn36xx.ko.
 # The tree can hold several target dirs after a board switch; pick the built one.
 module_dir() {
     local d
+    if [ -n "${RECOVERY_MODULE_DIR:-}" ]; then
+        [ -f "$RECOVERY_MODULE_DIR/wcn36xx.ko" ] && { echo "$RECOVERY_MODULE_DIR"; return 0; }
+        return 1
+    fi
     for d in $(ls -dt "$REPO_DIR"/openwrt/build_dir/target-*/root-msm89xx/lib/modules/*/ 2>/dev/null); do
         if [ -f "$d/wcn36xx.ko" ]; then
             echo "$d"
@@ -104,6 +167,12 @@ module_dir() {
         fi
     done
     return 1
+}
+
+# Kernel version a module was built for, taken from the module itself.  A
+# RECOVERY_MODULE_DIR need not be named after the version.
+module_version() {
+    strings -a "$1/wcn36xx.ko" | sed -n 's/^vermagic=\([0-9][0-9.]*\).*/\1/p' | head -1
 }
 
 # Install this board's WiFi blobs into the initramfs tree.
@@ -135,7 +204,8 @@ install_modules() {
     src="$(module_dir)" || die "No kernel modules found under openwrt/build_dir/*/root-msm89xx/lib/modules.
        The recovery image reuses the production kernel, so its modules must
        exist first: ./build.sh kernel <board>"
-    ver="$(basename "$src")"
+    ver="$(module_version "$src")"
+    [ -n "$ver" ] || die "cannot read the kernel version from $src/wcn36xx.ko"
     msg "Installing kernel modules ($ver) into the initramfs"
     rm -rf "$RECOVERY_DIR/irfs/lib/modules"
     mkdir -p "$RECOVERY_DIR/irfs/lib/modules/$ver"
@@ -229,6 +299,8 @@ for b in $BOARDS; do
     [ -f "$prod" ] || die "No production boot image for '$b':
        $prod
        Build it first: ./build.sh $b"
+
+    check_kernel_pairing "$prod"
 
     if [ "${DRY_RUN:-0}" = "1" ]; then
         msg "[dry-run] $b"
