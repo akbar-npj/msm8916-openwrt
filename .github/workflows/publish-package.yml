@@ -51,6 +51,16 @@ on:
         required: false
         default: ""
         type: string
+      target_package:
+        description: "Build a TARGET package (e.g. base-files) instead of one under packages/. Its .apk lands in bin/targets/<target>/packages and is spliced into the targets feed."
+        required: false
+        default: false
+        type: boolean
+      pkg_release:
+        description: "Explicit PKG_RELEASE for a target package (base-files derives it from COMMITCOUNT, so it cannot be auto-incremented). Required with target_package."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -90,7 +100,11 @@ jobs:
             BASE="$(sed 's/-r[0-9]*$//' version)"
           fi
           echo "base=${BASE}" >> $GITHUB_OUTPUT
-          if [ -n "$PKG" ] && [ ! -f "packages/${PKG}/Makefile" ]; then
+          if [ "${{ inputs.target_package }}" = "true" ] && [ -z "${{ inputs.pkg_release }}" ]; then
+            echo "::error::target_package=true needs pkg_release (e.g. 1719): base-files derives PKG_RELEASE from COMMITCOUNT, so it cannot be bumped automatically."
+            exit 1
+          fi
+          if [ -n "$PKG" ] && [ "${{ inputs.target_package }}" != "true" ] && [ ! -f "packages/${PKG}/Makefile" ]; then
             echo "::error::packages/${PKG}/Makefile does not exist."
             echo "Known packages:"
             ls packages/
@@ -100,7 +114,7 @@ jobs:
           echo "Package : ${PKG} (board ${BOARD})"
 
       - name: Bump PKG_RELEASE
-        if: inputs.bump && inputs.package != ''
+        if: inputs.bump && inputs.package != '' && !inputs.target_package
         run: |
           set -euo pipefail
           MK="packages/${PKG}/Makefile"
@@ -146,6 +160,18 @@ jobs:
           fi
           printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
           echo "Injected persistent private signing key."
+
+      - name: Stamp the target package release
+        if: inputs.target_package && inputs.package != ''
+        run: |
+          set -euo pipefail
+          MK="openwrt/package/${PKG}/Makefile"
+          [ -f "$MK" ] || { echo "::error::No ${MK} in the prepared tree."; exit 1; }
+          # base-files carries PKG_RELEASE:=$(COMMITCOUNT), and COMMITCOUNT does
+          # not move between releases, so a rebuilt base-files would carry the
+          # same version and apk would skip it.  Stamp an explicit number.
+          sed -i "s|^PKG_RELEASE:=.*|PKG_RELEASE:=${{ inputs.pkg_release }}|" "$MK"
+          grep -n '^PKG_RELEASE:=' "$MK"
 
       - name: Fetch the published feed
         env:
@@ -226,7 +252,9 @@ jobs:
       # kmod compile fails with "No rule to make target .../.config". Prepare
       # (configure + build) the kernel tree first so the .config is present.
       - name: Prepare the kernel tree
-        if: inputs.package != ''
+        # Only a kmod build needs linux-<ver>/.config; a target package does not,
+        # and building the kernel would add ~20 min to every base-files hotfix.
+        if: inputs.package != '' && !inputs.target_package
         run: ./build.sh kernel "$BOARD"
 
       - name: Build the package
@@ -254,6 +282,28 @@ jobs:
             make package/index V=s
           "
 
+      # make package/index only walks bin/packages/<arch>/<feed>.  A target
+      # package (base-files) lives in bin/targets/<target>/packages, so its
+      # index is rebuilt here the same way publish-kmod.yml does it.
+      - name: Re-index and re-sign the targets feed
+        if: inputs.target_package
+        run: |
+          set -euo pipefail
+          docker compose -f devenv/docker-compose.yml exec -T builder bash -lc "
+            umask 022
+            cd /repo/openwrt/bin/targets/msm89xx/msm8916/packages
+            ls *.apk >/dev/null
+            /repo/openwrt/staging_dir/host/bin/apk mkndx \
+              --root /repo/openwrt \
+              --keys-dir /repo/openwrt \
+              --allow-untrusted \
+              --sign /repo/openwrt/private-key.pem \
+              --output packages.adb *.apk
+            /repo/openwrt/staging_dir/host/bin/apk adbdump --format json packages.adb | \
+              /repo/openwrt/scripts/make-index-json.py -f apk -a aarch64_generic - > index.json
+          "
+          echo "Re-indexed $(ls openwrt/bin/targets/msm89xx/msm8916/packages/*.apk | wc -l) target packages"
+
       - name: Verify nothing fell out of the feed
         run: |
           set -euo pipefail
@@ -271,8 +321,12 @@ jobs:
           # find | wc -l, not "ls | grep -c": grep exits 1 on a count of zero,
           # and the build creates empty sections (telephony, video) that the
           # published feed never had, so set -e killed the job on a healthy feed.
+          # Two version shapes: a normal package is name-1.2.3-r4.apk, but a
+          # target package (base-files) is name-1719~981c978eff.apk -- no -r
+          # suffix, so the first pattern alone leaves the version in the name
+          # and the rebuilt package looks like a different package.
           pkgname() {
-            sed -E 's/-[0-9][^-]*-r[0-9]+\.apk$//'
+            sed -E 's/-[0-9][^-]*-r[0-9]+\.apk$//; s/-[0-9][^-]*~[^-]*\.apk$//'
           }
           echo "After re-index:"
           for d in openwrt/bin/packages/aarch64_generic/*/; do
@@ -281,7 +335,11 @@ jobs:
 
           # /tmp/feed-before-files.txt holds the restored feed's basenames.
           pkgname < /tmp/feed-before-files.txt | sort -u > /tmp/feed-before-names.txt
-          find openwrt/bin/packages/aarch64_generic -name '*.apk' -printf '%f\n' \
+          # A target package lands in bin/targets/.../packages, not in the
+          # feed tree, so both directories have to be listed here or the
+          # "produced a file" check below fails for it.
+          find openwrt/bin/packages/aarch64_generic openwrt/bin/targets/msm89xx/msm8916/packages \
+            -name '*.apk' -printf '%f\n' \
             | pkgname | sort -u > /tmp/feed-after-names.txt
           : > /tmp/feed-deleted-names.txt
           if [ -s /tmp/feed-deleted.txt ]; then
@@ -347,7 +405,8 @@ jobs:
             echo "Feed: https://akbar-npj.github.io/msm8916-openwrt/releases/${BASE}/packages/aarch64_generic/"
             echo
             echo "Built:"
-            find openwrt/bin/packages -name "${PKG}-*.apk" -printf '  %f\n' 2>/dev/null || true
+            find openwrt/bin/packages openwrt/bin/targets/msm89xx/msm8916/packages \
+              -name "${PKG}-*.apk" -printf '  %f\n' 2>/dev/null || true
             if [ -s /tmp/feed-deleted.txt ]; then
               echo
               echo "Removed from the feed:"
@@ -360,5 +419,13 @@ jobs:
             echo "apk upgrade ${PKG}"
             echo '```'
             echo
-            echo "> \`PKG_RELEASE\` was bumped for this build only - commit packages/${PKG}/Makefile."
+            if [ "${{ inputs.target_package }}" = "true" ]; then
+              echo "> Feed: https://akbar-npj.github.io/msm8916-openwrt/releases/${BASE}/targets/msm89xx/msm8916/packages/"
+              echo ">"
+              echo "> \`PKG_RELEASE\` was stamped to ${{ inputs.pkg_release }} for this build only (from the workflow input, nothing to commit)."
+              echo ">"
+              echo "> The upgrade replaces files but does not restart anything already running - restart the service whose script changed, e.g. \`/etc/init.d/sim-hotplug restart\`."
+            else
+              echo "> \`PKG_RELEASE\` was bumped for this build only - commit packages/${PKG}/Makefile."
+            fi
           } >> $GITHUB_STEP_SUMMARY
