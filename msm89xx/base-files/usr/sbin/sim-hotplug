@@ -119,6 +119,10 @@ pulse_sim() {
 #     even two 20 s apart was enough.  So the default is ONE attempt per card
 #     event, at most one every restart_backoff seconds.
 #
+# A restart costs ~20 s to a working bearer, measured on hmuf02v5 with a SIM
+# that registers: modem up +2 s, QMI node +3 s, ModemManager +14 s, registered
+# +16 s, IPv4 and default route +20 s (no ifup needed).
+#
 # Returns 0 restarted, 1 could not restart, 2 did not come back.
 modem_running() {
     [ "$(cat /sys/class/remoteproc/remoteproc0/state 2>/dev/null)" = "running" ]
