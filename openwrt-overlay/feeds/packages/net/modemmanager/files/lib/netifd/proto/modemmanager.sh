@@ -547,21 +547,77 @@ modemmanager_set_plmn() {
 	local interface="$2"
 	local plmn="$3"
 	local force_connection="$4"
+	local attempt wait
 
 	[ -z "${plmn}" ] && return 0
 
-	mmcli --modem="${device}" \
-		--timeout 120 \
-		--3gpp-register-in-operator="${plmn}" || {
-		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
+	# `force_connection=1` keeps its old meaning: one attempt, report
+	# MM_INTERFACE_RESTART, let the caller bounce the interface.  It is not
+	# part of the bounded retry below.
+	if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
+		mmcli --modem="${device}" \
+			--timeout 120 \
+			--3gpp-register-in-operator="${plmn}" || {
 			echo "3GPP operator registration failed -> attempting restart"
-				proto_notify_error "${interface}" MM_INTERFACE_RESTART
-			else
-				proto_notify_error "${interface}" MM_3GPP_OPERATOR_REGISTRATION_FAILED
-				proto_block_restart "${interface}"
-		fi
-		return 1
-	}
+			proto_notify_error "${interface}" MM_INTERFACE_RESTART
+			return 1
+		}
+		return 0
+	fi
+
+	# A registration failure must not latch the interface dead on the first
+	# try, but it is not reliably transient either: a wrong `plmn`, an
+	# unprovisioned IMSI, or a permanent EMM cause (15) rejects in seconds
+	# and keeps rejecting forever.  Retry a bounded number of times here,
+	# in this process, then fall back to the old block so a permanent
+	# reject parks the modem instead of hammering the radio forever.
+	#
+	# Why the retry is done here rather than by returning and letting netifd
+	# re-enter setup: netifd does re-enter, but immediately and with no
+	# backoff.  A non-zero return goes
+	#
+	#   >> proto_ext_task_finish() (S_SETUP)    -> PROTO_CMD_TEARDOWN
+	#   >> proto_ext_task_finish() (S_TEARDOWN) -> IFPEV_DOWN
+	#   >> interface.c: mark_interface_down()
+	#   >> interface_handle_config_change()
+	#   >> interface.c:876  if (iface->autostart) interface_set_up()
+	#
+	# (measured 2026-10-31 14:44:41: "returning error for netifd retry",
+	# "Interface 'modem' is now down" and "Interface 'modem' is setting up
+	# now" all in the same second, with no watchdog tick involved).  So
+	# returning per attempt would fire all three back to back and be done
+	# in seconds -- inside the transient window this tree measured (post-SSR
+	# userspace rebuild ~16 s, 25 s outlier).  Looping here also means the
+	# budget is a shell local: no /tmp state to go stale or be malformed,
+	# and an `ifdown` during a sleep kills the whole thing with the process
+	# instead of leaving a counter behind.
+	PLMN_MAX_ATTEMPTS=3
+	PLMN_BACKOFF=20
+	attempt=0
+
+	while :; do
+		attempt=$((attempt + 1))
+		mmcli --modem="${device}" \
+			--timeout 120 \
+			--3gpp-register-in-operator="${plmn}" && return 0
+
+		[ "${attempt}" -ge "${PLMN_MAX_ATTEMPTS}" ] && break
+
+		# Growing delay, 20 s then 40 s, so the three attempts span about
+		# a minute of real patience -- comfortably past the transient
+		# window above.  Three is the budget the watchdog already uses
+		# (PROBE_ATTEMPTS=3) for the same "do not act on one lost probe"
+		# reason.
+		wait=$((attempt * PLMN_BACKOFF))
+		echo "3GPP operator registration failed (attempt ${attempt}/${PLMN_MAX_ATTEMPTS}) -> retrying in ${wait}s"
+		proto_notify_error "${interface}" MM_3GPP_OPERATOR_REGISTRATION_FAILED
+		sleep "${wait}"
+	done
+
+	echo "3GPP operator registration failed after ${PLMN_MAX_ATTEMPTS} attempts -> blocking restart"
+	proto_notify_error "${interface}" MM_3GPP_OPERATOR_REGISTRATION_FAILED
+	proto_block_restart "${interface}"
+	return 1
 }
 
 proto_modemmanager_setup() {
