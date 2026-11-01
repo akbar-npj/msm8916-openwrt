@@ -56,8 +56,10 @@
 #   * One qmicli process at a time (busybox flock, no -w) and always under
 #     'timeout'.  Concurrent or long-lived clients exhaust the modem's
 #     client-ID pool and leave ModemManager failed with 'ClientIdsExhausted'.
-#   * Never reset the modem from here (mmcli -r / SSR): it re-enumerates MM and
-#     can leave it 'failed'.  The pulse alone is the validated trigger.
+#   * Never reset the modem through ModemManager (mmcli -r): it re-enumerates
+#     MM and can leave it 'failed'.  The pulse is the validated trigger; the
+#     bounded SSR escalation in restart_modem() is the last resort and only
+#     runs when the pulse keeps failing.
 #
 # Usage:
 #   sim-hotplug start     run the poll loop (procd)
@@ -78,6 +80,8 @@ config_get ACTIVE_INTERVAL general active_interval 5
 config_get ABSENT_INTERVAL general absent_interval 20
 config_get PULSE_MS        general pulse_ms 300
 config_get MAX_PULSE_BEFORE_RESTART general max_pulse_before_restart 5
+config_get RESTART_BACKOFF general restart_backoff 300
+config_get MAX_RESTARTS    general max_restart_attempts 1
 
 # Time for the baseband to re-initialise the card after a pulse.  While the
 # re-init runs, UIM still answers "possibly-removed", so querying too early
@@ -103,21 +107,64 @@ pulse_sim() {
 # swap the pulse alone cannot: the modem is restarted so it re-enumerates and
 # re-reads the slot.  Prefers the debugfs SSR lever (handled gracefully by
 # ModemManager through the SSR notifiers, per patches 826/850); falls back to a
-# hard remoteproc stop/start.  modem-bearer-watchdog's zombie recovery brings
-# ModemManager back if the restart drops it.  Returns 0 if a restart was
-# attempted, 1 if no restart path is available.
+# hard remoteproc stop/start.
+#
+# Two hard limits, both measured on hmuf02v5 (2026-11-01):
+#   * a restart only works while the remote processor is running.  Issuing one
+#     at an already-dead modem answers 'PBL boot timed out' and leaves it down
+#     until the unit is power-cycled.
+#   * restarting cannot conjure a card that is not in the slot, and a second
+#     restart too soon after the first fails ('port failed halt', -110).  With
+#     no card, 36 restarts at 20 s intervals killed the modem outright, and
+#     even two 20 s apart was enough.  So the default is ONE attempt per card
+#     event, at most one every restart_backoff seconds.
+#
+# Returns 0 restarted, 1 could not restart, 2 did not come back.
+modem_running() {
+    [ "$(cat /sys/class/remoteproc/remoteproc0/state 2>/dev/null)" = "running" ]
+}
+
+wait_modem_cycle() {
+    local i=0
+    # The restart is asynchronous: right after the write the state is still
+    # 'running' for a moment, so waiting for 'running' alone reports success
+    # for a restart that then dies.  Wait for it to go down, then come back.
+    while [ "$i" -lt 20 ]; do
+        modem_running || break
+        sleep 1
+        i=$((i + 1))
+    done
+    i=0
+    while [ "$i" -lt 20 ]; do
+        modem_running && return 0
+        sleep 1
+        i=$((i + 1))
+    done
+    return 1
+}
+
 restart_modem() {
     log "SIM not recovered after $1 pulses - escalating to modem restart"
-    if [ -w /sys/kernel/debug/msm_subsys/modem ]; then
-        echo restart > /sys/kernel/debug/msm_subsys/modem 2>/dev/null && return 0
+    if ! modem_running; then
+        log "modem is not running - refusing to restart (needs a power cycle)"
+        return 1
     fi
-    if [ -w /sys/class/remoteproc/remoteproc0/state ]; then
+    if [ -w /sys/kernel/debug/msm_subsys/modem ]; then
+        echo restart > /sys/kernel/debug/msm_subsys/modem 2>/dev/null
+    elif [ -w /sys/class/remoteproc/remoteproc0/state ]; then
         echo stop > /sys/class/remoteproc/remoteproc0/state 2>/dev/null
         sleep 2
-        echo start > /sys/class/remoteproc/remoteproc0/state 2>/dev/null && return 0
+        echo start > /sys/class/remoteproc/remoteproc0/state 2>/dev/null
+    else
+        log "no modem-restart path available - cannot escalate"
+        return 1
     fi
-    log "no modem-restart path available - cannot escalate"
-    return 1
+    if wait_modem_cycle; then
+        log "modem restarted"
+        return 0
+    fi
+    log "modem did NOT come back after the restart - escalation disabled"
+    return 2
 }
 
 modem_index() {
@@ -138,13 +185,18 @@ modem_state() {
     echo "$st"
 }
 
-# Echo: present | absent | exhaust | locked | unknown
+# Echo: present | absent | exhaust | locked | qmi-down | unknown
 uim_state() {
     # Non-blocking lock: busybox flock has no -w, so a second instance (e.g. a
     # procd respawn that overlaps a still-alive predecessor) would otherwise
     # block here forever and produce exactly the "running but logs nothing"
     # symptom seen in issue #22.  If we cannot acquire, report 'locked' and let
     # the caller skip this cycle instead of wedging the service.
+    # The QMI node only exists while the modem is up.  Without this check a
+    # dead modem looks like a held lock (qmicli exits non-zero) and the service
+    # silently stops doing anything - exactly what happened after a failed SSR
+    # on 2026-11-01.
+    [ -e "$QMI_DEV" ] || { echo qmi-down; return; }
     out=$(timeout 12 flock -n "$LOCK" qmicli --device-open-proxy -d "$QMI_DEV" \
           --uim-get-card-status 2>&1)
     rc=$?
@@ -202,6 +254,7 @@ bring_up_bearer() {
 
 poll_loop() {
 	local removed=0 last now st u iv miss=0 err=0
+	local restarts=0 gave_up=0 last_restart=0 last_qmi=0 qmi_logged=0
 
 	# Without a writable sim_hotplug line, hot-swap can never make the modem
 	# re-read the slot, so the absent-reannounce loop would spin forever with
@@ -254,6 +307,9 @@ poll_loop() {
                 present)
                     log "SIM detected after re-announce"
                     removed=0
+                    restarts=0
+                    gave_up=0
+                    qmi_logged=0
                     if wait_register; then
                         log "modem registered"
                         refresh_modem
@@ -266,12 +322,30 @@ poll_loop() {
                 absent)
                     miss=$((miss + 1))
                     if [ "$miss" -ge "$MAX_PULSE_BEFORE_RESTART" ]; then
-                        # The pulse alone cannot recover this unit: GPIO114 is
-                        # likely not wired to the baseband SIM-detect, or the
-                        # card genuinely never re-appears.  Escalate to a modem
-                        # restart (the only recovery some units accept) and keep
-                        # monitoring - the restart re-reads the slot on boot.
-                        restart_modem "$miss"
+                        # Restarting is the only recovery on units where the
+                        # GPIO pulse cannot make the baseband re-read the
+                        # slot, but it cannot conjure a card that is not
+                        # there: bounded attempts, spaced out, and reset the
+                        # moment a card is actually seen.
+                        now=$(date +%s)
+                        if [ "$gave_up" -eq 1 ]; then
+                            :
+                        elif [ "$restarts" -ge "$MAX_RESTARTS" ]; then
+                            log "card still absent after $restarts restarts - not escalating again until a card appears"
+                            gave_up=1
+                        elif [ $((now - last_restart)) -lt "$RESTART_BACKOFF" ]; then
+                            :
+                        else
+                            restart_modem "$miss"
+                            case "$?" in
+                                0) restarts=$((restarts + 1))
+                                   last_restart=$now
+                                   qmi_logged=0
+                                   ;;
+                                1) modem_running || gave_up=1 ;;
+                                2) gave_up=1 ;;
+                            esac
+                        fi
                         miss=0
                     elif [ $((miss % 3)) -eq 0 ]; then
                         log "card still not visible after re-announce ($miss)"
@@ -283,6 +357,18 @@ poll_loop() {
                 locked)
                     # Could not acquire the QMI lock this cycle; skip without
                     # advancing miss so we don't escalate on a transient blip.
+                    ;;
+                qmi-down)
+                    # The modem went away under us (an escalation that did
+                    # not come back, or a crash).  Nothing on the AP side can
+                    # revive a dead remoteproc, so stop escalating.
+                    if [ "$qmi_logged" -eq 0 ]; then
+                        log "modem is offline and $QMI_DEV is gone - needs a power cycle"
+                        qmi_logged=1
+                    fi
+                    gave_up=1
+                    sleep 30
+                    last=$(date +%s)
                     ;;
                 exhaust)
                     log "QMI client IDs exhausted - backing off 60 s"
@@ -329,6 +415,23 @@ poll_loop() {
                     else
                         err=0
                     fi
+                    ;;
+                qmi-down)
+                    # The QMI node is gone.  If the modem is still up, the
+                    # port belongs to a dead ModemManager and a restart gets
+                    # it back; if the modem is down, only a power cycle helps.
+                    if [ $((now - last_qmi)) -ge 120 ]; then
+                        if modem_running; then
+                            log "QMI device $QMI_DEV is missing - restarting ModemManager"
+                            /etc/init.d/modemmanager restart >/dev/null 2>&1
+                        elif [ "$qmi_logged" -eq 0 ]; then
+                            log "modem is offline and $QMI_DEV is gone - needs a power cycle"
+                            qmi_logged=1
+                        fi
+                        last_qmi=$now
+                    fi
+                    sleep 30
+                    last=$(date +%s)
                     ;;
                 exhaust)
                     log "QMI client IDs exhausted - backing off 60 s"
@@ -381,7 +484,10 @@ Configuration (uci, /etc/config/sim-hotplug):
   sim-hotplug.general.active_interval  5    seconds between checks while searching
   sim-hotplug.general.absent_interval  6    seconds between re-announce cycles
   sim-hotplug.general.pulse_ms         300  sim_hotplug pulse width
-  sim-hotplug.general.max_pulse_before_restart 5  failed pulses before escalating to a modem restart
+  sim-hotplug.general.max_pulse_before_restart 5    failed pulses before escalating to a modem restart
+  sim-hotplug.general.restart_backoff   300  minimum seconds between two restarts
+  sim-hotplug.general.max_restart_attempts 1  consecutive restarts before giving up
+                                              (reset when a card is seen again)
 
 Service:  /etc/init.d/sim-hotplug {start|stop|restart|status|rescan}
 Log:      logread -e sim-hotplug
