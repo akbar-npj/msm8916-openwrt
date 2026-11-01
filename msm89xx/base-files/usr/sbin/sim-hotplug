@@ -314,6 +314,24 @@ poll_loop() {
                     restarts=0
                     gave_up=0
                     qmi_logged=0
+                    # A modem that booted without a card is parked at
+                    # failed/sim-missing by ModemManager, and disable/enable
+                    # does NOT clear that - only a ModemManager restart does
+                    # (measured 2026-11-01: the baseband saw the card, MM kept
+                    # reporting sim-missing, so wait_register never fired and
+                    # the card was never picked up).
+                    if [ "$(modem_state)" = "failed" ]; then
+                        log "modem is failed (booted without a card) - restarting ModemManager"
+                        /etc/init.d/modemmanager restart >/dev/null 2>&1
+                        k=0
+                        while [ "$k" -lt 15 ]; do
+                            [ -n "$(modem_index)" ] && break
+                            sleep 2
+                            k=$((k + 1))
+                        done
+                        MODEM_IDX=""
+                        timeout 30 mmcli -m any -e >/dev/null 2>&1
+                    fi
                     if wait_register; then
                         log "modem registered"
                         refresh_modem
