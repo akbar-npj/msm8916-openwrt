@@ -33,3 +33,5 @@ ghidra_proj/
 ghidra_scripts/
 scratch/
 
+# Firmware bundles built by msm89xx/image/generate_firmware.sh
+.fwbuild/
