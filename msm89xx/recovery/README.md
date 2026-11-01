@@ -236,8 +236,8 @@ The rescue image is **not** rebuilt for every release.  It carries its own
 kernel, DTB, initramfs and modules, so it does not care what is installed on
 the eMMC — its only job is to bring a stick back.  A binary that has already
 booted on hardware beats one built from today's tree, so a good image is
-frozen and re-uploaded unchanged to every release (see
-`Docs/RELEASING_FIRMWARE.md` §7.1).
+frozen and re-attached unchanged to every release by the release workflow
+(see `Docs/RELEASING_FIRMWARE.md` §7.1).
 
 | Board | File | Size | sha256 | kernel from | Hardware-verified |
 | :---- | :--- | ---: | :----- | :---------- | :---------------- |
@@ -281,8 +281,10 @@ mixed pair**.  Two ways to satisfy it:
   shadow the installed one.
 
 `*.img` is git-ignored (24 MB of build output), so the hashes above are the
-record: keep the files attached to a release, and check them with
-`sha256sum msm89xx/recovery/*.img` before uploading.
+record.  The images themselves live as assets of the `v25.12.6-r4` release and
+the workflow copies them onto every new release (`RECOVERY_SOURCE_TAG`), so a
+normal release needs no manual upload.  Replacing one means uploading it to
+that tag with `--clobber` and updating this table.
 
 Rebuild **only** on purpose, never "because there is a new release":
 

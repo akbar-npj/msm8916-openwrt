@@ -204,24 +204,32 @@ The job does **not** build `recovery-<board>.img`: the image embeds the WCNSS
 firmware and the calibrated wlan NV, which are git-ignored
 (`msm89xx/recovery/blobs/`), so CI has nothing to build it from.  The images
 are **frozen** instead — a recovery only has to bring the stick back, and one
-that has booted on hardware is better than a fresh build.  The hashes and the
-verified-on dates live in `msm89xx/recovery/README.md` § "Shipped (frozen)
-images".
+that has booted on hardware is better than a fresh build.
 
-After the job finishes, upload the same files (renamed to the asset names
-`flash.sh` looks for):
+They are published as assets of one release, `v25.12.6-r4`, and the workflow's
+*Attach the frozen recovery images* step copies them onto **every** new
+release (`RECOVERY_SOURCE_TAG` at the top of that step).  They are listed in
+`sha256sums` too, so a release is complete with no manual upload at all.
+
+The hashes and the verified-on dates live in `msm89xx/recovery/README.md`
+§ "Shipped (frozen) images" — that table, not the asset, is the record.
+
+**Only when you deliberately rebuild an image** (the rebuild triggers are
+listed in that README) do you touch the source release: replace the asset
+there, and every later release inherits the new one.
 
 ```sh
 mkdir -p /tmp/rel
 cp msm89xx/recovery/mifib-v12.img /tmp/rel/recovery-mifib-v12.img
 cp msm89xx/recovery/hmuf02v5.img /tmp/rel/recovery-hmuf02v5.img
-sha256sum /tmp/rel/*.img                      # must match the frozen table
-gh release upload v25.12.6-r4 /tmp/rel/recovery-*.img
+sha256sum /tmp/rel/*.img            # must match the frozen table
+gh release upload v25.12.6-r4 /tmp/rel/recovery-*.img --clobber
 ```
 
-Use `--clobber` when re-cutting a release (§9).  Only upload boards whose
-image is marked hardware-verified in that table.
-
+Update the table in `msm89xx/recovery/README.md` (size, sha256, verified date)
+in the same commit.  If `RECOVERY_SOURCE_TAG` is ever repointed, upload the
+images to the new tag first: the workflow fails the release if it cannot
+download them.
 ## 8. Verify the release
 
 ```sh
@@ -294,6 +302,6 @@ manifest lands.
 - [ ] `test` → `staging-main` merged `--no-ff`, `main` fast-forwarded
 - [ ] both branches pushed
 - [ ] CI run green, release not a draft, all boards + kmods attached
-- [ ] frozen `recovery-*.img` uploaded by hand (§7.1) and hashes match
+- [ ] `recovery-*.img` present on the release and matching the frozen table (§7.1)
 - [ ] manifest `sha256` matches the uploaded asset
 - [ ] upgrade tested from the previous release on a real device

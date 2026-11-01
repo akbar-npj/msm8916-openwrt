@@ -110,6 +110,25 @@ jobs:
             make package/msm8916/cups/compile package/index V=s
           "
 
+      # The rescue images are FROZEN, not built: they embed the WCNSS firmware
+      # and the calibrated wlan NV, which are git-ignored, so CI has nothing to
+      # build them from.  They live on the release named below and are
+      # re-attached unchanged to every new release (see
+      # Docs/RELEASING_FIRMWARE.md 7.1 and msm89xx/recovery/README.md).
+      - name: Attach the frozen recovery images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RECOVERY_SOURCE_TAG: v25.12.6-r4
+        run: |
+          set -euo pipefail
+          BIN=openwrt/bin/targets/msm89xx/msm8916
+          # Only boards with a recovery partition AND a hardware-verified image.
+          for b in mifib-v12 hmuf02v5; do
+            gh release download "$RECOVERY_SOURCE_TAG" -p "recovery-$b.img" \
+              -O "$BIN/recovery-$b.img" --clobber
+          done
+          sha256sum "$BIN"/recovery-*.img
+
       - name: Package Offline Kmod Bundle & Compute Checksums
         run: |
           cd openwrt/bin/targets/msm89xx/msm8916
@@ -120,6 +139,7 @@ jobs:
                     *-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
                     *-msm89xx-msm8916-*-flash.sh \
                     *-msm89xx-msm8916-*-firmware.zip \
+                    recovery-*.img \
                     kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
           cat sha256sums
 
@@ -220,4 +240,5 @@ jobs:
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-flash.sh
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-firmware.zip
             openwrt/bin/targets/msm89xx/msm8916/kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz
+            openwrt/bin/targets/msm89xx/msm8916/recovery-*.img
             openwrt/bin/targets/msm89xx/msm8916/sha256sums
