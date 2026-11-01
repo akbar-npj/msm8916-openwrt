@@ -230,6 +230,46 @@ Nothing secret is baked in: the dropbear host key is generated at first boot.
   `fastboot oem edl` drops straight into EDL `05c6:9008` — see
   [`Docs/RECOVERY`](../../Docs/RECOVERY/README.md#2-entering-recovery).
 
+## Shipped (frozen) images
+
+The rescue image is **not** rebuilt for every release.  It carries its own
+kernel, DTB, initramfs and modules, so it does not care what is installed on
+the eMMC — its only job is to bring a stick back.  A binary that has already
+booted on hardware beats one built from today's tree, so a good image is
+frozen and re-uploaded unchanged to every release (see
+`Docs/RELEASING_FIRMWARE.md` §7.1).
+
+| Board | File | Size | sha256 | cut from `boot.img` | Hardware-verified |
+| :---- | :--- | ---: | :----- | :------------------- | :---------------- |
+| `mifib-v12` | `mifib-v12.img` | 11 862 016 | `9edfc760d169a114868f3bc46663f593a318d1eda45d2f8a7fd1e6a2ba52c91f` | `3649f57c9008e2a7…` | 2026-11-01 — flashed to p17, boots, SSH on 192.168.10.1 |
+| `hmuf02v5` | `hmuf02v5.img` | 11 986 944 | `516777aa803a24d7e7979a388e9640c19ad3dadd74a452d679f9d50b841f0f93` | `cf46e1551fcd4bcd…` | 2026-11-01 — `fastboot boot`, boots, SSH on 192.168.10.1, web UI, `reboot-edl` present |
+
+`mf800b` also sets `GPT_RECOVERY=1` but has **no image yet** (the board is not
+on the bench), so `flash.sh` stops at its recovery step there.
+
+**Known limitation (both frozen images):** the WiFi AP never comes up.  `/init`
+runs `iw phy phy0 interface add wlan0 type __ap`, which oopses inside
+`ieee80211_if_add` (level-1 translation fault) about 2.8 s in; the oops kills
+only the `iw` process, so USB/SSH, the web UI and `reboot-edl` are unaffected.
+Confirmed on hmuf02v5; mifib-v12 shares the recipe.  Fix it in the next
+deliberate rebuild — not by rebuilding per release.
+
+`*.img` is git-ignored (24 MB of build output), so the hashes above are the
+record: keep the files attached to a release, and check them with
+`sha256sum msm89xx/recovery/*.img` before uploading.
+
+Rebuild **only** on purpose, never "because there is a new release":
+
+* a fix in the recovery userspace (`irfs/`: busybox, dropbear, dnsmasq,
+  `/init`, the web UI),
+* a security fix in the kernel the image carries,
+* a DTB change for that board (panel, eMMC, regulator).
+
+After rebuilding, boot it on hardware, confirm SSH + `reboot-edl`, and update
+the table.  `build-recovery.sh` refuses to build without
+`blobs/<board>/` (WCNSS firmware + calibrated wlan NV), which is why this is a
+local step and not a CI one.
+
 ## Enabling recovery on an install that already runs OpenWrt
 
 `flash.sh --mode repartition` rewrites the GPT, adds `misc` + `recovery`,

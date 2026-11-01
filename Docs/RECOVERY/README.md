@@ -6,7 +6,7 @@ to confuse:
 | | Rescue image | Recovery partition |
 | :-- | :-- | :-- |
 | What it is | the production kernel + a rescue initramfs, booted from eMMC | a 16 MiB partition holding that image |
-| Lives in | `recovery-<board>.img` in the release | partition **p17** (`recovery`) |
+| Lives in | `recovery-<board>.img` in the release (frozen — see [`msm89xx/recovery`](../../msm89xx/recovery/README.md#shipped-frozen-images)) | partition **p17** (`recovery`) |
 | How you start it | write it to `boot` with EDL/fastboot | power-on key, `reboot recovery`, `fastboot reboot recovery`, or 3 failed boots |
 | Needs | nothing but the image | `GPT_RECOVERY=1` **and** a patched `aboot` |
 

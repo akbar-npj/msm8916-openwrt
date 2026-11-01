@@ -198,6 +198,30 @@ gh api repos/akbar-npj/msm8916-openwrt/actions/runs/<run-id>/jobs \
   --jq '.jobs[].steps[] | "\(.number) \(.status) \(.name)"'
 ```
 
+### 7.1 Attach the frozen recovery images
+
+The job does **not** build `recovery-<board>.img`: the image embeds the WCNSS
+firmware and the calibrated wlan NV, which are git-ignored
+(`msm89xx/recovery/blobs/`), so CI has nothing to build it from.  The images
+are **frozen** instead — a recovery only has to bring the stick back, and one
+that has booted on hardware is better than a fresh build.  The hashes and the
+verified-on dates live in `msm89xx/recovery/README.md` § "Shipped (frozen)
+images".
+
+After the job finishes, upload the same files (renamed to the asset names
+`flash.sh` looks for):
+
+```sh
+mkdir -p /tmp/rel
+cp msm89xx/recovery/mifib-v12.img /tmp/rel/recovery-mifib-v12.img
+cp msm89xx/recovery/hmuf02v5.img /tmp/rel/recovery-hmuf02v5.img
+sha256sum /tmp/rel/*.img                      # must match the frozen table
+gh release upload v25.12.6-r4 /tmp/rel/recovery-*.img
+```
+
+Use `--clobber` when re-cutting a release (§9).  Only upload boards whose
+image is marked hardware-verified in that table.
+
 ## 8. Verify the release
 
 ```sh
@@ -219,7 +243,9 @@ Check, in order:
    read `/etc/openwrt_release`. This is the check that would have caught the r3
    version bug before it shipped.
 4. **The feed serves it**: `https://akbar-npj.github.io/msm8916-openwrt/firmware.json`.
-5. **The upgrade path works** — the one thing CI cannot test. Leave a device on
+5. **The recovery assets are attached** and match the frozen hashes in
+   `msm89xx/recovery/README.md` (§7.1 uploads them by hand).
+6. **The upgrade path works** — the one thing CI cannot test. Leave a device on
    the previous release, open the LuCI update page, and let it download and flash.
    Confirm the banner, then confirm `DISTRIB_RELEASE` afterwards; a device that
    still reports the old version will offer the same upgrade forever.
@@ -268,5 +294,6 @@ manifest lands.
 - [ ] `test` → `staging-main` merged `--no-ff`, `main` fast-forwarded
 - [ ] both branches pushed
 - [ ] CI run green, release not a draft, all boards + kmods attached
+- [ ] frozen `recovery-*.img` uploaded by hand (§7.1) and hashes match
 - [ ] manifest `sha256` matches the uploaded asset
 - [ ] upgrade tested from the previous release on a real device
