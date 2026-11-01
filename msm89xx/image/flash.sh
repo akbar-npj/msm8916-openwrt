@@ -33,6 +33,7 @@ ROOTFS_DATA_WIPE_SECTORS="${ROOTFS_DATA_WIPE_SECTORS:-4096}"
 MODE=""
 ERASE_CONFIG=""      # update only: "keep" or "erase"
 ASSUME_YES=false
+REFRESH_BACKUP=false   # --refresh-backup: re-read saved/ even if complete
 BOARD_TOKEN=""       # e.g. "mifib-v12"; selects which board's images to use
 GPT_DUMP=""
 TOT_SECTORS=""
@@ -82,6 +83,8 @@ Options:
   --erase-config     Update mode: wipe the rootfs_data overlay (factory clean).
   --keep-config      Update mode: keep /etc, packages and dumped firmware.
   --yes              Skip the interactive confirmation. Requires --mode.
+  --refresh-backup   Re-read the 7 radio partitions into ./saved/ even when a
+                     complete backup is already there (default: keep it).
   --board <name>     Use this board's images, e.g. --board mifib-v12.
                      Required when the directory holds more than one board.
   --help             Show this help.
@@ -119,6 +122,8 @@ parse_args() {
                 saw_keep=true; ERASE_CONFIG="keep"; shift ;;
             --yes)
                 ASSUME_YES=true; shift ;;
+            --refresh-backup)
+                REFRESH_BACKUP=true; shift ;;
             --board)
                 [[ $# -ge 2 ]] || die "--board requires an argument"
                 BOARD_TOKEN="$2"; shift 2 ;;
@@ -468,6 +473,15 @@ confirm_repartition() {
     [[ "$confirm" == "yes" ]] || { echo "[!] Cancelled"; exit 0; }
 }
 
+# True when ./saved/ holds a complete, non-empty set of the 7 radio partitions.
+saved_backup_complete() {
+    local n
+    for n in fsc fsg modemst1 modemst2 modem persist sec; do
+        [[ -s "saved/$n.bin" ]] || return 1
+    done
+    return 0
+}
+
 # Back up the device-unique radio/calibration partitions. This runs BEFORE any
 # write, so if any single backup fails we abort with the device completely
 # untouched. Each read is validated (exit code AND a non-empty file) so a
@@ -479,6 +493,32 @@ backup_radio() {
     echo "=== Partition Backup (EDL) ==="
     echo "[*] Saving radio/calibration partitions to ./saved/"
     echo "    (runs before anything is written; any failure aborts safely)"
+
+    # Guard: a COMPLETE backup is never overwritten.  Re-running a flash after a
+    # mid-flight failure must not replace the only good copy with the device's
+    # current (possibly half-restored) state.  An INCOMPLETE one is moved aside
+    # rather than merged, so a stale file from another layout can never slip in.
+    if saved_backup_complete; then
+        if [[ "$REFRESH_BACKUP" != true ]]; then
+            echo "[+] A complete radio backup is already present - keeping it:"
+            local k
+            for k in fsc fsg modemst1 modemst2 modem persist sec; do
+                printf '    %-9s %12s bytes\n' "$k" "$(wc -c < "saved/$k.bin")"
+            done
+            echo "    (pass --refresh-backup to re-read them from the device)"
+            return 0
+        fi
+        local keep="saved.old.$(date +%Y%m%d-%H%M%S)"
+        echo "[!] --refresh-backup: moving the current ./saved/ to ./$keep"
+        mv saved "$keep" || die "moving ./saved aside"
+        mkdir -p saved
+    elif [[ -d saved ]] && [[ -n "$(ls -A saved 2>/dev/null)" ]]; then
+        local keep="saved.partial.$(date +%Y%m%d-%H%M%S)"
+        echo "[!] ./saved/ is INCOMPLETE - moving it to ./$keep before re-reading"
+        mv saved "$keep" || die "moving the incomplete ./saved aside"
+        mkdir -p saved
+    fi
+
     local n tmp
     for n in fsc fsg modemst1 modemst2 modem persist sec; do
         echo "[*] Backing up $n..."
@@ -503,19 +543,93 @@ backup_radio() {
     echo "[+] Backup complete: all 7 partitions saved to ./saved/"
 }
 
+# Read the small radio partitions back and compare them with the backup.  A
+# silently truncated write is exactly what leaves a device with a corrupt
+# modemst2 (no IMEI, modem detached), so this is worth the extra EDL sessions.
+# Only the small partitions are read back - modem (64 MiB) and persist (32 MiB)
+# would double the flash time for little gain.
+verify_radio_restore() {
+    local n tmp bad=0
+    echo "[*] Verifying the restored partitions (read-back)..."
+    for n in fsc fsg modemst1 modemst2 sec; do
+        tmp=$(mktemp)
+        if edl r "$n" "$tmp" >/dev/null 2>&1; then
+            if cmp -s "$tmp" "saved/$n.bin"; then
+                echo "    [ok] $n"
+            else
+                echo "    [MISMATCH] $n" >&2
+                bad=1
+            fi
+        else
+            echo "    [!] could not read '$n' back (skipped)"
+        fi
+        rm -f "$tmp"
+    done
+    if (( bad )); then
+        die "read-back verification FAILED - the restored data does not match ./saved/.
+    Do not boot this device yet.  Re-enter EDL and rewrite the partition(s)
+    reported as MISMATCH with:
+        edl w <partition> saved/<partition>.bin"
+    fi
+    echo "[+] Read-back verification passed"
+}
+
 restore_radio() {
     echo
     echo "=== Partition Restoration (EDL) ==="
-    local n
-    # Pre-flight: never start restoring unless every backup is present, so we
+    local n len fsz attempt ok
+
+    # Pre-flight 1: never start restoring unless every backup is present, so we
     # cannot half-restore and leave the radio partitions inconsistent.
     for n in fsc fsg modemst1 modemst2 modem persist sec; do
         [[ -s "saved/$n.bin" ]] || die "missing backup file saved/$n.bin - refusing to restore"
     done
+
+    # Pre-flight 2: every backup must fit the partition in the CURRENT GPT.
+    # This catches a ./saved/ that was taken from a different layout before a
+    # single byte is written.
     for n in fsc fsg modemst1 modemst2 modem persist sec; do
-        echo "[*] Restoring $n..."
-        edl w "$n" "saved/$n.bin" || die "restoring $n"
+        len=$(gpt_field "$n" Length)
+        [[ -n "$len" ]] || continue
+        fsz=$(wc -c < "saved/$n.bin")
+        if (( fsz > 0x$len )); then
+            die "saved/$n.bin is $fsz bytes but the '$n' partition is only $(( 0x$len )) bytes.
+    That backup does not belong to this partition layout - refusing to write it.
+    Nothing has been changed on the device."
+        fi
     done
+
+    # A write can drop the EDL session (the device resets and comes back in
+    # Sahara error state).  Retry, and if it still fails print an exact recipe
+    # instead of leaving the user to guess.
+    for n in fsc fsg modemst1 modemst2 modem persist sec; do
+        ok=false
+        for attempt in 1 2 3; do
+            echo "[*] Restoring $n (attempt $attempt/3)..."
+            if edl w "$n" "saved/$n.bin"; then ok=true; break; fi
+            echo "[!] write of '$n' failed"
+            if (( attempt < 3 )); then
+                echo "    retrying in 3 s..."
+                sleep 3
+            fi
+        done
+        if [[ "$ok" != true ]]; then
+            die "restoring '$n' failed after 3 attempts.
+    The device most likely dropped out of EDL (Sahara error state). Nothing after
+    '$n' was written and ./saved/ is untouched - your backups are safe.
+
+    To finish by hand:
+      1) power-cycle the device, then re-enter EDL (test point / EDL button)
+      2) edl printgpt                       # the partition must be listed
+      3) edl w <partition> saved/<file>.bin  # PARTITION first, FILE second
+         e.g.  edl w modemst2 saved/modemst2.bin
+         (fsc fsg modemst1 modemst2 modem persist sec)
+      4) ./<this>-flash.sh --mode update --erase-config --yes
+         # flashes boot + rootfs + recovery and wipes rootfs_data"
+        fi
+    done
+    echo "[+] All 7 radio partitions restored"
+    verify_radio_restore
 }
 
 # Sanitize a device name into a safe filename component (letters, digits, . _ -).
