@@ -74,9 +74,10 @@ BEARER_LOCK="/var/lock/modem-bearer.lock"
 config_load sim-hotplug
 config_get_bool ENABLED general enabled 1
 config_get IDLE_INTERVAL   general idle_interval 60
-config_get ACTIVE_INTERVAL general active_interval 10
+config_get ACTIVE_INTERVAL general active_interval 5
 config_get ABSENT_INTERVAL general absent_interval 20
 config_get PULSE_MS        general pulse_ms 300
+config_get MAX_PULSE_BEFORE_RESTART general max_pulse_before_restart 5
 
 # Time for the baseband to re-initialise the card after a pulse.  While the
 # re-init runs, UIM still answers "possibly-removed", so querying too early
@@ -97,6 +98,28 @@ pulse_sim() {
     return 0
 }
 
+# Last-resort recovery when pulsing cannot make the baseband re-read the card.
+# This mirrors the manual 'remoteproc stop/start' reporters use to recover a
+# swap the pulse alone cannot: the modem is restarted so it re-enumerates and
+# re-reads the slot.  Prefers the debugfs SSR lever (handled gracefully by
+# ModemManager through the SSR notifiers, per patches 826/850); falls back to a
+# hard remoteproc stop/start.  modem-bearer-watchdog's zombie recovery brings
+# ModemManager back if the restart drops it.  Returns 0 if a restart was
+# attempted, 1 if no restart path is available.
+restart_modem() {
+    log "SIM not recovered after $1 pulses - escalating to modem restart"
+    if [ -w /sys/kernel/debug/msm_subsys/modem ]; then
+        echo restart > /sys/kernel/debug/msm_subsys/modem 2>/dev/null && return 0
+    fi
+    if [ -w /sys/class/remoteproc/remoteproc0/state ]; then
+        echo stop > /sys/class/remoteproc/remoteproc0/state 2>/dev/null
+        sleep 2
+        echo start > /sys/class/remoteproc/remoteproc0/state 2>/dev/null && return 0
+    fi
+    log "no modem-restart path available - cannot escalate"
+    return 1
+}
+
 modem_index() {
     mmcli -L 2>/dev/null | sed -n 's|.*/Modem/\([0-9][0-9]*\).*|\1|p' | head -n1
 }
@@ -115,10 +138,17 @@ modem_state() {
     echo "$st"
 }
 
-# Echo: present | absent | exhaust | unknown
+# Echo: present | absent | exhaust | locked | unknown
 uim_state() {
-    out=$(timeout 12 flock "$LOCK" qmicli --device-open-proxy -d "$QMI_DEV" \
+    # Non-blocking lock: busybox flock has no -w, so a second instance (e.g. a
+    # procd respawn that overlaps a still-alive predecessor) would otherwise
+    # block here forever and produce exactly the "running but logs nothing"
+    # symptom seen in issue #22.  If we cannot acquire, report 'locked' and let
+    # the caller skip this cycle instead of wedging the service.
+    out=$(timeout 12 flock -n "$LOCK" qmicli --device-open-proxy -d "$QMI_DEV" \
           --uim-get-card-status 2>&1)
+    rc=$?
+    [ "$rc" -ne 0 ] && { echo locked; return; }
     case "$out" in
         *ClientIdsExhausted*|*client-ids-exhausted*) echo exhaust; return ;;
         *possibly-removed*)                          echo absent;  return ;;
@@ -197,6 +227,9 @@ poll_loop() {
         present)
             log "SIM present at startup"
             ;;
+        locked)
+            log "SIM state unknown at startup (QMI lock busy - will retry)"
+            ;;
         *)
             log "SIM state unknown at startup ($u)"
             ;;
@@ -232,12 +265,24 @@ poll_loop() {
                     ;;
                 absent)
                     miss=$((miss + 1))
-                    if [ $((miss % 3)) -eq 0 ]; then
+                    if [ "$miss" -ge "$MAX_PULSE_BEFORE_RESTART" ]; then
+                        # The pulse alone cannot recover this unit: GPIO114 is
+                        # likely not wired to the baseband SIM-detect, or the
+                        # card genuinely never re-appears.  Escalate to a modem
+                        # restart (the only recovery some units accept) and keep
+                        # monitoring - the restart re-reads the slot on boot.
+                        restart_modem "$miss"
+                        miss=0
+                    elif [ $((miss % 3)) -eq 0 ]; then
                         log "card still not visible after re-announce ($miss)"
                     fi
                     ;;
                 unknown)
                     miss=$((miss + 1))
+                    ;;
+                locked)
+                    # Could not acquire the QMI lock this cycle; skip without
+                    # advancing miss so we don't escalate on a transient blip.
                     ;;
                 exhaust)
                     log "QMI client IDs exhausted - backing off 60 s"
@@ -336,6 +381,7 @@ Configuration (uci, /etc/config/sim-hotplug):
   sim-hotplug.general.active_interval  5    seconds between checks while searching
   sim-hotplug.general.absent_interval  6    seconds between re-announce cycles
   sim-hotplug.general.pulse_ms         300  sim_hotplug pulse width
+  sim-hotplug.general.max_pulse_before_restart 5  failed pulses before escalating to a modem restart
 
 Service:  /etc/init.d/sim-hotplug {start|stop|restart|status|rescan}
 Log:      logread -e sim-hotplug
