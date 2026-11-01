@@ -252,9 +252,10 @@ jobs:
       # kmod compile fails with "No rule to make target .../.config". Prepare
       # (configure + build) the kernel tree first so the .config is present.
       - name: Prepare the kernel tree
-        # Only a kmod build needs linux-<ver>/.config; a target package does not,
-        # and building the kernel would add ~20 min to every base-files hotfix.
-        if: inputs.package != '' && !inputs.target_package
+        # Needed for target packages too: base-files pulls kmods into its
+        # compile chain (gpio-button-hotplug), and a kmod build dies without
+        # linux-<ver>/.config -- measured in run 41350406799.
+        if: inputs.package != ''
         run: ./build.sh kernel "$BOARD"
 
       - name: Build the package
