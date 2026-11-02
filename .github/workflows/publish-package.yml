@@ -89,6 +89,11 @@ on:
         required: false
         default: ""
         type: string
+      skip_kernel:
+        description: "Skip the kernel tree build. Only for packages with no kernel modules (shell / JS / LuCI): it turns a ~35 min publish into ~5 min. Leave false for kmod-* and target packages."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -291,7 +296,11 @@ jobs:
         # Needed for target packages too: base-files pulls kmods into its
         # compile chain (gpio-button-hotplug), and a kmod build dies without
         # linux-<ver>/.config -- measured in run 41350406799.
-        if: inputs.package != ''
+        #
+        # A shell/JS/LuCI package compiles nothing, so the kernel build is pure
+        # waiting: it is the bulk of a ~35 min publish.  skip_kernel exists for
+        # those and must stay false for anything that carries a kernel module.
+        if: ${{ inputs.package != '' && !inputs.skip_kernel }}
         run: ./build.sh kernel "$BOARD"
 
       - name: Build the package
