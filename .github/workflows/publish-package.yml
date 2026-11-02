@@ -6,9 +6,19 @@ name: Publish Single Package
 #
 #     apk update && apk upgrade <package>
 #
-# instead of a ~40 MB firmware reflash.  Not "apk add": the package is
-# already installed and in the world file, so apk add considers it
-# satisfied and does nothing.
+# instead of a ~40 MB firmware reflash.
+#
+# Exception: a package the image build version-pins in /etc/apk/world --
+# base-files, kernel and libc -- ignores "apk upgrade": the pin wins, apk
+# reports OK and changes nothing.  Those need
+#
+#     apk update && apk add '<package>=<version>'
+#
+# which installs the new build and moves the pin with it.  Measured
+# 2026-11-02 on base-files 1718 -> 1719: "apk upgrade base-files" printed
+# "OK: 83.1 MiB in 307 packages" and changed nothing; the explicit add
+# worked.  A plain "apk add <package>" is still a no-op - the version is
+# what makes it an upgrade.
 #
 # Why the published feed is downloaded first: `make package/index` indexes
 # whatever .apk files sit in openwrt/bin/packages. A single-package build fills
@@ -426,6 +436,7 @@ jobs:
               echo "> \`PKG_RELEASE\` was stamped to ${{ inputs.pkg_release }} for this build only (from the workflow input, nothing to commit)."
               echo ">"
               echo "> The upgrade replaces files but does not restart anything already running - restart the service whose script changed, e.g. \`/etc/init.d/sim-hotplug restart\`."
+              echo "> `base-files` is version-pinned in `/etc/apk/world` by the image build, so `apk upgrade base-files` prints OK and changes nothing. Use `apk add base-files=<version>`."
             else
               echo "> \`PKG_RELEASE\` was bumped for this build only - commit packages/${PKG}/Makefile."
             fi
