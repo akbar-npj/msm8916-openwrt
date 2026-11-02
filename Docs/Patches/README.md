@@ -34,7 +34,7 @@ This project maintains changes in **five** categories. The first three are sourc
 | [`807-arm64-dts-qcom-add-msm8916-generic-mf800b.patch`](../../msm89xx/patches/807-arm64-dts-qcom-add-msm8916-generic-mf800b.patch) | `msm8916-generic-mf800b.dts` | Full board DTS for the MF800B stick (battery fuel-gauge, bi-colour LEDs, ramoops). |
 | [`852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch`](../../msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch) | `msm8916-generic-ufi003_mb_v02.dts` | Full board DTS for the UFI003_MB_V02 stick (SIM/eSIM GPIO hogs, tri-colour LEDs, reset button, ramoops). |
 | [`853-arm64-dts-qcom-add-msm8916-generic-mifib-v12.patch`](../../msm89xx/patches/853-arm64-dts-qcom-add-msm8916-generic-mifib-v12.patch) | `msm8916-generic-mifib-v12.dts` | Full board DTS for the HM-MIFIB-V12 dongle: 4.2 V battery + PM8916 LBC charger + VM-BMS with pack thermistor, 4-bar battery LEDs, dual-colour WLAN/WAN LEDs, thermal mitigation and the A2 pin. |
-| [`867-arm64-dts-qcom-add-msm8916-generic-uf896.patch`](../../msm89xx/patches/867-arm64-dts-qcom-add-msm8916-generic-uf896.patch) | `msm8916-generic-uf896.dts` | Full board DTS for the UF896 (v1.1) 4G router: ramoops, reset button GPIO 35, tri-colour status LEDs plus six extra indicator LEDs (charger / network / Wi-Fi / data-link). SIM is selected by the modem via `AT+SIMSEL`, **not** an AP GPIO; **no `qcom,a2-pin`** (field-tested — this board does not need the hold). |
+| [`867-arm64-dts-qcom-add-msm8916-generic-uf896.patch`](../../msm89xx/patches/867-arm64-dts-qcom-add-msm8916-generic-uf896.patch) | `msm8916-generic-uf896.dts` | Full board DTS for the UF896 (v1.1) 4G router: ramoops, reset button GPIO 35, tri-colour status LEDs plus six extra indicator LEDs (charger / network / Wi-Fi / data-link). SIM slot 1 is the default and needs no userspace help; selection is **not** an AP GPIO. Also sets `qcom,a2-pin` on `&bam_dmux`: r4 shipped without it on the assumption the board does not hit the A2 quiesce wedge, but field logs show `a2_power.c:1216` aborting the remoteproc at ~930 s of uptime and then crash-looping every 70–130 s. |
 
 ### 1.2 BAM-DMUX network driver (808–812, 814, 820, 821, 825, 828, 831–833, 848, 850)
 
@@ -354,10 +354,11 @@ copies into `target/linux/msm89xx` (and merges `base-files/` into the rootfs). I
   4. **Extra indicator LEDs** (`leds-extra`): charger blue GPIO 77 / red
      GPIO 78, network blue GPIO 81 / red GPIO 82, Wi-Fi green GPIO 83 and
      data-link blue GPIO 84.
-  5. **No SIM GPIO hogs and no A2 pin**: the modem selects the physical SIM
-     with `AT+SIMSEL=0,1,1,1` (userspace, `luci-app-uf896-simsel`), and the
-     board does **not** exhibit the `a2_power.c:1189` quiesce wedge, so it
-     ships without `qcom,a2-pin`.
+  5. **No SIM GPIO hogs; A2 pin enabled**: slot 1 is the modem's default, so
+     no userspace SIM helper ships. The board **does** hit the A2 quiesce
+     wedge — field logs show `a2_power.c:1216` at ~930 s and a crash loop
+     every 70–130 s afterwards — so patch `867` sets `qcom,a2-pin` on
+     `&bam_dmux`, like the other HiMI-family boards.
 - **Board bring-up quirk**: the modem boots into DMS operating mode
   `factory-test` (RF disabled, cannot register). `etc/init.d/uf896-modem-online`
   (START=60, ahead of ModemManager at 70) waits for `/dev/wwan0qmi0` and runs
