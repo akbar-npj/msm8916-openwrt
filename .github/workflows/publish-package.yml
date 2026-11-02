@@ -434,8 +434,13 @@ jobs:
           # release directory, so the URL is the applies-to tag: a fix
           # published here can never reach a different image.
           if [ -n "${{ inputs.hotfix_title }}" ] && [ -n "$PKG" ]; then
-            APKFILE="$(find openwrt/bin/packages openwrt/bin/targets/msm89xx/msm8916/packages -name "${PKG}-*.apk" -printf '%f\n' 2>/dev/null | sed -n '1p')"
-            VER="${APKFILE#${PKG}-}"; VER="${VER%.apk}"
+            # The published feed was copied back into these directories, so the
+            # previous build of the same package is sitting next to the new one:
+            # take the HIGHEST version, never "the first file find returns".
+            VER="$(find openwrt/bin/packages openwrt/bin/targets/msm89xx/msm8916/packages \
+                     -name "${PKG}-*.apk" -printf '%f\n' 2>/dev/null \
+                   | sed -e "s|^${PKG}-||" -e 's|\.apk$||' \
+                   | sort -V | tail -1)"
             [ -n "$VER" ] || { echo "::error::cannot work out the built version of ${PKG}"; exit 1; }
             DEST="/tmp/gh-pages/releases/${FULL}"
             mkdir -p "$DEST"
