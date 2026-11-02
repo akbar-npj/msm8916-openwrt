@@ -1,0 +1,37 @@
+base-files: floor PKG_RELEASE above the published hotfix high-water mark
+
+base-files derives PKG_RELEASE from COMMITCOUNT, which counts commits that
+touch package/base-files.  That number does not move between our releases, so
+every image we build ships the same base-files version -- 1719 today -- while
+the hotfix channel has already served 1720.
+
+apk compares version numbers, not contents.  Republishing 1720 with different
+bytes makes an install of base-files=1720 a no-op on a device that already has
+it, with no error anywhere; and an image shipping 1719 can never supersede a
+hotfix published above it.  The release workflow now refuses to build an image
+whose floor is not strictly higher than releases/<base>/published-versions.json,
+so the failure is loud instead of silent.
+
+Floor the number here.  Upstream count still wins once it passes the floor, so
+this does not fork us from upstream permanently.
+
+--- a/package/base-files/Makefile
++++ b/package/base-files/Makefile
+@@ -13,7 +13,16 @@
+ 
+ PKG_NAME:=base-files
+ PKG_FLAGS:=nonshared
+-PKG_RELEASE:=$(COMMITCOUNT)
++# The release number is the image's claim on this package, and apk compares
++# numbers, not contents.  Upstream derives it from COMMITCOUNT, which counts
++# commits touching package/base-files and does NOT move between our releases --
++# so a rebuilt image ships the same number as the last one and can never
++# outrank a hotfix already published above it.  Floor it, and let the release
++# workflow refuse to build an image whose floor is not strictly above the
++# published high-water mark (releases/<base>/published-versions.json).
++BASE_FILES_RELEASE_FLOOR:=1721
++BASE_FILES_COMMITCOUNT:=$(if $(COMMITCOUNT),$(COMMITCOUNT),0)
++PKG_RELEASE:=$(shell echo $$(( $(BASE_FILES_COMMITCOUNT) > $(BASE_FILES_RELEASE_FLOOR) ? $(BASE_FILES_COMMITCOUNT) : $(BASE_FILES_RELEASE_FLOOR) )))
+ 
+ PKG_FILE_DEPENDS:=$(PLATFORM_DIR)/ $(GENERIC_PLATFORM_DIR)/base-files/
+ PKG_BUILD_DEPENDS:=usign/host ucert/host
