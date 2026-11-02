@@ -1,0 +1,13 @@
+{
+  "build": "25.12.6-r4",
+  "hotfixes": [
+    {
+      "id": "2026-11-02-base-files",
+      "package": "base-files",
+      "version": "1720~981c978eff",
+      "title": "Fix: package updates no longer fail after a firmware upgrade",
+      "restart": [],
+      "published": "2026-11-02"
+    }
+  ]
+}
