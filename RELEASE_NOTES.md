@@ -1,5 +1,29 @@
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
+## v25.12.6-r6 — Feature highlights
+
+- ⏰ **The clock now survives a reboot.** The PM8916 RTC has no battery on these sticks, so it came
+  out of reset at 1970-01-01 and the kernel seeded the system clock from it on every boot — and
+  `hwclock -w` failed with `RTC_SET_TIME: No such device`, so nothing could ever write the time
+  back. The RTC node now carries `allow-set-time`, so the first boot with a real clock (sysfixtime
+  or NTP) stores it and every later boot starts sane. This is the root cause behind the recurring
+  "certificate is not yet valid" failures on a freshly flashed unit.
+
+- 🔑 **`apk-key-refresh` waits for a usable clock** instead of reporting a TLS error it cannot
+  explain. It no longer attempts the fetch before 2020-01-01; it says once that it is deferring,
+  rather than failing with `SSL verify error: unknown error` and a misleading "offline?" warning.
+
+- 🔢 **`base-files` carries a release floor.** Its version came from upstream's commit count, which
+  does not move between our releases, so every image shipped `1719` while the hotfix channel had
+  already served `1720`. `apk` compares numbers, not contents, so re-publishing the same number was
+  a silent no-op on the device, and an image below the hotfix line could never supersede it. The
+  image now ships `1721`, and the release workflow refuses to build one that is not strictly above
+  the published high-water mark.
+
+- 🩹 **`firmware-upgrade` 1.0-r14**: `hotfix apply` passes every feed, not only the target feed —
+  a 404 on one `--repository` aborts the whole transaction — and a failed manifest fetch now says
+  why instead of returning 1 with no output.
+
 ## v25.12.6-r5 — Feature highlights
 
 - 🔁 **SIM recovery that actually recovers.** `sim-hotplug` now escalates: when the hot-swap pulse
@@ -37,8 +61,9 @@
 
 ## ⚠️ Upgrade note
 
-The kernel configuration is **unchanged** since r4, so the vermagic is the same and existing
-`kmod-*` packages keep working. The root filesystem did change substantially, though, so upgrade
-with the **full image** (*System → Firmware Upgrade*) rather than a bare `apk upgrade`.
+The kernel **configuration** is unchanged since r4, so the vermagic is the same and existing
+`kmod-*` packages keep working. r6 does change the device tree (the RTC node), and that only
+arrives with the image, so upgrade with the **full image** (*System → Firmware Upgrade*) rather
+than a bare `apk upgrade`.
 
 **Boards:** hmuf02v5, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801.
