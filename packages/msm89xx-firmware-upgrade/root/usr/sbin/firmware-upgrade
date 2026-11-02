@@ -242,7 +242,18 @@ hotfix_apply_all() {
 		# would be refused by that new pin.  Keep a pin only where one existed.
 		was_pinned=0
 		grep -q "^${pkg}=" /etc/apk/world && was_pinned=1
-		apk add --repository "$HOTFIX_REPO" "$pkg=$ver" || { rc=1; break; }
+		if ! apk add --repository "$HOTFIX_REPO" "$pkg=$ver"; then
+			# apk exits 1 when it cannot write ONE file: base-files ships
+			# rom/note, and /rom is the read-only squashfs on every sysupgrade
+			# image, so that write always fails while the rest of the package
+			# installs cleanly.  Judge by the installed version, not the exit
+			# code, or every base-files hotfix would report failure.
+			if [ "$(installed_version "$pkg")" != "$ver" ]; then
+				rc=1
+				break
+			fi
+			log "$pkg $ver is installed despite apk reporting an error"
+		fi
 		if [ "$was_pinned" -eq 0 ]; then
 			sed -i "s|^${pkg}=.*|${pkg}|" /etc/apk/world
 		fi
