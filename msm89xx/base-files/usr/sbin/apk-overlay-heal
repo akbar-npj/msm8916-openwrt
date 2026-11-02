@@ -432,14 +432,23 @@ merge_world() {
 	[ -s "$img" ] || return 0
 	[ -f "$UPPER/$WORLD_REL" ] || return 0
 
+	# Dedupe by PACKAGE, not by line.  A world entry is "name", "name=version"
+	# or "name><checksum", and the image's constraint has to win over an older
+	# one left on the overlay: keeping both leaves apk with two conflicting pins
+	# (base-files=1718 next to 1719) and every transaction then fails with
+	# "breaks: world[...]" -- measured on an r2 -> r4 upgrade, where a stale
+	# kernel= line from the old image made apk refuse to install anything.
 	awk '
 		FNR == 1 { file++ }
 		{
 			line = $0
 			sub(/^[ \t]+/, "", line)
 			sub(/[ \t]+$/, "", line)
-			if (line == "" || (line in seen)) next
-			seen[line] = 1
+			if (line == "") next
+			key = line
+			sub(/[=><].*$/, "", key)
+			if (key == "" || (key in seen)) next
+			seen[key] = 1
 			order[++n] = line
 		}
 		END { for (i = 1; i <= n; i++) print order[i] }
