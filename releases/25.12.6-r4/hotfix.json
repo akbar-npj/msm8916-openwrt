@@ -8,6 +8,14 @@
       "title": "Fix: package updates no longer fail after a firmware upgrade",
       "restart": [],
       "published": "2026-11-02"
+    },
+    {
+      "id": "2026-11-02-msm89xx-firmware-upgrade",
+      "package": "msm89xx-firmware-upgrade",
+      "version": "1.0-r13",
+      "title": "Do not pin an ordinary hotfixed package; accept a partial apk error when the version moved",
+      "restart": [],
+      "published": "2026-11-02"
     }
   ]
 }
