@@ -1,0 +1,48 @@
+broadband-modem-qmi: fall back to UIM card status on the last unlock attempt
+
+Some Qualcomm firmware (UF896 v1.1 / MPSS.DPM.2.0.2) keeps returning
+QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED for the legacy DMS "UIM Get PIN
+Status" command even when the card is fully ready and the UIM "Get Card
+Status" path reports it present with PIN1 disabled.
+
+The generic unlock-required check treated that error as retry-able, so it
+retried the legacy command until the budget was exhausted and then failed
+with "Couldn't get SIM lock status after 7 retries", leaving the modem in
+"failed: sim-missing" despite a perfectly good SIM.
+
+On the final attempt, fall through to the UIM card-status path instead of
+giving up.  Retry behaviour is unchanged for firmware where the legacy
+command works; only the terminal case changes.
+
+--- a/src/mm-broadband-modem-qmi.c
++++ b/src/mm-broadband-modem-qmi.c
+@@ -964,13 +964,28 @@
+             return;
+         }
+ 
+-        /* Internal and uim-uninitialized errors are retry-able before being fatal */
++        /* Internal and uim-uninitialized errors are retry-able before being fatal.
++         * Some Qualcomm firmwares keep returning UIM_UNINITIALIZED for the legacy
++         * DMS command even when the card is fully ready and the UIM card-status
++         * path works; on the final attempt fall through to that path instead of
++         * giving up, so a working SIM isn't reported as sim-missing. */
+         if (g_error_matches (error,
+                              QMI_PROTOCOL_ERROR,
+                              QMI_PROTOCOL_ERROR_INTERNAL) ||
+             g_error_matches (error,
+                              QMI_PROTOCOL_ERROR,
+                              QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED)) {
++            if (g_error_matches (error,
++                                 QMI_PROTOCOL_ERROR,
++                                 QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED) &&
++                ctx->last_attempt) {
++                g_clear_error (&error);
++                qmi_message_dms_uim_get_pin_status_output_unref (output);
++                self->priv->dms_uim_deprecated = TRUE;
++                ctx->step++;
++                load_unlock_required_context_step (task);
++                return;
++            }
+             g_task_return_new_error (task,
+                                      MM_CORE_ERROR,
+                                      MM_CORE_ERROR_RETRY,
