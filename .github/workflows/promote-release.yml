@@ -42,11 +42,11 @@ concurrency:
 jobs:
   promote:
     name: Promote to production
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve and verify the test release
         id: vars

@@ -26,11 +26,11 @@ concurrency:
 jobs:
   shell-tests:
     name: Shell test suites
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # board-profile compares the pull request against its base branch.
           fetch-depth: 0

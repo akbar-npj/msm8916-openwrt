@@ -111,7 +111,7 @@ concurrency:
 jobs:
   publish:
     name: ${{ inputs.package || 'Feed maintenance' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       PKG: ${{ inputs.package }}
@@ -120,7 +120,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -180,7 +180,7 @@ jobs:
           echo "::warning::packages/${PKG}/Makefile was bumped to PKG_RELEASE:=${NEW} in this run only. Commit it, or the next build starts from ${OLD} again."
 
       - name: Cache OpenWrt Downloads & Toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             openwrt/dl
