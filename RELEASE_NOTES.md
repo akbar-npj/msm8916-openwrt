@@ -1,26 +1,44 @@
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
-## v25.12.6-r4 — Feature highlights
+## v25.12.6-r5 — Feature highlights
 
-- 🆕 **UF896 (v1.1) board support** — a new `uf896` target with its own diffconfig, device tree, and `uf896-modem-online` init script.
-  > ⚠️ **Please help us test this.** We don't have a UF896 unit on the bench, so v1.1 support is **untested on real hardware**. If you own one, please report: does it boot, does the modem come up and register, and does the SIM-slot switch work? Feedback (good or bad) in the issues is very welcome. Note: UF896 ships **without** the `qcom,a2-pin` modem hold used on the HiMI V1.0 boards — field testing showed this board does not hit the `a2_power.c:1189` quiesce wedge, so the pin is deliberately omitted.
+- 🔁 **SIM recovery that actually recovers.** `sim-hotplug` now escalates: when the hot-swap pulse
+  cannot bring the SIM back, it restarts the modem — bounded, because the first attempt at this
+  wedged the modem itself. A modem parked at `failed` / `sim-missing` is now recovered instead of
+  staying dead until a reboot. Closes issue #22.
 
-- 📶 **UF896 SIM-slot switch UI** — new `luci-app-uf896-simsel`: a web UI + watchdog for the UF896-only SIM-slot selection (`AT+SIMSEL`).
+- 📇 **ModemManager falls back to the UIM card status** when the last unlock attempt reports
+  "sim-missing", instead of giving up. This is the UF896 case: the SIM is present, but the first
+  probe races the boot. Also: the `modemmanager` proto retries PLMN registration instead of
+  blocking on the first failure, and `modem-bearer-watchdog` accepts `MM_INTERFACE_RESTART` in the
+  re-drive gate.
 
-- 📦 **Kernel-module repository expanded (~80 new `kmod-*`)** — the upstream feeds reference ~85 `kmod-*` packages our targets never carried. Enabled the buildable ones on **all 8 boards** as `=m` (image size unchanged): QoS/shaper, tunnels, netfilter, storage, USB, legacy `iptables`/`xtables`, and audio.
-  - **NFQUEUE** for zapret / zapret-manager / steer: `kmod-nft-queue` (nftables) + `kmod-ipt-nfqueue` (iptables) — **closes issue #24**.
+- 📶 **UF896: `uf896-modem-online` retries and verifies DMS online mode**, so a slow boot no longer
+  leaves the modem offline. The dead SIM-slot helper is gone and the **A2 pin hold is enabled**,
+  matching the other HiMI V1.0 boards.
 
-- 🔧 **Kmod hotfix workflow** — new `publish-kmod.yml` rebuilds an existing module against the released kernel config and re-publishes the feed, so a driver fix ships without a full reflash. (It won't *add* a new module — that changes the kernel vermagic; new modules still need a firmware release.)
+- 📦 **Hotfix channel, end to end.** Each build now publishes a `hotfix.json`, LuCI shows a dashboard
+  notice and offers a one-click install, and `firmware-upgrade` gained three fixes: a hotfix no
+  longer leaves an ordinary package version-pinned in `/etc/apk/world`; a partial `apk` error is
+  accepted when the installed version actually moved (base-files ships `rom/note` into a read-only
+  `/rom`, so it always exits 1); and `hotfix apply` now reaches every feed — it previously saw only
+  the target feed, so a normal package could not be installed at all.
 
-- 💾 **Full-device backup in the installer** — `flash.sh --mode backup` now dumps the whole device via EDL before flashing:
-  - **full raw image** (`edl rf` → `./<device>-dump.bin`) or **partition-wise** (`edl rl` → `./<device>-dump/`);
-  - dumps are **named after the device**, and the pre-flash check matches the right unit (it won't accept another device's dump);
-  - the installer warns and asks for confirmation before flashing if no backup for this device is found.
+- 🧹 **`apk-overlay-heal` merges `/etc/apk/world` by package** rather than by line, so an upgraded
+  image cannot leave duplicate or lost world entries behind.
+
+- 🔍 **`apk-key-refresh` no longer warns about a kernel the feed still offers.** It compared against
+  whichever `kernel-*` line `apk list -a` printed first — index order, not the version the device
+  actually runs — and so warned about perfectly healthy units.
+
+- 🆘 **Recovery images are frozen and attached to every release**, with a guard that refuses to pair
+  a production kernel with modules from another build. `lk2nd` now honours fastboot reboot reasons
+  (recovery / EDL), and `flash.sh --mode backup` restores the radio even if the EDL session drops.
 
 ## ⚠️ Upgrade note
 
-This release adds kernel modules, so the kernel vermagic changed. Upgrade via the **full image** (*System → Firmware Upgrade*), not a bare `apk upgrade`, so the kernel and its modules stay in sync.
+The kernel configuration is **unchanged** since r4, so the vermagic is the same and existing
+`kmod-*` packages keep working. The root filesystem did change substantially, though, so upgrade
+with the **full image** (*System → Firmware Upgrade*) rather than a bare `apk upgrade`.
 
 **Boards:** hmuf02v5, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801.
-
-
