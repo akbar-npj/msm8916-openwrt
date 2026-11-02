@@ -111,6 +111,88 @@ the **published package feed** does — an unchanged `PKG_RELEASE` means
 `apk upgrade` will not pick the new file up. Bump it whenever a package's
 `root/` tree changes.
 
+### 3.1 Package hotfix without a release
+
+A fix that lives only in a package (`base-files` scripts, a LuCI app, a feed
+package) ships through the feed, not through a new image. `version` and
+`RELEASE_NOTES.md` stay untouched: the device keeps reporting e.g.
+`25.12.6-r4`.
+
+**1. Publish it.** `.github/workflows/publish-package.yml` rebuilds the one
+package against the released toolchain and splices it into the feed that is
+already published, then re-signs the index.
+
+```sh
+# a package under packages/
+gh workflow run publish-package.yml --ref main -f package=luci-app-foo -f bump=true
+
+# a TARGET package (base-files): its PKG_RELEASE is $(COMMITCOUNT), which does
+# not move between releases, so stamp an explicit number instead
+gh workflow run publish-package.yml --ref main \
+  -f package=base-files -f target_package=true -f pkg_release=1719
+```
+
+`target_package` also re-indexes and re-signs `bin/targets/.../packages`,
+where a target package lands. `bump` is skipped for it.
+
+**2. Check what was published** - do not trust the run summary:
+
+```sh
+curl -s https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages/index.json \
+  | grep -o 'base-files[^"]*'
+# base-files": "1719~981c978eff
+```
+
+and confirm the `.apk` really carries your file - the index says nothing about
+contents:
+
+```sh
+A=openwrt/staging_dir/host/bin/apk
+$A adbdump <feed>/base-files-1719~981c978eff.apk | grep -A3 'name: sim-hotplug'
+# size + hash must equal the file in the tree (md5sum it if unsure)
+```
+
+**3. Install it on the device. `apk upgrade` is a no-op for base-files.**
+
+The image build version-pins three packages in `/etc/apk/world`:
+
+```
+base-files=1718~981c978eff
+kernel=6.12.112~8efa871abf779b5591d7c27483980dfd-r1
+libc=1.2.5-r5
+```
+
+`apk` honours the pin, so `apk upgrade base-files` skips it **and still prints
+`OK: 83.1 MiB in 307 packages`**. LuCI's upgrade button does the same. The
+version in the command is what makes it an upgrade, and it moves the pin with
+it:
+
+```sh
+apk update
+apk add 'base-files=1719~981c978eff'
+/etc/init.d/sim-hotplug restart      # the upgrade replaces files, not the daemon
+```
+
+Packages that are not pinned (`luci-app-*`, `msm89xx-scripts`, kmods) take the
+normal form: `apk update && apk upgrade <package>`.
+
+**4. Verify on the device.**
+
+```sh
+apk list -I | grep base-files              # 1719~981c978eff
+grep -c restart_modem /usr/sbin/sim-hotplug  # the new code, not the image's
+logread -e sim-hotplug | tail                # behaviour after the restart
+```
+
+**Rollback.** The previous build stays in the published feed and its index, so
+the same command with the old version moves the pin back:
+
+```sh
+apk add 'base-files=1718~981c978eff'
+```
+
+Do not prune old `.apk` files from gh-pages - they are the rollback path.
+
 ## 4. `RELEASE_NOTES.md`
 
 This file *is* the release body (`body_path: RELEASE_NOTES.md` in the workflow).
@@ -290,6 +372,8 @@ manifest lands.
 | `gh` says the tag exists | a previous run created it before failing | `--cleanup-tag` on delete, or bump the revision |
 | Local build has old code | `./build.sh kernel` is compile-only and does not install into `root-msm89xx` | use `./build.sh build <board>` |
 | Build log has hundreds of `ERROR:` lines | postinst scripts echoing `ERROR: …` | look for `*** Error N` and a missing `==> Finished in` instead; use `grep -a` (the log contains escape sequences) |
+| `apk upgrade base-files` prints `OK` but the version does not change | the image pins `base-files` in `/etc/apk/world` | `apk add 'base-files=<version>'` (§3.1) |
+| `apk` fails with `kernel-... breaks: world[kernel=...]` | a duplicate `kernel=` line left in the world by an older image | delete the stale line, or `firstboot -y` |
 
 ## Checklist
 
