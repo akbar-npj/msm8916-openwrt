@@ -425,7 +425,14 @@ jobs:
             [ -d "$DEST/packages/aarch64_generic" ] || continue
             echo "Updating releases/${DIR}"
             cp -a openwrt/bin/packages/aarch64_generic/. "$DEST/packages/aarch64_generic/"
-            if [ -d "$DEST/targets/msm89xx/msm8916/packages" ]; then
+            # Only a target package build produces a targets index of its own.
+            # Any other publish merely restored the SHARED feed into that
+            # directory, so copying it into releases/<exact version> would
+            # overwrite the revision feed's index with the base one and make a
+            # target hotfix published there earlier vanish from the index
+            # (measured 2026-11-02: a luci-app publish wiped base-files 1720
+            # out of releases/25.12.6-r4 while leaving the .apk behind).
+            if [ "${{ inputs.target_package }}" = "true" ] && [ -d "$DEST/targets/msm89xx/msm8916/packages" ]; then
               cp -a openwrt/bin/targets/msm89xx/msm8916/packages/. "$DEST/targets/msm89xx/msm8916/packages/"
             fi
             [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem "$DEST/public-key.pem" || true
