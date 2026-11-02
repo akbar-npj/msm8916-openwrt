@@ -443,6 +443,56 @@ jobs:
           publish_dir: /tmp/gh-pages-site
           keep_files: true
 
+      # The feed directory is additive: peaceiris keeps files it does not know
+      # about, and every release adds another kernel generation with its own
+      # kmod-* set.  Left alone the directory grows forever, and because
+      # `apk list -a` prints in index order rather than version order, a device
+      # could be told that its own kernel was missing from the feed.
+      # Keep exactly the kernel and kmods this build produced; anything else in
+      # that directory belongs to a build nobody can install any more.
+      - name: Prune Superseded Kernel & Kmod Packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE: ${{ needs.setup.outputs.base }}
+          VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          set -euo pipefail
+          BUILT="$GITHUB_WORKSPACE/openwrt/bin/targets/msm89xx/msm8916/packages"
+          [ -d "$BUILT" ] || { echo "::error::no built package dir at $BUILT"; exit 1; }
+          rm -rf /tmp/prune
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/prune
+          cd /tmp/prune
+          changed=0
+          for DIR in $(printf '%s\n' "$BASE" "$VERSION" | sort -u); do
+            D="releases/${DIR}/targets/msm89xx/msm8916/packages"
+            [ -d "$D" ] || continue
+            for f in "$D"/kernel-*.apk "$D"/kmod-*.apk; do
+              [ -e "$f" ] || continue
+              [ -e "$BUILT/$(basename "$f")" ] && continue
+              echo "prune $f"
+              git rm -q "$f"
+              changed=1
+            done
+          done
+          if [ "$changed" -eq 0 ]; then
+            echo "Nothing to prune."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "feed: prune kernel/kmod packages superseded by ${VERSION}"
+          # The package publish workflows push to this same branch under their
+          # own concurrency groups, so one can land between our deploy and this
+          # push.  Rebase and retry instead of failing a release that has
+          # already published everything else.
+          for i in 1 2 3; do
+            git push -q origin gh-pages && break
+            [ "$i" -eq 3 ] && { echo "::error::cannot push the prune to gh-pages"; exit 1; }
+            git pull -q --rebase origin gh-pages
+          done
+          echo "Pruned superseded kernel/kmod packages."
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

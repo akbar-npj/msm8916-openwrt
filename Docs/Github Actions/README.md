@@ -156,7 +156,18 @@ silently discarded by a second dispatch.
 - Deploys via `peaceiris/actions-gh-pages@v4` to the **`gh-pages`** branch with
   `keep_files: true` so prior versions are preserved.
 
-#### Step 18: Publish GitHub Release
+#### Step 18: Prune Superseded Kernel & Kmod Packages
+- The feed directory is additive — `keep_files: true` preserves anything the deploy does not
+  mention — and every release adds another kernel generation with its own `kmod-*` set. Left alone
+  it grows forever, and because `apk list -a` prints in index order rather than version order, a
+  device could be told that its own kernel was missing from the feed.
+- After the deploy, the job re-clones `gh-pages` and deletes every `kernel-*.apk` / `kmod-*.apk`
+  that this build did not produce, in each release directory it published to. The index already
+  lists only the current build, so the directory and the index stay in agreement.
+- The push retries with a rebase, because the package publish workflows write to the same branch
+  under their own concurrency groups.
+
+#### Step 19: Publish GitHub Release
 - Uses `softprops/action-gh-release@v2` with `prerelease: false` (a tag push `v*` publishes a full release).
 - Attaches every image, `sha256sums`, the kmod bundle and the release notes. Assets with an existing
   name are replaced, so re-running a release is idempotent.
