@@ -103,18 +103,25 @@ install_key() {
 # the kernel package version (kernel-<kver>~<hash>-r<N>), so a kmod taken from
 # a feed built for a different kernel cannot be installed -- apk just fails
 # with an opaque "unable to satisfy dependencies" on the kernel constraint.
-# Compare the feed's available kernel package with the installed one and warn.
+# Compare the feed's available kernel packages with the installed one and warn.
 # Same contract as the key refresh: warn, never block.  The check reads apk's
-# index cache, so it reflects the last `apk update` -- a stale cache can only
-# MISS a mismatch, never report a false one.
+# index cache, so it reflects the last `apk update`.
 kernel_check() {
 	installed=$(apk list -I 2>/dev/null | awk '$1 ~ /^kernel-[0-9]/ { print $1; exit }')
-	available=$(apk list -a 2>/dev/null | awk '$1 ~ /^kernel-[0-9]/ { print $1; exit }')
+	[ -n "$installed" ] || return 0
 
-	[ -n "$installed" ] && [ -n "$available" ] || return 0
-	[ "$installed" = "$available" ] && return 0
+	# `apk list -a` prints in index order, NOT version order, and a feed that has
+	# been rebuilt accumulates every kernel generation it ever produced.  Taking
+	# the first line therefore names an arbitrary build, not the one apk would
+	# pick -- which is how this check used to warn about a perfectly healthy
+	# device whose own kernel was still offered by the feed.  What matters is
+	# whether the installed kernel is available at all.
+	available=$(apk list -a 2>/dev/null | awk '$1 ~ /^kernel-[0-9]/ { print $1 }')
+	[ -n "$available" ] || return 0
+	printf '%s\n' "$available" | grep -qxF "$installed" && return 0
 
-	log "WARNING: package-feed kernel mismatch: the feed provides $available, but this device has $installed installed"
+	feed_kernel=$(printf '%s\n' "$available" | head -n 1)
+	log "WARNING: package-feed kernel mismatch: the feed offers $feed_kernel, but this device has $installed installed"
 	log "kmod-* packages from this feed will NOT install (kernel vermagic mismatch) -- reflash the matching image, or use packages built for your kernel"
 }
 

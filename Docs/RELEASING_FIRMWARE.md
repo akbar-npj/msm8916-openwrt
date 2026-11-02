@@ -265,12 +265,22 @@ Inputs (all optional):
 | `release_tag` | derived from `version` | `v25.12.6-r3` |
 | `boards` | empty = all boards | a space-separated list for a targeted fix release |
 
-With `boards` set, only those boards rebuild and the manifest merge keeps the
-other boards on their last published version.
+With `boards` set, only those boards rebuild. Two merges keep the rest of the
+release coherent: `firmware.json` keeps the other boards' entries, and
+`sha256sums` is spliced so their checksum lines survive instead of being
+replaced by a file that only covers the rebuilt boards.
 
-The job takes **~1 h 25 m – 1 h 40 m**. Steps, in order: checkout → disk → tag →
-cache → prepare tree → compile images → extra packages → kmod bundle + checksums
-→ `firmware.json` → gh-pages feed → publish release.
+The pipeline is `setup` → `build` (one runner per board, in parallel) →
+`publish`. Each board builds on its own runner, so wall-clock time is roughly
+one board's build rather than the sum of all of them.
+
+> **Dispatch one release at a time.** Releases share a `concurrency` group, so a
+> second dispatch waits instead of running concurrently — that is what stops two
+> runs from writing the shared `gh-pages` feed and `firmware.json` at once.
+> GitHub only keeps **one pending run** per group, though: if a third dispatch
+> arrives while the first is still running, the second queued run is **silently
+> cancelled** and never shows up as a failure. Run `gh run list` before
+> dispatching again; if a queued run vanished, just dispatch once more.
 
 Watch it without polling in a loop:
 

@@ -180,7 +180,14 @@ do_upgrade() {
 # --repository: that feed is NOT in /etc/apk/repositories.d, so the LuCI
 # Software page never offers a pinned package it cannot install.
 HOTFIX_URL="$PAGES_BASE/releases/${_ver}/hotfix.json"
+# Two KINDS of feed live in a revision dir, and a hotfix can be in either:
+#   targets/msm89xx/msm8916/packages   target packages -- base-files, kmod-*
+#   packages/aarch64_generic/<feed>    everything else, one dir per feed
+# Passing only the target feed makes apk answer "unable to select packages" for
+# a package that is published perfectly well: the only candidate it can see is
+# the older version already installed, which then "breaks" the requested pin.
 HOTFIX_REPO="$PAGES_BASE/releases/${_ver}/targets/msm89xx/msm8916/packages/packages.adb"
+HOTFIX_REPO_FEEDS="base luci packages routing"
 
 installed_version() {
 	apk list -I "$1" 2>/dev/null | sed -n "s/^$1-\([^ ]*\) .*/\1/p" | sed -n '1p'
@@ -190,8 +197,16 @@ installed_version() {
 #   id <TAB> package <TAB> version <TAB> title <TAB> services
 hotfix_list() {
 	local body n i id pkg ver title restart inst
-	body="$(wget -q -O - "$HOTFIX_URL" 2>/dev/null)" || return 1
-	[ -n "$body" ] || return 1
+	body="$(wget -q -O - "$HOTFIX_URL" 2>&1)" || {
+		log "cannot read $HOTFIX_URL: $body"
+		case "$body" in
+		*SSL*|*ssl*|*certificate*)
+			log "a TLS error here usually means the device clock is wrong: run 'date -u' and fix it"
+			;;
+		esac
+		return 1
+	}
+	[ -n "$body" ] || { log "empty response from $HOTFIX_URL"; return 1; }
 	n="$(printf '%s' "$body" | jsonfilter -e '@.hotfixes[*].id' 2>/dev/null | wc -l)"
 	[ "$n" -gt 0 ] || return 0
 	i=0
@@ -227,6 +242,18 @@ hotfix_check_json() {
 	printf '{"build":"%s","count":%s,"checked":%s,"items":[%s]}\n' "$cur" "$count" "$now" "$items"
 }
 
+# apk aborts the whole transaction if one --repository 404s, and not every
+# build produces every feed, so only pass the ones that exist.
+hotfix_install() {
+	local spec="$1"
+	set -- --repository "$HOTFIX_REPO"
+	for _f in $HOTFIX_REPO_FEEDS; do
+		_u="$PAGES_BASE/releases/${_ver}/packages/aarch64_generic/${_f}/packages.adb"
+		wget -q --spider "$_u" 2>/dev/null && set -- "$@" --repository "$_u"
+	done
+	apk add "$@" "$spec"
+}
+
 hotfix_apply_all() {
 	local listfile id pkg ver title restart svc was_pinned rc=0
 	listfile="$TMP/hotfix.list"
@@ -242,7 +269,7 @@ hotfix_apply_all() {
 		# would be refused by that new pin.  Keep a pin only where one existed.
 		was_pinned=0
 		grep -q "^${pkg}=" /etc/apk/world && was_pinned=1
-		if ! apk add --repository "$HOTFIX_REPO" "$pkg=$ver"; then
+		if ! hotfix_install "$pkg=$ver"; then
 			# apk exits 1 when it cannot write ONE file: base-files ships
 			# rom/note, and /rom is the read-only squashfs on every sysupgrade
 			# image, so that write always fails while the rest of the package

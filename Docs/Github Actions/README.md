@@ -1,310 +1,501 @@
-# GitHub Actions CI/CD Architecture & Workflow Guide
+# GitHub Actions CI/CD — Architecture & Operations Guide
 
-Comprehensive guide explaining the design, configuration, execution flow, automated packaging, and release deployment of the GitHub Actions CI/CD pipeline for **OpenWrt on Qualcomm MSM8916** devices.
+How this project builds firmware, ships packages and delivers hotfixes through GitHub Actions.
 
----
+Everything runs on GitHub-hosted Ubuntu runners. There is no self-hosted infrastructure and no
+state anywhere except two places:
 
-## 1. System Overview & Architecture
+- **GitHub Releases** — immutable firmware images people download and flash.
+- **The `gh-pages` branch** — a git branch served as a website at
+  `https://akbar-npj.github.io/msm8916-openwrt`, which devices read with `apk`.
 
-The build pipeline automates the entire lifecycle of compiling OpenWrt firmwares, building modular kernel packages, deploying package repositories to GitHub Pages, and publishing GitHub Releases.
-
-```mermaid
-graph TD
-    A["Trigger: Git Tag (v*) or Workflow Dispatch"] --> B["GitHub Runner (ubuntu-latest)"]
-    B --> C["Step 1-3: Checkout Repo, Strip Disk Bloat (+35GB), Set Version"]
-    C --> D["Step 4: Build Docker Container & Run openwrt-prepare.sh"]
-    D --> E["Step 5: ./build.sh build all (hmuf02v5, ufi001b, ufi003, uz801, uf02, mf800b, mifib-v12)"]
-    E --> F["Step 6: Build CUPS Print Server & Drivers in Container"]
-    F --> G["Step 7: Bundle Offline Kmods & Compute sha256sums"]
-    G --> H["Step 8-9: Deploy APK Feeds to GitHub Pages (gh-pages)"]
-    G --> I["Step 10: Publish GitHub Pre-Release / Release with Images"]
-```
+Everything else in this document is bookkeeping around those two.
 
 ---
 
-## 2. Workflow Specification (`.github/workflows/build-and-release.yml`)
+## 1. The three pipelines
 
-The workflow definition is located at [`.github/workflows/build-and-release.yml`](../../.github/workflows/build-and-release.yml):
+There are five workflow files, but only three things you can actually *do*:
 
-```yaml
-name: Build OpenWrt MSM8916 & Release
+| Pipeline | Workflow | Builds | Publishes to | Roughly |
+|---|---|---|---|---|
+| **Firmware** | `build-and-release.yml` | every board's images + the whole feed | GitHub Release + `gh-pages` | 30-45 min |
+| **Package** | `publish-package.yml` | one package | the shared `gh-pages` feed | 7-35 min |
+| **Hotfix** | `publish-package.yml` (`scope=revision`) | one package | that image's own feed dir + `hotfix.json` | 7-35 min |
+| **Kernel module** | `publish-kmod.yml` | the kernel + selected `kmod-*` | the target feed | 20-40 min |
 
-on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Release tag (e.g. v25.12.6-r1, leave empty to use current version)"
-        required: false
-        default: ""
+All four have the same shape: **build the thing -> sign the package index -> push it where devices
+look.** The differences are only *what* is built and *which directory* it lands in.
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
+### Where things land
 
-jobs:
-  build:
-    name: Build All Boards, Kmods & Release
-    runs-on: ubuntu-latest
-```
-
-### Key Trigger Modes:
-1. **Tag Push (`v*`)**: Pushing a tag like `v25.12.6-rc1` or `v25.12.6-r1` automatically executes the entire build and creates the corresponding release.
-2. **Manual Dispatch (`workflow_dispatch`)**: Allows manual triggering from the GitHub Actions UI with custom release tag parameters without pushing new git commits.
-
----
-
-## 3. Step-by-Step Pipeline Walkthrough
-
-### Step 1: Checkout Repository
-- Uses `actions/checkout@v4` with `fetch-depth: 0` to preserve the complete git history and tag metadata.
-
-### Step 2: Free Disk Space on Runner
-- Standard GitHub Ubuntu runners have limited disk space (~30 GB).
-- The workflow removes pre-installed .NET runtimes, MySQL databases, PHP versions, and Android SDKs to free **~35 GB** of additional storage, ensuring parallel multi-target compilation has sufficient headroom.
-
-### Step 3: Determine Release Tag & Version
-- Extracts the tag from `${GITHUB_REF}` or workflow input.
-- Reads `version` file (`25.12.6`) to format release names and paths.
-
-### Step 4: Build Docker Image & Prepare OpenWrt Tree
-- Invokes `./build.sh prepare`.
-- Builds the `openwrt-builder` Docker container from `devenv/Dockerfile`.
-- Runs `scripts/openwrt-prepare.sh`:
-  - Clones and validates OpenWrt source tree.
-  - Syncs package feeds (`packages`, `luci`, `routing`, `telephony`, `video`) and verifies index files (`feeds/*.index`).
-  - Installs board targets to `target/linux/msm89xx`.
-  - Links project packages into `package/msm8916/`.
-  - Applies essential patches and compatibility fixes.
-- Injects the persistent APK signing key: writes the `APK_SIGNING_KEY` repository secret to `openwrt/private-key.pem`. **The step fails hard if the secret is missing** — see §8.
-
-### Step 5: Compile All Firmware Images
-- Runs `./build.sh build all` inside the container.
-- Compiles OpenWrt kernel (`boot.img`), SquashFS rootfs (`system.img`), and sysupgrade archives (`sysupgrade.bin`) across all 6 configured boards:
-  1. `hmu05` (Generic MSM8916 4G USB Dongle / Router)
-  2. `ufi001b` (Generic UFI001B 4G Stick)
-  3. `ufi003` (UFI003 MB V02 4G Stick)
-  4. `uz801` (YiMing UZ801v3 4G Stick)
-  5. `uf02` (Generic UF02 250605 V0S 4G Stick)
-  6. `mf800b` (Generic MF800B 4G MiFi)
-
-### Step 6: Compile Extra Packages (CUPS Print Server)
-- Executes `make package/msm8916/cups/compile package/index V=s`.
-- Compiles the CUPS network print daemon (`cupsd`), CUPS client tools (`lp`, `lpstat`, `cancel`), USB printer kernel module (`kmod-usb-printer`), and updates package indexes (`packages.adb`).
-
-### Step 7: Package Offline Kmod Bundle & Checksums
-- Bundles all target-compiled `.apk` packages into `kmods-msm8916-<version>.tar.gz`.
-- Computes SHA-256 checksums across all flashable firmware images and the kmod archive (the board name is globbed, so every built board is covered automatically):
-  ```bash
-  sha256sum openwrt-msm89xx-msm8916-*-squashfs-boot.img \
-            openwrt-msm89xx-msm8916-*-squashfs-system.img \
-            openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin \
-            openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
-            openwrt-msm89xx-msm8916-*-flash.sh \
-            openwrt-msm89xx-msm8916-*-firmware.zip \
-            kmods-msm8916-${VERSION}.tar.gz > sha256sums
-  ```
-
-### Step 8 & 9: Deploy Package Feeds to GitHub Pages
-- Structures the web repository directory layout:
-  ```text
-  /releases/<version>/targets/msm89xx/msm8916/packages/
-  /releases/<version>/packages/aarch64_generic/base/
-  ```
-- Deploys via `peaceiris/actions-gh-pages@v4` to the **`gh-pages`** branch with `keep_files: true` so prior versions are preserved.
-
-### Step 10: Publish GitHub Release
-- Uses `softprops/action-gh-release@v2` with `prerelease: false` (a tag push `v*` publishes a full release).
-- Automatically attaches all `.img`, `.bin`, `.zip`, and `.tar.gz` files along with `sha256sums` and release notes.
-
----
-
-## 4. Release Artifacts Generated
-
-| Artifact File | Description | Target Use Case |
-| :--- | :--- | :--- |
-| `*-squashfs-boot.img` | Android boot image (Kernel + DTB) | Fastboot / EDL flashing |
-| `*-squashfs-system.img` | Read-only SquashFS rootfs image | Fastboot / EDL flashing |
-| `*-squashfs-sysupgrade.bin` | Tarball archive with metadata | Web LuCI / CLI Sysupgrade |
-| `*-firmware.zip` | Full firmware + partition script | Total unbricking / EDL recovery |
-| `kmods-msm8916-<version>.tar.gz` | Offline archive of all target kmods | Offline package installation |
-| `sha256sums` | Cryptographic verification hashes | Release file integrity checking |
-
----
-
-## 5. Live Package Repository (GitHub Pages)
-
-The workflow automatically serves an OpenWrt APK package repository over GitHub Pages:
-
-### Feed URLs:
-- **Target Drivers & Kmods**:
-  `https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages`
-- **Base Architecture Packages**:
-  `https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base`
-
-### On-Device Configuration:
-Add these repositories to `/etc/apk/repositories.d/customfeeds.list`:
 ```text
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base
+GitHub Releases
+  v25.12.6-r4/
+    <board>-squashfs-boot.img, -system.img, -sysupgrade.bin, -firmware.zip
+    recovery-*.img, kmods-msm8916-<version>.tar.gz, sha256sums
+
+gh-pages branch  (served as https://akbar-npj.github.io/msm8916-openwrt)
+  firmware.json                                  <- update manifest, all boards
+  public-key.pem                                 <- stable feed signing key
+  releases/25.12.6/                              <- SHARED by every 25.12.6 device
+    packages/aarch64_generic/{base,luci,packages,routing}/
+    targets/msm89xx/msm8916/packages/            <- kernel + kmod-*
+  releases/25.12.6-r4/                           <- ONLY devices running r4
+    ...same layout...
+    hotfix.json                                  <- fixes offered to r4 devices
 ```
 
-Install packages over the air:
-```bash
-apk update
-apk add cups-daemon cups-client kmod-sched-cake kmod-usb-printer kmod-bluetooth
+### The two feed scopes
+
+This is the part worth internalising:
+
+```text
+releases/25.12.6/       every device on the 25.12.6 base reads this
+                        written by: full releases, and package builds (scope=base)
+
+releases/25.12.6-r4/    only devices running exactly r4 read this
+                        written by: hotfix builds (scope=revision)
 ```
 
-### Hotfixing a single package (no firmware rebuild)
+A fix compiled against image X must never reach image Y, which is why hotfixes get their own
+directory. A *package* is normally architecture-independent, so it can safely go to the shared
+directory and reach every device on that base version.
 
-[`publish-package.yml`](../../.github/workflows/publish-package.yml) is a second,
-narrowly scoped workflow: rebuild **one** package against the same toolchain and
-kernel as the release, splice it into the published feed and re-sign the index.
-The feed URL is unchanged, so no device needs a new repository line or a new key.
+### Which pipeline do I need?
 
-```bash
-gh workflow run publish-package.yml --ref main -f package=msm89xx-scripts
-# -> apk update && apk upgrade msm89xx-scripts   on the device
-```
-
-Inputs: `package` (required), `base` (default `./version` minus `-rN`), `board`
-(default `hmuf02v5`; only matters for `kmod-*`, which are vermagic-locked) and
-`bump` (default `true`, increments `PKG_RELEASE` — without it devices see the same
-version and do nothing).
-
-Two details matter for correctness:
-
-1. **The published feed is downloaded first.** `make package/index` indexes
-   whatever is in `openwrt/bin/packages`, so re-indexing a fresh tree would
-   publish an index containing only the rebuilt package and every other package
-   would vanish from `apk search`/`apk add`. The job restores `releases/<base>`
-   from `gh-pages` into `openwrt/bin/` before building, then refuses to publish
-   if the package count dropped.
-2. **It re-signs with `APK_SIGNING_KEY`.** A missing secret is a hard failure —
-   a per-build random key would make every device reject the feed with
-   `UNTRUSTED signature`.
-
-See [**Docs/Custom Packages → Shipping a package without a reflash**](../Custom%20Packages/README.md#shipping-a-package-without-a-reflash)
-for the operational details and the traps.
-
-### Rebuilding selected boards (surgical release update)
-
-[`rebuild-boards.yml`](../../.github/workflows/rebuild-boards.yml) rebuilds **only**
-the boards you name and replaces just their assets in an existing release. It
-never builds `all` (`'all'` is refused), and it does not touch the release body,
-the release name, the package feed or the shared kmods bundle — only the named
-boards' image files plus a spliced `sha256sums`, so the per-board lines stay
-correct.
-
-```bash
-gh workflow run rebuild-boards.yml --ref main \
-  -f boards="uf02 uz801" -f release_tag="v25.12.6-r3"
-```
-
-Use it when one board's image was wrong but the tree, the version and the feed
-are fine — a full `build-and-release.yml` would take ~1.5 h to replace four
-files.
+- Changed the kernel, a driver, a board config, or the image contents -> **firmware build**.
+- Fixed a shell script or a LuCI page -> **package build**.
+- Fixed something that must only reach devices already on this exact image -> **hotfix build**.
+- Added or changed a kernel module -> **kernel module build**.
 
 ---
 
-## 6. How to Trigger & Replace Pre-Release Tags
+## 2. Firmware build — `build-and-release.yml`
 
-When changes are merged into `main` and you want to trigger a fresh build and replace the pre-release tag:
+Triggered by pushing a tag (`v*`) or manually from the Actions page.
 
-```bash
-# 1. Ensure local main is up-to-date
-git checkout main
-git pull origin main
-
-# 2. Update the local tag to the latest commit
-git tag -f v25.12.6-rc1
-
-# 3. Force push the tag to GitHub to trigger the action
-git push origin v25.12.6-rc1 --force
-```
-
-GitHub Actions will immediately pick up the tag update, compile all 4 boards, update the GitHub Pages feed, and overwrite the release assets with the newly compiled build.
-
----
-
-## 7. Caching & Build Acceleration (actions/cache@v4)
-
-To prevent recompiling host utilities, toolchains, and re-downloading upstream source packages from scratch on every run, the workflow leverages GitHub Actions caching:
-
-### Cached Directories:
-1. **`openwrt/dl` (~1.5 GB)**: Upstream tarballs and package repositories.
-2. **`openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl` (~2 GB)**: Compiled GCC 14 + musl cross-toolchain binaries.
-3. **`openwrt/staging_dir/host` (~1 GB)**: Host build tools (cmake, meson, ninja, mkbootimg, etc.).
-
-### Cache Configuration:
 ```yaml
-- name: Cache OpenWrt Downloads & Toolchain
-  uses: actions/cache@v4
-  with:
-    path: |
-      openwrt/dl
-      openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
-      openwrt/staging_dir/host
-    key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-${{ github.run_id }}
-    restore-keys: |
-      openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-
-      openwrt-cache-${{ steps.vars.outputs.version }}-
-      openwrt-cache-
+jobs:
+  setup:    # resolve tag / version / feed base + the board matrix
+  build:    # one runner per board, in parallel
+  publish:  # assemble artifacts, publish the feed, cut the release
 ```
 
-### Performance Impact:
-- **First Build (Cold Cache)**: ~75 minutes.
-- **Successive Builds (Warm Cache)**: **~12–15 minutes** (5x speedup).
+### Inputs
+
+| Input | Default | Notes |
+|---|---|---|
+| `release_tag` | derived from `version` | `v25.12.6-r4` |
+| `boards` | empty = all eight | space-separated, for a targeted fix release |
+
+### Concurrency
+
+```yaml
+concurrency:
+  group: release-build
+  cancel-in-progress: false
+```
+
+Releases are serialised: every run rewrites the shared `gh-pages` feed and `firmware.json`, so two
+overlapping runs would clobber each other. `cancel-in-progress` is **false** so a queued release
+waits rather than being killed by a later dispatch.
+
+> **Dispatch one release at a time.** GitHub keeps only **one pending run** per concurrency group,
+> so a third dispatch silently cancels the queued one. It never shows up as a failure. Check
+> `gh run list` before dispatching again.
+
+### Job `setup`
+
+1. Reads `version` (`25.12.6-r4`) and derives `base` by stripping the `-rN` suffix. Devices read
+   `releases/<base>`, so that path must be published too.
+2. Resolves the tag: input, else the pushed tag, else `v<version>`.
+3. Turns `boards` into a JSON matrix. Empty means every `diffconfigs/*` entry; an unknown board
+   name fails immediately and lists the valid ones.
+
+### Job `build` — one runner per board
+
+`fail-fast: false`, so one broken board does not cancel the other seven.
+
+| Step | What it does |
+|---|---|
+| Checkout | `fetch-depth: 0` for tag metadata |
+| Free disk | drops .NET/MySQL/PHP/Android SDK, ~35 GB back |
+| Restore cache | `actions/cache/restore` only — see section 8 |
+| Prepare + key | `./build.sh prepare`, then writes `APK_SIGNING_KEY` to `openwrt/private-key.pem` |
+| Build `<board>` | `./build.sh build <board>` |
+| CUPS | first board only — the package feed is target-wide, not per-board |
+| Save cache | first board only |
+| Upload | `board-<name>` artifact, plus `feeds` from the first board |
+
+The signing key is written **after** `prepare`: a fresh prepare clones the OpenWrt tree and would
+delete a `private-key.pem` placed there beforehand.
+
+### Job `publish`
+
+The only job that writes anything public.
+
+| Step | What it does |
+|---|---|
+| Download artifacts | reassembles every board + the package feed |
+| Frozen recovery images | re-attached unchanged from `v25.12.6-r4` (they embed git-ignored firmware) |
+| Kmod bundle + checksums | `kmods-msm8916-<version>.tar.gz` and `sha256sums` |
+| Merge checksums | splices into the published file — see below |
+| `firmware.json` | merges into the published manifest |
+| Feed -> gh-pages | writes `releases/<base>` and `releases/<version>` |
+| Prune | deletes kernel/kmod files this build did not produce |
+| GitHub Release | attaches every image and the checksum file |
+
+**Why the merges matter.** A targeted release (`boards=uf02 uz801`) builds two boards. The manifest
+and the checksum file are shared by all eight, so both are downloaded, edited and re-uploaded rather
+than regenerated — otherwise the other six boards would silently disappear from the release metadata.
+
+**Why the prune matters.** The feed directory is additive: `keep_files: true` preserves anything a
+deploy does not mention, and every release adds another kernel generation with its own `kmod-*` set.
+Left alone the directory grows forever, and because `apk list -a` prints in index order rather than
+version order, a device could be told its own kernel was missing.
+
+### Release artifacts
+
+| File | Use |
+|---|---|
+| `*-squashfs-boot.img` | boot image (kernel + DTB) — fastboot / EDL |
+| `*-squashfs-system.img` | read-only SquashFS rootfs — fastboot / EDL |
+| `*-squashfs-sysupgrade.bin` | sysupgrade archive — LuCI or CLI |
+| `*-firmware.zip` | full firmware + partition script — unbricking |
+| `kmods-msm8916-<version>.tar.gz` | offline copy of the target feed |
+| `recovery-<board>.img` | frozen rescue image, boards with a recovery partition |
+| `sha256sums` | checksums for all of the above |
 
 ---
 
-## 8. Package Feed Signing Key (persistent + on-device self-heal)
+## 3. Package build — `publish-package.yml`
 
-OpenWrt's `apk` verifies the `packages.adb` index of every feed against a public key in `/etc/apk/keys/`. If no key on the device matches the key that signed the feed, `apk update` prints `UNTRUSTED signature` and skips the feed.
+One package, no images, no reboot. This is how a fix reaches devices without a reflash.
 
-OpenWrt generates a **random key per build** unless `openwrt/private-key.pem` already exists (`openwrt/package/Makefile`, `BUILD_KEY_APK_SEC`). If the CI job lets that happen, every release is signed with a different ephemeral key, so a device flashed with release *N* rejects release *N+1*'s feed — and a locally-built image can never trust the CI feed.
+```sh
+gh workflow run publish-package.yml --ref main -f package=msm89xx-scripts
+# on the device:  apk update && apk upgrade msm89xx-scripts
+```
 
-### The persistent key
+### Inputs
 
-- **Repository secret:** `APK_SIGNING_KEY` holds the EC P-256 private key (PEM).
-- **CI:** Step 4 writes it to `openwrt/private-key.pem` and **fails the build** if the secret is unset, so an ephemeral key can never be produced by accident again.
-- **Image:** the matching public key is embedded at `/etc/apk/keys/akbar-npj-v25.12.6.pem` via `msm89xx/base-files/`, and re-created by `99-msm89xx-firstboot`.
-- **Published:** the release job copies `openwrt/public-key.pem` both to the versioned dir and to the stable path:
-  `https://akbar-npj.github.io/msm8916-openwrt/public-key.pem`
+| Input | Default | Notes |
+|---|---|---|
+| `package` | — | directory name under `packages/` |
+| `base` | from `version` | feed base, i.e. `25.12.6` |
+| `bump` | `true` | increments `PKG_RELEASE`; without it devices see the same version and do nothing |
+| `board` | `hmuf02v5` | only matters for `kmod-*`, which are vermagic-locked |
+| `target_package` | `false` | for packages built into the target (e.g. `base-files`) |
+| `pkg_release` | — | explicit release for a target package |
+| `skip_kernel` | `false` | skip the kernel tree for packages with no kernel modules |
+| `scope` | `revision` | `revision` = that image only, `base` = every device on the base |
+| `delete` | — | `.apk` files to remove from the feed |
+| `hotfix_title` | — | non-empty turns this into a hotfix — see section 4 |
+| `hotfix_restart` | — | init scripts to restart after install |
 
-### On-device self-heal (`apk-key-refresh`)
+### What it does
 
-`msm89xx/base-files/usr/sbin/apk-key-refresh` (driven by `/etc/init.d/apk-key-refresh`, enabled from `96-apk-key-refresh`) fetches the **stable URL** at every boot and installs it when it differs from the on-disk key. This lets a device flashed with an image that embedded a stale key recover without a reflash. The install is conservative: the fetched file must be a well-formed PEM public key, and the on-disk key is only rewritten when it actually changed (no overlay churn per boot).
+| Step | What it does |
+|---|---|
+| Resolve | validates the package and the feed base |
+| Bump | `PKG_RELEASE` += 1 (unless `bump=false`) |
+| Prepare | Docker image + OpenWrt tree |
+| **Fetch the published feed** | restores `releases/<base>` from `gh-pages` into `openwrt/bin/` |
+| Build | just that package |
+| Re-index + re-sign | regenerates `packages.adb` and signs it with `APK_SIGNING_KEY` |
+| Verify | refuses to publish if the package count dropped |
+| Publish | copies into `gh-pages` and pushes |
 
-> **Rotating the key:** generate a new EC P-256 key pair, update the `APK_SIGNING_KEY` secret, replace the tracked public key in `msm89xx/base-files/etc/apk/keys/akbar-npj-v25.12.6.pem` **and** the heredoc in `99-msm89xx-firstboot`, then cut a release. Devices on the previous image self-heal from the stable URL; devices on the new image carry the new key directly.
+### Why the feed is restored first
+
+`make package/index` indexes **whatever is in the build tree**. On a fresh tree that is exactly one
+package, so the index it produces would describe one package and every other package would vanish
+from `apk search` / `apk add` on every device. The job therefore downloads the currently published
+feed first, adds the rebuilt package to it, and re-indexes the whole thing. The "verify nothing fell
+out" step is the guard that this actually happened.
+
+### Why it re-signs
+
+`apk` verifies every `packages.adb` against a public key in `/etc/apk/keys/`. OpenWrt generates a
+**random key per build** unless `openwrt/private-key.pem` already exists, so a job that skips the key
+produces a feed every device rejects with `UNTRUSTED signature`. Both CI workflows write the
+`APK_SIGNING_KEY` secret to that path and fail hard if it is unset.
 
 ---
 
-## 9. Kernel-Module (kmod) Feed — the curated "build-only" set
+## 4. Hotfix build — the same workflow, `scope=revision`
 
-Kernel modules are **target-specific** (kernel version + config), so they are built into the *target* package directory, `openwrt/bin/targets/msm89xx/msm8916/packages/` — never the arch-generic `bin/packages/aarch64_generic/` tree. Because `msm89xx` is not an upstream OpenWrt target, there is **no upstream kmod feed** to fall back on: whatever this build does not compile simply cannot be installed.
+A hotfix is not a separate workflow. It is `publish-package.yml` with two inputs set:
 
-By default OpenWrt only builds the kmods selected in the image plus their dependencies. That left the feed and the `kmods-msm8916-<version>.tar.gz` offline bundle **incomplete** — e.g. `kmod-usb-net-rtl8152` was not built at all, so `apk add kmod-usb-net-rtl8152` failed even though the README suggested it.
+```sh
+gh workflow run publish-package.yml --ref main \
+  -f package=msm89xx-firmware-upgrade -f bump=false \
+  -f skip_kernel=true -f scope=revision \
+  -f hotfix_title="what this fixes"
+```
 
-**Fix:** every `diffconfigs/<board>` appends a curated block of common USB/network kmods with
+| | Package build | Hotfix build |
+|---|---|---|
+| Lands in | `releases/25.12.6/` (shared) | `releases/25.12.6-r4/` (that image only) |
+| Also writes | — | `hotfix.json` |
+| Offered by | `apk upgrade` | `firmware-upgrade hotfix check` |
+
+### The manifest
+
+```json
+{
+  "build": "25.12.6-r4",
+  "hotfixes": [
+    { "id": "2026-11-02-msm89xx-firmware-upgrade",
+      "package": "msm89xx-firmware-upgrade",
+      "version": "1.0-r13",
+      "title": "...",
+      "restart": [],
+      "published": "2026-11-02" }
+  ]
+}
+```
+
+The URL is the applies-to tag, so a fix published here can never reach a different image. Publishing
+the same `id` again replaces the entry rather than duplicating it.
+
+### Device side
+
+`firmware-upgrade hotfix check` fetches `releases/<installed version>/hotfix.json`, compares each
+entry against what is installed, and reports the ones that are newer. `hotfix apply` installs them
+from the same revision directory.
+
+Two traps worth knowing:
+
+- **A wrong clock breaks it silently.** `wget` rejects the TLS certificate, the fetch fails, and the
+  command returns 1. It now logs the URL and the `wget` error and names the clock when the error
+  looks like TLS, but check `date -u` first if a check fails for no obvious reason.
+- **The channel cannot fix its own installer.** If the bug is in `firmware-upgrade` itself, the
+  broken copy is the one running `hotfix apply`. A device needs one manual install or a new image.
+
+### What a hotfix cannot do
+
+- It cannot change the kernel. A `kmod-*` built for one kernel only loads on that kernel.
+- It cannot be scoped per board. The manifest is keyed by build version, not by device.
+
+---
+
+## 5. Kernel modules — `publish-kmod.yml`
+
+Kernel modules are the awkward case: a module only loads into the exact kernel it was compiled
+against. That identity is the **vermagic**, and it is part of the kernel package version:
+
+```text
+kernel-6.12.112~8efa871abf779b5591d7c27483980dfd-r1
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ vermagic
+```
+
+Every `kmod-*` declares `kernel (=<version>~<vermagic>-r<N>)` as a dependency, so a module from a
+different build is not "probably fine" — `apk` refuses it outright.
+
+The vermagic is an md5 of the kernel config's `=y`/`=m` lines, so it changes whenever anything in
+the kernel config changes.
+
+### The workflow
+
+```sh
+gh workflow run publish-kmod.yml --ref main \
+  -f kmods="kmod-ifb kmod-sched" -f checkout_ref=v25.12.6-r4 -f dry_run=true
+```
+
+| Step | What it does |
+|---|---|
+| Validate | resolves the feed base and the requested module list |
+| Prepare | Docker image + OpenWrt tree at `checkout_ref` |
+| Optionally bump | `LINUX_RELEASE`, so devices see a newer version |
+| Fetch the published targets feed | so the index is complete afterwards |
+| **Build the kernel** | populates `Module.symvers` and the configured tree |
+| Build the modules | only the requested `kmod-*` |
+| Verify | every requested module was actually produced |
+| Re-index + re-sign | regenerates and signs `packages.adb` |
+| Publish | pushes to `gh-pages` |
+
+`checkout_ref` must be the release that produced the published kernel. Building from a different
+tree gives a different vermagic and modules nobody can install. `dry_run=true` builds and verifies
+but stops before pushing — use it the first time.
+
+### The curated build-only set
+
+Because `msm89xx` is not an upstream OpenWrt target, there is no upstream kmod feed to fall back on:
+whatever this project does not compile simply cannot be installed.
+
+By default OpenWrt only builds the kmods selected in the image plus their dependencies, which left
+the feed incomplete — `apk add kmod-usb-net-rtl8152` failed even though the README suggested it.
+Every `diffconfigs/<board>` therefore appends a curated block:
 
 ```text
 CONFIG_PACKAGE_kmod-usb-net-rtl8152=m
 ```
 
-The `=m` (build-only) value is the key: the module is **compiled and published into the feed**, but **not installed into the firmware image**. Users install it on demand with `apk add <name>`.
+`=m` is the point: the module is **compiled and published into the feed**, but **not installed into
+the image**. Users install it on demand with `apk add <name>`.
 
-- **Feed:** `…/releases/<version>/targets/msm89xx/msm8916/packages/`
-- **Offline bundle:** `kmods-msm8916-<version>.tar.gz` (a `tar` of that same directory — the two are always identical)
+> `CONFIG_ALL_KMODS=y` would build everything, but each kmod package `select`s its kernel
+> dependencies, so it also forces ~227 extra **built-in** subsystems (cgroups/MEMCG, media/DVB/V4L2,
+> DRM + fbcon, MPTCP, NFSD, ...) into a kernel that is deliberately tuned for this device. The
+> curated set pulls in only modest USB/network/storage subsystems.
 
-### Why not `CONFIG_ALL_KMODS`
+To extend the feed, add `CONFIG_PACKAGE_kmod-<name>=m` to `diffconfigs/<board>`. To confirm a
+module is published, look for `kmod-<name>-*.apk` under `packages/`.
 
-`CONFIG_ALL_KMODS=y` would compile *every* kmod, but each kmod package `select`s its kernel dependencies, so it also forces ~227 extra **built-in** (`=y`) subsystems into the shipping kernel (cgroups/MEMCG, media/DVB/V4L2, DRM + framebuffer console, MPTCP, NFSD, …). That is a heavy change to a firmware whose kernel is deliberately tuned for this device (CPR rail, thermal, modem). The curated set pulls in only modest USB/network/storage subsystems and keeps the kernel lean.
+---
 
-To extend the feed, add more `CONFIG_PACKAGE_kmod-<name>=m` lines to `diffconfigs/<board>`. To confirm a module is published, check for `kmod-<name>-*.apk` under `packages/`.
+## 6. Auxiliary workflows
 
-> **Note:** the kmods tarball and the online feed are produced from the *same* directory in the same job, so they can never drift. A kmod is vermagic-bound to the kernel it was built against, so a module in this feed only loads on this exact kernel build.
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `build.yml` | manual | build one board (or all) and upload the images as artifacts. Publishes nothing — for "does it still compile?" |
+| `tests.yml` | push, pull request, manual | runs `tests/*/run.sh` (currently `himi-ok-guard`). Touches nothing else |
 
+`tests.yml` is keyed on the branch name rather than the ref, so a push to a branch with an open pull
+request runs the suite once instead of twice.
+
+---
+
+## 7. The feed on `gh-pages`
+
+### URLs devices actually use
+
+```text
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/packages/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/luci/packages.adb
+https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/routing/packages.adb
+```
+
+Written at first boot by `msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot`. The upstream
+OpenWrt feeds are added alongside them for the package sets this project does not build (notably
+`telephony`).
+
+There is no `CONFIG_VERSION_REPO` in this tree — the URLs are written literally by that firstboot
+script.
+
+### The signing key
+
+OpenWrt signs every `packages.adb`. A device rejects a feed whose key it does not have, with
+`UNTRUSTED signature`.
+
+- **Secret:** `APK_SIGNING_KEY` holds the EC P-256 private key (PEM).
+- **CI:** written to `openwrt/private-key.pem`; the job fails if the secret is unset.
+- **Image:** the matching public key is embedded at `/etc/apk/keys/akbar-npj-v25.12.6.pem` and
+  re-created by `99-msm89xx-firstboot`.
+- **Published:** copied to every release dir and to the stable path
+  `https://akbar-npj.github.io/msm8916-openwrt/public-key.pem`.
+
+`apk-key-refresh` fetches that stable URL at boot and installs it when it differs from the on-disk
+key, so a device carrying a stale key recovers without a reflash. It also warns when the feed no
+longer offers the device's own kernel — the condition that actually breaks kmod installs.
+
+> **Rotating the key:** generate a new EC P-256 pair, update the secret, replace the tracked public
+> key in `msm89xx/base-files/etc/apk/keys/` **and** the heredoc in `99-msm89xx-firstboot`, then cut
+> a release.
+
+### Pruning
+
+After each release the job re-clones `gh-pages` and deletes every `kernel-*.apk` / `kmod-*.apk`
+that the current build did not produce. Other packages are untouched, because a hotfixed
+`base-files` must survive a later release. The push retries with a rebase: the package workflows
+write to the same branch under their own concurrency groups.
+
+---
+
+## 8. Caching
+
+Three directories are cached, roughly 4.5 GB together:
+
+1. `openwrt/dl` — upstream tarballs.
+2. `openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl` — the cross-toolchain.
+3. `openwrt/staging_dir/host` — host build tools.
+
+```yaml
+- name: Restore OpenWrt Cache
+  uses: actions/cache/restore@v4
+  with:
+    path: |
+      openwrt/dl
+      openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+      openwrt/staging_dir/host
+    key: openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
+    restore-keys: |
+      openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
+      openwrt-cache-${{ needs.setup.outputs.version }}-
+      openwrt-cache-
+```
+
+Three rules keep this affordable:
+
+1. **No `${{ github.run_id }}` in the key.** A run-scoped key can never be restored, so every run
+   saved a fresh ~2.3 GB copy. Four of those fill the 10 GB budget, entries get evicted, and later
+   runs silently fall back to a stale prefix.
+2. **Restore-only in the matrix, save once.** Eight parallel jobs each pushing 2.3 GB would blow the
+   budget in one run. The matrix uses `actions/cache/restore`; only the `first` board job runs
+   `actions/cache/save`.
+3. **The hash input must exist.** An earlier key hashed `diffconfigs/hmu05`, a board that no longer
+   exists — `hashFiles` silently returns an empty hash for a missing path, so the key was constant.
+
+Cold cache is about 75 minutes for a full release. Warm, the toolchain and `dl/` restore in a couple
+of minutes and the boards build in parallel, so wall-clock is roughly one board's build.
+
+---
+
+## 9. Operations
+
+### Cut a release
+
+```sh
+# from main, with version already bumped in ./version
+gh workflow run build-and-release.yml --ref main
+sleep 15 && gh run list --workflow=build-and-release.yml --limit 1
+```
+
+### Replace a pre-release tag
+
+```sh
+git tag -f v25.12.6-rc1
+git push origin v25.12.6-rc1 --force
+```
+
+The tag push triggers a full run; release assets with an existing name are replaced.
+
+### Verify a release
+
+```sh
+curl -fsS https://akbar-npj.github.io/msm8916-openwrt/firmware.json | jq '.release, (.boards | keys)'
+curl -fsS https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r4/hotfix.json | jq .
+```
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `UNTRUSTED signature` on `apk update` | feed signed with a key the device lacks — check `APK_SIGNING_KEY` |
+| `hotfix check` returns 1 with no output | fetch failed; usually a wrong clock (`date -u`) |
+| `unable to select packages` on `hotfix apply` | the package is in a feed that was not passed as `--repository` |
+| `apk search` shows almost nothing | an index was regenerated from a tree that was not restored first |
+| kmods refuse to install | the feed's kernel vermagic differs from the device's kernel |
+| a queued release vanished | a third dispatch replaced it — see section 2 |
+
+---
+
+## 10. Files
+
+| Path | What |
+|---|---|
+| `.github/workflows/build-and-release.yml` | firmware pipeline |
+| `.github/workflows/publish-package.yml` | package + hotfix pipeline |
+| `.github/workflows/publish-kmod.yml` | kernel module pipeline |
+| `.github/workflows/build.yml` | manual throwaway build |
+| `.github/workflows/tests.yml` | shell test suite |
+| `diffconfigs/<board>` | per-board OpenWrt config, incl. the curated kmod list |
+| `msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot` | writes the feed URLs and the key |
+| `msm89xx/base-files/usr/sbin/apk-key-refresh` | key self-heal + kernel check |
+| `packages/msm89xx-firmware-upgrade/` | `firmware-upgrade`, incl. `hotfix check/apply` |
+| `scripts/gen-firmware-manifest.py` | builds `firmware.json` |
+| `build.sh` | local build driver used by CI |

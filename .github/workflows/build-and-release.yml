@@ -20,10 +20,114 @@ permissions:
   pages: write
   id-token: write
 
+# One release at a time.  A release rewrites the shared gh-pages feed and the
+# shared firmware.json manifest, so two overlapping runs would clobber each
+# other.
+#
+# cancel-in-progress is false: a queued release must not be killed by a later
+# dispatch.  One platform limit survives that setting -- GitHub keeps only ONE
+# pending run per concurrency group, so a THIRD dispatch silently cancels the
+# run that is queued.  Nothing in the workflow can prevent that; it is
+# documented in Docs/RELEASING_FIRMWARE.md section 7.
+concurrency:
+  group: release-build
+  cancel-in-progress: false
+
+env:
+  # Shared by the restore and the save step; the toolchain and the download
+  # cache are the two things that make a per-board job start warm.
+  CACHE_PATHS: |
+    openwrt/dl
+    openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+    openwrt/staging_dir/host
+
 jobs:
-  build:
-    name: Build All Boards, Kmods & Release
+  ###############################################################################
+  # 1. Resolve the release identity and the board matrix
+  ###############################################################################
+  setup:
+    name: Resolve Release & Board Matrix
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      version: ${{ steps.vars.outputs.version }}
+      base: ${{ steps.vars.outputs.base }}
+      boards: ${{ steps.vars.outputs.boards }}
+      first: ${{ steps.vars.outputs.first }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Release Tag, Version & Boards
+        id: vars
+        env:
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
+          INPUT_BOARDS: ${{ github.event.inputs.boards }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            # No tag given and not a tag push: derive it from the version file,
+            # so a manual dispatch cannot publish "v25.12.6" for an r1 build.
+            TAG="v$(cat version 2>/dev/null || echo 25.12.6)"
+          fi
+          VERSION=$(cat version 2>/dev/null || echo "25.12.6")
+          # Devices point CONFIG_VERSION_REPO at releases/<base>, where base is
+          # the version WITHOUT the -rN suffix (see sync-version.sh).  Publish
+          # the feed there as well, or every device gets a 404.
+          BASE="${VERSION%-r*}"
+
+          # Build the matrix.  Validating here means a typo in the boards input
+          # fails in ten seconds instead of after a 30-minute build, and an
+          # empty input still means "every board".
+          list=""
+          count=0
+          first=""
+          if [ -n "${INPUT_BOARDS// /}" ]; then
+            for b in $INPUT_BOARDS; do
+              if [ ! -f "diffconfigs/$b" ]; then
+                echo "::error::Unknown board '$b'. Available: $(ls diffconfigs | tr '\n' ' ')"
+                exit 1
+              fi
+              list="${list:+$list,}\"$b\""
+              [ -n "$first" ] || first="$b"
+              count=$((count + 1))
+            done
+          else
+            for f in diffconfigs/*; do
+              b="${f##*/}"
+              list="${list:+$list,}\"$b\""
+              [ -n "$first" ] || first="$b"
+              count=$((count + 1))
+            done
+          fi
+
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "base=${BASE}"
+            echo "boards=[${list}]"
+            echo "first=${first}"
+            echo "count=${count}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Tag: ${TAG} | Version: ${VERSION} | Feed base: ${BASE}"
+          echo "Boards (${count}): ${list}"
+
+  ###############################################################################
+  # 2. Build one board per runner, in parallel
+  ###############################################################################
+  build:
+    name: Build ${{ matrix.board }}
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      # One broken board must not cancel the seven that are still useful.
+      fail-fast: false
+      matrix:
+        board: ${{ fromJSON(needs.setup.outputs.boards) }}
 
     steps:
       - name: Checkout Repository
@@ -36,47 +140,30 @@ jobs:
           sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
           sudo apt-get clean
 
-      - name: Determine Release Tag & Version
-        id: vars
-        run: |
-          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            TAG="${{ github.event.inputs.release_tag }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            # No tag given and not a tag push: derive it from the version file,
-            # so a manual dispatch cannot publish "v25.12.6" for an r1 build.
-            TAG="v$(cat version 2>/dev/null || echo 25.12.6)"
-          fi
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          VERSION=$(cat version 2>/dev/null || echo "25.12.6")
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          # Devices point CONFIG_VERSION_REPO at releases/<base>, where base is
-          # the version WITHOUT the -rN suffix (see sync-version.sh).  Publish
-          # the feed there as well, or every device gets a 404.
-          BASE="${VERSION%-r*}"
-          echo "base=${BASE}" >> $GITHUB_OUTPUT
-          echo "Building for Tag: ${TAG}, OpenWrt Version: ${VERSION}, Feed base: ${BASE}"
-
-      - name: Cache OpenWrt Downloads & Toolchain
-        uses: actions/cache@v4
+      # Restore only: the save happens once, in the "first" board job, so eight
+      # parallel runners cannot each push a 2 GB copy and blow the cache budget.
+      - name: Restore OpenWrt Cache
+        id: cache
+        uses: actions/cache/restore@v4
         with:
-          path: |
-            openwrt/dl
-            openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
-            openwrt/staging_dir/host
-          key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
+          path: ${{ env.CACHE_PATHS }}
+          key: openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
           restore-keys: |
-            openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
-            openwrt-cache-${{ steps.vars.outputs.version }}-
+            openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
+            openwrt-cache-${{ needs.setup.outputs.version }}-
             openwrt-cache-
 
-      - name: Build Docker Builder Image & Prepare OpenWrt Tree
+      # build.sh builds the Docker image, prepares the tree and configures the
+      # board itself, so a matrix job is self-contained.  The key must be
+      # written AFTER prepare: a fresh prepare clones the OpenWrt tree and would
+      # delete a private-key.pem that was placed there beforehand.
+      - name: Prepare OpenWrt Tree & Inject Signing Key
         env:
           APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
         run: |
+          set -euo pipefail
           ./build.sh prepare
-          if [ -z "$APK_SIGNING_KEY" ]; then
+          if [ -z "${APK_SIGNING_KEY}" ]; then
             echo "::error::APK_SIGNING_KEY secret is not set."
             echo "::error::Without it the feed would be signed with a random, per-build key"
             echo "::error::and every device would reject it with 'UNTRUSTED signature'."
@@ -86,29 +173,103 @@ jobs:
           printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
           echo "Injected persistent private signing key."
 
-      - name: Compile Firmware Images
-        env:
-          # Empty = every board.  A non-empty list is a targeted fix release:
-          # only those boards are rebuilt, and the manifest merge keeps the
-          # other boards on their last published version.
-          BOARDS: ${{ github.event.inputs.boards }}
+      - name: Build ${{ matrix.board }}
+        run: ./build.sh build "${{ matrix.board }}"
+
+      # The package feed is target-wide, not board-specific, so it is built once
+      # here instead of in a separate job that would have to pay for a full
+      # prepare again.  CUPS is not in DEFAULT_PACKAGES, hence the explicit
+      # compile before the index is regenerated.
+      - name: Compile Extra Packages (CUPS Print Server & Drivers)
+        if: matrix.board == needs.setup.outputs.first
         run: |
           set -euo pipefail
-          if [ -z "${BOARDS// /}" ]; then
-            echo "Building all boards."
-            ./build.sh build all
-          else
-            echo "Building boards: $BOARDS"
-            ./build.sh build $BOARDS
-          fi
-
-      - name: Compile Extra Packages (CUPS Print Server & Drivers)
-        run: |
           docker compose -f devenv/docker-compose.yml exec -T builder bash -c "
             umask 022
             cd /repo/openwrt
             make package/msm8916/cups/compile package/index V=s
           "
+
+      - name: Save OpenWrt Cache
+        if: matrix.board == needs.setup.outputs.first && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CACHE_PATHS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Stage Board Images
+        run: |
+          set -euo pipefail
+          SRC=openwrt/bin/targets/msm89xx/msm8916
+          DEST=/tmp/board-images
+          mkdir -p "$DEST"
+          # packages/ is shared by every board; it ships in the "feeds"
+          # artifact instead of being duplicated eight times.
+          for f in "$SRC"/*; do
+            [ -e "$f" ] || continue
+            [ "$(basename "$f")" = "packages" ] && continue
+            cp -a "$f" "$DEST/"
+          done
+          ls -la "$DEST"
+
+      - name: Upload Board Images
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-${{ matrix.board }}
+          path: /tmp/board-images
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stage Package Feed
+        if: matrix.board == needs.setup.outputs.first
+        run: |
+          set -euo pipefail
+          D=/tmp/feedstage
+          mkdir -p "$D/bin/packages" "$D/bin/targets/msm89xx/msm8916"
+          cp -a openwrt/bin/packages/aarch64_generic "$D/bin/packages/"
+          cp -a openwrt/bin/targets/msm89xx/msm8916/packages "$D/bin/targets/msm89xx/msm8916/"
+          # Public half of APK_SIGNING_KEY, derived while signing the index.
+          cp -a openwrt/public-key.pem "$D/" 2>/dev/null || true
+          find "$D" -maxdepth 3 -mindepth 1 -type d | sort
+
+      - name: Upload Package Feed
+        if: matrix.board == needs.setup.outputs.first
+        uses: actions/upload-artifact@v4
+        with:
+          name: feeds
+          path: /tmp/feedstage
+          if-no-files-found: error
+          retention-days: 7
+
+  ###############################################################################
+  # 3. Assemble, publish the feed and cut the release
+  ###############################################################################
+  publish:
+    name: Publish Release
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space on Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
+          sudo apt-get clean
+
+      - name: Download Board Images
+        uses: actions/download-artifact@v4
+        with:
+          pattern: board-*
+          merge-multiple: true
+          path: openwrt/bin/targets/msm89xx/msm8916
+
+      - name: Download Package Feed
+        uses: actions/download-artifact@v4
+        with:
+          name: feeds
+          path: openwrt
 
       # The rescue images are FROZEN, not built: they embed the WCNSS firmware
       # and the calibrated wlan NV, which are git-ignored, so CI has nothing to
@@ -130,23 +291,78 @@ jobs:
           sha256sum "$BIN"/recovery-*.img
 
       - name: Package Offline Kmod Bundle & Compute Checksums
+        env:
+          VERSION: ${{ needs.setup.outputs.version }}
         run: |
+          set -euo pipefail
           cd openwrt/bin/targets/msm89xx/msm8916
-          tar -czvf kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz packages/
-          sha256sum *-msm89xx-msm8916-*-squashfs-boot.img \
-                    *-msm89xx-msm8916-*-squashfs-system.img \
-                    *-msm89xx-msm8916-*-squashfs-sysupgrade.bin \
-                    *-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
-                    *-msm89xx-msm8916-*-flash.sh \
-                    *-msm89xx-msm8916-*-firmware.zip \
-                    recovery-*.img \
-                    kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz > sha256sums
-          cat sha256sums
+          shopt -s nullglob
+          tar -czvf "kmods-msm8916-${VERSION}.tar.gz" packages/
+          # nullglob, not a bare glob: a targeted release leaves most of these
+          # patterns unmatched, and an unmatched glob would be passed through
+          # literally and make sha256sum fail.
+          FILES=(
+            *-msm89xx-msm8916-*-squashfs-boot.img
+            *-msm89xx-msm8916-*-squashfs-system.img
+            *-msm89xx-msm8916-*-squashfs-sysupgrade.bin
+            *-msm89xx-msm8916-*-squashfs-gpt_both0.bin
+            *-msm89xx-msm8916-*-flash.sh
+            *-msm89xx-msm8916-*-firmware.zip
+            recovery-*.img
+            "kmods-msm8916-${VERSION}.tar.gz"
+          )
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "::error::No release assets were produced."
+            exit 1
+          fi
+          sha256sum "${FILES[@]}" > /tmp/new-sums.txt
+          cat /tmp/new-sums.txt
+
+      # A targeted release builds a subset of the boards, so the freshly
+      # computed sums cover only those.  Publishing them as-is would strip the
+      # other boards' lines from the release's checksum file, so splice instead:
+      # replace the rebuilt lines, keep everything else, append what is new.
+      - name: Merge Checksums With the Published sha256sums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.setup.outputs.tag }}
+        run: |
+          set -euo pipefail
+          DEST=openwrt/bin/targets/msm89xx/msm8916/sha256sums
+          if gh release download "$TAG" -p sha256sums -O /tmp/sha256sums.old --clobber 2>/dev/null; then
+            python3 - <<'PY'
+          old = open('/tmp/sha256sums.old').read().splitlines()
+          new = {}
+          for line in open('/tmp/new-sums.txt'):
+              parts = line.split(None, 1)
+              if len(parts) == 2:
+                  new[parts[1].strip()] = parts[0]
+          out, seen = [], set()
+          for line in old:
+              parts = line.split(None, 1)
+              name = parts[1].strip() if len(parts) == 2 else None
+              if name in new:
+                  out.append(f"{new[name]}  {name}")
+                  seen.add(name)
+              else:
+                  out.append(line)
+          for name, h in new.items():
+              if name not in seen:
+                  out.append(f"{h}  {name}")
+          open('openwrt/bin/targets/msm89xx/msm8916/sha256sums', 'w').write("\n".join(out) + "\n")
+          print(f"sha256sums: {len(seen)} line(s) refreshed, {len(new) - len(seen)} appended, {len(out)} total")
+          PY
+          else
+            echo "No published release for $TAG yet; using the fresh checksum list."
+            cp /tmp/new-sums.txt "$DEST"
+          fi
+          cat "$DEST"
 
       - name: Generate firmware.json Manifest
         env:
-          VERSION: ${{ steps.vars.outputs.version }}
-          BASE: ${{ steps.vars.outputs.base }}
+          VERSION: ${{ needs.setup.outputs.version }}
+          BASE: ${{ needs.setup.outputs.base }}
+          TAG: ${{ needs.setup.outputs.tag }}
           PAGES_BASE: https://akbar-npj.github.io/msm8916-openwrt
           # Deliberate floor for automatic upgrades, NOT "${BASE}-r1": a per-base
           # floor would make every cross-version jump (25.12.6 -> 25.12.7)
@@ -161,7 +377,7 @@ jobs:
           rm -f "$PREV"
           # The published manifest is shared by all boards.  Pull the current one
           # in so boards that this run did NOT rebuild keep their entry: a
-          # targeted single-board fix release must not erase the other six.
+          # targeted single-board fix release must not erase the other seven.
           if curl -fsS --max-time 30 "$PAGES_BASE/firmware.json" -o "$PREV"; then
             echo "Merging into the published manifest:"
             python3 -c 'import json,sys; d=json.load(open("/tmp/prev-firmware.json")); print("  release", d.get("release"), "-", len(d.get("boards",{})), "board keys")'
@@ -176,7 +392,7 @@ jobs:
             --bin-dir "$BIN" \
             --version "$VERSION" \
             --pages-base "$PAGES_BASE" \
-            --release-base "https://github.com/akbar-npj/msm8916-openwrt/releases/download/${{ steps.vars.outputs.tag }}" \
+            --release-base "https://github.com/akbar-npj/msm8916-openwrt/releases/download/${TAG}" \
             --out "$BIN/firmware.json" \
             --min-version "$MIN_VERSION" \
             $MERGE \
@@ -184,6 +400,9 @@ jobs:
           echo "Generated $BIN/firmware.json"
 
       - name: Prepare GitHub Pages Feed Repository
+        env:
+          BASE: ${{ needs.setup.outputs.base }}
+          VERSION: ${{ needs.setup.outputs.version }}
         run: |
           set -euo pipefail
           # Two paths, on purpose:
@@ -194,7 +413,7 @@ jobs:
           #   releases/<version>  the exact release, so a specific build stays
           #                       identifiable and reproducible.
           # Publishing only the second one leaves every device with a 404 feed.
-          for DIR in $(printf '%s\n' "${{ steps.vars.outputs.base }}" "${{ steps.vars.outputs.version }}" | sort -u); do
+          for DIR in $(printf '%s\n' "$BASE" "$VERSION" | sort -u); do
             echo "Publishing feed to releases/${DIR}"
             mkdir -p "/tmp/gh-pages-site/releases/${DIR}/targets/msm89xx/msm8916"
             mkdir -p "/tmp/gh-pages-site/releases/${DIR}/packages"
@@ -224,11 +443,61 @@ jobs:
           publish_dir: /tmp/gh-pages-site
           keep_files: true
 
+      # The feed directory is additive: peaceiris keeps files it does not know
+      # about, and every release adds another kernel generation with its own
+      # kmod-* set.  Left alone the directory grows forever, and because
+      # `apk list -a` prints in index order rather than version order, a device
+      # could be told that its own kernel was missing from the feed.
+      # Keep exactly the kernel and kmods this build produced; anything else in
+      # that directory belongs to a build nobody can install any more.
+      - name: Prune Superseded Kernel & Kmod Packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE: ${{ needs.setup.outputs.base }}
+          VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          set -euo pipefail
+          BUILT="$GITHUB_WORKSPACE/openwrt/bin/targets/msm89xx/msm8916/packages"
+          [ -d "$BUILT" ] || { echo "::error::no built package dir at $BUILT"; exit 1; }
+          rm -rf /tmp/prune
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/prune
+          cd /tmp/prune
+          changed=0
+          for DIR in $(printf '%s\n' "$BASE" "$VERSION" | sort -u); do
+            D="releases/${DIR}/targets/msm89xx/msm8916/packages"
+            [ -d "$D" ] || continue
+            for f in "$D"/kernel-*.apk "$D"/kmod-*.apk; do
+              [ -e "$f" ] || continue
+              [ -e "$BUILT/$(basename "$f")" ] && continue
+              echo "prune $f"
+              git rm -q "$f"
+              changed=1
+            done
+          done
+          if [ "$changed" -eq 0 ]; then
+            echo "Nothing to prune."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "feed: prune kernel/kmod packages superseded by ${VERSION}"
+          # The package publish workflows push to this same branch under their
+          # own concurrency groups, so one can land between our deploy and this
+          # push.  Rebase and retry instead of failing a release that has
+          # already published everything else.
+          for i in 1 2 3; do
+            git push -q origin gh-pages && break
+            [ "$i" -eq 3 ] && { echo "::error::cannot push the prune to gh-pages"; exit 1; }
+            git pull -q --rebase origin gh-pages
+          done
+          echo "Pruned superseded kernel/kmod packages."
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: "OpenWrt ${{ steps.vars.outputs.version }} for Qualcomm MSM8916"
+          tag_name: ${{ needs.setup.outputs.tag }}
+          name: "OpenWrt ${{ needs.setup.outputs.version }} for Qualcomm MSM8916"
           body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
@@ -239,6 +508,6 @@ jobs:
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-gpt_both0.bin
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-flash.sh
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-firmware.zip
-            openwrt/bin/targets/msm89xx/msm8916/kmods-msm8916-${{ steps.vars.outputs.version }}.tar.gz
+            openwrt/bin/targets/msm89xx/msm8916/kmods-msm8916-${{ needs.setup.outputs.version }}.tar.gz
             openwrt/bin/targets/msm89xx/msm8916/recovery-*.img
             openwrt/bin/targets/msm89xx/msm8916/sha256sums

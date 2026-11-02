@@ -21,6 +21,7 @@ on:
           - mf800b
           - mifib-v12
           - uf02
+          - uf896
           - ufi001b
           - ufi003
           - uz801
