@@ -8,6 +8,8 @@
                 "/tmp/firmware-upgrade.bin": [ "stat" ],
                 "/tmp/firmware-upgrade.failed": [ "read" ],
                 "/tmp/firmware-upgrade-just-upgraded.json": [ "read" ],
+                "/tmp/hotfix-notify.json": [ "read" ],
+                "/usr/sbin/firmware-upgrade hotfix check": [ "exec" ],
                 "/etc/openwrt_release": [ "read" ],
                 "/usr/sbin/firmware-upgrade": [ "exec" ],
                 "/usr/sbin/firmware-upgrade upgrade": [ "exec" ],

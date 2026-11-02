@@ -4,6 +4,9 @@
 		"read": {
 			"file": {
 				"/usr/sbin/firmware-upgrade": [ "exec" ],
+				"/usr/sbin/firmware-upgrade hotfix check": [ "exec" ],
+				"/usr/sbin/firmware-upgrade hotfix apply": [ "exec" ],
+				"/tmp/hotfix-notify.json": [ "read" ],
 				"/tmp/firmware-upgrade.failed": [ "read" ],
 				"/tmp/firmware-upgrade-apply.log": [ "read" ]
 			}

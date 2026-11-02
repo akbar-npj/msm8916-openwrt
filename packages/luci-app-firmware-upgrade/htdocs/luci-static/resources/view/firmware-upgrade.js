@@ -24,6 +24,13 @@ function getCheck() {
 	}).catch(function() { return null; });
 }
 
+function getHotfix() {
+	return fs.exec(BIN, [ 'hotfix', 'check' ]).then(function(res) {
+		try { return JSON.parse((res.stdout || '').trim()); }
+		catch (e) { return null; }
+	}).catch(function() { return null; });
+}
+
 function pill(color, text) {
 	return E('span', {
 		'style': 'display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;font-size:90%;background:' + color
@@ -39,11 +46,14 @@ function row(label, value) {
 
 return view.extend({
 	load: function() {
-		return getCheck();
+		return Promise.all([ getCheck(), getHotfix() ]);
 	},
 
-	render: function(info) {
-		var state = { info: info };
+	render: function(data) {
+		var info = data ? data[0] : null;
+		var hot = data ? data[1] : null;
+		var state = { info: info, hotfix: hot };
+		var hotfixNode = E('div', {});
 		var statusNode = E('div', {});
 		var logNode = E('pre', {
 			'style': 'max-height:14em;overflow:auto;background:#111;color:#ddd;padding:8px;border-radius:4px;display:none;white-space:pre-wrap;font-size:90%'
@@ -83,10 +93,60 @@ return view.extend({
 		}
 
 		function refresh() {
-			return getCheck().then(function(i) {
-				if (i) state.info = i;
+			return Promise.all([ getCheck(), getHotfix() ]).then(function(r) {
+				if (r[0]) state.info = r[0];
+				if (r[1]) state.hotfix = r[1];
 				renderStatus();
+				renderHotfix();
 			});
+		}
+
+		function renderHotfix() {
+			var h = state.hotfix;
+			while (hotfixNode.firstChild)
+				hotfixNode.removeChild(hotfixNode.firstChild);
+
+			if (!h || !h.count) {
+				hotfixNode.appendChild(E('p', { 'class': 'cbi-value-description' },
+					_('No fixes pending for this build.')));
+				return;
+			}
+
+			var rows = [];
+			(h.items || []).forEach(function(it) {
+				rows.push(row(it.title || it.package, '%s %s'.format(it.package, it.version)));
+			});
+			hotfixNode.appendChild(E('table', { 'class': 'table' }, rows));
+			hotfixNode.appendChild(E('p', { 'class': 'cbi-value-description' },
+				_('Installed from the feed of this build. The affected services are restarted; the device does not reboot.')));
+			hotfixNode.appendChild(E('div', { 'class': 'cbi-page-actions' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': startHotfix }, _('Install fixes'))
+			]));
+		}
+
+		function startHotfix() {
+			if (!state.hotfix || !state.hotfix.count)
+				return;
+
+			ui.showModal(_('Install fixes'), [
+				E('p', {}, _('Install %d fix(es) for this build?').format(state.hotfix.count)),
+				E('div', { 'class': 'right' }, [
+					E('button', { 'class': 'btn', 'click': ui.hideModal }, _('Cancel')),
+					' ',
+					E('button', {
+						'class': 'cbi-button cbi-button-apply',
+						'click': function() {
+							ui.hideModal();
+							fs.exec(BIN, [ 'hotfix', 'apply' ]).then(function() {
+								ui.addNotification(null, E('p', _('Fixes installed.')), 'info');
+								return refresh();
+							}).catch(function() {
+								ui.addNotification(null, E('p', _('Installing the fixes failed. See the system log.')), 'danger');
+							});
+						}
+					}, _('Install'))
+				])
+			]);
 		}
 
 		function pollApply() {
@@ -143,12 +203,17 @@ return view.extend({
 		}
 
 		renderStatus();
+		renderHotfix();
 
 		return E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, _('Firmware Upgrade')),
 			E('div', { 'class': 'cbi-map-descr' },
 				_('Check for a newer firmware image published for this board and install it.')),
 			E('div', { 'class': 'cbi-section' }, [ statusNode ]),
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Fixes for this build')),
+				hotfixNode
+			]),
 			E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'cbi-value' }, [
 					E('label', { 'class': 'cbi-value-title', 'for': 'fu-keep' }, _('Keep settings')),

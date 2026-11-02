@@ -170,7 +170,82 @@ do_upgrade() {
 	fi
 }
 
+
+# ---- package hotfixes -------------------------------------------------------
+# A hotfix is a package rebuilt for THIS build and published into
+# releases/<exact version>/ only, with hotfix.json next to it.  base-files is
+# version-pinned in /etc/apk/world by the image build, so it can never arrive
+# through "apk upgrade" (the pin wins, apk reports OK and does nothing).  It is
+# installed here with an explicit version, from the revision feed passed with
+# --repository: that feed is NOT in /etc/apk/repositories.d, so the LuCI
+# Software page never offers a pinned package it cannot install.
+HOTFIX_URL="$PAGES_BASE/releases/${_ver}/hotfix.json"
+HOTFIX_REPO="$PAGES_BASE/releases/${_ver}/targets/msm89xx/msm8916/packages/packages.adb"
+
+installed_version() {
+	apk list -I "$1" 2>/dev/null | sed -n "s/^$1-\([^ ]*\) .*/\1/p" | sed -n '1p'
+}
+
+# One tab-separated line per hotfix newer than what is installed:
+#   id <TAB> package <TAB> version <TAB> title <TAB> services
+hotfix_list() {
+	local body n i id pkg ver title restart inst
+	body="$(wget -q -O - "$HOTFIX_URL" 2>/dev/null)" || return 1
+	[ -n "$body" ] || return 1
+	n="$(printf '%s' "$body" | jsonfilter -e '@.hotfixes[*].id' 2>/dev/null | wc -l)"
+	[ "$n" -gt 0 ] || return 0
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		id="$(printf '%s' "$body" | jsonfilter -e "@.hotfixes[$i].id" 2>/dev/null)"
+		pkg="$(printf '%s' "$body" | jsonfilter -e "@.hotfixes[$i].package" 2>/dev/null)"
+		ver="$(printf '%s' "$body" | jsonfilter -e "@.hotfixes[$i].version" 2>/dev/null)"
+		title="$(printf '%s' "$body" | jsonfilter -e "@.hotfixes[$i].title" 2>/dev/null)"
+		restart="$(printf '%s' "$body" | jsonfilter -e "@.hotfixes[$i].restart[*]" 2>/dev/null | tr '\n' ' ')"
+		inst="$(installed_version "$pkg")"
+		if [ -z "$inst" ] || [ "$(apk version -t "$inst" "$ver" 2>/dev/null)" = "<" ]; then
+			printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$pkg" "$ver" "$title" "$restart"
+		fi
+		i=$((i + 1))
+	done
+}
+
+hotfix_check_json() {
+	local cur now list count items id pkg ver title restart
+	cur="$(current_version)"
+	now="$(date +%s)"
+	list="$(hotfix_list)" || return 1
+	count=0
+	items=""
+	while IFS="$(printf '\t')" read -r id pkg ver title restart; do
+		[ -n "$id" ] || continue
+		[ "$count" -gt 0 ] && items="$items,"
+		items="$items{\"id\":\"$id\",\"package\":\"$pkg\",\"version\":\"$ver\",\"title\":\"$title\",\"restart\":\"$restart\"}"
+		count=$((count + 1))
+	done <<-EOF
+	$list
+	EOF
+	printf '{"build":"%s","count":%s,"checked":%s,"items":[%s]}\n' "$cur" "$count" "$now" "$items"
+}
+
+hotfix_apply_all() {
+	local listfile id pkg ver title restart svc rc=0
+	listfile="$TMP/hotfix.list"
+	hotfix_list > "$listfile" || { log "hotfix manifest unavailable"; return 1; }
+	[ -s "$listfile" ] || { echo "no hotfixes for ${_ver}"; return 0; }
+	while IFS="$(printf '\t')" read -r id pkg ver title restart; do
+		[ -n "$id" ] || continue
+		log "installing $pkg $ver ($title)"
+		apk add --repository "$HOTFIX_REPO" "$pkg=$ver" || { rc=1; break; }
+		for svc in $restart; do
+			log "restarting $svc"
+			/etc/init.d/"$svc" restart >/dev/null 2>&1 || log "restart of $svc failed"
+		done
+	done < "$listfile"
+	return "$rc"
+}
+
 case "$1" in
+
 check)
 	load_manifest || exit 0
 	cur="$(current_version)"
@@ -228,8 +303,15 @@ check)
 		load_manifest || exit 1
 		do_upgrade "$_keep"
 		;;
+	hotfix)
+		case "$2" in
+		check) hotfix_check_json ;;
+		apply) hotfix_apply_all ;;
+		*) echo "usage: $0 hotfix {check|apply}" >&2; exit 1 ;;
+		esac
+		;;
 	*)
-		echo "usage: $0 {check|status|download|apply|upgrade} [--no-keep]" >&2
+		echo "usage: $0 {check|status|download|apply|upgrade|hotfix} [--no-keep]" >&2
 		exit 1
 		;;
 esac

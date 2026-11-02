@@ -71,6 +71,24 @@ on:
         required: false
         default: ""
         type: string
+      scope:
+        description: "Where to publish. revision = releases/<exact version> only (required for pinned packages). all = also the shared releases/<base> feed."
+        required: false
+        default: revision
+        type: choice
+        options:
+          - revision
+          - all
+      hotfix_title:
+        description: "One-line description written to hotfix.json for this build. Empty = publish the package without a manifest entry."
+        required: false
+        default: ""
+        type: string
+      hotfix_restart:
+        description: "Space-separated init scripts to restart after the fix is installed (e.g. sim-hotplug)."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -113,6 +131,14 @@ jobs:
           if [ "${{ inputs.target_package }}" = "true" ] && [ -z "${{ inputs.pkg_release }}" ]; then
             echo "::error::target_package=true needs pkg_release (e.g. 1719): base-files derives PKG_RELEASE from COMMITCOUNT, so it cannot be bumped automatically."
             exit 1
+          fi
+          if [ "${{ inputs.scope }}" = "all" ]; then
+            case "$PKG" in
+              base-files|kernel|libc)
+                echo "::error::${PKG} is version-pinned in /etc/apk/world. Publish it with scope=revision: in the shared feed the LuCI Software page would offer a fix apk then refuses to install."
+                exit 1
+                ;;
+            esac
           fi
           if [ -n "$PKG" ] && [ "${{ inputs.target_package }}" != "true" ] && [ ! -f "packages/${PKG}/Makefile" ]; then
             echo "::error::packages/${PKG}/Makefile does not exist."
@@ -378,7 +404,14 @@ jobs:
           set -euo pipefail
           BASE="${{ steps.vars.outputs.base }}"
           FULL="$(cat version)"
-          for DIR in $(printf '%s\n' "$BASE" "$FULL" | sort -u); do
+          # A pinned package stays revision-scoped: a device may only ever be
+          # offered a fix built for its own image.
+          if [ "${{ inputs.scope }}" = "revision" ]; then
+            DIRS="$FULL"
+          else
+            DIRS="$(printf '%s\n' "$BASE" "$FULL" | sort -u)"
+          fi
+          for DIR in $DIRS; do
             DEST="/tmp/gh-pages/releases/${DIR}"
             [ -d "$DEST/packages/aarch64_generic" ] || continue
             echo "Updating releases/${DIR}"
@@ -388,6 +421,32 @@ jobs:
             fi
             [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem "$DEST/public-key.pem" || true
           done
+          # hotfix.json for this exact build.  Devices fetch only their own
+          # release directory, so the URL is the applies-to tag: a fix
+          # published here can never reach a different image.
+          if [ -n "${{ inputs.hotfix_title }}" ] && [ -n "$PKG" ]; then
+            APKFILE="$(find openwrt/bin/packages openwrt/bin/targets/msm89xx/msm8916/packages -name "${PKG}-*.apk" -printf '%f\n' 2>/dev/null | sed -n '1p')"
+            VER="${APKFILE#${PKG}-}"; VER="${VER%.apk}"
+            [ -n "$VER" ] || { echo "::error::cannot work out the built version of ${PKG}"; exit 1; }
+            DEST="/tmp/gh-pages/releases/${FULL}"
+            mkdir -p "$DEST"
+            ID="$(date -u +%F)-${PKG}"
+            ENTRY="$(jq -n --arg id "$ID" --arg pkg "$PKG" --arg ver "$VER" \
+              --arg title "${{ inputs.hotfix_title }}" \
+              --arg restart "${{ inputs.hotfix_restart }}" --arg date "$(date -u +%F)" \
+              '{id: $id, package: $pkg, version: $ver, title: $title,
+                restart: ($restart | split(" ") | map(select(length > 0))),
+                published: $date}')"
+            if [ -f "$DEST/hotfix.json" ]; then
+              jq --argjson e "$ENTRY" --arg b "$FULL" \
+                '.build = $b | .hotfixes = ([.hotfixes[] | select(.id != $e.id)] + [$e])' \
+                "$DEST/hotfix.json" > "$DEST/hotfix.json.new"
+            else
+              jq -n --argjson e "$ENTRY" --arg b "$FULL" '{build: $b, hotfixes: [$e]}' > "$DEST/hotfix.json.new"
+            fi
+            mv -f "$DEST/hotfix.json.new" "$DEST/hotfix.json"
+            echo "hotfix.json: $ID -> $VER (releases/${FULL})"
+          fi
           [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem /tmp/gh-pages/public-key.pem || true
           cd /tmp/gh-pages
           git config user.name "github-actions[bot]"

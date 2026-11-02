@@ -19,6 +19,7 @@ set -u
 
 OUT=/tmp/update-notify.json
 FIRM_OUT=/tmp/firmware-upgrade-notify.json
+HOTFIX_OUT=/tmp/hotfix-notify.json
 INTERVAL=${INTERVAL:-21600}   # 6 h between successful checks
 RETRY=${RETRY:-900}           # 15 min after a failed one
 FIRST_DELAY=${FIRST_DELAY:-300}
@@ -109,6 +110,25 @@ firmware_check() {
 	return 0
 }
 
+hotfix_check() {
+	# Package hotfixes built for THIS exact image (releases/<version>/hotfix.json).
+	# Same rule as firmware_check: a failed fetch keeps the previous answer.
+	# Deliberately uplink-agnostic -- it runs right after a successful apk
+	# refresh, so a WiFi STA uplink works exactly like a modem bearer.
+	if ! command -v firmware-upgrade >/dev/null 2>&1; then
+		return 0
+	fi
+
+	if firmware-upgrade hotfix check > "$HOTFIX_OUT.tmp" 2>/dev/null && [ -s "$HOTFIX_OUT.tmp" ]; then
+		mv -f "$HOTFIX_OUT.tmp" "$HOTFIX_OUT"
+		log "hotfix check: $(jsonfilter -e '@.count' -i "$HOTFIX_OUT" 2>/dev/null) for this build"
+	else
+		rm -f "$HOTFIX_OUT.tmp"
+		log "hotfix check failed; keeping previous result"
+	fi
+	return 0
+}
+
 # If a firmware-upgrade run left a pending marker (written just before
 # sysupgrade and preserved across it by /etc/sysupgrade.conf), we have just
 # booted back up after an upgrade.  Surface that for the dashboard's
@@ -159,6 +179,7 @@ check_once() {
 
 	log "$count package update(s) available"
 	firmware_check
+	hotfix_check
 	return 0
 }
 
