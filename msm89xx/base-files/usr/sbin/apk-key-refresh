@@ -69,6 +69,40 @@ log() {
 	echo "apk-key-refresh: $1" >&2
 }
 
+# A clock that predates the image cannot validate any TLS certificate: every
+# chain looks "not yet valid", and uclient-fetch reports that as "SSL verify
+# error: unknown error" (exit 5) rather than as a date problem.  These sticks
+# have no battery-backed RTC, so the PM8916 RTC hands the kernel 1970-01-01 at
+# every boot and the clock only becomes real once sysfixtime or NTP sets it.
+# Trying the fetch in that window can only fail, so wait for a plausible clock
+# instead.
+#
+# The floor is the image's own build time -- the mtime of /etc/openwrt_release,
+# which sysfixtime also uses as its first choice for the clock.  A clock below
+# it means the clock was never set.  This adapts to every release on its own;
+# a hardcoded "today" would reject the build date itself, which is a state
+# that validates perfectly well.  Fall back to 2020-01-01 (the floor the time
+# daemon uses) if the file is missing or carries no usable mtime.
+CLOCK_FLOOR=1577836800
+CLOCK_FLOOR_TEXT="2020-01-01"
+
+if [ -r /etc/openwrt_release ]; then
+	build_epoch=$(date -r /etc/openwrt_release +%s 2>/dev/null)
+	case "$build_epoch" in
+		''|*[!0-9]*) ;;
+		*)
+			if [ "$build_epoch" -gt "$CLOCK_FLOOR" ]; then
+				CLOCK_FLOOR="$build_epoch"
+				CLOCK_FLOOR_TEXT=$(date -u -r /etc/openwrt_release '+%Y-%m-%d %H:%M:%S')
+			fi
+			;;
+	esac
+fi
+
+clock_plausible() {
+	[ "$(date +%s)" -ge "$CLOCK_FLOOR" ]
+}
+
 # Fetch URL -> TMP_FILE.  Prefer OpenWrt's uclient-fetch, fall back to BusyBox wget.
 fetch() {
 	if command -v uclient-fetch >/dev/null 2>&1; then
@@ -129,8 +163,16 @@ trap 'rm -f "$TMP_FILE"' EXIT
 
 i=0
 rc=1
+clock_warned=0
 while [ "$i" -lt "$RETRIES" ]; do
-	if fetch; then
+	if ! clock_plausible; then
+		# Do not attempt the fetch: it would fail on certificate dates and
+		# report a misleading TLS error.  Say it once, keep waiting.
+		if [ "$clock_warned" = 0 ]; then
+			log "system clock is $(date -u '+%Y-%m-%d %H:%M:%S') UTC, which is too early to validate any certificate; deferring the key refresh until the clock is set"
+			clock_warned=1
+		fi
+	elif fetch; then
 		install_key
 		case "$?" in
 			0)
@@ -152,8 +194,14 @@ while [ "$i" -lt "$RETRIES" ]; do
 done
 
 if [ "$rc" != 0 ]; then
-	log "WARNING: could not refresh the feed signing key from $KEY_URL (offline?); the on-disk key may be stale"
-	log "if apk reports UNTRUSTED signature, run: apk-key-refresh && apk update"
+	if [ "$clock_warned" = 1 ]; then
+		# Not an offline device and not a bad URL -- the clock never became
+		# usable, so no fetch was attempted.  Say so without the TLS noise.
+		log "skipped the feed key refresh: the system clock never reached the image build time ($CLOCK_FLOOR_TEXT UTC); the embedded key stays in use"
+	else
+		log "WARNING: could not refresh the feed signing key from $KEY_URL (offline?); the on-disk key may be stale"
+		log "if apk reports UNTRUSTED signature, run: apk-key-refresh && apk update"
+	fi
 fi
 
 kernel_check
