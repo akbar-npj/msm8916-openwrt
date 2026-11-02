@@ -10,115 +10,156 @@ The build pipeline automates the entire lifecycle of compiling OpenWrt firmwares
 
 ```mermaid
 graph TD
-    A["Trigger: Git Tag (v*) or Workflow Dispatch"] --> B["GitHub Runner (ubuntu-latest)"]
-    B --> C["Step 1-3: Checkout Repo, Strip Disk Bloat (+35GB), Set Version"]
-    C --> D["Step 4: Build Docker Container & Run openwrt-prepare.sh"]
-    D --> E["Step 5: ./build.sh build all (hmuf02v5, ufi001b, ufi003, uz801, uf02, mf800b, mifib-v12)"]
-    E --> F["Step 6: Build CUPS Print Server & Drivers in Container"]
-    F --> G["Step 7: Bundle Offline Kmods & Compute sha256sums"]
-    G --> H["Step 8-9: Deploy APK Feeds to GitHub Pages (gh-pages)"]
-    G --> I["Step 10: Publish GitHub Pre-Release / Release with Images"]
+    A["Trigger: Git Tag (v*) or Workflow Dispatch"] --> S["setup: resolve tag, version, feed base, board matrix"]
+    S --> B1["build: board 1 (runner 1)"]
+    S --> B2["build: board 2 (runner 2)"]
+    S --> Bn["build: board N (runner N)"]
+    B1 --> P["publish: assemble artifacts, splice sha256sums, merge firmware.json"]
+    B2 --> P
+    Bn --> P
+    P --> H["Deploy APK feeds to GitHub Pages (gh-pages)"]
+    P --> I["Publish GitHub Release with images"]
 ```
+
+Each board gets its own runner, so the release is bounded by the slowest single board rather than
+by the sum of all of them. The `publish` job is the only writer to the shared release state.
 
 ---
 
 ## 2. Workflow Specification (`.github/workflows/build-and-release.yml`)
 
-The workflow definition is located at [`.github/workflows/build-and-release.yml`](../../.github/workflows/build-and-release.yml):
+The workflow definition is located at [`.github/workflows/build-and-release.yml`](../../.github/workflows/build-and-release.yml).
+It is a three-stage pipeline:
 
 ```yaml
-name: Build OpenWrt MSM8916 & Release
-
-on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Release tag (e.g. v25.12.6-r1, leave empty to use current version)"
-        required: false
-        default: ""
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 jobs:
-  build:
-    name: Build All Boards, Kmods & Release
-    runs-on: ubuntu-latest
+  setup:    # resolve tag / version / feed base + the board matrix
+  build:    # one runner per board, in parallel
+  publish:  # assemble artifacts, publish the feed, cut the release
 ```
+
+| Job | Runners | Purpose |
+|-----|---------|---------|
+| `setup` | 1 | Reads `version`, resolves the release tag, validates the `boards` input and emits it as a JSON matrix. A typo fails here in seconds instead of after a 30-minute build. |
+| `build` | 1 per board | Builds exactly one board. All boards run concurrently, with `fail-fast: false` so one broken board does not cancel the others. |
+| `publish` | 1 | Downloads the per-board artifacts, splices `sha256sums`, merges the manifest, publishes the feed and cuts the release. |
 
 ### Key Trigger Modes:
 1. **Tag Push (`v*`)**: Pushing a tag like `v25.12.6-rc1` or `v25.12.6-r1` automatically executes the entire build and creates the corresponding release.
-2. **Manual Dispatch (`workflow_dispatch`)**: Allows manual triggering from the GitHub Actions UI with custom release tag parameters without pushing new git commits.
+2. **Manual Dispatch (`workflow_dispatch`)**: Allows manual triggering from the GitHub Actions UI with a custom release tag and/or a subset of boards, without pushing new git commits.
+
+### Concurrency
+
+```yaml
+concurrency:
+  group: release-build
+  cancel-in-progress: false
+```
+
+Releases are serialised on purpose: every run rewrites the shared `gh-pages` feed and the
+shared `firmware.json` manifest, so two overlapping runs would clobber each other.
+`cancel-in-progress` is **false** — a queued release waits its turn instead of being
+silently discarded by a second dispatch.
 
 ---
 
 ## 3. Step-by-Step Pipeline Walkthrough
 
-### Step 1: Checkout Repository
+### Job `setup`
+
+#### Step 1: Checkout Repository
+- Uses `actions/checkout@v4`.
+
+#### Step 2: Determine Release Tag, Version & Boards
+- Takes the tag from the workflow input, else `${GITHUB_REF}` for a tag push, else derives it
+  from the `version` file so a manual dispatch cannot publish `v25.12.6` for an r1 build.
+- Reads `version` (`25.12.6-r4`) and computes `base` by stripping the `-rN` suffix.
+  Devices point `CONFIG_VERSION_REPO` at `releases/<base>`, so that path must be published too.
+- Expands the `boards` input into a JSON array. Empty means every `diffconfigs/*` entry;
+  an unknown board name fails immediately with the list of valid ones.
+
+### Job `build` (one per board)
+
+#### Step 3: Checkout Repository
 - Uses `actions/checkout@v4` with `fetch-depth: 0` to preserve the complete git history and tag metadata.
 
-### Step 2: Free Disk Space on Runner
-- Standard GitHub Ubuntu runners have limited disk space (~30 GB).
-- The workflow removes pre-installed .NET runtimes, MySQL databases, PHP versions, and Android SDKs to free **~35 GB** of additional storage, ensuring parallel multi-target compilation has sufficient headroom.
+#### Step 4: Free Disk Space on Runner
+- Removes pre-installed .NET runtimes, MySQL, PHP and the Android SDK to free ~35 GB, which a
+  single-board build needs for `build_dir`.
 
-### Step 3: Determine Release Tag & Version
-- Extracts the tag from `${GITHUB_REF}` or workflow input.
-- Reads `version` file (`25.12.6`) to format release names and paths.
+#### Step 5: Restore OpenWrt Cache
+- `actions/cache/restore@v4` — restore only. Eight parallel jobs must not each push a ~2 GB
+  copy, so the single upload is done by the `first` board job (see step 8).
 
-### Step 4: Build Docker Image & Prepare OpenWrt Tree
-- Invokes `./build.sh prepare`.
-- Builds the `openwrt-builder` Docker container from `devenv/Dockerfile`.
-- Runs `scripts/openwrt-prepare.sh`:
-  - Clones and validates OpenWrt source tree.
-  - Syncs package feeds (`packages`, `luci`, `routing`, `telephony`, `video`) and verifies index files (`feeds/*.index`).
-  - Installs board targets to `target/linux/msm89xx`.
-  - Links project packages into `package/msm8916/`.
-  - Applies essential patches and compatibility fixes.
-- Injects the persistent APK signing key: writes the `APK_SIGNING_KEY` repository secret to `openwrt/private-key.pem`. **The step fails hard if the secret is missing** — see §8.
+#### Step 6: Prepare OpenWrt Tree & Inject Signing Key
+- Invokes `./build.sh prepare`, which builds the `devenv-builder` Docker image and runs
+  `scripts/openwrt-prepare.sh`:
+  - Clones and validates the OpenWrt source tree.
+  - Syncs package feeds (`packages`, `luci`, `routing`, `telephony`, `video`) and verifies index files.
+  - Installs the BSP into `target/linux/msm89xx` and links project packages into `package/msm8916/`.
+  - Applies the tracked patches and compatibility fixes.
+- Injects the persistent APK signing key: writes the `APK_SIGNING_KEY` secret to
+  `openwrt/private-key.pem`. **The step fails hard if the secret is missing** — see §8.
+  The key must be written *after* `prepare`: a fresh prepare clones the tree and would delete it.
 
-### Step 5: Compile All Firmware Images
-- Runs `./build.sh build all` inside the container.
-- Compiles OpenWrt kernel (`boot.img`), SquashFS rootfs (`system.img`), and sysupgrade archives (`sysupgrade.bin`) across all 6 configured boards:
-  1. `hmu05` (Generic MSM8916 4G USB Dongle / Router)
-  2. `ufi001b` (Generic UFI001B 4G Stick)
-  3. `ufi003` (UFI003 MB V02 4G Stick)
-  4. `uz801` (YiMing UZ801v3 4G Stick)
-  5. `uf02` (Generic UF02 250605 V0S 4G Stick)
-  6. `mf800b` (Generic MF800B 4G MiFi)
+#### Step 7: Build <board>
+- Runs `./build.sh build <board>` inside the container: kernel (`boot.img`), SquashFS rootfs
+  (`system.img`) and the sysupgrade archive (`sysupgrade.bin`).
 
-### Step 6: Compile Extra Packages (CUPS Print Server)
+#### Step 8: Compile Extra Packages (CUPS) — `first` board only
 - Executes `make package/msm8916/cups/compile package/index V=s`.
-- Compiles the CUPS network print daemon (`cupsd`), CUPS client tools (`lp`, `lpstat`, `cancel`), USB printer kernel module (`kmod-usb-printer`), and updates package indexes (`packages.adb`).
+- The package feed is target-wide, not board-specific, so building it once here avoids a separate
+  job that would have to pay for a full `prepare` again.
+- Compiles `cupsd`, the CUPS client tools, `kmod-usb-printer`, and re-signs `packages.adb`.
 
-### Step 7: Package Offline Kmod Bundle & Checksums
-- Bundles all target-compiled `.apk` packages into `kmods-msm8916-<version>.tar.gz`.
-- Computes SHA-256 checksums across all flashable firmware images and the kmod archive (the board name is globbed, so every built board is covered automatically):
-  ```bash
-  sha256sum openwrt-msm89xx-msm8916-*-squashfs-boot.img \
-            openwrt-msm89xx-msm8916-*-squashfs-system.img \
-            openwrt-msm89xx-msm8916-*-squashfs-sysupgrade.bin \
-            openwrt-msm89xx-msm8916-*-squashfs-gpt_both0.bin \
-            openwrt-msm89xx-msm8916-*-flash.sh \
-            openwrt-msm89xx-msm8916-*-firmware.zip \
-            kmods-msm8916-${VERSION}.tar.gz > sha256sums
-  ```
+#### Step 9: Save OpenWrt Cache — `first` board only
+- `actions/cache/save@v4`, skipped when the restore was already a hit.
 
-### Step 8 & 9: Deploy Package Feeds to GitHub Pages
+#### Step 10: Upload Artifacts
+- Every board uploads `board-<name>` with its images (`packages/` excluded, since it is identical
+  for every board).
+- The `first` board additionally uploads `feeds`: `bin/packages/aarch64_generic`,
+  `bin/targets/msm89xx/msm8916/packages` and the derived `public-key.pem`.
+
+### Job `publish`
+
+#### Step 11: Download Board Images & Package Feed
+- `actions/download-artifact@v4` reassembles every board into
+  `openwrt/bin/targets/msm89xx/msm8916` and restores the feed into `openwrt/`.
+
+#### Step 12: Attach the Frozen Recovery Images
+- The rescue images are **frozen, not built**: they embed the WCNSS firmware and the calibrated
+  wlan NV, which are git-ignored, so CI has nothing to build them from. They are re-attached
+  unchanged from `v25.12.6-r4` (see §7.1 of the release runbook).
+
+#### Step 13: Package Offline Kmod Bundle & Compute Checksums
+- Bundles the target-compiled `.apk` packages into `kmods-msm8916-<version>.tar.gz`.
+- Hashes every flashable image, the recovery images and the kmod archive. The globs run under
+  `nullglob`: a targeted release leaves most patterns unmatched, and an unmatched glob would be
+  passed through literally and make `sha256sum` fail.
+
+#### Step 14: Merge Checksums With the Published `sha256sums`
+- A targeted release builds a subset of the boards, so the fresh hashes cover only those. Publishing
+  them as-is would strip the other boards' lines from the release. The step downloads the published
+  `sha256sums`, replaces the rebuilt lines, keeps the rest and appends anything new. If the tag has
+  no release yet, the fresh list is used verbatim.
+
+#### Step 15: Generate `firmware.json` Manifest
+- Merges into the currently published manifest so boards this run did not rebuild keep their entry.
+
+#### Steps 16 & 17: Deploy Package Feeds to GitHub Pages
 - Structures the web repository directory layout:
   ```text
   /releases/<version>/targets/msm89xx/msm8916/packages/
   /releases/<version>/packages/aarch64_generic/base/
   ```
-- Deploys via `peaceiris/actions-gh-pages@v4` to the **`gh-pages`** branch with `keep_files: true` so prior versions are preserved.
+- Deploys via `peaceiris/actions-gh-pages@v4` to the **`gh-pages`** branch with
+  `keep_files: true` so prior versions are preserved.
 
-### Step 10: Publish GitHub Release
+#### Step 18: Publish GitHub Release
 - Uses `softprops/action-gh-release@v2` with `prerelease: false` (a tag push `v*` publishes a full release).
-- Automatically attaches all `.img`, `.bin`, `.zip`, and `.tar.gz` files along with `sha256sums` and release notes.
+- Attaches every image, `sha256sums`, the kmod bundle and the release notes. Assets with an existing
+  name are replaced, so re-running a release is idempotent.
 
 ---
 
@@ -190,25 +231,27 @@ Two details matter for correctness:
 See [**Docs/Custom Packages → Shipping a package without a reflash**](../Custom%20Packages/README.md#shipping-a-package-without-a-reflash)
 for the operational details and the traps.
 
-### Rebuilding selected boards (surgical release update)
+### Rebuilding selected boards (targeted release)
 
-[`rebuild-boards.yml`](../../.github/workflows/rebuild-boards.yml) rebuilds **only**
-the boards you name and replaces just their assets in an existing release. It
-never builds `all` (`'all'` is refused), and it does not touch the release body,
-the release name, the package feed or the shared kmods bundle — only the named
-boards' image files plus a spliced `sha256sums`, so the per-board lines stay
-correct.
+`build-and-release.yml` accepts a `boards` input. When it is non-empty only those boards are
+built, and the run still publishes the feed, merges the manifest and re-attaches the release
+assets — so a rebuilt image never lands without the metadata that describes it.
 
 ```bash
-gh workflow run rebuild-boards.yml --ref main \
+gh workflow run build-and-release.yml --ref main \
   -f boards="uf02 uz801" -f release_tag="v25.12.6-r3"
 ```
 
-Use it when one board's image was wrong but the tree, the version and the feed
-are fine — a full `build-and-release.yml` would take ~1.5 h to replace four
-files.
+Two things make a partial run safe:
 
----
+1. **The manifest merge.** `firmware.json` is shared by all boards; the job downloads the published
+   copy first and merges, so boards that were not rebuilt keep their entry instead of disappearing.
+2. **The `sha256sums` splice.** The checksum file is merged the same way, so the release keeps
+   the lines for every board, not just the two that were rebuilt.
+
+`rebuild-boards.yml` used to do this by hand; it was folded into `build-and-release.yml` once the
+splice moved into the pipeline, because its version skipped the feed and could leave an image
+published with stale metadata.
 
 ## 6. How to Trigger & Replace Pre-Release Tags
 
@@ -241,23 +284,35 @@ To prevent recompiling host utilities, toolchains, and re-downloading upstream s
 
 ### Cache Configuration:
 ```yaml
-- name: Cache OpenWrt Downloads & Toolchain
-  uses: actions/cache@v4
+- name: Restore OpenWrt Cache
+  uses: actions/cache/restore@v4
   with:
     path: |
       openwrt/dl
       openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
       openwrt/staging_dir/host
-    key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-${{ github.run_id }}
+    key: openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
     restore-keys: |
-      openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmu05') }}-
-      openwrt-cache-${{ steps.vars.outputs.version }}-
+      openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
+      openwrt-cache-${{ needs.setup.outputs.version }}-
       openwrt-cache-
 ```
 
+Three rules keep this affordable:
+
+1. **No `${{ github.run_id }}` in the key.** A run-scoped key can never be restored, so every run
+   saved a fresh ~2.3 GB copy. Four of those fill the 10 GB budget, entries get evicted, and later
+   runs silently fall back to a stale prefix. The key is content-addressed instead.
+2. **Restore-only in the matrix, save once.** Eight parallel jobs each pushing 2.3 GB would blow the
+   budget in one run. `build` uses `actions/cache/restore`; only the `first` board job runs
+   `actions/cache/save`.
+3. **The hash input must exist.** An earlier key hashed `diffconfigs/hmu05`, a board that no longer
+   exists — `hashFiles` silently returns an empty hash for a missing path, so the key was constant.
+
 ### Performance Impact:
 - **First Build (Cold Cache)**: ~75 minutes.
-- **Successive Builds (Warm Cache)**: **~12–15 minutes** (5x speedup).
+- **Successive Builds (Warm Cache)**: the toolchain and `dl/` restore in a couple of minutes and the
+  boards build in parallel, so wall-clock time is roughly one board's build rather than the sum.
 
 ---
 
