@@ -70,7 +70,7 @@
     "luci-app-sms-manager": "1.1.4-r20261023",
     "luci-app-tailscale": "1.2.6-r1",
     "luci-app-uf896-simsel": "1.0-r1",
-    "luci-app-update-notify": "1.0-r11",
+    "luci-app-update-notify": "1.0-r12",
     "luci-app-usb-gadget": "1.0-r1",
     "luci-app-wifi-sta": "1.0-r11",
     "luci-theme-feelgood": "1-r25",
