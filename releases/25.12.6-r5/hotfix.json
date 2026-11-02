@@ -1,0 +1,13 @@
+{
+  "build": "25.12.6-r5",
+  "hotfixes": [
+    {
+      "id": "2026-11-02-msm89xx-firmware-upgrade",
+      "package": "msm89xx-firmware-upgrade",
+      "version": "1.0-r14",
+      "title": "Reach every feed when applying a hotfix, and say why a manifest fetch failed",
+      "restart": [],
+      "published": "2026-11-02"
+    }
+  ]
+}
