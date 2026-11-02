@@ -81,9 +81,18 @@ esac
 # package, so the same package in two feeds (the stock OpenWrt one and our own
 # distfeeds) cannot be counted twice.
 count_upgradable() {
-	local plan
+	local plan rc steps
 
-	plan="$(apk upgrade --simulate 2>/dev/null)" || return 1
+	plan="$(apk upgrade --simulate 2>/dev/null)"; rc=$?
+
+	# apk 3.0.5 exits 1 when ONE package in an otherwise good plan cannot be
+	# resolved -- measured 2026-11-02: the feed carried a kernel built for a
+	# different vermagic, every kmod upgrade conflicted, apk printed the full
+	# plan and then "1 error", and the old `|| return 1` threw the whole
+	# answer away.  The dashboard banner then never updated again.
+	# Only treat it as a failure when nothing resembling a plan came back.
+	steps="$(printf '%s\n' "$plan" | grep -c '^([0-9][0-9]*/[0-9][0-9]*) ' || true)"
+	[ "$rc" -eq 0 ] || [ "$steps" -gt 0 ] || return 1
 
 	# "(2/3) Upgrading nano (9.2-r1 -> 9.3-r1)".  Only upgrades count: an
 	# "Installing" line is a new dependency pulled in by an upgrade, not an
