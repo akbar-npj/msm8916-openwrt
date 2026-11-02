@@ -14,6 +14,11 @@ on:
         description: "Targeted release: space-separated board ids to build (empty = all). Boards not built keep their previous manifest entry."
         required: false
         default: ""
+      dry_run:
+        description: "Downgrade the base-files release-floor check to a warning instead of failing the release."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -115,6 +120,60 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Tag: ${TAG} | Version: ${VERSION} | Feed base: ${BASE}"
           echo "Boards (${count}): ${list}"
+
+      # apk compares version numbers, not contents.  An image that ships a
+      # base-files version the hotfix channel has already moved past can never
+      # supersede that hotfix, and re-publishing the same number with different
+      # bytes is a silent no-op on the device -- "already installed", no error.
+      #
+      # The floor lives in openwrt-patches/812-*.patch; the high-water mark is
+      # written by publish-package.yml into releases/<base>/published-versions.json.
+      # Fail here, in ten seconds, instead of shipping an image that cannot be
+      # fixed without a manual version bump.
+      - name: Check the base-files Release Floor
+        env:
+          PAGES: https://akbar-npj.github.io/msm8916-openwrt
+          BASE: ${{ steps.vars.outputs.base }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          # In DRY_RUN the check still runs and reports, it just does not gate.
+          fail() {
+            if [ "${DRY_RUN:-}" = "true" ]; then
+              echo "::warning::$*"
+            else
+              echo "::error::$*"
+              exit 1
+            fi
+          }
+
+          # "|| true": with pipefail a glob that matches nothing makes sed fail,
+          # and set -e would kill the job before the message below.
+          floor="$(sed -n 's/^+BASE_FILES_RELEASE_FLOOR:=\([0-9][0-9]*\)$/\1/p' \
+                    openwrt-patches/*base-files*.patch 2>/dev/null | tail -1 || true)"
+          if [ -z "$floor" ]; then
+            fail "No BASE_FILES_RELEASE_FLOOR in openwrt-patches/*base-files*.patch. Without it the image ships upstream's COMMITCOUNT, which does not move between releases."
+            exit 0
+          fi
+
+          url="$PAGES/releases/$BASE/published-versions.json"
+          if ! body="$(curl -fsS --max-time 20 --retry 3 --retry-connrefused "$url")"; then
+            fail "Cannot read $url. Publish any package once with publish-package.yml to create the high-water mark, or check that gh-pages is reachable."
+            exit 0
+          fi
+
+          published="$(printf '%s' "$body" | jq -r '.packages["base-files"] // empty')"
+          published_num="${published%%~*}"
+          if [ -z "$published_num" ]; then
+            echo "No base-files entry in $url yet - nothing to compare against."
+            exit 0
+          fi
+
+          if [ "$floor" -le "$published_num" ]; then
+            fail "base-files floor is ${floor} but ${published} is already published on ${BASE}. Bump BASE_FILES_RELEASE_FLOOR in openwrt-patches/*base-files*.patch: an image at or below the hotfix line can never supersede it."
+            exit 0
+          fi
+          echo "base-files floor ${floor} > published ${published} - OK"
 
   ###############################################################################
   # 2. Build one board per runner, in parallel

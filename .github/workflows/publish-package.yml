@@ -67,7 +67,7 @@ on:
         default: false
         type: boolean
       pkg_release:
-        description: "Explicit PKG_RELEASE for a target package (base-files derives it from COMMITCOUNT, so it cannot be auto-incremented). Required with target_package."
+        description: "Explicit PKG_RELEASE for a target package (base-files takes max(COMMITCOUNT, BASE_FILES_RELEASE_FLOOR), so it cannot be auto-incremented). Required with target_package; must be above the published high-water mark."
         required: false
         default: ""
         type: string
@@ -91,6 +91,11 @@ on:
         type: string
       skip_kernel:
         description: "Skip the kernel tree build. Only for packages with no kernel modules (shell / JS / LuCI): it turns a ~35 min publish into ~5 min. Leave false for kmod-* and target packages."
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "Build and stage everything, then print what would be published to gh-pages without committing or pushing. Use this to exercise a publish (and the high-water mark) safely."
         required: false
         default: false
         type: boolean
@@ -134,7 +139,7 @@ jobs:
           fi
           echo "base=${BASE}" >> $GITHUB_OUTPUT
           if [ "${{ inputs.target_package }}" = "true" ] && [ -z "${{ inputs.pkg_release }}" ]; then
-            echo "::error::target_package=true needs pkg_release (e.g. 1719): base-files derives PKG_RELEASE from COMMITCOUNT, so it cannot be bumped automatically."
+            echo "::error::target_package=true needs pkg_release (e.g. 1722, above the floor in openwrt-patches/812-*.patch): base-files derives PKG_RELEASE from COMMITCOUNT, so it cannot be bumped automatically."
             exit 1
           fi
           if [ "${{ inputs.scope }}" = "all" ]; then
@@ -452,18 +457,24 @@ jobs:
             fi
             [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem "$DEST/public-key.pem" || true
           done
-          # hotfix.json for this exact build.  Devices fetch only their own
-          # release directory, so the URL is the applies-to tag: a fix
-          # published here can never reach a different image.
-          if [ -n "${{ inputs.hotfix_title }}" ] && [ -n "$PKG" ]; then
-            # The published feed was copied back into these directories, so the
-            # previous build of the same package is sitting next to the new one:
-            # take the HIGHEST version, never "the first file find returns".
+          # The version this build produced.  The published feed was copied
+          # back into these directories, so the previous build of the same
+          # package is sitting next to the new one: take the HIGHEST version,
+          # never "the first file find returns".  Used by hotfix.json and by
+          # the high-water mark below.
+          VER=""
+          if [ -n "$PKG" ]; then
             VER="$(find openwrt/bin/packages openwrt/bin/targets/msm89xx/msm8916/packages \
                      -name "${PKG}-*.apk" -printf '%f\n' 2>/dev/null \
                    | sed -e "s|^${PKG}-||" -e 's|\.apk$||' \
                    | sort -V | tail -1)"
             [ -n "$VER" ] || { echo "::error::cannot work out the built version of ${PKG}"; exit 1; }
+          fi
+
+          # hotfix.json for this exact build.  Devices fetch only their own
+          # release directory, so the URL is the applies-to tag: a fix
+          # published here can never reach a different image.
+          if [ -n "${{ inputs.hotfix_title }}" ] && [ -n "$PKG" ]; then
             DEST="/tmp/gh-pages/releases/${FULL}"
             mkdir -p "$DEST"
             ID="$(date -u +%F)-${PKG}"
@@ -483,6 +494,35 @@ jobs:
             mv -f "$DEST/hotfix.json.new" "$DEST/hotfix.json"
             echo "hotfix.json: $ID -> $VER (releases/${FULL})"
           fi
+
+          # High-water mark: the highest version ever published per package on
+          # this feed base.  build-and-release.yml refuses to ship an image
+          # whose base-files floor is not strictly above it, because apk
+          # compares numbers, not contents -- an image at or below the hotfix
+          # line can never supersede that hotfix, and re-publishing the same
+          # number is a silent no-op on the device.
+          #
+          # Rebuilt from scratch every run: every hotfix.json already on
+          # gh-pages, then the existing file, then this build.  Highest wins,
+          # so it self-seeds on the first run and can never go backwards.
+          if [ -n "$PKG" ] && [ -n "$VER" ]; then
+            HIGH="/tmp/gh-pages/releases/${BASE}/published-versions.json"
+            mkdir -p "$(dirname "$HIGH")"
+            {
+              jq -r '.hotfixes[]? | "\(.package) \(.version)"' /tmp/gh-pages/releases/*/hotfix.json 2>/dev/null || true
+              if [ -f "$HIGH" ]; then
+                jq -r '(.packages // {}) | to_entries[] | "\(.key) \(.value)"' "$HIGH" 2>/dev/null || true
+              fi
+              printf '%s %s\n' "$PKG" "$VER"
+            } | sort -k1,1 -k2,2V \
+              | awk 'NF==2 {m[$1]=$2} END {for (p in m) print p, m[p]}' \
+              | jq -Rn --arg d "$(date -u +%F)" \
+                  '[inputs | split(" ") | {(.[0]): .[1]}] | add // {} | {updated: $d, packages: .}' \
+              > "$HIGH.new"
+            mv -f "$HIGH.new" "$HIGH"
+            echo "published-versions.json: $(jq -c '.packages' "$HIGH")"
+          fi
+
           [ -f openwrt/public-key.pem ] && cp -f openwrt/public-key.pem /tmp/gh-pages/public-key.pem || true
           cd /tmp/gh-pages
           git config user.name "github-actions[bot]"
@@ -490,6 +530,16 @@ jobs:
           git add -A
           if git diff --cached --quiet; then
             echo "::warning::Nothing changed on gh-pages - was PKG_RELEASE bumped?"
+            exit 0
+          fi
+          # Everything above ran for real (build, splice, index, manifests);
+          # only the commit and the push are skipped.  Nothing leaves the
+          # runner, so this is safe to run against a live feed.
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "::notice::DRY_RUN - not committing. This is what would be published:"
+            git diff --cached --stat
+            echo "--- manifest changes:"
+            git diff --cached -- '*hotfix.json' '*published-versions.json' || true
             exit 0
           fi
           if [ -n "$PKG" ]; then

@@ -404,6 +404,74 @@ that the current build did not produce. Other packages are untouched, because a 
 `base-files` must survive a later release. The push retries with a rebase: the package workflows
 write to the same branch under their own concurrency groups.
 
+### The base-files version floor
+
+Every image writes a line into `/etc/apk/world`:
+
+```text
+base-files=1719
+```
+
+That is a lock, and it is how a new image supersedes a hotfix: `apk upgrade` will not move a
+locked package, so the image's own number is what wins after a flash.
+
+**apk compares numbers, not contents.** Two consequences:
+
+1. Re-publishing the same number with different bytes is a **silent no-op**. A device that already
+   has `1720` sees "already installed", prints OK, and the fix never arrives. Nothing errors
+   anywhere.
+2. An image that ships a *lower* number than the hotfix channel can never supersede that hotfix.
+
+Upstream derives the number from `COMMITCOUNT` — commits touching `package/base-files` — which
+does not move between our releases. Every image we built shipped `1719` while the hotfix channel
+had already served `1720`.
+
+**The floor.** `openwrt-patches/812-base-files-release-floor.patch` replaces that line with
+
+```make
+BASE_FILES_RELEASE_FLOOR:=1721
+PKG_RELEASE:=$(shell echo $$(( ... )))
+```
+
+so the package is `max(COMMITCOUNT, floor)`. Upstream's count takes over again once it passes the
+floor, so this does not fork us from upstream permanently.
+
+**The high-water mark.** `publish-package.yml` writes
+`releases/<base>/published-versions.json` on every publish:
+
+```json
+{ "updated": "2026-11-03", "packages": { "base-files": "1720~981c978eff" } }
+```
+
+It is rebuilt from scratch each run — every `hotfix.json` already on `gh-pages`, then the existing
+file, then this build — highest version wins. So it self-seeds on the first run and can never move
+backwards.
+
+**The guard.** The `setup` job of `build-and-release.yml` reads that file and **fails the release**
+if the tree's floor is not strictly higher than the published `base-files`. Ten seconds, before
+any runner starts, instead of an image nobody can hotfix.
+
+> When it fires, bump `BASE_FILES_RELEASE_FLOOR` in
+> `openwrt-patches/812-base-files-release-floor.patch` to one above the published version and
+> commit that with the release. That is the whole procedure — the number is meant to be bumped by
+> hand, at a release, deliberately.
+
+### DRY_RUN
+
+Both workflows take `dry_run`:
+
+- **`publish-package.yml`** — everything runs for real (build, splice, index, manifests, the
+  high-water mark) and the step prints the staged diff, then stops before the commit and push.
+  Nothing leaves the runner, so it is safe against a live feed.
+- **`build-and-release.yml`** — the floor check still runs and reports, but as a `::warning::`
+  instead of failing the release.
+
+```sh
+gh workflow run publish-package.yml --ref main \
+  -f package=base-files -f target_package=true -f pkg_release=1722 \
+  -f scope=revision -f hotfix_title="..." -f dry_run=true
+```
+
 ---
 
 ## 8. Caching
@@ -481,6 +549,8 @@ curl -fsS https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r4/hotfix
 | `apk search` shows almost nothing | an index was regenerated from a tree that was not restored first |
 | kmods refuse to install | the feed's kernel vermagic differs from the device's kernel |
 | a queued release vanished | a third dispatch replaced it — see section 2 |
+| `base-files floor is N but … is already published` | the hotfix channel moved past the image line — bump `BASE_FILES_RELEASE_FLOOR` (section 7) |
+| `Cannot read …/published-versions.json` | the high-water mark does not exist yet — publish any package once, or check gh-pages |
 
 ---
 
@@ -497,5 +567,7 @@ curl -fsS https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r4/hotfix
 | `msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot` | writes the feed URLs and the key |
 | `msm89xx/base-files/usr/sbin/apk-key-refresh` | key self-heal + kernel check |
 | `packages/msm89xx-firmware-upgrade/` | `firmware-upgrade`, incl. `hotfix check/apply` |
+| `openwrt-patches/812-base-files-release-floor.patch` | the `base-files` version floor |
+| `gh-pages: releases/<base>/published-versions.json` | highest version ever published per package |
 | `scripts/gen-firmware-manifest.py` | builds `firmware.json` |
 | `build.sh` | local build driver used by CI |
