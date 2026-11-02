@@ -42,6 +42,7 @@ and update it when a unit arrives, dies or is repaired.
 | `uf02` | UF02 (250605 V0S) | `uf02,250605v0s` | @akbar-npj | **none — needs a tester** | patches 804, 851; `diffconfigs/uf02` |
 | `uz801` | UZ801 (v3) | `yiming,uz801-v3` | @isprogrammer, @giraygokirmak | bench (@isprogrammer) + field, daily in-vehicle (@giraygokirmak) | patches 803, 851; `diffconfigs/uz801` |
 | `ufi003` | UFI003 MB V02 | `ufi003,mb-v02` | @isprogrammer | bench | patch 852; `diffconfigs/ufi003` |
+| `uf896` | UF896 (v1.1) | `uf896,v1.1` | @akbar-npj | bench | patch 867; `diffconfigs/uf896` |
 
 Boards with **no working unit** (`dead` or `none`) are still maintained — the
 code is kept current and the image builds — but nothing in a release has been
