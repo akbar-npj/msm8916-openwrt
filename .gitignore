@@ -15,6 +15,18 @@ msm89xx/recovery/*.img
 !msm89xx/recovery/irfs/bin/
 !msm89xx/recovery/irfs/bin/*
 
+# A rootfs unpacked into the repo root while building a recovery image
+# (hmuf02v5 / mifib-v12).  Leading slash = repo root only, so it never
+# shadows msm89xx/base-files/etc or packages/*/root/usr.  lib64 and var are
+# symlinks (-> lib, -> tmp), hence no trailing slash on those two.
+/etc/
+/lib/
+/lib64
+/rom/
+/sbin/
+/usr/
+/var
+
 # Python
 __pycache__/
 *.pyc
