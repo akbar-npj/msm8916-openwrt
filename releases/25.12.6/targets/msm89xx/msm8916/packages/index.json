@@ -2,7 +2,7 @@
   "version": 2,
   "architecture": "aarch64_generic",
   "packages": {
-    "base-files": "1719~981c978eff",
+    "base-files": "1718~981c978eff",
     "block-mount": "2026.05.23~16718b6e-r1",
     "dropbear": "2025.89-r3",
     "fstools": "2026.05.23~16718b6e-r1",
