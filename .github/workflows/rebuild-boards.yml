@@ -75,7 +75,7 @@ jobs:
             openwrt/dl
             openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
             openwrt/staging_dir/host
-          key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-${{ github.run_id }}
+          key: openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
           restore-keys: |
             openwrt-cache-${{ steps.vars.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
             openwrt-cache-${{ steps.vars.outputs.version }}-

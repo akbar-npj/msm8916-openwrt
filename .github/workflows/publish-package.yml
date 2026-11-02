@@ -181,7 +181,7 @@ jobs:
             openwrt/dl
             openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
             openwrt/staging_dir/host
-          key: openwrt-cache-${{ steps.vars.outputs.base }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-${{ github.run_id }}
+          key: openwrt-cache-${{ steps.vars.outputs.base }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
           restore-keys: |
             openwrt-cache-${{ steps.vars.outputs.base }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}-
             openwrt-cache-${{ steps.vars.outputs.base }}-
@@ -292,15 +292,30 @@ jobs:
       # runner that file does not exist until the kernel is configured, so the
       # kmod compile fails with "No rule to make target .../.config". Prepare
       # (configure + build) the kernel tree first so the .config is present.
+      - name: Decide whether the kernel tree is needed
+        id: kernel
+        if: inputs.package != ''
+        run: |
+          set -euo pipefail
+          # A target package (base-files) and anything declaring a
+          # KernelPackage/ compile against the kernel.  A shell/JS/LuCI package
+          # does not, and the kernel build is ~85% of a publish (25-42 min of a
+          # 30-50 min run), so work it out instead of trusting the caller.
+          NEED=0
+          if [ "${{ inputs.target_package }}" = "true" ]; then NEED=1; fi
+          if [ "$NEED" -eq 0 ]; then
+            for d in "packages/${PKG}" "openwrt/package/${PKG}"; do
+              if [ -d "$d" ] && grep -rqs 'define KernelPackage/' "$d"; then NEED=1; fi
+            done
+          fi
+          echo "needed=$NEED" >> "$GITHUB_OUTPUT"
+          echo "kernel tree needed: $NEED"
+
       - name: Prepare the kernel tree
         # Needed for target packages too: base-files pulls kmods into its
         # compile chain (gpio-button-hotplug), and a kmod build dies without
         # linux-<ver>/.config -- measured in run 41350406799.
-        #
-        # A shell/JS/LuCI package compiles nothing, so the kernel build is pure
-        # waiting: it is the bulk of a ~35 min publish.  skip_kernel exists for
-        # those and must stay false for anything that carries a kernel module.
-        if: ${{ inputs.package != '' && !inputs.skip_kernel }}
+        if: ${{ steps.kernel.outputs.needed == '1' && !inputs.skip_kernel }}
         run: ./build.sh kernel "$BOARD"
 
       - name: Build the package
