@@ -228,14 +228,24 @@ hotfix_check_json() {
 }
 
 hotfix_apply_all() {
-	local listfile id pkg ver title restart svc rc=0
+	local listfile id pkg ver title restart svc was_pinned rc=0
 	listfile="$TMP/hotfix.list"
 	hotfix_list > "$listfile" || { log "hotfix manifest unavailable"; return 1; }
 	[ -s "$listfile" ] || { echo "no hotfixes for ${_ver}"; return 0; }
 	while IFS="$(printf '\t')" read -r id pkg ver title restart; do
 		[ -n "$id" ] || continue
 		log "installing $pkg $ver ($title)"
+		# "apk add pkg=ver" also writes pkg=ver into /etc/apk/world.  For a
+		# version-pinned package (base-files) that is the point: it moves the
+		# pin with the fix.  For an ordinary package it would freeze it -- the
+		# image pins only base-files, kernel and libc, so every later update
+		# would be refused by that new pin.  Keep a pin only where one existed.
+		was_pinned=0
+		grep -q "^${pkg}=" /etc/apk/world && was_pinned=1
 		apk add --repository "$HOTFIX_REPO" "$pkg=$ver" || { rc=1; break; }
+		if [ "$was_pinned" -eq 0 ]; then
+			sed -i "s|^${pkg}=.*|${pkg}|" /etc/apk/world
+		fi
 		for svc in $restart; do
 			log "restarting $svc"
 			/etc/init.d/"$svc" restart >/dev/null 2>&1 || log "restart of $svc failed"
