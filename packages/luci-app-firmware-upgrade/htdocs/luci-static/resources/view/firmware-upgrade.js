@@ -7,10 +7,11 @@
 var BIN = '/usr/sbin/firmware-upgrade';
 var FAILED = '/tmp/firmware-upgrade.failed';
 var APPLYLOG = '/tmp/firmware-upgrade-apply.log';
+var PROGRESS = '/tmp/firmware-upgrade.progress';
 
 function humanSize(n) {
 	n = parseInt(n, 10);
-	if (!n || n < 0)
+	if (isNaN(n) || n < 0)
 		return '—';
 	var u = [ 'B', 'KB', 'MB', 'GB' ], i = 0;
 	while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
@@ -31,6 +32,25 @@ function getHotfix() {
 	}).catch(function() { return null; });
 }
 
+// "phase=download bytes=8123456 total=8123456" -> { phase: ..., bytes: ..., total: ... }
+function getProgress() {
+	return fs.read(PROGRESS).then(function(s) {
+		var o = {}, parts = (s || '').trim().split(/\s+/);
+		for (var i = 0; i < parts.length; i++) {
+			var eq = parts[i].indexOf('=');
+			if (eq > 0)
+				o[parts[i].substring(0, eq)] = parts[i].substring(eq + 1);
+		}
+		return o.phase ? o : null;
+	}).catch(function() { return null; });
+}
+
+function getLog() {
+	return fs.read(APPLYLOG).then(function(s) {
+		return (s || '').trim();
+	}).catch(function() { return ''; });
+}
+
 function pill(color, text) {
 	return E('span', {
 		'style': 'display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;font-size:90%;background:' + color
@@ -46,23 +66,84 @@ function row(label, value) {
 
 return view.extend({
 	load: function() {
-		return Promise.all([ getCheck(), getHotfix() ]);
+		return Promise.all([ getCheck(), getHotfix(), getProgress(), getLog() ]);
 	},
 
 	render: function(data) {
 		var info = data ? data[0] : null;
 		var hot = data ? data[1] : null;
-		var state = { info: info, hotfix: hot };
+		var state = { info: info, hotfix: hot, pct: null, active: false };
 		var hotfixNode = E('div', {});
 		var statusNode = E('div', {});
+		var barFill = E('div', { 'style': 'width:0%' });
+		var barNode = E('div', { 'class': 'cbi-progressbar', 'title': '0%' }, [ barFill ]);
+		var progressText = E('div', { 'class': 'cbi-value-description' }, '');
+		var progressSection = E('div', { 'class': 'cbi-section', 'style': 'display:none' }, [
+			E('h3', {}, _('Upgrade progress')),
+			progressText,
+			barNode
+		]);
 		var logNode = E('pre', {
-			'style': 'max-height:14em;overflow:auto;background:#111;color:#ddd;padding:8px;border-radius:4px;display:none;white-space:pre-wrap;font-size:90%'
+			'style': 'display:none;max-height:14em;overflow:auto;background:#111;color:#ddd;padding:8px;border-radius:4px;white-space:pre-wrap;font-size:90%;margin-top:8px'
 		}, '');
 		var keepCb = E('input', { 'type': 'checkbox', 'id': 'fu-keep', 'checked': 'checked' });
 		var upBtn = E('button', {
 			'class': 'cbi-button cbi-button-apply',
 			'click': function() { startUpgrade(); }
 		}, _('Upgrade'));
+
+		function setBar(pct, label, level) {
+			if (pct != null)
+				state.pct = pct;
+			var shown = (state.pct == null) ? 0 : state.pct;
+			barFill.style.width = shown + '%';
+			progressText.textContent = label;
+			barNode.setAttribute('title', label + (state.pct == null ? '' : ' (' + shown + '%)'));
+			barNode.setAttribute('data-level', level || (shown >= 100 ? 'good' : 'normal'));
+		}
+
+		function showProgress(show) {
+			progressSection.style.display = show ? '' : 'none';
+		}
+
+		function applyProgress(p) {
+			if (!p)
+				return;
+
+			var total = parseInt(p.total, 10) || 0;
+			var bytes = parseInt(p.bytes, 10) || 0;
+
+			showProgress(true);
+
+			switch (p.phase) {
+			case 'download':
+				// The download is the long phase (a ~8 MB image over Wi-Fi), so it
+				// owns the first 80% of the bar; verify and flash share the rest.
+				var pct = (total > 0) ? Math.min(80, Math.floor(bytes / total * 80)) : null;
+				setBar(pct, _('Downloading %s of %s').format(humanSize(bytes), humanSize(total)));
+				break;
+			case 'verify':
+				setBar(85, _('Verifying the image checksum'));
+				break;
+			case 'flash':
+				setBar(92, _('Flashing — the device will reboot when this finishes'));
+				break;
+			case 'done':
+				setBar(100, _('Finished'));
+				break;
+			case 'failed':
+				setBar(null, _('The upgrade failed. See the log below.'), 'critical');
+				break;
+			}
+		}
+
+		function setLog(text) {
+			if (!text)
+				return;
+			logNode.style.display = '';
+			logNode.textContent = text;
+			logNode.scrollTop = logNode.scrollHeight;
+		}
 
 		function renderStatus() {
 			var i = state.info;
@@ -89,7 +170,7 @@ return view.extend({
 				row(_('Image size'), humanSize(i.size)),
 				row(_('Notes'), i.notes || '—')
 			]));
-			upBtn.disabled = !(avail && !blocked);
+			upBtn.disabled = !(avail && !blocked) || state.active;
 		}
 
 		function refresh() {
@@ -150,26 +231,41 @@ return view.extend({
 		}
 
 		function pollApply() {
-			return Promise.all([
-				fs.read(FAILED).catch(function() { return null; }),
-				fs.read(APPLYLOG).catch(function() { return null; })
-			]).then(function(r) {
-				var failed = r[0] && (r[0].trim() === 'failed');
-				var log = (r[1] || '').trim();
-				if (log) {
-					logNode.style.display = '';
-					logNode.textContent = log;
-				}
-				if (failed) {
-					ui.addNotification(null, E('p', _('The upgrade failed. See the log below.')), 'danger');
-					return false;
-				}
-				return true;
-			});
+			return Promise.all([ getProgress(), getLog(), fs.read(FAILED).catch(function() { return null; }) ])
+				.then(function(r) {
+					var p = r[0], log = r[1], failed = r[2] && (r[2].trim() === 'failed');
+
+					applyProgress(p);
+					setLog(log);
+
+					// The wrapper writes /tmp/firmware-upgrade.failed when the
+					// detached job dies before it can record a phase (manifest
+					// unreachable, version below min_version, ...), so the marker
+					// alone must still turn the bar red.
+					if (failed && (!p || p.phase !== 'failed')) {
+						applyProgress({ phase: 'failed' });
+						showProgress(true);
+					}
+
+					if (failed || (p && p.phase === 'failed')) {
+						// poll.remove() is required: LuCI's poll keeps a callback that
+						// returns false, it does not drop it.
+						poll.remove(pollApply);
+						state.active = false;
+						renderStatus();
+						return;
+					}
+
+					if (p && p.phase === 'done') {
+						poll.remove(pollApply);
+						state.active = false;
+						renderStatus();
+					}
+				});
 		}
 
 		function startUpgrade() {
-			if (!state.info || parseInt(state.info.available, 10) !== 1)
+			if (!state.info || parseInt(state.info.available, 10) !== 1 || state.active)
 				return;
 
 			var noKeep = !keepCb.checked;
@@ -189,11 +285,28 @@ return view.extend({
 					'class': 'cbi-button cbi-button-apply',
 					'click': function() {
 						ui.hideModal();
+
+						// Show the console immediately instead of waiting for the
+						// first log line: an upgrade that appears to do nothing for
+						// several seconds reads as "the button did not work".
+						state.active = true;
+						state.pct = null;
+						logNode.textContent = '';
+						logNode.style.display = '';
+						setBar(0, _('Starting…'));
+						showProgress(true);
+						upBtn.disabled = true;
+
 						ui.addNotification(null, E('p', noKeep
 							? _('Upgrade started — downloading, verifying and flashing. The device will reboot to defaults.')
 							: _('Upgrade started — downloading, verifying and flashing. The device will reboot.')), 'info');
+
 						fs.exec(BIN, args).then(function() {
-							poll.add(pollApply, 3);
+							poll.add(pollApply, 2);
+						}).catch(function() {
+							state.active = false;
+							renderStatus();
+							ui.addNotification(null, E('p', _('Could not start the upgrade. See the system log.')), 'danger');
 						});
 					}
 				}, _('Upgrade'))
@@ -204,6 +317,20 @@ return view.extend({
 
 		renderStatus();
 		renderHotfix();
+
+		// Coming back to the page mid-upgrade (or after a failed one) must show
+		// the console too, not just a click in this session.
+		var p0 = data ? data[2] : null;
+		var l0 = data ? data[3] : '';
+		if (p0) {
+			applyProgress(p0);
+			setLog(l0);
+			if (p0.phase !== 'done' && p0.phase !== 'failed') {
+				state.active = true;
+				renderStatus();
+				poll.add(pollApply, 2);
+			}
+		}
 
 		return E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, _('Firmware Upgrade')),
@@ -229,6 +356,7 @@ return view.extend({
 				' ',
 				upBtn
 			]),
+			progressSection,
 			logNode
 		]);
 	},

@@ -15,17 +15,20 @@ Everything else in this document is bookkeeping around those two.
 
 ## 1. The three pipelines
 
-There are five workflow files, but only three things you can actually *do*:
+There are six workflow files, but only a handful of things you can actually *do*:
 
 | Pipeline | Workflow | Builds | Publishes to | Roughly |
 |---|---|---|---|---|
-| **Firmware** | `build-and-release.yml` | every board's images + the whole feed | GitHub Release + `gh-pages` | 30-45 min |
+| **Firmware** | `build-and-release.yml` | every board's images + the whole feed | a **test** GitHub Release + `releases/<version>` | 30-45 min |
+| **Promotion** | `promote-release.yml` | nothing — it moves what the test build published | `releases/<base>`, root `firmware.json`, `latest` | ~1 min |
 | **Package** | `publish-package.yml` | one package | the shared `gh-pages` feed | 7-35 min |
 | **Hotfix** | `publish-package.yml` (`scope=revision`) | one package | that image's own feed dir + `hotfix.json` | 7-35 min |
 | **Kernel module** | `publish-kmod.yml` | the kernel + selected `kmod-*` | the target feed | 20-40 min |
 
-All four have the same shape: **build the thing -> sign the package index -> push it where devices
-look.** The differences are only *what* is built and *which directory* it lands in.
+The four build pipelines have the same shape: **build the thing -> sign the package index -> push
+it where devices look.** The differences are only *what* is built and *which directory* it lands in.
+A firmware build lands in a **test** directory, and `promote-release.yml` is what moves it in front
+of devices — see section 2.
 
 ### Where things land
 
@@ -142,18 +145,33 @@ The only job that writes anything public.
 | Kmod bundle + checksums | `kmods-msm8916-<version>.tar.gz` and `sha256sums` |
 | Merge checksums | splices into the published file — see below |
 | `firmware.json` | merges into the published manifest |
-| Feed -> gh-pages | writes `releases/<base>` and `releases/<version>` |
-| Prune | deletes kernel/kmod files this build did not produce |
-| GitHub Release | attaches every image and the checksum file |
+| Feed -> gh-pages | writes `releases/<version>` only — a test build never touches `releases/<base>` |
+| GitHub Release | attaches every image and the checksum file, as a **prerelease** |
 
 **Why the merges matter.** A targeted release (`boards=uf02 uz801`) builds two boards. The manifest
 and the checksum file are shared by all eight, so both are downloaded, edited and re-uploaded rather
 than regenerated — otherwise the other six boards would silently disappear from the release metadata.
 
-**Why the prune matters.** The feed directory is additive: `keep_files: true` preserves anything a
-deploy does not mention, and every release adds another kernel generation with its own `kmod-*` set.
-Left alone the directory grows forever, and because `apk list -a` prints in index order rather than
-version order, a device could be told its own kernel was missing.
+**Why a test build leaves the shared feed alone.** `releases/<base>` is what every device reads,
+and the feed directory is additive (`keep_files: true`), so a build that published there would add
+another kernel generation — and pruning to the new vermagic would delete the kmods production
+devices still need. A test build writes only `releases/<version>`, and the root `firmware.json`
+keeps naming the previous release, so no unit is offered an upgrade.
+
+### Promotion — `promote-release.yml`
+
+The second half of a release: `workflow_dispatch` with `tag`, plus `dry_run`.
+
+1. Verifies the tag exists, is a **prerelease**, is not a draft, and carries at least eight assets.
+2. Copies `releases/<version>` into `releases/<base>` and prunes every `kernel-*.apk` /
+   `kmod-*.apk` the new build did not produce — `apk list -a` prints in index order, not version
+   order, so a leftover generation makes a device believe its own kernel is missing.
+3. Publishes that manifest as the root `firmware.json`, the file devices ask for first. This is
+   when the release becomes visible.
+4. Flips the GitHub release to `--latest` and drops the "(test build)" title.
+
+It rebuilds nothing; it only moves what the test build already published. Promote **only after the
+image has booted on hardware** — that is the point of the split.
 
 ### Release artifacts
 
@@ -521,6 +539,9 @@ of minutes and the boards build in parallel, so wall-clock is roughly one board'
 # from main, with version already bumped in ./version
 gh workflow run build-and-release.yml --ref main
 sleep 15 && gh run list --workflow=build-and-release.yml --limit 1
+
+# flash the test build on a bench unit, then:
+gh workflow run promote-release.yml --ref main -f tag=v25.12.6-r7
 ```
 
 ### Replace a pre-release tag
@@ -549,6 +570,8 @@ curl -fsS https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r4/hotfix
 | `apk search` shows almost nothing | an index was regenerated from a tree that was not restored first |
 | kmods refuse to install | the feed's kernel vermagic differs from the device's kernel |
 | a queued release vanished | a third dispatch replaced it — see section 2 |
+| a new release never reaches devices | by design — promote it with `promote-release.yml` (section 2) |
+| `is already a production release` | it was promoted already; re-cutting needs a new version |
 | `base-files floor is N but … is already published` | the hotfix channel moved past the image line — bump `BASE_FILES_RELEASE_FLOOR` (section 7) |
 | `Cannot read …/published-versions.json` | the high-water mark does not exist yet — publish any package once, or check gh-pages |
 
@@ -558,7 +581,8 @@ curl -fsS https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r4/hotfix
 
 | Path | What |
 |---|---|
-| `.github/workflows/build-and-release.yml` | firmware pipeline |
+| `.github/workflows/build-and-release.yml` | firmware pipeline (publishes a test release) |
+| `.github/workflows/promote-release.yml` | moves a tested release to production |
 | `.github/workflows/publish-package.yml` | package + hotfix pipeline |
 | `.github/workflows/publish-kmod.yml` | kernel module pipeline |
 | `.github/workflows/build.yml` | manual throwaway build |

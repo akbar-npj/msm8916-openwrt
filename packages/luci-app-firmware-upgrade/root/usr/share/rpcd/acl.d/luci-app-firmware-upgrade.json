@@ -8,6 +8,7 @@
 				"/usr/sbin/firmware-upgrade hotfix apply": [ "exec" ],
 				"/tmp/hotfix-notify.json": [ "read" ],
 				"/tmp/firmware-upgrade.failed": [ "read" ],
+				"/tmp/firmware-upgrade.progress": [ "read" ],
 				"/tmp/firmware-upgrade-apply.log": [ "read" ]
 			}
 		},

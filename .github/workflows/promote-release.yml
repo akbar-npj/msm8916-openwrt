@@ -1,0 +1,156 @@
+name: Promote Release to Production
+
+# A release built by build-and-release.yml is a TEST build: the GitHub release
+# is a prerelease, gh-pages gets only releases/<version>, and the shared
+# releases/<base> feed and the root firmware.json are left alone.  Nothing a
+# running device polls can see it.
+#
+# This is the second half.  Once the test build has passed on hardware, this
+# workflow copies its feed into releases/<base>, publishes the root manifest
+# that devices ask for first, prunes kernel/kmod generations, and flips the
+# GitHub release to "latest".  It rebuilds nothing: everything it needs was
+# already published by the test build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to promote, e.g. v25.12.6-r7 (must exist as a prerelease)"
+        required: true
+      dry_run:
+        description: "Do everything except the gh-pages push and the release edit."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Same group as the release build: promotion rewrites the shared feed, so it
+# must never overlap a build that is deploying to the same branch.
+concurrency:
+  group: release-build
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote to production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Resolve and verify the test release
+        id: vars
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v*) ;;
+            *) echo "::error::tag must look like v25.12.6-r7, got '$TAG'"; exit 1 ;;
+          esac
+
+          gh release view "$TAG" --json isPrerelease,isDraft,assets > /tmp/rel.json
+          pre=$(jq -r .isPrerelease /tmp/rel.json)
+          draft=$(jq -r .isDraft /tmp/rel.json)
+          n=$(jq -r '.assets | length' /tmp/rel.json)
+
+          [ "$draft" = "false" ] || { echo "::error::$TAG is a draft"; exit 1; }
+          if [ "$pre" != "true" ]; then
+            echo "::error::$TAG is already a production release - nothing to promote."
+            exit 1
+          fi
+          if [ "$n" -lt 8 ]; then
+            echo "::error::$TAG has only $n assets; that is not a complete board matrix."
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          BASE="${VERSION%-r*}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "Promoting $TAG -> version $VERSION, feed base $BASE, $n assets."
+
+      - name: Publish the feed and the root manifest on gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.vars.outputs.version }}
+          BASE: ${{ steps.vars.outputs.base }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/promo
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/promo
+          cd /tmp/promo
+
+          SRC="releases/${VERSION}"
+          DST="releases/${BASE}"
+          if [ ! -d "$SRC" ]; then
+            echo "::error::no $SRC on gh-pages - the test build never published its feed."
+            exit 1
+          fi
+
+          mkdir -p "$DST/targets/msm89xx/msm8916" "$DST/packages"
+          cp -a "$SRC/targets/msm89xx/msm8916/packages/." "$DST/targets/msm89xx/msm8916/packages/"
+          cp -a "$SRC/packages/aarch64_generic/." "$DST/packages/aarch64_generic/"
+          cp -f "$SRC/targets/msm89xx/msm8916/firmware.json" firmware.json
+          [ -f "$SRC/public-key.pem" ] && cp -f "$SRC/public-key.pem" "$DST/public-key.pem" || true
+
+          # Kernel and kmods are per-vermagic: keep exactly the set this release
+          # built and drop older generations.  The feed directory is additive and
+          # `apk list -a` prints in index order rather than version order, so a
+          # leftover generation is what makes a device believe its own kernel is
+          # missing from the feed.
+          BUILT="$SRC/targets/msm89xx/msm8916/packages"
+          for f in "$DST"/targets/msm89xx/msm8916/packages/kernel-*.apk \
+                   "$DST"/targets/msm89xx/msm8916/packages/kmod-*.apk; do
+            [ -e "$f" ] || continue
+            [ -e "$BUILT/$(basename "$f")" ] && continue
+            echo "prune ${f#releases/}"
+            git rm -q "$f"
+          done
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::warning::gh-pages already matches $VERSION - nothing to change."
+            exit 0
+          fi
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            echo "::notice::DRY_RUN - not committing. This is what would be published:"
+            git diff --cached --stat
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "release: promote ${VERSION} to production (releases/${BASE})"
+          for i in 1 2 3; do
+            git push -q origin gh-pages && break
+            [ "$i" -eq 3 ] && { echo "::error::cannot push the promotion to gh-pages"; exit 1; }
+            git pull -q --rebase origin gh-pages
+          done
+          echo "Promoted $VERSION into $DST and the root firmware.json."
+
+      - name: Flip the GitHub release to production
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            echo "::notice::DRY_RUN - would run: gh release edit $TAG --prerelease=false --latest"
+            exit 0
+          fi
+          gh release edit "$TAG" \
+            --prerelease=false \
+            --latest \
+            --title "OpenWrt ${TAG#v} for Qualcomm MSM8916"
+          echo "::notice::$TAG is now the latest production release."
