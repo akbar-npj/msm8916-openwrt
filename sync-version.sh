@@ -32,7 +32,12 @@ BLOCK=$(printf 'CONFIG_VERSIONOPT=y\nCONFIG_VERSION_FILENAMES=n\nCONFIG_VERSION_
 for f in "$REPO_DIR"/diffconfigs/*; do
   [ -f "$f" ] || continue
   grep -vE '^CONFIG_VERSION(_|OPT)' "$f" > "$f.tmp"
-  mv "$f.tmp" "$f"
+  # Drop trailing blank lines first: every run appends its own separator, so
+  # without this the gap above the block grows by one line per release.
+  awk '{ a[NR] = $0 }
+       END { n = NR; while (n > 0 && a[n] == "") n--
+             for (i = 1; i <= n; i++) print a[i] }' "$f.tmp" > "$f"
+  rm -f "$f.tmp"
   printf '\n%s\n' "$BLOCK" >> "$f"
 done
 
