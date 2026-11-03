@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz02.dts
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,308 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * JZ02 — generic 3-SIM battery MiFi, Qualcomm MSM8916.
@@ -49,7 +49,9 @@
 +		device-chemistry = "lithium-ion-polymer";
 +
 +		voltage-min-design-microvolt = <3350000>;
-+		voltage-max-design-microvolt = <4350000>;
++		/* 4.40 V design max leaves headroom for the charger's regulation
++		 * tolerance; the actual charge limit stays at 4.35 V. */
++		voltage-max-design-microvolt = <4400000>;
 +		charge-full-design-microamp-hours = <2100000>;
 +
 +		charge-term-current-microamp = <100000>;
