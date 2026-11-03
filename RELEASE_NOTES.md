@@ -1,5 +1,36 @@
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
+## v25.12.6-r7 — Feature highlights
+
+- 🩹 **r6 is withdrawn — it did not boot.** r6 tried to make the PM8916 RTC writable so `hwclock -w`
+  would stop failing. That call runs from `sysfixtime` at `START=00`, the very first init script,
+  and the RTC comes out of reset at 1970, so it fires on every boot. Without the property it returns
+  `RTC_SET_TIME: No such device` before it reaches the PMIC — harmless. With it, it becomes the
+  first code on these boards to write the RTC registers over SPMI, and the boot wedges there: the
+  system never reaches userspace, lk2nd's 3-strike counter runs out, and the board lands in the
+  recovery partition. `firstboot` cannot help, because the failure happens before it. The patch is
+  removed and the DTB is byte-identical to r5 again. **If you are on r6, flash r7.**
+
+- 📊 **Firmware upgrade now shows what it is doing.** The page gave no indication at all while an
+  upgrade ran: the console only appeared once the apply log had content, and the download — the
+  longest phase, ~8 MB over Wi-Fi — showed nothing, so a working upgrade looked like a dead button.
+  There is now a progress bar driven by the real byte count of the image on disk (0–80 %), then
+  verify (85 %) and flash (92 %); `sysupgrade` reports nothing finer, so the bar does not pretend
+  otherwise, and a failure turns it red. The console appears the moment you press Upgrade, scrolls
+  with the log, and survives a page reload.
+
+- 🧪 **Every release ships as a test build first.** A tag build publishes a prerelease and
+  `releases/<version>/` only; it no longer touches the shared `releases/<base>/` feed or the root
+  `firmware.json`, so an image that turns out to be broken cannot be handed to devices that are
+  already running. Promotion is an explicit `promote-release.yml` run that copies the feed, prunes
+  superseded kernel and kmod packages, republishes the root manifest and flips the release to
+  Latest.
+
+- 🐛 **CI no longer silently drops the LuCI submodule.** `packages/luci-app-cpu-perf` is a git
+  submodule and `actions/checkout` does not fetch submodules by default, so CI produced an image
+  without it and OpenWrt quietly dropped it from `DEFAULT_PACKAGES`. Both checkouts now pass
+  `submodules: recursive`.
+
 ## v25.12.6-r6 — Feature highlights
 
 - ⏰ **The RTC still cannot be written, and now we know why it must not be tried.** `sysfixtime`
