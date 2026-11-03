@@ -28,9 +28,12 @@ git checkout staging-main && git merge --no-ff test/firmware-upgrade
 git checkout main && git merge --ff-only staging-main
 git push origin main staging-main
 
-# 5. build and publish (see §7)
+# 5. build a TEST release (see §7) -- a prerelease; no device is offered it
 gh workflow run build-and-release.yml --ref main
 gh run list --workflow=build-and-release.yml --limit 1
+
+# 6. flash it on a bench unit, then promote it to production (see §7.2)
+gh workflow run promote-release.yml --ref main -f tag=v25.12.6-r4
 ```
 
 ---
@@ -274,6 +277,20 @@ The pipeline is `setup` → `build` (one runner per board, in parallel) →
 `publish`. Each board builds on its own runner, so wall-clock time is roughly
 one board's build rather than the sum of all of them.
 
+### A build publishes a TEST release
+
+The job does not publish straight to production.  It writes the GitHub release as
+a **prerelease**, deploys the feed only to `releases/<version>`, and leaves the
+shared `releases/<base>` feed and the root `firmware.json` alone.  Nothing a
+running device polls can see it — `firmware.json` still names the previous
+release, so no unit is offered an upgrade.
+
+That isolation is deliberate.  `releases/<base>` is what every device reads, and
+the kernel/kmod prune keeps only the vermagic this build produced, so publishing
+a test build there would delete the kmods production devices still need.
+
+Flash it, then promote it with §7.2.
+
 > **Dispatch one release at a time.** Releases share a `concurrency` group, so a
 > second dispatch waits instead of running concurrently — that is what stops two
 > runs from writing the shared `gh-pages` feed and `firmware.json` at once.
@@ -322,6 +339,32 @@ Update the table in `msm89xx/recovery/README.md` (size, sha256, verified date)
 in the same commit.  If `RECOVERY_SOURCE_TAG` is ever repointed, upload the
 images to the new tag first: the workflow fails the release if it cannot
 download them.
+### 7.2 Promote to production
+
+```sh
+gh workflow run promote-release.yml --ref main -f tag=v25.12.6-r4
+```
+
+It rebuilds nothing: everything it needs was published by the test build.
+
+1. Refuses unless the tag exists, is a **prerelease**, is not a draft, and carries
+   at least eight assets — a partial or already-promoted release cannot slip
+   through.
+2. Copies `releases/<version>` into `releases/<base>` — the target package feed,
+   the arch feed, the per-release `firmware.json` and the public key — and prunes
+   every `kernel-*.apk` / `kmod-*.apk` this build did not produce.
+3. Publishes that manifest as the root `firmware.json`, the file devices ask for
+   first.  This is the moment the release becomes visible to them.
+4. Flips the GitHub release to `--latest` and drops the "(test build)" title.
+
+`-f dry_run=true` does everything except the push and the release edit, and
+prints the staged diff.
+
+**Promote only after the image has booted on hardware.** That is the whole point
+of the split: a bad build fails on a bench unit instead of on a user's stick.  r6
+added `allow-set-time` to the PM8916 RTC and made every board stop booting; it
+reached production only because a release used to publish straight there.
+
 ## 8. Verify the release
 
 ```sh
@@ -329,6 +372,9 @@ gh release view v25.12.6-r3 --json tagName,isDraft,assets
 gh api repos/akbar-npj/msm8916-openwrt/contents/firmware.json?ref=gh-pages \
   --jq '.content' | base64 -d | head -40
 ```
+
+Check 1–3 against the **test** release, before promoting. 4–6 only become true
+after §7.2, because the feed and `firmware.json` do not move until then.
 
 Check, in order:
 

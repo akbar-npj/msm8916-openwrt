@@ -193,6 +193,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # packages/luci-app-cpu-perf is a git submodule.  Without this the
+          # directory is empty, the package cannot be built, and OpenWrt
+          # silently drops it from DEFAULT_PACKAGES -- so the released image
+          # quietly differs from a local build.
+          submodules: recursive
 
       - name: Free Disk Space on Runner
         run: |
@@ -311,6 +316,9 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          # See the build job: the cpu-perf package is a submodule.
+          submodules: recursive
 
       - name: Free Disk Space on Runner
         run: |
@@ -464,15 +472,14 @@ jobs:
           VERSION: ${{ needs.setup.outputs.version }}
         run: |
           set -euo pipefail
-          # Two paths, on purpose:
-          #   releases/<base>     what devices actually read.  CONFIG_VERSION_REPO
-          #                       is written by sync-version.sh as releases/<base>,
-          #                       i.e. WITHOUT the -rN suffix, so a rebuild of the
-          #                       same OpenWrt version keeps a working feed.
-          #   releases/<version>  the exact release, so a specific build stays
-          #                       identifiable and reproducible.
-          # Publishing only the second one leaves every device with a 404 feed.
-          for DIR in $(printf '%s\n' "$BASE" "$VERSION" | sort -u); do
+          # A release build is a TEST build: it publishes only the exact-release
+          # path, releases/<version>.  releases/<base> is what every device reads
+          # (CONFIG_VERSION_REPO is written without the -rN suffix), so writing it
+          # here would put an untested kernel and kmod set in front of production
+          # devices -- and the kernel/kmod prune would delete the ones they still
+          # need.  promote-release.yml copies this directory into releases/<base>
+          # once the build has passed.
+          for DIR in "$VERSION"; do
             echo "Publishing feed to releases/${DIR}"
             mkdir -p "/tmp/gh-pages-site/releases/${DIR}/targets/msm89xx/msm8916"
             mkdir -p "/tmp/gh-pages-site/releases/${DIR}/packages"
@@ -488,11 +495,11 @@ jobs:
           # Stable, version-independent key path used by apk-key-refresh to
           # self-heal a stale embedded key (see msm89xx/base-files/usr/sbin/apk-key-refresh).
           [ -f openwrt/public-key.pem ] && cp openwrt/public-key.pem /tmp/gh-pages-site/public-key.pem || true
-          # Version-independent "latest" manifest.  Devices ask for this first,
-          # so a 25.12.6 device still discovers a 25.12.7 release; the per-base
-          # copy above stays as the fallback for older firmware.
-          cp openwrt/bin/targets/msm89xx/msm8916/firmware.json /tmp/gh-pages-site/firmware.json
-          echo "Published root firmware.json (release $(python3 -c 'import json;print(json.load(open("/tmp/gh-pages-site/firmware.json"))["release"])'))"
+          # The root firmware.json is the "latest" manifest every device asks for
+          # first.  It is NOT written here: a test build must never be offered as
+          # an update.  promote-release.yml copies this release's manifest there
+          # once the build has passed.
+          echo "Test build: published releases/${VERSION} only. Root firmware.json and releases/${BASE} are untouched."
 
       - name: Deploy Package Feeds to GitHub Pages (gh-pages branch)
         uses: peaceiris/actions-gh-pages@v4
@@ -502,64 +509,15 @@ jobs:
           publish_dir: /tmp/gh-pages-site
           keep_files: true
 
-      # The feed directory is additive: peaceiris keeps files it does not know
-      # about, and every release adds another kernel generation with its own
-      # kmod-* set.  Left alone the directory grows forever, and because
-      # `apk list -a` prints in index order rather than version order, a device
-      # could be told that its own kernel was missing from the feed.
-      # Keep exactly the kernel and kmods this build produced; anything else in
-      # that directory belongs to a build nobody can install any more.
-      - name: Prune Superseded Kernel & Kmod Packages
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE: ${{ needs.setup.outputs.base }}
-          VERSION: ${{ needs.setup.outputs.version }}
-        run: |
-          set -euo pipefail
-          BUILT="$GITHUB_WORKSPACE/openwrt/bin/targets/msm89xx/msm8916/packages"
-          [ -d "$BUILT" ] || { echo "::error::no built package dir at $BUILT"; exit 1; }
-          rm -rf /tmp/prune
-          git clone --depth 1 --branch gh-pages \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/prune
-          cd /tmp/prune
-          changed=0
-          for DIR in $(printf '%s\n' "$BASE" "$VERSION" | sort -u); do
-            D="releases/${DIR}/targets/msm89xx/msm8916/packages"
-            [ -d "$D" ] || continue
-            for f in "$D"/kernel-*.apk "$D"/kmod-*.apk; do
-              [ -e "$f" ] || continue
-              [ -e "$BUILT/$(basename "$f")" ] && continue
-              echo "prune $f"
-              git rm -q "$f"
-              changed=1
-            done
-          done
-          if [ "$changed" -eq 0 ]; then
-            echo "Nothing to prune."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -q -m "feed: prune kernel/kmod packages superseded by ${VERSION}"
-          # The package publish workflows push to this same branch under their
-          # own concurrency groups, so one can land between our deploy and this
-          # push.  Rebase and retry instead of failing a release that has
-          # already published everything else.
-          for i in 1 2 3; do
-            git push -q origin gh-pages && break
-            [ "$i" -eq 3 ] && { echo "::error::cannot push the prune to gh-pages"; exit 1; }
-            git pull -q --rebase origin gh-pages
-          done
-          echo "Pruned superseded kernel/kmod packages."
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.setup.outputs.tag }}
-          name: "OpenWrt ${{ needs.setup.outputs.version }} for Qualcomm MSM8916"
+          name: "OpenWrt ${{ needs.setup.outputs.version }} (test build)"
           body_path: RELEASE_NOTES.md
           draft: false
-          prerelease: false
+          prerelease: true
           files: |
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-boot.img
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-system.img
