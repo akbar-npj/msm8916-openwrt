@@ -169,5 +169,5 @@
 41006	Telenor PK	internet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 
 # Ghana (MCC 620)
-62001	MTN Ghana	internet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+62001	MTN Ghana	portalnmms	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 62002	Vodafone Ghana	internet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
