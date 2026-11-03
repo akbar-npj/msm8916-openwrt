@@ -1,0 +1,46 @@
+#!/bin/sh /etc/rc.common
+# JZ02 SIM-slot selector.
+#
+# The board has three SIM lines plus a re-announce pulse, exposed as gpio-leds
+# with the stock Android names:
+#   sim1_switch_gpio  GPIO22  embedded / solder SIM
+#   sim2_switch_gpio  GPIO23  second SIM
+#   sim3_switch_gpio  GPIO1   external slot
+#   sim_hotdet_gpio   GPIO20  re-announce pulse
+#
+# Configure with:  uci set sim.slot=3 && uci commit sim
+# (1 = embedded, 2 = second, 3 = external; default 3)
+
+START=20
+
+start() {
+	local slot L
+	slot="$(uci -q get sim.slot 2>/dev/null)"
+	[ -n "$slot" ] || slot=3
+	L=/sys/class/leds
+
+	if [ ! -d "$L/sim_hotdet_gpio" ]; then
+		logger -t sim-select "SIM switch GPIOs not present; skipping"
+		return 0
+	fi
+
+	# Stock Android sequence: pulse hot-detect, select one line, release.
+	echo 1 > "$L/sim_hotdet_gpio/brightness"
+	sleep 1
+	echo 0 > "$L/sim1_switch_gpio/brightness"
+	echo 0 > "$L/sim2_switch_gpio/brightness"
+	echo 0 > "$L/sim3_switch_gpio/brightness"
+	case "$slot" in
+		1) echo 1 > "$L/sim1_switch_gpio/brightness" ;;
+		2) echo 1 > "$L/sim2_switch_gpio/brightness" ;;
+		*) echo 1 > "$L/sim3_switch_gpio/brightness" ;;
+	esac
+	sleep 1
+	echo 0 > "$L/sim_hotdet_gpio/brightness"
+
+	logger -t sim-select "selected SIM slot $slot"
+}
+
+stop() {
+	:
+}

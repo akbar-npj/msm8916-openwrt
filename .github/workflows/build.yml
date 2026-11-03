@@ -25,6 +25,7 @@ on:
           - ufi001b
           - ufi003
           - uz801
+          - jz02
 
 env:
   UPLOAD_FIRMWARE: true
