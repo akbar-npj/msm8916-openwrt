@@ -1,0 +1,13 @@
+{
+  "build": "25.12.6-r7",
+  "hotfixes": [
+    {
+      "id": "2026-11-03-msm89xx-firmware-upgrade",
+      "package": "msm89xx-firmware-upgrade",
+      "version": "1.0-r16",
+      "title": "Firmware upgrade: the progress bar now moves (measure the image with wc -c, not stat)",
+      "restart": [],
+      "published": "2026-11-03"
+    }
+  ]
+}
