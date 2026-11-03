@@ -2,12 +2,15 @@
 
 ## v25.12.6-r6 — Feature highlights
 
-- ⏰ **The clock now survives a reboot.** The PM8916 RTC has no battery on these sticks, so it came
-  out of reset at 1970-01-01 and the kernel seeded the system clock from it on every boot — and
-  `hwclock -w` failed with `RTC_SET_TIME: No such device`, so nothing could ever write the time
-  back. The RTC node now carries `allow-set-time`, so the first boot with a real clock (sysfixtime
-  or NTP) stores it and every later boot starts sane. This is the root cause behind the recurring
-  "certificate is not yet valid" failures on a freshly flashed unit.
+- ⏰ **The RTC still cannot be written, and now we know why it must not be tried.** `sysfixtime`
+  runs at `START=00`, the first init script, and calls `hwclock -w` on every boot: the PM8916 RTC
+  comes out of reset at 1970 and the image's build date is always later, so the "clock is behind the
+  files" branch always fires. Without `allow-set-time` that call returns `RTC_SET_TIME: No such
+  device` before it ever reaches the PMIC — harmless. With the property set, it becomes the first
+  code on these boards to write the RTC registers over SPMI, and that wedges the boot: the system
+  never reaches userspace, lk2nd's 3-strike counter runs out, and the board drops into the recovery
+  partition. The property is **not** shipped. The system clock is still set from the image's own
+  file timestamps on every boot, which is enough for TLS to work.
 
 - 🔑 **`apk-key-refresh` waits for a usable clock** instead of reporting a TLS error it cannot
   explain. It no longer attempts the fetch before 2020-01-01; it says once that it is deferring,
