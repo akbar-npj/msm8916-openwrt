@@ -43,10 +43,19 @@ fi
 
 TMP="$(mktemp -d /tmp/firmware-upgrade.XXXXXX)"
 DL="/tmp/firmware-upgrade.bin"
+# Machine-readable progress for the LuCI page: one line, rewritten in place.
+#   phase=<download|verify|flash|done|failed> bytes=<n> total=<n>
+# The UI turns this into a progress bar; it is never read by the CLI itself.
+PROGRESS="/tmp/firmware-upgrade.progress"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
 log() { logger -t firmware-upgrade "$*"; echo "$*" >&2; }
+
+progress() { printf 'phase=%s bytes=%s total=%s\n' "$1" "${2:-0}" "${3:-0}" > "$PROGRESS"; }
+
+# busybox has no 'du --bytes' guarantee; stat -c %s is available everywhere here.
+file_size() { stat -c %s "$1" 2>/dev/null || echo 0; }
 
 board_name() {
 	uci -q get "${PKG_CFG}.board" 2>/dev/null \
@@ -114,11 +123,35 @@ load_manifest() {
 }
 
 download_and_verify() {
-	local out="$DL" sum
+	local out="$DL" sum sz wpid
+	# A stale image from a previous run would make the progress bar start at
+	# 100% and, worse, could be mistaken for this download by verify_local.
+	rm -f "$out"
+	progress download 0 "$LATEST_SIZE"
 	log "downloading $LATEST_URL"
-	wget -q -O "$out" "$LATEST_URL" || { log "download failed"; return 1; }
+	# Run wget in the background so the byte count can be reported while it
+	# transfers; a synchronous wget gives the UI no progress at all.  The
+	# completion sentinel is a file, not 'kill -0': an exited child that has
+	# not been reaped is a zombie and still answers kill -0, so polling the
+	# pid would loop forever.
+	rm -f "$TMP/wget.rc"
+	( wget -q -O "$out" "$LATEST_URL"; echo $? > "$TMP/wget.rc" ) &
+	wpid=$!
+	while [ ! -f "$TMP/wget.rc" ]; do
+		progress download "$(file_size "$out")" "$LATEST_SIZE"
+		sleep 1
+	done
+	wait "$wpid" 2>/dev/null
+	if [ "$(cat "$TMP/wget.rc" 2>/dev/null)" != "0" ]; then
+		progress failed "$(file_size "$out")" "$LATEST_SIZE"
+		log "download failed"
+		return 1
+	fi
+	sz="$(file_size "$out")"
+	progress verify "$sz" "$LATEST_SIZE"
 	sum="$(sha256sum "$out" | awk '{print $1}')"
 	if [ "$sum" != "$LATEST_SHA" ]; then
+		progress failed "$sz" "$LATEST_SIZE"
 		log "sha256 mismatch: got $sum expected $LATEST_SHA"
 		return 1
 	fi
@@ -157,16 +190,26 @@ do_upgrade() {
 	if verify_local; then
 		out="$DL"
 		log "reusing verified local image $out"
+		progress verify "$(file_size "$out")" "$LATEST_SIZE"
 	else
 		out="$(download_and_verify)" || return 1
 	fi
 	mark_pending
+	progress flash "$(file_size "$out")" "$LATEST_SIZE"
+	# sysupgrade does not report how far the flash has got, so 'flash' is the
+	# last phase the UI can show; on success the device reboots from under it.
 	if [ "$keep" = "nokeep" ]; then
 		log "applying upgrade to $LATEST_VER (sysupgrade -n, settings erased)"
 		sysupgrade -n "$out"
 	else
 		log "applying upgrade to $LATEST_VER (sysupgrade keeps config)"
 		sysupgrade "$out"
+	fi
+	if [ $? -eq 0 ]; then
+		progress done "$(file_size "$out")" "$LATEST_SIZE"
+	else
+		progress failed "$(file_size "$out")" "$LATEST_SIZE"
+		return 1
 	fi
 }
 
@@ -336,7 +379,7 @@ check)
 		shift
 		_keep=keep
 		[ "$1" = "--no-keep" ] && _keep=nokeep
-		rm -f /tmp/firmware-upgrade.failed
+		rm -f /tmp/firmware-upgrade.failed "$PROGRESS"
 		if [ "$_keep" = nokeep ]; then
 			setsid sh -c 'if /usr/sbin/firmware-upgrade upgrade --no-keep >/tmp/firmware-upgrade-apply.log 2>&1; then :; else echo failed >/tmp/firmware-upgrade.failed; fi' >/dev/null 2>&1 &
 		else
