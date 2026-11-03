@@ -54,8 +54,20 @@ log() { logger -t firmware-upgrade "$*"; echo "$*" >&2; }
 
 progress() { printf 'phase=%s bytes=%s total=%s\n' "$1" "${2:-0}" "${3:-0}" > "$PROGRESS"; }
 
-# busybox has no 'du --bytes' guarantee; stat -c %s is available everywhere here.
-file_size() { stat -c %s "$1" 2>/dev/null || echo 0; }
+# No 'stat' on the target: busybox is built without that applet here
+# ("stat: applet not found"), so a stat -c %s probe silently returns 0 and the
+# progress bar never moves.  wc -c is a core applet and reads the file's current
+# length even while wget is still appending to it.
+file_size() {
+	local s
+	# The '<' redirect is the shell's, so 2>/dev/null on wc does not silence a
+	# missing file -- check first, or every first tick logs an error into the
+	# apply log the user is watching.
+	[ -f "$1" ] || { echo 0; return; }
+	s="$(wc -c < "$1" 2>/dev/null | tr -d ' ')"
+	[ -n "$s" ] || s=0
+	echo "$s"
+}
 
 board_name() {
 	uci -q get "${PKG_CFG}.board" 2>/dev/null \
