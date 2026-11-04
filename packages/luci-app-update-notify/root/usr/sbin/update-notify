@@ -43,7 +43,8 @@ case "$MODE" in
 Usage: update-notify [--once | --daemon | --boot | --help]
 
   --once     Refresh the index and rewrite /tmp/update-notify.json.  Exits
-             non-zero when the index could not be refreshed (offline).
+             non-zero when the index or one of the manifests could not be
+             fetched (offline, or an uplink that is not fully up yet).
   --daemon   Refresh now, then every INTERVAL seconds (default 6 h).  A failed
              refresh keeps the previous result and retries after RETRY
              seconds (default 15 min).  Started by /etc/init.d/update-notify.
@@ -111,12 +112,16 @@ firmware_check() {
 
 	# firmware-upgrade check fetches the manifest and prints a single JSON line;
 	# on failure (offline) it prints nothing, so keep the previous answer.
+	# The failure is reported to the caller: check_once() runs this AFTER a
+	# successful "apk update", so a fetch that still fails means the uplink is
+	# only half up -- exactly the first minutes after boot, when the station
+	# has associated but DNS or the route is not there yet.  Swallowing it
+	# here would park the next attempt 6 hours away.
 	firmware-upgrade check > "$FIRM_OUT.tmp" 2>/dev/null && [ -s "$FIRM_OUT.tmp" ] && \
-		mv -f "$FIRM_OUT.tmp" "$FIRM_OUT" || {
-		rm -f "$FIRM_OUT.tmp"
-		log "firmware-upgrade check failed; keeping previous result"
-	}
-	return 0
+		mv -f "$FIRM_OUT.tmp" "$FIRM_OUT" && return 0
+	rm -f "$FIRM_OUT.tmp"
+	log "firmware-upgrade check failed; keeping previous result"
+	return 1
 }
 
 hotfix_check() {
@@ -131,11 +136,11 @@ hotfix_check() {
 	if firmware-upgrade hotfix check > "$HOTFIX_OUT.tmp" 2>/dev/null && [ -s "$HOTFIX_OUT.tmp" ]; then
 		mv -f "$HOTFIX_OUT.tmp" "$HOTFIX_OUT"
 		log "hotfix check: $(jsonfilter -e '@.count' -i "$HOTFIX_OUT" 2>/dev/null) for this build"
-	else
-		rm -f "$HOTFIX_OUT.tmp"
-		log "hotfix check failed; keeping previous result"
+		return 0
 	fi
-	return 0
+	rm -f "$HOTFIX_OUT.tmp"
+	log "hotfix check failed; keeping previous result"
+	return 1
 }
 
 # If a firmware-upgrade run left a pending marker (written just before
@@ -159,7 +164,7 @@ firmware_just_upgraded() {
 }
 
 check_once() {
-	local count
+	local count rc
 
 	# Detect a just-completed firmware upgrade first: this needs no network,
 	# so it works even on a failed refresh below.
@@ -187,9 +192,15 @@ check_once() {
 		}
 
 	log "$count package update(s) available"
-	firmware_check
-	hotfix_check
-	return 0
+
+	# The package count is fresh either way, but a failed manifest fetch still
+	# has to shorten the next cycle to RETRY: it is the normal state for the
+	# first minutes after boot, and waiting 6 h for the next look is what made
+	# the banner appear only after a manual restart.
+	rc=0
+	firmware_check || rc=1
+	hotfix_check || rc=1
+	return "$rc"
 }
 
 if [ "$MODE" = "--boot" ]; then
