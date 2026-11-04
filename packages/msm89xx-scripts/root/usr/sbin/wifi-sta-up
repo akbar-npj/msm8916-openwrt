@@ -41,6 +41,18 @@ config_get startup_grace main startup_grace 30
 config_get hostname main hostname
 config_get_bool uplink main uplink 1
 config_get route_metric main route_metric 100
+config_get key_mgmt main key_mgmt
+
+# AKM for saved networks that have a password.  Empty means "decide from
+# the scan" (see net_akm): SAE when the AP offers it, WPA2 otherwise.
+# Setting it pins one answer for every network -- the escape hatch for an
+# AP that misbehaves.  A typo must not reach the conf: an unknown token
+# makes the whole key_mgmt line a parse error and leaves the station
+# silently unassociated, so anything unrecognised falls back to auto.
+case "$key_mgmt" in
+	"WPA-PSK"|"WPA-PSK SAE"|"SAE") ;;
+	*) key_mgmt="" ;;
+esac
 
 # ---- saved networks ----------------------------------------------------
 # Any number of networks can be saved as wifista.ap sections.  The generated
@@ -291,6 +303,79 @@ scan_parse() {
 	'
 }
 
+# Where scan_any_channel leaves the last good scan dump, so the AKM decision
+# below can look a saved network up without scanning again.
+SCAN_DUMP=/var/run/wifi-sta-scan
+
+# Read the AKM list and the PMF capability of the BSS for $1 from a scan dump
+# on stdin.  Prints "<akm> <mfp|nomfp>", or nothing when the BSS is not there.
+scan_akm() {
+	local want="$1"
+	awk -v want="$want" '
+		/^BSS / {
+			# Print at the end of the block, not when the AKM line is seen: the
+			# MFP-capable flag lives in the *Capabilities* line that follows it.
+			if (hit && akm != "") { print akm, (mfp ? "mfp" : "nomfp"); done = 1; exit }
+			ssid = ""; akm = ""; mfp = ""; hit = 0
+		}
+		/^[[:space:]]*SSID: / {
+			ssid = $0
+			sub(/^[[:space:]]*SSID: /, "", ssid)
+			if (ssid == want) hit = 1
+		}
+		/Authentication suites:/ {
+			akm = $0
+			sub(/.*Authentication suites:[[:space:]]*/, "", akm)
+		}
+		/MFP-capable/ { mfp = 1 }
+		END { if (!done && hit && akm != "") print akm, (mfp ? "mfp" : "nomfp") }
+	'
+}
+
+# Decide the AKM (and whether PMF is required) for one saved network.  Sets
+# NET_KEY_MGMT and NET_IEEE80211W.
+#
+# A list is not a retry ladder: the AP picks from the intersection, so a
+# WPA2-only router selects PSK and a WPA3 or transition router selects SAE on
+# the same association.  SAE requires PMF, and a transition AP rejects an
+# association that offers SAE without it -- measured on this bench: the phone
+# hotspot advertises "PSK SAE" + MFP-capable, and "WPA-PSK SAE" with
+# ieee80211w=0 authenticates and then never associates, while the same config
+# with ieee80211w=2 connects as SAE.  So SAE is offered exactly when the AP
+# advertises it, and PMF is required exactly when SAE is offered.
+#
+# wifista.main.key_mgmt overrides all of this when set.
+net_akm() {
+	local ssid="$1" akm=""
+	NET_KEY_MGMT=""
+	NET_IEEE80211W=""
+
+	if [ -n "$key_mgmt" ]; then
+		NET_KEY_MGMT="$key_mgmt"
+		case "$NET_KEY_MGMT" in *SAE*) NET_IEEE80211W=2 ;; esac
+		return 0
+	fi
+
+	[ -f "$SCAN_DUMP" ] && akm="$(scan_akm "$ssid" < "$SCAN_DUMP")"
+
+	case "$akm" in
+		*SAE*)
+			case "$akm" in
+				*PSK*) NET_KEY_MGMT="WPA-PSK SAE" ;;
+				*)     NET_KEY_MGMT="SAE" ;;
+			esac
+			NET_IEEE80211W=2
+			;;
+		*)
+			# PSK-only, enterprise, or the AP was not in the scan at
+			# bring-up: WPA2 is the safe answer.  The station re-runs
+			# this on the next recycle, so an AP that appears later is
+			# picked up then.
+			NET_KEY_MGMT="WPA-PSK"
+			;;
+	esac
+}
+
 # Read the channel the AP is actually beaconing on.
 ap_channel() {
 	iw dev "$1" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }'
@@ -354,6 +439,11 @@ scan_any_channel() {
 		return 1
 		;;
 	esac
+
+	# Keep the dump: net_akm() looks each saved network up in it to decide
+	# whether the AP takes SAE.  Written only for a scan that was not
+	# refused, so a wedged scan cannot overwrite a good one.
+	printf '%s\n' "$out" > "$SCAN_DUMP" 2>/dev/null
 	i=1
 	while [ "$i" -le "$PROFILE_COUNT" ]; do
 		s="$(profile_field "$PROFILE_SSID" "$i")"
@@ -525,12 +615,11 @@ bring_up_sta() {
 					# mean instead.
 					if [ -n "$_k" ]; then
 						echo "	psk=\"$(conf_escape "$_k")\""
-						# WPA-PSK only, on purpose.  wpad-basic-wolfssl does have SAE
-						# (OpenWrt passes CONFIG_SAE=y for every wolfssl variant, and the
-						# shipped binary accepts key_mgmt=SAE), but SAE forces PMF and the
-						# driver's MFP path is a local patch that has never been exercised
-						# against a real WPA3 AP.  Change this line to "WPA-PSK SAE" to opt in.
-						echo "	key_mgmt=WPA-PSK"
+						# net_akm() reads the scan dump: SAE when the AP advertises it,
+						# WPA-PSK otherwise, and PMF required exactly when SAE is offered.
+						net_akm "$_s"
+						echo "	key_mgmt=$NET_KEY_MGMT"
+						[ -n "$NET_IEEE80211W" ] && echo "	ieee80211w=$NET_IEEE80211W"
 					else
 						echo "	key_mgmt=NONE"
 					fi
@@ -820,6 +909,7 @@ run_status() {
 	kv dhcp "$dhcp"
 	kv radio "$radio"
 	kv recover_after "$recover_after"
+	kv key_mgmt "${key_mgmt:-auto}"
 	# Saved networks (enabled profiles) and any whose password was rejected
 	# since the last start (space-separated SSIDs).
 	kv profiles "$PROFILE_ENABLED"
