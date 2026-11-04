@@ -9,21 +9,38 @@ single point of failure.
 
 ## Branch protection and review flow
 
-- `main` takes changes **only via Pull Request**. Direct `git push` to `main`
-  is rejected by GitHub — the PR-review gate implies "require a pull request
-  before merging". The "Shell test suites" CI check must pass.
-- **The lead (@akbar-npj) is the final approver on every PR.** `CODEOWNERS`
-  lists `@akbar-npj` on every line (each board's files *and* the `*` fallback),
-  so `require_code_owner_reviews: true` makes the lead a *required* reviewer for
-  all files. A board maintainer reviews their own board's changes, but the PR
-  cannot merge until the lead also approves.
-- `enforce_admins: false` — the lead is not bound by the gate, so they can
-  approve and merge their own PRs (and any PR) through the normal PR flow.
-  Non-admin collaborators (`Write`) cannot bypass the required reviews.
-- Board maintainers get **Write** access so they can push their own topic / test
-  branches (e.g. `uz801/test`), experiment there, and open PRs — but they cannot
-  merge to `main` without the lead's approval. Stale approvals are dismissed on
-  new pushes (`dismiss_stale_reviews: true`).
+Both `main` and `staging-main` carry the same classic branch-protection rule.
+They differ in one setting:
+
+| | `main` | `staging-main` |
+| :--- | :--- | :--- |
+| Required status check | `Shell test suites` | `Shell test suites` |
+| Branch must be up to date | **yes** | no |
+| Direct `git push` | rejected | rejected |
+| Force-push / deletion | blocked | blocked |
+| `enforce_admins` | **true** | **true** |
+| Required reviews | none | none |
+
+- **Nobody pushes to either branch, the lead included.** `enforce_admins: true`
+  means the admin flag does not bypass the rule: every change arrives by Pull
+  Request and `Shell test suites` has to pass first. This is why the release
+  runbook promotes with a PR rather than a `git push` (see
+  `Docs/RELEASING_FIRMWARE.md` §6).
+- **No required reviews.** `CODEOWNERS` still requests the right reviewer
+  automatically, but GitHub does not block the merge on an approval. That is
+  deliberate: `CODEOWNERS` ends with `* @akbar-npj`, so requiring a code-owner
+  review makes the lead's own PRs unmergeable (GitHub forbids approving your
+  own PR), and requiring *any* approval would need a second person for every
+  change.
+- **Board maintainers get Write access** so they can push their own topic / test
+  branches (e.g. `uz801/test`) and open PRs. With no required review they can
+  merge their own board PR once the check is green — the review is a request,
+  not a gate. The lead is asked automatically and is expected to look; a red
+  check is the only thing that actually blocks.
+- **`main` also requires the branch to be up to date**, so a PR that fell behind
+  must be updated — which re-runs the check — before it can merge.
+  `staging-main` does not, because several board PRs land there and reconciling
+  them is the point.
 
 ## Roster
 
@@ -42,13 +59,16 @@ and update it when a unit arrives, dies or is repaired.
 | `uf02` | UF02 (250605 V0S) | `uf02,250605v0s` | @akbar-npj | **none — needs a tester** | patches 804, 851; `diffconfigs/uf02` |
 | `uz801` | UZ801 (v3) | `yiming,uz801-v3` | @isprogrammer, @giraygokirmak | bench (@isprogrammer) + field, daily in-vehicle (@giraygokirmak) | patches 803, 851; `diffconfigs/uz801` |
 | `ufi003` | UFI003 MB V02 | `ufi003,mb-v02` | @isprogrammer | bench | patch 852; `diffconfigs/ufi003` |
-| `uf896` | UF896 (v1.1) | `uf896,v1.1` | @akbar-npj | bench | patch 867; `diffconfigs/uf896` |
+| `jz02` | JZ02 Battery MiFi | `jz02,generic` | @GargoilXD | bench (@GargoilXD) | patch 868; `diffconfigs/jz02`; `sim-select`, `sim-test`, `20-usb0-bridge` |
+| `uf896` | UF896 (v1.1) | `uf896,v1.1` | @akbar-npj | **none — needs a tester** | patch 867; `diffconfigs/uf896` |
 
 Boards with **no working unit** (`dead` or `none`) are still maintained — the
 code is kept current and the image builds — but nothing in a release has been
-flashed on them, and a bug there is found by a user, not by us. Those rows are
-what issue [#13](https://github.com/akbar-npj/msm8916-openwrt/issues/13) is
-asking for.
+flashed on them, and a bug there is found by a user, not by us. As of r8 that is
+`mf800b`, `uf02` and `uf896`; `ufi001b` is `dead` and joins them until the repair
+lands. Those rows are what issue
+[#13](https://github.com/akbar-npj/msm8916-openwrt/issues/13) is asking for, and
+a second owner on any of them turns a "reported by a user" bug into a tested one.
 
 ### Shared files (lead-owned)
 

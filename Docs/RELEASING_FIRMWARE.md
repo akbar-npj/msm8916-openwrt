@@ -22,11 +22,11 @@ $EDITOR RELEASE_NOTES.md
 ./build.sh guard
 ./build.sh build mifib-v12
 
-# 4. promote: test -> staging-main -> main (see §6)
-git checkout test/firmware-upgrade && git add -A && git commit -m "release: 25.12.6-r4"
-git checkout staging-main && git merge --no-ff test/firmware-upgrade
-git checkout main && git merge --ff-only staging-main
-git push origin main staging-main
+# 4. promote through a PR -- direct push to main is rejected (see §6)
+git checkout -b test/release-r8 origin/main && git add -A
+git commit -m "release: 25.12.6-r8" && git push -u origin test/release-r8
+gh pr create --base main --head test/release-r8 --title 'release: 25.12.6-r8' --body-file /tmp/pr.md
+gh pr merge --merge
 
 # 5. build a TEST release (see §7) -- a prerelease; no device is offered it
 gh workflow run build-and-release.yml --ref main
@@ -240,19 +240,30 @@ CI owns the full multi-board matrix — build **one** board locally, and use
 
 ## 6. Promote
 
+Both `main` and `staging-main` run with `enforce_admins: true`, so a direct
+`git push` is **rejected for everyone, the lead included** — the release lands
+the same way as any other change, through a PR that has to pass
+`Shell test suites`. The old fast-forward dance is therefore gone; `main` is
+updated by merging the PR.
+
 ```sh
-git checkout test/firmware-upgrade
-git add -A && git commit            # the version bump, notes, and any fixes
-git checkout staging-main
-git merge --no-ff test/firmware-upgrade -m "Merge branch 'test/firmware-upgrade' into staging-main"
-git checkout main
-git merge --ff-only staging-main    # must succeed; if it refuses, see §1
-git push origin main staging-main
+git checkout -b test/release-r8 origin/main
+printf '25.12.6-r8\n' > version        # §2
+$EDITOR RELEASE_NOTES.md               # §4
+./build.sh guard && ./build.sh build mifib-v12   # §5
+git add -A && git commit -m "release: 25.12.6-r8"
+git push -u origin test/release-r8
+
+gh pr create --base main --head test/release-r8 --title 'release: 25.12.6-r8' --body-file /tmp/pr.md
+gh pr merge --merge                    # after the check is green
 ```
 
-Branch protection on `main` prints warnings ("changes must be made through a pull
-request", required check "Shell test suites"). With `enforce_admins=false` the
-admin push succeeds and the warnings are advisory.
+`main` also requires the branch to be up to date (`strict: true`). If the PR goes
+`BEHIND`, update it — `gh pr update-branch <n>` — which re-runs the check.
+
+`staging-main` is no longer on the release path. It is an integration branch for
+board work and is not kept in lockstep with `main`; do not try to fast-forward
+one from the other. See `MAINTAINERS.md` § "Branch protection and review flow".
 
 ## 7. Build and publish
 
