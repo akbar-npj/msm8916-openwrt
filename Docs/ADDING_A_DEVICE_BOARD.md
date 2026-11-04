@@ -469,8 +469,8 @@ never bricks the modem NV.
 > every push: diffconfig ↔ device profile ↔ DTS ↔ DTB registration ↔
 > `SUPPORTED_DEVICES`, file modes, `rc.d` symlinks, patch numbering, and "no
 > change to a shared `base-files` file without a board gate".  A gate is either
-> a runtime check (`board_name`, `is_compatible`) or a `# BOARDS: <list>` marker
-> in the file header.  Run it locally with
+> a runtime check (`board_name`, `board_match`, a `/proc/device-tree/compatible`
+> grep) or a `# BOARDS: <list>` marker in the file header.  Run it locally with
 > `bash tests/board-profile/run.sh --self-check`.
 >
 > `tests/board-profile/signoff.sh <board>` prints the hardware evidence a board

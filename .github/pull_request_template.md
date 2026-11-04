@@ -25,7 +25,7 @@
 - [ ] `tests/board-profile/signoff.sh <board>` output pasted below
 - [ ] `Docs/ADDING_A_DEVICE_BOARD.md` section 9 walked through
 - [ ] Any change to a file under `msm89xx/base-files/` is gated on
-      `board_name` or carries a `# BOARDS: <list>` marker saying who it is for
+      `board_name` / `device-tree/compatible` or carries a `# BOARDS: <list>` marker
 
 ## Hardware evidence
 
