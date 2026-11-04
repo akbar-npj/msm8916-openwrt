@@ -313,6 +313,14 @@ jobs:
               if [ -d "$d" ] && grep -rqs 'define KernelPackage/' "$d"; then NEED=1; fi
             done
           fi
+          # Board packages under package/msm8916 declare no KernelPackage yet
+          # still reach the board's kmods: msm89xx-scripts pulls in
+          # linux-firmware and gpio-button-hotplug, and the build dies on
+          #   No rule to make target '.../linux-6.12.112/.config'
+          # on a runner whose build_dir is cold (measured 2026-11-04, runs
+          # 41809560224 and 41811082178).  The board's .config is not written
+          # yet at this point, so key off the path.
+          if [ "$NEED" -eq 0 ] && [ -d "openwrt/package/msm8916/${PKG}" ]; then NEED=1; fi
           echo "needed=$NEED" >> "$GITHUB_OUTPUT"
           echo "kernel tree needed: $NEED"
 
