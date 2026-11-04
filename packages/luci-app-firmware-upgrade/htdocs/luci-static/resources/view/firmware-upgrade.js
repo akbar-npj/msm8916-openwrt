@@ -8,6 +8,7 @@ var BIN = '/usr/sbin/firmware-upgrade';
 var FAILED = '/tmp/firmware-upgrade.failed';
 var APPLYLOG = '/tmp/firmware-upgrade-apply.log';
 var PROGRESS = '/tmp/firmware-upgrade.progress';
+var HF_PROGRESS = '/tmp/firmware-upgrade.hotfix';
 
 function humanSize(n) {
 	n = parseInt(n, 10);
@@ -45,6 +46,18 @@ function getProgress() {
 	}).catch(function() { return null; });
 }
 
+function getHotfixProgress() {
+	return fs.read(HF_PROGRESS).then(function(s) {
+		var o = {}, parts = (s || '').trim().split(/\s+/);
+		for (var i = 0; i < parts.length; i++) {
+			var eq = parts[i].indexOf('=');
+			if (eq > 0)
+				o[parts[i].substring(0, eq)] = parts[i].substring(eq + 1);
+		}
+		return o.phase ? o : null;
+	}).catch(function() { return null; });
+}
+
 function getLog() {
 	return fs.read(APPLYLOG).then(function(s) {
 		return (s || '').trim();
@@ -72,14 +85,15 @@ return view.extend({
 	render: function(data) {
 		var info = data ? data[0] : null;
 		var hot = data ? data[1] : null;
-		var state = { info: info, hotfix: hot, pct: null, active: false };
+		var state = { info: info, hotfix: hot, pct: null, active: false,
+			hotfixBusy: false, hotfixNote: null };
 		var hotfixNode = E('div', {});
 		var statusNode = E('div', {});
 		var barFill = E('div', { 'style': 'width:0%' });
 		var barNode = E('div', { 'class': 'cbi-progressbar', 'title': '0%' }, [ barFill ]);
 		var progressText = E('div', { 'class': 'cbi-value-description' }, '');
 		var progressSection = E('div', { 'class': 'cbi-section', 'style': 'display:none' }, [
-			E('h3', {}, _('Upgrade progress')),
+			E('h3', {}, _('Progress')),
 			progressText,
 			barNode
 		]);
@@ -187,6 +201,17 @@ return view.extend({
 			while (hotfixNode.firstChild)
 				hotfixNode.removeChild(hotfixNode.firstChild);
 
+			// The result of the last install stays here: the list is replaced by
+			// "No fixes pending" the moment the install succeeds, so without
+			// this the page looks like nothing happened.  A toast is not enough
+			// -- ui.addNotification() inserts at the top of #maincontent, which
+			// is off-screen when the button was clicked down here.
+			if (state.hotfixNote)
+				hotfixNode.appendChild(E('p', {
+					'class': 'cbi-value-description',
+					'style': 'font-weight:bold;color:' + (state.hotfixNote.ok ? '#2e7d32' : '#c62828')
+				}, state.hotfixNote.text));
+
 			if (!h || !h.count) {
 				hotfixNode.appendChild(E('p', { 'class': 'cbi-value-description' },
 					_('No fixes pending for this build.')));
@@ -200,9 +225,12 @@ return view.extend({
 			hotfixNode.appendChild(E('table', { 'class': 'table' }, rows));
 			hotfixNode.appendChild(E('p', { 'class': 'cbi-value-description' },
 				_('Installed from the feed of this build. The affected services are restarted; the device does not reboot.')));
-			hotfixNode.appendChild(E('div', { 'class': 'cbi-page-actions' }, [
-				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': startHotfix }, _('Install fixes'))
-			]));
+
+			var btn = E('button', { 'class': 'cbi-button cbi-button-apply', 'click': startHotfix },
+				state.hotfixBusy ? _('Installing…') : _('Install fixes'));
+			btn.disabled = state.hotfixBusy;
+
+			hotfixNode.appendChild(E('div', { 'class': 'cbi-page-actions' }, [ btn ]));
 		}
 
 		function startHotfix() {
@@ -218,16 +246,86 @@ return view.extend({
 						'class': 'cbi-button cbi-button-apply',
 						'click': function() {
 							ui.hideModal();
-							fs.exec(BIN, [ 'hotfix', 'apply' ]).then(function() {
-								ui.addNotification(null, E('p', _('Fixes installed.')), 'info');
-								return refresh();
-							}).catch(function() {
-								ui.addNotification(null, E('p', _('Installing the fixes failed. See the system log.')), 'danger');
-							});
+							installHotfixes(state.hotfix.count);
 						}
 					}, _('Install'))
 				])
 			]);
+		}
+
+		// Hotfix install: the CLI rewrites /tmp/firmware-upgrade.hotfix once per
+		// package ("Installing 1 of 2"), which is the only progress there is --
+		// apk prints nothing until the transaction ends.
+		function applyHotfixProgress(p) {
+			if (!p)
+				return;
+
+			var total = parseInt(p.total, 10) || 0;
+			var done = parseInt(p.done, 10) || 0;
+			var pct = (total > 0) ? Math.max(0, Math.min(100, Math.floor((done - 1) / total * 100))) : 0;
+
+			showProgress(true);
+
+			switch (p.phase) {
+			case 'hinstall':
+				setBar(pct, done > 0
+					? _('Installing %s (%d of %d)').format(p.pkg || '—', done, total)
+					: _('Installing %d fix(es)…').format(total));
+				break;
+			case 'hdone':
+				setBar(100, _('Installed'));
+				break;
+			case 'hfailed':
+				setBar(null, _('Installing the fixes failed. See the system log.'), 'critical');
+				break;
+			}
+		}
+
+		function pollHotfix() {
+			return getHotfixProgress().then(function(p) {
+				if (p && (p.phase === 'hinstall' || p.phase === 'hdone' || p.phase === 'hfailed'))
+					applyHotfixProgress(p);
+			});
+		}
+
+		function installHotfixes(n) {
+			state.hotfixBusy = true;
+			state.hotfixNote = null;
+			renderHotfix();
+
+			// Show the bar before the first byte of work: the install takes a few
+			// seconds and the page would otherwise sit still until it is over.
+			setBar(0, _('Installing %d fix(es)…').format(n));
+			showProgress(true);
+			poll.add(pollHotfix, 1);
+
+			fs.exec(BIN, [ 'hotfix', 'apply' ]).then(function(res) {
+				// fs.exec resolves with the exit status -- it only rejects when
+				// the RPC itself fails -- so success has to be read from code.
+				finishHotfix(!res || res.code === 0, n, res ? res.code : -1);
+			}).catch(function() {
+				finishHotfix(false, n, -1);
+			});
+		}
+
+		function finishHotfix(ok, n, code) {
+			poll.remove(pollHotfix);
+			state.hotfixBusy = false;
+
+			if (ok) {
+				state.hotfixNote = { ok: true,
+					text: _('Installed %d fix(es). The affected services were restarted.').format(n) };
+				setBar(100, _('Installed'));
+			}
+			else {
+				state.hotfixNote = { ok: false, text: (code >= 0)
+					? _('Installing the fixes failed (exit %d). See the system log.').format(code)
+					: _('Installing the fixes failed. See the system log.') };
+				setBar(null, _('Installing the fixes failed. See the system log.'), 'critical');
+			}
+
+			ui.addNotification(null, E('p', state.hotfixNote.text), ok ? 'info' : 'danger');
+			return refresh();
 		}
 
 		function pollApply() {

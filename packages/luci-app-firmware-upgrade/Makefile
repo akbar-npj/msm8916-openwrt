@@ -7,7 +7,7 @@ LUCI_DEPENDS:=+luci-base +rpcd-mod-file +msm89xx-firmware-upgrade
 LUCI_PKGARCH:=all
 
 PKG_VERSION:=1.0
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 PKG_LICENSE:=GPL-2.0
 PKG_MAINTAINER:=akbar-npj
 
