@@ -47,12 +47,18 @@ DL="/tmp/firmware-upgrade.bin"
 #   phase=<download|verify|flash|done|failed> bytes=<n> total=<n>
 # The UI turns this into a progress bar; it is never read by the CLI itself.
 PROGRESS="/tmp/firmware-upgrade.progress"
+# Same idea for "hotfix apply", but a SEPARATE file: $PROGRESS means "an image
+# is being downloaded and flashed", and the page shows a finished bar for a
+# phase=done it finds there.  A hotfix must not leave that behind.
+#   phase=<hinstall|hdone|hfailed> done=<n> total=<n> pkg=<name>
+HF_PROGRESS="/tmp/firmware-upgrade.hotfix"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
 log() { logger -t firmware-upgrade "$*"; echo "$*" >&2; }
 
 progress() { printf 'phase=%s bytes=%s total=%s\n' "$1" "${2:-0}" "${3:-0}" > "$PROGRESS"; }
+hf_progress() { printf 'phase=%s done=%s total=%s pkg=%s\n' "$1" "${2:-0}" "${3:-0}" "${4:-}" > "$HF_PROGRESS"; }
 
 # No 'stat' on the target: busybox is built without that applet here
 # ("stat: applet not found"), so a stat -c %s probe silently returns 0 and the
@@ -310,12 +316,19 @@ hotfix_install() {
 }
 
 hotfix_apply_all() {
-	local listfile id pkg ver title restart svc was_pinned rc=0
+	local listfile id pkg ver title restart svc was_pinned rc=0 total i=0
 	listfile="$TMP/hotfix.list"
 	hotfix_list > "$listfile" || { log "hotfix manifest unavailable"; return 1; }
 	[ -s "$listfile" ] || { echo "no hotfixes for ${_ver}"; return 0; }
+	# The page polls this: apk gives no byte-level progress and the whole
+	# transaction takes seconds, so "which fix, how many of how many" is the
+	# only progress there is.
+	total="$(wc -l < "$listfile")"
+	hf_progress hinstall 0 "$total" ""
 	while IFS="$(printf '\t')" read -r id pkg ver title restart; do
 		[ -n "$id" ] || continue
+		i=$((i + 1))
+		hf_progress hinstall "$i" "$total" "$pkg"
 		log "installing $pkg $ver ($title)"
 		# "apk add pkg=ver" also writes pkg=ver into /etc/apk/world.  For a
 		# version-pinned package (base-files) that is the point: it moves the
@@ -344,6 +357,11 @@ hotfix_apply_all() {
 			/etc/init.d/"$svc" restart >/dev/null 2>&1 || log "restart of $svc failed"
 		done
 	done < "$listfile"
+	if [ "$rc" -eq 0 ]; then
+		hf_progress hdone "$i" "$total" ""
+	else
+		hf_progress hfailed "$i" "$total" ""
+	fi
 	return "$rc"
 }
 
