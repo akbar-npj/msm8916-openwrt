@@ -306,13 +306,37 @@ hotfix_check_json() {
 # apk aborts the whole transaction if one --repository 404s, and not every
 # build produces every feed, so only pass the ones that exist.
 hotfix_install() {
-	local spec="$1"
+	local spec="$1" out
 	set -- --repository "$HOTFIX_REPO"
 	for _f in $HOTFIX_REPO_FEEDS; do
 		_u="$PAGES_BASE/releases/${_ver}/packages/aarch64_generic/${_f}/packages.adb"
 		wget -q --spider "$_u" 2>/dev/null && set -- "$@" --repository "$_u"
 	done
-	apk add "$@" "$spec"
+
+	out="$(apk add "$@" "$spec" 2>&1)" && {
+		[ -n "$out" ] && printf '%s\n' "$out" >&2
+		return 0
+	}
+
+	# "breaks: world[pkg=ver]" is not a real conflict: it is apk saying the
+	# only candidate it can see for the pinned version is the one already
+	# installed, i.e. it is still holding the index from before the hotfix
+	# was published.  The publish writes the index and the .apk in the same
+	# commit, so a device that reads the feed within a minute of it lands
+	# here -- measured 2026-11-04 on luci-app-update-notify 1.0-r14: the
+	# first press failed, a second one a minute later installed cleanly.
+	# Retry once with the cache ignored instead of making the user press
+	# Install again.
+	case "$out" in
+	*"breaks: world["*)
+		log "the feed index is older than the hotfix; retrying with a fresh index"
+		apk add --cache-max-age 0 "$@" "$spec"
+		return $?
+		;;
+	esac
+
+	printf '%s\n' "$out" >&2
+	return 1
 }
 
 hotfix_apply_all() {
