@@ -1,0 +1,116 @@
+name: Board Build
+
+# Builds only the boards a pull request actually touches, so "it builds on my
+# machine" stops being the only evidence.  Opt-in per pull request with the
+# `board-build` label: one board is ~40 minutes, and most pull requests do not
+# need it.  Nothing is published and no secret is used - a pull request from a
+# fork gets a throwaway signing key and the artifact is discarded.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - 'diffconfigs/**'
+      - 'msm89xx/**'
+      - 'packages/**'
+      - 'build.sh'
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Board to build (empty = every diffconfigs/ entry)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: board-build-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  pick:
+    name: Pick boards
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'board-build')
+    outputs:
+      devices: ${{ steps.pick.outputs.devices }}
+      reason: ${{ steps.pick.outputs.reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out which boards this pull request touches
+        id: pick
+        env:
+          DEVICE: ${{ inputs.device }}
+          BASE: ${{ github.base_ref }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ -n "$DEVICE" ]; then
+            LIST="\"$DEVICE\""
+            REASON="dispatch: $DEVICE"
+          elif [ "$EVENT" = "pull_request" ]; then
+            git fetch -q --no-tags origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
+            changed=$(git diff --name-only "origin/$BASE...HEAD" -- diffconfigs |
+                      sed 's|diffconfigs/||' | sort -u)
+            if [ -n "$changed" ]; then
+              LIST=$(printf '%s\n' "$changed" | sed 's/.*/"&"/' | paste -sd, -)
+              REASON="diffconfigs touched: $(printf '%s' "$changed" | tr '\n' ' ')"
+            else
+              # A patch or package change usually targets one board, but we
+              # cannot tell which: build one known-good board to prove the tree
+              # still compiles, and say so.
+              LIST='"hmuf02v5"'
+              REASON="no diffconfigs change - sentinel build of hmuf02v5"
+            fi
+          else
+            LIST=$(ls diffconfigs | sed 's/.*/"&"/' | paste -sd, -)
+            REASON="every diffconfigs/ entry"
+          fi
+          echo "devices=[$LIST]" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "::notice::Boards [$LIST] - $REASON"
+
+  build:
+    name: Build ${{ matrix.device }}
+    needs: pick
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        device: ${{ fromJSON(needs.pick.outputs.devices) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
+          sudo apt-get clean
+
+      - name: Cache OpenWrt downloads & toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir/toolchain-aarch64_generic_gcc-14.3.0_musl
+            openwrt/staging_dir/host
+          key: openwrt-pr-cache-${{ hashFiles('version', 'diffconfigs/hmuf02v5') }}
+          restore-keys: |
+            openwrt-pr-cache-
+
+      - name: Prepare OpenWrt tree
+        run: ./build.sh prepare
+
+      - name: Build ${{ matrix.device }}
+        run: ./build.sh build "${{ matrix.device }}"
+
+      - name: Report
+        if: always()
+        run: |
+          echo "Board ${{ matrix.device }}: ${{ job.status }} (${{ needs.pick.outputs.reason }})"
