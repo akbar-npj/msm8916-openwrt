@@ -1,6 +1,7 @@
 {
-  "updated": "2026-11-03",
+  "updated": "2026-11-04",
   "packages": {
+    "msm89xx-scripts": "1.0-r8",
     "base-files": "1720~981c978eff",
     "msm89xx-firmware-upgrade": "1.0-r16"
   }

@@ -8,6 +8,16 @@
       "title": "Firmware upgrade: the progress bar now moves (measure the image with wc -c, not stat)",
       "restart": [],
       "published": "2026-11-03"
+    },
+    {
+      "id": "2026-11-04-msm89xx-scripts",
+      "package": "msm89xx-scripts",
+      "version": "1.0-r8",
+      "title": "Station mode: an explicit key_mgmt (WPA3 when the AP offers it) and a stuck upstream that now recovers in ~16 s",
+      "restart": [
+        "wifi-sta-late"
+      ],
+      "published": "2026-11-04"
     }
   ]
 }
