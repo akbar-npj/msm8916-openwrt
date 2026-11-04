@@ -1,5 +1,54 @@
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
+## v25.12.6-r8 — Feature highlights
+
+- 🆕 **New board: `jz02`** — a battery MiFi with three SIM switch lines, a 2100 mAh / 4.35 V pack
+  and the USB-gadget LAN. The external slot (3) is the one tested on hardware; slots 1 and 2 are
+  internal or unpopulated on that unit. Its stock Android DTB names the LEDs misleadingly, so the
+  image uses the mapping measured on the board, not the labels.
+  **This board has no failsafe mode**: the reset pinhole is not software-visible — no GPIO
+  transition, no PMIC GPIO change, no `pm8941_pwrkey` event, no reboot — so it is a hardware reset.
+  A config that will not boot can only be recovered through EDL. Everything else works, including
+  battery reporting and the SIM selector (`uci set sim.slot=3`).
+
+- 📶 **A Wi-Fi station that dropped never came back.** A field unit sat down for ~39 minutes with
+  its upstream visible in the scan on the right channel: 14 failed 4-way handshakes and 22
+  `SSID-TEMP-DISABLED` in 66 minutes, while the watchdog kept concluding "no channel mismatch;
+  leaving it to wpa_supplicant" until two `-EBUSY` scans happened to trip a driver reload. The
+  generated supplicant config had no `key_mgmt` at all, so wpa_supplicant applied its own default,
+  and two other defects kept a dead interface from being re-armed. All three are fixed, and the AKM
+  is now chosen from the scan: a WPA3-capable AP gets SAE with PMF, a WPA2-only AP still connects.
+
+- 🔄 **One failed manifest fetch silenced update checks for six hours.** The first minutes after
+  boot are exactly when the station has associated but the manifests are not yet readable, and that
+  run was counted as a success, so the daemon waited the full 6 h interval. A failed check now
+  retries in 15 minutes instead.
+
+- 🩹 **Installing a hotfix from the Firmware Upgrade page looked like a dead button.** No busy
+  state, no progress, and the result toast was inserted at the top of the page — off-screen when
+  the button at the bottom was pressed — followed by "No fixes pending for this build." A
+  successful install was indistinguishable from nothing happening. The page now shows a progress
+  bar with the package being installed and a result that stays visible.
+
+- 🐛 **A hotfix could fail once for no reason.** Publishing writes the index and the `.apk` in the
+  same commit, so a device reading the feed within a minute sees a version mismatch that is not a
+  conflict — it is `apk` saying the only candidate it can see is the one already installed. The
+  install now retries that exact failure once.
+
+- 🧰 **The Software page offered a `base-files` update it could never install.** `base-files` is
+  version-pinned in `/etc/apk/world`, so `apk upgrade` honours the pin, prints `OK: … in 307
+  packages` and changes nothing — while LuCI reports success. The offer came from promotion copying
+  the release's `base-files` into the shared feed every revision reads. Promotion no longer
+  publishes it; base-files hotfixes still ship through the revision-scoped feed.
+
+- 🧪 **Board support now has a test harness.** `tests/board-profile/run.sh` checks every board on
+  every PR — diffconfig ↔ device profile ↔ DTS ↔ DTB registration ↔ `SUPPORTED_DEVICES`, file
+  modes, `rc.d` symlinks, patch numbering, and that a change to a shared `base-files` file is gated
+  to the board it is for. A `board-build` label builds a contributor's board in CI, and `signoff.sh`
+  prints the hardware evidence a board PR has to paste back.
+  Also fixed: `device=all` was building seven of eight boards — `uf896` was missing from the
+  hardcoded matrix, which is now derived from `diffconfigs/`.
+
 ## v25.12.6-r7 — Feature highlights
 
 - 🩹 **r6 is withdrawn — it did not boot.** r6 tried to make the PM8916 RTC writable so `hwclock -w`
@@ -30,74 +79,3 @@
   submodule and `actions/checkout` does not fetch submodules by default, so CI produced an image
   without it and OpenWrt quietly dropped it from `DEFAULT_PACKAGES`. Both checkouts now pass
   `submodules: recursive`.
-
-## v25.12.6-r6 — Feature highlights
-
-- ⏰ **The RTC still cannot be written, and now we know why it must not be tried.** `sysfixtime`
-  runs at `START=00`, the first init script, and calls `hwclock -w` on every boot: the PM8916 RTC
-  comes out of reset at 1970 and the image's build date is always later, so the "clock is behind the
-  files" branch always fires. Without `allow-set-time` that call returns `RTC_SET_TIME: No such
-  device` before it ever reaches the PMIC — harmless. With the property set, it becomes the first
-  code on these boards to write the RTC registers over SPMI, and that wedges the boot: the system
-  never reaches userspace, lk2nd's 3-strike counter runs out, and the board drops into the recovery
-  partition. The property is **not** shipped. The system clock is still set from the image's own
-  file timestamps on every boot, which is enough for TLS to work.
-
-- 🔑 **`apk-key-refresh` waits for a usable clock** instead of reporting a TLS error it cannot
-  explain. It no longer attempts the fetch before 2020-01-01; it says once that it is deferring,
-  rather than failing with `SSL verify error: unknown error` and a misleading "offline?" warning.
-
-- 🔢 **`base-files` carries a release floor.** Its version came from upstream's commit count, which
-  does not move between our releases, so every image shipped `1719` while the hotfix channel had
-  already served `1720`. `apk` compares numbers, not contents, so re-publishing the same number was
-  a silent no-op on the device, and an image below the hotfix line could never supersede it. The
-  image now ships `1721`, and the release workflow refuses to build one that is not strictly above
-  the published high-water mark.
-
-- 🩹 **`firmware-upgrade` 1.0-r14**: `hotfix apply` passes every feed, not only the target feed —
-  a 404 on one `--repository` aborts the whole transaction — and a failed manifest fetch now says
-  why instead of returning 1 with no output.
-
-## v25.12.6-r5 — Feature highlights
-
-- 🔁 **SIM recovery that actually recovers.** `sim-hotplug` now escalates: when the hot-swap pulse
-  cannot bring the SIM back, it restarts the modem — bounded, because the first attempt at this
-  wedged the modem itself. A modem parked at `failed` / `sim-missing` is now recovered instead of
-  staying dead until a reboot. Closes issue #22.
-
-- 📇 **ModemManager falls back to the UIM card status** when the last unlock attempt reports
-  "sim-missing", instead of giving up. This is the UF896 case: the SIM is present, but the first
-  probe races the boot. Also: the `modemmanager` proto retries PLMN registration instead of
-  blocking on the first failure, and `modem-bearer-watchdog` accepts `MM_INTERFACE_RESTART` in the
-  re-drive gate.
-
-- 📶 **UF896: `uf896-modem-online` retries and verifies DMS online mode**, so a slow boot no longer
-  leaves the modem offline. The dead SIM-slot helper is gone and the **A2 pin hold is enabled**,
-  matching the other HiMI V1.0 boards.
-
-- 📦 **Hotfix channel, end to end.** Each build now publishes a `hotfix.json`, LuCI shows a dashboard
-  notice and offers a one-click install, and `firmware-upgrade` gained three fixes: a hotfix no
-  longer leaves an ordinary package version-pinned in `/etc/apk/world`; a partial `apk` error is
-  accepted when the installed version actually moved (base-files ships `rom/note` into a read-only
-  `/rom`, so it always exits 1); and `hotfix apply` now reaches every feed — it previously saw only
-  the target feed, so a normal package could not be installed at all.
-
-- 🧹 **`apk-overlay-heal` merges `/etc/apk/world` by package** rather than by line, so an upgraded
-  image cannot leave duplicate or lost world entries behind.
-
-- 🔍 **`apk-key-refresh` no longer warns about a kernel the feed still offers.** It compared against
-  whichever `kernel-*` line `apk list -a` printed first — index order, not the version the device
-  actually runs — and so warned about perfectly healthy units.
-
-- 🆘 **Recovery images are frozen and attached to every release**, with a guard that refuses to pair
-  a production kernel with modules from another build. `lk2nd` now honours fastboot reboot reasons
-  (recovery / EDL), and `flash.sh --mode backup` restores the radio even if the EDL session drops.
-
-## ⚠️ Upgrade note
-
-The kernel **configuration** is unchanged since r4, so the vermagic is the same and existing
-`kmod-*` packages keep working. r6 does change the device tree (the RTC node), and that only
-arrives with the image, so upgrade with the **full image** (*System → Firmware Upgrade*) rather
-than a bare `apk upgrade`.
-
-**Boards:** hmuf02v5, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801.
