@@ -1,0 +1,48 @@
+#!/bin/sh
+# JZ02 SIM/modem/connectivity self-test.
+# Prints PASS/FAIL for the selected SIM slot, modem, WAN, DNS and HTTP.
+# BOARDS: jz02
+
+PASS=0
+FAIL=0
+ok() { echo "PASS  $*"; PASS=$((PASS+1)); }
+no() { echo "FAIL  $*"; FAIL=$((FAIL+1)); }
+
+slot=""
+for n in 1 2 3; do
+	v=$(cat "/sys/class/leds/sim${n}_switch_gpio/brightness" 2>/dev/null)
+	[ "$v" = "1" ] && slot="$n"
+done
+if [ -n "$slot" ]; then
+	ok "SIM slot $slot selected"
+else
+	no "no sim*_switch_gpio is high"
+fi
+
+M=$(mmcli -L 2>/dev/null | grep -oE 'Modem/[0-9]+' | head -1 | cut -d/ -f2)
+if [ -n "$M" ]; then
+	mmcli -m "$M" 2>/dev/null | grep -qE 'state:.*connected' \
+		&& ok "modem $M connected" || no "modem $M not connected"
+	op=$(mmcli -m "$M" 2>/dev/null | sed -n 's/.*operator name: *//p' | head -1)
+	[ -n "$op" ] && echo "      operator: $op"
+else
+	no "no modem in ModemManager"
+fi
+
+ip -4 addr show wwan0 2>/dev/null | grep -q 'inet ' \
+	&& ok "wwan0 has an IPv4 address" || no "wwan0 has no IPv4 address"
+ip route show default 2>/dev/null | grep -q 'dev wwan0' \
+	&& ok "default route via wwan0" || no "no default route via wwan0"
+
+ping -c2 -W2 1.1.1.1 >/dev/null 2>&1 && ok "ping 1.1.1.1" || no "ping 1.1.1.1"
+NS="$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf 2>/dev/null)"
+if [ -n "$NS" ]; then
+	nslookup example.com "$NS" >/dev/null 2>&1 && ok "DNS via $NS" || no "DNS via $NS"
+else
+	no "no nameserver in /etc/resolv.conf"
+fi
+wget -qO- -T 8 http://example.com >/dev/null 2>&1 && ok "HTTP via WAN" || no "HTTP via WAN"
+
+echo "----"
+echo "$PASS passed, $FAIL failed"
+[ "$FAIL" -eq 0 ]

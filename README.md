@@ -31,7 +31,7 @@ Recent additions on top of the base port:
 * **🔐 HTTPS on by default** — every board ships `px5g-mbedtls` and generates a per-device self-signed certificate on first boot, so LuCI answers on `https://192.168.8.1` as well as HTTP. **Reboot to EDL** and **Reboot to Recovery** are now in the System menu. See [`Docs/HTTPS.md`](Docs/HTTPS.md).
 * **🎨 Feelgood theme** — the vendored **Feelgood** theme is the default UI, with a fixed horizontal-nav drawer (no more frozen page scroll) and a login page whose icon no longer covers the form.
 * **📡 Carrier auto-provisioning** — automatic SIM/carrier MBN deployment with the QMI time daemon anchoring the modem clock before LTE attach.
-* **🔋 Battery, power button and LEDs** — `mifib-v12` and `mf800b` report real capacity, battery temperature and charge status, with an 85 % charge limit and a `luci-app-battery` page; `pwrkey-monitor` gives double-press reboot and long-press power-off.
+* **🔋 Battery, power button and LEDs** — `mifib-v12`, `mf800b` and `jz02` report real capacity, battery temperature and charge status, with an 85 % charge limit and a `luci-app-battery` page; on `mifib-v12`/`mf800b`/`jz02`, `pwrkey-monitor` also gives double-press reboot and long-press power-off.
 * **🚦 BBR TCP congestion control is the default** — the image no longer uses CUBIC. BBR is model-based (it measures the bearer's bandwidth and RTT) instead of loss-based, so it does not mistake LTE radio loss for congestion and does not fill the base station's buffer. Result: **latency stays near idle under a full-speed download** instead of climbing to hundreds of milliseconds. See [BBR](Docs/BBR_TCP_CONGESTION_CONTROL.md).
 
 ---
@@ -55,7 +55,7 @@ Recent additions on top of the base port:
   * 🔴 **Red LED** (`red:power`): Modem processor and subsystem health indicator. It also **fast-blinks for the first 7 s of every boot** — the failsafe window, i.e. "a single tap now enters rescue mode".
   * ⚫ **No SIM** = both modem LEDs (red and blue) are **off**: the modem cannot register, so there is nothing to report.
   * The boot blink is **batteryless boards only** — the battery boards blink their own battery lamp at boot. No-SIM and AP+STA apply everywhere.
-  * 🔋 **Battery boards** (`mifib-v12`, `mf800b`) get three pairs instead: `wan`, `wlan` and `bat`/`charging`. The third pair reports **charging and faults only** — green slow-blink = charging, green solid = complete, red fast-blink = gauge fault, off = discharging normally. Capacity lives in LuCI, not on a lamp.
+  * 🔋 **Battery boards** (`mifib-v12`, `mf800b`, `jz02`) get three pairs instead: `wan`, `wlan` and `bat`/`charging`. The third pair reports **charging and faults only** — green slow-blink = charging, green solid = complete, red fast-blink = gauge fault, off = discharging normally. Capacity lives in LuCI, not on a lamp.
 * **⬆️ Self-Updating Firmware (r3+)**: The device reads the published `firmware.json`, downloads the image for its board, verifies the SHA-256 and hands it to `sysupgrade` — from **System → Firmware Upgrade** or `firmware-upgrade check|download|apply|upgrade`. The configuration is kept unless you ask for a clean install (`--no-keep`). See [Upgrading from the device](#-upgrading-from-the-device-r3-and-later).
 * **🔄 Bulletproof Sysupgrade**: Graceful pre-upgrade service teardown (`platform_pre_upgrade`) eliminates kernel linked-list panics during LuCI web and CLI firmware upgrades, backed by step-by-step diagnostic logging to stdout and `/dev/kmsg`.
 * **🆘 Failsafe Mode & Factory Reset**: A single Restart-button tap during the first 7 s of boot starts OpenWrt's pre-init rescue shell over a self-contained USB gadget (NCM + ACM) at `192.168.10.1` (or `/dev/ttyACM0`), so a broken config is recoverable on a screen-less dongle without opening it; a **5-second hold** wipes the overlay. See [Recovery and Reboot Modes](#-recovery-and-reboot-modes).
@@ -78,6 +78,7 @@ Recent additions on top of the base port:
 | **`mf800b`**  | `generic-mf800b`  | Generic MF800B 4G MiFi     | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN      |
 | **`mifib-v12`** | `generic-mifib-v12` | HM-MIFIB-V12 4G LTE Dongle | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN, 4-bar battery, SIM hot-swap |
 | **`uf896`**     | `generic-uf896`     | UF896 (v1.1) 4G LTE Router  | MSM8916 | 512 MB | 4 GB eMMC | Tri-colour + charger/network/wifi/data LEDs |
+| **`jz02`**      | `generic-jz02`      | JZ02 Battery MiFi (3 SIM switch lines) | MSM8916 | 512 MB | 4 GB eMMC | Network tri-colour + Wi-Fi red + battery red/green |
 
 ### Per-board feature matrix
 
@@ -91,6 +92,7 @@ Recent additions on top of the base port:
 | `mf800b`  |      ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         —           |         —          |
 | `mifib-v12` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 | `uf896` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
+| `jz02` |    —       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 
 * UZ801 v3 has no Bluetooth antenna; its image includes the software, but Bluetooth is unavailable on that board.
 * **Concurrent AP+STA** (Station Mode) is available on **every board** — the service, the mac80211 patches and `luci-app-wifi-sta` are all target-wide; see [the guide](Docs/WiFi/AP_STA_AND_LUCI_APP.md).
@@ -107,12 +109,14 @@ Recent additions on top of the base port:
 | `mf800b`  |           ✅           |      ✅      |         ✅         |      —       |
 | `mifib-v12` |         ✅           |      ✅      |         ✅         |      ✅      |
 | `uf896` |         —           |      —      |         —         |      —      |
+| `jz02` |         ✅           |      ✅      |         ✅         |      —      |
 
 * **Recovery partition** — the 17-partition layout (`misc` + `recovery`).  A `—` means the board keeps the 15-partition layout; see [`Docs/RECOVERY/`](Docs/RECOVERY/).
-* **Power button** — only mifib-v12 and mf800b have a `pm8941_pwrkey`; see [`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md).
+* **3-SIM selection** — the JZ02 has three SIM switch lines (GPIO 1 / 22 / 23) but only the external slot (3) is accessible on the tested unit; the `sim-select` init script picks the slot from `uci sim.slot` (default 3). It is not automatic hot-swap.
+* **Power button** — mifib-v12, mf800b and jz02 have a `pm8941_pwrkey`; see [`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md).
 * **SIM hot-swap** — the `sim-hotplug` service ships and is enabled on **every** board.  The table marks where the `sim_hotplug` line has been **confirmed**: HMUF02-V5 (verified end-to-end, ~15 s) and mifib-v12 (same modem family, enabled, not yet soaked).  A `—` means the line is untested on that board, not that the service is missing — see [`Docs/SIM_HOT_SWAP.md`](Docs/SIM_HOT_SWAP.md).
 
-> The Wi-Fi/PMIC cooling maps are in the **shared `msm8916-ufi.dtsi`** (patch 861), which every board in the target includes, so all boards get them. The `a2_pin` modem-rail hold is enabled on the **HMUF02-V5, UZ801, UF02 and HM-MIFIB-V12** boards — all four carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge; `UFI003`, `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it, and **UF896 does not need it** (field-tested on real hardware — no `a2_power.c:1189` quiesce wedge was observed). Everything else applies to every board. Failsafe mode is enabled on **every board** (LED colour varies by board); it has been **live-verified on the HMUF02-V5** only.
+> The Wi-Fi/PMIC cooling maps are in the **shared `msm8916-ufi.dtsi`** (patch 861), which every board in the target includes, so all boards get them. The `a2_pin` modem-rail hold is enabled on the **HMUF02-V5, UZ801, UF02, HM-MIFIB-V12 and JZ02** boards — the first four carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge, and the JZ02 (`M8936FAAAANUZM`) hit the same SSR loop (`modem pc-ack timeout during resume`); `UFI003`, `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it, and **UF896 does not need it** (field-tested on real hardware — no `a2_power.c:1189` quiesce wedge was observed). Everything else applies to every board. Failsafe mode is enabled on **every board except the JZ02**, whose reset pinhole is not software-visible (hardware test: no GPIO, PMIC-GPIO or power-key event), so it has no button-triggered rescue mode; it has been **live-verified on the HMUF02-V5** only.
 
 ### 🛠️ Adding a new board
 
@@ -480,7 +484,7 @@ These devices run hot in a small enclosure, and the modem's behaviour is sensiti
 * **CPU rail (mainline CPR)** — the CPU voltage is managed by mainline **CPR** (Core Power Reduction) rather than a fixed rail, matching Android's voltage for the silicon's fused speed bin. This lowers idle and mid-load CPU voltage versus a static setting.
 * **CPU OPP cap** — the top 998.4 MHz operating point is removed, so the CPUs run at up to **800 MHz** (matching Android's cap on these parts).
 * **Wi-Fi + PMIC thermal mitigation (HMUF02-V5)** — the `wcn36xx` driver exposes a cooling device that throttles the Wi-Fi transmit path, and the PMIC's thermal zone is bound to the CPU cooling device. Trips are triggered from the CPU cluster sensor, mirroring Android's `thermal-engine` "wlan" action.
-* **Battery and charge limit (mifib-v12, mf800b)** — the PM8916 fuel gauge and charger are enabled (capacity, temperature, honest charge status) and charging is capped at **85 %** (resume at 80 %) to spare the cell.  A LuCI page, a battery LED monitor and `battery-ctl` ship in `luci-app-battery`.  See **[`Docs/BATTERY.md`](Docs/BATTERY.md)**.
+* **Battery and charge limit (mifib-v12, mf800b, jz02)** — the PM8916 fuel gauge and charger are enabled (capacity, temperature, honest charge status) and charging is capped at **85 %** (resume at 80 %) to spare the cell.  A LuCI page, a battery LED monitor and `battery-ctl` ship in `luci-app-battery`.  See **[`Docs/BATTERY.md`](Docs/BATTERY.md)**.
 * **Power button (mifib-v12, mf800b)** — a long press powers off (or reboots cleanly while plugged in), a double press reboots.  See **[`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md)**.
 
 ```bash
