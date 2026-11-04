@@ -1,0 +1,9 @@
+diff --git a/msm89xx/base-files/etc/init.d/sim-select b/msm89xx/base-files/etc/init.d/sim-select
+new file mode 100755
+index 00000000..6bbbfdb3
+--- /dev/null
++++ b/msm89xx/base-files/etc/init.d/sim-select
+@@ -0,0 +1,3 @@
++#!/bin/sh /etc/rc.common
++# BOARDS: jz02 (the three switch lines exist only there)
++START=20

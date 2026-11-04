@@ -25,9 +25,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # board-profile compares the pull request against its base branch.
+          fetch-depth: 0
 
       # Hardware-free tests: no modem, no root, no OpenWrt. Each suite is a
       # tests/<name>/run.sh that exits non-zero on failure. --self-check also
       # applies mutants and requires each one to be caught.
       - name: himi-ok-guard
         run: bash tests/himi-ok-guard/run.sh --self-check
+
+      - name: board-profile
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          args=(--self-check)
+          if [ -n "$BASE_REF" ]; then
+            git fetch -q --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            args+=(--base-ref "origin/$BASE_REF")
+          fi
+          bash tests/board-profile/run.sh "${args[@]}"

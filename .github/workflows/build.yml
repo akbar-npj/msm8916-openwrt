@@ -35,13 +35,40 @@ permissions:
   contents: read
 
 jobs:
+  setup:
+    name: Resolve device list
+    runs-on: ubuntu-latest
+    outputs:
+      devices: ${{ steps.pick.outputs.devices }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pick the boards to build
+        id: pick
+        env:
+          DEVICE: ${{ inputs.device }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEVICE" ] || [ "$DEVICE" = "all" ]; then
+            # Derived from the tree, not listed here: the previous hardcoded
+            # list had already drifted - uf896 was missing, so "all" silently
+            # built seven of the eight boards.
+            LIST=$(ls diffconfigs | sed 's/.*/"&"/' | paste -sd, -)
+          else
+            LIST="\"$DEVICE\""
+          fi
+          echo "devices=[$LIST]" >> "$GITHUB_OUTPUT"
+          echo "::notice::Building [$LIST]"
+
   build:
+    needs: setup
     runs-on: ubuntu-22.04
 
     strategy:
       fail-fast: false
       matrix:
-        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["hmuf02v5","mf800b","mifib-v12","uf02","ufi001b","ufi003","uz801"]' || format('["{0}"]', inputs.device)) }}
+        device: ${{ fromJSON(needs.setup.outputs.devices) }}
 
     steps:
     - name: Checkout

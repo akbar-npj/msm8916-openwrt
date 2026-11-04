@@ -1,0 +1,11 @@
+diff --git a/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot b/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot
+index a0bc1912..9b6a0e9e 100755
+--- a/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot
++++ b/msm89xx/base-files/etc/uci-defaults/99-msm89xx-firstboot
+@@ -34,6 +34,9 @@
+ uci add_list network.@device[0].ports='usb0'
+ 
++# usb0 is created by the gadget init at S99, after network (S20).
++uci set network.@device[0].bridge_empty='1'
++
+ sed -i \

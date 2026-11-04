@@ -30,11 +30,25 @@ flag_clear() {
 	mv "${FLAG}.tmp" "$FLAG"
 }
 
+# wpa_cli runs this script through "sh -c", which strips the quotes the
+# supplicant puts around the SSID, so the event arrives as ssid=name -- no
+# quotes, and any spaces inside the name are preserved.  Parse both forms,
+# anchoring the unquoted one on the following key so an SSID containing a
+# space survives.  (Matching only the quoted form never fired: the flag file
+# stayed empty through 22 SSID-TEMP-DISABLED events.)
+event_ssid() {
+	local s
+	s=$(printf '%s\n' "$1" | sed -n 's/.* ssid="\([^"]*\)".*/\1/p')
+	[ -n "$s" ] || s=$(printf '%s\n' "$1" | sed -n 's/.* ssid=\(.*\) auth_failures=.*/\1/p')
+	[ -n "$s" ] || s=$(printf '%s\n' "$1" | sed -n 's/.* ssid=\([^ ]*\).*/\1/p')
+	printf '%s' "$s"
+}
+
 case "$EVENT" in
 	CTRL-EVENT-SSID-TEMP-DISABLED*WRONG_KEY*)
 		# CTRL-EVENT-SSID-TEMP-DISABLED id=0 ssid="name" auth_failures=1
 		# duration=20 reason=WRONG_KEY
-		s=$(printf '%s\n' "$EVENT" | sed -n 's/.* ssid="\([^"]*\)".*/\1/p')
+		s=$(event_ssid "$EVENT")
 		[ -n "$s" ] && flag_add "$s"
 		;;
 	CONNECTED*)

@@ -41,6 +41,18 @@ config_get startup_grace main startup_grace 30
 config_get hostname main hostname
 config_get_bool uplink main uplink 1
 config_get route_metric main route_metric 100
+config_get key_mgmt main key_mgmt
+
+# AKM for saved networks that have a password.  Empty means "decide from
+# the scan" (see net_akm): SAE when the AP offers it, WPA2 otherwise.
+# Setting it pins one answer for every network -- the escape hatch for an
+# AP that misbehaves.  A typo must not reach the conf: an unknown token
+# makes the whole key_mgmt line a parse error and leaves the station
+# silently unassociated, so anything unrecognised falls back to auto.
+case "$key_mgmt" in
+	"WPA-PSK"|"WPA-PSK SAE"|"SAE") ;;
+	*) key_mgmt="" ;;
+esac
 
 # ---- saved networks ----------------------------------------------------
 # Any number of networks can be saved as wifista.ap sections.  The generated
@@ -144,6 +156,15 @@ case "$startup_grace" in ''|*[!0-9]*) startup_grace=30 ;; esac
 # unless you accept occasional false reloads; 1 = reload on the first refusal.
 RESTART_AFTER=2
 
+# A station that stays down while its upstream is visible ON THE SAME CHANNEL is
+# a stuck supplicant, not a missing signal: auth_failures and the
+# SSID-TEMP-DISABLED timer live in the process, so only a new process clears the
+# backoff.  Restart the supplicant this many times (one recover_after apart) and
+# then escalate to the driver reload.  A rejected password is never restarted
+# against -- the flag wifi-sta-wpa-event keeps tells us, and no restart can fix
+# a wrong key.
+SUPPLICANT_MAX=3
+
 # A radio restart costs the whole radio (the AP drops, clients re-associate), so
 # a restart that does not clear the refusal must not be repeated on a loop: the
 # file holds "<attempts> <epoch of the last attempt>" and each further attempt
@@ -184,6 +205,33 @@ radio_budget() {
 # restart cannot reset the ladder.
 radio_spent() {
 	printf '%s %s\n' "$RADIO_N" "$(date +%s)" > "$RADIO_STATE"
+}
+
+# Is this SSID flagged as having had its password rejected?  The flag is kept
+# by wifi-sta-wpa-event from the supplicant's CTRL-EVENT-SSID-TEMP-DISABLED.
+wrong_key() {
+	[ -n "$1" ] || return 1
+	[ -f /var/run/wifi-sta-wrongkey ] &&
+		grep -qxF "$1" /var/run/wifi-sta-wrongkey 2>/dev/null
+}
+
+# Consecutive "upstream visible on our own channel, still no link" passes.
+# Kept in a file rather than a shell variable because the action it triggers
+# (a supplicant restart) deletes and re-creates the vif, and the watchdog
+# resets its per-vif state whenever the vif name changes -- which it does on
+# the way back.  Cleared on connect, on a channel mismatch, and whenever the
+# upstream is not in the scan.
+NOJOIN_STATE=/var/run/wifi-sta-nojoin
+
+nojoin_get() {
+	local n=0
+	[ -f "$NOJOIN_STATE" ] && read -r n < "$NOJOIN_STATE" 2>/dev/null
+	case "$n" in ''|*[!0-9]*) n=0 ;; esac
+	echo "$n"
+}
+
+nojoin_set() {
+	printf '%s\n' "$1" > "$NOJOIN_STATE" 2>/dev/null
 }
 
 if [ "$MODE" = "dhcp" ] && [ "$dhcp" != 1 ]; then
@@ -255,6 +303,79 @@ scan_parse() {
 	'
 }
 
+# Where scan_any_channel leaves the last good scan dump, so the AKM decision
+# below can look a saved network up without scanning again.
+SCAN_DUMP=/var/run/wifi-sta-scan
+
+# Read the AKM list and the PMF capability of the BSS for $1 from a scan dump
+# on stdin.  Prints "<akm> <mfp|nomfp>", or nothing when the BSS is not there.
+scan_akm() {
+	local want="$1"
+	awk -v want="$want" '
+		/^BSS / {
+			# Print at the end of the block, not when the AKM line is seen: the
+			# MFP-capable flag lives in the *Capabilities* line that follows it.
+			if (hit && akm != "") { print akm, (mfp ? "mfp" : "nomfp"); done = 1; exit }
+			ssid = ""; akm = ""; mfp = ""; hit = 0
+		}
+		/^[[:space:]]*SSID: / {
+			ssid = $0
+			sub(/^[[:space:]]*SSID: /, "", ssid)
+			if (ssid == want) hit = 1
+		}
+		/Authentication suites:/ {
+			akm = $0
+			sub(/.*Authentication suites:[[:space:]]*/, "", akm)
+		}
+		/MFP-capable/ { mfp = 1 }
+		END { if (!done && hit && akm != "") print akm, (mfp ? "mfp" : "nomfp") }
+	'
+}
+
+# Decide the AKM (and whether PMF is required) for one saved network.  Sets
+# NET_KEY_MGMT and NET_IEEE80211W.
+#
+# A list is not a retry ladder: the AP picks from the intersection, so a
+# WPA2-only router selects PSK and a WPA3 or transition router selects SAE on
+# the same association.  SAE requires PMF, and a transition AP rejects an
+# association that offers SAE without it -- measured on this bench: the phone
+# hotspot advertises "PSK SAE" + MFP-capable, and "WPA-PSK SAE" with
+# ieee80211w=0 authenticates and then never associates, while the same config
+# with ieee80211w=2 connects as SAE.  So SAE is offered exactly when the AP
+# advertises it, and PMF is required exactly when SAE is offered.
+#
+# wifista.main.key_mgmt overrides all of this when set.
+net_akm() {
+	local ssid="$1" akm=""
+	NET_KEY_MGMT=""
+	NET_IEEE80211W=""
+
+	if [ -n "$key_mgmt" ]; then
+		NET_KEY_MGMT="$key_mgmt"
+		case "$NET_KEY_MGMT" in *SAE*) NET_IEEE80211W=2 ;; esac
+		return 0
+	fi
+
+	[ -f "$SCAN_DUMP" ] && akm="$(scan_akm "$ssid" < "$SCAN_DUMP")"
+
+	case "$akm" in
+		*SAE*)
+			case "$akm" in
+				*PSK*) NET_KEY_MGMT="WPA-PSK SAE" ;;
+				*)     NET_KEY_MGMT="SAE" ;;
+			esac
+			NET_IEEE80211W=2
+			;;
+		*)
+			# PSK-only, enterprise, or the AP was not in the scan at
+			# bring-up: WPA2 is the safe answer.  The station re-runs
+			# this on the next recycle, so an AP that appears later is
+			# picked up then.
+			NET_KEY_MGMT="WPA-PSK"
+			;;
+	esac
+}
+
 # Read the channel the AP is actually beaconing on.
 ap_channel() {
 	iw dev "$1" info 2>/dev/null | awk '/^[[:space:]]*channel/ { print $2; exit }'
@@ -318,6 +439,11 @@ scan_any_channel() {
 		return 1
 		;;
 	esac
+
+	# Keep the dump: net_akm() looks each saved network up in it to decide
+	# whether the AP takes SAE.  Written only for a scan that was not
+	# refused, so a wedged scan cannot overwrite a good one.
+	printf '%s\n' "$out" > "$SCAN_DUMP" 2>/dev/null
 	i=1
 	while [ "$i" -le "$PROFILE_COUNT" ]; do
 		s="$(profile_field "$PROFILE_SSID" "$i")"
@@ -480,7 +606,23 @@ bring_up_sta() {
 				else
 					echo "network={"
 					echo "	ssid=\"$(conf_escape "$_s")\""
-					[ -n "$_k" ] && echo "	psk=\"$(conf_escape "$_k")\""
+					# wpa_supplicant defaults key_mgmt to "WPA-PSK WPA-EAP" when it is absent,
+					# so every association request advertised an 802.1X AKM the upstream never
+					# offers, and an open network could never be joined at all: the supplicant
+					# builds an RSN IE and waits for a 4-way handshake that never comes.  The
+					# 802.1X half also makes wpas_auth_failed() add a random 0..10x delay to
+					# every retry, which stretched a 120 s temp-disable to ~220 s.  Say what we
+					# mean instead.
+					if [ -n "$_k" ]; then
+						echo "	psk=\"$(conf_escape "$_k")\""
+						# net_akm() reads the scan dump: SAE when the AP advertises it,
+						# WPA-PSK otherwise, and PMF required exactly when SAE is offered.
+						net_akm "$_s"
+						echo "	key_mgmt=$NET_KEY_MGMT"
+						[ -n "$NET_IEEE80211W" ] && echo "	ieee80211w=$NET_IEEE80211W"
+					else
+						echo "	key_mgmt=NONE"
+					fi
 					echo "}"
 				fi
 			fi
@@ -622,6 +764,7 @@ run_watchdog() {
 			# A working link ends the refusal streak: the next -EBUSY is a
 			# new episode and deserves its own recycle, not an instant reload.
 			recycles=0
+			nojoin_set 0
 			poll=$poll_up
 			rm -f "$RADIO_STATE"
 			continue
@@ -692,11 +835,54 @@ run_watchdog() {
 		if [ -n "$up_ch" ] && [ -n "$ap_ch" ] && [ "$up_ch" != "$ap_ch" ]; then
 			logger -t wifi-sta "watchdog: down ${down}s and upstream '$UP_SSID' moved to channel $up_ch (AP on $ap_ch); recycling the STA"
 			recycle_sta "$sta_if"
+			nojoin_set 0
+		elif [ -n "$up_ch" ] && [ "$up_ch" = "$ap_ch" ]; then
+			# The upstream is in the scan ON OUR OWN CHANNEL and there is still
+			# no link.  That is not "no signal" -- wpa_supplicant is stuck, and
+			# its retry state (auth_failures plus the SSID-TEMP-DISABLED timer)
+			# lives inside the process, so nothing outside it can clear the
+			# backoff.  Restart the supplicant first: procd brings it back and
+			# the radio, with the AP, stays up -- unlike radio_restart below.
+			if wrong_key "$UP_SSID"; then
+				# A rejected password.  Neither a restart nor a driver reload
+				# can fix it, and wifi-sta-wpa-event already told the user.
+				# Leave the counter at 1 so this is said once per episode, not every
+				# recover_after; a connect clears it.
+				if [ "$(nojoin_get)" = 0 ]; then
+					logger -t wifi-sta "watchdog: upstream '$UP_SSID' is in range but its password was rejected; waiting for it to be corrected"
+				fi
+				nojoin_set 1
+			else
+				nj=$(( $(nojoin_get) + 1 ))
+				nojoin_set "$nj"
+				if [ "$nj" -gt "$SUPPLICANT_MAX" ]; then
+					# A fresh supplicant keeps failing to join, so the wedge is
+					# below it.  Escalate to the driver reload on the same
+					# budget as the -EBUSY path: it costs the whole radio.
+					radio_budget
+					if [ "$RADIO_WAIT" -gt 0 ]; then
+						waits=$((waits + 1))
+						# One line per ~8 min of waiting, not per pass.
+						if [ "$waits" -eq 1 ] || [ $((waits % 8)) -eq 0 ]; then
+							logger -t wifi-sta "watchdog: cannot join '$UP_SSID' on ch $up_ch; radio restart $RADIO_N not due for another $((RADIO_WAIT / 60)) min"
+						fi
+						down=0
+						continue
+					fi
+					waits=0
+					radio_spent
+					logger -t wifi-sta "watchdog: '$UP_SSID' visible on ch $up_ch but no link after $SUPPLICANT_MAX supplicant restarts; reloading the driver (attempt $RADIO_N)"
+					radio_restart
+					exit 0
+				fi
+				logger -t wifi-sta "watchdog: upstream '$UP_SSID' visible on ch $up_ch but no link for ${down}s; restarting wpa_supplicant ($nj/$SUPPLICANT_MAX)"
+				recycle_sta "$sta_if"
+			fi
 		else
-			# Upstream simply absent / wrong PSK / AP channel already right:
+			# Upstream not in the scan at all (or the AP has no channel yet):
 			# nothing to fix here, and logging every minute would flood the
 			# ring buffer.  First occurrence, then one in five (~5 min).
-			# A rejected password is reported by wifi-sta-wpa-event instead.
+			nojoin_set 0
 			miss=$((miss + 1))
 			if [ "$miss" -eq 1 ] || [ $((miss % 5)) -eq 0 ]; then
 				logger -t wifi-sta "watchdog: down ${down}s, no channel mismatch (upstream=${UP_SSID:-not seen} ch=${up_ch:-none} ap=${ap_ch:-none}); leaving it to wpa_supplicant"
@@ -723,6 +909,7 @@ run_status() {
 	kv dhcp "$dhcp"
 	kv radio "$radio"
 	kv recover_after "$recover_after"
+	kv key_mgmt "${key_mgmt:-auto}"
 	# Saved networks (enabled profiles) and any whose password was rejected
 	# since the last start (space-separated SSIDs).
 	kv profiles "$PROFILE_ENABLED"
