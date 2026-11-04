@@ -465,6 +465,18 @@ never bricks the modem NV.
 
 ## 9. Checklist (copy/paste)
 
+> `tests/board-profile/run.sh` enforces the mechanical half of this list on
+> every push: diffconfig ↔ device profile ↔ DTS ↔ DTB registration ↔
+> `SUPPORTED_DEVICES`, file modes, `rc.d` symlinks, patch numbering, and "no
+> change to a shared `base-files` file without a board gate".  A gate is either
+> a runtime check (`board_name`, `is_compatible`) or a `# BOARDS: <list>` marker
+> in the file header.  Run it locally with
+> `bash tests/board-profile/run.sh --self-check`.
+>
+> `tests/board-profile/signoff.sh <board>` prints the hardware evidence a board
+> pull request has to paste back, and the `board-build` label makes CI build the
+> board (`.github/workflows/board-build.yml`).
+
 - [ ] **DTS patch** `msm89xx/patches/8XX-...-generic-<board>.patch`
   - [ ] `#include "msm8916-ufi.dtsi"`
   - [ ] `model` + `compatible = "<board>,generic", "qcom,msm8916"`
