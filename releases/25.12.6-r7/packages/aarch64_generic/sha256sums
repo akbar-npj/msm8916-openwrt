@@ -15,7 +15,7 @@ b7069a3cc258f3a2cfa84c4773406ffed8866188d48053480355989af523c0b6 *base/e2fsprogs
 ad09cfe9de2a2e1b3371648e593840b3ed78841bdb9179b6fa7a11c9ae7e42a3 *base/firewall4-2025.03.17~b6e51575-r2.apk
 b2fd9e9d1c36986c4029f7af9010f77eca96c784eb456b5966b7bc64afa367f3 *base/getrandom-2025.10.30~6f78fa49-r1.apk
 527415544c486af8e8c0a06dfe0826d6cedc619f2039f7228f92329c403bfd56 *base/hostapd-common-2025.08.26~ca266cc2-r6.apk
-0c1969a7a3a4cb0e96d70eac3c0477de370cb7d28f8b1974904f3a31b905d6af *base/index.json
+d62dbc7fdd2fb8188349432b052b2473c9450ac50405c5a06daf638909e1cfda *base/index.json
 b789561351c1e2dbdb668989b89a5bcbd7b3129e7eaa50324d4d687a26680a58 *base/ip-tiny-6.18.0-r2.apk
 6327183e462874141b494b63b05a467f653f316dee0883f4d1554fdb08a59e62 *base/iw-6.17-r1.apk
 818b5d18f1119c0bacad5aa22a99ba84de643840bae01caa29a6071c0f7ad41d *base/jansson4-2.14.1-r1.apk
@@ -72,7 +72,11 @@ a68366ac3a18ab8b1d7b5d6ffbfd8561986da14a5f9d69dbb686eb1eb2919b99 *base/luci-app-
 f5445c66139791cd2d144f61bae36d593b5f107d49b970011a15668a4403c1d6 *base/luci-app-sms-manager-1.1.4-r20261023.apk
 86644dffb46cba099a0ac8fdec202f38735563d6cba10f60fcea8ee1ead8dbaa *base/luci-app-tailscale-1.2.6-r1.apk
 7f4738f59c63aa157d66ad4e1198e9ac21c229adfb3f1ec9cec8a4e988cd7975 *base/luci-app-uf896-simsel-1.0-r1.apk
+247683978ff277bf85606a02c710fd28cdeaaa32fabe91b0bf458ea1a17956f1 *base/luci-app-update-notify-1.0-r11.apk
+3e734af78e814cdbc1620b8eedd40ea617764a97b0c5879d2d5852d6f6bff634 *base/luci-app-update-notify-1.0-r12.apk
+9755601f276cb343b9e2112e3be2dc8b1ce496a91f7f03a4a4e8b4f1aa1dfe6b *base/luci-app-update-notify-1.0-r13.apk
 70680b46dc371f69b739f64c726b96a378eb950a3b827349d3046db05565078e *base/luci-app-update-notify-1.0-r14.apk
+1cb9d47eb1f6ade46762619b486a95408620423b1765fd90452b0cb316a7ebf8 *base/luci-app-update-notify-1.0-r3.apk
 e1081ba364e1e7579ea31dfc09e618ff659b7c82d49dff3726a82273be02deef *base/luci-app-usb-gadget-1.0-r1.apk
 6652962ae91c974a24ebc1207dea54518a9071bb30065bb7d302a5d046fadd0f *base/luci-app-wifi-sta-1.0-r1.apk
 f98d310eadd2efb3ee1fd8368b17c6803aca5848800b2584a1e3b3f233494ab4 *base/luci-app-wifi-sta-1.0-r11.apk
@@ -83,15 +87,7 @@ c2bb275995c0896a0586311cc070ffa2e5518e6ee47b15e5eea3beaf84a50e07 *base/luci-them
 45267798d9e794ae00ecd479691711f5af0cd9a599d8368ccdf81532ad1575e1 *base/mkf2fs-1.16.0-r4.apk
 857e7b63a20b5346c24caa20a686aaa40aa134edfd91bfe4db7634a39f74fcde *base/mount-utils-2.41.5-r1.apk
 79972507b10f2abf9ead82a81aaa68abdec0dece8915887dda19ffb84e5895c9 *base/msm-firmware-dumper-1.1-r1.apk
-c60febbb4f6af3e6e2ed6bcac53f4388c1ce7bb56ab8357bc1ce37a84a0bf923 *base/msm89xx-firmware-upgrade-1.0-r10.apk
-38b460ad1236afd5604758eb19fff755702b862f24e16eb441cb5237caeabe06 *base/msm89xx-firmware-upgrade-1.0-r11.apk
-7a51a7732b71c69e8521913e7fbd1fc2d68c6f51dc35471c8734c8f3f5aff871 *base/msm89xx-firmware-upgrade-1.0-r12.apk
-2a5cf44dc155742c894716feadca4c50ce602ff4057a3fa8b738916a656f0fe7 *base/msm89xx-firmware-upgrade-1.0-r14.apk
-1168cbd7a45b7742f3775cc8f5e1b76029a124ed225b6cc0509a3472b5f28e5f *base/msm89xx-firmware-upgrade-1.0-r15.apk
-2312c97b6dbe052b7e2b2dc0414c460c9bc6e4e2856a51ca9841fd8af59965ef *base/msm89xx-firmware-upgrade-1.0-r16.apk
-f3f05984dce77d697166f77caeb09981757246027980337ee3bf567262bed98b *base/msm89xx-firmware-upgrade-1.0-r17.apk
-cfb44f3047b1c6f0e64f17d0b18d69a7ce6353159d469347297490a9dbfbb8f2 *base/msm89xx-firmware-upgrade-1.0-r8.apk
-90207f911afd9efd6c64355221d5adab306701a12f0c2ae42683b0c3e3634a40 *base/msm89xx-firmware-upgrade-1.0-r9.apk
+805a006e6ab9acd0df3e5366c021a84e6a11b4d6f49fd87f0400fd876353d973 *base/msm89xx-firmware-upgrade-1.0-r18.apk
 6d24db2149f6e8971da13c36b72fc273483681d5f478110b219d4f88357d95c8 *base/msm89xx-scripts-1.0-r1.apk
 308fb2fad655ead085ce6eebaadc299ab4148f871cc2a251ae014d48ed12beeb *base/msm89xx-scripts-1.0-r5.apk
 0d0be61ec0723e6fda41fc2ef13b0e6f550f194be2f9e73fa9c2b41ee0d38c4e *base/msm89xx-scripts-1.0-r7.apk
@@ -103,7 +99,7 @@ f3a30400541ac218ddc4d6ee5e26f438285b8c7ca6228c07c2da4ea9eed4abec *base/nftables-
 4d797adadf493fa9599ba886861d518cf3dced45bbafe98f0cd105f55cb2df55 *base/odhcp6c-2026.06.27~10a52220-r3.apk
 ffa75525caea25f6f60bd97b0e7041fc88ea4fdc97031a1eedf369f55af2f34a *base/odhcpd-ipv6only-2026.06.29~5d7be43f-r1.apk
 29823fbeb7ca3b928c68fc31f97b02b5a839cb9c95a444beb4ac2ed26e0a78fb *base/openwrt-keyring-2025.12.10~f0670054-r1.apk
-d0b1ae06b0efcd038537662a483c092aaac313d922be4ff770ebf76f945ef8c3 *base/packages.adb
+fb370879ee0fe04b176985d3189940a6913f72ebb9269446072d431fd43c083b *base/packages.adb
 7c7ba86769fb7d69de27c033a2983222b625eb3e2c232364cae2a977b890db1f *base/partx-utils-2.41.5-r1.apk
 4fc248e09d273d52553341a424906a9aff5ccc2a1acfa8a3183e9fbbcfdd2ccf *base/ppp-2.5.2-r4.apk
 c10eda9ef3b15b0a11b3e11ab54d924906d79b010bb2a5d908663ecd3ead05f1 *base/ppp-mod-pppoe-2.5.2-r4.apk
@@ -186,7 +182,7 @@ f0197c2c154caad8f0591749d9c751bd09c3657839d8f75b788a5336cbb3bba6 *luci/luci-prot
 5b0d7ec8fae978ddfc1970e252e76cd43576241f1785c0665c0168f4cc0d30e1 *luci/luci-proto-ppp-26.288.56989~75a306d.apk
 984af70da9b7463c1395202e2cadb8c959ea6b1836e3a1cebb37d5f997840778 *luci/luci-proto-wireguard-26.288.56989~75a306d.apk
 d8c8fc3109aee625d02e25d1dfb153d90392efab366e2705906e46fd1fb10be9 *luci/luci-theme-bootstrap-26.288.56989~75a306d.apk
-4af2f89cfe8fd4c3ac1df2463a7afca26d93363771c4272cf150d3cdd949cfb0 *luci/packages.adb
+611a50ff34cc5c05b47b967273aeb12031d8560f7c45499c9132c1ae62b4c7a4 *luci/packages.adb
 aee633f22e3d399e352bcb172e35b253b4c57511675b0abeb26397aa76582182 *luci/rpcd-mod-luci-20240305-r1.apk
 dc76ac187b7e69fa92be68cad77016f3e54ba6b1af50e0bc55f33019fc92e8e5 *luci/rpcd-mod-rrdns-20170710.apk
 13996894823a7b14e8f7b74c11d7d5831d9e2dcdc05b2b440f398dc78d9a2736 *luci/ucode-mod-html-1.apk
@@ -235,7 +231,7 @@ f53e55a41a01456871f74ae3d81d605058507287529cbb09f0004b01751031ea *packages/mtool
 f40e602a4db009dd87512422f572047e7639d2158f48d38b9abd71a61397f1c0 *packages/openssh-sftp-avahi-service-10.6_p1-r1.apk
 db05f86a10f778b7a0240f2e4784b16d8100de1107ff020cb4cc28c69cbb7b67 *packages/openssh-sftp-client-10.6_p1-r1.apk
 043d37d574c36f484797c3934da2c385834cb1a0b0a7e690df30c11925f697dc *packages/openssh-sftp-server-10.6_p1-r1.apk
-baf698721efb955030baaada6a7b9641c203c17579ba11ff368f46cd0686c50d *packages/packages.adb
+9a2ccc46e8e360a34b0934da0bb433435bb41415bcefce08ad7830fb3d0f031e *packages/packages.adb
 b49e8b4b6cc76d11498e576cade5adbfab3a4951627208c41b5d431f8392c0f0 *packages/qmi-utils-1.36.0-r1.apk
 0be146dcc284a6746136ad6b6db196ce5de9ad4159ba6d28b8e0e0b863e6d488 *packages/rrdtool1-1.0.50-r7.apk
 bfb3f2c1f7b31f851c392d3eeff96807a93f214d5dcc0d803d7628649a5de2e0 *packages/tailscale-1.104.1-r1.apk
@@ -243,4 +239,4 @@ f0de86f3a33e7b0f7c6641b2ca37b84d7aa1d5fd37c4fa364f81b4a3f176093b *packages/xxd-2
 e705bdf1118593c1794629635057f93efb93eea029afdfc55d472dd71d8c1e50 *packages/zerotier-1.16.2-r1.apk
 ef681a470eb95d3e2f978a0589ecdbee4e8b1ce19ce1b39f854dc7a1dbc5ebb9 *routing/batctl-default-2025.4-r4.apk
 221c83acd510f4628d704ba53f258ee58f092c700c2fed177e46c9a33a9b0038 *routing/index.json
-a177c2e3767a2ab462a73a85931939ee2eb22068cfd99af77b4141193f5acea2 *routing/packages.adb
+092b8b6cdc182bc97e2e853e8eadb3053dad970e5ec90595d34949e08db133cd *routing/packages.adb

@@ -20,14 +20,6 @@
       "published": "2026-11-04"
     },
     {
-      "id": "2026-11-04-msm89xx-firmware-upgrade",
-      "package": "msm89xx-firmware-upgrade",
-      "version": "1.0-r17",
-      "title": "Hotfix installs now report progress: the tool writes which fix it is installing, and whether it worked",
-      "restart": [],
-      "published": "2026-11-04"
-    },
-    {
       "id": "2026-11-04-luci-app-firmware-upgrade",
       "package": "luci-app-firmware-upgrade",
       "version": "1.0-r6",
@@ -43,6 +35,14 @@
       "restart": [
         "update-notify"
       ],
+      "published": "2026-11-04"
+    },
+    {
+      "id": "2026-11-04-msm89xx-firmware-upgrade",
+      "package": "msm89xx-firmware-upgrade",
+      "version": "1.0-r18",
+      "title": "Hotfix install retries once when apk cannot see the new version yet, instead of failing on the first press",
+      "restart": [],
       "published": "2026-11-04"
     }
   ]
