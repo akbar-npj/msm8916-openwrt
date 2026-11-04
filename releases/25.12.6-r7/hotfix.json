@@ -26,6 +26,14 @@
       "title": "Hotfix installs now report progress: the tool writes which fix it is installing, and whether it worked",
       "restart": [],
       "published": "2026-11-04"
+    },
+    {
+      "id": "2026-11-04-luci-app-firmware-upgrade",
+      "package": "luci-app-firmware-upgrade",
+      "version": "1.0-r6",
+      "title": "Firmware Upgrade page: a progress bar and an in-place result while installing fixes",
+      "restart": [],
+      "published": "2026-11-04"
     }
   ]
 }
