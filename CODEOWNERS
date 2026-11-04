@@ -19,6 +19,15 @@ msm89xx/image/msm8916.mk                                        @akbar-npj
 msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch  @isprogrammer @akbar-npj
 diffconfigs/ufi003                                               @isprogrammer @akbar-npj
 
+# --- JZ02 (maintained by @GargoilXD) ---
+msm89xx/patches/868-arm64-dts-qcom-add-msm8916-generic-jz02.patch  @GargoilXD @akbar-npj
+diffconfigs/jz02                                                   @GargoilXD @akbar-npj
+# The three SIM switch lines and the usb0 boot race are JZ02-only behaviour
+# that has to live in shared base-files paths.
+msm89xx/base-files/etc/init.d/sim-select                           @GargoilXD @akbar-npj
+msm89xx/base-files/usr/sbin/sim-test                               @GargoilXD @akbar-npj
+msm89xx/base-files/etc/hotplug.d/net/20-usb0-bridge                @GargoilXD @akbar-npj
+
 # --- UZ801 config + everything else defaults to the lead ---
 diffconfigs/uz801  @isprogrammer @giraygokirmak @akbar-npj
 *  @akbar-npj
