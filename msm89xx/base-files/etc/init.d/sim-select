@@ -17,6 +17,11 @@ start() {
 	local slot L
 	slot="$(uci -q get sim.slot 2>/dev/null)"
 	[ -n "$slot" ] || slot=3
+	case "$slot" in
+		1|2|3) ;;
+		*) logger -t sim-select "invalid sim.slot '$slot' (expected 1, 2 or 3); not selecting"
+		   return 1 ;;
+	esac
 	L=/sys/class/leds
 
 	if [ ! -d "$L/sim_hotdet_gpio" ]; then
@@ -33,7 +38,7 @@ start() {
 	case "$slot" in
 		1) echo 1 > "$L/sim1_switch_gpio/brightness" ;;
 		2) echo 1 > "$L/sim2_switch_gpio/brightness" ;;
-		*) echo 1 > "$L/sim3_switch_gpio/brightness" ;;
+		3) echo 1 > "$L/sim3_switch_gpio/brightness" ;;
 	esac
 	sleep 1
 	echo 0 > "$L/sim_hotdet_gpio/brightness"

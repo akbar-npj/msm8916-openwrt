@@ -34,7 +34,12 @@ ip route show default 2>/dev/null | grep -q 'dev wwan0' \
 	&& ok "default route via wwan0" || no "no default route via wwan0"
 
 ping -c2 -W2 1.1.1.1 >/dev/null 2>&1 && ok "ping 1.1.1.1" || no "ping 1.1.1.1"
-nslookup example.com 127.0.0.1 >/dev/null 2>&1 && ok "DNS via AdGuard" || no "DNS via AdGuard"
+NS="$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf 2>/dev/null)"
+if [ -n "$NS" ]; then
+	nslookup example.com "$NS" >/dev/null 2>&1 && ok "DNS via $NS" || no "DNS via $NS"
+else
+	no "no nameserver in /etc/resolv.conf"
+fi
 wget -qO- -T 8 http://example.com >/dev/null 2>&1 && ok "HTTP via WAN" || no "HTTP via WAN"
 
 echo "----"

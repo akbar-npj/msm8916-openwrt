@@ -34,9 +34,15 @@ uci -q del_list network.@device[0].ports='eth0' 2>/dev/null || true
 uci -q del_list network.@device[0].ports='usb0' 2>/dev/null || true
 uci add_list network.@device[0].ports='usb0'
 
-# usb0 is created by the gadget init at S99, after network (S20).  Allow the
-# bridge to come up empty and attach the port when the gadget appears.
-uci set network.@device[0].bridge_empty='1'
+# On the JZ02 the usb0 gadget is created by the gadget init at S99, after
+# network (S20).  Allow the bridge to come up empty and attach the port when
+# the gadget appears.  Scoped to the JZ02: the other boards bring usb0 up
+# before network and do not need an empty bridge.
+case "$(cut -d, -f1 /tmp/sysinfo/board_name 2>/dev/null)" in
+jz02)
+	uci set network.@device[0].bridge_empty='1'
+	;;
+esac
 
 sed -i \
     's/"device": "eth0"/"device": "br-lan"/g' \

@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz02.dts
-@@ -0,0 +1,308 @@
+@@ -0,0 +1,311 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * JZ02 — generic 3-SIM battery MiFi, Qualcomm MSM8916.
@@ -183,6 +183,13 @@
 +		retain-state-suspended;
 +	};
 +
++	/*
++	 * The visible Wi-Fi lamp is the red one below.  The green Wi-Fi
++	 * position is unpopulated on this board (GPIO120), but the node is
++	 * kept because wifi-led-monitor looks up green:wlan and would
++	 * otherwise fall back to green:wan, i.e. blink the *network* lamp on
++	 * Wi-Fi activity.  The monitor's green blink is a deliberate no-op.
++	 */
 +	led-wlan-green {
 +		function = LED_FUNCTION_WLAN;
 +		color = <LED_COLOR_ID_GREEN>;
@@ -250,20 +257,16 @@
 +};
 +
 +/*
-+ * Buttons (from the stock DTB's /soc/gpio_keys):
-+ *   key_f2  GPIO37  active-high  linux,code 60
-+ *   key_f3  GPIO107 active-low   linux,code 61
-+ *
-+ * The physical "Reset" pinhole is one of these two.  Confirm on hardware
-+ * with `evtest` / `getevent`; button_restart is mapped to key_f2 for now.
++ * Buttons: the stock DTB lists key_f2 (GPIO37) and key_f3 (GPIO107), but
++ * neither line responds to the physical "Reset" pinhole on this unit.
++ * Tested on hardware (2026-11-04): pressing the pinhole produced no
++ * transition on any TLMM GPIO, no PMIC GPIO change and no pm8941_pwrkey
++ * event, and the board did not reboot.  The pinhole is therefore a hardware
++ * reset (or unpopulated), not a software key, so disable the inherited node
++ * instead of guessing a GPIO.
 + */
 +&button_restart {
-+	gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
-+};
-+
-+&button_default {
-+	pins = "gpio37";
-+	bias-pull-down;
++	status = "disabled";
 +};
 +
 +/*
