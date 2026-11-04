@@ -525,8 +525,11 @@ bring_up_sta() {
 					# mean instead.
 					if [ -n "$_k" ]; then
 						echo "	psk=\"$(conf_escape "$_k")\""
-						# No SAE: wpad-basic-wolfssl is built without CONFIG_SAE, and an unknown
-						# token makes the whole key_mgmt line a parse error.
+						# WPA-PSK only, on purpose.  wpad-basic-wolfssl does have SAE
+						# (OpenWrt passes CONFIG_SAE=y for every wolfssl variant, and the
+						# shipped binary accepts key_mgmt=SAE), but SAE forces PMF and the
+						# driver's MFP path is a local patch that has never been exercised
+						# against a real WPA3 AP.  Change this line to "WPA-PSK SAE" to opt in.
 						echo "	key_mgmt=WPA-PSK"
 					else
 						echo "	key_mgmt=NONE"
