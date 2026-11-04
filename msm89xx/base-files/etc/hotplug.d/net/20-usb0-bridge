@@ -1,4 +1,5 @@
 #!/bin/sh
+# BOARDS: jz02
 # JZ02 only: the usb0 gadget is created by /etc/init.d/usb-gadget at S99,
 # after the network service (S20).  bridge_empty=1 lets br-lan come up
 # without ports; attach usb0 when it appears so the LAN is reachable after

@@ -10,8 +10,13 @@
 #
 # Configure with:  uci set sim.slot=3 && uci commit sim
 # (1 = embedded, 2 = second, 3 = external; default 3)
+#
+# BOARDS: jz02 (the three SIM switch lines exist only there)
 
 START=20
+
+# Every board installs S20sim-select; exit before touching uci elsewhere.
+grep -q "jz02,generic" /proc/device-tree/compatible 2>/dev/null || exit 0
 
 start() {
 	local slot L

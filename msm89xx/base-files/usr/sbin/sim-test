@@ -1,6 +1,7 @@
 #!/bin/sh
 # JZ02 SIM/modem/connectivity self-test.
 # Prints PASS/FAIL for the selected SIM slot, modem, WAN, DNS and HTTP.
+# BOARDS: jz02
 
 PASS=0
 FAIL=0
