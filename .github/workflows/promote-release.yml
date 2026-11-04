@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+      feed_only:
+        description: "Feed maintenance on an already-promoted tag: re-copy, prune and re-index releases/<base> but leave the GitHub release alone."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -48,6 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
+          FEED_ONLY: ${{ inputs.feed_only }}
         run: |
           set -euo pipefail
           case "$TAG" in
@@ -61,9 +67,12 @@ jobs:
           n=$(jq -r '.assets | length' /tmp/rel.json)
 
           [ "$draft" = "false" ] || { echo "::error::$TAG is a draft"; exit 1; }
-          if [ "$pre" != "true" ]; then
+          if [ "$pre" != "true" ] && [ "${FEED_ONLY:-}" != "true" ]; then
             echo "::error::$TAG is already a production release - nothing to promote."
             exit 1
+          fi
+          if [ "$pre" != "true" ]; then
+            echo "::notice::feed_only on an already-promoted tag: touching the feed, not the release."
           fi
           if [ "$n" -lt 8 ]; then
             echo "::error::$TAG has only $n assets; that is not a complete board matrix."
@@ -82,6 +91,7 @@ jobs:
           VERSION: ${{ steps.vars.outputs.version }}
           BASE: ${{ steps.vars.outputs.base }}
           DRY_RUN: ${{ inputs.dry_run }}
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
         run: |
           set -euo pipefail
           rm -rf /tmp/promo
@@ -116,6 +126,55 @@ jobs:
             git rm -q "$f"
           done
 
+          # base-files is the image identity: package/Makefile installs it as
+          # "base-files=<version>" (with libc and kernel), so /etc/apk/world
+          # carries an exact pin.  apk honours that pin, which means
+          # `apk upgrade base-files` -- exactly what LuCI's Software page runs --
+          # prints OK and changes nothing (measured 2026-11-04 on an r5 unit:
+          # world pinned 1718, the shared feed offered the r7 image's 1721,
+          # exit code 0, installed version unchanged).  Publishing a newer
+          # image's base-files here therefore shows every older revision an
+          # update that cannot be applied.  A base-files fix is a hotfix: it is
+          # revision-scoped and carries its own --repository, so the shared feed
+          # never needs one.
+          TP="$DST/targets/msm89xx/msm8916/packages"
+          DROPPED=0
+          for f in "$TP"/base-files-*.apk; do
+            [ -e "$f" ] || continue
+            echo "drop ${f#releases/}"
+            git rm -q "$f"
+            DROPPED=1
+          done
+
+          # packages.adb is a signed binary index: a stale entry would make apk
+          # fetch a file that is no longer there, so it is rebuilt from the
+          # files that remain.  alpine:3.23 carries apk-tools 3.0.x, the same
+          # major as the image; an index it writes reads back under the tree's
+          # 3.0.5 (verified).  index.json is the same data in the version-2 json
+          # form that openwrt/scripts/make-index-json.py emits.
+          if [ "$DROPPED" = 1 ]; then
+            KEY="$(mktemp)"
+            chmod 600 "$KEY"
+            printf '%s\n' "$APK_SIGNING_KEY" > "$KEY"
+            docker run --rm -v "$PWD/$TP:/feed" -v "$KEY:/key.pem:ro" -w /feed \
+              alpine:3.23 sh -c '
+                apk mkndx --root /feed --keys-dir /feed --allow-untrusted \
+                  --sign /key.pem --output packages.adb *.apk >/dev/null
+                apk adbdump --format json packages.adb
+              ' > /tmp/targets-adbdump.json
+            rm -f "$KEY"
+            jq 'def strip($n; $abi):
+                  if ($abi|length) > 0 and ($n|endswith($abi))
+                  then $n[0:(($n|length) - ($abi|length))] else $n end;
+                {version: 2, architecture: "aarch64_generic",
+                 packages: (.packages | map(
+                   . as $p
+                   | ([ $p.tags[]? | select(startswith("openwrt:abiversion=")) | .[19:] ][0] // "") as $abi
+                   | {key: strip($p.name; $abi), value: $p.version}
+                 ) | from_entries)}' /tmp/targets-adbdump.json > "$TP/index.json"
+            echo "re-indexed $(ls "$TP"/*.apk | wc -l) target packages"
+          fi
+
           git add -A
           if git diff --cached --quiet; then
             echo "::warning::gh-pages already matches $VERSION - nothing to change."
@@ -143,8 +202,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
+          FEED_ONLY: ${{ inputs.feed_only }}
         run: |
           set -euo pipefail
+          if [ "${FEED_ONLY:-}" = "true" ]; then
+            echo "::notice::feed_only - the feed is updated, $TAG is left as it is."
+            exit 0
+          fi
           if [ "${DRY_RUN:-}" = "true" ]; then
             echo "::notice::DRY_RUN - would run: gh release edit $TAG --prerelease=false --latest"
             exit 0
