@@ -255,7 +255,11 @@ else
         }
         shared && /^\+/ && !/^\+\+\+/ {
             added++
-            if ($0 ~ /board_name|is_compatible|board_match|BOARDS:/) gated = 1
+            # A gate is a board test in the code or a marker in the file.  The
+            # compatible-string grep is listed explicitly: it is the gate that
+            # works in preinit and in hotplug handlers, where board_name is not
+            # available yet, so boards legitimately use it instead.
+            if ($0 ~ /board_name|board_match|device-tree\/compatible|BOARDS:/) gated = 1
             else if (first == "") {
                 first = substr($0, 2)
                 if (first ~ /^[ \t]*$/) first = "(blank line)"
@@ -277,16 +281,34 @@ fi
 
 # ---- self-check ------------------------------------------------------------
 if [ "$SELF_CHECK" -eq 1 ]; then
-    section "self-check (mutants must be caught)"
+    section "self-check (mutants caught, valid gates accepted)"
     TMP=$(mktemp -d /tmp/board-profile.XXXXXX)
     trap 'rm -rf "$TMP"' EXIT
 
-    mutate() { # mutate <name> <expected-FAIL-substring> <mutation> <shared-diff>
+    stage() { # a throwaway tree the harness can be pointed at
         rm -rf "$TMP/repo"; mkdir -p "$TMP/repo/.github/workflows"
         cp -a "$ROOT/diffconfigs" "$ROOT/msm89xx" "$TMP/repo/"
         cp "$BUILD_YML" "$TMP/repo/.github/workflows/"
         ( cd "$TMP/repo" && git init -q . && git add -A &&
           git -c user.email=t@t -c user.name=t commit -qm base ) >/dev/null 2>&1
+    }
+
+    # The gate must not fire on a legitimate gate.  Every accepted form gets a
+    # fixture: tightening the pattern later cannot silently start rejecting the
+    # way boards actually write these checks (the compatible-string grep is the
+    # one that works in preinit and hotplug, where board_name is not set yet).
+    accept() { # accept <name> <shared-diff>
+        stage
+        out=$(bash "$HERE/run.sh" --root "$TMP/repo" --shared-diff "$2" 2>&1)
+        if printf '%s' "$out" | grep -q "FAIL .*shared change"; then
+            bad "gate '$1' rejected (false positive)"
+        else
+            ok "gate '$1' accepted"
+        fi
+    }
+
+    mutate() { # mutate <name> <expected-FAIL-substring> <mutation> <shared-diff>
+        stage
         ( cd "$TMP/repo" && eval "$3" ) || { bad "mutant '$1' could not be applied"; return; }
         out=$(bash "$HERE/run.sh" --root "$TMP/repo" --shared-diff "$4" 2>&1)
         if printf '%s' "$out" | grep -q "FAIL .*$2"; then
@@ -301,6 +323,10 @@ if [ "$SELF_CHECK" -eq 1 ]; then
     mutate "script loses +x"        "is 100644"         "chmod 644 msm89xx/base-files/etc/init.d/himi-ok && git add -A" ""
     mutate "duplicate patch number" "duplicate patch"   "cp msm89xx/patches/867-arm64-dts-qcom-add-msm8916-generic-uf896.patch msm89xx/patches/867-dup.patch" ""
     mutate "ungated shared change"  "shared change"     "true" "$HERE/fixtures/ungated.diff"
+
+    accept "compatible-string grep" "$HERE/fixtures/compatible.diff"
+    accept "board_name check"       "$HERE/fixtures/gated.diff"
+    accept "# BOARDS: marker"       "$HERE/fixtures/marker.diff"
 fi
 
 printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
