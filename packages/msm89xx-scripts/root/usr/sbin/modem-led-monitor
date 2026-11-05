@@ -52,6 +52,10 @@ case "$(board_name 2>/dev/null)" in
         *hmu05*|*hmuf02v5*) IS_HMU05=1 ;;
         *) IS_HMU05=0 ;;
 esac
+case "$(board_name 2>/dev/null)" in
+        *hmuf02v5*) IS_HMUF02=1 ;;
+        *) IS_HMUF02=0 ;;
+esac
 
 #
 # The signal pair is green:wan / red:wan after the 2026-10-22 DT rename.
@@ -68,7 +72,18 @@ pick_led()
 }
 
 LED=$(pick_led red:wan 4g_type red:power) || LED=""
-LED_GREEN=$(pick_led green:wan) || LED_GREEN=""
+
+#
+# The green half of the signal pair.  On HMUF02-V5 the green lamp is the LTE
+# one but the shipped device tree calls it green:wlan (the functions of the
+# green and blue lamps are swapped there); the next image renames it to
+# green:wan.  Accept either so one package works on both.
+#
+if [ "$IS_HMUF02" = "1" ]; then
+        LED_GREEN=$(pick_led green:wan green:wlan) || LED_GREEN=""
+else
+        LED_GREEN=$(pick_led green:wan) || LED_GREEN=""
+fi
 
 led_set()
 {
@@ -274,12 +289,20 @@ modem_healthy()
 
 apply_signal search
 
-BLUE_LED="/sys/class/leds/blue:wan"
-[ -d "$BLUE_LED" ] || BLUE_LED="/sys/class/leds/blue:wlan"
+#
+# The blue lamp is the LTE data lamp on the boards that have four lamps, but
+# on HMUF02-V5 (GPIO73) it is the Wi-Fi lamp and wifi-led-monitor owns it --
+# two writers on one lamp would fight, so stay off it there.
+#
+if [ "$IS_HMUF02" = "1" ]; then
+        BLUE_LED=""
+else
+        BLUE_LED=$(pick_led blue:wan blue:wlan) || BLUE_LED=""
+fi
 
 set_blue_led() {
         local state="$1"
-        [ -e "$BLUE_LED/trigger" ] || return 0
+        [ -n "$BLUE_LED" ] && [ -e "$BLUE_LED/trigger" ] || return 0
         local cur_off="$(cat "$BLUE_LED/delay_off" 2>/dev/null)"
 
         case "$state" in

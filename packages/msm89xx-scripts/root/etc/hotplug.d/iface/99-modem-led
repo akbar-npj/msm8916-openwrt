@@ -1,5 +1,14 @@
 #!/bin/sh
 
+#
+# HMUF02-V5: the blue lamp (GPIO73) is the Wi-Fi one and wifi-led-monitor owns
+# it; its LTE lamp is green and modem-led-monitor follows the signal state.
+# This data-activity blink is for the four-lamp boards only.
+#
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+	*hmuf02v5*) exit 0 ;;
+esac
+
 LED="/sys/class/leds/blue:wan"
 [ -d "$LED" ] || LED="/sys/class/leds/blue:wlan"
 
