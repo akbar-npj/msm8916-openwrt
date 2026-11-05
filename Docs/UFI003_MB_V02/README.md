@@ -14,7 +14,7 @@ decompiled.
 Entry 02 identifies itself as **Qualcomm Technologies, Inc. MSM 8916 MTP**,
 with `qcom,board-id = <0x08 0x00>`. The existing
 [`Docs/UFI003_MB_V02.md`](../UFI003_MB_V02.md) notes that the stock DT root
-reports a generic MSM8916 MTP identity. This entry is presumed, not verified, to be the UFI003 entry: its MSM8916 MTP model and board ID fit the existing reference’s generic MTP description. No captured stock bootloader/SMEM selection or /proc/device-tree dump ties the running board to index 02; the vendor DT has no UFI003 product label.
+reports a generic MSM8916 MTP identity. Entry 02 matches the SMEM board identity read from the running UFI003 stick on 2026-11-05: soc_id 206, revision 1.0, hardware_platform 8, subtype 0, platform_version 65536, PM8916. Among the 33 extracted QCDT entries it is the only match for MSM8916/soc 206 and board-id <0x08 0x00>; stock LK selects a DTB using this match. There is still no captured stock /proc/device-tree dump. The vendor DT root model remains generic MSM8916 MTP and does not use the UFI003 product name.
 
 ## All extracted QCDT entries
 
