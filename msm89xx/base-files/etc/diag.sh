@@ -16,7 +16,7 @@
 #               35_failsafe_usb gives once the rescue shell is up.  The battery
 #               lamp is left alone: red:bat means "fault" now, and a rescue
 #               must not read as a battery problem.
-#   upgrade     slow-blink green:wlan alone at 500/500.  A flash in progress
+#   upgrade     slow-blink the Wi-Fi lamp alone at 500/500.  A flash in progress
 #               must not look like a rescue prompt, so it is deliberately a
 #               different LED and a different rate.
 #   done        no-op: the monitor daemons (battery-led-monitor,
@@ -28,15 +28,21 @@
 
 . /lib/functions/leds.sh
 
-WLAN_GREEN="/sys/class/leds/green:wlan"
-WLAN_RED="/sys/class/leds/red:wlan"
-
 pick_led() {
     for n in "$@"; do
         [ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
     done
     return 1
 }
+
+# The Wi-Fi lamp is green on most boards but BLUE on the HMUF02-V5, where the
+# green lamp is the LTE one.  The HMUF02-V5 device tree called the blue lamp
+# blue:wan before the function swap, so accept either spelling.
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+    *hmuf02v5*) WLAN_GREEN="$(pick_led blue:wlan blue:wan)" || WLAN_GREEN="" ;;
+    *)          WLAN_GREEN="$(pick_led green:wlan green:wan)" || WLAN_GREEN="" ;;
+esac
+WLAN_RED="$(pick_led red:wlan)" || WLAN_RED=""
 
 BAT_GREEN="$(pick_led green:bat green:charging)" || BAT_GREEN=""
 BAT_RED="$(pick_led red:bat red:charging)" || BAT_RED=""
