@@ -38,6 +38,13 @@ guide assumes the common ufi stick/MiFi form factor.
 
 ## 1. The Device Tree source (a new kernel patch)
 
+> **Generator.** `scripts/new-board.py --dtb stock.dtb --inspect` reads the
+> stock device tree and reports the LEDs, buttons, battery profile and SIM
+> control lines it can map. `--write` emits the DTS patch, the 801 line, the
+> Device profile, the diffconfig and the `build.yml` entry, then runs the
+> board harness. Review every TODO it leaves: a vendor DTB describes GPIOs,
+> not the board's real LED colours or its battery cell.
+
 Create a new patch:
 
 ```
