@@ -26,11 +26,20 @@ start_service()
 stop_service()
 {
         #
-        # When the service is deliberately stopped,
-        # leave the blue LED OFF.
+        # When the service is deliberately stopped, leave the Wi-Fi LED OFF.
+        # The lamp is green on the mifib-v12/mf800b and blue on the HMUF02-V5,
+        # whose device tree called it blue:wan before the function swap.
         #
-        LED="/sys/class/leds/green:wlan"
-        [ -d "$LED" ] || LED="/sys/class/leds/green:wan"
+        case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+                *hmuf02v5*)
+                        LED="/sys/class/leds/blue:wlan"
+                        [ -d "$LED" ] || LED="/sys/class/leds/blue:wan"
+                        ;;
+                *)
+                        LED="/sys/class/leds/green:wlan"
+                        [ -d "$LED" ] || LED="/sys/class/leds/green:wan"
+                        ;;
+        esac
 
         if [ -e "$LED/trigger" ]; then
                 echo none > "$LED/trigger" 2>/dev/null

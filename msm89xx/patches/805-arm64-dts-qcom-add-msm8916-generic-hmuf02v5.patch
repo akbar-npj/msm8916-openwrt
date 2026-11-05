@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-hmuf02v5.dts
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,237 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -74,24 +74,27 @@
 + *
 + * Intended OpenWrt behaviour:
 + *
-+ * GREEN:
-+ *   LTE/netdev activity.
-+ *   The netdev trigger is selected here. The actual WWAN
-+ *   interface can be selected from userspace once we determine
-+ *   which BAM-DMUX netdev carries the LTE data connection.
++ * GREEN (green:wan):
++ *   LTE status, driven from userspace by modem-led-monitor.
++ *   Off = modem down or no SIM, solid = registered/idle,
++ *   blink = registered with traffic, fast blink = searching.
 + *
-+ * RED:
++ * RED (red:power):
 + *   Modem status/fault LED.
 + *   Starts ON during boot.
 + *   Userspace will turn it OFF when the modem is connected and
 + *   turn it ON again if the modem/remoteproc disconnects.
 + *
-+ * BLUE:
-+ *   Wi-Fi status.
++ * BLUE (blue:wlan):
++ *   Wi-Fi status, driven from userspace by wifi-led-monitor.
++ *
++ * The function names must follow the physical colours: the first
++ * version of this node had green and blue swapped (green:wlan,
++ * blue:wan), which made every userspace monitor drive the wrong lamp.
 + */
 +
 +&led_g {
-+    function = LED_FUNCTION_WLAN;
++    function = LED_FUNCTION_WAN;
 +    gpios = <&tlmm 71 GPIO_ACTIVE_HIGH>;
 +    default-state = "off";
 +};
@@ -112,7 +115,7 @@
 +};
 +
 +&led_b {
-+    function = LED_FUNCTION_WAN;
++    function = LED_FUNCTION_WLAN;
 +    gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
 +    default-state = "off";
 +};
