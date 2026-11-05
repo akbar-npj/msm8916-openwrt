@@ -11,6 +11,14 @@
         "modem-led-monitor"
       ],
       "published": "2026-11-05"
+    },
+    {
+      "id": "2026-11-05-msm89xx-firmware-upgrade",
+      "package": "msm89xx-firmware-upgrade",
+      "version": "1.0-r19",
+      "title": "Clear the dashboard hotfix banner after installing",
+      "restart": [],
+      "published": "2026-11-05"
     }
   ]
 }
