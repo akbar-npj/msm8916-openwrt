@@ -42,7 +42,7 @@ The board patch defines SIM routing hogs:
 | 68 | (aux LTE GPIO) | low |
 
 Physical SIM hot-swap (`sim_hotplug`) is **untested** — no `sim-presence`
-node is exposed. See [SIM Hot-Swap](SIM_HOT_SWAP.md).
+node is exposed. See [SIM Hot-Swap](../SIM_HOT_SWAP.md).
 
 ## Profile feature selection
 
@@ -62,4 +62,4 @@ normal runtime-suspend path. Also leaves out the HMUF02-V5 thermal maps,
 
 The UFI001B shares the RF/transceiver layout with the stock MSM8916 MTP; unlike
 the HMU05/HMUF02 line it is **not** an RF transplant candidate. See
-[Modem Stability](Modem-Stability) in the wiki.
+[Modem Stability](../Modem%20Stability/README.md) in the wiki.
