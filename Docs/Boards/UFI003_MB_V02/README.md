@@ -135,7 +135,7 @@ documented roles, and the SIM operates as expected.
 ## OpenWrt DTS comparison
 
 The OpenWrt board DTS is added by
-[`msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch`](../../msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch);
+[`msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch`](../../../msm89xx/patches/852-arm64-dts-qcom-add-msm8916-generic-ufi003.patch);
 its upstream path is
 `arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts`.
 
