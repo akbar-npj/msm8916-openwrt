@@ -382,6 +382,15 @@ hotfix_apply_all() {
 		done
 	done < "$listfile"
 	if [ "$rc" -eq 0 ]; then
+		# The dashboard banner reads /tmp/hotfix-notify.json, which
+		# update-notify only rewrites on its own schedule -- 6 h after the
+		# last successful check.  Without this refresh "a fix for your build
+		# is available" survived the install that fixed it (measured
+		# 2026-11-05: installed r9, banner still up, next check 6 h away).
+		# Same file format, so the daemon's next run simply overwrites it.
+		{ hotfix_check_json > /tmp/hotfix-notify.json.tmp 2>/dev/null &&
+		  mv -f /tmp/hotfix-notify.json.tmp /tmp/hotfix-notify.json; } ||
+		  rm -f /tmp/hotfix-notify.json.tmp
 		hf_progress hdone "$i" "$total" ""
 	else
 		hf_progress hfailed "$i" "$total" ""
