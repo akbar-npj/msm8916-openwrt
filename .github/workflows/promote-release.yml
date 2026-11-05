@@ -139,10 +139,17 @@ jobs:
           # never needs one.
           TP="$DST/targets/msm89xx/msm8916/packages"
           DROPPED=0
+          # The copy above just brought this release's base-files into the
+          # directory, so the file is usually UNTRACKED: an earlier promotion
+          # already dropped that exact name (base-files' PKG_RELEASE counts
+          # upstream commits, so it does not move between our revisions).
+          # `git rm` aborts on an untracked path ("did not match any files")
+          # and fails the whole promotion, so delete from the worktree and let
+          # the `git add -A` below stage the deletion when it was tracked.
           for f in "$TP"/base-files-*.apk; do
             [ -e "$f" ] || continue
             echo "drop ${f#releases/}"
-            git rm -q "$f"
+            rm -f "$f"
             DROPPED=1
           done
 
