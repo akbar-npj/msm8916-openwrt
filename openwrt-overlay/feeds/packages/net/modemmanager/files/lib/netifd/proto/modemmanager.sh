@@ -738,8 +738,20 @@ proto_modemmanager_setup() {
 					"$interface" "any"
 				;;
 			*)
-				modemmanager_set_preferred_mode "$device" \
-					"$interface" "${allowedmode}" "${preferredmode}"
+				# A non-simple allowedmode token (e.g. the compound
+				# "3g|4g" written by qcom-carrier-autocfg) carries its
+				# own preference in ModemManager's syntax
+				# (--set-allowed-modes="3g|4g" => allowed 3g, preferred 4g).
+				# The separate `preferredmode` is only required when the
+				# caller actually supplies one; otherwise a missing
+				# `preferredmode` must not hard-block the interface.
+				if [ -z "${preferredmode}" ]; then
+					modemmanager_set_allowed_mode "$device" \
+						"$interface" "${allowedmode}"
+				else
+					modemmanager_set_preferred_mode "$device" \
+						"$interface" "${allowedmode}" "${preferredmode}"
+				fi
 				;;
 		esac
 		# check error for allowed_mode and preferred_mode function call
