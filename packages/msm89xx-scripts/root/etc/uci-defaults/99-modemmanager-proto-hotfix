@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Enable the modemmanager.sh preferred-mode tolerance overlay.  The service
+# copies the corrected proto handler over the live file at boot (and on
+# restart), so a sysupgrade that restores the stock handler is re-patched.
+[ -x /etc/init.d/modemmanager-proto-hotfix ] &&
+	/etc/init.d/modemmanager-proto-hotfix enable
+
+exit 0
