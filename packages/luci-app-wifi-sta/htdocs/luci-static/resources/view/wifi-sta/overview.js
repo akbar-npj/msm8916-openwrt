@@ -59,7 +59,10 @@ function statusTable(st) {
 		row(_('Channel'), st.sta_channel),
 		row(_('Signal'), st.sta_signal),
 		row(_('Tx bitrate'), st.sta_bitrate),
-		row(_('Address'), st.sta_ip)
+		row(_('Address'), st.sta_ip),
+		/* Driver reloads the watchdog performed because the 4-way handshake
+		 * kept timing out (a stale BSS/key in the firmware).  Since boot. */
+		row(_('Handshake-timeout reloads'), st.hs_escalations)
 	] : [ row(_('Station interface'), _('not present')) ];
 
 	if (st.profiles)

@@ -243,6 +243,23 @@ nojoin_set() {
 	printf '%s\n' "$1" > "$NOJOIN_STATE" 2>/dev/null
 }
 
+# Driver reloads triggered by the handshake-timeout path since boot.  A file
+# rather than a shell variable because the escalation exits the watchdog and
+# the respawned process has to keep adding to it.  /var/run like the rest of
+# the watchdog state: it is a diagnostic, and a reboot is a clean start.
+HS_COUNT=/var/run/wifi-sta-hs-escalations
+
+hs_count_get() {
+	local n=0
+	[ -f "$HS_COUNT" ] && read -r n < "$HS_COUNT" 2>/dev/null
+	case "$n" in ''|*[!0-9]*) n=0 ;; esac
+	echo "$n"
+}
+
+hs_count_inc() {
+	printf '%s\n' "$(( $(hs_count_get) + 1 ))" > "$HS_COUNT" 2>/dev/null
+}
+
 if [ "$MODE" = "dhcp" ] && [ "$dhcp" != 1 ]; then
 	exit 0
 fi
@@ -877,7 +894,8 @@ run_watchdog() {
 			fi
 			waits=0
 			radio_spent
-			logger -t wifi-sta "watchdog: $hs_streak 4-way handshake timeouts (the firmware kept the old BSS/key); reloading the driver (attempt $RADIO_N)"
+			hs_count_inc
+			logger -t wifi-sta "watchdog: $hs_streak 4-way handshake timeouts (the firmware kept the old BSS/key); reloading the driver (attempt $RADIO_N, $(hs_count_get) since boot)"
 			radio_restart
 			exit 0
 		fi
@@ -973,6 +991,9 @@ run_status() {
 	kv dhcp "$dhcp"
 	kv radio "$radio"
 	kv recover_after "$recover_after"
+	# Driver reloads caused by the handshake-timeout path since boot (the
+	# watchdog's other escalation reasons are not counted here).
+	kv hs_escalations "$(hs_count_get)"
 	kv key_mgmt "${key_mgmt:-auto}"
 	# Saved networks (enabled profiles) and any whose password was rejected
 	# since the last start (space-separated SSIDs).
