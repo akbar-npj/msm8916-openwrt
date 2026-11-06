@@ -79,7 +79,7 @@
     "mount-utils": "2.41.5-r1",
     "msm-firmware-dumper": "1.1-r1",
     "msm89xx-firmware-upgrade": "1.0-r19",
-    "msm89xx-scripts": "1.0-r12",
+    "msm89xx-scripts": "1.0-r11",
     "mt7601u-firmware": "20260221-r1",
     "mwifiex-sdio-firmware": "20260221-r1",
     "netifd": "2026.02.26~cbb83a18-r2",

@@ -27,6 +27,16 @@
       "title": "STA page - show handshake-timeout reload counter",
       "restart": [],
       "published": "2026-11-06"
+    },
+    {
+      "id": "2026-11-06-msm89xx-scripts",
+      "package": "msm89xx-scripts",
+      "version": "1.0-r11",
+      "title": "r8 modemmanager.sh preferred-mode tolerance overlay (fixed exec bit)",
+      "restart": [
+        "modemmanager-proto-hotfix"
+      ],
+      "published": "2026-11-06"
     }
   ]
 }
