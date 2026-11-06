@@ -27,16 +27,6 @@
       "title": "STA page - show handshake-timeout reload counter",
       "restart": [],
       "published": "2026-11-06"
-    },
-    {
-      "id": "2026-11-06-msm89xx-scripts",
-      "package": "msm89xx-scripts",
-      "version": "1.0-r12",
-      "title": "ModemManager proto: tolerate compound allowedmode without preferredmode (fixes 'No preferred mode configuration found.' hang on r8)",
-      "restart": [
-        "modemmanager-proto-hotfix"
-      ],
-      "published": "2026-11-06"
     }
   ]
 }
