@@ -31,7 +31,7 @@
     {
       "id": "2026-11-06-msm89xx-scripts",
       "package": "msm89xx-scripts",
-      "version": "1.0-r11",
+      "version": "1.0-r14",
       "title": "r8 modemmanager.sh preferred-mode tolerance overlay (fixed exec bit)",
       "restart": [
         "modemmanager-proto-hotfix"
