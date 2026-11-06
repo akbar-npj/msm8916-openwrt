@@ -1,0 +1,116 @@
+wifi: wcn36xx: retry DELETE_BSS and drop the handle when it fails
+
+The firmware has WCN36XX_HAL_NUM_BSSID (2) BSS slots and an AP+STA
+build uses both, so the station's BSS index is the only slot it can
+ever have.  When DELETE_BSS is refused, wcn36xx keeps that index, and
+everything that follows reuses a handle the firmware no longer agrees
+with:
+
+    phy0-sta0: disassociated (Reason: 15=4WAY_HANDSHAKE_TIMEOUT)
+    wcn36xx: ERROR hal_delete_bss response failed err=5
+    wcn36xx: ERROR hal_remove_bsskey response failed err=16
+    wcn36xx: ERROR hal_delete_sta_self response failed err=7
+
+Status 5 is WCN36XX_FW_MSG_RESULT_MEM_FAIL, so the refusal may be
+transient; retry once before giving up.  If the second attempt fails
+too, drop the index anyway.  A DELETE_BSS the firmware did not
+acknowledge leaves an index that cannot be trusted, reusing it only
+produces the further bogus statuses above, and the next CONFIG_BSS
+allocates a fresh slot from the response.
+
+Measured on MSM8916 with concurrent AP+STA, 2026-11-05: after a local
+deauth (a LuCI channel-width change on the AP vif) the firmware
+answered status 5 for every reconnect, 29 times over 9 minutes, and
+the station associated each time but never completed the 4-way
+handshake.  Only a driver reload cleared it.  This patch stops the
+cascade and gives the transient case a second chance; the reload
+itself is handled by the wifi-sta-up watchdog, which now escalates on
+repeated handshake timeouts instead of walking the supplicant-restart
+ladder.
+
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -20,6 +20,7 @@
+ #include <linux/etherdevice.h>
+ #include <linux/firmware.h>
+ #include <linux/bitops.h>
++#include <linux/delay.h>
+ #include <linux/rpmsg.h>
+ #include "smd.h"
+ #include "firmware.h"
+@@ -1910,36 +1911,61 @@
+ 	return ret;
+ }
+ 
++#define WCN36XX_DELETE_BSS_TRIES	2
++
+ int wcn36xx_smd_delete_bss(struct wcn36xx *wcn, struct ieee80211_vif *vif)
+ {
+ 	struct wcn36xx_hal_delete_bss_req_msg msg_body;
+ 	struct wcn36xx_vif *vif_priv = wcn36xx_vif_to_priv(vif);
+-	int ret = 0;
++	int ret = 0, i;
+ 
+ 	mutex_lock(&wcn->hal_mutex);
+ 
+ 	if (vif_priv->bss_index == WCN36XX_HAL_BSS_INVALID_IDX)
+ 		goto out;
+ 
+-	INIT_HAL_MSG(msg_body, WCN36XX_HAL_DELETE_BSS_REQ);
++	/*
++	 * The firmware has WCN36XX_HAL_NUM_BSSID (2) BSS slots and an AP+STA
++	 * setup uses both, so a refused DELETE_BSS leaves the station's only
++	 * slot holding its old key: the next CONFIG_BSS reuses that slot, the
++	 * new key cannot be installed, and the 4-way handshake times out.  The
++	 * station then associates but never carries data, and only a driver
++	 * reload clears it (observed 2026-11-05: status 5 on every reconnect,
++	 * 29 handshake timeouts over 9 minutes).
++	 *
++	 * Status 5 is MEM_FAIL, so the failure may be transient.  Retry once;
++	 * if it still fails the handle is dropped anyway.  A DELETE_BSS that
++	 * the firmware did not acknowledge leaves an index we cannot trust, and
++	 * reusing it only produces more bogus statuses (16 on RMV_BSSKEY, 7 on
++	 * DEL_STA_SELF) while the next CONFIG_BSS allocates a fresh slot.
++	 */
++	for (i = 0; i < WCN36XX_DELETE_BSS_TRIES; i++) {
++		INIT_HAL_MSG(msg_body, WCN36XX_HAL_DELETE_BSS_REQ);
+ 
+-	msg_body.bss_index = vif_priv->bss_index;
++		msg_body.bss_index = vif_priv->bss_index;
+ 
+-	PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
++		PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
+ 
+-	wcn36xx_dbg(WCN36XX_DBG_HAL, "hal delete bss %d\n", msg_body.bss_index);
++		wcn36xx_dbg(WCN36XX_DBG_HAL, "hal delete bss %d (try %d)\n",
++			    msg_body.bss_index, i + 1);
+ 
+-	ret = wcn36xx_smd_send_and_wait(wcn, msg_body.header.len);
+-	if (ret) {
+-		wcn36xx_err("Sending hal_delete_bss failed\n");
+-		goto out;
+-	}
+-	ret = wcn36xx_smd_rsp_status_check(wcn->hal_buf, wcn->hal_rsp_len);
+-	if (ret) {
+-		wcn36xx_err("hal_delete_bss response failed err=%d\n", ret);
+-		goto out;
++		ret = wcn36xx_smd_send_and_wait(wcn, msg_body.header.len);
++		if (ret) {
++			wcn36xx_err("Sending hal_delete_bss failed\n");
++			goto out;
++		}
++		ret = wcn36xx_smd_rsp_status_check(wcn->hal_buf, wcn->hal_rsp_len);
++		if (!ret)
++			break;
++
++		if (i + 1 < WCN36XX_DELETE_BSS_TRIES)
++			msleep(20);
+ 	}
+ 
++	if (ret)
++		wcn36xx_warn("hal_delete_bss %d failed err=%d; dropping the handle\n",
++			     vif_priv->bss_index, ret);
++
+ 	vif_priv->bss_index = WCN36XX_HAL_BSS_INVALID_IDX;
+ out:
+ 	mutex_unlock(&wcn->hal_mutex);
