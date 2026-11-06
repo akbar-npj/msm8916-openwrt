@@ -23,8 +23,8 @@
     {
       "id": "2026-11-06-msm89xx-scripts",
       "package": "msm89xx-scripts",
-      "version": "1.0-r10",
-      "title": "STA wedge - recover from a 4-way handshake stall in about 30 s",
+      "version": "1.0-r11",
+      "title": "STA wedge - count handshake-timeout driver reloads",
       "restart": [
         "wifi-sta-late"
       ],
