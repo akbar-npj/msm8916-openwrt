@@ -29,6 +29,14 @@
         "wifi-sta-late"
       ],
       "published": "2026-11-06"
+    },
+    {
+      "id": "2026-11-06-luci-app-wifi-sta",
+      "package": "luci-app-wifi-sta",
+      "version": "1.0-r12",
+      "title": "STA page - show handshake-timeout reload counter",
+      "restart": [],
+      "published": "2026-11-06"
     }
   ]
 }
