@@ -1,0 +1,43 @@
+#!/bin/sh /etc/rc.common
+
+# One-shot hotfix carrier: copy the corrected ModemManager netifd proto
+# handler over the live /lib/netifd/proto/modemmanager.sh.
+#
+# Why this exists: r8 shipped qcom-carrier-autocfg writing
+# network.modem.allowedmode="3g|4g" (a compound MM token). The proto
+# handler's '*' case unconditionally required a separate `preferredmode`;
+# when that was empty at interface-bring-up the interface was hard-blocked
+# with "No preferred mode configuration found."  The fix lives in the
+# modemmanager package, but a hotfix cannot republish a feed package, so we
+# ship the corrected file here and overlay it.  The next full image build
+# bakes the fix into the modemmanager package itself and this overlay
+# becomes a no-op (cmp sees identical content and skips the copy).
+START=15
+STOP=90
+
+SRC="/usr/share/msm89xx/modemmanager.sh.hotfix"
+DST="/lib/netifd/proto/modemmanager.sh"
+
+apply_fix() {
+	[ -f "$SRC" ] || return 0
+	[ -f "$DST" ] || return 0
+	if ! cmp -s "$SRC" "$DST"; then
+		cp -f "$SRC" "$DST"
+		logger -t modemmanager-proto-hotfix "applied preferred-mode tolerance fix to $DST"
+	fi
+}
+
+start() {
+	apply_fix
+}
+
+restart() {
+	apply_fix
+	# Re-bring the modem interface so netifd re-reads the corrected proto
+	# handler.  Guarded: only touch it if it currently exists.
+	if ubus -t 2 call network.interface.modem status >/dev/null 2>&1; then
+		ifdown modem 2>/dev/null
+		sleep 1
+		ifup modem 2>/dev/null
+	fi
+}
