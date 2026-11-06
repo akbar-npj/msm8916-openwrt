@@ -165,6 +165,15 @@ RESTART_AFTER=2
 # a wrong key.
 SUPPLICANT_MAX=3
 
+# A 4-way handshake that times out is a different wedge from the ones above:
+# the association succeeds, so the scan is clean, the upstream is on our
+# channel and every other signal reads healthy -- yet the link can never carry
+# data because the firmware kept the previous BSS/key.  Nothing above the
+# driver can clear that, so escalate straight to the reload after this many
+# timeouts instead of walking the supplicant-restart ladder.  Measured
+# 2026-11-05: 29 timeouts over 9 min, then a clean lease 1 s after the reload.
+HANDSHAKE_MAX=3
+
 # A radio restart costs the whole radio (the AP drops, clients re-associate), so
 # a restart that does not clear the refusal must not be repeated on a loop: the
 # file holds "<attempts> <epoch of the last attempt>" and each further attempt
@@ -264,6 +273,22 @@ find_sta() {
 		}
 	done
 	return 1
+}
+
+# "Connected" in `iw link` is set at association, i.e. BEFORE the 4-way
+# handshake.  A station whose handshake times out therefore looks up for the
+# ~4 s it takes to fail, which reset the down clock on every attempt and turned
+# a one-minute recovery into nine (measured 2026-11-05: 29 timeouts, 9 min of
+# outage).  wpa_state=COMPLETED is the first moment the link can carry data, so
+# that is what the down clock keys off.  When wpa_cli cannot answer (no socket
+# yet, or a supplicant that is not ours) fall back to `iw link` alone.
+sta_link_ok() {
+	local s="$1" st
+	[ -n "$s" ] || return 1
+	iw dev "$s" link 2>/dev/null | grep -q "^Connected" || return 1
+	st="$(timeout 3 wpa_cli -i "$s" status 2>/dev/null | sed -n 's/^wpa_state=//p')"
+	[ -z "$st" ] && return 0
+	[ "$st" = "COMPLETED" ]
 }
 
 ap_state() {
@@ -737,7 +762,7 @@ radio_restart() {
 
 run_watchdog() {
 	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0 poll=$poll_up
-	local last_sta="" vif_age=0
+	local last_sta="" vif_age=0 hs_last="" hs_streak=0 hs_now
 
 	while true; do
 		sleep "$poll"
@@ -758,9 +783,10 @@ run_watchdog() {
 		if [ -n "$sta_if" ]; then
 			vif_age=$((vif_age + poll))
 		fi
-		if [ -n "$sta_if" ] && iw dev "$sta_if" link 2>/dev/null | grep -q "^Connected"; then
+		if sta_link_ok "$sta_if"; then
 			down=0
 			miss=0
+			hs_streak=0
 			# A working link ends the refusal streak: the next -EBUSY is a
 			# new episode and deserves its own recycle, not an instant reload.
 			recycles=0
@@ -773,6 +799,21 @@ run_watchdog() {
 		down=$((down + poll))
 		# Default for the next sleep; the refusal branch below shortens it.
 		poll=$poll_up
+
+		# ---- stale-key wedge: count 4-way handshake timeouts ----
+		# A monotonic counter within a boot; a smaller value than last time
+		# means the kernel ring wrapped, so re-baseline instead of counting
+		# the whole ring as new.  The first pass baselines too: a driver
+		# reload does not clear dmesg, so without that the respawn would
+		# count the old lines as a fresh episode and reload in a loop.
+		hs_now="$(dmesg 2>/dev/null | grep -c "4WAY_HANDSHAKE_TIMEOUT")"
+		if [ -z "$hs_last" ] || [ "$hs_now" -lt "$hs_last" ]; then
+			hs_last="$hs_now"
+			hs_streak=0
+		elif [ "$hs_now" -gt "$hs_last" ]; then
+			hs_streak=$((hs_streak + hs_now - hs_last))
+			hs_last="$hs_now"
+		fi
 
 		# ---- wedge check: probe EARLY, at scan_probe_after ----
 		# A refused scan is a specific wedge signal and the probe is read-only,
@@ -816,6 +857,29 @@ run_watchdog() {
 
 			# A clean scan ends the refusal streak.
 			recycles=0
+		fi
+
+		# ---- stale-key wedge: escalate on the handshake counter ----
+		# Deliberately before the recover_after gate: the handshake counter
+		# is proof on its own, and waiting a full minute per attempt is what
+		# turned the 2026-11-05 outage into 9 minutes.
+		if [ "$hs_streak" -ge "$HANDSHAKE_MAX" ] && [ "$vif_age" -ge "$startup_grace" ]; then
+			radio_budget
+			if [ "$RADIO_WAIT" -gt 0 ]; then
+				waits=$((waits + 1))
+				if [ "$waits" -eq 1 ] || [ $((waits % 8)) -eq 0 ]; then
+					logger -t wifi-sta "watchdog: $hs_streak 4-way handshake timeouts; radio restart $RADIO_N not due for another $((RADIO_WAIT / 60)) min"
+				fi
+				# Do not re-fire on the same timeouts every poll while the
+				# ladder is waiting; the next new one starts a fresh count.
+				hs_streak=0
+				continue
+			fi
+			waits=0
+			radio_spent
+			logger -t wifi-sta "watchdog: $hs_streak 4-way handshake timeouts (the firmware kept the old BSS/key); reloading the driver (attempt $RADIO_N)"
+			radio_restart
+			exit 0
 		fi
 
 		# ---- everything below needs the full recover_after ----
