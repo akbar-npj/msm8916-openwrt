@@ -19,6 +19,16 @@
       "title": "Clear the dashboard hotfix banner after installing",
       "restart": [],
       "published": "2026-11-05"
+    },
+    {
+      "id": "2026-11-06-msm89xx-scripts",
+      "package": "msm89xx-scripts",
+      "version": "1.0-r10",
+      "title": "STA wedge - recover from a 4-way handshake stall in about 30 s",
+      "restart": [
+        "wifi-sta-late"
+      ],
+      "published": "2026-11-06"
     }
   ]
 }
