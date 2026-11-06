@@ -225,12 +225,29 @@ jobs:
         run: |
           set -euo pipefail
           BASE="${{ steps.vars.outputs.base }}"
+          FULL="$(cat version)"
           git clone --depth 1 --branch gh-pages \
             "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/gh-pages \
             || { echo "::error::Cannot clone the gh-pages branch."; exit 1; }
-          SRC="/tmp/gh-pages/releases/${BASE}"
+          # A revision-scoped publish writes to releases/${FULL} only, and that
+          # directory is where every earlier hotfix for THIS build already lives.
+          # Restoring the shared base feed (releases/${BASE}) instead drops all
+          # of them: the re-index regenerates the index from the restored tree,
+          # so a package published two hotfixes ago (e.g. msm89xx-scripts r11)
+          # falls out of the index even though its .apk file is still on disk,
+          # and devices can no longer `apk add` it (measured 2026-11-06: two
+          # sequential revision publishes left msm89xx-scripts and
+          # msm89xx-firmware-upgrade one revision behind their manifests).
+          # Restore the directory we are about to overwrite, so prior hotfixes
+          # carry through.  scope=all still restores the base feed.
+          if [ "${{ inputs.scope }}" = "revision" ]; then
+            SRC_BASE="${FULL}"
+          else
+            SRC_BASE="${BASE}"
+          fi
+          SRC="/tmp/gh-pages/releases/${SRC_BASE}"
           if [ ! -d "$SRC/packages/aarch64_generic" ]; then
-            echo "::error::No published feed at releases/${BASE} on gh-pages."
+            echo "::error::No published feed at releases/${SRC_BASE} on gh-pages."
             echo "::error::Publish a full release for this base first, or pass the right 'base'."
             exit 1
           fi
@@ -239,7 +256,7 @@ jobs:
           if [ -d "$SRC/targets/msm89xx/msm8916/packages" ]; then
             cp -a "$SRC/targets/msm89xx/msm8916/packages/." openwrt/bin/targets/msm89xx/msm8916/packages/
           fi
-          echo "Restored feed from releases/${BASE}:"
+          echo "Restored feed from releases/${SRC_BASE}:"
           for d in openwrt/bin/packages/aarch64_generic/*/; do
             printf '  %-60s %s apks\n' "$d" "$(find "$d" -maxdepth 1 -name '*.apk' | wc -l)"
           done | tee /tmp/feed-before.txt
