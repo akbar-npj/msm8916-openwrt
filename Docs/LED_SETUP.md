@@ -76,6 +76,36 @@ and asks what it does:
 
 It writes `/etc/config/leds`, commits it, and restarts the monitors.
 
+## Confirming a swapped unit
+
+The units cannot be told apart in software, so identify them by eye once:
+
+```sh
+led-probe --blink blue:wan 3     # which colour lights up?
+led-probe --blink green:wlan 3
+```
+
+Then record what each one does. For a unit whose **green** lamp is Wi-Fi and
+whose **blue** lamp is LTE:
+
+```sh
+led-probe --set wifi=green:wlan wan=blue:wan
+```
+
+Check it by joining the unit to a repeater uplink: the green lamp must fast
+blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
+--reset` puts every role back on the board default.
+
+`--set` validates what it is given:
+
+- a pattern must be `off`, `on` or `blink:ON:OFF` in milliseconds; anything
+  else is rejected and nothing is written;
+- a lamp label that does not exist is still saved, but a warning is printed —
+  the role then falls back to the board default, so a typo cannot leave a lamp
+  dark;
+- an empty pattern value (`led-probe --set wifi.client=`) deletes the override
+  and restores the built-in pattern.
+
 ## The LuCI page
 
 **System → LED Setup** lists every role with a lamp dropdown and a **Blink**
@@ -99,3 +129,8 @@ On a repeater, `wifi.ap_sta` should fast-blink the lamp you assigned to `wifi`
 - `/etc/config/leds` — role table and patterns (a conffile; edits survive upgrades).
 - `/usr/share/msm89xx/leds.sh` — shared resolver used by the monitors.
 - `/usr/sbin/led-probe` — the CLI above.
+- `luci-app-led-setup` — the **System → LED Setup** page.
+
+Every consumer goes through the resolver, including the services' `stop`
+paths: stopping `wifi-led-monitor` turns off the lamp assigned to `wifi`, not a
+hardcoded colour.

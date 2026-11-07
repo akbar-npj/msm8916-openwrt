@@ -26,23 +26,12 @@ start_service()
 stop_service()
 {
         #
-        # When the service is deliberately stopped, leave the Wi-Fi LED OFF.
-        # The lamp is green on the mifib-v12/mf800b and blue on the HMUF02-V5,
-        # whose device tree called it blue:wan before the function swap.
+        # When the service is deliberately stopped, leave the Wi-Fi lamp OFF.
+        # The role mapping decides which lamp that is: on the HMUF02-V5 the
+        # Wi-Fi lamp is blue on most units and green on the ones whose lamps
+        # are wired the other way round.
         #
-        case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-                *hmuf02v5*)
-                        LED="/sys/class/leds/blue:wlan"
-                        [ -d "$LED" ] || LED="/sys/class/leds/blue:wan"
-                        ;;
-                *)
-                        LED="/sys/class/leds/green:wlan"
-                        [ -d "$LED" ] || LED="/sys/class/leds/green:wan"
-                        ;;
-        esac
+        . /usr/share/msm89xx/leds.sh
 
-        if [ -e "$LED/trigger" ]; then
-                echo none > "$LED/trigger" 2>/dev/null
-                echo 0 > "$LED/brightness" 2>/dev/null
-        fi
+        led_apply "$(led_role_lamp wifi)" off
 }

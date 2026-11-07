@@ -116,6 +116,7 @@ return view.extend({
 
 				inp.dataset.role = r.id;
 				inp.dataset.state = s;
+				inp.dataset.orig = (curval === 'unset') ? '' : curval;
 				patInputs.push(inp);
 
 				patRows.push(E('tr', { 'class': 'tr' }, [
@@ -137,7 +138,10 @@ return view.extend({
 			});
 
 			patInputs.forEach(function(inp) {
-				if (inp.value !== '')
+				// Only send what changed.  An emptied field is sent as
+				// 'role.state=' which drops the override and restores
+				// the built-in pattern.
+				if (inp.value !== inp.dataset.orig)
 					args.push(inp.dataset.role + '.' + inp.dataset.state + '=' + inp.value);
 			});
 
