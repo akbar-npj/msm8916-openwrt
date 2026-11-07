@@ -18,8 +18,7 @@ stop_service()
 {
         # Fail-safe: if the health monitor isn't running,
         # show red rather than silently indicating healthy.
-        if [ -e /sys/class/leds/red:power/trigger ]; then
-                echo none > /sys/class/leds/red:power/trigger
-                echo 1 > /sys/class/leds/red:power/brightness
-        fi
+        . /usr/share/msm89xx/leds.sh
+
+        led_apply "$(led_role_lamp wan_fault)" on
 }

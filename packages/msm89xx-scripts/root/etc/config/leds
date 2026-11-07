@@ -1,0 +1,71 @@
+# LED roles and patterns.
+#
+# Each 'role' maps a logical lamp to a physical /sys/class/leds label:
+#
+#   wifi        the Wi-Fi status lamp (green on some boards, blue on others)
+#   wifi_fault  the red half of the Wi-Fi pair (battery boards only)
+#   wan         the LTE/WAN signal lamp
+#   wan_fault   the red modem/fault lamp
+#   data        the blue data-activity lamp (four-lamp boards only)
+#   bat_green   the green half of the battery pair
+#   bat_red     the red half of the battery pair
+#
+# 'auto' keeps the board default.  Set any other value to a label under
+# /sys/class/leds (for example blue:wan, green:wlan, yellow:led1) when a unit's
+# lamps are wired differently from what the board name implies.  led-probe and
+# the LuCI LED page write these; you can also edit them by hand.
+#
+# Each role also carries one pattern per scenario.  A pattern is:
+#
+#   off              lamp off
+#   on               lamp solid
+#   blink:ON:OFF     kernel timer blink, milliseconds
+#
+# The monitors read this file on every state change, so retuning a board needs
+# no rebuild and no hotfix.  The defaults below reproduce exactly the
+# behaviour the monitors had before this file existed.
+
+config role 'wifi'
+	option lamp 'auto'
+	option down 'off'
+	option ap_ready 'on'
+	option client 'blink:250:250'
+	option ap_sta 'blink:100:100'
+
+config role 'wifi_fault'
+	option lamp 'auto'
+	option ok 'off'
+	option fault 'on'
+	option radio_off 'blink:500:500'
+
+config role 'wan'
+	option lamp 'auto'
+	option down 'off'
+	option search 'off'
+	option idle 'on'
+	option active 'blink:250:250'
+	option nosim 'off'
+
+config role 'wan_fault'
+	option lamp 'auto'
+	option ok 'off'
+	option down 'on'
+	option search 'blink:500:500'
+
+config role 'data'
+	option lamp 'auto'
+	option beacon 'blink:500:9500'
+	option idle 'blink:1000:1000'
+	option active 'blink:500:500'
+	option off 'off'
+
+config role 'bat_green'
+	option lamp 'auto'
+	option charging 'blink:1000:1000'
+	option complete 'on'
+	option off 'off'
+
+config role 'bat_red'
+	option lamp 'auto'
+	option fault 'blink:150:150'
+	option off 'off'

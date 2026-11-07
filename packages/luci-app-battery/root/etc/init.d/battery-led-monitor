@@ -21,9 +21,8 @@ start_service()
 
 stop_service()
 {
-        for led in /sys/class/leds/green:bat /sys/class/leds/red:bat; do
-                [ -e "$led/trigger" ] || continue
-                echo none > "$led/trigger" 2>/dev/null
-                echo 0 > "$led/brightness" 2>/dev/null
-        done
+        . /usr/share/msm89xx/leds.sh
+
+        led_apply "$(led_role_lamp bat_green)" off
+        led_apply "$(led_role_lamp bat_red)" off
 }

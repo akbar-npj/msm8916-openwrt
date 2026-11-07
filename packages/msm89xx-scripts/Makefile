@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm89xx-scripts
 PKG_VERSION:=1.0
-PKG_RELEASE:=14
+PKG_RELEASE:=16
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=akbar-npj
@@ -40,6 +40,10 @@ endef
 # found" on a clean build.  (Build/Prepare is left at its default, which only
 # creates the build directory.)
 define Build/Compile
+endef
+
+define Package/$(PKG_NAME)/conffiles
+/etc/config/leds
 endef
 
 define Package/$(PKG_NAME)/install
