@@ -10,9 +10,10 @@
 #   - a UCI override wins, and an unknown label falls back to the default;
 #   - off/on/blink:ON:OFF write the expected sysfs values;
 #   - an empty lamp is a no-op;
-#   - a per-scenario pattern override wins over the built-in default.
+#   - a per-scenario pattern override wins over the built-in default, and the
+#     built-in table reports the same values the monitors used to hardcode.
 #
-# --self-check mutates the library three ways and requires every mutant to be
+# --self-check mutates the library four ways and requires every mutant to be
 # caught, so a check that silently stopped testing anything turns red.
 set -u
 
@@ -147,13 +148,33 @@ run_checks()
 			FAIL=$((FAIL + 1))
 		fi
 
+		# --- built-in pattern table (what --show reports as effective) ---
+		assert_eq "default wifi:ap_sta" \
+			"$(led_role_spec wifi ap_sta)" 'blink:100:100'
+		assert_eq "default wan:active" \
+			"$(led_role_spec wan active)" 'blink:250:250'
+		assert_eq "default bat_green:complete" \
+			"$(led_role_spec bat_green complete)" 'on'
+		assert_eq "default bat_red:fault" \
+			"$(led_role_spec bat_red fault)" 'blink:150:150'
+		assert_eq "unknown role:state prints nothing" \
+			"$(led_role_spec nosuch state)" ''
+
 		# --- per-scenario pattern override ---
 		UCI_leds_wifi_client='blink:500:500'
 		assert_eq "pattern override" \
-			"$(led_role_spec wifi client blink:250:250)" 'blink:500:500'
+			"$(led_role_spec wifi client)" 'blink:500:500'
+		assert_eq "source is set" \
+			"$(led_role_spec_source wifi client)" 'set'
 		reset_uci
 		assert_eq "pattern default" \
-			"$(led_role_spec wifi client blink:250:250)" 'blink:250:250'
+			"$(led_role_spec wifi client)" 'blink:250:250'
+		assert_eq "source is default" \
+			"$(led_role_spec_source wifi client)" 'default'
+
+		# --- an explicit fallback argument still wins over the table ---
+		assert_eq "explicit fallback" \
+			"$(led_role_spec wifi client blink:999:999)" 'blink:999:999'
 
 		[ "$FAIL" -eq 0 ]
 	)
@@ -199,11 +220,16 @@ mutate "blink delay_on/off swapped" \
 mutate "override lookup key broken" \
 	's/leds\.${role}\.lamp/leds.${role}.lampp/'
 
+# 4. the built-in table drifts from the pattern the monitor used to hardcode.
+mutate "wifi:ap_sta default 100 -> 250" \
+	's/wifi:ap_sta)            echo blink:100:100/wifi:ap_sta)            echo blink:250:250/'
+
 echo
-if [ "$CAUGHT" -eq 3 ]; then
-	echo "led-role self-check: PASS (3/3 mutants caught)"
+TOTAL=4
+if [ "$CAUGHT" -eq "$TOTAL" ]; then
+	echo "led-role self-check: PASS ($CAUGHT/$TOTAL mutants caught)"
 	exit 0
 fi
 
-echo "led-role self-check: FAIL ($CAUGHT/3 mutants caught)"
+echo "led-role self-check: FAIL ($CAUGHT/$TOTAL mutants caught)"
 exit 1

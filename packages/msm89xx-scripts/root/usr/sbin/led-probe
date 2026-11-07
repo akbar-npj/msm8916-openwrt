@@ -12,6 +12,10 @@
 
 ROLES="wifi wifi_fault wan wan_fault data bat_green bat_red"
 
+# Role resolution and the built-in pattern table live in one place, shared with
+# the monitors, so --show can report the value that is actually in effect.
+. /usr/share/msm89xx/leds.sh
+
 # role:state pairs that the monitors consume.  Kept here so --show can print a
 # stable, complete list without parsing the config file.
 ROLE_STATES='
@@ -155,18 +159,24 @@ wizard()
 
 show_all()
 {
-	local r s st
+	local r s st lamp
 
 	for r in $ROLES; do
-		printf 'role\t%s\t%s\n' "$r" "$(uci -q get "leds.$r.lamp" 2>/dev/null || echo auto)"
+		st="$(uci -q get "leds.$r.lamp" 2>/dev/null)"
+		[ -n "$st" ] || st="auto"
+		lamp="$(led_role_lamp "$r" 2>/dev/null)" || lamp=""
+		# role <role> <configured|auto> <lamp in effect>
+		printf 'role\t%s\t%s\t%s\n' "$r" "$st" "${lamp##*/}"
 	done
 
 	printf '%s\n' "$ROLE_STATES" | while IFS= read -r line; do
 		[ -n "$line" ] || continue
 		r="${line%%:*}"
 		for s in ${line#*:}; do
-			st="$(uci -q get "leds.$r.$s" 2>/dev/null)"
-			printf 'pattern\t%s\t%s\t%s\n' "$r" "$s" "${st:-unset}"
+			# pattern <role> <state> <pattern in effect> <set|default>
+			printf 'pattern\t%s\t%s\t%s\t%s\n' "$r" "$s" \
+				"$(led_role_spec "$r" "$s")" \
+				"$(led_role_spec_source "$r" "$s")"
 		done
 	done
 }

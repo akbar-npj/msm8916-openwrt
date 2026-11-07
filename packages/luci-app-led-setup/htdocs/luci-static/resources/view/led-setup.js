@@ -39,10 +39,10 @@ function getShow() {
 			var p = line.split('\t');
 
 			if (p[0] === 'role' && p[1])
-				out.roles[p[1]] = p[2] || 'auto';
+				out.roles[p[1]] = { val: p[2] || 'auto', eff: p[3] || '' };
 			else if (p[0] === 'pattern' && p[1]) {
 				out.patterns[p[1]] = out.patterns[p[1]] || {};
-				out.patterns[p[1]][p[2]] = p[3] || '';
+				out.patterns[p[1]][p[2]] = { val: p[3] || '', src: p[4] || 'default' };
 			}
 		});
 
@@ -62,13 +62,24 @@ return view.extend({
 		var patInputs = [];
 
 		function lampSelect(role) {
+			var c = cur.roles[role] || { val: 'auto', eff: '' };
 			var sel = E('select', { 'class': 'cbi-input-select' });
+			var autoLabel = c.eff
+				? _('auto (board default: %s)').format(c.eff)
+				: _('auto (board default)');
 
-			sel.appendChild(E('option', { 'value': 'auto' }, _('auto (board default)')));
+			sel.appendChild(E('option', { 'value': 'auto' }, autoLabel));
 			lamps.forEach(function(l) {
 				sel.appendChild(E('option', { 'value': l }, l));
 			});
-			sel.value = cur.roles[role] || 'auto';
+
+			// A configured label that is not present on this unit would
+			// otherwise fall off the list and be silently reset on save.
+			if (c.val !== 'auto' && lamps.indexOf(c.val) === -1)
+				sel.appendChild(E('option', { 'value': c.val },
+					_('%s (not present)').format(c.val)));
+
+			sel.value = c.val;
 			sel.dataset.role = role;
 			roleSelects[role] = sel;
 
@@ -106,23 +117,30 @@ return view.extend({
 
 		ROLES.forEach(function(r) {
 			(STATES[r.id] || []).forEach(function(s) {
-				var curval = (cur.patterns[r.id] && cur.patterns[r.id][s]) || '';
+				var c = (cur.patterns[r.id] && cur.patterns[r.id][s]) || { val: '', src: 'default' };
 				var inp = E('input', {
 					'type': 'text',
 					'class': 'cbi-input-text',
 					'placeholder': 'off | on | blink:250:250',
-					'value': (curval === 'unset') ? '' : curval
+					'value': c.val,
+					'title': (c.src === 'default')
+						? _('Built-in default. Edit to override, clear to go back.')
+						: _('Set in /etc/config/leds. Clear to go back to the built-in default.')
 				});
 
 				inp.dataset.role = r.id;
 				inp.dataset.state = s;
-				inp.dataset.orig = (curval === 'unset') ? '' : curval;
+				inp.dataset.orig = c.val;
 				patInputs.push(inp);
 
 				patRows.push(E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td left' }, r.id),
 					E('td', { 'class': 'td left' }, s),
-					E('td', { 'class': 'td left' }, inp)
+					E('td', { 'class': 'td left' }, [
+						inp,
+						E('span', { 'class': 'cbi-value-description' }, ' ' +
+							((c.src === 'default') ? _('(default)') : _('(set)')))
+					])
 				]));
 			});
 		});
@@ -168,7 +186,7 @@ return view.extend({
 			E('h2', {}, _('LED Setup')),
 			E('div', { 'class': 'cbi-section' }, [
 				E('p', { 'class': 'cbi-value-description' },
-					_('Pick the physical lamp for each role. If a unit has its Wi-Fi and LTE lamps swapped, point the roles at the correct labels. "Blink" lights the selected lamp for three seconds so you can see which one it is.')),
+					_('This is the configuration in effect now. If a unit has its Wi-Fi and LTE lamps swapped, point the roles at the correct labels; "auto" follows the board default, shown next to it. "Blink" lights the selected lamp for three seconds so you can see which one it is. Leave everything as it is and nothing changes.')),
 
 				E('table', { 'class': 'table' }, [
 					E('tr', { 'class': 'tr table-titles' }, [
@@ -179,7 +197,7 @@ return view.extend({
 				].concat(roleRows)),
 
 				E('div', { 'class': 'cbi-page-actions' }, [
-					E('button', { 'class': 'cbi-button', 'click': reset }, _('Reset to auto')),
+					E('button', { 'class': 'cbi-button', 'click': reset }, _('Reset lamps to auto')),
 					' ',
 					E('button', { 'class': 'cbi-button cbi-button-apply', 'click': save }, _('Save & apply'))
 				])
@@ -188,7 +206,7 @@ return view.extend({
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('Patterns')),
 				E('p', { 'class': 'cbi-value-description' },
-					_('Each scenario can be off, on, or blink:ON_MS:OFF_MS. Leave a field empty to keep the built-in default.')),
+					_('Each scenario can be off, on, or blink:ON_MS:OFF_MS. Every field shows the value in use; "(default)" marks the built-in pattern. Edit a field to override it, clear it to go back to the built-in default.')),
 				E('table', { 'class': 'table' }, [
 					E('tr', { 'class': 'tr table-titles' }, [
 						E('th', { 'class': 'th' }, _('Role')),

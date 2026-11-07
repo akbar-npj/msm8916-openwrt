@@ -76,6 +76,22 @@ and asks what it does:
 
 It writes `/etc/config/leds`, commits it, and restarts the monitors.
 
+`--show` prints what is **in effect**, not just what is written down, so an
+untouched board still reports a full table:
+
+```
+role    wifi       green:wlan  green:wlan     # configured / lamp in use
+role    wan_fault  auto        red:power      # 'auto' resolved for this board
+pattern wifi       ap_sta      blink:100:100 default
+pattern wan        active      blink:250:250 set
+```
+
+The fourth column of a `role` line is the lamp the monitors actually drive
+(empty when the board has no such lamp); the last column of a `pattern` line is
+`set` when `/etc/config/leds` overrides it and `default` when the built-in
+value is used. The built-in table lives in `leds.sh` and is the only copy —
+the monitors read it through `led_role_spec`.
+
 ## Confirming a swapped unit
 
 The units cannot be told apart in software, so identify them by eye once:
@@ -109,9 +125,13 @@ blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
 ## The LuCI page
 
 **System → LED Setup** lists every role with a lamp dropdown and a **Blink**
-button, plus the per-scenario pattern fields. **Save & apply** calls
-`led-probe --set` and restarts the monitors. **Reset to auto** clears the lamp
-overrides.
+button, plus the per-scenario pattern fields. It opens on the configuration in
+effect: the `auto` entry names the board default it resolves to, every pattern
+field holds the value actually in use, and a `(default)` / `(set)` marker says
+where it comes from. Leave everything alone and nothing changes; **Save &
+apply** only writes the fields you edited and restarts the monitors. Clearing a
+pattern field drops the override and goes back to the built-in value. **Reset
+lamps to auto** clears the lamp overrides.
 
 ## Checking the result
 

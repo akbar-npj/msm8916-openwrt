@@ -59,17 +59,17 @@ POLL_INTERVAL=2
 
 wifi_led_off()
 {
-	led_apply "$LED" "$(led_role_spec wifi down off)"
+	led_apply "$LED" "$(led_role_spec wifi down)"
 }
 
 wifi_led_on()
 {
-	led_apply "$LED" "$(led_role_spec wifi ap_ready on)"
+	led_apply "$LED" "$(led_role_spec wifi ap_ready)"
 }
 
 wifi_led_blink()
 {
-	led_apply "$LED" "$(led_role_spec wifi client blink:250:250)"
+	led_apply "$LED" "$(led_role_spec wifi client)"
 }
 
 #
@@ -79,7 +79,7 @@ wifi_led_blink()
 #
 wifi_led_blink_fast()
 {
-	led_apply "$LED" "$(led_role_spec wifi ap_sta blink:100:100)"
+	led_apply "$LED" "$(led_role_spec wifi ap_sta)"
 }
 
 #
@@ -89,9 +89,9 @@ wifi_led_blink_fast()
 set_red()
 {
 	case "$1" in
-		off)   led_apply "$LED_RED" "$(led_role_spec wifi_fault ok off)" ;;
-		on)    led_apply "$LED_RED" "$(led_role_spec wifi_fault fault on)" ;;
-		blink) led_apply "$LED_RED" "$(led_role_spec wifi_fault radio_off blink:500:500)" ;;
+		off)   led_apply "$LED_RED" "$(led_role_spec wifi_fault ok)" ;;
+		on)    led_apply "$LED_RED" "$(led_role_spec wifi_fault fault)" ;;
+		blink) led_apply "$LED_RED" "$(led_role_spec wifi_fault radio_off)" ;;
 	esac
 }
 
