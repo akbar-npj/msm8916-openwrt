@@ -42,6 +42,10 @@ endef
 define Build/Compile
 endef
 
+define Package/$(PKG_NAME)/conffiles
+/etc/config/leds
+endef
+
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)
 	$(CP) ./root/* $(1)/

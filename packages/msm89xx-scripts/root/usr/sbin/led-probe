@@ -1,0 +1,240 @@
+#!/bin/sh
+#
+# led-probe -- identify and record which physical lamp does what.
+#
+# Some boards ship with the same board name but the lamps wired differently
+# (a green Wi-Fi lamp on one unit, a blue one on the next).  The monitors read
+# /etc/config/leds, so instead of guessing from the board name this tool blinks
+# each lamp, asks what it does, and writes the answer.
+#
+# Every label under /sys/class/leds is a candidate, so yellow/white/amber lamps
+# are covered as well as the usual red/green/blue.
+
+ROLES="wifi wifi_fault wan wan_fault data bat_green bat_red"
+
+# role:state pairs that the monitors consume.  Kept here so --show can print a
+# stable, complete list without parsing the config file.
+ROLE_STATES='
+wifi:down ap_ready client ap_sta
+wifi_fault:ok fault radio_off
+wan:down search idle active nosim
+wan_fault:ok down search
+data:beacon idle active off
+bat_green:charging complete off
+bat_red:fault off
+'
+
+usage()
+{
+	cat <<'USAGE'
+Usage: led-probe [--help]
+       led-probe                       interactive wizard
+       led-probe --list                list indicator lamps (one label per line)
+       led-probe --show                print the current role/pattern mapping
+       led-probe --blink LABEL [SECS]  blink one lamp to identify it
+       led-probe --set KEY=VALUE ...   set a role lamp or a role pattern
+       led-probe --reset               set every role lamp back to 'auto'
+
+Keys for --set:
+  role=LABEL              e.g. wifi=green:wlan
+  role.state=PATTERN      e.g. wifi.client=blink:500:500
+
+Patterns: off | on | blink:ON_MS:OFF_MS
+
+Roles: wifi, wifi_fault, wan, wan_fault, data, bat_green, bat_red
+USAGE
+}
+
+# Indicator lamps: everything with a trigger, minus the kernel/control nodes
+# that are not user-facing (eMMC activity, the SIM hotplug line, rfkill, ...).
+led_candidates()
+{
+	local d n
+
+	for d in /sys/class/leds/*; do
+		[ -e "$d/trigger" ] || continue
+		n="${d##*/}"
+		case "$n" in
+			mmc*|sim_hotplug|usb*|rfkill*|input*|*::*) continue ;;
+		esac
+		printf '%s\n' "$n"
+	done
+}
+
+blink_label()
+{
+	local label="$1" secs="${2:-3}" d="/sys/class/leds/$1"
+
+	[ -e "$d/trigger" ] || return 1
+
+	echo timer > "$d/trigger" 2>/dev/null
+	echo 300 > "$d/delay_on" 2>/dev/null
+	echo 300 > "$d/delay_off" 2>/dev/null
+	sleep "$secs"
+	echo none > "$d/trigger" 2>/dev/null
+	echo 0 > "$d/brightness" 2>/dev/null
+}
+
+restart_monitors()
+{
+	local s
+
+	for s in wifi-led-monitor modem-led-monitor battery-led-monitor; do
+		[ -x "/etc/init.d/$s" ] && /etc/init.d/"$s" restart >/dev/null 2>&1
+	done
+}
+
+stop_monitors()
+{
+	local s
+
+	for s in wifi-led-monitor modem-led-monitor battery-led-monitor; do
+		[ -x "/etc/init.d/$s" ] && /etc/init.d/"$s" stop >/dev/null 2>&1
+	done
+}
+
+set_role()
+{
+	uci set "leds.$1.lamp=$2"
+	echo "  $1 -> $2"
+}
+
+wizard()
+{
+	local lamps l ans stopped=0
+
+	lamps="$(led_candidates)"
+	[ -n "$lamps" ] || { echo "led-probe: no indicator lamps found" >&2; return 1; }
+
+	# The monitors re-assert their own state every couple of seconds and would
+	# overwrite the identification blink; park them for the duration.
+	if [ -t 0 ]; then
+		stop_monitors
+		stopped=1
+		trap 'restart_monitors' EXIT INT TERM
+	fi
+
+	echo "led-probe: I will blink each lamp for 3 s, then ask what it does."
+	echo "Answer with one letter, or Enter to skip."
+	echo
+
+	for l in $lamps; do
+		printf '--- blinking: %s ---\n' "$l"
+		blink_label "$l" 3
+		printf 'Role? [w]ifi [l]te/wan [d]ata [f]ault [x]wifi-fault [b]attery-green [r]ed-pair [s]kip: '
+		read -r ans || ans=""
+		case "$ans" in
+			w|W) set_role wifi "$l" ;;
+			l|L) set_role wan "$l" ;;
+			d|D) set_role data "$l" ;;
+			f|F) set_role wan_fault "$l" ;;
+			x|X) set_role wifi_fault "$l" ;;
+			b|B) set_role bat_green "$l" ;;
+			r|R) set_role bat_red "$l" ;;
+			*)   echo "  skipped" ;;
+		esac
+	done
+
+	uci commit leds
+	if [ "$stopped" = "1" ]; then
+		restart_monitors
+		trap - EXIT INT TERM
+	fi
+	echo
+	echo "Saved.  Run 'led-probe --show' to review the mapping."
+}
+
+show_all()
+{
+	local r s st
+
+	for r in $ROLES; do
+		printf 'role\t%s\t%s\n' "$r" "$(uci -q get "leds.$r.lamp" 2>/dev/null || echo auto)"
+	done
+
+	printf '%s\n' "$ROLE_STATES" | while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		r="${line%%:*}"
+		for s in ${line#*:}; do
+			st="$(uci -q get "leds.$r.$s" 2>/dev/null)"
+			printf 'pattern\t%s\t%s\t%s\n' "$r" "$s" "${st:-unset}"
+		done
+	done
+}
+
+set_kv()
+{
+	local kv key val role state
+
+	for kv in "$@"; do
+		key="${kv%%=*}"
+		val="${kv#*=}"
+		case "$key" in
+			*.*)
+				role="${key%%.*}"
+				state="${key#*.}"
+				;;
+			*)
+				role="$key"
+				state=""
+				;;
+		esac
+
+		case " $ROLES " in
+			*" $role "*) ;;
+			*) echo "led-probe: unknown role '$role'" >&2; return 1 ;;
+		esac
+
+		if [ -n "$state" ]; then
+			uci set "leds.$role.$state=$val" || return 1
+		else
+			uci set "leds.$role.lamp=$val" || return 1
+		fi
+	done
+
+	uci commit leds || return 1
+	restart_monitors
+}
+
+reset_lamps()
+{
+	local r
+
+	for r in $ROLES; do
+		uci set "leds.$r.lamp=auto" 2>/dev/null || true
+	done
+
+	uci commit leds || return 1
+	restart_monitors
+	echo "led-probe: every role lamp reset to 'auto'"
+}
+
+[ $# -gt 0 ] || { wizard; exit $?; }
+
+case "$1" in
+	-h|--help)
+		usage
+		;;
+	--list)
+		led_candidates
+		;;
+	--show)
+		show_all
+		;;
+	--blink)
+		[ -n "${2:-}" ] || { usage >&2; exit 2; }
+		blink_label "$2" "${3:-3}"
+		;;
+	--set)
+		shift
+		[ $# -gt 0 ] || { usage >&2; exit 2; }
+		set_kv "$@"
+		;;
+	--reset)
+		reset_lamps
+		;;
+	*)
+		usage >&2
+		exit 2
+		;;
+esac

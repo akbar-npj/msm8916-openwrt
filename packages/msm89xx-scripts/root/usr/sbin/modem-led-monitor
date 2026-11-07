@@ -52,61 +52,17 @@ case "$(board_name 2>/dev/null)" in
         *hmu05*|*hmuf02v5*) IS_HMU05=1 ;;
         *) IS_HMU05=0 ;;
 esac
-case "$(board_name 2>/dev/null)" in
-        *hmuf02v5*) IS_HMUF02=1 ;;
-        *) IS_HMUF02=0 ;;
-esac
 
 #
-# The signal pair is green:wan / red:wan after the 2026-10-22 DT rename.
-# Older images call the red "4g_type" (mifib-v12) or "red:power" (HMU05), so
-# resolve the names instead of hardcoding one board's.
+# The signal pair is a role pair: /etc/config/leds maps 'wan' and 'wan_fault'
+# to physical labels.  'auto' keeps the board default -- red:wan/4g_type/
+# red:power for the fault half, green:wan/green:wlan for the signal half (the
+# HMUF02-V5 device tree calls its green LTE lamp green:wlan).
 #
-pick_led()
-{
-        for n in "$@"; do
-                [ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
-        done
+. /usr/share/msm89xx/leds.sh
 
-        return 1
-}
-
-LED=$(pick_led red:wan 4g_type red:power) || LED=""
-
-#
-# The green half of the signal pair.  On HMUF02-V5 the green lamp is the LTE
-# one but the shipped device tree calls it green:wlan (the functions of the
-# green and blue lamps are swapped there); the next image renames it to
-# green:wan.  Accept either so one package works on both.
-#
-if [ "$IS_HMUF02" = "1" ]; then
-        LED_GREEN=$(pick_led green:wan green:wlan) || LED_GREEN=""
-else
-        LED_GREEN=$(pick_led green:wan) || LED_GREEN=""
-fi
-
-led_set()
-{
-        local led="$1" mode="$2" on="${3:-500}" off="${4:-500}"
-
-        [ -n "$led" ] && [ -e "$led/trigger" ] || return 0
-
-        case "$mode" in
-                off)
-                        echo none > "$led/trigger" 2>/dev/null
-                        echo 0 > "$led/brightness" 2>/dev/null
-                        ;;
-                on)
-                        echo none > "$led/trigger" 2>/dev/null
-                        echo 1 > "$led/brightness" 2>/dev/null
-                        ;;
-                blink)
-                        echo timer > "$led/trigger" 2>/dev/null
-                        echo "$on" > "$led/delay_on" 2>/dev/null
-                        echo "$off" > "$led/delay_off" 2>/dev/null
-                        ;;
-        esac
-}
+LED=$(led_role_lamp wan_fault) || LED=""
+LED_GREEN=$(led_role_lamp wan) || LED_GREEN=""
 
 #
 # Signal pair, per the panel:
@@ -118,13 +74,28 @@ led_set()
 apply_signal()
 {
         case "$1" in
-                down)   led_set "$LED" on;    led_set "$LED_GREEN" off ;;
-                search) led_set "$LED" blink 500 500; led_set "$LED_GREEN" off ;;
-                idle)   led_set "$LED" off;   led_set "$LED_GREEN" on ;;
-                active) led_set "$LED" off;   led_set "$LED_GREEN" blink 250 250 ;;
+                down)
+                        led_apply "$LED" "$(led_role_spec wan_fault down on)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan down off)"
+                        ;;
+                search)
+                        led_apply "$LED" "$(led_role_spec wan_fault search blink:500:500)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan search off)"
+                        ;;
+                idle)
+                        led_apply "$LED" "$(led_role_spec wan_fault ok off)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan idle on)"
+                        ;;
+                active)
+                        led_apply "$LED" "$(led_role_spec wan_fault ok off)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan active blink:250:250)"
+                        ;;
                 # No SIM: the modem can never register, so the panel shows
                 # nothing for it instead of blinking "searching" forever.
-                nosim)  led_set "$LED" off;   led_set "$LED_GREEN" off ;;
+                nosim)
+                        led_apply "$LED" "$(led_role_spec wan_fault ok off)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan nosim off)"
+                        ;;
         esac
 }
 
@@ -292,47 +263,23 @@ apply_signal search
 #
 # The blue lamp is the LTE data lamp on the boards that have four lamps, but
 # on HMUF02-V5 (GPIO73) it is the Wi-Fi lamp and wifi-led-monitor owns it --
-# two writers on one lamp would fight, so stay off it there.
+# two writers on one lamp would fight.  The 'data' role therefore resolves to
+# no lamp on HMUF02-V5; elsewhere the config can point it at any lamp.
 #
-if [ "$IS_HMUF02" = "1" ]; then
-        BLUE_LED=""
-else
-        BLUE_LED=$(pick_led blue:wan blue:wlan) || BLUE_LED=""
-fi
+BLUE_LED=$(led_role_lamp data) || BLUE_LED=""
 
 set_blue_led() {
-        local state="$1"
-        [ -n "$BLUE_LED" ] && [ -e "$BLUE_LED/trigger" ] || return 0
-        local cur_off="$(cat "$BLUE_LED/delay_off" 2>/dev/null)"
+        local state="$1" def
 
         case "$state" in
-                beacon)
-                        [ "$cur_off" = "9500" ] && return 0
-                        # Disconnected / searching: 500ms ON / 9500ms OFF (10s beacon)
-                        echo timer > "$BLUE_LED/trigger" 2>/dev/null
-                        echo 500 > "$BLUE_LED/delay_on" 2>/dev/null
-                        echo 9500 > "$BLUE_LED/delay_off" 2>/dev/null
-                        ;;
-                off)
-                        [ "$(cat "$BLUE_LED/trigger" 2>/dev/null)" = "none" ] && return 0
-                        echo none > "$BLUE_LED/trigger" 2>/dev/null
-                        echo 0 > "$BLUE_LED/brightness" 2>/dev/null
-                        ;;
-                idle)
-                        [ "$cur_off" = "1000" ] && return 0
-                        # Connected idle: 1000ms ON / 1000ms OFF
-                        echo timer > "$BLUE_LED/trigger" 2>/dev/null
-                        echo 1000 > "$BLUE_LED/delay_on" 2>/dev/null
-                        echo 1000 > "$BLUE_LED/delay_off" 2>/dev/null
-                        ;;
-                active)
-                        [ "$cur_off" = "500" ] && return 0
-                        # Connected active traffic: 500ms ON / 500ms OFF
-                        echo timer > "$BLUE_LED/trigger" 2>/dev/null
-                        echo 500 > "$BLUE_LED/delay_on" 2>/dev/null
-                        echo 500 > "$BLUE_LED/delay_off" 2>/dev/null
-                        ;;
+                beacon) def="blink:500:9500" ;;   # 10 s beacon while searching
+                idle)   def="blink:1000:1000" ;;  # connected, no traffic
+                active) def="blink:500:500" ;;    # connected, traffic
+                off)    def="off" ;;
+                *)      return 0 ;;
         esac
+
+        led_apply "$BLUE_LED" "$(led_role_spec data "$state" "$def")"
 }
 
 set_blue_led beacon

@@ -41,6 +41,9 @@ jobs:
       - name: himi-ok-guard
         run: bash tests/himi-ok-guard/run.sh --self-check
 
+      - name: led-role
+        run: bash tests/led-role/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}

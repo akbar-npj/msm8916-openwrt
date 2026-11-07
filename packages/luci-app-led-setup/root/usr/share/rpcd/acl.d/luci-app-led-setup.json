@@ -1,0 +1,16 @@
+{
+	"luci-app-led-setup": {
+		"description": "Grant access to the LED role and pattern setup",
+		"read": {
+			"file": {
+				"/usr/sbin/led-probe": [ "exec" ],
+				"/etc/config/leds": [ "read" ]
+			}
+		},
+		"write": {
+			"file": {
+				"/usr/sbin/led-probe": [ "exec" ]
+			}
+		}
+	}
+}
