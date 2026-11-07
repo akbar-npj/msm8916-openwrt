@@ -1,0 +1,9 @@
+{
+	"admin/system/leds": {
+		"depends": {
+			"fs": {
+				"/sys/class/leds/.luci-led-config-disabled": "file"
+			}
+		}
+	}
+}
