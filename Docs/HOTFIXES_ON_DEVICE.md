@@ -148,6 +148,13 @@ ls -l /usr/sbin/wifi-sta-up                                # scripts package
 - The **install succeeds** only if `packages.adb` on the CDN actually contains
   that version. `hotfix.json` and `packages.adb` deploy independently, so it is
   possible to *see* a fix you cannot yet *install*.
+- `hotfix.json` carries **one entry per package** — the newest build, which is
+  cumulative. If you ever see two entries for the same package (e.g.
+  `msm89xx-scripts` at both `1.0-r9` and `1.0-r14`) and the install fails with
+  `breaks: world[<pkg>=<oldver>]`, the older entry is the culprit: the index only
+  carries the newest version, so pinning the old one is unsatisfiable. The
+  publish workflow now drops the older entry automatically; the fix is to remove
+  it from `hotfix.json` (merging its `restart` services into the newest entry).
 - After installing, an entry vanishing from the page = success; it lingering
   usually means the install failed (stale CDN index) or the banner is showing a
   stale 6-hour cache.

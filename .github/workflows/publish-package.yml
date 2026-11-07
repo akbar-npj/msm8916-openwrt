@@ -510,8 +510,21 @@ jobs:
                 restart: ($restart | split(" ") | map(select(length > 0))),
                 published: $date}')"
             if [ -f "$DEST/hotfix.json" ]; then
+              # Keep exactly ONE entry per package: the build just published is
+              # cumulative, so it supersedes every earlier hotfix of the same
+              # package.  Matching on id alone is not enough -- each publish gets
+              # a fresh "date-package" id, so two fixes for one package (e.g.
+              # msm89xx-scripts r9 then r14) would both stay.  A device below
+              # both then tried the older one first, and apk refused it: the feed
+              # index only carries the newest version, so the exact pin
+              # pkg=oldver was unsatisfiable and "Install fixes" failed with
+              # "breaks: world[...]".  Merge the older entries' restart services
+              # into the new one so their fixes still get activated.
               jq --argjson e "$ENTRY" --arg b "$FULL" \
-                '.build = $b | .hotfixes = ([.hotfixes[] | select(.id != $e.id)] + [$e])' \
+                '.build = $b
+                 | ([.hotfixes[] | select(.package == $e.package) | .restart[]?] | unique) as $prev
+                 | .hotfixes = ([.hotfixes[] | select(.package != $e.package)]
+                     + [ ($e + {restart: (($e.restart + $prev) | unique)}) ])' \
                 "$DEST/hotfix.json" > "$DEST/hotfix.json.new"
             else
               jq -n --argjson e "$ENTRY" --arg b "$FULL" '{build: $b, hotfixes: [$e]}' > "$DEST/hotfix.json.new"
