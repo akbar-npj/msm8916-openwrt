@@ -95,13 +95,73 @@ led_pick()
 	return 1
 }
 
-# Configured pattern for a role+state, or $3 when the config has none.
+# Built-in pattern for a role+state.  This table is the single source of truth:
+# the monitors ask for it through led_role_spec, and led-probe --show reports it
+# as the effective value when the config carries no override, so the LuCI page
+# can display what is actually running.
+led_role_default_spec()
+{
+	case "$1:$2" in
+		wifi:down)              echo off ;;
+		wifi:ap_ready)          echo on ;;
+		wifi:client)            echo blink:250:250 ;;
+		wifi:ap_sta)            echo blink:100:100 ;;
+
+		wifi_fault:ok)          echo off ;;
+		wifi_fault:fault)       echo on ;;
+		wifi_fault:radio_off)   echo blink:500:500 ;;
+
+		wan:down)               echo off ;;
+		wan:search)             echo off ;;
+		wan:idle)               echo on ;;
+		wan:active)             echo blink:250:250 ;;
+		wan:nosim)              echo off ;;
+
+		wan_fault:ok)           echo off ;;
+		wan_fault:down)         echo on ;;
+		wan_fault:search)       echo blink:500:500 ;;
+
+		data:beacon)            echo blink:500:9500 ;;
+		data:idle)              echo blink:1000:1000 ;;
+		data:active)            echo blink:500:500 ;;
+		data:off)               echo off ;;
+
+		bat_green:charging)     echo blink:1000:1000 ;;
+		bat_green:complete)     echo on ;;
+		bat_green:off)          echo off ;;
+
+		bat_red:fault)          echo blink:150:150 ;;
+		bat_red:off)            echo off ;;
+
+		*)                      return 1 ;;
+	esac
+}
+
+# Configured pattern for a role+state, else the built-in default.  The optional
+# third argument is a fallback used when neither exists.
 led_role_spec()
 {
-	local role="$1" state="$2" def="$3" spec
+	local role="$1" state="$2" def="${3:-}" spec
 
 	spec="$(uci -q get "leds.${role}.${state}" 2>/dev/null)"
-	printf '%s\n' "${spec:-$def}"
+
+	if [ -n "$spec" ]; then
+		printf '%s\n' "$spec"
+	elif [ -n "$def" ]; then
+		printf '%s\n' "$def"
+	else
+		led_role_default_spec "$role" "$state"
+	fi
+}
+
+# 'set' when the config carries an explicit pattern, 'default' otherwise.
+led_role_spec_source()
+{
+	if [ -n "$(uci -q get "leds.$1.$2" 2>/dev/null)" ]; then
+		echo set
+	else
+		echo default
+	fi
 }
 
 # Apply a pattern spec to a lamp path.  Empty lamp = no-op.

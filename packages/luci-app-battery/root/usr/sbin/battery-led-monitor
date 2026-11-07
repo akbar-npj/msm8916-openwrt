@@ -68,20 +68,20 @@ apply()
 {
         case "$1" in
                 none|idle)
-                        led_apply "$GREEN" "$(led_role_spec bat_green off off)"
-                        led_apply "$RED" "$(led_role_spec bat_red off off)"
+                        led_apply "$GREEN" "$(led_role_spec bat_green off)"
+                        led_apply "$RED" "$(led_role_spec bat_red off)"
                         ;;
                 charging)
-                        led_apply "$RED" "$(led_role_spec bat_red off off)"
-                        led_apply "$GREEN" "$(led_role_spec bat_green charging blink:1000:1000)"
+                        led_apply "$RED" "$(led_role_spec bat_red off)"
+                        led_apply "$GREEN" "$(led_role_spec bat_green charging)"
                         ;;
                 full)
-                        led_apply "$RED" "$(led_role_spec bat_red off off)"
-                        led_apply "$GREEN" "$(led_role_spec bat_green complete on)"
+                        led_apply "$RED" "$(led_role_spec bat_red off)"
+                        led_apply "$GREEN" "$(led_role_spec bat_green complete)"
                         ;;
                 error)
-                        led_apply "$GREEN" "$(led_role_spec bat_green off off)"
-                        led_apply "$RED" "$(led_role_spec bat_red fault blink:150:150)"
+                        led_apply "$GREEN" "$(led_role_spec bat_green off)"
+                        led_apply "$RED" "$(led_role_spec bat_red fault)"
                         ;;
         esac
 }

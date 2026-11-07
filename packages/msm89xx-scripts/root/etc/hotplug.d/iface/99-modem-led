@@ -11,12 +11,12 @@ LED=$(led_role_lamp data) || exit 0
 
 blue_beacon()
 {
-        led_apply "$LED" "$(led_role_spec data beacon blink:500:9500)"
+        led_apply "$LED" "$(led_role_spec data beacon)"
 }
 
 blue_connected_idle()
 {
-        led_apply "$LED" "$(led_role_spec data idle blink:1000:1000)"
+        led_apply "$LED" "$(led_role_spec data idle)"
 }
 
 case "$ACTION:$INTERFACE" in

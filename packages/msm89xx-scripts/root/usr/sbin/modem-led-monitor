@@ -75,26 +75,26 @@ apply_signal()
 {
         case "$1" in
                 down)
-                        led_apply "$LED" "$(led_role_spec wan_fault down on)"
-                        led_apply "$LED_GREEN" "$(led_role_spec wan down off)"
+                        led_apply "$LED" "$(led_role_spec wan_fault down)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan down)"
                         ;;
                 search)
-                        led_apply "$LED" "$(led_role_spec wan_fault search blink:500:500)"
-                        led_apply "$LED_GREEN" "$(led_role_spec wan search off)"
+                        led_apply "$LED" "$(led_role_spec wan_fault search)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan search)"
                         ;;
                 idle)
-                        led_apply "$LED" "$(led_role_spec wan_fault ok off)"
-                        led_apply "$LED_GREEN" "$(led_role_spec wan idle on)"
+                        led_apply "$LED" "$(led_role_spec wan_fault ok)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan idle)"
                         ;;
                 active)
-                        led_apply "$LED" "$(led_role_spec wan_fault ok off)"
-                        led_apply "$LED_GREEN" "$(led_role_spec wan active blink:250:250)"
+                        led_apply "$LED" "$(led_role_spec wan_fault ok)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan active)"
                         ;;
                 # No SIM: the modem can never register, so the panel shows
                 # nothing for it instead of blinking "searching" forever.
                 nosim)
-                        led_apply "$LED" "$(led_role_spec wan_fault ok off)"
-                        led_apply "$LED_GREEN" "$(led_role_spec wan nosim off)"
+                        led_apply "$LED" "$(led_role_spec wan_fault ok)"
+                        led_apply "$LED_GREEN" "$(led_role_spec wan nosim)"
                         ;;
         esac
 }
@@ -269,17 +269,12 @@ apply_signal search
 BLUE_LED=$(led_role_lamp data) || BLUE_LED=""
 
 set_blue_led() {
-        local state="$1" def
-
-        case "$state" in
-                beacon) def="blink:500:9500" ;;   # 10 s beacon while searching
-                idle)   def="blink:1000:1000" ;;  # connected, no traffic
-                active) def="blink:500:500" ;;    # connected, traffic
-                off)    def="off" ;;
-                *)      return 0 ;;
+        case "$1" in
+                beacon|idle|active|off) ;;
+                *) return 0 ;;
         esac
 
-        led_apply "$BLUE_LED" "$(led_role_spec data "$state" "$def")"
+        led_apply "$BLUE_LED" "$(led_role_spec data "$1")"
 }
 
 set_blue_led beacon
