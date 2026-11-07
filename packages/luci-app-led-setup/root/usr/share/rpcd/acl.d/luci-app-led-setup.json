@@ -1,0 +1,11 @@
+{
+	"luci-app-led-setup": {
+		"description": "Identify the indicator lamps and record which role each one plays",
+		"read": {
+			"file": {
+				"/usr/sbin/led-probe": [ "exec" ],
+				"/etc/config/leds": [ "read" ]
+			}
+		}
+	}
+}
