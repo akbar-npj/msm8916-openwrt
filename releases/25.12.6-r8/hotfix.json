@@ -2,17 +2,6 @@
   "build": "25.12.6-r8",
   "hotfixes": [
     {
-      "id": "2026-11-05-msm89xx-scripts",
-      "package": "msm89xx-scripts",
-      "version": "1.0-r9",
-      "title": "LEDs - hmuf02v5 green is the LTE lamp, blue the Wi-Fi one",
-      "restart": [
-        "wifi-led-monitor",
-        "modem-led-monitor"
-      ],
-      "published": "2026-11-05"
-    },
-    {
       "id": "2026-11-05-msm89xx-firmware-upgrade",
       "package": "msm89xx-firmware-upgrade",
       "version": "1.0-r19",
@@ -34,7 +23,9 @@
       "version": "1.0-r14",
       "title": "r8 modemmanager.sh preferred-mode tolerance overlay (fixed exec bit)",
       "restart": [
-        "modemmanager-proto-hotfix"
+        "modem-led-monitor",
+        "modemmanager-proto-hotfix",
+        "wifi-led-monitor"
       ],
       "published": "2026-11-06"
     }
