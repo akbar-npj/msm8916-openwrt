@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,108 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -104,4 +104,8 @@
 +		output-low;
 +		line-name = "4G_L3";
 +	};
++};
++
++&bam_dmux {
++	qcom,a2-pin;
 +};
