@@ -1,4 +1,5 @@
 #!/bin/sh
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
 # Modem Bearer Stall Watchdog — LTE-Native (Android-Equivalent) Implementation
 #
 # RRC idle/connected transitions occur naturally via eNodeB inactivity timers,
@@ -34,6 +35,10 @@ Configuration (uci, section.option = default):
   modem-watchdog.keepalive.target               1.1.1.1
   modem-watchdog.recovery.bearer_down_recover_secs  30
   modem-watchdog.recovery.zombie_nudge_secs     60
+  modem-watchdog.recovery.voice_alive           0
+  modem-watchdog.recovery.voice_hold_secs       300
+  modem-watchdog.recovery.data_plan             1     (1|0|auto; auto opts in to inference)
+  modem-watchdog.recovery.drop_default_route    0
   modem-watchdog.recovery.himi_ok_enabled       1
   modem-watchdog.recovery.himi_ok_interval      20
 
@@ -159,6 +164,9 @@ PROBE_GAP=2
 # recovery ladder. See the note above verify_rx_connectivity().
 PROBE_FAIL_MIN=2
 PROBE_FAILS=0
+VOICE_HOLD_UNTIL=0
+RX_SEEN_FLAG=/tmp/modem-watchdog.rx_seen    # SIM that had a downlink since boot
+RX_SEEN_SIM=""                              # cached; cleared when the bearer drops
 
 verify_rx_connectivity() {
     local dns_server rx_pre rx_post attempt
@@ -177,6 +185,144 @@ verify_rx_connectivity() {
         [ "$attempt" -lt "$PROBE_ATTEMPTS" ] && sleep "$PROBE_GAP"
     done
     return 1
+}
+
+# --- Voice liveness -----------------------------------------------------------
+#
+# A SIM with a voice-only plan gets an internet bearer that connects but never
+# carries a downlink packet.  Measured 2026-11-03 on UFI003: the stall ladder
+# took that for a stall and SSR'd the modem 11 times in 12 h until it no longer
+# booted ("PBL boot timed out").  No restart can create a downlink the plan
+# does not have, so for such a SIM the ladder only runs when the modem is not
+# alive for voice.  A SIM that had a downlink keeps the ladder
+# (a stall there is what it is for) unless a call is in progress: Stage 2/3
+# would drop it.
+
+# The current SIM as a hash of its ICCID (the ICCID itself is not kept), or
+# nothing when ModemManager has no SIM.  After a swap, sim-hotplug makes
+# ModemManager re-read the card, so the ICCID changes with it.
+sim_id() {
+    local iccid
+    iccid=$(timeout 15 mmcli -i any -K 2>/dev/null | \
+        sed -n 's/^sim\.properties\.iccid *: *\([0-9A-Fa-f]\{6,\}\).*/\1/p' | head -n1)
+    [ -n "$iccid" ] && echo "$iccid" | md5sum | cut -c1-16
+}
+
+# Records the SIM that had a downlink packet.  ModemManager is only asked
+# once per bearer: RX_SEEN_SIM is cleared when the bearer goes down, which a
+# SIM swap always does.
+mark_rx_seen() {
+    [ -n "$RX_SEEN_SIM" ] && return
+    RX_SEEN_SIM=$(sim_id)
+    [ -n "$RX_SEEN_SIM" ] || RX_SEEN_SIM=unknown
+    echo "$RX_SEEN_SIM" > "$RX_SEEN_FLAG"
+}
+
+# 0 when the SIM is taken to have no data service: recovery.data_plan '0', or
+# 'auto' (default) and no downlink packet on wwan0 with this SIM since boot.
+# A SIM swapped in after a data SIM starts again from "no downlink".
+no_data_service() {
+    local seen cur
+    case "$(uci -q get modem-watchdog.recovery.data_plan || echo 1)" in
+        0) NO_DATA_WHY="data_plan is 0"; return 0 ;;
+        1) return 1 ;;
+    esac
+    NO_DATA_WHY="no downlink with this SIM since boot, voice-only SIM?"
+    [ -f "$RX_SEEN_FLAG" ] || return 0
+    seen=$(cat "$RX_SEEN_FLAG")
+    [ "$seen" = unknown ] && return 1
+    cur=$(sim_id)
+    [ -n "$cur" ] && [ "$cur" != "$seen" ]
+}
+
+# The modem is registered (CS or PS, any home/roaming variant) and its serving
+# cell measurements change between queries.  --get-cell-info is answered by
+# the modem on demand (through ModemManager's own client, no extra QMI
+# ClientId) and the idle-mode RSRP/RSRQ or RSCP/RxLev move by tenths of a dB
+# every query; a hung firmware does not answer, a frozen receiver repeats
+# itself or has no serving cell.  Works without IMS (3G/2G voice, CSFB).
+radio_alive() {
+    local a b i
+    timeout 15 mmcli -m any -K 2>/dev/null | \
+        grep -Eq '^modem\.3gpp\.registration-state *: (home|roaming)' || return 1
+    a=$(timeout 15 mmcli -m any --get-cell-info 2>/dev/null | grep -o 'serving: yes.*')
+    [ -n "$a" ] || return 1
+    for i in 1 2 3; do
+        sleep 3
+        b=$(timeout 15 mmcli -m any --get-cell-info 2>/dev/null | grep -o 'serving: yes.*')
+        [ -n "$b" ] && [ "$b" != "$a" ] && return 0
+    done
+    return 1
+}
+
+# Prints the reason and returns 0 when the modem must not be restarted for a
+# missing downlink.  The IMS query goes over QRTR, not /dev/wwan0qmi0, so it
+# uses no WDS/NAS ClientId; a modem without IMS (HMUF02-V05) reports
+# not-registered and falls through to radio_alive.
+voice_alive() {
+    [ "$(uci -q get modem-watchdog.recovery.voice_alive || echo 0)" = "1" ] || return 1
+    if timeout 15 mmcli -m any --voice-list-calls 2>/dev/null | \
+            grep -Eq '/Call/.*\((active|held|dialing|ringing-out|ringing-in|waiting)\)'; then
+        echo "a call is in progress"
+        return 0
+    fi
+    no_data_service || return 1
+    if command -v qmicli >/dev/null 2>&1 && \
+       timeout 15 qmicli -d qrtr://0 --imsa-get-ims-registration-status 2>/dev/null | \
+            grep -q "Status: 'registered'"; then
+        echo "IMS is registered ($NO_DATA_WHY)"
+        return 0
+    fi
+    if radio_alive; then
+        echo "the modem is registered with live cell measurements ($NO_DATA_WHY)"
+        return 0
+    fi
+    return 1
+}
+
+# A SIM without data service, held by voice_alive, must not carry traffic:
+# while the Wi-Fi station reconnects, the default route falls back to the
+# modem's empty bearer, and on UFI003 (2026-11-03) those fallbacks during calls
+# came with modem fatals at a2_power.c:1216 (the A2 power vote cycling).  With
+# recovery.drop_default_route '1' such a hold removes the modem's
+# default routes; netifd adds them again when the bearer reconnects, so they
+# are removed on every check, and put back when the hold ends.  Only while
+# another uplink has a default route, or had one in the last OTHER_UPLINK_GRACE
+# seconds (a station reconnect): with the modem as the only uplink the route
+# is the one way a SIM that had no downlink yet (stuck first attach) can still
+# get one and end the hold.
+DROPPED_ROUTES=/tmp/modem-watchdog.dropped-routes   # "<family> <ip route args>"
+DROP_ROUTES=0                                       # the current hold drops them
+OTHER_UPLINK_GRACE=300
+OTHER_UPLINK_AT=0                                   # last seen default route not on wwan0
+
+other_uplink() {
+    { ip -4 route show default; ip -6 route show default; } 2>/dev/null | \
+        grep -qv ' dev wwan0' && OTHER_UPLINK_AT=$NOW
+    [ "$OTHER_UPLINK_AT" -gt 0 ] && [ $((NOW - OTHER_UPLINK_AT)) -lt "$OTHER_UPLINK_GRACE" ]
+}
+
+drop_modem_routes() {
+    local fam line
+    for fam in 4 6; do
+        ip -$fam route show default dev wwan0 2>/dev/null | while read -r line; do
+            # shellcheck disable=SC2086  # $line is a list of "ip route" args
+            ip -$fam route del $line dev wwan0 2>/dev/null || continue
+            echo "$fam $line" >> "$DROPPED_ROUTES"
+            logger -t modem-stall-watchdog "Removed the modem's IPv$fam default route for the voice liveness hold (SIM without data service)."
+        done
+    done
+}
+
+restore_modem_routes() {
+    local fam line
+    [ -f "$DROPPED_ROUTES" ] || return 0
+    while read -r fam line; do
+        # shellcheck disable=SC2086
+        ip -$fam route add $line dev wwan0 2>/dev/null
+    done < "$DROPPED_ROUTES"
+    rm -f "$DROPPED_ROUTES"
+    logger -t modem-stall-watchdog "Restored the modem's default route(s)."
 }
 
 # --- Mobility detection -------------------------------------------------------
@@ -278,6 +424,8 @@ modem_restart() {
 }
 
 logger -t modem-stall-watchdog "Started modem bearer stall watchdog (Android-equivalent passive mode)"
+# Routes a previous instance removed for a hold that ended with it.
+restore_modem_routes
 # Configure ModemManager for 0s signal polling (unsolicited only, matching Android RIL)
 mmcli -m any --signal-setup=0 >/dev/null 2>&1 || true
 
@@ -398,6 +546,8 @@ while true; do
     IF_UP=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)
     if [ "$IF_UP" != "true" ]; then
         STALL_COUNT=0
+        RX_SEEN_SIM=""
+        rm -f "$DROPPED_ROUTES"     # gone with the bearer; the next one has new ones
         BEARER_DOWN_SECS=$((BEARER_DOWN_SECS + CHECK_INTERVAL))
         NOW=$(date +%s)
         # Only re-drive an interface that is SUPPOSED to be up.  `ubus ...
@@ -417,11 +567,17 @@ while true; do
         # those too.  Accept both MM_CONNECT_FAILED (default) &
         # MM_INTERFACE_RESTART (force_connection=1): either can be produced by
         # the modemmanager proto for this exact transient boot-timeout.
+        # MM_FAILED_SETTING_PREFERRED_MODE too: measured 2026-11-03 on
+        # ufi003, after a modem fatal's crash-recovery restart the proto ran
+        # while the new modem object was still disabled, the mode change
+        # failed and proto_block_restart left the interface down for good
+        # (the modem connected again on the first re-drive).
         IF_AUTO=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.autostart' 2>/dev/null)
         IF_ERR=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.errors[0].code' 2>/dev/null)
         if [ "$BEARER_DOWN_SECS" -ge "$BEARER_DOWN_RECOVER_SECS" ] && \
            [ $((NOW - LAST_BEARER_REARM)) -ge "$BEARER_REARM_COOLDOWN" ] && \
-           { [ "$IF_AUTO" = "true" ] || [ "$IF_ERR" = "MM_CONNECT_FAILED" ] || [ "$IF_ERR" = "MM_INTERFACE_RESTART" ]; }; then
+           { [ "$IF_AUTO" = "true" ] || [ "$IF_ERR" = "MM_CONNECT_FAILED" ] || [ "$IF_ERR" = "MM_INTERFACE_RESTART" ] || \
+             [ "$IF_ERR" = "MM_FAILED_SETTING_PREFERRED_MODE" ]; }; then
             if mmcli -L 2>/dev/null | grep -q '/Modem/'; then
                 ZOMBIE_DOWN_SECS=0
                 logger -t modem-stall-watchdog "Bearer STUCK: netifd interface down ${BEARER_DOWN_SECS}s with a modem present; re-driving (up + re-arm availability)."
@@ -491,6 +647,41 @@ while true; do
 
     LAST_TX="$CUR_TX"
     LAST_RX="$CUR_RX"
+
+    [ "$DELTA_RX" -gt 0 ] && mark_rx_seen
+
+    # Voice liveness hold (see voice_alive): no stall accounting while the
+    # modem stays alive for voice, rechecked every voice_hold_secs.  A
+    # downlink packet ends the hold.
+    if [ "$VOICE_HOLD_UNTIL" -gt 0 ] && [ "$DELTA_RX" -gt 0 ]; then
+        logger -t modem-stall-watchdog "Downlink on the data bearer; voice liveness hold ended."
+        VOICE_HOLD_UNTIL=0
+        restore_modem_routes
+    fi
+    if [ "$VOICE_HOLD_UNTIL" -gt 0 ]; then
+        if [ "$NOW" -ge "$VOICE_HOLD_UNTIL" ]; then
+            if voice_alive >/dev/null; then
+                VOICE_HOLD_UNTIL=$((NOW + $(uci -q get modem-watchdog.recovery.voice_hold_secs || echo 300)))
+            else
+                logger -t modem-stall-watchdog "Modem no longer alive for voice (no call, no IMS registration, no live serving cell); stall detection re-armed."
+                VOICE_HOLD_UNTIL=0
+                restore_modem_routes
+            fi
+        fi
+        if [ "$VOICE_HOLD_UNTIL" -gt 0 ]; then
+            if [ "$DROP_ROUTES" = 1 ] && \
+               [ "$(uci -q get modem-watchdog.recovery.drop_default_route || echo 0)" = "1" ] && \
+               other_uplink; then
+                drop_modem_routes
+            else
+                restore_modem_routes
+            fi
+            STALL_COUNT=0
+            PROBE_FAILS=0
+            sleep "$CHECK_INTERVAL"
+            continue
+        fi
+    fi
 
     # Stall accumulation & keepalive logic:
     if [ "$DELTA_RX" -gt 0 ]; then
@@ -574,6 +765,21 @@ while true; do
                 continue
             fi
             logger -t modem-stall-watchdog "Probe failed ${PROBE_FAILS} times consecutively; treating as a genuine stall."
+
+            # A voice-only SIM never gets a data downlink; do not restart a
+            # modem that is alive for voice.
+            if VOICE_REASON=$(voice_alive); then
+                VOICE_HOLD_SECS=$(uci -q get modem-watchdog.recovery.voice_hold_secs || echo 300)
+                VOICE_HOLD_UNTIL=$(( $(date +%s) + VOICE_HOLD_SECS ))
+                logger -t modem-stall-watchdog "No downlink on the data bearer but ${VOICE_REASON}; not restarting. Rechecking every ${VOICE_HOLD_SECS}s (logged only on change)."
+                # A data SIM held for a call keeps its routes.
+                DROP_ROUTES=0
+                no_data_service && DROP_ROUTES=1
+                STALL_COUNT=0
+                PROBE_FAILS=0
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
 
             # Check cooldown period and attempt limit
             NOW=$(date +%s)

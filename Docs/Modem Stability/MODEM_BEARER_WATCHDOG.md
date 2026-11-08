@@ -14,6 +14,7 @@ and how to tune it.
 > Board status: the mobility profile was validated on **HMU05** over a ~20-minute
 > city drive (zero spurious stalls). The other boards use the same code but
 > have not been drive-tested — see the call for per-board maintainers.
+> The voice-only SIM hold and route handling were validated on **UFI003 with a voice-only SIM**; other boards have not been voice-hold tested.
 
 ---
 
@@ -76,6 +77,30 @@ All options live in `/etc/config/modem-watchdog` (section `general`):
 A profile change resets the stall counter, so switching between profiles never
 carries a half-accumulated count across the different thresholds.
 
+Section `recovery` (read on every check, no restart needed):
+
+| Option | Default | Meaning |
+| :--- | :--- | :--- |
+| `ssr_enabled` | `1` | Allow the last-resort modem subsystem restart. |
+| `bearer_down_recover_secs` | `30` | Re-drive a netifd interface still down this long after a rebuild. |
+| `zombie_nudge_secs` | `60` | Seconds without a modem object before the `online` nudge (0 = off). |
+| `voice_alive` | `0` | Opt-in voice-aware hold. When enabled, skip the ladder for a missing downlink while a call is in progress, or, for a voice-only SIM, while the modem is alive for voice (IMS registered, or registered with live serving-cell measurements). |
+| `data_plan` | `1` | `1`: data SIM (default; no SIM-plan inference); `0`: voice-only SIM; `auto`: opt-in inference from downlink history for the current SIM (by ICCID), used only when `voice_alive=1`. |
+| `voice_hold_secs` | `300` | How long an enabled hold lasts before it is rechecked; any downlink packet ends it. |
+| `drop_default_route` | `0` | Opt-in route removal while an enabled voice-only hold is active. When set to `1`, remove the modem's default routes (restored when the hold ends) so traffic does not fall back to the empty bearer while another uplink reconnects. It only removes them when another uplink has a default route or had one in the last 5 minutes; with the modem as the only uplink, the route stays. On UFI003 (2026-11-03) such fallbacks during calls came with `a2_power.c:1216` modem fatals. |
+
+Voice-aware handling is **opt-in** and disabled by the shipped defaults. With `voice_alive=0`, the watchdog does not perform call checks or SIM-plan inference for a voice hold, and it does not remove default routes. To enable voice-only SIM handling (validated on UFI003 with a voice-only SIM), configure:
+
+```sh
+uci set modem-watchdog.recovery.voice_alive='1'
+uci set modem-watchdog.recovery.data_plan='0'
+uci set modem-watchdog.recovery.drop_default_route='1'
+uci commit modem-watchdog
+/etc/init.d/modem-bearer-watchdog restart
+```
+
+Set `data_plan='auto'` only when you explicitly want SIM-plan inference from downlink history. A data SIM remains classified as a data SIM with the default `data_plan='1'`.
+
 ### Examples
 
 ```bash
@@ -109,9 +134,11 @@ diffconfigs). It adds **Services → Modem Watchdog** with:
 - the `auto_mobile` toggle + `mobile_grace_secs` / `cell_poll_secs` tuning,
 - the manual `mobile_optimized` flag,
 - `stall_timeout` / `check_interval`, keepalive, and recovery-escalation
-  settings.
+  settings, including the voice liveness hold (`voice_alive`, `data_plan`,
+  `voice_hold_secs`, `drop_default_route`).
 
-Changes take effect after saving and restarting the daemon.
+Save & Apply restarts the daemon (the ACL grants exec on
+`/etc/init.d/modem-bearer-watchdog`, which the status banner also needs).
 
 ---
 
@@ -125,9 +152,12 @@ The actual recovery it triggers is unchanged:
    false stall).
 2. **Bearer down & stuck** → re-arm the interface (`ifup modem`).  The
    stuck test is `autostart=true` (a down interface that is *supposed* to be
-   up) **or** a recorded `MM_CONNECT_FAILED` error — a proto connect failure
-   is never an intentional `ifdown` (a clean ifdown leaves `errors` empty),
-   and netifd leaves autostart false in that state.  Live case 2026-10-25: the
+   up) **or** a recorded `MM_CONNECT_FAILED` or
+   `MM_FAILED_SETTING_PREFERRED_MODE` error — a proto failure is never an
+   intentional `ifdown` (a clean ifdown leaves `errors` empty), and netifd
+   leaves autostart false in that state. The preferred-mode error was observed
+   after a UFI003 modem fatal when netifd retried while the modem object was
+   disabled; the first re-drive recovered it. Live case 2026-10-25: the
    first LTE attach after a cold boot timed out (`Network timeout`), the
    interface went down with `autostart=false` while the modem itself
    re-registered and attached seconds later — the autostart-only gate then
