@@ -125,13 +125,15 @@ blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
 ## The LuCI page
 
 **System → LED Setup** lists every role with a lamp dropdown and a **Blink**
-button, plus the per-scenario pattern fields. It opens on the configuration in
-effect: the `auto` entry names the board default it resolves to, every pattern
-field holds the value actually in use, and a `(default)` / `(set)` marker says
-where it comes from. Leave everything alone and nothing changes; **Save &
-apply** only writes the fields you edited and restarts the monitors. Clearing a
-pattern field drops the override and goes back to the built-in value. **Reset
-lamps to auto** clears the lamp overrides.
+button, plus a pattern dropdown per scenario. It opens on the configuration in
+effect: the `auto` entry names the board default it resolves to, and each
+pattern dropdown starts with `default (…)`, showing the built-in timing that
+would be used. Pick `off`, `on` or one of the blink presets to pin a timing, or
+`custom…` to type `blink:ON_MS:OFF_MS` yourself; a timing that is not a preset
+is kept as its own `(custom)` entry rather than being reset on save. Leave
+everything alone and nothing changes; **Save & apply** only writes the fields
+you edited and restarts the monitors. Selecting `default (…)` again drops the
+override. **Reset lamps to auto** clears the lamp overrides.
 
 ## Checking the result
 

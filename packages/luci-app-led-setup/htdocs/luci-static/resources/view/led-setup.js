@@ -59,7 +59,7 @@ return view.extend({
 		var lamps = (data && data[0]) || [];
 		var cur = (data && data[1]) || { roles: {}, patterns: {} };
 		var roleSelects = {};
-		var patInputs = [];
+		var patFields = [];
 
 		function lampSelect(role) {
 			var c = cur.roles[role] || { val: 'auto', eff: '' };
@@ -115,32 +115,67 @@ return view.extend({
 
 		var patRows = [];
 
+		var PRESETS = [
+			{ v: 'off',             t: _('off') },
+			{ v: 'on',              t: _('on (steady)') },
+			{ v: 'blink:100:100',   t: _('blink fast (100 / 100 ms)') },
+			{ v: 'blink:150:150',   t: _('blink rapid (150 / 150 ms)') },
+			{ v: 'blink:250:250',   t: _('blink (250 / 250 ms)') },
+			{ v: 'blink:500:500',   t: _('blink slow (500 / 500 ms)') },
+			{ v: 'blink:1000:1000', t: _('blink very slow (1 / 1 s)') },
+			{ v: 'blink:500:9500',  t: _('beacon (0.5 s every 10 s)') }
+		];
+
+		function isPreset(v) {
+			return PRESETS.some(function(p) { return p.v === v; });
+		}
+
+		function patternField(role, state) {
+			// 'eff' is the pattern in use, 'src' says whether it comes
+			// from /etc/config/leds or from the built-in table.  Only a
+			// 'set' value is an override worth writing back.
+			var c = (cur.patterns[role] && cur.patterns[role][state]) || { eff: '', src: 'default' };
+			var override = (c.src === 'set') ? c.eff : '';
+			var sel = E('select', { 'class': 'cbi-input-select' });
+			var inp = E('input', {
+				'type': 'text',
+				'class': 'cbi-input-text',
+				'placeholder': 'blink:300:700',
+				'value': override || c.eff || '',
+				'style': 'display:none; margin-left:.5em'
+			});
+
+			sel.appendChild(E('option', { 'value': '' },
+				c.eff ? _('default (%s)').format(c.eff) : _('default')));
+
+			PRESETS.forEach(function(p) {
+				sel.appendChild(E('option', { 'value': p.v }, p.t));
+			});
+
+			// A timing that is not one of the presets must not be
+			// silently dropped when the page is saved.
+			if (override && !isPreset(override))
+				sel.appendChild(E('option', { 'value': override },
+					_('%s (custom)').format(override)));
+
+			sel.appendChild(E('option', { 'value': '__custom__' }, _('custom…')));
+			sel.value = override;
+
+			sel.addEventListener('change', function() {
+				inp.style.display = (sel.value === '__custom__') ? '' : 'none';
+			});
+
+			patFields.push({ role: role, state: state, sel: sel, inp: inp, orig: override });
+
+			return E('td', { 'class': 'td left' }, [ sel, inp ]);
+		}
+
 		ROLES.forEach(function(r) {
 			(STATES[r.id] || []).forEach(function(s) {
-				var c = (cur.patterns[r.id] && cur.patterns[r.id][s]) || { val: '', src: 'default' };
-				var inp = E('input', {
-					'type': 'text',
-					'class': 'cbi-input-text',
-					'placeholder': 'off | on | blink:250:250',
-					'value': c.val,
-					'title': (c.src === 'default')
-						? _('Built-in default. Edit to override, clear to go back.')
-						: _('Set in /etc/config/leds. Clear to go back to the built-in default.')
-				});
-
-				inp.dataset.role = r.id;
-				inp.dataset.state = s;
-				inp.dataset.orig = c.val;
-				patInputs.push(inp);
-
 				patRows.push(E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td left' }, r.id),
 					E('td', { 'class': 'td left' }, s),
-					E('td', { 'class': 'td left' }, [
-						inp,
-						E('span', { 'class': 'cbi-value-description' }, ' ' +
-							((c.src === 'default') ? _('(default)') : _('(set)')))
-					])
+					patternField(r.id, s)
 				]));
 			});
 		});
@@ -155,13 +190,30 @@ return view.extend({
 					args.push(r.id + '=' + sel.value);
 			});
 
-			patInputs.forEach(function(inp) {
-				// Only send what changed.  An emptied field is sent as
-				// 'role.state=' which drops the override and restores
-				// the built-in pattern.
-				if (inp.value !== inp.dataset.orig)
-					args.push(inp.dataset.role + '.' + inp.dataset.state + '=' + inp.value);
+			var bad = null;
+
+			patFields.forEach(function(f) {
+				var v = (f.sel.value === '__custom__') ? f.inp.value.trim() : f.sel.value;
+
+				if (v === f.orig)
+					return;
+
+				if (v !== '' && !/^(off|on|blink:[0-9]+:[0-9]+)$/.test(v)) {
+					bad = bad || (f.role + '.' + f.state);
+					return;
+				}
+
+				// An empty value drops the override and restores the
+				// built-in pattern.
+				args.push(f.role + '.' + f.state + '=' + v);
 			});
+
+			if (bad) {
+				ui.addNotification(null,
+					E('p', {}, _('Pattern for %s must be off, on or blink:ON_MS:OFF_MS.').format(bad)),
+					'danger');
+				return;
+			}
 
 			fs.exec(BIN, args).then(function(res) {
 				if (res && res.code === 0)
@@ -206,7 +258,7 @@ return view.extend({
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('Patterns')),
 				E('p', { 'class': 'cbi-value-description' },
-					_('Each scenario can be off, on, or blink:ON_MS:OFF_MS. Every field shows the value in use; "(default)" marks the built-in pattern. Edit a field to override it, clear it to go back to the built-in default.')),
+					_('Pick a pattern for each scenario. "default" keeps the built-in timing shown next to it; pick a preset to pin it, or "custom…" to type your own blink:ON_MS:OFF_MS.')),
 				E('table', { 'class': 'table' }, [
 					E('tr', { 'class': 'tr table-titles' }, [
 						E('th', { 'class': 'th' }, _('Role')),
