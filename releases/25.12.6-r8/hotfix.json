@@ -18,16 +18,16 @@
       "published": "2026-11-06"
     },
     {
-      "id": "2026-11-06-msm89xx-scripts",
+      "id": "2026-11-08-msm89xx-scripts",
       "package": "msm89xx-scripts",
-      "version": "1.0-r14",
-      "title": "r8 modemmanager.sh preferred-mode tolerance overlay (fixed exec bit)",
+      "version": "1.0-r18",
+      "title": "LED roles and per-scenario patterns, with led-probe",
       "restart": [
         "modem-led-monitor",
         "modemmanager-proto-hotfix",
         "wifi-led-monitor"
       ],
-      "published": "2026-11-06"
+      "published": "2026-11-08"
     }
   ]
 }
