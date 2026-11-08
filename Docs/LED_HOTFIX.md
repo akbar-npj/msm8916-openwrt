@@ -112,18 +112,21 @@ led-probe --set wifi=green:wlan wan=blue:wan
 
 ## Rollback
 
-The previous builds stay in the feed; that is the rollback path.
+The previous builds stay in the feed; that is the rollback path. `apk` will not
+downgrade in place — while r18 is installed, `apk add msm89xx-scripts=1.0-r14`
+fails with `breaks: world[msm89xx-scripts=1.0-r14]` — so remove first:
 
 ```sh
+apk del luci-app-led-setup msm89xx-scripts
 apk add --repository https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r8/packages/aarch64_generic/base/packages.adb \
   msm89xx-scripts=1.0-r14
-apk del luci-app-led-setup
 /etc/init.d/wifi-led-monitor restart
 /etc/init.d/modem-led-monitor restart
 ```
 
-r14 is the previous r8 hotfix and carries the old hardcoded colour logic. The
-role config file is left behind (it is a conffile) but nothing reads it.
+r14 is the previous r8 hotfix and carries the old hardcoded colour logic. Write
+down any role mapping first: it lives in `/etc/config/leds`, and removing the
+package can take that file with it.
 
 ## Why this is a hotfix and not a release
 
