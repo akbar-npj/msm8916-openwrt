@@ -32,14 +32,14 @@ concurrency:
 jobs:
   pick:
     name: Pick boards
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'board-build')
     outputs:
       devices: ${{ steps.pick.outputs.devices }}
       reason: ${{ steps.pick.outputs.reason }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -86,7 +86,7 @@ jobs:
         device: ${{ fromJSON(needs.pick.outputs.devices) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Free disk space on runner
         run: |
@@ -94,7 +94,7 @@ jobs:
           sudo apt-get clean
 
       - name: Cache OpenWrt downloads & toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             openwrt/dl
