@@ -90,7 +90,7 @@ on:
         default: ""
         type: string
       skip_kernel:
-        description: "Skip the kernel tree build. Only for packages with no kernel modules (shell / JS / LuCI): it turns a ~35 min publish into ~5 min. Leave false for kmod-* and target packages."
+        description: "Skip the kernel tree build. Only for packages whose compile chain reaches no kmod: it turns a ~35 min publish into ~5 min. Leave it false for kmod-*, target packages, board packages and the LuCI apps that depend on them -- it overrides the detection below."
         required: false
         default: false
         type: boolean
@@ -338,6 +338,15 @@ jobs:
           # 41809560224 and 41811082178).  The board's .config is not written
           # yet at this point, so key off the path.
           if [ "$NEED" -eq 0 ] && [ -d "openwrt/package/msm8916/${PKG}" ]; then NEED=1; fi
+          # A LuCI app that depends on a board package inherits that chain:
+          # luci-app-led-setup -> msm89xx-scripts -> linux-firmware +
+          # gpio-button-hotplug, so it needs linux-<ver>/.config as well.
+          # Without this it is classified as "no kmod" and the publish dies
+          # with  No rule to make target '.../linux-6.12.112/.config'.
+          if [ "$NEED" -eq 0 ] && [ -f "packages/${PKG}/Makefile" ] &&
+             grep -qs '+msm89xx-scripts' "packages/${PKG}/Makefile"; then
+            NEED=1
+          fi
           echo "needed=$NEED" >> "$GITHUB_OUTPUT"
           echo "kernel tree needed: $NEED"
 
