@@ -28,6 +28,14 @@
         "wifi-led-monitor"
       ],
       "published": "2026-11-08"
+    },
+    {
+      "id": "2026-11-08-luci-app-led-setup",
+      "package": "luci-app-led-setup",
+      "version": "1.0-r5",
+      "title": "LED Setup page - lamp and pattern dropdowns",
+      "restart": [],
+      "published": "2026-11-08"
     }
   ]
 }
