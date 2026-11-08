@@ -151,7 +151,7 @@ Patch `805`: GPIO114 is now a `gpio-leds` node
 > a `sim_hotplug` node but it needs testing; their hardware **may** have the
 > line — **untested**. The service ships in the shared `base-files` and cannot
 > pulse where no node exists. Device owners can verify with the test procedure
-> in [`Docs/SIM_HOT_SWAP.md`](SIM_HOT_SWAP.md#testing-on-another-board).
+> in [`Docs/SIM_HOT_SWAP.md`](../SIM_HOT_SWAP.md#testing-on-another-board).
 
 ### 4.6 Known limitation
 
