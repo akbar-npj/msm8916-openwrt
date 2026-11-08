@@ -125,7 +125,10 @@ blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
 ## The LuCI page
 
 **System → LED Setup** lists every role with a lamp dropdown and a **Blink**
-button, plus a pattern dropdown per scenario. It opens on the configuration in
+button, plus a pattern dropdown per scenario. The battery pair is only offered
+when the board reports a battery in `/sys/class/power_supply`, so the two
+mains-only boards do not show a battery section at all (`led-probe --caps`
+prints the same answer). It opens on the configuration in
 effect: the `auto` entry names the board default it resolves to, and each
 pattern dropdown starts with `default (…)`, showing the built-in timing that
 would be used. Pick `off`, `on` or one of the blink presets to pin a timing, or

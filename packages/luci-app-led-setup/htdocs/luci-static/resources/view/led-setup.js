@@ -31,6 +31,21 @@ function getList() {
 	}).catch(function() { return []; });
 }
 
+function getCaps() {
+	return fs.exec(BIN, [ '--caps' ]).then(function(res) {
+		var out = {};
+
+		(res.stdout || '').trim().split('\n').forEach(function(line) {
+			var p = line.split('\t');
+
+			if (p[0] === 'cap' && p[1])
+				out[p[1]] = p[2];
+		});
+
+		return out;
+	}).catch(function() { return {}; });
+}
+
 function getShow() {
 	return fs.exec(BIN, [ '--show' ]).then(function(res) {
 		var out = { roles: {}, patterns: {} };
@@ -52,12 +67,20 @@ function getShow() {
 
 return view.extend({
 	load: function() {
-		return Promise.all([ getList(), getShow() ]);
+		return Promise.all([ getList(), getShow(), getCaps() ]);
 	},
 
 	render: function(data) {
 		var lamps = (data && data[0]) || [];
 		var cur = (data && data[1]) || { roles: {}, patterns: {} };
+		var caps = (data && data[2]) || {};
+
+		// Hide the battery pair on a board that reports no battery.  When
+		// the capability is missing (an older led-probe), keep showing
+		// them rather than hiding a real pair.
+		var roles = (caps.battery === '0')
+			? ROLES.filter(function(r) { return r.id.indexOf('bat_') !== 0; })
+			: ROLES;
 		var roleSelects = {};
 		var patFields = [];
 
@@ -105,7 +128,7 @@ return view.extend({
 			}, _('Blink'));
 		}
 
-		var roleRows = ROLES.map(function(r) {
+		var roleRows = roles.map(function(r) {
 			return E('tr', { 'class': 'tr' }, [
 				E('td', { 'class': 'td left' }, r.title),
 				E('td', { 'class': 'td left' }, lampSelect(r.id)),
@@ -170,7 +193,7 @@ return view.extend({
 			return E('td', { 'class': 'td left' }, [ sel, inp ]);
 		}
 
-		ROLES.forEach(function(r) {
+		roles.forEach(function(r) {
 			(STATES[r.id] || []).forEach(function(s) {
 				patRows.push(E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td left' }, r.id),
@@ -183,7 +206,7 @@ return view.extend({
 		function save() {
 			var args = [ '--set' ];
 
-			ROLES.forEach(function(r) {
+			roles.forEach(function(r) {
 				var sel = roleSelects[r.id];
 
 				if (sel)

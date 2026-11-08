@@ -35,6 +35,7 @@ Usage: led-probe [--help]
        led-probe                       interactive wizard
        led-probe --list                list indicator lamps (one label per line)
        led-probe --show                print the current role/pattern mapping
+       led-probe --caps                print what this board supports
        led-probe --blink LABEL [SECS]  blink one lamp to identify it
        led-probe --set KEY=VALUE ...   set a role lamp or a role pattern
        led-probe --reset               set every role lamp back to 'auto'
@@ -46,6 +47,9 @@ Keys for --set:
 Patterns: off | on | blink:ON_MS:OFF_MS
 
 Roles: wifi, wifi_fault, wan, wan_fault, data, bat_green, bat_red
+
+--caps prints one 'cap<TAB>name<TAB>value' line per capability; battery is 1
+only when the board reports a battery to /sys/class/power_supply.
 USAGE
 }
 
@@ -266,6 +270,11 @@ reset_lamps()
 	echo "led-probe: every role lamp reset to 'auto'"
 }
 
+show_caps()
+{
+	printf 'cap\tbattery\t%s\n' "$(led_has_battery && echo 1 || echo 0)"
+}
+
 [ $# -gt 0 ] || { wizard; exit $?; }
 
 case "$1" in
@@ -277,6 +286,9 @@ case "$1" in
 		;;
 	--show)
 		show_all
+		;;
+	--caps)
+		show_caps
 		;;
 	--blink)
 		[ -n "${2:-}" ] || { usage >&2; exit 2; }

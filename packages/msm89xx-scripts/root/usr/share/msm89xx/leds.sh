@@ -13,7 +13,24 @@
 
 # Overridable so the hardware-free test suite can point at a fake tree.
 LEDS_SYSFS="${LEDS_SYSFS:-/sys/class/leds}"
+POWER_SUPPLY_DIR="${POWER_SUPPLY_DIR:-/sys/class/power_supply}"
 BOARD_NAME_FILE="${BOARD_NAME_FILE:-/tmp/sysinfo/board_name}"
+
+# True when the board reports a battery to the power-supply class.
+#
+# This is the same test battery-led-monitor uses to find its gauge, so the
+# battery roles are offered exactly on the boards that have a pair to drive.
+led_has_battery()
+{
+	local p
+
+	for p in "$POWER_SUPPLY_DIR"/*; do
+		[ -d "$p" ] || continue
+		[ "$(cat "$p/type" 2>/dev/null)" = "Battery" ] && return 0
+	done
+
+	return 1
+}
 
 # Resolve a role to a lamp path, honouring leds.<role>.lamp.
 #

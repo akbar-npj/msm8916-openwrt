@@ -13,7 +13,7 @@
 #   - a per-scenario pattern override wins over the built-in default, and the
 #     built-in table reports the same values the monitors used to hardcode.
 #
-# --self-check mutates the library four ways and requires every mutant to be
+# --self-check mutates the library five ways and requires every mutant to be
 # caught, so a check that silently stopped testing anything turns red.
 set -u
 
@@ -34,6 +34,7 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 export LEDS_SYSFS="$WORK/leds"
 export BOARD_NAME_FILE="$WORK/board_name"
+export POWER_SUPPLY_DIR="$WORK/power_supply"
 
 mk_lamps()
 {
@@ -148,6 +149,27 @@ run_checks()
 			FAIL=$((FAIL + 1))
 		fi
 
+		# --- battery detection (what the LuCI page hides rows with) ---
+		rm -rf "$POWER_SUPPLY_DIR"
+		mkdir -p "$POWER_SUPPLY_DIR/usb" "$POWER_SUPPLY_DIR/ac"
+		echo Mains > "$POWER_SUPPLY_DIR/usb/type"
+		echo Mains > "$POWER_SUPPLY_DIR/ac/type"
+		if led_has_battery; then
+			echo "  FAIL mains-only board reported a battery"
+			FAIL=$((FAIL + 1))
+		else
+			echo "  ok   mains-only board has no battery"
+		fi
+
+		mkdir -p "$POWER_SUPPLY_DIR/battery"
+		echo Battery > "$POWER_SUPPLY_DIR/battery/type"
+		if led_has_battery; then
+			echo "  ok   battery board is detected"
+		else
+			echo "  FAIL battery board not detected"
+			FAIL=$((FAIL + 1))
+		fi
+
 		# --- built-in pattern table (what --show reports as effective) ---
 		assert_eq "default wifi:ap_sta" \
 			"$(led_role_spec wifi ap_sta)" 'blink:100:100'
@@ -224,8 +246,12 @@ mutate "override lookup key broken" \
 mutate "wifi:ap_sta default 100 -> 250" \
 	's/wifi:ap_sta)            echo blink:100:100/wifi:ap_sta)            echo blink:250:250/'
 
+# 5. battery detection stops matching the power-supply type.
+mutate "battery type string broken" \
+	's/"Battery"/"Batteries"/'
+
 echo
-TOTAL=4
+TOTAL=5
 if [ "$CAUGHT" -eq "$TOTAL" ]; then
 	echo "led-role self-check: PASS ($CAUGHT/$TOTAL mutants caught)"
 	exit 0
