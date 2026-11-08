@@ -4,6 +4,9 @@ The LED monitors no longer decide which colour is which from `board_name`.
 They read a role table from `/etc/config/leds`, so one board can have a green
 Wi-Fi lamp and the next a blue one, and both still behave as designed.
 
+> On an image older than this feature — **25.12.6-r8** — it arrives as a package
+> hotfix, not a new image. See [`LED_HOTFIX.md`](LED_HOTFIX.md).
+
 ## Why this exists
 
 Two units can report the same `board_name` (`hmuf02v5`) yet have their green and
