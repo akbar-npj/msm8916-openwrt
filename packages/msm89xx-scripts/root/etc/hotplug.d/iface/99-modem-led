@@ -1,31 +1,22 @@
 #!/bin/sh
 
 #
-# HMUF02-V5: the blue lamp (GPIO73) is the Wi-Fi one and wifi-led-monitor owns
-# it; its LTE lamp is green and modem-led-monitor follows the signal state.
-# This data-activity blink is for the four-lamp boards only.
+# The data-activity blink belongs to the 'data' role.  On HMUF02-V5 the blue
+# lamp is the Wi-Fi one and wifi-led-monitor owns it, so the role resolves to
+# no lamp there and this helper exits; elsewhere it is the blue LTE lamp.
 #
-case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-	*hmuf02v5*) exit 0 ;;
-esac
+. /usr/share/msm89xx/leds.sh
 
-LED="/sys/class/leds/blue:wan"
-[ -d "$LED" ] || LED="/sys/class/leds/blue:wlan"
-
-[ -d "$LED" ] || exit 0
+LED=$(led_role_lamp data) || exit 0
 
 blue_beacon()
 {
-        echo timer > "$LED/trigger" 2>/dev/null
-        echo 500 > "$LED/delay_on" 2>/dev/null
-        echo 9500 > "$LED/delay_off" 2>/dev/null
+        led_apply "$LED" "$(led_role_spec data beacon)"
 }
 
 blue_connected_idle()
 {
-        echo timer > "$LED/trigger" 2>/dev/null
-        echo 1000 > "$LED/delay_on" 2>/dev/null
-        echo 1000 > "$LED/delay_off" 2>/dev/null
+        led_apply "$LED" "$(led_role_spec data idle)"
 }
 
 case "$ACTION:$INTERFACE" in

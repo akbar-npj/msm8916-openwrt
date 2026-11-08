@@ -44,45 +44,11 @@ USAGE
 esac
 
 POLL=5
-BLINK_ON=1000
-BLINK_OFF=1000
-FAST_ON=150
-FAST_OFF=150
 
-pick_led()
-{
-        for n in "$@"; do
-                [ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
-        done
+. /usr/share/msm89xx/leds.sh
 
-        return 1
-}
-
-GREEN=$(pick_led green:bat green:charging) || GREEN=""
-RED=$(pick_led red:bat red:charging) || RED=""
-
-led_set()
-{
-        local led="$1" mode="$2" on="${3:-500}" off="${4:-500}"
-
-        [ -n "$led" ] && [ -e "$led/trigger" ] || return 0
-
-        case "$mode" in
-                off)
-                        echo none > "$led/trigger" 2>/dev/null
-                        echo 0 > "$led/brightness" 2>/dev/null
-                        ;;
-                on)
-                        echo none > "$led/trigger" 2>/dev/null
-                        echo 1 > "$led/brightness" 2>/dev/null
-                        ;;
-                blink)
-                        echo timer > "$led/trigger" 2>/dev/null
-                        echo "$on" > "$led/delay_on" 2>/dev/null
-                        echo "$off" > "$led/delay_off" 2>/dev/null
-                        ;;
-        esac
-}
+GREEN=$(led_role_lamp bat_green) || GREEN=""
+RED=$(led_role_lamp bat_red) || RED=""
 
 find_battery()
 {
@@ -102,20 +68,20 @@ apply()
 {
         case "$1" in
                 none|idle)
-                        led_set "$GREEN" off
-                        led_set "$RED" off
+                        led_apply "$GREEN" "$(led_role_spec bat_green off)"
+                        led_apply "$RED" "$(led_role_spec bat_red off)"
                         ;;
                 charging)
-                        led_set "$RED" off
-                        led_set "$GREEN" blink "$BLINK_ON" "$BLINK_OFF"
+                        led_apply "$RED" "$(led_role_spec bat_red off)"
+                        led_apply "$GREEN" "$(led_role_spec bat_green charging)"
                         ;;
                 full)
-                        led_set "$RED" off
-                        led_set "$GREEN" on
+                        led_apply "$RED" "$(led_role_spec bat_red off)"
+                        led_apply "$GREEN" "$(led_role_spec bat_green complete)"
                         ;;
                 error)
-                        led_set "$GREEN" off
-                        led_set "$RED" blink "$FAST_ON" "$FAST_OFF"
+                        led_apply "$GREEN" "$(led_role_spec bat_green off)"
+                        led_apply "$RED" "$(led_role_spec bat_red fault)"
                         ;;
         esac
 }

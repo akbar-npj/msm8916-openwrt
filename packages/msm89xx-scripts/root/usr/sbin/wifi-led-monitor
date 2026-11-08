@@ -19,34 +19,17 @@ USAGE
 esac
 
 #
-# Which lamp reports Wi-Fi is a board fact, not a name:
+# Which lamp reports Wi-Fi is a role, not a colour.  /etc/config/leds maps the
+# role to a physical label; 'auto' keeps the board default (HMUF02-V5 uses the
+# blue lamp, the other boards the green one).  A unit whose lamps are wired
+# differently is recorded with led-probe, which writes that config.
 #
-#   HMUF02-V5  GPIO73 = BLUE  (GPIO71, the green lamp, is the LTE one)
-#   others     GREEN          (mifib-v12/mf800b: green:wlan + red:wlan pair)
-#
-# The HMUF02-V5 device tree shipped with the two functions reversed, so the
-# same lamp is blue:wan there today and blue:wlan from the next image.  Accept
-# either spelling so one package works on both.
-#
-pick_led()
-{
-	local n
+. /usr/share/msm89xx/leds.sh
 
-	for n in "$@"; do
-		[ -e "/sys/class/leds/$n/trigger" ] && { echo "/sys/class/leds/$n"; return 0; }
-	done
-
-	return 1
-}
-
-case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-	*hmuf02v5*) LED=$(pick_led blue:wlan blue:wan) ;;
-	*)          LED=$(pick_led green:wlan green:wan) ;;
-esac
-[ -n "$LED" ] || LED="/sys/class/leds/green:wlan"
+LED=$(led_role_lamp wifi) || LED=""
 
 # Red half of the same pair (mifib-v12, after the 2026-10-22 DT rename).
-LED_RED=$(pick_led red:wlan) || LED_RED=""
+LED_RED=$(led_role_lamp wifi_fault) || LED_RED=""
 
 # Lamp name for the log lines ("green" or "blue").
 LAMP="${LED##*/}"
@@ -73,34 +56,20 @@ ap_if()
 }
 
 POLL_INTERVAL=2
-BLINK_ON=250
-BLINK_OFF=250
-BLINK_FAST_ON=100
-BLINK_FAST_OFF=100
 
 wifi_led_off()
 {
-        [ -e "$LED/trigger" ] || return 1
-
-        echo none > "$LED/trigger" 2>/dev/null
-        echo 0 > "$LED/brightness" 2>/dev/null
+	led_apply "$LED" "$(led_role_spec wifi down)"
 }
 
 wifi_led_on()
 {
-        [ -e "$LED/trigger" ] || return 1
-
-        echo none > "$LED/trigger" 2>/dev/null
-        echo 1 > "$LED/brightness" 2>/dev/null
+	led_apply "$LED" "$(led_role_spec wifi ap_ready)"
 }
 
 wifi_led_blink()
 {
-        [ -e "$LED/trigger" ] || return 1
-
-        echo timer > "$LED/trigger" 2>/dev/null
-        echo "$BLINK_ON" > "$LED/delay_on" 2>/dev/null
-        echo "$BLINK_OFF" > "$LED/delay_off" 2>/dev/null
+	led_apply "$LED" "$(led_role_spec wifi client)"
 }
 
 #
@@ -110,11 +79,7 @@ wifi_led_blink()
 #
 wifi_led_blink_fast()
 {
-        [ -e "$LED/trigger" ] || return 1
-
-        echo timer > "$LED/trigger" 2>/dev/null
-        echo "$BLINK_FAST_ON" > "$LED/delay_on" 2>/dev/null
-        echo "$BLINK_FAST_OFF" > "$LED/delay_off" 2>/dev/null
+	led_apply "$LED" "$(led_role_spec wifi ap_sta)"
 }
 
 #
@@ -123,23 +88,11 @@ wifi_led_blink_fast()
 #
 set_red()
 {
-        [ -n "$LED_RED" ] && [ -e "$LED_RED/trigger" ] || return 0
-
-        case "$1" in
-                off)
-                        echo none > "$LED_RED/trigger" 2>/dev/null
-                        echo 0 > "$LED_RED/brightness" 2>/dev/null
-                        ;;
-                on)
-                        echo none > "$LED_RED/trigger" 2>/dev/null
-                        echo 1 > "$LED_RED/brightness" 2>/dev/null
-                        ;;
-                blink)
-                        echo timer > "$LED_RED/trigger" 2>/dev/null
-                        echo 500 > "$LED_RED/delay_on" 2>/dev/null
-                        echo 500 > "$LED_RED/delay_off" 2>/dev/null
-                        ;;
-        esac
+	case "$1" in
+		off)   led_apply "$LED_RED" "$(led_role_spec wifi_fault ok)" ;;
+		on)    led_apply "$LED_RED" "$(led_role_spec wifi_fault fault)" ;;
+		blink) led_apply "$LED_RED" "$(led_role_spec wifi_fault radio_off)" ;;
+	esac
 }
 
 wifi_radio_disabled()

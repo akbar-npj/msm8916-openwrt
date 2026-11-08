@@ -12,10 +12,10 @@ include $(TOPDIR)/rules.mk
 LUCI_TITLE:=Battery status, charge limit and battery LED
 LUCI_DESCRIPTION:=LuCI page and services for the PM8916 BMS/LBC: capacity, temperature and charge status, a configurable charge limit, and the battery LED monitor.
 LUCI_PKGARCH:=all
-LUCI_DEPENDS:=+luci-lua-runtime
+LUCI_DEPENDS:=+luci-lua-runtime +msm89xx-scripts
 
 PKG_VERSION:=1.0
-PKG_RELEASE:=3
+PKG_RELEASE:=5
 PKG_LICENSE:=GPL-2.0-only
 
 define Package/luci-app-battery/conffiles
