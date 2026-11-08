@@ -52,7 +52,7 @@ jobs:
   ###############################################################################
   setup:
     name: Resolve Release & Board Matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       version: ${{ steps.vars.outputs.version }}
@@ -61,7 +61,7 @@ jobs:
       first: ${{ steps.vars.outputs.first }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Determine Release Tag, Version & Boards
         id: vars
@@ -181,7 +181,7 @@ jobs:
   build:
     name: Build ${{ matrix.board }}
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       # One broken board must not cancel the seven that are still useful.
       fail-fast: false
@@ -190,7 +190,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           # packages/luci-app-cpu-perf is a git submodule.  Without this the
@@ -208,7 +208,7 @@ jobs:
       # parallel runners cannot each push a 2 GB copy and blow the cache budget.
       - name: Restore OpenWrt Cache
         id: cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env.CACHE_PATHS }}
           key: openwrt-cache-${{ needs.setup.outputs.version }}-${{ hashFiles('openwrt/feeds.conf.default', 'diffconfigs/hmuf02v5') }}
@@ -256,7 +256,7 @@ jobs:
 
       - name: Save OpenWrt Cache
         if: matrix.board == needs.setup.outputs.first && steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ env.CACHE_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
@@ -277,7 +277,7 @@ jobs:
           ls -la "$DEST"
 
       - name: Upload Board Images
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: board-${{ matrix.board }}
           path: /tmp/board-images
@@ -298,7 +298,7 @@ jobs:
 
       - name: Upload Package Feed
         if: matrix.board == needs.setup.outputs.first
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: feeds
           path: /tmp/feedstage
@@ -311,11 +311,11 @@ jobs:
   publish:
     name: Publish Release
     needs: [setup, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # See the build job: the cpu-perf package is a submodule.
           submodules: recursive
@@ -326,14 +326,14 @@ jobs:
           sudo apt-get clean
 
       - name: Download Board Images
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: board-*
           merge-multiple: true
           path: openwrt/bin/targets/msm89xx/msm8916
 
       - name: Download Package Feed
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: feeds
           path: openwrt
@@ -511,7 +511,7 @@ jobs:
 
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.setup.outputs.tag }}
           name: "OpenWrt ${{ needs.setup.outputs.version }} (test build)"
