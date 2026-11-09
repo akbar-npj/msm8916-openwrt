@@ -423,6 +423,8 @@ CONFIG_PACKAGE_kmod-ipt-nfqueue=m
 # CONFIG_FEED_telephony is not set
 # CONFIG_FEED_video is not set
 
+CONFIG_PACKAGE_kmod-video-qcom-venus=y
+
 CONFIG_VERSIONOPT=y
 CONFIG_VERSION_FILENAMES=n
 CONFIG_VERSION_DIST="msm8916-openwrt"

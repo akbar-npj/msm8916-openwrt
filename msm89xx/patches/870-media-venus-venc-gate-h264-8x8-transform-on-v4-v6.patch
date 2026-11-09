@@ -1,0 +1,44 @@
+Gate the H.264 8x8 transform property on HFI v4/v6.
+
+HFI_PROPERTY_PARAM_VENC_H264_TRANSFORM_8X8 is only implemented by
+pkt_session_set_property_4xx() (v6 delegates to it). On HFI_VERSION_1XX
+(msm8916) and HFI_VERSION_3XX (msm8996) the property falls through to the
+default case of pkt_session_set_property_1x(), which returns -EINVAL.
+
+venc_set_properties() sets it unconditionally for every H.264 session, so
+venc_init_session() always fails and VIDIOC_REQBUFS returns EINVAL --
+H.264 hardware encoding is completely unusable on these SoCs. The failure
+is silent because the whole path reports only via dev_dbg().
+
+Guard it the same way venus_helper_set_work_mode() guards its own v4/v6-only
+property.
+
+--- a/drivers/media/platform/qcom/venus/venc.c
++++ b/drivers/media/platform/qcom/venus/venc.c
+@@ -723,15 +723,17 @@
+ 		if (ret)
+ 			return ret;
+ 
+-		ptype = HFI_PROPERTY_PARAM_VENC_H264_TRANSFORM_8X8;
+-		h264_transform.enable_type = 0;
+-		if (ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_HIGH ||
+-		    ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH)
+-			h264_transform.enable_type = ctr->h264_8x8_transform;
+-
+-		ret = hfi_session_set_property(inst, ptype, &h264_transform);
+-		if (ret)
+-			return ret;
++		if (IS_V4(inst->core) || IS_V6(inst->core)) {
++			ptype = HFI_PROPERTY_PARAM_VENC_H264_TRANSFORM_8X8;
++			h264_transform.enable_type = 0;
++			if (ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_HIGH ||
++			    ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH)
++				h264_transform.enable_type = ctr->h264_8x8_transform;
++
++			ret = hfi_session_set_property(inst, ptype, &h264_transform);
++			if (ret)
++				return ret;
++		}
+ 
+ 	}
+ 
