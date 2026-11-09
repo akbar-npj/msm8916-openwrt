@@ -1,3 +1,4 @@
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
 config watchdog 'general'
 	option enabled '1'
 	# Android's DcTracker data-stall alarm defaults: 60000 ms aggressive,
@@ -66,13 +67,37 @@ config recovery 'recovery'
 	# zombie only; the DEEP one (RF `none`) does not respond.
 	option zombie_nudge_secs '60'
 
+	# Voice-aware holds are opt-in (voice_alive defaults to 0).  A voice-only
+	# SIM never gets a data downlink, and
+	# restarting the modem cannot change that.  When the data bearer has no
+	# downlink, the ladder is skipped (and rechecked every voice_hold_secs)
+	# if a call is in progress, or if the SIM has no data service and the
+	# modem is alive for voice: IMS registered, or registered on the network
+	# with live serving-cell measurements (3G/2G voice, no VoLTE).
+	#   data_plan 'auto' -> opt-in inference: no data service = no downlink
+	#                       packet with the current SIM (by ICCID) since boot
+	#             '0'    -> voice-only SIM: never restart for a missing downlink
+	#                       while the modem is alive for voice
+	#             '1'    -> data SIM: only a call in progress holds the ladder
+	# drop_default_route '1' (opt-in): while a SIM without data service is held,
+	# remove the modem's default routes, so traffic does not fall back to the
+	# empty bearer while the Wi-Fi station reconnects (on UFI003 those
+	# fallbacks came with a2_power.c:1216 modem fatals during calls).
+	# Only while another uplink has (or had in the last 5 min) a default
+	# route; with the modem as the only uplink the route stays.
+	option voice_alive '0'
+	option voice_hold_secs '300'
+	option data_plan '1'
+	option drop_default_route '0'
+
 	# NOTE: the pre-emptive SSR (preemptive_ssr_enabled / preemptive_ssr_interval)
 	# and the himi_ok_* keys are GONE.  The pre-emptive SSR existed only to defer
 	# the ~900 s lte_ml1 fatal; the root-cause fix is the HMUF02-V5-only HiMI_OK guard
 	# (a separate, HMUF02-V5-gated service).
 	#
-	# The A2 pin now lives in the DRIVER (kernel patch 848).  The HMUF02-V5 board
-	# DTS sets "qcom,a2-pin" on &bam_dmux, so bam_dmux_probe() calls
+	# The A2 pin now lives in the DRIVER (kernel patch 848).  The HMUF02-V5,
+	# UF02, UZ801, MIFIB V12, UF896 and UFI003 board DTSes set "qcom,a2-pin"
+	# on &bam_dmux, so bam_dmux_probe() calls
 	# pm_runtime_forbid() (== power/control=on) and the A2 never powers down.
 	# There is no userspace holder any more; the runtime knob is the module
 	# parameter /sys/module/qcom_bam_dmux/parameters/a2_pin (1 = pinned, 0 =
