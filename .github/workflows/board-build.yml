@@ -4,7 +4,9 @@ name: Board Build
 # machine" stops being the only evidence.  Opt-in per pull request with the
 # `board-build` label: one board is ~40 minutes, and most pull requests do not
 # need it.  Nothing is published and no secret is used - a pull request from a
-# fork gets a throwaway signing key and the artifact is discarded.
+# fork gets a throwaway signing key.  The images are kept as a 7-day run
+# artifact for flashing and testing, not as a release: the apk feed inside them
+# is signed with that throwaway key, so `apk add` from the published feed fails.
 
 on:
   pull_request:
@@ -109,6 +111,31 @@ jobs:
 
       - name: Build ${{ matrix.device }}
         run: ./build.sh build "${{ matrix.device }}"
+
+      # Which commit the image came from: the pull request head, or the branch
+      # on a dispatch.  Sliced here because expressions cannot take a substring.
+      - name: Resolve artifact suffix
+        id: artifact
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: echo "sha=${SHA:0:8}" >> "$GITHUB_OUTPUT"
+
+      # Success only: a red build has nothing worth downloading, and uploading
+      # partial output just fills the storage quota.
+      - name: Upload firmware
+        uses: actions/upload-artifact@v6
+        with:
+          name: board-build_${{ matrix.device }}_${{ steps.artifact.outputs.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-gpt_both0.bin
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-boot.img
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-system.img
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-sysupgrade.bin
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*.manifest
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-flash.sh
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-firmware.zip
 
       - name: Report
         if: always()
