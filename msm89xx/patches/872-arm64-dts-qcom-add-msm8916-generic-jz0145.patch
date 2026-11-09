@@ -18,7 +18,7 @@ the device (/sys/kernel/debug/gpio, TLMM gpio base 902):
 
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,128 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +/dts-v1/;
@@ -31,6 +31,11 @@ the device (/sys/kernel/debug/gpio, TLMM gpio base 902):
 +/ {
 +	model = "JZ0145 v33 4G Modem Stick";
 +	compatible = "jz0145,v33", "qcom,msm8916";
++};
++
++/* Keep A2 powered to avoid the modem's a2_power.c assertion on collapse. */
++&bam_dmux {
++	qcom,a2-pin;
 +};
 +
 +/*
