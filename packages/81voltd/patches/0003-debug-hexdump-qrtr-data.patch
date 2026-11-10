@@ -1,0 +1,19 @@
+DEBUG-ONLY: hexdump every QRTR data packet so we can see what the
+modem actually sends to the IMS data service (service 770).
+
+--- a/qvd-server.c
++++ b/qvd-server.c
+@@ -438,6 +438,13 @@
+ 
+ 	g_debug("Received QRTR message %d length %d\n", req->type, inlen);
+ 	if (req->type == QRTR_TYPE_DATA) {
++		GString *hex = g_string_new(NULL);
++		int i;
++
++		for (i = 0; i < inlen; i++)
++			g_string_append_printf(hex, "%02x", ((guint8 *)req->data)[i]);
++		g_debug("QRTR data (%d bytes): %s\n", inlen, hex->str);
++		g_string_free(hex, TRUE);
+ 		msg = qvd_message_new(g_object_ref(server->sock),
+ 				      req,
+ 				      peer.sq_node, peer.sq_port);
