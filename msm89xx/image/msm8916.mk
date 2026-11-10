@@ -209,7 +209,7 @@ define Device/generic-jz0145
 	GPT_RECOVERY := 1
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
-		msm-firmware-dumper reboot-edl qcom-carrier-autocfg qcom-time-daemon \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += generic-jz0145
