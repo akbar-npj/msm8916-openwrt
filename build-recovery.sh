@@ -2,7 +2,7 @@
 #
 # build-recovery.sh - build the per-board MSM8916 recovery (rescue) boot image.
 #
-#   ./build-recovery.sh <board>      hmuf02v5 | mf800b | mifib-v12 | ufi003_mb_v02 | ufi001b
+#   ./build-recovery.sh <board>      hmuf02v5 | mf800b | mifib-v12 | ufi003-mb-v02 | ufi001b
 #   ./build-recovery.sh all
 #   DRY_RUN=1 ./build-recovery.sh <board>   (show what would be packed, write nothing)
 #
@@ -84,8 +84,7 @@ RECOVERY_MODULES="mdt_loader qcom_common qcom_pil_info qcom_wcnss_pil compat cfg
 list_boards() {
     grep -oE '^define Device/(generic-[a-z0-9_-]+|yiming-uz801v3)' \
         "$REPO_DIR/msm89xx/image/msm8916.mk" |
-        sed -e 's|^define Device/generic-||' -e 's|^define Device/yiming-uz801v3$|uz801|' \
-            -e 's/^ufi003-mb-v02$/ufi003_mb_v02/'
+        sed -e 's|^define Device/generic-||' -e 's|^define Device/yiming-uz801v3$|uz801|'
 }
 
 check_board() {
