@@ -2,7 +2,7 @@
 #
 # build-recovery.sh - build the per-board MSM8916 recovery (rescue) boot image.
 #
-#   ./build-recovery.sh <board>      hmuf02v5 | mf800b | mifib-v12 | ufi003_mb_v02 | ufi001b
+#   ./build-recovery.sh <board>      hmuf02v5 | mf800b | mifib-v12 | ufi003-mb-v02 | ufi001b
 #   ./build-recovery.sh all
 #   DRY_RUN=1 ./build-recovery.sh <board>   (show what would be packed, write nothing)
 #
@@ -82,9 +82,9 @@ RECOVERY_MODULES="mdt_loader qcom_common qcom_pil_info qcom_wcnss_pil compat cfg
 
 # Board list - derived from the device definitions, stays in sync automatically.
 list_boards() {
-    grep -o 'DEVICE_DTS := msm8916-generic-[a-z0-9_-]*' \
+    grep -oE '^define Device/(generic-[a-z0-9_-]+|yiming-uz801v3)' \
         "$REPO_DIR/msm89xx/image/msm8916.mk" |
-        sed 's/.*msm8916-generic-//'
+        sed -e 's|^define Device/generic-||' -e 's|^define Device/yiming-uz801v3$|uz801|'
 }
 
 check_board() {
@@ -100,7 +100,9 @@ production_image() {
         echo "$RECOVERY_BOOT_IMG"
         return 0
     fi
-    echo "$REPO_DIR/openwrt/bin/targets/msm89xx/msm8916/msm8916-openwrt-msm89xx-msm8916-generic-$1-squashfs-boot.img"
+    local device="generic-$1"
+    [ "$1" != "uz801" ] || device="yiming-uz801v3"
+    echo "$REPO_DIR/openwrt/bin/targets/msm89xx/msm8916/msm8916-openwrt-msm89xx-msm8916-$device-squashfs-boot.img"
 }
 
 # Kernel build identity: decompressed size plus the UTS banner.  Modules are
