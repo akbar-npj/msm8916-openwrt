@@ -24,7 +24,7 @@ $(eval $(call KernelPackage,qcom-rproc))
 define KernelPackage/video-qcom-venus
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Qualcomm Venus video encoder/decoder
-  DEPENDS:=@TARGET_msm89xx +kmod-qcom-rproc +kmod-video-core +kmod-video-mem2mem +kmod-video-dma-contig
+  DEPENDS:=@TARGET_msm89xx +kmod-qcom-rproc +kmod-video-core +kmod-video-mem2mem +kmod-video-dma-contig +qcom-venus-firmware
   KCONFIG:=CONFIG_MEDIA_PLATFORM_SUPPORT=y CONFIG_VIDEO_QCOM_VENUS
   FILES:=\
     $(LINUX_DIR)/drivers/media/platform/qcom/venus/venus-core.ko \
@@ -35,7 +35,7 @@ endef
 
 define KernelPackage/video-qcom-venus/description
   V4L2 memory-to-memory hardware video encoding and decoding on Qualcomm
-  SoCs. MSM8916 requires qcom/venus-1.8/venus.mbn from the device firmware.
+  SoCs. Includes the required MSM8916 Venus 1.8 firmware dependency.
 endef
 
 $(eval $(call KernelPackage,video-qcom-venus))
