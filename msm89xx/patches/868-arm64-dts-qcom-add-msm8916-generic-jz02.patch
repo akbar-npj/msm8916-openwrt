@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz02.dts
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,317 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * JZ02 — generic 3-SIM battery MiFi, Qualcomm MSM8916.
@@ -40,15 +40,21 @@
 +	 * 1500 mAh) that does not match the hardware; the gauge then reports
 +	 * an over-voltage condition.  Match the real cell instead.
 +	 *
-+	 * voltage-min-design-microvolt is the stock qcom,v-cutoff-uv.  The OCV
-+	 * table below is the stock 4.2 V curve scaled onto the 4.35 V cell so
-+	 * the voltage-mode BMS can still report capacity.
++	 * voltage-min-design-microvolt is the measured shutdown point of the
++	 * pack: the cell keeps going to ~3.05 V, and the old 3.35 V cutoff made
++	 * the gauge report 0 % while the device still had usable charge left.
++	 *
++	 * The 25 C OCV table below was measured on hardware (2026-11-04..10)
++	 * from full 100->0 and 80->0 discharges, with the 85 % charge limit
++	 * disabled for one cycle.  The other temperature tables are still the
++	 * stock 4.2 V curve scaled to this cell; only 25 C is calibrated (the
++	 * board has no batt-therm).
 +	 */
 +	battery: battery {
 +		compatible = "simple-battery";
 +		device-chemistry = "lithium-ion-polymer";
 +
-+		voltage-min-design-microvolt = <3350000>;
++		voltage-min-design-microvolt = <3050000>;
 +		/* 4.40 V design max leaves headroom for the charger's regulation
 +		 * tolerance; the actual charge limit stays at 4.35 V. */
 +		voltage-max-design-microvolt = <4400000>;
@@ -92,14 +98,14 @@
 +
 +		/* 25 C */
 +		ocv-capacity-table-2 =
-+			<4300000 100>, <4270000 95>, <4229000 90>, <4199000 85>,
-+			<4148000 80>, <4109000 75>, <4061000 70>, <4006000 65>,
-+			<3976000 60>, <3928000 55>, <3896000 50>, <3871000 45>,
-+			<3856000 40>, <3831000 35>, <3807000 30>, <3783000 25>,
-+			<3742000 20>, <3671000 16>, <3627000 13>, <3603000 11>,
-+			<3591000 10>, <3564000 9>, <3552000 8>, <3516000 7>,
-+			<3481000 6>, <3457000 5>, <3421000 4>, <3398000 3>,
-+			<3374000 2>, <3362000 1>, <3350000 0>;
++			<4335000 100>, <4255000 95>, <4203000 90>, <4162000 85>,
++			<4149000 80>, <4086000 75>, <4026000 70>, <3965000 65>,
++			<3910000 60>, <3848000 55>, <3780000 50>, <3727000 45>,
++			<3691000 40>, <3665000 35>, <3646000 30>, <3621000 25>,
++			<3592000 20>, <3566000 16>, <3540000 13>, <3517000 11>,
++			<3502000 10>, <3491000 9>, <3483000 8>, <3466000 7>,
++			<3456000 6>, <3450000 5>, <3434000 4>, <3412000 3>,
++			<3382000 2>, <3287000 1>, <3076000 0>;
 +
 +		/* 40 C */
 +		ocv-capacity-table-3 =
