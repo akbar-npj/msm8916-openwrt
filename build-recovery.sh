@@ -190,9 +190,6 @@ install_blobs() {
     find "$RECOVERY_DIR/irfs/lib" -maxdepth 1 -name 'lib*.so*' \
         ! -name 'libc.so*' ! -name 'libgcc_s.so*' -delete
     cp -a "$src/." "$RECOVERY_DIR/irfs/"
-    # OpenWrt ships a multicall Dropbear binary; argv[0] selects key generation.
-    mkdir -p "$IRFS/usr/bin"
-    ln -sfn ../sbin/dropbear "$IRFS/usr/bin/dropbearkey"
     # A blobs directory fetched before the station mode was removed still
     # carries the wpa_supplicant symlink; drop it so a stale tree cannot put it
     # back into the image.
