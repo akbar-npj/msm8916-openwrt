@@ -1,0 +1,51 @@
+#!/bin/sh
+
+# SPDX-License-Identifier: CC0-1.0
+# 2022 Aleksander Morgado <aleksander@aleksander.es>
+#
+# Automatically report to netifd that the underlying modem
+# is really disconnected
+#
+# ufi-voice: overrides /usr/lib/ModemManager/connection.d/10-report-down.
+# Only a disconnect of the bearer netifd uses restarts the interface: the
+# IMS bearer of imsdcm goes up and down on its own, and restarting the
+# interface disconnects every bearer, IMS included (a reconnect loop).
+#
+# require program name and at least 4 arguments
+[ $# -lt 4 ] && exit 1
+
+MODEM_PATH="$1"
+BEARER_PATH="$2"
+INTERFACE="$3"
+STATE="$4"
+
+[ "${STATE}" = "disconnected" ] || exit 0
+
+. /lib/netifd/netifd-proto.sh
+. /usr/share/ModemManager/modemmanager.common
+
+MODEM_STATUS=$(mmcli --modem="${MODEM_PATH}" --output-keyvalue)
+[ -n "${MODEM_STATUS}" ] || exit 1
+
+MODEM_DEVICE=$(modemmanager_get_field "${MODEM_STATUS}" "modem.generic.device")
+[ -n "${MODEM_DEVICE}" ] || exit 2
+
+CFG=$(mm_get_modem_config "${MODEM_DEVICE}")
+[ -n "${CFG}" ] || exit 3
+
+BEARER_STATUS=$(mmcli --bearer="${BEARER_PATH}" --output-keyvalue 2>/dev/null)
+APN=$(modemmanager_get_field "${BEARER_STATUS}" "bearer.properties.apn")
+[ "${APN}" = "ims" ] && exit 0
+L3=$(ifstatus "${CFG}" | jsonfilter -e "@.l3_device")
+[ -n "${INTERFACE}" ] && [ "${INTERFACE}" != "--" ] && [ -n "${L3}" ] && \
+	[ "${INTERFACE}" != "${L3}" ] && exit 0
+
+IFUP=$(ifstatus "${CFG}" | jsonfilter -e "@.up")
+
+[ "${IFUP}" = "true" ] && {
+	mm_log "info" "Reconnecting '${CFG}' on '${STATE}' event"
+	ubus call network.interface down "{ 'interface': '${CFG}'}"
+	ubus call network.interface up "{ 'interface': '${CFG}'}"
+}
+
+exit 0

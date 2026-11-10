@@ -1,0 +1,28 @@
+From: isp <40058476+isprogrammer@users.noreply.github.com>
+Subject: [PATCH] iface-modem-voice: don't match calls with different indexes by number
+
+A waiting call from the same number as the active call (the caller puts
+the first call on hold and dials again) was matched with the active call:
+the active call object took over the waiting call's state, and the real
+active call was reported as an unexpected incoming call and lost.
+
+Apply the same index guard the direction/state match already has.
+---
+--- a/src/mm-iface-modem-voice.c	2026-11-02 22:07:03.344994147 +0000
++++ b/src/mm-iface-modem-voice.c	2026-11-02 22:07:03.345994148 +0000
+@@ -226,9 +226,13 @@
+         (!call_info->index || !idx || match_index))
+         match_direction_and_state = TRUE;
+ 
+-    /* Match number */
++    /* Match number.
++     * Like direction and state, not when both call info and call have an index
++     * set and they're different: a waiting call from the same number as the
++     * active one (e.g. the caller holds and dials again) is a different call. */
+     if (call_info->number && number &&
+-        g_strcmp0 (call_info->number, number) == 0)
++        g_strcmp0 (call_info->number, number) == 0 &&
++        (!call_info->index || !idx || match_index))
+         match_number = TRUE;
+ 
+     /* Match special terminated event.

@@ -145,3 +145,5 @@ its upstream path is
 The raw DTB and decompiled DTS came from the stock boot-image QCDT extraction
 on the old build host. The raw DTB is authoritative; decompilation can vary
 between dtc versions.
+
+Voice integration details: [UFI003_VOICE.md](../../UFI003_VOICE.md).

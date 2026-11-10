@@ -1,0 +1,128 @@
+#!/bin/sh
+# voicectl - route the call audio of the modem DSP (QDSP6 q6voice).
+#
+#   voicectl start [bt|host|both] [cs|volte]   start the voice path
+#   voicectl stop                              stop it, clear the routes
+#   voicectl status
+#
+# bt:   downlink/uplink go to the internal BT SCO link (the headset needs an
+#       open SCO connection, see hfp-ag).
+# host: the voice path still runs on the BT SCO ports, plus the downlink tap
+#       is captured on pcm0 (MultiMedia1, "VOC_REC_DL") and whatever is played
+#       on pcm1 (MultiMedia2) is sent into the call (in-call playback).
+#
+# The sound card is msm8916-ufi-voice.dtsi: pcm0 MultiMedia1, pcm1
+# MultiMedia2, pcm2 CS-Voice (hostless, opened by `hostless`).
+
+PIDFILE=/var/run/voicectl-hostless.pid
+STATE=/var/run/voicectl.state
+
+card() {
+	local c
+	c=$(grep -l '^msm8916' /proc/asound/card*/id 2>/dev/null | head -n1)
+	[ -n "$c" ] || { echo "voicectl: no msm8916 sound card" >&2; exit 1; }
+	c=${c#/proc/asound/card}
+	echo "${c%/id}"
+}
+
+set_ctl() {
+	amixer -q -c "$CARD" cset name="$1" "$2" || echo "voicectl: failed: $1 = $2" >&2
+}
+
+routes() {
+	# $1 = 1 to connect, 0 to disconnect
+	set_ctl 'INT_BT_SCO_RX Voice Mixer CS-Voice' "$1"
+	set_ctl 'CS-Voice Capture Mixer INT_BT_SCO_TX' "$1"
+}
+
+host_routes() {
+	set_ctl 'MultiMedia1 Mixer VOC_REC_DL' "$1"
+	set_ctl 'VOICE_PLAYBACK_TX Audio Mixer MultiMedia2' "$1"
+}
+
+stop_hostless() {
+	[ -f "$PIDFILE" ] || return 0
+	kill "$(cat "$PIDFILE")" 2>/dev/null
+	rm -f "$PIDFILE"
+}
+
+has_ctl() {
+	amixer -c "$CARD" cget name="$1" >/dev/null 2>&1
+}
+
+do_start() {
+	local mode="${1:-bt}" session="${2:-cs}"
+
+	stop_hostless
+	CARD=$(card) || exit 1
+	set_ctl 'Voice Record' Off
+	set_ctl 'Voice Playback' off
+
+	case "$session" in
+		volte) set_ctl 'Voice Session' VoLTE ;;
+		*) set_ctl 'Voice Session' CS ;;
+	esac
+	routes 1
+	case "$mode" in
+		host|both) host_routes 1 ;;
+		*) host_routes 0 ;;
+	esac
+	# host: nothing to hear on the BT SCO port, mute it as the mic (the
+	# in-call playback is mixed in after the mic, so it still goes out)
+	if has_ctl 'Voice Tx Mute'; then
+		case "$mode" in
+			host) set_ctl 'Voice Tx Mute' "$(uci -q get ufivoice.main.host_tx_mute || echo 1)" ;;
+			*) set_ctl 'Voice Tx Mute' 0 ;;
+		esac
+	fi
+
+	# no inherited stdout/stderr: callers reading them would wait forever
+	hostless -D "hw:$CARD,2" </dev/null >/dev/null 2>&1 &
+	echo $! > "$PIDFILE"
+	usleep 300000
+	if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+		echo "voicectl: the voice path did not start (no call?)" >&2
+		rm -f "$PIDFILE"
+		exit 1
+	fi
+
+	case "$mode" in
+		host|both)
+			set_ctl 'Voice Record' Downlink
+			set_ctl 'Voice Playback' on
+			;;
+	esac
+	echo "mode=$mode session=$session card=$CARD" > "$STATE"
+	logger -t voicectl "voice path started ($mode, $session)"
+}
+
+do_stop() {
+	# hostless first: if the DSP crashed, the card is gone and an open PCM
+	# blocks its removal, and with it the modem's recovery
+	stop_hostless
+	rm -f "$STATE"
+	if CARD=$(card 2>/dev/null); then
+		set_ctl 'Voice Record' Off
+		set_ctl 'Voice Playback' off
+		has_ctl 'Voice Tx Mute' && set_ctl 'Voice Tx Mute' 0
+		host_routes 0
+		routes 0
+	fi
+	logger -t voicectl "voice path stopped"
+}
+
+case "$1" in
+	start) shift; do_start "$@" ;;
+	stop) do_stop ;;
+	status)
+		if [ -f "$STATE" ] && [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+			echo "running: $(cat "$STATE")"
+		else
+			echo "stopped"
+		fi
+		;;
+	*)
+		sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+		exit 1
+		;;
+esac

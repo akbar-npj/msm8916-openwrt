@@ -1,0 +1,823 @@
+#!/usr/bin/env python3
+"""ufi-voiced: call manager for the UFI003 voice setup.
+
+Watches the modem's calls (ModemManager) and connects them to
+  * a Bluetooth headset, through hfp-ag (call control) and the DSP's
+    internal BT SCO path (audio, voicectl start bt), and/or
+  * local SIP phones, through Asterisk: incoming calls are originated to
+    the phones with the AudioSocket application pointing back here, and
+    phones dial out with AudioSocket too (ufi-voice-dial). Audio goes
+    through the in-call record tap (pcm0) and in-call playback (pcm1),
+    bridged by voicebridge. Waiting calls ring the phones too; hold on the
+    phones (AMI Hold/Unhold) holds/swaps the mobile calls.
+
+Configuration: /etc/config/ufivoice (see the package's default file).
+"""
+import glob, json, math, os, select, socket, struct, subprocess, sys, threading, time
+
+DIAL_DIR = '/tmp/ufivoice/dial'
+FRAME = 320                     # 20 ms of 8 kHz S16 mono
+
+
+def log(*a):
+    print(time.strftime('%H:%M:%S'), *a, flush=True)
+
+
+def uci(opt, default=''):
+    r = subprocess.run(['uci', '-q', 'get', 'ufivoice.main.' + opt],
+                       capture_output=True, text=True)
+    v = r.stdout.strip()
+    return v if r.returncode == 0 and v != '' else default
+
+
+def run(*cmd):
+    try:
+        r = subprocess.run(list(cmd), capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        log('timeout:', ' '.join(cmd))
+        return 1, 'timeout'
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def voice_session():
+    """DSP voice session: VoLTE calls only have audio on the VoLTE session,
+    CS calls on the CS one. 'auto' goes by the IMS registration."""
+    s = uci('session', 'auto')
+    if s != 'auto':
+        return s
+    rc, out = run('qmicli', '-d', 'qrtr://0', '--imsa-get-ims-registration-status')
+    return 'volte' if "Status: 'registered'" in out else 'cs'
+
+
+def sound_card():
+    try:
+        for line in open('/proc/asound/cards'):
+            p = line.split()
+            if len(p) > 1 and p[0].isdigit() and p[1].strip('[]').startswith('msm8916'):
+                return p[0]
+    except OSError:
+        pass
+    return None
+
+
+# --- ModemManager ---------------------------------------------------------
+
+class Modem:
+    def calls(self):
+        rc, out = run('mmcli', '-m', 'any', '--voice-list-calls', '-J')
+        if rc:
+            return {}
+        try:
+            paths = json.loads(out).get('modem.voice.call', [])
+        except ValueError:
+            return {}
+        res = {}
+        for p in paths:
+            rc, out = run('mmcli', '-o', p, '-J')
+            if rc:
+                continue
+            try:
+                props = json.loads(out)['call']['properties']
+            except (ValueError, KeyError):
+                continue
+            res[p] = {'state': props.get('state', ''),
+                      'direction': props.get('direction', ''),
+                      'number': props.get('number', '') or ''}
+        return res
+
+    def accept(self, path):
+        log('accept', path, run('mmcli', '-o', path, '--accept')[1])
+
+    def hangup(self, path):
+        log('hangup', path, run('mmcli', '-o', path, '--hangup')[1])
+
+    def hold_and_accept(self):
+        log('hold-and-accept', run('mmcli', '-m', 'any', '--voice-hold-and-accept')[1])
+
+    def dial(self, number):
+        rc, out = run('mmcli', '-m', 'any', '--voice-create-call=number=%s' % number)
+        path = next((w for w in out.split() if '/Call/' in w), None)
+        if not path:
+            log('create call failed:', out)
+            return None
+        rc, out = run('mmcli', '-o', path, '--start')
+        log('dial', number, path, out)
+        return path
+
+    def dtmf(self, path, digit):
+        run('mmcli', '-o', path, '--send-dtmf=%s' % digit)
+
+    def delete(self, path):
+        run('mmcli', '-m', 'any', '--voice-delete-call=%s' % path)
+
+
+# --- Asterisk manager interface -------------------------------------------
+
+class AMI:
+    @staticmethod
+    def msg(f):
+        return ('Action: %s\r\n' % f['Action'] + ''.join(
+            '%s: %s\r\n' % (k, v) for k, v in f.items() if k != 'Action') + '\r\n').encode()
+
+    @staticmethod
+    def blocks(s):
+        """The messages read from s, as dicts."""
+        buf = b''
+        while True:
+            while b'\r\n\r\n' not in buf:
+                d = s.recv(4096)
+                if not d:
+                    return
+                buf += d
+            blk, buf = buf.split(b'\r\n\r\n', 1)
+            m = {}
+            for line in blk.decode(errors='replace').split('\r\n'):
+                k, sep, v = line.partition(': ')
+                if sep:
+                    m.setdefault(k, v)
+            yield m
+
+    def connect(self, events='off'):
+        user, secret = uci('ami_user', 'ufivoice'), uci('ami_secret', '')
+        if not secret:
+            raise OSError('no ami_secret configured')
+        # not create_connection(): getaddrinfo() needs the idna codec,
+        # which python3-light does not have
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(3)
+        s.connect(('127.0.0.1', int(uci('ami_port', '5038'))))
+        s.recv(256)
+        s.sendall(self.msg({'Action': 'Login', 'Username': user, 'Secret': secret,
+                            'Events': events}))
+        return s
+
+    def action(self, fields):
+        try:
+            s = self.connect()
+            s.sendall(b''.join(self.msg(f) for f in fields) + self.msg({'Action': 'Logoff'}))
+            time.sleep(0.3)
+            s.close()
+            return True
+        except OSError as e:
+            log('AMI:', e)
+            return False
+
+    def channels(self):
+        try:
+            s = self.connect()
+            s.sendall(self.msg({'Action': 'CoreShowChannels'}))
+            out = []
+            for m in self.blocks(s):
+                if m.get('Event') == 'CoreShowChannel':
+                    out.append(m)
+                elif m.get('Event') == 'CoreShowChannelsComplete' or m.get('Response') == 'Error':
+                    break
+            s.sendall(self.msg({'Action': 'Logoff'}))
+            s.close()
+            return out
+        except OSError as e:
+            log('AMI:', e)
+            return []
+
+    def events(self, on_event):
+        """Call on_event() for every call event, for ever."""
+        while True:
+            try:
+                s = self.connect('call')
+                s.settimeout(None)
+                for m in self.blocks(s):
+                    if 'Event' in m:
+                        on_event(m)
+            except OSError:
+                pass
+            time.sleep(5)
+
+    def ring_phones(self, uid, number, tag=0):
+        # tag: the phones already have a call from this number. Linphone
+        # rejects (486) a call from an address it is in a call with, so the
+        # SIP user gets a ~N suffix (ufi-voice-dial strips it); the display
+        # name stays the number.
+        targets = uci('sip_ring', 'PJSIP/100&PJSIP/101')
+        user = '%s~%d' % (number, tag + 1) if number and tag else number
+        return self.action([{
+            'Action': 'Originate',
+            'Channel': 'Local/s@ufi-incoming',
+            'ChannelId': uid,
+            'Application': 'AudioSocket',
+            'Data': '%s,127.0.0.1:%s' % (uid, uci('audiosocket_port', '9092')),
+            'CallerID': '"%s" <%s>' % (number or 'Mobile', user or ''),
+            'Variable': 'UFI_RING=%s' % targets,
+            'Timeout': '60000',
+            'Async': 'true'}])
+
+    def stop_ringing(self, uid=None):
+        """Hang up the phone calls of one ring_phones(uid), or all of them."""
+        if uid is None:
+            chan = '/^Local\\/s@ufi-incoming-/'
+        else:
+            chan = next((c['Channel'] for c in self.channels() if c.get('Uniqueid') == uid), None)
+            if not chan:
+                return
+        self.action([{'Action': 'Hangup', 'Channel': chan}])
+
+    def leg_uid(self, linkedid):
+        """AudioSocket uuid of the call a phone channel belongs to."""
+        for c in self.channels():
+            if c.get('Linkedid') == linkedid and c.get('Application') == 'AudioSocket':
+                return c.get('ApplicationData', '').split(',')[0]
+        return None
+
+
+# --- hfp-ag client --------------------------------------------------------
+
+def headset_mac():
+    """bt_headset, or else the first paired device (has a link key)."""
+    mac = uci('bt_headset', '')
+    if mac:
+        return mac
+    for info in sorted(glob.glob('/var/lib/bluetooth/*/*/info')):
+        try:
+            if '[LinkKey]' in open(info).read():
+                return info.split('/')[-2]
+        except OSError:
+            pass
+    return ''
+
+
+class Headset:
+    def __init__(self, on_event, busy):
+        self.on_event = on_event
+        self.busy = busy
+        self.sock = None
+        self.connected = False
+        self.lock = threading.Lock()
+        threading.Thread(target=self.loop, daemon=True).start()
+
+    def send(self, line):
+        with self.lock:
+            if self.sock:
+                try:
+                    self.sock.sendall((line + '\n').encode())
+                except OSError:
+                    pass
+
+    def loop(self):
+        path = uci('hfp_socket', '/var/run/hfp-ag.sock')
+        while True:
+            try:
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.connect(path)
+            except OSError:
+                time.sleep(3)
+                continue
+            with self.lock:
+                self.sock = s
+            self.send('end')            # call state left by a previous instance
+            self.send('status')
+            # The headset may be off or out of range: page it while it is not
+            # connected.  A page keeps the shared 2.4 GHz radio busy for
+            # seconds and the Wi-Fi station loses the AP's beacons, so back
+            # off from 60 s to bt_reconnect_max (0 = never page, the headset
+            # connects by itself) and never page during a call.
+            s.settimeout(30)
+            delay, next_try = 60, 0
+            buf = b''
+            while True:
+                mac = headset_mac()
+                now = time.monotonic()
+                if self.connected:
+                    delay, next_try = 60, now + 60
+                elif mac and now >= next_try and not self.busy():
+                    try:
+                        cap = int(uci('bt_reconnect_max', '900'))
+                    except ValueError:
+                        cap = 900
+                    if cap > 0:
+                        self.send('connect %s' % mac)
+                        next_try = now + delay
+                        delay = min(delay * 2, max(cap, 60))
+                try:
+                    d = s.recv(512)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    d = b''
+                if not d:
+                    break
+                buf += d
+                while b'\n' in buf:
+                    line, buf = buf.split(b'\n', 1)
+                    line = line.decode(errors='replace').strip()
+                    if line.startswith('status '):
+                        self.connected = ' slc=1 ' in line
+                    elif line.startswith('connected '):
+                        self.connected = True
+                    elif line == 'disconnected':
+                        self.connected = False
+                    self.on_event(line)
+            with self.lock:
+                self.sock = None
+            self.connected = False
+            time.sleep(1)
+
+
+# --- AudioSocket ----------------------------------------------------------
+
+def tone_frames(on_ms=1000, off_ms=4000, freq=425):
+    """Ringback tone, 20 ms frames, forever."""
+    n = 0
+    period = (on_ms + off_ms) // 20
+    while True:
+        if (n % period) * 20 < on_ms:
+            t0 = (n % period) * 160
+            yield b''.join(struct.pack('<h', int(6000 * math.sin(2 * math.pi * freq * (t0 + i) / 8000)))
+                           for i in range(160))
+        else:
+            yield b'\0' * FRAME
+        n += 1
+
+
+class AudioLeg:
+    """One AudioSocket connection from Asterisk, for one mobile call."""
+
+    def __init__(self, sock, uid, owner, path):
+        self.sock, self.uid, self.owner, self.path = sock, uid, owner, path
+        self.alive = True
+        self.attached = False       # the call audio flows through the bridge
+        self.talked = False         # has been attached (else ringback)
+        self.phone_held = False     # the phone put this call on hold
+        self.wlock = threading.Lock()
+        threading.Thread(target=self.reader, daemon=True).start()
+        threading.Thread(target=self.writer, daemon=True).start()
+
+    def send(self, kind, payload=b''):
+        with self.wlock:
+            s = self.sock
+            if s is None:
+                return
+            try:
+                s.sendall(struct.pack('>BH', kind, len(payload)) + payload)
+            except OSError:
+                self.alive = False
+
+    def writer(self):
+        # Ringback until the call is up, silence while it is held; while
+        # attached, the bridge sends the call audio.
+        tone = tone_frames()
+        nxt = time.monotonic()
+        while self.alive:
+            if not self.attached:
+                self.send(0x10, b'\0' * FRAME if self.talked else next(tone))
+            nxt += 0.02
+            delay = nxt - time.monotonic()
+            if delay < -0.1:
+                nxt, delay = time.monotonic(), 0
+            time.sleep(max(0, delay))
+
+    def reader(self):
+        buf = b''
+        while self.alive:
+            try:
+                d = self.sock.recv(4096)
+            except (OSError, AttributeError):
+                d = b''
+            if not d:
+                break
+            buf += d
+            while len(buf) >= 3:
+                kind, ln = struct.unpack('>BH', buf[:3])
+                if len(buf) < 3 + ln:
+                    break
+                payload, buf = buf[3:3 + ln], buf[3 + ln:]
+                if kind == 0x10 and self.attached:
+                    self.owner.bridge.write(payload)
+                elif kind == 0x03 and payload:
+                    self.owner.leg_dtmf(self, chr(payload[0]))
+                elif kind in (0x00, 0xff):
+                    self.alive = False
+        self.close()
+        self.owner.leg_gone(self)
+
+    def close(self):
+        if self.sock:
+            self.alive = False
+            self.attached = False
+            self.send(0x00)
+            with self.wlock:
+                try:
+                    self.sock.close()
+                except OSError:
+                    pass
+                self.sock = None
+
+
+class Bridge:
+    """voicebridge: the DSP's in-call record (downlink) and playback
+    (uplink) PCMs <-> the leg of the active call. Small PCM buffers, a
+    jitter buffer for the phone's audio, no growing delay."""
+
+    def __init__(self, on_exit):
+        self.on_exit = on_exit
+        self.proc = None
+        self.leg = None             # AudioLeg that gets the call audio
+
+    def running(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self):
+        if self.running():
+            return
+        card = sound_card()
+        if card is None:
+            log('no sound card')
+            return
+        cmd = ['voicebridge', '-D', 'hw:%s' % card, '-r', uci('pcm_rate', '48000'),
+               '-j', uci('jitter_ms', '40')]
+        if uci('bridge_debug', '0') == '1':
+            cmd.append('-v')
+        p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        os.set_blocking(p.stdin.fileno(), False)
+        self.proc = p
+        threading.Thread(target=self.reader, args=(p,), daemon=True).start()
+
+    def reader(self, p):
+        fd, buf = p.stdout.fileno(), b''
+        while True:
+            try:
+                d = os.read(fd, 4096)
+            except (OSError, ValueError):
+                d = b''
+            if not d:
+                break
+            buf += d
+            while len(buf) >= FRAME:
+                leg = self.leg
+                if leg:
+                    leg.send(0x10, buf[:FRAME])
+                buf = buf[FRAME:]
+        rc = p.wait()
+        if p is self.proc:          # not stopped by us
+            log('voicebridge exited', rc)
+            self.proc = None
+            self.on_exit()
+
+    def write(self, data):
+        p = self.proc
+        if p:
+            try:
+                os.write(p.stdin.fileno(), data)
+            except (OSError, ValueError):   # pipe full (dropped) or closed
+                pass
+
+    def stop(self):
+        p, self.proc, self.leg = self.proc, None, None
+        if not p:
+            return
+        p.terminate()
+        try:
+            p.wait(2)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        for f in (p.stdin, p.stdout):
+            try:
+                f.close()
+            except OSError:
+                pass
+
+
+# --- call manager ---------------------------------------------------------
+
+class Manager:
+    def __init__(self):
+        self.mm, self.ami = Modem(), AMI()
+        self.lock = threading.RLock()
+        self.known = {}             # path -> last state
+        self.known_number = {}      # path -> caller number
+        self.call = None            # path of the call we manage (the first one)
+        self.route = None           # 'bt' | 'host'
+        self.legs = {}              # path -> AudioLeg (route host)
+        self.bridge = Bridge(self.bridge_died)
+        self.bridge_restart = 0
+        self.voice_on = False
+        self.pending_in = {}        # uid -> call path (phones ringing)
+        self.hold_wait = 0          # a hold/swap is in progress until then
+        self.hs = Headset(self.hs_event, lambda: bool(self.known))
+        threading.Thread(target=self.audiosocket_server, daemon=True).start()
+        threading.Thread(target=self.ami.events, args=(self.ami_event,), daemon=True).start()
+
+    def mode(self):
+        return uci('mode', 'both')
+
+    # voice path
+    def voice_start(self):
+        if self.voice_on:
+            self.bridge.stop()
+            run('voicectl', 'stop')
+        mode = 'host' if self.route == 'host' else 'bt'
+        session = voice_session()
+        rc, out = run('voicectl', 'start', mode, session)
+        log('voicectl start', mode, session, rc, out)
+        self.voice_on = rc == 0
+        if self.voice_on and mode == 'host':
+            self.bridge.start()
+        if self.route == 'bt':
+            self.hs.send('active')
+
+    def voice_stop(self):
+        self.bridge.stop()
+        if self.voice_on:
+            run('voicectl', 'stop')
+            self.voice_on = False
+
+    def reroute(self):
+        """Route host: the bridge carries the audio of the active call."""
+        if self.route != 'host':
+            return
+        active = [p for p, s in self.known.items() if s == 'active']
+        leg = self.legs.get(active[0]) if len(active) == 1 else None
+        if leg and not (self.voice_on and self.bridge.running()):
+            self.voice_start()
+        if self.bridge.leg is not leg:
+            for l in self.legs.values():
+                l.attached = False
+            self.bridge.leg = leg
+            if leg:
+                leg.talked = leg.attached = True
+            log('phone audio:', leg.path if leg else 'none')
+
+    def bridge_died(self):
+        # e.g. the DSP voice session went away under it
+        with self.lock:
+            if time.monotonic() - self.bridge_restart < 10:
+                return
+            self.bridge_restart = time.monotonic()
+            self.bridge.leg = None
+            self.reroute()
+
+    def stop_ringing_for(self, path):
+        for uid in [u for u, p in self.pending_in.items() if p == path]:
+            del self.pending_in[uid]
+            self.ami.stop_ringing(uid)
+
+    def end_call(self):
+        log('call ended')
+        self.voice_stop()
+        self.hs.send('end')
+        legs, self.legs = list(self.legs.values()), {}
+        for leg in legs:
+            leg.close()
+        if self.pending_in:
+            self.ami.stop_ringing()
+            self.pending_in.clear()
+        self.call = self.route = None
+
+    def call_over(self, path):
+        self.stop_ringing_for(path)
+        leg = self.legs.pop(path, None)
+        if leg:
+            if self.bridge.leg is leg:
+                self.bridge.leg = None
+            leg.close()
+        if path == self.call:
+            self.call = next(iter(self.legs), None)
+            if self.call is None:
+                self.end_call()
+                return
+        self.reroute()
+
+    # events from ModemManager
+    def poll(self):
+        calls = self.mm.calls()
+        with self.lock:
+            for path, c in calls.items():
+                old = self.known.get(path)
+                if old != c['state']:
+                    self.known[path] = c['state']
+                    self.known_number[path] = c['number']
+                    log('call', path, c['direction'], c['state'])
+                    self.call_state(path, c, old)
+            for path in list(self.known):
+                if path not in calls:
+                    del self.known[path]
+                    self.known_number.pop(path, None)
+                    self.call_over(path)
+
+    def call_state(self, path, c, old):
+        st = c['state']
+        if st == 'ringing-in' and old is None and self.call is None:
+            self.call = path
+            mode = self.mode()
+            if mode in ('asterisk', 'both'):
+                uid = self.new_uid()
+                self.pending_in[uid] = path
+                self.ami.ring_phones(uid, c['number'])
+            if mode in ('bt', 'both') and self.hs.connected:
+                self.hs.send('incoming %s' % c['number'])
+            delay = int(uci('autoanswer', '0') or 0)
+            if delay > 0:
+                threading.Timer(delay, self.autoanswer, args=(path,)).start()
+        elif st in ('ringing-in', 'waiting') and self.call and path != self.call \
+                and path not in self.legs and path not in self.pending_in.values():
+            # call waiting: offered to the phones while they have a call
+            if self.route == 'host' and self.mode() in ('asterisk', 'both'):
+                same = sum(1 for p, n in self.known_number.items()
+                           if p != path and n and n == c['number'])
+                log('call waiting', path, '(same number)' if same else '')
+                uid = self.new_uid()
+                self.pending_in[uid] = path
+                self.ami.ring_phones(uid, c['number'], same)
+        elif st == 'dialing':
+            if self.call is None:       # dialled by someone else (mmcli)
+                self.call = path
+            if self.route == 'bt':
+                self.hs.send('outgoing')
+        elif st == 'ringing-out' and self.route == 'bt':
+            self.hs.send('alerting')
+        elif st == 'active' and (path == self.call or path in self.legs):
+            if self.route is None:
+                self.route = 'bt' if self.hs.connected else ('host' if self.legs else 'bt')
+            self.stop_ringing_for(path)
+            if self.route == 'host':
+                if path == self.call and old != 'held':
+                    self.hs.send('end')
+                self.reroute()
+            else:
+                self.voice_start()
+        elif st == 'held':
+            self.reroute()
+        elif st == 'terminated':
+            self.call_over(path)
+            self.mm.delete(path)        # also ones left from before a restart
+
+    def autoanswer(self, path):
+        with self.lock:
+            if self.call == path and self.known.get(path) == 'ringing-in':
+                log('autoanswer')
+                self.mm.accept(path)
+
+    # events from the headset
+    def hs_event(self, line):
+        log('headset:', line)
+        with self.lock:
+            st = self.known.get(self.call) if self.call else None
+            up = line.startswith('connected ') or (line.startswith('status ') and ' slc=1 ' in line)
+            if line == 'answer' and st == 'ringing-in':
+                self.route = 'bt'
+                self.stop_ringing_for(self.call)
+                self.mm.accept(self.call)
+            elif line == 'hangup' and self.call:
+                self.mm.hangup(self.call)
+            elif line.startswith('dial ') and self.call is None:
+                self.route = 'bt'
+                self.call = self.mm.dial(line[5:])
+                if not self.call:
+                    self.route = None
+                    self.hs.send('end')
+            elif line.startswith('dtmf ') and self.call:
+                self.mm.dtmf(self.call, line[5])
+            elif up and st == 'ringing-in' and self.mode() in ('bt', 'both'):
+                self.hs.send('incoming %s' % self.known_number.get(self.call, ''))
+            elif up and st == 'active' and self.route == 'bt':
+                self.hs.send('active')
+
+    # hold on the phones (AMI Hold/Unhold events)
+    def ami_event(self, m):
+        if m.get('Event') not in ('Hold', 'Unhold'):
+            return
+        held = m['Event'] == 'Hold'
+        uid = self.ami.leg_uid(m.get('Linkedid', ''))
+        with self.lock:
+            leg = next((l for l in self.legs.values() if l.uid == uid), None)
+            if leg is None or leg.phone_held == held:
+                return
+            leg.phone_held = held
+            log('phone', 'holds' if held else 'resumes', leg.path)
+            self.sync_hold()
+
+    def sync_hold(self):
+        """Make the active mobile call the one the phones have not put on
+        hold (hold-and-accept holds the active call and resumes the held or
+        accepts the waiting one)."""
+        if self.route != 'host':
+            return
+        wait = self.hold_wait - time.monotonic()
+        if wait > 0:                # the last hold/swap is still settling
+            threading.Timer(wait + 0.2, self.sync_hold_locked).start()
+            return
+        legs = [l for l in self.legs.values() if self.known.get(l.path) in ('active', 'held')]
+        want = [l for l in legs if not l.phone_held]
+        if len(want) > 1:
+            return                  # in the middle of a swap on the phone
+        active = [l for l in legs if self.known.get(l.path) == 'active']
+        target = want[0] if want else None
+        if target is (active[0] if len(active) == 1 else None):
+            return
+        if target is None and 'waiting' in self.known.values():
+            return                  # holding would accept the waiting call
+        self.hold_wait = time.monotonic() + 3
+        self.mm.hold_and_accept()
+
+    def sync_hold_locked(self):
+        with self.lock:
+            self.sync_hold()
+
+    # AudioSocket
+    def new_uid(self):
+        return open('/proc/sys/kernel/random/uuid').read().strip()
+
+    def audiosocket_server(self):
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(('127.0.0.1', int(uci('audiosocket_port', '9092'))))
+        srv.listen(4)
+        while True:
+            s, _ = srv.accept()
+            try:
+                s.settimeout(5)
+                hdr = s.recv(3, socket.MSG_WAITALL)
+                kind, ln = struct.unpack('>BH', hdr)
+                payload = s.recv(ln, socket.MSG_WAITALL)
+                s.settimeout(None)
+            except (OSError, struct.error):
+                s.close()
+                continue
+            if kind != 0x01 or len(payload) != 16:
+                s.close()
+                continue
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            h = payload.hex()
+            uid = '%s-%s-%s-%s-%s' % (h[:8], h[8:12], h[12:16], h[16:20], h[20:])
+            self.leg_new(s, uid)
+
+    def leg_new(self, s, uid):
+        with self.lock:
+            dial_file = os.path.join(DIAL_DIR, uid)
+            if uid in self.pending_in:
+                path = self.pending_in.pop(uid)
+                st = self.known.get(path)
+                if self.call == path and st == 'ringing-in':
+                    log('phone answered', uid)
+                    self.legs[path] = AudioLeg(s, uid, self, path)
+                    self.route = 'host'
+                    self.hs.send('end')
+                    self.mm.accept(path)
+                    return
+                if self.route == 'host' and st == 'waiting':
+                    log('phone answered the waiting call', path)
+                    self.legs[path] = AudioLeg(s, uid, self, path)
+                    self.hold_wait = time.monotonic() + 3
+                    self.mm.hold_and_accept()
+                    return
+            elif os.path.exists(dial_file):
+                number = open(dial_file).read().strip()
+                os.unlink(dial_file)
+                if number and (self.call is None or self.route == 'host'):
+                    log('phone dials', number)
+                    leg = AudioLeg(s, uid, self, None)
+                    path = self.mm.dial(number)
+                    if not path:
+                        leg.close()
+                        return
+                    leg.path = path
+                    self.legs[path] = leg
+                    self.route = 'host'
+                    if self.call is None:
+                        self.call = path
+                    return
+            log('audiosocket: unknown or stale uuid', uid)
+            s.close()
+
+    def leg_gone(self, leg):
+        with self.lock:
+            if leg.path is None or self.legs.get(leg.path) is not leg:
+                return
+            log('phone hung up', leg.path)
+            del self.legs[leg.path]
+            if self.bridge.leg is leg:
+                self.bridge.leg = None
+            self.mm.hangup(leg.path)
+
+    def leg_dtmf(self, leg, digit):
+        with self.lock:
+            if leg.path in self.legs:
+                self.mm.dtmf(leg.path, digit)
+
+    def run(self):
+        os.makedirs(DIAL_DIR, exist_ok=True)
+        # Asterisk (user asterisk) registers dial requests here
+        os.chmod(os.path.dirname(DIAL_DIR), 0o755)
+        os.chmod(DIAL_DIR, 0o1777)
+        interval = float(uci('poll_interval', '0.5'))
+        log('ufi-voiced started, mode', self.mode())
+        run('voicectl', 'stop')
+        while True:
+            try:
+                self.poll()
+            except Exception as e:      # keep the daemon alive
+                log('poll error:', repr(e))
+            time.sleep(interval)
+
+
+if __name__ == '__main__':
+    Manager().run()

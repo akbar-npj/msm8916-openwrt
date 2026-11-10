@@ -1,0 +1,11 @@
+#!/bin/sh
+# ufi-voice-dial <number>: register an outgoing mobile call for the Asterisk
+# AudioSocket application; prints the uuid to pass to AudioSocket().
+# a ~N suffix marks a second call from the same number (ufi-voiced)
+n=$(echo "${1%%~*}" | tr -cd '0-9+*#')
+[ -n "$n" ] || exit 1
+d=/tmp/ufivoice/dial
+mkdir -p "$d" 2>/dev/null
+u=$(cat /proc/sys/kernel/random/uuid)
+echo "$n" > "$d/$u" || exit 1
+printf %s "$u"

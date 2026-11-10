@@ -1,0 +1,136 @@
+#!/bin/sh
+# Asterisk configuration for ufi-voice: SIP phones 100 and 101, mobile calls
+# through the AudioSocket application (ufi-voiced). Written once; the files
+# found before are kept as *.orig.
+
+[ -d /etc/asterisk ] || exit 0
+
+# sysupgrade keeps the old /etc/passwd: the asterisk user of the package
+# may be missing, and the init script then fails (runs with -U asterisk)
+. /lib/functions.sh
+user_exists asterisk || add_group_and_user asterisk
+for d in /var/lib/asterisk /var/log/asterisk /var/run/asterisk /var/spool/asterisk; do
+	[ -d "$d" ] && chown -R asterisk:asterisk "$d"
+done
+
+# Already written (also after a sysupgrade, which keeps pjsip.conf but may
+# lose the marker): keep the phones' passwords.
+if grep -q '^; ufi-voice:' /etc/asterisk/pjsip.conf 2>/dev/null; then
+	if [ ! -f /etc/asterisk/ufi-voice-phones.txt ]; then
+		umask 077
+		{
+			echo "SIP server: this stick (UDP 5060)"
+			awk '/^username=/ { sub(/^username=/, ""); u = $0 }
+			     /^password=/ { sub(/^password=/, ""); print "user " u "  password " $0 }' \
+				/etc/asterisk/pjsip.conf
+		} > /etc/asterisk/ufi-voice-phones.txt
+	fi
+	touch /etc/asterisk/.ufi-voice
+	exit 0
+fi
+[ -f /etc/asterisk/.ufi-voice ] && exit 0
+
+rnd() { head -c 9 /dev/urandom | hexdump -v -e '/1 "%02x"'; }
+
+ami=$(uci -q get ufivoice.main.ami_secret)
+[ -n "$ami" ] || { ami=$(rnd); uci set ufivoice.main.ami_secret="$ami"; uci commit ufivoice; }
+p100=$(rnd)
+p101=$(rnd)
+
+for f in pjsip.conf extensions.conf manager.conf; do
+	[ -f /etc/asterisk/$f ] && [ ! -f /etc/asterisk/$f.orig ] && mv /etc/asterisk/$f /etc/asterisk/$f.orig
+done
+
+cat > /etc/asterisk/pjsip.conf <<EOT
+; ufi-voice: two SIP phones, 100 and 101 (passwords in ufi-voice-phones.txt)
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+
+[phone](!)
+type=endpoint
+context=ufi-phones
+disallow=all
+allow=ulaw,alaw
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
+
+[aor](!)
+type=aor
+max_contacts=2
+remove_existing=yes
+
+[100](phone)
+auth=100-auth
+aors=100
+[100](aor)
+[100-auth]
+type=auth
+auth_type=userpass
+username=100
+password=$p100
+
+[101](phone)
+auth=101-auth
+aors=101
+[101](aor)
+[101-auth]
+type=auth
+auth_type=userpass
+username=101
+password=$p101
+EOT
+
+cat > /etc/asterisk/extensions.conf <<'EOT'
+; ufi-voice dialplan
+[general]
+static=yes
+writeprotect=yes
+
+[ufi-phones]
+exten => 100,1,Dial(PJSIP/100,30)
+exten => 101,1,Dial(PJSIP/101,30)
+; everything else goes out through the mobile network (ufi-voiced)
+exten => _[0-9+*#].,1,Set(UUID=${SHELL(/usr/sbin/ufi-voice-dial ${EXTEN})})
+ same => n,GotoIf($["${UUID}" = ""]?fail)
+ same => n,Answer()
+ same => n,AudioSocket(${UUID},127.0.0.1:9092)
+ same => n,Hangup()
+ same => n(fail),Congestion(5)
+
+; incoming mobile calls: ufi-voiced originates Local/s@ufi-incoming
+[ufi-incoming]
+exten => s,1,Dial(${UFI_RING},45)
+ same => n,Hangup()
+EOT
+
+cat > /etc/asterisk/manager.conf <<EOT
+; ufi-voice: AMI for ufi-voiced, localhost only
+[general]
+enabled=yes
+port=5038
+bindaddr=127.0.0.1
+
+[ufivoice]
+secret=$ami
+deny=0.0.0.0/0.0.0.0
+permit=127.0.0.1/255.255.255.255
+read=call,system
+write=call,originate,system
+EOT
+
+umask 077
+cat > /etc/asterisk/ufi-voice-phones.txt <<EOT
+SIP server: this stick (UDP 5060)
+user 100  password $p100
+user 101  password $p101
+EOT
+chown root:asterisk /etc/asterisk/pjsip.conf /etc/asterisk/manager.conf
+chmod 640 /etc/asterisk/pjsip.conf /etc/asterisk/manager.conf
+touch /etc/asterisk/.ufi-voice
+
+uci -q set asterisk.general.enabled=1 && uci commit asterisk
+exit 0
