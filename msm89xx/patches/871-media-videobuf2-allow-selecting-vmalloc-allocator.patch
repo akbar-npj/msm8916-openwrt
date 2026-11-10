@@ -1,0 +1,19 @@
+Allow OpenWrt to select the vmalloc videobuf2 allocator independently.
+
+kmod-video-videobuf2 packages videobuf2-vmalloc.ko along with the common
+buffer helpers. Venus selects only the DMA-contiguous allocator, so no
+driver selects VIDEOBUF2_VMALLOC and syncconfig silently drops the module
+requested by the package. Give the symbol a prompt so the package's
+explicit CONFIG_VIDEOBUF2_VMALLOC=m survives configuration.
+
+--- a/drivers/media/common/videobuf2/Kconfig
++++ b/drivers/media/common/videobuf2/Kconfig
+@@ -17,7 +17,7 @@
+ 	select DMA_SHARED_BUFFER
+ 
+ config VIDEOBUF2_VMALLOC
+-	tristate
++	tristate "videobuf2 vmalloc allocator"
+ 	select VIDEOBUF2_CORE
+ 	select VIDEOBUF2_MEMOPS
+ 	select DMA_SHARED_BUFFER

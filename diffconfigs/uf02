@@ -132,6 +132,7 @@ CONFIG_PACKAGE_kmod-tls=m
 CONFIG_PACKAGE_kmod-unix-diag=m
 CONFIG_PACKAGE_kmod-usb-printer=m
 CONFIG_PACKAGE_kmod-veth=m
+CONFIG_PACKAGE_kmod-video-qcom-venus=m
 CONFIG_PACKAGE_kmod-vxlan=m
 CONFIG_PCRE2_JIT_ENABLED=y
 CONFIG_TARGET_msm89xx=y
