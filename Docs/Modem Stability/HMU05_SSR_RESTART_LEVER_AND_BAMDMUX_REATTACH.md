@@ -276,3 +276,44 @@ Follows the Dual-Firmware Comparative Workflow (`133 §1`) and the ledger's `197
   deployed to HMU05, and A/B-tested against the pre-fix module: the inflated-count restart now cycles the
   modem and the count self-heals (§6.1). The stale-artifact trap that made the first attempt look like a
   failure is recorded in §6.2 so it is not repeated.
+
+---
+
+## 8. ⚠ SSR boot hazard — never SSR a unit you cannot power-cycle
+
+**Worth remembering: don't SSR a unit you can't power-cycle.**
+
+Patch 826 makes the lever *work*, but it does not make the modem's cold PBL boot reliable. On
+2026-11-10 a `restart` on the **mifib-v12** bench unit (DPM.2.0.2, the same lever) shut the modem
+down and then failed to bring it back:
+
+```
+msm_subsys: restarting 4080000.remoteproc
+remoteproc remoteproc0: powering up 4080000.remoteproc
+remoteproc remoteproc0: Booting fw image mba.mbn, size 230272
+qcom-q6v5-mss 4080000.remoteproc: PBL boot timed out
+remoteproc remoteproc0: can't start rproc 4080000.remoteproc: -110
+qcom-q6v5-mss 4080000.remoteproc: msm_subsys: power-up of 4080000.remoteproc failed: -110
+```
+
+After that the subsystem stays **`offline`**, all `/dev/wwan*` nodes are gone (`wwan0at0`/`wwan0at1`/
+`wwan0qmi0` disconnected, bam-dmux torn down), ModemManager reports **"No modems were found"**, and
+nothing in-band recovers it:
+
+- re-writing `restart` again does **not** re-kick the PBL;
+- `echo start > .../remoteproc0/state` fails the same way;
+- `qmicli` cannot reach the modem (no QMI node);
+- only a **full AP reboot** (a real power cycle of the modem rail) brought it back — it then
+  re-registered on IND-JIO/LTE normally.
+
+Implications:
+
+1. **Never run an SSR on a unit you cannot physically power-cycle** (remote/headless installs, a
+   device in another room, a customer unit). The failure leaves the modem dead until the AP reboots,
+   and the AP reboot itself has to be triggered out-of-band.
+2. If you must SSR remotely, make sure a **watchdog/reboot path** exists that does not depend on the
+   modem (e.g. a userspace timer that reboots the AP if `remoteproc0/state` stays `offline` for N
+   seconds). Without that, a failed SSR is an unrecoverable brick-until-touched state.
+3. The lever's *silent no-op* bug (826) and this *failed cold boot* are different failures: 826 fixed
+   the refcount so the shutdown/power-up actually runs; this one is the modem firmware/PBL failing to
+   come up, which no AP-side patch can paper over.
