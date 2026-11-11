@@ -171,3 +171,13 @@
 # Ghana (MCC 620)
 62001	MTN Ghana	portalnmms	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 62002	Vodafone Ghana	internet	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+
+# Israel (MCC 425)
+42501	Partner	uinternet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42502	Cellcom	internetg	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42503	Pelephone	internet.pelephone.net.il	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42507	HOT mobile	net.hotm	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42508	Golan Telecom	internet.golantelecom.net.il	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42514	YouPhone	data.youphone.co.il	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42516	Rami Levy	internet.rl	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42519	019 Mobile	019	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
