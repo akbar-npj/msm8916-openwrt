@@ -94,10 +94,9 @@ Recent additions on top of the base port:
 | `mifib-v12` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 | `uf896` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 | `jz02` |    —       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
-| `jz0145` |    ✅    |    —      |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
+| `jz0145` |    ✅    |    ✅    |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 
 * UZ801 v3 has no Bluetooth antenna; its image includes the software, but Bluetooth is unavailable on that board.
-* JZ0145 includes the Bluetooth software, but radio operation has not been verified on hardware; its matrix entry is `—`.
 * **Concurrent AP+STA** (Station Mode) is available on **every board** — the service, the mac80211 patches and `luci-app-wifi-sta` are all target-wide; see [the guide](Docs/WiFi/AP_STA_AND_LUCI_APP.md).
 
 ### Per-board hardware features
