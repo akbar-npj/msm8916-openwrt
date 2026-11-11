@@ -34,9 +34,10 @@ With `GPT_RECOVERY=1` the image writes 17 partitions instead of 15:
 partition number up to `p14` keeps its offset, so a stick that already runs
 OpenWrt does not need its boot/rootfs moved.
 
-Boards built with this layout today: **hmuf02v5**, **mf800b**, **mifib-v12**.
-The other four keep the 15-partition layout (no `misc`, no `recovery`) — the
-LuCI entry hides itself there and the failover stays inert.
+Boards built with this layout today: **hmuf02v5**, **mf800b**, **mifib-v12**,
+**jz02**, and **jz0145**. The other five keep the 15-partition layout (no
+`misc`, no `recovery`) — the LuCI entry hides itself there and the failover
+stays inert.
 
 ---
 
@@ -107,7 +108,7 @@ built before that patch answers both with
 Adding the partitions is **not** a `sysupgrade` operation — the GPT has to be
 rewritten.  You need:
 
-1. A `flash.sh` run with `GPT_RECOVERY=1` in the device profile (all three
+1. A `flash.sh` run with `GPT_RECOVERY=1` in the device profile (all five
    boards above ship it that way).
 2. `aboot.mbn` built with `BOOT_FAILOVER_COUNT=3` — `generate_firmware.sh`
    injects it automatically when it builds the firmware zip.
