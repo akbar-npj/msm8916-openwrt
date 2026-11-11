@@ -20,7 +20,7 @@ Recent additions on top of the base port:
 * **⬆️ In-device firmware upgrade (r3+)** — the device checks the published `firmware.json`, downloads the image for **its own board**, verifies the SHA-256 and flashes it — from **System → Firmware Upgrade** in LuCI or `firmware-upgrade` on the console. No `scp`, no manual download; settings are kept by default (untick **Keep settings** for `sysupgrade -n`), and a `min_version` floor refuses a jump the device could not apply. **This is the first release with it: r1/r2 have no client, so flash r3 by hand once — from r3 on, every release updates itself.**
 * **📦 Custom packages that update without a reflash** — the LED monitors, station-mode helpers, watchdog and upgrade pages live in `packages/` rather than `base-files`, so a fix reaches devices as a **signed package hotfix** (`apk update && apk upgrade <name>`) instead of a 35 MB flash. CI rebuilds the one package against the released toolchain and kernel, splices it into the live feed and re-signs the index; `luci-app-update-notify` shows "N package updates are available" on the dashboard.
 * **📲 Physical SIM hot-swap** — pull the card and insert another: `sim-hotplug` detects the swap, re-announces the card to the baseband, re-reads it through ModemManager and restores data in **~15 s**, with **no reboot** (even a different carrier).
-* **🆘 Rescue image in the recovery partition** — on `hmuf02v5`, `mf800b` and `mifib-v12` the `recovery` partition holds a self-contained rescue system that boots the **production kernel** and brings up USB **and** a Wi-Fi AP (`OpenWrt-Recovery`, 802.11n + WMM) with a web UI to reflash the rootfs, write a single partition or reboot to EDL. Its DHCP lease is address-only, so joining it never hijacks the client's internet. See [`Docs/RECOVERY/`](Docs/RECOVERY/).
+* **🆘 Rescue image in the recovery partition** — the shipped recovery images for `hmuf02v5`, `mifib-v12` and `jz0145` boot the **production kernel** and bring up USB **and** a Wi-Fi AP (`OpenWrt-Recovery`, 802.11n + WMM) with a web UI to reflash the rootfs, write a single partition or reboot to EDL. Its DHCP lease is address-only, so joining it never hijacks the client's internet. See [`Docs/RECOVERY/`](Docs/RECOVERY/).
 * **🛟 Failsafe mode** — a single tap of the **Restart button** during the first 7 s of boot drops a headless dongle into a rescue shell over USB (`192.168.10.1` or `/dev/ttyACM0`); a **5-second hold** performs a factory reset. The failsafe DHCP lease carries no router and no DNS, so plugging the dongle in does not replace the host's default route.
 * **🔵 Bluetooth** — the WCNSS BT core (SMD) with BlueZ 5.83, an SSP pairing-repair guard, and a Bluetooth **Serial Port Profile** server/client (a serial console or TCP bridge over Bluetooth).
 * **🔐 WPA3-SAE Wi-Fi** — PMF/SAE support in the wcn36xx driver, plus **multi-SSID** (two APs on the one radio) and **concurrent AP+STA** (the radio keeps serving its AP while it joins another network as a client).
@@ -94,9 +94,10 @@ Recent additions on top of the base port:
 | `mifib-v12` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 | `uf896` |    ✅       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 | `jz02` |    —       |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
-| `jz0145` |    ✅    |    ✅     |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
+| `jz0145` |    ✅    |    —      |          ✅           |          ✅           |           ✅            |         ✅          |         —          |
 
 * UZ801 v3 has no Bluetooth antenna; its image includes the software, but Bluetooth is unavailable on that board.
+* JZ0145 includes the Bluetooth software, but radio operation has not been verified on hardware; its matrix entry is `—`.
 * **Concurrent AP+STA** (Station Mode) is available on **every board** — the service, the mac80211 patches and `luci-app-wifi-sta` are all target-wide; see [the guide](Docs/WiFi/AP_STA_AND_LUCI_APP.md).
 
 ### Per-board hardware features
@@ -112,13 +113,14 @@ Recent additions on top of the base port:
 | `mifib-v12` |         ✅           |      ✅      |         ✅         |      ✅      |
 | `uf896` |         —           |      —      |         —         |      —      |
 | `jz02` |         ✅           |      ✅      |         ✅         |      —      |
+| `jz0145` |       —            |      —       |         ✅         |      —      |
 
 * **Recovery partition** — the 17-partition layout (`misc` + `recovery`).  A `—` means the board keeps the 15-partition layout; see [`Docs/RECOVERY/`](Docs/RECOVERY/).
 * **3-SIM selection** — the JZ02 has three SIM switch lines (GPIO 1 / 22 / 23) but only the external slot (3) is accessible on the tested unit; the `sim-select` init script picks the slot from `uci sim.slot` (default 3). It is not automatic hot-swap.
 * **Power button** — mifib-v12, mf800b and jz02 have a `pm8941_pwrkey`; see [`Docs/POWER_BUTTON.md`](Docs/POWER_BUTTON.md).
 * **SIM hot-swap** — the `sim-hotplug` service ships and is enabled on **every** board.  The table marks where the `sim_hotplug` line has been **confirmed**: HMUF02-V5 (verified end-to-end, ~15 s) and mifib-v12 (same modem family, enabled, not yet soaked).  A `—` means the line is untested on that board, not that the service is missing — see [`Docs/SIM_HOT_SWAP.md`](Docs/SIM_HOT_SWAP.md).
 
-> The Wi-Fi/PMIC cooling maps are in the **shared `msm8916-ufi.dtsi`** (patch 861), which every board in the target includes, so all boards get them. The `a2_pin` modem-rail hold is enabled on the **HMUF02-V5, UZ801, UF02, HM-MIFIB-V12, JZ02 and UFI003** boards — the first four carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge, the JZ02 (`M8936FAAAANUZM`) hit the same SSR loop (`modem pc-ack timeout during resume`), and UFI003's board DTS sets `qcom,a2-pin` on `&bam_dmux`; `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it, and **UF896 does not need it** (field-tested on real hardware — no `a2_power.c:1189` quiesce wedge was observed). Everything else applies to every board. Failsafe mode is enabled on **every board except the JZ02**, whose reset pinhole is not software-visible (hardware test: no GPIO, PMIC-GPIO or power-key event), so it has no button-triggered rescue mode; it has been **live-verified on the HMUF02-V5** only.
+> The Wi-Fi/PMIC cooling maps are in the **shared `msm8916-ufi.dtsi`** (patch 861), which every board in the target includes, so all boards get them. The `a2_pin` modem-rail hold is enabled on the **HMUF02-V5, UZ801, UF02, HM-MIFIB-V12, JZ02 and UFI003** boards — the first four carry the same HiMI baseband family (`HIMI_U01_MODEM_V1.0`) exposed to the `a2_power.c:1189` quiesce wedge, the JZ02 (`M8936FAAAANUZM`) hit the same SSR loop (`modem pc-ack timeout during resume`), and UFI003's board DTS sets `qcom,a2-pin` on `&bam_dmux`; `UFI001B` (modem `MPSS.DPM.2.0.2`, V2.0) and `MF800B` do not set it, and **UF896 does not need it** (field-tested on real hardware — no `a2_power.c:1189` quiesce wedge was observed). Everything else applies to every board. Failsafe mode is enabled on **every board except the JZ02**, whose reset pinhole is not software-visible (hardware test: no GPIO, PMIC-GPIO or power-key event), so it has no button-triggered rescue mode; failsafe has been **live-verified on the HMUF02-V5 and JZ0145**.
 
 ### 🛠️ Adding a new board
 
@@ -131,10 +133,11 @@ Want to port a new MSM8916 device? See **[`Docs/ADDING_A_DEVICE_BOARD.md`](Docs/
 OpenWrt provides both an in-band rescue shell (**failsafe mode**) and
 software-triggered reboot paths for Qualcomm recovery modes.
 
-On the three boards with the 17-partition layout (**hmuf02v5**, **mf800b**,
-**mifib-v12**) there is also a real **recovery partition**: hold the reset
-button at power-on, run `reboot-recovery`, use **System → Reboot to Recovery**
-in LuCI, or let the bootloader fall back to it after three failed boots.  See
+On the five boards with the 17-partition layout (**hmuf02v5**, **mf800b**,
+**mifib-v12**, **jz02**, **jz0145**) there is also a real **recovery partition**: run
+`reboot-recovery`, use **System → Reboot to Recovery** in LuCI, or let the
+bootloader fall back to it after three failed boots. The physical recovery key
+is board-specific. See
 **[`Docs/RECOVERY/`](Docs/RECOVERY/)** for the layout, the key per board and the
 failover counter.
 
@@ -224,7 +227,7 @@ Put the USB modem into **Qualcomm Emergency Download (EDL) Mode** using any of t
 * Short the hardware **EDL test points** while plugging the stick into a USB port.
 * From Android shell (where ADB is available): `adb reboot edl`
 * From OpenWrt shell: `reboot-edl`
-* From LuCI: **System → Reboot to EDL** (installed by the `reboot-edl` package). On boards with a recovery partition (`hmuf02v5` / `mf800b` / `mifib-v12`) the same menu also offers **System → Reboot to Recovery**.
+* From LuCI: **System → Reboot to EDL** (installed by the `reboot-edl` package). On boards with a recovery partition (`hmuf02v5` / `mf800b` / `mifib-v12` / `jz02` / `jz0145`) the same menu also offers **System → Reboot to Recovery**.
 
 Verify that the host detects the device in Qualcomm EDL mode:
 
@@ -337,8 +340,9 @@ this mode rewrites the GPT to add `misc` + `recovery` and flashes the rescue
 image **without touching `boot`/`rootfs`**.
 
 > **Only applies to boards whose image ships a `recovery` partition** —
-> `hmuf02v5`, `mf800b` and `mifib-v12` are built with `GPT_RECOVERY=1`. On
-> the other four boards the script aborts before writing anything.
+> `hmuf02v5`, `mf800b`, `mifib-v12`, `jz02` and `jz0145` are built with
+> `GPT_RECOVERY=1`. On the other five boards the script aborts before writing
+> anything.
 
 It is menu `3` (`--mode repartition`): it rewrites the GPT, wipes the overlay
 (fast 2 MiB superblock wipe), and flashes `recovery-<board>.img`. Because

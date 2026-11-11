@@ -60,6 +60,7 @@ and update it when a unit arrives, dies or is repaired.
 | `uz801` | UZ801 (v3) | `yiming,uz801-v3` | @isprogrammer, @giraygokirmak | bench (@isprogrammer) + field, daily in-vehicle (@giraygokirmak) | patches 803, 851; `diffconfigs/uz801` |
 | `ufi003` | UFI003 MB V02 | `ufi003,mb-v02` | @isprogrammer | bench | patch 852; `diffconfigs/ufi003` |
 | `jz02` | JZ02 Battery MiFi | `jz02,generic` | @GargoilXD | bench (@GargoilXD) | patch 868; `diffconfigs/jz02`; `sim-select`, `sim-test`, `20-usb0-bridge` |
+| `jz0145` | JZ0145 V33 Stick | `jz0145,v33` | @mskvortsov | bench (@mskvortsov) | patch 872; `diffconfigs/jz0145`; `Docs/Boards/JZ0145.md` |
 | `uf896` | UF896 (v1.1) | `uf896,v1.1` | @akbar-npj | **none — needs a tester** | patch 867; `diffconfigs/uf896` |
 
 Boards with **no working unit** (`dead` or `none`) are still maintained — the
