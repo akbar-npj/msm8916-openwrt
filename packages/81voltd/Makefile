@@ -17,7 +17,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=81voltd
 PKG_VERSION:=1.2.0
-PKG_RELEASE:=10
+PKG_RELEASE:=11
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://gitlab.nura.eco/modem/81voltd.git
@@ -39,7 +39,7 @@ define Package/81voltd
 	CATEGORY:=Network
 	SUBMENU:=WWAN
 	TITLE:=QMI IMS Data service (IMSD/770) for VoLTE
-	DEPENDS:=+libqrtr +libqmi +modemmanager +glib2
+	DEPENDS:=+libqrtr +libqmi +modemmanager +glib2 +qmi-raw
 endef
 
 define Package/81voltd/description
@@ -54,6 +54,9 @@ define Package/81voltd/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/81voltd $(1)/usr/bin/81voltd
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/81voltd.init $(1)/etc/init.d/81voltd
+	$(INSTALL_BIN) ./files/ims-profile.init $(1)/etc/init.d/ims-profile
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) ./files/ims-profile-setup $(1)/usr/sbin/ims-profile-setup
 endef
 
 $(eval $(call BuildPackage,81voltd))
