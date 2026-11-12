@@ -1,0 +1,128 @@
+IMSD: configurable link-up PDN delay, reuse an existing PDN.
+
+The modem re-announces 0x23 every time the IMSD service appears, which makes
+the link-up path testable without a modem restart.  Two changes:
+
+  * IMSD_LINKUP_DELAY (seconds, default 90) controls how long to wait before
+    creating the "ims" PDN, so the indication can be timed to land while the
+    modem's IMSD client is still connected.
+  * If a PDN is already up, report its address immediately instead of
+    creating a second bearer.
+
+The indication sender is factored out of connection_address_changed so both
+paths share it, and the last reported address is remembered for the reuse
+path.
+
+--- a/qvd-server.c
++++ b/qvd-server.c
+@@ -63,8 +63,15 @@
+ 	/* Fields announced by the modem in IMSD 0x23 (link up). */
+ 	gboolean linkup_seen;
+ 	gboolean linkup_reply_down;
++	guint linkup_delay;
+ 	guint32 linkup_conn;
+ 	guint32 linkup_sub;
++
++	/* Last address reported to the modem, so a repeated 0x23 can be
++	 * answered immediately without creating another bearer. */
++	gboolean have_addr;
++	MMBearerIpFamily last_type;
++	gchar last_addr[256];
+ };
+ 
+ static void qvd_server_initable_iface_init(GInitableIface *iface);
+@@ -81,6 +88,9 @@
+ 				       const gchar *addr,
+ 				       gpointer data);
+ 
++static void send_connection_changed(QVDServer *server, QVDConnection *conn,
++				    MMBearerIpFamily ip_type, const gchar *addr);
++
+ G_DEFINE_TYPE_WITH_CODE(QVDServer, qvd_server, G_TYPE_OBJECT,
+ 			G_IMPLEMENT_INTERFACE(G_TYPE_INITABLE,
+ 					      qvd_server_initable_iface_init))
+@@ -119,6 +129,12 @@
+ 	       server->linkup_reply_down ? "down (err_code 13)"
+ 					 : "up (err_code 0)");
+ 
++	server->linkup_delay = 90;
++	linkup_reply = g_getenv("IMSD_LINKUP_DELAY");
++	if (linkup_reply != NULL && atoi(linkup_reply) > 0)
++		server->linkup_delay = atoi(linkup_reply);
++	g_info("IMSD link-up PDN delay: %u s\n", server->linkup_delay);
++
+ 	server->outbuf = g_malloc(65536);
+ 
+ 	fd = qrtr_open(0);
+@@ -377,6 +393,21 @@
+ 		return G_SOURCE_CONTINUE;
+ 	}
+ 
++	/*
++	 * The modem re-announces 0x23 every time the IMSD service appears, and
++	 * its client may only live for a short while.  If a PDN is already up,
++	 * report its address straight away instead of building a second one.
++	 */
++	if (server->have_addr && server->conns->len > 0
++	 && server->conns->pdata[0] != NULL) {
++		g_info("IMSD link-up: re-reporting existing address %s\n",
++		       server->last_addr);
++		send_connection_changed(server, server->conns->pdata[0],
++					server->last_type, server->last_addr);
++		g_object_unref(server);
++		return G_SOURCE_REMOVE;
++	}
++
+ 	g_info("IMSD link-up: starting the \"ims\" PDN\n");
+ 
+ 	cd = g_malloc(sizeof(*cd));
+@@ -487,7 +518,7 @@
+ 	 * see whether it ever sends 0x20.
+ 	 */
+ 	if (!server->linkup_reply_down)
+-		g_timeout_add_seconds(90, link_up_start_connection,
++		g_timeout_add_seconds(server->linkup_delay, link_up_start_connection,
+ 				      g_object_ref(server));
+ 
+ 	g_object_unref(msg);
+@@ -628,13 +659,9 @@
+ 	qrtr_sendto(fd, node, port, server->outpkt.data, server->outpkt.data_len);
+ }
+ 
+-static void connection_address_changed(QVDModem *modem,
+-				       QVDConnection *conn,
+-				       MMBearerIpFamily ip_type,
+-				       const gchar *addr,
+-				       gpointer data)
++static void send_connection_changed(QVDServer *server, QVDConnection *conn,
++				    MMBearerIpFamily ip_type, const gchar *addr)
+ {
+-	QVDServer *server = QVD_SERVER(data);
+ 	struct imsd_connection_changed_ind ind;
+ 	guint32 conn_id, sub_id;
+ 	guint8 local_id;
+@@ -677,6 +704,10 @@
+ 			ind.ip_addr.family = IMSD_AF_IPV4;
+ 		else if (ip_type == MM_BEARER_IP_FAMILY_IPV6)
+ 			ind.ip_addr.family = IMSD_AF_IPV6;
++
++		g_strlcpy(server->last_addr, addr, sizeof(server->last_addr));
++		server->last_type = ip_type;
++		server->have_addr = TRUE;
+ 	} else {
+ 		ind.res.err_code = 13;
+ 		ind.ip_addr_valid = false;
+@@ -689,3 +720,13 @@
+ 
+ 	g_hash_table_foreach(server->clients, send_staged_message, server);
+ }
++
++static void connection_address_changed(QVDModem *modem,
++				       QVDConnection *conn,
++				       MMBearerIpFamily ip_type,
++				       const gchar *addr,
++				       gpointer data)
++{
++	(void)modem;
++	send_connection_changed(QVD_SERVER(data), conn, ip_type, addr);
++}

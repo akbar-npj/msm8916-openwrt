@@ -12,8 +12,18 @@ STOP=10
 USE_PROCD=1
 
 start_service() {
+	local linkup_reply linkup_delay
+
+	# How to answer the modem's IMSD 0x23 link-up announcement:
+	#   down (default) -> err_code 13, modem must send 0x20 Start Connection
+	#   up             -> success, 81voltd starts the "ims" PDN itself
+	linkup_reply="$(uci -q get 81voltd.config.linkup_reply)"
+	linkup_delay="$(uci -q get 81voltd.config.linkup_delay)"
+
 	procd_open_instance
 	procd_set_param command /usr/bin/81voltd
+	[ -n "$linkup_reply" ] && procd_set_param env IMSD_LINKUP_REPLY="$linkup_reply"
+	[ -n "$linkup_delay" ] && procd_set_param env IMSD_LINKUP_DELAY="$linkup_delay"
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1
 	procd_set_param stderr 1
