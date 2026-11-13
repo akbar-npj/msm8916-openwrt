@@ -765,14 +765,21 @@ The functional goal is met. These are the productisation gaps, in priority order
    without it MM's `simple connect` hangs forever at `state (6/10): register` and the data bearer never
    comes up. This needs a watchdog (the same class of fix as the existing `modem-bearer-watchdog`
    zombie nudge).
-3. **The IMS PDN churns.** The modem asks for the `ims` PDN, 81voltd starts it, and ~2 s later the
-   modem removes the bearer and asks again (every ~5–7 s). Registration and calls still work through
-   it, so this is not fatal, but it is not correct either and it burns a bearer + a PDN activation per
-   cycle. Worth understanding before shipping (the modem's own DCM path, S19, is the likely intended
-   owner of this PDN).
-4. **Coexistence with the default data bearer.** While the default `jionet` bearer comes up, the IMS
-   bearer is torn down each time (the modem appears to allow one active PDN per client/technology).
-   VoLTE calls worked with the default bearer down; this needs a proper multi-PDN test.
+3. ~~**The IMS PDN churns.**~~ — **NOT REPRODUCIBLE with `imsdcm` (measured 2026-11-13).** A 180 s
+   capture of `start_connection` / `stop_connection` / `create-bearer` on a settled unit recorded
+   **0 events**, and `imsdcm` held the same pid throughout a call. The §9.1 note was written against
+   `81voltd`; the daemon that replaced it does not exhibit it. The one burst seen all day
+   (20:25:24–20:25:50) was caused by restarting `imsdcm` **by hand while the default bearer was
+   being re-established**: the IMS bearer took `wwan0`, collided with `jionet`, the modem sent
+   `stop_connection`, and the two settled onto `wwan0`/`wwan1` about 25 s later. It is a transition
+   artifact, not a loop, and the startup path avoids it by design (`wait_wan` waits for the data
+   bearer, then 10 s, before creating anything).
+4. ~~**Coexistence with the default data bearer.**~~ — **WORKS (measured 2026-11-13, S32).** With
+   `jionet` connected on `wwan0` and `ims` on `wwan1`, both `connected: yes` simultaneously, a VoLTE
+   call went `dialing → ringing-out → active`, the callee answered, both PDNs stayed connected for
+   the whole call, IMS stayed `registered`, and no `stop_connection` arrived during it. `multiplexed:
+   no` on both bearers — the two PDNs sit on separate `bam-dmux` channels, which is why this works.
+   The earlier "one PDN per client" reading came from the 81voltd era and is wrong.
 5. **D6 regression pass** on both bench units (boot, register, data, VoLTE call) once 1–4 are addressed.
 
 ## 10. Changelog
@@ -792,3 +799,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **Bridge measured by hand on a live call** (S29). A manual dial leaves `ufi-voiced` out of the loop, so `voicebridge` was started directly — 40 s of statistics at `-j 60`: `cap`/`play` at 48 kHz, `out` at 8 kHz, **gaps 0, dropped 0 ms, xruns 0, outdrop 0**; the DSP→host leg is clean. `in 0/s` because no SIP client was registered, so the uplink/phone-leg half is still unmeasured. Trap: `voicebridge` exits instantly when stdin is EOF (an ssh one-liner gives it EOF) — it must get a pipe. Hangup: `--voice-hangup-all` errors `IncompatibleState` but does clear the call; `End Call` TLV `0x01` gives `InvalidQosId`. |
 | 2026-11-13 | **F35 verified on the real SIP path (S30).** Two softphone-originated calls went SIP → dialplan → `ufi-voice-dial` → MM → modem with `ufi-voiced` starting the bridge itself: both directions at 8 kHz, `dropped 0 ms`, `outdrop 0`, and zero gaps in every window after the first — the callee reported the audio clear. Only remaining silence is the buffer fill in each call's first 5 s window (`jbuf 0/60`, 1–3 gaps, one playback xrun). Added the reading note: `jbuf <min>` dips to 10 ms by design, `gaps` is the number that matters. |
 | 2026-11-13 | **`ims` profile at every modem boot, packaged (S31, §8.6).** `ims-profile-setup`, its init script and the `wwan` hotplug handler existed only on the bench unit; they are now in `ufi-voice` r13 together with a new `ims-profile-watch` (S97) that covers runtime modem restarts (MM disable/enable + `imsdcm` restart). Fixed a latent bug: this busybox rejects `sleep 0.1`, which turned the setup script's 60 s device wait into a millisecond spin. Corrected F30 — the WDS table and its IMCN/PCO flags survive a delete plus reboot (restored from NV), so the create path only matters on a blank table. |
+| 2026-11-13 | **IMS PDN churn and data coexistence re-measured (S32).** No churn with `imsdcm`: 180 s capture, 0 start/stop events, daemon pid unchanged through a call. The only burst was self-inflicted (manual `imsdcm` restart while the default bearer was re-establishing — IMS took `wwan0`, collided, settled in ~25 s). Coexistence works: `jionet` on `wwan0` + `ims` on `wwan1` both connected, a VoLTE call reached `active` with the callee answering, no PDN teardown during it. §9.1 items 3 and 4 closed as not-reproducible / works. |
