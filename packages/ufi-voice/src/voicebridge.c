@@ -206,6 +206,7 @@ static void fifo_drop(int n)
 struct stats {
     long cap_frames, play_frames, in_samples, out_samples;
     long gaps, dropped, cap_xruns, play_xruns, out_drops;
+    int minfill;                /* lowest FIFO occupancy since the last print */
 };
 
 static int xrun_recover(snd_pcm_t *pcm, int err)
@@ -281,6 +282,7 @@ int main(int argc, char **argv)
     fds[0].events = POLLIN;
     snd_pcm_poll_descriptors(cap, fds + 1, ncfd);
     snd_pcm_poll_descriptors(play, fds + 1 + ncfd, npfd);
+    st.minfill = 1 << 30;
     t_stats = now();
 
     while (!stop) {
@@ -345,6 +347,8 @@ int main(int argc, char **argv)
                 }
                 if (avail < (snd_pcm_sframes_t)pperiod)
                     break;
+                if (fifo_n < st.minfill)
+                    st.minfill = fifo_n;
                 if (fifo_n > maxfill) {
                     st.dropped += fifo_n - jitter;
                     fifo_drop(fifo_n - jitter);
@@ -355,7 +359,12 @@ int main(int argc, char **argv)
                     got = fifo_get(pipebuf, want);
                 if (got < want) {
                     memset(pipebuf + got, 0, (want - got) * 2);
-                    if (!buffering) {
+                    /* A short read is one lost period, not a stall: pad it and
+                     * keep playing. Rebuffering to the whole jitter target for
+                     * a couple of missing samples turned every hiccup into
+                     * jitter_ms of silence, which is what made the call choppy.
+                     * Only stop when the buffer is actually empty. */
+                    if (got == 0 && !buffering) {
                         st.gaps++;
                         buffering = 1;
                     }
@@ -376,12 +385,15 @@ int main(int argc, char **argv)
             double dt = now() - t_stats;
             if (verbose || st.gaps || st.dropped || st.cap_xruns || st.play_xruns)
                 fprintf(stderr, "voicebridge: %.0fs cap %.0f/s play %.0f/s in %.0f/s out %.0f/s"
-                        " jbuf %d ms gaps %ld dropped %ld ms xruns %ld/%ld outdrop %ld\n",
+                        " jbuf %d/%d ms gaps %ld dropped %ld ms xruns %ld/%ld outdrop %ld\n",
                         dt, st.cap_frames / dt, st.play_frames / dt, st.in_samples / dt,
-                        st.out_samples / dt, fifo_n * 1000 / PIPE_RATE, st.gaps,
+                        st.out_samples / dt,
+                        st.minfill > FIFO_LEN ? -1 : st.minfill * 1000 / PIPE_RATE,
+                        jitter_ms, st.gaps,
                         st.dropped * 1000 / PIPE_RATE, st.cap_xruns, st.play_xruns,
                         st.out_drops);
             memset(&st, 0, sizeof(st));
+            st.minfill = 1 << 30;
             t_stats = now();
         }
     }

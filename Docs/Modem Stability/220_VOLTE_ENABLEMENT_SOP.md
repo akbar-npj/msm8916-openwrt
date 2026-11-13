@@ -311,6 +311,8 @@ Every entry is a real attempt on this branch. **Read this before repeating an id
 | F32 | Full prepare after `81voltd` gained `patches/` | `Error: OpenWrt package not found: package/system/81voltd` — the prepare died before the build started | `scripts/openwrt-prepare.sh:install_package_patches()` looked for the package under `package/system/<pkg>`, but `install_packages()` copies the project packages to `package/msm8916/<pkg>`. It had never been exercised because 81voltd was the first project package with a `patches/` directory | Fixed: resolve `package/msm8916/<pkg>` first, fall back to `package/system/<pkg>`. Any project package that adds `patches/` would have hit this. |
 | F33 | Build with the new `KernelPackage/sound-msm8916-voice` | `WARNING: Makefile 'package/msm8916/ufi-voice/Makefile' has a dependency on 'kmod-sound-msm8916-voice', which does not exist` — and the image would have shipped **without** the kmod, silently | The kernel package scan cache `tmp/info/.packageinfo-kernel_linux` was from **2026-10-25**: `SCAN_DEPS` does not track `target/linux/*/modules.mk`, so the cache never invalidates when a KernelPackage is added (Doc 171) | `rm -f openwrt/tmp/info/.packageinfo-kernel_linux openwrt/tmp/.config-{package,target}.in openwrt/tmp/.config` before the build. `guard` cannot see this — it is a derived cache. Always `find openwrt/bin -iname "kmod-<name>*.apk"` afterwards. |
 | F34 | `voicectl start host` (session defaults to `cs`) during a VoLTE call | Call in `conversation`, but the `pcm0` capture was **all zeros** (96000 samples, peak 0) | The voice session is a **DSP-level selector**, not just a label: on a `voice-ip` call the CS session carries nothing. `voicectl` sets the `Voice Session` mixer control to `CS` unless told otherwise | Always pass the session on a VoLTE call: `voicectl start host volte` (or leave it to `ufi-voiced`, whose `session=auto` picks `volte` while IMS is registered). |
+| F35 | Raise `jitter_ms` to cure a choppy call | The call got **worse**, not better; `gaps` stayed and each one was longer | `voicebridge` set `buffering` on **any** short read and cleared it only at the full `jitter` target, so a 2-sample miss cost `jitter_ms` of silence (and every silence period was written to the PCM). The buffer size was not the problem — the refill policy was | Fixed in `voicebridge.c`: pad the short read and keep playing, only rebuffer when the FIFO is empty. See §8.3. Diagnostic: `jbuf <min>/<target> ms` in the stats line. |
+| F36 | `apk add --allow-untrusted /tmp/ufi-voice-1.0-r11.apk` on the bench unit | `ERROR: unable to select packages: kernel-6.12.112~8efa871a…: breaks: world[kernel=6.12.112~0a9f7302…]` — nothing installed, `apk list -I` still showed r10 | The local build tree's kernel hash differs from the flashed image's, and resolving the package's kmod dependencies pulls `kernel` from the feed index | For bench iteration copy the built file straight from `build_dir/…/ufi-voice-1.0/.pkgdir/ufi-voice/` (verify with `md5sum`). A real release goes through `publish-package.yml` so the feed matches the image. |
 
 ## 8. Success record
 
@@ -449,6 +451,59 @@ aplay -D hw:0,1 /tmp/tone.wav
 **What is still manual:** `voicectl start` and the dial. `ufi-voiced` (installed and enabled,
 mode `both`) is meant to do both automatically; that path has not been verified yet.
 
+### 8.3 Audio quality — the jitter buffer (2026-11-13)
+
+The first live call was intelligible but **choppy and jittery**. The bridge statistics localised it
+to the phone leg, not the modem:
+
+```
+60s cap 47997/s play 47997/s in 7970/s out 8000/s jbuf 60 ms gaps 20  dropped 1030 ms
+60s cap 47992/s play 48208/s in 8004/s out 7998/s jbuf 60 ms gaps 62  dropped 2430 ms
+```
+
+* `cap`/`play` ≈ 48 000/s and `xruns 0/0` ⇒ the DSP side (the modem's own voice path) is perfect and
+  continuous. Nothing here is a modem, DSP or mixer problem.
+* `in 7970/s out 8000/s` with `gaps` and `dropped` ⇒ the 8 kHz uplink from Asterisk arrives in
+  **bursts**, and the bridge was mangling them.
+
+**The defect (F35).** `voicebridge` set its `buffering` flag on *any* short read, and cleared it only
+when the FIFO had refilled to the full `jitter` target. A shortfall of two samples therefore cost
+`jitter_ms` of silence, and every 10 ms period of that silence was written to the PCM. With
+`jitter_ms=60` a 2-sample miss produced 60 ms of silence; raising the buffer to 150 ms (the obvious
+"more buffer" reaction) made each hiccup **2.5× longer**. That is the choppiness.
+
+**The fix.** Pad a short read and keep playing; only stop when the FIFO is genuinely empty:
+
+```c
+if (got < want) {
+        memset(pipebuf + got, 0, (want - got) * 2);
+        /* A short read is one lost period, not a stall: pad it and keep
+         * playing. Rebuffering to the whole jitter target for a couple of
+         * missing samples turned every hiccup into jitter_ms of silence. */
+        if (got == 0 && !buffering) {
+                st.gaps++;
+                buffering = 1;
+        }
+}
+```
+
+The statistics line now prints `jbuf <min>/<target> ms`, where `<min>` is the lowest FIFO occupancy
+since the previous print — the instantaneous value it printed before said nothing about starvation.
+
+**The network side.** The softphone talks to Asterisk over the unit's own AP, and the AP was
+advertising `DTIM period 2`, so a power-saving client is only woken every ~205 ms; that is exactly
+the burst length that was overflowing the buffer. Set `dtim_period=1` (persisted in
+`wireless.default_radio0.dtim_period`, applied by `wifi reload`) ⇒ the AP delivers buffered unicast
+at every beacon (~102 ms) and `uapsd_advertisement_enabled=1` lets a U-APSD client pull frames
+itself. The station dump is clean: `tx retries: 0`, `tx failed: 0`, −42 dBm — this was never a
+lossy link, only a badly paced one.
+
+**Tuning.** `ufivoice.main.jitter_ms` (default 40, bench value 150) sets the target occupancy and
+therefore the added one-way delay; `ufivoice.main.bridge_debug=1` prints the line above every 5 s
+instead of every 60 s. Force the softphone to **G.711 µ-law/A-law, ptime 20 ms, no Opus**: an Opus
+48 kHz leg makes Asterisk transcode 48k→8k for AudioSocket and adds its own jitter buffer in series
+with ours.
+
 ## 9. Open questions / next actions
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
@@ -509,3 +564,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **VoLTE WORKS.** IMS registers reproducibly (S23) and a real VoLTE call connects end-to-end (S24/S25). Two blockers found and fixed along the way: MM loses its 3GPP view after an SSR (fix: `mmcli -m 0 --disable/--enable`), and the VOICE Dial Call number TLVs are ASCII strings, not BCD (F31). Added §8.1 with the complete recipe. |
 | 2026-11-13 | **Call audio (stage 1) wired in.** Merged the upstream `voice_calls_new` stack: patches 870 (q6voice/q6mvm/q6cvs/q6cvp, BT SCO + record/playback ports, non-MI2S card), 871 (bam-dmux pc_irq re-check — an A2 assertion seen *during a voice call* on UFI003), 872 (mifib-v12 DTS hook), the `ufi-voice` + `ufi-voice-asterisk` packages, and `DEVICE_PACKAGES` for mifib-v12. No ADSP partition needed: APR rides the modem's `smd-edge`. See §8.2. |
 | 2026-11-13 | **VoLTE CALL AUDIO WORKS, both directions** (S26/S27). Flashed the voice image to the mifib-v12; `/proc/asound/cards` shows `msm8916voice` with all 1066 mixer controls. With `voicectl start host volte` a live VoLTE call carries the caller's voice into `pcm0` and plays `pcm1` back to the far end. F34: the `cs` session gives a silent downlink on a `voice-ip` call. |
+| 2026-11-13 | **Audio quality pass (§8.3).** The bridge stats proved the DSP leg perfect and the phone leg bursty. Root cause of the choppiness was the jitter buffer's refill policy (F35) — fixed; `ufi-voice` r11. AP `dtim_period` 2 → 1. F36: a locally built `.apk` cannot be `apk add`ed on a bench unit whose kernel hash differs — copy the file. |
