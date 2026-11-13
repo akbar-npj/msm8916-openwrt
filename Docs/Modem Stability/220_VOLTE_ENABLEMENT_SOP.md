@@ -48,6 +48,7 @@ Ordered, each one independently checkable. Do not claim success on a partial.
 | D4 | `81voltd` answers `0x20` with success and the IMS session comes up | 81voltd log, no `connection down (err 13)` | **PASS** (S23) |
 | D5 | A voice call completes over LTE with no CS fallback | `qmi-raw … 0x09 0x002f` → `type=0x02 VOICE_IP`, `state=0x03 CONVERSATION`; callee phone rings | **PASS** (S24) |
 | D6 | The device still boots, registers, and passes data after the change | §6 acceptance gate | **PARTIAL** — see §9.1 |
+| D7 | Call audio is audible in both directions | `arecord -D hw:0,0` non-silent on a live call; audio on `hw:0,1` heard by the far end | **PASS** (S26/S27) |
 
 **D1 alone is the milestone that proves the fix direction.** If we can make the modem *ask*, the rest is
 AP-side plumbing we already understand.
