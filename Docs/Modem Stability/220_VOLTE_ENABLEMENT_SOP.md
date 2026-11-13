@@ -679,6 +679,51 @@ cosmetic for testing; a reflash of the image built from this branch restores the
 boot after an image change, next to `apk-overlay-heal`. Until then a freshly sysupgraded unit can
 install nothing from the feed.
 
+### 8.6 The `ims` profile at every modem boot (2026-11-13)
+
+Three triggers, in the order they fire, all ending in the same idempotent script:
+
+| Trigger | File | Fires | Covers |
+|---|---|---|---|
+| `wwan` hotplug | `/etc/hotplug.d/wwan/20-ims-profile` | the moment `wwan0qmi0` is created | the real "at modem boot" — the earliest point the AP can speak QMI |
+| init S94 | `/etc/init.d/ims-profile` | late boot, once the device exists | fallback when no hotplug event arrives |
+| init S97 | `/etc/init.d/ims-profile-watch` | a *later* remoteproc transition | runtime restarts (crash recovery, Stage 3 SSR, manual stop/start) |
+
+`ims-profile-setup` is the whole mechanism: if a profile with `APN: 'ims'` exists it does nothing;
+otherwise it creates one (`--wds-create-profile=3gpp,apn=ims,pdp-type=IPV4V6`) and sets `IMCN=1` +
+`PCSCF-via-PCO=1` on the **index it was given** with WDS `0x0028` (TLV `0x01` = `{type 0, index}`,
+`0x22` = IMCN, `0x1f` = P-CSCF-via-PCO).
+
+The watcher adds what the other two cannot. After a runtime restart it also resets ModemManager's
+3GPP view (`--disable`, 4 s, `--enable`, 12 s) and restarts `imsdcm` — without those the bearer
+request fails even with the profile present (§9.1 item 2). It deliberately ignores the **first**
+transition it sees, because at AP boot S94/S96 already own that one; only a later transition is a
+genuine restart. It never restarts the modem itself.
+
+**Trap: `sleep` takes no fractions on this busybox.** `sleep 0.5` → `sleep: invalid number '0.5'`.
+Both scripts use `usleep`. The original `ims-profile-setup` used `sleep 0.1` in its two wait loops,
+so the "60 s" device wait was really a few-millisecond spin that would give up instantly if the
+modem was not up yet; that is fixed.
+
+**Correction to F30 (measured 2026-11-13).** F30 recorded the WDS table being re-provisioned at
+every modem boot, "back to profiles 1 and 6". That is not what this unit does now: profiles 7 and 8
+(`APN: 'ims'`, `IMCN=1`, `PCSCF-via-PCO=1`, read back with WDS `0x002b`) **survive a
+`--wds-delete-profile` plus a full AP reboot** — the modem restores them from NV. So the table is
+persistent, and the create path only has to run on a genuinely blank table (first boot after
+flashing, or after an NV reset). The triggers are still required: they are what makes that first
+boot work, and the flags are what makes the network deliver a P-CSCF.
+
+Verified on the bench (S31): profiles 7 and 8 deleted (table 1/6 only), unit rebooted — the table
+came back as 1/6/7/8 with the flags set, all three triggers logged `ims profile already present,
+nothing to do`, and `--imsa-get-ims-registration-status` reported `registered`. A separate
+fake-state run of the watcher (offline → running twice) showed the first transition ignored and the
+second one running the full recovery: profile check, MM disable/enable (17 s), `imsdcm` restart.
+Note the recovery is not instant: IMS came back ~90 s after an `imsdcm` restart.
+
+Both previously unpackaged pieces (`ims-profile-setup`, `ims-profile`) and the hotplug handler are
+now in `packages/ufi-voice` (r13) — before that they existed only on the bench unit's overlay and a
+reflash would have lost them.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
@@ -712,11 +757,10 @@ install nothing from the feed.
 
 The functional goal is met. These are the productisation gaps, in priority order.
 
-1. **The `ims` profile must exist before the modem's IMS stack reads the table.** Today this needs an
-   SSR plus a create within ~2 s (`/root/earlyprof.sh`). For a real device the profile has to be
-   created at *every* modem boot — an init service that watches `/dev/wwan0qmi0` and creates+flags the
-   profile immediately, before the IMS stack looks. Without this, a plain power-cycle lands back at
-   `not-registered`.
+1. ~~**The `ims` profile must exist before the modem's IMS stack reads the table.**~~ — **DONE
+   2026-11-13**, see §8.6. A `wwan` hotplug handler creates it the moment `wwan0qmi0` appears, with
+   `ims-profile` (S94) as the boot fallback and `ims-profile-watch` (S97) for runtime modem restarts.
+   All three are packaged in `ufi-voice` r13; before that they lived only on the bench unit.
 2. **MM loses its 3GPP view after a modem restart.** `mmcli -m 0 --disable` / `--enable` restores it;
    without it MM's `simple connect` hangs forever at `state (6/10): register` and the data bearer never
    comes up. This needs a watchdog (the same class of fix as the existing `modem-bearer-watchdog`
@@ -747,3 +791,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **Live call re-verified after the r12 + LuCI change** (S28): Dial Call `SUCCESS`, MM saw `dialing → ringing-out → active`, call info `state=conversation type=voice-ip direction=mo mode=lte`, and the far end answered. No regression from the package rebuild. Found that a manual `qmi-raw` dial bypasses `ufi-voiced.voice_start()`, so no `voicebridge` runs for it (§8.2) — the audio-quality test needs either the daemon to own the call or a hand-started bridge plus a registered SIP client. |
 | 2026-11-13 | **Bridge measured by hand on a live call** (S29). A manual dial leaves `ufi-voiced` out of the loop, so `voicebridge` was started directly — 40 s of statistics at `-j 60`: `cap`/`play` at 48 kHz, `out` at 8 kHz, **gaps 0, dropped 0 ms, xruns 0, outdrop 0**; the DSP→host leg is clean. `in 0/s` because no SIP client was registered, so the uplink/phone-leg half is still unmeasured. Trap: `voicebridge` exits instantly when stdin is EOF (an ssh one-liner gives it EOF) — it must get a pipe. Hangup: `--voice-hangup-all` errors `IncompatibleState` but does clear the call; `End Call` TLV `0x01` gives `InvalidQosId`. |
 | 2026-11-13 | **F35 verified on the real SIP path (S30).** Two softphone-originated calls went SIP → dialplan → `ufi-voice-dial` → MM → modem with `ufi-voiced` starting the bridge itself: both directions at 8 kHz, `dropped 0 ms`, `outdrop 0`, and zero gaps in every window after the first — the callee reported the audio clear. Only remaining silence is the buffer fill in each call's first 5 s window (`jbuf 0/60`, 1–3 gaps, one playback xrun). Added the reading note: `jbuf <min>` dips to 10 ms by design, `gaps` is the number that matters. |
+| 2026-11-13 | **`ims` profile at every modem boot, packaged (S31, §8.6).** `ims-profile-setup`, its init script and the `wwan` hotplug handler existed only on the bench unit; they are now in `ufi-voice` r13 together with a new `ims-profile-watch` (S97) that covers runtime modem restarts (MM disable/enable + `imsdcm` restart). Fixed a latent bug: this busybox rejects `sleep 0.1`, which turned the setup script's 60 s device wait into a millisecond spin. Corrected F30 — the WDS table and its IMCN/PCO flags survive a delete plus reboot (restored from NV), so the create path only matters on a blank table. |

@@ -80,6 +80,9 @@ define Package/ufi-voice/install
 	$(INSTALL_DIR) $(1)/etc/rc.d
 	$(LN) ../init.d/ims-profile $(1)/etc/rc.d/S94ims-profile
 	$(LN) ../init.d/ims-profile-watch $(1)/etc/rc.d/S97ims-profile-watch
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/wwan
+	$(INSTALL_BIN) ./files/hotplug.d/wwan/20-ims-profile \
+		$(1)/etc/hotplug.d/wwan/20-ims-profile
 	$(INSTALL_BIN) ./files/hfp-ag.init $(1)/etc/init.d/hfp-ag
 	$(INSTALL_BIN) ./files/ufi-voiced.init $(1)/etc/init.d/ufi-voiced
 	$(INSTALL_CONF) ./files/ufivoice.config $(1)/etc/config/ufivoice
