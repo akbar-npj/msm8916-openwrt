@@ -567,7 +567,55 @@ render `— --`.
 reports it; delete it → apply → the endpoint is gone. The migration path was exercised too: the two
 accounts whose password had been set by hand were taken over into uci unchanged.
 
+### 8.5 Installing the package on a bench unit — `apk` cannot install anything on this one
 
+`apk add /tmp/ufi-voice-1.0-r12.apk` on the soak unit fails with a ~100-line wall that has nothing to
+do with the package:
+
+```
+ERROR: unable to select packages:
+  kernel-6.12.112~8efa871abf779b5591d7c27483980dfd-r1:
+    breaks: world[kernel=6.12.112~0a9f73027075980ab99fd752c36da786-r1]
+            kmod-bam-dmux-6.12.112-r1[kernel=6.12.112~0a9f73027075980ab99fd752c36da786-r1]
+            ... every kmod ...
+```
+
+Diagnosis (2026-11-13): the **installed** kernel is `8efa…` but `/etc/apk/world` still pins `0a9f…`
+and every installed `kmod-*` records a dependency on `0a9f…`. `apk` can find no solution at all, so
+**no package can be installed on this unit**, ours or otherwise. Moving `/etc/apk/repositories.d`
+aside and adding `--no-network` does not help — the conflict is in the installed database, not in the
+feed.
+
+`/etc/apk/world` lives on the overlay, so a config-preserving `sysupgrade` carries the *old* kernel pin
+into the new image. Correcting the pin alone (`sed -i 's|^kernel=.*|kernel=<installed>|' /etc/apk/world`)
+is not enough while the kmod records still name the old hash; the world file was corrected anyway,
+because it now at least matches reality.
+
+What we did instead — install exactly the files the package would have written, from the build's
+`.pkgdir` (the same method used earlier in this project when `apk` refused a local apk):
+
+```sh
+cd openwrt
+rm -rf /tmp/ufistage && mkdir -p /tmp/ufistage
+cp -a build_dir/target-aarch64_generic_musl/ufi-voice-1.0/.pkgdir/ufi-voice/. /tmp/ufistage/
+cp -a build_dir/target-aarch64_generic_musl/ufi-voice-1.0/.pkgdir/ufi-voice-asterisk/. /tmp/ufistage/
+cp -a build_dir/target-aarch64_generic_musl/luci-app-ufi-voice/.pkgdir/luci-app-ufi-voice/. /tmp/ufistage/
+rm -rf /tmp/ufistage/etc/uci-defaults /tmp/ufistage/etc/config   # keep the unit's own config
+tar -C /tmp/ufistage -cf - . | ssh root@192.168.8.1 'tar -C / -xf -'
+```
+
+then `/etc/init.d/rpcd restart` (new ACL file) and `/etc/init.d/ufi-voiced restart` (new
+`voicebridge`). Verify with `md5sum` against `.pkgdir` — a silent partial copy is indistinguishable
+from success otherwise.
+
+The apk database still records `ufi-voice-1.0-r10` even though r12's files are in place. That is
+cosmetic for testing; a reflash of the image built from this branch restores the bookkeeping.
+
+**Durable fix, not done yet:** reconcile `/etc/apk/world` (and the kmod dependency records) at first
+boot after an image change, next to `apk-overlay-heal`. Until then a freshly sysupgraded unit can
+install nothing from the feed.
+
+## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
    17 s / SSR at 96 s, both after the file mtime) and proven live (S8). The IMSD client was then
@@ -588,10 +636,13 @@ accounts whose password had been set by hand were taken over into uci unchanged.
    `ready` at the time of the send).
 4. Re-run the 81voltd `0x23`-as-link-up experiment only if D1 shows the modem will never send `0x20` —
    and only with the §6 gate plus a physical power-cycle within reach.
-5. **Bench blocker for all functional work:** the SIM is **absent** (`Card state: 'absent'`;
-   `sim-hotplug: card still not visible after re-announce (3)`), so the modem is
-   `not-registered-searching` with CS/PS `detached`. No VoLTE, IMSA or data test is possible until a
-   Jio SIM is inserted. Offline work (S13 + traps) is unaffected.
+5. ~~**Bench blocker for all functional work:** the SIM is **absent**~~ — **CLEARED 2026-11-13 17:30.**
+   The card is back in the unit and the modem came up on its own: `state: connected`, `access tech:
+   lte`, `signal quality: 100%`, `packet service state: attached`, operator `IND-JIO`, SIM `active`,
+   and `--imsa-get-ims-registration-status` → `Status: 'registered'`, `Technology: 'wwan'`. No SSR was
+   needed. (Whether the earlier `sim_hotplug` pulse or a physical reseat did it is not known — the
+   card was simply present when the unit was next inspected.) Functional VoLTE work is unblocked; a
+   call can be placed on request.
 
 ## 9.1 What is left before this ships (2026-11-13)
 
@@ -628,3 +679,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **Call audio (stage 1) wired in.** Merged the upstream `voice_calls_new` stack: patches 870 (q6voice/q6mvm/q6cvs/q6cvp, BT SCO + record/playback ports, non-MI2S card), 871 (bam-dmux pc_irq re-check — an A2 assertion seen *during a voice call* on UFI003), 872 (mifib-v12 DTS hook), the `ufi-voice` + `ufi-voice-asterisk` packages, and `DEVICE_PACKAGES` for mifib-v12. No ADSP partition needed: APR rides the modem's `smd-edge`. See §8.2. |
 | 2026-11-13 | **VoLTE CALL AUDIO WORKS, both directions** (S26/S27). Flashed the voice image to the mifib-v12; `/proc/asound/cards` shows `msm8916voice` with all 1066 mixer controls. With `voicectl start host volte` a live VoLTE call carries the caller's voice into `pcm0` and plays `pcm1` back to the far end. F34: the `cs` session gives a silent downlink on a `voice-ip` call. |
 | 2026-11-13 | **Audio quality pass (§8.3).** The bridge stats proved the DSP leg perfect and the phone leg bursty. Root cause of the choppiness was the jitter buffer's refill policy (F35) — fixed; `ufi-voice` r11. AP `dtim_period` 2 → 1. F36: a locally built `.apk` cannot be `apk add`ed on a bench unit whose kernel hash differs — copy the file. |
+| 2026-11-13 | **The Phone page (`luci-app-ufi-voice`) built and installed; `ufi-voice` r12.** SIP accounts moved into uci (`config phone`), one idempotent generator (`ufi-voice-asterisk-apply`) writes `pjsip.conf`/`extensions.conf`/`manager.conf`, and the page applies changes by running `ufi-voice-apply` through rpcd. Image built (`./build.sh build mifib-v12`, 704 s, all three apks + sysupgrade image). **F36 explained properly (§8.5):** the unit's `/etc/apk/world` pins a kernel hash the unit no longer runs and every kmod record names that same stale hash, so `apk` cannot solve *any* install; files were installed from `.pkgdir` and the world pin corrected. Bench unit is healthy again — SIM active, `connected`, LTE, IMS `registered`. |
