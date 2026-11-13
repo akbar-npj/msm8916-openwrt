@@ -307,6 +307,9 @@ Every entry is a real attempt on this branch. **Read this before repeating an id
 | F29 | Create the `ims` WDS profile after the modem has booted and re-trigger the modem (81voltd rebind → `0x23`, then a full 2 min wait) | Profile present and correctly flagged, but IMSA stays `not-registered` and no data call appears on any mux channel | The modem runs its IMS PDP bring-up **once, at boot**, before the AP can create a profile; it does not retry afterwards | The profile must exist **at modem boot**, not after it. |
 | F30 | Expect WDS profiles to survive a modem restart | After every modem restart (SSR or full boot) the table is back to profiles 1 and 6 with empty APNs — profiles 2/3 are gone | The modem re-provisions the WDS profile table from the carrier MCFG at boot, and the MCFG's `ims` entry is `Override_Type:API`, so no `ims` profile is materialised | Do not rely on a runtime-created profile; it lasts only until the next modem restart. |
 | F31 | Dial with the number encoded as packed BCD (`0x01=0C91194908304297`, the format used for `ATD`/SIM records) | `Dial Call` returns **SUCCESS** with a call id, but the call never alerts: `AT+CLCC` sits in `DIALING` for ~21 s then `NO CARRIER`, and `Get All Call Info` is empty ~1 s later | The VOICE `Dial Call` number TLVs are **ASCII strings**, not BCD. A BCD blob is accepted as a (nonsense) calling number and no usable called party is set, so the call is torn down before it reaches the network | Always pass the digits as ASCII hex, e.g. `0x02=38343331323235313636` = `"8431225166"`. A SUCCESS result does **not** mean the call was placed — verify with `Get All Call Info`. |
+| F32 | Full prepare after `81voltd` gained `patches/` | `Error: OpenWrt package not found: package/system/81voltd` — the prepare died before the build started | `scripts/openwrt-prepare.sh:install_package_patches()` looked for the package under `package/system/<pkg>`, but `install_packages()` copies the project packages to `package/msm8916/<pkg>`. It had never been exercised because 81voltd was the first project package with a `patches/` directory | Fixed: resolve `package/msm8916/<pkg>` first, fall back to `package/system/<pkg>`. Any project package that adds `patches/` would have hit this. |
+| F33 | Build with the new `KernelPackage/sound-msm8916-voice` | `WARNING: Makefile 'package/msm8916/ufi-voice/Makefile' has a dependency on 'kmod-sound-msm8916-voice', which does not exist` — and the image would have shipped **without** the kmod, silently | The kernel package scan cache `tmp/info/.packageinfo-kernel_linux` was from **2026-10-25**: `SCAN_DEPS` does not track `target/linux/*/modules.mk`, so the cache never invalidates when a KernelPackage is added (Doc 171) | `rm -f openwrt/tmp/info/.packageinfo-kernel_linux openwrt/tmp/.config-{package,target}.in openwrt/tmp/.config` before the build. `guard` cannot see this — it is a derived cache. Always `find openwrt/bin -iname "kmod-<name>*.apk"` afterwards. |
+| F34 | `voicectl start host` (session defaults to `cs`) during a VoLTE call | Call in `conversation`, but the `pcm0` capture was **all zeros** (96000 samples, peak 0) | The voice session is a **DSP-level selector**, not just a label: on a `voice-ip` call the CS session carries nothing. `voicectl` sets the `Voice Session` mixer control to `CS` unless told otherwise | Always pass the session on a VoLTE call: `voicectl start host volte` (or leave it to `ufi-voiced`, whose `session=auto` picks `volte` while IMS is registered). |
 
 ## 8. Success record
 
@@ -339,6 +342,8 @@ Every entry is a real attempt on this branch. **Read this before repeating an id
 | S23 | **IMS REGISTERS — reproducibly.** Four clean runs (20:13, 20:33, 21:25, 21:51) end with IMSA `0x0021` TLV `0x10` = `02` = `QMI_IMSA_IMS_REGISTERED`, and `0x0020` TLV `0x10` = `01` (IMS services enabled). The whole bring-up is scripted on the unit as `/root/volte_flow.sh` | `IMSA reg=02:00:00:00` within 3–5 s of the `0x20`-triggered PDN; stable for ≥16 min in the 20:33 run |
 | S24 | **A VoLTE call connects.** `VOICE 0x0020` Dial Call with TLV `0x01` (calling) + `0x02` (called) as ASCII strings produces a call whose type is `0x02` = `QMI_VOICE_CALL_TYPE_VOICE_IP` (**VoIP**), state `0x05` ALERTING → `0x03` CONVERSATION; the callee's phone rang and the call was answered | `Get All Call Info` (`0x002F`) TLV `0x10` = `02:01:05:02:01:04:00:00:02:06:…` (2 calls, first `id=1 state=5 type=2 dir=1`) then `01:01:03:02:01:04:00:00` (1 call, `state=3` CONVERSATION, `type=2` VOICE_IP) |
 | S25 | **The exact working call command.** The client must stay allocated for the duration of the call, so `qmi-raw` gained `QMI_HOLD_SECS` / `QMI_NO_RELEASE` (r4) | `QMI_HOLD_SECS=14 qmi-raw /dev/wwan0qmi0 0x09 0x0020 0x01=38343331323235313636 0x02=38343331323235313636` |
+| S26 | **VoLTE DOWNLINK audio works.** With `voicectl start host volte` and a live call, `pcm0` (MultiMedia1, `VOC_REC_DL`) captures the caller's voice | `/tmp/dl2.wav`: 96000 frames @ 8 kHz, peak 457, RMS 44.2, 12408 non-zero samples (the `cs` session gives peak 0 — F34) |
+| S27 | **VoLTE UPLINK audio works.** Audio played on `pcm1` (MultiMedia2, `VOICE_PLAYBACK_TX`) is heard by the far end | A 6 s 1 kHz tone at −11 dBFS played 3× into `hw:0,1` during a `conversation` call; the user on the other phone reported "a long beep" |
 
 ### 8.1 The working end-to-end recipe (live-verified 2026-11-12)
 
@@ -364,6 +369,84 @@ qmi-raw /dev/wwan0qmi0 0x09 0x002f
 ```
 
 `/root/volte_flow.sh` does steps 1–4 in one shot.
+
+### 8.2 Stage 1 — call audio (in progress, 2026-11-13)
+
+A VoLTE call that connects but carries no audio is only half a phone. The audio path is a
+**separate** problem from IMS registration, and it was already solved upstream: the
+`isprogrammer/msm8916-openwrt` branch `voice_calls_new` adds a full QDSP6 voice stack
+(5 commits, ~6,400 lines). It is now merged into this tree as patches **870** (kernel) and
+**872** (mifib-v12 DTS), plus the `ufi-voice` package.
+
+**Why it works without an ADSP partition.** The voice services (`q6mvm`, `q6cvs`, `q6cvp`,
+`q6voice`) are reached over **APR, which rides the modem's existing `smd-edge`**. The modem
+firmware we already run contains them. No extra partition, no extra firmware blob.
+
+**What patch 870 adds**
+
+| Layer | Addition |
+|---|---|
+| `sound/soc/qcom/qdsp6/` | `q6voice.c`, `q6voice-common.c`, `q6voice-dai.c`, `q6mvm.c`, `q6cvs.c`, `q6cvp.c` |
+| `q6afe` | internal BT SCO ports `INT_BT_SCO_RX/TX` (136/137) and pseudo ports `VOICE_RECORD_RX/TX` (138/139), `VOICE_PLAYBACK_TX` (140) |
+| `q6routing` | `VOC_REC_DL/UL` capture and `VOICE_PLAYBACK_TX` playback routes |
+| `apq8016_sbc` | non-MI2S backends skip LPASS/codec setup and are fixed at 8 kHz mono S16_LE |
+| DT | `q6mvm`/`q6cvs`/`q6cvp` service nodes in `msm8916.dtsi`; the card in `msm8916-ufi-voice.dtsi` |
+
+**The card** is `qcom,msm8916-qdsp6-sndcard`, model `msm8916-voice`, with three PCMs:
+
+| PCM | Use |
+|---|---|
+| `pcm0` MultiMedia1 | capture (`VOC_REC_DL` downlink / `VOC_REC_UL` uplink) or playback |
+| `pcm1` MultiMedia2 | playback **into** the call (`VOICE_PLAYBACK_TX`), or capture |
+| `pcm2` CS-Voice | hostless; open both directions to start the voice path |
+
+**Package `ufi-voice`** (`packages/ufi-voice`, from the same branch)
+
+| Binary | Role |
+|---|---|
+| `imsdcm` | AP-side IMS data service (QMI service 770 over **QRTR**) — the mature form of our 81voltd |
+| `ufi-voiced` | call manager: polls MM every 0.5 s, drives BT and/or Asterisk |
+| `hfp-ag` | HFP AG on BlueZ Profile1 (Bluetooth headset) |
+| `voicectl` | `bt` = internal BT SCO, `host` = record tap on pcm0 + playback on pcm1 |
+| `voicebridge` | AudioSocket bridge to Asterisk |
+| `volte-setup` | modem EFS items |
+
+`ufi-voice-asterisk` adds a PJSIP config (phones 100/101) and an AudioSocket bridge, i.e. the
+box can be a small home PBX whose trunk is the SIM.
+
+**Deliberately not enabled at install.** `imsdcm` and `ufi-voiced` are installed but not
+`enable`d (no postinst). This build keeps the **working** 81voltd + `ims-profile` IMS path;
+`imsdcm` is the planned replacement and must be evaluated before it takes over (it brings
+several fixes we hit the hard way: bearer deleted at boot, SSR before MM exists, stale
+local-id mapping, the `10-report-down` reconnect loop).
+
+**LIVE-VERIFIED 2026-11-13** on the mifib-v12 (image flashed at AP uptime 0, kernel 6.12.112):
+
+```
+cat /proc/asound/cards        # 0 [msm8916voice]: msm8916-voice
+ls /dev/snd                   # controlC0 pcmC0D0c/p pcmC1D0c/p pcmC2D0c/p timer
+amixer -c 0 controls | wc -l  # 1066 (includes INT_BT_SCO_RX Voice Mixer CS-Voice)
+```
+
+The end-to-end audio test, both directions (S26/S27):
+
+```
+# 1. voice path on the VoLTE session (cs gives a SILENT downlink -- see F34)
+voicectl start host volte        # status: running: mode=host session=volte card=0
+
+# 2. place a call and keep the QMI client alive
+QMI_HOLD_SECS=60 qmi-raw /dev/wwan0qmi0 0x09 0x0020 \
+    0x01=38343331323235313636 0x02=38343331323235313636 &
+
+# 3. downlink: the caller's voice on pcm0
+arecord -D hw:0,0 -f S16_LE -r 8000 -c 1 -d 12 /tmp/dl.wav
+
+# 4. uplink: audio played on pcm1 is heard on the far end
+aplay -D hw:0,1 /tmp/tone.wav
+```
+
+**What is still manual:** `voicectl start` and the dial. `ufi-voiced` (installed and enabled,
+mode `both`) is meant to do both automatically; that path has not been verified yet.
 
 ## 9. Open questions / next actions
 
@@ -423,3 +506,5 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | IMSD work: `81voltd` decodes `0x23`, reply is selectable (up/down) and the PDN delay is configurable; the indication now carries the modem's conn id. Tested `down` (no `0x20`), `up` with the address + `wwan1` up (still rx/tx 0) ⇒ F24–F26. DIAG LOG_F capture fixed (F27). Found the modem's own DCM PDP-activate path (S19). |
 | 2026-11-13 | **Root-cause candidate found**: the `ims` PDN profile must set `IMCN=1` + `PCSCF-via-PCO=1`; without them the network delivers **no P-CSCF** and IMS can never register. Also found that WDS profiles are wiped at every modem boot, so the `ims` profile never exists when the modem's IMS stack runs. Added F28–F30, S20–S22. |
 | 2026-11-13 | **VoLTE WORKS.** IMS registers reproducibly (S23) and a real VoLTE call connects end-to-end (S24/S25). Two blockers found and fixed along the way: MM loses its 3GPP view after an SSR (fix: `mmcli -m 0 --disable/--enable`), and the VOICE Dial Call number TLVs are ASCII strings, not BCD (F31). Added §8.1 with the complete recipe. |
+| 2026-11-13 | **Call audio (stage 1) wired in.** Merged the upstream `voice_calls_new` stack: patches 870 (q6voice/q6mvm/q6cvs/q6cvp, BT SCO + record/playback ports, non-MI2S card), 871 (bam-dmux pc_irq re-check — an A2 assertion seen *during a voice call* on UFI003), 872 (mifib-v12 DTS hook), the `ufi-voice` + `ufi-voice-asterisk` packages, and `DEVICE_PACKAGES` for mifib-v12. No ADSP partition needed: APR rides the modem's `smd-edge`. See §8.2. |
+| 2026-11-13 | **VoLTE CALL AUDIO WORKS, both directions** (S26/S27). Flashed the voice image to the mifib-v12; `/proc/asound/cards` shows `msm8916voice` with all 1066 mixer controls. With `voicectl start host volte` a live VoLTE call carries the caller's voice into `pcm0` and plays `pcm1` back to the far end. F34: the `cs` session gives a silent downlink on a `voice-ip` call. |
