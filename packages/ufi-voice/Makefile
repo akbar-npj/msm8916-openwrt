@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=12
+PKG_RELEASE:=13
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -29,6 +29,8 @@ define Package/ufi-voice/description
  local SIP phones through Asterisk (ufi-voice-asterisk).
  voicectl / hostless: DSP voice path routing. voicebridge: low-latency
  in-call audio for the Asterisk phones. volte-setup: modem EFS items.
+ ims-profile-setup / ims-profile-watch: create the "ims" WDS profile at every
+ modem boot, AP boot and runtime restart alike.
 endef
 
 define Package/ufi-voice/conffiles
@@ -70,8 +72,14 @@ define Package/ufi-voice/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hfp-ag $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/imsdcm ./files/ufi-voiced ./files/voicectl \
 		./files/volte-setup ./files/ufi-voice-dial ./files/ufi-voice-apply \
-		./files/ufi-voice-status $(1)/usr/sbin/
+		./files/ufi-voice-status ./files/ims-profile-setup \
+		./files/ims-profile-watch $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/imsdcm.init $(1)/etc/init.d/imsdcm
+	$(INSTALL_BIN) ./files/ims-profile.init $(1)/etc/init.d/ims-profile
+	$(INSTALL_BIN) ./files/ims-profile-watch.init $(1)/etc/init.d/ims-profile-watch
+	$(INSTALL_DIR) $(1)/etc/rc.d
+	$(LN) ../init.d/ims-profile $(1)/etc/rc.d/S94ims-profile
+	$(LN) ../init.d/ims-profile-watch $(1)/etc/rc.d/S97ims-profile-watch
 	$(INSTALL_BIN) ./files/hfp-ag.init $(1)/etc/init.d/hfp-ag
 	$(INSTALL_BIN) ./files/ufi-voiced.init $(1)/etc/init.d/ufi-voiced
 	$(INSTALL_CONF) ./files/ufivoice.config $(1)/etc/config/ufivoice
