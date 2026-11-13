@@ -451,6 +451,25 @@ aplay -D hw:0,1 /tmp/tone.wav
 **What is still manual:** `voicectl start` and the dial. `ufi-voiced` (installed and enabled,
 mode `both`) is meant to do both automatically; that path has not been verified yet.
 
+**A manual `qmi-raw` dial does NOT get the host bridge** (measured 2026-11-13). `voicebridge` is
+spawned by `ufi-voiced` inside `voice_start()`, which only runs for a call the daemon knows about;
+a call placed behind its back gets `voicectl`'s mixer routes but no bridge, so the SIP leg carries
+nothing. MM logs it as `unexpected outgoing call to number '…' reported in call list`. To exercise
+the bridge on a manual call, start it yourself after the call is in `conversation`:
+
+```sh
+voicebridge -D hw:0 -r 48000 -j 60 -v      # -v = the 5 s statistics (uci bridge_debug)
+```
+
+(That is exactly the command `ufi-voiced` runs, `packages/ufi-voice/files/ufi-voiced` ~line 434.)
+
+Two other observations from the same run: the call **survived the QMI client exiting** (still
+`conversation` at 18:02:54, 9 s after the 45 s hold ended), so the hold is needed for events, not to
+keep the call up; and `End Call` (`0x0021`, TLV `0x01=<call id>`) answered
+`FAILURE: InvalidQosId` yet the call list was empty 3 s later — the TLV layout for End Call is
+probably not the plain call id. Use `mmcli -m any --voice-hangup` or let the far end hang up until
+that is worked out.
+
 ### 8.3 Audio quality — the jitter buffer (2026-11-13)
 
 The first live call was intelligible but **choppy and jittery**. The bridge statistics localised it
@@ -680,3 +699,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **VoLTE CALL AUDIO WORKS, both directions** (S26/S27). Flashed the voice image to the mifib-v12; `/proc/asound/cards` shows `msm8916voice` with all 1066 mixer controls. With `voicectl start host volte` a live VoLTE call carries the caller's voice into `pcm0` and plays `pcm1` back to the far end. F34: the `cs` session gives a silent downlink on a `voice-ip` call. |
 | 2026-11-13 | **Audio quality pass (§8.3).** The bridge stats proved the DSP leg perfect and the phone leg bursty. Root cause of the choppiness was the jitter buffer's refill policy (F35) — fixed; `ufi-voice` r11. AP `dtim_period` 2 → 1. F36: a locally built `.apk` cannot be `apk add`ed on a bench unit whose kernel hash differs — copy the file. |
 | 2026-11-13 | **The Phone page (`luci-app-ufi-voice`) built and installed; `ufi-voice` r12.** SIP accounts moved into uci (`config phone`), one idempotent generator (`ufi-voice-asterisk-apply`) writes `pjsip.conf`/`extensions.conf`/`manager.conf`, and the page applies changes by running `ufi-voice-apply` through rpcd. Image built (`./build.sh build mifib-v12`, 704 s, all three apks + sysupgrade image). **F36 explained properly (§8.5):** the unit's `/etc/apk/world` pins a kernel hash the unit no longer runs and every kmod record names that same stale hash, so `apk` cannot solve *any* install; files were installed from `.pkgdir` and the world pin corrected. Bench unit is healthy again — SIM active, `connected`, LTE, IMS `registered`. |
+| 2026-11-13 | **Live call re-verified after the r12 + LuCI change** (S28): Dial Call `SUCCESS`, MM saw `dialing → ringing-out → active`, call info `state=conversation type=voice-ip direction=mo mode=lte`, and the far end answered. No regression from the package rebuild. Found that a manual `qmi-raw` dial bypasses `ufi-voiced.voice_start()`, so no `voicebridge` runs for it (§8.2) — the audio-quality test needs either the daemon to own the call or a hand-started bridge plus a registered SIP client. |
