@@ -14,6 +14,16 @@ USE_PROCD=1
 start_service() {
 	local linkup_reply linkup_delay
 
+	# ufi-voice ships imsdcm, the newer implementation of the same QMI
+	# service 770. Two servers for one service fight over the modem's IMSD
+	# requests: the bearer gets created and removed in a loop and IMS never
+	# registers. imsdcm wins whenever it is installed; 81voltd stays for
+	# images that do not carry ufi-voice.
+	if [ -x /usr/sbin/imsdcm ]; then
+		logger -t 81voltd "imsdcm is installed, leaving service 770 to it"
+		return 0
+	fi
+
 	# How to answer the modem's IMSD 0x23 link-up announcement:
 	#   down (default) -> err_code 13, modem must send 0x20 Start Connection
 	#   up             -> success, 81voltd starts the "ims" PDN itself

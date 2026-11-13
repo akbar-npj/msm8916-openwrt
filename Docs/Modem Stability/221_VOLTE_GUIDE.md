@@ -37,7 +37,7 @@ VoLTE needs four things, in this order:
    early. A profile created afterwards is invisible. So the AP creates it the moment the modem's QMI
    port appears (`/etc/hotplug.d/wwan/20-ims-profile`).
 3. **An AP-side IMS data service.** In hybrid IMS mode the modem asks the AP to bring the IMS PDN up
-   over QMI service 770. `81voltd` answers that, creates the bearer through ModemManager, and reports
+   over QMI service 770. `imsdcm` answers that, creates the bearer through ModemManager, and reports
    the address back. Then the modem registers.
 4. **An audio path.** The modem's DSP does not have a speaker on this board. `q6voice` exposes the
    in-call audio as PCM taps: the downlink can be captured on `pcm0`, and whatever you write to `pcm1`
@@ -86,7 +86,7 @@ service is up, which is the earliest point the AP can talk to it — and the sam
 ### 3.4 Registration still needs an AP-side data service
 
 In hybrid IMS mode (`ims_hybrid_enable=1`) the modem does not bring the IMS PDN up itself. It sends a
-QMI IMSD request (`0x20`, service 770) to the AP and waits for the address. `81voltd` implements that
+QMI IMSD request (`0x20`, service 770) to the AP and waits for the address. `imsdcm` implements that
 service: it creates the bearer through ModemManager, reads the assigned address, and sends the
 indication back. Only then does the modem register with the IMS core.
 
@@ -99,7 +99,7 @@ indication back. Only then does the modem register with the IMS core.
                                         │
         /dev/wwan0qmi0 appears ─────────┤  hotplug: create+flag the `ims` profile
                                         │
- modem IMS stack ──QMI 770 (IMSD)──> 81voltd ──mmcli──> ModemManager ──> bearer up
+ modem IMS stack ──QMI 770 (IMSD)──> imsdcm ──mmcli──> ModemManager ──> bearer up
         ▲                               │
         └──── indication 0x20 (address) ┘
                                         │
@@ -119,7 +119,7 @@ indication back. Only then does the modem register with the IMS core.
 
 | Package | Role |
 |---|---|
-| `81voltd` | QMI service 770 (IMSD) + `ims-profile-setup` + the wwan hotplug hook |
+| `81voltd` | the older QMI 770 (IMSD) service + `ims-profile-setup` + the wwan hotplug hook. Its daemon steps aside when `imsdcm` is installed |
 | `ufi-voice` | `ufi-voiced`, `imsdcm`, `voicectl`, `voicebridge`, `hostless`, `hfp-ag`, `volte-setup` |
 | `ufi-voice-asterisk` | one-shot Asterisk config (SIP phones 100/101, AudioSocket bridge) |
 | `kmod-sound-msm8916-voice` | `q6voice`, `q6mvm`, `q6cvs`, `q6cvp`, `q6afe` ports, the `msm8916-voice` card |
@@ -174,7 +174,7 @@ On boot, in order:
 1. The modem starts; `/dev/wwan0qmi0` appears (~10 s).
 2. `20-ims-profile` runs from the wwan hotplug and creates the `ims` profile with
    `IMCN=1` + `PCSCF-via-PCO=1`.
-3. `81voltd` starts (`START=96`) and binds QMI service 770.
+3. `imsdcm` starts (`START=96`) and binds QMI service 770.
 4. ModemManager brings up the IMS bearer when the modem asks.
 5. The modem registers with the IMS core.
 
@@ -211,7 +211,7 @@ qmi-raw /dev/wwan0qmi0 1 0x0028 0x01=0002 0x1f=01 0x22=01
 mmcli -m 0 --disable; sleep 4; mmcli -m 0 --enable; sleep 12
 
 # 3. re-trigger the modem's IMS stack
-/etc/init.d/81voltd restart
+/etc/init.d/imsdcm restart      # or /etc/init.d/81voltd restart on an image without ufi-voice
 
 # 4. poll until registered (3-5 s)
 qmi-raw /dev/wwan0qmi0 0x21 0x0021     # TLV 0x10 = 02:00:00:00
@@ -422,7 +422,7 @@ and the AudioSocket.
 | `voicectl: the voice path did not start` | no active call, or the DSP session is already held | start it while a call is up; `voicectl stop` first |
 | `pjsip show endpoints` is empty right after the first install | Asterisk started before the generated config was complete | `asterisk -rx "module reload res_pjsip.so"`; a normal restart also fixes it |
 | No sound card at all | kernel package missing from the image | check the manifest; clear the stale kernel package scan cache (§6) |
-| IMS bearer appears and disappears every few seconds | 81voltd and `imsdcm` fighting over QMI service 770 | `/etc/init.d/imsdcm disable` — run one IMS data service, not two |
+| IMS bearer appears and disappears every few seconds | two servers for QMI 770 (81voltd and imsdcm) | run one: `imsdcm` is the default; `81voltd`'s init now steps aside when imsdcm is installed |
 | Two calls to the same number | a second dial while one is active holds the first (normal call waiting) | not a bug; hang up the held call or use hold/swap |
 
 ---
@@ -433,9 +433,12 @@ and the AudioSocket.
    recreates it on the next boot, but a device that has never had one needs the manual flow once.
 2. **The first boot after a flash is slower to register** — the modem re-provisions its profile table
    from the MCFG and only then accepts the AP's profile.
-3. **One IMS data service.** `81voltd` and `imsdcm` both implement QMI 770. `imsdcm` is the newer
-   implementation (it also handles the bearer-at-boot and stale-id cases); switching to it is a
-   deliberate change, not something to run side by side.
+3. **One IMS data service, and it is `imsdcm`.** `81voltd` implements the same QMI 770 service but
+   answers the modem's requests in a way that makes it drop the bearer and ask again — a create/remove
+   loop every few seconds and, on a plain boot, no registration at all. `imsdcm` handles the same
+   exchange correctly: with it alone a cold boot registers with zero bearer churn. `ufi-voice` installs
+   a uci-defaults that enables `imsdcm` and disables `81voltd`, and `81voltd`'s init refuses to start
+   when `/usr/sbin/imsdcm` exists, so the two can never run together by accident.
 4. **Multi-call works but has no policy.** The modem will happily hold a call and dial another; nothing
    currently decides which one gets the audio.
 5. **Bluetooth and Asterisk are wired but not yet exercised end to end** on this unit.
@@ -462,7 +465,8 @@ and the AudioSocket.
 | `/etc/hotplug.d/wwan/20-ims-profile` | creates the `ims` profile when the QMI port appears |
 | `/usr/sbin/ims-profile-setup` | the profile creation + flagging helper |
 | `/etc/init.d/ims-profile` | fallback (START=94), idempotent |
-| `/etc/init.d/81voltd` | the IMS data service (START=96) |
+| `/etc/init.d/imsdcm` | the IMS data service (START=96), from `ufi-voice` |
+| `/etc/init.d/81voltd` | the older IMS data service; stays down when imsdcm is installed |
 | `/etc/init.d/ufi-voiced` | the call manager (START=99) |
 | `/etc/config/ufivoice` | automation settings |
 | `/etc/asterisk/` | Asterisk config, including `ufi-voice-phones.txt` |
@@ -473,7 +477,7 @@ and the AudioSocket.
 
 ```
 logread | grep -i ims-profile        # profile creation at boot
-logread | grep 81voltd               # IMSD service, bearer create/remove
+logread | grep -i imsdcm             # IMSD service (81voltd on older images)
 logread | grep ufi-voiced            # call state machine, voice path start/stop
 logread | grep voicectl              # "voice path started (host, volte)"
 dmesg | grep -iE "q6voice|asoc|apr"  # DSP plumbing

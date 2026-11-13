@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=9
+PKG_RELEASE:=10
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -76,6 +76,8 @@ define Package/ufi-voice/install
 	$(INSTALL_CONF) ./files/ufivoice.config $(1)/etc/config/ufivoice
 	$(INSTALL_DIR) $(1)/etc/ModemManager/connection.d
 	$(INSTALL_BIN) ./files/10-report-down $(1)/etc/ModemManager/connection.d/
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/90-ufi-voice-services $(1)/etc/uci-defaults/
 endef
 
 define Package/ufi-voice-asterisk/conffiles
