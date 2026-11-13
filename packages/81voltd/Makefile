@@ -17,7 +17,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=81voltd
 PKG_VERSION:=1.2.0
-PKG_RELEASE:=11
+PKG_RELEASE:=12
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://gitlab.nura.eco/modem/81voltd.git
@@ -57,6 +57,8 @@ define Package/81voltd/install
 	$(INSTALL_BIN) ./files/ims-profile.init $(1)/etc/init.d/ims-profile
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/ims-profile-setup $(1)/usr/sbin/ims-profile-setup
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/wwan
+	$(INSTALL_BIN) ./files/20-ims-profile $(1)/etc/hotplug.d/wwan/20-ims-profile
 endef
 
 $(eval $(call BuildPackage,81voltd))

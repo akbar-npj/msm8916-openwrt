@@ -531,12 +531,16 @@ class Manager:
             self.voice_on = False
 
     def reroute(self):
-        """Route host: the bridge carries the audio of the active call."""
+        """Route host: the DSP voice path carries the active call, and the
+        bridge forwards its audio to the Asterisk leg when there is one."""
         if self.route != 'host':
             return
         active = [p for p, s in self.known.items() if s == 'active']
         leg = self.legs.get(active[0]) if len(active) == 1 else None
-        if leg and not (self.voice_on and self.bridge.running()):
+        # The DSP path does not depend on an Asterisk leg: start it for any
+        # active call, otherwise a call with no SIP phone (a plain VoLTE call,
+        # or Asterisk not yet connected) gets no audio at all.
+        if len(active) == 1 and not self.voice_on:
             self.voice_start()
         if self.bridge.leg is not leg:
             for l in self.legs.values():
@@ -636,7 +640,12 @@ class Manager:
             self.hs.send('alerting')
         elif st == 'active' and (path == self.call or path in self.legs):
             if self.route is None:
-                self.route = 'bt' if self.hs.connected else ('host' if self.legs else 'bt')
+                # A connected headset owns the call. Without one, use the host
+                # taps: the DSP still runs the voice path, the downlink is
+                # captured on pcm0 and pcm1 plays into the call, which is what
+                # Asterisk and recordings need. Falling back to 'bt' here just
+                # sent the audio to a SCO link nobody had opened.
+                self.route = 'bt' if self.hs.connected else 'host'
             self.stop_ringing_for(path)
             if self.route == 'host':
                 if path == self.call and old != 'held':
