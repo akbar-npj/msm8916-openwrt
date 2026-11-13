@@ -420,6 +420,7 @@ and the AudioSocket.
 | Call connects, no audio, capture all zeros | wrong voice session | `voicectl start host volte` on a VoLTE call |
 | `aplay -D hw:0,1` → `Resource busy` | `voicebridge` owns `pcm1` | inject audio through Asterisk/AudioSocket, or stop the bridge first |
 | `voicectl: the voice path did not start` | no active call, or the DSP session is already held | start it while a call is up; `voicectl stop` first |
+| `pjsip show endpoints` is empty right after the first install | Asterisk started before the generated config was complete | `asterisk -rx "module reload res_pjsip.so"`; a normal restart also fixes it |
 | No sound card at all | kernel package missing from the image | check the manifest; clear the stale kernel package scan cache (§6) |
 | IMS bearer appears and disappears every few seconds | 81voltd and `imsdcm` fighting over QMI service 770 | `/etc/init.d/imsdcm disable` — run one IMS data service, not two |
 | Two calls to the same number | a second dial while one is active holds the first (normal call waiting) | not a bug; hang up the held call or use hold/swap |
