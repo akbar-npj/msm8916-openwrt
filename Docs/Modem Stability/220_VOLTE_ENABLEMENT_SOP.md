@@ -546,6 +546,28 @@ instead of every 60 s. Force the softphone to **G.711 µ-law/A-law, ptime 20 ms,
 48 kHz leg makes Asterisk transcode 48k→8k for AudioSocket and adds its own jitter buffer in series
 with ours.
 
+**Verified after the fix, over the real SIP path (S30, 2026-11-13).** Two calls originated from the
+softphone (`100` at 192.168.8.247): SIP → dialplan → `ufi-voice-dial` → ModemManager → modem, with
+`ufi-voiced` spawning the bridge itself. This is the *automated* path, not the hand-started one, and
+the callee reported the audio **clear**:
+
+```
+18:43:45  5s cap 47901/s play 50296/s in 8015/s out 7981/s jbuf  0/60 ms gaps 1 dropped 0 ms xruns 0/1 outdrop 0
+18:43:50  5s cap 48101/s play 47910/s in 7985/s out 8017/s jbuf 10/60 ms gaps 0 dropped 0 ms xruns 0/0 outdrop 0
+...  second call, 66 s ...
+18:44:56  5s cap 48113/s play 50222/s in 8019/s out 8016/s jbuf  0/60 ms gaps 3 dropped 0 ms xruns 0/1 outdrop 0
+18:45:01  5s cap 47989/s play 47989/s in 7998/s out 7998/s jbuf 50/60 ms gaps 0 dropped 0 ms xruns 0/0 outdrop 0
+18:45:06 .. 18:45:57    eleven more windows, all "gaps 0 dropped 0 ms xruns 0/0 outdrop 0"
+```
+
+Both directions at the full 8 kHz, **`dropped 0 ms` and `outdrop 0` for the entire call**, and zero
+gaps in every window except the first. The first window of *each* call shows `jbuf 0/60` and a few
+gaps plus one playback xrun — that is the jitter buffer starting empty and filling up, not a fault;
+it is the only silence left. (If that initial ~50 ms is ever audible, pre-fill the FIFO before the
+first playback write.) Note `jbuf <min>` is not a starvation metric on its own: the playback loop
+drains every period the device has room for, so it routinely dips to 10 ms while nothing is lost —
+`gaps` is the number that matters.
+
 ### 8.4 The phone page — `luci-app-ufi-voice` (2026-11-13)
 
 Until now the only way to change a SIP password was to edit `/etc/asterisk/pjsip.conf` over SSH, and
@@ -724,3 +746,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **The Phone page (`luci-app-ufi-voice`) built and installed; `ufi-voice` r12.** SIP accounts moved into uci (`config phone`), one idempotent generator (`ufi-voice-asterisk-apply`) writes `pjsip.conf`/`extensions.conf`/`manager.conf`, and the page applies changes by running `ufi-voice-apply` through rpcd. Image built (`./build.sh build mifib-v12`, 704 s, all three apks + sysupgrade image). **F36 explained properly (§8.5):** the unit's `/etc/apk/world` pins a kernel hash the unit no longer runs and every kmod record names that same stale hash, so `apk` cannot solve *any* install; files were installed from `.pkgdir` and the world pin corrected. Bench unit is healthy again — SIM active, `connected`, LTE, IMS `registered`. |
 | 2026-11-13 | **Live call re-verified after the r12 + LuCI change** (S28): Dial Call `SUCCESS`, MM saw `dialing → ringing-out → active`, call info `state=conversation type=voice-ip direction=mo mode=lte`, and the far end answered. No regression from the package rebuild. Found that a manual `qmi-raw` dial bypasses `ufi-voiced.voice_start()`, so no `voicebridge` runs for it (§8.2) — the audio-quality test needs either the daemon to own the call or a hand-started bridge plus a registered SIP client. |
 | 2026-11-13 | **Bridge measured by hand on a live call** (S29). A manual dial leaves `ufi-voiced` out of the loop, so `voicebridge` was started directly — 40 s of statistics at `-j 60`: `cap`/`play` at 48 kHz, `out` at 8 kHz, **gaps 0, dropped 0 ms, xruns 0, outdrop 0**; the DSP→host leg is clean. `in 0/s` because no SIP client was registered, so the uplink/phone-leg half is still unmeasured. Trap: `voicebridge` exits instantly when stdin is EOF (an ssh one-liner gives it EOF) — it must get a pipe. Hangup: `--voice-hangup-all` errors `IncompatibleState` but does clear the call; `End Call` TLV `0x01` gives `InvalidQosId`. |
+| 2026-11-13 | **F35 verified on the real SIP path (S30).** Two softphone-originated calls went SIP → dialplan → `ufi-voice-dial` → MM → modem with `ufi-voiced` starting the bridge itself: both directions at 8 kHz, `dropped 0 ms`, `outdrop 0`, and zero gaps in every window after the first — the callee reported the audio clear. Only remaining silence is the buffer fill in each call's first 5 s window (`jbuf 0/60`, 1–3 gaps, one playback xrun). Added the reading note: `jbuf <min>` dips to 10 ms by design, `gaps` is the number that matters. |
