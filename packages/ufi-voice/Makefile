@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=11
+PKG_RELEASE:=12
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -69,7 +69,8 @@ define Package/ufi-voice/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hostless $(PKG_BUILD_DIR)/voicebridge $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hfp-ag $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/imsdcm ./files/ufi-voiced ./files/voicectl \
-		./files/volte-setup ./files/ufi-voice-dial $(1)/usr/sbin/
+		./files/volte-setup ./files/ufi-voice-dial ./files/ufi-voice-apply \
+		./files/ufi-voice-status $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/imsdcm.init $(1)/etc/init.d/imsdcm
 	$(INSTALL_BIN) ./files/hfp-ag.init $(1)/etc/init.d/hfp-ag
 	$(INSTALL_BIN) ./files/ufi-voiced.init $(1)/etc/init.d/ufi-voiced
@@ -86,8 +87,9 @@ define Package/ufi-voice-asterisk/conffiles
 endef
 
 define Package/ufi-voice-asterisk/install
-	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_DIR) $(1)/etc/uci-defaults $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/91-ufi-voice-asterisk $(1)/etc/uci-defaults/
+	$(INSTALL_BIN) ./files/ufi-voice-asterisk-apply $(1)/usr/sbin/
 endef
 
 $(eval $(call BuildPackage,ufi-voice))

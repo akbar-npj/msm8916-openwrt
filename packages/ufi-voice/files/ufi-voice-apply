@@ -1,0 +1,28 @@
+#!/bin/sh
+# ufi-voice-apply [-r] - apply ufivoice uci changes.
+#
+# ufi-voiced reads its options from uci on every call (mode, session, jitter,
+# sip_ring, ...), so a change needs no daemon restart. What does need work is
+# the Asterisk configuration, which is generated from uci, and the IMS data
+# service, which is started or skipped according to its on/off switch.
+#
+#   -r   also restart ufi-voiced (only needed when manage_answer changed)
+
+[ -x /usr/sbin/ufi-voice-asterisk-apply ] && /usr/sbin/ufi-voice-asterisk-apply
+
+if pidof asterisk >/dev/null 2>&1; then
+	asterisk -rx "module reload res_pjsip.so" >/dev/null 2>&1
+	asterisk -rx "dialplan reload" >/dev/null 2>&1
+	asterisk -rx "manager reload" >/dev/null 2>&1
+fi
+
+volte=$(uci -q get ufivoice.main.volte)
+if [ -f /var/run/ufi-voice.volte ] &&
+   [ "$volte" != "$(cat /var/run/ufi-voice.volte)" ]; then
+	/etc/init.d/imsdcm restart >/dev/null 2>&1
+fi
+echo "$volte" > /var/run/ufi-voice.volte
+
+[ "$1" = "-r" ] && /etc/init.d/ufi-voiced restart >/dev/null 2>&1
+
+exit 0

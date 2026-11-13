@@ -504,7 +504,70 @@ instead of every 60 s. Force the softphone to **G.711 µ-law/A-law, ptime 20 ms,
 48 kHz leg makes Asterisk transcode 48k→8k for AudioSocket and adds its own jitter buffer in series
 with ours.
 
-## 9. Open questions / next actions
+### 8.4 The phone page — `luci-app-ufi-voice` (2026-11-13)
+
+Until now the only way to change a SIP password was to edit `/etc/asterisk/pjsip.conf` over SSH, and
+the password existed nowhere else. The old `luci-app-asterisk` is gone from the feed (105 apps in
+`feeds/luci/applications`, none of them Asterisk) and it was a generic Asterisk editor whose dialplan
+writes would break `AudioSocket()` — the one line that puts a call on the modem. So the page is
+purpose-built instead: `Services → Phone`.
+
+**One source of truth.** The SIP accounts moved from the generated `pjsip.conf` into uci:
+
+```
+config phone 'p1'
+	option number '100'
+	option password '1234567890'
+```
+
+`/usr/sbin/ufi-voice-asterisk-apply` generates `pjsip.conf`, `extensions.conf`, `manager.conf` and
+`ufi-voice-phones.txt` from those sections. It is idempotent, it takes over the passwords of an older
+install from the existing `pjsip.conf` the first time it runs, and it generates a random password for
+any account that has none. **Never edit the generated files** — the next apply overwrites them.
+
+**Applying.** The JS form API has no `on_after_commit` hook (`m.on_after_commit` exists only in
+Lua `luci-compat`), so the page overrides `handleSaveApply`: save → `uci.apply()` → wait 2 s →
+`uci.callConfirm()` → `/usr/sbin/ufi-voice-apply` → reload. The wait and the confirm are not
+decoration: `uci apply` is a *checked* apply that rolls the whole change back unless it is confirmed
+within a few seconds, and a page reload cancels the internal confirm timer. Skipping them silently
+reverts the user's change.
+
+`ufi-voice-apply` regenerates the Asterisk config and reloads it. It does **not** restart
+`ufi-voiced`, because that daemon reads uci on every call (`uci()` shells out to `uci get`), so
+`mode`, `session`, `jitter_ms`, `sip_ring` and the rest are live already — a save therefore does not
+drop a call in progress. Only `manage_answer` needs a restart (`ufi-voice-apply -r`).
+
+**Do not use `procd_add_reload_trigger` here.** It was tried and produced an empty `triggers` array
+on this build (`ubus call service list '{"name":"ufi-voiced","verbose":true}'`), so `uci commit`
+never restarted the service; the explicit exec above replaced it. A plain `uci commit ufivoice` over
+SSH also does not fire a config-change event (`/sbin/uci` is the C binary, not the shell wrapper) —
+run `/usr/sbin/ufi-voice-apply` afterwards.
+
+**Status is read-only and bounded.** `/usr/sbin/ufi-voice-status` prints one JSON object: service
+states, modem state/operator/signal/RAT, IMS registration, active call count, and each SIP account
+with its Asterisk contact state and source address. Every probe has its own `timeout`, so a dead
+modem or a stopped Asterisk cannot hang the page; the whole script runs in ~0.4 s.
+
+```sh
+/usr/sbin/ufi-voice-status
+{
+  "ufi_voiced": "running", "imsdcm": "running", "asterisk": "running",
+  "hfp_ag": "running", "voicebridge": "stopped",
+  "modem_state": "registered", "modem_operator": "IND-JIO", "modem_signal": 63,
+  "modem_tech": "lte", "ims": "registered", "calls": 0,
+  "sip": [{"number":"100","status":"Avail","host":"192.168.8.5"}]
+}
+```
+
+`mmcli` prints `--` for anything it does not know; the script maps that to empty so the page does not
+render `— --`.
+
+**Verified on the bench** (2026-11-13): add a `config phone` section → apply → `pjsip.conf` gains
+`[102]`, `pjsip show endpoints` lists it, `ufi-voice-phones.txt` is rewritten, `ufi-voice-status`
+reports it; delete it → apply → the endpoint is gone. The migration path was exercised too: the two
+accounts whose password had been set by hand were taken over into uci unchanged.
+
+
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
    17 s / SSR at 96 s, both after the file mtime) and proven live (S8). The IMSD client was then

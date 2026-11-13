@@ -1,0 +1,124 @@
+#!/bin/sh
+# ufi-voice-status - one-shot JSON status for the LuCI phone page.
+#
+# Everything here is read-only. Each probe has its own timeout so a dead
+# modem or a stopped Asterisk cannot hang the page.
+
+json_str() {
+	printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+}
+
+# process by executable name (binary)
+svc_bin() {
+	pidof "$1" >/dev/null 2>&1 && echo running || echo stopped
+}
+
+# process by script name (python, shell)
+svc_script() {
+	pgrep -f "$1" >/dev/null 2>&1 && echo running || echo stopped
+}
+
+# --- modem ---------------------------------------------------------------
+
+modem_state=unknown
+modem_operator=""
+modem_signal=0
+modem_tech=""
+
+mm=$(timeout 8 mmcli -m any -K 2>/dev/null)
+if [ -n "$mm" ]; then
+	modem_state=$(printf '%s\n' "$mm" | awk '
+		/^modem[.]generic[.]state / { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }')
+	modem_operator=$(printf '%s\n' "$mm" | awk '
+		/^modem[.]3gpp[.]operator-name / { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }')
+	modem_signal=$(printf '%s\n' "$mm" | awk '
+		/^modem[.]generic[.]signal-quality[.]value / { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }')
+	modem_tech=$(printf '%s\n' "$mm" | awk '
+		/^modem[.]generic[.]access-technologies / { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }')
+fi
+[ -n "$modem_state" ] || modem_state=unknown
+[ -n "$modem_signal" ] || modem_signal=0
+[ "$modem_state" = "--" ] && modem_state=unknown
+[ "$modem_signal" = "--" ] && modem_signal=0
+# mmcli prints "--" for every value it does not know
+[ "$modem_operator" = "--" ] && modem_operator=""
+[ "$modem_tech" = "--" ] && modem_tech=""
+
+# --- IMS registration ----------------------------------------------------
+
+ims=unavailable
+if [ -e /dev/wwan0qmi0 ]; then
+	ims=$(timeout 8 qmicli -d qrtr://0 --imsa-get-ims-registration-status 2>/dev/null |
+		awk -F"'" '/Status:/ { print $2; exit }')
+	[ -n "$ims" ] || ims=unknown
+fi
+
+# --- calls ---------------------------------------------------------------
+
+calls=0
+if [ "$modem_state" != unknown ]; then
+	calls=$(timeout 8 mmcli -m any --voice-list-calls 2>/dev/null | grep -c '/Call/')
+fi
+
+# --- SIP registrations ---------------------------------------------------
+
+contacts=$(timeout 8 asterisk -rx "pjsip show contacts" 2>/dev/null)
+
+sip=""
+add_sip() {
+	[ -n "$sip" ] && sip="$sip,"
+	sip="$sip{\"number\":$(json_str "$1"),\"status\":$(json_str "$2"),\"host\":$(json_str "$3")}"
+}
+
+sip_entry() {
+	local num="$1" line st host
+	line=$(printf '%s\n' "$contacts" | awk -v n="$num" '
+		/^[[:space:]]*Contact:/ && !/</ {
+			uri = $2
+			split(uri, a, "/")
+			if (a[1] != n) next
+			sub(/.*@/, "", a[2])
+			split(a[2], h, ":")
+			print $4, h[1]
+			exit
+		}')
+	if [ -n "$line" ]; then
+		st=${line%% *}
+		host=${line#* }
+		[ "$host" = "$line" ] && host=""
+	else
+		st=down
+		host=""
+	fi
+	add_sip "$num" "$st" "$host"
+}
+
+phones=$(uci -q show ufivoice 2>/dev/null |
+	sed -n "s/^ufivoice\.[^.=]*\.number='\(.*\)'$/\1/p")
+for num in $phones; do
+	sip_entry "$num"
+done
+
+# --- bridge --------------------------------------------------------------
+
+bridge=stopped
+pgrep -f voicebridge >/dev/null 2>&1 && bridge=running
+
+# --- output --------------------------------------------------------------
+
+cat <<EOF
+{
+  "ufi_voiced": "$(svc_script ufi-voiced)",
+  "imsdcm": "$(svc_script imsdcm)",
+  "asterisk": "$(svc_bin asterisk)",
+  "hfp_ag": "$(svc_bin hfp-ag)",
+  "voicebridge": "$bridge",
+  "modem_state": "$modem_state",
+  "modem_operator": $(json_str "$modem_operator"),
+  "modem_signal": $modem_signal,
+  "modem_tech": $(json_str "$modem_tech"),
+  "ims": "$ims",
+  "calls": $calls,
+  "sip": [$sip]
+}
+EOF

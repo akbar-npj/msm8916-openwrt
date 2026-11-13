@@ -121,7 +121,8 @@ indication back. Only then does the modem register with the IMS core.
 |---|---|
 | `81voltd` | the older QMI 770 (IMSD) service + `ims-profile-setup` + the wwan hotplug hook. Its daemon steps aside when `imsdcm` is installed |
 | `ufi-voice` | `ufi-voiced`, `imsdcm`, `voicectl`, `voicebridge`, `hostless`, `hfp-ag`, `volte-setup` |
-| `ufi-voice-asterisk` | one-shot Asterisk config (SIP phones 100/101, AudioSocket bridge) |
+| `ufi-voice-asterisk` | Asterisk config generated from uci (SIP accounts, AudioSocket bridge) |
+| `luci-app-ufi-voice` | `Services → Phone`: accounts, call routing, audio, live status |
 | `kmod-sound-msm8916-voice` | `q6voice`, `q6mvm`, `q6cvs`, `q6cvp`, `q6afe` ports, the `msm8916-voice` card |
 | `alsa-utils` | `amixer`, `aplay`, `arecord` |
 
@@ -376,13 +377,36 @@ blinds the 2.4 GHz station, so it does not page during a call.
 `ufi-voice-asterisk` writes the config once and enables the service. Asterisk listens on **UDP 5060**
 and the AMI on 127.0.0.1:5038.
 
+The SIP accounts live in `/etc/config/ufivoice` as `config phone` sections; the files below are
+**generated** from them by `/usr/sbin/ufi-voice-asterisk-apply` (which the Phone page runs for you).
+
 | File | Purpose |
 |---|---|
-| `/etc/asterisk/pjsip.conf` | transport + endpoints 100/101 |
-| `/etc/asterisk/extensions.conf` | `[ufi-phones]` (dial 100/101, everything else goes out via LTE) and `[ufi-incoming]` |
+| `/etc/asterisk/pjsip.conf` | transport + one endpoint/auth/aor per `config phone` |
+| `/etc/asterisk/extensions.conf` | `[ufi-phones]` (dial another extension, everything else goes out via LTE) and `[ufi-incoming]` |
 | `/etc/asterisk/ufi-voice-phones.txt` | the generated SIP usernames/passwords — read them from here |
+| `/etc/asterisk/manager.conf` | AMI user for `ufi-voiced`, localhost only |
 
-### 12.1 Register a softphone
+### 12.1 The Phone page (LuCI)
+
+`Services → Phone` (`luci-app-ufi-voice`) is the supported way to change any of this:
+
+| Section | What it sets |
+|---|---|
+| **Status** | modem state, operator, signal, RAT, IMS registration, service states, active calls |
+| **Service** | the VoLTE switch, `mode` (headset / SIP phones / both / none), auto-answer |
+| **SIP accounts** | the `config phone` table — number, password, and whether the account is registered |
+| **Audio** | jitter buffer, PCM rate, mute the unused mic port, statistics logging |
+| **Bluetooth headset** | the paired headset address and the reconnect backoff |
+| **Advanced** | voice session, AudioSocket port, AMI credentials, mobile interface, IMS kick timer |
+
+Leaving a password empty generates a random one on apply. **Do not edit `pjsip.conf` by hand** — the
+next apply overwrites it. Apply regenerates the config and reloads Asterisk; it does not restart the
+call daemon, so a call in progress is not interrupted.
+
+Over SSH, the same thing is `uci set` + `uci commit ufivoice` + `/usr/sbin/ufi-voice-apply`.
+
+### 12.2 Register a softphone
 
 Any SIP client works (Linphone, Zoiper, a desk phone). Use:
 
@@ -391,10 +415,13 @@ Any SIP client works (Linphone, Zoiper, a desk phone). Use:
 | Server / domain | the device's LAN address (`192.168.8.1` on the bench) |
 | Port | 5060, UDP |
 | Username | `100` (or `101`) |
-| Password | from `/etc/asterisk/ufi-voice-phones.txt` |
+| Password | from `/etc/asterisk/ufi-voice-phones.txt`, or the Phone page |
 | Transport | UDP |
 
-### 12.2 What works once a phone is registered
+The **Registered** column on the Phone page shows the live Asterisk contact state and the phone's
+address, so a phone that is not registering is visible without reading logs.
+
+### 12.3 What works once a phone is registered
 
 - **Incoming mobile call** → the phone rings; answering it starts the voice path and bridges the audio.
 - **Outgoing from the phone** → dial any number; the dialplan calls `ufi-voice-dial`, which asks
@@ -490,3 +517,4 @@ dmesg | grep -iE "q6voice|asoc|apr"  # DSP plumbing
 | Date | Change |
 |---|---|
 | 2026-11-13 | First version. Written after the first fully working build: IMS on boot, VoLTE call, two-way audio, automatic voice path. |
+| 2026-11-13 | Added §12.1, the LuCI Phone page. The SIP accounts moved from the generated `pjsip.conf` into `/etc/config/ufivoice` (`config phone`), so the page and the generator share one source. |
