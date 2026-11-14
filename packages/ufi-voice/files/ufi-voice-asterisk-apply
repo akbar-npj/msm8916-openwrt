@@ -126,6 +126,16 @@ type=aor
 ; incoming call would pop up twice on the same handset
 max_contacts=1
 remove_existing=yes
+; A suspended iOS client leaves its contact behind (up to an hour) while its
+; socket is dead, and Dial() then sends INVITEs into the void for the whole
+; 30 s timeout instead of returning CHANUNAVAIL - so the retry loop in
+; [ufi-incoming] never gets to ring the phone when it wakes up. Qualify every
+; 10 s: a contact that stops answering goes Unavailable, Dial() fails at once
+; and the retry loop polls it, so the ring happens within a couple of seconds
+; of the client re-registering. The contact is NOT removed: a transient WiFi
+; loss would otherwise leave the phone unreachable until it re-registered.
+qualify_frequency=10
+qualify_timeout=2
 EOT
 
 	gen_endpoint() {
@@ -188,21 +198,31 @@ exten => _[0-9+*#].,1,Set(UUID=${SHELL(/usr/sbin/ufi-voice-dial ${EXTEN})})
 ;
 ; A decline also comes back as CHANUNAVAIL (the fork to the other account
 ; failed), so retrying on that alone re-rings a phone the user just rejected.
-; Before retrying, check that every target is really UNAVAILABLE: a phone
-; that is registered and declined is NOT_INUSE/IDLE and must not be rung
-; again.
+; Before retrying, check that the target is really unreachable: a phone whose
+; contact is "Reachable" is registered and must not be rung again. The checks
+; are generated below, one line per phone. DEVICE_STATE() would be the obvious
+; function, but func_devstate is a separate module that is not always
+; installed - and an unregistered function makes GotoIf fail, which hangs up
+; the whole call (the caller then hears "busy"). PJSIP_AOR()/PJSIP_CONTACT()
+; ship with chan_pjsip, which this setup always has.
 [ufi-incoming]
 exten => s,1,Set(UFI_T0=${EPOCH})
  same => n(retry),Dial(${UFI_RING},30)
  same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?done)
  same => n,GotoIf($["${DIALSTATUS}" != "CHANUNAVAIL"]?done)
- same => n,Set(UFI_I=1)
- same => n(check),Set(UFI_T=${CUT(UFI_RING,&,${UFI_I})})
- same => n,GotoIf($["${UFI_T}" = ""]?wait)
- same => n,GotoIf($["${DEVICE_STATE(${UFI_T})}" != "UNAVAILABLE"]?done)
- same => n,Set(UFI_I=$[${UFI_I}+1])
- same => n,Goto(check)
- same => n(wait),Wait(2)
+EOT
+
+	gen_guard() {
+		local num
+		config_get num "$1" number
+		[ -n "$num" ] &&
+			echo " same => n,GotoIf(\$[\"\${PJSIP_CONTACT(\${PJSIP_AOR($num,contact)},status)}\" = \"Reachable\"]?done)"
+	}
+	config_load ufivoice
+	config_foreach gen_guard phone
+
+	cat <<'EOT'
+ same => n,Wait(2)
  same => n,GotoIf($[$[${EPOCH} - ${UFI_T0}] < 45]?retry)
  same => n(done),Hangup()
 EOT
