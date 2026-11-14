@@ -1,0 +1,71 @@
+From: churyakovis <355423536+churyakovis@users.noreply.github.com>
+Subject: [PATCH] net: sched: act_mirred: do not push a mac header on L3 ingress
+
+tcf_mirred_to_dev() pushes skb->mac_len bytes when the target expects the
+data at the MAC header. On ingress from an L3 device (raw-IP wwan, tunnels,
+PPP) there is no L2 header in front of the network header:
+__netif_receive_skb_core() runs skb_reset_mac_len(), which computes mac_len
+as network_header - mac_header, i.e. the offset of the data from the head of
+the buffer rather than a header length. Pushing that many bytes walks the
+data pointer back to (or past) the head, and the next skb_push() in the
+transmit path panics with skb_under_panic.
+
+Seen on a UZ801 v3 (6.12.112) with
+
+  tc qdisc add dev wwan0 clsact
+  tc filter add dev wwan0 ingress matchall \
+     action mirred egress redirect dev ifb0
+
+and inbound LTE traffic: skb_under_panic and a reboot, with or without
+CAKE; egress-only CAKE was fine.
+
+Ask the device the action is coming from, not the one it is going to:
+dev_is_mac_header_xmit() is the predicate already used for the target, and
+it is false for ARPHRD_NONE/RAWIP/tunnels/PPP. An L3 source therefore
+contributes no header. Also refuse a push that would not fit in the
+headroom - dropping one packet is strictly better than panicking.
+
+Reported by churyakovis in #84, who also wrote and tested the first version
+of this fix on a UZ801 v3 (ingress-only IFB, then CAKE in both directions).
+The source-device predicate and the headroom guard here are a re-key of it.
+---
+diff --git a/net/sched/act_mirred.c b/net/sched/act_mirred.c
+--- a/net/sched/act_mirred.c
++++ b/net/sched/act_mirred.c
+@@ -296,13 +296,34 @@
+ 	expects_nh = want_ingress || !m_mac_header_xmit;
+ 	at_nh = skb->data == skb_network_header(skb);
+ 	if (at_nh != expects_nh) {
+-		mac_len = at_ingress ? skb->mac_len :
+-			  skb_network_offset(skb);
++		if (at_ingress && !dev_is_mac_header_xmit(skb->dev)) {
++			/*
++			 * L3 ingress (raw-IP wwan, tunnels, PPP): there is no L2
++			 * header in front of the network header, so skb->mac_len
++			 * holds the offset of the data from the head of the
++			 * buffer, not a header length. Pushing it moves the data
++			 * pointer back to (or past) the head and the xmit path
++			 * then panics in skb_push().
++			 */
++			mac_len = 0;
++		} else {
++			mac_len = at_ingress ? skb->mac_len :
++				  skb_network_offset(skb);
++		}
+ 		if (expects_nh) {
+ 			/* target device/action expect data at nh */
+ 			skb_pull_rcsum(skb_to_send, mac_len);
+ 		} else {
+ 			/* target device/action expect data at mac */
++			if (unlikely((unsigned int)mac_len >
++				     skb_headroom(skb_to_send))) {
++				net_warn_ratelimited("%s: mac_len %d exceeds headroom %u, dropping\n",
++						     skb->dev->name, mac_len,
++						     skb_headroom(skb_to_send));
++				if (skb_to_send != skb)
++					kfree_skb(skb_to_send);
++				goto err_cant_do;
++			}
+ 			skb_push_rcsum(skb_to_send, mac_len);
+ 		}
+ 	}
