@@ -724,6 +724,69 @@ Both previously unpackaged pieces (`ims-profile-setup`, `ims-profile`) and the h
 now in `packages/ufi-voice` (r13) — before that they existed only on the bench unit's overlay and a
 reflash would have lost them.
 
+### 8.7 The audio DSP hangs at call teardown — dead air, both directions (2026-11-14)
+
+**Symptom.** Calls connect and behave normally — ringing, answer, `conversation`, hangup — but there
+is **no audio in either direction**, and it starts suddenly on a unit that has been working for
+hours. Nothing in the configuration changed: the same call an hour earlier had clean audio.
+
+**Diagnosis: the audio DSP stopped answering, the AP side is fine.** `dmesg` holds the whole story.
+The first failure of the boot is a **close**, not an open:
+
+```
+[24209.818983] qcom-q6afe aprsvc:service:4:4: AFE close failed -110
+[24209.819243] q6afe-dai ...: fail to close AFE port (-110)
+[24214.858918] q6asm-dai ...: CMD 10bcd timeout
+[24219.979355] qcom-q6asm aprsvc:service:4:7: CMD 10d94 timeout
+[24220.992407] qcom-q6adm aprsvc:service:4:8: ADM copp cmd timedout
+```
+
+and from then on every call repeats the same three ports, all `-110` (`ETIMEDOUT`):
+
+```
+qcom-q6afe ...: AFE enable for port 0x3000 failed -110     # INT_BT_SCO_RX
+qcom-q6afe ...: AFE enable for port 0x8003 failed -110     # VOICE_RECORD_RX
+q6afe-dai ...: ASoC: error at snd_soc_pcm_dai_prepare on VOICE_RECORD_RX: -110
+voicebridge: hw:0,0 capture: hw params: Operation timed out
+voicebridge exited 1
+```
+
+`-110` is a command timeout at the APR layer: AFE (service 4), ASM (7) and ADM (8) never reply, so
+`voicebridge` cannot open the capture PCM and exits, and `ufi-voiced` stops the path. The modem,
+IMS, the SIP leg and ModemManager are all healthy throughout — only the DSP is gone.
+
+**Where that DSP lives.** On this port there is **no `adsp.mdt` and no ADSP remoteproc**;
+`ls /lib/firmware | grep adsp` is empty and the only remoteprocs are `4080000.remoteproc` (mba →
+mpss) and `a204000.remoteproc` (wcnss). The APR services are children of the **modem's** SMD edge:
+
+```
+$ ls /sys/bus/platform/devices | grep apr
+4080000.remoteproc:smd-edge:apr:service@4:dais    # AFE
+4080000.remoteproc:smd-edge:apr:service@7:dais    # ASM
+4080000.remoteproc:smd-edge:apr:service@8:routing # ADM
+```
+
+So call audio shares the modem's Q6, and anything that takes that core down takes audio with it — the
+AP gets no notification and nothing re-probes the services.
+
+**Trigger and fix.** The hang began at an **AFE close**, i.e. at call teardown, which points at
+`voicectl stop`. `stop_hostless` sent SIGTERM and returned immediately, and `do_stop` then cleared
+the mixer routes at once. But `hostless` polls its stop flag **once a second**
+(`while (!stop) { sleep(1); ... }`, `hostless.c:112`), so its PCMs were still open when the routes
+went away — the AFE port is torn down underneath a live PCM, and the DSP never recovers from that.
+`do_start` had the same race, since it also begins with `stop_hostless`.
+
+Fixed in `ufi-voice` r14: `stop_hostless` now waits (up to 2 s, `usleep 50000` steps) for the pid to
+disappear before returning, so the mixer is only touched once the PCMs are really closed.
+
+**Recovery when it has already happened: an AP reboot.** Nothing on the AP can re-open the services —
+they are on the modem's firmware — and a modem SSR was not attempted, per the standing rule that a
+failed modem cold boot leaves the unit with no in-band recovery. A reboot restored audio
+immediately (S33: `voicectl start host volte` + `stop` afterwards, zero `-110`).
+
+**Detecting it.** `dmesg | grep "failed -110"` is decisive; the count is 0 on a healthy boot. On the
+LuCI side the same failure shows up as `voicebridge: stopped` with a call active.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
@@ -800,3 +863,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **F35 verified on the real SIP path (S30).** Two softphone-originated calls went SIP → dialplan → `ufi-voice-dial` → MM → modem with `ufi-voiced` starting the bridge itself: both directions at 8 kHz, `dropped 0 ms`, `outdrop 0`, and zero gaps in every window after the first — the callee reported the audio clear. Only remaining silence is the buffer fill in each call's first 5 s window (`jbuf 0/60`, 1–3 gaps, one playback xrun). Added the reading note: `jbuf <min>` dips to 10 ms by design, `gaps` is the number that matters. |
 | 2026-11-13 | **`ims` profile at every modem boot, packaged (S31, §8.6).** `ims-profile-setup`, its init script and the `wwan` hotplug handler existed only on the bench unit; they are now in `ufi-voice` r13 together with a new `ims-profile-watch` (S97) that covers runtime modem restarts (MM disable/enable + `imsdcm` restart). Fixed a latent bug: this busybox rejects `sleep 0.1`, which turned the setup script's 60 s device wait into a millisecond spin. Corrected F30 — the WDS table and its IMCN/PCO flags survive a delete plus reboot (restored from NV), so the create path only matters on a blank table. |
 | 2026-11-13 | **IMS PDN churn and data coexistence re-measured (S32).** No churn with `imsdcm`: 180 s capture, 0 start/stop events, daemon pid unchanged through a call. The only burst was self-inflicted (manual `imsdcm` restart while the default bearer was re-establishing — IMS took `wwan0`, collided, settled in ~25 s). Coexistence works: `jionet` on `wwan0` + `ims` on `wwan1` both connected, a VoLTE call reached `active` with the callee answering, no PDN teardown during it. §9.1 items 3 and 4 closed as not-reproducible / works. |
+| 2026-11-14 | **Dead air both directions — the audio DSP hung at call teardown (§8.7, S33).** A unit that had worked for hours suddenly connected every call but carried no audio. First failure of the boot is an **AFE close** `-110`, after which every AFE/ASM/ADM command times out and `voicebridge` cannot open the capture PCM. This port has no ADSP firmware: the APR services are children of the modem's SMD edge (`4080000.remoteproc:smd-edge:apr:service@{4,7,8,9}`), so audio shares the modem's Q6 and the AP cannot re-probe it. Fixed the AP-side ordering defect that precedes it — `voicectl stop` cleared the mixer routes while `hostless` (1 s poll) still had its PCMs open; r14 waits for the pid, zombie-aware. Recovery is an AP reboot; detection is now `dsp: hung` in the status JSON plus a row on the Phone page. |

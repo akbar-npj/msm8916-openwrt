@@ -53,6 +53,15 @@ if [ -e /dev/wwan0qmi0 ]; then
 	[ -n "$ims" ] || ims=unknown
 fi
 
+# --- audio DSP -----------------------------------------------------------
+
+# The call-audio services (APR AFE/ASM/ADM) run inside the modem's firmware.
+# When one of them times out it never answers again: calls still connect but
+# carry no audio, and only a reboot recovers it. The kernel logs one
+# "failed -110" (ETIMEDOUT) per command, and that is the only visible trace.
+dsp=ok
+dmesg 2>/dev/null | grep -q "failed -110" && dsp=hung
+
 # --- calls ---------------------------------------------------------------
 
 calls=0
@@ -118,6 +127,7 @@ cat <<EOF
   "modem_signal": $modem_signal,
   "modem_tech": $(json_str "$modem_tech"),
   "ims": "$ims",
+  "dsp": "$dsp",
   "calls": $calls,
   "sip": [$sip]
 }

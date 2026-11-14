@@ -78,6 +78,16 @@ return view.extend({
 				rows.push(field(_('IMS registration'),
 					(st.ims === 'registered') ? good(st.ims) : bad(st.ims)));
 
+				/* The audio services live in the modem's firmware and stop
+				 * answering for good if they ever time out; the kernel logs
+				 * "failed -110" and only a reboot brings them back. */
+				if (st.dsp === 'hung')
+					rows.push(field(_('Audio DSP'), E('span', {}, [
+						bad(_('not responding')),
+						' \u2014 ',
+						_('calls connect but carry no audio; reboot the device')
+					])));
+
 				var svcs = [];
 
 				[

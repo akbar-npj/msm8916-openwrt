@@ -42,7 +42,26 @@ host_routes() {
 
 stop_hostless() {
 	[ -f "$PIDFILE" ] || return 0
-	kill "$(cat "$PIDFILE")" 2>/dev/null
+	local pid i
+	pid=$(cat "$PIDFILE")
+	kill "$pid" 2>/dev/null
+	# hostless polls its stop flag once a second, so it can still be closing its
+	# PCMs while the caller below clears the mixer routes. Tearing the AFE port
+	# down under an open PCM is what leaves the DSP answering -110 to every later
+	# command (measured 2026-11-14), so wait for the process to be gone first.
+	# It is our own child, so an exited one lingers as a zombie: /proc stays and
+	# kill -0 still succeeds, hence the explicit state check and the wait below.
+	i=0
+	while [ "$i" -lt 40 ]; do
+		[ -d "/proc/$pid" ] || break
+		case "$(sed 's/^[0-9]* (.*) //' "/proc/$pid/stat" 2>/dev/null | cut -c1)" in
+			Z|'') break ;;
+		esac
+		usleep 50000
+		i=$((i + 1))
+	done
+	kill -9 "$pid" 2>/dev/null
+	wait "$pid" 2>/dev/null
 	rm -f "$PIDFILE"
 }
 
