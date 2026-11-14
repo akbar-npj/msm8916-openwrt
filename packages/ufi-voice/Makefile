@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=17
+PKG_RELEASE:=18
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -19,7 +19,8 @@ define Package/ufi-voice
   SUBMENU:=Telephony
   TITLE:=VoLTE and call audio for MSM8916 sticks
   DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +alsa-lib +alsa-utils \
-	+libdbus +python3-light +qmi-utils +modemmanager +diag-efs +diag-logtool
+	+libdbus +python3-light +qmi-utils +modemmanager +diag-efs +diag-logtool \
+	+libopenssl
 endef
 
 define Package/ufi-voice/description
@@ -64,11 +65,14 @@ define Build/Compile
 		-I$(STAGING_DIR)/usr/include/dbus-1.0 \
 		-I$(STAGING_DIR)/usr/lib/dbus-1.0/include \
 		$(TARGET_LDFLAGS) -o $(PKG_BUILD_DIR)/hfp-ag ./src/hfp-ag.c -ldbus-1
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -o $(PKG_BUILD_DIR)/ntfy-jwe \
+		./src/ntfy-jwe.c -lcrypto
 endef
 
 define Package/ufi-voice/install
 	$(INSTALL_DIR) $(1)/usr/bin $(1)/usr/sbin $(1)/etc/init.d $(1)/etc/config
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hostless $(PKG_BUILD_DIR)/voicebridge $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ntfy-jwe $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hfp-ag $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/imsdcm ./files/ufi-voiced ./files/voicectl \
 		./files/volte-setup ./files/ufi-voice-dial ./files/ufi-voice-apply \

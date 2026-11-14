@@ -981,6 +981,39 @@ network, or the phone. `notify=0` or an empty `ntfy_topic` makes the script exit
 when the save already committed the section. The page now treats exactly that reply as success and
 goes on to run `ufi-voice-apply`; every other error is still reported.
 
+#### End-to-end encryption (2026-11-14)
+
+A topic can have a password, and then the message is encrypted on this device and stored as
+ciphertext. The format is ntfy's end-to-end encryption draft (ntfy#69), JWE compact serialization:
+
+```
+salt  = SHA-256(topic URL, exactly as posted: https://host/topic)
+key   = PBKDF2-HMAC-SHA256(password, salt, 50000 iterations, 32 bytes)
+JWE   = b64url({"alg":"dir","enc":"A256GCM"}) "." "" "." b64url(iv) "." b64url(ct) "." b64url(tag)
+        iv = 12 random bytes, tag = 16 bytes, AAD = the base64url header segment
+body  = the JWE, POSTed with the header  X-Encoding: jwe
+```
+
+The plaintext is the ntfy message JSON, so the title, priority and tags are encrypted too:
+
+```json
+{"message":"Incoming call from +91...","title":"Incoming call","priority":5,"tags":["telephone_receiver"]}
+```
+
+`src/ntfy-jwe.c` does this with libcrypto (PBKDF2, AES-256-GCM, base64url) and is installed as
+`/usr/bin/ntfy-jwe`; `ufi-voice-notify` uses it whenever uci `ntfy_password` is set, and falls back to
+a plain message when it is empty. The password reaches the helper through
+`NTFY_TOPIC_PASSWORD`, never argv, so it does not appear in `ps`.
+
+**Verified** by decrypting the stored message with the reference algorithm from the app's own docs:
+the server returned the JWE as the message body and the plaintext matched byte for byte. The server
+does **not** store an `encoding` field (it drops `X-Encoding`), so the app decides by trying the topic
+password — that is also why a plain message on an encrypted topic shows as "Not encrypted".
+
+Limits: message plus title must stay under about 2.9 KB (body ≤ 4096), and attachments are not
+supported on encrypted messages. The password sits in `/etc/config/ufivoice` in clear, like every
+other uci secret on the device.
+
 ### 8.12 Declining on the phone did not reject the mobile call (2026-11-14)
 
 **Symptom.** The phone rings, the user declines, and the caller keeps hearing ringback until they give

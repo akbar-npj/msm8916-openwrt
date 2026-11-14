@@ -175,6 +175,14 @@ return view.extend({
 		o.password = true;
 		o.depends('notify', '1');
 
+		o = s.option(form.Value, 'ntfy_password', _('Topic password'),
+			_('Encrypts the message end to end, so the server only stores ' +
+			  'ciphertext. Set the same password on the topic in the app ' +
+			  '(topic menu, End-to-end encryption). Left empty, the message is ' +
+			  'sent in the clear and anyone who knows the topic can read it.'));
+		o.password = true;
+		o.depends('notify', '1');
+
 		/* ---------------------------------------------------------------- */
 		/* SIP accounts                                                     */
 		/* ---------------------------------------------------------------- */
