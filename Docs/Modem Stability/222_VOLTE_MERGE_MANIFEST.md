@@ -16,8 +16,8 @@ bench history see `220_VOLTE_ENABLEMENT_SOP.md`. Nothing here repeats them.
 
 ```
 branch   test/volte-openimsd   (private remote only)
-base     main                  0 commits behind, 43 ahead      (at 9c33226f)
-size     58 files, +10 694 / -20                                (at 9c33226f)
+base     main                  0 commits behind, 45 ahead      (at 644b0b49)
+size     58 files, +10 694 / -20                                (at 644b0b49)
 ```
 
 Because the branch is **0 behind**, `git merge --ff-only` is still a clean
@@ -45,8 +45,8 @@ fast-forward today. It will not be once main moves.
 
 ### 1.1 The three patches
 
-All three are in `msm89xx/patches/`, so they are applied by the normal build
-prep — no separate step.
+All three are in `msm89xx/patches/`, so they are applied by the normal build prep — no separate step.
+They start at 873 because 870/871 went to the Venus video stack (PR #75, merged) and 872 is taken by an open PR.
 
 | patch | lines | what it does | touches |
 |---|---|---|---|
