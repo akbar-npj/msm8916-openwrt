@@ -144,6 +144,38 @@ return view.extend({
 			  'so the two cannot both answer a call.'));
 
 		/* ---------------------------------------------------------------- */
+		/* Notifications                                                    */
+		/* ---------------------------------------------------------------- */
+
+		s = m.section(form.NamedSection, 'main', 'ufivoice', _('Incoming call notifications'),
+			_('A phone whose SIP client has been suspended by the system (iOS does ' +
+			  'this to any app in the background) has no registration, so Asterisk ' +
+			  'cannot ring it at all. A push notification wakes the phone; opening ' +
+			  'the client re-registers it and the call is rung while it still rings. ' +
+			  'Messages are sent through ntfy, which needs no account.'));
+
+		o = s.option(form.Flag, 'notify', _('Send a notification'),
+			_('Sends one message per incoming call, with the caller\'s number.'));
+		o.default = '0';
+		o.rmempty = false;
+
+		o = s.option(form.Value, 'ntfy_url', _('ntfy server'),
+			_('The server to post to. Use https://ntfy.sh, or your own if you run one.'));
+		o.placeholder = 'https://ntfy.sh';
+		o.depends('notify', '1');
+
+		o = s.option(form.Value, 'ntfy_topic', _('Topic'),
+			_('The topic your phone subscribes to in the ntfy app. Anyone who knows ' +
+			  'it can read the messages, so pick something unguessable.'));
+		o.placeholder = 'ufi-7f3c9a1e';
+		o.depends('notify', '1');
+
+		o = s.option(form.Value, 'ntfy_token', _('Access token'),
+			_('Only for a server with access control. Left empty, no token is sent.'));
+		o.password = true;
+		o.depends('notify', '1');
+
+		/* ---------------------------------------------------------------- */
 		/* SIP accounts                                                     */
 		/* ---------------------------------------------------------------- */
 

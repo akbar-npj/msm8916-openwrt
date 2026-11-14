@@ -177,10 +177,19 @@ exten => _[0-9+*#].,1,Set(UUID=${SHELL(/usr/sbin/ufi-voice-dial ${EXTEN})})
  same => n,Hangup()
  same => n(fail),Congestion(5)
 
-; incoming mobile calls: ufi-voiced originates Local/s@ufi-incoming
+; incoming mobile calls: ufi-voiced originates Local/s@ufi-incoming.
+; A phone whose client is suspended (iOS does this to any app in the
+; background) has no SIP contact, and Dial() then fails at once with
+; CHANUNAVAIL instead of ringing. Retry for 45 s so the phone is rung the
+; moment the user opens the client and it registers again.
 [ufi-incoming]
-exten => s,1,Dial(${UFI_RING},45)
- same => n,Hangup()
+exten => s,1,Set(UFI_T0=${EPOCH})
+ same => n(retry),Dial(${UFI_RING},30)
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?done)
+ same => n,GotoIf($["${DIALSTATUS}" != "CHANUNAVAIL"]?done)
+ same => n,Wait(2)
+ same => n,GotoIf($[$[${EPOCH} - ${UFI_T0}] < 45]?retry)
+ same => n(done),Hangup()
 EOT
 } > /etc/asterisk/extensions.conf
 

@@ -625,6 +625,7 @@ class Manager:
                 uid = self.new_uid()
                 self.pending_in[uid] = path
                 self.ami.ring_phones(uid, c['number'])
+                self.notify(c['number'])
             if mode in ('bt', 'both') and self.hs.connected:
                 self.hs.send('incoming %s' % c['number'])
             delay = int(uci('autoanswer', '0') or 0)
@@ -673,6 +674,23 @@ class Manager:
             if self.call == path and self.known.get(path) == 'ringing-in':
                 log('autoanswer')
                 self.mm.accept(path)
+
+    def notify(self, number):
+        """Tell a sleeping phone that a call is coming in.
+
+        A SIP client on iOS loses its registration when the system suspends
+        it, so Asterisk has no contact to ring and the call rings out even
+        though the phone is in the user's pocket. Nothing here can wake the
+        app, so the call is announced out of band; opening the client
+        re-registers it and the retrying Dial in [ufi-incoming] rings it.
+        Runs detached: a slow or unreachable push server must not delay the
+        call."""
+        try:
+            subprocess.Popen(['/usr/sbin/ufi-voice-notify', number or ''],
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        except OSError as e:
+            log('notify:', e)
 
     # events from the headset
     def hs_event(self, line):

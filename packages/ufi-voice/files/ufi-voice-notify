@@ -1,0 +1,52 @@
+#!/bin/sh
+# ufi-voice-notify [number] - push an incoming call to a phone that is asleep.
+#
+# A SIP client on iOS loses its registration when the system suspends it, so
+# Asterisk has no contact to ring and the call is never answered. Nothing on
+# this device can wake the app; a push notification can, and opening the app
+# re-registers it, at which point the retrying Dial in [ufi-incoming] rings it.
+#
+# ntfy is used because it needs no account: the message is a plain HTTP POST to
+# <server>/<topic>. Point ntfy_url at ntfy.sh or at your own server.
+#
+# Called by ufi-voiced when a mobile call starts ringing; it must never block
+# or fail loudly, so every error is only logged.
+
+[ -f /lib/functions.sh ] && . /lib/functions.sh
+
+number="$1"
+
+if [ -f /etc/config/ufivoice ]; then
+	config_load ufivoice
+	config_get notify main notify 0
+	config_get url main ntfy_url 'https://ntfy.sh'
+	config_get topic main ntfy_topic ''
+	config_get token main ntfy_token ''
+	config_get prio main ntfy_priority 'max'
+else
+	notify=0
+fi
+
+[ "$notify" = 1 ] || exit 0
+[ -n "$topic" ] || exit 0
+
+url=${url%/}
+[ -n "$url" ] || url=https://ntfy.sh
+
+if [ -n "$number" ]; then
+	msg="Incoming call from $number"
+else
+	msg="Incoming call"
+fi
+
+set -- -q -O - -T 5 \
+	--header='Title: Incoming call' \
+	--header="Priority: $prio" \
+	--header='Tags: telephone_receiver' \
+	--post-data="$msg"
+[ -n "$token" ] && set -- "$@" --header="Authorization: Bearer $token"
+
+wget "$@" "$url/$topic" >/dev/null 2>&1 ||
+	logger -t ufi-voice-notify "push to $url/$topic failed"
+
+exit 0

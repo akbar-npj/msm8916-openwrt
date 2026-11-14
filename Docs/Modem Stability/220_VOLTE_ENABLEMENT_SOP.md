@@ -914,6 +914,62 @@ INT_BT_SCO_RX Voice Mixer CS-Voice = on            CS-Voice Capture Mixer INT_BT
 line contains the word — including the one an admin happens to be running — and reported
 `voicebridge: running` on an idle box. It now uses `pidof`, which matches the executable name only.
 
+### 8.11 An incoming call never reaches a phone that is asleep (2026-11-14)
+
+**Symptom.** Every incoming call rings out. `pjsip show contacts` says `No objects found`: the phone
+is not registered at all, so `Dial(PJSIP/100,45)` in `[ufi-incoming]` fails at once with
+`CHANUNAVAIL` and the caller hears ringback until they give up.
+
+**Why it cannot be fixed on the SIP side.** iOS suspends any app that has been in the background for
+about 30 s; the app's socket is closed and the registration is gone. No SIP trick brings it back —
+`rewrite_contact`, TCP/TLS transports and `qualify_frequency` all assume the client is running. Apple
+only lets a server wake an app through APNs, which means either a normal notification or a VoIP
+(VoIP push needs CallKit plus an Apple push key).
+
+**Why a Matrix call bridge is the wrong tool.** Answering a call inside a Matrix client needs a
+CallKit VoIP push and WebRTC media, i.e. LiveKit plus its SIP gateway on a public server with an APNs
+key. That is a server project, it replaces SIP rather than bridging to it, and none of it runs on
+this device. Matrix as a *notification* channel is fine — but then it is just a push transport, and
+ntfy does that with one HTTP POST and no account.
+
+**Implemented (r17), two halves:**
+
+1. **Push notification.** `ufi-voiced` starts `/usr/sbin/ufi-voice-notify <number>` detached when a
+   call starts ringing; the script POSTs to `<ntfy_url>/<ntfy_topic>` with
+   `Title: Incoming call`, `Priority: max`, `Tags: telephone_receiver` and the number as the body.
+   uci: `notify`, `ntfy_url` (default `https://ntfy.sh`), `ntfy_topic`, `ntfy_token`,
+   `ntfy_priority`. A slow or unreachable server can never delay the call.
+2. **Retrying dial.** `[ufi-incoming]` now retries while the phone is unregistered:
+
+```
+exten => s,1,Set(UFI_T0=${EPOCH})
+ same => n(retry),Dial(${UFI_RING},30)
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?done)
+ same => n,GotoIf($["${DIALSTATUS}" != "CHANUNAVAIL"]?done)
+ same => n,Wait(2)
+ same => n,GotoIf($[$[${EPOCH} - ${UFI_T0}] < 45]?retry)
+ same => n(done),Hangup()
+```
+
+So the caller hears normal ringback for 45 s, and the moment the user taps the notification, opens
+Linphone and it registers, the next retry rings it. `NOANSWER`/`BUSY` end the attempt instead of
+looping, so a phone that is really ringing is not interrupted.
+
+**Verified on the bench (2026-11-14):**
+
+- push: `ufi-voice-notify +911234567890` → ntfy delivered
+  `title "Incoming call"`, `message "Incoming call from +911234567890"`, `priority 5`,
+  `tags ["telephone_receiver"]` (polled back from the topic);
+- retry with no contact: the Local channel sat in `Wait(2)` / `Ring` and was still alive at t+20 s,
+  gone after ~45 s;
+- **late registration:** originated with `UFI_RING=PJSIP/101` and no contact → `Wait(2)` loop;
+  registered 101 at t≈8 s → by t+12 s `core show channels` showed
+  `Dial(PJSIP/101,30)` and `PJSIP/101-00000014`. The phone was rung the moment it came back.
+
+**Note for testing.** The test client must register *from the unit* (127.0.0.1) or the LAN; a stale
+contact keeps `Dial` waiting 30 s and hides the `CHANUNAVAIL` path. `asterisk -rx "pjsip show
+contacts"` must be empty before the test means anything.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
