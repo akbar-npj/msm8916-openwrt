@@ -558,6 +558,15 @@ class Manager:
             self.bridge_restart = time.monotonic()
             self.bridge.leg = None
             self.reroute()
+            # reroute() only starts the bridge along with the voice path. When
+            # the path is already up, the bridge is simply gone and the call
+            # stays silent in BOTH directions until it is hung up - so bring it
+            # back. The 10 s gate above keeps a failing DSP from spinning.
+            active = [p for p, s in self.known.items() if s == 'active']
+            if self.voice_on and len(active) == 1 and not self.bridge.running():
+                log('voicebridge died during a call, restarting it')
+                self.bridge.start()
+                self.reroute()
 
     def stop_ringing_for(self, path):
         for uid in [u for u, p in self.pending_in.items() if p == path]:

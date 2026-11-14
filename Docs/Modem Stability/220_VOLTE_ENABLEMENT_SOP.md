@@ -787,6 +787,79 @@ immediately (S33: `voicectl start host volte` + `stop` afterwards, zero `-110`).
 **Detecting it.** `dmesg | grep "failed -110"` is decisive; the count is 0 on a healthy boot. On the
 LuCI side the same failure shows up as `voicebridge: stopped` with a call active.
 
+### 8.8 A dead `voicebridge` left the rest of the call silent (2026-11-14)
+
+**Symptom.** Audio works for the first few seconds of a call and then disappears — **both**
+directions — for the rest of that call. The next call is fine again.
+
+**Cause.** `ufi-voiced` never restarted a bridge that died mid-call. `Bridge.reader()` notices the
+exit, logs `voicebridge exited <rc>` and calls `bridge_died()`, which cleared `self.bridge.leg` and
+called `reroute()`. But `reroute()` only starts the bridge *together with the voice path*:
+
+```python
+if len(active) == 1 and not self.voice_on:      # <- voice_on is already True
+    self.voice_start()                          #    so this never runs
+```
+
+So the daemon re-attached the leg to a bridge that no longer existed and logged
+`phone audio: /Call/N` as if nothing had happened. Observed on the bench at 03:44:58 → 03:45:00 →
+03:46:04: bridge started, exited, and the remaining 64 s of the call were silent.
+
+**Reproducing it deliberately:** `kill $(pidof voicebridge)` during an active call. `voicebridge`
+handles SIGTERM by setting its stop flag, so it exits **0** — which is why the log line is
+`voicebridge exited 0` and not a signal. Anything that ends the bridge mid-call has the same effect:
+a capture error storm (`cap_fail > 100`), the DSP voice session going away, or the card being torn
+down.
+
+**Fix (r15).** `bridge_died()` now restarts the bridge when the voice path is still up and exactly one
+call is active, then re-routes the leg:
+
+```python
+if self.voice_on and len(active) == 1 and not self.bridge.running():
+    log('voicebridge died during a call, restarting it')
+    self.bridge.start()
+    self.reroute()
+```
+
+The existing 10 s `bridge_restart` gate stays, so a DSP that keeps failing cannot spin: at most one
+attempt per 10 s.
+
+**Do not kill the bridge to free the capture device during a call.** That is how this was found — a
+spectrum capture needs `hw:0,0` exclusively, and taking it away from a live call costs the caller
+their audio. Capture on a call that is being set up, or accept the call is over.
+
+### 8.9 Is the call wideband? Measured — no (2026-11-14)
+
+The question behind "should we add G.722 / AMR-WB": how much bandwidth does the downlink actually
+carry? Measured on a live call (`state = 'conversation' type = 'voice-ip' mode = 'lte'`), capturing
+`hw:0,0` directly at 48 kHz for 12 s and taking a Welch spectrum of the loudest 2 s:
+
+```
+  3.50 kHz  -67 dB
+  3.75 kHz  -79
+  4.00 kHz  -94
+  4.25 kHz  -96
+  4.50 kHz  -131   <- noise floor
+  5.00 kHz  -142
+  6.00 kHz  -145
+  7.00 kHz  -144
+```
+
+That is a textbook 8 kHz anti-alias wall: speech to ~3.9 kHz, nothing above 4.25 kHz. The call is
+**narrowband (AMR-NB)**, so there is no 4–7 kHz content for G.722 to carry.
+
+Consequences:
+
+- Adding `codec_g722` alone would be a **downgrade**: Asterisk would decode G.722 to 16 kHz and then
+  transcode to 8 kHz `slin` for the AudioSocket app (which hardcodes `ast_format_slin`), adding a
+  second jitter buffer and CPU for identical audio.
+- A real wideband path needs all four pieces at once: `asterisk-chan-audiosocket` (only the *channel
+  driver* takes a codec option, `c(slin16)`; the dialplan app is fixed at 8 kHz), `codec_g722`,
+  `voicebridge` with a configurable pipe rate (`PIPE_RATE` is `#define`d to 8000), and the dialplan
+  switched from `AudioSocket()` to `Dial(AudioSocket/...)`.
+- None of that is worth building until a call actually carries wideband. Whether it does depends on
+  the network and the far end — retest with a call to a known VoLTE handset before starting.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
@@ -864,3 +937,5 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | **`ims` profile at every modem boot, packaged (S31, §8.6).** `ims-profile-setup`, its init script and the `wwan` hotplug handler existed only on the bench unit; they are now in `ufi-voice` r13 together with a new `ims-profile-watch` (S97) that covers runtime modem restarts (MM disable/enable + `imsdcm` restart). Fixed a latent bug: this busybox rejects `sleep 0.1`, which turned the setup script's 60 s device wait into a millisecond spin. Corrected F30 — the WDS table and its IMCN/PCO flags survive a delete plus reboot (restored from NV), so the create path only matters on a blank table. |
 | 2026-11-13 | **IMS PDN churn and data coexistence re-measured (S32).** No churn with `imsdcm`: 180 s capture, 0 start/stop events, daemon pid unchanged through a call. The only burst was self-inflicted (manual `imsdcm` restart while the default bearer was re-establishing — IMS took `wwan0`, collided, settled in ~25 s). Coexistence works: `jionet` on `wwan0` + `ims` on `wwan1` both connected, a VoLTE call reached `active` with the callee answering, no PDN teardown during it. §9.1 items 3 and 4 closed as not-reproducible / works. |
 | 2026-11-14 | **Dead air both directions — the audio DSP hung at call teardown (§8.7, S33).** A unit that had worked for hours suddenly connected every call but carried no audio. First failure of the boot is an **AFE close** `-110`, after which every AFE/ASM/ADM command times out and `voicebridge` cannot open the capture PCM. This port has no ADSP firmware: the APR services are children of the modem's SMD edge (`4080000.remoteproc:smd-edge:apr:service@{4,7,8,9}`), so audio shares the modem's Q6 and the AP cannot re-probe it. Fixed the AP-side ordering defect that precedes it — `voicectl stop` cleared the mixer routes while `hostless` (1 s poll) still had its PCMs open; r14 waits for the pid, zombie-aware. Recovery is an AP reboot; detection is now `dsp: hung` in the status JSON plus a row on the Phone page. |
+| 2026-11-14 | **A dead bridge left the rest of the call silent (§8.8, S34).** `bridge_died()` cleared the leg and re-routed but never restarted the bridge, because `reroute()` only starts it together with the voice path — so any mid-call bridge death meant silence in both directions until hangup. Found by killing the bridge for a spectrum capture (`voicebridge` exits **0** on SIGTERM). Fixed in r15: restart it when the path is up and one call is active, still gated to one attempt per 10 s. |
+| 2026-11-14 | **The downlink is narrowband — measured (§8.9).** 12 s of `hw:0,0` at 48 kHz during a `voice-ip`/`lte` call: speech to 3.9 kHz, `-94 dB` at 4.0 kHz, noise floor above 4.5 kHz. AMR-NB, no 4–7 kHz content, so G.722 alone would only add a 16k→8k transcode. Wideband would need the AudioSocket **channel driver** (`c(slin16)`), `codec_g722`, a configurable `PIPE_RATE`, and `Dial(AudioSocket/...)` — not worth building until a call is actually wideband. |
