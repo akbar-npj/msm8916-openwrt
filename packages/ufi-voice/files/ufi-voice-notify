@@ -46,7 +46,10 @@ set -- -q -O - -T 5 \
 	--post-data="$msg"
 [ -n "$token" ] && set -- "$@" --header="Authorization: Bearer $token"
 
-wget "$@" "$url/$topic" >/dev/null 2>&1 ||
-	logger -t ufi-voice-notify "push to $url/$topic failed"
+if wget "$@" "$url/$topic" >/dev/null 2>&1; then
+	logger -t ufi-voice-notify 'sent'
+else
+	logger -t ufi-voice-notify "push to $url failed"
+fi
 
 exit 0

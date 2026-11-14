@@ -689,6 +689,7 @@ class Manager:
             subprocess.Popen(['/usr/sbin/ufi-voice-notify', number or ''],
                              stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL)
+            log('notify', number or '-')
         except OSError as e:
             log('notify:', e)
 

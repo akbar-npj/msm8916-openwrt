@@ -970,6 +970,11 @@ looping, so a phone that is really ringing is not interrupted.
 contact keeps `Dial` waiting 30 s and hides the `CHANUNAVAIL` path. `asterisk -rx "pjsip show
 contacts"` must be empty before the test means anything.
 
+**Diagnosing a missing push.** `ufi-voiced` logs `notify <number>` when it fires the script and
+`ufi-voice-notify` logs `sent` or `push to <server> failed`, so
+`logread | grep -E "notify|ufi-voice-notify"` tells you whether the problem is the trigger, the
+network, or the phone. `notify=0` or an empty `ntfy_topic` makes the script exit silently, by design.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
