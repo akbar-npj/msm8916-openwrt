@@ -720,9 +720,28 @@ class Manager:
 
     # hold on the phones (AMI Hold/Unhold events)
     def ami_event(self, m):
-        if m.get('Event') not in ('Hold', 'Unhold'):
+        ev = m.get('Event')
+        if ev == 'Hangup':
+            # The ring attempt is over. If it ended because the caller gave
+            # up, stop_ringing_for() has already taken the uid out of
+            # pending_in and there is nothing to do. If it ended because every
+            # phone declined, was busy, or the retrying Dial ran out, the
+            # mobile call is STILL ringing - and it would keep ringing until
+            # the caller gives up, because nothing else rejects it.
+            with self.lock:
+                # Originate's ChannelId becomes the channel's Uniqueid, which
+                # is what the Hangup event carries back.
+                path = self.pending_in.pop(m.get('Uniqueid', ''), None)
+                reject = (path is not None
+                          and path not in self.pending_in.values()
+                          and self.known.get(path) == 'ringing-in')
+            if reject:
+                log('phones did not answer, rejecting', path)
+                self.mm.hangup(path)
             return
-        held = m['Event'] == 'Hold'
+        if ev not in ('Hold', 'Unhold'):
+            return
+        held = ev == 'Hold'
         uid = self.ami.leg_uid(m.get('Linkedid', ''))
         with self.lock:
             leg = next((l for l in self.legs.values() if l.uid == uid), None)

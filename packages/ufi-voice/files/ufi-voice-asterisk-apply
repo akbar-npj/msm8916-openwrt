@@ -121,7 +121,10 @@ rewrite_contact=yes
 
 [aor](!)
 type=aor
-max_contacts=2
+; one contact per account: a phone that re-registers from a new port before
+; the old registration expires would otherwise be forked twice, and an
+; incoming call would pop up twice on the same handset
+max_contacts=1
 remove_existing=yes
 EOT
 

@@ -975,6 +975,41 @@ contacts"` must be empty before the test means anything.
 `logread | grep -E "notify|ufi-voice-notify"` tells you whether the problem is the trigger, the
 network, or the phone. `notify=0` or an empty `ntfy_topic` makes the script exit silently, by design.
 
+### 8.12 Declining on the phone did not reject the mobile call (2026-11-14)
+
+**Symptom.** The phone rings, the user declines, and the caller keeps hearing ringback until they give
+up. `mmcli` still reports the call as `ringing-in`.
+
+**Cause.** `[ufi-incoming]` hangs up its own channel when the phones decline, but nothing told the
+modem. `ufi-voiced` only reacted to ModemManager state changes (`call_over()` on `terminated`), and
+`stop_ringing_for()` merely hangs up the Asterisk channel. The ring attempt ended silently, so the
+mobile call rang on for its full network timeout.
+
+**Fix.** `ami_event()` now handles the AMI `Hangup` event of the ring channel. `ring_phones()` sets
+`ChannelId: <uid>` on the Originate, and Asterisk makes that the channel's `Uniqueid`, so the event
+identifies the attempt exactly:
+
+```
+Newchannel Uniqueid=<uid>  Channel=Local/s@ufi-incoming-0000001a;1
+DialEnd    Uniqueid=<uid>;2                       DialStatus=BUSY
+Hangup     Uniqueid=<uid>  Channel=Local/s@ufi-incoming-0000001a;1
+```
+
+If no other attempt is pending for that call and MM still says `ringing-in`, the daemon rejects it
+with `mmcli -o <call> --hangup` and logs `phones did not answer, rejecting <call>`.
+
+**Do not loop:** `stop_ringing_for()` removes the uid *before* it hangs the channel up, so a hangup
+the daemon itself caused never comes back as a reject.
+
+**Duplicate popups.** `[aor]` had `max_contacts=2`: a phone that re-registered from a new port before
+the old registration expired got the INVITE forked to both contacts and showed the call twice. Now
+`max_contacts=1` (with `remove_existing=yes`), so one account has exactly one contact. If a handset
+still pops twice, it has both accounts (100 and 101) configured — set `sip_ring` to the one it should
+use.
+
+**Verified.** AMI trace with a client that answers `486 Busy Here`: one INVITE, `DialEnd BUSY`, one
+Hangup, no retry — the dialplan is not the source of a repeating popup.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
