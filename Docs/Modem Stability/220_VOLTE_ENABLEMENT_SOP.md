@@ -1016,6 +1016,38 @@ use.
 **Verified.** AMI trace with a client that answers `486 Busy Here`: one INVITE, `DialEnd BUSY`, one
 Hangup, no retry — the dialplan is not the source of a repeating popup.
 
+**The retry loop re-rang a phone the user had just declined (2026-11-14).** With
+`UFI_RING=PJSIP/100&PJSIP/101` and only 101 registered, a decline from Linphone arrives as
+`603 Decline`, but `Dial()` reports **CHANUNAVAIL** (the 100 fork could not be created), which the
+retry branch read as "still asleep" and re-INVITEd 2 s later — the call screen came back, again and
+again:
+
+```
+08:37:29  phone -> 603 Decline
+08:37:31  asterisk -> INVITE sip:101@192.168.8.146:56423   (retry)
+08:37:31  phone -> 100 Trying / 183 Session progress       (call screen again)
+08:37:33  phone -> 200 OK                                   (answered by mistake)
+```
+
+`DIALSTATUS` alone cannot tell "declined" from "unregistered". The retry now checks the device state
+of every target first and stops if any of them is not `UNAVAILABLE`:
+
+```
+same => n,Set(UFI_I=1)
+same => n(check),Set(UFI_T=${CUT(UFI_RING,&,${UFI_I})})
+same => n,GotoIf($["${UFI_T}" = ""]?wait)
+same => n,GotoIf($["${DEVICE_STATE(${UFI_T})}" != "UNAVAILABLE"]?done)
+same => n,Set(UFI_I=$[${UFI_I}+1])
+same => n,Goto(check)
+```
+
+A suspended phone is `UNAVAILABLE` and keeps being retried (measured: 6 attempts in 10 s with no
+contact); a phone that is registered and declined is not, and is left alone.
+
+**Note:** Asterisk persists dynamic contacts in astdb, so a test client's registration survives
+`/etc/init.d/asterisk restart` and silently defeats this test. Clear it with
+`asterisk -rx "database deltree registrar"` before testing the unregistered path.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP

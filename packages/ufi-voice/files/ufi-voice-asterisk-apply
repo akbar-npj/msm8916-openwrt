@@ -185,12 +185,24 @@ exten => _[0-9+*#].,1,Set(UUID=${SHELL(/usr/sbin/ufi-voice-dial ${EXTEN})})
 ; background) has no SIP contact, and Dial() then fails at once with
 ; CHANUNAVAIL instead of ringing. Retry for 45 s so the phone is rung the
 ; moment the user opens the client and it registers again.
+;
+; A decline also comes back as CHANUNAVAIL (the fork to the other account
+; failed), so retrying on that alone re-rings a phone the user just rejected.
+; Before retrying, check that every target is really UNAVAILABLE: a phone
+; that is registered and declined is NOT_INUSE/IDLE and must not be rung
+; again.
 [ufi-incoming]
 exten => s,1,Set(UFI_T0=${EPOCH})
  same => n(retry),Dial(${UFI_RING},30)
  same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?done)
  same => n,GotoIf($["${DIALSTATUS}" != "CHANUNAVAIL"]?done)
- same => n,Wait(2)
+ same => n,Set(UFI_I=1)
+ same => n(check),Set(UFI_T=${CUT(UFI_RING,&,${UFI_I})})
+ same => n,GotoIf($["${UFI_T}" = ""]?wait)
+ same => n,GotoIf($["${DEVICE_STATE(${UFI_T})}" != "UNAVAILABLE"]?done)
+ same => n,Set(UFI_I=$[${UFI_I}+1])
+ same => n,Goto(check)
+ same => n(wait),Wait(2)
  same => n,GotoIf($[$[${EPOCH} - ${UFI_T0}] < 45]?retry)
  same => n(done),Hangup()
 EOT
