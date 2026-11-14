@@ -975,6 +975,12 @@ contacts"` must be empty before the test means anything.
 `logread | grep -E "notify|ufi-voice-notify"` tells you whether the problem is the trigger, the
 network, or the phone. `notify=0` or an empty `ntfy_topic` makes the script exit silently, by design.
 
+**The LuCI "Saved, but applying failed" banner.** Changing the server or the topic can end with
+`RPC call to uci/apply failed with ubus code 5: No data received` even though the values were saved
+(`uci show ufivoice.main` shows them, `uci changes` is empty): rpcd answers `uci/apply` with NO_DATA
+when the save already committed the section. The page now treats exactly that reply as success and
+goes on to run `ufi-voice-apply`; every other error is still reported.
+
 ### 8.12 Declining on the phone did not reject the mobile call (2026-11-14)
 
 **Symptom.** The phone rings, the user declines, and the caller keeps hearing ringback until they give

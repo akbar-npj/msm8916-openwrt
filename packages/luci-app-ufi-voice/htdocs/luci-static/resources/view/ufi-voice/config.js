@@ -311,6 +311,14 @@ return view.extend({
 		this.handleSaveApply = function(ev, mode) {
 			return this.handleSave(ev).then(function() {
 				return uci.apply();
+			}).catch(function(err) {
+				/* rpcd answers uci/apply with "No data received" when the
+				 * save already committed the section, so there is nothing
+				 * left for apply to do. The configuration is on disk, so
+				 * carry on instead of reporting a failure that did not
+				 * happen. Anything else is a real error. */
+				if (String(err).indexOf('No data') === -1)
+					throw err;
 			}).then(function() {
 				return new Promise(function(resolve) {
 					window.setTimeout(resolve, 2000);
