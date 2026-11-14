@@ -28,11 +28,12 @@ and a live default data bearer:
 - the modem **never sends `0x20` `IMSD_START_CONNECTION`**;
 - therefore **no IMS PDN is created**, and **IMSA never leaves `not-registered`**.
 
-**Protocol direction (this cost us a whole round — do not re-litigate it).** `81voltd` on the AP is the
-IMSD **server** (`/tmp/81voltd-spec/qvd-server.c`: `#define IMSD_START_CONNECTION 0x20`,
-`process_start_connection()`). The **modem is the client**. The AP cannot initiate IMS; it can only
-answer a request the modem never makes. Every AP-side lever (81voltd behaviour, op_res replies, PDN
-creation, DMS reset, `AT+CEMODE`, QMI PDC) has been exhausted and is spec-correct.
+**Protocol direction (this cost us a whole round — do not re-litigate it).** The AP side is the
+IMSD **server** (the reference implementation is postmarketOS `81voltd`: `/tmp/81voltd-spec/qvd-server.c`,
+`#define IMSD_START_CONNECTION 0x20`, `process_start_connection()`; ours is `imsdcm`). The **modem is
+the client**. The AP cannot initiate IMS; it can only answer a request the modem never makes. Every
+AP-side lever (IMSD behaviour, op_res replies, PDN creation, DMS reset, `AT+CEMODE`, QMI PDC) has been
+exhausted and is spec-correct.
 
 ⇒ **The fix must make the modem's IMS task emit `0x20`.** That is the whole campaign.
 
@@ -357,8 +358,8 @@ Every entry is a real attempt on this branch. **Read this before repeating an id
 # 2. make sure MM has a live 3GPP view (after an SSR it often does not)
 mmcli -m 0 --disable; sleep 4; mmcli -m 0 --enable; sleep 12
 
-# 3. trigger the modem's IMS stack: 81voltd rebinds -> 0x23 -> 0x20 -> PDN via MM
-/etc/init.d/81voltd restart
+# 3. trigger the modem's IMS stack: imsdcm rebinds -> 0x23 -> 0x20 -> PDN via MM
+/etc/init.d/imsdcm restart
 
 # 4. wait for registration (3-5 s)
 qmi-raw /dev/wwan0qmi0 0x21 0x0021        # TLV 0x10 must read 02
@@ -417,11 +418,12 @@ firmware we already run contains them. No extra partition, no extra firmware blo
 `ufi-voice-asterisk` adds a PJSIP config (phones 100/101) and an AudioSocket bridge, i.e. the
 box can be a small home PBX whose trunk is the SIM.
 
-**Deliberately not enabled at install.** `imsdcm` and `ufi-voiced` are installed but not
-`enable`d (no postinst). This build keeps the **working** 81voltd + `ims-profile` IMS path;
-`imsdcm` is the planned replacement and must be evaluated before it takes over (it brings
-several fixes we hit the hard way: bearer deleted at boot, SSR before MM exists, stale
-local-id mapping, the `10-report-down` reconnect loop).
+**Enabled at install.** `imsdcm` is started by a uci-defaults
+(`90-ufi-voice-services`) and gated on `ufivoice.main.volte`; it is now the only IMS data service in
+the tree (`81voltd` was removed — it answers the same QMI 770 exchange in a way that makes the modem
+drop the bearer and ask again). `ufi-voiced` is likewise started by its own init script. Both carry
+fixes we hit the hard way: bearer deleted at boot, SSR before MM exists, stale local-id mapping, the
+`10-report-down` reconnect loop.
 
 **LIVE-VERIFIED 2026-11-13** on the mifib-v12 (image flashed at AP uptime 0, kernel 6.12.112):
 

@@ -16,8 +16,8 @@ bench history see `220_VOLTE_ENABLEMENT_SOP.md`. Nothing here repeats them.
 
 ```
 branch   test/volte-openimsd   (private remote only)
-base     main                  0 commits behind, 40 ahead
-size     69 files, +11 009 / -21
+base     main                  0 commits behind, 42 ahead
+size     58 files, +10 694 / -20
 ```
 
 Because the branch is **0 behind**, `git merge --ff-only` is still a clean
@@ -27,19 +27,17 @@ fast-forward today. It will not be once main moves.
 |---|---|---|---|
 | `msm89xx/patches/` | 3 | +2 575 | q6voice kernel driver + DTS + one bam-dmux race fix |
 | `msm89xx/` (modules, config, image) | 3 | +54 / −2 | kmod package, Kconfig guards, board package lists |
-| `packages/ufi-voice/` | 26 | +3 827 | the product: IMS data service, call daemon, audio bridge, push |
-| `packages/81voltd/` | 11 | +761 | legacy IMS data service (superseded — see §4.4) |
+| `packages/ufi-voice/` | 26 | +3 844 | the product: IMS data service, call daemon, audio bridge, push |
 | `packages/qmi-raw/` | 2 | +396 | dev tool: arbitrary QMI requests (IMS 0x008f, IMSD 0x20) |
 | `packages/luci-app-ufi-voice/` | 4 | +401 | Services → Phone page |
 | `msm89xx/base-files/` | 2 | +247 / −3 | voice-aware holds in the bearer watchdog |
 | `packages/luci-app-modem-watchdog/` | 2 | +41 / −2 | LuCI for those holds |
 | `openwrt-overlay/` (ModemManager) | 1 | +28 | call-matching fix (waiting call vs active call) |
 | `packages/msm89xx-scripts/` | 2 | +5 | `chmod +x` the netifd proto payload |
-| `packages/qrtr/` | 1 | +3 / −1 | install `qrtr.pc` (81voltd's meson build needs it) |
 | `scripts/openwrt-prepare.sh` | 1 | +15 / −7 | project package patches land in `package/msm8916/` |
 | `tests/modem-watchdog/` + CI | 2 | +385 | self-check for the watchdog changes |
-| `diffconfigs/mifib-v12` | 1 | +2 | `81voltd`, `qmi-raw` |
-| `Docs/` + `README.md` | 8 | +2 271 / −6 | 220, 221, IMS_VOLTE, UFI003_VOICE, watchdog doc |
+| `diffconfigs/mifib-v12` | 1 | +1 | `qmi-raw` |
+| `Docs/` + `README.md` | 9 | +2 704 / −6 | 220, 221, 222, IMS_VOLTE, UFI003_VOICE, watchdog doc |
 
 ---
 
@@ -125,9 +123,9 @@ ufi-voice-asterisk  DEPENDS +ufi-voice +asterisk +asterisk-pjsip
 |---|---|---|---|
 | `/usr/sbin/imsdcm` | `files/imsdcm` (py) | AP side of QMI 770: creates the `ims` PDN through ModemManager, answers the modem's IMSD requests | **the VoLTE enabler**; replaces 81voltd |
 | `/etc/init.d/imsdcm` | `files/imsdcm.init` | S96, gated on `ufivoice.main.volte=1` | — |
-| `/usr/sbin/ims-profile-setup` | `files/ims-profile-setup` | creates the `ims` WDS profile (IMCN + PCSCF-via-PCO) | also shipped by 81voltd — see §4.4 |
-| `/etc/init.d/ims-profile` + S94 | `files/ims-profile.init` | runs the setup once per boot | same |
-| `/etc/hotplug.d/wwan/20-ims-profile` | `files/hotplug.d/wwan/20-ims-profile` | runs it on every modem (re)boot | same |
+| `/usr/sbin/ims-profile-setup` | `files/ims-profile-setup` | creates the `ims` WDS profile (IMCN + PCSCF-via-PCO) | the only copy in the tree since §4.4 |
+| `/etc/init.d/ims-profile` + S94 | `files/ims-profile.init` | runs the setup once per boot | runs before imsdcm (S96) |
+| `/etc/hotplug.d/wwan/20-ims-profile` | `files/hotplug.d/wwan/20-ims-profile` | runs it on every modem (re)boot | — |
 | `/usr/sbin/ims-profile-watch` + S97 | `files/ims-profile-watch` | runtime watcher for modem boots that the hotplug misses | — |
 | `/usr/sbin/ufi-voiced` | `files/ufi-voiced` (py, 884 lines) | call state machine: MM ↔ AMI ↔ audio bridge, incoming/outgoing, decline→hangup, push notify | the core |
 | `/etc/init.d/ufi-voiced` | `files/ufi-voiced.init` | — | — |
@@ -143,7 +141,7 @@ ufi-voice-asterisk  DEPENDS +ufi-voice +asterisk +asterisk-pjsip
 | `/usr/sbin/volte-setup` | `files/volte-setup` | modem EFS items (`ims_hybrid_enable`) | — |
 | `/etc/config/ufivoice` | `files/ufivoice.config` | all runtime knobs, conffile | see §2.2 |
 | `/etc/ModemManager/connection.d/10-report-down` | `files/10-report-down` | tells MM an IMS bearer went down | — |
-| `/etc/uci-defaults/90-ufi-voice-services` | — | enables `imsdcm`, disables `81voltd` | see §4.4 |
+| `/etc/uci-defaults/90-ufi-voice-services` | — | enables `imsdcm` | see §4.4 |
 | `/etc/uci-defaults/91-ufi-voice-asterisk` | (asterisk pkg) | runs the Asterisk generator once | — |
 | `/usr/sbin/ufi-voice-asterisk-apply` | (asterisk pkg, 249 lines) | generates `pjsip.conf` + `extensions.conf` from uci | idempotent, re-run by LuCI |
 
@@ -194,9 +192,9 @@ message id, raw TLVs) and prints the decoded reply. It exists because libqmi
 1.36 lacks IMS `0x008f` ("Set IMS Services Enabled Setting") and IMSDCM `0x20`,
 which are what actually turn VoLTE on and drive the IMS bearer.
 
-Ship it or not is a judgement call: it is harmless (~30 KB), it is how the
-modem was brought up, and `81voltd` depends on it. If 81voltd goes, qmi-raw can
-go too — but the SOP's diagnostic recipes use it, so I would keep it.
+Ship it or not is a judgement call: it is harmless (~30 KB) and it is how the
+modem was brought up. It used to be a dependency of `81voltd` (now removed), but
+the SOP's diagnostic recipes use it directly, so I would keep it.
 
 ### 4.2 `luci-app-modem-watchdog` (41 lines)
 
@@ -224,41 +222,47 @@ on all nine boards. It is default-off, but it is also the change most worth a
 second pair of eyes. `tests/modem-watchdog/run.sh --self-check` covers it and is
 now part of CI (`.github/workflows/tests.yml`).
 
-### 4.4 `81voltd` — decide before merging
+### 4.4 `81voltd` — removed in this branch
 
-`PKG_RELEASE:=13`, upstream `gitlab.nura.eco/modem/81voltd` @ `a7794dd6`.
-It is the **first** implementation of the AP side of IMSD; `imsdcm` replaced it.
+`packages/81voltd` was the first implementation of the AP side of IMSD
+(upstream `gitlab.nura.eco/modem/81voltd` @ `a7794dd6`, `PKG_RELEASE:=13`).
+`imsdcm` replaced it, and the package is now **gone from the tree**.
 
-The problem: 81voltd and ufi-voice install **the same three paths**
+Why it had to go rather than sit there as a fallback:
 
-```
-/etc/init.d/ims-profile
-/usr/sbin/ims-profile-setup
-/etc/hotplug.d/wwan/20-ims-profile
-```
+- it installed **the same three paths** as ufi-voice
 
-and 81voltd's copy of `ims-profile-setup` is **stale** — it still uses
-`sleep 0.1`, which busybox rejects with `sleep: invalid number '0.1'` (verified
-on the unit), so its 600-iteration wait for the modem device becomes a busy
-spin, where ufi-voice uses `usleep 100000`. Whichever package installs last
-wins; on the bench the ufi-voice copy won (md5 `05d36b70…`) and
-`/etc/init.d/81voltd.apk-new` is still sitting on the unit as evidence of the
-collision.
+  ```
+  /etc/init.d/ims-profile
+  /usr/sbin/ims-profile-setup
+  /etc/hotplug.d/wwan/20-ims-profile
+  ```
 
-Mitigation already in the tree: `90-ufi-voice-services` enables `imsdcm` and
-disables `81voltd`, and `81voltd.init` has the mirror guard.
+  so whichever package installed last won, and `/etc/init.d/81voltd.apk-new`
+  is still on the bench unit as evidence of the collision;
+- its copy of `ims-profile-setup` was **stale**: it used `sleep 0.1`, which
+  busybox rejects with `sleep: invalid number '0.1'` (verified on the unit), so
+  its 600-iteration wait for the modem device became a busy spin;
+- nothing selected it for a reason other than "the old path", and the two
+  services cannot run together anyway.
 
-**Recommendation: drop `81voltd` in the merge commit.** That means removing
-`packages/81voltd/`, the `CONFIG_PACKAGE_81voltd=y` line from
-`diffconfigs/mifib-v12`, and the `81voltd` mention in `ims-profile.init`'s
-comment; the `[ -x /etc/init.d/81voltd ]` guard in `90-ufi-voice-services` can
-stay (harmless, and it protects a device that still has the old package).
-Dropping it also makes the `scripts/openwrt-prepare.sh` change unnecessary —
-81voltd is the **only** project package with a `patches/` directory — so that
-hunk can go with it (or stay as a latent fix for the next such package).
+What the removal touched:
 
-Keeping it is defensible only if you want the fallback on a unit without
-ufi-voice; it is not a configuration anyone runs today.
+| file | change |
+|---|---|
+| `packages/81voltd/` | deleted (11 files: Makefile, 5 scripts, 6 patches) |
+| `diffconfigs/mifib-v12` | `CONFIG_PACKAGE_81voltd=y` dropped |
+| `packages/ufi-voice/files/90-ufi-voice-services` | the `81voltd disable` line and its comment dropped; it now only enables `imsdcm` |
+| `packages/ufi-voice/files/ims-profile.init` | comment retargeted from "runs before 81voltd (S96)" to "runs before imsdcm (S96)" |
+| `packages/qrtr/Makefile` | **reverted to main** — the `qrtr.pc` install and the `PKG_RELEASE` bump existed only for 81voltd's meson build |
+| `scripts/openwrt-prepare.sh` | **kept** — the bug it fixes (project-package patches copied to `package/system/` instead of `package/msm8916/`) hits any future package with a `patches/` directory |
+| docs 220/221 | the live procedure now says `imsdcm`; the history in the failure ledger and the success record still names 81voltd, which is correct |
+
+**Upgrade caveat.** A unit flashed from the test image keeps
+`/etc/init.d/81voltd` and its `rc.d` link in the overlay even after the new
+image drops the package, and it would then fight `imsdcm` over QMI 770. Disable
+it once by hand (`/etc/init.d/81voltd disable`) on any such unit; a clean flash
+has nothing to clean up.
 
 ---
 
@@ -268,8 +272,7 @@ ufi-voice; it is not a configuration anyone runs today.
 |---|---|---|
 | `openwrt-overlay/.../modemmanager/patches/100-iface-modem-voice-dont-match-different-index-by-number.patch` | a waiting call from the same number as the active call was matched with the active one, which took over its state and lost the real call | low, but it changes MM call matching for **every** board |
 | `msm89xx-scripts` `modemmanager-proto-hotfix` | `cp -f` kept the payload's 0644, and netifd only loads executable proto handlers → interface stayed `"proto": "none"` | low, one `chmod +x`; the payload file also flips 644 → 755 |
-| `qrtr` `PKG_RELEASE` 2 → 3, install `qrtr.pc` | 81voltd's meson build needs the pkg-config file | none; drop with 81voltd if you like |
-| `scripts/openwrt-prepare.sh` | project-package patches were copied to `package/system/<pkg>`, but project packages live in `package/msm8916/<pkg>` | only exercised by 81voltd |
+| `scripts/openwrt-prepare.sh` | project-package patches were copied to `package/system/<pkg>`, but project packages live in `package/msm8916/<pkg>` | none today (no package ships `patches/` any more); kept as a latent fix |
 | `.github/workflows/tests.yml` | runs the modem-watchdog self-check on PRs | adds ~seconds |
 
 ---
@@ -298,8 +301,8 @@ patch 870 (q6voice, dtsi) ──► kmod sound-msm8916-voice ──► ufi-voice
         patch 872 (mifib DTS) ─┘                              │
                                                              ├──► ufi-voice-asterisk
 patch 871 (bam-dmux race) ── independent ─────────────────────┘
-qmi-raw ──► 81voltd ──┐
-                      └──► (both need ims-profile-setup, ims-profile, hotplug 20-ims-profile)
+ufi-voice also owns the IMS profile path (ims-profile-setup, ims-profile, the wwan hotplug hook)
+qmi-raw ── standalone tool (no package depends on it any more)
 modem-bearer-watchdog + luci ── independent of the above (only the uci keys are shared)
 ModemManager patch 100 ── independent, benefits every board with calls
 ```
@@ -355,16 +358,14 @@ them, and write the release note from §0–§2.
 
 1. **Publish or not.** This is the whole point of the private branch: the work
    is currently only on `private`. Merging to main makes it public.
-2. **81voltd: drop (recommended) or keep.** See §4.4. If dropped, also drop the
-   `diffconfigs` line and the `openwrt-prepare.sh` hunk.
-3. **Board scope.** Voice is enabled on mifib-v12 and ufi003-mb-v02. The other
+2. **Board scope.** Voice is enabled on mifib-v12 and ufi003-mb-v02. The other
    seven boards get neither the DTS include nor the packages. Confirm that is
    the intent, and that UFI003 without `luci-app-ufi-voice` is intended too.
-4. **Defaults.** `volte '1'` and `mode 'both'` mean a fresh install starts the
+3. **Defaults.** `volte '1'` and `mode 'both'` mean a fresh install starts the
    IMS data service and rings both the headset and the SIP phones. Confirm.
-5. **`qmi-raw` on the image.** Dev tool, but the SOP recipes use it.
-6. **Package releases for the release note:** `ufi-voice` r19,
-   `luci-app-ufi-voice` r3, `qmi-raw` r4, `81voltd` r13, `qrtr` r3.
+4. **`qmi-raw` on the image.** Dev tool, but the SOP recipes use it.
+5. **Package releases for the release note:** `ufi-voice` r20,
+   `luci-app-ufi-voice` r3, `qmi-raw` r4.
 
 ---
 
@@ -375,7 +376,7 @@ them, and write the release note from §0–§2.
 - [ ] `./build.sh guard --deep` — tree matches tracked sources
 - [ ] `./build.sh build mifib-v12 ufi003` — both images complete
 - [ ] `./build.sh build ufi001b` — an untouched board still builds
-- [ ] `ls openwrt/bin/.../packages/` contains `ufi-voice-1.0-r19.apk`,
+- [ ] `ls openwrt/bin/.../packages/` contains `ufi-voice-1.0-r20.apk`,
       `luci-app-ufi-voice-*r3*`, `kmod-sound-msm8916-voice`, `qmi-raw`,
       `ufi-voice-asterisk`
 

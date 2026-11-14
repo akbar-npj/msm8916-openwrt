@@ -1,13 +1,10 @@
 #!/bin/sh
-# One IMS data service for QMI 770.
+# Start the AP side of the modem's IMS data service (QMI 770).
 #
-# imsdcm (this package) and 81voltd both implement the AP side of the modem's
-# IMSD service. Running both makes them fight over the modem's requests: the
-# IMS bearer is created and removed in a loop and IMS never registers. imsdcm
-# is the newer implementation, so it wins whenever it is installed; 81voltd's
-# init has the matching guard for the case where this script does not run.
+# imsdcm is the only implementation in the tree: two servers for QMI 770 make
+# them fight over the modem's requests, the IMS bearer is created and removed
+# in a loop and IMS never registers.
 
 [ -x /etc/init.d/imsdcm ] && /etc/init.d/imsdcm enable
-[ -x /etc/init.d/81voltd ] && /etc/init.d/81voltd disable
 
 exit 0
