@@ -16,8 +16,8 @@ bench history see `220_VOLTE_ENABLEMENT_SOP.md`. Nothing here repeats them.
 
 ```
 branch   test/volte-openimsd   (private remote only)
-base     main                  0 commits behind, 42 ahead
-size     58 files, +10 694 / -20
+base     main                  0 commits behind, 43 ahead      (at 9c33226f)
+size     58 files, +10 694 / -20                                (at 9c33226f)
 ```
 
 Because the branch is **0 behind**, `git merge --ff-only` is still a clean
