@@ -435,6 +435,11 @@ class Bridge:
                '-j', uci('jitter_ms', '40')]
         if uci('bridge_debug', '0') == '1':
             cmd.append('-v')
+        # Diagnostic: dump the raw capture (before resampling) so the actual
+        # bandwidth of the modem's voice path can be measured. Off by default.
+        dump = uci('bridge_dump', '')
+        if dump:
+            cmd += ['-R', dump]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         os.set_blocking(p.stdin.fileno(), False)
         self.proc = p

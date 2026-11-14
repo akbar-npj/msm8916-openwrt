@@ -876,6 +876,25 @@ Consequences:
 - None of that is worth building until a call actually carries wideband. Whether it does depends on
   the network and the far end — retest with a call to a known VoLTE handset before starting.
 
+**Re-confirmed from the bridge itself (2026-11-14).** The capture above was a separate `arecord`; this
+time `voicebridge -R <file>` dumped the very PCM the bridge reads before its own resampler, so it is
+exactly what the phones get. 15.6 s of an answered call, loudest 2 s, 48 kHz:
+
+```
+  300-1000 Hz   -3.9 dB
+ 1000-2000 Hz  -16.4
+ 2000-3400 Hz  -19.3
+ 3400-4000 Hz  -20.2
+ 4000-5000 Hz  -44.3
+ 5000-7000 Hz  -91.8
+content above -20 dB up to 3574 Hz
+```
+
+Same wall, same conclusion: the band above 4 kHz is empty *before* the bridge's 8 kHz downsampler, so
+the loss is in the modem/DSP leg, not in Asterisk. `-R` stays in the product as an off-by-default
+diagnostic (`uci ufivoice.main.bridge_dump`), capped at 2 minutes per call so it cannot fill `/tmp`.
+
+
 ### 8.10 The uplink works — `Voice Tx Mute` does not block it (2026-11-14)
 
 **Question.** `voicectl start host volte` sets `Voice Tx Mute = host_tx_mute` (uci default `1`) on the

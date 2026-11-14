@@ -222,6 +222,8 @@ int main(int argc, char **argv)
     int capdev = 0, playdev = 1, jitter_ms = 40, opt;
     unsigned rate = 48000;
     char dev[64];
+    const char *dump_path = NULL;
+    FILE *dump = NULL;
     snd_pcm_t *cap, *play;
     snd_pcm_uframes_t cperiod, pperiod;
     int ncfd, npfd, nfds, buffering = 1, cap_fail = 0, jitter, maxfill;
@@ -230,7 +232,7 @@ int main(int argc, char **argv)
     struct stats st = {0};
     double t_stats;
 
-    while ((opt = getopt(argc, argv, "D:c:p:r:j:v")) != -1) {
+    while ((opt = getopt(argc, argv, "D:c:p:r:j:vR:")) != -1) {
         switch (opt) {
         case 'D': card = optarg; break;
         case 'c': capdev = atoi(optarg); break;
@@ -238,8 +240,9 @@ int main(int argc, char **argv)
         case 'r': rate = atoi(optarg); break;
         case 'j': jitter_ms = atoi(optarg); break;
         case 'v': verbose = 1; break;
+        case 'R': dump_path = optarg; break;
         default:
-            fprintf(stderr, "usage: %s -D hw:CARD [-c capdev] [-p playdev] [-r rate] [-j jitter_ms] [-v]\n", argv[0]);
+            fprintf(stderr, "usage: %s -D hw:CARD [-c capdev] [-p playdev] [-r rate] [-j jitter_ms] [-v] [-R dump.raw]\n", argv[0]);
             return 2;
         }
     }
@@ -267,6 +270,13 @@ int main(int argc, char **argv)
     if (!(play = open_pcm(dev, SND_PCM_STREAM_PLAYBACK, rate, &pperiod, 3))) {
         snd_pcm_close(cap);
         return 1;
+    }
+    if (dump_path) {
+        dump = fopen(dump_path, "w");
+        if (dump)
+            setvbuf(dump, NULL, _IONBF, 0);
+        else
+            fprintf(stderr, "voicebridge: %s: %s\n", dump_path, strerror(errno));
     }
     if (pperiod % L) {
         fprintf(stderr, "voicebridge: playback period %lu not a multiple of %d\n", pperiod, L);
@@ -308,6 +318,14 @@ int main(int argc, char **argv)
         if (rev & (POLLIN | POLLERR)) {
             while ((n = snd_pcm_readi(cap, pcmbuf, cperiod)) > 0) {
                 int o = downsample(pcmbuf, n, pipebuf);
+                if (dump) {
+                    fwrite(pcmbuf, 2, n, dump);   /* raw, before resampling */
+                    /* 2 minutes is plenty for analysis and keeps /tmp small */
+                    if (st.cap_frames + n >= (snd_pcm_sframes_t)rate * 120) {
+                        fclose(dump);
+                        dump = NULL;
+                    }
+                }
                 st.cap_frames += n;
                 cap_fail = 0;
                 if (o > 0) {
@@ -402,5 +420,7 @@ int main(int argc, char **argv)
     snd_pcm_close(cap);
     snd_pcm_drop(play);
     snd_pcm_close(play);
+    if (dump)
+        fclose(dump);
     return 0;
 }
