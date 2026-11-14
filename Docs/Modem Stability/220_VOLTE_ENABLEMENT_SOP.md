@@ -860,6 +860,44 @@ Consequences:
 - None of that is worth building until a call actually carries wideband. Whether it does depends on
   the network and the far end — retest with a call to a known VoLTE handset before starting.
 
+### 8.10 The uplink works — `Voice Tx Mute` does not block it (2026-11-14)
+
+**Question.** `voicectl start host volte` sets `Voice Tx Mute = host_tx_mute` (uci default `1`) on the
+assumption that it only silences the BT SCO microphone and the in-call playback
+(`MultiMedia2` → `VOICE_PLAYBACK_TX`) is mixed in *after* it. If that were wrong, the far end would
+hear nothing while we hear them perfectly — which would look exactly like "calls work but nobody can
+hear me".
+
+**Test, without needing a SIP phone.** The bridge is only a pipe into `MultiMedia2`, so feed that PCM
+directly:
+
+```sh
+/etc/init.d/ufi-voiced stop                 # free hw:0,1 from the bridge
+qmi-raw /dev/wwan0qmi0 0x09 0x0020 0x01=<number-ascii-hex> 0x02=<same>   # keep the client alive
+voicectl start host volte                   # routes + Voice Tx Mute=on
+aplay -D hw:0,1 -f S16_LE -r 48000 -c 1 /tmp/tone.wav
+```
+
+with a 16 s pattern of 1 kHz / 1.5 kHz beeps. **The far end heard them.** So:
+
+- the mute acts on the CVP TX (the microphone path) only; the playback mix is downstream of it,
+- `host_tx_mute=1` is correct for host mode and does not break the uplink,
+- `MultiMedia2` → `VOICE_PLAYBACK_TX` → CVS → network is a working chain on its own.
+
+**Healthy mixer state during a host-mode call** (sampled every 3 s):
+
+```
+Voice Session = VoLTE(1)   Voice Tx Mute = on      Voice Record = Downlink(1)   Voice Playback = on
+VOICE_PLAYBACK_TX Audio Mixer MultiMedia2 = on     MultiMedia1 Mixer VOC_REC_DL = on
+INT_BT_SCO_RX Voice Mixer CS-Voice = on            CS-Voice Capture Mixer INT_BT_SCO_TX = on
+```
+
+`voicectl stop` returns `Voice Tx Mute` to `off`, so it does not leak into the next call.
+
+**Also fixed:** `ufi-voice-status` used `pgrep -f voicebridge`, which matches any shell whose command
+line contains the word — including the one an admin happens to be running — and reported
+`voicebridge: running` on an idle box. It now uses `pidof`, which matches the executable name only.
+
 ## 9 Open questions — the trap line and the bench
 
 0. **CLOSED — the `0xc0b3d420` trap.** Deployed, proven loaded (`b15` md5 `27086dd7…`, modem boot at AP
@@ -939,3 +977,4 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-14 | **Dead air both directions — the audio DSP hung at call teardown (§8.7, S33).** A unit that had worked for hours suddenly connected every call but carried no audio. First failure of the boot is an **AFE close** `-110`, after which every AFE/ASM/ADM command times out and `voicebridge` cannot open the capture PCM. This port has no ADSP firmware: the APR services are children of the modem's SMD edge (`4080000.remoteproc:smd-edge:apr:service@{4,7,8,9}`), so audio shares the modem's Q6 and the AP cannot re-probe it. Fixed the AP-side ordering defect that precedes it — `voicectl stop` cleared the mixer routes while `hostless` (1 s poll) still had its PCMs open; r14 waits for the pid, zombie-aware. Recovery is an AP reboot; detection is now `dsp: hung` in the status JSON plus a row on the Phone page. |
 | 2026-11-14 | **A dead bridge left the rest of the call silent (§8.8, S34).** `bridge_died()` cleared the leg and re-routed but never restarted the bridge, because `reroute()` only starts it together with the voice path — so any mid-call bridge death meant silence in both directions until hangup. Found by killing the bridge for a spectrum capture (`voicebridge` exits **0** on SIGTERM). Fixed in r15: restart it when the path is up and one call is active, still gated to one attempt per 10 s. |
 | 2026-11-14 | **The downlink is narrowband — measured (§8.9).** 12 s of `hw:0,0` at 48 kHz during a `voice-ip`/`lte` call: speech to 3.9 kHz, `-94 dB` at 4.0 kHz, noise floor above 4.5 kHz. AMR-NB, no 4–7 kHz content, so G.722 alone would only add a 16k→8k transcode. Wideband would need the AudioSocket **channel driver** (`c(slin16)`), `codec_g722`, a configurable `PIPE_RATE`, and `Dial(AudioSocket/...)` — not worth building until a call is actually wideband. |
+| 2026-11-14 | **Uplink verified, mute hypothesis refuted (§8.10, S35).** Fed a 16 s 1 kHz/1.5 kHz pattern into `hw:0,1` (MultiMedia2) during a live call with `Voice Tx Mute = on` — the far end heard it. So the mute only silences the CVP/mic path and the in-call playback is mixed after it; `host_tx_mute=1` is correct and safe. The whole `MultiMedia2 → VOICE_PLAYBACK_TX → CVS → network` chain works. Also fixed `ufi-voice-status` reporting `voicebridge: running` on an idle box (`pgrep -f` matched the caller's own shell; now `pidof`). |

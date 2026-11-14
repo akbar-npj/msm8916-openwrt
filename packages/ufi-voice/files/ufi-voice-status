@@ -110,8 +110,10 @@ done
 
 # --- bridge --------------------------------------------------------------
 
-bridge=stopped
-pgrep -f voicebridge >/dev/null 2>&1 && bridge=running
+# pidof matches the executable name only; `pgrep -f voicebridge` also matches any
+# shell whose command line happens to contain the word, which reports "running"
+# on an idle box (seen 2026-11-14 while testing).
+bridge=$(svc_bin voicebridge)
 
 # --- output --------------------------------------------------------------
 
