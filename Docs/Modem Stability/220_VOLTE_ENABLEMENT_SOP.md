@@ -828,6 +828,22 @@ attempt per 10 s.
 spectrum capture needs `hw:0,0` exclusively, and taking it away from a live call costs the caller
 their audio. Capture on a call that is being set up, or accept the call is over.
 
+**Live result (2026-11-14, r16, 3 h uptime).** Six calls in one 8-minute watch (04:29–04:32) plus a
+55 s answered incoming call later (05:31:52 → 05:32:48) behaved as follows:
+
+- every call logged `voice path started (host, volte)` → `voicebridge: hw:0,0 … hw:0,1 …` →
+  `voice path stopped` in order, with no orphaned bridge and no `voicebridge exited` line;
+- steady-state stats were `jbuf 0/60 ms`, `gaps 1–5` per 5 s window, `dropped 0 ms`, `outdrop 0`,
+  `in ~7.0–8.1 k/s`, `out ~8.0 k/s`;
+- `dmesg | grep -c "failed -110"` = **0** after many start/stop cycles ⇒ the r14 teardown wait holds;
+- **`voicebridge died during a call, restarting it` never appeared**, so the r15 path is still
+  unexercised in the field. It is only proven by the deliberate `kill $(pidof voicebridge)` test.
+
+One degraded window was real, and it is not a bridge fault: while `call10` was active and `call11`
+rang in at the same time, the 5 s window reported `gaps 17 dropped 1040 ms xruns 0/5`. Re-routing the
+leg to a newly arriving call interrupts playback for about a second. Acceptable, but it is the
+signature to expect if a caller complains about a glitch exactly when a second call arrives.
+
 ### 8.9 Is the call wideband? Measured — no (2026-11-14)
 
 The question behind "should we add G.722 / AMR-WB": how much bandwidth does the downlink actually
