@@ -408,6 +408,7 @@ CONFIG_PACKAGE_kmod-video-qcom-venus=m
 CONFIG_PACKAGE_kmod-pppoa=m
 CONFIG_PACKAGE_kmod-solos-pci=m
 CONFIG_PACKAGE_kmod-sound-core=m
+CONFIG_PACKAGE_kmod-sound-msm8916-voice=m
 CONFIG_PACKAGE_kmod-usb-audio=m
 
 
