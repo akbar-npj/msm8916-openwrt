@@ -402,6 +402,7 @@ CONFIG_PACKAGE_kmod-macremapper=m
 CONFIG_PACKAGE_kmod-mdio-netlink=m
 CONFIG_PACKAGE_kmod-netatop=m
 CONFIG_PACKAGE_kmod-ovpn-backports=m
+CONFIG_PACKAGE_kmod-video-qcom-venus=m
 
 # ATM + audio (no consumer on this SoC, kept for completeness)
 CONFIG_PACKAGE_kmod-pppoa=m
