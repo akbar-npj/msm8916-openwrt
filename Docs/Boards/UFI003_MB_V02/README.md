@@ -112,10 +112,11 @@ The profile follows the UFI001B baseline:
 - WPA3-SAE and multi-SSID;
 - CPU CPR and the 800 MHz cap.
 
-It leaves the `a2_pin` modem hold and `qcom-time-daemon` outside the UFI003
-profile; the Wi-Fi/PMIC cooling maps come from the shared `msm8916-ufi.dtsi`
-(patch 861) and are included. These optional board-specific features are
-separate from the validated button, LED, and SIM behavior.
+The UFI003 DTS enables the driver-managed `a2_pin` modem hold by setting
+`qcom,a2-pin` on `&bam_dmux`. `qcom-time-daemon` remains outside the
+profile. The Wi-Fi/PMIC cooling maps come from the shared
+`msm8916-ufi.dtsi` (patch 861) and are included. These optional board-specific
+features are separate from the validated button, LED, and SIM behavior.
 
 The UFI common DTS enables the `pm8916_usbin` USB extcon; the PM8916 charger
 node is disabled by default. No battery/BMS override is included in this
