@@ -41,8 +41,10 @@ Both consequences are handled, and both are easy to reintroduce by accident:
 
 ## Step by step: build, flash and run it
 
-The whole procedure, in the order it has to happen. `<board>` is `hmuf02v5`,
-`mf800b`, `mifib-v12`, `ufi003_mb_v02` or `ufi001b`.
+The whole procedure, in the order it has to happen. `<board>` is one of the
+names `./build-recovery.sh --help` prints; the list is derived from the device
+definitions in `msm89xx/image/msm8916.mk`, so it follows the tree instead of
+being repeated here.
 
 ### 0. Prerequisites
 
