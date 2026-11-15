@@ -16,6 +16,18 @@ bench history see `220_VOLTE_ENABLEMENT_SOP.md`. Nothing here repeats them.
 
 The branch is `main` plus the inventory in the table below.
 
+**The kernel side is public as of 2026-11-15.** Patches 873/875, the
+`KernelPackage/sound-msm8916-voice`, the `config-6.12` entries and the ten
+`diffconfigs/` lines landed on `main` in `a5a586ad` (PR #88); the bam-dmux
+`pc_irq` re-check landed as 874 in `8a4a9236` (PR #87); the voice-aware
+watchdog, its LuCI options and its test suite landed in `7fb9b615` (PR #73).
+Those rows are gone from the table below — the branch no longer carries them,
+and the rebase that made that true dropped the three commits that used to.
+
+What is left is the product: the `ufi-voice` package, its LuCI page, the
+`qmi-raw` dev tool, the ModemManager call-matching patch, the two board
+package lists, and the docs.
+
 No commit count and no branch-tip hash are recorded here, on purpose. Every edit
 to this file is itself a commit on the branch, so a count or a tip hash written
 here is wrong the moment it is saved — it has been re-anchored three times for
@@ -32,19 +44,16 @@ rebased onto it first.
 
 | area | files | lines | why it is in the merge |
 |---|---|---|---|
-| `msm89xx/patches/` | 3 | +2 575 | q6voice kernel driver + DTS + one bam-dmux race fix |
-| `msm89xx/` (modules, config, image) | 3 | +54 / −2 | kmod package, Kconfig guards, board package lists |
 | `packages/ufi-voice/` | 26 | +3 844 | the product: IMS data service, call daemon, audio bridge, push |
 | `packages/qmi-raw/` | 2 | +396 | dev tool: arbitrary QMI requests (IMS 0x008f, IMSD 0x20) |
 | `packages/luci-app-ufi-voice/` | 4 | +401 | Services → Phone page |
-| `msm89xx/base-files/` | 2 | +247 / −3 | voice-aware holds in the bearer watchdog |
-| `packages/luci-app-modem-watchdog/` | 2 | +41 / −2 | LuCI for those holds |
+| `packages/luci-app-modem-watchdog/` | 2 | +41 / −2 | LuCI for the voice/data holds (the daemon half is on `main`) |
 | `openwrt-overlay/` (ModemManager) | 1 | +28 | call-matching fix (waiting call vs active call) |
-| `packages/msm89xx-scripts/` | 2 | +5 | `chmod +x` the netifd proto payload |
+| `msm89xx/image/msm8916.mk` | 1 | +4 / −2 | `DEVICE_PACKAGES` for mifib-v12 and ufi003-mb-v02 |
+| `packages/msm89xx-scripts/` | 1 | mode only | the netifd proto payload ships executable |
 | `scripts/openwrt-prepare.sh` | 1 | +15 / −7 | project package patches land in `package/msm8916/` |
-| `tests/modem-watchdog/` + CI | 2 | +385 | self-check for the watchdog changes |
 | `diffconfigs/mifib-v12` | 1 | +1 | `qmi-raw` |
-| `Docs/` + `README.md` | 9 | +2 704 / −6 | 220, 221, 222, IMS_VOLTE, UFI003_VOICE, watchdog doc |
+| `Docs/` | 7 | +2 674 | 220, 221, 222, IMS_VOLTE, UFI003_VOICE, SSR doc, board README |
 
 ---
 
@@ -53,7 +62,9 @@ rebased onto it first.
 ### 1.1 The three patches
 
 All three are in `msm89xx/patches/`, so they are applied by the normal build prep — no separate step.
-They start at 873 because 870/871 went to the Venus video stack (PR #75, merged) and 872 is taken by an open PR.
+They are **on `main`** as of `a5a586ad` (873, 875) and `8a4a9236` (874); the branch
+no longer carries them and a branch image gets them from the public tree.
+They start at 873 because 870/871 went to the Venus video stack (PR #75, merged) and 872 is the jz0145 DTS (PR #86, merged).
 
 | patch | lines | what it does | touches |
 |---|---|---|---|
@@ -344,11 +355,12 @@ git merge --ff-only test/volte-openimsd
 **Expected conflict sites** once main has moved (none today):
 
 - `msm89xx/image/msm8916.mk` — `DEVICE_PACKAGES` lines for ufi003 / mifib-v12
-- `msm89xx/modules.mk` — append after `sched-bbr`
-- `msm89xx/config-6.12` — the two `is not set` lines
-- `diffconfigs/mifib-v12` — two `CONFIG_PACKAGE_` lines
-- `scripts/openwrt-prepare.sh`, `.github/workflows/tests.yml`
-- `Docs/Modem Stability/MODEM_BEARER_WATCHDOG.md`
+- `diffconfigs/mifib-v12` — the `qmi-raw` line
+- `scripts/openwrt-prepare.sh`
+- `Docs/Modem Stability/222_VOLTE_MERGE_MANIFEST.md` — this file
+
+The kernel-side sites (`modules.mk`, `config-6.12`, the patch files) can no
+longer conflict: they are on `main` since `a5a586ad`.
 
 If 873 fails to apply after a kernel bump, do **not** force it: re-base it on
 the new `sound/soc/qcom` state, because the q6afe/q6routing hunks depend on the
