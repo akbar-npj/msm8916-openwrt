@@ -193,3 +193,49 @@ define KernelPackage/sched-bbr/description
 endef
 
 $(eval $(call KernelPackage,sched-bbr))
+
+define KernelPackage/sound-msm8916-voice
+  SUBMENU:=$(SOUND_MENU)
+  TITLE:=MSM8916 call audio (QDSP6 voice, internal BT SCO)
+  DEPENDS:=@TARGET_msm89xx +kmod-sound-soc-core
+  KCONFIG:=\
+    CONFIG_QCOM_APR \
+    CONFIG_QCOM_PDR_HELPERS \
+    CONFIG_QCOM_PDR_MSG \
+    CONFIG_SND_SOC_QCOM \
+    CONFIG_SND_SOC_APQ8016_SBC \
+    CONFIG_SND_SOC_QDSP6 \
+    CONFIG_SND_SOC_QDSP6_Q6VOICE \
+    CONFIG_SND_SOC_BT_SCO
+  FILES:=\
+    $(LINUX_DIR)/drivers/soc/qcom/apr.ko \
+    $(LINUX_DIR)/drivers/soc/qcom/pdr_interface.ko \
+    $(LINUX_DIR)/drivers/soc/qcom/qcom_pdr_msg.ko \
+    $(LINUX_DIR)/sound/soc/codecs/snd-soc-bt-sco.ko \
+    $(LINUX_DIR)/sound/soc/qcom/snd-soc-qcom-common.ko \
+    $(LINUX_DIR)/sound/soc/qcom/snd-soc-apq8016-sbc.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/snd-q6dsp-common.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6core.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6afe.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6afe-dai.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6afe-clocks.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6adm.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6routing.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6asm.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6asm-dai.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6voice-common.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6mvm.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6cvs.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6cvp.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6voice.ko \
+    $(LINUX_DIR)/sound/soc/qcom/qdsp6/q6voice-dai.ko
+  AUTOLOAD:=$(call AutoProbe,apr q6core q6afe q6afe-dai q6afe-clocks q6adm q6routing q6asm q6asm-dai q6voice-common q6mvm q6cvs q6cvp q6voice-dai snd-soc-bt-sco snd-soc-apq8016-sbc)
+endef
+
+define KernelPackage/sound-msm8916-voice/description
+ Call audio for MSM8916 sticks: the QDSP6 services of the modem firmware
+ (APR), q6voice with the internal BT SCO link of WCNSS, and the in-call
+ record taps / in-call playback for host-side audio (msm8916-ufi-voice.dtsi).
+endef
+
+$(eval $(call KernelPackage,sound-msm8916-voice))

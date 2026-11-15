@@ -1,0 +1,19 @@
+From: OpenWrt msm8916 port
+Subject: [PATCH] arm64: dts: qcom: msm8916-generic-mifib-v12: enable call audio
+
+Include the shared voice dtsi so the mifib-v12 gets the same q6voice sound
+card as the UFI sticks: QDSP6 voice over APR, the internal BT SCO link of
+WCNSS, and the in-call record/playback ports.
+
+---
+diff --git a/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
+--- a/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts
+@@ -3,6 +3,7 @@
+ /dts-v1/;
+ 
+ #include "msm8916-ufi.dtsi"
++#include "msm8916-ufi-voice.dtsi"
+ 
+ #include <dt-bindings/iio/qcom,spmi-vadc.h>
+ #include <dt-bindings/leds/common.h>
