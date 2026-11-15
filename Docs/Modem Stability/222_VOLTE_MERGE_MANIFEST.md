@@ -20,7 +20,8 @@ The branch is `main` plus the inventory in the table below.
 `KernelPackage/sound-msm8916-voice`, the `config-6.12` entries and the ten
 `diffconfigs/` lines landed on `main` in `a5a586ad` (PR #88); the bam-dmux
 `pc_irq` re-check landed as 874 in `8a4a9236` (PR #87); the voice-aware
-watchdog, its LuCI options and its test suite landed in `7fb9b615` (PR #73).
+watchdog, its LuCI options and its test suite landed in `7fb9b615` (PR #73) and
+`bed94104` (PR #89).
 Those rows are gone from the table below — the branch no longer carries them,
 and the rebase that made that true dropped the three commits that used to.
 
@@ -47,7 +48,6 @@ rebased onto it first.
 | `packages/ufi-voice/` | 26 | +3 844 | the product: IMS data service, call daemon, audio bridge, push |
 | `packages/qmi-raw/` | 2 | +396 | dev tool: arbitrary QMI requests (IMS 0x008f, IMSD 0x20) |
 | `packages/luci-app-ufi-voice/` | 4 | +401 | Services → Phone page |
-| `packages/luci-app-modem-watchdog/` | 2 | +41 / −2 | LuCI for the voice/data holds (the daemon half is on `main`) |
 | `openwrt-overlay/` (ModemManager) | 1 | +28 | call-matching fix (waiting call vs active call) |
 | `msm89xx/image/msm8916.mk` | 1 | +4 / −2 | `DEVICE_PACKAGES` for mifib-v12 and ufi003-mb-v02 |
 | `packages/msm89xx-scripts/` | 1 | mode only | the netifd proto payload ships executable |
@@ -214,31 +214,28 @@ Ship it or not is a judgement call: it is harmless (~30 KB) and it is how the
 modem was brought up. It used to be a dependency of `81voltd` (now removed), but
 the SOP's diagnostic recipes use it directly, so I would keep it.
 
-### 4.2 `luci-app-modem-watchdog` (41 lines)
+### 4.2 `luci-app-modem-watchdog` and `modem-bearer-watchdog` — on `main`
 
-Adds the four voice options to the existing page: `voice_alive`, `data_plan`
-(auto / data SIM / voice-only), `voice_hold_secs`, `drop_default_route`. Also
-grants rpcd exec on `/etc/init.d/modem-bearer-watchdog` so Apply restarts it.
+Both halves are merged and no longer part of the branch:
 
-### 4.3 `modem-bearer-watchdog` (+221 lines)
-
-Voice-aware holds, all opt-in (`voice_alive '0'` by default):
-
-- a call in progress, or a SIM with no data service that is alive for voice
-  (IMS registered, or registered with live serving-cell measurements), skips the
-  recovery ladder instead of restarting the modem — restarting cannot bring
-  data to a voice-only SIM;
-- `data_plan=auto` infers "no data service" per ICCID: a SIM swap starts over,
-  a modem restart does not; any downlink packet ends the hold;
-- `drop_default_route` removes the modem's default routes during a hold so
-  traffic never falls back to an empty bearer (on UFI003 those fallbacks came
-  with `a2_power.c:1216` fatals during calls). Only while another uplink has,
-  or had within 5 minutes, a default route.
-
-This is the only change in the merge that touches a **shipping recovery path**
-on all nine boards. It is default-off, but it is also the change most worth a
-second pair of eyes. `tests/modem-watchdog/run.sh --self-check` covers it and is
-now part of CI (`.github/workflows/tests.yml`).
+- `modem-bearer-watchdog` (`7fb9b615`, PR #73) — voice-aware holds, all opt-in
+  (`voice_alive '0'` by default):
+  - a call in progress, or a SIM with no data service that is alive for voice
+    (IMS registered, or registered with live serving-cell measurements), skips the
+    recovery ladder instead of restarting the modem — restarting cannot bring
+    data to a voice-only SIM;
+  - `data_plan=auto` infers "no data service" per ICCID: a SIM swap starts over,
+    a modem restart does not; any downlink packet ends the hold;
+  - `drop_default_route` removes the modem's default routes during a hold so
+    traffic never falls back to an empty bearer (on UFI003 those fallbacks came
+    with `a2_power.c:1216` fatals during calls). Only while another uplink has,
+    or had within 5 minutes, a default route.
+- `luci-app-modem-watchdog` (`bed94104`, PR #89) — the four fields on the page
+  (`voice_alive`, `data_plan` auto / data SIM / voice-only, `voice_hold_secs`,
+  `drop_default_route`) plus rpcd exec on `/etc/init.d/modem-bearer-watchdog` so
+  Apply restarts it.
+- `tests/modem-watchdog/run.sh --self-check` and its CI step also landed in
+  `7fb9b615`.
 
 ### 4.4 `81voltd` — removed in this branch
 
@@ -442,11 +439,10 @@ assumes more than was tested:
 ## 12. Rollback
 
 The merge is additive except for the files main already has:
-`msm89xx/{modules.mk,config-6.12,image/msm8916.mk}`, `diffconfigs/mifib-v12`,
-`msm89xx/base-files/{etc/config/modem-watchdog,usr/sbin/modem-bearer-watchdog}`,
-the two `luci-app-modem-watchdog` files, `packages/qrtr/Makefile`,
+`msm89xx/image/msm8916.mk`, `diffconfigs/mifib-v12`,
+`packages/qrtr/Makefile`,
 `packages/msm89xx-scripts/{root/etc/init.d/modemmanager-proto-hotfix,root/usr/share/msm89xx/modemmanager.sh.hotfix}`,
-`scripts/openwrt-prepare.sh`, `.github/workflows/tests.yml`, `README.md`,
+`scripts/openwrt-prepare.sh`, `README.md`,
 `Docs/Boards/UFI003_MB_V02/README.md` and the two edited modem-stability docs.
 `git revert -m 1 <merge>` restores main exactly; a device already flashed with
 the merged image keeps the voice kmods on its overlay until a reflash, which is
