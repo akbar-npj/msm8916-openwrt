@@ -1,81 +1,58 @@
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
-## v25.12.6-r8 — Feature highlights
+## v25.12.6-r9 — Feature highlights
 
-- 🆕 **New board: `jz02`** — a battery MiFi with three SIM switch lines, a 2100 mAh / 4.35 V pack
-  and the USB-gadget LAN. The external slot (3) is the one tested on hardware; slots 1 and 2 are
-  internal or unpopulated on that unit. Its stock Android DTB names the LEDs misleadingly, so the
-  image uses the mapping measured on the board, not the labels.
-  **This board has no failsafe mode**: the reset pinhole is not software-visible — no GPIO
-  transition, no PMIC GPIO change, no `pm8941_pwrkey` event, no reboot — so it is a hardware reset.
-  A config that will not boot can only be recovered through EDL. Everything else works, including
-  battery reporting and the SIM selector (`uci set sim.slot=3`).
+- 🛡️ **A raw-IP redirect to an IFB could reboot the router.** With `tc` ingress `mirred` on
+  `wwan0` (what SQM/CAKE does when it shapes the LTE interface through an IFB) and inbound
+  traffic, the kernel panicked with `skb_under_panic` and the unit rebooted; disabling CAKE did
+  not help, because `mirred` runs first. On an L3 device there is no L2 header, so `skb->mac_len`
+  holds a buffer offset rather than a header length, and the push walked one byte past the
+  headroom. `act_mirred` now asks the source device whether it has an L2 header at all, and drops
+  a packet it cannot fit instead of panicking.
 
-- 📶 **A Wi-Fi station that dropped never came back.** A field unit sat down for ~39 minutes with
-  its upstream visible in the scan on the right channel: 14 failed 4-way handshakes and 22
-  `SSID-TEMP-DISABLED` in 66 minutes, while the watchdog kept concluding "no channel mismatch;
-  leaving it to wpa_supplicant" until two `-EBUSY` scans happened to trip a driver reload. The
-  generated supplicant config had no `key_mgmt` at all, so wpa_supplicant applied its own default,
-  and two other defects kept a dead interface from being re-armed. All three are fixed, and the AKM
-  is now chosen from the scan: a WPA3-capable AP gets SAE with PMF, a WPA2-only AP still connects.
+- 📞 **The modem is no longer restarted while you are on a call.** The bearer watchdog treats "no
+  downlink" as a dead bearer and rebuilds it, which cannot help a SIM that has no data service —
+  and it tears down the call. A new opt-in voice-aware hold skips the recovery ladder while a call
+  is in progress, or while a voice-only SIM is alive for voice, and can drop the modem's default
+  route during the hold so traffic does not fall back to an empty bearer. Off by default
+  (`voice_alive='0'`), with fields on the Modem Watchdog page.
 
-- 🔄 **One failed manifest fetch silenced update checks for six hours.** The first minutes after
-  boot are exactly when the station has associated but the manifests are not yet readable, and that
-  run was counted as a success, so the daemon waited the full 6 h interval. A failed check now
-  retries in 15 minutes instead.
+- 🎧 **The voice audio path is in the kernel now.** The q6voice stack (MVM, CVS, CVP) over APR,
+  internal BT-SCO ports, in-call record taps and playback, as `kmod-sound-msm8916-voice` in the
+  feed for every board, with the card enabled on `mifib-v12` and `ufi003-mb-v02`. This is the
+  kernel half only — the userspace voice packages are not part of this release.
 
-- 🩹 **Installing a hotfix from the Firmware Upgrade page looked like a dead button.** No busy
-  state, no progress, and the result toast was inserted at the top of the page — off-screen when
-  the button at the bottom was pressed — followed by "No fixes pending for this build." A
-  successful install was indistinguishable from nothing happening. The page now shows a progress
-  bar with the package being installed and a result that stays visible.
+- 🔧 **A modem assertion during calls.** `bam_dmux_pc_irq()` compared the power-control line
+  against `pc_state` before taking the lock; the RX watchdog can resync the same edge first, and
+  the double ack left the A2 handshake one toggle off, which the modem answers with
+  `a2_power.c:3017:A2 Assertion Failed`. The state is re-checked under the lock.
 
-- 🐛 **A hotfix could fail once for no reason.** Publishing writes the index and the `.apk` in the
-  same commit, so a device reading the feed within a minute sees a version mismatch that is not a
-  conflict — it is `apk` saying the only candidate it can see is the one already installed. The
-  install now retries that exact failure once.
+- 💡 **LED setup was rebuilt around roles.** Lamps are mapped by role (WAN, WLAN, battery) instead
+  of by stock name, patterns are chosen from a dropdown instead of typed, the stock LED page is
+  hidden, the battery roles are only offered on boards that have a battery, and the `hmuf02v5`
+  colours are corrected (green is LTE, blue is Wi-Fi).
 
-- 🧰 **The Software page offered a `base-files` update it could never install.** `base-files` is
-  version-pinned in `/etc/apk/world`, so `apk upgrade` honours the pin, prints `OK: … in 307
-  packages` and changes nothing — while LuCI reports success. The offer came from promotion copying
-  the release's `base-files` into the shared feed every revision reads. Promotion no longer
-  publishes it; base-files hotfixes still ship through the revision-scoped feed.
+- 📶 **A Wi-Fi station that wedged in the 4-way handshake took nine minutes to come back.** The
+  station interface is now re-armed in about 30 seconds, `DELETE_BSS` is retried and its handle
+  dropped when it fails, and handshake-timeout reloads are counted so the recovery can tell a
+  stubborn AP from a dead driver.
 
-- 🧪 **Board support now has a test harness.** `tests/board-profile/run.sh` checks every board on
-  every PR — diffconfig ↔ device profile ↔ DTS ↔ DTB registration ↔ `SUPPORTED_DEVICES`, file
-  modes, `rc.d` symlinks, patch numbering, and that a change to a shared `base-files` file is gated
-  to the board it is for. A `board-build` label builds a contributor's board in CI, and `signoff.sh`
-  prints the hardware evidence a board PR has to paste back.
-  Also fixed: `device=all` was building seven of eight boards — `uf896` was missing from the
-  hardcoded matrix, which is now derived from `diffconfigs/`.
+- 🎬 **Hardware H.264.** `kmod-video-qcom-venus` and the Venus 1.8 firmware ship on every board,
+  so encode and decode run on the video core instead of the CPU. It is a module, not part of the
+  default image payload, on every board including `jz0145`.
 
-## v25.12.6-r7 — Feature highlights
+- 🆕 **New board `jz0145`** (`jz0145-v33`) — a UFI003-class stick, with the A2 power domain held
+  active so its modem stays up.
 
-- 🩹 **r6 is withdrawn — it did not boot.** r6 tried to make the PM8916 RTC writable so `hwclock -w`
-  would stop failing. That call runs from `sysfixtime` at `START=00`, the very first init script,
-  and the RTC comes out of reset at 1970, so it fires on every boot. Without the property it returns
-  `RTC_SET_TIME: No such device` before it reaches the PMIC — harmless. With it, it becomes the
-  first code on these boards to write the RTC registers over SPMI, and the boot wedges there: the
-  system never reaches userspace, lk2nd's 3-strike counter runs out, and the board lands in the
-  recovery partition. `firstboot` cannot help, because the failure happens before it. The patch is
-  removed and the DTB is byte-identical to r5 again. **If you are on r6, flash r7.**
+- 💾 **Recovery images**: UZ801 is now buildable, the `dropbearkey` multicall symlink is included,
+  and UFI003 image names keep their hyphens.
 
-- 📊 **Firmware upgrade now shows what it is doing.** The page gave no indication at all while an
-  upgrade ran: the console only appeared once the apply log had content, and the download — the
-  longest phase, ~8 MB over Wi-Fi — showed nothing, so a working upgrade looked like a dead button.
-  There is now a progress bar driven by the real byte count of the image on disk (0–80 %), then
-  verify (85 %) and flash (92 %); `sysupgrade` reports nothing finer, so the bar does not pretend
-  otherwise, and a failure turns it red. The console appears the moment you press Upgrade, scrolls
-  with the log, and survives a page reload.
+- ⚠️ **Reflash to move to r9 — do not mix it with r8 packages.** The kernel config changed, so the
+  kernel's ABI tag changed with it. The LuCI Firmware Upgrade page is the normal path and handles
+  this; what does not work is `apk add` of a kmod on an r8 unit after r9 is published, because the
+  feed then carries only r9's kmods.
 
-- 🧪 **Every release ships as a test build first.** A tag build publishes a prerelease and
-  `releases/<version>/` only; it no longer touches the shared `releases/<base>/` feed or the root
-  `firmware.json`, so an image that turns out to be broken cannot be handed to devices that are
-  already running. Promotion is an explicit `promote-release.yml` run that copies the feed, prunes
-  superseded kernel and kmod packages, republishes the root manifest and flips the release to
-  Latest.
-
-- 🐛 **CI no longer silently drops the LuCI submodule.** `packages/luci-app-cpu-perf` is a git
-  submodule and `actions/checkout` does not fetch submodules by default, so CI produced an image
-  without it and OpenWrt quietly dropped it from `DEFAULT_PACKAGES`. Both checkouts now pass
-  `submodules: recursive`.
+- 🧰 **Also**: filesystem, netfilter, QoS, storage, misc and sound kmods are enabled; Israeli APNs
+  added; the firmware-upgrade page clears its hotfix banner after installing; one hotfix entry per
+  package; CI moved off Node 20 onto `ubuntu-24.04` and keeps board-build images as a 7-day
+  artifact; redundant BFQ settings dropped from the target config.
