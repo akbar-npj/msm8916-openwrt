@@ -3,8 +3,8 @@
 Everything the VoLTE work adds to the tree, what each piece is for, what it
 depends on, what to check before merging, and what to decide first.
 
-Written 2026-11-14 against `4951f357`. Re-check the numbers with
-`git rev-list --left-right --count main...HEAD` before quoting them.
+Written 2026-11-14. The per-area numbers in the table are a snapshot from then;
+§0 says how to get the current ones.
 
 This is the **inventory** document. For how the stack works see
 `221_VOLTE_GUIDE.md`; for the bring-up procedure, the failure ledger and the
@@ -14,14 +14,21 @@ bench history see `220_VOLTE_ENABLEMENT_SOP.md`. Nothing here repeats them.
 
 ## 0. The delta
 
+The branch is `main` plus the inventory in the table below.
+
+No commit count and no branch-tip hash are recorded here, on purpose. Every edit
+to this file is itself a commit on the branch, so a count or a tip hash written
+here is wrong the moment it is saved — it has been re-anchored three times for
+exactly that reason. Ask git instead:
+
 ```
-branch   test/volte-openimsd   (private remote only)
-base     main                  0 commits behind, 45 ahead      (at 644b0b49)
-size     58 files, +10 694 / -20                                (at 644b0b49)
+git rev-list --left-right --count main...HEAD   # behind, ahead
+git diff --shortstat main...HEAD                # files, insertions, deletions
 ```
 
-Because the branch is **0 behind**, `git merge --ff-only` is still a clean
-fast-forward today. It will not be once main moves.
+Only **behind** matters for the merge itself: at 0 the merge is a clean
+`git merge --ff-only`; the moment main moves it is not, and the branch has to be
+rebased onto it first.
 
 | area | files | lines | why it is in the merge |
 |---|---|---|---|
