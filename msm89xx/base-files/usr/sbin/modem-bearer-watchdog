@@ -208,6 +208,13 @@ sim_id() {
     [ -n "$iccid" ] && echo "$iccid" | md5sum | cut -c1-16
 }
 
+# 0 when the RX history is worth keeping: the voice liveness hold is the only
+# thing that reads it, so with voice_alive=0 the daemon must not spend a
+# ModemManager round-trip (up to 15 s) on every new bearer.
+rx_tracking_enabled() {
+    [ "$(uci -q get modem-watchdog.recovery.voice_alive || echo 0)" = "1" ]
+}
+
 # Records the SIM that had a downlink packet.  ModemManager is only asked
 # once per bearer: RX_SEEN_SIM is cleared when the bearer goes down, which a
 # SIM swap always does.
@@ -422,6 +429,12 @@ modem_restart() {
     [ "$_k" -lt 60 ] || return 1
     return 0
 }
+
+# Tests source this file to exercise the functions above; everything below is
+# the daemon itself.
+if [ "${MODEM_WATCHDOG_LIB_ONLY:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
 
 logger -t modem-stall-watchdog "Started modem bearer stall watchdog (Android-equivalent passive mode)"
 # Routes a previous instance removed for a hold that ended with it.
@@ -648,7 +661,7 @@ while true; do
     LAST_TX="$CUR_TX"
     LAST_RX="$CUR_RX"
 
-    [ "$DELTA_RX" -gt 0 ] && mark_rx_seen
+    [ "$DELTA_RX" -gt 0 ] && rx_tracking_enabled && mark_rx_seen
 
     # Voice liveness hold (see voice_alive): no stall accounting while the
     # modem stays alive for voice, rechecked every voice_hold_secs.  A
