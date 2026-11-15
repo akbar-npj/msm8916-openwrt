@@ -129,9 +129,9 @@ The kernel side is three patches in `msm89xx/patches/`:
 
 | Patch | What it does |
 |---|---|
-| `870-asoc-qcom-msm8916-voice.patch` | the QDSP6 voice stack, BT SCO + record/playback ports, the card |
-| `871-bam-dmux-pc-irq-recheck-state-under-lock.patch` | fixes an A2 assertion seen during a voice call on UFI003 |
-| `872-arm64-dts-qcom-mifib-v12-enable-voice.patch` | includes the voice dtsi for the mifib-v12 |
+| `873-asoc-qcom-msm8916-voice.patch` | the QDSP6 voice stack, BT SCO + record/playback ports, the card |
+| `874-bam-dmux-pc-irq-recheck-state-under-lock.patch` | fixes an A2 assertion seen during a voice call on UFI003 |
+| `875-arm64-dts-qcom-mifib-v12-enable-voice.patch` | includes the voice dtsi for the mifib-v12 |
 
 There is **no ADSP partition and no extra firmware**: APR rides the modem's existing `smd-edge`, and
 the voice services are already in the modem firmware.

@@ -95,7 +95,8 @@ define Device/generic-ufi003-mb-v02
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
-		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
+		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
+		kmod-sound-msm8916-voice alsa-utils ufi-voice ufi-voice-asterisk
 endef
 TARGET_DEVICES += generic-ufi003-mb-v02
 

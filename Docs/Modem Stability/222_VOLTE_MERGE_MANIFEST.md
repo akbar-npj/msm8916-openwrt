@@ -57,17 +57,17 @@ They start at 873 because 870/871 went to the Venus video stack (PR #75, merged)
 
 | patch | lines | what it does | touches |
 |---|---|---|---|
-| `870-asoc-qcom-msm8916-voice.patch` | 2 519 | q6voice from msm8916-mainline (Stephan Gerhold) plus the UFI-specific work: q6afe internal-BT-SCO ports and the voice record/playback pseudo ports; q6routing `VOC_REC_DL/UL` + `VOICE_PLAYBACK_TX`; q6voice BT-SCO mixers, CS/VoLTE session select, in-call record taps, in-call playback through a CVS passive session, vocproc "Voice Tx Mute"; non-MI2S backends in the qdsp6 card | `sound/soc/qcom/{Kconfig,apq8016_sbc.c,qdsp6/*}`, new `q6cvs.c`, `q6cvp.c`, `q6mvm.c`, `q6voice*.c`, `msm8916-ufi-voice.dtsi`, `msm8916.dtsi`, two dt-bindings headers, ufi003 board dts |
-| `871-bam-dmux-pc-irq-recheck-state-under-lock.patch` | 37 | re-checks `pc_state` under `state_lock` in `bam_dmux_pc_irq()`: the RX watchdog can resync the same edge first, and a double ack leaves the A2 handshake one toggle off → `a2_power.c:3017` assert 47 ms later, seen during a VoLTE call | `drivers/net/wwan/qcom_bam_dmux.c` |
-| `872-arm64-dts-qcom-mifib-v12-enable-voice.patch` | 19 | includes the shared voice dtsi in the mifib-v12 DTS | `arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts` |
+| `873-asoc-qcom-msm8916-voice.patch` | 2 519 | q6voice from msm8916-mainline (Stephan Gerhold) plus the UFI-specific work: q6afe internal-BT-SCO ports and the voice record/playback pseudo ports; q6routing `VOC_REC_DL/UL` + `VOICE_PLAYBACK_TX`; q6voice BT-SCO mixers, CS/VoLTE session select, in-call record taps, in-call playback through a CVS passive session, vocproc "Voice Tx Mute"; non-MI2S backends in the qdsp6 card | `sound/soc/qcom/{Kconfig,apq8016_sbc.c,qdsp6/*}`, new `q6cvs.c`, `q6cvp.c`, `q6mvm.c`, `q6voice*.c`, `msm8916-ufi-voice.dtsi`, `msm8916.dtsi`, two dt-bindings headers, ufi003 board dts |
+| `874-bam-dmux-pc-irq-recheck-state-under-lock.patch` | 37 | re-checks `pc_state` under `state_lock` in `bam_dmux_pc_irq()`: the RX watchdog can resync the same edge first, and a double ack leaves the A2 handshake one toggle off → `a2_power.c:3017` assert 47 ms later, seen during a VoLTE call | `drivers/net/wwan/qcom_bam_dmux.c` |
+| `875-arm64-dts-qcom-mifib-v12-enable-voice.patch` | 19 | includes the shared voice dtsi in the mifib-v12 DTS | `arch/arm64/boot/dts/qcom/msm8916-generic-mifib-v12.dts` |
 
-**Kernel-bump risk:** 870 is a backport, not an upstream cherry-pick — it edits
+**Kernel-bump risk:** 873 is a backport, not an upstream cherry-pick — it edits
 `msm8916.dtsi`, `q6afe.c`, `q6afe-dai.c`, `q6routing.c` and the qdsp6 Makefile
 in place. Any move of the OpenWrt kernel base will require re-basing it by hand.
-871 is small and self-contained. 872 is one `#include`.
+874 is small and self-contained. 875 is one `#include`.
 
-**DTS coverage:** the voice card is enabled on **mifib-v12** (872) and
-**ufi003-mb-v02** (870). The other seven boards do not get it — deliberate, the
+**DTS coverage:** the voice card is enabled on **mifib-v12** (875) and
+**ufi003-mb-v02** (873). The other seven boards do not get it — deliberate, the
 audio routing was only characterised on those two.
 
 ### 1.2 The kmod package
@@ -87,7 +87,7 @@ AUTOLOAD apr → q6core → … → q6voice-dai → bt-sco → apq8016-sbc
 ```
 
 `CONFIG_SND_SOC_QDSP6_Q6VOICE` / `_DAI` are **new Kconfig symbols created by
-patch 870** — the module package is therefore unusable without the patch, and
+patch 873** — the module package is therefore unusable without the patch, and
 vice versa.
 
 `msm89xx/config-6.12` adds `# CONFIG_SND_SOC_MSM8996 is not set` and
@@ -293,7 +293,7 @@ has nothing to clean up.
 | `Docs/IMS_VOLTE.md` | 259 | architecture, UFI003 recipe, imsdcm, network config, calls, profile compatibility, privacy |
 | `Docs/UFI003_VOICE.md` | 231 | UFI003-specific voice notes |
 | `Docs/Modem Stability/MODEM_BEARER_WATCHDOG.md` | +40 | documents the voice holds |
-| `Docs/Modem Stability/HMU05_SSR_…_REATTACH.md` | +41 | notes the 871 race |
+| `Docs/Modem Stability/HMU05_SSR_…_REATTACH.md` | +41 | notes the 874 race |
 | `Docs/Boards/UFI003_MB_V02/README.md`, `README.md` | +3 | pointers |
 
 221 §5 and 220 §8 are the two a support engineer will actually open. Make sure
@@ -304,17 +304,17 @@ they still describe the shipped defaults after the merge (§2.2).
 ## 7. Dependency graph
 
 ```
-patch 870 (q6voice, dtsi) ──► kmod sound-msm8916-voice ──► ufi-voice ──► luci-app-ufi-voice
-        patch 872 (mifib DTS) ─┘                              │
+patch 873 (q6voice, dtsi) ──► kmod sound-msm8916-voice ──► ufi-voice ──► luci-app-ufi-voice
+        patch 875 (mifib DTS) ─┘                              │
                                                              ├──► ufi-voice-asterisk
-patch 871 (bam-dmux race) ── independent ─────────────────────┘
+patch 874 (bam-dmux race) ── independent ─────────────────────┘
 ufi-voice also owns the IMS profile path (ims-profile-setup, ims-profile, the wwan hotplug hook)
 qmi-raw ── standalone tool (no package depends on it any more)
 modem-bearer-watchdog + luci ── independent of the above (only the uci keys are shared)
 ModemManager patch 100 ── independent, benefits every board with calls
 ```
 
-Hard dependencies: **870 ⇄ kmod ⇄ ufi-voice**. You cannot merge the package
+Hard dependencies: **873 ⇄ kmod ⇄ ufi-voice**. You cannot merge the package
 without the patch or the module. Everything else can be dropped individually
 except `ufi-voice-asterisk`, which needs `ufi-voice`.
 
@@ -350,7 +350,7 @@ git merge --ff-only test/volte-openimsd
 - `scripts/openwrt-prepare.sh`, `.github/workflows/tests.yml`
 - `Docs/Modem Stability/MODEM_BEARER_WATCHDOG.md`
 
-If 870 fails to apply after a kernel bump, do **not** force it: re-base it on
+If 873 fails to apply after a kernel bump, do **not** force it: re-base it on
 the new `sound/soc/qcom` state, because the q6afe/q6routing hunks depend on the
 exact surrounding code.
 

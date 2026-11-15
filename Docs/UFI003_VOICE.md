@@ -4,7 +4,7 @@ The UFI003 image carries a call stack built on the modem's own IMS client:
 
 | Part | What it does |
 | --- | --- |
-| `kmod-sound-msm8916-voice` | QDSP6 over APR on the modem edge, q6voice (MVM/CVS/CVP passive sessions), internal BT SCO AFE ports, voice record taps and in-call playback (`870-asoc-qcom-msm8916-voice.patch`, `msm8916-ufi-voice.dtsi`) |
+| `kmod-sound-msm8916-voice` | QDSP6 over APR on the modem edge, q6voice (MVM/CVS/CVP passive sessions), internal BT SCO AFE ports, voice record taps and in-call playback (`873-asoc-qcom-msm8916-voice.patch`, `msm8916-ufi-voice.dtsi`) |
 | `imsdcm` | AP side of the modem's IMS data connection service (QMI service 770 over QRTR). The IMS stack runs in hybrid mode and asks the AP to bring up the `ims` PDN; the bearer is made through ModemManager |
 | `volte-setup` | Checks / writes the modem EFS items VoLTE needs |
 | `hfp-ag` | Minimal HFP audio gateway on BlueZ (Profile1 API): call control AT commands with a headset, SCO link during calls |
@@ -92,11 +92,11 @@ Future work: starting audio before answer in response to ModemManager `CallAdded
 
 ## Proposals (not implemented)
 
-The current branch already includes q6voice and internal BT SCO through patch 870, and documents working two-way call audio over Bluetooth and SIP. The older fork notes that those features were missing do not describe this branch.
+The current branch already includes q6voice and internal BT SCO through patch 873, and documents working two-way call audio over Bluetooth and SIP. The older fork notes that those features were missing do not describe this branch.
 
 - **LuCI dialer:** A LuCI view and rpcd/ucode backend could expose call list/status, dial, answer, hold, and DTMF controls. `ufi-voiced` already manages ModemManager calls and the Bluetooth/Asterisk routes, but this branch has no LuCI call-control interface or RPC backend.
 - **USB UAC2 audio:** A USB audio gadget could expose call capture/playback to a connected PC. That needs a UAC2 gadget configuration and a bridge between gadget PCM and the DSP call PCMs; neither is implemented here, and `CONFIG_USB_CONFIGFS_F_UAC2` is disabled.
-- **Codec-pin audio:** Direct audio over codec ports such as `PRI_MI2S` or `TERT_MI2S` could be useful on a board that exposes those pins. Patch 870 adds no codec-pin routes; it uses the internal SCO and DSP record/playback routes.
+- **Codec-pin audio:** Direct audio over codec ports such as `PRI_MI2S` or `TERT_MI2S` could be useful on a board that exposes those pins. Patch 873 adds no codec-pin routes; it uses the internal SCO and DSP record/playback routes.
 - **File record/playback:** WAV recording or playback from the call taps is not implemented. `voicectl` configures the DSP routes and `hostless.c` keeps the hostless PCM open; `voicebridge` forwards call audio to Asterisk over AudioSocket rather than to files.
 
 ## Audio paths
@@ -175,9 +175,9 @@ passwords: the script leaves a `pjsip.conf` it wrote before alone.
 
 ## Fixes outside the package
 
-* `msm89xx/patches/870`: the q6voice ASoC driver, including `Voice Tx Mute`
+* `msm89xx/patches/873`: the q6voice ASoC driver, including `Voice Tx Mute`
   (`VSS_IVOLUME_CMD_MUTE_V2` on the CVP session, TX direction).
-* `msm89xx/patches/871`: bam-dmux power-collapse IRQ re-checks the state under
+* `msm89xx/patches/874`: bam-dmux power-collapse IRQ re-checks the state under
   the lock. Two edges racing could ack the A2 twice; the modem then asserted
   (SSR) right after a waiting call.
 * ModemManager (`openwrt-overlay/.../modemmanager/patches/100`): a waiting

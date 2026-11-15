@@ -379,14 +379,14 @@ qmi-raw /dev/wwan0qmi0 0x09 0x002f
 A VoLTE call that connects but carries no audio is only half a phone. The audio path is a
 **separate** problem from IMS registration, and it was already solved upstream: the
 `isprogrammer/msm8916-openwrt` branch `voice_calls_new` adds a full QDSP6 voice stack
-(5 commits, ~6,400 lines). It is now merged into this tree as patches **870** (kernel) and
-**872** (mifib-v12 DTS), plus the `ufi-voice` package.
+(5 commits, ~6,400 lines). It is now merged into this tree as patches **873** (kernel) and
+**875** (mifib-v12 DTS), plus the `ufi-voice` package.
 
 **Why it works without an ADSP partition.** The voice services (`q6mvm`, `q6cvs`, `q6cvp`,
 `q6voice`) are reached over **APR, which rides the modem's existing `smd-edge`**. The modem
 firmware we already run contains them. No extra partition, no extra firmware blob.
 
-**What patch 870 adds**
+**What patch 873 adds**
 
 | Layer | Addition |
 |---|---|
@@ -1169,7 +1169,7 @@ The functional goal is met. These are the productisation gaps, in priority order
 | 2026-11-13 | IMSD work: `81voltd` decodes `0x23`, reply is selectable (up/down) and the PDN delay is configurable; the indication now carries the modem's conn id. Tested `down` (no `0x20`), `up` with the address + `wwan1` up (still rx/tx 0) ⇒ F24–F26. DIAG LOG_F capture fixed (F27). Found the modem's own DCM PDP-activate path (S19). |
 | 2026-11-13 | **Root-cause candidate found**: the `ims` PDN profile must set `IMCN=1` + `PCSCF-via-PCO=1`; without them the network delivers **no P-CSCF** and IMS can never register. Also found that WDS profiles are wiped at every modem boot, so the `ims` profile never exists when the modem's IMS stack runs. Added F28–F30, S20–S22. |
 | 2026-11-13 | **VoLTE WORKS.** IMS registers reproducibly (S23) and a real VoLTE call connects end-to-end (S24/S25). Two blockers found and fixed along the way: MM loses its 3GPP view after an SSR (fix: `mmcli -m 0 --disable/--enable`), and the VOICE Dial Call number TLVs are ASCII strings, not BCD (F31). Added §8.1 with the complete recipe. |
-| 2026-11-13 | **Call audio (stage 1) wired in.** Merged the upstream `voice_calls_new` stack: patches 870 (q6voice/q6mvm/q6cvs/q6cvp, BT SCO + record/playback ports, non-MI2S card), 871 (bam-dmux pc_irq re-check — an A2 assertion seen *during a voice call* on UFI003), 872 (mifib-v12 DTS hook), the `ufi-voice` + `ufi-voice-asterisk` packages, and `DEVICE_PACKAGES` for mifib-v12. No ADSP partition needed: APR rides the modem's `smd-edge`. See §8.2. |
+| 2026-11-13 | **Call audio (stage 1) wired in.** Merged the upstream `voice_calls_new` stack: patches 873 (q6voice/q6mvm/q6cvs/q6cvp, BT SCO + record/playback ports, non-MI2S card), 874 (bam-dmux pc_irq re-check — an A2 assertion seen *during a voice call* on UFI003), 875 (mifib-v12 DTS hook), the `ufi-voice` + `ufi-voice-asterisk` packages, and `DEVICE_PACKAGES` for mifib-v12. No ADSP partition needed: APR rides the modem's `smd-edge`. See §8.2. |
 | 2026-11-13 | **VoLTE CALL AUDIO WORKS, both directions** (S26/S27). Flashed the voice image to the mifib-v12; `/proc/asound/cards` shows `msm8916voice` with all 1066 mixer controls. With `voicectl start host volte` a live VoLTE call carries the caller's voice into `pcm0` and plays `pcm1` back to the far end. F34: the `cs` session gives a silent downlink on a `voice-ip` call. |
 | 2026-11-13 | **Audio quality pass (§8.3).** The bridge stats proved the DSP leg perfect and the phone leg bursty. Root cause of the choppiness was the jitter buffer's refill policy (F35) — fixed; `ufi-voice` r11. AP `dtim_period` 2 → 1. F36: a locally built `.apk` cannot be `apk add`ed on a bench unit whose kernel hash differs — copy the file. |
 | 2026-11-13 | **The Phone page (`luci-app-ufi-voice`) built and installed; `ufi-voice` r12.** SIP accounts moved into uci (`config phone`), one idempotent generator (`ufi-voice-asterisk-apply`) writes `pjsip.conf`/`extensions.conf`/`manager.conf`, and the page applies changes by running `ufi-voice-apply` through rpcd. Image built (`./build.sh build mifib-v12`, 704 s, all three apks + sysupgrade image). **F36 explained properly (§8.5):** the unit's `/etc/apk/world` pins a kernel hash the unit no longer runs and every kmod record names that same stale hash, so `apk` cannot solve *any* install; files were installed from `.pkgdir` and the world pin corrected. Bench unit is healthy again — SIM active, `connected`, LTE, IMS `registered`. |

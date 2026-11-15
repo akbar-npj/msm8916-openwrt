@@ -255,5 +255,5 @@ recoverable backup before making device-local changes.
 - ASUS MSM8916 VoLTE MBNs: TheMuppets `proprietary_vendor_asus`,
   `8916_volte_modem/modem_pr/mcfg/configs/mcfg_sw/`
 - This repo: `packages/ufi-voice` (`imsdcm`, `volte-setup`, `10-report-down`),
-  `packages/diag-logtool`, `msm89xx/patches/870`–`872`,
+  `packages/diag-logtool`, `msm89xx/patches/873`–`875`,
   [UFI003_VOICE.md](UFI003_VOICE.md), [UFI003_MB_V02.md](UFI003_MB_V02.md)
