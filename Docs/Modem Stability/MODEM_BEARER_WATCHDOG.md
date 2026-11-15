@@ -101,6 +101,8 @@ uci commit modem-watchdog
 
 Set `data_plan='auto'` only when you explicitly want SIM-plan inference from downlink history. A data SIM remains classified as a data SIM with the default `data_plan='1'`.
 
+The same recovery controls are available on the LuCI Modem Watchdog page. Saving its form requests a watchdog restart so the changed settings take effect.
+
 ### Examples
 
 ```bash
