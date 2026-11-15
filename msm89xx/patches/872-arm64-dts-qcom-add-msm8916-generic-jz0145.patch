@@ -1,0 +1,149 @@
+From: OpenWrt MSM8916 Maintainers
+Subject: [PATCH] arm64: dts: qcom: Add generic JZ0145 v33 4G modem stick
+
+MSM8916, 512 MB RAM, 4 GB eMMC (7569408 x 512B sectors), WCN3620 Wi-Fi.
+
+Hardware description taken from the stock Android 4.4 kernel running on
+the device (/sys/kernel/debug/gpio, TLMM gpio base 902):
+
+  gpio-903  ->  tlmm 1    sim3_switch_gpio   out hi
+  gpio-908  ->  tlmm 6    green              out lo
+  gpio-909  ->  tlmm 7    blue               out hi
+  gpio-910  ->  tlmm 8    red                out lo
+  gpio-922  ->  tlmm 20   sim_hotdet_gpio    out lo
+  gpio-924  ->  tlmm 22   sim1_switch_gpio   out lo
+  gpio-925  ->  tlmm 23   sim2_switch_gpio   out lo
+  gpio-927  ->  tlmm 25   disp_rst_n         in  hi
+  gpio-939  ->  tlmm 37   key_reset          in  lo
+
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
+@@ -0,0 +1,128 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "JZ0145 v33 4G Modem Stick";
++	compatible = "jz0145,v33", "qcom,msm8916";
++};
++
++/* Keep A2 powered to avoid the modem's a2_power.c assertion on collapse. */
++&bam_dmux {
++	qcom,a2-pin;
++};
++
++/*
++ * Persistent kernel logging for debugging.
++ *
++ * Same region as the HMU05 and UFI001B: the last megabyte of the System
++ * RAM range that ends where the mpss carveout in msm8916-ufi.dtsi begins.
++ * The JZ0145 carries the same 512 MB part and the same carveout layout.
++ */
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++	};
++};
++
++/*
++ * Reset button
++ *
++ * Android:
++ *   GPIO37 = key_reset, input, reads low when released
++ *
++ * so the key is active high and needs a pull-down.
++ */
++&button_restart {
++	gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
++};
++
++&button_default {
++	pins = "gpio37";
++	bias-pull-down;
++};
++
++/*
++ * LEDs
++ *
++ * Three single-colour LEDs on the SoC TLMM, active high:
++ *
++ *   GPIO6  = green
++ *   GPIO7  = blue
++ *   GPIO8  = red
++ *
++ * The colours come from the stock gpio-leds names and were confirmed on
++ * the bench by driving each line individually.
++ *
++ * The functions inherited from msm8916-ufi.dtsi already match what the
++ * msm89xx LED services expect (red:power = modem health, green:wlan =
++ * Wi-Fi, blue:wan = LTE), so only the GPIOs are assigned here.
++ */
++&led_r {
++	gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>;
++};
++
++&led_g {
++	gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
++};
++
++&led_b {
++	gpios = <&tlmm 7 GPIO_ACTIVE_HIGH>;
++};
++
++&gpio_leds_default {
++	pins = "gpio6", "gpio7", "gpio8";
++};
++
++/*
++ * SIM / eSIM select lines.
++ *
++ * The stock firmware exports these as gpio-leds and drives them from user
++ * space. The states below are the ones the stock system settles on with
++ * the physical SIM slot selected:
++ *
++ *   GPIO1  = sim3_switch_gpio  high
++ *   GPIO20 = sim_hotdet_gpio   low
++ *   GPIO22 = sim1_switch_gpio  low
++ *   GPIO23 = sim2_switch_gpio  low
++ *
++ * Applied as an mpss pinctrl state so the modem sees the physical SIM.
++ */
++&mpss {
++	pinctrl-0 = <&sim_ctrl_default>;
++	pinctrl-names = "default";
++};
++
++&tlmm {
++	sim_ctrl_default: sim-ctrl-default-state {
++		esim-sel-pins {
++			pins = "gpio22", "gpio23";
++			function = "gpio";
++			bias-disable;
++			output-low;
++		};
++
++		sim-en-pins {
++			pins = "gpio20";
++			function = "gpio";
++			bias-disable;
++			output-low;
++		};
++
++		sim-sel-pins {
++			pins = "gpio1";
++			function = "gpio";
++			bias-disable;
++			output-high;
++		};
++	};
++};

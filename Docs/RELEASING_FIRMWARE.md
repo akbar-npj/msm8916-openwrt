@@ -342,13 +342,14 @@ there, and every later release inherits the new one.
 mkdir -p /tmp/rel
 cp msm89xx/recovery/mifib-v12.img /tmp/rel/recovery-mifib-v12.img
 cp msm89xx/recovery/hmuf02v5.img /tmp/rel/recovery-hmuf02v5.img
+cp msm89xx/recovery/jz0145.img /tmp/rel/recovery-jz0145.img
 sha256sum /tmp/rel/*.img            # must match the frozen table
 gh release upload v25.12.6-r4 /tmp/rel/recovery-*.img --clobber
 ```
 
 Update the table in `msm89xx/recovery/README.md` (size, sha256, verified date)
-in the same commit.  If `RECOVERY_SOURCE_TAG` is ever repointed, upload the
-images to the new tag first: the workflow fails the release if it cannot
+in the same commit. If `RECOVERY_SOURCE_TAG` is ever repointed, upload all
+frozen images to the new tag first: the workflow fails the release if it cannot
 download them.
 ### 7.2 Promote to production
 

@@ -2,7 +2,7 @@
 #
 # build-recovery.sh - build the per-board MSM8916 recovery (rescue) boot image.
 #
-#   ./build-recovery.sh <board>      hmuf02v5 | mf800b | mifib-v12 | ufi003_mb_v02 | ufi001b
+#   ./build-recovery.sh <board>      (run ./build-recovery.sh --help for the current list)
 #   ./build-recovery.sh all
 #   DRY_RUN=1 ./build-recovery.sh <board>   (show what would be packed, write nothing)
 #
@@ -37,9 +37,10 @@
 #     has to insmod them.  Without them the image boots perfectly and simply
 #     has no wlan0.
 #
-# Boards with GPT_RECOVERY=1 in msm89xx/image/msm8916.mk (mf800b, mifib-v12)
-# flash this image to the dedicated 16 MiB 'recovery' GPT partition; the other
-# boards boot it one-shot from the running system with 'reboot-recovery'.
+# Boards with GPT_RECOVERY=1 in msm89xx/image/msm8916.mk (hmuf02v5, mf800b,
+# mifib-v12, jz02, jz0145) flash this image to the dedicated 16 MiB 'recovery'
+# GPT partition; other boards boot it one-shot from the running system with
+# 'reboot-recovery'.
 #
 # Auth model: root shell on the USB ACM console and passwordless
 # ssh root@192.168.10.1 (blank root password patch). The dropbear host key is

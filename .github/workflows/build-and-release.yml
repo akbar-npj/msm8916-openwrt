@@ -351,7 +351,7 @@ jobs:
           set -euo pipefail
           BIN=openwrt/bin/targets/msm89xx/msm8916
           # Only boards with a recovery partition AND a hardware-verified image.
-          for b in mifib-v12 hmuf02v5; do
+          for b in mifib-v12 hmuf02v5 jz0145; do
             gh release download "$RECOVERY_SOURCE_TAG" -p "recovery-$b.img" \
               -O "$BIN/recovery-$b.img" --clobber
           done

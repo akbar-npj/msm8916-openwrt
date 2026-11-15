@@ -198,4 +198,20 @@ define Device/generic-jz02
 endef
 TARGET_DEVICES += generic-jz02
 
+define Device/generic-jz0145
+	$(Device/msm8916)
+	DEVICE_VENDOR := Generic
+	DEVICE_MODEL := JZ0145
+	DEVICE_DTS := msm8916-generic-jz0145
+	SUPPORTED_DEVICES := jz0145,v33
+	FILESYSTEMS := squashfs
+	GPT_TOT_SECTORS := 7569408
+	GPT_RECOVERY := 1
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
+endef
+TARGET_DEVICES += generic-jz0145
+
 endif
