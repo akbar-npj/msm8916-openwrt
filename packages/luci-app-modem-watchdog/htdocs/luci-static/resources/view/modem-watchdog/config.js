@@ -165,6 +165,43 @@ return view.extend({
             + 'This many seconds without a modem object triggers one '
             + 'qmicli --dms-set-operating-mode=online poke.  Set to 0 to disable.');
 
+        o = s.option(form.Flag, 'voice_alive', _('Voice liveness hold'));
+        o.description = _('When the data bearer has no downlink, skip the recovery '
+            + 'ladder (no interface rebuild, no SSR) while a call is in progress, or, '
+            + 'for a SIM without data service, while the modem is alive for voice '
+            + '(IMS registered, or registered with live serving-cell measurements). '
+            + 'Restarting the modem cannot bring data to a voice-only SIM.');
+        o.default = '0';
+        o.rmempty = false;
+
+        o = s.option(form.ListValue, 'data_plan', _('SIM data service'));
+        o.value('auto', _('Auto (no downlink with this SIM since boot = no data service)'));
+        o.value('1', _('Data SIM (only a call holds the ladder)'));
+        o.value('0', _('Voice-only SIM'));
+        o.default = '1';
+        o.depends('voice_alive', '1');
+        o.description = _('Auto tracks the SIM by ICCID: a SIM swap starts over, a '
+            + 'modem restart does not. Any downlink packet ends the hold.');
+
+        o = s.option(form.Value, 'voice_hold_secs', _('Voice hold recheck (seconds)'));
+        o.datatype = 'range(60,3600)';
+        o.default = '300';
+        o.placeholder = '300';
+        o.depends('voice_alive', '1');
+        o.description = _('How long a voice hold lasts before the watchdog checks '
+            + 'again whether the modem is still alive for voice.');
+
+        o = s.option(form.Flag, 'drop_default_route', _('Drop modem default route during hold'));
+        o.description = _('While a SIM without data service is held, remove the '
+            + 'modem\'s default routes so traffic never falls back to the empty '
+            + 'bearer (e.g. while the Wi-Fi station reconnects). Only while another '
+            + 'uplink has a default route or had one in the last 5 minutes; with the '
+            + 'modem as the only uplink the routes stay. They are restored when the '
+            + 'hold ends. A data SIM keeps its routes.');
+        o.default = '0';
+        o.rmempty = false;
+        o.depends('voice_alive', '1');
+
         // auto-restart after apply
         m.on_after_commit = function(map) {
             return fs.exec('/etc/init.d/modem-bearer-watchdog', ['restart']).catch(function() {
