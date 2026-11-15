@@ -1,0 +1,38 @@
+From: isp <40058476+isprogrammer@users.noreply.github.com>
+Subject: [PATCH] net: wwan: qcom_bam_dmux: re-check pc_state under state_lock in pc_irq
+
+bam_dmux_pc_irq() compares the line level with pc_state before taking
+state_lock. The RX watchdog resyncs pc_state from the wire level under
+state_lock (lost edge / stale edge). If the watchdog wins the lock for an
+edge the handler is already processing, both of them toggle the ack for
+the same edge and the modem asserts in its A2 power handshake.
+
+Seen on UFI003 during a VoLTE call: "RX watchdog: PC line asserted while
+pc_state=0 (lost edge), resyncing" followed 47 ms later by
+"fatal error received: a2_power.c:3017:A2 Assertion Failed".
+
+Re-check under the lock and leave an edge that was already handled alone.
+---
+diff --git a/drivers/net/wwan/qcom_bam_dmux.c b/drivers/net/wwan/qcom_bam_dmux.c
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -2105,6 +2105,19 @@
+ 		return IRQ_HANDLED;
+ 
+ 	mutex_lock(&dmux->state_lock);
++	/*
++	 * Re-check under state_lock. While this (nested, threaded) handler
++	 * waited for the lock, the RX watchdog can already have handled the
++	 * same edge: it sees the wire asserted (or low) with pc_state stale,
++	 * takes the lock first and resyncs -- which includes toggling the
++	 * ack. Acking the same edge a second time leaves the modem's A2
++	 * handshake one toggle off and it asserts (a2_power.c:3017 seen 47 ms
++	 * after a "lost edge, resyncing" during a voice call).
++	 */
++	if (new_state == READ_ONCE(dmux->pc_state)) {
++		mutex_unlock(&dmux->state_lock);
++		return IRQ_HANDLED;
++	}
+ 	if (new_state) {
+ 		WRITE_ONCE(dmux->pm_suspend_start_ns, 0);
+ 		WRITE_ONCE(dmux->pc_state, true);
