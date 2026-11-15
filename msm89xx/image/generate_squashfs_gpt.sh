@@ -33,9 +33,9 @@ ROOTFS_START=348194
 ROOTFS_SIZE=262144
 ROOTFS_END=$((ROOTFS_START + ROOTFS_SIZE - 1))
 
-# Optional recovery layout.  Only the two boards with no EDL push-button
-# (mf800b, mifib-v12) need it, so it is gated on RECOVERY (GPT_RECOVERY in
-# msm8916.mk).  misc and recovery are appended AFTER rootfs_data so every
+# Optional recovery layout, gated by RECOVERY (GPT_RECOVERY in msm8916.mk).
+# Board profiles opt in when their recovery path needs the dedicated
+# partitions. misc and recovery are appended AFTER rootfs_data so every
 # partition number up to p14 stays put -- CMDLINE pins root=/dev/mmcblk0p14.
 MISC_SIZE=2048        # 1 MiB,   matches the stock Android layout
 RECOVERY_SIZE=32768   # 16 MiB,  matches the stock Android layout

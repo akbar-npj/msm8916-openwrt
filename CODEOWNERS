@@ -28,6 +28,11 @@ msm89xx/base-files/etc/init.d/sim-select                           @GargoilXD @a
 msm89xx/base-files/usr/sbin/sim-test                               @GargoilXD @akbar-npj
 msm89xx/base-files/etc/hotplug.d/net/20-usb0-bridge                @GargoilXD @akbar-npj
 
+# --- JZ0145 (maintained by @mskvortsov) ---
+msm89xx/patches/872-arm64-dts-qcom-add-msm8916-generic-jz0145.patch  @mskvortsov @akbar-npj
+diffconfigs/jz0145                                                  @mskvortsov @akbar-npj
+Docs/Boards/JZ0145.md                                                @mskvortsov @akbar-npj
+
 # --- UZ801 config + everything else defaults to the lead ---
 diffconfigs/uz801  @isprogrammer @giraygokirmak @akbar-npj
 *  @akbar-npj
