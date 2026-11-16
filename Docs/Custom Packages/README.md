@@ -1,6 +1,6 @@
 # Custom Packages
 
-Beyond the upstream OpenWrt tree, this project ships **26 packages** under
+Beyond the upstream OpenWrt tree, this project ships **25 packages** under
 [`packages/`](../../packages/) — the tools, daemons and LuCI apps that make an
 MSM8916 USB dongle usable as a headless router with a Qualcomm baseband.
 
@@ -8,7 +8,7 @@ They fall into two groups:
 
 - **Authored in-repo (17)** — written for this project, specific to the MSM8916
   modem/DIAG/Bluetooth/battery hardware.
-- **Vendored (9)** — upstream or third-party packages carried in-tree (often with
+- **Vendored (8)** — upstream or third-party packages carried in-tree (often with
   local patches) so the firmware build is self-contained.
 
 > Kernel modules are **not** in `packages/`; they live in
@@ -48,10 +48,27 @@ They fall into two groups:
 | [`rmtfs`](../../packages/rmtfs/) | Qualcomm **Remote Filesystem service** daemon — serves the modem's remote-filesystem requests from the AP. |
 | [`luci-app-cpu-perf`](../../packages/luci-app-cpu-perf/) | LuCI page for CPU performance information and management. |
 | [`luci-app-sms-manager`](../../packages/luci-app-sms-manager/) | LuCI JS interface for **SMS / USSD / AT commands** via ModemManager. |
-| [`luci-app-tailscale`](../../packages/luci-app-tailscale/) | LuCI interface for **Tailscale**. |
 | [`luci-app-usb-gadget`](../../packages/luci-app-usb-gadget/) | Web interface for managing **USB gadget** functions (RNDIS, ECM, NCM, ACM, Mass Storage). |
 | [`luci-theme-feelgood`](../../packages/luci-theme-feelgood/) | The **Feelgood** LuCI theme, carried in-tree and locally patched (the login-page cascade is shipped unminified — `csstidy` mis-orders the rules and covers the login form). |
 | [`uci-usb-gadget`](../../packages/uci-usb-gadget/) | **UCI-based USB gadget manager** built on the kernel configfs interface. Configures the device as a USB peripheral and integrates the USB-Ethernet interface into the LAN bridge; auto-detects the UDC controller. |
+
+**Tailscale is not vendored.** The LuCI page is the luci feed's
+`luci-app-tailscale-community`, selected in `DEFAULT_PACKAGES`; the daemon and
+its init script come from the feed's `tailscale` package. The vendored asvow
+copy was removed because it shipped its own `/etc/init.d/tailscale` and
+`/etc/config/tailscale` and renamed them over the feed package's files in
+postinst, which left a dangling `/etc/rc.d/S90tailscale.luci` and let an
+`apk upgrade tailscale` replace the init script with one that ignores the
+page's options. `/etc/config/tailscale` survives the switch (it is the feed
+package's conffile) and the community page reads the same `settings` section.
+The feed init has no `enabled` gate, so `default_postinst` alone would start
+tailscaled on every boot. `/etc/uci-defaults/94-tailscale-default` keeps the old
+behaviour instead: **Tailscale is installed but disabled by default** on a fresh
+install (including `sysupgrade -n`), and a config-preserving upgrade keeps the
+old page's `enabled` choice. Turn it on from **System → Startup**, or
+`/etc/init.d/tailscale enable && /etc/init.d/tailscale start`. The community
+page has no on/off switch of its own — it only logs in and out of a running
+daemon.
 
 ---
 

@@ -75,7 +75,18 @@ DEFAULT_PACKAGES += wpa-cli
 # luci-app-modem-watchdog; living here they ship on every board (and on any
 # future board) by default.
 DEFAULT_PACKAGES += luci-app-cpu-perf luci-app-modem-watchdog luci-app-sms-manager \
-	luci-app-tailscale luci-app-update-notify luci-app-usb-gadget luci-app-wifi-sta luci-app-firmware-upgrade
+	luci-app-update-notify luci-app-usb-gadget luci-app-wifi-sta luci-app-firmware-upgrade
+# Tailscale's LuCI page comes from the luci feed.  The vendored asvow copy used
+# to be here, but it shipped its own /etc/init.d/tailscale and /etc/config/
+# tailscale and renamed them over the feed package's files in postinst -- which
+# left a dangling /etc/rc.d/S90tailscale.luci and meant an `apk upgrade
+# tailscale` silently replaced the init script with one that ignores the page's
+# options.  The community app reads the feed package's own init and config, so
+# nothing shadows anything.  It has no on/off switch, so
+# /etc/uci-defaults/94-tailscale-default keeps the daemon disabled by default
+# (the feed init has no `enabled` gate and default_postinst enables it); the
+# user turns it on from System -> Startup.
+DEFAULT_PACKAGES += luci-app-tailscale-community
 # The LuCI theme this repo maintains (packages/luci-theme-feelgood).  Its
 # uci-defaults takes luci.main.mediaurlbase over from the stock bootstrap
 # default, so a fresh image - and a config-preserving upgrade from an older
