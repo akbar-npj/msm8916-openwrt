@@ -53,6 +53,9 @@ jobs:
       - name: time-sync
         run: bash tests/time-sync/run.sh --self-check
 
+      - name: tailscale-migration
+        run: bash tests/tailscale-migration/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}
