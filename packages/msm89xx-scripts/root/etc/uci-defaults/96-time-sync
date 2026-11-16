@@ -1,0 +1,6 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+[ -x /etc/init.d/time-sync ] && /etc/init.d/time-sync enable
+
+exit 0
