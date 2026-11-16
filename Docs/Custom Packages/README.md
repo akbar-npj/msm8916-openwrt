@@ -32,7 +32,7 @@ They fall into two groups:
 | [`qcom-time-daemon`](../../packages/qcom-time-daemon/) | **QMI Time synchronization** daemon: syncs host time with the modem's ATS/TOD and provides periodic keepalives to keep the modem DRX sleep state machine stable. |
 | [`reboot-edl`](../../packages/reboot-edl/) | Safely quiesces background services, remounts filesystems read-only, and reboots the device into **EDL (9008), DLOAD (9006), bootloader or recovery**. |
 | [`luci-app-battery`](../../packages/luci-app-battery/) | Battery status, **charge limit** and battery LEDs for the two battery boards (mifib-v12, mf800b): a LuCI page with capacity/voltage/temperature/health and the battery session, the 85 %/80 % charge-limit monitor (`charge_enabled` on the PM8916 LBC), the green/red LED monitor, and `battery-ctl`. Installed only where a pack exists. |
-| [`msm89xx-scripts`](../../packages/msm89xx-scripts/) | The **userspace half of the board support** as a package: the modem and Wi-Fi LED monitors with their procd services, the boot blink (`led-boot`), and the Wi-Fi station (repeater) helpers that `luci-app-wifi-sta` drives. These used to live in the target's `base-files`, which meant an LED or station fix cost a full firmware flash; as a package they can be pushed through the signed feed (see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash)). Boot-critical pieces deliberately stay in `base-files`: `/etc/diag.sh`, the `/lib/preinit` hooks and `/lib/batteryless.sh`. |
+| [`msm89xx-scripts`](../../packages/msm89xx-scripts/) | The **userspace half of the board support** as a package: the modem and Wi-Fi LED monitors with their procd services, the boot blink (`led-boot`), the Wi-Fi station (repeater) helpers that `luci-app-wifi-sta` drives, and `time-sync` (clock restore + timezone, see below). These used to live in the target's `base-files`, which meant an LED or station fix cost a full firmware flash; as a package they can be pushed through the signed feed (see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash)). Boot-critical pieces deliberately stay in `base-files`: `/etc/diag.sh`, the `/lib/preinit` hooks and `/lib/batteryless.sh`. |
 | [`msm89xx-firmware-upgrade`](../../packages/msm89xx-firmware-upgrade/) | The **in-device firmware upgrade engine**. `firmware-upgrade check` reads `firmware.json` — the manifest the release pipeline publishes next to the images — and prints availability as JSON for this board; `download` fetches the image and verifies its SHA-256; `apply [--no-keep]` hands it to `sysupgrade` (keeping the configuration, or wiping it with `-n`); `upgrade` does all three. `apply` detaches with `setsid`, because rpcd's 30 s timeout is shorter than a 35 MB LTE download. |
 | [`luci-app-firmware-upgrade`](../../packages/luci-app-firmware-upgrade/) | LuCI page for the above — *System → Firmware Upgrade*. Shows the running version, the published version for this board, the image size and the release notes, then downloads, verifies and flashes, with a **Keep settings** box (default on; untick for a clean install). Ships in `DEFAULT_PACKAGES`, so every board has it from r3 on. |
 | [`luci-app-wifi-sta`](../../packages/luci-app-wifi-sta/) | LuCI support for **Station Mode** (concurrent AP+STA): configures the late-brought-up station interface of the wcn36xx radio without touching the wireless config. |
@@ -91,6 +91,38 @@ here too; they now ship as the [`msm89xx-scripts`](../../packages/msm89xx-script
 package so they can be updated through the feed. What stays in `base-files` is
 exactly what must exist **before** a package could be installed: `/etc/diag.sh`,
 `/lib/preinit/*` and `/lib/batteryless.sh`.
+
+### Clock and timezone (`time-sync`)
+
+These boards have no battery-backed RTC: `/dev/rtc0` exists but cannot be set
+(`RTC_SET_TIME: No such device`), so a cold boot starts at 1970, and
+`sysfixtime`'s newest-mtime fallback is not enough — measured on the bench
+unit, the clock was still 1970 after 45 minutes. `time-sync` (in
+`msm89xx-scripts`) closes that gap:
+
+- **Clock.** On the first uplink and at boot, a one-shot `ntpd -q` steps an
+  implausible clock; `sysntpd` handles the normal case (busybox `ntpd` in
+  daemon mode never steps a ~1.8×10⁹ s offset). The last good time is written
+  to `/etc/time-last` every 30 minutes and restored at boot, so an unclean
+  power cut costs at most the save interval plus the time the unit was off.
+- **Timezone.** Only while the value is still the stock `UTC`: NITZ from the
+  modem first (`qmicli --dms-get-time` — registration is enough, a data
+  session is not), then the public IP's geolocation when there is no SIM. A
+  timezone the user chose is never overridden.
+- **No SIM and no uplink.** Nothing can give absolute time. The clock is the
+  saved time plus uptime and the zone stays as last detected until the next
+  uplink steps the clock and re-detects.
+
+It deliberately never calls `hwclock -w`, and the PM8916 `allow-set-time` DT
+property must not come back: r6 shipped it so `hwclock -w` would work, and
+`sysfixtime` then became the first code to write the RTC registers over SPMI at
+START=00, which wedged the boot before userspace (r7 reverted it). The RTC
+stays read-only — its set path returns `-ENODEV` before any SPMI transaction.
+
+There is no `/usr/share/zoneinfo` on the image, so the functional value is a
+POSIX TZ string (`IST-5:30`); `system.zonename` is the label LuCI shows. The
+geo lookup sends one request to `ipapi.co` only when NITZ gave nothing; set
+`TIME_SYNC_GEO=0` to disable it.
 
 **Every custom program — package or base-files — answers `-h`/`--help`** with its
 options, the `uci` keys it honours, and the `logread` tag to watch:
