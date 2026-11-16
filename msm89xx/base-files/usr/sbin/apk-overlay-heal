@@ -1,4 +1,5 @@
 #!/bin/sh
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # apk-overlay-heal -- repair the overlay artefacts that make a freshly flashed
