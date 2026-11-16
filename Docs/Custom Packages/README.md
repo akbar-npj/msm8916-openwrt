@@ -62,13 +62,19 @@ postinst, which left a dangling `/etc/rc.d/S90tailscale.luci` and let an
 page's options. `/etc/config/tailscale` survives the switch (it is the feed
 package's conffile) and the community page reads the same `settings` section.
 The feed init has no `enabled` gate, so `default_postinst` alone would start
-tailscaled on every boot. `/etc/uci-defaults/94-tailscale-default` keeps the old
-behaviour instead: **Tailscale is installed but disabled by default** on a fresh
-install (including `sysupgrade -n`), and a config-preserving upgrade keeps the
-old page's `enabled` choice. Turn it on from **System → Startup**, or
-`/etc/init.d/tailscale enable && /etc/init.d/tailscale start`. The community
-page has no on/off switch of its own — it only logs in and out of a running
-daemon.
+tailscaled on every boot. `msm89xx-scripts` ships
+`/etc/uci-defaults/94-tailscale-default`, which keeps the old behaviour
+instead: **Tailscale is installed but disabled by default** on a fresh install
+(including `sysupgrade -n`), and a config-preserving upgrade keeps the old
+page's `enabled` choice. Its sibling `95-tailscale-community` performs the
+switch on an upgraded unit — install the community app first, then drop the
+vendored one, so a unit that cannot reach the feed keeps a working page. Both
+live in the package rather than in `base-files` so the whole change can ship as
+a package hotfix (see [Shipping a package without a
+reflash](#shipping-a-package-without-a-reflash)). Turn Tailscale on from
+**System → Startup**, or `/etc/init.d/tailscale enable && /etc/init.d/tailscale start`.
+The community page has no on/off switch of its own — it only logs in and out of
+a running daemon.
 
 ---
 
