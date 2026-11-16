@@ -29,7 +29,7 @@ this does not fork us from upstream permanently.
 +# outrank a hotfix already published above it.  Floor it, and let the release
 +# workflow refuse to build an image whose floor is not strictly above the
 +# published high-water mark (releases/<base>/published-versions.json).
-+BASE_FILES_RELEASE_FLOOR:=1721
++BASE_FILES_RELEASE_FLOOR:=1723
 +BASE_FILES_COMMITCOUNT:=$(if $(COMMITCOUNT),$(COMMITCOUNT),0)
 +PKG_RELEASE:=$(shell echo $$(( $(BASE_FILES_COMMITCOUNT) > $(BASE_FILES_RELEASE_FLOOR) ? $(BASE_FILES_COMMITCOUNT) : $(BASE_FILES_RELEASE_FLOOR) )))
  

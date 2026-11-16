@@ -66,7 +66,7 @@ Some on-device programs ship in `msm89xx/base-files/` rather than as a package
 | `himi-ok-guard` | Rewrites the modem NV `HiMI_OK` marker after every modem boot. |
 | `modem-bearer-watchdog` | Watches the modem/bearer, performs pre-emptive SSR and zombie recovery (logs as `modem-stall-watchdog`). |
 | `apk-key-refresh` | Re-syncs the pinned APK feed signing key at boot. |
-| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, drops overlay copies of package files the image now ships in a different version, and merges the stale `/etc/apk/world` and package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
+| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, drops packages built for another kernel and overlay copies of package files the image now ships in a different version, and merges the stale `/etc/apk/world` and package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
 | `battery-led-monitor` | Drives the battery pair (charge state and faults only). Ships with `luci-app-battery`. |
 
 The LED monitors, the boot blink and the Wi-Fi station helpers used to be listed
@@ -193,6 +193,13 @@ therefore restores the published tree first and asserts the count never shrinks.
   database on the next transaction** — the files stay on disk, the record does
   not. This is the one that bites a boot *after* the flash: the package works,
   then quietly disappears.
+- **A kmod installed from the feed outlives its kernel.** A kernel module's
+  record pins the kernel build it was compiled against —
+  `D:kernel=6.12.112~<vermagic>-r1` — and the vermagic changes with every kernel
+  build. After a flash that record can no longer be satisfied, so **every** apk
+  transaction fails with `breaks: kmod-x[kernel=...]`, and the module could not
+  load anyway. This is the one that stops `apk upgrade` and the LuCI firmware
+  updater from running at all.
 - **Overlay copies of package files shadow the image.** The overlay always wins.
   A file a package owns gets copied up the first time anything writes to it, and
   that copy then outlives every flash — so after an image change the merged view
@@ -201,7 +208,7 @@ therefore restores the published tree first and asserts the count never shrinks.
   loudest case, because the stylesheet and the template that links it are both
   stale, so the page looks untouched and `apk` swears the update landed.
 
-All four are repaired **automatically** by
+All five are repaired **automatically** by
 [`apk-overlay-heal`](../../msm89xx/base-files/usr/sbin/apk-overlay-heal), run
 from `/lib/preinit/85_apk_overlay_heal` — after the overlay is mounted, before
 any init script — and **only on the first boot after an image change**. It
@@ -209,7 +216,13 @@ any init script — and **only on the first boot after an image change**. It
 1. removes every whiteout whose path the running image ships (whiteouts under
    `/etc/uci-defaults` are left alone — they are how OpenWrt records that a
    one-shot script already ran),
-2. drops overlay copies of package files that differ from the image's, so the
+2. drops every package built for a kernel other than the one the image ships:
+   its record is left out of the merged database and its files are removed, so
+   the next `apk add`/`apk upgrade` installs the build the feed has for *this*
+   kernel. It stays in `/etc/apk/world`, which is what makes that a reinstall
+   rather than a silent uninstall. A package the image itself ships is not
+   affected — the image's record wins in step 5,
+3. drops overlay copies of package files that differ from the image's, so the
    merged view serves the file the image actually ships. This is upstream's
    `sysupgrade -o` rule (*"preserve all changed files in /, except those from
    packages but including changed confs"*) applied at boot instead of at
@@ -219,13 +232,13 @@ any init script — and **only on the first boot after an image change**. It
    files. A file that already matches the image is left as it is, so the pass
    does nothing on a device that was never hand-edited. And a package you
    *upgraded* from the feed is newer than the image — reverting it would be a
-   silent downgrade — so its files are kept too, and step 4 keeps the matching
+   silent downgrade — so its files are kept too, and step 5 keeps the matching
    database record instead of the image's. That one needs a version compare
    (`apk version -t`, falling back to `sort -V`), because the overlay has the
    files in both cases and only the recorded version tells them apart,
-3. merges `/etc/apk/world` the same way (image entries plus anything added on
+4. merges `/etc/apk/world` the same way (image entries plus anything added on
    the overlay), and
-4. merges the overlay's database with the image's: the image wins for every
+5. merges the overlay's database with the image's: the image wins for every
    package it ships — unless the overlay records a *higher* version, in which
    case that record is kept so it still matches the files step 2 preserved —
    and packages installed from the feed are kept. It refuses the merge and
