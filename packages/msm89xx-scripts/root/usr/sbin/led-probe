@@ -323,6 +323,9 @@ list_templates()
 {
 	local f
 
+	# 'default' is synthetic: it is the built-in table for this board, so it
+	# can never drift from leds.sh the way a copied file would.
+	printf 'default\t%s\n' "this board's built-in table (every role back to auto)"
 	[ -d "$TEMPLATE_DIR" ] || return 0
 	for f in "$TEMPLATE_DIR"/*; do
 		[ -f "$f" ] || continue
@@ -336,6 +339,17 @@ list_templates()
 apply_template()
 {
 	local name="$1" dry="$2" f key val role state kv=""
+
+	# The built-in table is not a file: 'auto' already means it, and a copy
+	# would go stale the first time leds.sh changes.
+	if [ "$name" = "default" ]; then
+		for role in $ROLES; do
+			printf 'role\t%s\t%s\tauto\n' "$role" "$(role_label "$role" || echo auto)"
+		done
+		[ "$dry" = "dry" ] && return 0
+		reset_lamps
+		return
+	fi
 
 	f="$TEMPLATE_DIR/$name"
 	[ -f "$f" ] || { echo "led-probe: no template '$name' (try --templates)" >&2; return 1; }

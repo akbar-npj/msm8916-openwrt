@@ -130,17 +130,25 @@ blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
 
 ## Templates
 
-The two units cannot be told apart in software, so the answer is recorded once
-as a named role table instead of a per-unit command line:
+Every board in the tree already has its lamps mapped correctly by `leds.sh`, so
+a template is only needed for a unit that *deviates* from its board default. On
+HMUF02-V5 two units cannot be told apart in software, so the answer is recorded
+once as a named role table instead of a per-unit command line:
 
 ```sh
 led-probe --templates
-# hmuf02v5-blue-wifi    HMUF02-V5, Wi-Fi on blue, LTE on green (the board default)
+# default               this board's built-in table (every role back to auto)
 # hmuf02v5-green-wifi   HMUF02-V5, Wi-Fi on green, LTE on blue (the swapped population)
 
 led-probe --template hmuf02v5-green-wifi --dry-run   # what would change
 led-probe --template hmuf02v5-green-wifi             # apply it
+led-probe --template default                         # back to the board's own table
 ```
+
+`default` is not a file — it is the table `leds.sh` already knows for this
+`board_name`, reached by setting every role back to `auto`. That makes it the
+common case: the ordinary HMUF02-V5 needs no template at all, and only the
+swapped population picks one.
 
 `--dry-run` prints one `role <name> <current> <new>` line per entry and writes
 nothing; an apply prints the same lines as it writes them, so neither is silent.

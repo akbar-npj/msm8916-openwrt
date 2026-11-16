@@ -56,7 +56,7 @@ fixture() {
 	: > "$T/uci.db"
 
 	# Two shipped templates plus one broken fixture.
-	cp "$TEMPLATES/hmuf02v5-blue-wifi" "$TEMPLATES/hmuf02v5-green-wifi" "$T/templates/"
+	cp "$TEMPLATES/hmuf02v5-green-wifi" "$T/templates/"
 	printf '# desc: broken on purpose\nwifi\tgreen:wlan\nnonsense\tred:wlan\n' \
 		> "$T/templates/broken"
 
@@ -111,9 +111,9 @@ suite() {
 	LED_TEMPLATE_DIR="$TEMPLATES" PATH="$T/bin:$PATH" TEST_T="$T" \
 		LEDS_SYSFS="$T/leds" BOARD_NAME_FILE="$T/board_name" \
 		sh "$T/led-probe" --templates > "$T/out" 2>&1
-	assert_contains "lists the blue table" "$T/out" "hmuf02v5-blue-wifi"
-	assert_contains "lists the green table" "$T/out" "hmuf02v5-green-wifi"
-	assert_contains "prints the description" "$T/out" "Wi-Fi on blue, LTE on green"
+	assert_contains "lists the built-in table first" "$T/out" "default"
+	assert_contains "lists the swapped table" "$T/out" "hmuf02v5-green-wifi"
+	assert_contains "prints the description" "$T/out" "Wi-Fi on green, LTE on blue"
 
 	# --- dry run reports the change and writes nothing ------------------
 	fixture
@@ -130,6 +130,21 @@ suite() {
 	assert_contains "wifi moves to the green LED" "$T/uci.db" "leds.wifi.lamp=green:wan"
 	assert_contains "wan moves to the blue LED" "$T/uci.db" "leds.wan.lamp=blue:wlan"
 	assert_contains "wan_fault stays on red" "$T/uci.db" "leds.wan_fault.lamp=red:power"
+
+	# --- the built-in table is not a file, and puts every role back ------
+	fixture
+	printf 'leds.wifi.lamp=green:wan\nleds.wan.lamp=blue:wlan\n' > "$T/uci.db"
+	run --template default --dry-run
+	assert_status "default dry run succeeds" 0 $?
+	assert_contains "default dry run shows auto" "$T/out" "auto"
+	assert_contains "default dry run writes nothing" "$T/uci.db" "leds.wifi.lamp=green:wan"
+
+	fixture
+	printf 'leds.wifi.lamp=green:wan\nleds.wan.lamp=blue:wlan\n' > "$T/uci.db"
+	run --template default
+	assert_status "default apply succeeds" 0 $?
+	assert_contains "wifi goes back to auto" "$T/uci.db" "leds.wifi.lamp=auto"
+	assert_contains "wan goes back to auto" "$T/uci.db" "leds.wan.lamp=auto"
 
 	# --- an unknown template is refused ---------------------------------
 	fixture
