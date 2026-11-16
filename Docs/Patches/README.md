@@ -191,7 +191,6 @@ upstream package). All are **downstream-only** unless noted.
 | `luci-app-firmware-upgrade` | LuCI: in-device firmware upgrade page (checks `firmware.json`, downloads, verifies, flashes; keep-settings or `-n`). |
 | `luci-app-modem-watchdog` | LuCI support for the Modem Watchdog. |
 | `luci-app-sms-manager` | LuCI SMS management via ModemManager. |
-| `luci-app-tailscale` | LuCI for Tailscale. |
 | `luci-app-update-notify` | LuCI: dashboard notice when `apk` has package updates (6 h poll, respects pins). |
 | `luci-app-usb-gadget` | LuCI for the USB Gadget Manager. |
 | `luci-theme-feelgood` | The Feelgood LuCI theme (login-page CSS shipped unminified). |
