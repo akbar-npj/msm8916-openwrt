@@ -246,11 +246,21 @@ frozen and re-attached unchanged to every release by the release workflow
 | :---- | :--- | ---: | :----- | :---------- | :---------------- |
 | `mifib-v12` | `mifib-v12.img` | 11 862 016 | `9edfc760d169a114868f3bc46663f593a318d1eda45d2f8a7fd1e6a2ba52c91f` | its own `boot.img` (2026-11-01 build) | 2026-11-01 — p17 boot + `fastboot boot`; SSH, web UI, **WiFi AP `OpenWrt-Recovery` on wlan0** |
 | `hmuf02v5` | `hmuf02v5.img` | 11 986 944 | `538397cd4392ace6553adb0335628978d186e6d422161faedab534a69256677f` | the device's own p13 (25.12.6-r2 kernel) | 2026-11-01 — `fastboot boot` + p17 boot; SSH, web UI, `reboot-edl`, **WiFi AP `OpenWrt-Recovery` on wlan0 (hostapd, ch 6)** |
-| `jz0145` | `jz0145.img` | 11 921 408 | `22c7ce0db477577548ec5fbbef21d0e4234fbea0ff93b75d67f97215f63882ee` | its own production `boot.img` (2026-11-11 build) | 2026-11-11 — p17 boot; readback matched image; SSH, web UI (HTTP 200), USB NCM, **WiFi AP `OpenWrt-Recovery` on wlan0**; normal reboot returned to production |
+| `jz0145` | `jz0145.img` | 11 919 360 | `117828ac3635adc1caa81ed38f63bf21675bf6ee913da503e8f0c7cc90eeedea` | its own production `boot.img` (2026-11-09 build) | 2026-11-09 — attached by the board contributor in #79; **not re-verified by the maintainer** (see below) |
 
 `mf800b` and `jz02` also set `GPT_RECOVERY=1` but have **no frozen image yet**;
 the MF800B is not on the bench. The release flasher refuses repartitioning
 without an image for the selected board.
+
+**`jz0145` — read this before trusting its row.** The 2026-11-11 build that was
+verified on hardware (11 921 408 bytes, `22c7ce0d…`) was never published: the
+only copy that reached the project is the 2026-11-09 attachment from #79, and
+that is what `v25.12.6-r4` carries. It is a well-formed `ANDROID!` image with
+the same `earlycon console=ttyMSM0,115200 panic=5` command line, and a recovery
+lives in its own partition, so a bad one cannot brick a unit — but nobody has
+watched this particular build boot. Replace the asset with a hardware-verified
+build the next time a jz0145 unit is on the bench, and restore the verified
+row above it.
 
 ### The kernel and the modules must come from one build
 
