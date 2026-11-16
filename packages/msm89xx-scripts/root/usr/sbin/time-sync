@@ -1,0 +1,285 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# time-sync -- keep the clock and the timezone right on a board with no
+# working RTC.
+#
+# The clock has three problems on this hardware:
+#
+#   1. There is no battery-backed RTC.  /dev/rtc0 exists but cannot be set
+#      ("RTC_SET_TIME: No such device"), so a cold boot starts at 1970.
+#      sysfixtime's fallback (the newest mtime under /etc) is not enough:
+#      measured on the bench unit, the clock was still 1970 after 45 min.
+#   2. sysntpd cannot fix that by itself.  Busybox ntpd in daemon mode never
+#      steps a ~1.8e9 s offset, and its peer lookup races resolv.conf, so a
+#      cold boot can sit at 1970 until the next reboot.  A one-shot
+#      `ntpd -q` DOES step it (measured: 1970 -> 2026 in one packet), which
+#      is what `step` below runs when the year is implausible.
+#   3. The timezone is UTC out of the box and nothing sets it.  With a SIM
+#      the network tells us (NITZ, via QMI DMS: offset in quarter-hours plus
+#      the DST adjustment); without one, the public IP's geolocation does.
+#
+# DO NOT call `hwclock -w` from here, and never re-add the PM8916
+# allow-set-time DT property.  r6 shipped that property (patch 868) so
+# hwclock -w would work; sysfixtime then became the first code to write the
+# RTC registers over SPMI at START=00 and wedged the boot before userspace,
+# so the board never reached the 3-strike counter and dropped into recovery.
+# r7 reverted it.  The RTC stays read-only on purpose: its set path returns
+# -ENODEV before any SPMI transaction, which is harmless.  Everything below
+# touches only the SYSTEM clock (`date -s`, `ntpd -q`) and the timezone.
+#
+# What it does NOT do: guess a timezone from the ISP name.  DHCP does not
+# carry the ISP (option 60 is a vendor class and is usually absent), and an
+# ISP is not a location.  The public IP is the usable signal, and it returns
+# the timezone directly.
+#
+# Offline, with no SIM and no uplink, nothing can give absolute time.  The
+# device then restores the last saved time and is behind by however long it
+# was powered off; the timezone persists in uci.  The first uplink corrects
+# both.
+#
+# Usage: time-sync restore|save|step|zone|daemon|status
+
+set -u
+
+TIME_FILE=${TIME_SYNC_TIME_FILE:-/etc/time-last}
+YEAR_FLOOR=${TIME_SYNC_YEAR_FLOOR:-2024}
+QMI_DEV=${TIME_SYNC_QMI_DEV:-/dev/wwan0qmi0}
+GEO_URL=${TIME_SYNC_GEO_URL:-https://ipapi.co/json/}
+GEO_ENABLED=${TIME_SYNC_GEO:-1}
+SAVE_INTERVAL=${TIME_SYNC_SAVE_INTERVAL:-1800}
+NTP_TIMEOUT=${TIME_SYNC_NTP_TIMEOUT:-8}
+SYSTEM_INIT=${TIME_SYNC_SYSTEM_INIT:-/etc/init.d/system}
+
+log() {
+	logger -t time-sync "$*" 2>/dev/null || true
+}
+
+plausible() {
+	[ "$(date +%Y)" -ge "$YEAR_FLOOR" ]
+}
+
+# --------------------------------------------------------------------------
+# 1. The clock.
+# --------------------------------------------------------------------------
+
+# A cold boot with no RTC starts at 1970.  The last saved time is the best
+# floor available offline; never lower a clock that is already ahead of it.
+restore() {
+	[ -f "$TIME_FILE" ] || return 0
+	stored=$(cat "$TIME_FILE" 2>/dev/null)
+	case "$stored" in ''|*[!0-9]*) return 0 ;; esac
+	now=$(date +%s)
+	[ "$now" -lt "$stored" ] || return 0
+	date -s "@$stored" || return 1
+	log "clock restored to $(date -u '+%Y-%m-%d %H:%M:%S') UTC from $TIME_FILE"
+}
+
+# Written only when the clock is plausible, so a 1970 boot never overwrites
+# the record.  The interval bounds both flash wear and how far behind an
+# unclean shutdown can leave the next boot.
+save() {
+	plausible || return 0
+	now=$(date +%s)
+	prev=$(cat "$TIME_FILE" 2>/dev/null || echo 0)
+	case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
+	[ $((now - prev)) -ge "$SAVE_INTERVAL" ] || return 0
+	printf '%s\n' "$now" > "$TIME_FILE.tmp" && mv -f "$TIME_FILE.tmp" "$TIME_FILE"
+}
+
+# One-shot NTP.  sysntpd stays running as usual; this only covers the window
+# where the daemon cannot step a huge offset.  -S runs ntpd-hotplug after the
+# step, exactly as sysntpd does.
+step() {
+	plausible && return 0
+
+	servers=$(uci -q get system.ntp.server 2>/dev/null)
+	[ -n "$servers" ] || servers="0.openwrt.pool.ntp.org 1.openwrt.pool.ntp.org 2.openwrt.pool.ntp.org 3.openwrt.pool.ntp.org"
+
+	try=0
+	while [ "$try" -lt 2 ]; do
+		try=$((try + 1))
+		for server in $servers; do
+			timeout "$NTP_TIMEOUT" ntpd -n -q -S /usr/sbin/ntpd-hotplug -p "$server" \
+				>/dev/null 2>&1 || continue
+			if plausible; then
+				log "clock stepped from $server, now $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+				return 0
+			fi
+		done
+		# The uplink may be up before resolv.conf is; give it a moment.
+		[ "$try" -lt 2 ] && sleep 5
+	done
+
+	log "no NTP reply, clock still $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+	return 1
+}
+
+# --------------------------------------------------------------------------
+# 2. The timezone.
+# --------------------------------------------------------------------------
+
+# POSIX TZ strings have the sign inverted: UTC+05:30 is IST-5:30.  There is no
+# /usr/share/zoneinfo on this image, so this string is the functional value
+# and system.zonename is only the label LuCI shows.
+posix_tz() {
+	minutes=$1
+	abbr=$2
+	if [ "$minutes" -lt 0 ]; then
+		sign=+
+		minutes=$((-minutes))
+	else
+		sign=-
+	fi
+	hours=$((minutes / 60))
+	mins=$((minutes % 60))
+	if [ "$mins" -eq 0 ]; then
+		printf '%s%s%d' "$abbr" "$sign" "$hours"
+	else
+		printf '%s%s%d:%02d' "$abbr" "$sign" "$hours" "$mins"
+	fi
+}
+
+# NITZ: registration is enough, a data session is not required.  The response
+# only carries the time-zone TLV when the network sent it, which is why the
+# source is checked first -- without a SIM qmicli answers with the modem's own
+# (unset) clock and no zone.
+zone_from_nitz() {
+	[ -e "$QMI_DEV" ] || return 1
+	out=$(timeout 8 qmicli -d "$QMI_DEV" --dms-get-time 2>/dev/null) || return 1
+	printf '%s\n' "$out" | grep -q "Time source: 'network'" || return 1
+
+	zone=$(printf '%s\n' "$out" | sed -n "s/.*Time zone: *'\(-\{0,1\}[0-9][0-9]*\)'.*/\1/p" | head -1)
+	[ -n "$zone" ] || return 1
+	dst=$(printf '%s\n' "$out" | sed -n "s/.*Daylight saving[^']*'\([0-9][0-9]*\)'.*/\1/p" | head -1)
+	[ -n "$dst" ] || dst=0
+
+	printf '%s|%s\n' "$((zone * 15 + dst * 60))" "NITZ"
+}
+
+# Public IP -> timezone.  One request, only when NITZ gave nothing, and only
+# when the user has not chosen a zone.  ipapi.co returns the offset as +HHMM,
+# which avoids needing a zoneinfo database to turn an IANA name into a TZ.
+zone_from_geo() {
+	[ "$GEO_ENABLED" = "1" ] || return 1
+	json=$(timeout 10 uclient-fetch -q -O - "$GEO_URL" 2>/dev/null) || return 1
+	[ -n "$json" ] || return 1
+
+	iana=$(printf '%s' "$json" | jsonfilter -e '@.timezone' 2>/dev/null)
+	offset=$(printf '%s' "$json" | jsonfilter -e '@.utc_offset' 2>/dev/null)
+	[ -n "$offset" ] || return 1
+
+	case "$offset" in
+	[+-][0-9][0-9][0-9][0-9])
+		sign=$(printf '%s' "$offset" | cut -c1)
+		hours=$(printf '%s' "$offset" | cut -c2-3 | sed 's/^0*//')
+		mins=$(printf '%s' "$offset" | cut -c4-5 | sed 's/^0*//')
+		[ -n "$hours" ] || hours=0
+		[ -n "$mins" ] || mins=0
+		minutes=$((hours * 60 + mins))
+		[ "$sign" = "-" ] && minutes=$((-minutes))
+		printf '%s|%s\n' "$minutes" "${iana:-UTC}"
+		return 0
+		;;
+	esac
+	return 1
+}
+
+apply_zone() {
+	minutes=$1
+	name=$2
+	# The three-letter POSIX label is cosmetic; keep the familiar one for the
+	# product's home market and a neutral one everywhere else.
+	abbr=LOC
+	[ "$minutes" = "330" ] && abbr=IST
+	tz=$(posix_tz "$minutes" "$abbr")
+
+	uci set system.@system[0].timezone="$tz"
+	uci set system.@system[0].zonename="$name"
+	uci commit system
+	"$SYSTEM_INIT" reload
+	log "timezone set to $name ($tz)"
+}
+
+zone() {
+	current=$(uci -q get system.@system[0].zonename 2>/dev/null)
+	# A real choice is never overridden; only the stock default is replaced.
+	case "$current" in ''|UTC|GMT|Etc/UTC) ;; *) return 0 ;; esac
+
+	if result=$(zone_from_nitz); then
+		:
+	elif result=$(zone_from_geo); then
+		:
+	else
+		return 1
+	fi
+
+	apply_zone "${result%%|*}" "${result##*|}"
+}
+
+# --------------------------------------------------------------------------
+# 3. Service loop.
+# --------------------------------------------------------------------------
+
+# restore runs before sysntpd; the loop saves the time for the next cold boot
+# and keeps retrying the zone for the first three hours, because the uplink
+# can appear long after boot.
+daemon() {
+	restore
+	attempt=0
+	while :; do
+		save
+		if [ "$attempt" -lt 6 ]; then
+			zone || true
+			attempt=$((attempt + 1))
+		fi
+		sleep "$SAVE_INTERVAL"
+	done
+}
+
+status() {
+	printf 'clock    %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+	printf 'plausible %s\n' "$(plausible && echo yes || echo no)"
+	printf 'saved    %s\n' "$(cat "$TIME_FILE" 2>/dev/null || echo none)"
+	printf 'timezone %s (%s)\n' \
+		"$(uci -q get system.@system[0].zonename 2>/dev/null)" \
+		"$(uci -q get system.@system[0].timezone 2>/dev/null)"
+}
+
+usage() {
+	cat <<-'EOF'
+	time-sync -- keep the clock and the timezone right on a board with no RTC.
+
+	Usage: time-sync <command>
+
+	  restore   Raise a 1970 clock to the last saved time (/etc/time-last).
+	  save      Record the current time for the next cold boot (30 min apart).
+	  step      One-shot NTP when the year is implausible; sysntpd handles the
+	            rest.  Busybox ntpd in daemon mode never steps a 1970 clock.
+	  zone      Set the timezone while it is still the stock UTC: NITZ first
+	            (works with a SIM, no data needed), then the public IP's
+	            geolocation.  A real choice is never overridden.
+	  daemon    The service body: restore, then save + retry zone every 30 min.
+	  status    Print the clock, the saved time and the current timezone.
+
+	Reads   system.ntp.server, system.@system[0].timezone/zonename (uci)
+	Writes  /etc/time-last, system.@system[0].timezone/zonename
+	Log     logread -e time-sync
+	Env     TIME_SYNC_TIME_FILE, TIME_SYNC_YEAR_FLOOR, TIME_SYNC_QMI_DEV,
+	        TIME_SYNC_GEO_URL, TIME_SYNC_GEO, TIME_SYNC_SAVE_INTERVAL
+	EOF
+}
+
+case "${1:-}" in
+-h|--help|help) usage ;;
+restore) restore ;;
+save) save ;;
+step) step ;;
+zone) zone ;;
+daemon) daemon ;;
+status) status ;;
+*)
+	echo "Usage: time-sync restore|save|step|zone|daemon|status" >&2
+	exit 1
+	;;
+esac
