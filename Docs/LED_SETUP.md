@@ -66,6 +66,9 @@ led-probe --show                # current role/pattern mapping
 led-probe --blink blue:wan 3    # light one lamp for 3 s
 led-probe --set wifi=green:wlan wan=blue:wan
 led-probe --set wifi.client=blink:500:500
+led-probe --swap wifi wan       # exchange the lamps of two roles
+led-probe --templates           # named role tables in this build
+led-probe --template NAME       # apply one (--dry-run to preview)
 led-probe --reset               # every role lamp back to 'auto'
 ```
 
@@ -124,6 +127,38 @@ blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
   dark;
 - an empty pattern value (`led-probe --set wifi.client=`) deletes the override
   and restores the built-in pattern.
+
+## Templates
+
+The two units cannot be told apart in software, so the answer is recorded once
+as a named role table instead of a per-unit command line:
+
+```sh
+led-probe --templates
+# hmuf02v5-blue-wifi    HMUF02-V5, Wi-Fi on blue, LTE on green (the board default)
+# hmuf02v5-green-wifi   HMUF02-V5, Wi-Fi on green, LTE on blue (the swapped population)
+
+led-probe --template hmuf02v5-green-wifi --dry-run   # what would change
+led-probe --template hmuf02v5-green-wifi             # apply it
+```
+
+`--dry-run` prints one `role <name> <current> <new>` line per entry and writes
+nothing; an apply prints the same lines as it writes them, so neither is silent.
+
+A template is a file under `/usr/share/msm89xx/led-templates/`: one `key value`
+pair per line — a role (`wifi green:wan`) or a role and state
+(`wifi.client blink:500:500`) — with `#` comments and a `# desc:` line that
+`--templates` prints. They ship in `msm89xx-scripts`, so a table for a newly
+discovered variant arrives as a package hotfix rather than a reflash.
+
+Templates are **never applied automatically** — not at boot, not at install.
+There is no software signal to choose one, and a wrong table lights the wrong
+lamp while looking configured, so applying is always a deliberate act, and the
+result should be confirmed with `--blink` on the hardware.
+
+`led-probe --swap wifi wan` is the one-step form when you only need two roles
+exchanged: it resolves each role's current lamp and writes both, so it does not
+depend on which labels the board exposes.
 
 ## The LuCI page
 

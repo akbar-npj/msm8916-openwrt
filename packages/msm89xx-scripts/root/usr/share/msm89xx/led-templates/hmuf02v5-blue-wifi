@@ -1,0 +1,10 @@
+# HMUF02-V5 with the Wi-Fi lamp on the BLUE LED.
+#
+# The board has three lamps (patch 805): green = LTE, red = modem/fault,
+# blue = Wi-Fi.  This is the board default, written out so the two populations
+# can be chosen from a list instead of being reasoned about.
+#
+# desc: HMUF02-V5, Wi-Fi on blue, LTE on green (the board default)
+wifi	blue:wlan
+wan	green:wan
+wan_fault	red:power

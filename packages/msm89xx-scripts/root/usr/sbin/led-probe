@@ -12,6 +12,10 @@
 
 ROLES="wifi wifi_fault wan wan_fault data bat_green bat_red"
 
+# Named role tables shipped with the package.  Overridable so the test suite
+# can point at a fixture directory.
+TEMPLATE_DIR="${LED_TEMPLATE_DIR:-/usr/share/msm89xx/led-templates}"
+
 # Role resolution and the built-in pattern table live in one place, shared with
 # the monitors, so --show can report the value that is actually in effect.
 . /usr/share/msm89xx/leds.sh
@@ -38,6 +42,10 @@ Usage: led-probe [--help]
        led-probe --caps                print what this board supports
        led-probe --blink LABEL [SECS]  blink one lamp to identify it
        led-probe --set KEY=VALUE ...   set a role lamp or a role pattern
+       led-probe --swap ROLE ROLE      exchange the lamps of two roles
+       led-probe --templates           list the named role tables in this build
+       led-probe --template NAME [--dry-run]
+                                       apply a named role table
        led-probe --reset               set every role lamp back to 'auto'
 
 Keys for --set:
@@ -50,6 +58,11 @@ Roles: wifi, wifi_fault, wan, wan_fault, data, bat_green, bat_red
 
 --caps prints one 'cap<TAB>name<TAB>value' line per capability; battery is 1
 only when the board reports a battery to /sys/class/power_supply.
+
+--templates lists the tables shipped in /usr/share/msm89xx/led-templates with
+their one-line description.  --template applies one: every line names a role
+(and optionally a pattern) and the value it should take.  --dry-run prints what
+would change and writes nothing.
 USAGE
 }
 
@@ -275,6 +288,100 @@ show_caps()
 	printf 'cap\tbattery\t%s\n' "$(led_has_battery && echo 1 || echo 0)"
 }
 
+# The label a role currently drives, resolved the same way the monitors do, so
+# an 'auto' role reports the board default rather than the word 'auto'.
+role_label()
+{
+	local p
+
+	p="$(led_role_lamp "$1" 2>/dev/null)" || return 1
+	[ -n "$p" ] || return 1
+	printf '%s\n' "${p##*/}"
+}
+
+swap_roles()
+{
+	local a="$1" b="$2" la lb
+
+	[ "$a" != "$b" ] || { echo "led-probe: cannot swap a role with itself" >&2; return 1; }
+	case " $ROLES " in *" $a "*) ;; *) echo "led-probe: unknown role '$a'" >&2; return 1 ;; esac
+	case " $ROLES " in *" $b "*) ;; *) echo "led-probe: unknown role '$b'" >&2; return 1 ;; esac
+
+	la="$(role_label "$a")" || { echo "led-probe: role '$a' has no lamp on this board" >&2; return 1; }
+	lb="$(role_label "$b")" || { echo "led-probe: role '$b' has no lamp on this board" >&2; return 1; }
+
+	# Both sides are written out rather than inferred, so the file says what
+	# the lamps do -- which is what the monitors read and --show reports.
+	uci set "leds.$a.lamp=$lb" || return 1
+	uci set "leds.$b.lamp=$la" || return 1
+	uci commit leds || return 1
+	restart_monitors
+	printf 'led-probe: %s -> %s, %s -> %s\n' "$a" "$lb" "$b" "$la"
+}
+
+list_templates()
+{
+	local f
+
+	[ -d "$TEMPLATE_DIR" ] || return 0
+	for f in "$TEMPLATE_DIR"/*; do
+		[ -f "$f" ] || continue
+		printf '%s\t%s\n' "${f##*/}" \
+			"$(sed -n 's/^#[[:space:]]*desc:[[:space:]]*//p' "$f" | head -1)"
+	done
+}
+
+# Apply a named role table.  Every line is 'key value', where key is a role or
+# a role.state; the preview prints first, so an apply is never silent.
+apply_template()
+{
+	local name="$1" dry="$2" f key val role state kv=""
+
+	f="$TEMPLATE_DIR/$name"
+	[ -f "$f" ] || { echo "led-probe: no template '$name' (try --templates)" >&2; return 1; }
+
+	while read -r key val _; do
+		[ -n "$key" ] || continue
+		case "$key" in \#*) continue ;; esac
+		[ -n "$val" ] || continue
+
+		case "$key" in
+			*.*)
+				role="${key%%.*}"
+				state="${key#*.}"
+				case " $ROLES " in
+					*" $role "*) ;;
+					*) echo "led-probe: template $name has unknown role '$role'" >&2; return 1 ;;
+				esac
+				valid_pattern "$val" || {
+					echo "led-probe: template $name has bad pattern '$val' for $key" >&2
+					return 1
+				}
+				printf 'pattern\t%s\t%s\t%s\t%s\n' "$role" "$state" \
+					"$(led_role_spec "$role" "$state")" "$val"
+				;;
+			*)
+				role="$key"
+				case " $ROLES " in
+					*" $role "*) ;;
+					*) echo "led-probe: template $name has unknown role '$role'" >&2; return 1 ;;
+				esac
+				[ -e "/sys/class/leds/$val/trigger" ] ||
+					echo "led-probe: warning: no lamp '$val' for '$role' (it falls back to the board default)" >&2
+				printf 'role\t%s\t%s\t%s\n' "$role" "$(role_label "$role" || echo auto)" "$val"
+				;;
+		esac
+
+		kv="$kv $key=$val"
+	done < "$f"
+
+	[ "$dry" = "dry" ] && return 0
+
+	# Word-split on purpose: set_kv takes one KEY=VALUE per argument.
+	# shellcheck disable=SC2086
+	set_kv $kv
+}
+
 [ $# -gt 0 ] || { wizard; exit $?; }
 
 case "$1" in
@@ -298,6 +405,19 @@ case "$1" in
 		shift
 		[ $# -gt 0 ] || { usage >&2; exit 2; }
 		set_kv "$@"
+		;;
+	--swap)
+		[ -n "${2:-}" ] && [ -n "${3:-}" ] || { usage >&2; exit 2; }
+		swap_roles "$2" "$3"
+		;;
+	--templates)
+		list_templates
+		;;
+	--template)
+		[ -n "${2:-}" ] || { usage >&2; exit 2; }
+		dry=""
+		[ "${3:-}" = "--dry-run" ] && dry="dry"
+		apply_template "$2" "$dry"
 		;;
 	--reset)
 		reset_lamps
