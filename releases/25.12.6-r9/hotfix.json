@@ -8,6 +8,16 @@
       "title": "apk-overlay-heal drops packages built for another kernel",
       "restart": [],
       "published": "2026-11-16"
+    },
+    {
+      "id": "2026-11-16-msm89xx-scripts",
+      "package": "msm89xx-scripts",
+      "version": "1.0-r19",
+      "title": "time-sync for the clock and timezone, plus the Tailscale app switch",
+      "restart": [
+        "time-sync"
+      ],
+      "published": "2026-11-16"
     }
   ]
 }
