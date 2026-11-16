@@ -1,7 +1,7 @@
 {
   "updated": "2026-11-16",
   "packages": {
-    "msm89xx-scripts": "1.0-r18",
+    "msm89xx-scripts": "1.0-r19",
     "luci-app-wifi-sta": "1.0-r12",
     "luci-app-led-setup": "1.0-r5",
     "luci-app-firmware-upgrade": "1.0-r6",
