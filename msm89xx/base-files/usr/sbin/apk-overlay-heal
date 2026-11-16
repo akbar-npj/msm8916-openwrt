@@ -147,7 +147,7 @@ the merge runs once per image change, not every boot.
 USAGE
 		exit 0
 		;;
-	--boot|--whiteouts|--shadowed)
+	--boot|--whiteouts|--shadowed|--stale-kmods)
 		;;
 	*)
 		echo "apk-overlay-heal: unknown option '$MODE' (try --help)" >&2

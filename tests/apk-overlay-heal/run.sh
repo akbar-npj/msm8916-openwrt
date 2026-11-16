@@ -200,6 +200,11 @@ EOF
 	assert_eq "second boot is a no-op" "$(cat "$DB")" "$before"
 	assert_eq "second boot logs nothing" "$(cat "$LOGFILE")" ""
 
+	# --- the manual mode exists and is a no-op once healed -----------------
+	# It is documented in --help, so an option the case list forgot to accept
+	# must be caught here rather than on a device.
+	assert_eq "--stale-kmods is accepted" "$(sh "$script" --stale-kmods 2>&1)" ""
+
 	[ "$FAIL" -eq 0 ]
 }
 
