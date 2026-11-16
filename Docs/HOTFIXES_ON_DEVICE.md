@@ -8,7 +8,8 @@ installed it*, and what to do about it.
 
 Publishing a hotfix (the maintainer side) is covered separately in
 [`RELEASING_FIRMWARE.md` §3.1](RELEASING_FIRMWARE.md). This document is the
-device/operator view.
+device/operator view. The maintainer's step-by-step list, with the failure each
+check exists to prevent, is [`HOTFIX_CHECKLIST.md`](HOTFIX_CHECKLIST.md).
 
 ## What a "hotfix" is
 

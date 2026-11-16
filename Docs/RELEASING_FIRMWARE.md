@@ -127,16 +127,24 @@ already published, then re-signs the index.
 
 ```sh
 # a package under packages/
-gh workflow run publish-package.yml --ref main -f package=luci-app-foo -f bump=true
+gh workflow run publish-package.yml --ref main -f package=luci-app-foo -f bump=true \
+  -f hotfix_title="one line for the firmware-upgrade page"
 
 # a TARGET package (base-files): its PKG_RELEASE is $(COMMITCOUNT), which does
 # not move between releases, so stamp an explicit number instead
 gh workflow run publish-package.yml --ref main \
-  -f package=base-files -f target_package=true -f pkg_release=1719
+  -f package=base-files -f target_package=true -f pkg_release=1719 \
+  -f hotfix_title="one line for the firmware-upgrade page"
 ```
 
 `target_package` also re-indexes and re-signs `bin/targets/.../packages`,
 where a target package lands. `bump` is skipped for it.
+
+`hotfix_title` is **required** whenever `package` is set: it is what writes the
+`hotfix.json` entry, and without it the feed is updated while the page and the
+banner stay silent. The workflow refuses the run rather than publishing a fix
+no device is offered. The full maintainer checklist, including the failure each
+step prevents, is [`HOTFIX_CHECKLIST.md`](HOTFIX_CHECKLIST.md).
 
 **2. Check what was published** - do not trust the run summary:
 
