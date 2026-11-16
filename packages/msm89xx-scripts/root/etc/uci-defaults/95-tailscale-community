@@ -1,0 +1,96 @@
+#!/bin/sh
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
+#
+# Switch a unit from the vendored Tailscale LuCI app to the luci feed's
+# luci-app-tailscale-community.
+#
+# This ships in msm89xx-scripts rather than in base-files on purpose: it is not
+# boot-critical, and living in a normal package means the whole switch can be
+# delivered as a package hotfix (`apk upgrade msm89xx-scripts`) instead of a
+# revision-scoped base-files rebuild.  base-files is world-pinned and heavy;
+# two migration scripts do not justify moving that pin.
+#
+# A config-preserving sysupgrade keeps the overlay's package database and
+# /etc/apk/world, so on an upgraded unit the old package survives next to the
+# new one: two apps registered on admin/services/tailscale, and its renamed
+# /etc/init.d/tailscale keeps shadowing the feed package's own init script.
+#
+# Order matters.  The replacement is installed FIRST and the old app is only
+# removed once that succeeded, so a unit that cannot reach the feed keeps a
+# working Tailscale page instead of losing both.
+#
+# /etc/config/tailscale is deliberately NOT touched.  It belongs to the feed's
+# tailscale package (it is that package's conffile), it holds the node
+# settings, and the community app reads the same `settings` section.  The old
+# app's extra options (enabled, config_path, accept_dns, ...) are ignored by
+# both the app and the init script.  The login state survives as well: the old
+# init stored it in /etc/tailscale/tailscaled.state, which is the feed init's
+# default --state path.
+#
+# The shadowed /etc/init.d/tailscale is not removed here: the postinst rename
+# left it as an overlay copy of an image file, and apk-overlay-heal already
+# drops those at preinit.  Deleting it blindly would whiteout the feed's own
+# script on a unit that never had the vendored app.
+#
+# Runs once -- uci-defaults delete themselves after a successful run.
+
+[ -f /etc/apk/world ] || exit 0
+grep -qx 'luci-app-tailscale' /etc/apk/world || exit 0
+
+# apk holds its database lock while it runs a post-install script, and this
+# script is sourced from msm89xx-scripts' postinst, so on the hotfix path
+# (`apk upgrade msm89xx-scripts`) the package operations below would fail with
+# "unable to lock database".  Retry them detached once the transaction that
+# installed us has finished.  At first boot there is no lock and the direct
+# path wins.
+RETRY_DELAY=${TAILSCALE_MIGRATION_RETRY_DELAY:-20}
+
+finish() {
+	# World first: leaving the entry behind would make the next
+	# `apk add $(cat /etc/apk/world)` (or an upgrade) pull the old app back.
+	sed -i '/^luci-app-tailscale$/d' /etc/apk/world
+
+	if ! apk del luci-app-tailscale >/dev/null 2>&1; then
+		logger -t tailscale-community "could not uninstall luci-app-tailscale; it is out of the world, remove it by hand"
+	fi
+
+	# The package's file list names tailscale.luci; the postinst had renamed
+	# it, so the renamed copies are not covered by the uninstall.
+	rm -f /etc/init.d/tailscale.luci
+	for link in /etc/rc.d/*tailscale.luci; do
+		[ -e "$link" ] || [ -L "$link" ] || continue
+		rm -f "$link"
+	done
+
+	# The old script was START=90, the feed's is START=80.  A preserved
+	# overlay keeps the old S90 link, and with the image's S80 link also
+	# present the service would be started twice (two tailscaled instances).
+	rm -f /etc/rc.d/S90tailscale
+
+	rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache
+}
+
+migrate() {
+	if apk add luci-app-tailscale-community >/dev/null 2>&1; then
+		finish
+	else
+		logger -t tailscale-community "could not install luci-app-tailscale-community; keeping the old app"
+		return 1
+	fi
+}
+
+if out=$(apk add luci-app-tailscale-community 2>&1); then
+	finish
+else
+	case "$out" in
+	*[Ll]ock*)
+		logger -t tailscale-community "apk is locked by the running transaction; retrying the switch in ${RETRY_DELAY}s"
+		( sleep "$RETRY_DELAY"; migrate ) >/dev/null 2>&1 &
+		;;
+	*)
+		logger -t tailscale-community "could not install luci-app-tailscale-community; keeping the old app"
+		;;
+	esac
+fi
+
+exit 0

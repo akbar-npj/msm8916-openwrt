@@ -1,4 +1,5 @@
 #!/bin/sh
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # apk-overlay-heal -- repair the overlay artefacts that make a freshly flashed
@@ -69,6 +70,19 @@
 # version and hash, so a stale entry is simply never looked up, and merging
 # tarballs is not worth the risk of corrupting it.
 #
+#   5. A PACKAGE BUILT FOR ANOTHER KERNEL.  A kmod's dependency records the
+#      kernel build it was compiled against -- "D:kernel=6.12.112~<vermagic>-r1"
+#      -- and the vermagic changes with every kernel build.  A kmod installed
+#      from the feed on the previous image therefore keeps a record that no
+#      kernel after the flash can satisfy, and every apk transaction then fails
+#      with "breaks: kmod-x[kernel=...]".  The module could not load anyway: the
+#      kernel refuses a vermagic mismatch.  Such a package is dropped from the
+#      database and its files are removed, so the next "apk add"/"apk upgrade"
+#      installs the build the feed has for this kernel.  It stays in
+#      /etc/apk/world, so the intent survives and the reinstall is automatic.
+#      A package the image itself ships is not affected: the image's record
+#      wins the merge, and its files are handled by the pass above.
+#
 # Scope: this runs ONCE per image change, from
 # /lib/preinit/85_apk_overlay_heal, and does nothing on an ordinary boot.  That
 # matters -- a whiteout is also how a legitimate "apk del" removes a file the
@@ -84,9 +98,14 @@
 
 set -u
 
-OVERLAY=/overlay
+# The three roots are overridable only so tests/apk-overlay-heal can point them
+# at a fixture; on a device they are always the defaults.
+OVERLAY="${APK_HEAL_OVERLAY:-/overlay}"
 UPPER="$OVERLAY/upper"
-ROM=/rom
+ROM="${APK_HEAL_ROM:-/rom}"
+# Prefix for the MERGED view.  Writes go through it, not into $UPPER, so
+# overlayfs does the copy-up itself.
+MERGED="${APK_HEAL_MERGED:-}"
 DB_REL=lib/apk/db/installed
 WORLD_REL=etc/apk/world
 MARKER_REL=etc/apk/.image_id
@@ -101,15 +120,16 @@ log() {
 case "$MODE" in
 	-h|--help)
 		cat <<'USAGE'
-Usage: apk-overlay-heal [--boot | --whiteouts | --shadowed | --help]
+Usage: apk-overlay-heal [--boot | --whiteouts | --shadowed | --stale-kmods
+                         | --help]
 
   --boot        (default) If the image changed since the overlay was written,
                 remove the whiteouts that hide files the running image ships,
-                restore package files the image now ships in a different
-                version, and merge the overlay's package database and world
-                with the image's (image entries win, overlay-only packages are
-                kept).  A no-op on an ordinary boot.  Run from
-                /lib/preinit/85_apk_overlay_heal.
+                drop packages built for another kernel, restore package files
+                the image now ships in a different version, and merge the
+                overlay's package database and world with the image's (image
+                entries win, overlay-only packages are kept).  A no-op on an
+                ordinary boot.  Run from /lib/preinit/85_apk_overlay_heal.
   --whiteouts   Only the whiteout pass, without the image-change check.  For
                 manual use.
   --shadowed    Only the package-file pass, without the image-change check.
@@ -117,6 +137,10 @@ Usage: apk-overlay-heal [--boot | --whiteouts | --shadowed | --help]
                 Conffiles, packages installed only from the feed, and packages
                 the overlay holds at a higher version than the image are left
                 alone.
+  --stale-kmods Only the kernel-mismatch pass, without the image-change check.
+                Drops the records and files of packages built for a kernel
+                other than the one this image ships, leaving them in
+                /etc/apk/world so apk reinstalls them from the feed.
   --help        Show this help and exit.
 
 The marker /etc/apk/.image_id records which image's database was merged in, so
@@ -124,7 +148,7 @@ the merge runs once per image change, not every boot.
 USAGE
 		exit 0
 		;;
-	--boot|--whiteouts|--shadowed)
+	--boot|--whiteouts|--shadowed|--stale-kmods)
 		;;
 	*)
 		echo "apk-overlay-heal: unknown option '$MODE' (try --help)" >&2
@@ -186,7 +210,86 @@ conffile_list() {
 }
 
 # --------------------------------------------------------------------------
-# 2a. Which packages the overlay holds at a HIGHER version than the image.
+# 2a. Packages the overlay records as built for a different kernel.
+# --------------------------------------------------------------------------
+# The "kernel" package's version IS the kernel build (6.12.112~<vermagic>-r1),
+# and every kmod depends on exactly that string.  A kmod installed from the feed
+# before a flash still carries the old one, and apk can then never solve: every
+# transaction fails with "breaks: kmod-x[kernel=...]".  Comparing the two
+# versions is the whole test -- the module cannot load under a kernel whose
+# vermagic differs, so a mismatch means "stale", not "newer".
+image_kernel_version() {
+	awk '/^P:/ { pkg = substr($0, 3) }
+	     /^V:/ { if (pkg == "kernel") { print substr($0, 3); exit } }' \
+		"$ROM/$DB_REL" 2>/dev/null
+}
+
+stale_kernel_pkgs() {
+	local out="$1" kver
+
+	: > "$out"
+	kver="$(image_kernel_version)"
+	[ -n "$kver" ] || return 0
+	[ -s "$UPPER/$DB_REL" ] || return 0
+
+	awk -v kver="$kver" '
+		/^P:/ { pkg = substr($0, 3); next }
+		/^D:/ {
+			n = split(substr($0, 3), dep, " ")
+			for (i = 1; i <= n; i++) {
+				# An unversioned "kernel" dependency is satisfied
+				# by any kernel; only a pinned one can go stale.
+				if (substr(dep[i], 1, 7) != "kernel=") continue
+				if (substr(dep[i], 8) != kver) { print pkg; break }
+			}
+		}' "$UPPER/$DB_REL" 2>/dev/null | sort -u > "$out"
+}
+
+# Remove the files such a package left on the overlay, and say so.  The record
+# is dropped by the merge; the files have to go with it, or the old .ko keeps
+# shadowing /lib/modules and the reinstall lands next to a module that cannot
+# load.  The world entry is left alone on purpose: that is what makes apk fetch
+# a build for THIS kernel on the next transaction instead of forgetting the
+# package.
+heal_stale_kernel() {
+	local pkgs=/tmp/.apk-heal-stale.$$ paths=/tmp/.apk-heal-stale-paths.$$
+	local p removed=0
+
+	stale_kernel_pkgs "$pkgs"
+	if [ ! -s "$pkgs" ]; then
+		rm -f "$pkgs"
+		return 0
+	fi
+
+	db_paths "$UPPER/$DB_REL" |
+	awk -v list="$pkgs" '
+		BEGIN { while ((getline p < list) > 0) drop[p] = 1 }
+		($2 in drop) { print $1 }' > "$paths"
+
+	while read -r p; do
+		[ -f "$UPPER$p" ] || [ -L "$UPPER$p" ] || continue
+		rm -f "$UPPER$p" && removed=$((removed + 1))
+	done < "$paths"
+
+	# Only the packages the image does not ship are dropped from the
+	# database; for the rest the image's own record wins the merge.  The log
+	# names just the former, so it does not claim to have dropped something
+	# the image keeps.
+	db_versions "$ROM/$DB_REL" > "$paths.shipped"
+	awk 'NR == FNR { shipped[$1] = 1; next }
+	     !($1 in shipped)' "$paths.shipped" "$pkgs" > "$paths.dropped"
+
+	if [ -s "$paths.dropped" ]; then
+		log "dropped $(wc -l < "$paths.dropped") package(s) built for another kernel ($(awk '{ printf "%s%s", sep, $0; sep = " " }' "$paths.dropped")) -- reinstall from the feed"
+	fi
+	[ "$removed" -gt 0 ] &&
+		log "removed $removed file(s) belonging to them"
+
+	rm -f "$pkgs" "$paths" "$paths.shipped" "$paths.dropped"
+}
+
+# --------------------------------------------------------------------------
+# 2b. Which packages the overlay holds at a HIGHER version than the image.
 # --------------------------------------------------------------------------
 # A package upgraded from the feed after the flash is newer than the image's
 # copy of it, and reverting its files would be a silent downgrade.  The version
@@ -242,6 +345,21 @@ newer_pkgs() {
 	done > "$out"
 
 	rm -f "$out.img" "$out.ovl"
+
+	# A package built for another kernel is stale whatever its version says:
+	# its files go in 2a, so its record must not be kept here either -- the
+	# keep list below would otherwise hold the old .ko in place.
+	stale_kernel_pkgs "$out.stale"
+	if [ -s "$out.stale" ]; then
+		# grep exits 1 when every line was filtered out -- an empty result
+		# is a real answer here, so only a hard error keeps the old list.
+		grep -vxF -f "$out.stale" "$out" > "$out.tmp"
+		case $? in
+			0|1) mv -f "$out.tmp" "$out" ;;
+		esac
+		rm -f "$out.tmp"
+	fi
+	rm -f "$out.stale"
 }
 
 # Every file path a database lists, as "<path> <package>".
@@ -318,9 +436,10 @@ merge_db() {
 	# Work through the MERGED path, not the upper directory: writing through
 	# the mount is what lets overlayfs replace the file properly, and it is
 	# the same file apk itself would touch.
-	local cur="/$DB_REL"
-	local tmp="/$DB_REL.merge.$$"
+	local cur="$MERGED/$DB_REL"
+	local tmp="$MERGED/$DB_REL.merge.$$"
 	local pkgs=/tmp/.apk-heal-newer.$$
+	local stale=/tmp/.apk-heal-stale.$$
 	local want got bad
 
 	[ -s "$img" ] || return 0
@@ -336,10 +455,12 @@ merge_db() {
 	# package at a higher version -- that is a package upgraded from the feed,
 	# and its files are kept by the pass above, so its record must be kept with
 	# them.  Records only present in the overlay copy (packages installed from
-	# the feed) are appended afterwards.
+	# the feed) are appended afterwards, except for the ones built for another
+	# kernel: their files are gone, so their record must go too.
 	newer_pkgs "$pkgs"
+	stale_kernel_pkgs "$stale"
 
-	awk -v list="$pkgs" '
+	awk -v list="$pkgs" -v stale="$stale" '
 		BEGIN {
 			# Read the keep list BEFORE switching to paragraph mode:
 			# with RS = "" a getline returns a whole blank-line
@@ -348,6 +469,8 @@ merge_db() {
 			RS = "\n"
 			while ((getline p < list) > 0) keep[p] = 1
 			close(list)
+			while ((getline p < stale) > 0) drop[p] = 1
+			close(stale)
 			RS = ""; ORS = "\n\n"
 		}
 		FNR == 1 { file++ }
@@ -360,6 +483,8 @@ merge_db() {
 			if (file == 1) {
 				if (!(name in img)) order[++n] = name
 				img[name] = $0
+			} else if (substr(name, 3) in drop) {
+				# Built for another kernel (2a): dropped, files removed.
 			} else if (substr(name, 3) in keep) {
 				newer[name] = $0
 			} else if (!(name in img)) {
@@ -376,16 +501,23 @@ merge_db() {
 	' "$img" "$cur" > "$tmp" 2>/dev/null
 
 	# Never leave a half-written database behind: the merged record count
-	# must equal the image count plus the overlay-only count.
-	want=$(( $(grep -c '^P:' "$img") + $(awk '
-		BEGIN { RS = "" }
+	# must equal the image count plus the overlay-only count, and the latter
+	# excludes the packages 2a dropped.
+	want=$(( $(grep -c '^P:' "$img") + $(awk -v stale="$stale" '
+		BEGIN {
+			RS = "\n"
+			while ((getline p < stale) > 0) drop[p] = 1
+			close(stale)
+			RS = ""
+		}
 		FNR == 1 { f++ }
 		{
 			n = ""
 			for (i = 1; i <= NF; i++)
 				if (substr($i, 1, 2) == "P:") { n = $i; break }
+			if (n == "") next
 			if (f == 1) seen[n] = 1
-			else if (!(n in seen)) c++
+			else if (!(n in seen) && !(substr(n, 3) in drop)) c++
 		}
 		END { print c + 0 }
 	' "$img" "$cur") ))
@@ -398,18 +530,18 @@ merge_db() {
 
 	if [ ! -s "$tmp" ] || [ "$got" -ne "$want" ] || [ "$bad" -ne 0 ]; then
 		log "WARNING: database merge failed ($got/$want records, $bad malformed), keeping the overlay copy"
-		rm -f "$tmp" "$pkgs"
+		rm -f "$tmp" "$pkgs" "$stale"
 		return 1
 	fi
 
 	cp -f "$cur" "$cur.bak" 2>/dev/null || true
 	mv -f "$tmp" "$cur" || {
 		log "WARNING: could not replace the package database, keeping the overlay copy"
-		rm -f "$pkgs"
+		rm -f "$pkgs" "$stale"
 		return 1
 	}
 
-	rm -f "$pkgs"
+	rm -f "$pkgs" "$stale"
 	log "merged the package database with the image one ($got records)"
 	return 0
 }
@@ -425,8 +557,8 @@ merge_db() {
 # are kept.
 merge_world() {
 	local img="$ROM/$WORLD_REL"
-	local cur="/$WORLD_REL"
-	local tmp="/$WORLD_REL.merge.$$"
+	local cur="$MERGED/$WORLD_REL"
+	local tmp="$MERGED/$WORLD_REL.merge.$$"
 	local want got
 
 	[ -s "$img" ] || return 0
@@ -482,6 +614,7 @@ reconcile_db() {
 		[ "$(cat "$UPPER/$MARKER_REL" 2>/dev/null)" = "$id" ] && return 0
 
 	heal_whiteouts
+	heal_stale_kernel
 	heal_shadowed
 	merge_world
 	merge_db
@@ -497,6 +630,11 @@ fi
 
 if [ "$MODE" = "--shadowed" ]; then
 	heal_shadowed
+	exit 0
+fi
+
+if [ "$MODE" = "--stale-kmods" ]; then
+	heal_stale_kernel
 	exit 0
 fi
 

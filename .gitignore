@@ -39,6 +39,11 @@ __pycache__/
 # Local notes
 pr_description.md
 
+# Local AI/tooling scratch (not part of the project)
+.euron/
+EURON.md
+dev/
+
 #Book Keeping Directory
 GitIgnore
 ghidra_proj/

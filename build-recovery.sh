@@ -2,7 +2,7 @@
 #
 # build-recovery.sh - build the per-board MSM8916 recovery (rescue) boot image.
 #
-#   ./build-recovery.sh <board>      hmuf02v5 | mf800b | mifib-v12 | ufi003_mb_v02 | ufi001b
+#   ./build-recovery.sh <board>      (run ./build-recovery.sh --help for the current list)
 #   ./build-recovery.sh all
 #   DRY_RUN=1 ./build-recovery.sh <board>   (show what would be packed, write nothing)
 #
@@ -37,9 +37,10 @@
 #     has to insmod them.  Without them the image boots perfectly and simply
 #     has no wlan0.
 #
-# Boards with GPT_RECOVERY=1 in msm89xx/image/msm8916.mk (mf800b, mifib-v12)
-# flash this image to the dedicated 16 MiB 'recovery' GPT partition; the other
-# boards boot it one-shot from the running system with 'reboot-recovery'.
+# Boards with GPT_RECOVERY=1 in msm89xx/image/msm8916.mk (hmuf02v5, mf800b,
+# mifib-v12, jz02, jz0145) flash this image to the dedicated 16 MiB 'recovery'
+# GPT partition; other boards boot it one-shot from the running system with
+# 'reboot-recovery'.
 #
 # Auth model: root shell on the USB ACM console and passwordless
 # ssh root@192.168.10.1 (blank root password patch). The dropbear host key is
@@ -82,9 +83,9 @@ RECOVERY_MODULES="mdt_loader qcom_common qcom_pil_info qcom_wcnss_pil compat cfg
 
 # Board list - derived from the device definitions, stays in sync automatically.
 list_boards() {
-    grep -o 'DEVICE_DTS := msm8916-generic-[a-z0-9_-]*' \
+    grep -oE '^define Device/(generic-[a-z0-9_-]+|yiming-uz801v3)' \
         "$REPO_DIR/msm89xx/image/msm8916.mk" |
-        sed 's/.*msm8916-generic-//'
+        sed -e 's|^define Device/generic-||' -e 's|^define Device/yiming-uz801v3$|uz801|'
 }
 
 check_board() {
@@ -100,7 +101,9 @@ production_image() {
         echo "$RECOVERY_BOOT_IMG"
         return 0
     fi
-    echo "$REPO_DIR/openwrt/bin/targets/msm89xx/msm8916/msm8916-openwrt-msm89xx-msm8916-generic-$1-squashfs-boot.img"
+    local device="generic-$1"
+    [ "$1" != "uz801" ] || device="yiming-uz801v3"
+    echo "$REPO_DIR/openwrt/bin/targets/msm89xx/msm8916/msm8916-openwrt-msm89xx-msm8916-$device-squashfs-boot.img"
 }
 
 # Kernel build identity: decompressed size plus the UTS banner.  Modules are
@@ -190,6 +193,9 @@ install_blobs() {
     find "$RECOVERY_DIR/irfs/lib" -maxdepth 1 -name 'lib*.so*' \
         ! -name 'libc.so*' ! -name 'libgcc_s.so*' -delete
     cp -a "$src/." "$RECOVERY_DIR/irfs/"
+    # OpenWrt ships a multicall Dropbear binary; argv[0] selects key generation.
+    mkdir -p "$IRFS/usr/bin"
+    ln -sfn ../sbin/dropbear "$IRFS/usr/bin/dropbearkey"
     # A blobs directory fetched before the station mode was removed still
     # carries the wpa_supplicant symlink; drop it so a stale tree cannot put it
     # back into the image.

@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm89xx-scripts
 PKG_VERSION:=1.0
-PKG_RELEASE:=18
+PKG_RELEASE:=19
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=akbar-npj
@@ -14,15 +14,17 @@ include $(INCLUDE_DIR)/package.mk
 define Package/$(PKG_NAME)
 	SECTION:=utils
 	CATEGORY:=Utilities
-	TITLE:=LED monitors and station-mode helpers for the msm89xx boards
+	TITLE:=LED monitors, clock/timezone and station-mode helpers for the msm89xx boards
 	DEPENDS:=+procd
 	PKGARCH:=all
 endef
 
 define Package/$(PKG_NAME)/description
 	The userspace half of the msm89xx board support: the modem and Wi-Fi LED
-	monitors with their procd services, the boot blink, and the Wi-Fi station
-	(repeater) helpers that luci-app-wifi-sta drives.
+	monitors with their procd services, the boot blink, time-sync (clock
+	restore from the last saved time plus NITZ/geo timezone detection, since
+	these boards have no usable RTC), and the Wi-Fi station (repeater)
+	helpers that luci-app-wifi-sta drives.
 
 	These used to be shipped inside the target's base-files, which made them
 	unreachable without a full firmware flash.  As a package they can be
