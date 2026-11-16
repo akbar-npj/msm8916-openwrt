@@ -47,6 +47,9 @@ jobs:
       - name: modem-watchdog
         run: bash tests/modem-watchdog/run.sh --self-check
 
+      - name: apk-overlay-heal
+        run: bash tests/apk-overlay-heal/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}
