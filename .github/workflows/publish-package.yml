@@ -80,7 +80,7 @@ on:
           - revision
           - all
       hotfix_title:
-        description: "One-line description written to hotfix.json for this build. Empty = publish the package without a manifest entry."
+        description: "One-line description written to hotfix.json for this build. REQUIRED when publishing a package (an empty package is feed maintenance only)."
         required: false
         default: ""
         type: string
@@ -154,6 +154,16 @@ jobs:
             echo "::error::packages/${PKG}/Makefile does not exist."
             echo "Known packages:"
             ls packages/
+            exit 1
+          fi
+          # A package published without a hotfix_title is only half published:
+          # the feed gets the new .apk and the index, but no hotfix.json entry
+          # is written, so the firmware-upgrade page and the dashboard banner
+          # never offer it and nothing looks wrong.  Refuse instead of shipping
+          # that silently.  (An empty `package` is feed maintenance only and
+          # needs no entry.)
+          if [ -n "$PKG" ] && [ -z "${{ inputs.hotfix_title }}" ]; then
+            echo "::error::hotfix_title is required when publishing ${PKG}. Without it the package is published but no hotfix.json entry is written, so no device is ever offered the fix. If you only need to repair the feed, leave package empty."
             exit 1
           fi
           echo "Feed base: ${BASE}"
