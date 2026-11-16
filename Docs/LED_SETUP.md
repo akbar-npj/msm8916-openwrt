@@ -184,6 +184,12 @@ everything alone and nothing changes; **Save & apply** only writes the fields
 you edited and restarts the monitors. Selecting `default (…)` again drops the
 override. **Reset lamps to auto** clears the lamp overrides.
 
+A **Known-good tables** section appears between the roles and the patterns, and
+only on a board that ships a deviation table — so every other board's page is
+unchanged. It offers the same tables as `led-probe --templates`, **Preview**
+shows the `Now` / `After applying` rows without writing, and **Apply table**
+writes them and reloads the page so the role dropdowns above show the result.
+
 ## Checking the result
 
 ```sh
