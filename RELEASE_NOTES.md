@@ -10,13 +10,6 @@
   headroom. `act_mirred` now asks the source device whether it has an L2 header at all, and drops
   a packet it cannot fit instead of panicking.
 
-- 📞 **The modem is no longer restarted while you are on a call.** The bearer watchdog treats "no
-  downlink" as a dead bearer and rebuilds it, which cannot help a SIM that has no data service —
-  and it tears down the call. A new opt-in voice-aware hold skips the recovery ladder while a call
-  is in progress, or while a voice-only SIM is alive for voice, and can drop the modem's default
-  route during the hold so traffic does not fall back to an empty bearer. Off by default
-  (`voice_alive='0'`), with fields on the Modem Watchdog page.
-
 - 🎧 **The voice audio path is in the kernel now.** The q6voice stack (MVM, CVS, CVP) over APR,
   internal BT-SCO ports, in-call record taps and playback, as `kmod-sound-msm8916-voice` in the
   feed for every board, with the card enabled on `mifib-v12` and `ufi003-mb-v02`. This is the
