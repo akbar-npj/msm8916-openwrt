@@ -59,6 +59,12 @@ jobs:
       - name: led-templates
         run: bash tests/led-templates/run.sh --self-check
 
+      - name: usb-gadget-net
+        run: bash tests/usb-gadget-net/run.sh --self-check
+
+      - name: usb-gadget-probe
+        run: bash tests/usb-gadget-probe/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}
