@@ -69,6 +69,22 @@ gh workflow run publish-package.yml --ref main \
 For a target package: `-f target_package=true -f pkg_release=<n>` and no
 `bump`.
 
+### When the fix spans two packages
+
+The workflow publishes one package per dispatch, and writes one `hotfix.json`
+entry per dispatch. Publish the **dependency first**.
+
+`depends:` is unversioned, so installing the dependant pulls whatever version
+of the dependency the feed already holds. A LuCI page published before the
+script it drives arrives calling an option that does not exist there — in the
+LED Setup case that hides the new section instead of erroring, so the fix looks
+delivered and does nothing.
+
+- [ ] Dependency package dispatched first, dependant second.
+- [ ] Both dispatches carry their own `hotfix_title`.
+- [ ] In the index, the dependant's `depends:` resolves to the version you just
+      published, not the old one.
+
 ## 5. Verify through git, never the CDN
 
 `github.io` serves the last *successful* Pages deploy, so a failed deploy leaves
