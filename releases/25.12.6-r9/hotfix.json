@@ -10,14 +10,14 @@
       "published": "2026-11-16"
     },
     {
-      "id": "2026-11-16-msm89xx-scripts",
+      "id": "2026-11-17-msm89xx-scripts",
       "package": "msm89xx-scripts",
-      "version": "1.0-r19",
-      "title": "time-sync for the clock and timezone, plus the Tailscale app switch",
+      "version": "1.0-r20",
+      "title": "led-probe - named role tables, a one-step swap, and a board-matched template",
       "restart": [
         "time-sync"
       ],
-      "published": "2026-11-16"
+      "published": "2026-11-17"
     }
   ]
 }
