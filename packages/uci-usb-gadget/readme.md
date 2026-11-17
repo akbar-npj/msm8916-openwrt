@@ -97,6 +97,12 @@ took longer than five seconds to do it, the probe picks RNDIS — which Linux,
 macOS and Windows all drive, so a wrong guess costs throughput, not
 connectivity. Set `net_mode='ncm'` or `'rndis'` to skip the probe entirely.
 
+Measured on hardware: **Windows 11 binds NCM directly** — the probe logs
+`host bound NCM; keeping it` and nothing is rebuilt, so there is no delay at
+all and no second adapter. The fallback exists for Windows 10 and Android
+hosts, which have no NCM driver; a Windows 10 LTSC host was measured binding
+the RNDIS function once it declares the `ef`/`04`/`01` association.
+
 NCM has a driver in Linux, macOS and recent Windows; RNDIS is the fallback for
 hosts without one. Enabling both is the only way to be certain a host finds
 something it can bind, but a host that can bind both then shows two adapters
