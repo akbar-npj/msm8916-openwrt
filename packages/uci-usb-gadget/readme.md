@@ -352,6 +352,32 @@ ip link show
 uci show network.@device[0].ports
 ```
 
+### The LAN bridge on a USB-only board
+
+On these sticks `usb0` is the **only** port of `br-lan`, and the gadget is
+built at `S99` while `network` runs at `S20`. netifd therefore builds the
+bridge before `usb0` exists, and a bridge whose port list resolves to nothing
+is not marked present at all — `br-lan` never appears:
+
+```bash
+ifstatus lan
+# "up": false, "errors": [ { "subsystem": "interface", "code": "NO_DEVICE" } ]
+```
+
+The symptom is not "the USB NIC is missing from the LAN", it is **the LAN has
+no device**: the host gets no DHCP and the AP, which shares the bridge, gives
+none either. `usb-gadget` now sets `bridge_empty=1` on the bridge's device
+section, which keeps the bridge present with no members, and after the reload
+it re-attaches every enabled gadget interface — retrying with
+`ubus call network.interface.lan up` if the bridge still has not appeared.
+
+Check it with:
+
+```bash
+uci get network.@device[0].bridge_empty   # 1
+ls /sys/class/net/br-lan/brif/            # usb0
+```
+
 ### Reset to defaults
 
 ```bash
