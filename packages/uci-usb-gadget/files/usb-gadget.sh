@@ -72,6 +72,39 @@ load_config() {
     config_get CFG_UMS_IMAGE ums image_path "/var/lib/usb-gadget/storage.img"
     config_get CFG_UMS_SIZE ums image_size "512M"
     config_get_bool CFG_UMS_READONLY ums readonly 0
+
+    # Which ethernet function to expose.  Unset means the per-function
+    # booleans stand, which is what a unit that predates this option gets --
+    # so an upgrade never changes the transport under a user.
+    #
+    #   auto   NCM, and RNDIS only if the host does not bind NCM (see the
+    #          probe); NCM is the better transport everywhere it is supported
+    #   ncm    NCM only
+    #   rndis  RNDIS only -- Windows before 11, and Android hosts
+    #   both   both at once: two adapters on the same subnet on any host that
+    #          binds both, kept as an escape hatch, not a default
+    config_get CFG_NET_MODE usb net_mode ""
+
+    case "$CFG_NET_MODE" in
+        "")
+            ;;
+        auto|ncm)
+            CFG_NCM=1
+            CFG_RNDIS=0
+            ;;
+        rndis)
+            CFG_NCM=0
+            CFG_RNDIS=1
+            ;;
+        both)
+            CFG_NCM=1
+            CFG_RNDIS=1
+            ;;
+        *)
+            log "usbgadget.usb.net_mode '$CFG_NET_MODE' is not auto, ncm, rndis or both; keeping the per-function settings"
+            CFG_NET_MODE=""
+            ;;
+    esac
 }
 
 # ============================================================================
@@ -92,12 +125,38 @@ error() {
 # Utilities
 # ============================================================================
 
+# Stable identity for this unit.  The host keys the device -- and every MAC
+# derived from this -- on the serial, so a value that changes between boots
+# makes Windows treat each plug as new hardware: the adapter walks up
+# Ethernet 3 -> 4 -> 5 and the "set up a network" prompt returns every time.
+# The old fallback was "$(date +%s)-$$", which is exactly that failure.
+#
+# Order: a machine-id the image or the user provided, then the eMMC CID (unique
+# per part, survives any filesystem change), then one generated once and kept.
 get_serial_number() {
-    if [ -f /etc/machine-id ]; then
-        sha256sum < /etc/machine-id 2>/dev/null | cut -d' ' -f1 | cut -c1-16
-        return
+    local id=""
+
+    if [ -s /etc/machine-id ]; then
+        id="$(cat /etc/machine-id 2>/dev/null)"
     fi
-    echo "$(date +%s)-$(( $$ + 1000 ))"
+
+    if [ -z "$id" ] && [ -r /sys/block/mmcblk0/device/cid ]; then
+        id="$(cat /sys/block/mmcblk0/device/cid 2>/dev/null)"
+    fi
+
+    if [ -z "$id" ]; then
+        if [ ! -s /etc/machine-id ]; then
+            cat /proc/sys/kernel/random/uuid > /etc/machine-id 2>/dev/null || true
+        fi
+        id="$(cat /etc/machine-id 2>/dev/null)"
+    fi
+
+    # Nothing persistent is available (no machine-id, no eMMC CID, /etc not
+    # writable).  A per-boot value is wrong but a shared one is worse: two
+    # units on the same desk must never present the same serial and MACs.
+    [ -n "$id" ] || id="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "$$-$(date +%s)")"
+
+    printf '%s' "$id" | sha256sum | cut -d' ' -f1 | cut -c1-16
 }
 
 generate_mac() {
@@ -161,6 +220,19 @@ setup_rndis() {
     sysfs_write "${CFG_GADGET_PATH}/os_desc/qw_sign" "MSFT100"
     sysfs_write "${func}/os_desc/interface.rndis/compatible_id" "RNDIS"
     sysfs_write "${func}/os_desc/interface.rndis/sub_compatible_id" "5162001"
+
+    # Interface association: class EF, subclass 04, protocol 01 -- Microsoft's
+    # RNDIS IAD.  Windows then matches USB\Class_ef&SubClass_04&Prot_01 with
+    # the inbox rndiscmp.inf and needs no WCID negotiation at all (measured on
+    # a Windows 10 LTSC host, #102).
+    #
+    # These three are parsed as at most TWO hex digits: "0xef" stores 0 and
+    # "239" stores 0x23, so the association silently becomes 00/00/00 and the
+    # host stops claiming the interface.  Only these spellings are correct.
+    sysfs_write "${func}/class"    "ef"
+    sysfs_write "${func}/subclass" "04"
+    sysfs_write "${func}/protocol" "01"
+
     ln -sf "${CFG_CONFIG_PATH}" "${CFG_GADGET_PATH}/os_desc/"
     
     echo "+RNDIS"
@@ -462,6 +534,9 @@ teardown_gadget() {
 
 status() {
     load_config
+
+    echo "Network mode: ${CFG_NET_MODE:-legacy} (ncm=$CFG_NCM rndis=$CFG_RNDIS ecm=$CFG_ECM)"
+    echo "Serial: $(get_serial_number)"
     
     # Check if globally disabled
     if [ "$CFG_ENABLED" != "1" ]; then
