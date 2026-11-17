@@ -10,14 +10,6 @@
       "published": "2026-11-16"
     },
     {
-      "id": "2026-11-17-luci-app-led-setup",
-      "package": "luci-app-led-setup",
-      "version": "1.0-r6",
-      "title": "LED Setup - pick a known-good lamp table from the page",
-      "restart": [],
-      "published": "2026-11-17"
-    },
-    {
       "id": "2026-11-17-msm89xx-scripts",
       "package": "msm89xx-scripts",
       "version": "1.0-r20",
@@ -25,6 +17,14 @@
       "restart": [
         "time-sync"
       ],
+      "published": "2026-11-17"
+    },
+    {
+      "id": "2026-11-17-luci-app-led-setup",
+      "package": "luci-app-led-setup",
+      "version": "1.0-r6",
+      "title": "LED Setup - pick a known-good lamp table from the page",
+      "restart": [],
       "published": "2026-11-17"
     }
   ]
