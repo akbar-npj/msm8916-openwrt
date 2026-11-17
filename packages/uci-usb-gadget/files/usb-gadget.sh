@@ -337,19 +337,20 @@ setup_ums() {
 
 bring_up_iface() {
     local ifname_file="$1"
-    [ -f "$ifname_file" ] || return
+    [ -f "$ifname_file" ] || return 0
     local iface="$(cat "$ifname_file")"
-    [ -n "$iface" ] || return
+    [ -n "$iface" ] || return 0
     ip link set "$iface" up 2>/dev/null || ifconfig "$iface" up 2>/dev/null || true
+    return 0
 }
 
 add_to_bridge() {
     local ifname_file="$1"
     
-    [ -f "$ifname_file" ] || return
+    [ -f "$ifname_file" ] || return 0
     
     local iface="$(cat "$ifname_file")"
-    [ -n "$iface" ] || return
+    [ -n "$iface" ] || return 0
     log "Adding $iface to bridge"
     
     # Ensure interface is administrative UP so carrier is signalled to host
@@ -360,7 +361,7 @@ add_to_bridge() {
         dev_sec="$s"
         break
     done
-    [ -z "$dev_sec" ] && dev_sec="@device[0]"
+    if [ -z "$dev_sec" ]; then dev_sec="@device[0]"; fi
 
     # Add the interface to bridge
     uci -q del_list "network.${dev_sec}.ports=$iface" 2>/dev/null || true
@@ -368,14 +369,19 @@ add_to_bridge() {
 
     # Immediately attach to kernel bridge
     ip link set "$iface" master br-lan 2>/dev/null || brctl addif br-lan "$iface" 2>/dev/null || true
+    return 0
 }
 
 setup_network() {
     sleep 1
-    
-    [ "$CFG_RNDIS" = "1" ] && add_to_bridge "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"
-    [ "$CFG_ECM" = "1" ] && add_to_bridge "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"
-    [ "$CFG_NCM" = "1" ] && add_to_bridge "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"
+
+    # Plain `if`s, not `cond && cmd`: the script runs under `set -e`, and a
+    # trailing `[ ... ] && cmd` whose test fails makes the whole script exit
+    # with 1.  That is every RNDIS build, where CFG_NCM is 0 -- the rebuild
+    # worked but `usb-gadget restart` reported failure.
+    if [ "$CFG_RNDIS" = "1" ]; then add_to_bridge "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"; fi
+    if [ "$CFG_ECM" = "1" ]; then add_to_bridge "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"; fi
+    if [ "$CFG_NCM" = "1" ]; then add_to_bridge "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"; fi
     
     uci commit network
     /etc/init.d/network reload
@@ -384,9 +390,10 @@ setup_network() {
     /etc/init.d/firewall reload 2>/dev/null || true
 
     # Post-reload bringup check
-    [ "$CFG_RNDIS" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"
-    [ "$CFG_ECM" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"
-    [ "$CFG_NCM" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"
+    if [ "$CFG_RNDIS" = "1" ]; then bring_up_iface "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"; fi
+    if [ "$CFG_ECM" = "1" ]; then bring_up_iface "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"; fi
+    if [ "$CFG_NCM" = "1" ]; then bring_up_iface "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"; fi
+    return 0
 }
 
 # ============================================================================
