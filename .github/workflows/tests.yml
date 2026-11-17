@@ -65,6 +65,9 @@ jobs:
       - name: usb-gadget-probe
         run: bash tests/usb-gadget-probe/run.sh --self-check
 
+      - name: hotfix-scope
+        run: bash tests/hotfix-scope/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}
