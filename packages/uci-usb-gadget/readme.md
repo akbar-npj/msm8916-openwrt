@@ -57,6 +57,13 @@ uci commit usbgadget
 it unset, those booleans stand — which is what a unit that predates the option
 keeps, so an upgrade never changes the transport under a user.
 
+The `auto` fallback is not implemented yet: today `auto` builds NCM and nothing
+else, exactly as `ncm` does. It is the shipped default anyway, because
+`/etc/config/usbgadget` is a conffile — a unit that takes `ncm` now would keep
+it after the probe lands, while a unit that takes `auto` starts falling back
+with no config edit. Until then a host without an NCM driver needs
+`net_mode='rndis'`.
+
 NCM has a driver in Linux, macOS and recent Windows; RNDIS is the fallback for
 hosts without one. Enabling both is the only way to be certain a host finds
 something it can bind, but a host that can bind both then shows two adapters
