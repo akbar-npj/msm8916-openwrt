@@ -20,6 +20,17 @@ uci show usbgadget
 
 Location: `/etc/config/usbgadget`
 
+## Upgrading the package
+
+Installing a new version rebuilds the gadget, because the script is what the
+gadget is made of — there is no way to change it under a host that is already
+bound. The USB link drops for a few seconds and comes back with the new code.
+If you are installing over that link, expect to be disconnected once.
+
+`prerm` deliberately does not stop the gadget: it runs before the new files are
+unpacked, so stopping there would drop the link with nothing to bring it back
+until a reboot.
+
 ## Common Tasks
 
 ### Enable/Disable USB Gadget Mode
@@ -38,16 +49,79 @@ uci commit usbgadget
 
 ### Network Functions
 
+#### Choosing the transport: `net_mode`
+
+```bash
+uci set usbgadget.usb.net_mode='auto'   # auto | ncm | rndis | both
+uci commit usbgadget
+/etc/init.d/usb-gadget restart
+```
+
+| Value | Exposes | For |
+| :---- | :------ | :-- |
+| `auto` (default) | NCM, and RNDIS only if the host does not bind NCM | everything; NCM is the better transport wherever it is supported |
+| `ncm` | NCM only | a known-good modern host |
+| `rndis` | RNDIS only | Windows before 11, and Android hosts |
+| `both` | both at once | testing; gives the host two adapters on the same subnet |
+
+`net_mode` overrides the `ncm.enabled` / `rndis.enabled` booleans below. With
+it unset, those booleans stand — which is what a unit that predates the option
+keeps, so an upgrade never changes the transport under a user.
+
+`auto` is decided per attach by `usb-gadget-probe`, and the decision is what
+the host can actually bind rather than what its OS claims to be:
+
+- The gadget is built with NCM.
+- When the host has enumerated (`udc/state` is `configured`), the probe waits
+  five seconds and reads the NCM netdev's `carrier`. `f_ncm` only raises
+  carrier once the host sets the data interface to altsetting 1, which it
+  cannot do without a driver.
+- Carrier up: the host speaks NCM, nothing more happens.
+- Carrier still down: the gadget is rebuilt with RNDIS, and the host sees one
+  disconnect and reconnect about two seconds later.
+
+One decision per attach. A real unplug clears it and the next host is probed
+from NCM again, so a unit is never left stuck in RNDIS because of where it was
+last plugged. The decision is a runtime file (`/var/run/usb-gadget/net_mode`),
+not uci — `net_mode` stays `auto`, which is what "decide per attach" means.
+`/etc/init.d/usb-gadget-probe` runs the probe, and only in `auto` mode.
+
+A host with no NCM driver takes about seven seconds to get an address the
+first time it is plugged in, and never again until it is unplugged. A host
+that binds NCM sees no difference at all. If a host would have bound NCM but
+took longer than five seconds to do it, the probe picks RNDIS — which Linux,
+macOS and Windows all drive, so a wrong guess costs throughput, not
+connectivity. Set `net_mode='ncm'` or `'rndis'` to skip the probe entirely.
+
+NCM has a driver in Linux, macOS and recent Windows; RNDIS is the fallback for
+hosts without one. Enabling both is the only way to be certain a host finds
+something it can bind, but a host that can bind both then shows two adapters
+on one subnet, so it is not the default.
+
 #### RNDIS (Windows Ethernet)
 
 ```bash
 # Enable RNDIS
-uci set usbgadget.rndis.enabled='1'
+uci set usbgadget.usb.net_mode='rndis'
 uci commit usbgadget
 /etc/init.d/usb-gadget restart
 ```
 
 **Compatible with:** Windows (all versions, plug-and-play)
+
+The RNDIS function declares the Microsoft interface association (`ef` / `04` /
+`01`), so Windows matches `USB\Class_ef&SubClass_04&Prot_01` with its inbox
+driver and needs no WCID negotiation. Those three attributes are parsed as at
+most two hex digits — `0xef` stores 0 and `239` stores `0x23`, which silently
+breaks the association. Write `ef`, `04`, `01` and nothing else.
+
+#### The USB serial, and the MACs derived from it
+
+The host keys the device on its serial. It is derived from `/etc/machine-id`,
+falling back to the eMMC CID, and generated once into `/etc/machine-id` if
+neither exists — never from the clock. A serial that changes between boots
+makes Windows treat each plug as new hardware: the adapter walks up
+`Ethernet 3` → `4` → `5` and asks to set up a network every time.
 
 #### ECM (macOS/Linux Ethernet)
 
@@ -65,9 +139,7 @@ uci commit usbgadget
 
 ```bash
 # Enable NCM (best performance)
-uci set usbgadget.ncm.enabled='1'
-uci set usbgadget.rndis.enabled='0'  # Disable RNDIS
-uci set usbgadget.ecm.enabled='0'     # Disable ECM
+uci set usbgadget.usb.net_mode='ncm'
 uci commit usbgadget
 /etc/init.d/usb-gadget restart
 ```
@@ -334,6 +406,7 @@ uci commit usbgadget
 | `manufacturer` | `OpenWrt` | Manufacturer string shown to host |
 | `product` | `USB Gadget` | Product string shown to host |
 | `udc_device` | _(empty)_ | UDC device name (auto-detect if empty) |
+| `net_mode` | `auto` | `auto`, `ncm`, `rndis` or `both` — which ethernet function to expose; overrides the `ncm`/`rndis` booleans |
 
 ### Function Sections
 
@@ -361,8 +434,8 @@ No additional options.
 ## Tips
 
 - **Multiple functions:** You can enable multiple functions simultaneously (e.g., RNDIS + ACM)
-- **Network priority:** Only one network function should be enabled at a time (RNDIS, ECM, or NCM)
-- **Serial number:** Auto-generated from `/etc/machine-id` for uniqueness
+- **Network priority:** use `usb.net_mode` to pick one ethernet function (RNDIS, ECM or NCM). `both` is available but gives the host two adapters on one subnet.
+- **Serial number:** from `/etc/machine-id`, else the eMMC CID, else generated once into `/etc/machine-id` — never from the clock
 - **MAC addresses:** Auto-generated deterministically (same device = same MACs)
 - **Storage persistence:** UMS image persists across reboots (in `/var` which is `/tmp`)
 
