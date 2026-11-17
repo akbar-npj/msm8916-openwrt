@@ -64,7 +64,36 @@ gh workflow run publish-package.yml --ref main \
       show nothing. This is the quietest failure we have had.
 - [ ] `hotfix_restart` lists the services that must restart for the fix to take
       effect (they are restarted after install, not by the package itself).
-- [ ] `scope=revision` unless the fix genuinely applies to every revision.
+      Leave it empty when nothing needs one — the workflow merges the previous
+      entry's list in anyway, so an older fix still activates.
+- [ ] `scope=all` for everything except a world-pinned package. See §4.1.
+
+### 4.1 Which feed the fix has to reach
+
+Devices install from `releases/<base>`. `releases/<version>` is the staging
+copy that `promote-release.yml` moves into `<base>` once a release passes —
+and it is also the only place a device reads `hotfix.json` from. So the two
+ends of a hotfix come from **different directories**:
+
+| | directory | read by |
+| :--- | :--- | :--- |
+| the notice | `releases/<version>/hotfix.json` | `firmware-upgrade` |
+| the package | `releases/<base>/packages/...` | `apk`, via `customfeeds.list` |
+
+`scope=revision` writes only the first. The page then offers a fix that `apk`
+cannot find: it prints `1 error` and changes nothing, naming no version. That
+happened on 2026-11-17 to `msm89xx-scripts` r20 and `luci-app-led-setup` r6.
+
+The exception is the world-pinned set — `base-files`, `kernel`, `libc`, or
+anything with `target_package=true`. Their exact version is in
+`/etc/apk/world`, apk honours the pin, and `promote-release.yml` deliberately
+keeps them out of the shared feed. Those use `scope=revision` and are
+installed with an explicit version.
+
+The rule lives in `scripts/hotfix-scope.sh` and is enforced twice: the resolve
+step refuses a scope that cannot reach a device, and the publish step asserts
+the `.apk` really landed in `releases/<base>` before anything is committed.
+`tests/hotfix-scope` covers both directions.
 
 For a target package: `-f target_package=true -f pkg_release=<n>` and no
 `bump`.
@@ -91,22 +120,23 @@ delivered and does nothing.
 stale content live. Read the `gh-pages` ref instead.
 
 ```sh
-# the index
-gh api "repos/akbar-npj/msm8916-openwrt/contents/releases/25.12.6-r9/packages/aarch64_generic/base/packages.adb?ref=gh-pages" \
+# the index devices actually read -- releases/<base>, not <version>
+gh api "repos/akbar-npj/msm8916-openwrt/contents/releases/25.12.6/packages/aarch64_generic/base/packages.adb?ref=gh-pages" \
   --jq .content | base64 -d > /tmp/feed.adb
 openwrt/staging_dir/host/bin/apk adbdump /tmp/feed.adb | grep -A2 'name: <pkg>'
 
 # the package itself — the index says nothing about contents
-gh api "repos/akbar-npj/msm8916-openwrt/contents/releases/25.12.6-r9/packages/aarch64_generic/base/<pkg>-<ver>.apk?ref=gh-pages" \
+gh api "repos/akbar-npj/msm8916-openwrt/contents/releases/25.12.6/packages/aarch64_generic/base/<pkg>-<ver>.apk?ref=gh-pages" \
   --jq .content | base64 -d > /tmp/pkg.apk
 openwrt/staging_dir/host/bin/apk adbdump /tmp/pkg.apk | grep -E 'version:|name: <the-new-file>'
 
-# the manifest
+# the manifest — per exact version, which is what the page reads
 gh api "repos/akbar-npj/msm8916-openwrt/contents/releases/25.12.6-r9/hotfix.json?ref=gh-pages" \
   --jq .content | base64 -d
 ```
 
-- [ ] The index carries the new version.
+- [ ] The **base** index carries the new version, not just the revision one.
+      The two are different directories and a publish can reach either alone.
 - [ ] The package **count did not drop** — a single-package re-index that loses
       the rest of the feed is the worst outcome here.
 - [ ] The `.apk` really contains the file you changed, not just the new version
@@ -152,6 +182,7 @@ apk add '<pkg>=<older-version>'
 | Two `hotfix.json` entries for one package | `breaks: world[pkg=oldver]` — the older pin is unsatisfiable because the index only carries the newest version | §5, manifest item |
 | Installed, but the page still listed it | Stale CDN index or the 6-hour banner cache | §6 |
 | A package published with no `hotfix_title` (2026-11-16) | Feed updated, page and banner silent — a half hotfix, green run | §4 |
+| A package published `scope=revision` (2026-11-17) | The page offered `msm89xx-scripts` r20 and `luci-app-led-setup` r6; `apk upgrade` printed `1 error`, changed nothing, and named no version — the packages were in `releases/<version>`, the devices read `releases/<base>` | §4.1, §5 |
 | An init script added to a package | Installed and started, but not enabled, so it vanished at the next boot | §1, second item |
 | `apk add`/`apk del` from a post-install script (2026-11-16) | `unable to lock database` — the migration silently did nothing | §1, third item |
 | `apk del --force-broken-world` on a live unit (2026-11-16) | Purged 124 packages, including the kernel | never do this; repair from `/rom/etc/apk/world` |
