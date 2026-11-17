@@ -82,7 +82,7 @@ fixture() {
 	EOF
 	chmod +x "$T/bin/uci"
 
-	printf '#!/bin/sh\nexit 0\n' > "$T/bin/logger"
+	printf '#!/bin/sh\necho "logger $*" >> "$TEST_T/log.log"\nexit 0\n' > "$T/bin/logger"
 	chmod +x "$T/bin/logger"
 
 	# ip/brctl/ubus/ifup/sleep are only reached by the bridge code; stubs
@@ -350,8 +350,93 @@ suite() {
 	fi
 }
 
-printf '== usb-gadget net ==\n'
+	printf '== usb-gadget net ==\n'
 suite "$SRC"
+rm -rf "$T"
+
+# --------------------------------------------------------------------------
+# The hotplug self-heal
+# --------------------------------------------------------------------------
+# Third layer: br-lan exists (bridge_empty), usb-gadget re-attaches at build
+# time (ensure_bridge), and this catches usb0 appearing at any other moment.
+# Deliberately narrow -- attach only, never `ifup lan`.
+
+HOTPLUG="$ROOT/packages/uci-usb-gadget/files/30-usb-gadget-bridge"
+
+hotplug_setup() {
+	fixture
+	mkdir -p "$T/sys/class/net" "$T/etc"
+	export PATH="$T/bin:$PATH" TEST_T="$T"
+	sed -e "s#/sys/class/net#$T/sys/class/net#g" "${HOTPLUG_ACTIVE:-$HOTPLUG}" > "$T/hotplug"
+	chmod +x "$T/hotplug"
+	: > "$T/net.log"
+	: > "$T/log.log"
+}
+
+hotplug() { # hotplug <action> <interface>
+	PATH="$T/bin:$PATH" TEST_T="$T" ACTION="$1" INTERFACE="$2" \
+		sh "$T/hotplug" >> "$T/hp.out" 2>> "$T/err"
+}
+
+attaches() { grep -c "ip link set .* master br-lan" "$T/net.log" 2>/dev/null || true; }
+
+hotplug_suite() {
+
+	# --- the interface the gadget owns is attached ---------------------
+	hotplug_setup
+	uci_set usbgadget.usb.enabled 1
+	mkdir -p "$T/sys/class/net/br-lan" "$T/sys/class/net/usb0"
+	hotplug add usb0
+	assert_eq "hotplug attaches usb0" "$(attaches)" 1
+	if [ -d "$T/sys/class/net/br-lan/brif/usb0" ]; then
+		ok "hotplug leaves usb0 in brif"
+	else
+		bad "hotplug leaves usb0 in brif"
+	fi
+
+	# --- and does not do it twice --------------------------------------
+	hotplug add usb0
+	assert_eq "hotplug is idempotent" "$(attaches)" 1
+
+	# --- a foreign interface is left alone ------------------------------
+	hotplug_setup
+	uci_set usbgadget.usb.enabled 1
+	mkdir -p "$T/sys/class/net/br-lan" "$T/sys/class/net/eth0"
+	hotplug add eth0
+	assert_eq "hotplug ignores a foreign interface" "$(attaches)" 0
+
+	# --- a disabled gadget is left alone --------------------------------
+	hotplug_setup
+	uci_set usbgadget.usb.enabled 0
+	mkdir -p "$T/sys/class/net/br-lan" "$T/sys/class/net/usb0"
+	hotplug add usb0
+	assert_eq "hotplug ignores a disabled gadget" "$(attaches)" 0
+
+	# --- a removal is not an attach -------------------------------------
+	hotplug_setup
+	uci_set usbgadget.usb.enabled 1
+	mkdir -p "$T/sys/class/net/br-lan" "$T/sys/class/net/usb0"
+	hotplug remove usb0
+	assert_eq "hotplug ignores a removal" "$(attaches)" 0
+
+	# --- no bridge yet is normal, and silent ----------------------------
+	hotplug_setup
+	uci_set usbgadget.usb.enabled 1
+	mkdir -p "$T/sys/class/net/usb0"
+	hotplug add usb0
+	assert_eq "hotplug does not attach without a bridge" "$(attaches)" 0
+	assert_absent "a missing bridge is not logged" "$T/log.log" "could not attach"
+
+	# --- a refused attach is reported -----------------------------------
+	hotplug_setup
+	uci_set usbgadget.usb.enabled 1
+	mkdir -p "$T/sys/class/net/br-lan" "$T/sys/class/net/usb0"
+	NET_STUB_RC=1 hotplug add usb0
+	assert_contains "a refused attach is logged" "$T/log.log" "could not attach usb0 to br-lan"
+}
+
+printf '\n== usb-gadget hotplug ==\n'
+hotplug_suite
 rm -rf "$T"
 
 if [ "$fail" -ne 0 ]; then
@@ -390,6 +475,29 @@ if [ "$SELF_CHECK" -eq 1 ]; then
 	mutant "a refused attach is silent" 's/^    log "could not attach \$iface to br-lan"$/    :/'
 	mutant "ensure_bridge does not retry" 's/^    while \[ "\$i" -lt 5 \]; do$/    while [ "$i" -lt 0 ]; do/'
 	mutant "ensure_bridge does not report" 's/^        log "br-lan does not exist; the LAN interface has no device"$/        :/'
+
+	hotplug_mutant() { # hotplug_mutant <name> <sed expression>
+		local name=$1 expr=$2 file
+		file=$(mktemp /tmp/usbhp-mutant.XXXXXX)
+		sed "$expr" "$HOTPLUG" > "$file"
+		if [ "$(grep -c . "$file")" -lt 8 ]; then
+			bad "$name (sed produced an empty script)"
+			rm -f "$file"
+			return
+		fi
+		if ( pass=0; fail=0; HOTPLUG_ACTIVE="$file" hotplug_suite >/dev/null 2>&1; [ "$fail" -eq 0 ] ); then
+			bad "$name (mutant survived)"
+		else
+			ok "$name caught"
+		fi
+		rm -f "$file"
+	}
+
+	hotplug_mutant "hotplug attaches anything" 's/^\tusb\*) ;;$/\t*) ;;/'
+	hotplug_mutant "hotplug attaches twice" 's#^\[ -d "/sys/class/net/br-lan/brif/\$INTERFACE" \] && exit 0$#:#'
+	hotplug_mutant "hotplug ignores the enable flag" 's/^\[ "\$(uci -q get usbgadget.usb.enabled)" = "1" \] || exit 0$/:/'
+	hotplug_mutant "hotplug acts on removal" 's/^\[ "\$ACTION" = "add" \] || exit 0$/:/'
+	hotplug_mutant "hotplug fails silently" 's/^\tlogger -t usb-gadget "could not attach \$INTERFACE to br-lan"$/:/'
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

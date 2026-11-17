@@ -59,6 +59,8 @@ define Package/$(PKG_NAME)/install
 	$(LN) ../init.d/usb-gadget-probe $(1)/etc/rc.d/S99usb-gadget-probe
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/usbgadget.config $(1)/etc/config/usbgadget
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/net
+	$(INSTALL_BIN) ./files/30-usb-gadget-bridge $(1)/etc/hotplug.d/net/30-usb-gadget-bridge
 endef
 
 define Package/$(PKG_NAME)/postinst

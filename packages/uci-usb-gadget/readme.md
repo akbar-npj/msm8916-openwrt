@@ -378,6 +378,15 @@ uci get network.@device[0].bridge_empty   # 1
 ls /sys/class/net/br-lan/brif/            # usb0
 ```
 
+There are three layers, in order, so no single one is load-bearing:
+
+1. `bridge_empty=1` — the bridge exists from S20, with or without ports.
+2. `ensure_bridge` — after each rebuild, re-attach and ask netifd for the LAN.
+3. `/etc/hotplug.d/net/30-usb-gadget-bridge` — re-attach whenever `usb0`
+   appears at any other moment (a manual restart, a probe rebuild, netifd
+   recreating the bridge). It only attaches; it never calls `ifup`, so it
+   cannot race the reload `usb-gadget` has just issued.
+
 ### Reset to defaults
 
 ```bash
