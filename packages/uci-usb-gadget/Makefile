@@ -67,6 +67,20 @@ define Package/$(PKG_NAME)/postinst
 	/etc/init.d/usb-gadget enable
 	/etc/init.d/usb-gadget-probe enable
 
+	# A unit that predates net_mode keeps the per-function booleans -- NCM
+	# only, which is exactly the behaviour the probe exists to fix.  Adopt
+	# it into auto so the fix reaches the units that already have the
+	# package; a fresh install gets auto from the shipped config anyway.
+	# A unit with RNDIS or ECM selected is left alone: that was a choice,
+	# not the default.
+	if [ -z "$$(uci -q get usbgadget.usb.net_mode)" ] &&
+	   [ "$$(uci -q get usbgadget.ncm.enabled)" = "1" ] &&
+	   [ "$$(uci -q get usbgadget.rndis.enabled)" != "1" ] &&
+	   [ "$$(uci -q get usbgadget.ecm.enabled)" != "1" ]; then
+		uci set usbgadget.usb.net_mode=auto
+		uci commit usbgadget
+	fi
+
 	# An upgrade leaves the old gadget running the old script, so without
 	# this the package installs and changes nothing until the next reboot.
 	# Rebuilding drops the USB link for a few seconds; that is unavoidable
