@@ -127,16 +127,24 @@ already published, then re-signs the index.
 
 ```sh
 # a package under packages/
-gh workflow run publish-package.yml --ref main -f package=luci-app-foo -f bump=true
+gh workflow run publish-package.yml --ref main -f package=luci-app-foo -f bump=true \
+  -f hotfix_title="one line for the firmware-upgrade page"
 
 # a TARGET package (base-files): its PKG_RELEASE is $(COMMITCOUNT), which does
 # not move between releases, so stamp an explicit number instead
 gh workflow run publish-package.yml --ref main \
-  -f package=base-files -f target_package=true -f pkg_release=1719
+  -f package=base-files -f target_package=true -f pkg_release=1719 \
+  -f hotfix_title="one line for the firmware-upgrade page"
 ```
 
 `target_package` also re-indexes and re-signs `bin/targets/.../packages`,
 where a target package lands. `bump` is skipped for it.
+
+`hotfix_title` is **required** whenever `package` is set: it is what writes the
+`hotfix.json` entry, and without it the feed is updated while the page and the
+banner stay silent. The workflow refuses the run rather than publishing a fix
+no device is offered. The full maintainer checklist, including the failure each
+step prevents, is [`HOTFIX_CHECKLIST.md`](HOTFIX_CHECKLIST.md).
 
 **2. Check what was published** - do not trust the run summary:
 
@@ -342,13 +350,14 @@ there, and every later release inherits the new one.
 mkdir -p /tmp/rel
 cp msm89xx/recovery/mifib-v12.img /tmp/rel/recovery-mifib-v12.img
 cp msm89xx/recovery/hmuf02v5.img /tmp/rel/recovery-hmuf02v5.img
+cp msm89xx/recovery/jz0145.img /tmp/rel/recovery-jz0145.img
 sha256sum /tmp/rel/*.img            # must match the frozen table
 gh release upload v25.12.6-r4 /tmp/rel/recovery-*.img --clobber
 ```
 
 Update the table in `msm89xx/recovery/README.md` (size, sha256, verified date)
-in the same commit.  If `RECOVERY_SOURCE_TAG` is ever repointed, upload the
-images to the new tag first: the workflow fails the release if it cannot
+in the same commit. If `RECOVERY_SOURCE_TAG` is ever repointed, upload all
+frozen images to the new tag first: the workflow fails the release if it cannot
 download them.
 ### 7.2 Promote to production
 

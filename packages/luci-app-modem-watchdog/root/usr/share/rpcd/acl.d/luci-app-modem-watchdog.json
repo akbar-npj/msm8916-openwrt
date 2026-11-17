@@ -4,7 +4,8 @@
         "read": {
             "uci": ["modem-watchdog"],
             "file": {
-                "/etc/config/modem-watchdog": ["read"]
+                "/etc/config/modem-watchdog": ["read"],
+                "/etc/init.d/modem-bearer-watchdog": ["exec"]
             },
             "ubus": {
                 "service": ["list"]
@@ -13,7 +14,8 @@
         "write": {
             "uci": ["modem-watchdog"],
             "file": {
-                "/etc/config/modem-watchdog": ["write"]
+                "/etc/config/modem-watchdog": ["write"],
+                "/etc/init.d/modem-bearer-watchdog": ["exec"]
             },
             "ubus": {
                 "service": ["list"]

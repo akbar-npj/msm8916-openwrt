@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# When the interface that carries the default route comes up, step the clock
+# if it is still implausible and (re)detect the timezone.  Both run in the
+# background: a hotplug handler must not block the interface event.
+
+[ "$ACTION" = "ifup" ] || [ "$ACTION" = "ifupdate" ] || exit 0
+[ -n "$DEVICE" ] || exit 0
+[ -x /usr/sbin/time-sync ] || exit 0
+
+# A LAN-only event must not start an NTP attempt.  Compare against the device
+# that currently owns the default route rather than a hard-coded list: the
+# uplink is wwan0 on 4G and phy0-sta0 in station mode.
+uplink=$(ip -4 route show default 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -1)
+[ "$uplink" = "$DEVICE" ] || exit 0
+
+( /usr/sbin/time-sync step; /usr/sbin/time-sync zone ) >/dev/null 2>&1 &
+
+exit 0

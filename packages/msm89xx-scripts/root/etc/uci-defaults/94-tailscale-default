@@ -1,0 +1,36 @@
+#!/bin/sh
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
+#
+# Tailscale ships installed but DISABLED.  The feed's init script has no
+# `enabled` gate -- default_postinst enables it, and procd then starts
+# tailscaled on every boot whether or not a node is ever logged in.  Keep the
+# old behaviour instead: off until the user asks for it.
+#
+# A fresh install (including `sysupgrade -n`) has the feed's default config,
+# which carries no `enabled` option, so it ends up disabled.  A
+# config-preserving upgrade from the vendored app keeps that app's choice:
+# /etc/config/tailscale is the feed package's conffile, and both apps use the
+# same `settings` section, so `enabled 1` survives and stays enabled.
+#
+# Enable it from System -> Startup, or:
+#   /etc/init.d/tailscale enable && /etc/init.d/tailscale start
+#
+# Runs once -- uci-defaults delete themselves after a successful run -- so a
+# later deliberate enable or disable is never overridden.
+
+[ -x /etc/init.d/tailscale ] || exit 0
+
+enabled=0
+if [ -f /etc/config/tailscale ]; then
+	. /lib/functions.sh
+	config_load tailscale
+	config_get_bool enabled settings enabled 0
+fi
+
+if [ "$enabled" = "1" ]; then
+	/etc/init.d/tailscale enable
+else
+	/etc/init.d/tailscale disable
+fi
+
+exit 0

@@ -44,6 +44,18 @@ jobs:
       - name: led-role
         run: bash tests/led-role/run.sh --self-check
 
+      - name: modem-watchdog
+        run: bash tests/modem-watchdog/run.sh --self-check
+
+      - name: apk-overlay-heal
+        run: bash tests/apk-overlay-heal/run.sh --self-check
+
+      - name: time-sync
+        run: bash tests/time-sync/run.sh --self-check
+
+      - name: tailscale-migration
+        run: bash tests/tailscale-migration/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}

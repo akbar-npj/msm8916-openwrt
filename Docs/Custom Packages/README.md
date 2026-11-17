@@ -1,6 +1,6 @@
 # Custom Packages
 
-Beyond the upstream OpenWrt tree, this project ships **26 packages** under
+Beyond the upstream OpenWrt tree, this project ships **25 packages** under
 [`packages/`](../../packages/) — the tools, daemons and LuCI apps that make an
 MSM8916 USB dongle usable as a headless router with a Qualcomm baseband.
 
@@ -8,7 +8,7 @@ They fall into two groups:
 
 - **Authored in-repo (17)** — written for this project, specific to the MSM8916
   modem/DIAG/Bluetooth/battery hardware.
-- **Vendored (9)** — upstream or third-party packages carried in-tree (often with
+- **Vendored (8)** — upstream or third-party packages carried in-tree (often with
   local patches) so the firmware build is self-contained.
 
 > Kernel modules are **not** in `packages/`; they live in
@@ -32,7 +32,7 @@ They fall into two groups:
 | [`qcom-time-daemon`](../../packages/qcom-time-daemon/) | **QMI Time synchronization** daemon: syncs host time with the modem's ATS/TOD and provides periodic keepalives to keep the modem DRX sleep state machine stable. |
 | [`reboot-edl`](../../packages/reboot-edl/) | Safely quiesces background services, remounts filesystems read-only, and reboots the device into **EDL (9008), DLOAD (9006), bootloader or recovery**. |
 | [`luci-app-battery`](../../packages/luci-app-battery/) | Battery status, **charge limit** and battery LEDs for the two battery boards (mifib-v12, mf800b): a LuCI page with capacity/voltage/temperature/health and the battery session, the 85 %/80 % charge-limit monitor (`charge_enabled` on the PM8916 LBC), the green/red LED monitor, and `battery-ctl`. Installed only where a pack exists. |
-| [`msm89xx-scripts`](../../packages/msm89xx-scripts/) | The **userspace half of the board support** as a package: the modem and Wi-Fi LED monitors with their procd services, the boot blink (`led-boot`), and the Wi-Fi station (repeater) helpers that `luci-app-wifi-sta` drives. These used to live in the target's `base-files`, which meant an LED or station fix cost a full firmware flash; as a package they can be pushed through the signed feed (see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash)). Boot-critical pieces deliberately stay in `base-files`: `/etc/diag.sh`, the `/lib/preinit` hooks and `/lib/batteryless.sh`. |
+| [`msm89xx-scripts`](../../packages/msm89xx-scripts/) | The **userspace half of the board support** as a package: the modem and Wi-Fi LED monitors with their procd services, the boot blink (`led-boot`), the Wi-Fi station (repeater) helpers that `luci-app-wifi-sta` drives, and `time-sync` (clock restore + timezone, see below). These used to live in the target's `base-files`, which meant an LED or station fix cost a full firmware flash; as a package they can be pushed through the signed feed (see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash)). Boot-critical pieces deliberately stay in `base-files`: `/etc/diag.sh`, the `/lib/preinit` hooks and `/lib/batteryless.sh`. |
 | [`msm89xx-firmware-upgrade`](../../packages/msm89xx-firmware-upgrade/) | The **in-device firmware upgrade engine**. `firmware-upgrade check` reads `firmware.json` — the manifest the release pipeline publishes next to the images — and prints availability as JSON for this board; `download` fetches the image and verifies its SHA-256; `apply [--no-keep]` hands it to `sysupgrade` (keeping the configuration, or wiping it with `-n`); `upgrade` does all three. `apply` detaches with `setsid`, because rpcd's 30 s timeout is shorter than a 35 MB LTE download. |
 | [`luci-app-firmware-upgrade`](../../packages/luci-app-firmware-upgrade/) | LuCI page for the above — *System → Firmware Upgrade*. Shows the running version, the published version for this board, the image size and the release notes, then downloads, verifies and flashes, with a **Keep settings** box (default on; untick for a clean install). Ships in `DEFAULT_PACKAGES`, so every board has it from r3 on. |
 | [`luci-app-wifi-sta`](../../packages/luci-app-wifi-sta/) | LuCI support for **Station Mode** (concurrent AP+STA): configures the late-brought-up station interface of the wcn36xx radio without touching the wireless config. |
@@ -48,10 +48,33 @@ They fall into two groups:
 | [`rmtfs`](../../packages/rmtfs/) | Qualcomm **Remote Filesystem service** daemon — serves the modem's remote-filesystem requests from the AP. |
 | [`luci-app-cpu-perf`](../../packages/luci-app-cpu-perf/) | LuCI page for CPU performance information and management. |
 | [`luci-app-sms-manager`](../../packages/luci-app-sms-manager/) | LuCI JS interface for **SMS / USSD / AT commands** via ModemManager. |
-| [`luci-app-tailscale`](../../packages/luci-app-tailscale/) | LuCI interface for **Tailscale**. |
 | [`luci-app-usb-gadget`](../../packages/luci-app-usb-gadget/) | Web interface for managing **USB gadget** functions (RNDIS, ECM, NCM, ACM, Mass Storage). |
 | [`luci-theme-feelgood`](../../packages/luci-theme-feelgood/) | The **Feelgood** LuCI theme, carried in-tree and locally patched (the login-page cascade is shipped unminified — `csstidy` mis-orders the rules and covers the login form). |
 | [`uci-usb-gadget`](../../packages/uci-usb-gadget/) | **UCI-based USB gadget manager** built on the kernel configfs interface. Configures the device as a USB peripheral and integrates the USB-Ethernet interface into the LAN bridge; auto-detects the UDC controller. |
+
+**Tailscale is not vendored.** The LuCI page is the luci feed's
+`luci-app-tailscale-community`, selected in `DEFAULT_PACKAGES`; the daemon and
+its init script come from the feed's `tailscale` package. The vendored asvow
+copy was removed because it shipped its own `/etc/init.d/tailscale` and
+`/etc/config/tailscale` and renamed them over the feed package's files in
+postinst, which left a dangling `/etc/rc.d/S90tailscale.luci` and let an
+`apk upgrade tailscale` replace the init script with one that ignores the
+page's options. `/etc/config/tailscale` survives the switch (it is the feed
+package's conffile) and the community page reads the same `settings` section.
+The feed init has no `enabled` gate, so `default_postinst` alone would start
+tailscaled on every boot. `msm89xx-scripts` ships
+`/etc/uci-defaults/94-tailscale-default`, which keeps the old behaviour
+instead: **Tailscale is installed but disabled by default** on a fresh install
+(including `sysupgrade -n`), and a config-preserving upgrade keeps the old
+page's `enabled` choice. Its sibling `95-tailscale-community` performs the
+switch on an upgraded unit — install the community app first, then drop the
+vendored one, so a unit that cannot reach the feed keeps a working page. Both
+live in the package rather than in `base-files` so the whole change can ship as
+a package hotfix (see [Shipping a package without a
+reflash](#shipping-a-package-without-a-reflash)). Turn Tailscale on from
+**System → Startup**, or `/etc/init.d/tailscale enable && /etc/init.d/tailscale start`.
+The community page has no on/off switch of its own — it only logs in and out of
+a running daemon.
 
 ---
 
@@ -66,7 +89,7 @@ Some on-device programs ship in `msm89xx/base-files/` rather than as a package
 | `himi-ok-guard` | Rewrites the modem NV `HiMI_OK` marker after every modem boot. |
 | `modem-bearer-watchdog` | Watches the modem/bearer, performs pre-emptive SSR and zombie recovery (logs as `modem-stall-watchdog`). |
 | `apk-key-refresh` | Re-syncs the pinned APK feed signing key at boot. |
-| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, drops overlay copies of package files the image now ships in a different version, and merges the stale `/etc/apk/world` and package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
+| `apk-overlay-heal` | Repairs the overlay after a flash that kept the configuration: clears whiteouts hiding files the image ships, drops packages built for another kernel and overlay copies of package files the image now ships in a different version, and merges the stale `/etc/apk/world` and package database with the image's. Runs from preinit; see [Shipping a package without a reflash](#shipping-a-package-without-a-reflash). |
 | `battery-led-monitor` | Drives the battery pair (charge state and faults only). Ships with `luci-app-battery`. |
 
 The LED monitors, the boot blink and the Wi-Fi station helpers used to be listed
@@ -74,6 +97,38 @@ here too; they now ship as the [`msm89xx-scripts`](../../packages/msm89xx-script
 package so they can be updated through the feed. What stays in `base-files` is
 exactly what must exist **before** a package could be installed: `/etc/diag.sh`,
 `/lib/preinit/*` and `/lib/batteryless.sh`.
+
+### Clock and timezone (`time-sync`)
+
+These boards have no battery-backed RTC: `/dev/rtc0` exists but cannot be set
+(`RTC_SET_TIME: No such device`), so a cold boot starts at 1970, and
+`sysfixtime`'s newest-mtime fallback is not enough — measured on the bench
+unit, the clock was still 1970 after 45 minutes. `time-sync` (in
+`msm89xx-scripts`) closes that gap:
+
+- **Clock.** On the first uplink and at boot, a one-shot `ntpd -q` steps an
+  implausible clock; `sysntpd` handles the normal case (busybox `ntpd` in
+  daemon mode never steps a ~1.8×10⁹ s offset). The last good time is written
+  to `/etc/time-last` every 30 minutes and restored at boot, so an unclean
+  power cut costs at most the save interval plus the time the unit was off.
+- **Timezone.** Only while the value is still the stock `UTC`: NITZ from the
+  modem first (`qmicli --dms-get-time` — registration is enough, a data
+  session is not), then the public IP's geolocation when there is no SIM. A
+  timezone the user chose is never overridden.
+- **No SIM and no uplink.** Nothing can give absolute time. The clock is the
+  saved time plus uptime and the zone stays as last detected until the next
+  uplink steps the clock and re-detects.
+
+It deliberately never calls `hwclock -w`, and the PM8916 `allow-set-time` DT
+property must not come back: r6 shipped it so `hwclock -w` would work, and
+`sysfixtime` then became the first code to write the RTC registers over SPMI at
+START=00, which wedged the boot before userspace (r7 reverted it). The RTC
+stays read-only — its set path returns `-ENODEV` before any SPMI transaction.
+
+There is no `/usr/share/zoneinfo` on the image, so the functional value is a
+POSIX TZ string (`IST-5:30`); `system.zonename` is the label LuCI shows. The
+geo lookup sends one request to `ipapi.co` only when NITZ gave nothing; set
+`TIME_SYNC_GEO=0` to disable it.
 
 **Every custom program — package or base-files — answers `-h`/`--help`** with its
 options, the `uci` keys it honours, and the `logread` tag to watch:
@@ -193,6 +248,13 @@ therefore restores the published tree first and asserts the count never shrinks.
   database on the next transaction** — the files stay on disk, the record does
   not. This is the one that bites a boot *after* the flash: the package works,
   then quietly disappears.
+- **A kmod installed from the feed outlives its kernel.** A kernel module's
+  record pins the kernel build it was compiled against —
+  `D:kernel=6.12.112~<vermagic>-r1` — and the vermagic changes with every kernel
+  build. After a flash that record can no longer be satisfied, so **every** apk
+  transaction fails with `breaks: kmod-x[kernel=...]`, and the module could not
+  load anyway. This is the one that stops `apk upgrade` and the LuCI firmware
+  updater from running at all.
 - **Overlay copies of package files shadow the image.** The overlay always wins.
   A file a package owns gets copied up the first time anything writes to it, and
   that copy then outlives every flash — so after an image change the merged view
@@ -201,7 +263,7 @@ therefore restores the published tree first and asserts the count never shrinks.
   loudest case, because the stylesheet and the template that links it are both
   stale, so the page looks untouched and `apk` swears the update landed.
 
-All four are repaired **automatically** by
+All five are repaired **automatically** by
 [`apk-overlay-heal`](../../msm89xx/base-files/usr/sbin/apk-overlay-heal), run
 from `/lib/preinit/85_apk_overlay_heal` — after the overlay is mounted, before
 any init script — and **only on the first boot after an image change**. It
@@ -209,7 +271,13 @@ any init script — and **only on the first boot after an image change**. It
 1. removes every whiteout whose path the running image ships (whiteouts under
    `/etc/uci-defaults` are left alone — they are how OpenWrt records that a
    one-shot script already ran),
-2. drops overlay copies of package files that differ from the image's, so the
+2. drops every package built for a kernel other than the one the image ships:
+   its record is left out of the merged database and its files are removed, so
+   the next `apk add`/`apk upgrade` installs the build the feed has for *this*
+   kernel. It stays in `/etc/apk/world`, which is what makes that a reinstall
+   rather than a silent uninstall. A package the image itself ships is not
+   affected — the image's record wins in step 5,
+3. drops overlay copies of package files that differ from the image's, so the
    merged view serves the file the image actually ships. This is upstream's
    `sysupgrade -o` rule (*"preserve all changed files in /, except those from
    packages but including changed confs"*) applied at boot instead of at
@@ -219,13 +287,13 @@ any init script — and **only on the first boot after an image change**. It
    files. A file that already matches the image is left as it is, so the pass
    does nothing on a device that was never hand-edited. And a package you
    *upgraded* from the feed is newer than the image — reverting it would be a
-   silent downgrade — so its files are kept too, and step 4 keeps the matching
+   silent downgrade — so its files are kept too, and step 5 keeps the matching
    database record instead of the image's. That one needs a version compare
    (`apk version -t`, falling back to `sort -V`), because the overlay has the
    files in both cases and only the recorded version tells them apart,
-3. merges `/etc/apk/world` the same way (image entries plus anything added on
+4. merges `/etc/apk/world` the same way (image entries plus anything added on
    the overlay), and
-4. merges the overlay's database with the image's: the image wins for every
+5. merges the overlay's database with the image's: the image wins for every
    package it ships — unless the overlay records a *higher* version, in which
    case that record is kept so it still matches the files step 2 preserved —
    and packages installed from the feed are kept. It refuses the merge and
