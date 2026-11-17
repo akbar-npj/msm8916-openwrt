@@ -36,6 +36,10 @@ CFG_UMS_IMAGE=""
 CFG_UMS_SIZE=""
 CFG_UMS_READONLY=""
 
+# Where usb-gadget-probe records the transport it picked for the host that is
+# attached right now.  Runtime state, so it does not survive a reboot.
+NETMODE_OVERRIDE="/var/run/usb-gadget/net_mode"
+
 load_config() {
     config_load usbgadget
     
@@ -72,6 +76,60 @@ load_config() {
     config_get CFG_UMS_IMAGE ums image_path "/var/lib/usb-gadget/storage.img"
     config_get CFG_UMS_SIZE ums image_size "512M"
     config_get_bool CFG_UMS_READONLY ums readonly 0
+
+    # Which ethernet function to expose.  Unset means the per-function
+    # booleans stand, which is what a unit that predates this option gets --
+    # so an upgrade never changes the transport under a user.
+    #
+    #   auto   NCM, and RNDIS only if the host does not bind NCM (see the
+    #          probe); NCM is the better transport everywhere it is supported
+    #   ncm    NCM only
+    #   rndis  RNDIS only -- Windows before 11, and Android hosts
+    #   both   both at once: two adapters on the same subnet on any host that
+    #          binds both, kept as an escape hatch, not a default
+    config_get CFG_NET_MODE usb net_mode ""
+
+    case "$CFG_NET_MODE" in
+        "")
+            ;;
+        auto|ncm)
+            CFG_NCM=1
+            CFG_RNDIS=0
+            ;;
+        rndis)
+            CFG_NCM=0
+            CFG_RNDIS=1
+            ;;
+        both)
+            CFG_NCM=1
+            CFG_RNDIS=1
+            ;;
+        *)
+            log "usbgadget.usb.net_mode '$CFG_NET_MODE' is not auto, ncm, rndis or both; keeping the per-function settings"
+            CFG_NET_MODE=""
+            ;;
+    esac
+
+    # A decision made by usb-gadget-probe for the host attached right now.
+    # Only consulted in auto mode: an operator who pinned ncm or rndis must
+    # never be overridden by a decision left behind for a different host.
+    CFG_NETMODE_DECIDED=""
+    if [ "$CFG_NET_MODE" = "auto" ] && [ -r "$NETMODE_OVERRIDE" ]; then
+        CFG_NETMODE_DECIDED="$(cat "$NETMODE_OVERRIDE" 2>/dev/null)"
+        case "$CFG_NETMODE_DECIDED" in
+            ncm)
+                CFG_NCM=1
+                CFG_RNDIS=0
+                ;;
+            rndis)
+                CFG_NCM=0
+                CFG_RNDIS=1
+                ;;
+            *)
+                CFG_NETMODE_DECIDED=""
+                ;;
+        esac
+    fi
 }
 
 # ============================================================================
@@ -92,12 +150,38 @@ error() {
 # Utilities
 # ============================================================================
 
+# Stable identity for this unit.  The host keys the device -- and every MAC
+# derived from this -- on the serial, so a value that changes between boots
+# makes Windows treat each plug as new hardware: the adapter walks up
+# Ethernet 3 -> 4 -> 5 and the "set up a network" prompt returns every time.
+# The old fallback was "$(date +%s)-$$", which is exactly that failure.
+#
+# Order: a machine-id the image or the user provided, then the eMMC CID (unique
+# per part, survives any filesystem change), then one generated once and kept.
 get_serial_number() {
-    if [ -f /etc/machine-id ]; then
-        sha256sum < /etc/machine-id 2>/dev/null | cut -d' ' -f1 | cut -c1-16
-        return
+    local id=""
+
+    if [ -s /etc/machine-id ]; then
+        id="$(cat /etc/machine-id 2>/dev/null)"
     fi
-    echo "$(date +%s)-$(( $$ + 1000 ))"
+
+    if [ -z "$id" ] && [ -r /sys/block/mmcblk0/device/cid ]; then
+        id="$(cat /sys/block/mmcblk0/device/cid 2>/dev/null)"
+    fi
+
+    if [ -z "$id" ]; then
+        if [ ! -s /etc/machine-id ]; then
+            cat /proc/sys/kernel/random/uuid > /etc/machine-id 2>/dev/null || true
+        fi
+        id="$(cat /etc/machine-id 2>/dev/null)"
+    fi
+
+    # Nothing persistent is available (no machine-id, no eMMC CID, /etc not
+    # writable).  A per-boot value is wrong but a shared one is worse: two
+    # units on the same desk must never present the same serial and MACs.
+    [ -n "$id" ] || id="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "$$-$(date +%s)")"
+
+    printf '%s' "$id" | sha256sum | cut -d' ' -f1 | cut -c1-16
 }
 
 generate_mac() {
@@ -161,6 +245,19 @@ setup_rndis() {
     sysfs_write "${CFG_GADGET_PATH}/os_desc/qw_sign" "MSFT100"
     sysfs_write "${func}/os_desc/interface.rndis/compatible_id" "RNDIS"
     sysfs_write "${func}/os_desc/interface.rndis/sub_compatible_id" "5162001"
+
+    # Interface association: class EF, subclass 04, protocol 01 -- Microsoft's
+    # RNDIS IAD.  Windows then matches USB\Class_ef&SubClass_04&Prot_01 with
+    # the inbox rndiscmp.inf and needs no WCID negotiation at all (measured on
+    # a Windows 10 LTSC host, #102).
+    #
+    # These three are parsed as at most TWO hex digits: "0xef" stores 0 and
+    # "239" stores 0x23, so the association silently becomes 00/00/00 and the
+    # host stops claiming the interface.  Only these spellings are correct.
+    sysfs_write "${func}/class"    "ef"
+    sysfs_write "${func}/subclass" "04"
+    sysfs_write "${func}/protocol" "01"
+
     ln -sf "${CFG_CONFIG_PATH}" "${CFG_GADGET_PATH}/os_desc/"
     
     echo "+RNDIS"
@@ -240,19 +337,20 @@ setup_ums() {
 
 bring_up_iface() {
     local ifname_file="$1"
-    [ -f "$ifname_file" ] || return
+    [ -f "$ifname_file" ] || return 0
     local iface="$(cat "$ifname_file")"
-    [ -n "$iface" ] || return
+    [ -n "$iface" ] || return 0
     ip link set "$iface" up 2>/dev/null || ifconfig "$iface" up 2>/dev/null || true
+    return 0
 }
 
 add_to_bridge() {
     local ifname_file="$1"
     
-    [ -f "$ifname_file" ] || return
+    [ -f "$ifname_file" ] || return 0
     
     local iface="$(cat "$ifname_file")"
-    [ -n "$iface" ] || return
+    [ -n "$iface" ] || return 0
     log "Adding $iface to bridge"
     
     # Ensure interface is administrative UP so carrier is signalled to host
@@ -263,7 +361,7 @@ add_to_bridge() {
         dev_sec="$s"
         break
     done
-    [ -z "$dev_sec" ] && dev_sec="@device[0]"
+    if [ -z "$dev_sec" ]; then dev_sec="@device[0]"; fi
 
     # Add the interface to bridge
     uci -q del_list "network.${dev_sec}.ports=$iface" 2>/dev/null || true
@@ -271,14 +369,19 @@ add_to_bridge() {
 
     # Immediately attach to kernel bridge
     ip link set "$iface" master br-lan 2>/dev/null || brctl addif br-lan "$iface" 2>/dev/null || true
+    return 0
 }
 
 setup_network() {
     sleep 1
-    
-    [ "$CFG_RNDIS" = "1" ] && add_to_bridge "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"
-    [ "$CFG_ECM" = "1" ] && add_to_bridge "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"
-    [ "$CFG_NCM" = "1" ] && add_to_bridge "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"
+
+    # Plain `if`s, not `cond && cmd`: the script runs under `set -e`, and a
+    # trailing `[ ... ] && cmd` whose test fails makes the whole script exit
+    # with 1.  That is every RNDIS build, where CFG_NCM is 0 -- the rebuild
+    # worked but `usb-gadget restart` reported failure.
+    if [ "$CFG_RNDIS" = "1" ]; then add_to_bridge "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"; fi
+    if [ "$CFG_ECM" = "1" ]; then add_to_bridge "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"; fi
+    if [ "$CFG_NCM" = "1" ]; then add_to_bridge "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"; fi
     
     uci commit network
     /etc/init.d/network reload
@@ -287,9 +390,10 @@ setup_network() {
     /etc/init.d/firewall reload 2>/dev/null || true
 
     # Post-reload bringup check
-    [ "$CFG_RNDIS" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"
-    [ "$CFG_ECM" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"
-    [ "$CFG_NCM" = "1" ] && bring_up_iface "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"
+    if [ "$CFG_RNDIS" = "1" ]; then bring_up_iface "${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"; fi
+    if [ "$CFG_ECM" = "1" ]; then bring_up_iface "${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"; fi
+    if [ "$CFG_NCM" = "1" ]; then bring_up_iface "${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"; fi
+    return 0
 }
 
 # ============================================================================
@@ -462,6 +566,12 @@ teardown_gadget() {
 
 status() {
     load_config
+
+    echo "Network mode: ${CFG_NET_MODE:-legacy} (ncm=$CFG_NCM rndis=$CFG_RNDIS ecm=$CFG_ECM)"
+    if [ -n "$CFG_NETMODE_DECIDED" ]; then
+        echo "Probe decision: $CFG_NETMODE_DECIDED (for the host attached now)"
+    fi
+    echo "Serial: $(get_serial_number)"
     
     # Check if globally disabled
     if [ "$CFG_ENABLED" != "1" ]; then

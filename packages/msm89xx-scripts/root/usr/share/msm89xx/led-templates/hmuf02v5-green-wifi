@@ -1,0 +1,21 @@
+# HMUF02-V5 with the Wi-Fi lamp on the GREEN LED.
+#
+# The one known deviation from the built-in table.  Every other board's lamps
+# match what leds.sh already says, so those need no file here -- `--template
+# default` puts any of them back on the built-in mapping.
+#
+# This board has three lamps (patch 805): green = LTE, red = modem/fault,
+# blue = Wi-Fi.  On this population the two colour LEDs are fitted the other
+# way round, and nothing in software distinguishes it -- the labels still say
+# blue = Wi-Fi -- so the roles have to point at the other label.  Identify the
+# unit by eye first:
+#
+#   led-probe --blink blue:wlan 3     # does the blue or the green LED light?
+#
+# and if the Wi-Fi lamp is green, apply this table.
+#
+# desc: HMUF02-V5, Wi-Fi on green, LTE on blue (the swapped population)
+# board: hmuf02v5
+wifi	green:wan
+wan	blue:wlan
+wan_fault	red:power

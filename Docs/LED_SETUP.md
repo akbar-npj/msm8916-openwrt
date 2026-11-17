@@ -66,6 +66,9 @@ led-probe --show                # current role/pattern mapping
 led-probe --blink blue:wan 3    # light one lamp for 3 s
 led-probe --set wifi=green:wlan wan=blue:wan
 led-probe --set wifi.client=blink:500:500
+led-probe --swap wifi wan       # exchange the lamps of two roles
+led-probe --templates           # named role tables in this build
+led-probe --template NAME       # apply one (--dry-run to preview)
 led-probe --reset               # every role lamp back to 'auto'
 ```
 
@@ -125,6 +128,50 @@ blink (100/100) and the blue lamp must follow the LTE signal. `led-probe
 - an empty pattern value (`led-probe --set wifi.client=`) deletes the override
   and restores the built-in pattern.
 
+## Templates
+
+Every board in the tree already has its lamps mapped correctly by `leds.sh`, so
+a template is only needed for a unit that *deviates* from its board default. On
+HMUF02-V5 two units cannot be told apart in software, so the answer is recorded
+once as a named role table instead of a per-unit command line:
+
+```sh
+led-probe --templates
+# default               this board's built-in table (every role back to auto)
+# hmuf02v5-green-wifi   HMUF02-V5, Wi-Fi on green, LTE on blue (the swapped population)
+
+led-probe --template hmuf02v5-green-wifi --dry-run   # what would change
+led-probe --template hmuf02v5-green-wifi             # apply it
+led-probe --template default                         # back to the board's own table
+```
+
+`default` is not a file — it is the table `leds.sh` already knows for this
+`board_name`, reached by setting every role back to `auto`. That makes it the
+common case: the ordinary HMUF02-V5 needs no template at all, and only the
+swapped population picks one.
+
+`--dry-run` prints one `role <name> <current> <new>` line per entry and writes
+nothing; an apply prints the same lines as it writes them, so neither is silent.
+
+A template is a file under `/usr/share/msm89xx/led-templates/`: one `key value`
+pair per line — a role (`wifi green:wan`) or a role and state
+(`wifi.client blink:500:500`) — with `#` comments, a `# desc:` line that
+`--templates` prints, and an optional `# board:` line. A table that names a
+board is only offered on that board, so every other board's listing and page
+stay as they were; naming it explicitly still applies it, which is how a
+rebadged unit with a different `board_name` gets the table it needs. They ship
+in `msm89xx-scripts`, so a table for a newly discovered variant arrives as a
+package hotfix rather than a reflash.
+
+Templates are **never applied automatically** — not at boot, not at install.
+There is no software signal to choose one, and a wrong table lights the wrong
+lamp while looking configured, so applying is always a deliberate act, and the
+result should be confirmed with `--blink` on the hardware.
+
+`led-probe --swap wifi wan` is the one-step form when you only need two roles
+exchanged: it resolves each role's current lamp and writes both, so it does not
+depend on which labels the board exposes.
+
 ## The LuCI page
 
 **System → LED Setup** lists every role with a lamp dropdown and a **Blink**
@@ -140,6 +187,12 @@ is kept as its own `(custom)` entry rather than being reset on save. Leave
 everything alone and nothing changes; **Save & apply** only writes the fields
 you edited and restarts the monitors. Selecting `default (…)` again drops the
 override. **Reset lamps to auto** clears the lamp overrides.
+
+A **Known-good tables** section appears between the roles and the patterns, and
+only on a board that ships a deviation table — so every other board's page is
+unchanged. It offers the same tables as `led-probe --templates`, **Preview**
+shows the `Now` / `After applying` rows without writing, and **Apply table**
+writes them and reloads the page so the role dropdowns above show the result.
 
 ## Checking the result
 

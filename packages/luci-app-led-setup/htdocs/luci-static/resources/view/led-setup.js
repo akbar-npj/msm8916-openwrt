@@ -2,6 +2,7 @@
 'require view';
 'require fs';
 'require ui';
+'require dom';
 
 var BIN = '/usr/sbin/led-probe';
 
@@ -65,15 +66,28 @@ function getShow() {
 	}).catch(function() { return { roles: {}, patterns: {} }; });
 }
 
+function getTemplates() {
+	return fs.exec(BIN, [ '--templates' ]).then(function(res) {
+		return (res.stdout || '').trim().split('\n').filter(function(l) {
+			return l.length;
+		}).map(function(line) {
+			var p = line.split('\t');
+
+			return { name: p[0], desc: p[1] || '' };
+		});
+	}).catch(function() { return []; });
+}
+
 return view.extend({
 	load: function() {
-		return Promise.all([ getList(), getShow(), getCaps() ]);
+		return Promise.all([ getList(), getShow(), getCaps(), getTemplates() ]);
 	},
 
 	render: function(data) {
 		var lamps = (data && data[0]) || [];
 		var cur = (data && data[1]) || { roles: {}, patterns: {} };
 		var caps = (data && data[2]) || {};
+		var tmpls = (data && data[3]) || [];
 
 		// Hide the battery pair on a board that reports no battery.  When
 		// the capability is missing (an older led-probe), keep showing
@@ -257,6 +271,88 @@ return view.extend({
 			}).catch(function() {});
 		}
 
+		// Known-good tables.  Every board already has its lamps mapped, so
+		// a table only exists where a unit deviates from its board default;
+		// on a board with no deviation the whole section stays hidden.
+		function templateSection() {
+			if (tmpls.length < 2)
+				return E('div');
+
+			var sel = E('select', { 'class': 'cbi-input-select' });
+			var out = E('div', { 'class': 'cbi-value-description' });
+
+			tmpls.forEach(function(t) {
+				sel.appendChild(E('option', { 'value': t.name },
+					t.desc ? (t.name + ' \u2014 ' + t.desc) : t.name));
+			});
+
+			function preview() {
+				fs.exec(BIN, [ '--template', sel.value, '--dry-run' ]).then(function(res) {
+					var rows = [ E('tr', { 'class': 'tr table-titles' }, [
+						E('th', { 'class': 'th' }, _('Role')),
+						E('th', { 'class': 'th' }, _('Now')),
+						E('th', { 'class': 'th' }, _('After applying'))
+					]) ];
+
+					(res.stdout || '').trim().split('\n').forEach(function(line) {
+						var p = line.split('\t');
+
+						if (p[0] !== 'role' || !p[1])
+							return;
+
+						rows.push(E('tr', { 'class': 'tr' }, [
+							E('td', { 'class': 'td left' }, p[1]),
+							E('td', { 'class': 'td left' }, p[2] || ''),
+							E('td', { 'class': 'td left' }, p[3] || '')
+						]));
+					});
+
+					dom.content(out, [
+						E('p', {}, _('Nothing has been written yet. Applying sets these lamps:')),
+						E('table', { 'class': 'table' }, rows)
+					]);
+				}).catch(function(e) {
+					ui.addNotification(null,
+						E('p', {}, _('Preview failed: ') + e), 'danger');
+				});
+			}
+
+			function apply() {
+				fs.exec(BIN, [ '--template', sel.value ]).then(function(res) {
+					if (res && res.code !== 0) {
+						ui.addNotification(null,
+							E('p', {}, _('Applying the table failed: ') + ((res && res.stderr) || '')),
+							'danger');
+						return;
+					}
+
+					ui.addNotification(null,
+						E('p', {}, _('Table applied. Reloading so the roles above show it.')), 'info');
+
+					window.setTimeout(function() { window.location.reload(); }, 800);
+				}).catch(function(e) {
+					ui.addNotification(null,
+						E('p', {}, _('Applying the table failed: ') + e), 'danger');
+				});
+			}
+
+			return E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Known-good tables')),
+				E('p', { 'class': 'cbi-value-description' },
+					_('For a unit whose LEDs are wired differently from its board default — on HMUF02-V5, the population with green and blue the other way round. Pick the table that matches what you see, preview it, then apply.')),
+				E('div', { 'class': 'cbi-value' }, [
+					E('label', { 'class': 'cbi-value-title' }, _('Table')),
+					E('div', { 'class': 'cbi-value-field' }, [
+						sel, ' ',
+						E('button', { 'class': 'cbi-button', 'click': preview }, _('Preview')),
+						' ',
+						E('button', { 'class': 'cbi-button cbi-button-apply', 'click': apply }, _('Apply table'))
+					])
+				]),
+				out
+			]);
+		}
+
 		return E('div', {}, [
 			E('h2', {}, _('LED Setup')),
 			E('div', { 'class': 'cbi-section' }, [
@@ -277,6 +373,8 @@ return view.extend({
 					E('button', { 'class': 'cbi-button cbi-button-apply', 'click': save }, _('Save & apply'))
 				])
 			]),
+
+			templateSection(),
 
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('Patterns')),
