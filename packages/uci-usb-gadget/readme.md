@@ -20,6 +20,17 @@ uci show usbgadget
 
 Location: `/etc/config/usbgadget`
 
+## Upgrading the package
+
+Installing a new version rebuilds the gadget, because the script is what the
+gadget is made of — there is no way to change it under a host that is already
+bound. The USB link drops for a few seconds and comes back with the new code.
+If you are installing over that link, expect to be disconnected once.
+
+`prerm` deliberately does not stop the gadget: it runs before the new files are
+unpacked, so stopping there would drop the link with nothing to bring it back
+until a reboot.
+
 ## Common Tasks
 
 ### Enable/Disable USB Gadget Mode

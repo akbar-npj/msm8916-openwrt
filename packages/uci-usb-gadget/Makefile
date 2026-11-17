@@ -66,6 +66,16 @@ define Package/$(PKG_NAME)/postinst
 [ -n "$${IPKG_INSTROOT}" ] || {
 	/etc/init.d/usb-gadget enable
 	/etc/init.d/usb-gadget-probe enable
+
+	# An upgrade leaves the old gadget running the old script, so without
+	# this the package installs and changes nothing until the next reboot.
+	# Rebuilding drops the USB link for a few seconds; that is unavoidable
+	# when the gadget is the thing being replaced, and it is why this runs
+	# here rather than being left to the user.
+	name=$$(uci -q get usbgadget.usb.gadget_name)
+	[ -n "$$name" ] || name=g1
+	[ -d "/sys/kernel/config/usb_gadget/$$name" ] && /etc/init.d/usb-gadget restart
+	/etc/init.d/usb-gadget-probe restart
 }
 exit 0
 endef
@@ -75,8 +85,13 @@ define Package/$(PKG_NAME)/prerm
 [ -n "$${IPKG_INSTROOT}" ] || {
 	/etc/init.d/usb-gadget-probe stop
 	/etc/init.d/usb-gadget-probe disable
-	/etc/init.d/usb-gadget stop
 	/etc/init.d/usb-gadget disable
+
+	# The gadget itself is deliberately left running.  Stopping it here
+	# would drop the USB link -- and on an upgrade there would be nothing
+	# to bring it back until a reboot, because this script runs before the
+	# new files are unpacked.  postinst rebuilds it once they are; on a real
+	# removal it keeps working until the next reboot, which is harmless.
 }
 exit 0
 endef
