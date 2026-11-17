@@ -31,6 +31,10 @@ If you are installing over that link, expect to be disconnected once.
 unpacked, so stopping there would drop the link with nothing to bring it back
 until a reboot.
 
+A unit that predates `net_mode` is moved to `net_mode='auto'` on upgrade, but
+only when it is on the shipped NCM-only default. If `rndis` or `ecm` was
+selected, that was a deliberate choice and it is left alone.
+
 ## Common Tasks
 
 ### Enable/Disable USB Gadget Mode
