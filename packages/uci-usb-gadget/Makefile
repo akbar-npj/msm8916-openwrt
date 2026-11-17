@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=uci-usb-gadget
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Miguel Fuertes <hkfuertes@gmail.com>
@@ -50,10 +50,13 @@ endef
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/usb-gadget.sh $(1)/usr/sbin/usb-gadget
+	$(INSTALL_BIN) ./files/usb-gadget-probe $(1)/usr/sbin/usb-gadget-probe
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/usb-gadget.init $(1)/etc/init.d/usb-gadget
+	$(INSTALL_BIN) ./files/usb-gadget-probe.init $(1)/etc/init.d/usb-gadget-probe
 	$(INSTALL_DIR) $(1)/etc/rc.d
 	$(LN) ../init.d/usb-gadget $(1)/etc/rc.d/S99usb-gadget
+	$(LN) ../init.d/usb-gadget-probe $(1)/etc/rc.d/S99usb-gadget-probe
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/usbgadget.config $(1)/etc/config/usbgadget
 endef
@@ -62,6 +65,7 @@ define Package/$(PKG_NAME)/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
 	/etc/init.d/usb-gadget enable
+	/etc/init.d/usb-gadget-probe enable
 }
 exit 0
 endef
@@ -69,6 +73,8 @@ endef
 define Package/$(PKG_NAME)/prerm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
+	/etc/init.d/usb-gadget-probe stop
+	/etc/init.d/usb-gadget-probe disable
 	/etc/init.d/usb-gadget stop
 	/etc/init.d/usb-gadget disable
 }

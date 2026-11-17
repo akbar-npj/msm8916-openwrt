@@ -36,6 +36,10 @@ CFG_UMS_IMAGE=""
 CFG_UMS_SIZE=""
 CFG_UMS_READONLY=""
 
+# Where usb-gadget-probe records the transport it picked for the host that is
+# attached right now.  Runtime state, so it does not survive a reboot.
+NETMODE_OVERRIDE="/var/run/usb-gadget/net_mode"
+
 load_config() {
     config_load usbgadget
     
@@ -105,6 +109,27 @@ load_config() {
             CFG_NET_MODE=""
             ;;
     esac
+
+    # A decision made by usb-gadget-probe for the host attached right now.
+    # Only consulted in auto mode: an operator who pinned ncm or rndis must
+    # never be overridden by a decision left behind for a different host.
+    CFG_NETMODE_DECIDED=""
+    if [ "$CFG_NET_MODE" = "auto" ] && [ -r "$NETMODE_OVERRIDE" ]; then
+        CFG_NETMODE_DECIDED="$(cat "$NETMODE_OVERRIDE" 2>/dev/null)"
+        case "$CFG_NETMODE_DECIDED" in
+            ncm)
+                CFG_NCM=1
+                CFG_RNDIS=0
+                ;;
+            rndis)
+                CFG_NCM=0
+                CFG_RNDIS=1
+                ;;
+            *)
+                CFG_NETMODE_DECIDED=""
+                ;;
+        esac
+    fi
 }
 
 # ============================================================================
@@ -536,6 +561,9 @@ status() {
     load_config
 
     echo "Network mode: ${CFG_NET_MODE:-legacy} (ncm=$CFG_NCM rndis=$CFG_RNDIS ecm=$CFG_ECM)"
+    if [ -n "$CFG_NETMODE_DECIDED" ]; then
+        echo "Probe decision: $CFG_NETMODE_DECIDED (for the host attached now)"
+    fi
     echo "Serial: $(get_serial_number)"
     
     # Check if globally disabled

@@ -78,6 +78,7 @@ fixture() {
 	sed -e "s#^\. /lib/functions.sh#. $T/functions.sh#" \
 	    -e "s#/etc/machine-id#$T/etc/machine-id#g" \
 	    -e "s#/sys/block/mmcblk0/device/cid#$T/sys/cid#g" \
+	    -e "s#/var/run/usb-gadget/net_mode#$T/run/net_mode#g" \
 	    "$src" > "$T/usb-gadget"
 	chmod +x "$T/usb-gadget"
 }
@@ -157,6 +158,37 @@ suite() {
 	run status
 	assert_contains "auto resolves to NCM" "$T/out" "Network mode: auto (ncm=1 rndis=0"
 
+	# --- the probe's decision is applied, and shown ---------------------
+	fixture
+	uci_set usb.enabled 1
+	uci_set usb.net_mode auto
+	mkdir -p "$T/run"
+	printf 'rndis\n' > "$T/run/net_mode"
+	run status
+	assert_contains "the decision moves auto to RNDIS" "$T/out" "Network mode: auto (ncm=0 rndis=1"
+	assert_contains "the decision is shown" "$T/out" "Probe decision: rndis"
+
+	# --- a pinned mode ignores a leftover decision ----------------------
+	fixture
+	uci_set usb.enabled 1
+	uci_set usb.net_mode ncm
+	mkdir -p "$T/run"
+	printf 'rndis\n' > "$T/run/net_mode"
+	run status
+	assert_contains "a pin outranks the decision" "$T/out" "Network mode: ncm (ncm=1 rndis=0"
+	assert_absent "a pinned unit shows no decision" "$T/out" "Probe decision:"
+
+	# --- a legacy unit ignores it too -----------------------------------
+	fixture
+	uci_set usb.enabled 1
+	uci_set ncm.enabled 1
+	uci_set rndis.enabled 0
+	mkdir -p "$T/run"
+	printf 'rndis\n' > "$T/run/net_mode"
+	run status
+	assert_contains "legacy booleans outrank the decision" "$T/out" "Network mode: legacy (ncm=1 rndis=0"
+	assert_absent "a legacy unit shows no decision" "$T/out" "Probe decision:"
+
 	# --- the serial is stable across runs -------------------------------
 	fixture
 	uci_set usb.enabled 1
@@ -219,6 +251,7 @@ if [ "$SELF_CHECK" -eq 1 ]; then
 
 	mutant "net_mode ignored" 's/^    case "\$CFG_NET_MODE" in$/    CFG_NET_MODE=""; case "$CFG_NET_MODE" in/'
 	mutant "rndis mode keeps ncm" 's/^            CFG_NCM=0$/            CFG_NCM=1/'
+	mutant "the probe decision is ignored" 's/^    if \[ "\$CFG_NET_MODE" = "auto" \] && \[ -r "\$NETMODE_OVERRIDE" \]; then$/    if false; then/'
 	mutant "serial from the clock" 's/^    printf .%s. "\$id" | sha256sum/    id="$(date +%s)-$$"; printf "%s" "$id" | sha256sum/'
 fi
 

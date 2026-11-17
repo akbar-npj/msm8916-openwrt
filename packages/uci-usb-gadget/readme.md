@@ -57,12 +57,30 @@ uci commit usbgadget
 it unset, those booleans stand — which is what a unit that predates the option
 keeps, so an upgrade never changes the transport under a user.
 
-The `auto` fallback is not implemented yet: today `auto` builds NCM and nothing
-else, exactly as `ncm` does. It is the shipped default anyway, because
-`/etc/config/usbgadget` is a conffile — a unit that takes `ncm` now would keep
-it after the probe lands, while a unit that takes `auto` starts falling back
-with no config edit. Until then a host without an NCM driver needs
-`net_mode='rndis'`.
+`auto` is decided per attach by `usb-gadget-probe`, and the decision is what
+the host can actually bind rather than what its OS claims to be:
+
+- The gadget is built with NCM.
+- When the host has enumerated (`udc/state` is `configured`), the probe waits
+  five seconds and reads the NCM netdev's `carrier`. `f_ncm` only raises
+  carrier once the host sets the data interface to altsetting 1, which it
+  cannot do without a driver.
+- Carrier up: the host speaks NCM, nothing more happens.
+- Carrier still down: the gadget is rebuilt with RNDIS, and the host sees one
+  disconnect and reconnect about two seconds later.
+
+One decision per attach. A real unplug clears it and the next host is probed
+from NCM again, so a unit is never left stuck in RNDIS because of where it was
+last plugged. The decision is a runtime file (`/var/run/usb-gadget/net_mode`),
+not uci — `net_mode` stays `auto`, which is what "decide per attach" means.
+`/etc/init.d/usb-gadget-probe` runs the probe, and only in `auto` mode.
+
+A host with no NCM driver takes about seven seconds to get an address the
+first time it is plugged in, and never again until it is unplugged. A host
+that binds NCM sees no difference at all. If a host would have bound NCM but
+took longer than five seconds to do it, the probe picks RNDIS — which Linux,
+macOS and Windows all drive, so a wrong guess costs throughput, not
+connectivity. Set `net_mode='ncm'` or `'rndis'` to skip the probe entirely.
 
 NCM has a driver in Linux, macOS and recent Windows; RNDIS is the fallback for
 hosts without one. Enabling both is the only way to be certain a host finds
