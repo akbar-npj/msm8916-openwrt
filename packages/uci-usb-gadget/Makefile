@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=uci-usb-gadget
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Miguel Fuertes <hkfuertes@gmail.com>
@@ -59,6 +59,8 @@ define Package/$(PKG_NAME)/install
 	$(LN) ../init.d/usb-gadget-probe $(1)/etc/rc.d/S99usb-gadget-probe
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/usbgadget.config $(1)/etc/config/usbgadget
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/net
+	$(INSTALL_BIN) ./files/30-usb-gadget-bridge $(1)/etc/hotplug.d/net/30-usb-gadget-bridge
 endef
 
 define Package/$(PKG_NAME)/postinst

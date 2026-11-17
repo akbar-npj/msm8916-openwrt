@@ -344,6 +344,25 @@ bring_up_iface() {
     return 0
 }
 
+# Attach $1 to the kernel bridge.  Never fails: a caller under `set -e` must
+# not be able to abort a rebuild that has already produced a working gadget.
+# A missing bridge is not an error here -- on a cold boot netifd has not built
+# it yet -- but a bridge that exists and still refuses the port is logged,
+# because the old `|| true` made that the one failure nobody could see.
+bridge_attach() {
+    local iface="$1"
+    if [ -z "$iface" ]; then return 0; fi
+    if [ ! -d "/sys/class/net/$iface" ]; then return 0; fi
+    if [ -d "/sys/class/net/br-lan/brif/$iface" ]; then return 0; fi
+    if [ ! -d /sys/class/net/br-lan ]; then return 0; fi
+
+    ip link set "$iface" master br-lan 2>/dev/null || brctl addif br-lan "$iface" 2>/dev/null || true
+
+    if [ -d "/sys/class/net/br-lan/brif/$iface" ]; then return 0; fi
+    log "could not attach $iface to br-lan"
+    return 0
+}
+
 add_to_bridge() {
     local ifname_file="$1"
     
@@ -367,8 +386,52 @@ add_to_bridge() {
     uci -q del_list "network.${dev_sec}.ports=$iface" 2>/dev/null || true
     uci add_list "network.${dev_sec}.ports=$iface"
 
-    # Immediately attach to kernel bridge
-    ip link set "$iface" master br-lan 2>/dev/null || brctl addif br-lan "$iface" 2>/dev/null || true
+    # netifd runs at S20 and this gadget at S99, and usb0 is the bridge's only
+    # port -- so when netifd builds br-lan the port list is empty, and it does
+    # not mark a bridge with no present members as present at all
+    # (bridge.c: n_present == 0 -> device_set_present(false)).  br-lan then
+    # never exists, and the symptom is not "usb0 is missing from the LAN" but
+    # "the LAN has no device": no DHCP to the host, and none to Wi-Fi either.
+    # bridge_empty keeps the bridge present with no members, so the port list
+    # below lands on a bridge that exists and a later port is just added.
+    # A no-op on boards that already set it.
+    uci -q set "network.${dev_sec}.bridge_empty=1" 2>/dev/null || true
+
+    # Often too early on a cold boot; ensure_bridge retries after the reload.
+    bridge_attach "$iface"
+    return 0
+}
+
+# After netifd has re-read the config, make sure the bridge really is there
+# and really carries the gadget interfaces.  Without this the reload could
+# leave the LAN down and nothing would ever try again.
+ensure_bridge() {
+    local i=0
+    while [ "$i" -lt 5 ]; do
+        if [ -d /sys/class/net/br-lan ]; then break; fi
+        i=$((i + 1))
+        ubus call network.interface.lan up 2>/dev/null || ifup lan 2>/dev/null || true
+        sleep 1
+    done
+
+    if [ ! -d /sys/class/net/br-lan ]; then
+        log "br-lan does not exist; the LAN interface has no device"
+        return 0
+    fi
+
+    local f
+    if [ "$CFG_RNDIS" = "1" ]; then
+        f="${CFG_FUNCTIONS_PATH}/rndis.usb0/ifname"
+        bridge_attach "$(cat "$f" 2>/dev/null)"
+    fi
+    if [ "$CFG_ECM" = "1" ]; then
+        f="${CFG_FUNCTIONS_PATH}/ecm.usb0/ifname"
+        bridge_attach "$(cat "$f" 2>/dev/null)"
+    fi
+    if [ "$CFG_NCM" = "1" ]; then
+        f="${CFG_FUNCTIONS_PATH}/ncm.usb0/ifname"
+        bridge_attach "$(cat "$f" 2>/dev/null)"
+    fi
     return 0
 }
 
@@ -385,6 +448,10 @@ setup_network() {
     
     uci commit network
     /etc/init.d/network reload
+
+    # Before dnsmasq: it cannot bind br-lan while the device is missing.
+    ensure_bridge
+
     /etc/init.d/dnsmasq restart 2>/dev/null || true
     /etc/init.d/odhcpd restart 2>/dev/null || true
     /etc/init.d/firewall reload 2>/dev/null || true

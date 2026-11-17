@@ -142,14 +142,14 @@ jobs:
             echo "::error::target_package=true needs pkg_release (e.g. 1722, above the floor in openwrt-patches/812-*.patch): base-files derives PKG_RELEASE from COMMITCOUNT, so it cannot be bumped automatically."
             exit 1
           fi
-          if [ "${{ inputs.scope }}" = "all" ]; then
-            case "$PKG" in
-              base-files|kernel|libc)
-                echo "::error::${PKG} is version-pinned in /etc/apk/world. Publish it with scope=revision: in the shared feed the LuCI Software page would offer a fix apk then refuses to install."
-                exit 1
-                ;;
-            esac
-          fi
+          # A publish has to land where a device can install it.  This refuses
+          # both directions: an ordinary package published revision-only is
+          # offered by the page and missing from the feed apk reads, and a
+          # world-pinned package in the shared feed is offered and then
+          # refused by the pin.  The rule lives in scripts/hotfix-scope.sh so
+          # that tests/hotfix-scope can hold it to account.
+          scripts/hotfix-scope.sh check \
+            "$PKG" "${{ inputs.scope }}" "${{ inputs.target_package }}"
           if [ -n "$PKG" ] && [ "${{ inputs.target_package }}" != "true" ] && [ ! -f "packages/${PKG}/Makefile" ]; then
             echo "::error::packages/${PKG}/Makefile does not exist."
             echo "Known packages:"
@@ -513,6 +513,28 @@ jobs:
                    | sed -e "s|^${PKG}-||" -e 's|\.apk$||' \
                    | sort -V | tail -1)"
             [ -n "$VER" ] || { echo "::error::cannot work out the built version of ${PKG}"; exit 1; }
+          fi
+
+          # The copy loop above only writes releases/<base> for scope=all, and
+          # it skips a directory that does not exist without a word.  Assert
+          # the file is where apk looks before anything is committed: a
+          # revision-only publish of an ordinary package is a fix the page
+          # offers and the device cannot install -- measured 2026-11-17,
+          # msm89xx-scripts r20 and luci-app-led-setup r6 sat in
+          # releases/25.12.6-r9 while every device read releases/25.12.6 and
+          # `apk upgrade` printed "1 error" with no version named.
+          if [ -n "$PKG" ] && [ -n "$VER" ]; then
+            if scripts/hotfix-scope.sh feed-local-only "$PKG" "${{ inputs.target_package }}"; then
+              echo "OK: ${PKG} is revision-only by design (world-pinned)"
+            else
+              HIT="$(find "/tmp/gh-pages/releases/${BASE}/packages/aarch64_generic" \
+                       -name "${PKG}-${VER}.apk" 2>/dev/null | head -1)"
+              if [ -z "$HIT" ]; then
+                echo "::error::${PKG}-${VER}.apk is not in releases/${BASE}, so no device could install it. Publish with scope=all."
+                exit 1
+              fi
+              echo "OK: ${PKG}-${VER}.apk is in releases/${BASE}"
+            fi
           fi
 
           # hotfix.json for this exact build.  Devices fetch only their own
