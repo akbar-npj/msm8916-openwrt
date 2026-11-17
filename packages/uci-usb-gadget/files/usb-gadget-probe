@@ -27,12 +27,16 @@ OVERRIDE="${USB_GADGET_PROBE_OVERRIDE:-/var/run/usb-gadget/net_mode}"
 PROG="${USB_GADGET_PROBE_PROG:-/usr/sbin/usb-gadget}"
 
 # Seconds between state reads, and how long to give a host to bind the data
-# interface before calling it a host without an NCM driver.  UNPLUG debounces
-# the 'not attached' our own rebuild produces, which must never be mistaken
-# for a cable pull.
+# interface before calling it a host without an NCM driver.
+#
+# There is deliberately no debounce on a cable pull.  A rebuild is synchronous
+# -- switch_to() does not return until usb-gadget has finished -- so the loop
+# never observes the 'not attached' a rebuild produces, and the `seen` flag is
+# enough to ignore the re-enumeration that follows it.  A time-based debounce
+# also swallows a genuine unplug-and-replug that happens inside the window,
+# which leaves the probe decided for a host that is no longer there.
 POLL="${USB_GADGET_PROBE_POLL:-1}"
 SETTLE="${USB_GADGET_PROBE_SETTLE:-5}"
-UNPLUG="${USB_GADGET_PROBE_UNPLUG:-2}"
 
 log() {
     logger -t usb-gadget-probe "$*" 2>/dev/null || true
@@ -97,7 +101,7 @@ main() {
         [ -n "$decided" ] && seen=1
     fi
 
-    log "started (poll=${POLL}s settle=${SETTLE}s unplug=${UNPLUG}s)"
+    log "started (poll=${POLL}s settle=${SETTLE}s)"
 
     while :; do
         mode=$(net_mode)
@@ -144,9 +148,9 @@ main() {
                 fi
                 ;;
             "not attached")
+                # seen=0 means the host has not enumerated since the last
+                # unplug or rebuild, so there is nothing to clear.
                 if [ "$seen" = 1 ]; then
-                    sleep "$UNPLUG"
-                    [ "$(udc_state)" = "not attached" ] || continue
                     seen=0
                     if [ -n "$decided" ] && [ "$decided" != ncm ]; then
                         log "unplugged; back to NCM for the next host"

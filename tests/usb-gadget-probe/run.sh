@@ -102,7 +102,6 @@ probe_run() {
 	USB_GADGET_PROBE_PROG="$T/bin/fake-usb-gadget" \
 	USB_GADGET_PROBE_POLL=0.05 \
 	USB_GADGET_PROBE_SETTLE=0 \
-	USB_GADGET_PROBE_UNPLUG=0 \
 	timeout 0.6 sh "$SRC_ACTIVE" > "$T/out" 2> "$T/err"
 	return 0
 }
@@ -199,6 +198,27 @@ suite() {
 	assert_eq "the next host is decided once" "$(calls)" 1
 	assert_contains "the reset rebuild goes back to NCM" "$T/calls" "restart ncm"
 	assert_contains "the next host is read as NCM" "$T/log" "host bound NCM"
+
+	# --- an unplug and replug is never swallowed ------------------------
+	# There is no debounce window, so a host that arrives right behind the
+	# previous one is decided on its own merits.  With a time-based debounce
+	# this probe stays decided for the host that has already gone.
+	fixture
+	uci_set usbgadget.usb.net_mode auto
+	printf 'rndis\n' > "$T/run/net_mode"
+	printf 'configured\n' > "$T/restart_states"
+	probe "not attached" 0
+	assert_eq "the new host is decided again" "$(calls)" 2
+	assert_contains "the reset comes first" "$T/calls" "restart ncm"
+	assert_contains "then the new host falls back" "$T/calls" "restart rndis"
+
+	# --- a rebuild that never comes back does not wedge the probe -------
+	fixture
+	uci_set usbgadget.usb.net_mode auto
+	printf 'rndis\n' > "$T/run/net_mode"
+	probe "not attached"
+	assert_eq "an unplug with no host still rebuilds once" "$(calls)" 1
+	assert_contains "and says why" "$T/log" "unplugged; back to NCM"
 
 	# --- a pinned mode is never overridden ------------------------------
 	fixture

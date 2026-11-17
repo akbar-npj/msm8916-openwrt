@@ -100,6 +100,21 @@ suite() {
 	local script=$1 first second
 	SRC_ACTIVE="$script"
 
+	# --- no bare `cond && cmd` can abort the script under set -e --------
+	# usb-gadget.sh runs with `set -e`.  A trailing `[ ... ] && cmd` whose
+	# test fails exits the whole script with 1.  That was every RNDIS
+	# build, where the last guard in setup_network is
+	# `[ "$CFG_NCM" = "1" ] && bring_up_iface ...` -- the gadget was built
+	# correctly and the script still reported failure.
+	fixture
+	local bare
+	bare=$(grep -nE '^[[:space:]]*\[ .* \] &&' "$script" | grep -v '|| true' | head -1)
+	if [ -n "$bare" ]; then
+		bad "a bare guard aborts under set -e ($bare)"
+	else
+		ok "no bare guard can abort under set -e"
+	fi
+
 	# --- no net_mode: the per-function booleans stand --------------------
 	fixture
 	uci_set usb.enabled 1
@@ -252,6 +267,7 @@ if [ "$SELF_CHECK" -eq 1 ]; then
 	mutant "net_mode ignored" 's/^    case "\$CFG_NET_MODE" in$/    CFG_NET_MODE=""; case "$CFG_NET_MODE" in/'
 	mutant "rndis mode keeps ncm" 's/^            CFG_NCM=0$/            CFG_NCM=1/'
 	mutant "the probe decision is ignored" 's/^    if \[ "\$CFG_NET_MODE" = "auto" \] && \[ -r "\$NETMODE_OVERRIDE" \]; then$/    if false; then/'
+	mutant "a bare guard returns" 's/^    if \[ "\$CFG_NCM" = "1" \]; then bring_up_iface .*$/    [ "$CFG_NCM" = "1" ] \&\& bring_up_iface "${CFG_FUNCTIONS_PATH}\/ncm.usb0\/ifname"/'
 	mutant "serial from the clock" 's/^    printf .%s. "\$id" | sha256sum/    id="$(date +%s)-$$"; printf "%s" "$id" | sha256sum/'
 fi
 
