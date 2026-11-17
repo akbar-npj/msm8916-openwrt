@@ -15,6 +15,7 @@
 # and if the Wi-Fi lamp is green, apply this table.
 #
 # desc: HMUF02-V5, Wi-Fi on green, LTE on blue (the swapped population)
+# board: hmuf02v5
 wifi	green:wan
 wan	blue:wlan
 wan_fault	red:power

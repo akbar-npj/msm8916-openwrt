@@ -319,9 +319,16 @@ swap_roles()
 	printf 'led-probe: %s -> %s, %s -> %s\n' "$a" "$lb" "$b" "$la"
 }
 
+# Board a table declares itself for, from a '# board: <name>' header.  Empty
+# means "any board", which is how a table can be offered everywhere.
+template_board()
+{
+	sed -n 's/^#[[:space:]]*board:[[:space:]]*//p' "$1" | head -1
+}
+
 list_templates()
 {
-	local f
+	local f want have
 
 	# 'default' is synthetic: it is the built-in table for this board, so it
 	# can never drift from leds.sh the way a copied file would.
@@ -329,6 +336,17 @@ list_templates()
 	[ -d "$TEMPLATE_DIR" ] || return 0
 	for f in "$TEMPLATE_DIR"/*; do
 		[ -f "$f" ] || continue
+
+		# A table that names its board is only offered there, so the
+		# page on every other board stays as it was.  Naming one
+		# explicitly still applies it, which is how a rebadged unit
+		# with a different board_name gets the table it needs.
+		want="$(template_board "$f")"
+		if [ -n "$want" ]; then
+			have="$(cat "$BOARD_NAME_FILE" 2>/dev/null)"
+			case "$have" in *"$want"*) ;; *) continue ;; esac
+		fi
+
 		printf '%s\t%s\n' "${f##*/}" \
 			"$(sed -n 's/^#[[:space:]]*desc:[[:space:]]*//p' "$f" | head -1)"
 	done

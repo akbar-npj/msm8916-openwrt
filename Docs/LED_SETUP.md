@@ -155,9 +155,13 @@ nothing; an apply prints the same lines as it writes them, so neither is silent.
 
 A template is a file under `/usr/share/msm89xx/led-templates/`: one `key value`
 pair per line — a role (`wifi green:wan`) or a role and state
-(`wifi.client blink:500:500`) — with `#` comments and a `# desc:` line that
-`--templates` prints. They ship in `msm89xx-scripts`, so a table for a newly
-discovered variant arrives as a package hotfix rather than a reflash.
+(`wifi.client blink:500:500`) — with `#` comments, a `# desc:` line that
+`--templates` prints, and an optional `# board:` line. A table that names a
+board is only offered on that board, so every other board's listing and page
+stay as they were; naming it explicitly still applies it, which is how a
+rebadged unit with a different `board_name` gets the table it needs. They ship
+in `msm89xx-scripts`, so a table for a newly discovered variant arrives as a
+package hotfix rather than a reflash.
 
 Templates are **never applied automatically** — not at boot, not at install.
 There is no software signal to choose one, and a wrong table lights the wrong

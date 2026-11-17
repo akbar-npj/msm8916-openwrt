@@ -115,6 +115,19 @@ suite() {
 	assert_contains "lists the swapped table" "$T/out" "hmuf02v5-green-wifi"
 	assert_contains "prints the description" "$T/out" "Wi-Fi on green, LTE on blue"
 
+	# --- another board is not offered this board's deviation table ------
+	fixture
+	printf 'hmu05\n' > "$T/board_name"
+	run --templates
+	assert_contains "a foreign board still gets default" "$T/out" "default"
+	assert_absent "a foreign board is not offered the table" "$T/out" "hmuf02v5-green-wifi"
+
+	# --- but naming it explicitly still applies it ----------------------
+	fixture
+	printf 'hmu05\n' > "$T/board_name"
+	run --template hmuf02v5-green-wifi --dry-run
+	assert_status "an explicit foreign table still applies" 0 $?
+
 	# --- dry run reports the change and writes nothing ------------------
 	fixture
 	run --template hmuf02v5-green-wifi --dry-run
@@ -213,6 +226,7 @@ if [ "$SELF_CHECK" -eq 1 ]; then
 	mutant "self-swap allowed" 's/\[ "\$a" != "\$b" \]/[ "$a" = "$b" ]/'
 	mutant "dry run writes anyway" 's/\[ "\$dry" = "dry" \] && return 0/:/'
 	mutant "unknown template accepted" 's/\[ -f "\$f" \] || { echo "led-probe: no template/true || { echo "led-probe: no template/'
+	mutant "board gate dropped" 's/case "\$have" in \*"\$want"\*) ;; \*) continue ;; esac/:/'
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
