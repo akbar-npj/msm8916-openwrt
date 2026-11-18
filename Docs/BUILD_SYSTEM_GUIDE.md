@@ -158,7 +158,7 @@ When you run `./build.sh build <board>`:
 | `clean` | (none) | Runs `make clean` inside the OpenWrt tree (cleans target objects). |
 | `dirclean` | (none) | Runs `make dirclean` (cleans targets, toolchain, and staging directories). |
 | `distclean` | (none) | Runs `make distclean` (purges all build artifacts, downloads, and feeds). |
-| `guard` | `[--deep]` | Host-side check that the live OpenWrt tree matches the tracked sources (`msm89xx/`, `packages/`), **plus the diffconfig invariants**: the `=m` module block identical on every board, and no diffconfig selecting a `DEFAULT_PACKAGES` package. `--deep` additionally asks `make` whether the next kernel build will re-prepare (wipe `build_dir`) or be incremental. Does **not** require Docker unless `--deep`. |
+| `guard` | `[--deep]` | Host-side check that the live OpenWrt tree matches the tracked sources (`msm89xx/`, `packages/`), **plus the diffconfig invariants**: the `=m` module block identical on every board, and no diffconfig selecting a `DEFAULT_PACKAGES` package. Also reports whether the repository hooks are installed (`scripts/install-hooks.sh` — they keep private branches off the public remote, see [PRIVATE_BRANCHES.md](PRIVATE_BRANCHES.md)). `--deep` additionally asks `make` whether the next kernel build will re-prepare (wipe `build_dir`) or be incremental. Does **not** require Docker unless `--deep`. |
 | `kernel` | `[board]` | Rebuild only the kernel and its in-tree modules. Without a board, the existing `.config` is reused. |
 | `package` | `<name\|path> [board]` | Rebuild only one package, e.g. `qrtr` or `package/msm8916/qrtr`. |
 | `kmod` | `<name> [board]` | Rebuild only one kernel module (out-of-tree kmods build directly; in-tree modules fall back to the kernel target). |
