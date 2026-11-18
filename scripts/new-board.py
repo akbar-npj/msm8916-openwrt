@@ -541,7 +541,11 @@ def main():
 
     ref = args.reference
     ref_dev = "generic-" + ref if ("define Device/generic-%s\n" % ref) in MK_TEXT else ref
-    ref_conf = open(os.path.join(root, "diffconfigs", ref)).read()
+    ref_path = os.path.join(root, "diffconfigs", ref)
+    if not os.path.exists(ref_path):
+        die("no diffconfigs/%s.  --reference takes a diffconfig name, not a device name;"
+            " available: %s" % (ref, ", ".join(sorted(os.listdir(os.path.join(root, "diffconfigs"))))))
+    ref_conf = open(ref_path).read()
     dev_sym = "CONFIG_TARGET_msm89xx_msm8916_DEVICE_%s" % ref_dev
     if dev_sym + "=y" not in ref_conf:
         die("diffconfigs/%s does not enable %s" % (ref, dev_sym))

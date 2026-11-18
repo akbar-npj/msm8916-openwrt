@@ -85,6 +85,15 @@ jobs:
       - name: private-guard
         run: bash tests/private-guard/run.sh --self-check
 
+      # The board scaffolder needs dtc and fdtget, which the runner does not
+      # ship.  It reads a vendor DTB and writes five files at once, so a silent
+      # mistake there produces a board that builds and does not boot.
+      - name: new-board-tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq device-tree-compiler
+          bash tests/new-board-tool/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}
