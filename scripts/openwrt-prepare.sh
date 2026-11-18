@@ -225,10 +225,14 @@ install_package_patches() {
     #
     # becomes:
     #
-    #   openwrt/package/system/<pkg>/patches/
+    #   openwrt/package/msm8916/<pkg>/patches/
+    #
+    # (install_packages() copies the project packages to package/msm8916, so
+    # that is where the patches have to land. The package/system fallback is
+    # for a package that shadows an upstream one of the same name.)
     #
 
-    local pkg
+    local pkg dst
 
     for pkg in "$PACKAGES_DIR"/*; do
 
@@ -236,19 +240,23 @@ install_package_patches() {
 
         pkg="$(basename "$pkg")"
 
-        [ -d "$OPENWRT_DIR/package/system/$pkg" ] || {
-            die "OpenWrt package not found: package/system/$pkg"
+        dst="$OPENWRT_DIR/package/msm8916/$pkg"
+
+        [ -d "$dst" ] || dst="$OPENWRT_DIR/package/system/$pkg"
+
+        [ -d "$dst" ] || {
+            die "OpenWrt package not found: $pkg"
         }
 
         info "Installing $pkg patches..."
 
-        rm -rf "$OPENWRT_DIR/package/system/$pkg/patches"
+        rm -rf "$dst/patches"
 
-        mkdir -p "$OPENWRT_DIR/package/system/$pkg/patches"
+        mkdir -p "$dst/patches"
 
         cp -a \
             "$PACKAGES_DIR/$pkg/patches/." \
-            "$OPENWRT_DIR/package/system/$pkg/patches/"
+            "$dst/patches/"
 
     done
 }
