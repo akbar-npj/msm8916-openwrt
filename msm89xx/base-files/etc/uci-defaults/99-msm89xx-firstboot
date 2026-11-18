@@ -34,10 +34,10 @@ uci -q del_list network.@device[0].ports='eth0' 2>/dev/null || true
 uci -q del_list network.@device[0].ports='usb0' 2>/dev/null || true
 uci add_list network.@device[0].ports='usb0'
 
-# bridge_empty is not set here: uci-usb-gadget sets it on the bridge's device
-# section when the gadget comes up, for every board, because every board has
-# the same S20/S99 race (usb0 is the bridge's only port).  A board that never
-# runs the gadget keeps the plain bridge.
+# BOARDS: all - bridge_empty is not set here: uci-usb-gadget sets it on the
+# bridge's device section when the gadget comes up, because every board has the
+# same S20/S99 race (usb0 is the bridge's only port).  A board that never runs
+# the gadget keeps the plain bridge.
 
 sed -i \
     's/"device": "eth0"/"device": "br-lan"/g' \
