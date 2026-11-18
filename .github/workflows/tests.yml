@@ -68,6 +68,9 @@ jobs:
       - name: hotfix-scope
         run: bash tests/hotfix-scope/run.sh --self-check
 
+      - name: apk-flag-guard
+        run: bash tests/apk-flag-guard/run.sh --self-check
+
       - name: board-profile
         env:
           BASE_REF: ${{ github.base_ref }}
