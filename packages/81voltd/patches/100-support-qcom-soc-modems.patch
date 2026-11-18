@@ -1,0 +1,32 @@
+diff --git a/qvd-modem.c b/qvd-modem.c
+index efee61f..ee1b27e 100644
+--- a/qvd-modem.c
++++ b/qvd-modem.c
+@@ -5,6 +5,7 @@
+ 
+ #include <gio/gio.h>
+ #include <glib.h>
++#include <stdbool.h>
+ #include <libmm-glib.h>
+ #include <ModemManager-enums.h>
+ #include <stdio.h>
+@@ -206,7 +207,8 @@ static void on_object_added(QVDConnection *conn,
+ 
+ 	for (i = 0; i < n_ports; i++) {
+ 		if (ports[i].type == MM_MODEM_PORT_TYPE_QMI
+-		 && !strcmp(ports[i].name, "qrtr0")) {
++		 && (!strcmp(ports[i].name, "qrtr0") ||
++		     !g_strcmp0(mm_modem_get_plugin(modem), "qcom-soc"))) {
+ 			is_qrtr = TRUE;
+ 			break;
+ 		}
+@@ -278,7 +280,8 @@ static void find_modem(gpointer memb, gpointer data)
+ 
+ 	for (i = 0; i < n_ports; i++) {
+ 		if (ports[i].type == MM_MODEM_PORT_TYPE_QMI
+-		 && !strcmp(ports[i].name, "qrtr0")) {
++		 && (!strcmp(ports[i].name, "qrtr0") ||
++		     !g_strcmp0(mm_modem_get_plugin(modem), "qcom-soc"))) {
+ 			is_qrtr = TRUE;
+ 			break;
+ 		}
