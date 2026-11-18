@@ -1,0 +1,2 @@
+config settings 'settings'
+	option dismissed_count '0'

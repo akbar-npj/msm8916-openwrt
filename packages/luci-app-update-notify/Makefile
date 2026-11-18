@@ -6,9 +6,15 @@ LUCI_DEPENDS:=+luci-base +rpcd-mod-file
 LUCI_PKGARCH:=all
 
 PKG_VERSION:=1.0
-PKG_RELEASE:=15
+PKG_RELEASE:=16
 PKG_MAINTAINER:=akbar-npj
 PKG_LICENSE:=GPL-2.0-only
+
+# The dismissal lives here; without this an upgrade would ship the default
+# dismissed_count=0 over it and the banner would come back.
+define Package/luci-app-update-notify/conffiles
+/etc/config/update-notify
+endef
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
