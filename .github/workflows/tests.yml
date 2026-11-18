@@ -58,6 +58,12 @@ jobs:
       - name: modem-watchdog
         run: bash tests/modem-watchdog/run.sh --self-check
 
+      - name: qcom-carrier-autocfg
+        run: bash tests/qcom-carrier-autocfg/run.sh --self-check
+
+      - name: update-notice
+        run: bash tests/update-notice/run.sh --self-check
+
       - name: apk-overlay-heal
         run: bash tests/apk-overlay-heal/run.sh --self-check
 
