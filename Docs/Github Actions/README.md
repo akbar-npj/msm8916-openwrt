@@ -574,6 +574,7 @@ curl -fsS https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6-r4/hotfix
 | `is already a production release` | it was promoted already; re-cutting needs a new version |
 | `base-files floor is N but … is already published` | the hotfix channel moved past the image line — bump `BASE_FILES_RELEASE_FLOOR` (section 7) |
 | `Cannot read …/published-versions.json` | the high-water mark does not exist yet — publish any package once, or check gh-pages |
+| a PR is `BLOCKED` with an empty `statusCheckRollup`, and `gh pr checks` says *no checks reported* | GitHub has not created the `pull_request` check suite yet. `push` runs are unaffected, so it is not the runner queue — dispatch it: `gh workflow run tests.yml --ref <branch>` |
 
 ---
 
