@@ -13,13 +13,14 @@ what it can map, and writes the board DTS plus the plumbing.
 Nothing is written without --write, and every mapping it cannot make with
 confidence is left as a TODO in the generated DTS instead of being guessed.
 
-Run from the repository root.  Requires dtc/fdtget (already used by the
-build host).
+Run from the repository root.  Needs dtc, and only for a .dts input (a .dtb is
+parsed in-process).
 """
 
 import argparse
 import os
 import re
+import struct
 import subprocess
 import sys
 import tempfile
@@ -68,10 +69,117 @@ def sh(cmd, check=True):
     return p
 
 
+class Fdt:
+    """The parts of a flattened device tree the scaffolder asks about.
+
+    Parsed once, in-process.  Asking fdtget for one node or one property at a
+    time meant about 28 000 processes on a full vendor DTB -- 11 seconds, most
+    of it the kernel looking for fdtget on PATH -- for a tree that is 200 kB.
+    The format is a header and four kinds of record, so reading it directly is
+    shorter than the retry logic it replaces and has no external dependency.
+    """
+
+    MAGIC = b"\xd0\x0d\xfe\xed"
+
+    def __init__(self, path):
+        with open(path, "rb") as fh:
+            blob = fh.read()
+
+        if len(blob) < 28 or blob[:4] != self.MAGIC:
+            die("%s is not a device tree blob" % path)
+
+        _magic, _total, off_struct, off_strings = struct.unpack_from(">4I", blob, 0)
+
+        # path -> {"props": {name: bytes}, "children": [name, ...]}, children in
+        # the order the blob lists them, which is the order fdtget printed them.
+        self.nodes = {"/": {"props": {}, "children": []}}
+
+        strings = blob[off_strings:]
+        cur = "/"
+        stack = [cur]
+        pos = off_struct
+        ended = False
+
+        while pos + 4 <= len(blob):
+            token = struct.unpack_from(">I", blob, pos)[0]
+            pos += 4
+
+            if token == 1:  # FDT_BEGIN_NODE
+                end = blob.find(b"\0", pos)
+                if end < 0:
+                    die("%s is truncated (unterminated node name)" % path)
+                name = blob[pos:end].decode("utf-8", "replace")
+                pos = (end + 4) & ~3
+                if name:
+                    parent = cur
+                    cur = parent.rstrip("/") + "/" + name
+                    self.nodes.setdefault(cur, {"props": {}, "children": []})
+                    self.nodes[parent]["children"].append(name)
+                stack.append(cur)
+
+            elif token == 2:  # FDT_END_NODE
+                if len(stack) > 1:
+                    stack.pop()
+                cur = stack[-1]
+
+            elif token == 3:  # FDT_PROP
+                if pos + 8 > len(blob):
+                    die("%s is truncated (property header)" % path)
+                length, nameoff = struct.unpack_from(">2I", blob, pos)
+                pos += 8
+                if pos + length > len(blob):
+                    die("%s is truncated (property value)" % path)
+                value = blob[pos:pos + length]
+                pos = (pos + length + 3) & ~3
+                nul = strings.find(b"\0", nameoff)
+                if nul < 0:
+                    die("%s has a property name offset past the string block" % path)
+                prop = strings[nameoff:nul].decode("ascii", "replace")
+                self.nodes[cur]["props"][prop] = value
+
+            elif token == 4:  # FDT_NOP
+                continue
+
+            elif token == 9:  # FDT_END
+                ended = True
+                break
+
+            else:
+                die("%s has an unknown device tree token %d" % (path, token))
+
+        if not ended:
+            die("%s is truncated (no end-of-tree token)" % path)
+
+    def child_names(self, path):
+        node = self.nodes.get(path)
+        return node["children"] if node else None
+
+    def string(self, path, prop):
+        """What `fdtget -t s` printed: a string list joined with spaces."""
+        node = self.nodes.get(path)
+        if not node:
+            return None
+        raw = node["props"].get(prop)
+        if raw is None:
+            return None
+        parts = [p for p in raw.split(b"\0") if p]
+        return " ".join(p.decode("utf-8", "replace") for p in parts)
+
+    def cells(self, path, prop):
+        """What `fdtget -t x` printed, as integers."""
+        node = self.nodes.get(path)
+        if not node:
+            return None
+        raw = node["props"].get(prop)
+        if not raw or len(raw) % 4:
+            return None
+        return list(struct.unpack(">%dI" % (len(raw) // 4), raw))
+
+
 def to_dtb(path):
-    """Return (dtb_path, cleanup) for a .dtb or a decompiled .dts."""
+    """Return (fdt, cleanup) for a .dtb or a decompiled .dts."""
     if path.endswith(".dtb"):
-        return path, None
+        return Fdt(path), None
     tmp = tempfile.NamedTemporaryFile(suffix=".dtb", delete=False)
     tmp.close()
     p = sh(["dtc", "-I", "dts", "-O", "dtb", "-o", tmp.name, path], check=False)
@@ -79,7 +187,7 @@ def to_dtb(path):
         os.unlink(tmp.name)
         die("%s is not compilable as a standalone DTS (includes?):\n%s\n"
             "Pass the .dtb from the stock firmware instead." % (path, p.stderr.strip()))
-    return tmp.name, tmp.name
+    return Fdt(tmp.name), tmp.name
 
 
 def walk(dtb):
@@ -88,10 +196,10 @@ def walk(dtb):
     todo = ["/"]
     while todo:
         path = todo.pop()
-        p = sh(["fdtget", "-l", dtb, path], check=False)
-        if p.returncode != 0:
+        names = dtb.child_names(path)
+        if not names:
             continue
-        for name in p.stdout.split():
+        for name in names:
             child = path.rstrip("/") + "/" + name
             out.append((child, name))
             todo.append(child)
@@ -99,17 +207,11 @@ def walk(dtb):
 
 
 def sget(dtb, path, prop):
-    p = sh(["fdtget", "-t", "s", dtb, path, prop], check=False)
-    if p.returncode != 0:
-        return None
-    return p.stdout.strip()
+    return dtb.string(path, prop)
 
 
 def xget(dtb, path, prop):
-    p = sh(["fdtget", "-t", "x", dtb, path, prop], check=False)
-    if p.returncode != 0:
-        return None
-    return [int(v, 16) for v in p.stdout.split()]
+    return dtb.cells(path, prop)
 
 
 def compat_list(dtb, path="/"):
