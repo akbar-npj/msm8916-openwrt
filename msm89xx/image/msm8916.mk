@@ -168,8 +168,9 @@ define Device/generic-uf896
     SUPPORTED_DEVICES := uf896,v1.1
     FILESYSTEMS   := squashfs
     # Batteryless UFI-family stick (same 4 GB eMMC as ufi003); the build
-    # default GPT_TOT_SECTORS is used.  flash.sh reads the real size at
-    # flash time, so a mismatch only leaves a little unused space.
+    # default GPT_TOT_SECTORS is used.  flash.sh refuses to write a table that
+    # does not fit the medium, so a unit with the smaller eMMC population stops
+    # before the first write instead of being left in EDL (#71).
     # qmi-utils provides qmicli, needed by etc/init.d/uf896-modem-online
     # to switch the modem out of factory-test mode at boot.
     DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
