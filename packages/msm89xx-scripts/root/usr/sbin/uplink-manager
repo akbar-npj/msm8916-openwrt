@@ -12,7 +12,10 @@
 # active link's DNS.  If this manager dies, the netifd + dhcp routes still give
 # modem-first service (modem 50 < STA 100).
 
-. /lib/functions.sh
+# config_load/config_get live here.  Guarded so the file can be sourced by
+# tests/uplink-manager on a host without an OpenWrt rootfs; on a device the
+# library is always present (base-files owns it).
+[ -r /lib/functions.sh ] && . /lib/functions.sh
 
 PIDFILE=/var/run/uplink-manager.pid
 JSON=/tmp/uplink.json
@@ -41,6 +44,18 @@ load_config() {
 	config_get dns_override general sta_dns ""
 }
 
+# The shipped default used to be 8.8.8.8 8.8.4.4, which overrode whatever the
+# upstream AP handed out in its lease -- the same defect as the modem-side pair
+# fixed in #112, one layer down.  Drop exactly that value once and only once;
+# any other value is the operator's own and is left alone.  This runs before
+# the first load_config so the daemon never applies the old pair even briefly.
+migrate_shipped_dns() {
+	[ "$(uci -q get uplink.general.sta_dns)" = "8.8.8.8 8.8.4.4" ] || return 0
+	uci -q delete uplink.general.sta_dns
+	uci commit uplink
+	logger -t uplink "removed the shipped sta_dns default 8.8.8.8 8.8.4.4; the lease DNS is used"
+}
+
 modem_ok=0; modem_dev=""; modem_gw=""
 sta_ok=0; sta_dev=""; sta_gw=""; sta_dns=""
 modem_good=0; modem_bad=0; sta_good=0; sta_bad=0
@@ -56,8 +71,52 @@ read_modem() {
 	up=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)
 	[ "$up" = "true" ] || return
 	modem_dev=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)
-	modem_gw=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.route[@.target="0.0.0.0/0"].nexthop' 2>/dev/null | head -1)
+	# netifd reports a default route as target 0.0.0.0 with mask 0, not as
+	# 0.0.0.0/0.  Matching the CIDR form returned nothing, so modem_gw was
+	# always empty and the modem was never considered at all (#121).
+	modem_gw=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@.route[@.target="0.0.0.0"].nexthop' 2>/dev/null | head -1)
 	[ -n "$modem_dev" ] && [ -n "$modem_gw" ] && modem_ok=1
+}
+
+# Delete every default route on a device except the one at a given metric.
+# $1 = device, $2 = metric to keep.  The route is rebuilt from the fields
+# "ip route show" printed, because the metric is part of the route key and has
+# to be named explicitly to delete that one route and no other.
+drop_defaults_except() {
+	local dev="$1" keep="$2" line gw met
+	ip -4 route show default dev "$dev" 2>/dev/null | while read -r line; do
+		met=$(printf '%s\n' "$line" | sed -n 's/.* metric \([0-9][0-9]*\).*/\1/p')
+		[ "$met" = "$keep" ] && continue
+		gw=$(printf '%s\n' "$line" | sed -n 's/.* via \([^ ]*\).*/\1/p')
+		if [ -n "$gw" ]; then
+			set -- default via "$gw" dev "$dev"
+		else
+			set -- default dev "$dev"
+		fi
+		[ -n "$met" ] && set -- "$@" metric "$met"
+		ip route del "$@" 2>/dev/null
+	done
+}
+
+# netifd installs the modem default at network.modem.metric, which
+# carrier-autocfg sets to 10.  That sits BELOW the STA override at 40, so the
+# override could never win, and because the metric is part of the route key
+# "ip route replace" with a different one adds a second default instead of
+# moving the first -- the two defaults via wwan0 in #121.  Install ours at
+# modem_metric, then drop the others.  Ours goes in first so there is never a
+# window without a default route.
+normalize_modem_route() {
+	local have n
+	have="$(ip -4 route show default dev "$modem_dev" 2>/dev/null)"
+	n=$(printf '%s\n' "$have" | grep -c .)
+	# Already exactly one default at our metric: leave it alone.  Replacing it
+	# every cycle would drop the "src" hint netifd attached, for no gain.
+	if [ "$n" = "1" ] &&
+	   printf '%s\n' "$have" | sed -n 's/.* metric \([0-9][0-9]*\).*/\1/p' | grep -qx "$modem_metric"; then
+		return 0
+	fi
+	ip route replace default via "$modem_gw" dev "$modem_dev" metric "$modem_metric" 2>/dev/null || return 0
+	drop_defaults_except "$modem_dev" "$modem_metric"
 }
 
 read_sta() {
@@ -120,13 +179,13 @@ cycle() {
 
 	# Normalize the modem default route to our metric (no traffic interruption).
 	if [ "$modem_ok" = 1 ]; then
-		ip route show default 2>/dev/null | grep -q "via $modem_gw dev $modem_dev" && 			ip route replace default via "$modem_gw" dev "$modem_dev" metric "$modem_metric"
+		normalize_modem_route
 	fi
 
 	# STA candidate route tracks policy + presence.
 	if [ "$sta_ok" = 1 ] && [ "$policy" != "modem" ]; then
 		ip route replace default via "$sta_gw" dev "$sta_dev" metric "$sta_metric"
-	else
+	elif [ -n "$sta_dev" ]; then
 		ip route del default metric "$sta_metric" dev "$sta_dev" 2>/dev/null
 	fi
 
@@ -159,10 +218,17 @@ cycle() {
 	write_json
 }
 
+# tests/uplink-manager sources this file to exercise the route logic against a
+# stub ip/ubus; stop before the daemon loop in that case.
+if [ "$UPLINK_MANAGER_LIB_ONLY" = "1" ]; then
+	return 0 2>/dev/null || exit 0
+fi
+
 wake=0
 reload=0
 trap 'wake=1; reload=1' USR1
 
+migrate_shipped_dns
 load_config
 
 while true; do
