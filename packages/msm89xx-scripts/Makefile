@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm89xx-scripts
 PKG_VERSION:=1.0
-PKG_RELEASE:=20
+PKG_RELEASE:=21
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=akbar-npj
@@ -46,6 +46,7 @@ endef
 
 define Package/$(PKG_NAME)/conffiles
 /etc/config/leds
+/etc/config/uplink
 endef
 
 define Package/$(PKG_NAME)/install

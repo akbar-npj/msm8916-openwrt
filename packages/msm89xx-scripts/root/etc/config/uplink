@@ -7,4 +7,6 @@ config uplink 'general'
 	option fail_threshold '3'
 	option recover_threshold '2'
 	option override_metric '40'
-	option sta_dns '8.8.8.8 8.8.4.4'
+	# sta_dns is deliberately unset: the DNS servers the upstream AP hands out
+	# in its lease are used.  Set it only to force specific resolvers, e.g.
+	#	option sta_dns '1.1.1.1 9.9.9.9'
