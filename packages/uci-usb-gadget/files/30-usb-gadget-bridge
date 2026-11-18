@@ -1,0 +1,38 @@
+#!/bin/sh
+# BOARDS: all
+#
+# usb0 is created by the gadget at S99, after netifd has already built (or
+# failed to build) br-lan at S20.  usb-gadget sets bridge_empty so the bridge
+# exists anyway, and ensure_bridge re-attaches at build time -- this is the
+# third layer, for the interface appearing at any other moment: a manual
+# `usb-gadget stop/start`, a probe rebuild, or netifd recreating the bridge
+# and losing its ports.
+#
+# Deliberately narrow: attach only, never `ifup lan`.  bring-up is netifd's
+# job and doing it from a hotplug handler races the reload that usb-gadget
+# has just issued.  A missing bridge is therefore not an error here.
+
+[ "$ACTION" = "add" ] || exit 0
+[ -n "$INTERFACE" ] || exit 0
+
+# The gadget's netdev is usb0 (rndis.usb0, ncm.usb0 and ecm.usb0 all present
+# as usb0).  Anything else on this box is not ours to touch.
+case "$INTERFACE" in
+	usb*) ;;
+	*) exit 0 ;;
+esac
+
+[ "$(uci -q get usbgadget.usb.enabled)" = "1" ] || exit 0
+
+[ -d "/sys/class/net/$INTERFACE" ] || exit 0
+[ -d /sys/class/net/br-lan ] || exit 0
+
+# Already a port: nothing to do.  This also makes the handler idempotent when
+# the board still carries the base-files jz02 rule.
+[ -d "/sys/class/net/br-lan/brif/$INTERFACE" ] && exit 0
+
+ip link set "$INTERFACE" master br-lan 2>/dev/null ||
+	brctl addif br-lan "$INTERFACE" 2>/dev/null ||
+	logger -t usb-gadget "could not attach $INTERFACE to br-lan"
+
+exit 0
