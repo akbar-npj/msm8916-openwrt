@@ -108,6 +108,24 @@ hosts without one. Enabling both is the only way to be certain a host finds
 something it can bind, but a host that can bind both then shows two adapters
 on one subnet, so it is not the default.
 
+##### A Windows host that falls back to 169.254.x.x on the first plug
+
+`auto` has one host-side cost, measured on a Windows 10 machine. The host binds
+the first (NCM) enumeration, the probe rebuilds to RNDIS five seconds later, and
+Windows keeps the cached adapter for the dead instance: its media state does not
+refresh, it stops retrying DHCP after a handful of DISCOVERs and falls back to
+APIPA. The device looks healthy throughout — `brif` already contains `usb0`,
+`br-lan` already has its address, and the DHCP counters stay at zero — which is
+what makes it look like a bridge problem.
+
+Disabling and re-enabling the adapter fixes it instantly, because that hands the
+stack a fresh media event. `net_mode='rndis'` avoids it entirely: one
+enumeration, no rebuild. Use `rndis` on a host that behaves this way, and clear
+the cached lease before re-testing, or the counters will show a renewal
+(`discover=0 request=3 ack=3`) instead of a first-time attach. `auto` remains
+the right default everywhere else, because it keeps NCM for Linux, macOS and
+Windows 11.
+
 #### RNDIS (Windows Ethernet)
 
 ```bash

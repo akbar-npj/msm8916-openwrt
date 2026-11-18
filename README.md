@@ -427,6 +427,18 @@ The WCN36xx 2.4 GHz radio comes up automatically on first boot and broadcasts an
 * **Multi-SSID** is supported: up to **two AP interfaces** on the same radio (for example a main SSID and a guest SSID).
 * **Concurrent AP + STA** is supported: the radio keeps beaconing its AP **and** joins another network as a client. Configure it from **Network → Station Mode** (or `/etc/config/wifista`) — see [Concurrent AP+STA and the Station Mode LuCI app](Docs/WiFi/AP_STA_AND_LUCI_APP.md). The station is created by a service **after** the AP is up; it is deliberately *not* a `wifi-iface`, because netifd restarts the phy on every wireless change and a phy restart with a station interface configured crashes the WCNSS firmware.
 
+> [!WARNING]
+> **Do not disable U-APSD.** Leave `wireless.default_radio0.uapsd_advertisement_enabled` at `1`.
+> With it off, an Android client falls back to legacy PS-Poll: the AP buffers frames until the DTIM
+> and the client wakes in a narrow window, which pins the link at MCS0 and gives second-scale
+> latency. The misleading part is that `tx retries`, `tx failed` and interface drops all stay at
+> **zero** — nothing is being retried, the frames are simply waiting for the client's next wake
+> window. Measured on one UFI003, same phone, same spot, same traffic: with `uapsd=0`, ping loss
+> AP→phone 16–100 % and RTT 2.8–3.8 s at 6.5 Mbit/s MCS0; with `uapsd=1`, 0 % loss over 9/9 samples
+> across 5 minutes, RTT 4–93 ms, 65–72 Mbit/s MCS7. A re-association clears the symptom, so it looks
+> fixed for a few minutes and sends you looking at rate control, RF and the driver instead of the
+> flag you changed.
+
 > [!NOTE]
 > Saving anything under *Network → Wireless* restarts the phy — the very thing that crashes the firmware. That is handled: netifd's wireless driver is wrapped by `wifi-sta-guard` (`openwrt-patches/811`), which stops the station before the phy is touched and restarts it afterwards, so **`wifi reload` and Save & Apply are safe with station mode up**. Only a radio reset that bypasses netifd (a raw `iw dev del`, `rmmod wcn36xx`, a driver rebind) still needs the manual sequence:
 > ```sh
@@ -666,17 +678,22 @@ This repository hosts a live APK feed on GitHub Pages with all pre-compiled Qual
 
 The feed is **signed with a pinned key**. Every image ships the matching public key and a boot service (`apk-key-refresh`) that re-syncs it from a stable URL, so a device flashed with an older image can never be left rejecting the feed with `UNTRUSTED signature`.
 
-### Enable Custom Feeds on Device
+### Package Feeds (already configured)
+
+Every feed URL this project serves is written into
+`/etc/apk/repositories.d/distfeeds.list` at build time, from the release the
+image was built for, so a device tracks its own release with no help:
 
 ```bash
-cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/packages/packages.adb
-EOF
-
 apk update
+cat /etc/apk/repositories.d/distfeeds.list
 ```
+
+`customfeeds.list` is the upstream placeholder for feeds *you* add, and
+`msm89xx-customfeeds.list` carries the upstream `download.openwrt.org` packages
+(telephony, video, …). Do not add this project's URLs to `customfeeds.list` by
+hand: they are already in `distfeeds.list`, and a hand-copied line pins one
+release version and silently stops tracking it at the next firmware update.
 
 ### Install Extra Drivers & Packages
 
@@ -702,6 +719,21 @@ apk upgrade luci-app-firmware-upgrade  # the upgrade page
 ```
 
 CI rebuilds the one changed package against the **same toolchain and kernel** as the released firmware, splices it into this feed and re-signs the index with the pinned key — so no repository line and no key ever change on the device. `luci-app-update-notify` puts a *"N package updates are available"* notice on the dashboard.
+
+`apk upgrade` also ends with an error that is expected, not a fault:
+
+```
+The following packages are no longer available from a repository:
+  base-files
+1 error; 309 packages
+```
+
+`base-files` is pinned in `/etc/apk/world` (every OpenWrt image does this) and the
+shared feed deliberately does not carry it, so a device on an older revision is
+never offered an update it cannot apply. The upgrades listed above the message
+are still applied — only the exit status is affected. Do **not** reach for
+`apk upgrade --prune` to silence it: apk treats the unavailable `base-files` as
+prunable and deletes it.
 
 What a hotfix **cannot** carry is anything baked into the image — the kernel, a driver, a preinit hook, `base-files`. Those need a firmware release, which the device then installs itself (see [Upgrading from the device](#-upgrading-from-the-device-r3-and-later)). The full process is in [Releases & Hotfixes](https://github.com/akbar-npj/msm8916-openwrt/wiki/How-Releases-and-Hotfixes-Work).
 
