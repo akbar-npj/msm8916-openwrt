@@ -10,8 +10,11 @@
 # read-only by default, one full --write, and the refusals that keep it from
 # clobbering an existing board.
 #
-# Needs dtc and fdtget (device-tree-compiler).  --self-check mutates the tool
-# and requires a targeted check to go red for each mutant.
+# Needs dtc, for the .dts input path only: a .dtb is parsed in-process, which
+# is also why one of the checks asserts that fdtget is never invoked.  Asking
+# fdtget for one property at a time was 28 000 processes and 11 s per run.
+# --self-check mutates the tool and requires a targeted check to go red for
+# each mutant.
 
 set -uo pipefail
 
@@ -26,8 +29,8 @@ fail=0
 ok() { pass=$((pass + 1)); printf '  ok   %s\n' "$*"; }
 bad() { fail=$((fail + 1)); printf '  FAIL %s\n' "$*"; }
 
-if ! command -v dtc >/dev/null 2>&1 || ! command -v fdtget >/dev/null 2>&1; then
-	printf 'new-board-tool: dtc/fdtget missing (install device-tree-compiler)\n' >&2
+if ! command -v dtc >/dev/null 2>&1; then
+	printf 'new-board-tool: dtc missing (install device-tree-compiler)\n' >&2
 	exit 2
 fi
 [ -f "$DTB" ] || {
@@ -116,6 +119,36 @@ t_badref() {
 	lacks "the refusal is not a traceback" "Traceback"
 }
 
+t_dts() {
+	scratch
+	dtc -I dtb -O dts "$DTB" -o "$TREE/probe.dts" 2>/dev/null
+	run_tool --dtb "$TREE/probe.dts" --name probe --inspect
+	expect "a .dts input works" 0
+	has "the .dts input reports the same compatible" "qcom,msm8916-mtp"
+	has "the .dts input reports the battery" "battery   yes"
+}
+
+# The tree is read in-process.  If a per-property fdtget call ever comes back,
+# the tool still works -- it just takes eleven seconds -- so nothing else here
+# would notice.  This does.
+t_no_fdtget() {
+	scratch
+	mkdir -p "$TREE/shim"
+	cat >"$TREE/shim/fdtget" <<EOF
+#!/bin/sh
+echo "\$*" >>"$TREE/shim/calls"
+exit 1
+EOF
+	chmod +x "$TREE/shim/fdtget"
+	PATH="$TREE/shim:$PATH" run_tool --dtb "$DTB" --name probe --inspect
+	expect "inspect still exits 0 without fdtget" 0
+	if [ -s "$TREE/shim/calls" ]; then
+		bad "the tool never calls fdtget"
+	else
+		ok "the tool never calls fdtget"
+	fi
+}
+
 t_write() {
 	scratch
 	run_tool --dtb "$DTB" --name probe --reference mifib-v12 --write --no-branch --no-validate
@@ -159,6 +192,8 @@ suite() {
 	t_nomode
 	t_nameless
 	t_badref
+	t_dts
+	t_no_fdtget
 	t_write
 	t_twice
 }
