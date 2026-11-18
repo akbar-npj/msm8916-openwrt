@@ -15,7 +15,7 @@ define Package/$(PKG_NAME)
 	SECTION:=utils
 	CATEGORY:=Utilities
 	TITLE:=LED monitors, clock/timezone and station-mode helpers for the msm89xx boards
-	DEPENDS:=+procd +jsonfilter +ip
+	DEPENDS:=+procd +dbus-utils
 	PKGARCH:=all
 endef
 
