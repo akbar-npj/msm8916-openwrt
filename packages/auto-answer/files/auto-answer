@@ -1,0 +1,264 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+
+audio=/etc/auto-answer/greeting.opus
+helper=/usr/libexec/auto-answer-hold
+recordings=${1:-/root/voice-recordings}
+max_recording_seconds=${2-300}
+max_recording_file_kib=${3-512}
+recording_budget_kib=${4-2048}
+max_storage_kib=${5-16384}
+min_free_kib=${6-4096}
+call=
+hold=
+recorder=
+encoder=
+recording=
+caller_id=unknown
+card=
+
+log() { logger -t auto-answer "$*"; }
+mixer() { amixer -q -c "$card" sset "$@"; }
+
+validate_limit() {
+	case "$2" in
+		''|0*|*[!0-9]*|??????????*)
+			log "$1 must be an integer from 1 to 999999999 without leading zeros"
+			return 1
+			;;
+	esac
+}
+
+check_recording_storage() {
+	local usage free
+
+	mkdir -p "$recordings" || return 1
+	[ -n "$(find "$recordings" -maxdepth 0 -type d -user root -perm 0700 -print)" ] || {
+		log 'Recording directory must be owned by root with mode 0700'
+		return 1
+	}
+	usage=$(du -sk "$recordings") || return 1
+	usage=${usage%%[[:space:]]*}
+	free=$(LC_ALL=C df -Pk "$recordings") || return 1
+	free=$(printf '%s\n' "$free" | awk 'NR == 2 {print $4}')
+	if ! [ "$usage" -le "$((max_storage_kib - recording_budget_kib))" ] ||
+		! [ "$free" -ge "$((min_free_kib + recording_budget_kib))" ]; then
+		log 'Insufficient recording storage or filesystem free space'
+		return 1
+	fi
+}
+
+call_state() {
+	LC_ALL=C timeout 4 mmcli -o "$call" -K 2>/dev/null |
+		awk '$1 == "call.properties.state" {print $NF; exit}'
+}
+
+list_calls() {
+	LC_ALL=C timeout 5 mmcli -m qcom-soc --voice-list-calls 2>/dev/null
+}
+
+read_caller_id() {
+	local number digits
+
+	number=$(LC_ALL=C timeout 4 mmcli -o "$call" -K 2>/dev/null |
+		awk '$1 == "call.properties.number" && $2 == ":" && NF == 3 {print $3; exit}')
+	digits=${number#+}
+	case "$digits" in
+		''|*[!0-9]*) return ;;
+	esac
+	[ "${#digits}" -le 32 ] && caller_id="$number"
+}
+
+# Bound cleanup even if a child gets stuck in an audio or filesystem syscall.
+reap_child() {
+	local pid="$1" grace="$2" elapsed=0
+
+	while kill -0 "$pid" 2>/dev/null && [ "$elapsed" -lt "$grace" ]; do
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+	if kill -0 "$pid" 2>/dev/null; then
+		kill -KILL "$pid" 2>/dev/null
+		return 1
+	fi
+	wait "$pid"
+}
+
+finish_recording() {
+	[ -n "$recording" ] || return 0
+	exec 7<&- 8>&- 9>&-
+	if [ -n "$recorder" ]; then
+		kill -INT "$recorder" 2>/dev/null
+		reap_child "$recorder" 3 2>/dev/null
+		recorder=
+	fi
+	if [ -n "$encoder" ]; then
+		# Closing the PCM writer sends EOF so opusenc can finalize the stream.
+		local name="${recording##*/.}"
+		local destination="${recording%/*}/${name%-*}-$caller_id-${name##*-}.opus"
+		if reap_child "$encoder" 5 && [ -s "$recording/audio.opus" ] &&
+			mv "$recording/audio.opus" "$destination" 2>/dev/null; then
+			log 'Saved caller audio'
+		else
+			log 'Could not finalize Opus recording'
+		fi
+		encoder=
+	fi
+	rm -f "$recording/pcm" "$recording/audio.opus"
+	rmdir "$recording"
+	recording=
+}
+
+release_call() {
+	local calls
+
+	[ -n "$call" ] || return 0
+	# Hangup also rejects a ringing call while an accept request is pending.
+	if { timeout 6 mmcli -o "$call" --hangup >/dev/null 2>&1 ||
+		[ "$(call_state)" = terminated ]; } &&
+		timeout 5 mmcli -m qcom-soc --voice-delete-call="$call" >/dev/null 2>&1; then
+		call=
+		return 0
+	fi
+	# A failed hangup can race with remote hangup or modem removal.
+	# Keep the path for retry unless a fresh call list confirms it is gone.
+	calls=$(list_calls) || return 1
+	if printf '%s\n' "$calls" | awk -v path="$call" '$1 == path { found=1 } END { exit !found }'; then
+		return 1
+	fi
+	call=
+}
+
+cleanup() {
+	local call_result=0
+
+	release_call || call_result=$?
+	finish_recording
+	if [ -n "$card" ]; then
+		mixer 'Voice Record' Off
+		mixer 'MultiMedia1 Mixer VOC_REC_DL' off
+		mixer 'Voice Playback' off
+		mixer 'Voice Tx Mute' off
+		mixer 'VOICE_PLAYBACK_TX Audio Mixer MultiMedia2' off
+	fi
+	if [ -n "$hold" ]; then
+		kill "$hold" 2>/dev/null
+		reap_child "$hold" 2 2>/dev/null
+		hold=
+	fi
+	caller_id=unknown
+	card=
+	return "$call_result"
+}
+
+answer_and_record() {
+	local incoming="$1" devices voice playback capture state i missed
+
+	card=$(awk '/msm8916-voice/ {print $1; exit}' /proc/asound/cards)
+	[ -n "$card" ] && [ -s "$audio" ] && [ -x "$helper" ] || return 1
+	command -v opusenc >/dev/null && command -v opusdec >/dev/null || return 1
+	devices=$(aplay -l) || return 1
+	voice=$(printf '%s\n' "$devices" | sed -n "s/^card $card:.*device \([0-9][0-9]*\): .*CS-Voice.*/\1/p" | head -1)
+	playback=$(printf '%s\n' "$devices" | sed -n "s/^card $card:.*device \([0-9][0-9]*\): .*MultiMedia2.*/\1/p" | head -1)
+	capture=$(arecord -l | sed -n "s/^card $card:.*device \([0-9][0-9]*\): .*MultiMedia1.*/\1/p" | head -1)
+	[ -n "$voice" ] && [ -n "$playback" ] && [ -n "$capture" ] || return 1
+	check_recording_storage || return 1
+	recording=$(mktemp -d "$recordings/.incoming-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX") || return 1
+	mkfifo "$recording/pcm" || return 1
+	mixer 'Voice Session' VoLTE &&
+		mixer 'CS-Voice Capture Mixer INT_BT_SCO_TX' on &&
+		mixer 'INT_BT_SCO_RX Voice Mixer CS-Voice' on &&
+		mixer 'VOICE_PLAYBACK_TX Audio Mixer MultiMedia2' on &&
+		mixer 'Voice Tx Mute' on || return 1
+
+	# ModemManager may complete the accept after its client has timed out.
+	call="$incoming"
+	timeout 8 mmcli -o "$call" --accept >/dev/null || return 1
+	for i in 1 2 3 4 5; do
+		state=$(call_state)
+		[ "$state" = active ] && break
+		[ "$state" = terminated ] && return 1
+		sleep 1
+	done
+	[ "$state" = active ] || return 1
+	read_caller_id
+
+	"$helper" "hw:$card,$voice" &
+	hold=$!
+	sleep 1
+	kill -0 "$hold" 2>/dev/null || return 1
+	mixer 'Voice Playback' on || return 1
+	(
+		set -o pipefail
+		timeout -k 2 10 opusdec --quiet --no-dither --rate 8000 "$audio" - |
+			timeout -k 2 10 aplay -q -D "hw:$card,$playback" -t raw -f S16_LE -c 1 -r 8000
+	) || return 1
+	mixer 'Voice Playback' off &&
+		mixer 'MultiMedia1 Mixer VOC_REC_DL' on &&
+		mixer 'Voice Record' Downlink || return 1
+	# Open both ends before starting either process. The spare descriptor
+	# keeps the FIFO open while the shell obtains the reader and writer.
+	exec 9<>"$recording/pcm"
+	exec 7<"$recording/pcm" 8>"$recording/pcm"
+	(
+		# BusyBox ash measures this limit in 512-byte blocks.
+		ulimit -f "$((max_recording_file_kib * 2))" || exit 1
+		exec opusenc --quiet --speech --bitrate 12 --raw --raw-rate 8000 --raw-chan 1 \
+			- "$recording/audio.opus"
+	) <&7 7<&- 8>&- 9>&- &
+	encoder=$!
+	arecord -q -D "hw:$card,$capture" -f S16_LE -c 1 -r 8000 -t raw -d "$max_recording_seconds" \
+		>&8 7<&- 8>&- 9>&- &
+	recorder=$!
+	exec 7<&- 8>&- 9>&-
+
+	missed=0
+	while kill -0 "$recorder" 2>/dev/null && kill -0 "$encoder" 2>/dev/null &&
+		kill -0 "$hold" 2>/dev/null; do
+		state=$(call_state)
+		case "$state" in
+			terminated) return 0 ;;
+			'') missed=$((missed + 1)); [ "$missed" -lt 3 ] || return 1 ;;
+			*) missed=0 ;;
+		esac
+		sleep 1
+	done
+	kill -0 "$recorder" 2>/dev/null && return 1
+	local result=0
+	wait "$recorder" || result=$?
+	recorder=
+	return "$result"
+}
+
+umask 077
+case "$recordings" in
+	/*) ;;
+	*) log 'Recording directory must be an absolute path'; exit 1 ;;
+esac
+validate_limit max_recording_seconds "$max_recording_seconds" &&
+	validate_limit max_recording_file_kib "$max_recording_file_kib" &&
+	validate_limit recording_budget_kib "$recording_budget_kib" &&
+	validate_limit max_storage_kib "$max_storage_kib" &&
+	validate_limit min_free_kib "$min_free_kib" || exit 1
+if [ "$max_recording_file_kib" -gt "$recording_budget_kib" ] ||
+	[ "$recording_budget_kib" -gt "$max_storage_kib" ]; then
+	log 'Recording file limit must fit within the recording budget and the total storage limit'
+	exit 1
+fi
+trap 'cleanup || release_call || log "Could not hang up the tracked call before stopping"; exit 0' INT TERM HUP
+log 'Waiting for incoming calls'
+while :; do
+	if [ -n "$call" ]; then
+		release_call
+		sleep 1
+		continue
+	fi
+	incoming=$(list_calls |
+		sed -n 's|^[[:space:]]*\(/org/freedesktop/ModemManager1/Call/[0-9][0-9]*\).* incoming (ringing-in)$|\1|p' |
+		head -1)
+	if [ -n "$incoming" ]; then
+		answer_and_record "$incoming" || log 'Could not complete the incoming call recording'
+		cleanup
+	fi
+	sleep 1
+done

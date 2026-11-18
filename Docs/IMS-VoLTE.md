@@ -179,3 +179,55 @@ voice input and output through the internal SCO mixers, enable
 Keep the capture and playback sides of the hostless PCM open while recording
 MultiMedia1. The test used 8 kHz, mono, signed 16-bit little-endian audio.
 Turn `Voice Record` to `Off` after capture.
+
+## Optional incoming-call greeting
+
+The `auto-answer` package answers incoming calls on the JZ0145, waits two
+seconds, then plays a two-second 1 kHz tone from `greeting.opus`. It then
+records up to five minutes of caller audio by default, then hangs up if the call is
+still active. Recordings are streamed from 8 kHz mono PCM into Ogg Opus at a
+target of 12 kbps and saved under `/root/voice-recordings/` by default.
+Filenames include the UTC timestamp, caller ID (or `unknown`), and a unique
+suffix. The service keeps caller IDs out of its logs.
+
+Set `auto-answer.main.recordings_dir` to an absolute directory path to store
+recordings elsewhere. The service creates a missing directory. An existing
+directory must be owned by root and have mode 0700. After changing the path
+on a running service, commit the UCI change and restart the service.
+
+The limits are UCI options in `auto-answer.main`. Commit changes and restart
+the service to apply them.
+
+| Option | Default | Purpose |
+| --- | ---: | --- |
+| `max_recording_seconds` | 300 | Maximum capture duration in seconds |
+| `max_recording_file_kib` | 512 | Hard size limit for the encoded file in KiB |
+| `recording_budget_kib` | 2048 | Space to budget for the next recording in KiB |
+| `max_storage_kib` | 16384 | Total allocation allowed in the recording directory in KiB |
+| `min_free_kib` | 4096 | Free space to reserve on the destination filesystem in KiB |
+
+Use positive decimal integers without leading zeros. The file limit must
+fit within the recording budget, and the budget must fit within the total
+storage limit. Choose a budget that leaves room for filesystem overhead.
+Before answering, the service checks that existing directory usage plus the
+budget fits within the total storage limit, and that available space covers
+the budget plus the free-space reserve. If either check fails, the call keeps
+ringing. Move or remove old recordings to make space.
+
+Enable it only on a device that should answer incoming calls automatically:
+
+```sh
+uci set auto-answer.main.enabled='1'
+# Optional, for example on a mounted drive:
+# uci set auto-answer.main.recordings_dir='/mnt/usb/voice-recordings'
+uci commit auto-answer
+/etc/init.d/auto-answer enable
+/etc/init.d/auto-answer start
+logread -e auto-answer
+```
+
+Use `/etc/init.d/auto-answer stop` to stop auto-answer immediately. To
+keep it off after reboot, disable the init service and set
+`auto-answer.main.enabled='0'`.
+
+The incoming call test passed on JZ0145.
