@@ -681,6 +681,20 @@ guard_check() {
 
     ok "In sync: msm89xx/ and packages/ match the live OpenWrt tree."
 
+    # The hooks are per-clone (core.hooksPath), so a fresh clone silently runs
+    # without them -- and a hook that is not installed looks exactly like a
+    # hook with nothing to do.
+    if git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+        if [ "$(git -C "$REPO_DIR" config core.hooksPath 2>/dev/null)" != ".githooks" ]; then
+            warn "The repository hooks are not installed: core.hooksPath is not .githooks."
+            warn "  .githooks/pre-push keeps a private branch off the public remote, and"
+            warn "  refuses to publish it while it is behind main."
+            warn "  Install them with: scripts/install-hooks.sh"
+            return 1
+        fi
+        ok "Repository hooks installed (.githooks)."
+    fi
+
     [ "$deep" -eq 1 ] || return 0
 
     msg "Asking make whether a kernel re-prepare is pending..."
