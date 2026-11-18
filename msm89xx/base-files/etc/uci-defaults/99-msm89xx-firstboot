@@ -34,44 +34,28 @@ uci -q del_list network.@device[0].ports='eth0' 2>/dev/null || true
 uci -q del_list network.@device[0].ports='usb0' 2>/dev/null || true
 uci add_list network.@device[0].ports='usb0'
 
-# On the JZ02 the usb0 gadget is created by the gadget init at S99, after
-# network (S20).  Allow the bridge to come up empty and attach the port when
-# the gadget appears.  Scoped to the JZ02: the other boards bring usb0 up
-# before network and do not need an empty bridge.
-case "$(cut -d, -f1 /tmp/sysinfo/board_name 2>/dev/null)" in
-jz02)
-	uci set network.@device[0].bridge_empty='1'
-	;;
-esac
+# bridge_empty is not set here: uci-usb-gadget sets it on the bridge's device
+# section when the gadget comes up, for every board, because every board has
+# the same S20/S99 race (usb0 is the bridge's only port).  A board that never
+# runs the gadget keeps the plain bridge.
 
 sed -i \
     's/"device": "eth0"/"device": "br-lan"/g' \
     /etc/board.json
 
 ###############################################################################
-# Remove the automatically generated target package feed.
+# Package feeds.
 #
-# msm89xx is not an official OpenWrt target, therefore:
-#
-#   https://downloads.openwrt.org/releases/<version>/targets/msm89xx/msm8916/
-#
-# does not exist.
-#
-# The generic package feeds remain intact.
-#
+# distfeeds.list is generated at build time from CONFIG_VERSION_REPO and
+# already carries every URL we serve -- targets, base, luci, packages and
+# routing -- so it tracks the release without any help from us.  This script
+# used to strip the targets line and re-add it to customfeeds.list along with
+# base and packages, which duplicated two repositories (harmless: apk
+# de-duplicates them) and, worse, hardcoded releases/25.12.6, so the next
+# release would have shipped a customfeeds.list pointing at the old feed.
+# customfeeds.list stays as the shipped placeholder; msm89xx-customfeeds.list
+# carries the upstream download.openwrt.org feeds.
 ###############################################################################
-
-sed -i \
-    -e '\|/targets/msm89xx/msm8916/packages|d' \
-    -e '\|/smsmanager/packages.adb|d' \
-    /etc/apk/repositories.d/distfeeds.list \
-    2>/dev/null || true
-
-cat << 'EOF' > /etc/apk/repositories.d/customfeeds.list
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/targets/msm89xx/msm8916/packages/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/base/packages.adb
-https://akbar-npj.github.io/msm8916-openwrt/releases/25.12.6/packages/aarch64_generic/packages/packages.adb
-EOF
 
 # Ensure repository signing key for akbar-npj custom feeds exists.
 #
