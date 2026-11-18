@@ -11,6 +11,12 @@ q6voice from msm8916-mainline (Stephan Gerhold), plus:
 - dts: q6mvm/q6cvs/q6cvp nodes; voice sound card for the UFI sticks
 
 ---
+diff --git a/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
+--- a/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
+@@ -5 +5,2 @@
+ #include "msm8916-ufi.dtsi"
++#include "msm8916-ufi-voice.dtsi"
 diff --git a/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts
 index c991e91..e5267a8 100644
 --- a/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts
