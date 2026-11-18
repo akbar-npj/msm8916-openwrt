@@ -85,8 +85,8 @@ jobs:
       - name: private-guard
         run: bash tests/private-guard/run.sh --self-check
 
-      # The board scaffolder needs dtc and fdtget, which the runner does not
-      # ship.  It reads a vendor DTB and writes five files at once, so a silent
+      # The board scaffolder needs dtc for its .dts input path, and the runner
+      # does not ship it.  The tool writes five files at once, so a silent
       # mistake there produces a board that builds and does not boot.
       - name: new-board-tool
         run: |
