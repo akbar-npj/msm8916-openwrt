@@ -10,16 +10,6 @@
       "published": "2026-11-16"
     },
     {
-      "id": "2026-11-17-msm89xx-scripts",
-      "package": "msm89xx-scripts",
-      "version": "1.0-r20",
-      "title": "led-probe - named role tables, a one-step swap, and a board-matched template",
-      "restart": [
-        "time-sync"
-      ],
-      "published": "2026-11-17"
-    },
-    {
       "id": "2026-11-17-luci-app-led-setup",
       "package": "luci-app-led-setup",
       "version": "1.0-r6",
@@ -52,6 +42,17 @@
       "title": "carrier-autocfg - a deleted DNS list stays deleted, and the fixed pair is no longer written",
       "restart": [
         "qcom-carrier-autocfg"
+      ],
+      "published": "2026-11-18"
+    },
+    {
+      "id": "2026-11-18-msm89xx-scripts",
+      "package": "msm89xx-scripts",
+      "version": "1.0-r21",
+      "title": "uplink-manager - the default-route ladder works, and the shipped Google DNS default is gone",
+      "restart": [
+        "time-sync",
+        "uplink-manager"
       ],
       "published": "2026-11-18"
     }

@@ -2,7 +2,7 @@
   "updated": "2026-11-18",
   "packages": {
     "uci-usb-gadget": "1.0.0-r5",
-    "msm89xx-scripts": "1.0-r20",
+    "msm89xx-scripts": "1.0-r21",
     "luci-app-wifi-sta": "1.0-r12",
     "luci-app-led-setup": "1.0-r6",
     "luci-app-firmware-upgrade": "1.0-r6",
