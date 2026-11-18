@@ -215,7 +215,7 @@ provision_network() {
 		target_preferred="4g"
 	fi
 
-	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred cur_eps cur_dns
+	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred cur_eps
 	local target_eps="default"
 	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
 		*hmu05*|*hmuf02v5*) target_eps="none" ;;
@@ -227,9 +227,11 @@ provision_network() {
 	cur_allowed=$(uci -q get network.modem.allowedmode || echo "")
 	cur_preferred=$(uci -q get network.modem.preferredmode || echo "")
 	cur_eps=$(uci -q get network.modem.init_epsbearer || echo "none")
-	cur_dns=$(uci -q get network.modem.dns || echo "")
 
-	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ] || [ "$cur_eps" != "$target_eps" ] || [ -z "$cur_dns" ]; then
+	# An empty network.modem.dns is a valid state, not a reason to reconfigure:
+	# with peerdns=1 the bearer supplies the resolvers.  It used to be a trigger,
+	# so deleting the fixed pair below brought it straight back on the next boot.
+	if [ "$cur_apn" != "$apn" ] || [ "$cur_iptype" != "$iptype" ] || [ "$cur_proto" != "modemmanager" ] || [ "$cur_allowed" != "$target_allowed" ] || [ "$cur_preferred" != "$target_preferred" ] || [ "$cur_eps" != "$target_eps" ]; then
 		log "Configuring /etc/config/network: APN='$apn', IP-Type='$iptype', Allowed='$target_allowed', Preferred='${target_preferred:-none}'..."
 		uci set network.modem=interface
 		uci set network.modem.proto='modemmanager'
@@ -242,7 +244,6 @@ provision_network() {
 			uci set network.modem.init_epsbearer="$target_eps"
 		fi
 		uci set network.modem.peerdns='1'
-		uci set network.modem.dns='8.8.8.8 1.1.1.1'
 		uci set network.modem.allowedmode="$target_allowed"
 		if [ -n "$target_preferred" ]; then
 			uci set network.modem.preferredmode="$target_preferred"
@@ -253,8 +254,22 @@ provision_network() {
 		uci set network.modem.metric='10'
 		uci commit network
 		log "Network configuration updated. Reloading netifd..."
-		/etc/init.d/network reload
+		"${NETWORK_INIT:-/etc/init.d/network}" reload
 		sleep 3
+	fi
+
+	# Units provisioned before this change still carry the pair this script used
+	# to write.  With peerdns=1 the bearer supplies DNS, so the pair only added a
+	# second, distant resolver that is often unreachable or answers AAAA first.
+	# Remove exactly the value that was shipped, and only while peerdns is on:
+	# any other value is the operator's own and is left alone.  No reload here --
+	# this runs once per unit and the next boot or bearer reconfigure picks it up,
+	# which is cheaper than dropping the link to change a resolver list.
+	if [ "$(uci -q get network.modem.peerdns)" = "1" ] &&
+	   [ "$(uci -q get network.modem.dns)" = "8.8.8.8 1.1.1.1" ]; then
+		uci -q delete network.modem.dns
+		uci commit network
+		log "Removed the fixed DNS pair 8.8.8.8 1.1.1.1; peerdns=1 supplies DNS."
 	fi
 }
 
@@ -490,6 +505,12 @@ connect_bearer() {
 		echo "$imsi" > "$STORED_IMSI_FILE" 2>/dev/null || true
 	fi
 }
+
+# tests/qcom-carrier-autocfg sources this file to exercise provision_network
+# against a stub uci; stop before the daemon loop in that case.
+if [ "${QCOM_CARRIER_AUTOCFG_LIB_ONLY:-0}" = "1" ]; then
+	return 0 2>/dev/null || exit 0
+fi
 
 log "Started MSM8916 SIM Carrier Auto-Provisioning Engine"
 

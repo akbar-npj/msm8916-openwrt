@@ -1,6 +1,6 @@
 {
     "luci-app-update-notify": {
-        "description": "Read cached update counts (packages and firmware) for the dashboard notice, and run the firmware upgrade",
+        "description": "Read cached update counts (packages and firmware) for the dashboard notice, remember a dismissed count, and run the firmware upgrade",
         "read": {
             "file": {
                 "/tmp/update-notify.json": [ "read" ],
@@ -15,7 +15,11 @@
                 "/usr/sbin/firmware-upgrade upgrade": [ "exec" ],
                 "/usr/sbin/firmware-upgrade download": [ "exec" ],
                 "/usr/sbin/firmware-upgrade apply": [ "exec" ]
-            }
+            },
+            "uci": [ "update-notify" ]
+        },
+        "write": {
+            "uci": [ "update-notify" ]
         }
     }
 }
