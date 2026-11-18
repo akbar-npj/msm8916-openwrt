@@ -44,6 +44,16 @@
         "update-notify"
       ],
       "published": "2026-11-18"
+    },
+    {
+      "id": "2026-11-18-qcom-carrier-autocfg",
+      "package": "qcom-carrier-autocfg",
+      "version": "1.0.0-r7",
+      "title": "carrier-autocfg - a deleted DNS list stays deleted, and the fixed pair is no longer written",
+      "restart": [
+        "qcom-carrier-autocfg"
+      ],
+      "published": "2026-11-18"
     }
   ]
 }

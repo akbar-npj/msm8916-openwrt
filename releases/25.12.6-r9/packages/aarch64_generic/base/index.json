@@ -95,7 +95,7 @@
     "procd-seccomp": "2026.03.13~58eb263d-r1",
     "procd-ujail": "2026.03.13~58eb263d-r1",
     "px5g-mbedtls": "11",
-    "qcom-carrier-autocfg": "1.0.0-r6",
+    "qcom-carrier-autocfg": "1.0.0-r7",
     "qcom-time-daemon": "1.0.0-r3",
     "qcom-venus-firmware": "20260221-r1",
     "qrtr-utils": "0~5923eea9-r2",
