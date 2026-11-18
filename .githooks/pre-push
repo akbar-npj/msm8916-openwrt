@@ -1,0 +1,169 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# pre-push -- two rules about private work.
+#
+# 1. Private work never reaches a public remote.  A test/* branch pushed to
+#    anything but the private remote is refused outright.  So is a branch that
+#    carries a commit which exists only on the private remote -- the accident
+#    this hook exists for is merging a private branch into a fix branch and
+#    pushing that, and only the local clone can see it, because only the local
+#    clone knows which commits the private remote holds.
+#
+# 2. The private branch never falls behind main.  Pushing a test/* branch to
+#    the private remote is refused while origin/main carries a commit it does
+#    not have, so "keep it in sync with main" is enforced at the one moment it
+#    matters, instead of being remembered.
+#
+# Install with scripts/install-hooks.sh, which sets core.hooksPath.  --no-verify
+# skips this hook; that is what the test/** ruleset on the public repository is
+# for.  Neither can see a cherry-pick: a cherry-picked commit has a new hash,
+# so deliberate publication stays a review question.
+#
+# Every remote whose URL does not name the private repository is treated as
+# public.  That is deliberate -- a new or renamed remote must fail closed.
+
+set -u
+
+ZERO=0000000000000000000000000000000000000000
+PRIVATE_URL=${PRIVATE_GUARD_URL:-msm8916-openwrt-volte}
+
+die() {
+	printf '\n%s\n' "$*" >&2
+	exit 1
+}
+
+private_only=""
+range=""
+cleanup() {
+	[ -n "$private_only" ] && rm -f "$private_only"
+	[ -n "$range" ] && rm -f "$range"
+	return 0
+}
+trap cleanup EXIT
+
+# ---- 1. a public remote must not receive private work ----------------------
+
+check_public() {
+	local_ref=$1
+	local_sha=$2
+	remote_sha=$3
+
+	case "$local_ref" in
+	refs/heads/test/*)
+		die "refusing to push ${local_ref#refs/heads/} to a public remote.
+
+A test/* branch holds unverified work and is published to the private remote
+only.  Push it there instead:
+
+    git push private ${local_ref#refs/heads/}
+
+If it really has to be public, push it under a name that says so, and say so
+in the pull request."
+		;;
+	esac
+
+	# No private remote, nothing to compare against.
+	git remote get-url private >/dev/null 2>&1 || return 0
+
+	private_only=$(mktemp "${TMPDIR:-/tmp}/pre-push.XXXXXX") || return 0
+	git rev-list --remotes=private --not --remotes=origin --remotes=upstream \
+		>"$private_only" 2>/dev/null
+
+	if [ ! -s "$private_only" ]; then
+		printf 'pre-push: the private remote has no fetched refs; cannot tell private commits apart.\n' >&2
+		printf 'pre-push: run "git fetch private" to enable the leak check.\n' >&2
+		return 0
+	fi
+
+	range=$(mktemp "${TMPDIR:-/tmp}/pre-push.XXXXXX") || return 0
+	if [ "$remote_sha" = "$ZERO" ]; then
+		git rev-list "$local_sha" --not --remotes=origin --remotes=upstream \
+			>"$range" 2>/dev/null
+	else
+		git rev-list "$local_sha" --not "$remote_sha" >"$range" 2>/dev/null
+	fi
+
+	sort -o "$private_only" "$private_only"
+	sort -o "$range" "$range"
+
+	leaked=$(comm -12 "$private_only" "$range" | head -5)
+
+	if [ -n "$leaked" ]; then
+		die "refusing to push ${local_ref#refs/heads/} to a public remote.
+
+It carries commit(s) that exist only on the private remote:
+
+$(printf '%s\n' "$leaked" | while read -r c; do
+	printf '    %s %s\n' "$(git log -1 --format=%h "$c" 2>/dev/null)" \
+		"$(git log -1 --format=%s "$c" 2>/dev/null)"
+done)
+
+Something from the private branch was merged or rebased into this one.  Rebase
+it onto origin/main so only the intended commits remain, or push it to the
+private remote."
+	fi
+
+	rm -f "$private_only" "$range"
+	private_only=""
+	range=""
+	return 0
+}
+
+# ---- 2. the private branch must not fall behind main -----------------------
+
+check_in_sync() {
+	local_ref=$1
+	local_sha=$2
+
+	git rev-parse --verify -q origin/main >/dev/null ||
+		die "refusing to push ${local_ref#refs/heads/}: origin/main is not fetched.
+
+    git fetch origin
+
+The private branch has to contain every commit on main, and this hook cannot
+tell whether it does without that ref."
+
+	behind=$(git rev-list --count --no-merges origin/main --not "$local_sha" 2>/dev/null)
+
+	if [ "${behind:-0}" -gt 0 ]; then
+		die "refusing to push ${local_ref#refs/heads/}: it is $behind commit(s) behind origin/main.
+
+Bring main in first:
+
+    scripts/private-sync.sh sync
+    git push private ${local_ref#refs/heads/}
+
+Keeping the private branch on top of main is what makes its rebases and merges
+predictable; a branch that drifts for a week cannot be merged back without
+conflicts nobody remembers the reason for."
+	fi
+}
+
+# ---- dispatch --------------------------------------------------------------
+
+remote_name=${1:-}
+remote_url=${2:-}
+[ -n "$remote_url" ] || remote_url=$(git remote get-url "$remote_name" 2>/dev/null || true)
+
+is_private=0
+case "$remote_url" in
+*"$PRIVATE_URL"*) is_private=1 ;;
+esac
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+	[ -n "${local_ref:-}" ] || continue
+	# A deletion carries no commit and cannot leak one.
+	[ "$local_sha" = "$ZERO" ] && continue
+
+	if [ "$is_private" -eq 1 ]; then
+		case "$local_ref" in
+		refs/heads/test/*) check_in_sync "$local_ref" "$local_sha" ;;
+		esac
+		continue
+	fi
+
+	check_public "$local_ref" "$local_sha" "$remote_sha"
+done
+
+exit 0
