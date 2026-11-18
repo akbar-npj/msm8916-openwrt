@@ -82,6 +82,9 @@ jobs:
       - name: uplink-manager
         run: bash tests/uplink-manager/run.sh --self-check
 
+      - name: flash-gpt
+        run: bash tests/flash-gpt/run.sh --self-check
+
       - name: usb-gadget-probe
         run: bash tests/usb-gadget-probe/run.sh --self-check
 

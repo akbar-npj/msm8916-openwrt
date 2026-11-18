@@ -93,15 +93,90 @@ With no options an interactive menu is shown.
 EOF
 }
 
-# Read the total sector count out of the GPT itself (device eMMC sizes differ):
-# the primary header at LBA 1 stores the backup header LBA at byte offset 32.
-read_tot_sectors() {
+# Sector count a GPT image was built for: the primary header at LBA 1 stores
+# the backup header LBA at byte offset 32, and the table is laid out to end at
+# the last sector of the medium.
+gpt_sectors() {
     local alt_lba
-    alt_lba=$(od -An -tu8 -j 544 -N 8 "$gpt_path" | tr -d '[:space:]')
-    if ! [[ "${alt_lba:-0}" =~ ^[0-9]+$ ]] || [[ "$alt_lba" -lt 67 ]]; then
-        die "cannot read backup header LBA from $(basename "$gpt_path")"
+    alt_lba=$(od -An -tu8 -j 544 -N 8 "$1" | tr -d '[:space:]')
+    if [ -z "$alt_lba" ] || ! [[ "$alt_lba" =~ ^[0-9]+$ ]] || (( alt_lba < 67 )); then
+        return 1
     fi
-    TOT_SECTORS=$((alt_lba + 1))
+    echo $((alt_lba + 1))
+}
+
+# Sector count of the medium, from the dump check_edl captured.
+device_sectors() {
+    local hex
+    hex=$(printf '%s\n' "$GPT_DUMP" | sed -n 's/.*sectors:\(0x[0-9A-Fa-f][0-9A-Fa-f]*\).*/\1/p' | tail -n 1)
+    if [ -z "$hex" ]; then
+        return 1
+    fi
+    echo $((hex))
+}
+
+# Choose the GPT table to write, and refuse when none of them fits.
+#
+# Units of the same board carry different eMMC sizes (7,634,944 vs 7,405,568
+# sectors on ufi003-mb-v02), and the table is laid out to end at the last
+# sector: flash_gpt writes the backup entries at TOT_SECTORS-33 and the backup
+# header at TOT_SECTORS-1.  Taking TOT_SECTORS from the image itself, as this
+# script used to, can only ever agree with the image, so a table built for the
+# larger part was written past the end of a smaller one.  The firehose rejected
+# those writes, the script still exited 0, and the unit stayed in EDL (#71).
+#
+# Exact match wins.  Otherwise take the largest table that fits, which is what
+# keeps a third population from bricking.  Otherwise refuse before the first
+# sector is written.
+select_gpt() {
+    local dev img f size best="" best_size=0
+
+    dev=$(device_sectors) || die "cannot read the medium's sector count from 'edl printgpt'.
+    The dump has no 'sectors:0x...' line, and this script will not guess: a
+    table written past the end of the medium leaves the unit in EDL with a
+    zero exit status. Report this, do not retry with a different mode."
+    img=$(gpt_sectors "$gpt_path") || die "cannot read the sector count from $(basename "$gpt_path")"
+
+    if (( img <= dev )); then
+        TOT_SECTORS="$img"
+        if (( img < dev )); then
+            echo "[!] the table ends $((dev - img)) sectors before the end of the medium" >&2
+        fi
+        return 0
+    fi
+
+    for f in *-squashfs-gpt*.bin; do
+        if [ ! -f "$f" ]; then
+            continue
+        fi
+        if [ -n "$BOARD_TOKEN" ] && [[ "$f" != *"$BOARD_TOKEN"* ]]; then
+            continue
+        fi
+        if ! size=$(gpt_sectors "$f"); then
+            continue
+        fi
+        if (( size > dev )); then
+            continue
+        fi
+        if (( size > best_size )); then
+            best="$f"
+            best_size="$size"
+        fi
+    done
+
+    if [ -z "$best" ]; then
+        die "no GPT table here fits this device.
+    device: $dev sectors
+    table:  $(basename "$gpt_path"), built for $img sectors
+
+    A table whose backup header sits past the last sector cannot be written,
+    and writing one is what leaves a unit in EDL. This unit has a different
+    eMMC population from the one this release was built for."
+    fi
+
+    echo "[!] $(basename "$gpt_path") is built for $img sectors; using $(basename "$best") ($best_size) instead" >&2
+    gpt_path="$best"
+    TOT_SECTORS="$best_size"
 }
 
 parse_args() {
@@ -298,7 +373,7 @@ detect_images_migrate() {
     rootfs_path=$(find_image "." "*-squashfs-system.img") || exit 1
     recovery_path=$(find_optional_image "." "*recovery*.img" "recovery-${BOARD_TOKEN}.img")
 
-    read_tot_sectors
+    select_gpt
 
     echo "[+] GPT:      $(basename "$gpt_path") (${TOT_SECTORS} sectors)"
     echo "[+] Boot:     $(basename "$boot_path")"
@@ -350,7 +425,7 @@ detect_images_repartition() {
     gpt_path=$(find_image "." "*-squashfs-gpt_both0.bin") || exit 1
     recovery_path=$(find_optional_image "." "*recovery*.img" "recovery-${BOARD_TOKEN}.img")
 
-    read_tot_sectors
+    select_gpt
 
     # Pre-flight, before a single sector is written: this mode exists to ADD
     # the rescue partitions, so an ungated GPT or a missing rescue image must
@@ -814,6 +889,21 @@ flash_gpt() {
     edl ws 0                      "${gpt_tmp}/primary.bin"        || die "flashing primary GPT"
     edl ws $((TOT_SECTORS - 33)) "${gpt_tmp}/backup_entries.bin" || die "flashing GPT backup entries"
     edl ws $((TOT_SECTORS - 1))  "${gpt_tmp}/backup_header.bin"  || die "flashing GPT backup header"
+
+    # Those are raw sector writes: they do not say whether the medium accepted
+    # them, and a rejected backup write is what left a unit in EDL in #71.
+    # Read the table back before anything else depends on it.
+    local after dev_after
+    after="$(edl printgpt 2>&1)" || die "cannot re-read the GPT after flashing it"
+    if ! grep -qw rootfs <<<"$after"; then
+        die "the GPT at sector 0 does not list rootfs after the write - the table
+    did not land. The device is unchanged at this point; do not continue."
+    fi
+    dev_after=$(printf '%s\n' "$after" | sed -n 's/.*sectors:\(0x[0-9A-Fa-f][0-9A-Fa-f]*\).*/\1/p' | tail -n 1)
+    if [ -n "$dev_after" ] && (( dev_after < TOT_SECTORS )); then
+        die "the medium reports $((dev_after)) sectors, fewer than the $TOT_SECTORS
+    the table needs - the backup header is past the end of the medium."
+    fi
 }
 
 flash_bootloader() {
@@ -1038,4 +1128,7 @@ main() {
     esac
 }
 
-main "$@"
+# tests/flash-gpt sources this file to exercise select_gpt against a stub edl.
+if [ "${FLASH_LIB_ONLY:-0}" != "1" ]; then
+    main "$@"
+fi
