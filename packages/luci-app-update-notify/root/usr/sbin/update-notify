@@ -93,6 +93,16 @@ count_upgradable() {
 	# answer away.  The dashboard banner then never updated again.
 	# Only treat it as a failure when nothing resembling a plan came back.
 	steps="$(printf '%s\n' "$plan" | grep -c '^([0-9][0-9]*/[0-9][0-9]*) ' || true)"
+
+	# The one error every unit produces, and the reason it is only logged:
+	# base-files is pinned in /etc/apk/world and the shared feed deliberately
+	# does not carry it, so apk reports "no longer available from a
+	# repository" and exits 1 while still printing a complete plan.  Counting
+	# that as a failure would freeze the banner forever.
+	if [ "$rc" -ne 0 ] && [ "$steps" -gt 0 ]; then
+		log "apk upgrade exited $rc with a usable plan (base-files is not in the shared feed); counting it"
+	fi
+
 	[ "$rc" -eq 0 ] || [ "$steps" -gt 0 ] || return 1
 
 	# "(2/3) Upgrading nano (9.2-r1 -> 9.3-r1)".  Only upgrades count: an
