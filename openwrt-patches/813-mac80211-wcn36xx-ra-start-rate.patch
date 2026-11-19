@@ -1,0 +1,70 @@
+mac80211: add a wcn36xx.ra_start_rate parameter and log the chosen cfg table
+
+The MAC start message carries the firmware configuration table, and the one
+entry that matters for the AP rate problem in #122 is
+ENABLE_DYNAMIC_RA_START_RATE: the generic table sends 133 (MCS 5) for every
+chip that is not a 3680.  There is no way to A/B that value without editing
+the driver, which is exactly what the reporter offered to soak.
+
+Add wcn36xx.ra_start_rate (default -1).  A negative value leaves the table
+untouched, so every existing unit boots as before; 0..N replaces that one
+entry.  It is read at MAC start, so a test is `modprobe wcn36xx
+ra_start_rate=N` (or a modprobe.d file) before the interface comes up, and a
+`wifi reload` re-reads it.
+
+Also log rf_id and which table was chosen, at info level.  Until now the only
+way to tell a recognised phy from an unrecognised one was to infer it from
+behaviour.
+
+The driver is built from the mac80211 backports tree, not from the kernel
+source, so the change lands as a patch in the package rather than in
+msm89xx/patches.
+
+diff --git a/package/kernel/mac80211/patches/ath/999-wcn36xx-ra-start-rate.patch b/package/kernel/mac80211/patches/ath/999-wcn36xx-ra-start-rate.patch
+new file mode 100644
+--- /dev/null
++++ b/package/kernel/mac80211/patches/ath/999-wcn36xx-ra-start-rate.patch
+@@ -0,0 +1,43 @@
++--- a/drivers/net/wireless/ath/wcn36xx/smd.c
+++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
++@@ -36,6 +36,18 @@
++ 	.value = val \
++ }
++ 
+++/*
+++ * The firmware's rate-adaptation start rate, sent as
+++ * ENABLE_DYNAMIC_RA_START_RATE when the MAC starts.  The generic table below
+++ * uses 133 (MCS 5) for every chip except the 3680.  -1 keeps that value, so a
+++ * default boot is unchanged; anything else overrides it for the A/B that
+++ * needs to know whether the start rate matters at all.
+++ */
+++static int ra_start_rate = -1;
+++module_param(ra_start_rate, int, 0644);
+++MODULE_PARM_DESC(ra_start_rate,
+++		 "Override ENABLE_DYNAMIC_RA_START_RATE (-1 keeps the table value)");
+++
++ static struct wcn36xx_cfg_val wcn36xx_cfg_vals[] = {
++ 	WCN36XX_CFG_VAL(CURRENT_TX_ANTENNA, 1),
++ 	WCN36XX_CFG_VAL(CURRENT_RX_ANTENNA, 1),
++@@ -638,9 +650,19 @@
++ 		cfg_elements = ARRAY_SIZE(wcn36xx_cfg_vals);
++ 	}
++ 
+++	wcn36xx_info("rf_id 0x%x, %s cfg table (%d entries), ra_start_rate %d\n",
+++		     wcn->rf_id,
+++		     wcn->rf_id == RF_IRIS_WCN3680 ? "wcn3680" : "generic",
+++		     cfg_elements, ra_start_rate);
+++
++ 	for (i = 0; i < cfg_elements; i++) {
++-		ret = put_cfg_tlv_u32(wcn, &len, cfg_vals[i].cfg_id,
++-				      cfg_vals[i].value);
+++		u32 value = cfg_vals[i].value;
+++
+++		if (ra_start_rate >= 0 &&
+++		    cfg_vals[i].cfg_id == WCN36XX_HAL_CFG_ENABLE_DYNAMIC_RA_START_RATE)
+++			value = ra_start_rate;
+++
+++		ret = put_cfg_tlv_u32(wcn, &len, cfg_vals[i].cfg_id, value);
++ 		if (ret)
++ 			goto out;
++ 	}
