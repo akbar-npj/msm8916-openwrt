@@ -346,7 +346,8 @@ acm_console_stop() {
 acm_console_running() {
     local pid
     pid="$(cat "$ACM_CONSOLE_PIDFILE" 2>/dev/null)"
-    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+    [ -n "$pid" ] || return 1
+    kill -0 "$pid" 2>/dev/null
 }
 
 # Two logins on one tty interleave their prompts and the console looks broken,
@@ -364,15 +365,17 @@ acm_console_reap() {
     # of a minor above 255 moved up by 12.
     [ -r /sys/class/tty/ttyGS0/dev ] || return 0
     IFS=: read -r major minor < /sys/class/tty/ttyGS0/dev || return 0
-    [ -n "$major" ] && [ -n "$minor" ] || return 0
+    [ -n "$major" ] || return 0
+    [ -n "$minor" ] || return 0
     tty_nr=$(( (major << 8) | (minor & 0xff) | ((minor & ~0xff) << 12) ))
     cat /proc/[0-9]*/stat 2>/dev/null | while IFS= read -r line; do
         pid=${line%% *}
         rest=${line##*) }
         set -- $rest
         [ "$5" = "$tty_nr" ] || continue
-        [ "$pid" = "$$" ] && continue
-        kill -9 "$pid" 2>/dev/null
+        if [ "$pid" != "$$" ]; then
+            kill -9 "$pid" 2>/dev/null || true
+        fi
     done
     return 0
 }
