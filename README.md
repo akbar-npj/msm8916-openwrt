@@ -72,7 +72,7 @@ Recent additions on top of the base port:
 | :------------ | :---------------- | :------------------------- | :------ | :----- | :-------- | :---------------------- |
 | **`hmuf02v5`**   | `generic-hmuf02v5`   | HMUF02-V5 (was HMU05) (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`ufi001b`** | `generic-ufi001b` | Generic UFI001B 4G Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
-| **`ufi003`**  | `generic-ufi003-mb-v02` | UFI003 MB V02 | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
+| **`ufi003`**  | `generic-ufi003-mb-v02` | UFI003 MB V02 (also sold as QRZL903-01) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`uz801`**   | `yiming-uz801v3`  | YiMing UZ801 v3 Dongle     | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`uf02`**    | `generic-uf02`    | Generic UF02 / UF2 Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`mf800b`**  | `generic-mf800b`  | Generic MF800B 4G MiFi     | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN      |
