@@ -18,14 +18,6 @@
       "published": "2026-11-17"
     },
     {
-      "id": "2026-11-18-uci-usb-gadget",
-      "package": "uci-usb-gadget",
-      "version": "1.0.0-r5",
-      "title": "usb-gadget - the LAN bridge no longer depends on netifd retrying it",
-      "restart": [],
-      "published": "2026-11-18"
-    },
-    {
       "id": "2026-11-18-luci-app-update-notify",
       "package": "luci-app-update-notify",
       "version": "1.0-r16",
@@ -55,6 +47,16 @@
         "uplink-manager"
       ],
       "published": "2026-11-18"
+    },
+    {
+      "id": "2026-11-19-uci-usb-gadget",
+      "package": "uci-usb-gadget",
+      "version": "1.0.0-r6",
+      "title": "usb-gadget - the ACM serial console now starts (procd ignores the inittab route)",
+      "restart": [
+        "usb-gadget"
+      ],
+      "published": "2026-11-19"
     }
   ]
 }
