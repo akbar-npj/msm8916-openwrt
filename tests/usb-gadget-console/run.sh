@@ -28,6 +28,7 @@ bad() { FAIL=$((FAIL + 1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf ' 
 make_lib() {
     sed -e '/^\. \/lib\/functions\.sh$/d' \
         -e "s#/dev/ttyGS0#$TMP/ttyGS0#g" \
+        -e "s#/sys/class/tty/ttyGS0/dev#$TMP/dev#g" \
         -e 's#/usr/libexec/login.sh#/bin/sh#' \
         -e '/^# Main Entry Point/,$d' \
         "$GADGET" > "$TMP/lib.sh"
@@ -36,13 +37,21 @@ make_lib() {
 # Hold a pty open for the length of one test and link it where the script
 # expects the gadget's tty.
 pty_up() {
-    python3 - "$TMP/ttyGS0" 30 <<'PY' >/dev/null 2>&1 &
+    python3 - "$TMP/ttyGS0" "$TMP/dev" <<'PY' >/dev/null 2>&1 &
 import os, pty, sys, time
 m, s = pty.openpty()
+name = os.ttyname(s)
+# Keep only the master open.  The slave node stays valid while the master is,
+# and a slave fd here would make this helper look like a stale holder to the
+# reap.
+os.close(s)
 if os.path.lexists(sys.argv[1]):
     os.unlink(sys.argv[1])
-os.symlink(os.ttyname(s), sys.argv[1])
-time.sleep(30)
+os.symlink(name, sys.argv[1])
+# What /sys/class/tty/ttyGS0/dev would say for this pty.
+st = os.stat(name)
+open(sys.argv[2], 'w').write("%d:%d\n" % (os.major(st.st_rdev), os.minor(st.st_rdev)))
+time.sleep(60)
 PY
     PTY_PID=$!
     local i=0
@@ -52,22 +61,22 @@ PY
 }
 
 pty_down() {
-    [ -n "${PTY_PID:-}" ] && kill "$PTY_PID" 2>/dev/null
-    wait "$PTY_PID" 2>/dev/null
-    rm -f "$TMP/ttyGS0"
+    # No wait: the helper sleeps for a minute by design and would hold the
+    # suite open at exit.
+    [ -n "${PTY_PID:-}" ] && kill -9 "$PTY_PID" 2>/dev/null
     PTY_PID=""
+    rm -f "$TMP/ttyGS0"
 }
 
 alive() { kill -0 "$1" 2>/dev/null; }
 
-# Run a snippet with the library loaded and the pidfiles in $TMP.
+# Run a snippet with the library loaded and the pidfile in $TMP.
 with_lib() {
     (
         set -u
         # shellcheck disable=SC1090
         . "$TMP/lib.sh"
         ACM_CONSOLE_PIDFILE="$TMP/console.pid"
-        ACM_SHELL_PIDFILE="$TMP/shell.pid"
         "$@"
     ) 2>&1
 }
@@ -75,13 +84,26 @@ with_lib() {
 console_start() { with_lib acm_console_start; }
 console_stop()  { with_lib acm_console_stop; }
 console_running() { with_lib acm_console_running; }
-shell_pid() { cat "$TMP/shell.pid" 2>/dev/null; }
 super_pid() { cat "$TMP/console.pid" 2>/dev/null; }
+
+# The shell writes no pidfile -- it is its own session -- so find it the way the
+# script does: whoever has our pty as its controlling terminal.
+shell_pid() {
+    local want pid tty
+    want="$(readlink -f "$TMP/ttyGS0" 2>/dev/null)" || return 0
+    [ -n "$want" ] || return 0
+    ps -A -o pid= -o tty= 2>/dev/null | while read -r pid tty; do
+        [ "/dev/$tty" = "$want" ] || continue
+        echo "$pid"
+        break
+    done
+}
 
 reset() {
     [ -f "$TMP/console.pid" ] && kill -9 "$(cat "$TMP/console.pid")" 2>/dev/null
-    [ -f "$TMP/shell.pid" ] && kill -9 "$(cat "$TMP/shell.pid")" 2>/dev/null
-    rm -f "$TMP/console.pid" "$TMP/shell.pid"
+    local pid; pid="$(shell_pid)"
+    [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null
+    rm -f "$TMP/console.pid"
     pty_down
 }
 
@@ -149,6 +171,37 @@ t_survives_hup() {
         || bad "the supervisor survives a hangup" "killed by HUP: $sup"
 }
 
+t_reaps_stale() {
+    # A login left behind by procd's old inittab action, or one started by
+    # hand.  Two shells on one tty interleave their prompts.  The holder writes
+    # its own pid, because setsid may fork and $! would then be a dead parent.
+    # The console is down first: stealing a controlling terminal from another
+    # session needs CAP_SYS_ADMIN, so only root can do it on the device.
+    console_stop
+    sleep 1
+    rm -f "$TMP/stray.pid"
+    setsid -c sh -c 'echo $$ > "$1"; exec sleep 30' sh "$TMP/stray.pid" \
+        <"$TMP/ttyGS0" >/dev/null 2>&1 &
+    local stray="" i=0
+    while [ $i -lt 40 ]; do
+        stray="$(cat "$TMP/stray.pid" 2>/dev/null)"
+        [ -n "$stray" ] && break
+        i=$((i + 1)); sleep 0.1
+    done
+    [ -n "$stray" ] || { bad "the stray holder starts" "no pid"; return 0; }
+    console_start
+    sleep 1
+    alive "$stray" \
+        && bad "a stale holder is cleared before the console starts" "still alive: $stray" \
+        || ok "a stale holder is cleared before the console starts"
+    kill -9 "$stray" 2>/dev/null
+    wait "$stray" 2>/dev/null
+    local pid; pid="$(shell_pid)"
+    [ -n "$pid" ] && alive "$pid" \
+        && ok "the console still starts after the reap" \
+        || bad "the console still starts after the reap" "shell='${pid:-}'"
+}
+
 t_stop_kills_both() {
     local sup sh
     sup="$(super_pid)"; sh="$(shell_pid)"
@@ -160,9 +213,9 @@ t_stop_kills_both() {
     alive "$sh" \
         && bad "stop ends the shell" "still alive: $sh" \
         || ok "stop ends the shell"
-    [ ! -f "$TMP/console.pid" ] && [ ! -f "$TMP/shell.pid" ] \
-        && ok "stop removes both pidfiles" \
-        || bad "stop removes both pidfiles"
+    [ ! -f "$TMP/console.pid" ] \
+        && ok "stop removes the pidfile" \
+        || bad "stop removes the pidfile"
 }
 
 t_running() {
@@ -188,9 +241,15 @@ t_tree() {
     grep -q '^        acm_console_start$' "$GADGET" \
         && ok "the console is started from setup" \
         || bad "the console is started from setup" "$(grep -n 'acm_console_start' "$GADGET" | tr '\n' '|')"
-    grep -q 'exec /usr/libexec/login.sh' "$GADGET" \
+    grep -q 'exec setsid -c /usr/libexec/login.sh' "$GADGET" \
         && ok "the console runs login.sh, not a bare shell" \
         || bad "the console runs login.sh, not a bare shell"
+    # The redirection must be exec'd in a subshell of its own.  Inline on the
+    # setsid line it leaks onto the loop, and the loop then holds the tty and
+    # echoes the login banner back as input.
+    grep -q '^                    exec </dev/ttyGS0 >/dev/ttyGS0 2>&1$' "$GADGET" \
+        && ok "the tty is opened in a subshell of its own" \
+        || bad "the tty is opened in a subshell of its own"
     grep -q 'acm_console_stop' <(sed -n '/^teardown_gadget()/,/^}/p' "$GADGET") \
         && ok "teardown stops the console" \
         || bad "teardown stops the console"
@@ -203,6 +262,7 @@ run_suite() {
     t_starts_when_node_appears
     t_respawns
     t_survives_hup
+    t_reaps_stale
     t_stop_kills_both
     t_running
     t_tree
@@ -227,7 +287,7 @@ self_check() {
     fi
 
     cp "$GADGET" "$mutant"
-    sed -i 's#^    for f in "\$ACM_CONSOLE_PIDFILE" "\$ACM_SHELL_PIDFILE"; do$#    for f in "$ACM_CONSOLE_PIDFILE"; do#' "$mutant"
+    sed -i '/^acm_console_stop()/,/^}/ s/^    acm_console_reap$/    :/' "$mutant"
     if GADGET="$mutant" bash "$0" >/dev/null 2>&1; then
         echo "  FAIL mutant 'the shell outlives stop' was not caught"
         failed=$((failed + 1))
@@ -242,6 +302,24 @@ self_check() {
         failed=$((failed + 1))
     else
         echo "  ok   mutant 'a hangup takes the console down' caught"
+    fi
+
+    cp "$GADGET" "$mutant"
+    sed -i "s/^    acm_console_reap\$/    :/" "$mutant"
+    if GADGET="$mutant" bash "$0" >/dev/null 2>&1; then
+        echo "  FAIL mutant 'a stale holder is left on the tty' was not caught"
+        failed=$((failed + 1))
+    else
+        echo "  ok   mutant 'a stale holder is left on the tty' caught"
+    fi
+
+    cp "$GADGET" "$mutant"
+    sed -i '\#^                    exec </dev/ttyGS0 >/dev/ttyGS0 2>&1$#d' "$mutant"
+    if GADGET="$mutant" bash "$0" >/dev/null 2>&1; then
+        echo "  FAIL mutant 'the shell has no controlling tty' was not caught"
+        failed=$((failed + 1))
+    else
+        echo "  ok   mutant 'the shell has no controlling tty' caught"
     fi
 
     rm -f "$mutant"

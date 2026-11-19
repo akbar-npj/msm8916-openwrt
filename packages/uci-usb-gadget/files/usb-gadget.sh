@@ -41,8 +41,9 @@ CFG_UMS_READONLY=""
 NETMODE_OVERRIDE="/var/run/usb-gadget/net_mode"
 
 # The serial shell runs from here, not from inittab.  See acm_console_start.
+# The shell gets no pidfile of its own: it is in its own session, so the tty it
+# holds is the only reliable handle on it.
 ACM_CONSOLE_PIDFILE="/var/run/usb-gadget/acm-console.pid"
-ACM_SHELL_PIDFILE="/var/run/usb-gadget/acm-shell.pid"
 
 load_config() {
     config_load usbgadget
@@ -322,11 +323,9 @@ setup_acm() {
 # for the node, run the shell with a controlling tty so ^C and job control
 # work, and reopen it when the host disconnects or the gadget is rebuilt.
 acm_console_stop() {
-    local f pid
-    # The supervisor first: kill the shell alone and the loop respawns it.
-    for f in "$ACM_CONSOLE_PIDFILE" "$ACM_SHELL_PIDFILE"; do
-        [ -f "$f" ] || continue
-        pid="$(cat "$f" 2>/dev/null)"
+    local pid
+    if [ -f "$ACM_CONSOLE_PIDFILE" ]; then
+        pid="$(cat "$ACM_CONSOLE_PIDFILE" 2>/dev/null)"
         if [ -n "$pid" ]; then
             kill "$pid" 2>/dev/null || true
             # A shell started from a process that ignores SIGTERM inherits the
@@ -336,8 +335,11 @@ acm_console_stop() {
                 kill -KILL "$pid" 2>/dev/null || true
             fi
         fi
-        rm -f "$f"
-    done
+        rm -f "$ACM_CONSOLE_PIDFILE"
+    fi
+    # The shell is a session of its own, so the supervisor's pid is no handle
+    # on it: clear the tty by its controlling terminal.
+    acm_console_reap
     return 0
 }
 
@@ -347,8 +349,37 @@ acm_console_running() {
     [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
 }
 
+# Two logins on one tty interleave their prompts and the console looks broken,
+# which is what a stale holder produces -- on the first boot after an upgrade
+# procd can still hold the old inittab action, and a hand-started shell from
+# before this script ran is just as bad.  Clear the tty before taking it.
+#
+# Matched on the controlling terminal in /proc/PID/stat rather than on open
+# file descriptors: a login always sets one, and walking every fd with
+# readlink costs seconds of fork/exec on this SoC.
+acm_console_reap() {
+    local major minor tty_nr line pid rest
+    # /sys/class/tty/ttyGS0/dev is "major:minor"; the kernel encodes the same
+    # pair in stat's tty_nr field as (major << 8) | minor, with the high bits
+    # of a minor above 255 moved up by 12.
+    [ -r /sys/class/tty/ttyGS0/dev ] || return 0
+    IFS=: read -r major minor < /sys/class/tty/ttyGS0/dev || return 0
+    [ -n "$major" ] && [ -n "$minor" ] || return 0
+    tty_nr=$(( (major << 8) | (minor & 0xff) | ((minor & ~0xff) << 12) ))
+    cat /proc/[0-9]*/stat 2>/dev/null | while IFS= read -r line; do
+        pid=${line%% *}
+        rest=${line##*) }
+        set -- $rest
+        [ "$5" = "$tty_nr" ] || continue
+        [ "$pid" = "$$" ] && continue
+        kill -9 "$pid" 2>/dev/null
+    done
+    return 0
+}
+
 acm_console_start() {
     acm_console_stop
+    acm_console_reap
     mkdir -p "$(dirname "$ACM_CONSOLE_PIDFILE")"
     (
         # The shell exits non-zero whenever the host hangs up, so this loop
@@ -361,10 +392,14 @@ acm_console_start() {
             if [ -c /dev/ttyGS0 ]; then
                 # login.sh, not a bare shell: it keeps the ttylogin policy and
                 # the root password check the inittab entry had.
-                # $$ is written by the shell that execs into it, so the
-                # pidfile is right whether or not setsid had to fork.
-                setsid -c sh -c "echo \$\$ > '$ACM_SHELL_PIDFILE'; exec /usr/libexec/login.sh" \
-                    </dev/ttyGS0 >/dev/ttyGS0 2>&1
+                #
+                # In a subshell of its own: ash does not restore the loop's
+                # stdio after this redirection, and a loop holding the tty is
+                # what made the console echo its own banner back as input.
+                (
+                    exec </dev/ttyGS0 >/dev/ttyGS0 2>&1
+                    exec setsid -c /usr/libexec/login.sh
+                )
             fi
             sleep 1
         done
