@@ -16,6 +16,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 FLASH="${FLASH:-$ROOT/msm89xx/image/flash.sh}"
 MK="${MK:-$ROOT/msm89xx/image/msm8916.mk}"
+RELEASE="${RELEASE:-$ROOT/.github/workflows/build-and-release.yml}"
 
 PASS=0
 FAIL=0
@@ -224,6 +225,17 @@ t_tree() {
     grep -q 'ARTIFACTS := .*squashfs-gpt-7405568.bin' "$MK" \
         && ok "the small-eMMC table is in ARTIFACTS" \
         || bad "the small-eMMC table is in ARTIFACTS" "$(grep -n 'ARTIFACTS' "$MK" | tr '\n' '|')"
+
+    # An artifact that is built but never uploaded is invisible to the user:
+    # flash.sh would ask for a file that is not in the release.  Check every
+    # declared artifact against the release workflow rather than this one name.
+    local missing="" name
+    for name in $(sed -n 's/^[[:space:]]*ARTIFACT\/\([^ ]*\)[[:space:]]*:=.*/\1/p' "$MK"); do
+        grep -q -- "$name" "$RELEASE" || missing="$missing $name"
+    done
+    [ -z "$missing" ] \
+        && ok "every declared artifact is uploaded by the release" \
+        || bad "every declared artifact is uploaded by the release" "missing from $(basename "$RELEASE"):$missing"
 }
 
 run_suite() {
@@ -294,6 +306,15 @@ self_check() {
         failed=$((failed + 1))
     else
         echo "  ok   mutant 'the small-eMMC table is not shipped' caught"
+    fi
+
+    cp "$RELEASE" "$mutant"
+    sed -i '/squashfs-gpt-7405568.bin/d' "$mutant"
+    if RELEASE="$mutant" bash "$0" >/dev/null 2>&1; then
+        echo "  FAIL mutant 'a built artifact is never uploaded' was not caught"
+        failed=$((failed + 1))
+    else
+        echo "  ok   mutant 'a built artifact is never uploaded' caught"
     fi
 
     rm -f "$mutant"

@@ -373,6 +373,7 @@ jobs:
             *-msm89xx-msm8916-*-squashfs-system.img
             *-msm89xx-msm8916-*-squashfs-sysupgrade.bin
             *-msm89xx-msm8916-*-squashfs-gpt_both0.bin
+            *-msm89xx-msm8916-*-squashfs-gpt-7405568.bin
             *-msm89xx-msm8916-*-flash.sh
             *-msm89xx-msm8916-*-firmware.zip
             recovery-*.img
@@ -523,6 +524,7 @@ jobs:
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-system.img
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-sysupgrade.bin
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-gpt_both0.bin
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-squashfs-gpt-7405568.bin
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-flash.sh
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-msm8916-*-firmware.zip
             openwrt/bin/targets/msm89xx/msm8916/kmods-msm8916-${{ needs.setup.outputs.version }}.tar.gz
