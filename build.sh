@@ -1047,7 +1047,7 @@ build_package_path() {
 
     run_openwrt_make "make $path/compile V=s"
 
-    report_new_artifacts "$start" "packages" "*.ipk"
+    report_new_artifacts "$start" "packages" "*.apk"
 }
 
 # Rebuild one package: ./build.sh package <name|path> [board]
