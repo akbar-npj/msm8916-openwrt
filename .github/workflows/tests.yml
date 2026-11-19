@@ -85,6 +85,9 @@ jobs:
       - name: flash-gpt
         run: bash tests/flash-gpt/run.sh --self-check
 
+      - name: sta-list
+        run: bash tests/sta-list/run.sh --self-check
+
       - name: usb-gadget-probe
         run: bash tests/usb-gadget-probe/run.sh --self-check
 

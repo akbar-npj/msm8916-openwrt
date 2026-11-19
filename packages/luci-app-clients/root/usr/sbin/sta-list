@@ -1,0 +1,149 @@
+#!/bin/sh
+#
+# sta-list - associated Wi-Fi clients as JSON, for the LuCI clients page.
+#
+# Reads `iw dev <iface> station dump` for every interface in AP mode and adds
+# the one field iw does not report: the station's power-save state.
+#
+# mac80211 keeps that in debugfs, one flag name per line:
+#
+#   /sys/kernel/debug/ieee80211/<phy>/netdev:<iface>/stations/<mac>/flags
+#
+# The names that matter are PS_STA (the station is dozing), PSPOLL (it is
+# using legacy PS-Poll) and UAPSD (it negotiated WMM-PS).  A client stuck in
+# legacy PS-Poll shows zero retries and zero drops, so this is the only place
+# that failure is visible without a packet capture.
+#
+# Output:
+#
+#   {"stations":[{"mac":"...","iface":"...","signal":-45,"signal_avg":-46,
+#                 "rx_rate":"...","tx_rate":"...","connected":125,
+#                 "inactive":1234,"ps":"off"}]}
+#
+# ps is one of off, on, wmm, legacy, unknown.  signal and the times are null
+# when iw did not report them.
+
+# Both are overridable so tests/sta-list can run on a host with no debugfs.
+DEBUGFS=${STA_LIST_DEBUGFS:-/sys/kernel/debug/ieee80211}
+IW=${STA_LIST_IW:-iw}
+
+usage() {
+	echo "usage: sta-list [--help]"
+	echo "  Print the associated Wi-Fi clients of every AP interface as JSON."
+}
+
+# Every interface in AP mode.  phy0-sta0 is type managed and is skipped.
+ap_interfaces() {
+	local i
+	for i in $($IW dev 2>/dev/null | sed -n 's/^[[:space:]]*Interface //p'); do
+		$IW dev "$i" info 2>/dev/null | grep -q 'type AP' && printf '%s\n' "$i"
+	done
+}
+
+# ps_state <iface> <mac> - off, on, wmm, legacy, or unknown.
+ps_state() {
+	local iface="$1" mac="$2" f flags
+	for f in "$DEBUGFS"/*/netdev:"$iface"/stations/"$mac"/flags; do
+		[ -r "$f" ] || continue
+		flags=$(cat "$f" 2>/dev/null)
+		case "$flags" in
+		*PS_STA*)
+			case "$flags" in
+			*PSPOLL*) printf 'legacy' ;;
+			*UAPSD*)  printf 'wmm' ;;
+			*)        printf 'on' ;;
+			esac
+			;;
+		*) printf 'off' ;;
+		esac
+		return 0
+	done
+	printf 'unknown'
+}
+
+main() {
+	local tmp map iface mac
+
+	case "${1:-}" in
+	-h|--help) usage; exit 0 ;;
+	"") ;;
+	*) usage >&2; exit 1 ;;
+	esac
+
+	tmp=$(mktemp) || exit 1
+	map=$(mktemp) || { rm -f "$tmp"; exit 1; }
+	# Expanded here: the trap runs after main returns, when the locals are gone.
+	trap "rm -f '$tmp' '$map'" EXIT
+
+	for iface in $(ap_interfaces); do
+		$IW dev "$iface" station dump >> "$tmp" 2>/dev/null
+	done
+
+	# mac -> ps, so the parser does not have to shell out per station.
+	sed -n 's/^Station \([^ ]*\) (on \([^)]*\)).*/\1 \2/p' "$tmp" |
+	while read -r mac iface; do
+		printf '%s\t%s\n' "$mac" "$(ps_state "$iface" "$mac")"
+	done > "$map"
+
+	awk -v mapfile="$map" '
+	function esc(s) {
+		gsub(/\\/, "\\\\", s)
+		gsub(/"/, "\\\"", s)
+		return s
+	}
+	function num(v) { return (v == "") ? "null" : v }
+	function emit() {
+		if (out != "")
+			out = out ","
+		out = out "{\"mac\":\"" esc(mac) "\",\"iface\":\"" esc(iface) "\"," \
+			"\"signal\":" num(sig) ",\"signal_avg\":" num(sigavg) "," \
+			"\"rx_rate\":\"" esc(rx) "\",\"tx_rate\":\"" esc(tx) "\"," \
+			"\"connected\":" num(conn) ",\"inactive\":" num(inact) "," \
+			"\"ps\":\"" (ps[mac] == "" ? "unknown" : ps[mac]) "\"}"
+	}
+
+	BEGIN {
+		while ((getline line < mapfile) > 0) {
+			split(line, f, "\t")
+			ps[f[1]] = f[2]
+		}
+		close(mapfile)
+		out = ""
+	}
+
+	/^Station / {
+		if (mac != "")
+			emit()
+		mac = $2
+		iface = ""
+		if (match($0, /\(on [^)]*\)/))
+			iface = substr($0, RSTART + 4, RLENGTH - 5)
+		sig = ""; sigavg = ""; rx = ""; tx = ""; conn = ""; inact = ""
+		next
+	}
+
+	{
+		i = index($0, ":")
+		if (i == 0)
+			next
+		key = substr($0, 1, i - 1)
+		val = substr($0, i + 1)
+		gsub(/^[ \t]+/, "", key)
+		gsub(/^[ \t]+/, "", val)
+		if (key == "signal")          { split(val, a, " "); sig = a[1] }
+		else if (key == "signal avg") { split(val, a, " "); sigavg = a[1] }
+		else if (key == "tx bitrate") tx = val
+		else if (key == "rx bitrate") rx = val
+		else if (key == "connected time") { split(val, a, " "); conn = a[1] }
+		else if (key == "inactive time")  { split(val, a, " "); inact = a[1] }
+	}
+
+	END {
+		if (mac != "")
+			emit()
+		printf "{\"stations\":[%s]}\n", out
+	}
+	' "$tmp"
+}
+
+main "$@"
