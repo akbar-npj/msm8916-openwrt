@@ -658,6 +658,32 @@ logread -f -e carrier-autocfg
 
 ---
 
+## 🌐 IPv6 on the LAN
+
+`network.lan.ip6assign='60'` is the **stock OpenWrt default**, and the LAN bridge
+advertises an IPv6 prefix by router advertisement. On a carrier that routes only
+the modem's own `/128` — no prefix delegation, no NAT66 — clients still configure
+a global address from that advertisement, prefer it over IPv4, and stall. On
+Android the network shows "connected, no internet" and stops auto-reconnecting.
+
+This is documented rather than changed: a carrier that *does* delegate a routable
+prefix must keep working, and the two cases look identical in configuration. If
+you see the symptom, stop advertising on the LAN:
+
+```sh
+uci set dhcp.lan.ra='disabled'
+uci set dhcp.lan.dhcpv6='disabled'
+uci set dhcp.lan.ndp='disabled'
+uci commit dhcp
+/etc/init.d/odhcpd restart
+```
+
+The router keeps its own IPv6; clients fall back to IPv4 only. The full
+explanation, the stronger `network.lan.ipv6='0'` variant, and how to re-enable
+it are in [`Docs/IPV6_ON_LAN.md`](Docs/IPV6_ON_LAN.md).
+
+---
+
 ## 📂 Partition Layout (eMMC /dev/mmcblk0)
 
 | Partition    | Label               | Size     | Type     | Purpose                                                              |
