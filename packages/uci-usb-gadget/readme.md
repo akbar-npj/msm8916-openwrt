@@ -192,6 +192,17 @@ uci commit usbgadget
 # Windows: Use PuTTY or similar on COMx port
 ```
 
+The shell is supervised by `usb-gadget` itself: it starts once the UDC is
+bound, comes back when the host disconnects, and is cleared by `stop`, so
+`usb-gadget status` tells you whether a login is actually running rather than
+just whether the node exists.
+
+Use a terminal program that puts the port in raw mode (`screen`, `picocom`,
+`minicom`). A plain reader such as `cat /dev/ttyACM0` leaves the host's line
+discipline in its default canonical/echo state, and the host then echoes the
+device's output straight back into it -- the console appears to eat its own
+banner.
+
 #### Enable Raw TTY (No Shell)
 
 ```bash
@@ -425,6 +436,13 @@ This will recreate the config with default values.
 **"ttyGS0 not found"**
 - ACM function takes ~10 seconds to initialize
 - Check: `ls -l /dev/ttyGS0`
+
+**Console prints its own banner back, prompts garbled**
+- The port was opened without raw mode (`cat /dev/ttyACM0`, a script, an
+  application that does not set termios). Use `screen`/`picocom`/`minicom`, or
+  `stty -F /dev/ttyACM0 raw -echo` first.
+- Two logins on one tty do the same thing. `usb-gadget stop` clears the tty,
+  and `usb-gadget status` shows whether a shell is running.
 
 **Network not working**
 - Verify function is enabled: `uci show usbgadget.rndis.enabled`
