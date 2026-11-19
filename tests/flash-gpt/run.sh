@@ -15,7 +15,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 FLASH="${FLASH:-$ROOT/msm89xx/image/flash.sh}"
-MK="$ROOT/msm89xx/image/msm8916.mk"
+MK="${MK:-$ROOT/msm89xx/image/msm8916.mk}"
 
 PASS=0
 FAIL=0
@@ -214,6 +214,16 @@ t_tree() {
     [ "$(grep -c '^    select_gpt$' "$FLASH")" = "2" ] \
         && ok "both image-detection paths call select_gpt" \
         || bad "both image-detection paths call select_gpt" "$(grep -n 'select_gpt' "$FLASH" | tr '\n' '|')"
+
+    # The fallback only helps if a smaller table is shipped.  Drop this and a
+    # small-eMMC unit is refused instead of flashed, so the release must carry
+    # the second table for every board.
+    grep -q 'ARTIFACT/squashfs-gpt-7405568.bin := generate-squashfs-gpt-size 7405568' "$MK" \
+        && ok "the small-eMMC table is generated" \
+        || bad "the small-eMMC table is generated" "$(grep -n 'squashfs-gpt' "$MK" | tr '\n' '|')"
+    grep -q 'ARTIFACTS := .*squashfs-gpt-7405568.bin' "$MK" \
+        && ok "the small-eMMC table is in ARTIFACTS" \
+        || bad "the small-eMMC table is in ARTIFACTS" "$(grep -n 'ARTIFACTS' "$MK" | tr '\n' '|')"
 }
 
 run_suite() {
@@ -275,6 +285,15 @@ self_check() {
         failed=$((failed + 1))
     else
         echo "  ok   mutant 'a short medium is accepted' caught"
+    fi
+
+    cp "$MK" "$mutant"
+    sed -i '/ARTIFACT\/squashfs-gpt-7405568.bin/d' "$mutant"
+    if MK="$mutant" bash "$0" >/dev/null 2>&1; then
+        echo "  FAIL mutant 'the small-eMMC table is not shipped' was not caught"
+        failed=$((failed + 1))
+    else
+        echo "  ok   mutant 'the small-eMMC table is not shipped' caught"
     fi
 
     rm -f "$mutant"
