@@ -40,6 +40,10 @@ CFG_UMS_READONLY=""
 # attached right now.  Runtime state, so it does not survive a reboot.
 NETMODE_OVERRIDE="/var/run/usb-gadget/net_mode"
 
+# The serial shell runs from here, not from inittab.  See acm_console_start.
+ACM_CONSOLE_PIDFILE="/var/run/usb-gadget/acm-console.pid"
+ACM_SHELL_PIDFILE="/var/run/usb-gadget/acm-shell.pid"
+
 load_config() {
     config_load usbgadget
     
@@ -294,19 +298,75 @@ setup_acm() {
     mkdir -p "$func"
     ln -sf "$func" "${CFG_CONFIG_PATH}/"
     
-    # Manage shell in inittab
     if [ "$CFG_ACM_SHELL" = "1" ]; then
-        log "Enabling serial shell on ttyGS0"
-        sed -i '/ttyGS0/d' /etc/inittab
-        echo "ttyGS0::askfirst:/usr/libexec/login.sh" >> /etc/inittab
+        log "Serial shell on ttyGS0 enabled (started once the UDC is bound)"
     else
-        log "ACM in raw TTY mode (removing shell from inittab)"
-        sed -i '/ttyGS0/d' /etc/inittab
+        log "ACM in raw TTY mode (no shell)"
     fi
     
-    kill -HUP 1 2>/dev/null || true
-    
     echo "+ACM"
+}
+
+# --- serial console ---------------------------------------------------------
+#
+# inittab cannot do this job on OpenWrt.  PID 1 is procd, not busybox init:
+# procd parses /etc/inittab once, in its INIT state, which runs before rcS
+# starts this script, and its askfirst handler drops an entry whose device
+# does not exist yet (inittab.c, askfirst -> dev_exist).  procd does re-run the
+# entries it already holds when a ttyGS* node appears (procd/files/hotplug.json
+# has a start-console rule for exactly that), which is why an entry present at
+# boot works -- and why appending one here never could: kill -HUP 1 is SIG_IGN
+# in procd (signal.c), so the line was written and then ignored (#131).
+#
+# So supervise the shell here, the way msm89xx/recovery/irfs/init does: wait
+# for the node, run the shell with a controlling tty so ^C and job control
+# work, and reopen it when the host disconnects or the gadget is rebuilt.
+acm_console_stop() {
+    local f pid
+    # The supervisor first: kill the shell alone and the loop respawns it.
+    for f in "$ACM_CONSOLE_PIDFILE" "$ACM_SHELL_PIDFILE"; do
+        [ -f "$f" ] || continue
+        pid="$(cat "$f" 2>/dev/null)"
+        if [ -n "$pid" ]; then
+            kill "$pid" 2>/dev/null || true
+            # A shell started from a process that ignores SIGTERM inherits the
+            # ignored disposition, so escalate rather than leak it.
+            if kill -0 "$pid" 2>/dev/null; then
+                sleep 1
+                kill -KILL "$pid" 2>/dev/null || true
+            fi
+        fi
+        rm -f "$f"
+    done
+    return 0
+}
+
+acm_console_running() {
+    local pid
+    pid="$(cat "$ACM_CONSOLE_PIDFILE" 2>/dev/null)"
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+acm_console_start() {
+    acm_console_stop
+    mkdir -p "$(dirname "$ACM_CONSOLE_PIDFILE")"
+    (
+        # The shell exits non-zero whenever the host hangs up, so this loop
+        # must not inherit set -e from the script.
+        set +e
+        while :; do
+            if [ -c /dev/ttyGS0 ]; then
+                # login.sh, not a bare shell: it keeps the ttylogin policy and
+                # the root password check the inittab entry had.
+                # $$ is written by the shell that execs into it, so the
+                # pidfile is right whether or not setsid had to fork.
+                setsid -c sh -c "echo \$\$ > '$ACM_SHELL_PIDFILE'; exec /usr/libexec/login.sh" \
+                    </dev/ttyGS0 >/dev/ttyGS0 2>&1
+            fi
+            sleep 1
+        done
+    ) </dev/null >/dev/null 2>&1 &
+    echo $! > "$ACM_CONSOLE_PIDFILE"
 }
 
 setup_ums() {
@@ -570,6 +630,11 @@ setup_gadget() {
     log "Enabling UDC: $udc"
     sysfs_write UDC "$udc"
     
+    # /dev/ttyGS0 exists only now, so the console cannot be started earlier.
+    if [ "$CFG_ACM" = "1" ] && [ "$CFG_ACM_SHELL" = "1" ]; then
+        acm_console_start
+    fi
+    
     # Configure network
     setup_network
     
@@ -578,6 +643,10 @@ setup_gadget() {
 
 teardown_gadget() {
     log "Tearing down USB gadget"
+    
+    # Before the gadget goes: stop the console while its tty still exists, so
+    # the shell is killed rather than left holding a dead device.
+    acm_console_stop
     
     # Load config to get paths
     load_config
@@ -623,9 +692,10 @@ teardown_gadget() {
     cd /sys/kernel/config/usb_gadget
     rmdir "$CFG_GADGET_NAME" 2>/dev/null || true
     
-    # Clean shell from inittab
-    sed -i '/ttyGS0/d' /etc/inittab
-    kill -HUP 1 2>/dev/null || true
+    # Drop a line an older version of this script appended.  procd holds the
+    # parsed action until the next boot, so this is not instant, but it keeps
+    # the file from feeding a second login on the next one.
+    sed -i '/^ttyGS0:/d' /etc/inittab
     
     log "Teardown complete"
     log "USB port available for host mode"
@@ -663,7 +733,11 @@ status() {
             echo "Serial console:"
             if [ -c /dev/ttyGS0 ]; then
                 if [ "$CFG_ACM_SHELL" = "1" ]; then
-                    echo "  /dev/ttyGS0 - Available (with shell)"
+                    if acm_console_running; then
+                        echo "  /dev/ttyGS0 - Available (with shell)"
+                    else
+                        echo "  /dev/ttyGS0 - Available (shell NOT running)"
+                    fi
                 else
                     echo "  /dev/ttyGS0 - Available (raw TTY)"
                 fi

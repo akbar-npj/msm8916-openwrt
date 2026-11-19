@@ -91,6 +91,9 @@ jobs:
       - name: usb-gadget-probe
         run: bash tests/usb-gadget-probe/run.sh --self-check
 
+      - name: usb-gadget-console
+        run: bash tests/usb-gadget-console/run.sh --self-check
+
       - name: hotfix-scope
         run: bash tests/hotfix-scope/run.sh --self-check
 
