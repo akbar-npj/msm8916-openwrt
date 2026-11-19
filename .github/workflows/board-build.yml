@@ -130,6 +130,7 @@ jobs:
           if-no-files-found: error
           path: |
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-gpt_both0.bin
+            openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-gpt-7405568.bin
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-boot.img
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-system.img
             openwrt/bin/targets/msm89xx/msm8916/*-msm89xx-*-squashfs-sysupgrade.bin
