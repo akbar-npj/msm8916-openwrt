@@ -352,7 +352,10 @@ acm_console_start() {
     mkdir -p "$(dirname "$ACM_CONSOLE_PIDFILE")"
     (
         # The shell exits non-zero whenever the host hangs up, so this loop
-        # must not inherit set -e from the script.
+        # must not inherit set -e from the script.  HUP is ignored because a
+        # manual `usb-gadget restart` over ssh would otherwise take the
+        # console down with the session.
+        trap '' HUP
         set +e
         while :; do
             if [ -c /dev/ttyGS0 ]; then

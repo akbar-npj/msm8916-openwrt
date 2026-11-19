@@ -139,6 +139,16 @@ t_respawns() {
         || bad "the shell is reopened after it exits" "first=$first second='${second:-}'"
 }
 
+t_survives_hup() {
+    local sup
+    sup="$(super_pid)"
+    kill -HUP "$sup" 2>/dev/null
+    sleep 1
+    alive "$sup" \
+        && ok "the supervisor survives a hangup" \
+        || bad "the supervisor survives a hangup" "killed by HUP: $sup"
+}
+
 t_stop_kills_both() {
     local sup sh
     sup="$(super_pid)"; sh="$(shell_pid)"
@@ -192,6 +202,7 @@ run_suite() {
     t_waits_for_node
     t_starts_when_node_appears
     t_respawns
+    t_survives_hup
     t_stop_kills_both
     t_running
     t_tree
@@ -222,6 +233,15 @@ self_check() {
         failed=$((failed + 1))
     else
         echo "  ok   mutant 'the shell outlives stop' caught"
+    fi
+
+    cp "$GADGET" "$mutant"
+    sed -i "s/^        trap '' HUP\$/        :/" "$mutant"
+    if GADGET="$mutant" bash "$0" >/dev/null 2>&1; then
+        echo "  FAIL mutant 'a hangup takes the console down' was not caught"
+        failed=$((failed + 1))
+    else
+        echo "  ok   mutant 'a hangup takes the console down' caught"
     fi
 
     rm -f "$mutant"
