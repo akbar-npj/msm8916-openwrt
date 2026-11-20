@@ -72,7 +72,7 @@ Recent additions on top of the base port:
 | :------------ | :---------------- | :------------------------- | :------ | :----- | :-------- | :---------------------- |
 | **`hmuf02v5`**   | `generic-hmuf02v5`   | HMUF02-V5 (was HMU05) (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`ufi001b`** | `generic-ufi001b` | Generic UFI001B 4G Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
-| **`ufi003`**  | `generic-ufi003-mb-v02` | UFI003 MB V02 | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
+| **`ufi003`**  | `generic-ufi003-mb-v02` | UFI003 MB V02 (also sold as QRZL903-01) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`uz801`**   | `yiming-uz801v3`  | YiMing UZ801 v3 Dongle     | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`uf02`**    | `generic-uf02`    | Generic UF02 / UF2 Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`mf800b`**  | `generic-mf800b`  | Generic MF800B 4G MiFi     | MSM8916 | 512 MB | 4 GB eMMC | Bi-colour WLAN/WAN      |
@@ -274,7 +274,7 @@ Choice [1/2/3/4]:
 
 * **Full-Device Dump (recommended first)**: `./...flash.sh --mode backup` reads the **whole device** over EDL — either as one raw image (`edl rf` → `./<device>-dump.bin`) or partition-wise (`edl rl` → `./<device>-dump/`, restore one partition with `edl w <part> <file>`). The dump is **named after the device**: the name comes from `--device-name`, a remembered `.flash-device-name`, or a prompt at backup time, so a dump from one unit is never mistaken for another's. Before any destructive mode the script checks for a dump **for this device** and, unless `--yes`, refuses to continue without one.
 * **Safety Backup**: Backs up all critical device-unique radio/calibration partitions (`fsc`, `fsg`, `modemst1`, `modemst2`, `modem`, `persist`, `sec`) into a local `saved/` directory. Every read is validated; if any backup fails (error, or an empty/short file) the script **aborts before writing anything**, leaving the device untouched.
-* **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely.
+* **GPT Repartitioning**: Flashes the OpenWrt partition table (`*-squashfs-gpt_both0.bin`) via raw sector writes (`primary.bin`, `backup_entries.bin`, `backup_header.bin`) to repartition the eMMC safely. Units that shipped with the smaller 7,405,568-sector eMMC get the board's `*-squashfs-gpt-7405568.bin` table instead — the script reads the medium's real size first and never writes a table past its end.
 * **Firmware Extraction & Flashing**: Extracts `aboot.mbn`, `hyp.mbn`, `rpm.mbn`, `sbl1.mbn`, and `tz.mbn` from the board's `*-firmware.zip` and flashes them to the newly repartitioned layout.
 * **OpenWrt Installation**: Flashes the OpenWrt kernel/boot image (`*-squashfs-boot.img`), the rootfs system image (`*-squashfs-system.img`), and wipes `rootfs_data` (fast 2 MiB superblock wipe, reformatted on next boot).
 * **Partition Restoration**: Restores all previously backed-up calibration and radio partitions back to the device.

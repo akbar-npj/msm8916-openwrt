@@ -15,6 +15,17 @@ define Build/generate-squashfs-gpt
 	$(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh $@
 endef
 
+# Same generator, size given as an argument.  Every board ships a second table
+# for the smaller eMMC population: the sticks come with either 7,569,408 /
+# 7,634,944 or 7,405,568 sectors, and which one a unit has is only known at
+# flash time.  flash.sh picks the board's own table when it fits the medium and
+# this one otherwise (#103); on a large unit the extra file is simply unused.
+define Build/generate-squashfs-gpt-size
+	chmod +x $(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh
+	TOT_SECTORS="$(1)" RECOVERY="$(GPT_RECOVERY)" \
+	$(TOPDIR)/target/linux/$(BOARD)/image/generate_squashfs_gpt.sh $@
+endef
+
 define Build/install-flasher
 	$(CP) $(TOPDIR)/target/linux/$(BOARD)/image/flash.sh $@
 	chmod +x $@
@@ -38,8 +49,9 @@ define Device/msm8916
 	CMDLINE := "earlycon console=tty0 console=ttyMSM0,115200 root=/dev/mmcblk0p14 rootfstype=squashfs rootwait"
 	FEATURES := squashfs
 	IMAGE/system.img := append-rootfs | append-metadata
-	ARTIFACTS := squashfs-gpt_both0.bin flash.sh firmware.zip
+	ARTIFACTS := squashfs-gpt_both0.bin squashfs-gpt-7405568.bin flash.sh firmware.zip
 	ARTIFACT/squashfs-gpt_both0.bin := generate-squashfs-gpt
+	ARTIFACT/squashfs-gpt-7405568.bin := generate-squashfs-gpt-size 7405568
 	ARTIFACT/flash.sh := install-flasher
 	ARTIFACT/firmware.zip := generate-firmware
 endef
