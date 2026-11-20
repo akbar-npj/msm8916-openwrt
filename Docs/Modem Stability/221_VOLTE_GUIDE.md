@@ -9,6 +9,13 @@ This is the practical guide: what was broken, how the fix works, how to build it
 what to do when it does not come up. The investigation history (every failed attempt, with evidence)
 lives in `220_VOLTE_ENABLEMENT_SOP.md`; this document assumes you do not want to read that first.
 
+> **Credit where it is due.** Almost all of the call-audio machinery described here was written by
+> **[@isprogrammer](https://github.com/isprogrammer)** on the `voice_calls_new` branch of his
+> [msm8916-openwrt fork](https://github.com/isprogrammer/msm8916-openwrt/tree/voice_calls_new), and
+> the q6voice driver underneath it comes from **Stephan Gerhold** and the
+> [msm8916-mainline](https://github.com/msm8916-mainline/linux) project. See
+> [§17](#17-acknowledgements-and-provenance) for exactly which files came from where.
+
 ---
 
 ## 1. Status at a glance
@@ -515,3 +522,50 @@ dmesg | grep -iE "q6voice|asoc|apr"  # DSP plumbing
 |---|---|
 | 2026-11-13 | First version. Written after the first fully working build: IMS on boot, VoLTE call, two-way audio, automatic voice path. |
 | 2026-11-13 | Added §12.1, the LuCI Phone page. The SIP accounts moved from the generated `pjsip.conf` into `/etc/config/ufivoice` (`config phone`), so the page and the generator share one source. |
+| 2026-11-20 | Merged to `main` (PR #141). Added §17, the provenance record. |
+
+---
+
+## 17. Acknowledgements and provenance
+
+This work stands on two other people's code. Naming the debt precisely matters, because the
+interesting parts of the audio path are not ours and should not be presented as if they were.
+
+### 17.1 @isprogrammer — the voice stack, the package and the watchdog
+
+The `voice_calls_new` branch of
+[`isprogrammer/msm8916-openwrt`](https://github.com/isprogrammer/msm8916-openwrt/tree/voice_calls_new)
+(five commits, 2026-11-08 → 2026-11-10) solved call audio for these sticks before we did, and
+we took the bulk of it from there rather than re-deriving it:
+
+| In this tree | From his branch | How much |
+|---|---|---|
+| `msm89xx/patches/873-asoc-qcom-msm8916-voice.patch` | `870-asoc-qcom-msm8916-voice.patch` | **identical**, 2,519 lines; his `From:` header kept |
+| `packages/ufi-voice/files/imsdcm` | `packages/ufi-voice/files/imsdcm` | **byte-identical** (325 lines) |
+| `packages/ufi-voice/files/ufi-voiced` | same path | his 823-line base; we added ~60 lines (SIP dialplan, push notification, decline handling) |
+| `packages/ufi-voice/Makefile` | same path | his 92-line skeleton; we added the second package and three binaries |
+| `msm89xx/base-files/usr/sbin/modem-bearer-watchdog` | same path | his voice-aware version: the `voice_alive` gate that keeps the watchdog from cycling the modem mid-call |
+| `packages/luci-app-modem-watchdog/…/config.js` | same path | his voice and data-plan options |
+| `Docs/…/220`, `221` (this file) | `Docs/IMS_VOLTE.md`, `Docs/UFI003_VOICE.md` | the IMS bring-up procedure and the mixer/session map started as his notes |
+
+Patch 873's driver is itself a backport: **q6voice, q6voice-common, q6voice-dai, q6mvm, q6cvs
+and q6cvp are Stephan Gerhold's**, from the
+[msm8916-mainline](https://github.com/msm8916-mainline/linux) tree (1,838 of the 2,146 added
+lines). On top of that base sit @isprogrammer's ~300 lines: the internal BT SCO ports in
+`q6afe`, the `VOC_REC_DL`/`VOC_REC_UL` capture and `VOICE_PLAYBACK_TX` playback paths in
+`q6routing`, the BT SCO mixers, the CS/VoLTE session selector, the in-call record taps and the
+`Voice Tx Mute` control. **Those ~300 lines are his, not ours** — an earlier commit message in
+this repo described them as "our own", which was wrong.
+
+### 17.2 What is ours
+
+For completeness, so the boundary is visible: the `ims` WDS profile created at every modem boot
+(`ims-profile-setup`, `ims-profile-watch`, §3.3), the finding that `IMCN` + `PCSCF-via-PCO` are
+what make the network hand out a P-CSCF (§3.1–3.2), `voicectl`'s `host` mode, `voicebridge`,
+`ufi-voice-asterisk` and the LuCI Phone page, the incoming-call push, and the 220/221 documents.
+
+### 17.3 Licensing
+
+Both sides are GPL-2.0-only, so the merge is clean; patch 873 keeps his `From:` line and the
+`ufi-voice` files carry no separate copyright header. If you redistribute a build containing
+them, the GPL obligations for his contribution are the same as for the rest of the tree.

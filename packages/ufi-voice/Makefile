@@ -3,6 +3,13 @@
 # ufi-voice: VoLTE (IMS data service for the modem) and call audio for the
 # UFI003: Bluetooth headset (HFP AG + internal BT SCO) and local Asterisk
 # phones (AudioSocket bridge).
+#
+# Provenance: this package and the kernel voice patch it depends on
+# (msm89xx/patches/873-*) come from @isprogrammer's voice_calls_new branch,
+# https://github.com/isprogrammer/msm8916-openwrt/tree/voice_calls_new --
+# imsdcm is his file unchanged, ufi-voiced is his with our call-handling
+# additions. The q6voice driver under it is Stephan Gerhold's, from
+# msm8916-mainline. File-by-file record: Docs/Modem Stability/221_VOLTE_GUIDE.md §17.
 
 include $(TOPDIR)/rules.mk
 
