@@ -773,6 +773,24 @@ Every custom on-device program answers `--help` (or `-h`) with its options, the
 
 ---
 
+## 🙏 Acknowledgements
+
+**VoLTE and call audio** exist here because of
+**[@isprogrammer](https://github.com/isprogrammer)**, whose
+[`voice_calls_new`](https://github.com/isprogrammer/msm8916-openwrt/tree/voice_calls_new) branch
+we ported rather than reinvented: the `q6voice` kernel patch, the `ufi-voice` package
+(`imsdcm` verbatim, `ufi-voiced` as the base), the voice-aware `modem-bearer-watchdog` gate and
+its test suite, and the LuCI watchdog options. The `q6voice` driver inside that patch is
+**Stephan Gerhold**'s work from [msm8916-mainline](https://github.com/msm8916-mainline/linux).
+The exact file-by-file record is in
+[`Docs/Modem Stability/221_VOLTE_GUIDE.md`](Docs/Modem%20Stability/221_VOLTE_GUIDE.md#17-acknowledgements-and-provenance).
+
+Board bring-up, the failsafe console, the modem-stability investigation and the DIAG tooling are
+the work of this repo's maintainers and contributors; per-board credits are listed in
+[`MAINTAINERS.md`](MAINTAINERS.md).
+
+---
+
 ## 📜 License
 
 This project is licensed under the **GNU General Public License v2.0 (GPL-2.0)**.

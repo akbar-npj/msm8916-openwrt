@@ -377,10 +377,14 @@ qmi-raw /dev/wwan0qmi0 0x09 0x002f
 ### 8.2 Stage 1 — call audio (in progress, 2026-11-13)
 
 A VoLTE call that connects but carries no audio is only half a phone. The audio path is a
-**separate** problem from IMS registration, and it was already solved upstream: the
-`isprogrammer/msm8916-openwrt` branch `voice_calls_new` adds a full QDSP6 voice stack
-(5 commits, ~6,400 lines). It is now merged into this tree as patches **873** (kernel) and
-**875** (mifib-v12 DTS), plus the `ufi-voice` package.
+**separate** problem from IMS registration, and it was already solved upstream by
+**[@isprogrammer](https://github.com/isprogrammer)**: the `voice_calls_new` branch of
+[`isprogrammer/msm8916-openwrt`](https://github.com/isprogrammer/msm8916-openwrt/tree/voice_calls_new)
+adds a full QDSP6 voice stack (5 commits, ~6,400 lines) together with the `ufi-voice` package and
+a voice-aware `modem-bearer-watchdog`. It is now merged into this tree as patches **873** (kernel)
+and **875** (mifib-v12 DTS), plus the `ufi-voice` package; the watchdog gate and the LuCI options
+came with it. The `q6voice` driver inside patch 873 is Stephan Gerhold's (msm8916-mainline).
+File-by-file provenance: `221_VOLTE_GUIDE.md` §17.
 
 **Why it works without an ADSP partition.** The voice services (`q6mvm`, `q6cvs`, `q6cvp`,
 `q6voice`) are reached over **APR, which rides the modem's existing `smd-edge`**. The modem
