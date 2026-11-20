@@ -175,6 +175,16 @@ return view.extend({
 		o.password = true;
 		o.depends('notify', '1');
 
+		o = s.option(form.Value, 'ntfy_click', _('Open on tap'),
+			_('A link to open when the notification is tapped, instead of the ntfy ' +
+			  'app. Point it at a URI your softphone registers — for example ' +
+			  '<code>sip:100@192.168.8.1</code>, or the app\'s own scheme such as ' +
+			  '<code>linphone:</code> or <code>zoiper:</code>. One tap then opens the ' +
+			  'client and re-registers it. Does nothing if no app claims that URI. ' +
+			  'Leave empty to keep opening the ntfy app.'));
+		o.placeholder = 'sip:100@192.168.8.1';
+		o.depends('notify', '1');
+
 		o = s.option(form.Value, 'ntfy_password', _('Topic password'),
 			_('Encrypts the message end to end, so the server only stores ' +
 			  'ciphertext. Set the same password on the topic in the app ' +
