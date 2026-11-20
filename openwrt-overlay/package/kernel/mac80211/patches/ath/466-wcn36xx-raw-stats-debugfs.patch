@@ -1,0 +1,136 @@
+--- a/drivers/net/wireless/ath/wcn36xx/debug.h
++++ b/drivers/net/wireless/ath/wcn36xx/debug.h
+@@ -33,6 +33,7 @@
+ 	struct wcn36xx_dfs_file file_dump;
+ 	struct wcn36xx_dfs_file file_firmware_feat_caps;
+ 	struct wcn36xx_dfs_file file_recal;
++	struct wcn36xx_dfs_file file_stats;
+ };
+ 
+ void wcn36xx_debugfs_init(struct wcn36xx *wcn);
+--- a/drivers/net/wireless/ath/wcn36xx/smd.h
++++ b/drivers/net/wireless/ath/wcn36xx/smd.h
+@@ -137,6 +137,8 @@
+ int wcn36xx_smd_trigger_ba(struct wcn36xx *wcn, u8 sta_index, u16 tid, u16 *ssn);
+ int wcn36xx_smd_get_stats(struct wcn36xx *wcn, u8 sta_index, u32 stats_mask,
+ 			  struct station_info *sinfo);
++int wcn36xx_smd_get_stats_raw(struct wcn36xx *wcn, u32 sta_index,
++			      u32 stats_mask, void *out, size_t out_len);
+ 
+ int wcn36xx_smd_update_cfg(struct wcn36xx *wcn, u32 cfg_id, u32 value);
+ 
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -2693,6 +2693,46 @@
+ 	return ret;
+ }
+ 
++/*
++ * Send GET_STATS with whatever mask the caller asks for and hand the raw
++ * response back untouched.  The normal path refuses anything but class A
++ * (see the check at the top of wcn36xx_smd_get_stats), so this exists only to
++ * find out what the firmware actually returns for the other masks -- class B
++ * in particular, which the firmware does implement.  Nothing in the driver
++ * calls it except the debugfs node.
++ *
++ * Returns the response length in bytes, or a negative error.
++ */
++int wcn36xx_smd_get_stats_raw(struct wcn36xx *wcn, u32 sta_index,
++			      u32 stats_mask, void *out, size_t out_len)
++{
++	struct wcn36xx_hal_stats_req_msg msg_body;
++	int ret;
++
++	mutex_lock(&wcn->hal_mutex);
++	INIT_HAL_MSG(msg_body, WCN36XX_HAL_GET_STATS_REQ);
++	msg_body.sta_id = sta_index;
++	msg_body.stats_mask = stats_mask;
++	PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
++
++	ret = wcn36xx_smd_send_and_wait(wcn, msg_body.header.len);
++	if (ret)
++		goto out;
++
++	ret = wcn36xx_smd_rsp_status_check(wcn->hal_buf, wcn->hal_rsp_len);
++	if (ret)
++		goto out;
++
++	ret = wcn->hal_rsp_len;
++	if (ret > out_len)
++		ret = out_len;
++	memcpy(out, wcn->hal_buf, ret);
++out:
++	mutex_unlock(&wcn->hal_mutex);
++
++	return ret;
++}
++
+ static int wcn36xx_smd_trigger_ba_rsp(void *buf, int len, struct add_ba_info *ba_info)
+ {
+ 	struct wcn36xx_hal_trigger_ba_rsp_candidate *candidate;
+--- a/drivers/net/wireless/ath/wcn36xx/debug.c
++++ b/drivers/net/wireless/ath/wcn36xx/debug.c
+@@ -219,6 +219,55 @@
+ 	.write = write_file_recal,
+ };
+ 
++/*
++ * Ask the firmware for a stats block by mask and dump whatever comes back.
++ * The driver only ever parses class A, so this is the only way to see what
++ * the other masks (summary, class B, per-STA) actually return.
++ *
++ * Write "mask" or "mask,sta" in hex, e.g. "0x4" or "0x20,0".  The raw
++ * response, header included, goes to the kernel log as a hex dump.
++ *
++ * Measured on a mifib-v12: the firmware serves every mask, status 0 --
++ * summary 132 B, class A 68 B, class B 116 B, class C 60 B, class D 36 B,
++ * per-STA 60 B, header included.  On an idle link class B and class D are
++ * byte-identical across a 10 s gap, and the only fields that move in summary
++ * and class C are load-driven, not periodic: nothing increments at the beacon
++ * rate.  So there is no beacon or DTIM counter to poll, and this node is for
++ * inspection only.
++ */
++static ssize_t write_file_stats(struct file *file, const char __user *user_buf,
++				size_t count, loff_t *ppos)
++{
++	struct wcn36xx *wcn = file->private_data;
++	u8 raw[512];
++	char buf[32];
++	u32 mask = 0;
++	u32 sta = 0;
++	int ret;
++
++	if (count >= sizeof(buf))
++		return -EINVAL;
++	if (copy_from_user(buf, user_buf, count))
++		return -EFAULT;
++	buf[count] = '\0';
++
++	if (sscanf(buf, "%x,%u", &mask, &sta) < 1)
++		mask = HAL_GLOBAL_CLASS_A_STATS_INFO;
++
++	ret = wcn36xx_smd_get_stats_raw(wcn, sta, mask, raw, sizeof(raw));
++	wcn36xx_info("stats raw, mask 0x%x sta %u, %d bytes\n", mask, sta, ret);
++	if (ret > 0)
++		print_hex_dump(KERN_INFO, "wcn36xx stats: ", DUMP_PREFIX_OFFSET,
++			       16, 1, raw, ret, false);
++
++	return count;
++}
++
++static const struct file_operations fops_wcn36xx_stats = {
++	.open = simple_open,
++	.write = write_file_stats,
++};
++
+ #define ADD_FILE(name, mode, fop, priv_data)		\
+ 	do {							\
+ 		struct dentry *d;				\
+@@ -249,6 +298,7 @@
+ 	ADD_FILE(firmware_feat_caps, 0200,
+ 		 &fops_wcn36xx_firmware_feat_caps, wcn);
+ 	ADD_FILE(recal, 0200, &fops_wcn36xx_recal, wcn);
++	ADD_FILE(stats, 0200, &fops_wcn36xx_stats, wcn);
+ }
+ 
+ void wcn36xx_debugfs_exit(struct wcn36xx *wcn)
