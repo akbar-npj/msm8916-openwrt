@@ -74,8 +74,9 @@ DEFAULT_PACKAGES += wpa-cli
 # diffconfig, which is how ufi003 silently came to miss
 # luci-app-modem-watchdog; living here they ship on every board (and on any
 # future board) by default.
-DEFAULT_PACKAGES += luci-app-cpu-perf luci-app-modem-watchdog luci-app-sms-manager \
-	luci-app-update-notify luci-app-usb-gadget luci-app-wifi-sta luci-app-firmware-upgrade
+DEFAULT_PACKAGES += luci-app-clients luci-app-cpu-perf luci-app-modem-watchdog \
+	luci-app-sms-manager luci-app-update-notify luci-app-usb-gadget \
+	luci-app-wifi-sta luci-app-firmware-upgrade
 # Tailscale's LuCI page comes from the luci feed.  The vendored asvow copy used
 # to be here, but it shipped its own /etc/init.d/tailscale and /etc/config/
 # tailscale and renamed them over the feed package's files in postinst -- which

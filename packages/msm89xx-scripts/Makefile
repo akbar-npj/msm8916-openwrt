@@ -46,6 +46,7 @@ endef
 
 define Package/$(PKG_NAME)/conffiles
 /etc/config/leds
+/etc/config/uplink
 endef
 
 define Package/$(PKG_NAME)/install

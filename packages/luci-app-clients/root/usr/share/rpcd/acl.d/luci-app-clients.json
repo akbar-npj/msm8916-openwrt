@@ -1,0 +1,10 @@
+{
+    "luci-app-clients": {
+        "description": "Grant read access to the associated Wi-Fi clients",
+        "read": {
+            "file": {
+                "/usr/sbin/sta-list": ["exec"]
+            }
+        }
+    }
+}

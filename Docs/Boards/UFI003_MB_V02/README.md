@@ -10,8 +10,14 @@ Qualcomm device-tree entry and its provenance.
 - OpenWrt device profile: `generic-ufi003-mb-v02`
 - DTS: `msm8916-generic-ufi003_mb_v02`
 - `SUPPORTED_DEVICES`: `ufi003,mb-v02`
-- eMMC: 7,634,944 sectors × 512 bytes
-- GPT total sectors: 7,634,944
+- Sold as: UFI003 MB V02, and also as **QRZL903-01** — same hardware, same
+  image; a QRZL903 reports `ufi003,mb-v02` and matches this profile
+- eMMC: two populations have been observed on this board — 7,634,944 sectors
+  × 512 bytes and 7,405,568 sectors (the smaller one found in #71); the size is
+  a property of the unit, not of the board name
+- GPT total sectors: both tables are built (`*-squashfs-gpt_both0.bin` for
+  7,634,944, `*-squashfs-gpt-7405568.bin` for the smaller part) and `flash.sh`
+  reads the medium's real size and uses the largest table that fits (#103)
 
 The profile uses a separate board DTS and follows the UFI001B feature and
 configuration baseline. It has been validated on the physical UFI003 MB V02.
