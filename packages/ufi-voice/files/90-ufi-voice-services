@@ -1,0 +1,10 @@
+#!/bin/sh
+# Start the AP side of the modem's IMS data service (QMI 770).
+#
+# imsdcm is the only implementation in the tree: two servers for QMI 770 make
+# them fight over the modem's requests, the IMS bearer is created and removed
+# in a loop and IMS never registers.
+
+[ -x /etc/init.d/imsdcm ] && /etc/init.d/imsdcm enable
+
+exit 0

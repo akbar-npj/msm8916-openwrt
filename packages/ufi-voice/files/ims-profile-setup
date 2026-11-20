@@ -1,0 +1,68 @@
+#!/bin/sh
+#
+# Create the "ims" 3GPP WDS profile as early as possible after the modem
+# appears, and flag it IMCN=1 + PCSCF-via-PCO=1.
+#
+# Why this exists: the modem's IMS stack reads the WDS profile table once per
+# boot, and the carrier MCFG declares the "ims" PDN as Override_Type:API, so no
+# profile is ever materialised for it.  A profile created after the IMS stack
+# has read the table is invisible and IMS never registers.
+# See Docs/Modem Stability/220_VOLTE_ENABLEMENT_SOP.md, F29/F30 and S23.
+#
+# Nothing here restarts anything -- it only has to win the race against the
+# modem's IMS bring-up.
+
+DEV=/dev/wwan0qmi0
+READY=/var/run/ims-profile-ready
+
+log() { logger -t ims-profile "$*"; }
+
+rm -f "$READY"
+
+i=0
+while [ ! -e "$DEV" ] && [ $i -lt 600 ]; do
+	usleep 100000
+	i=$((i + 1))
+done
+
+if [ ! -e "$DEV" ]; then
+	log "no $DEV after 60 s, giving up"
+	touch "$READY"
+	exit 1
+fi
+
+# procd restarts an instance that exits, even cleanly, so this script must be
+# idempotent: if an "ims" profile is already there, there is nothing to do.
+if qmicli -d "$DEV" --device-open-proxy --wds-get-profile-list=3gpp 2>/dev/null |
+	grep -q "APN: 'ims'"; then
+	log "ims profile already present, nothing to do"
+	touch "$READY"
+	exit 0
+fi
+
+# The QMI service can NAK the first few requests while the modem finishes
+# booting, so retry until it answers.
+idx=""
+j=0
+while [ $j -lt 100 ]; do
+	idx=$(qmicli -d "$DEV" --device-open-proxy \
+		--wds-create-profile=3gpp,apn=ims,pdp-type=IPV4V6 2>/dev/null |
+		sed -n "s/.*Profile index: '\([0-9][0-9]*\)'.*/\1/p")
+	[ -n "$idx" ] && break
+	usleep 100000
+	j=$((j + 1))
+done
+
+if [ -z "$idx" ]; then
+	log "could not create the ims profile"
+	touch "$READY"
+	exit 1
+fi
+
+# TLV 0x01 is {u8 profile type, u8 profile index}; type 0 is 3GPP.
+hexidx=$(printf '%02x%02x' 0 "$idx")
+qmi-raw "$DEV" 1 0x0028 0x01="$hexidx" 0x1f=01 0x22=01 >/dev/null 2>&1
+
+log "ims profile $idx created, IMCN and PCSCF-via-PCO set"
+touch "$READY"
+exit 0

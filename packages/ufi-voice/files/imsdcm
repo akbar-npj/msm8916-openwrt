@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""AP-side IMS data connection service (QMI service 770 over QRTR).
+
+The modem's IMS stack in hybrid mode asks the AP to bring up the IMS PDN
+(request 0x20 start_connection) and expects an indication 0x20 with the
+bearer's address. Message layout follows postmarketOS 81voltd (imsd.qmi).
+Bearers are created through ModemManager (mmcli). Every message is logged.
+"""
+import json, os, select, socket, struct, subprocess, sys, time, threading
+
+SERVICE, VERSION, INSTANCE = 770, 1, 0
+STATE = '/tmp/imsdcm.state'     # connections handed to the modem, for a restarted daemon
+KICK = '/tmp/imsdcm.kick'       # idle limit (s) of the next instance after an idle restart
+KICK_MAX = 3600
+QRTR_PORT_CTRL = 0xfffffffe
+QRTR_TYPE_DATA, QRTR_TYPE_NEW_SERVER, QRTR_TYPE_DEL_CLIENT = 1, 4, 6
+
+def log(*a):
+    print(time.strftime('%H:%M:%S'), *a, flush=True)
+
+def tlvs(buf):
+    out, p = {}, 0
+    while p + 3 <= len(buf):
+        t, l = struct.unpack_from('<BH', buf, p)
+        out[t] = buf[p + 3:p + 3 + l]
+        p += 3 + l
+    return out
+
+def tlv(t, data):
+    return struct.pack('<BH', t, len(data)) + data
+
+def qmi(ctl, txn, msg, body):
+    return struct.pack('<BHHH', ctl, txn, msg, len(body)) + body
+
+RES_OK = tlv(0x02, struct.pack('<HH', 0, 0))
+def res_err(code):
+    return tlv(0x02, struct.pack('<HH', 1, code))
+
+def mm(*args):
+    r = subprocess.run(['mmcli'] + list(args), capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
+
+def uci(opt, default=''):
+    r = subprocess.run(['uci', '-q', 'get', 'ufivoice.main.' + opt], capture_output=True, text=True)
+    v = r.stdout.strip()
+    return v if r.returncode == 0 and v != '' else default
+
+def ims_registered():
+    try:
+        r = subprocess.run(['qmicli', '-d', 'qrtr://0', '--imsa-get-ims-registration-status'],
+                           capture_output=True, text=True, timeout=15)
+    except subprocess.TimeoutExpired:      # the modem is restarting
+        return False
+    return "Status: 'registered'" in r.stdout
+
+def modem_path():
+    _, out = mm('-L')
+    return next((w for w in out.split() if '/Modem/' in w), None)
+
+def bearer_kv(path):
+    _, out = mm('-b', path, '-K')
+    kv = {}
+    for line in out.splitlines():
+        if ':' in line:
+            k, v = line.split(':', 1)
+            kv[k.strip()] = v.strip()
+    return kv
+
+class Server:
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_QIPCRTR, socket.SOCK_DGRAM)
+        self.sock.bind((self.sock.getsockname()[0], 0))
+        self.node, self.port = self.sock.getsockname()
+        self.clients = set()
+        self.bearers = {}       # apn -> bearer path
+        self.conns = []         # local id -> (apn, family, orig_conn, sub)
+        self.ind_txn = 1
+        self.lock = threading.Lock()
+        self.idle_since = time.monotonic()  # no connection and not registered
+        self.modem = None       # ModemManager object the bearers belong to
+
+    def wait_wan(self):
+        # qcom-carrier-autocfg flushes all bearers while the WAN interface comes
+        # up at boot; an IMS bearer set up before that is deleted under the
+        # modem, which then stops asking for it. Start once the WAN is up.
+        iface = uci('wan_iface', 'modem')
+        for _ in range(60):
+            r = subprocess.run(['ubus', 'call', 'network.interface.' + iface, 'status'],
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                return              # no such interface
+            try:
+                if json.loads(r.stdout).get('up'):
+                    break
+            except ValueError:
+                pass
+            time.sleep(5)
+        time.sleep(10)
+
+    def wait_attached(self):
+        # Published before the modem is attached to LTE, the service only ever
+        # gets 0x23 and never 0x20; wait for PS attach first.
+        while True:
+            _, out = mm('-m', 'any', '-K')
+            if 'modem.3gpp.packet-service-state' in out and \
+               any(l.split(':', 1)[1].strip() == 'attached' for l in out.splitlines()
+                   if l.startswith('modem.3gpp.packet-service-state')):
+                return
+            time.sleep(3)
+
+    def report_stale(self, addr):
+        # Connections a previous instance reported as up: tell the modem they
+        # are gone, or it never asks for the PDN again.
+        try:
+            lines = open(STATE).read().split()
+        except OSError:
+            return
+        open(STATE, 'w').close()
+        for l in lines:
+            local, fam, conn, sub = (int(x) for x in l.split(','))
+            log('stale connection local=%d conn=%d: reporting down' % (local, conn))
+            b = (tlv(0x02, struct.pack('<HH', 0, 13)) + tlv(0x01, struct.pack('<B', local))
+                 + tlv(0x10, struct.pack('<I', conn)) + tlv(0x12, struct.pack('<I', sub)))
+            self.send(addr, qmi(4, self.ind_txn, 0x20, b))
+            self.ind_txn += 1
+
+    def save_state(self):
+        with open(STATE, 'w') as f:
+            for local, c in enumerate(self.conns):
+                if c:
+                    f.write('%d,%d,%d,%d\n' % (local, c[1], c[2], c[3]))
+
+    def publish(self):
+        pkt = struct.pack('<5I', QRTR_TYPE_NEW_SERVER, SERVICE,
+                          (INSTANCE << 8) | VERSION, self.node, self.port)
+        self.sock.sendto(pkt, (self.node, QRTR_PORT_CTRL))
+        log('published service %d v%d i%d at %d:%d' % (SERVICE, VERSION, INSTANCE, self.node, self.port))
+
+    def send(self, addr, data):
+        try:
+            with self.lock:
+                self.sock.sendto(data, addr)
+        except OSError as e:        # the client (modem) is gone
+            log('TX', addr, 'failed:', e)
+            return
+        log('TX', addr, data.hex())
+
+    def drop_old_bearers(self):
+        # Bearers left by a previous instance would make the new connect fail.
+        _, out = mm('-m', 'any', '-K')
+        for l in out.splitlines():
+            if l.startswith('modem.generic.bearers.value'):
+                path = l.split(':', 1)[1].strip()
+                kv = bearer_kv(path)
+                if kv.get('bearer.properties.apn') == 'ims':
+                    log('dropping old bearer %s' % path)
+                    mm('-b', path, '--disconnect')
+                    mm('-m', 'any', '--delete-bearer=%s' % path)
+
+    def active(self):
+        return [i for i, c in enumerate(self.conns) if c]
+
+    def watchdog(self):
+        # A bearer deleted behind our back (another tool, a reconnect of the
+        # WAN): report it down so the modem asks again.
+        for local in self.active():
+            path = self.bearers.get(self.conns[local][0])
+            if path is None or bearer_kv(path).get('bearer.status.connected') != 'yes':
+                log('bearer %s is gone, reporting connection %d down' % (path, local))
+                if path:
+                    mm('-m', 'any', '--delete-bearer=%s' % path)
+                self.bearers.pop(self.conns[local][0], None)
+                self.drop_conn(local)
+        # A modem restart (SSR) or a ModemManager re-probe: the modem asked for
+        # the PDN while ModemManager had no modem, got an error and stops
+        # asking. Exit; procd starts a new instance, which waits for the
+        # attach, publishes the service again and reports the stale
+        # connections down, and the modem asks again.
+        path = modem_path()
+        if path != self.modem:
+            log('modem %s is now %s: restarting' % (self.modem, path))
+            sys.exit(1)
+        now = time.monotonic()
+        if self.active() or ims_registered():
+            self.idle_since = now
+            if os.path.exists(KICK):
+                os.remove(KICK)
+            return
+        # The modem sometimes stops asking for the PDN after a failure; a new
+        # instance (see above) restarts it. Back off up to an hour while it
+        # does not help (no VoLTE on this network or SIM).
+        limit = int(uci('ims_kick_after', '180'))
+        if limit <= 0:
+            return
+        try:
+            limit = max(limit, int(open(KICK).read()))
+        except (OSError, ValueError):
+            pass
+        if now - self.idle_since > limit:
+            log('no IMS connection for %ds: restarting' % (now - self.idle_since))
+            with open(KICK, 'w') as f:
+                f.write('%d\n' % min(limit * 2, KICK_MAX))
+            sys.exit(1)
+
+    def drop_conn(self, local):
+        # send() does not raise, so this always forgets the connection,
+        # even when the modem that should hear about it has just crashed.
+        self.indicate(local, None)
+        self.conns[local] = None
+        self.save_state()
+
+    def run(self):
+        self.wait_attached()
+        self.wait_wan()
+        self.wait_attached()
+        self.drop_old_bearers()
+        self.modem = modem_path()
+        self.publish()
+        self.idle_since = time.monotonic()
+        next_check = time.monotonic() + 30
+        while True:
+            if time.monotonic() >= next_check:
+                try:
+                    self.watchdog()
+                except Exception as e:
+                    log('watchdog:', repr(e))
+                next_check = time.monotonic() + 15
+            # A blocking recvfrom() holds the QRTR socket lock and would stall
+            # the replies sent from worker threads; wait in select() instead.
+            if not select.select([self.sock], [], [], 1)[0]:
+                continue
+            data, addr = self.sock.recvfrom(65536)
+            if addr[1] == QRTR_PORT_CTRL:
+                cmd = struct.unpack_from('<I', data)[0] if len(data) >= 4 else -1
+                if cmd == QRTR_TYPE_DEL_CLIENT:
+                    _, node, port = struct.unpack_from('<3I', data)
+                    self.clients.discard((node, port))
+                    log('client gone', (node, port))
+                continue
+            log('RX', addr, data.hex())
+            if len(data) < 7:
+                continue
+            ctl, txn, msg, ln = struct.unpack_from('<BHHH', data)
+            body = tlvs(data[7:7 + ln])
+            if addr not in self.clients and not any(self.conns):
+                self.report_stale(addr)
+            self.clients.add(addr)
+            if msg == 0x20:
+                threading.Thread(target=self.start_connection, args=(addr, txn, body), daemon=True).start()
+            elif msg == 0x21:
+                self.stop_connection(addr, txn, body)
+            else:
+                log('msg 0x%02x: no-op, TLVs %s' % (msg, {('0x%02x' % k): v.hex() for k, v in body.items()}))
+                self.send(addr, qmi(2, txn, msg, RES_OK))
+
+    def start_connection(self, addr, txn, body):
+        spec = body.get(0x01, b'')
+        n = spec[0] if spec else 0
+        apn = spec[1:1 + n].decode(errors='replace')
+        unk, sel, fam, p3gpp, p3gpp2 = struct.unpack_from('<IIIHH', spec, 1 + n)
+        conn = struct.unpack('<I', body[0x10])[0] if 0x10 in body else 0
+        sub = struct.unpack('<I', body[0x13])[0] if 0x13 in body else 0
+        log('start_connection apn=%r unk=%d profiles=%d family=%s profile3gpp=%d profile3gpp2=%d conn=%d sub=%d'
+            % (apn, unk, sel, {0: 'ipv4', 1: 'ipv6'}.get(fam, fam), p3gpp, p3gpp2, conn, sub))
+        path = self.bearers.get(apn)
+        if path is None:
+            rc, out = mm('-m', 'any', '--create-bearer=apn=%s,ip-type=ipv4v6' % apn)
+            log('create-bearer rc=%d %s' % (rc, out.strip()))
+            path = next((w for w in out.split() if '/Bearer/' in w), None)
+            if path is None:
+                self.send(addr, qmi(2, txn, 0x20, res_err(1)))
+                return
+            self.bearers[apn] = path
+        rc, out = mm('-b', path, '--connect')
+        log('connect rc=%d %s' % (rc, out.strip()))
+        if rc != 0:
+            # The bearer may be gone with the modem (SSR); create a new one
+            # on the next request.
+            self.bearers.pop(apn, None)
+            mm('-m', 'any', '--delete-bearer=%s' % path)
+            self.send(addr, qmi(2, txn, 0x20, res_err(1)))
+            return
+        local = len(self.conns)
+        self.conns.append((apn, fam, conn, sub))
+        self.send(addr, qmi(2, txn, 0x20, RES_OK + tlv(0x10, struct.pack('<B', local))
+                            + tlv(0x11, struct.pack('<I', conn)) + tlv(0x12, struct.pack('<I', sub))))
+        self.save_state()
+        kv = bearer_kv(path)
+        key = 'bearer.ipv4-config.address' if fam == 0 else 'bearer.ipv6-config.address'
+        ip = kv.get(key, '--')
+        log('bearer %s %s=%s iface=%s' % (path, key, ip, kv.get('bearer.status.interface')))
+        self.indicate(local, ip if ip not in ('--', '') else None)
+
+    def indicate(self, local, ip):
+        apn, fam, conn, sub = self.conns[local]
+        b = tlv(0x01, struct.pack('<B', local)) + tlv(0x10, struct.pack('<I', conn))
+        if ip:
+            a = ip.encode()
+            b = tlv(0x02, struct.pack('<HH', 0, 0)) + b + tlv(0x11, struct.pack('<IB', fam, len(a)) + a)
+        else:
+            b = tlv(0x02, struct.pack('<HH', 0, 13)) + b
+        b += tlv(0x12, struct.pack('<I', sub))
+        for c in list(self.clients):
+            self.send(c, qmi(4, self.ind_txn, 0x20, b))
+        self.ind_txn += 1
+
+    def stop_connection(self, addr, txn, body):
+        local = body[0x01][0] if 0x01 in body else 0xff
+        echo = struct.unpack('<I', body[0x10])[0] if 0x10 in body else 0
+        log('stop_connection local=%d echo=%d' % (local, echo))
+        known = local < len(self.conns) and self.conns[local] is not None
+        if known:
+            apn = self.conns[local][0]
+            path = self.bearers.pop(apn, None)
+            if path:
+                log('disconnect %s' % mm('-b', path, '--disconnect')[1].strip())
+                mm('-m', 'any', '--delete-bearer=%s' % path)
+        self.send(addr, qmi(2, txn, 0x21, RES_OK + tlv(0x10, b'\xfa') + tlv(0x11, struct.pack('<I', echo))))
+        # Like 81voltd: report the connection as down (no address, error 13),
+        # otherwise the modem never asks for the PDN again.
+        if known:
+            self.drop_conn(local)
+
+if __name__ == '__main__':
+    Server().run()

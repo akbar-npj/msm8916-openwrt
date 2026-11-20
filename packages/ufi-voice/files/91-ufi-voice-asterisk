@@ -1,0 +1,8 @@
+#!/bin/sh
+# Asterisk configuration for ufi-voice: SIP phones <-> mobile calls.
+#
+# The real work is in /usr/sbin/ufi-voice-asterisk-apply, which reads the
+# accounts from /etc/config/ufivoice and is idempotent - the LuCI phone page
+# runs the same script after every change, so this hook only has to run it
+# once on a fresh install.
+exec /usr/sbin/ufi-voice-asterisk-apply

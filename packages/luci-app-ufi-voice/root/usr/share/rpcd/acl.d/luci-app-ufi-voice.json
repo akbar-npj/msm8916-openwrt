@@ -1,0 +1,25 @@
+{
+    "luci-app-ufi-voice": {
+        "description": "Grant access to the VoLTE phone configuration",
+        "read": {
+            "uci": ["ufivoice"],
+            "file": {
+                "/etc/config/ufivoice": ["read"],
+                "/usr/sbin/ufi-voice-status": ["exec"]
+            },
+            "ubus": {
+                "service": ["list"]
+            }
+        },
+        "write": {
+            "uci": ["ufivoice"],
+            "file": {
+                "/etc/config/ufivoice": ["write"],
+                "/usr/sbin/ufi-voice-apply": ["exec"]
+            },
+            "ubus": {
+                "service": ["list"]
+            }
+        }
+    }
+}

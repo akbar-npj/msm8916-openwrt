@@ -1,0 +1,82 @@
+#!/bin/sh
+# ufi-voice-notify [number] - push an incoming call to a phone that is asleep.
+#
+# A SIP client on iOS loses its registration when the system suspends it, so
+# Asterisk has no contact to ring and the call is never answered. Nothing on
+# this device can wake the app; a push notification can, and opening the app
+# re-registers it, at which point the retrying Dial in [ufi-incoming] rings it.
+#
+# ntfy is used because it needs no account: the message is a plain HTTP POST to
+# <server>/<topic>. Point ntfy_url at ntfy.sh or at your own server.
+#
+# With ntfy_password set the message is end-to-end encrypted in the ntfy draft
+# JWE format (AES-256-GCM, key = PBKDF2(password, SHA-256(topic URL))): the
+# whole message JSON travels inside the ciphertext, so the server stores only
+# ciphertext. ntfy-jwe does the crypto; the password goes through the
+# environment, never argv, so it does not show up in ps.
+#
+# Called by ufi-voiced when a mobile call starts ringing; it must never block
+# or fail loudly, so every error is only logged.
+
+[ -f /lib/functions.sh ] && . /lib/functions.sh
+
+number="$1"
+# only digits, '+' and spaces: the number ends up inside a JSON string
+number=$(printf '%s' "$number" | tr -cd '0-9+ ')
+
+if [ -f /etc/config/ufivoice ]; then
+	config_load ufivoice
+	config_get notify main notify 0
+	config_get url main ntfy_url 'https://ntfy.sh'
+	config_get topic main ntfy_topic ''
+	config_get token main ntfy_token ''
+	config_get password main ntfy_password ''
+	config_get prio main ntfy_priority 'max'
+else
+	notify=0
+fi
+
+[ "$notify" = 1 ] || exit 0
+[ -n "$topic" ] || exit 0
+
+url=${url%/}
+[ -n "$url" ] || url=https://ntfy.sh
+
+if [ -n "$number" ]; then
+	msg="Incoming call from $number"
+else
+	msg="Incoming call"
+fi
+
+if [ -n "$password" ] && [ -x /usr/bin/ntfy-jwe ]; then
+	# ntfy wants a number in the JSON; the header form takes the name.
+	case "$prio" in
+		max|urgent) nprio=5 ;;
+		high)       nprio=4 ;;
+		low)        nprio=2 ;;
+		min)        nprio=1 ;;
+		*)          nprio=3 ;;
+	esac
+	payload=$(printf '{"message":"%s","title":"Incoming call","priority":%s,"tags":["telephone_receiver"]}' "$msg" "$nprio")
+	body=$(printf '%s' "$payload" | NTFY_TOPIC_PASSWORD="$password" /usr/bin/ntfy-jwe "$url/$topic")
+	if [ -z "$body" ]; then
+		logger -t ufi-voice-notify 'encryption failed'
+		exit 1
+	fi
+	set -- -q -O - -T 5 --header='X-Encoding: jwe' --post-data="$body"
+else
+	set -- -q -O - -T 5 \
+		--header='Title: Incoming call' \
+		--header="Priority: $prio" \
+		--header='Tags: telephone_receiver' \
+		--post-data="$msg"
+fi
+[ -n "$token" ] && set -- "$@" --header="Authorization: Bearer $token"
+
+if wget "$@" "$url/$topic" >/dev/null 2>&1; then
+	logger -t ufi-voice-notify 'sent'
+else
+	logger -t ufi-voice-notify "push to $url failed"
+fi
+
+exit 0

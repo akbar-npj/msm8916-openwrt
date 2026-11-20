@@ -1,0 +1,87 @@
+#!/bin/sh
+# volte-setup - modem EFS settings for VoLTE on the UFI003 (DPM.2.0.2 modem
+# with the ROW Gen_3GPP MCFG active).
+#
+#   volte-setup status            show the IMS items and the IMS state
+#   volte-setup apply [--restart] write the missing items, sync the EFS
+#
+# apply writes only what differs:
+#   /nv/item_files/ims/IMS_enable                 01
+#   /nv/item_files/ims/ims_hybrid_enable          01  (IMS PDN via imsdcm)
+#   /nv/item_files/modem/mmode/voice_domain_pref  03, exactly 1 byte (the ROW
+#        MCFG leaves 2 bytes, then the modem registers IMS for SMS only)
+#   /nv/item_files/ims/qp_ims_reg_config          APN "ims" at offset 2 if empty
+# The modem reads them at start: --restart restarts it.
+
+LOCK=/var/lock/himi-ok-diag.lock
+TMP=/tmp/volte-setup.$$
+IMS=/nv/item_files/ims
+
+efs() { flock "$LOCK" diag_efs "$@"; }
+
+# efs_hex <path>: file content as one hex string ("" if missing)
+efs_hex() {
+	efs read "$1" "$TMP.f" >/dev/null 2>&1 || { echo ""; return; }
+	hexdump -v -e '/1 "%02x"' "$TMP.f"
+	rm -f "$TMP.f"
+}
+
+put_hex() {
+	printf "$(echo "$2" | sed 's/../\\x&/g')" > "$TMP.p"
+	efs put "$TMP.p" "$1" 2>&1 | tail -n1
+	rm -f "$TMP.p"
+}
+
+efs_sync() {
+	flock "$LOCK" diag_logtool req 4b13300001002f00 0x4b >/dev/null 2>&1
+	sleep 3
+}
+
+status() {
+	echo "MCFG: $(qmicli -p -d /dev/wwan0qmi0 --pdc-list-configs=software 2>/dev/null |
+		grep -B1 'Status: *Active' | sed -n 's/.*Description: *//p')"
+	for i in IMS_enable ims_hybrid_enable ims_operation_mode; do
+		echo "$i: $(efs_hex $IMS/$i)"
+	done
+	echo "voice_domain_pref: $(efs_hex /nv/item_files/modem/mmode/voice_domain_pref)"
+	apn=$(efs_hex $IMS/qp_ims_reg_config | cut -c5-68 | sed 's/\(00\)*$//')
+	echo "qp_ims_reg_config APN: $(printf "$(echo "$apn" | sed 's/../\\x&/g')")"
+	qmicli -d qrtr://0 --imsa-get-ims-registration-status 2>/dev/null | sed -n "s/.*Status: '\(.*\)'/IMS registration: \1/p"
+	qmicli -d qrtr://0 --imsa-get-ims-services-status 2>/dev/null |
+		awk '/SMS service|Voice service/ { s = $1 } /Status:/ && s { print s ": " $2; s = "" }' | tr -d "'"
+}
+
+apply() {
+	changed=0
+	[ "$(efs_hex $IMS/IMS_enable)" = "01" ] || { put_hex $IMS/IMS_enable 01; changed=1; }
+	[ "$(efs_hex $IMS/ims_hybrid_enable)" = "01" ] || { put_hex $IMS/ims_hybrid_enable 01; changed=1; }
+	[ "$(efs_hex /nv/item_files/modem/mmode/voice_domain_pref)" = "03" ] ||
+		{ put_hex /nv/item_files/modem/mmode/voice_domain_pref 03; changed=1; }
+	reg=$(efs_hex $IMS/qp_ims_reg_config)
+	if [ ${#reg} -eq 810 ] && [ "$(echo "$reg" | cut -c5-10)" = "000000" ]; then
+		put_hex $IMS/qp_ims_reg_config "$(echo "$reg" | cut -c1-4)696d73$(echo "$reg" | cut -c11-)"
+		changed=1
+	elif [ ${#reg} -ne 810 ]; then
+		echo "qp_ims_reg_config missing or unexpected size: activate the Gen_3GPP MCFG first" >&2
+	fi
+	if [ $changed = 1 ]; then
+		efs_sync
+		echo "EFS updated and synced"
+		if [ "$1" = "--restart" ]; then
+			r=$(grep -l 4080000.remoteproc /sys/class/remoteproc/*/name | head -n1)
+			r=${r%/name}
+			echo stop > "$r/state"; sleep 3; echo start > "$r/state"
+			echo "modem restarted"
+		else
+			echo "restart the modem (or reboot) to use them"
+		fi
+	else
+		echo "nothing to change"
+	fi
+}
+
+case "$1" in
+	status) status ;;
+	apply) apply "$2" ;;
+	*) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac
