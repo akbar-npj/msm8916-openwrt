@@ -1,0 +1,73 @@
+--- a/drivers/net/wireless/ath/wcn36xx/debug.h
++++ b/drivers/net/wireless/ath/wcn36xx/debug.h
+@@ -32,6 +32,7 @@
+ 	struct wcn36xx_dfs_file file_bmps_switcher;
+ 	struct wcn36xx_dfs_file file_dump;
+ 	struct wcn36xx_dfs_file file_firmware_feat_caps;
++	struct wcn36xx_dfs_file file_recal;
+ };
+ 
+ void wcn36xx_debugfs_init(struct wcn36xx *wcn);
+--- a/drivers/net/wireless/ath/wcn36xx/debug.c
++++ b/drivers/net/wireless/ath/wcn36xx/debug.c
+@@ -173,6 +173,52 @@
+ 	.read = read_file_firmware_feature_caps,
+ };
+ 
++/*
++ * Poke the firmware's rate-adaptation state without a scan.  Writing a number
++ * re-sends ENABLE_DYNAMIC_RA_START_RATE with that value in a
++ * WCN36XX_HAL_UPDATE_CFG_REQ; writing nothing uses the table value, 133.
++ *
++ * This exists to answer one question on hardware: does re-sending the RA
++ * config clear a rate state that only a probe-TX scan normally clears?
++ *
++ * It was measured on a mifib-v12 and the answer is no.  The firmware accepts
++ * every request (update_cfg 0) and the link does not change: in three paired
++ * runs where identical traffic was sent with and without the poke, the poke
++ * arm was never better (control 72.2/72.2/58.5 Mbit/s, poke 65.0/65.0/52.0,
++ * latency unchanged at ~84 ms in both).  So a config refresh is not a
++ * substitute for a scan, and this file is a diagnostic, not a fix.
++ */
++static ssize_t write_file_recal(struct file *file, const char __user *user_buf,
++				size_t count, loff_t *ppos)
++{
++	struct wcn36xx *wcn = file->private_data;
++	char buf[12];
++	u32 value = 133;
++	int ret;
++
++	if (count >= sizeof(buf))
++		return -EINVAL;
++	if (copy_from_user(buf, user_buf, count))
++		return -EFAULT;
++	buf[count] = '\0';
++
++	if (kstrtou32(buf, 0, &value))
++		value = 133;
++
++	ret = wcn36xx_smd_update_cfg(wcn,
++				     WCN36XX_HAL_CFG_ENABLE_DYNAMIC_RA_START_RATE,
++				     value);
++	wcn36xx_info("recal poke, RA start rate %u, update_cfg %d\n",
++		     value, ret);
++
++	return count;
++}
++
++static const struct file_operations fops_wcn36xx_recal = {
++	.open = simple_open,
++	.write = write_file_recal,
++};
++
+ #define ADD_FILE(name, mode, fop, priv_data)		\
+ 	do {							\
+ 		struct dentry *d;				\
+@@ -202,6 +248,7 @@
+ 	ADD_FILE(dump, 0200, &fops_wcn36xx_dump, wcn);
+ 	ADD_FILE(firmware_feat_caps, 0200,
+ 		 &fops_wcn36xx_firmware_feat_caps, wcn);
++	ADD_FILE(recal, 0200, &fops_wcn36xx_recal, wcn);
+ }
+ 
+ void wcn36xx_debugfs_exit(struct wcn36xx *wcn)
