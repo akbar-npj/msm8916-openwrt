@@ -2,7 +2,7 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # Nepal (MCC 429)
 42901	Nepal Telecom (NTC / Namaste)	ntnet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
-42902	Ncell (Axiata)	web	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42902	Ncell (Axiata)	web	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 42904	Smart Telecom	smart	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 
 # India (MCC 404 / 405)

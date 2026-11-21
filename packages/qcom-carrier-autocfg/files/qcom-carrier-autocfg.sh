@@ -104,7 +104,10 @@ lookup_carrier_profile() {
 	elif echo "$op_name" | grep -qi -E "ncell"; then
 		CARRIER_NAME="Ncell"
 		CARRIER_APN="web"
-		CARRIER_IPTYPE="ipv4v6"
+		# IPv4 only: the PDN this operator grants for APN 'web' on this
+		# subscription is IPv4.  A dual-stack request gets IPv4 and then fails
+		# its IPv6 half with "ip-version-mismatch", which only adds noise.
+		CARRIER_IPTYPE="ipv4"
 		CARRIER_MODE="4g"
 		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
 	elif echo "$op_name" | grep -qi -E "smart.*cell|smart.*telecom"; then
@@ -216,9 +219,16 @@ provision_network() {
 	fi
 
 	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred cur_eps
+	# `init_epsbearer=default` makes the modemmanager proto call
+	# `mmcli --3gpp-set-initial-eps-bearer-settings` on every connect.  On the
+	# HMU05-family modem firmware (HM02_MODEM_V1.2) that call fails with QMI
+	# error 81 ("DS profile error: invalid-parameter-length") and, because the
+	# command powers the modem down before modifying the profile, leaves the
+	# modem re-probing (netifd: "couldn't find modem", interface NO_DEVICE).
+	# The profile is written with qmicli by provision_modem_profile() instead.
 	local target_eps="default"
 	case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-		*hmu05*|*hmuf02v5*) target_eps="none" ;;
+		*hmu05*|*hmuf02v5*|*mifib-v12*) target_eps="none" ;;
 	esac
 
 	cur_apn=$(uci -q get network.modem.apn || echo "")
@@ -332,6 +342,66 @@ reset_baseband_cache() {
 	fi
 }
 
+# The modem starts every bearer from its default 3GPP profile.  When that
+# profile has an EMPTY APN the modem attaches with the subscription's default
+# APN, and the network then refuses IPv4 on the APN we actually asked for:
+#
+#   couldn't start IPv4 network: QMI protocol error (14): 'CallFailed'
+#   verbose call end reason (2,208): pdn-ipv4-call-disallowed
+#   connection attempt #1 failed: pdn-ipv4-call-disallowed: IPv6 only allowed
+#
+# Writing the carrier APN into that profile fixes it, even though the APN in
+# uci was already correct.  ModemManager's --3gpp-set-initial-eps-bearer-settings
+# is meant to do this, but this modem firmware (HM02_MODEM_V1.2) rejects it
+# with QMI error 81 ("DS profile error: invalid-parameter-length"), so write
+# the profile with qmicli instead.
+qmi_pdp_type() {
+	case "$1" in
+		ipv4|IP) echo IP ;;
+		ipv6|IPV6) echo IPV6 ;;
+		*) echo IPV4V6 ;;
+	esac
+}
+
+provision_modem_profile() {
+	local apn="$1"
+	local iptype="$2"
+	local qmi prof defnum cur_apn cur_pdp pdp
+
+	[ -n "$apn" ] || return 1
+
+	qmi=$(ls /dev/wwan*qmi* 2>/dev/null | head -n 1)
+	[ -n "$qmi" ] || {
+		log "No QMI device found; skipping modem profile provisioning."
+		return 1
+	}
+
+	defnum=$(qmicli -d "$qmi" --wds-get-default-profile-number=3gpp 2>/dev/null |
+		awk -F"'" '/Default profile number/ {print $2; exit}')
+	[ -n "$defnum" ] || defnum=1
+
+	prof=$(qmicli -d "$qmi" --wds-get-profile-list=3gpp 2>/dev/null)
+	cur_apn=$(printf '%s\n' "$prof" |
+		awk -F"'" -v n="$defnum" '$0 ~ "\\[" n "\\] 3gpp" {f=1; next} f && /\[[0-9]+\] 3gpp/ {f=0} f && /APN:/ {print $2; exit}')
+	cur_pdp=$(printf '%s\n' "$prof" |
+		awk -F"'" -v n="$defnum" '$0 ~ "\\[" n "\\] 3gpp" {f=1; next} f && /\[[0-9]+\] 3gpp/ {f=0} f && /PDP type:/ {print $2; exit}')
+	pdp=$(qmi_pdp_type "$iptype")
+
+	if [ "$cur_apn" = "$apn" ] && [ "$(echo "$cur_pdp" | tr 'a-z' 'A-Z')" = "$pdp" ]; then
+		log "Modem profile $defnum matches APN '$apn' / PDP type '$pdp'."
+		return 0
+	fi
+
+	log "Modem profile $defnum has APN '${cur_apn:-<empty>}' / PDP type '${cur_pdp:-?}'; provisioning APN '$apn' / PDP type '$pdp'..."
+	if qmicli -d "$qmi" --wds-modify-profile="3gpp,${defnum},apn=${apn},pdp-type=${pdp}" 2>&1 |
+		grep -q "successfully modified"; then
+		log "Modem profile $defnum updated."
+		return 0
+	fi
+	log "WARNING: could not update modem profile $defnum; the bearer may fall back to the subscription's default APN."
+	return 1
+}
+
 flush_bearer_cache() {
 	local m_path="$1"
 	local target_apn="$2"
@@ -353,11 +423,9 @@ flush_bearer_cache() {
 			mmcli -m "$m_path" --delete-bearer="$b" 2>/dev/null || true
 		done
 
-		# 3. Explicitly update initial EPS bearer settings for LTE network attach
-		if [ -n "$target_apn" ]; then
-			log "Setting 3GPP initial EPS bearer APN to '$target_apn' (${target_iptype:-ipv4v6})..."
-			mmcli -m "$m_path" --3gpp-set-initial-eps-bearer-settings="apn=${target_apn},ip-type=${target_iptype:-ipv4v6}" 2>/dev/null || true
-		fi
+		# 3. Write the carrier APN into the modem's default 3GPP profile: that
+		#    profile is what the next bearer is started from.
+		provision_modem_profile "$target_apn" "$target_iptype"
 	fi
 }
 
@@ -404,11 +472,13 @@ check_and_flush_radio_cache() {
 			need_flush=1
 		fi
 
-		# 4. Initial EPS Bearer APN check
+		# 4. Initial EPS Bearer APN check.  An EMPTY APN is a mismatch, not an
+		#    unknown: it is exactly the state in which the network refuses IPv4
+		#    (see provision_modem_profile).
 		local cached_eps_apn
 		cached_eps_apn=$(echo "$modem_kv" | awk -F': ' '/modem.3gpp.eps.initial-bearer.settings.apn/ {print $2}' | tr -d " '\r\n")
-		if [ -n "$cached_eps_apn" ] && [ "$cached_eps_apn" != "--" ] && [ "$cached_eps_apn" != "$target_apn" ]; then
-			log "Initial EPS bearer APN mismatch: radio cache has '$cached_eps_apn', SIM requires '$target_apn'"
+		if [ "$cached_eps_apn" != "--" ] && [ -n "$target_apn" ] && [ "$cached_eps_apn" != "$target_apn" ]; then
+			log "Initial EPS bearer APN mismatch: radio cache has '${cached_eps_apn:-<empty>}', SIM requires '$target_apn'"
 			need_flush=1
 		fi
 
@@ -496,6 +566,9 @@ connect_bearer() {
 
 	(
 		flock -x 200
+		# The profile must be right before the bearer starts; it is what the
+		# modem starts the PDN from.
+		provision_modem_profile "$apn" "$iptype"
 		log "Triggering netifd interface bring-up for modem (APN: '$apn', IP-Type: '$iptype')..."
 		ifup modem 2>/dev/null || true
 	) 200>/var/lock/modem-bearer.lock
