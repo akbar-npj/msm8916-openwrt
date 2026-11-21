@@ -109,13 +109,15 @@ boot_nudge() {
 	# publish service 770 before the modem is reset.
 	sleep 15
 
+	# Poll the whole window: a fresh modem reports not-registered for the
+	# first seconds even when it is about to register by itself, so the
+	# first not-registered answer must not end the wait.
 	i=0
 	while [ "$i" -lt 30 ]; do
 		st=$(qmicli -d "$QMI" --device-open-proxy \
 			--imsa-get-ims-registration-status 2>/dev/null |
 			sed -n "s/.*Status: '\(.*\)'/\1/p")
 		[ "$st" = registered ] && return 0
-		[ "$st" = not-registered ] && break
 		sleep 2
 		i=$((i + 1))
 	done
