@@ -109,7 +109,9 @@ lookup_carrier_profile() {
 		# its IPv6 half with "ip-version-mismatch", which only adds noise.
 		CARRIER_IPTYPE="ipv4"
 		CARRIER_MODE="4g"
-		CARRIER_MBN="generic/common/row/gen_3gpp/mcfg_sw.mbn"
+		# The ROW generic profile has no IMS feature, so VoLTE is impossible
+		# with it; the Reliance profile is the only IMS-capable one here.
+		CARRIER_MBN="generic/apac/reliance/commerci/mcfg_sw.mbn"
 	elif echo "$op_name" | grep -qi -E "smart.*cell|smart.*telecom"; then
 		CARRIER_NAME="Smart Telecom"
 		CARRIER_APN="smart"
@@ -168,30 +170,199 @@ lookup_carrier_profile() {
 }
 
 # ---------------------------------------------------------------------------
-# Carrier MCFG: dynamic loading is DISABLED (deliberately)
+# Carrier MCFG (the profile that decides whether the modem runs its IMS stack)
 #
-# This engine used to load and ACTIVATE the carrier MCFG through the modem's own
-# PDC service (QMI 0x24), with a legacy fallback that copied the file over
-# /lib/firmware/MCFG_SW.MBN.  Both are gone.
+# The modem loads one carrier profile at boot.  It sets the network/band policy
+# AND which firmware features are enabled -- including IMS.  The generic ROW
+# profile has no IMS feature, so with it active the modem publishes no IMS QMI
+# service at all: `qrtr-lookup` has no 33 (IMSA), and every --imsa-* call fails
+# with "QMI protocol error (31) InvalidServiceType".  That reads like "not
+# registered" but means the IMS task is not running, and VoLTE is impossible
+# until a profile that carries IMS is active.
 #
-# Activating an MCFG makes the modem SELF-RESET -- the firmware's own
-# `mcfg_utils.c:186` "MCFG:Modem Initiated Reset. This crash is expected!!!"
-# descriptor -- and for some carriers the activation never commits: the config
-# stays Inactive while whichever config was already Active keeps serving
-# (HMUF02-V5/Jio: ROW_Generic_3GPP).  The AP then re-attempted it on EVERY boot, and
-# each attempt is a modem restart -> SSR -> A2-handshake desync (a2_power.c:1189).
-# The modem already serves the carrier on the Active MCFG config, so the dynamic
-# load bought nothing and cost a crash loop.
+# Two traps made the naive implementation unsafe, and both are handled here:
 #
-# The rest of the engine is unchanged: carrier detection, APN/network config,
-# band selection, radio-cache flush and bearer bring-up.
+#  * `mcfg_autoselect_by_uim` (= 05 on a stock unit) makes the modem re-pick
+#    the profile from the SIM's IMSI at every boot.  For a SIM whose IMSI
+#    matches no shipped MBN -- i.e. any carrier outside the built-in set --
+#    the activation silently reverts: --pdc-activate-config returns SUCCESS,
+#    the modem restarts, and the old profile is Active again.  Clearing the
+#    item (00) is what makes the choice stick, and it survives reboots.
+#
+#  * The activation costs one modem restart (mcfg_utils.c:186, "MCFG:Modem
+#    Initiated Reset. This crash is expected!!!"), and retrying it on every
+#    boot turns that into an SSR per boot, which can desync the A2 handshake
+#    (a2_power.c:1189).  So act only when the active profile is not the wanted
+#    one, wait the restart out, and give up after a few consecutive failures.
+#
+# Identity is the config SIZE: the PDC store reports each uploaded config's
+# byte size, and it equals the MBN file size exactly.  Names are not usable --
+# the PDC description ("Commercial-Reliance") differs from the name inside the
+# MBN ("Reliance").
 # ---------------------------------------------------------------------------
 
-# Carrier MCFG is no longer applied by the AP.  Kept as a no-op so the caller's
-# flow and its "no change" result are unchanged.
-#   1 = no change (always)
+MCFG_DIR=/lib/firmware/modem_pr/mcfg/configs
+MCFG_ATTEMPTS=/etc/qcom-carrier-autocfg/mbn-attempts
+MCFG_MAX_ATTEMPTS=3
+
+mbn_file() {
+	local rel="$1"
+
+	[ -n "$rel" ] || return 1
+	if [ -f "$MCFG_DIR/mcfg_sw/$rel" ]; then
+		printf '%s\n' "$MCFG_DIR/mcfg_sw/$rel"
+	elif [ -f "/lib/firmware/$rel" ]; then
+		printf '%s\n' "/lib/firmware/$rel"
+	else
+		return 1
+	fi
+}
+
+# Size of the currently Active software config ("" if none).
+pdc_active_size() {
+	qmi_retry qmicli -p -d "$1" --pdc-list-configs=software 2>/dev/null | awk '
+		/^[[:space:]]*Size:/   { s = $2 }
+		/^[[:space:]]*Status:/ { if ($2 == "Active") { print s; exit } }'
+}
+
+# Config ID of an already-uploaded config with the given size ("" if absent).
+# Size precedes ID inside each block, so pairing them is enough; do not key on
+# Status here -- ID comes after it, and a Status-driven rule reads the
+# previous block's ID.
+pdc_id_for_size() {
+	qmi_retry qmicli -p -d "$1" --pdc-list-configs=software 2>/dev/null | awk '
+		/^[[:space:]]*Size:/ { s = $2 }
+		/^[[:space:]]*ID:/   { print s " " $2 }' |
+		awk -v want="$2" '$1 == want { print $2; exit }'
+}
+
+# 0 = the modem is publishing the IMS application service.
+ims_stack_present() {
+	qrtr-lookup 2>/dev/null | awk '$1 == 33 { found = 1 } END { exit found ? 0 : 1 }'
+}
+
+set_mcfg_autoselect_off() {
+	local p=/nv/item_files/mcfg/mcfg_autoselect_by_uim cur
+
+	cur=$(diag_efs get "$p" 2>/dev/null | tail -n 1 | sed 's/.*== //' | tr -d ' \r')
+	[ "$cur" = "00" ] && return 0
+
+	log "MCFG auto-selection by SIM is on ($cur); disabling it so the activation can stick."
+	printf '\000' > /tmp/mcfg-autoselect.bin
+	diag_efs put /tmp/mcfg-autoselect.bin "$p" --force >/dev/null 2>&1
+	rm -f /tmp/mcfg-autoselect.bin
+	diag_logtool req 4b13300001002f00 0x4b >/dev/null 2>&1
+	sleep 3
+
+	cur=$(diag_efs get "$p" 2>/dev/null | tail -n 1 | sed 's/.*== //' | tr -d ' \r')
+	[ "$cur" = "00" ]
+}
+
+# The activation resets the modem; the caller touches the bearer right after.
+wait_modem_back() {
+	local qmi="$1" i=0
+
+	while [ "$i" -lt 40 ]; do
+		sleep 2
+		qmicli -p -d "$qmi" --pdc-list-configs=software >/dev/null 2>&1 && return 0
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# 0 = the wanted MBN is active, 1 = left alone or failed.
 provision_carrier_mbn() {
-	log "Carrier MCFG dynamic loading is disabled; the modem uses the MCFG config that is already Active (requested: $1)."
+	local rel="$1" qmi file want active id attempts
+
+	[ -n "$rel" ] || return 1
+	file=$(mbn_file "$rel") || {
+		log "Carrier MCFG $rel is not in the firmware; leaving the active profile alone."
+		return 1
+	}
+	qmi=$(ls /dev/wwan*qmi* 2>/dev/null | head -n 1)
+	[ -n "$qmi" ] || return 1
+
+	want=$(wc -c < "$file" | tr -d ' ')
+	active=$(pdc_active_size "$qmi")
+
+	if [ "$active" = "$want" ]; then
+		log "Carrier MCFG $rel is already active ($want bytes)."
+		rm -f "$MCFG_ATTEMPTS"
+		return 0
+	fi
+
+	# The generic ROW profile carries no IMS, and it is what the modem falls
+	# back to on its own; activating it buys nothing and the PDC size of that
+	# config does not match the file size, so it would never look "already
+	# active" and would restart the modem on every boot.
+	case "$rel" in
+		*common/row/*)
+			log "Carrier MCFG $rel is the generic ROW profile; nothing to activate."
+			rm -f "$MCFG_ATTEMPTS"
+			return 0
+			;;
+	esac
+
+	# Some profile that carries IMS is already serving, which is all this
+	# function is for.  Do not restart the modem to swap one IMS profile for
+	# another.
+	if ims_stack_present; then
+		log "The modem already runs its IMS stack; leaving the active MCFG profile alone."
+		rm -f "$MCFG_ATTEMPTS"
+		return 0
+	fi
+
+	# Each attempt costs a modem restart, so do not loop over boots forever.
+	attempts=$(cat "$MCFG_ATTEMPTS" 2>/dev/null || echo 0)
+	case "$attempts" in ''|*[!0-9]*) attempts=0 ;; esac
+	if [ "$attempts" -ge "$MCFG_MAX_ATTEMPTS" ]; then
+		log "Carrier MCFG still not active after $attempts attempts; leaving it alone (remove $MCFG_ATTEMPTS to retry)."
+		return 1
+	fi
+
+	log "Carrier MCFG: active profile is ${active:-unknown} bytes, want $rel ($want bytes)."
+
+	set_mcfg_autoselect_off ||
+		log "WARNING: could not disable MCFG auto-selection by SIM; the activation may revert."
+
+	id=$(pdc_id_for_size "$qmi" "$want")
+	if [ -z "$id" ]; then
+		log "Uploading $rel to the PDC store..."
+		qmi_retry qmicli -p -d "$qmi" --pdc-load-config="$file" >/dev/null 2>&1
+		id=$(pdc_id_for_size "$qmi" "$want")
+	fi
+	if [ -z "$id" ]; then
+		log "WARNING: the PDC store did not accept $rel."
+		echo $((attempts + 1)) > "$MCFG_ATTEMPTS"
+		return 1
+	fi
+
+	log "Activating MCFG $id (the modem restarts itself)..."
+	qmi_retry qmicli -p -d "$qmi" --pdc-activate-config="software,$id" >/dev/null 2>&1
+	wait_modem_back "$qmi" ||
+		log "WARNING: the modem did not answer after the MCFG activation."
+
+	active=$(pdc_active_size "$qmi")
+	if [ "$active" = "$want" ]; then
+		rm -f "$MCFG_ATTEMPTS"
+		if ims_stack_present; then
+			log "Carrier MCFG $rel is active; the IMS stack is running."
+		else
+			log "Carrier MCFG $rel is active but no IMS service appeared."
+		fi
+		return 0
+	fi
+
+	# The PDC size is not always the file size, so an unchanged size after the
+	# restart does not by itself mean the activation failed.
+	if ims_stack_present; then
+		rm -f "$MCFG_ATTEMPTS"
+		log "The IMS stack is running after activating $rel; treating the activation as done."
+		return 0
+	fi
+
+	echo $((attempts + 1)) > "$MCFG_ATTEMPTS"
+	log "WARNING: the MCFG activation did not stick (active profile is ${active:-unknown} bytes, wanted $want)."
 	return 1
 }
 
@@ -764,8 +935,8 @@ while true; do
 						*[Jj]io*|*[Rr]eliance*|*"IN Loop"*) is_jio=1 ;;
 					esac
 
-					# Carrier MCFG is no longer applied by the AP (see
-					# provision_carrier_mbn); this is a log-only no-op.
+					# Make sure a profile that carries IMS is active; it
+					# is what lets the modem start its IMS stack.
 					provision_carrier_mbn "$CARRIER_MBN"
 
 					check_and_flush_radio_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI" "$OP_CODE" "$CARRIER_NAME" "$is_jio"

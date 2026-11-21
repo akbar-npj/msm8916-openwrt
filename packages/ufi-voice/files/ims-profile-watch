@@ -27,6 +27,7 @@
 
 RPROC=${RPROC_STATE:-/sys/class/remoteproc/remoteproc0/state}
 SETUP=${IMS_PROFILE_SETUP:-/usr/sbin/ims-profile-setup}
+QMI=${QMI_DEV:-/dev/wwan0qmi0}
 WAIT_MM=${IMS_WAIT_MM:-60}
 POLL_US=${IMS_POLL_US:-500000}
 
@@ -75,6 +76,40 @@ modem_boot() {
 	/etc/init.d/imsdcm restart >/dev/null 2>&1
 }
 
+# A cold boot leaves the modem's IMS client waiting: it announces 0x23 to
+# imsdcm and then never sends the 0x20 PDN request, so IMSA stays
+# not-registered even though the IMS stack is running.  One DMS reset makes it
+# ask within a few seconds, imsdcm creates the "ims" bearer and IMS registers.
+# Bounded to once per boot, and skipped when there is no IMS stack (no
+# IMS-capable MCFG active) or the carrier does not grant VoLTE.
+boot_nudge() {
+	local i=0 st
+
+	[ "$(uci -q get ufivoice.main.volte)" = "1" ] || return 0
+
+	# S94 creates the ims profile and S96 starts imsdcm; give both time, and
+	# give imsdcm time to publish service 770 before the modem is reset.
+	sleep 45
+
+	qrtr-lookup 2>/dev/null | awk '$1 == 33 { f = 1 } END { exit f ? 0 : 1 }' || return 0
+
+	while [ "$i" -lt 30 ]; do
+		st=$(qmicli -d "$QMI" --device-open-proxy \
+			--imsa-get-ims-registration-status 2>/dev/null |
+			sed -n "s/.*Status: '\(.*\)'/\1/p")
+		[ "$st" = registered ] && return 0
+		[ "$st" = not-registered ] && break
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$st" = not-registered ] || return 0
+
+	log "IMS stack is up but not registered; restarting the modem once so it asks for the IMS PDN"
+	qmicli -d "$QMI" --device-open-proxy --dms-set-operating-mode=reset >/dev/null 2>&1
+	sleep 25
+	qmicli -d "$QMI" --device-open-proxy --dms-set-operating-mode=online >/dev/null 2>&1
+}
+
 # The AP-boot transition belongs to S94/S96.  If the modem is already running
 # when this starts, the next transition is a genuine restart.
 last=$(cat "$RPROC" 2>/dev/null)
@@ -89,6 +124,7 @@ while :; do
 			modem_boot
 		else
 			log "modem up at AP boot, S94/S96 own this one"
+			boot_nudge &
 		fi
 		seen_running=1
 	fi

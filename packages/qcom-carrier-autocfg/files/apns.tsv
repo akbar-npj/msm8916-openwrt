@@ -1,8 +1,18 @@
 # MCC_MNC	Operator_Name	APN	IP_Type	Mode	MBN_Path
 # ----------------------------------------------------------------------------------------------------------------------
 # Nepal (MCC 429)
+#
+# The ROW generic profile has no IMS feature, so with it active the modem never
+# starts its IMS stack and VoLTE cannot work (qrtr-lookup shows no service 33
+# and every --imsa-* call returns "InvalidServiceType").  The Reliance profile
+# is the only one in this firmware that carries IMS for a non-Chinese LTE
+# network; its carrier-specific bits (the jionet data APN, the Jio ePDG name)
+# do not apply because the data APN comes from this table and VoLTE does not
+# use the ePDG.  Verified working on Ncell 42902 (voice-ip on lte, audio both
+# ways).  NTC and Smart are left on the generic profile until someone can test
+# them -- BSNL's IMS APN in particular is not necessarily "ims".
 42901	Nepal Telecom (NTC / Namaste)	ntnet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
-42902	Ncell (Axiata)	web	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+42902	Ncell (Axiata)	web	ipv4	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
 42904	Smart Telecom	smart	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 
 # India (MCC 404 / 405)
