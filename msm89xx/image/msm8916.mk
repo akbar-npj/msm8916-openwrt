@@ -65,6 +65,7 @@ define Device/yiming-uz801v3
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += yiming-uz801v3
@@ -78,6 +79,7 @@ define Device/generic-uf02
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += generic-uf02
@@ -92,6 +94,7 @@ define Device/generic-ufi001b
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += generic-ufi001b
@@ -107,6 +110,7 @@ define Device/generic-ufi003-mb-v02
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
 		kmod-sound-msm8916-voice alsa-utils ufi-voice ufi-voice-asterisk
 endef
@@ -132,6 +136,7 @@ define Device/generic-hmuf02v5
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg qcom-time-daemon \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += generic-hmuf02v5
@@ -150,6 +155,7 @@ define Device/generic-mf800b
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup luci-app-battery
 endef
 TARGET_DEVICES += generic-mf800b
@@ -168,6 +174,7 @@ define Device/generic-mifib-v12
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup luci-app-battery \
 		kmod-sound-msm8916-voice alsa-utils ufi-voice ufi-voice-asterisk luci-app-ufi-voice
 endef
@@ -190,6 +197,7 @@ define Device/generic-uf896
     DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
         block-mount f2fs-tools tar \
         msm-firmware-dumper reboot-edl qcom-carrier-autocfg qmi-utils \
+        464xlat kmod-nat46 \
         diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += generic-uf896
@@ -208,6 +216,7 @@ define Device/generic-jz02
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
 		luci-app-battery
 endef
@@ -225,6 +234,7 @@ define Device/generic-jz0145
 	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
 endef
 TARGET_DEVICES += generic-jz0145

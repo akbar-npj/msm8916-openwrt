@@ -1,0 +1,20 @@
+#!/bin/sh
+# Create the CLAT interface, kept down until the hotplug handler decides the
+# mobile WAN is IPv6-only.  On a 464XLAT carrier (IPv6-only bearer plus a
+# NAT64 gateway) this is what gives the LAN its IPv4 internet; on a
+# dual-stack carrier it stays down and the native IPv4 path is used.
+#
+# Nothing here is carrier-specific: the 464xlat proto discovers the NAT64
+# prefix itself by resolving ipv4only.arpa through the carrier's DNS64.
+
+[ -e /etc/config/network ] || exit 0
+uci -q get network.clat >/dev/null && exit 0
+
+uci set network.clat=interface
+uci set network.clat.proto='464xlat'
+uci set network.clat.tunlink='modem'
+uci set network.clat.zone='wan'
+uci set network.clat.auto='0'
+uci commit network
+
+exit 0
