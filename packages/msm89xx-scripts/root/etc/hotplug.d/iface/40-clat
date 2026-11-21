@@ -1,0 +1,50 @@
+#!/bin/sh
+# Bring the CLAT up only when the mobile WAN came up without IPv4.
+#
+# Some carriers hand out an IPv6-only default bearer and expect the device to
+# reach IPv4 through their NAT64 gateway, the same way a phone does with
+# 464XLAT.  Without a CLAT the LAN has IPv6 only and every IPv4-only client
+# behind the router has no internet.
+#
+# On a dual-stack carrier the bearer has its own IPv4, so the CLAT is taken
+# down and never touches the native path.
+
+[ "$INTERFACE" = "modem" ] || exit 0
+
+case "$ACTION" in
+	ifup|ifupdate) ;;
+	ifdown)
+		ifdown clat 2>/dev/null
+		exit 0
+		;;
+	*) exit 0 ;;
+esac
+
+clat_up() {
+	ifstatus clat 2>/dev/null | grep -q '"up": true'
+}
+
+# DEVICE is exported for ifup/ifupdate, but fall back to the interface status
+# rather than guessing: an empty device must never be read as "no IPv4".
+dev="${DEVICE:-}"
+[ -n "$dev" ] || dev=$(ifstatus modem 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)
+[ -n "$dev" ] || exit 0
+
+if ip -4 addr show dev "$dev" 2>/dev/null | grep -q 'inet '; then
+	# Native IPv4 is there; make sure a leftover CLAT is not in the way.
+	if clat_up; then
+		ifdown clat 2>/dev/null
+	fi
+else
+	if ! clat_up; then
+		ifup clat 2>/dev/null
+		# The proto resolves ipv4only.arpa to find the NAT64 prefix, and DNS
+		# can still be settling right after the bearer comes up.  One retry.
+		sleep 5
+		if ! clat_up; then
+			ifup clat 2>/dev/null
+		fi
+	fi
+fi
+
+exit 0

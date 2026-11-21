@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm89xx-scripts
 PKG_VERSION:=1.0
-PKG_RELEASE:=21
+PKG_RELEASE:=22
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=akbar-npj
@@ -15,7 +15,7 @@ define Package/$(PKG_NAME)
 	SECTION:=utils
 	CATEGORY:=Utilities
 	TITLE:=LED monitors, clock/timezone and station-mode helpers for the msm89xx boards
-	DEPENDS:=+procd
+	DEPENDS:=+procd +jsonfilter +ip
 	PKGARCH:=all
 endef
 
