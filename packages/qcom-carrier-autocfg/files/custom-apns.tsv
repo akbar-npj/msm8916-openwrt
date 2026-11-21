@@ -8,7 +8,7 @@
 #
 # Examples:
 # 42901	Nepal Telecom	ntnet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
-# 42902	Ncell	web	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+# 42902	Ncell	web	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 # 405861	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
 #
 # Add your custom carrier entries below:
