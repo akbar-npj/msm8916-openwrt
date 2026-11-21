@@ -163,15 +163,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          # A kmod is declared by a `KernelPackage/<name>` block, and the file
-          # holding that block is the package whose release versions it:
+          # A kmod is declared by a `KernelPackage/<name>` block, and the
+          # release that versions it belongs to the package DIRECTORY holding
+          # that block -- not necessarily the file itself: kmod-wcn36xx is
+          # declared in package/kernel/mac80211/ath.mk, but PKG_RELEASE is in
+          # package/kernel/mac80211/Makefile.
           #
-          #   VERSION          = <LINUX_VERSION>[.<PKG_VERSION>]-r<PKG_RELEASE|LINUX_RELEASE>
-          #   EXTRA_DEPENDS    = kernel (= <LINUX_VERSION>~<VERMAGIC>-r<LINUX_RELEASE>)
+          #   VERSION       = <LINUX_VERSION>[.<PKG_VERSION>]-r<PKG_RELEASE|LINUX_RELEASE>
+          #   EXTRA_DEPENDS = kernel (= <LINUX_VERSION>~<VERMAGIC>-r<LINUX_RELEASE>)
           #
-          # In-tree kmods have no PKG_RELEASE of their own, so LINUX_RELEASE is
-          # their only lever -- and it also moves the kernel stub, so those
-          # kmods have to be rebuilt in the same run.
+          # In-tree kmods (package/kernel/linux) have no PKG_RELEASE of their
+          # own, so LINUX_RELEASE is their only lever -- and it also moves the
+          # kernel stub, so those kmods have to be rebuilt in the same run.
           #
           # A kmod from an out-of-tree package takes that package's PKG_RELEASE
           # (kmod-wcn36xx -> mac80211: 6.12.112.6.18.55-r2 =
@@ -189,27 +192,26 @@ jobs:
             echo "LINUX_RELEASE ${old} -> ${new} (this run only; not committed)"
           }
 
-          # A kmod is defined by a `KernelPackage/<name>` block. The file that
-          # holds it is the package whose PKG_RELEASE versions it.
-          find_owner() {
-            grep -rl --include=Makefile --include='*.mk' \
-              "^define KernelPackage/$1\$" openwrt/package 2>/dev/null | head -1 || true
-          }
-
-          # In-tree kmods are declared in package/kernel/linux/modules/*.mk.
-          # That directory is not a package; the package is its parent.
-          normalize_owner() {
-            case "$1" in
-              openwrt/package/kernel/linux/*) echo openwrt/package/kernel/linux/Makefile ;;
-              *) echo "$1" ;;
+          # Print the package directory that declares KernelPackage/<name>.
+          # In-tree modules live in package/kernel/linux/modules/*.mk; that
+          # directory is not a package, so fold it back to its parent.
+          owner_dir() {
+            local f d
+            f="$(grep -rl --include=Makefile --include='*.mk' \
+                  "^define KernelPackage/$1\$" openwrt/package 2>/dev/null | head -1 || true)"
+            [ -n "$f" ] || return 0
+            d="$(dirname "$f")"
+            case "$d" in
+              openwrt/package/kernel/linux*) echo openwrt/package/kernel/linux ;;
+              *) echo "$d" ;;
             esac
           }
 
           bumped=""
           for k in $KMODS; do
             name="${k#kmod-}"
-            owner="$(normalize_owner "$(find_owner "$name")")"
-            if [ -z "$owner" ] || [ "$owner" = openwrt/package/kernel/linux/Makefile ]; then
+            dir="$(owner_dir "$name")"
+            if [ -z "$dir" ] || [ "$dir" = openwrt/package/kernel/linux ]; then
               echo "${k}: in-tree (versioned by LINUX_RELEASE)"
               case " $bumped " in
                 *" LINUX_RELEASE "*) ;;
@@ -217,20 +219,21 @@ jobs:
               esac
               continue
             fi
-            echo "${k}: ${owner#openwrt/}"
+            echo "${k}: ${dir#openwrt/}"
             case " $bumped " in
-              *" $owner "*) continue ;;
+              *" $dir "*) continue ;;
             esac
-            old="$(sed -n 's/^PKG_RELEASE:=\([0-9]*\)$/\1/p' "$owner" | head -1)"
+            M="$dir/Makefile"
+            old="$(sed -n 's/^PKG_RELEASE:=\([0-9]*\)$/\1/p' "$M" | head -1)"
             if [ -z "$old" ]; then
-              echo "::error::${k} is defined in ${owner}, which has no PKG_RELEASE:=<n>."
+              echo "::error::${k} is provided by ${dir}, whose Makefile has no PKG_RELEASE:=<n>."
               echo "::error::Bump that package's release by hand and re-dispatch."
               exit 1
             fi
             new=$((old + 1))
-            sed -i "0,/^PKG_RELEASE:=/s/^PKG_RELEASE:=.*/PKG_RELEASE:=${new}/" "$owner"
+            sed -i "0,/^PKG_RELEASE:=/s/^PKG_RELEASE:=.*/PKG_RELEASE:=${new}/" "$M"
             echo "  PKG_RELEASE ${old} -> ${new} (this run only; not committed)"
-            bumped="$bumped $owner"
+            bumped="$bumped $dir"
           done
 
       - name: Fetch the published targets feed
@@ -273,14 +276,14 @@ jobs:
           done
 
           find_owner() {
-            grep -rl --include=Makefile --include='*.mk' \
-              "^define KernelPackage/$1\$" openwrt/package 2>/dev/null | head -1 || true
-          }
-
-          normalize_owner() {
-            case "$1" in
-              openwrt/package/kernel/linux/*) echo openwrt/package/kernel/linux/Makefile ;;
-              *) echo "$1" ;;
+            local f d
+            f="$(grep -rl --include=Makefile --include='*.mk' \
+                  "^define KernelPackage/$1\$" openwrt/package 2>/dev/null | head -1 || true)"
+            [ -n "$f" ] || return 0
+            d="$(dirname "$f")"
+            case "$d" in
+              openwrt/package/kernel/linux*) echo openwrt/package/kernel/linux ;;
+              *) echo "$d" ;;
             esac
           }
 
@@ -288,14 +291,13 @@ jobs:
           built=""
           for k in $KMODS; do
             name="${k#kmod-}"
-            owner="$(normalize_owner "$(find_owner "$name")")"
-            if [ -z "$owner" ] || [ "$owner" = openwrt/package/kernel/linux/Makefile ]; then
+            dir="$(find_owner "$name")"
+            if [ -z "$dir" ] || [ "$dir" = openwrt/package/kernel/linux ]; then
               echo "${k}: in-tree, built with package/kernel/linux"
               in_tree=1
               continue
             fi
-            rel="$(dirname "$owner")"
-            rel="${rel#openwrt/}"
+            rel="${dir#openwrt/}"
             case " $built " in
               *" $rel "*) continue ;;
             esac
