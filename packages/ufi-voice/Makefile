@@ -15,7 +15,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=21
+PKG_RELEASE:=22
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -25,7 +25,7 @@ define Package/ufi-voice
   CATEGORY:=Network
   SUBMENU:=Telephony
   TITLE:=VoLTE and call audio for MSM8916 sticks
-  DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +alsa-lib +alsa-utils \
+  DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +kmod-sound-core +alsa-lib +alsa-utils \
 	+libdbus +python3-light +qmi-utils +modemmanager +diag-efs +diag-logtool \
 	+libopenssl
 endef
