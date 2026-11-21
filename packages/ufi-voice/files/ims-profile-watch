@@ -2,9 +2,8 @@
 #
 # ims-profile-watch - keep the "ims" WDS profile present across modem restarts.
 #
-# ims-profile-setup (init S94) creates the profile once, at AP boot, before
-# imsdcm (S96) starts the modem's IMS stack.  This daemon covers the case that
-# one does not: the modem restarts at runtime -- crash recovery, the stall
+# ims-profile-setup creates the profile at AP boot. This daemon also handles
+# modem restarts at runtime, including crash recovery, the stall
 # watchdog's Stage 3 SSR, or a manual stop/start -- and re-provisions the WDS
 # table from the carrier MCFG, which declares the "ims" PDN Override_Type:API
 # and therefore never materialises a profile.  imsdcm's QMI client is dead
@@ -12,12 +11,12 @@
 # next AP reboot.
 #
 # The first time the modem comes up after this starts is the AP boot, which
-# S94/S96 already handle: it is deliberately ignored, so a plain boot is not
+# the boot services already handle: it is deliberately ignored, so a plain boot is not
 # disturbed.  Every later not-running -> running transition runs the whole
 # recovery, which is SOP 220 section 8.1 steps 1-4:
 #
-#   ims-profile-setup -> wait for ModemManager -> MM disable/enable
-#                     -> restart imsdcm
+#   ims-profile-setup -> wait for ModemManager -> MM disable
+#                     -> restart imsdcm -> MM enable
 #
 # The MM disable/enable is not optional: after a modem restart MM keeps a stale
 # 3GPP view and imsdcm's bearer request fails, so the IMS PDN never comes up
@@ -37,8 +36,7 @@ log() { logger -t ims-profile-watch "$*"; }
 # applet is ever missing, so the loop can never spin.
 nap() { usleep "$1" 2>/dev/null || sleep 1; }
 
-# ModemManager needs a moment to see the restarted modem, and imsdcm talks to
-# MM; restarting it before MM is ready only makes it fail and respawn.
+# Wait for ModemManager to see the restarted modem before cycling the radio.
 wait_mm() {
 	i=0
 	while [ "$i" -lt "$WAIT_MM" ]; do
@@ -67,15 +65,15 @@ modem_boot() {
 	# bearer request in imsdcm fails and the IMS PDN never comes up.
 	log "resetting ModemManager's view of the modem"
 	timeout 20 mmcli -m any --disable >/dev/null 2>&1
+
+	log "restarting imsdcm before LTE attach"
+	/etc/init.d/imsdcm restart >/dev/null 2>&1
 	sleep 4
 	timeout 30 mmcli -m any --enable >/dev/null 2>&1
 	sleep 12
-
-	log "restarting imsdcm"
-	/etc/init.d/imsdcm restart >/dev/null 2>&1
 }
 
-# The AP-boot transition belongs to S94/S96.  If the modem is already running
+# The boot services handle the AP-boot transition.  If the modem is already running
 # when this starts, the next transition is a genuine restart.
 last=$(cat "$RPROC" 2>/dev/null)
 seen_running=0
@@ -88,7 +86,7 @@ while :; do
 		if [ "$seen_running" = 1 ]; then
 			modem_boot
 		else
-			log "modem up at AP boot, S94/S96 own this one"
+			log "modem up at AP boot"
 		fi
 		seen_running=1
 	fi

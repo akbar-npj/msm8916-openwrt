@@ -1,7 +1,8 @@
 #!/bin/sh /etc/rc.common
 # AP-side IMS data connection service for the modem (QMI 770 over QRTR)
 
-START=96
+# Start just after qrtrns (S60), before ModemManager enables LTE.
+START=61
 STOP=10
 USE_PROCD=1
 
