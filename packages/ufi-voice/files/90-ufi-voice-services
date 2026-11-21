@@ -5,6 +5,9 @@
 # them fight over the modem's requests, the IMS bearer is created and removed
 # in a loop and IMS never registers.
 
-[ -x /etc/init.d/imsdcm ] && /etc/init.d/imsdcm enable
+if [ -x /etc/init.d/imsdcm ]; then
+	rm -f /etc/rc.d/S96imsdcm
+	/etc/init.d/imsdcm enable
+fi
 
 exit 0

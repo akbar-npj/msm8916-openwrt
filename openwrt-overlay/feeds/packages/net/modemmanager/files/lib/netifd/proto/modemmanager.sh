@@ -797,8 +797,12 @@ proto_modemmanager_setup() {
 		echo "Warning: couldn't enable modem on ${device}, continuing..."
 	}
 
-	# set initial eps bearer settings
-	if [ "$device" = qcom-soc ] && modemmanager_has_connected_ims "${modemstatus}"; then
+	# Rewriting the default EPS profile cycles the radio and can interrupt
+	# the IMS handoff before ModemManager has a connected IMS bearer.
+	if [ "$device" = qcom-soc ] && [ "$init_epsbearer" = default ] &&
+	   [ "$(uci -q get ufivoice.main.volte)" = 1 ]; then
+		echo "Keeping modem default initial EPS bearer settings for VoLTE"
+	elif [ "$device" = qcom-soc ] && modemmanager_has_connected_ims "${modemstatus}"; then
 		echo "Keeping initial EPS bearer settings while IMS is connected"
 	elif [ -z "${init_epsbearer}" ]; then
 		modemmanager_init_epsbearer "none" "$device" "" "$apn"
