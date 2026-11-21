@@ -355,6 +355,10 @@ reset_baseband_cache() {
 # is meant to do this, but this modem firmware (HM02_MODEM_V1.2) rejects it
 # with QMI error 81 ("DS profile error: invalid-parameter-length"), so write
 # the profile with qmicli instead.
+# Two spellings are in play: uci uses ipv4/ipv6/ipv4v6, --wds-modify-profile
+# wants IP/IPV6/IPV4V6, and --wds-get-profile-list answers ipv4/ipv6/
+# ipv4-or-ipv6.  Normalise both sides before comparing, or every run rewrites
+# the profile.
 qmi_pdp_type() {
 	case "$1" in
 		ipv4|IP) echo IP ;;
@@ -363,10 +367,112 @@ qmi_pdp_type() {
 	esac
 }
 
+qmi_pdp_norm() {
+	case "$1" in
+		ipv4|IP|IPV4) echo ipv4 ;;
+		ipv6|IPV6) echo ipv6 ;;
+		*) echo ipv4v6 ;;
+	esac
+}
+
+# qmicli and ModemManager both open the modem's QMI port, and on this firmware a
+# client allocation can fail with "endpoint hangup" while ModemManager is busy.
+# Retry instead of failing the whole provision.
+qmi_retry() {
+	local i=0 out
+	while [ "$i" -lt 8 ]; do
+		out=$("$@" 2>&1)
+		case "$out" in
+			*"endpoint hangup"*|*"Transaction timed out"*|*"Resource temporarily unavailable"*)
+				i=$((i + 1))
+				sleep 3
+				;;
+			*)
+				printf '%s\n' "$out"
+				return 0
+				;;
+		esac
+	done
+	return 1
+}
+
+# The LTE attach context is a separate QMI object from the 3GPP profile.  The
+# modem derives it from the default profile when the radio is turned off and
+# back on, and it is what decides whether the network accepts an IPv4 PDN.  A
+# stale IPv6 context refuses every IPv4 bearer with
+# "pdn-ipv4-call-disallowed: IPv6 only allowed" no matter what the profile or
+# uci say, which is exactly what happens after a reboot: the profile resets to
+# empty, the modem attaches IPv6, and writing the profile afterwards is too
+# late.  mmcli's --3gpp-set-initial-eps-bearer-settings is the intended lever
+# but this firmware rejects it with QMI error 81.
+qmi_attach_context() {
+	local qmi="$1" out apn ipt
+
+	out=$(qmi_retry qmicli -d "$qmi" --wds-get-lte-attach-parameters) || return 1
+	apn=$(printf '%s\n' "$out" | awk -F': ' '/^[[:space:]]*APN:/ {print $2; exit}' | tr -d "'\r" | sed 's/[[:space:]]*$//')
+	ipt=$(printf '%s\n' "$out" | awk -F': ' '/IP support type:/ {print $2; exit}' | tr -d "'\r" | sed 's/[[:space:]]*$//')
+	printf '%s|%s\n' "$apn" "$ipt"
+}
+
+# --wds-get-lte-attach-parameters answers ipv4 / ipv6 / ipv4-or-ipv6.
+attach_pdp_norm() {
+	case "$1" in
+		ipv4|IP|IPV4) echo ipv4 ;;
+		ipv6|IPV6) echo ipv6 ;;
+		*) echo ipv4v6 ;;
+	esac
+}
+
+# ModemManager drops the modem object while it reprobes the QMI port, so a
+# single "mmcli -L" can legitimately come back empty.
+mm_modem_path() {
+	local i=0 p
+	while [ "$i" -lt 10 ]; do
+		p=$(mmcli -L 2>/dev/null | grep -o '/org/freedesktop/ModemManager1/Modem/[0-9]*' | head -n 1)
+		[ -n "$p" ] && {
+			printf '%s\n' "$p"
+			return 0
+		}
+		i=$((i + 1))
+		sleep 2
+	done
+	return 1
+}
+
+cycle_modem_radio() {
+	local m_path="$1"
+	local qmi="$2"
+	local i=0
+
+	log "Cycling the modem radio so the LTE attach context picks up the new profile..."
+	mmcli -m "$m_path" --set-power-state-low >/dev/null 2>&1 || {
+		log "WARNING: could not power the modem down."
+		return 1
+	}
+
+	# ModemManager usually brings the radio back on by itself; nudge it if not.
+	while [ "$i" -lt 30 ]; do
+		sleep 1
+		mmcli -m "$m_path" --set-power-state-on >/dev/null 2>&1 && break
+		i=$((i + 1))
+	done
+
+	# Wait until the modem answers QMI again.
+	i=0
+	while [ "$i" -lt 20 ]; do
+		sleep 3
+		qmicli -d "$qmi" --wds-get-lte-attach-parameters >/dev/null 2>&1 && return 0
+		i=$((i + 1))
+	done
+	log "WARNING: the modem did not answer QMI after the radio cycle."
+	return 1
+}
+
 provision_modem_profile() {
 	local apn="$1"
 	local iptype="$2"
-	local qmi prof defnum cur_apn cur_pdp pdp
+	local qmi prof defnum cur_apn cur_pdp pdp want_ipt
+	local m_path ctx ctx_apn ctx_ipt
 
 	[ -n "$apn" ] || return 1
 
@@ -376,29 +482,59 @@ provision_modem_profile() {
 		return 1
 	}
 
-	defnum=$(qmicli -d "$qmi" --wds-get-default-profile-number=3gpp 2>/dev/null |
+	defnum=$(qmi_retry qmicli -d "$qmi" --wds-get-default-profile-number=3gpp 2>/dev/null |
 		awk -F"'" '/Default profile number/ {print $2; exit}')
 	[ -n "$defnum" ] || defnum=1
 
-	prof=$(qmicli -d "$qmi" --wds-get-profile-list=3gpp 2>/dev/null)
+	prof=$(qmi_retry qmicli -d "$qmi" --wds-get-profile-list=3gpp 2>/dev/null)
 	cur_apn=$(printf '%s\n' "$prof" |
 		awk -F"'" -v n="$defnum" '$0 ~ "\\[" n "\\] 3gpp" {f=1; next} f && /\[[0-9]+\] 3gpp/ {f=0} f && /APN:/ {print $2; exit}')
 	cur_pdp=$(printf '%s\n' "$prof" |
 		awk -F"'" -v n="$defnum" '$0 ~ "\\[" n "\\] 3gpp" {f=1; next} f && /\[[0-9]+\] 3gpp/ {f=0} f && /PDP type:/ {print $2; exit}')
 	pdp=$(qmi_pdp_type "$iptype")
 
-	if [ "$cur_apn" = "$apn" ] && [ "$(echo "$cur_pdp" | tr 'a-z' 'A-Z')" = "$pdp" ]; then
-		log "Modem profile $defnum matches APN '$apn' / PDP type '$pdp'."
+	if [ "$cur_apn" = "$apn" ] && [ "$(qmi_pdp_norm "$cur_pdp")" = "$(qmi_pdp_norm "$iptype")" ]; then
+		log "Modem profile $defnum matches APN '$apn' / PDP type '$(qmi_pdp_norm "$iptype")'."
+	else
+		log "Modem profile $defnum has APN '${cur_apn:-<empty>}' / PDP type '${cur_pdp:-?}'; provisioning APN '$apn' / PDP type '$pdp'..."
+		if qmi_retry qmicli -d "$qmi" --wds-modify-profile="3gpp,${defnum},apn=${apn},pdp-type=${pdp}" 2>&1 |
+			grep -q "successfully modified"; then
+			log "Modem profile $defnum updated."
+		else
+			log "WARNING: could not update modem profile $defnum; the bearer may fall back to the subscription's default APN."
+			return 1
+		fi
+	fi
+
+	# The profile alone does not change what the modem already attached with.
+	want_ipt=$(qmi_pdp_norm "$iptype")
+	ctx=$(qmi_attach_context "$qmi" 2>/dev/null) || ctx=""
+	ctx_apn=${ctx%%|*}
+	ctx_ipt=${ctx#*|}
+	[ "$ctx" = "" ] && ctx_ipt=""
+
+	if [ "$ctx_apn" = "$apn" ] && [ "$(attach_pdp_norm "$ctx_ipt")" = "$want_ipt" ]; then
+		log "LTE attach context matches APN '$apn' / PDP type '$want_ipt'."
 		return 0
 	fi
 
-	log "Modem profile $defnum has APN '${cur_apn:-<empty>}' / PDP type '${cur_pdp:-?}'; provisioning APN '$apn' / PDP type '$pdp'..."
-	if qmicli -d "$qmi" --wds-modify-profile="3gpp,${defnum},apn=${apn},pdp-type=${pdp}" 2>&1 |
-		grep -q "successfully modified"; then
-		log "Modem profile $defnum updated."
+	m_path=$(mm_modem_path)
+	[ -n "$m_path" ] || {
+		log "WARNING: no ModemManager modem; cannot refresh the LTE attach context."
+		return 1
+	}
+
+	log "LTE attach context is APN '${ctx_apn:-<empty>}' / PDP type '${ctx_ipt:-?}'; refreshing it."
+	cycle_modem_radio "$m_path" "$qmi" || return 1
+
+	ctx=$(qmi_attach_context "$qmi" 2>/dev/null) || ctx=""
+	ctx_apn=${ctx%%|*}
+	ctx_ipt=${ctx#*|}
+	if [ "$ctx_apn" = "$apn" ] && [ "$(attach_pdp_norm "$ctx_ipt")" = "$want_ipt" ]; then
+		log "LTE attach context refreshed: APN '$apn' / PDP type '$want_ipt'."
 		return 0
 	fi
-	log "WARNING: could not update modem profile $defnum; the bearer may fall back to the subscription's default APN."
+	log "WARNING: LTE attach context is still '${ctx_apn:-?}' / '${ctx_ipt:-?}'; the bearer may be refused."
 	return 1
 }
 
