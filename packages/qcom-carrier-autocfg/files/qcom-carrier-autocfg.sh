@@ -375,9 +375,12 @@ qmi_pdp_norm() {
 	esac
 }
 
-# qmicli and ModemManager both open the modem's QMI port, and on this firmware a
-# client allocation can fail with "endpoint hangup" while ModemManager is busy.
-# Retry instead of failing the whole provision.
+# qmicli and ModemManager both want the modem's QMI port.  A direct open steals
+# the port from ModemManager and leaks client IDs until the pool is exhausted
+# and ModemManager gives up with "ClientIdsExhausted", so always go through the
+# QMI proxy (-p) the way the watchdog and sim-hotplug do.  Even then a client
+# allocation can fail with "endpoint hangup" while ModemManager reprobes, so
+# retry instead of failing the whole provision.
 qmi_retry() {
 	local i=0 out
 	while [ "$i" -lt 8 ]; do
@@ -408,7 +411,7 @@ qmi_retry() {
 qmi_attach_context() {
 	local qmi="$1" out apn ipt
 
-	out=$(qmi_retry qmicli -d "$qmi" --wds-get-lte-attach-parameters) || return 1
+	out=$(qmi_retry qmicli -p -d "$qmi" --wds-get-lte-attach-parameters) || return 1
 	apn=$(printf '%s\n' "$out" | awk -F': ' '/^[[:space:]]*APN:/ {print $2; exit}' | tr -d "'\r" | sed 's/[[:space:]]*$//')
 	ipt=$(printf '%s\n' "$out" | awk -F': ' '/IP support type:/ {print $2; exit}' | tr -d "'\r" | sed 's/[[:space:]]*$//')
 	printf '%s|%s\n' "$apn" "$ipt"
@@ -461,7 +464,7 @@ cycle_modem_radio() {
 	i=0
 	while [ "$i" -lt 20 ]; do
 		sleep 3
-		qmicli -d "$qmi" --wds-get-lte-attach-parameters >/dev/null 2>&1 && return 0
+		qmicli -p -d "$qmi" --wds-get-lte-attach-parameters >/dev/null 2>&1 && return 0
 		i=$((i + 1))
 	done
 	log "WARNING: the modem did not answer QMI after the radio cycle."
@@ -482,11 +485,11 @@ provision_modem_profile() {
 		return 1
 	}
 
-	defnum=$(qmi_retry qmicli -d "$qmi" --wds-get-default-profile-number=3gpp 2>/dev/null |
+	defnum=$(qmi_retry qmicli -p -d "$qmi" --wds-get-default-profile-number=3gpp 2>/dev/null |
 		awk -F"'" '/Default profile number/ {print $2; exit}')
 	[ -n "$defnum" ] || defnum=1
 
-	prof=$(qmi_retry qmicli -d "$qmi" --wds-get-profile-list=3gpp 2>/dev/null)
+	prof=$(qmi_retry qmicli -p -d "$qmi" --wds-get-profile-list=3gpp 2>/dev/null)
 	cur_apn=$(printf '%s\n' "$prof" |
 		awk -F"'" -v n="$defnum" '$0 ~ "\\[" n "\\] 3gpp" {f=1; next} f && /\[[0-9]+\] 3gpp/ {f=0} f && /APN:/ {print $2; exit}')
 	cur_pdp=$(printf '%s\n' "$prof" |
@@ -497,7 +500,7 @@ provision_modem_profile() {
 		log "Modem profile $defnum matches APN '$apn' / PDP type '$(qmi_pdp_norm "$iptype")'."
 	else
 		log "Modem profile $defnum has APN '${cur_apn:-<empty>}' / PDP type '${cur_pdp:-?}'; provisioning APN '$apn' / PDP type '$pdp'..."
-		if qmi_retry qmicli -d "$qmi" --wds-modify-profile="3gpp,${defnum},apn=${apn},pdp-type=${pdp}" 2>&1 |
+		if qmi_retry qmicli -p -d "$qmi" --wds-modify-profile="3gpp,${defnum},apn=${apn},pdp-type=${pdp}" 2>&1 |
 			grep -q "successfully modified"; then
 			log "Modem profile $defnum updated."
 		else
