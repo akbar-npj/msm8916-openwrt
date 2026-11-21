@@ -9,6 +9,12 @@
 # ntfy is used because it needs no account: the message is a plain HTTP POST to
 # <server>/<topic>. Point ntfy_url at ntfy.sh or at your own server.
 #
+# With ntfy_click set, the message carries that link as ntfy's Click target, so
+# tapping the notification opens it instead of the ntfy app. Point it at a URI
+# your softphone registers (sip:100@192.168.8.1, linphone:, zoiper:, ...) and
+# the tap both opens the client and starts the re-registration the retrying
+# Dial needs. It has no effect if the app does not claim that URI.
+#
 # With ntfy_password set the message is end-to-end encrypted in the ntfy draft
 # JWE format (AES-256-GCM, key = PBKDF2(password, SHA-256(topic URL))): the
 # whole message JSON travels inside the ciphertext, so the server stores only
@@ -32,6 +38,7 @@ if [ -f /etc/config/ufivoice ]; then
 	config_get token main ntfy_token ''
 	config_get password main ntfy_password ''
 	config_get prio main ntfy_priority 'max'
+	config_get click main ntfy_click ''
 else
 	notify=0
 fi
@@ -41,6 +48,16 @@ fi
 
 url=${url%/}
 [ -n "$url" ] || url=https://ntfy.sh
+
+# The click target rides in an HTTP header when the message is plain and
+# inside a JSON string when it is encrypted, so drop what would break either.
+click=$(printf '%s' "$click" | tr -d '\r\n"\\')
+
+if [ -n "$click" ]; then
+	clickjson=$(printf ',"click":"%s"' "$click")
+else
+	clickjson=
+fi
 
 if [ -n "$number" ]; then
 	msg="Incoming call from $number"
@@ -57,7 +74,8 @@ if [ -n "$password" ] && [ -x /usr/bin/ntfy-jwe ]; then
 		min)        nprio=1 ;;
 		*)          nprio=3 ;;
 	esac
-	payload=$(printf '{"message":"%s","title":"Incoming call","priority":%s,"tags":["telephone_receiver"]}' "$msg" "$nprio")
+	payload=$(printf '{"message":"%s","title":"Incoming call","priority":%s,"tags":["telephone_receiver"]%s}' \
+		"$msg" "$nprio" "$clickjson")
 	body=$(printf '%s' "$payload" | NTFY_TOPIC_PASSWORD="$password" /usr/bin/ntfy-jwe "$url/$topic")
 	if [ -z "$body" ]; then
 		logger -t ufi-voice-notify 'encryption failed'
@@ -70,6 +88,10 @@ else
 		--header="Priority: $prio" \
 		--header='Tags: telephone_receiver' \
 		--post-data="$msg"
+	# Tap the notification and the client opens, instead of the ntfy app.
+	if [ -n "$click" ]; then
+		set -- "$@" --header="Click: $click"
+	fi
 fi
 [ -n "$token" ] && set -- "$@" --header="Authorization: Bearer $token"
 

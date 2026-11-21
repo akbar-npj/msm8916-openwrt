@@ -964,6 +964,13 @@ ntfy does that with one HTTP POST and no account.
    `Title: Incoming call`, `Priority: max`, `Tags: telephone_receiver` and the number as the body.
    uci: `notify`, `ntfy_url` (default `https://ntfy.sh`), `ntfy_topic`, `ntfy_token`,
    `ntfy_priority`. A slow or unreachable server can never delay the call.
+   **`ntfy_click` (r21)** adds ntfy's `Click` target, so tapping the notification opens that
+   link instead of the ntfy app. Point it at a URI the softphone registers
+   (`sip:100@192.168.8.1`, or the app's own scheme such as `linphone:` / `zoiper:`); the tap
+   then opens the client, the client re-registers, and the retrying Dial rings it — one step
+   instead of two. It does nothing if no app claims that URI, and **it has not been tried on a
+   handset yet** (implemented 2026-11-20, bench test pending). With `ntfy_password` set the
+   value travels inside the encrypted JSON, not as a header.
 2. **Retrying dial.** `[ufi-incoming]` now retries while the phone is unregistered:
 
 ```
