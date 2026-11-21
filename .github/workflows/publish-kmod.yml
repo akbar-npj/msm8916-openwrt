@@ -19,12 +19,14 @@ name: Publish Kernel Modules
 #
 # ## Why a release bump is usually needed
 #
-# A rebuilt module keeps the same version string unless LINUX_RELEASE moves, and
-# apk only installs a strictly newer version -- so a plain rebuild is invisible
-# to devices.  `bump_release=true` patches LINUX_RELEASE in the tree for this
-# run only (1 -> 2), which re-versions the dummy `kernel` package and every
-# kmod.  The real kernel image is unchanged (vermagic stays the same), so
-# devices pick the new modules up with `apk upgrade` and no reflash.
+# A rebuilt module keeps the same version string unless its package release
+# moves, and apk only installs a strictly newer version -- so a plain rebuild is
+# invisible to devices.  `bump_release=true` patches the version in the tree for
+# this run only: LINUX_RELEASE (1 -> 2) for the kernel's own modules, and the
+# mac80211 package's PKG_RELEASE for the kmods that package provides, because
+# those take their version from mac80211 and not from LINUX_RELEASE.  The real
+# kernel image is unchanged (vermagic stays the same), so devices pick the new
+# modules up with `apk upgrade` and no reflash.
 #
 # Dispatch example:
 #   gh workflow run publish-kmod.yml --ref main \
@@ -155,6 +157,23 @@ jobs:
           NEW=$((OLD + 1))
           sed -i "s/^LINUX_RELEASE?=.*/LINUX_RELEASE?=${NEW}/" "$F"
           echo "LINUX_RELEASE ${OLD} -> ${NEW} (this run only; not committed)"
+
+          # A kmod built from the mac80211 package (kmod-wcn36xx, kmod-ath9k-*,
+          # ...) takes its version from that package, not from LINUX_RELEASE:
+          #     6.12.112.6.18.55-r2 = <LINUX_VERSION>.<PKG_VERSION>-r<PKG_RELEASE>
+          # so the dummy kernel bump above leaves the .apk version unchanged and
+          # apk never installs it. Bump mac80211's PKG_RELEASE as well.
+          M=openwrt/package/kernel/mac80211/Makefile
+          if [ -f "$M" ]; then
+            OLD="$(sed -n 's/^PKG_RELEASE:=\([0-9]*\)$/\1/p' "$M" | head -1)"
+            if [ -n "$OLD" ]; then
+              NEW=$((OLD + 1))
+              sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=${NEW}/" "$M"
+              echo "mac80211 PKG_RELEASE ${OLD} -> ${NEW} (this run only; not committed)"
+            else
+              echo "::warning::No PKG_RELEASE:=<n> in ${M}; mac80211 kmods will keep their version."
+            fi
+          fi
 
       - name: Fetch the published targets feed
         env:
