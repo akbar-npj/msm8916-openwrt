@@ -235,7 +235,8 @@ define Device/generic-jz0145
 		block-mount f2fs-tools tar \
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		464xlat kmod-nat46 \
-		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup
+		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
+		kmod-sound-msm8916-voice alsa-utils ufi-voice ufi-voice-asterisk qmi-raw
 endef
 TARGET_DEVICES += generic-jz0145
 

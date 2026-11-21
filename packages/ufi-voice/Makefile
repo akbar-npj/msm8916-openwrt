@@ -25,7 +25,7 @@ define Package/ufi-voice
   CATEGORY:=Network
   SUBMENU:=Telephony
   TITLE:=VoLTE and call audio for MSM8916 sticks
-  DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +alsa-lib +alsa-utils \
+  DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +kmod-sound-core +alsa-lib +alsa-utils \
 	+libdbus +python3-light +qmi-utils +modemmanager +diag-efs +diag-logtool \
 	+libopenssl
 endef
