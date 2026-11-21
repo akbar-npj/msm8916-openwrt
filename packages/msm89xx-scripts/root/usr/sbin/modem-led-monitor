@@ -123,6 +123,24 @@ modem_sim_missing()
         return 1
 }
 
+# ModemManager recreates the modem object under a new index whenever the QMI
+# port is reprobed -- after an SSR, a radio cycle, or a SIM re-read.  The index
+# cached at init then points at nothing, every query fails, and the panel shows
+# a dead modem while it is actually connected.  Re-resolve on the first empty
+# answer.
+refresh_modem_index()
+{
+        local m_idx
+
+        m_idx=$(mmcli -L 2>/dev/null | grep -m1 -o '/Modem/[0-9]\+' | cut -d/ -f3)
+        [ -n "$m_idx" ] || return 1
+        [ "$m_idx" = "$MODEM_INDEX" ] && return 0
+
+        MODEM_INDEX="$m_idx"
+        logger -t modem-led-monitor "modem re-enumerated at index $MODEM_INDEX"
+        return 0
+}
+
 modem_registered()
 {
         local st
@@ -132,6 +150,13 @@ modem_registered()
         st=$(mmcli -m "$MODEM_INDEX" --output-keyvalue 2>/dev/null |
              awk -F': ' '/modem.3gpp.registration-state/ {print $2}' |
              tr -d ' \r\n')
+
+        if [ -z "$st" ]; then
+                refresh_modem_index || return 1
+                st=$(mmcli -m "$MODEM_INDEX" --output-keyvalue 2>/dev/null |
+                     awk -F': ' '/modem.3gpp.registration-state/ {print $2}' |
+                     tr -d ' \r\n')
+        fi
 
         [ "$st" = "home" ] || [ "$st" = "roaming" ]
 }
