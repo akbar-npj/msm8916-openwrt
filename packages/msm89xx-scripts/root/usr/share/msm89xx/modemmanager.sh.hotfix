@@ -46,6 +46,125 @@ modemmanager_cleanup_connection() {
 	}
 }
 
+# Address bearer mutations to the exact ModemManager D-Bus owner. Object
+# paths can be reused when ModemManager restarts.
+modemmanager_bus_owner() {
+	local reply
+
+	reply=$(dbus-send --system --print-reply=literal --reply-timeout=5000 \
+		--dest=org.freedesktop.DBus /org/freedesktop/DBus \
+		org.freedesktop.DBus.GetNameOwner string:org.freedesktop.ModemManager1) || return 1
+	printf '%s\n' "$reply" | awk 'NF == 1 && $1 ~ /^:[0-9]+[.][0-9]+$/ { print $1; found=1 } END { exit !found }'
+}
+
+modemmanager_bearer_request() {
+	local timeout="$1" owner="$2" path="$3" method="$4"
+	shift 4
+
+	dbus-send --system --print-reply --reply-timeout="$timeout" --dest="$owner" \
+		"$path" "org.freedesktop.ModemManager1.$method" "$@" >/dev/null
+}
+
+modemmanager_disconnect_owned_bearer() {
+	local device="$1" interface="$2" statefile="$3"
+	local owner current_owner modempath bearerpath modemstatus bearerstatus
+
+	[ -e "$statefile" ] || return 0
+	{
+		IFS= read -r owner &&
+		IFS= read -r modempath &&
+		IFS= read -r bearerpath
+	} < "$statefile" || return 1
+
+	# Discard state from the previous format without acting on its bearer.
+	case "$owner" in
+		/org/freedesktop/ModemManager1/Modem/*) rm -f "$statefile"; return $? ;;
+	esac
+
+	current_owner=$(modemmanager_bus_owner) || return 1
+	if [ "$owner" != "$current_owner" ]; then
+		rm -f "$statefile"
+		return $?
+	fi
+	modemstatus=$(mmcli --modem="$device" --output-keyvalue) || return 1
+	modemmanager_get_field "$modemstatus" "modem.generic.bearers" >/dev/null ||
+		modemmanager_get_field "$modemstatus" "modem.generic.bearers.length" >/dev/null || return 1
+	if ! printf '%s\n' "$modemstatus" |
+		awk -v path="$bearerpath" '$1 ~ /^modem\.generic\.bearers\.value\[/ && $NF == path { found=1 } END { exit !found }'; then
+		rm -f "$statefile"
+		return $?
+	fi
+
+	bearerstatus=$(mmcli --bearer "$bearerpath" --output-keyvalue) || return 1
+	if [ "$(modemmanager_get_field "$bearerstatus" "bearer.ipv4-config.method")" = ppp ]; then
+		modemmanager_disconnected_method_ppp_ipv4 "$interface"
+	fi
+	modemmanager_bearer_request 30000 "$owner" "$bearerpath" Bearer.Disconnect &&
+		modemmanager_bearer_request 30000 "$owner" "$modempath" Modem.DeleteBearer "objpath:$bearerpath" &&
+		rm -f "$statefile"
+}
+
+modemmanager_prepare_owned_bearer() {
+	local device="$1" plmn="$2" modemstatus registration packet_state attempt
+
+	modemstatus=$(mmcli --modem="$device" --output-keyvalue) || return 1
+	registration=$(modemmanager_get_field "$modemstatus" "modem.3gpp.registration-state")
+	case "$registration" in
+		home|roaming|home-csfb-not-preferred|roaming-csfb-not-preferred|home-rlo|roaming-rlo) ;;
+		*)
+			# An explicitly selected operator was handled by setup already.
+			[ -n "$plmn" ] ||
+				mmcli --modem="$device" --timeout 120 --3gpp-register-home || return 1
+			;;
+	esac
+	for attempt in 1 2 3 4 5; do
+		modemstatus=$(mmcli --modem="$device" --output-keyvalue) || return 1
+		packet_state=$(modemmanager_get_field "$modemstatus" "modem.3gpp.packet-service-state")
+		case "$packet_state" in
+			attached) return 0 ;;
+		esac
+		sleep 1
+	done
+	mmcli --modem="$device" --timeout 30 --3gpp-set-packet-service-state=attached
+}
+
+modemmanager_connect_owned_bearer() {
+	local modempath="$1" statefile="$2" connectargs="$3"
+	local owner created path
+
+	owner=$(modemmanager_bus_owner) || return 1
+	created=$(LC_ALL=C mmcli --modem="$modempath" --timeout 30 --create-bearer="$connectargs") || return 1
+	path=$(printf '%s\n' "$created" |
+		sed -n 's|^[[:space:]]*\(/org/freedesktop/ModemManager1/Bearer/[0-9][0-9]*\)$|\1|p')
+	[ -n "$path" ] && [ "$owner" = "$(modemmanager_bus_owner)" ] || return 1
+
+	# Publish ownership before starting the data session. Teardown can
+	# recover the bearer even if Connect times out or setup is interrupted.
+	if ! { (umask 077; printf '%s\n' "$owner" "$modempath" "$path" > "$statefile.$$") &&
+		mv -f "$statefile.$$" "$statefile"; }; then
+		rm -f "$statefile.$$"
+		modemmanager_bearer_request 30000 "$owner" "$modempath" Modem.DeleteBearer "objpath:$path"
+		return 1
+	fi
+	modemmanager_bearer_request 120000 "$owner" "$path" Bearer.Connect || return 1
+	printf '%s\n' "$path"
+}
+
+modemmanager_has_connected_ims() {
+	local modemstatus="$1"
+	local count idx path status apn
+
+	count=$(modemmanager_get_field "$modemstatus" "modem.generic.bearers.length")
+	for idx in $(seq 1 "${count:-0}"); do
+		path=$(modemmanager_get_field "$modemstatus" "modem.generic.bearers.value\[$idx\]")
+		status=$(mmcli --bearer "$path" --output-keyvalue) || continue
+		[ "$(modemmanager_get_field "$status" "bearer.status.connected")" = yes ] || continue
+		apn=$(modemmanager_get_field "$status" "bearer.properties.apn")
+		case "$apn" in [iI][mM][sS]|[iI][mM][sS].*) return 0 ;; esac
+	done
+	return 1
+}
+
 modemmanager_connected_method_ppp_ipv4() {
 	local interface="$1"
 	local ttyname="$2"
@@ -624,6 +743,7 @@ proto_modemmanager_setup() {
 	local interface="$1"
 
 	local modempath modemstatus bearercount bearerpath connectargs bearerstatus beareriface
+	local statefile connect_result owner
 	local bearermethod_ipv4 bearermethod_ipv6 auth cliauth
 	local operatorname operatorid registration accesstech signalquality
 	local allowedmode preferredmode
@@ -668,15 +788,23 @@ proto_modemmanager_setup() {
 	modemmanager_check_pin_state "$device" "$interface" "${modemstatus}" "$pincode"
 	[ "$?" -ne "0" ] && return 1
 
-	# always cleanup before attempting a new connection, just in case
-	modemmanager_cleanup_connection "${modemstatus}"
+	statefile="/var/run/modemmanager-netifd-${interface}.bearer"
+	if [ "$device" != qcom-soc ]; then
+		modemmanager_cleanup_connection "${modemstatus}"
+	fi
 
 	mmcli --modem="${device}" --timeout 120 --enable || {
 		echo "Warning: couldn't enable modem on ${device}, continuing..."
 	}
 
-	# set initial eps bearer settings
-	if [ -z "${init_epsbearer}" ]; then
+	# Rewriting the default EPS profile cycles the radio and can interrupt
+	# the IMS handoff before ModemManager has a connected IMS bearer.
+	if [ "$device" = qcom-soc ] && [ "$init_epsbearer" = default ] &&
+	   [ "$(uci -q get ufivoice.main.volte)" = 1 ]; then
+		echo "Keeping modem default initial EPS bearer settings for VoLTE"
+	elif [ "$device" = qcom-soc ] && modemmanager_has_connected_ims "${modemstatus}"; then
+		echo "Keeping initial EPS bearer settings while IMS is connected"
+	elif [ -z "${init_epsbearer}" ]; then
 		modemmanager_init_epsbearer "none" "$device" "" "$apn"
 	else
 		case "$init_epsbearer" in
@@ -787,10 +915,17 @@ proto_modemmanager_setup() {
 	append_param "apn=${apn}"
 	append_param "allow-roaming=${allow_roaming}"
 	append_param "${iptype:+ip-type=${iptype}}"
-	append_param "${plmn:+operator-id=${plmn}}"
+	[ "$device" = qcom-soc ] || append_param "${plmn:+operator-id=${plmn}}"
 	append_param "${cliauth:+allowed-auth=${cliauth}}"
 	append_param "${username:+user=${username}}"
 	append_param "${password:+password=${password}}"
+
+	# Retry unfinished teardown before creating or recording a replacement bearer.
+	if [ "$device" = qcom-soc ] &&
+		! modemmanager_disconnect_owned_bearer "$device" "$interface" "$statefile"; then
+		proto_notify_error "${interface}" DISCONNECT_FAILED
+		return 1
+	fi
 
 	# A simple-connect failure is almost always transient on a cellular link
 	# (network still 'searching' at cold boot, a one-shot 3GPP reject such as
@@ -814,7 +949,27 @@ proto_modemmanager_setup() {
 	# For boards that explicitly want a faster full re-probe instead of a
 	# plain retry, the legacy opt-in `force_connection` is kept: it now
 	# reports MM_INTERFACE_RESTART (no restart-block in either branch).
-	mmcli --modem="${device}" --timeout 120 --simple-connect="${connectargs}" || {
+	if [ "$device" = qcom-soc ]; then
+		case "$apn" in
+			[iI][mM][sS]|[iI][mM][sS].*)
+				proto_notify_error "$interface" INVALID_BEARER_LIST
+				return 1
+				;;
+		esac
+		modemmanager_prepare_owned_bearer "$device" "$plmn" &&
+			bearerpath=$(modemmanager_connect_owned_bearer "$modempath" "$statefile" "$connectargs") &&
+			bearerstatus=$(mmcli --bearer "$bearerpath" --output-keyvalue) &&
+			[ "$(modemmanager_get_field "$bearerstatus" "bearer.status.connected")" = yes ] &&
+			owner=$(modemmanager_bus_owner) &&
+			[ "$owner" = "$(sed -n '1p' "$statefile")" ]
+	else
+		connect_result=$(LC_ALL=C mmcli --modem="$device" --timeout 120 --simple-connect="$connectargs")
+	fi
+	if [ "$?" -ne 0 ]; then
+		if [ "$device" = qcom-soc ]; then
+			modemmanager_disconnect_owned_bearer "$device" "$interface" "$statefile" ||
+				proto_notify_error "$interface" DISCONNECT_FAILED
+		fi
 		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
 			echo "Connection failed -> requesting interface restart (force_connection=1)"
 			proto_notify_error "${interface}" MM_INTERFACE_RESTART
@@ -823,7 +978,9 @@ proto_modemmanager_setup() {
 			proto_notify_error "${interface}" MM_CONNECT_FAILED
 		fi
 		return 1
-	}
+	fi
+
+	[ "$device" = qcom-soc ] || echo "$connect_result"
 
 	# check if Signal refresh rate is set
 	if [ -n "${signalrate}" ] && [ "${signalrate}" -eq "${signalrate}" ] 2>/dev/null; then
@@ -846,17 +1003,15 @@ proto_modemmanager_setup() {
 	signalquality=$(modemmanager_get_field "${modemstatus}" "modem.generic.signal-quality.value")
 	[ -n "${signalquality}" ] && echo "signal quality: ${signalquality}%"
 
-	# we won't like it if there are more than one bearers, as that would mean the
-	# user manually created them, and that's unsupported by this proto
-	bearercount=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.length")
-	[ -n "${bearercount}" ] && [ "$bearercount" -eq 1 ] || {
-		proto_notify_error "${interface}" INVALID_BEARER_LIST
-		return 1
-	}
-
-	# load connected bearer information
-	bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[1\]")
-	bearerstatus=$(mmcli --bearer "${bearerpath}" --output-keyvalue)
+	if [ "$device" != qcom-soc ]; then
+		bearercount=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.length")
+		[ -n "${bearercount}" ] && [ "$bearercount" -eq 1 ] || {
+			proto_notify_error "${interface}" INVALID_BEARER_LIST
+			return 1
+		}
+		bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[1\]")
+		bearerstatus=$(mmcli --bearer "${bearerpath}" --output-keyvalue)
+	fi
 
 	# load network interface and method information
 	beareriface=$(modemmanager_get_field "${bearerstatus}" "bearer.status.interface")
@@ -923,38 +1078,31 @@ proto_modemmanager_setup() {
 proto_modemmanager_teardown() {
 	local interface="$1"
 
-	local modemstatus bearerpath errorstring
-	local bearermethod_ipv4 bearermethod_ipv6
+	local modemstatus bearerpath bearerstatus bearermethod_ipv4
 
 	local device lowpower iptype
 	json_get_vars device lowpower iptype
 
 	echo "stopping network"
 
-	# load connected bearer information, just the first one should be ok
-	modemstatus=$(mmcli --modem="${device}" --output-keyvalue)
-	bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[1\]")
-	[ -n "${bearerpath}" ] || {
-		echo "couldn't load bearer path: disconnecting anyway"
-		mmcli --modem="${device}" --simple-disconnect >/dev/null 2>&1
-		return
-	}
+	if [ "$device" = qcom-soc ]; then
+		modemmanager_disconnect_owned_bearer "$device" "$interface" "/var/run/modemmanager-netifd-${interface}.bearer" ||
+			proto_notify_error "${interface}" DISCONNECT_FAILED
+	else
+		modemstatus=$(mmcli --modem="${device}" --output-keyvalue)
+		bearerpath=$(modemmanager_get_field "${modemstatus}" "modem.generic.bearers.value\[1\]")
+		[ -n "${bearerpath}" ] || {
+			echo "couldn't load bearer path: disconnecting anyway"
+			mmcli --modem="${device}" --simple-disconnect >/dev/null 2>&1
+			return
+		}
+		bearerstatus=$(mmcli --bearer "${bearerpath}" --output-keyvalue)
+		bearermethod_ipv4=$(modemmanager_get_field "${bearerstatus}" "bearer.ipv4-config.method")
+		[ "${bearermethod_ipv4}" = "ppp" ] && modemmanager_disconnected_method_ppp_ipv4 "${interface}"
 
-	# load bearer connection methods
-	bearerstatus=$(mmcli --bearer "${bearerpath}" --output-keyvalue)
-	bearermethod_ipv4=$(modemmanager_get_field "${bearerstatus}" "bearer.ipv4-config.method")
-	[ -n "${bearermethod_ipv4}" ] &&
-		echo "IPv4 connection teardown required in interface ${interface}: ${bearermethod_ipv4}"
-	bearermethod_ipv6=$(modemmanager_get_field "${bearerstatus}" "bearer.ipv6-config.method")
-	[ -n "${bearermethod_ipv6}" ] &&
-		echo "IPv6 connection teardown required in interface ${interface}: ${bearermethod_ipv6}"
-
-	# disconnection handling only requires special treatment in IPv4/PPP
-	[ "${bearermethod_ipv4}" = "ppp" ] && modemmanager_disconnected_method_ppp_ipv4 "${interface}"
-
-	# disconnect
-	mmcli --modem="${device}" --simple-disconnect ||
-		proto_notify_error "${interface}" DISCONNECT_FAILED
+		mmcli --modem="${device}" --simple-disconnect ||
+			proto_notify_error "${interface}" DISCONNECT_FAILED
+	fi
 
 	# Variable is set to '1' if modem should be disabled on ifdown,
 	# default is 0 so the modem remains enabled for rapid reconnection.

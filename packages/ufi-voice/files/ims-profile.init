@@ -2,14 +2,8 @@
 
 # ims-profile: create the "ims" WDS profile at every modem boot.
 #
-# Runs before imsdcm (S96) so the profile exists by the time the modem's IMS
-# stack reads the WDS profile table.  See
-# Docs/Modem Stability/220_VOLTE_ENABLEMENT_SOP.md (F29/F30, S23).
-#
-# Deliberately synchronous and not a procd service: procd restarts an instance
-# that exits (which created a new profile every 5 s), and backgrounding the
-# helper loses it when the init shell exits.  Blocking here is what we want --
-# it also removes the race between this helper and the IMS data service.
+# See Docs/Modem Stability/220_VOLTE_ENABLEMENT_SOP.md (F29/F30, S23).
+# Keep this synchronous so boot waits for the profile check to finish.
 
 START=94
 STOP=10

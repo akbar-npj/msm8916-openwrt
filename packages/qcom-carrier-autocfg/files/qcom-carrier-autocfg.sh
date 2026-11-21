@@ -757,6 +757,14 @@ check_and_flush_radio_cache() {
 	cached_uci_apn=$(uci -q get network.modem.apn || echo "")
 
 	local need_flush=0
+	local preserve_ims=0
+	# On an unchanged SIM, netifd can apply data settings without flushing IMS.
+	if [ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = "jz0145,v33" ] &&
+		[ "$(uci -q get ufivoice.main.volte)" = "1" ] &&
+		[ -n "$current_imsi" ] && [ "$stored_imsi" = "$current_imsi" ] &&
+		[ "$cached_uci_apn" = "$target_apn" ]; then
+		preserve_ims=1
+	fi
 
 	# 1. SIM identity check: Stored IMSI differs from current SIM
 	if [ -n "$current_imsi" ] && [ "$stored_imsi" != "$current_imsi" ]; then
@@ -787,7 +795,7 @@ check_and_flush_radio_cache() {
 		#    (see provision_modem_profile).
 		local cached_eps_apn
 		cached_eps_apn=$(echo "$modem_kv" | awk -F': ' '/modem.3gpp.eps.initial-bearer.settings.apn/ {print $2}' | tr -d " '\r\n")
-		if [ "$cached_eps_apn" != "--" ] && [ -n "$target_apn" ] && [ "$cached_eps_apn" != "$target_apn" ]; then
+		if [ "$preserve_ims" = "0" ] && [ "$cached_eps_apn" != "--" ] && [ -n "$target_apn" ] && [ "$cached_eps_apn" != "$target_apn" ]; then
 			log "Initial EPS bearer APN mismatch: radio cache has '${cached_eps_apn:-<empty>}', SIM requires '$target_apn'"
 			need_flush=1
 		fi
@@ -814,7 +822,7 @@ check_and_flush_radio_cache() {
 		# 6. Radio Mode check
 		local cur_modes
 		cur_modes=$(echo "$modem_kv" | awk -F': ' '/modem.generic.current-modes/ {print $2}')
-		if [ "$is_jio" = "0" ] && [ -n "$cur_modes" ]; then
+		if [ "$preserve_ims" = "0" ] && [ "$is_jio" = "0" ] && [ -n "$cur_modes" ]; then
 			if ! echo "$cur_modes" | grep -qi '3g'; then
 				log "Radio mode mismatch: '$carrier_name' requires 3G fallback, but radio cache lacks 3G"
 				need_flush=1
@@ -829,8 +837,12 @@ check_and_flush_radio_cache() {
 			while [ "$b_idx" -le "$bearer_count" ]; do
 				b_path=$(echo "$modem_kv" | awk -F': ' "/modem.generic.bearers.value\\[$b_idx\\]/ {print \$2}" | tr -d ' \r\n')
 				if [ -n "$b_path" ]; then
-					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '$1 == "bearer.properties.apn" {print $2}' | tr -d " '\r\n-")
-					if [ -n "$b_apn" ] && [ "$b_apn" != "$target_apn" ]; then
+					b_apn=$(mmcli -b "$b_path" -K 2>/dev/null | awk -F': ' '$1 ~ /^bearer\.properties\.apn[[:space:]]*$/ {print $2}' | tr -d " '\r\n")
+					# IMS is managed separately from the Internet APN.
+					case "$b_apn" in
+						[iI][mM][sS]|[iI][mM][sS].*) b_apn="" ;;
+					esac
+					if [ -n "$b_apn" ] && [ "$b_apn" != "--" ] && [ "$b_apn" != "$target_apn" ]; then
 						log "Bearer APN mismatch in bearer $b_path: cached='$b_apn', SIM requires='$target_apn'"
 						need_flush=1
 						break
