@@ -15,7 +15,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=21
+PKG_RELEASE:=23
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -25,7 +25,7 @@ define Package/ufi-voice
   CATEGORY:=Network
   SUBMENU:=Telephony
   TITLE:=VoLTE and call audio for MSM8916 sticks
-  DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +alsa-lib +alsa-utils \
+  DEPENDS:=@TARGET_msm89xx +kmod-sound-msm8916-voice +kmod-sound-core +alsa-lib +alsa-utils \
 	+libdbus +python3-light +qmi-utils +modemmanager +diag-efs +diag-logtool \
 	+libopenssl
 endef
@@ -89,6 +89,7 @@ define Package/ufi-voice/install
 	$(INSTALL_BIN) ./files/ims-profile.init $(1)/etc/init.d/ims-profile
 	$(INSTALL_BIN) ./files/ims-profile-watch.init $(1)/etc/init.d/ims-profile-watch
 	$(INSTALL_DIR) $(1)/etc/rc.d
+	$(LN) ../init.d/imsdcm $(1)/etc/rc.d/S61imsdcm
 	$(LN) ../init.d/ims-profile $(1)/etc/rc.d/S94ims-profile
 	$(LN) ../init.d/ims-profile-watch $(1)/etc/rc.d/S97ims-profile-watch
 	$(INSTALL_DIR) $(1)/etc/hotplug.d/wwan
