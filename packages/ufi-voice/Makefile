@@ -15,7 +15,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ufi-voice
 PKG_VERSION:=1.0
-PKG_RELEASE:=22
+PKG_RELEASE:=23
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk

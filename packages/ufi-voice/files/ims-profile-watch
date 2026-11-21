@@ -82,17 +82,34 @@ modem_boot() {
 # ask within a few seconds, imsdcm creates the "ims" bearer and IMS registers.
 # Bounded to once per boot, and skipped when there is no IMS stack (no
 # IMS-capable MCFG active) or the carrier does not grant VoLTE.
+#
+# This runs once at startup, NOT on a transition: by the time S97 starts, the
+# modem is normally already running, so seen_running is 1 and the "AP boot"
+# transition branch is never reached.
 boot_nudge() {
 	local i=0 st
 
 	[ "$(uci -q get ufivoice.main.volte)" = "1" ] || return 0
 
-	# S94 creates the ims profile and S96 starts imsdcm; give both time, and
-	# give imsdcm time to publish service 770 before the modem is reset.
-	sleep 45
+	# Wait for the modem to be up and publishing the IMS application service.
+	# No service 33 means the active MCFG carries no IMS, and a reset would
+	# not help.
+	i=0
+	while [ "$i" -lt 60 ]; do
+		if [ "$(cat "$RPROC" 2>/dev/null)" = running ] &&
+			qrtr-lookup 2>/dev/null | awk '$1 == 33 { f = 1 } END { exit f ? 0 : 1 }'; then
+			break
+		fi
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$i" -lt 60 ] || return 0
 
-	qrtr-lookup 2>/dev/null | awk '$1 == 33 { f = 1 } END { exit f ? 0 : 1 }' || return 0
+	# S94 creates the ims profile and S96 starts imsdcm; give imsdcm time to
+	# publish service 770 before the modem is reset.
+	sleep 15
 
+	i=0
 	while [ "$i" -lt 30 ]; do
 		st=$(qmicli -d "$QMI" --device-open-proxy \
 			--imsa-get-ims-registration-status 2>/dev/null |
@@ -117,6 +134,9 @@ seen_running=0
 [ "$last" = running ] && seen_running=1
 log "watching $RPROC (state ${last:-unknown})"
 
+# The modem is normally already running here; see boot_nudge.
+boot_nudge &
+
 while :; do
 	state=$(cat "$RPROC" 2>/dev/null)
 	if [ "$state" = running ] && [ "$last" != running ]; then
@@ -124,7 +144,6 @@ while :; do
 			modem_boot
 		else
 			log "modem up at AP boot, S94/S96 own this one"
-			boot_nudge &
 		fi
 		seen_running=1
 	fi
