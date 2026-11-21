@@ -22,11 +22,22 @@ name: Publish Kernel Modules
 # A rebuilt module keeps the same version string unless its package release
 # moves, and apk only installs a strictly newer version -- so a plain rebuild is
 # invisible to devices.  `bump_release=true` patches the version in the tree for
-# this run only: LINUX_RELEASE (1 -> 2) for the kernel's own modules, and the
-# mac80211 package's PKG_RELEASE for the kmods that package provides, because
-# those take their version from mac80211 and not from LINUX_RELEASE.  The real
-# kernel image is unchanged (vermagic stays the same), so devices pick the new
-# modules up with `apk upgrade` and no reflash.
+# this run only.
+#
+# Which version moves depends on what defines the kmod.  A kmod is declared by a
+# `KernelPackage/<name>` block, and the file holding that block is the package
+# whose release versions it:
+#
+#   in-tree (package/kernel/linux)   no PKG_RELEASE of its own -> LINUX_RELEASE
+#   mac80211 (kmod-wcn36xx, kmod-ath9k-*, ...)                 -> its PKG_RELEASE
+#
+# The two are not interchangeable.  Bumping LINUX_RELEASE for a mac80211 kmod
+# re-versions the kernel stub and every in-tree kmod -- devices would then pull
+# hundreds of packages -- while the requested kmod keeps its version and never
+# installs.  The workflow therefore bumps the release of the package that owns
+# each requested kmod, and nothing else.  The kernel image is unchanged either
+# way (vermagic stays the same), so devices pick the new modules up with
+# `apk upgrade` and no reflash.
 #
 # Dispatch example:
 #   gh workflow run publish-kmod.yml --ref main \
@@ -147,33 +158,80 @@ jobs:
           fi
           printf '%s\n' "$APK_SIGNING_KEY" > openwrt/private-key.pem
 
-      - name: Optionally bump LINUX_RELEASE
+      - name: Optionally bump the release of each kmod's owning package
         if: inputs.bump_release
         run: |
           set -euo pipefail
-          F=openwrt/include/kernel-version.mk
-          OLD="$(sed -n 's/^LINUX_RELEASE?=\([0-9]*\)$/\1/p' "$F" | head -1)"
-          [ -n "$OLD" ] || { echo "::error::No LINUX_RELEASE?=<n> in ${F}"; exit 1; }
-          NEW=$((OLD + 1))
-          sed -i "s/^LINUX_RELEASE?=.*/LINUX_RELEASE?=${NEW}/" "$F"
-          echo "LINUX_RELEASE ${OLD} -> ${NEW} (this run only; not committed)"
 
-          # A kmod built from the mac80211 package (kmod-wcn36xx, kmod-ath9k-*,
-          # ...) takes its version from that package, not from LINUX_RELEASE:
-          #     6.12.112.6.18.55-r2 = <LINUX_VERSION>.<PKG_VERSION>-r<PKG_RELEASE>
-          # so the dummy kernel bump above leaves the .apk version unchanged and
-          # apk never installs it. Bump mac80211's PKG_RELEASE as well.
-          M=openwrt/package/kernel/mac80211/Makefile
-          if [ -f "$M" ]; then
-            OLD="$(sed -n 's/^PKG_RELEASE:=\([0-9]*\)$/\1/p' "$M" | head -1)"
-            if [ -n "$OLD" ]; then
-              NEW=$((OLD + 1))
-              sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=${NEW}/" "$M"
-              echo "mac80211 PKG_RELEASE ${OLD} -> ${NEW} (this run only; not committed)"
-            else
-              echo "::warning::No PKG_RELEASE:=<n> in ${M}; mac80211 kmods will keep their version."
+          # A kmod is declared by a `KernelPackage/<name>` block, and the file
+          # holding that block is the package whose release versions it:
+          #
+          #   VERSION          = <LINUX_VERSION>[.<PKG_VERSION>]-r<PKG_RELEASE|LINUX_RELEASE>
+          #   EXTRA_DEPENDS    = kernel (= <LINUX_VERSION>~<VERMAGIC>-r<LINUX_RELEASE>)
+          #
+          # In-tree kmods have no PKG_RELEASE of their own, so LINUX_RELEASE is
+          # their only lever -- and it also moves the kernel stub, so those
+          # kmods have to be rebuilt in the same run.
+          #
+          # A kmod from an out-of-tree package takes that package's PKG_RELEASE
+          # (kmod-wcn36xx -> mac80211: 6.12.112.6.18.55-r2 =
+          # <LINUX_VERSION>.<PKG_VERSION>-r<PKG_RELEASE>). Bumping LINUX_RELEASE
+          # for one of those re-versions the kernel stub and every in-tree kmod
+          # while leaving the requested kmod's version alone -- apk installs
+          # only a strictly newer version, so the rebuild would reach nobody.
+
+          bump_linux_release() {
+            local F=openwrt/include/kernel-version.mk old new
+            old="$(sed -n 's/^LINUX_RELEASE?=\([0-9]*\)$/\1/p' "$F" | head -1)"
+            [ -n "$old" ] || { echo "::error::No LINUX_RELEASE?=<n> in ${F}"; exit 1; }
+            new=$((old + 1))
+            sed -i "s/^LINUX_RELEASE?=.*/LINUX_RELEASE?=${new}/" "$F"
+            echo "LINUX_RELEASE ${old} -> ${new} (this run only; not committed)"
+          }
+
+          # A kmod is defined by a `KernelPackage/<name>` block. The file that
+          # holds it is the package whose PKG_RELEASE versions it.
+          find_owner() {
+            grep -rl --include=Makefile --include='*.mk' \
+              "^define KernelPackage/$1\$" openwrt/package 2>/dev/null | head -1 || true
+          }
+
+          # In-tree kmods are declared in package/kernel/linux/modules/*.mk.
+          # That directory is not a package; the package is its parent.
+          normalize_owner() {
+            case "$1" in
+              openwrt/package/kernel/linux/*) echo openwrt/package/kernel/linux/Makefile ;;
+              *) echo "$1" ;;
+            esac
+          }
+
+          bumped=""
+          for k in $KMODS; do
+            name="${k#kmod-}"
+            owner="$(normalize_owner "$(find_owner "$name")")"
+            if [ -z "$owner" ] || [ "$owner" = openwrt/package/kernel/linux/Makefile ]; then
+              echo "${k}: in-tree (versioned by LINUX_RELEASE)"
+              case " $bumped " in
+                *" LINUX_RELEASE "*) ;;
+                *) bump_linux_release; bumped="$bumped LINUX_RELEASE" ;;
+              esac
+              continue
             fi
-          fi
+            echo "${k}: ${owner#openwrt/}"
+            case " $bumped " in
+              *" $owner "*) continue ;;
+            esac
+            old="$(sed -n 's/^PKG_RELEASE:=\([0-9]*\)$/\1/p' "$owner" | head -1)"
+            if [ -z "$old" ]; then
+              echo "::error::${k} is defined in ${owner}, which has no PKG_RELEASE:=<n>."
+              echo "::error::Bump that package's release by hand and re-dispatch."
+              exit 1
+            fi
+            new=$((old + 1))
+            sed -i "0,/^PKG_RELEASE:=/s/^PKG_RELEASE:=.*/PKG_RELEASE:=${new}/" "$owner"
+            echo "  PKG_RELEASE ${old} -> ${new} (this run only; not committed)"
+            bumped="$bumped $owner"
+          done
 
       - name: Fetch the published targets feed
         env:
@@ -198,7 +256,57 @@ jobs:
         run: ./build.sh kernel "$BOARD"
 
       - name: Build the kernel modules
-        run: ./build.sh package kernel/linux "$BOARD"
+        run: |
+          set -euo pipefail
+
+          # `kernel/linux` covers only the in-tree kmods. A kmod defined by an
+          # out-of-tree package (kmod-wcn36xx lives in package/kernel/mac80211)
+          # is never built by it -- and because the published feed was just
+          # copied into bin/targets, its OLD .apk is sitting there, so the
+          # verification step below would pass on a file that was not rebuilt.
+          # Drop those copies first, then build the package that defines each
+          # requested kmod.
+
+          P=openwrt/bin/targets/msm89xx/msm8916/packages
+          for k in $KMODS; do
+            rm -f "$P/${k}"-*.apk
+          done
+
+          find_owner() {
+            grep -rl --include=Makefile --include='*.mk' \
+              "^define KernelPackage/$1\$" openwrt/package 2>/dev/null | head -1 || true
+          }
+
+          normalize_owner() {
+            case "$1" in
+              openwrt/package/kernel/linux/*) echo openwrt/package/kernel/linux/Makefile ;;
+              *) echo "$1" ;;
+            esac
+          }
+
+          in_tree=0
+          built=""
+          for k in $KMODS; do
+            name="${k#kmod-}"
+            owner="$(normalize_owner "$(find_owner "$name")")"
+            if [ -z "$owner" ] || [ "$owner" = openwrt/package/kernel/linux/Makefile ]; then
+              echo "${k}: in-tree, built with package/kernel/linux"
+              in_tree=1
+              continue
+            fi
+            rel="$(dirname "$owner")"
+            rel="${rel#openwrt/}"
+            case " $built " in
+              *" $rel "*) continue ;;
+            esac
+            echo "${k}: building ${rel}"
+            ./build.sh package "$rel" "$BOARD"
+            built="$built $rel"
+          done
+
+          if [ "$in_tree" = 1 ]; then
+            ./build.sh package kernel/linux "$BOARD"
+          fi
 
       - name: Verify every requested kmod was produced
         run: |
