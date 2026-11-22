@@ -6,8 +6,17 @@
 # Format (Tab-Separated Values):
 # MCC_MNC	Operator_Name	APN	IP_Type	Mode	MBN_Path
 #
+# Mode is the RAT list written to network.modem.allowedmode:
+#   '4g'     stay on LTE -- a call is VoLTE or it fails, never a CS call on
+#            UMTS.  Use this where VoLTE works and a CS fallback would be
+#            silent (the voice path takes its DSP session from the IMS
+#            registration, so a CS call lands in the VoLTE session).
+#   '3g|4g'  4G preferred, 3G/2G fallback.
+# /etc/config/qcom-carrier-autocfg option allowed_mode overrides this for
+# every carrier when it is not 'auto'.
+#
 # Examples:
-# 42901	Nepal Telecom	ntnet	ipv4v6	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
+# 42901	Nepal Telecom	ntnet	ipv4v6	3g|4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 # 42902	Ncell	web	ipv4	4g	generic/common/row/gen_3gpp/mcfg_sw.mbn
 # 405861	Reliance Jio	jionet	ipv4v6	4g	generic/apac/reliance/commerci/mcfg_sw.mbn
 #

@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qcom-carrier-autocfg
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=11
+PKG_RELEASE:=13
 
 PKG_MAINTAINER:=OpenWrt Community
 PKG_LICENSE:=GPL-2.0-only
@@ -27,6 +27,7 @@ define Package/qcom-carrier-autocfg/description
 endef
 
 define Package/qcom-carrier-autocfg/conffiles
+/etc/config/qcom-carrier-autocfg
 /etc/qcom-carrier-autocfg/custom-apns.tsv
 endef
 
@@ -38,6 +39,8 @@ define Package/qcom-carrier-autocfg/install
 	$(INSTALL_BIN) ./files/qcom-carrier-autocfg.sh $(1)/usr/sbin/qcom-carrier-autocfg
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qcom-carrier-autocfg.init $(1)/etc/init.d/qcom-carrier-autocfg
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./files/qcom-carrier-autocfg.config $(1)/etc/config/qcom-carrier-autocfg
 	$(INSTALL_DIR) $(1)/etc/qcom-carrier-autocfg
 	$(INSTALL_DATA) ./files/custom-apns.tsv $(1)/etc/qcom-carrier-autocfg/custom-apns.tsv
 	$(INSTALL_DIR) $(1)/usr/share/qcom-carrier-autocfg
