@@ -48,6 +48,7 @@ scratch() {
 	rm -rf "$T"
 	mkdir -p "$T"
 	cp -a "$ROOT/diffconfigs" "$ROOT/version" "$T/"
+	cp "$ROOT/MAINTAINERS.md" "$ROOT/CODEOWNERS" "$ROOT/README.md" "$T/"
 	mkdir -p "$T/msm89xx" "$T/.github" "$T/scripts" "$T/tests"
 	cp -a "$ROOT/msm89xx/image" "$ROOT/msm89xx/patches" "$T/msm89xx/"
 	cp -a "$ROOT/.github/workflows" "$T/.github/"
@@ -151,21 +152,29 @@ EOF
 
 t_write() {
 	scratch
+	local patch_no patch
+	patch_no=$(ls "$T/msm89xx/patches" | grep -E '^8[0-9][0-9]-' | sed 's/-.*//' | sort -n | tail -1)
+	patch_no=$((patch_no + 1))
+	patch="msm89xx/patches/${patch_no}-arm64-dts-qcom-add-msm8916-generic-probe.patch"
+
 	run_tool --dtb "$DTB" --name probe --reference mifib-v12 --write --no-branch --no-validate
 	expect "a write exits 0" 0
 	has "the write reports five files" "wrote 5 files"
 
 	exists "wrote the diffconfig" diffconfigs/probe
-	exists "wrote the DTS patch" \
-		msm89xx/patches/817-arm64-dts-qcom-add-msm8916-generic-probe.patch
+	exists "wrote the DTS patch" "$patch"
 	contains "the 801 patch gains the dtb line" \
 		msm89xx/patches/801-arm64-dts-qcom-add-devices-makefile.patch \
 		msm8916-generic-probe.dtb
 	contains "msm8916.mk gains the Device block" \
 		msm89xx/image/msm8916.mk "define Device/generic-probe"
 	contains "build.yml gains the board" .github/workflows/build.yml probe
-	contains "the generated DTS keeps its TODOs" \
-		msm89xx/patches/817-arm64-dts-qcom-add-msm8916-generic-probe.patch TODO
+	contains "the generated DTS keeps its TODOs" "$patch" TODO
+	contains "the generated DTS reserves ramoops" "$patch" "&reserved_memory"
+	contains "the generated DTS binds the charger" "$patch" "&pm8916_charger"
+	contains "the generated DTS disables usbin" "$patch" "&pm8916_usbin"
+	contains "the device block keeps the GPT fields" \
+		msm89xx/image/msm8916.mk "GPT_TOT_SECTORS := 7634944"
 	contains "the diffconfig selects the new device" diffconfigs/probe \
 		CONFIG_TARGET_msm89xx_msm8916_DEVICE_generic-probe=y
 
@@ -185,6 +194,106 @@ t_twice() {
 	has "the refusal says the diffconfig exists" "diffconfigs/probe already exists"
 }
 
+t_reset() {
+	scratch
+	cat >"$TREE/keys.dts" <<EOF
+/dts-v1/;
+/ {
+	model = "Test Keys";
+	compatible = "test,keys", "qcom,msm8916";
+	tlmm: pinctrl@1000000 {
+		#gpio-cells = <2>;
+		gpio-controller;
+	};
+	gpio-keys {
+		compatible = "gpio-keys";
+		key_freset {
+			label = "key_freset";
+			gpios = <&tlmm 102 0>;
+			linux,code = <216>;
+		};
+	};
+};
+EOF
+	run_tool --dtb "$TREE/keys.dts" --name keys --inspect
+	expect "a DTS with a reset key inspects" 0
+	has "the reset key is detected" "gpio 102 key_freset"
+	if printf '%s' "$LAST" | grep -qF "bias-pull-down"; then
+		ok "the reset pin gets a bias"
+	else
+		bad "the reset pin gets a bias"
+	fi
+}
+
+t_no_guard() {
+	scratch
+	cat >"$T/build.sh" <<EOF
+#!/bin/sh
+echo called >>"$TREE/guard_calls"
+exit 1
+EOF
+	chmod +x "$T/build.sh"
+	rm -f "$TREE/guard_calls"
+	run_tool --dtb "$DTB" --name probe --reference mifib-v12 --write --no-branch
+	expect "validation passes without the live-tree guard" 0
+	if [ -s "$TREE/guard_calls" ]; then
+		bad "the tool never calls build.sh guard"
+	else
+		ok "the tool never calls build.sh guard"
+	fi
+}
+
+t_maintainer() {
+	scratch
+	run_tool --dtb "$DTB" --name probe --reference mifib-v12 \
+		--maintainer @tester --write --no-branch --no-validate
+	expect "a maintainer write exits 0" 0
+	has "the write counts the registration files" "wrote 8 files"
+	contains "MAINTAINERS gains the board" MAINTAINERS.md "\`probe\`"
+	contains "CODEOWNERS gains the board" CODEOWNERS "diffconfigs/probe"
+	contains "README gains the board" README.md "generic-probe"
+	local row pipes
+	row=$(grep -F '| `probe` |' "$T/MAINTAINERS.md" | tail -1)
+	pipes=$(printf '%s' "$row" | tr -cd '|' | wc -c)
+	if [ "$pipes" -eq 7 ]; then
+		ok "the MAINTAINERS row has all six columns"
+	else
+		bad "the MAINTAINERS row has $pipes pipes, want 7"
+	fi
+}
+
+t_branch() {
+	scratch
+	(
+		cd "$T" || exit 1
+		git init -q
+		git config user.email test@localhost
+		git config user.name test
+		git add -A
+		git commit -qm base
+		git update-ref refs/remotes/origin/staging-main HEAD
+	)
+	run_tool --dtb "$DTB" --name probe --reference mifib-v12 --write
+	expect "an auto-branch write exits 0" 0
+	if [ "$(cd "$T" && git branch --show-current)" = "test/probe" ]; then
+		ok "the tool switches to test/probe"
+	else
+		bad "the tool switches to test/probe"
+	fi
+	if (cd "$T" && git log -1 --format=%s | grep -qF "board: add probe support"); then
+		ok "the tool commits the board"
+	else
+		bad "the tool commits the board"
+	fi
+	if (cd "$T" && git status --porcelain -uno | grep -q .); then
+		bad "the auto-branch commit leaves a clean tree"
+	else
+		ok "the auto-branch commit leaves a clean tree"
+	fi
+	contains "the version stamp matches the target branch" diffconfigs/probe \
+		"CONFIG_VERSION_NUMBER=\"$(cat "$T/version")\""
+}
+
 suite() {
 	TOOL=$1
 	T=$2
@@ -196,6 +305,10 @@ suite() {
 	t_no_fdtget
 	t_write
 	t_twice
+	t_reset
+	t_no_guard
+	t_maintainer
+	t_branch
 }
 
 printf '== new-board tool ==\n'
