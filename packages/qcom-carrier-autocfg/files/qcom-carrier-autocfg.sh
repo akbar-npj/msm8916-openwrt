@@ -63,7 +63,7 @@ lookup_carrier_profile() {
 
 	# Priority 1: User Custom Database in /etc (persists across upgrades)
 	if [ -f "$CUSTOM_APN_DB" ] && [ -n "$op_code" ]; then
-		match=$(awk -F'\t' -v code="$op_code" '$1 ~ "^"code"$" { print $2"|"$3"|"$4"|"$5"|"$6; exit }' "$CUSTOM_APN_DB" 2>/dev/null)
+		match=$(awk -F'\t' -v code="$op_code" '$1 ~ "^"code"$" { print $2"\t"$3"\t"$4"\t"$5"\t"$6; exit }' "$CUSTOM_APN_DB" 2>/dev/null)
 		if [ -n "$match" ]; then
 			log "Matched user custom APN override in $CUSTOM_APN_DB for MCC-MNC $op_code"
 		fi
@@ -71,7 +71,7 @@ lookup_carrier_profile() {
 
 	# Priority 2: Built-in Global APN Database in /usr/share (TSV lookup)
 	if [ -z "$match" ] && [ -f "$SYSTEM_APN_DB" ] && [ -n "$op_code" ]; then
-		match=$(awk -F'\t' -v code="$op_code" '$1 ~ "^"code"$" { print $2"|"$3"|"$4"|"$5"|"$6; exit }' "$SYSTEM_APN_DB" 2>/dev/null)
+		match=$(awk -F'\t' -v code="$op_code" '$1 ~ "^"code"$" { print $2"\t"$3"\t"$4"\t"$5"\t"$6; exit }' "$SYSTEM_APN_DB" 2>/dev/null)
 		if [ -n "$match" ]; then
 			log "Matched carrier in global APN database for MCC-MNC $op_code"
 		fi
@@ -80,11 +80,12 @@ lookup_carrier_profile() {
 	# Extract fields if matched from database
 	if [ -n "$match" ]; then
 		local f_name f_apn f_ip f_mode f_mbn
-		f_name=$(echo "$match" | cut -d'|' -f1)
-		f_apn=$(echo "$match" | cut -d'|' -f2)
-		f_ip=$(echo "$match" | cut -d'|' -f3)
-		f_mode=$(echo "$match" | cut -d'|' -f4)
-		f_mbn=$(echo "$match" | cut -d'|' -f5)
+		# Tab-separated: the Mode field itself contains '|' (3g|4g).
+		f_name=$(printf '%s\n' "$match" | cut -f1)
+		f_apn=$(printf '%s\n' "$match" | cut -f2)
+		f_ip=$(printf '%s\n' "$match" | cut -f3)
+		f_mode=$(printf '%s\n' "$match" | cut -f4)
+		f_mbn=$(printf '%s\n' "$match" | cut -f5)
 
 		[ -n "$f_name" ] && CARRIER_NAME="$f_name"
 		[ -n "$f_apn" ] && CARRIER_APN="$f_apn"
@@ -370,7 +371,6 @@ provision_network() {
 	local apn="$1"
 	local iptype="$2"
 	local mode="$3"
-	local is_jio="${4:-0}"
 
 	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred
 	cur_apn=$(uci -q get network.modem.apn || echo "")
@@ -379,15 +379,37 @@ provision_network() {
 	cur_allowed=$(uci -q get network.modem.allowedmode || echo "")
 	cur_preferred=$(uci -q get network.modem.preferredmode || echo "")
 
-	local target_allowed target_preferred
-	if [ "$is_jio" = "1" ]; then
-		target_allowed="4g"
-		target_preferred=""
-	else
-		# Non-Jio carriers: 4G preferred with 3G/2G fallback
-		target_allowed="3g|4g"
-		target_preferred="4g"
-	fi
+	# RAT policy, in order of precedence:
+	#   1. /etc/config/qcom-carrier-autocfg  allowed_mode
+	#   2. the carrier table's Mode column -- custom-apns.tsv wins over the
+	#      built-in table in lookup_carrier_profile()
+	#   3. "3g|4g"
+	# "4g" pins the modem to LTE: a call is then VoLTE or it fails, never a CS
+	# call on UMTS.  That matters because the voice path picks its DSP session
+	# from the IMS registration (ufi-voiced, voice_session()), so a CS call is
+	# routed into the VoLTE session and is silent in both directions.
+	local target_allowed target_preferred cfg_allowed cfg_preferred
+	cfg_allowed=$(uci -q get qcom-carrier-autocfg.main.allowed_mode || echo "")
+	case "$cfg_allowed" in
+		""|auto) target_allowed="$mode" ;;
+		*)       target_allowed="$cfg_allowed" ;;
+	esac
+	[ -n "$target_allowed" ] || target_allowed="3g|4g"
+
+	# A preferred mode only applies while more than one RAT is allowed, and it
+	# has to be one of them: the proto hands it to --set-preferred-mode.
+	target_preferred=""
+	case "$target_allowed" in
+		*4g*)
+			if [ "${target_allowed#*|}" != "$target_allowed" ]; then
+				cfg_preferred=$(uci -q get qcom-carrier-autocfg.main.preferred_mode || echo "")
+				[ -n "$cfg_preferred" ] || cfg_preferred="4g"
+				case "|$target_allowed|" in
+					*"|$cfg_preferred|"*) target_preferred="$cfg_preferred" ;;
+				esac
+			fi
+			;;
+	esac
 
 	local cur_apn cur_iptype cur_proto cur_allowed cur_preferred cur_eps
 	# `init_epsbearer=default` makes the modemmanager proto call
@@ -952,7 +974,7 @@ while true; do
 					provision_carrier_mbn "$CARRIER_MBN"
 
 					check_and_flush_radio_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI" "$OP_CODE" "$CARRIER_NAME" "$is_jio"
-					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
+					provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE"
 					provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
 
 					LAST_OPERATOR_CODE="$OP_CODE"
@@ -975,7 +997,7 @@ while true; do
 						log "========================================================"
 						log "RADIO CACHE MISMATCH DETECTED FOR CURRENT SIM ($CARRIER_NAME)"
 						check_and_flush_radio_cache "$MODEM_PATH" "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI" "$OP_CODE" "$CARRIER_NAME" "$is_jio"
-						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE" "$is_jio"
+						provision_network "$CARRIER_APN" "$CARRIER_IPTYPE" "$CARRIER_MODE"
 						provision_carrier_bands "$MODEM_PATH" "$CARRIER_MODE" "$CARRIER_NAME" "$OP_CODE" "$OP_NAME" "$is_jio"
 						connect_bearer "$CARRIER_APN" "$CARRIER_IPTYPE" "$IMSI"
 						log "Radio cache refreshed and connection restored."
