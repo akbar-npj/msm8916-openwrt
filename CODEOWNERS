@@ -36,3 +36,7 @@ Docs/Boards/JZ0145.md                                                @mskvortsov
 # --- UZ801 config + everything else defaults to the lead ---
 diffconfigs/uz801  @isprogrammer @giraygokirmak @akbar-npj
 *  @akbar-npj
+
+# --- mifid (maintained by @akbar-npj) ---
+877-arm64-dts-qcom-add-msm8916-generic-mifid.patch  @akbar-npj @akbar-npj
+diffconfigs/mifid                                                      @akbar-npj @akbar-npj

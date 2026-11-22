@@ -62,6 +62,7 @@ and update it when a unit arrives, dies or is repaired.
 | `jz02` | JZ02 Battery MiFi | `jz02,generic` | @GargoilXD | bench (@GargoilXD) | patch 868; `diffconfigs/jz02`; `sim-select`, `sim-test`, `20-usb0-bridge` |
 | `jz0145` | JZ0145 V33 Stick | `jz0145,v33` | @mskvortsov | bench (@mskvortsov) | patch 872; `diffconfigs/jz0145`; `Docs/Boards/JZ0145.md` |
 | `uf896` | UF896 (v1.1) | `uf896,v1.1` | @akbar-npj | **none — needs a tester** | patch 867; `diffconfigs/uf896` |
+| `mifid` | MIFID 4G MiFi | `mifid,generic` | @akbar-npj | **none — needs a tester** | patch 877; `diffconfigs/mifid` |
 
 Boards with **no working unit** (`dead` or `none`) are still maintained — the
 code is kept current and the image builds — but nothing in a release has been
