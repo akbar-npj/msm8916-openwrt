@@ -623,10 +623,11 @@ def registration_rows(root, slug, info, maintainer, patch_no, patch_name):
 
     owners = os.path.join(root, "CODEOWNERS")
     if os.path.exists(owners):
+        who = maintainer if maintainer == "@akbar-npj" else maintainer + " @akbar-npj"
         with open(owners, "a") as fh:
             fh.write("\n# --- %s (maintained by %s) ---\n" % (slug, maintainer))
-            fh.write("%s  %s @akbar-npj\n" % (patch_name, maintainer))
-            fh.write("diffconfigs/%-58s %s @akbar-npj\n" % (slug, maintainer))
+            fh.write("%s  %s\n" % (patch_name, who))
+            fh.write("diffconfigs/%-58s %s\n" % (slug, who))
         touched.append("CODEOWNERS")
 
     readme = os.path.join(root, "README.md")

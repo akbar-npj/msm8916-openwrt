@@ -260,6 +260,15 @@ t_maintainer() {
 	else
 		bad "the MAINTAINERS row has $pipes pipes, want 7"
 	fi
+
+	scratch
+	run_tool --dtb "$DTB" --name probe --reference mifib-v12 \
+		--maintainer @akbar-npj --write --no-branch --no-validate
+	if grep -q '@akbar-npj @akbar-npj' "$T/CODEOWNERS"; then
+		bad "CODEOWNERS does not duplicate the lead"
+	else
+		ok "CODEOWNERS does not duplicate the lead"
+	fi
 }
 
 t_branch() {

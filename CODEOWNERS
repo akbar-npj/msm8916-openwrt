@@ -38,5 +38,5 @@ diffconfigs/uz801  @isprogrammer @giraygokirmak @akbar-npj
 *  @akbar-npj
 
 # --- mifid (maintained by @akbar-npj) ---
-877-arm64-dts-qcom-add-msm8916-generic-mifid.patch  @akbar-npj @akbar-npj
-diffconfigs/mifid                                                      @akbar-npj @akbar-npj
+877-arm64-dts-qcom-add-msm8916-generic-mifid.patch  @akbar-npj
+diffconfigs/mifid                                                      @akbar-npj
