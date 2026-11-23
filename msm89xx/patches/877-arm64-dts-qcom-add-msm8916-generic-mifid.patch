@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,273 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -209,8 +209,11 @@
 + * driver and enables the led-backlight bridge, so brightness is available
 + * at /sys/class/backlight/backlight-lcd/brightness in eight 5 mA steps.
 + */
-+&pm8916_1 {
-+	/* SPMI 0xa300 is MPP4 (stock "lcdwled-backlight"). */
++&pm8916_0 {
++	/* MPP4 (SPMI 0xa300, stock "lcdwled-backlight") belongs to PMIC@0 /
++	 * SID 0, the same slave as &pm8916_mpps.  Putting this node on
++	 * PMIC@1 makes every SPMI write hit a non-existent peripheral and
++	 * fail with -ENODEV, leaving the panel stuck at the pinctrl default. */
 +	lcd_wled: lcd-wled@a300 {
 +		compatible = "qcom,pm8916-mpp-led";
 +		reg = <0xa300>;
