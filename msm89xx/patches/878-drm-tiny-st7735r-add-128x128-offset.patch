@@ -1,0 +1,29 @@
+--- a/drivers/gpu/drm/tiny/st7735r.c
++++ b/drivers/gpu/drm/tiny/st7735r.c
+@@ -149,6 +149,18 @@
+ 	.rgb		= true,
+ };
+ 
++/*
++ * 1.44" 128x128 ST7735S panel whose visible window sits at rows 32..159 of
++ * the 132x162 GRAM (the stock vendor init sets RASET 0x20..0x9f).  Used by
++ * several MSM8916 MiFi boards that expose the panel over BLSP SPI.
++ */
++static const struct st7735r_cfg st7735s_128128_cfg = {
++	.mode		= { DRM_SIMPLE_MODE(128, 128, 25, 26) },
++	.left_offset	= 0,
++	.top_offset	= 32,
++	.rgb		= true,
++};
++
+ DEFINE_DRM_GEM_DMA_FOPS(st7735r_fops);
+ 
+ static const struct drm_driver st7735r_driver = {
+@@ -166,6 +178,7 @@
+ static const struct of_device_id st7735r_of_match[] = {
+ 	{ .compatible = "jianda,jd-t18003-t01", .data = &jd_t18003_t01_cfg },
+ 	{ .compatible = "okaya,rh128128t", .data = &rh128128t_cfg },
++	{ .compatible = "sitronix,st7735s-128128", .data = &st7735s_128128_cfg },
+ 	{ },
+ };
+ MODULE_DEVICE_TABLE(of, st7735r_of_match);

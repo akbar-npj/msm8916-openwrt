@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,234 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -186,24 +186,52 @@
 +	status = "okay";
 +};
 +
-+/* LCD panel: 128x128 ST7735S on BLSP SPI5.  No mainline support is wired
-+ * yet; the facts below come from the stock DTB
-+ * (qcom,mdss_spi_st7735s_128128_cmd):
++/*
++ * LCD: 1.44" 128x128 ST7735S on BLSP SPI5 (spi@78b9000), 16 MHz, native CS.
++ * reset = TLMM 11, dc = TLMM 30 (both active-high).  Driven by the mainline
++ * tinydrm st7735r driver; "sitronix,st7735s-128128" is added by patch 878
++ * with the visible window at rows 32..159 (stock RASET 0x20..0x9f).
 + *
-+ *   bus        BLSP SPI5 (spi@78b9000), 16 MHz, native CS
-+ *   reset      TLMM gpio 11, active-high  (qcom,platform-reset-gpio)
-+ *   dc         TLMM gpio 30, active-high  (qcom,platform-spi-dc-gpio)
-+ *   VDD        8916_l17 2.85 V  (pm8916_l17 is only stubbed in
-+ *                                msm8916-pm8916.dtsi; define it to use it)
-+ *   VDDIO      8916_l6 1.8 V    (pm8916_l6)
-+ *   backlight  PMIC MPP4 current sink "lcdwled-backlight" (qcom,leds@a300,
-+ *              mode-ctrl 0x60, source-sel 1, 40 mA) - NOT the WLED block
-+ *   live fb    mdssfb_d0000, mode U:128x128p-0, virtual 128,256
++ * Supplies: VDD 2.85 V (8916_l17), VDDIO 1.8 V (8916_l6).  The DRM panel
++ * driver does not consume regulators, so both rails are held always-on.
++ * l6 is only wired to DSI in the shared dtsi, which this board does not use.
 + *
-+ * Mainline path: enable CONFIG_TINYDRM_ST7735R and add a child of &blsp_spi5
-+ * with compatible "okaya,rh128128t" (the 128x128 variant), reset-gpios /
-+ * dc-gpios as above and a backlight phandle.  The backlight is the hard part:
-+ * mainline has no qcom,leds-qpnp driver, so MPP4 must run via pinctrl-spmi-mpp
-+ * in sink mode at a fixed current (no dimming) or a small custom driver.
-+ * Needs hardware bring-up, so it is left as a verified follow-up.
++ * Backlight: PMIC MPP4 current sink (stock "lcdwled-backlight", 0-40 mA).
++ * Mainline has no leds-qpnp driver, so MPP4 is held in sink mode at the
++ * hardware default current - the display is lit but not dimmable yet.
 + */
++&pm8916_rpm_regulators {
++	pm8916_l17: l17 {
++		regulator-min-microvolt = <2850000>;
++		regulator-max-microvolt = <2850000>;
++		regulator-always-on;
++	};
++};
++
++&pm8916_l6 {
++	regulator-always-on;
++};
++
++&pm8916_mpps {
++	pm8916_mpp4_sink: mpp4-sink-state {
++		pins = "mpp4";
++		function = "sink";
++		output-high;
++	};
++};
++
++&blsp_spi5 {
++	status = "okay";
++
++	panel@0 {
++		compatible = "sitronix,st7735s-128128";
++		reg = <0>;
++		spi-max-frequency = <16000000>;
++		reset-gpios = <&tlmm 11 GPIO_ACTIVE_HIGH>;
++		dc-gpios = <&tlmm 30 GPIO_ACTIVE_HIGH>;
++		rotation = <0>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&pm8916_mpp4_sink>;
++	};
++};
