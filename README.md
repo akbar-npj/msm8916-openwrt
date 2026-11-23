@@ -70,7 +70,7 @@ Recent additions on top of the base port:
 
 | Board Target  | Profile Name      | Device Model               | SoC     | RAM    | Storage   | LED mapping             |
 | :------------ | :---------------- | :------------------------- | :------ | :----- | :-------- | :---------------------- |
-| **`mifid`** | `generic-mifid` | MIFID 4G MiFi | MSM8916 | 512 MB | 4 GB eMMC | None (no LEDs); 128x128 ST7735S SPI LCD |
+| **`mifid`** | `generic-mifid` | HM-MIFIB-V18 | MSM8916 | 512 MB | 4 GB eMMC | None (no LEDs); 128x128 ST7735S SPI LCD |
 | **`hmuf02v5`**   | `generic-hmuf02v5`   | HMUF02-V5 (was HMU05) (250605 V0S) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`ufi001b`** | `generic-ufi001b` | Generic UFI001B 4G Stick   | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |
 | **`ufi003`**  | `generic-ufi003-mb-v02` | UFI003 MB V02 (also sold as QRZL903-01) | MSM8916 | 512 MB | 4 GB eMMC | Green / Blue / Red      |

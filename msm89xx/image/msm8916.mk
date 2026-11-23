@@ -243,7 +243,7 @@ TARGET_DEVICES += generic-jz0145
 define Device/generic-mifid
 	$(Device/msm8916)
 	DEVICE_VENDOR := Generic
-	DEVICE_MODEL := MIFID 4G MiFi
+	DEVICE_MODEL := HM-MIFIB-V18
 	DEVICE_DTS := msm8916-generic-mifid
 	SUPPORTED_DEVICES := mifid,generic
 	FILESYSTEMS := squashfs
