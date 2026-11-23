@@ -1,0 +1,135 @@
+#!/bin/sh
+# lcd-dashboard-ctl - CLI used by the LuCI editor and the power-button wake hook.
+# All writes go through UCI so they persist across sysupgrade and are readable
+# by the collector.
+set -e
+
+usage() {
+	cat >&2 <<'EOF'
+usage: lcd-dashboard-ctl <command> [args]
+  --show                    print tab-separated current settings for the UI
+  --status                  print runtime state (daemon, fb, sources)
+  --set key=value ...       write validated UCI settings and redraw
+  --reset                   restore Android-style defaults
+  --redraw                  collect + render once now
+  --collect                 collect only
+EOF
+	exit 1
+}
+
+[ $# -ge 1 ] || usage
+cmd=$1; shift
+
+# Every known key maps to a UCI option.  Values are free-form strings validated
+# per-prefix below; colours must be #RRGGBB.
+is_colour() { case "$1" in \#??????) return 0 ;; *) return 1 ;; esac; }
+
+set_one() {
+	kv="$1"
+	key=${kv%%=*}
+	val=${kv#*=}
+	case "$key" in
+		enabled|notification.enabled)
+			case "$val" in 0|1|true|false|on|off) ;; *) echo "bad value for $key" >&2; return 1 ;; esac ;;
+		refresh|notification.duration)
+			case "$val" in ''|*[!0-9]*) echo "bad value for $key" >&2; return 1 ;; esac ;;
+		color_*)
+			is_colour "$val" || { echo "bad colour for $key" >&2; return 1; } ;;
+		top_left|top_right|tile1|tile2|tile3|tile4|bottom1|bottom2)
+			case "$val" in
+				none|signal|operator|sim|wifi|traffic|battery|sms|missed|\
+				ssid|key|ip|custom1|custom2) ;;
+				*) echo "unknown source for $key: $val" >&2; return 1 ;;
+			esac ;;
+		custom1|custom2) ;;
+		*) echo "unknown key: $key" >&2; return 1 ;;
+	esac
+
+	section=${key%%.*}
+	option=${key##*.}
+	case "$key" in
+		*.*) ;;
+		*)   section=main; option=$key ;;
+	esac
+	uci -q set "lcd-dashboard.$section.$option=$val"
+}
+
+case "$cmd" in
+	--show)
+		# One tab-separated "key<TAB>value" line per setting.
+		for k in enabled refresh color_top_bg color_top_fg color_mid_bg \
+		         color_bottom_bg color_bottom_fg color_tile_on color_tile_off \
+		         color_popup_bg color_popup_fg top_left top_right tile1 tile2 \
+		         tile3 tile4 bottom1 bottom2 custom1 custom2 \
+		         notification.enabled notification.duration; do
+			# uci -q get returns 1 for an unset option; set -e must not
+			# abort --show on the first missing key (the LuCI page needs
+			# the whole table).
+			v=$(uci -q get "lcd-dashboard.$k" 2>/dev/null || true)
+			[ -n "$v" ] || v=$(uci -q get "lcd-dashboard.main.$k" 2>/dev/null || true)
+			printf '%s\t%s\n' "$k" "$v"
+		done
+		;;
+	--status)
+		echo "fb: $([ -c /dev/fb0 ] && echo present || echo absent)"
+		echo "daemon: $(pgrep -f '/usr/sbin/lcd-dashboardd' >/dev/null && echo running || echo stopped)"
+		for f in state view notify; do
+			echo "$f: $([ -f /var/run/lcd-dashboard/$f ] && echo present || echo absent)"
+		done
+		[ -f /var/run/lcd-dashboard/state ] && cat /var/run/lcd-dashboard/state || true
+		;;
+	--set)
+		[ $# -ge 1 ] || usage
+		for kv in "$@"; do set_one "$kv"; done
+		uci commit lcd-dashboard
+		/usr/sbin/lcd-dashboard-collect
+		if [ "$(cat /sys/class/backlight/backlight-lcd/brightness 2>/dev/null)" != 0 ]; then
+			/usr/sbin/lcd-dashboard
+		fi
+		echo "saved"
+		;;
+	--reset)
+		# BusyBox uci has no "uci delete <config>"; delete per section and
+		# tolerate a missing section (set -e is active).
+		uci -q delete lcd-dashboard.main 2>/dev/null || true
+		uci -q delete lcd-dashboard.notification 2>/dev/null || true
+		uci set lcd-dashboard.main=dashboard
+		uci set lcd-dashboard.notification=notification
+		uci set lcd-dashboard.main.enabled=1
+		uci set lcd-dashboard.main.refresh=5
+		uci set lcd-dashboard.main.color_top_bg=#3fb34f
+		uci set lcd-dashboard.main.color_top_fg=#ffffff
+		uci set lcd-dashboard.main.color_mid_bg=#101010
+		uci set lcd-dashboard.main.color_bottom_bg=#1e6fe0
+		uci set lcd-dashboard.main.color_bottom_fg=#ffffff
+		uci set lcd-dashboard.main.color_tile_on=#3fb34f
+		uci set lcd-dashboard.main.color_tile_off=#c62828
+		uci set lcd-dashboard.main.color_popup_bg=#b71c1c
+		uci set lcd-dashboard.main.color_popup_fg=#ffffff
+		uci set lcd-dashboard.main.top_left=signal
+		uci set lcd-dashboard.main.top_right=operator
+		uci set lcd-dashboard.main.tile1=sim
+		uci set lcd-dashboard.main.tile2=wifi
+		uci set lcd-dashboard.main.tile3=traffic
+		uci set lcd-dashboard.main.tile4=battery
+		uci set lcd-dashboard.main.bottom1=ssid
+		uci set lcd-dashboard.main.bottom2=key
+		uci set lcd-dashboard.notification.enabled=1
+		uci set lcd-dashboard.notification.duration=6
+		uci commit lcd-dashboard
+		/usr/sbin/lcd-dashboard-collect
+		if [ "$(cat /sys/class/backlight/backlight-lcd/brightness 2>/dev/null)" != 0 ]; then
+			/usr/sbin/lcd-dashboard
+		fi
+		echo "reset"
+		;;
+	--redraw|--collect)
+		/usr/sbin/lcd-dashboard-collect
+		if [ "$cmd" = --redraw ] && \
+		   [ "$(cat /sys/class/backlight/backlight-lcd/brightness 2>/dev/null)" != 0 ]; then
+			/usr/sbin/lcd-dashboard
+		fi
+		echo "done"
+		;;
+	*) usage ;;
+esac

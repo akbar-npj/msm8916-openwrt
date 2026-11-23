@@ -16,8 +16,27 @@
 # constant_charge_current to its 90 mA minimum. When capacity falls to the resume
 # level we re-enable charging. If the charger is unplugged (online=0) the battery
 # naturally powers the system (VBAT is the system rail); nothing needs doing.
+#
+# Every decision is logged with syslog tag "battery-charge-limit", but only when
+# the resulting state changes (waiting / nowritable / nocap / disabled / hold /
+# charge / idle / unplugged), so a long soak stays readable:
+#   logread -e battery-charge-limit
 
 log() { logger -t battery-charge-limit "$1"; }
+
+# Log a decision only when the resulting state changes.  The poll runs every
+# 15 s; logging every pass would bury the transitions we actually care about
+# (hold / resume / unplug) in syslog noise.
+STATE=""
+note() {
+	[ "$1" = "$STATE" ] && return 0
+	STATE=$1
+	log "$2"
+}
+
+# Survives a service restart within one boot (tmpfs); on a real boot the driver
+# has already applied its own current, so the file is re-created from sysfs.
+SAFE_FILE=/var/run/battery-charge-limit.current
 
 find_battery() {
 	for d in /sys/class/power_supply/*; do
@@ -45,12 +64,14 @@ main() {
 		# wait and retry instead of bailing out (a premature exit used to
 		# leave the battery uncapped until procd happened to respawn us).
 		if [ -z "$CHARGER" ] || [ -z "$BATT" ]; then
+			note waiting "waiting for power-supply nodes (charger=${CHARGER:-none} battery=${BATT:-none})"
 			sleep 5
 			continue
 		fi
 
 		CE="$CHARGER/charge_enabled"
 		if [ ! -w "$CE" ]; then
+			note nowritable "charger present but charge_enabled is not writable; limit inactive"
 			sleep 5
 			continue
 		fi
@@ -58,16 +79,46 @@ main() {
 		# Capture the charge current the driver/firmware picked at boot, but
 		# only once: after we floor it to 90 mA on hold we must remember the
 		# original so resume restores the real value, not the floored one.
+		# The value is also kept in $SAFE_FILE, because a service restart while
+		# holding would otherwise read back our own 90 mA floor and then
+		# "resume" charging at 90 mA.
 		if [ -z "$SAFE_CURRENT" ]; then
-			SAFE_CURRENT=$(cat "$CHARGER/constant_charge_current" 2>/dev/null)
-			[ -n "$SAFE_CURRENT" ] || SAFE_CURRENT=900000
+			# 1. A value saved earlier in this boot is the best evidence.
+			SAFE_CURRENT=$(cat "$SAFE_FILE" 2>/dev/null)
+			case "$SAFE_CURRENT" in
+				''|*[!0-9]*) SAFE_CURRENT="" ;;
+			esac
+			# 2. Otherwise take what the driver set -- but only while we are
+			#    not holding, since a hold leaves our own floor behind.  90 mA
+			#    is that floor, so anything at or below it is not a real value.
+			if [ -z "$SAFE_CURRENT" ] && [ "$(cat "$CE" 2>/dev/null)" != "0" ]; then
+				SAFE_CURRENT=$(cat "$CHARGER/constant_charge_current" 2>/dev/null)
+				case "$SAFE_CURRENT" in
+					''|*[!0-9]*) SAFE_CURRENT="" ;;
+				esac
+			fi
+			if [ -n "$SAFE_CURRENT" ] && [ "$SAFE_CURRENT" -le 90000 ]; then
+				SAFE_CURRENT=""
+			fi
+			# 3. Last resort: the driver default.
+			if [ -z "$SAFE_CURRENT" ]; then
+				SAFE_CURRENT=900000
+				log "no usable saved current; assuming 900000 uA for resume"
+			else
+				log "charge current for resume: ${SAFE_CURRENT} uA"
+			fi
+			echo "$SAFE_CURRENT" > "$SAFE_FILE" 2>/dev/null
 		fi
+
+		cap=$(cat "$BATT/capacity" 2>/dev/null)
+		onl=$(cat "$CHARGER/online" 2>/dev/null)
 
 		ENABLED=$(uci -q get battery.@charge[0].enabled)
 		if [ "$ENABLED" = "0" ]; then
 			# Limit disabled: ensure charging is allowed.
 			echo 1 > "$CE" 2>/dev/null
 			echo "$SAFE_CURRENT" > "$CHARGER/constant_charge_current" 2>/dev/null
+			note disabled "limit disabled by config (cap ${cap:-?}%): charging enabled at ${SAFE_CURRENT} uA"
 			sleep 15
 			continue
 		fi
@@ -77,11 +128,12 @@ main() {
 		RESUME=$(uci -q get battery.@charge[0].resume)
 		[ -z "$RESUME" ] && RESUME=80
 
-		cap=$(cat "$BATT/capacity" 2>/dev/null)
-		onl=$(cat "$CHARGER/online" 2>/dev/null)
-
 		case "$cap" in
-			''|*[!0-9]*) sleep 15; continue;;
+			''|*[!0-9]*)
+				note nocap "capacity unreadable ('${cap}'); skipping this pass"
+				sleep 15
+				continue
+				;;
 		esac
 
 		if [ "$onl" = "1" ]; then
@@ -89,11 +141,17 @@ main() {
 				# Hold at the limit: stop charging, keep running off VBUS.
 				echo 0 > "$CE" 2>/dev/null
 				echo 90000 > "$CHARGER/constant_charge_current" 2>/dev/null
+				note hold "cap ${cap}% >= limit ${LIMIT}%: charging stopped (CHG_EN=0, hold 90 mA)"
 			elif [ "$cap" -le "$RESUME" ]; then
 				# Resume normal charging.
 				echo "$SAFE_CURRENT" > "$CHARGER/constant_charge_current" 2>/dev/null
 				echo 1 > "$CE" 2>/dev/null
+				note charge "cap ${cap}% <= resume ${RESUME}%: charging enabled at ${SAFE_CURRENT} uA"
+			else
+				note idle "cap ${cap}% between resume ${RESUME}% and limit ${LIMIT}%: charger left as-is"
 			fi
+		else
+			note unplugged "charger offline (online=${onl:-?}, cap ${cap}%): battery powering the system"
 		fi
 
 		sleep 15

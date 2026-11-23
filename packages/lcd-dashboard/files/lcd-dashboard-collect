@@ -1,0 +1,210 @@
+#!/bin/sh
+# lcd-dashboard-collect - gather all dashboard sources and publish them for the
+# renderer in /var/run/lcd-dashboard/{state,view}.  Every source is N/A-safe so
+# a unit with no SIM still produces a complete, renderable state file.
+#
+# This script is the ONLY producer of state/view/prev/notify; the renderer only
+# reads them.  It is deliberately dependency-light (busybox + uci + iw + mmcli).
+
+RUN=/var/run/lcd-dashboard
+mkdir -p "$RUN"
+
+TMP="$RUN/state.$$"
+VIEW="$RUN/view.$$"
+PREV="$RUN/prev"
+NOTIFY="$RUN/notify"
+
+uci_get() { uci -q get "$1" 2>/dev/null; }
+# Bare keys live in the 'main' section; section.option keys pass through.
+cfg() {
+	case "$1" in
+		*.*) uci_get "lcd-dashboard.$1" ;;
+		*)   uci_get "lcd-dashboard.main.$1" ;;
+	esac
+}
+
+# ---- helpers -------------------------------------------------------------
+
+# Run a command under a short timeout, empty output on any failure.
+safe() { timeout 4 "$@" 2>/dev/null; }
+
+# ---- state ---------------------------------------------------------------
+
+# Modem identity / SIM.
+modem_ok=0
+MM=$(safe mmcli -L)
+case "$MM" in
+	*'/Modem/'*) modem_ok=1; modem_path=$(echo "$MM" | sed -n 's#.*\(/org/freedesktop/ModemManager1/Modem/[0-9]*\).*#\1#p' | head -1) ;;
+esac
+[ -n "$modem_path" ] || modem_path=/org/freedesktop/ModemManager1/Modem/0
+M="mmcli -m $modem_path"
+
+# SIM presence: MM prints the SIM object path when one is present,
+#   SIM | primary sim path: /org/freedesktop/ModemManager1/SIM/0
+# and "none"/"--" when it is not.  Match the object path; the old
+# "sim: #1" layout is not emitted by the mmcli in this image.
+sim=absent
+sim_line=$(safe $M | grep -i 'primary sim path:' | head -1)
+case "$sim_line" in
+	*'/SIM/'*) sim=present ;;
+esac
+
+# Signal strength (0..4).  mmcli --signal-get is unsupported on this firmware,
+# so try QMI NAS first, then fall back to parsing mmcli -m.
+signal=-1
+qmi=$(safe qmicli -p -d /dev/wwan0qmi0 --nas-get-signal-strength)
+rssi=$(echo "$qmi" | sed -n 's/.*RSSI.*value.: *\(-\?[0-9]*\).*/\1/p' | head -1)
+if [ -z "$rssi" ]; then
+	rssi=$(echo "$qmi" | grep -oE '\-[0-9]+ dBm' | head -1 | grep -oE '\-[0-9]+')
+fi
+# QMI reports -128 dBm when there is no service/SIM; that is a sentinel, not a
+# usable signal level.
+if [ -n "$rssi" ] && [ "$rssi" -le -128 ]; then rssi=; fi
+if [ -n "$rssi" ]; then
+	if   [ "$rssi" -ge -70 ]; then signal=4
+	elif [ "$rssi" -ge -85 ]; then signal=3
+	elif [ "$rssi" -ge -100 ]; then signal=2
+	elif [ "$rssi" -ge -110 ]; then signal=1
+	else signal=1
+	fi
+fi
+
+# Operator.
+operator='NO SIM'
+if [ "$modem_ok" -eq 1 ]; then
+	op=$(safe $M | sed -n 's/.*operator name: *//p' | head -1)
+	[ -n "$op" ] && operator="$op"
+fi
+
+# SMS unread: count SMS rows MM reports as received/unread.
+sms_unread=-1
+if [ "$modem_ok" -eq 1 ]; then
+	sms_list=$(safe $M --messaging-list-sms)
+	if [ -n "$sms_list" ]; then
+		sms_unread=$(echo "$sms_list" | grep -c '/SMS/')
+	fi
+fi
+
+# Calls: this MM firmware keeps no call history, so a missed-call COUNT is not
+# available (-1).  What it can report is a live call, which we expose as
+# call_active and use for an "Incoming call" popup + a lit CALL tile.
+missed_calls=-1
+call_active=0
+if [ "$modem_ok" -eq 1 ]; then
+	calls=$(safe $M --voice-list-calls 2>/dev/null)
+	echo "$calls" | grep -q '/Call/' && call_active=1
+fi
+
+# Wi-Fi mode and client count.
+wifi_mode=$(iw dev 2>/dev/null | awk '/type /{print $2; exit}')
+[ -z "$wifi_mode" ] && wifi_mode=none
+clients=0
+for w in $(iw dev 2>/dev/null | awk '/Interface/{print $2}'); do
+	n=$(iw dev "$w" station dump 2>/dev/null | grep -c '^Station ')
+	clients=$((clients + n))
+done
+
+# Wi-Fi SSID / key (first AP interface).
+ssid=$(uci show wireless 2>/dev/null | sed -n "s/.*\.ssid='\(.*\)'/\1/p" | head -1)
+key=$(uci show wireless 2>/dev/null | sed -n "s/.*\.key='\(.*\)'/\1/p" | head -1)
+[ -z "$ssid" ] && ssid=NONE
+[ -z "$key" ] && key=NONE
+
+# Battery + charging.
+battery=$(cat /sys/class/power_supply/pm8916-bms-vm/capacity 2>/dev/null)
+[ -z "$battery" ] && battery=0
+charging=0
+for p in /sys/class/power_supply/*; do
+	[ -r "$p/online" ] && [ "$(cat "$p/online" 2>/dev/null)" = 1 ] && charging=1
+done
+
+# WAN/LAN IP.
+ipaddr=$(ip -4 addr show dev wwan0 2>/dev/null | awk '/inet /{print $2; exit}' | cut -d/ -f1)
+[ -z "$ipaddr" ] && ipaddr=$(uci -q get network.lan.ipaddr 2>/dev/null)
+[ -z "$ipaddr" ] && ipaddr=NONE
+
+# Data traffic: compare byte counters to the previous sample.
+rx_now=$(cat /sys/class/net/wwan0/statistics/rx_bytes 2>/dev/null || echo 0)
+tx_now=$(cat /sys/class/net/wwan0/statistics/tx_bytes 2>/dev/null || echo 0)
+rx_prev=$(cat "$RUN/rx_prev" 2>/dev/null || echo "$rx_now")
+tx_prev=$(cat "$RUN/tx_prev" 2>/dev/null || echo "$tx_now")
+rx_active=0; tx_active=0
+[ $((rx_now - rx_prev)) -gt 0 ] 2>/dev/null && rx_active=1
+[ $((tx_now - tx_prev)) -gt 0 ] 2>/dev/null && tx_active=1
+echo "$rx_now" > "$RUN/rx_prev"
+echo "$tx_now" > "$RUN/tx_prev"
+
+# Custom text lines.
+custom1=$(cfg custom1); custom2=$(cfg custom2)
+[ -z "$custom1" ] && custom1=''
+[ -z "$custom2" ] && custom2=''
+
+# ---- write state ---------------------------------------------------------
+{
+	echo "signal=$signal"
+	echo "operator=$operator"
+	echo "sim=$sim"
+	echo "sms_unread=$sms_unread"
+	echo "missed_calls=$missed_calls"
+	echo "call_active=$call_active"
+	echo "wifi_mode=$wifi_mode"
+	echo "clients=$clients"
+	echo "ssid=$ssid"
+	echo "key=$key"
+	echo "battery=$battery"
+	echo "charging=$charging"
+	echo "ip=$ipaddr"
+	echo "rx_active=$rx_active"
+	echo "tx_active=$tx_active"
+	echo "rx=$rx_now"
+	echo "tx=$tx_now"
+	echo "custom1=$custom1"
+	echo "custom2=$custom2"
+} > "$TMP"
+mv "$TMP" "$RUN/state"
+
+# ---- write view ----------------------------------------------------------
+{
+	for k in color_top_bg color_top_fg color_mid_bg color_bottom_bg \
+	         color_bottom_fg color_tile_on color_tile_off color_popup_bg \
+	         color_popup_fg; do
+		echo "$k=$(cfg $k)"
+	done
+	for k in top_left top_right tile1 tile2 tile3 tile4 bottom1 bottom2; do
+		echo "$k=$(cfg $k)"
+	done
+} > "$VIEW"
+mv "$VIEW" "$RUN/view"
+
+# ---- notification tracking ----------------------------------------------
+# Counts are compared against the previous sample; an increase raises a popup
+# for notification/duration seconds.  If notification is disabled, no popup.
+notif_enabled=$(cfg notification.enabled)
+[ -z "$notif_enabled" ] && notif_enabled=1
+duration=$(cfg notification.duration)
+case "$duration" in ''|*[!0-9]*) duration=6 ;; esac
+
+sms_prev=$(grep '^sms=' "$PREV" 2>/dev/null | cut -d= -f2)
+call_prev=$(grep '^calls=' "$PREV" 2>/dev/null | cut -d= -f2)
+{
+	echo "sms=$sms_unread"
+	echo "calls=$call_active"
+} > "$PREV"
+
+if [ "$notif_enabled" = 1 ]; then
+	text=''
+	# Both sides must be real counts: a -1 (unavailable) -> 0 transition on
+	# modem bring-up must never raise a phantom "0" popup.
+	if [ -n "$sms_prev" ] && [ "$sms_unread" -ge 0 ] && [ "$sms_prev" -ge 0 ] && \
+	   [ "$sms_unread" -gt "$sms_prev" ] 2>/dev/null; then
+		text="New SMS  ($sms_unread unread)"
+	elif [ "$call_prev" = 0 ] && [ "$call_active" = 1 ]; then
+		text="Incoming call"
+	fi
+	if [ -n "$text" ]; then
+		expiry=$(( $(date +%s) + duration ))
+		printf '%s\t%s\n' "$expiry" "$text" > "$NOTIFY"
+	fi
+fi
+
+exit 0

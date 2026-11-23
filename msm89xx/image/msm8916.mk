@@ -240,4 +240,26 @@ define Device/generic-jz0145
 endef
 TARGET_DEVICES += generic-jz0145
 
+define Device/generic-mifid
+	$(Device/msm8916)
+	DEVICE_VENDOR := Generic
+	DEVICE_MODEL := HM-MIFIB-V18
+	DEVICE_DTS := msm8916-generic-mifid
+	SUPPORTED_DEVICES := mifid,generic
+	FILESYSTEMS := squashfs
+	# misc + recovery, like the other battery boards (no rescue image yet).
+	# 3-SIM battery MiFi; same 4 GB eMMC as the other boards.
+	GPT_TOT_SECTORS := 7634944
+	GPT_RECOVERY := 1
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
+		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
+		luci-app-battery lcd-dashboard luci-app-lcd-dashboard \
+		kmod-sound-msm8916-voice alsa-utils ufi-voice ufi-voice-asterisk \
+		qmi-raw luci-app-ufi-voice
+endef
+TARGET_DEVICES += generic-mifid
+
 endif

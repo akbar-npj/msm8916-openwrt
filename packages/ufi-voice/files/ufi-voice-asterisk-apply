@@ -266,4 +266,7 @@ chmod 640 /etc/asterisk/pjsip.conf /etc/asterisk/manager.conf
 touch /etc/asterisk/.ufi-voice
 
 uci -q set asterisk.general.enabled=1 && uci -q commit asterisk
+# Enable the daemon so the SIP leg is up on a fresh image and after a runtime
+# install; ufi-voiced connects to its AMI socket at start.
+[ -x /etc/init.d/asterisk ] && /etc/init.d/asterisk enable
 exit 0

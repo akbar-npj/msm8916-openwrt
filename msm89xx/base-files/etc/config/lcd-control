@@ -1,0 +1,6 @@
+# BOARDS: mifid - consumed only by lcd-control, which is inert on boards that
+# have no backlight-lcd node.
+config general 'general'
+	option enabled '1'
+	option timeout '60'
+	option level '8'

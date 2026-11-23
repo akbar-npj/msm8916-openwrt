@@ -8,7 +8,8 @@
 #
 # Behaviour (kept clear of the PMIC own ~10-15 s hard-reset, which
 # power-cycles the board regardless of software):
-#   * short press              -> nothing (anti-accidental)
+#   * short press              -> toggle the LCD on boards with a
+#                                 backlight-lcd node (no-op elsewhere)
 #   * two short presses        -> reboot      (within DBL_WINDOW ms)
 #   * long press (>= LONG_HOLD s, released) -> power off (shutdown)
 #                                              -> reboot when running on
@@ -56,6 +57,11 @@ SEEN="${SEEN%.*}"
 
 now_ms=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime)
 
+# BOARDS: mifid -- these two display hints apply only to the board with the
+# ST7735R panel; lcd-control exits immediately without a backlight-lcd node.
+# Any completed power-button press counts as display activity.
+[ -x /usr/sbin/lcd-control ] && /usr/sbin/lcd-control activity
+
 if [ "$SEEN" -le "$SHORT_MAX" ] 2>/dev/null; then
     if [ -f "$STATE" ]; then
         last=$(cat "$STATE" 2>/dev/null)
@@ -68,6 +74,9 @@ if [ "$SEEN" -le "$SHORT_MAX" ] 2>/dev/null; then
         fi
     fi
     echo "$now_ms" > "$STATE"
+    # The double-press branch above already rebooted, so a double press
+    # only toggles the LCD once before the device restarts.
+    [ -x /usr/sbin/lcd-control ] && /usr/sbin/lcd-control toggle
     exit 0
 elif [ "$SEEN" -ge "$LONG_HOLD" ] 2>/dev/null; then
     rm -f "$STATE"
