@@ -1,0 +1,32 @@
+{
+  "board": "mifib-v12",
+  "captured": "2026-11-23",
+  "complete": false,
+  "current_modes": [
+    "allowed: 4g; preferred: none"
+  ],
+  "dms_networks": "umts, lte",
+  "dt_compatible": "mifib-v12,generic qcom,msm8916",
+  "dt_model": "HM-MIFIB-V12 4G LTE USB WiFi Dongle",
+  "host": "192.168.9.1",
+  "hw_revision": "10000",
+  "mm_hw_revision": "10000",
+  "mm_revision": "HM02_MODEM_V1.2  1  [Nov 04 2016 02:00:00]",
+  "modem_mdt_md5": "38b11d1b4ded4b95d4f9187ac2f4fbc3",
+  "mpss": "MPSS.DPM.2.0.2.c1-00178-M8936FAAAANUZM-1_20161104_023832",
+  "nas_mode_preference": "lte",
+  "segment_count": 3,
+  "segment_md5": {
+    "modem.b01": "07b2dade1ebfe5b276b072ede4e3687c",
+    "modem.b05": "350aa2614f576ed23c4bf7114fc2148f",
+    "modem.mdt": "38b11d1b4ded4b95d4f9187ac2f4fbc3"
+  },
+  "soc": "MSM8916",
+  "supported_modes": [
+    "allowed: 3g; preferred: none",
+    "allowed: 4g; preferred: none",
+    "allowed: 3g, 4g; preferred: 4g",
+    "allowed: 3g, 4g; preferred: 3g"
+  ],
+  "vendor_sw_version": "HM02_MODEM_V1.2"
+}
