@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,270 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -80,6 +80,15 @@
 +			<3553000 10>, <3533000 9>, <3520000 8>, <3490000 7>,
 +			<3460000 6>, <3440000 5>, <3410000 4>, <3390000 3>,
 +			<3370000 2>, <3360000 1>, <3350000 0>;
++	};
++
++	/* Backlight on PMIC MPP4: the LED-class driver (patch 879) reports
++	 * 5..40 mA, and led-backlight maps eight sysfs levels onto it. */
++	lcd_backlight: backlight-lcd {
++		compatible = "led-backlight";
++		leds = <&lcd_wled>;
++		brightness-levels = <0 5 10 15 20 25 30 35 40>;
++		default-brightness-level = <8>;
 +	};
 +};
 +
@@ -190,16 +199,26 @@
 + * LCD: 1.44" 128x128 ST7735S on BLSP SPI5 (spi@78b9000), 16 MHz, native CS.
 + * reset = TLMM 11, dc = TLMM 30 (both active-high).  Driven by the mainline
 + * tinydrm st7735r driver; "sitronix,st7735s-128128" is added by patch 878
-+ * with the visible window at rows 32..159 (stock RASET 0x20..0x9f).
++ * with no row offset (mainline MX|MY|RGB maps GRAM rows 0..127 to the glass).
 + *
 + * Supplies: VDD 2.85 V (8916_l17), VDDIO 1.8 V (8916_l6).  The DRM panel
 + * driver does not consume regulators, so both rails are held always-on.
 + * l6 is only wired to DSI in the shared dtsi, which this board does not use.
 + *
-+ * Backlight: PMIC MPP4 current sink (stock "lcdwled-backlight", 0-40 mA).
-+ * Mainline has no leds-qpnp driver, so MPP4 is held in sink mode at the
-+ * hardware default current - the display is lit but not dimmable yet.
++ * Backlight: PMIC MPP4 current sink.  Patch 879 adds the small LED-class
++ * driver and enables the led-backlight bridge, so brightness is available
++ * at /sys/class/backlight/backlight-lcd/brightness in eight 5 mA steps.
 + */
++&pm8916_1 {
++	/* SPMI 0xa300 is MPP4 (stock "lcdwled-backlight"). */
++	lcd_wled: lcd-wled@a300 {
++		compatible = "qcom,pm8916-mpp-led";
++		reg = <0xa300>;
++		label = "lcdwled-backlight";
++		status = "okay";
++	};
++};
++
 +&pm8916_rpm_regulators {
 +	pm8916_l17: l17 {
 +		regulator-min-microvolt = <2850000>;
@@ -216,12 +235,13 @@
 +	pm8916_mpp4_sink: mpp4-sink-state {
 +		pins = "mpp4";
 +		function = "sink";
-+		/* Stock: qcom,source-sel = <1>, brightness 0-40 mA.  The sink
-+		 * current register is written from drive-strength, and it
-+		 * powers up at 0 mA, so the value must be given here or the
-+		 * backlight stays dark. */
++		/* Stock: qcom,source-sel = <1>, brightness 5-40 mA.  Mainline
++		 * pinctrl writes drive-strength raw into the 3-bit SINK_CTL
++		 * field (0=5 mA .. 7=40 mA), so this is a register value,
++		 * not a current in mA.  Keep it at full scale: the LED driver
++		 * takes over brightness changes at runtime. */
 +		power-source = <1>;
-+		drive-strength = <40>;
++		drive-strength = <7>;
 +		output-high;
 +	};
 +};
@@ -245,6 +265,7 @@
 +		reset-gpios = <&tlmm 11 GPIO_ACTIVE_HIGH>;
 +		dc-gpios = <&tlmm 30 GPIO_ACTIVE_HIGH>;
 +		rotation = <0>;
++		backlight = <&lcd_backlight>;
 +
 +		pinctrl-names = "default";
 +		pinctrl-0 = <&pm8916_mpp4_sink>;

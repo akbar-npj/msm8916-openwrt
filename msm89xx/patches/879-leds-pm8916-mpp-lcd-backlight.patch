@@ -1,0 +1,164 @@
+--- a/drivers/leds/Kconfig
++++ b/drivers/leds/Kconfig
+@@ -969,6 +969,14 @@
+ 	  This option enables support for the Power Button LED of
+ 	  Acer Iconia Tab A500.
+ 
++config LEDS_PM8916_MPP
++	tristate "Qualcomm PM8916 MPP current sink LED"
++	depends on LEDS_CLASS && OF
++	help
++	  This driver exposes a PM8916 MPP current-sink pin as an LED class
++	  device, with the vendor's 5..40 mA manual brightness range.  It is
++	  used for the LCD backlight on MSM8916 MiFi boards.
++
+ source "drivers/leds/blink/Kconfig"
+ 
+ comment "Flash and Torch LED drivers"
+--- a/drivers/leds/Makefile
++++ b/drivers/leds/Makefile
+@@ -29,6 +29,7 @@
+ obj-$(CONFIG_LEDS_CROS_EC)		+= leds-cros_ec.o
+ obj-$(CONFIG_LEDS_DA903X)		+= leds-da903x.o
+ obj-$(CONFIG_LEDS_DA9052)		+= leds-da9052.o
++obj-$(CONFIG_LEDS_PM8916_MPP)		+= leds-pm8916-mpp.o
+ obj-$(CONFIG_LEDS_GPIO)			+= leds-gpio.o
+ obj-$(CONFIG_LEDS_GPIO_REGISTER)	+= leds-gpio-register.o
+ obj-$(CONFIG_LEDS_HP6XX)		+= leds-hp6xx.o
+--- /dev/null
++++ b/drivers/leds/leds-pm8916-mpp.c
+@@ -0,0 +1,118 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Minimal current-sink LED driver for the PM8916 MPP used as the LCD
++ * backlight on MSM8916 MiFi boards.  Only the vendor's "manual" mode is
++ * implemented: 5..40 mA in 5 mA steps, no PWM/blinking.
++ */
++
++#include <linux/leds.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++
++#define PM8916_MPP_MODE_CTL	0x40
++#define PM8916_MPP_EN_CTL	0x46
++#define PM8916_MPP_SINK_CTL	0x4c
++
++#define PM8916_MPP_MODE_SINK	(6 << 4)
++#define PM8916_MPP_MODE_MASK	0x7f
++#define PM8916_MPP_EN_MASK	0x80
++#define PM8916_MPP_SINK_MASK	0x07
++
++#define PM8916_MPP_CURRENT_MIN	5
++#define PM8916_MPP_CURRENT_MAX	40
++
++struct pm8916_mpp_led {
++	struct led_classdev cdev;
++	struct regmap *map;
++	unsigned int base;
++};
++
++static int pm8916_mpp_led_set(struct led_classdev *cdev,
++			      enum led_brightness brightness)
++{
++	struct pm8916_mpp_led *led =
++		container_of(cdev, struct pm8916_mpp_led, cdev);
++	int ret;
++
++	if (brightness == LED_OFF) {
++		ret = regmap_update_bits(led->map, led->base + PM8916_MPP_MODE_CTL,
++					 PM8916_MPP_MODE_MASK, 0);
++		if (ret)
++			return ret;
++		return regmap_update_bits(led->map, led->base + PM8916_MPP_EN_CTL,
++					  PM8916_MPP_EN_MASK, 0);
++	}
++
++	if (brightness < PM8916_MPP_CURRENT_MIN)
++		brightness = PM8916_MPP_CURRENT_MIN;
++	if (brightness > PM8916_MPP_CURRENT_MAX)
++		brightness = PM8916_MPP_CURRENT_MAX;
++
++	ret = regmap_update_bits(led->map, led->base + PM8916_MPP_MODE_CTL,
++				 PM8916_MPP_MODE_MASK, PM8916_MPP_MODE_SINK);
++	if (ret)
++		return ret;
++	ret = regmap_update_bits(led->map, led->base + PM8916_MPP_SINK_CTL,
++				 PM8916_MPP_SINK_MASK,
++				 brightness / PM8916_MPP_CURRENT_MIN - 1);
++	if (ret)
++		return ret;
++	return regmap_update_bits(led->map, led->base + PM8916_MPP_EN_CTL,
++				  PM8916_MPP_EN_MASK, PM8916_MPP_EN_MASK);
++}
++
++static int pm8916_mpp_led_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct pm8916_mpp_led *led;
++	struct led_init_data init_data = {};
++	u32 base;
++	int ret;
++
++	ret = of_property_read_u32(dev->of_node, "reg", &base);
++	if (ret)
++		return dev_err_probe(dev, ret, "missing MPP register base\n");
++
++	led = devm_kzalloc(dev, sizeof(*led), GFP_KERNEL);
++	if (!led)
++		return -ENOMEM;
++
++	led->map = dev_get_regmap(dev->parent, NULL);
++	if (!led->map)
++		return dev_err_probe(dev, -ENODEV, "parent has no regmap\n");
++	led->base = base;
++
++	led->cdev.max_brightness = PM8916_MPP_CURRENT_MAX;
++	led->cdev.brightness_set_blocking = pm8916_mpp_led_set;
++
++	/* led_bl resolves the LED through its DT phandle, so the class device
++	 * must carry the firmware node (plain _register() does not). */
++	init_data.fwnode = of_fwnode_handle(dev->of_node);
++	ret = devm_led_classdev_register_ext(dev, &led->cdev, &init_data);
++	if (ret)
++		return ret;
++
++	/* Match the vendor's default state: full current at boot. */
++	led_set_brightness(&led->cdev, PM8916_MPP_CURRENT_MAX);
++	return 0;
++}
++
++static const struct of_device_id pm8916_mpp_led_of_match[] = {
++	{ .compatible = "qcom,pm8916-mpp-led" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, pm8916_mpp_led_of_match);
++
++static struct platform_driver pm8916_mpp_led_driver = {
++	.probe = pm8916_mpp_led_probe,
++	.driver = {
++		.name = "pm8916-mpp-led",
++		.of_match_table = pm8916_mpp_led_of_match,
++	},
++};
++module_platform_driver(pm8916_mpp_led_driver);
++
++MODULE_DESCRIPTION("PM8916 MPP current sink LED (LCD backlight)");
++MODULE_LICENSE("GPL");
+--- a/drivers/video/backlight/led_bl.c
++++ b/drivers/video/backlight/led_bl.c
+@@ -200,8 +200,11 @@
+ 	props.type = BACKLIGHT_RAW;
+ 	props.max_brightness = priv->max_brightness;
+ 	props.brightness = priv->default_brightness;
+-	props.power = (priv->default_brightness > 0) ? BACKLIGHT_POWER_OFF :
+-		      BACKLIGHT_POWER_ON;
++	/* A non-zero default must start the panel unblanked, otherwise
++	 * backlight_get_brightness() hides it and led_bl_update_status()
++	 * immediately turns the LED off. */
++	props.power = (priv->default_brightness > 0) ? BACKLIGHT_POWER_ON :
++		      BACKLIGHT_POWER_OFF;
+ 	priv->bl_dev = backlight_device_register(dev_name(&pdev->dev),
+ 			&pdev->dev, priv, &led_bl_ops, &props);
+ 	if (IS_ERR(priv->bl_dev)) {
