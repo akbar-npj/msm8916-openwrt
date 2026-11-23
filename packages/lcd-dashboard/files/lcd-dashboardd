@@ -1,0 +1,22 @@
+#!/bin/sh
+# lcd-dashboardd - procd loop: collect data, render, repeat.  Reads the refresh
+# interval from UCI once at start.  Rendering is skipped while the backlight is
+# blanked by lcd-control (nothing to see); collection still runs so a wake is
+# always followed by fresh data.
+
+RUN=/var/run/lcd-dashboard
+BL=/sys/class/backlight/backlight-lcd/brightness
+
+refresh=$(uci -q get lcd-dashboard.main.refresh 2>/dev/null)
+case "$refresh" in ''|*[!0-9]*) refresh=5 ;; esac
+[ "$refresh" -ge 1 ] || refresh=5
+
+while true; do
+	/usr/sbin/lcd-dashboard-collect
+	# Only paint when the panel is lit.  A blanked panel stays black, and
+	# the wake hook in lcd-control forces one collect+render immediately.
+	if [ ! -e "$BL" ] || [ "$(cat "$BL" 2>/dev/null)" != 0 ]; then
+		/usr/sbin/lcd-dashboard
+	fi
+	sleep "$refresh"
+done

@@ -42,6 +42,8 @@ config_get hostname main hostname
 config_get_bool uplink main uplink 1
 config_get route_metric main route_metric 100
 config_get key_mgmt main key_mgmt
+config_get_bool probe_tx_recovery main probe_tx_recovery 1
+config_get probe_tx_interval main probe_tx_interval 60
 
 # AKM for saved networks that have a password.  Empty means "decide from
 # the scan" (see net_akm): SAE when the AP offers it, WPA2 otherwise.
@@ -147,6 +149,13 @@ case "$poll_down" in ''|*[!0-9]*) poll_down=5 ;; esac
 # so this must stay well above that; it costs nothing in the steady state,
 # where the vif is already up and only the link drops.
 case "$startup_grace" in ''|*[!0-9]*) startup_grace=30 ;; esac
+# Active on-channel probe-TX cadence while the link is associated.  Scanning
+# briefly takes the one radio off whatever it is doing, so probing every poll
+# would cost more throughput than the stall it prevents; 60 s is slow enough
+# to be free and fast enough to catch the ~60 s post-boot degradation window.
+# Floor of 10 s keeps a typo from turning the radio into a perpetual scanner.
+case "$probe_tx_interval" in ''|*[!0-9]*) probe_tx_interval=60 ;; esac
+[ "$probe_tx_interval" -ge 10 ] || probe_tx_interval=60
 
 # A refused scan means the scan is parked in the driver; the ONLY cure is a
 # driver reload (rmmod/modprobe) -- recycle_sta cannot clear a parked scan_req,
@@ -777,6 +786,79 @@ radio_restart() {
 	' </dev/null >/dev/null 2>&1 &
 }
 
+# ---- probe-TX recovery (issue #122) -----------------------------------
+# A WCN3620 link can slide into a TX-path stall while it still looks fully
+# associated: `iw link` says Connected, wpa_supplicant stays COMPLETED and
+# even the stats/recal debug nodes answer, yet no frames leave -- TX is pinned
+# at MCS0/6.5 Mbit/s, RTT climbs into seconds and loss is heavy.  Cold-boot
+# soaks showed the only lever that clears it is an ACTIVE on-channel scan:
+# the probe requests it puts on the air exercise the TX path and make rate
+# adaptation restart high.  A firmware reload does NOT clear it, so waiting
+# for the existing -EBUSY / supplicant ladders is too late -- those only fire
+# once the link is already down.  A periodic probe keeps the path alive in
+# the only window where the stall can be caught: while it still looks up.
+#
+# The scan is always detached.  When the firmware is wedged an `iw scan` can
+# sit in D state holding rtnl forever; running it inside this watchdog would
+# freeze every other "iw" caller on the box with it.  Its own session plus a
+# PID/epoch lock let the next poll see an in-flight (or hung) probe and skip.
+PROBE_LAST=/var/run/wifi-sta-probe-last   # epoch of the last launch
+PROBE_LOCK=/var/run/wifi-sta-probe-pid    # "<child pid> <launch epoch>"
+
+# Is one of our probes still on the air?  A lock older than 30 s is treated as
+# stale even if the PID still exists: the scan itself is wrapped in `timeout
+# 20`, so a longer-lived lock means a dead process was reused or the scan is
+# hung, and the wedge path below must be allowed to escalate.
+probe_inflight() {
+	local pid t now
+	[ -f "$PROBE_LOCK" ] || return 1
+	read -r pid t < "$PROBE_LOCK" 2>/dev/null
+	case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+	case "$t" in ''|*[!0-9]*) t=0 ;; esac
+	kill -0 "$pid" 2>/dev/null || return 1
+	now=$(date +%s)
+	[ $((now - t)) -le 30 ]
+}
+
+probe_tx() {
+	local reason="$1" now last iface mhz
+
+	[ "$probe_tx_recovery" = 1 ] || return 0
+	probe_inflight && return 0
+
+	now=$(date +%s)
+	last=0
+	[ -f "$PROBE_LAST" ] && read -r last < "$PROBE_LAST" 2>/dev/null
+	case "$last" in ''|*[!0-9]*) last=0 ;; esac
+	[ $((now - last)) -ge "$probe_tx_interval" ] || return 0
+
+	# One radio, two roles: an on-channel scan on the AP vif exercises the
+	# same TX path the STA uplink uses, so it recovers both.  Use a single
+	# frequency, not an all-channel sweep: ~0-3 s and no client kick (issue
+	# #122 r3).  Fall back to the STA vif when no AP is up.
+	iface="$(find_ap)"
+	[ -n "$iface" ] || iface="$(find_sta)"
+	[ -n "$iface" ] || return 0
+	# `iw` prints "channel 11 (2462 MHz)" -- scan freq wants the MHz value.
+	mhz="$(iw dev "$iface" info 2>/dev/null | awk '/^[[:space:]]*channel/ { gsub(/[()]/, "", $3); print $3; exit }')"
+	case "$mhz" in ''|*[!0-9]*) mhz="" ;; esac
+
+	printf '%s\n' "$now" > "$PROBE_LAST" 2>/dev/null
+	nohup setsid sh -c '
+		pidfile="$1"; iface="$2"; mhz="$3"; reason="$4"
+		echo "$$ $(date +%s)" > "$pidfile" 2>/dev/null
+		trap "rm -f \"$pidfile\"" EXIT INT TERM
+		if [ -n "$mhz" ]; then
+			timeout 20 iw dev "$iface" scan freq "$mhz" >/dev/null 2>&1
+		else
+			timeout 20 iw dev "$iface" scan >/dev/null 2>&1
+		fi
+		logger -t wifi-sta "probe-tx: on-channel scan on $iface finished ($reason)"
+	' sh "$PROBE_LOCK" "$iface" "$mhz" "$reason" </dev/null >/dev/null 2>&1 &
+	logger -t wifi-sta "probe-tx: active on-channel scan on $iface (${mhz:-auto} MHz, $reason)"
+	return 0
+}
+
 run_watchdog() {
 	local sta_if ap ap_ch up_ch down=0 miss=0 recycles=0 waits=0 poll=$poll_up
 	local last_sta="" vif_age=0 hs_last="" hs_streak=0 hs_now
@@ -810,6 +892,12 @@ run_watchdog() {
 			nojoin_set 0
 			poll=$poll_up
 			rm -f "$RADIO_STATE"
+			# Issue #122: a stalled TX path still passes `iw link` and the
+			# wpa_state check, so the healthy branch is the only place the
+			# watchdog can still reach it.  Honour startup_grace so we
+			# cannot collide with the supplicant's own first scan, and
+			# let the cooldown in probe_tx() cap it at one per interval.
+			[ "$vif_age" -ge "$startup_grace" ] && probe_tx "linked"
 			continue
 		fi
 
@@ -842,6 +930,14 @@ run_watchdog() {
 			up_ch="$UP_CH"
 
 			if [ "$SCAN_REFUSED" = 1 ]; then
+				# Our own probe-TX scan can still be on the air when the link
+				# drops.  Its -EBUSY is a collision with us, not a wedge --
+				# counting it would reload the driver for no reason (exactly
+				# the false reload seen on the v12 bench).  Wait it out.
+				if probe_inflight; then
+					poll=$poll_down
+					continue
+				fi
 				# Do NOT recycle the STA and do NOT reset down here.  recycle_sta
 				# cannot clear a parked scan_req; keeping down means the next
 				# probe is one poll_down away, so the wedge is confirmed and
@@ -991,6 +1087,8 @@ run_status() {
 	kv dhcp "$dhcp"
 	kv radio "$radio"
 	kv recover_after "$recover_after"
+	kv probe_tx_recovery "$probe_tx_recovery"
+	kv probe_tx_interval "$probe_tx_interval"
 	# Driver reloads caused by the handshake-timeout path since boot (the
 	# watchdog's other escalation reasons are not counted here).
 	kv hs_escalations "$(hs_count_get)"

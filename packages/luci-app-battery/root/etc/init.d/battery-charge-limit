@@ -19,8 +19,16 @@ start_service() {
 }
 
 stop_service() {
-	# Leave charging enabled (default) on stop.
+	# Leave charging enabled (default) on stop, and put the charge current
+	# back to the value the driver picked: while holding we floor it to 90 mA,
+	# and leaving that behind would make the next start capture the floor as
+	# the "real" current.
+	SAFE=$(cat /var/run/battery-charge-limit.current 2>/dev/null)
+	case "$SAFE" in
+		''|*[!0-9]*) SAFE=900000 ;;
+	esac
 	for d in /sys/class/power_supply/*; do
+		[ -w "$d/constant_charge_current" ] && echo "$SAFE" > "$d/constant_charge_current" 2>/dev/null
 		[ -w "$d/charge_enabled" ] && echo 1 > "$d/charge_enabled" 2>/dev/null
 	done
 }

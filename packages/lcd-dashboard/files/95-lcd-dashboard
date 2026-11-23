@@ -1,0 +1,5 @@
+#!/bin/sh
+# Enable the dashboard on a fresh flash.  uci-defaults do not re-run on a
+# config-preserving sysupgrade, so the shipped rc.d symlink keeps it enabled.
+/etc/init.d/lcd-dashboard enable
+exit 0

@@ -27,6 +27,7 @@ on:
           - uz801
           - jz02
           - jz0145
+          - mifid
 
 env:
   UPLOAD_FIRMWARE: true

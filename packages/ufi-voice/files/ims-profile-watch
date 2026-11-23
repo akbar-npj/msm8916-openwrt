@@ -2,9 +2,8 @@
 #
 # ims-profile-watch - keep the "ims" WDS profile present across modem restarts.
 #
-# ims-profile-setup (init S94) creates the profile once, at AP boot, before
-# imsdcm (S96) starts the modem's IMS stack.  This daemon covers the case that
-# one does not: the modem restarts at runtime -- crash recovery, the stall
+# ims-profile-setup creates the profile at AP boot. This daemon also handles
+# modem restarts at runtime, including crash recovery, the stall
 # watchdog's Stage 3 SSR, or a manual stop/start -- and re-provisions the WDS
 # table from the carrier MCFG, which declares the "ims" PDN Override_Type:API
 # and therefore never materialises a profile.  imsdcm's QMI client is dead
@@ -12,12 +11,12 @@
 # next AP reboot.
 #
 # The first time the modem comes up after this starts is the AP boot, which
-# S94/S96 already handle: it is deliberately ignored, so a plain boot is not
+# the boot services already handle: it is deliberately ignored, so a plain boot is not
 # disturbed.  Every later not-running -> running transition runs the whole
 # recovery, which is SOP 220 section 8.1 steps 1-4:
 #
-#   ims-profile-setup -> wait for ModemManager -> MM disable/enable
-#                     -> restart imsdcm
+#   ims-profile-setup -> wait for ModemManager -> MM disable
+#                     -> restart imsdcm -> MM enable
 #
 # The MM disable/enable is not optional: after a modem restart MM keeps a stale
 # 3GPP view and imsdcm's bearer request fails, so the IMS PDN never comes up
@@ -27,6 +26,7 @@
 
 RPROC=${RPROC_STATE:-/sys/class/remoteproc/remoteproc0/state}
 SETUP=${IMS_PROFILE_SETUP:-/usr/sbin/ims-profile-setup}
+QMI=${QMI_DEV:-/dev/wwan0qmi0}
 WAIT_MM=${IMS_WAIT_MM:-60}
 POLL_US=${IMS_POLL_US:-500000}
 
@@ -37,8 +37,7 @@ log() { logger -t ims-profile-watch "$*"; }
 # applet is ever missing, so the loop can never spin.
 nap() { usleep "$1" 2>/dev/null || sleep 1; }
 
-# ModemManager needs a moment to see the restarted modem, and imsdcm talks to
-# MM; restarting it before MM is ready only makes it fail and respawn.
+# Wait for ModemManager to see the restarted modem before cycling the radio.
 wait_mm() {
 	i=0
 	while [ "$i" -lt "$WAIT_MM" ]; do
@@ -67,20 +66,76 @@ modem_boot() {
 	# bearer request in imsdcm fails and the IMS PDN never comes up.
 	log "resetting ModemManager's view of the modem"
 	timeout 20 mmcli -m any --disable >/dev/null 2>&1
+
+	log "restarting imsdcm before LTE attach"
+	/etc/init.d/imsdcm restart >/dev/null 2>&1
 	sleep 4
 	timeout 30 mmcli -m any --enable >/dev/null 2>&1
 	sleep 12
-
-	log "restarting imsdcm"
-	/etc/init.d/imsdcm restart >/dev/null 2>&1
 }
 
-# The AP-boot transition belongs to S94/S96.  If the modem is already running
+# A cold boot leaves the modem's IMS client waiting: it announces 0x23 to
+# imsdcm and then never sends the 0x20 PDN request, so IMSA stays
+# not-registered even though the IMS stack is running.  One DMS reset makes it
+# ask within a few seconds, imsdcm creates the "ims" bearer and IMS registers.
+# Bounded to once per boot, and skipped when there is no IMS stack (no
+# IMS-capable MCFG active) or the carrier does not grant VoLTE.
+#
+# This runs once at startup, NOT on a transition: by the time S97 starts, the
+# modem is normally already running, so seen_running is 1 and the "AP boot"
+# transition branch is never reached.
+boot_nudge() {
+	local i=0 st
+
+	[ "$(uci -q get ufivoice.main.volte)" = "1" ] || return 0
+
+	# Wait for the modem to be up and publishing the IMS application service.
+	# No service 33 means the active MCFG carries no IMS, and a reset would
+	# not help.
+	i=0
+	while [ "$i" -lt 60 ]; do
+		if [ "$(cat "$RPROC" 2>/dev/null)" = running ] &&
+			qrtr-lookup 2>/dev/null | awk '$1 == 33 { f = 1 } END { exit f ? 0 : 1 }'; then
+			break
+		fi
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$i" -lt 60 ] || return 0
+
+	# S94 creates the ims profile and S96 starts imsdcm; give imsdcm time to
+	# publish service 770 before the modem is reset.
+	sleep 15
+
+	# Poll the whole window: a fresh modem reports not-registered for the
+	# first seconds even when it is about to register by itself, so the
+	# first not-registered answer must not end the wait.
+	i=0
+	while [ "$i" -lt 30 ]; do
+		st=$(qmicli -d "$QMI" --device-open-proxy \
+			--imsa-get-ims-registration-status 2>/dev/null |
+			sed -n "s/.*Status: '\(.*\)'/\1/p")
+		[ "$st" = registered ] && return 0
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$st" = not-registered ] || return 0
+
+	log "IMS stack is up but not registered; restarting the modem once so it asks for the IMS PDN"
+	qmicli -d "$QMI" --device-open-proxy --dms-set-operating-mode=reset >/dev/null 2>&1
+	sleep 25
+	qmicli -d "$QMI" --device-open-proxy --dms-set-operating-mode=online >/dev/null 2>&1
+}
+
+# The boot services handle the AP-boot transition.  If the modem is already running
 # when this starts, the next transition is a genuine restart.
 last=$(cat "$RPROC" 2>/dev/null)
 seen_running=0
 [ "$last" = running ] && seen_running=1
 log "watching $RPROC (state ${last:-unknown})"
+
+# The modem is normally already running here; see boot_nudge.
+boot_nudge &
 
 while :; do
 	state=$(cat "$RPROC" 2>/dev/null)
@@ -88,7 +143,7 @@ while :; do
 		if [ "$seen_running" = 1 ]; then
 			modem_boot
 		else
-			log "modem up at AP boot, S94/S96 own this one"
+			log "modem up at AP boot"
 		fi
 		seen_running=1
 	fi

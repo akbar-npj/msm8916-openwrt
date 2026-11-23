@@ -1,0 +1,136 @@
+#!/bin/sh
+# BOARDS: mifid
+# lcd-control - LCD idle blanking and power-button toggle for the mifid board.
+#
+# Sole writer of /sys/class/backlight/backlight-lcd/brightness.  That sysfs
+# value is a LEVEL INDEX (0..8), not milliamps: 0 switches the PM8916 MPP4
+# current sink off (panel dark), 8 restores the 40 mA DTS default.
+#
+# Runtime state lives in /var/run/lcdctl (tmpfs, cleared at every boot):
+#   state    on | off       logical screen state, defaults to on at boot
+#   level    0..8           brightness index restored when turning on
+#   activity uptime ms      last power-button press, resets the idle timer
+#
+# All commands are no-ops on boards without a backlight-lcd node, so the
+# shared /etc/rc.button/power handler can call this unconditionally.
+
+BL=/sys/class/backlight/backlight-lcd/brightness
+RUN=/var/run/lcdctl
+STATE_FILE=$RUN/state
+LEVEL_FILE=$RUN/level
+ACT_FILE=$RUN/activity
+
+now_ms() { awk '{ printf "%d", $1 * 1000 }' /proc/uptime; }
+uci_get() { uci -q get "lcd-control.general.$1" 2>/dev/null; }
+
+enabled() {
+	local e
+	e=$(uci_get enabled)
+	[ -n "$e" ] || e=1
+	case "$e" in
+		1|true|yes|on) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+write_brightness() { echo "$1" > "$BL" 2>/dev/null; }
+
+do_blank() {
+	write_brightness 0
+	echo off > "$STATE_FILE"
+}
+
+# Board gate: only mifid (patches 877/879) creates this node.
+[ -w "$BL" ] || exit 0
+
+case "$1" in
+	activity)
+		# Called from rc.button/power on every completed press.
+		enabled || exit 0
+		mkdir -p "$RUN"
+		now_ms > "$ACT_FILE"
+		;;
+
+	toggle)
+		enabled || exit 0
+		mkdir -p "$RUN"
+
+		level=$(cat "$LEVEL_FILE" 2>/dev/null)
+		case "$level" in ''|*[!0-9]*) level=$(uci_get level) ;; esac
+		case "$level" in ''|*[!0-9]*) level=8 ;; esac
+		[ "$level" -ge 0 ] && [ "$level" -le 8 ] || level=8
+
+		state=$(cat "$STATE_FILE" 2>/dev/null)
+		[ -n "$state" ] || state=on
+
+		if [ "$state" = on ]; then
+			do_blank
+		else
+			write_brightness "$level"
+			echo on > "$STATE_FILE"
+			# Repaint at once: the VT console may have scribbled over the
+			# last frame while the panel was dark (the daemon only redraws
+			# every few seconds).  Harmless no-op if the dashboard is absent.
+			[ -x /usr/sbin/lcd-dashboard-ctl ] && \
+				/usr/sbin/lcd-dashboard-ctl --redraw >/dev/null 2>&1
+		fi
+		;;
+
+	blank)
+		mkdir -p "$RUN"
+		do_blank
+		;;
+
+	status)
+		echo "enabled: $(enabled && echo yes || echo no)"
+		echo "sysfs brightness: $(cat "$BL" 2>/dev/null)"
+		echo "logical state: $(cat "$STATE_FILE" 2>/dev/null)"
+		echo "restore level: $(cat "$LEVEL_FILE" 2>/dev/null)"
+		echo "last activity ms: $(cat "$ACT_FILE" 2>/dev/null)"
+		;;
+
+	start)
+		# procd daemon: poll once a second and blank after the idle timeout.
+		enabled || exit 0
+
+		timeout=$(uci_get timeout)
+		case "$timeout" in ''|*[!0-9]*) timeout=60 ;; esac
+		[ "$timeout" -ge 1 ] || timeout=60
+
+		level=$(uci_get level)
+		case "$level" in ''|*[!0-9]*) level=8 ;; esac
+		[ "$level" -ge 0 ] && [ "$level" -le 8 ] || level=8
+
+		mkdir -p "$RUN"
+		echo "$level" > "$LEVEL_FILE"
+
+		fresh=0
+		if [ ! -f "$STATE_FILE" ]; then
+			echo on > "$STATE_FILE"
+			fresh=1
+		fi
+		[ -f "$ACT_FILE" ] || now_ms > "$ACT_FILE"
+		# Do not re-light a blanked panel on a mid-session service restart.
+		[ "$fresh" -eq 1 ] && write_brightness "$level"
+
+		timeout_ms=$((timeout * 1000))
+		while true; do
+			now=$(now_ms)
+			last=$(cat "$ACT_FILE" 2>/dev/null)
+			case "$last" in ''|*[!0-9]*) last=$now; echo "$last" > "$ACT_FILE" ;; esac
+			state=$(cat "$STATE_FILE" 2>/dev/null)
+			[ -n "$state" ] || state=on
+
+			if [ "$state" = on ] && [ $((now - last)) -ge "$timeout_ms" ]; then
+				logger -t lcd-control "idle ${timeout}s - blanking LCD"
+				do_blank
+			fi
+			sleep 1
+		done
+		;;
+
+	*)
+		echo "usage: $0 {start|toggle|activity|blank|status}" >&2
+		exit 1
+		;;
+esac

@@ -8,7 +8,7 @@ the five places that register it.  This tool reads the vendor DTB, reports
 what it can map, and writes the board DTS plus the plumbing.
 
     scripts/new-board.py --dtb stock.dtb --inspect
-    scripts/new-board.py --dtb stock.dtb --name jz02 --reference generic-uf02
+    scripts/new-board.py --dtb stock.dtb --name jz02 --reference uf02
 
 Nothing is written without --write, and every mapping it cannot make with
 confidence is left as a TODO in the generated DTS instead of being guessed.
@@ -419,6 +419,20 @@ def build_dts(slug, info, name, vendor, warn, source):
     keys, reset = key_lines(info, warn)
     batt = battery_block(info, warn)
 
+    # Every shipped board reserves the same 1 MiB ramoops window.  Without it
+    # a failed boot has nowhere to write its crash log, so this is not optional
+    # even though the stock vendor DTB never describes it.
+    ramoops = ("&reserved_memory {\n"
+               "\tramoops@8db00000 {\n"
+               "\t\tcompatible = \"ramoops\";\n"
+               "\t\treg = <0x0 0x8db00000 0x0 0x00100000>;\n"
+               "\t\trecord-size = <0x00040000>;\n"
+               "\t\tconsole-size = <0x00040000>;\n"
+               "\t\tpmsg-size = <0x00040000>;\n"
+               "\t\tecc-size = <16>;\n"
+               "\t};\n"
+               "};\n\n")
+
     out = []
     out.append("// SPDX-License-Identifier: GPL-2.0-only\n")
     out.append("/*\n * %s - %s MSM8916 board.\n *\n" % (info["model"] or name, vendor))
@@ -435,6 +449,7 @@ def build_dts(slug, info, name, vendor, warn, source):
     if batt:
         out.append("\n" + batt)
     out.append("};\n\n")
+    out.append(ramoops)
 
     if led:
         out.append("&{/leds} {\n")
@@ -452,10 +467,31 @@ def build_dts(slug, info, name, vendor, warn, source):
 
     if reset:
         low = "GPIO_ACTIVE_LOW" if reset["low"] else "GPIO_ACTIVE_HIGH"
+        bias = "bias-pull-up" if reset["low"] else "bias-pull-down"
         out.append("&button_restart {\n\tgpios = <&tlmm %d %s>;\n};\n\n"
                    % (reset["pin"], low))
+        out.append("/* TODO verify the reset pin's bias on the board. */\n"
+                   "&button_default {\n\tpins = \"gpio%d\";\n\t%s;\n};\n\n"
+                   % (reset["pin"], bias))
 
     if batt:
+        b = info["battery"]
+        safe_v = b.get("qcom,max-voltage-uv") or 4200000
+        fast = b.get("qcom,fastchg-current-ma")
+        safe_i = fast * 1000 if fast else 1000000
+        out.append("/* pm8916_usbin and pm8916_charger both claim SPMI 0x1300 and\n"
+                   " * the VBUS interrupt. Bind the charger: it also supplies the\n"
+                   " * extcon the MSM HS PHY needs to enumerate the gadget. */\n"
+                   "&pm8916_usbin {\n\tstatus = \"disabled\";\n};\n\n"
+                   "&pm8916_charger {\n\tmonitored-battery = <&battery>;\n\n"
+                   "\t/* TODO verify these limits against the fitted cell. */\n"
+                   "\tqcom,fast-charge-safe-voltage = <%d>;\n"
+                   "\tqcom,fast-charge-safe-current = <%d>;\n\n"
+                   "\tstatus = \"okay\";\n};\n\n"
+                   "&usb {\n\tdr_mode = \"peripheral\";\n"
+                   "\textcon = <&pm8916_charger>;\n};\n\n"
+                   "&usb_hs_phy {\n\textcon = <&pm8916_charger>;\n};\n\n"
+                   % (safe_v, safe_i))
         out.append("&pm8916_bms {\n\tmonitored-battery = <&battery>;\n"
                    "\tpower-supplies = <&pm8916_charger>;\n\tstatus = \"okay\";\n};\n\n")
 
@@ -470,15 +506,14 @@ def build_dts(slug, info, name, vendor, warn, source):
 
 
 def next_patch_number(patches):
-    used = set()
+    # A hole in the 8xx sequence is often a pending branch, not a free number:
+    # allocating the lowest unused one collides as soon as that branch lands.
+    used = []
     for f in os.listdir(patches):
         m = re.match(r"^(8\d\d)-", f)
         if m:
-            used.add(int(m.group(1)))
-    n = 802
-    while n in used:
-        n += 1
-    return n
+            used.append(int(m.group(1)))
+    return max(used, default=801) + 1
 
 
 def make_patch(dts_name, body):
@@ -525,6 +560,21 @@ def add_to_build_yml(text, slug):
     return "\n".join(lines)
 
 
+def gpt_lines(body):
+    """Carry the GPT fields and their comments over from the reference block."""
+    lines = body.split("\n")
+    out = []
+    for i, line in enumerate(lines):
+        if not re.match(r"^\tGPT_(TOT_SECTORS|RECOVERY)\s*:=", line):
+            continue
+        j = i - 1
+        while j >= 0 and lines[j].lstrip().startswith("#"):
+            out.insert(0, lines[j])
+            j -= 1
+        out.append(line)
+    return out
+
+
 def device_block(slug, info, vendor, reference_mk):
     """Clone the reference profile's package list, write a clean block."""
     m = re.search(r"^define Device/%s\n(.*?)^endef" % re.escape(reference_mk),
@@ -536,6 +586,7 @@ def device_block(slug, info, vendor, reference_mk):
     packages = pk.group(1).strip() if pk else "msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget"
     compat = [c for c in info["compat"] if not c.startswith("qcom,")]
     supported = " ".join(compat) if compat else "%s,generic" % slug
+    gpt = "".join(line + "\n" for line in gpt_lines(body))
     return (
         "define Device/generic-%s\n"
         "\t$(Device/msm8916)\n"
@@ -544,10 +595,53 @@ def device_block(slug, info, vendor, reference_mk):
         "\tDEVICE_DTS := msm8916-generic-%s\n"
         "\tSUPPORTED_DEVICES := %s\n"
         "\tFILESYSTEMS := squashfs\n"
-        "\tDEVICE_PACKAGES := %s\n"
+        "%s\tDEVICE_PACKAGES := %s\n"
         "endef\n"
         "TARGET_DEVICES += generic-%s\n\n" % (
-            slug, vendor, info["model"] or slug, slug, supported, packages, slug))
+            slug, vendor, info["model"] or slug, slug, supported, gpt,
+            packages, slug))
+
+
+def registration_rows(root, slug, info, maintainer, patch_no, patch_name):
+    """Add the human-facing board records that MAINTAINERS.md requires."""
+    compat = [c for c in info["compat"] if not c.startswith("qcom,")]
+    compat = compat[0] if compat else "%s,generic" % slug
+    model = info["model"] or slug
+    ram = re.search(r"(\d+)\s*MB", model, re.I)
+    touched = []
+
+    maint = os.path.join(root, "MAINTAINERS.md")
+    if os.path.exists(maint):
+        lines = open(maint).read().split("\n")
+        idx = max(i for i, ln in enumerate(lines) if ln.startswith("| `"))
+        lines.insert(idx + 1,
+                     "| `%s` | %s | `%s` | %s | **none — needs a tester** | "
+                     "patch %d; `diffconfigs/%s` |" %
+                     (slug, model, compat, maintainer, patch_no, slug))
+        open(maint, "w").write("\n".join(lines))
+        touched.append("MAINTAINERS.md")
+
+    owners = os.path.join(root, "CODEOWNERS")
+    if os.path.exists(owners):
+        who = maintainer if maintainer == "@akbar-npj" else maintainer + " @akbar-npj"
+        with open(owners, "a") as fh:
+            fh.write("\n# --- %s (maintained by %s) ---\n" % (slug, maintainer))
+            fh.write("%s  %s\n" % (patch_name, who))
+            fh.write("diffconfigs/%-58s %s\n" % (slug, who))
+        touched.append("CODEOWNERS")
+
+    readme = os.path.join(root, "README.md")
+    if os.path.exists(readme):
+        text = open(readme).read()
+        marker = ("| :------------ | :---------------- | :------------------------- |"
+                  " :------ | :----- | :-------- | :---------------------- |\n")
+        row = ("| **`%s`** | `generic-%s` | %s | MSM8916 | %s | — | "
+               "TODO — verify on hardware |\n" %
+               (slug, slug, model, ("%s MB" % ram.group(1)) if ram else "—"))
+        if marker in text:
+            open(readme, "w").write(text.replace(marker, marker + row, 1))
+            touched.append("README.md")
+    return touched
 
 
 def main():
@@ -641,6 +735,17 @@ def main():
     if re.search(r"^define Device/generic-%s$" % re.escape(slug), MK_TEXT, re.M):
         die("Device/generic-%s already exists" % slug)
 
+    # Switch before reading anything else.  The reference profile, the version
+    # stamp and the patch number must all come from the branch the board will
+    # actually live on; generating on one branch and switching afterwards
+    # produced an r10 diffconfig on an r9 branch on the first real run.
+    if not args.no_branch:
+        subprocess.run(["git", "switch", "-c", "test/" + slug, "origin/staging-main"],
+                       cwd=root, check=True)
+        MK_TEXT = open(mk_path).read()
+        patch_no = next_patch_number(os.path.join(root, "msm89xx/patches"))
+        patch_name = "%d-arm64-dts-qcom-add-%s.patch" % (patch_no, dts_name)
+
     ref = args.reference
     ref_dev = "generic-" + ref if ("define Device/generic-%s\n" % ref) in MK_TEXT else ref
     ref_path = os.path.join(root, "diffconfigs", ref)
@@ -677,33 +782,23 @@ def main():
     open(mk_path, "w").write(mk_new)
     open(byml, "w").write(byml_new)
 
-    if args.maintainer:
-        maint = os.path.join(root, "MAINTAINERS.md")
-        if os.path.exists(maint):
-            with open(maint, "a") as fh:
-                fh.write("| `%s` | %s |\n" % (slug, args.maintainer))
+    extra = registration_rows(root, slug, info, args.maintainer,
+                              patch_no, patch_name) if args.maintainer else []
+    print("\nwrote %d files" % (5 + len(extra)))
 
-    print("\nwrote 5 files (and MAINTAINERS.md)" if args.maintainer else "\nwrote 5 files")
-
+    # ./build.sh guard compares tracked sources with the *live* OpenWrt tree.
+    # This tool only touches tracked sources, so that guard always reports
+    # drift here; the board harness is the validation that applies to a port.
     if not args.no_validate:
-        ok = True
-        for cmd in ([os.path.join(root, "tests/board-profile/run.sh")],
-                    [os.path.join(root, "build.sh"), "guard"]):
-            if not os.path.exists(cmd[0]):
-                continue
-            p = subprocess.run(cmd, cwd=root)
-            if p.returncode != 0:
-                ok = False
-                print("validation failed: %s" % " ".join(cmd))
-        if not ok:
-            die("fix the failures above, then commit by hand")
+        harness = os.path.join(root, "tests/board-profile/run.sh")
+        if os.path.exists(harness) and subprocess.run([harness], cwd=root).returncode != 0:
+            die("board harness failed; fix the failures above, then commit by hand")
 
     if args.no_branch:
         return
-    subprocess.run(["git", "switch", "-c", "test/" + slug, "origin/staging-main"],
-                   cwd=root, check=True)
-    subprocess.run(["git", "add", "diffconfigs/" + slug, "msm89xx/image/msm8916.mk",
-                    "msm89xx/patches", ".github/workflows/build.yml"], cwd=root, check=True)
+    staged = ["diffconfigs/" + slug, "msm89xx/image/msm8916.mk",
+              "msm89xx/patches", ".github/workflows/build.yml"] + extra
+    subprocess.run(["git", "add"] + staged, cwd=root, check=True)
     subprocess.run(["git", "commit", "-m", "board: add %s support" % slug],
                    cwd=root, check=True)
     print("\ncommitted on test/%s" % slug)

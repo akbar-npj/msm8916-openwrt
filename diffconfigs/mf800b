@@ -357,7 +357,6 @@ CONFIG_PACKAGE_kmod-mppe=m
 # depend on and we can build.  Skipped, with reason:
 #   kmod-dahdi         -- the telephony feed is disabled (CONFIG_FEED_telephony)
 #   kmod-cryptodev     -- no such package in this tree
-#   kmod-nat46         -- no such package in this tree
 #   kmod-ipt-rtpengine. -- a malformed dependency string upstream, not a package
 # The legacy iptables set is here too: nothing upstream ships the `iptables`
 # userspace for 25.12, so these modules currently have no consumer -- but they

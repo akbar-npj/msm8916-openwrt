@@ -11,6 +11,17 @@ q6voice from msm8916-mainline (Stephan Gerhold), plus:
 - dts: q6mvm/q6cvs/q6cvp nodes; voice sound card for the UFI sticks
 
 ---
+diff --git a/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
+--- a/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz0145.dts
+@@ -3,6 +3,7 @@
+ /dts-v1/;
+ 
+ #include "msm8916-ufi.dtsi"
++#include "msm8916-ufi-voice.dtsi"
+ 
+ #include <dt-bindings/gpio/gpio.h>
+ #include <dt-bindings/leds/common.h>
 diff --git a/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts b/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts
 index c991e91..e5267a8 100644
 --- a/arch/arm64/boot/dts/qcom/msm8916-generic-ufi003_mb_v02.dts
@@ -1296,7 +1307,7 @@ new file mode 100644
 index 0000000..f821d61
 --- /dev/null
 +++ b/sound/soc/qcom/qdsp6/q6voice-common.c
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,275 @@
 +// SPDX-License-Identifier: GPL-2.0
 +// Copyright (c) 2020, Stephan Gerhold
 +
@@ -1307,6 +1318,9 @@ index 0000000..f821d61
 +#include "q6voice-common.h"
 +
 +#define APRV2_IBASIC_CMD_DESTROY_SESSION	0x0001003C
++/* The DSP replies status 1 to VSS_IPLAYBACK_CMD_STOP even on a clean stop;
++ * the vendor driver ignores the status for the playback commands. */
++#define VSS_IPLAYBACK_CMD_STOP			0x00011239
 +
 +#define TIMEOUT_MS	300
 +
@@ -1556,7 +1570,7 @@ index 0000000..f821d61
 +		return -ETIMEDOUT;
 +	}
 +
-+	if (s->result > 0) {
++	if (s->result > 0 && hdr->opcode != VSS_IPLAYBACK_CMD_STOP) {
 +		dev_err(s->dev, "command %#x failed with error %d\n",
 +			hdr->opcode, s->result);
 +		return -EIO;
