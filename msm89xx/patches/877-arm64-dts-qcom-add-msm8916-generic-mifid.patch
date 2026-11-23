@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,206 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -186,21 +186,24 @@
 +	status = "okay";
 +};
 +
-+/* LCD panel: this unit has a 128x128 SPI display.  The stock DTB is the
-+ * generic MTP and lists several panels; the selected one is
-+ * qcom,mdss_spi_st7735s_128128_cmd ("st7735s 128128 command mode spi panel",
-+ * pref-prim-intf = "spi") on /soc/spi@78b9000/qcom,mdss_spi_client@0, i.e.
-+ * the BLSP SPI5 controller (&blsp_spi5).  The vendor init sequence is in
-+ * that node's qcom,mdss-spi-on-command blob and the backlight is the PMIC
-+ * WLED (bl_ctrl_wled).  Live Android reports fb0 mdssfb_d0000,
-+ * mode U:128x128p-0, virtual 128,256.
++/* LCD panel: 128x128 ST7735S on BLSP SPI5.  No mainline support is wired
++ * yet; the facts below come from the stock DTB
++ * (qcom,mdss_spi_st7735s_128128_cmd):
 + *
-+ * Mainline can drive this panel without the downstream qcom,mdss_spi host:
-+ * enable CONFIG_TINYDRM_ST7735R (drivers/gpu/drm/tiny/st7735r.c), whose
-+ * "okaya,rh128128t" entry is the 128x128 variant, and attach the panel as a
-+ * normal child of &blsp_spi5 with the reset GPIO, SPI max frequency and
-+ * backlight taken from the stock DTB.  This needs hardware bring-up
-+ * (reset/backlight polarity, panel init), so it is left as a verified
-+ * follow-up rather than claimed here.  Until then the display is
-+ * intentionally unconfigured.
++ *   bus        BLSP SPI5 (spi@78b9000), 16 MHz, native CS
++ *   reset      TLMM gpio 11, active-high  (qcom,platform-reset-gpio)
++ *   dc         TLMM gpio 30, active-high  (qcom,platform-spi-dc-gpio)
++ *   VDD        8916_l17 2.85 V  (pm8916_l17 is only stubbed in
++ *                                msm8916-pm8916.dtsi; define it to use it)
++ *   VDDIO      8916_l6 1.8 V    (pm8916_l6)
++ *   backlight  PMIC MPP4 current sink "lcdwled-backlight" (qcom,leds@a300,
++ *              mode-ctrl 0x60, source-sel 1, 40 mA) - NOT the WLED block
++ *   live fb    mdssfb_d0000, mode U:128x128p-0, virtual 128,256
++ *
++ * Mainline path: enable CONFIG_TINYDRM_ST7735R and add a child of &blsp_spi5
++ * with compatible "okaya,rh128128t" (the 128x128 variant), reset-gpios /
++ * dc-gpios as above and a backlight phandle.  The backlight is the hard part:
++ * mainline has no qcom,leds-qpnp driver, so MPP4 must run via pinctrl-spmi-mpp
++ * in sink mode at a fixed current (no dimming) or a small custom driver.
++ * Needs hardware bring-up, so it is left as a verified follow-up.
 + */
