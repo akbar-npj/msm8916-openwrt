@@ -1,0 +1,10 @@
+{
+	"luci-app-lcd-dashboard": {
+		"description": "Customise the colour, layout and sources of the LCD status dashboard",
+		"read": {
+			"file": {
+				"/usr/sbin/lcd-dashboard-ctl": [ "exec" ]
+			}
+		}
+	}
+}

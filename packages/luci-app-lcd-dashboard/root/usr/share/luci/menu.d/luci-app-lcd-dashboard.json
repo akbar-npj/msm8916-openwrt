@@ -1,0 +1,13 @@
+{
+	"admin/system/lcd-dashboard": {
+		"title": "LCD Dashboard",
+		"order": 56,
+		"action": {
+			"type": "view",
+			"path": "lcd-dashboard"
+		},
+		"depends": {
+			"acl": [ "luci-app-lcd-dashboard" ]
+		}
+	}
+}

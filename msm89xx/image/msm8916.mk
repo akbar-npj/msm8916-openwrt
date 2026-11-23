@@ -256,7 +256,7 @@ define Device/generic-mifid
 		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
 		464xlat kmod-nat46 \
 		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
-		luci-app-battery
+		luci-app-battery lcd-dashboard luci-app-lcd-dashboard
 endef
 TARGET_DEVICES += generic-mifid
 

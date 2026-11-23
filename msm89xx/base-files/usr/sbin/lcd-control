@@ -67,6 +67,11 @@ case "$1" in
 		else
 			write_brightness "$level"
 			echo on > "$STATE_FILE"
+			# Repaint at once: the VT console may have scribbled over the
+			# last frame while the panel was dark (the daemon only redraws
+			# every few seconds).  Harmless no-op if the dashboard is absent.
+			[ -x /usr/sbin/lcd-dashboard-ctl ] && \
+				/usr/sbin/lcd-dashboard-ctl --redraw >/dev/null 2>&1
 		fi
 		;;
 
