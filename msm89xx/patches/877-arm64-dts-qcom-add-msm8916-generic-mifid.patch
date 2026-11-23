@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,240 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -216,6 +216,12 @@
 +	pm8916_mpp4_sink: mpp4-sink-state {
 +		pins = "mpp4";
 +		function = "sink";
++		/* Stock: qcom,source-sel = <1>, brightness 0-40 mA.  The sink
++		 * current register is written from drive-strength, and it
++		 * powers up at 0 mA, so the value must be given here or the
++		 * backlight stays dark. */
++		power-source = <1>;
++		drive-strength = <40>;
 +		output-high;
 +	};
 +};
