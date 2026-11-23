@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,198 @@
+@@ -0,0 +1,203 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -186,16 +186,21 @@
 +	status = "okay";
 +};
 +
-+/* LCD panel: this unit has a 128x128 SPI display (the stock DTB is the
++/* LCD panel: this unit has a 128x128 SPI display.  The stock DTB is the
 + * generic MTP and lists several panels; the selected one is
-+ * qcom,mdss_spi_st7735s_128128_cmd, "st7735s 128128 command mode spi panel",
-+ * pref-prim-intf = "spi", on /soc/spi@78b9000/qcom,mdss_spi_client@0).
-+ * The vendor init sequence lives in that node's qcom,mdss-spi-on-command
-+ * blob.  Live Android reports fb0 name mdssfb_d0000, mode U:128x128p-0,
-+ * virtual 128,256.  Mainline uses the st7735r drm panel driver with a
-+ * different binding from qcom,mdss_spi_*, so wiring this panel is left as
-+ * a hardware-verified follow-up: enable CONFIG_DRM_PANEL_SITRONIX_ST7735R
-+ * and the MDSS SPI host, add the panel node on &spi0 with the correct
-+ * reset/backlight GPIOs, then confirm on the device before claiming LCD
-+ * support.  Until then the display is intentionally left unconfigured.
++ * qcom,mdss_spi_st7735s_128128_cmd ("st7735s 128128 command mode spi panel",
++ * pref-prim-intf = "spi") on /soc/spi@78b9000/qcom,mdss_spi_client@0, i.e.
++ * the BLSP SPI5 controller (&blsp_spi5).  The vendor init sequence is in
++ * that node's qcom,mdss-spi-on-command blob and the backlight is the PMIC
++ * WLED (bl_ctrl_wled).  Live Android reports fb0 mdssfb_d0000,
++ * mode U:128x128p-0, virtual 128,256.
++ *
++ * Mainline can drive this panel without the downstream qcom,mdss_spi host:
++ * enable CONFIG_TINYDRM_ST7735R (drivers/gpu/drm/tiny/st7735r.c), whose
++ * "okaya,rh128128t" entry is the 128x128 variant, and attach the panel as a
++ * normal child of &blsp_spi5 with the reset GPIO, SPI max frequency and
++ * backlight taken from the stock DTB.  This needs hardware bring-up
++ * (reset/backlight polarity, panel init), so it is left as a verified
++ * follow-up rather than claimed here.  Until then the display is
++ * intentionally unconfigured.
 + */
