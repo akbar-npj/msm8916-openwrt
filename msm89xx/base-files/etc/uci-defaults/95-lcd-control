@@ -1,4 +1,5 @@
 #!/bin/sh
+# BOARDS: mifid - the service itself exits on boards with no backlight-lcd.
 # uci-defaults only run on a fresh flash.  The shipped /etc/rc.d/S95lcd-control
 # symlink is what keeps the service enabled after a config-preserving sysupgrade.
 [ -x /etc/init.d/lcd-control ] && /etc/init.d/lcd-control enable

@@ -1,4 +1,5 @@
 #!/bin/sh
+# BOARDS: mifid
 # lcd-control - LCD idle blanking and power-button toggle for the mifid board.
 #
 # Sole writer of /sys/class/backlight/backlight-lcd/brightness.  That sysfs
