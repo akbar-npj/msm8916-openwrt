@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,273 @@
+@@ -0,0 +1,287 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * HM-MIFIB-V18 - Generic MSM8916 board.
@@ -115,23 +115,6 @@
 +	/delete-node/ led-g;
 +	/delete-node/ led-b;
 +
-+	/* eSIM / SIM rail enables - functional outputs, not lamps. */
-+	led-esim1-en {
-+		label = "esim1_en";
-+		gpios = <&tlmm 119 GPIO_ACTIVE_HIGH>;
-+		default-state = "keep";
-+	};
-+	led-esim2-en {
-+		label = "esim2_en";
-+		gpios = <&tlmm 112 GPIO_ACTIVE_HIGH>;
-+		default-state = "keep";
-+	};
-+	led-esim3-en {
-+		label = "esim3_en";
-+		gpios = <&tlmm 12 GPIO_ACTIVE_HIGH>;
-+		default-state = "keep";
-+	};
-+
 +	/* SIM re-announce pulse.  The sim-hotplug service opens exactly
 +	 * /sys/class/leds/sim_hotplug/brightness - do not rename. */
 +	led-sim-hotplug {
@@ -142,7 +125,38 @@
 +};
 +
 +&gpio_leds_default {
-+	pins = "gpio12", "gpio112", "gpio114", "gpio119";
++	pins = "gpio114";
++};
++
++/*
++ * SIM rail enables.  The physical SIM needs esim1_en (gpio119) driven
++ * HIGH while the two eSIM rails stay LOW.  Hold that state with gpio
++ * hogs so the baseband sees a powered card from the first boot: the
++ * stock Android userspace set these lines, and with only "keep" the
++ * rail is low on a cold start, so UIM returns no-ATR and ModemManager
++ * reports sim-missing.
++ */
++&tlmm {
++	sim1_en {
++		gpio-hog;
++		gpios = <119 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "sim1_en";
++	};
++
++	sim2_en {
++		gpio-hog;
++		gpios = <112 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim2_en";
++	};
++
++	sim3_en {
++		gpio-hog;
++		gpios = <12 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim3_en";
++	};
 +};
 +
 +&{/gpio-keys} {
