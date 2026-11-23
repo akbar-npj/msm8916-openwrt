@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,240 @@
+@@ -0,0 +1,249 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -228,6 +228,15 @@
 +
 +&blsp_spi5 {
 +	status = "okay";
++
++	/*
++	 * The SoC dtsi muxes SPI5's chip-select pad (gpio18) as a GPIO held
++	 * high and expects the board to drive it.  Without this the QUP uses
++	 * its internal CS, which never reaches the pad, so the panel is
++	 * deselected for every transfer: backlight on, nothing on screen.
++	 * Stock drives the same pad as blsp_spi5 hardware CS.
++	 */
++	cs-gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
 +
 +	panel@0 {
 +		compatible = "sitronix,st7735s-128128";
