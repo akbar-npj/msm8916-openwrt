@@ -27,7 +27,7 @@
  obj-$(CONFIG_LEDS_HP6XX)		+= leds-hp6xx.o
 --- /dev/null
 +++ b/drivers/leds/leds-pm8916-mpp.c
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,123 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Minimal current-sink LED driver for the PM8916 MPP used as the LCD
@@ -46,6 +46,10 @@
 +#define PM8916_MPP_SINK_CTL	0x4c
 +
 +#define PM8916_MPP_MODE_SINK	(6 << 4)
++/* Source select 1 connects the current sink to the LED string.  The vendor
++ * driver sets this by default (MODE_CTL 0x61); clearing it with the mode
++ * write makes the sink run but leaves the panel dark. */
++#define PM8916_MPP_MODE_SOURCE	0x01
 +#define PM8916_MPP_MODE_MASK	0x7f
 +#define PM8916_MPP_EN_MASK	0x80
 +#define PM8916_MPP_SINK_MASK	0x07
@@ -81,7 +85,8 @@
 +		brightness = PM8916_MPP_CURRENT_MAX;
 +
 +	ret = regmap_update_bits(led->map, led->base + PM8916_MPP_MODE_CTL,
-+				 PM8916_MPP_MODE_MASK, PM8916_MPP_MODE_SINK);
++				 PM8916_MPP_MODE_MASK,
++				 PM8916_MPP_MODE_SINK | PM8916_MPP_MODE_SOURCE);
 +	if (ret)
 +		return ret;
 +	ret = regmap_update_bits(led->map, led->base + PM8916_MPP_SINK_CTL,
