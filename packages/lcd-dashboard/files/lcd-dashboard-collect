@@ -39,16 +39,14 @@ esac
 [ -n "$modem_path" ] || modem_path=/org/freedesktop/ModemManager1/Modem/0
 M="mmcli -m $modem_path"
 
-# SIM presence: the UCI sim slot is the reliable signal here (MM reports
-# sim-missing with no SIM).  Treat any 'sim' line with an id as present.
+# SIM presence: MM prints the SIM object path when one is present,
+#   SIM | primary sim path: /org/freedesktop/ModemManager1/SIM/0
+# and "none"/"--" when it is not.  Match the object path; the old
+# "sim: #1" layout is not emitted by the mmcli in this image.
 sim=absent
-sim_line=$(safe $M | grep -i '^ *| *sim:' | head -1)
+sim_line=$(safe $M | grep -i 'primary sim path:' | head -1)
 case "$sim_line" in
-	*'[0-9]'*) sim=present ;;
-esac
-# mmcli prints "sim: #1" for a present SIM; the bracket test above covers it.
-case "$sim_line" in
-	*'#'*) sim=present ;;
+	*'/SIM/'*) sim=present ;;
 esac
 
 # Signal strength (0..4).  mmcli --signal-get is unsupported on this firmware,
