@@ -1,0 +1,4 @@
+config general 'general'
+	option enabled '1'
+	option timeout '60'
+	option level '8'

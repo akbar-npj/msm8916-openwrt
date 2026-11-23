@@ -1,0 +1,5 @@
+#!/bin/sh
+# uci-defaults only run on a fresh flash.  The shipped /etc/rc.d/S95lcd-control
+# symlink is what keeps the service enabled after a config-preserving sysupgrade.
+[ -x /etc/init.d/lcd-control ] && /etc/init.d/lcd-control enable
+exit 0
