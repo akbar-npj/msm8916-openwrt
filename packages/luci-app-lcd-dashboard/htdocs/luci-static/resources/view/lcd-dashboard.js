@@ -15,7 +15,7 @@ var SOURCES = [
 	{ id: 'traffic', title: _('data activity arrows') },
 	{ id: 'battery', title: _('battery level / charging') },
 	{ id: 'sms',     title: _('unread SMS count') },
-	{ id: 'missed',  title: _('missed call count') },
+	{ id: 'missed',  title: _('call status / incoming call') },
 	{ id: 'ssid',    title: _('Wi-Fi SSID') },
 	{ id: 'key',     title: _('Wi-Fi password') },
 	{ id: 'ip',      title: _('IP address') },

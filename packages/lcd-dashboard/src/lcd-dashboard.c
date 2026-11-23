@@ -408,16 +408,8 @@ int main(void)
 		/* blank zone */
 	} else if (!strcmp(v, "signal")) {
 		int lvl = atoi_safe(S("signal", "-1"), -1);
+		/* Bars only: the operator zone to the right owns the text area. */
 		icon_signal(3, 5, lvl, top_fg, (top_bg >> 1) & 0x7f7f7f);
-		if (lvl < 0)
-			draw_text(32, 12, "NO SIM", 2, top_fg);
-		else {
-			char buf[16];
-			if (lvl > 4) lvl = 4;
-			if (lvl < 0) lvl = 0;
-			snprintf(buf, sizeof(buf), "%d/4", lvl);
-			draw_text(32, 12, buf, 2, top_fg);
-		}
 	} else {
 		draw_text(3, 12, S(v, ""), 2, top_fg);
 	}
@@ -474,9 +466,13 @@ int main(void)
 			snprintf(label, sizeof(label), n < 0 ? "SMS" : "S%d", n);
 		} else if (!strcmp(src, "missed")) {
 			int n = atoi_safe(S("missed_calls", "-1"), -1);
-			ic = (n > 0) ? tile_on : tile_off;
+			int ring = atoi_safe(S("call_active", "0"), 0);
+			ic = (ring || n > 0) ? tile_on : tile_off;
 			icon_phone(tx + 9, 34, ic);
-			snprintf(label, sizeof(label), n < 0 ? "CALL" : "M%d", n);
+			if (ring)
+				snprintf(label, sizeof(label), "RING");
+			else
+				snprintf(label, sizeof(label), n < 0 ? "CALL" : "M%d", n);
 		} else {
 			ic = tile_on;
 			snprintf(label, sizeof(label), "%.12s", S(src, ""));

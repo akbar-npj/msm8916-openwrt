@@ -59,6 +59,9 @@ rssi=$(echo "$qmi" | sed -n 's/.*RSSI.*value.: *\(-\?[0-9]*\).*/\1/p' | head -1)
 if [ -z "$rssi" ]; then
 	rssi=$(echo "$qmi" | grep -oE '\-[0-9]+ dBm' | head -1 | grep -oE '\-[0-9]+')
 fi
+# QMI reports -128 dBm when there is no service/SIM; that is a sentinel, not a
+# usable signal level.
+if [ -n "$rssi" ] && [ "$rssi" -le -128 ]; then rssi=; fi
 if [ -n "$rssi" ]; then
 	if   [ "$rssi" -ge -70 ]; then signal=4
 	elif [ "$rssi" -ge -85 ]; then signal=3
@@ -84,12 +87,14 @@ if [ "$modem_ok" -eq 1 ]; then
 	fi
 fi
 
-# Missed calls: MM keeps no call history; count current incoming calls only.
-# -1 means "not available on this firmware".
+# Calls: this MM firmware keeps no call history, so a missed-call COUNT is not
+# available (-1).  What it can report is a live call, which we expose as
+# call_active and use for an "Incoming call" popup + a lit CALL tile.
 missed_calls=-1
+call_active=0
 if [ "$modem_ok" -eq 1 ]; then
 	calls=$(safe $M --voice-list-calls 2>/dev/null)
-	[ -n "$calls" ] && missed_calls=0
+	echo "$calls" | grep -q '/Call/' && call_active=1
 fi
 
 # Wi-Fi mode and client count.
@@ -143,6 +148,7 @@ custom1=$(cfg custom1); custom2=$(cfg custom2)
 	echo "sim=$sim"
 	echo "sms_unread=$sms_unread"
 	echo "missed_calls=$missed_calls"
+	echo "call_active=$call_active"
 	echo "wifi_mode=$wifi_mode"
 	echo "clients=$clients"
 	echo "ssid=$ssid"
@@ -184,15 +190,18 @@ sms_prev=$(grep '^sms=' "$PREV" 2>/dev/null | cut -d= -f2)
 call_prev=$(grep '^calls=' "$PREV" 2>/dev/null | cut -d= -f2)
 {
 	echo "sms=$sms_unread"
-	echo "calls=$missed_calls"
+	echo "calls=$call_active"
 } > "$PREV"
 
 if [ "$notif_enabled" = 1 ]; then
 	text=''
-	if [ -n "$sms_prev" ] && [ "$sms_unread" -gt "$sms_prev" ] 2>/dev/null; then
+	# Both sides must be real counts: a -1 (unavailable) -> 0 transition on
+	# modem bring-up must never raise a phantom "0" popup.
+	if [ -n "$sms_prev" ] && [ "$sms_unread" -ge 0 ] && [ "$sms_prev" -ge 0 ] && \
+	   [ "$sms_unread" -gt "$sms_prev" ] 2>/dev/null; then
 		text="New SMS  ($sms_unread unread)"
-	elif [ -n "$call_prev" ] && [ "$missed_calls" -gt "$call_prev" ] 2>/dev/null; then
-		text="Missed call  ($missed_calls)"
+	elif [ "$call_prev" = 0 ] && [ "$call_active" = 1 ]; then
+		text="Incoming call"
 	fi
 	if [ -n "$text" ]; then
 		expiry=$(( $(date +%s) + duration ))

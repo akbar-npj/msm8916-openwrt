@@ -62,8 +62,11 @@ case "$cmd" in
 		         color_popup_bg color_popup_fg top_left top_right tile1 tile2 \
 		         tile3 tile4 bottom1 bottom2 custom1 custom2 \
 		         notification.enabled notification.duration; do
-			v=$(uci -q get "lcd-dashboard.$k" 2>/dev/null)
-			[ -n "$v" ] || v=$(uci -q get "lcd-dashboard.main.$k" 2>/dev/null)
+			# uci -q get returns 1 for an unset option; set -e must not
+			# abort --show on the first missing key (the LuCI page needs
+			# the whole table).
+			v=$(uci -q get "lcd-dashboard.$k" 2>/dev/null || true)
+			[ -n "$v" ] || v=$(uci -q get "lcd-dashboard.main.$k" 2>/dev/null || true)
 			printf '%s\t%s\n' "$k" "$v"
 		done
 		;;
@@ -73,7 +76,7 @@ case "$cmd" in
 		for f in state view notify; do
 			echo "$f: $([ -f /var/run/lcd-dashboard/$f ] && echo present || echo absent)"
 		done
-		[ -f /var/run/lcd-dashboard/state ] && cat /var/run/lcd-dashboard/state
+		[ -f /var/run/lcd-dashboard/state ] && cat /var/run/lcd-dashboard/state || true
 		;;
 	--set)
 		[ $# -ge 1 ] || usage
@@ -86,8 +89,12 @@ case "$cmd" in
 		echo "saved"
 		;;
 	--reset)
-		uci -q delete lcd-dashboard
-		uci set lcd-dashboard.main=main
+		# BusyBox uci has no "uci delete <config>"; delete per section and
+		# tolerate a missing section (set -e is active).
+		uci -q delete lcd-dashboard.main 2>/dev/null || true
+		uci -q delete lcd-dashboard.notification 2>/dev/null || true
+		uci set lcd-dashboard.main=dashboard
+		uci set lcd-dashboard.notification=notification
 		uci set lcd-dashboard.main.enabled=1
 		uci set lcd-dashboard.main.refresh=5
 		uci set lcd-dashboard.main.color_top_bg=#3fb34f
@@ -107,9 +114,6 @@ case "$cmd" in
 		uci set lcd-dashboard.main.tile4=battery
 		uci set lcd-dashboard.main.bottom1=ssid
 		uci set lcd-dashboard.main.bottom2=key
-		uci set lcd-dashboard.main.custom1=
-		uci set lcd-dashboard.main.custom2=
-		uci set lcd-dashboard.notification=notification
 		uci set lcd-dashboard.notification.enabled=1
 		uci set lcd-dashboard.notification.duration=6
 		uci commit lcd-dashboard
