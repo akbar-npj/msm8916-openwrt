@@ -10,4 +10,11 @@ if [ -x /etc/init.d/imsdcm ]; then
 	/etc/init.d/imsdcm enable
 fi
 
+# Enable the rest of the voice stack so calls work out of the box.  Each
+# init script gates itself on ufivoice.main.mode at start time, so enabling
+# them is safe even when the call manager is not wanted.
+for svc in ufi-voiced hfp-ag asterisk; do
+	[ -x "/etc/init.d/$svc" ] && "/etc/init.d/$svc" enable
+done
+
 exit 0
