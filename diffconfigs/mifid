@@ -12,6 +12,9 @@ CONFIG_BUSYBOX_CONFIG_FEATURE_TAR_UNAME_GNAME=y
 CONFIG_BUSYBOX_CONFIG_OD=y
 CONFIG_BUSYBOX_CONFIG_USLEEP=y
 CONFIG_BUSYBOX_CUSTOM=y
+# The dev builder is aarch64; without an external Go root the golang-bootstrap
+# host package refuses to install ("cannot be installed on linux/arm64").
+CONFIG_GOLANG_EXTERNAL_BOOTSTRAP_ROOT="/usr/lib/go-1.18"
 CONFIG_KERNEL_DEVMEM=y
 CONFIG_KERNEL_ZRAM_BACKEND_FORCE_LZO=y
 CONFIG_KERNEL_ZRAM_BACKEND_LZO=y

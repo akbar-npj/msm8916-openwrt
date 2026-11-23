@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,198 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * MIFID 4G MiFi - Generic MSM8916 board.
@@ -94,97 +94,46 @@
 +	};
 +};
 +
++/*
++ * This unit has NO physical LEDs.  The stock Android DTB declares these
++ * GPIOs as gpio-leds only so userspace can drive functional SIM lines via
++ * /sys/class/leds/<label>/brightness.  Keep those control lines (and their
++ * stock "keep" state) but do not drive any lamps.  The wifistatus / 4g_* /
++ * bat* nodes from the generic stock DTB are NOT populated here.
++ */
 +&{/leds} {
 +	/delete-node/ led-r;
 +	/delete-node/ led-g;
 +	/delete-node/ led-b;
 +
-+	led-ftest {
-+		label = "ftest";
-+		gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "keep";
-+	};
-+	led-wifistatus {
-+		label = "wifistatus";
-+		gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_WLAN;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
-+	led-4g-1 {
-+		label = "4g_1";
-+		gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_WAN;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
-+	led-4g-2 {
-+		label = "4g_2";
-+		gpios = <&tlmm 84 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_WAN;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
-+	led-4g-type {
-+		label = "4g_type";
-+		gpios = <&tlmm 72 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_WAN;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
++	/* eSIM / SIM rail enables - functional outputs, not lamps. */
 +	led-esim1-en {
 +		label = "esim1_en";
 +		gpios = <&tlmm 119 GPIO_ACTIVE_HIGH>;
-+		default-state = "off";
++		default-state = "keep";
 +	};
 +	led-esim2-en {
 +		label = "esim2_en";
 +		gpios = <&tlmm 112 GPIO_ACTIVE_HIGH>;
-+		default-state = "off";
++		default-state = "keep";
 +	};
 +	led-esim3-en {
 +		label = "esim3_en";
 +		gpios = <&tlmm 12 GPIO_ACTIVE_HIGH>;
-+		default-state = "off";
++		default-state = "keep";
 +	};
++
++	/* SIM re-announce pulse.  The sim-hotplug service opens exactly
++	 * /sys/class/leds/sim_hotplug/brightness - do not rename. */
 +	led-sim-hotplug {
 +		label = "sim_hotplug";
 +		gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
-+		default-state = "off";
-+	};
-+	led-bat1 {
-+		label = "bat1";
-+		gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_CHARGING;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
-+	led-batl2 {
-+		label = "batl2";
-+		gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_CHARGING;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
-+	led-batl3 {
-+		label = "batl3";
-+		gpios = <&tlmm 91 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_CHARGING;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
-+	};
-+	led-batl4 {
-+		label = "batl4";
-+		gpios = <&tlmm 100 GPIO_ACTIVE_HIGH>;
-+		function = LED_FUNCTION_CHARGING;
-+		/* TODO colour: red / green / blue, from the board */
-+		default-state = "off";
++		default-state = "keep";
 +	};
 +};
 +
 +&gpio_leds_default {
-+	pins = "gpio0", "gpio1", "gpio12", "gpio32", "gpio72", "gpio73", "gpio84", "gpio85", "gpio91", "gpio100", "gpio112", "gpio114", "gpio119";
++	pins = "gpio12", "gpio112", "gpio114", "gpio119";
 +};
 +
 +&{/gpio-keys} {
@@ -237,14 +186,16 @@
 +	status = "okay";
 +};
 +
-+/* TODO display: the stock DTB carries 8 display node(s):
-+ *   /soc/qcom,mdss_mdp@1a00000
-+ *   /soc/qcom,mdss_dsi@1a98000
-+ *   /soc/qcom,mdss_spi
-+ *   /soc/qcom,mdss_dsi_pll@1a98300
-+ *   /soc/qcom,gcc-mdss@1a98300
-+ *   /soc/spi@78b9000/qcom,mdss_spi_client@0
-+ *   /soc/qcom,mdss_mdp@1a00000/qcom,mdss_fb_primary
-+ *   /soc/qcom,mdss_mdp@1a00000/qcom,mdss_fb_wfd
-+ * Mainline panel bindings differ; wire the panel by hand.
++/* LCD panel: this unit has a 128x128 SPI display (the stock DTB is the
++ * generic MTP and lists several panels; the selected one is
++ * qcom,mdss_spi_st7735s_128128_cmd, "st7735s 128128 command mode spi panel",
++ * pref-prim-intf = "spi", on /soc/spi@78b9000/qcom,mdss_spi_client@0).
++ * The vendor init sequence lives in that node's qcom,mdss-spi-on-command
++ * blob.  Live Android reports fb0 name mdssfb_d0000, mode U:128x128p-0,
++ * virtual 128,256.  Mainline uses the st7735r drm panel driver with a
++ * different binding from qcom,mdss_spi_*, so wiring this panel is left as
++ * a hardware-verified follow-up: enable CONFIG_DRM_PANEL_SITRONIX_ST7735R
++ * and the MDSS SPI host, add the panel node on &spi0 with the correct
++ * reset/backlight GPIOs, then confirm on the device before claiming LCD
++ * support.  Until then the display is intentionally left unconfigured.
 + */
