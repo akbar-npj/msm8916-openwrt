@@ -119,6 +119,27 @@ return view.extend({
 			]);
 		}
 
+		function selectField(key, title, options) {
+			var sel = E('select', { 'class': 'cbi-input-select' });
+
+			options.forEach(function(o) {
+				sel.appendChild(E('option', { 'value': o.value }, o.title));
+			});
+
+			var val = cur[key] || options[0].value;
+
+			if (!options.some(function(o) { return o.value === val; }))
+				val = options[0].value;
+
+			sel.value = val;
+			textFields[key] = sel;
+
+			return E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, title),
+				E('div', { 'class': 'cbi-value-field' }, sel)
+			]);
+		}
+
 		function colourField(id, title) {
 			var raw = cur[id];
 			var hex = HEX.test(raw || '') ? raw : DEFAULT_COLOUR;
@@ -237,6 +258,12 @@ return view.extend({
 					_('Choose what the 128x128 LCD shows and in which colours. Each tile can display any source; two custom lines are free text. The panel redraws automatically every few seconds.')),
 				boolCheck('enabled', _('Enable dashboard'), _('Turn the renderer on or off. Power-button LCD control still works either way.')),
 				numberField('refresh', _('Refresh interval (seconds)'), '5'),
+				selectField('rotation', _('Screen rotation'), [
+					{ value: '0',   title: _('0 degrees (normal)') },
+					{ value: '90',  title: _('90 degrees clockwise') },
+					{ value: '180', title: _('180 degrees upside down') },
+					{ value: '270', title: _('270 degrees clockwise') }
+				]),
 				E('h3', {}, _('Notifications')),
 				boolCheck('notification.enabled', _('Show new SMS / missed call popups'), ''),
 				numberField('notification.duration', _('Popup duration (seconds)'), '6')
