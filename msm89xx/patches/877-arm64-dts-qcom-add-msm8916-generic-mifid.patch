@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8916-generic-mifid.dts
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,302 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * HM-MIFIB-V18 - Generic MSM8916 board.
@@ -287,4 +287,19 @@
 +		pinctrl-names = "default";
 +		pinctrl-0 = <&pm8916_mpp4_sink>;
 +	};
++};
++
++/*
++ * Keep the modem's A2 (BAM) power domain alive on the HM-MIFIB-V18 board.
++ *
++ * Measured live on the V18 2026-11-24: a2_power.c:1216 "A2 Assertion Failed"
++ * at uptime 528 s while a data bearer was coming up, followed by crash #1 and
++ * a full modem SSR (wwan0 torn down, remote processor restarted).  Its modem
++ * is the same HM02_MODEM_V1.2 / hw-revision 10000 / firmware build as the
++ * MIFIB-V12, which needed the identical pin (patch 853).  The driver turns
++ * this property into pm_runtime_forbid() on &bam_dmux, so the A2 never powers
++ * down and the quiesce race cannot fire.
++ */
++&bam_dmux {
++	qcom,a2-pin;
 +};
