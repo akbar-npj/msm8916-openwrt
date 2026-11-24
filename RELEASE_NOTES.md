@@ -6,7 +6,8 @@
   a PM8916 MPP backlight and SIM-rail GPIO hogs. It ships a framebuffer status dashboard
   (signal, battery, SIM/SMS/call tiles and popups) with a LuCI editor; the LuCI page is gated
   on the framebuffer, so boards without an LCD do not show it. The VoLTE stack is enabled on
-  this image by default.
+  this image by default, and the modem's A2 power domain is pinned so the quiesce race that
+  dropped the bearer on the V12 cannot fire on this board.
 
 - 🔋 **Battery charge-limit logging.** The charge-limit monitor now logs every state transition
   (waiting / hold / charge / idle / unplugged) instead of only once at startup, and a stop or
