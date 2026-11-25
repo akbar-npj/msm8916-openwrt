@@ -1,0 +1,181 @@
+--- a/drivers/net/wireless/ath/wcn36xx/main.c
++++ b/drivers/net/wireless/ath/wcn36xx/main.c
+@@ -34,6 +34,11 @@
+ module_param_named(debug_mask, wcn36xx_dbg_mask, uint, 0644);
+ MODULE_PARM_DESC(debug_mask, "Debugging mask");
+ 
++bool wcn36xx_scan_trace;
++module_param_named(scan_trace, wcn36xx_scan_trace, bool, 0644);
++MODULE_PARM_DESC(scan_trace,
++		 "Trace scan start/stop, firmware indications and idle transitions");
++
+ #define CHAN2G(_freq, _idx) { \
+ 	.band = NL80211_BAND_2GHZ, \
+ 	.center_freq = (_freq), \
+@@ -377,6 +382,9 @@
+ 		int ch = WCN36XX_HW_CHANNEL(wcn);
+ 		wcn36xx_dbg(WCN36XX_DBG_MAC, "wcn36xx_config channel switch=%d\n",
+ 			    ch);
++		WCN36XX_TRACE("config channel=%d sw_scan=%d opchannel=%d scan_channel=%d\n",
++			ch, wcn->sw_scan, wcn->sw_scan_opchannel,
++			wcn->sw_scan_channel);
+ 
+ 		if (wcn->sw_scan_opchannel == ch && wcn->sw_scan_channel) {
+ 			/* If channel is the initial operating channel, we may
+@@ -417,6 +425,8 @@
+ 		wcn36xx_change_ps(wcn, hw->conf.flags & IEEE80211_CONF_PS);
+ 
+ 	if (changed & IEEE80211_CONF_CHANGE_IDLE) {
++		WCN36XX_TRACE("config idle=%d\n",
++			!!(hw->conf.flags & IEEE80211_CONF_IDLE));
+ 		if (hw->conf.flags & IEEE80211_CONF_IDLE)
+ 			wcn36xx_smd_enter_imps(wcn);
+ 		else
+@@ -690,8 +700,12 @@
+ 	struct wcn36xx *wcn = hw->priv;
+ 	int ret;
+ 
++	WCN36XX_TRACE("hw_scan entry iftype=%d channels=%d ssids=%d\n",
++		vif->type, hw_req->req.n_channels, hw_req->req.n_ssids);
++
+ 	if (!wcn36xx_firmware_get_feat_caps(wcn->fw_feat_caps, SCAN_OFFLOAD)) {
+ 		/* fallback to mac80211 software scan */
++		WCN36XX_TRACE("hw_scan no SCAN_OFFLOAD, using sw scan\n");
+ 		return 1;
+ 	}
+ 
+@@ -707,6 +721,7 @@
+ 	mutex_lock(&wcn->scan_lock);
+ 	if (wcn->scan_req) {
+ 		mutex_unlock(&wcn->scan_lock);
++		WCN36XX_TRACE("hw_scan busy, scan_req still set\n");
+ 		return -EBUSY;
+ 	}
+ 
+@@ -723,11 +738,13 @@
+ 		mutex_lock(&wcn->scan_lock);
+ 		wcn->scan_req = NULL;
+ 		mutex_unlock(&wcn->scan_lock);
++		WCN36XX_TRACE("hw_scan start failed ret=%d\n", ret);
+ 		return ret;
+ 	}
+ 
+ 	schedule_delayed_work(&wcn->scan_timeout,
+ 			      msecs_to_jiffies(WCN36XX_SCAN_TIMEOUT_MS));
++	WCN36XX_TRACE("hw_scan started, timeout armed\n");
+ 	return 0;
+ }
+ 
+@@ -736,6 +753,8 @@
+ {
+ 	struct wcn36xx *wcn = hw->priv;
+ 
++	WCN36XX_TRACE("cancel_hw_scan\n");
++
+ 	mutex_lock(&wcn->scan_lock);
+ 	wcn->scan_aborted = true;
+ 	mutex_unlock(&wcn->scan_lock);
+@@ -763,6 +782,9 @@
+ 		wcn->sw_scan_opchannel = WCN36XX_HW_CHANNEL(wcn);
+ 	else
+ 		wcn->sw_scan_opchannel = 0;
++
++	WCN36XX_TRACE("sw_scan_start assoc=%d opchannel=%d\n",
++		vif_priv->sta_assoc, wcn->sw_scan_opchannel);
+ }
+ 
+ static void wcn36xx_sw_scan_complete(struct ieee80211_hw *hw,
+@@ -772,6 +794,9 @@
+ 
+ 	wcn36xx_dbg(WCN36XX_DBG_MAC, "sw_scan_complete");
+ 
++	WCN36XX_TRACE("sw_scan_complete scan_channel=%d scan_init=%d\n",
++		wcn->sw_scan_channel, wcn->sw_scan_init);
++
+ 	/* ensure that any scan session is finished */
+ 	if (wcn->sw_scan_channel)
+ 		wcn36xx_smd_end_scan(wcn, wcn->sw_scan_channel);
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -915,6 +915,9 @@
+ 		    "hal start hw-scan (channels: %u; ssids: %u; p2p: %s)\n",
+ 		    msg_body->num_channel, msg_body->num_ssid,
+ 		    msg_body->p2p_search ? "yes" : "no");
++	WCN36XX_TRACE("start_hw_scan bss_type=%d channels=%u ssids=%u\n",
++		msg_body->bss_type, msg_body->num_channel,
++		msg_body->num_ssid);
+ 
+ 	ret = wcn36xx_smd_send_and_wait(wcn, msg_body->header.len);
+ 	if (ret) {
+@@ -928,6 +931,7 @@
+ 		goto out;
+ 	}
+ out:
++	WCN36XX_TRACE("start_hw_scan ret=%d\n", ret);
+ 	kfree(msg_body);
+ 	mutex_unlock(&wcn->hal_mutex);
+ 	return ret;
+@@ -943,6 +947,7 @@
+ 	PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
+ 
+ 	wcn36xx_dbg(WCN36XX_DBG_HAL, "hal stop hw-scan\n");
++	WCN36XX_TRACE("stop_hw_scan\n");
+ 
+ 	ret = wcn36xx_smd_send_and_wait(wcn, msg_body.header.len);
+ 	if (ret) {
+@@ -956,6 +961,7 @@
+ 		goto out;
+ 	}
+ out:
++	WCN36XX_TRACE("stop_hw_scan ret=%d\n", ret);
+ 	mutex_unlock(&wcn->hal_mutex);
+ 	return ret;
+ }
+@@ -2345,6 +2351,7 @@
+ 
+ 	wcn36xx_dbg(WCN36XX_DBG_HAL, "Entered idle mode\n");
+ out:
++	WCN36XX_TRACE("enter_imps ret=%d\n", ret);
+ 	mutex_unlock(&wcn->hal_mutex);
+ 	return ret;
+ }
+@@ -2371,6 +2378,7 @@
+ 	}
+ 	wcn36xx_dbg(WCN36XX_DBG_HAL, "Exited idle mode\n");
+ out:
++	WCN36XX_TRACE("exit_imps ret=%d\n", ret);
+ 	mutex_unlock(&wcn->hal_mutex);
+ 	return ret;
+ }
+@@ -2826,6 +2834,7 @@
+ 	}
+ 
+ 	wcn36xx_dbg(WCN36XX_DBG_HAL, "scan indication (type %x)\n", rsp->type);
++	WCN36XX_TRACE("scan_ind type=%x\n", rsp->type);
+ 
+ 	switch (rsp->type) {
+ 	case WCN36XX_HAL_SCAN_IND_FAILED:
+--- a/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
++++ b/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
+@@ -309,6 +309,21 @@
+ 	unsigned long		thermal_level;
+ };
+ 
++/*
++ * Diagnostic tracing of the scan path.  Off by default; enable with
++ *   insmod wcn36xx scan_trace=1   or
++ *   echo 1 > /sys/module/wcn36xx/parameters/scan_trace
++ * Used to find which firmware call in the scan path revives a stalled AP
++ * downlink (issue #122).
++ */
++extern bool wcn36xx_scan_trace;
++
++#define WCN36XX_TRACE(fmt, ...)						\
++	do {								\
++		if (wcn36xx_scan_trace)					\
++			pr_info("wcn36xx-trace: " fmt, ##__VA_ARGS__);	\
++	} while (0)
++
+ static inline bool wcn36xx_is_fw_version(struct wcn36xx *wcn,
+ 					 u8 major,
+ 					 u8 minor,
