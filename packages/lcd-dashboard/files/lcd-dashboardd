@@ -11,6 +11,16 @@ refresh=$(uci -q get lcd-dashboard.main.refresh 2>/dev/null)
 case "$refresh" in ''|*[!0-9]*) refresh=5 ;; esac
 [ "$refresh" -ge 1 ] || refresh=5
 
+# console=tty0 keeps fbcon bound to fb0, and its text cursor blinks at the last
+# text position -- the bottom-left corner of the panel.  The dashboard repaints
+# the whole framebuffer every cycle, but fbcon's blink timer redraws the cursor
+# in between.  Stop the timer and hide the cursor once at startup; from then on
+# each repaint covers it for good.  Best-effort: the sysfs node / VT may not
+# exist on a board without an LCD.
+[ -w /sys/class/graphics/fbcon/cursor_blink ] && \
+	echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null
+[ -e /dev/tty0 ] && printf '\033[?25l' > /dev/tty0 2>/dev/null
+
 while true; do
 	/usr/sbin/lcd-dashboard-collect
 	# Only paint when the panel is lit.  A blanked panel stays black, and

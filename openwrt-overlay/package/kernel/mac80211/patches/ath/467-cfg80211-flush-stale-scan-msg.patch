@@ -1,0 +1,24 @@
+--- a/net/wireless/core.c
++++ b/net/wireless/core.c
+@@ -1371,6 +1371,21 @@
+ 			unregister_netdevice(wdev->netdev);
+ 	}
+ 
++	/*
++	 * Taking a netdev down while a scan is in flight parks the scan-result
++	 * message in rdev->scan_msg, to be delivered when that same interface
++	 * comes back up.  An interface that is being *removed* never comes back
++	 * with the same wdev (netifd recreates it), so the parked message is
++	 * never delivered and rdev->scan_msg stays set forever.  Since
++	 * nl80211_trigger_scan() rejects new scans while scan_msg is set, that
++	 * leaves the whole radio (including other vifs) permanently unable to
++	 * scan with -EBUSY.  Deliver and clear it now.
++	 */
++	if (rdev->scan_msg) {
++		pr_info("flushing stale scan result message on iface removal\n");
++		___cfg80211_scan_done(rdev, true);
++	}
++
+ 	list_del_rcu(&wdev->list);
+ 	synchronize_net();
+ 	rdev->devlist_generation++;

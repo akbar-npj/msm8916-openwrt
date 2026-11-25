@@ -4,7 +4,7 @@
  * Reads two plain key=value files produced by /usr/sbin/lcd-dashboard-collect:
  *   /var/run/lcd-dashboard/view   slot->source mapping, theme colours
  *   /var/run/lcd-dashboard/state  current values for every source
- * and paints /dev/fb0 (128x128, 32bpp, 0x00RRGGBB) directly.  No libc font or
+ * and paints /dev/fb0 (128x128, 32bpp) directly.  No libc font or
  * graphics library is used: a compact 5x7 bitmap font and a few rect icons are
  * embedded below.  After drawing, FBIOPAN_DISPLAY flushes the deferred-IO
  * pages to the panel.
@@ -40,6 +40,11 @@ static int fb_fd;
 static struct fb_var_screeninfo vinfo;
 static struct fb_fix_screeninfo finfo;
 
+/* Display orientation, in degrees clockwise.  Set from the UCI "rotation"
+ * option via the collector's view file.  The renderer always draws in a
+ * logical 128x128 landscape frame; pixel() maps that onto the panel. */
+static int rotation;
+
 static int fb_open(void)
 {
 	fb_fd = open(FB_PATH, O_RDWR);
@@ -71,11 +76,46 @@ static void fb_close(void)
 		close(fb_fd);
 }
 
+/* These ST7735R panels are physically wired BGR, so a value written as
+ * 0x00RRGGBB appears with red and blue exchanged on the panel (green is the
+ * middle byte and is unaffected -- this is exactly the reporter's symptom in
+ * issue #77).  Every colour in this file is authored as RRGGBB: UCI values via
+ * parse_colour(), the tile colours, and derived dim shades of top_bg.  Convert
+ * here, at the single point all pixels pass through, so all of them are fixed.
+ */
+static inline uint32_t rgb_to_panel(uint32_t c)
+{
+	return ((c & 0x0000ffu) << 16) | (c & 0x00ff00u) | ((c & 0xff0000u) >> 16);
+}
+
 static inline void pixel(int x, int y, uint32_t c)
 {
-	if (x < 0 || y < 0 || x >= (int)vinfo.xres || y >= (int)vinfo.yres)
+	int px, py;
+
+	if (x < 0 || y < 0 || x >= W || y >= H)
 		return;
-	fb[(size_t)y * (finfo.line_length / 4) + x] = c;
+
+	/* Map the logical 128x128 frame onto the panel at the chosen angle. */
+	switch (rotation) {
+	case 90:			/* quarter turn clockwise */
+		px = H - 1 - y;
+		py = x;
+		break;
+	case 180:
+		px = W - 1 - x;
+		py = H - 1 - y;
+		break;
+	case 270:			/* quarter turn counter-clockwise */
+		px = y;
+		py = W - 1 - x;
+		break;
+	default:			/* 0, or any unrecognised value */
+		px = x;
+		py = y;
+		break;
+	}
+
+	fb[(size_t)py * (finfo.line_length / 4) + px] = rgb_to_panel(c);
 }
 
 static void rect(int x, int y, int w, int h, uint32_t c)
@@ -411,6 +451,19 @@ int main(void)
 
 #define V(k, d) kv_get(view, nv, (k), (d))
 #define S(k, d) kv_get(state, ns, (k), (d))
+
+	/* Panel orientation.  Anything outside the four legal angles falls back
+	 * to landscape so a bad UCI value can never rotate the dashboard away. */
+	rotation = atoi_safe(V("rotation", "0"), 0);
+	switch (rotation) {
+	case 0:
+	case 90:
+	case 180:
+	case 270:
+		break;
+	default:
+		rotation = 0;
+	}
 
 	top_bg   = parse_colour(V("color_top_bg",   "#3fb34f"), 0x3fb34f);
 	top_fg   = parse_colour(V("color_top_fg",   "#ffffff"), 0xffffff);
