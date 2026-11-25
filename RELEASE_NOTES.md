@@ -1,51 +1,55 @@
 > 📖 **Full build & flashing guide →** <https://github.com/akbar-npj/msm8916-openwrt/wiki/Build-and-Flashing-Reference>
 
-## v25.12.6-r9 — Feature highlights
+## v25.12.6-r10 (2026-11-24) — built from `main`
 
-- 🛡️ **A raw-IP redirect to an IFB could reboot the router.** With `tc` ingress `mirred` on
-  `wwan0` (what SQM/CAKE does when it shapes the LTE interface through an IFB) and inbound
-  traffic, the kernel panicked with `skb_under_panic` and the unit rebooted; disabling CAKE did
-  not help, because `mirred` runs first. On an L3 device there is no L2 header, so `skb->mac_len`
-  holds a buffer offset rather than a header length, and the push walked one byte past the
-  headroom. `act_mirred` now asks the source device whether it has an L2 header at all, and drops
-  a packet it cannot fit instead of panicking.
+- 🆕 **New board: HM-MIFIB-V18** (`mifid`) — a battery MiFi with a 1.8" ST7735R LCD on SPI5,
+  a PM8916 MPP backlight and SIM-rail GPIO hogs. It ships a framebuffer status dashboard
+  (signal, battery, SIM/SMS/call tiles and popups) with a LuCI editor; the LuCI page is gated
+  on the framebuffer, so boards without an LCD do not show it. The VoLTE stack is enabled on
+  this image by default, and the modem's A2 power domain is pinned so the quiesce race that
+  dropped the bearer on the V12 cannot fire on this board.
 
-- 🎧 **The voice audio path is in the kernel now.** The q6voice stack (MVM, CVS, CVP) over APR,
-  internal BT-SCO ports, in-call record taps and playback, as `kmod-sound-msm8916-voice` in the
-  feed for every board, with the card enabled on `mifib-v12` and `ufi003-mb-v02`. This is the
-  kernel half only — the userspace voice packages are not part of this release.
+- 🔋 **Battery charge-limit logging.** The charge-limit monitor now logs every state transition
+  (waiting / hold / charge / idle / unplugged) instead of only once at startup, and a stop or
+  restart while holding restores the real charge current instead of capturing the 90 mA hold
+  floor. The fix is in the shared `luci-app-battery` package, so it applies to every battery
+  board, including **HM-MIFIB-V12** and HM-MIFIB-V18.
 
-- 🔧 **A modem assertion during calls.** `bam_dmux_pc_irq()` compared the power-control line
-  against `pc_state` before taking the lock; the RX watchdog can resync the same edge first, and
-  the double ack left the A2 handshake one toggle off, which the modem answers with
-  `a2_power.c:3017:A2 Assertion Failed`. The state is re-checked under the lock.
-
-- 💡 **LED setup was rebuilt around roles.** Lamps are mapped by role (WAN, WLAN, battery) instead
-  of by stock name, patterns are chosen from a dropdown instead of typed, the stock LED page is
-  hidden, the battery roles are only offered on boards that have a battery, and the `hmuf02v5`
-  colours are corrected (green is LTE, blue is Wi-Fi).
-
-- 📶 **A Wi-Fi station that wedged in the 4-way handshake took nine minutes to come back.** The
-  station interface is now re-armed in about 30 seconds, `DELETE_BSS` is retried and its handle
+- 📶 **Wi-Fi station recovery.** A station that wedged in the 4-way handshake took nine minutes
+  to come back; it is now re-armed in about 30 seconds, `DELETE_BSS` is retried and its handle
   dropped when it fails, and handshake-timeout reloads are counted so the recovery can tell a
-  stubborn AP from a dead driver.
+  stubborn AP from a dead driver. A new default-on **probe-TX recovery** keeps the WCN3620 TX
+  path alive with a periodic on-channel active scan — the only lever that clears the TX-path
+  stall — and runs detached so a wedged scan cannot freeze the watchdog.
 
-- 🎬 **Hardware H.264.** `kmod-video-qcom-venus` and the Venus 1.8 firmware ship on every board,
-  so encode and decode run on the video core instead of the CPU. It is a module, not part of the
-  default image payload, on every board including `jz0145`.
+- 📞 **Calls were silent in both directions on a weak 4G signal.** The voice daemon chose the
+  DSP voice session from the IMS registration state rather than the call's actual radio access.
+  When a call fell back to 3G while IMS still reported registered, it was routed into a VoLTE
+  session and no audio passed. The carrier RAT policy is now data-driven and configurable: the
+  affected carrier is held on LTE, other carriers keep 3G/4G fallback, and a global UCI override
+  lets you choose per device. Verified end-to-end with a real call — LTE throughout, audio both
+  ways.
 
-- 🆕 **New board `jz0145`** (`jz0145-v33`) — a UFI003-class stick, with the A2 power domain held
-  active so its modem stays up.
+- 🎧 **One spurious error at the end of every call.** The DSP returns status `1` for a clean
+  playback STOP, which the driver logged as `q6voice ... command 0x11239 failed with error 1`.
+  The benign STOP status is now treated as success; call teardown is clean.
 
-- 💾 **Recovery images**: UZ801 is now buildable, the `dropbearkey` multicall symlink is included,
-  and UFI003 image names keep their hyphens.
+- 🌐 **IPv4 policy routing is enabled.** `IP_ADVANCED_ROUTER`, `IP_MULTIPLE_TABLES` and
+  `IP_MROUTE_MULTIPLE_TABLES` are on, fixing builds that relied on multiple routing tables
+  (#149).
 
-- ⚠️ **Reflash to move to r9 — do not mix it with r8 packages.** The kernel config changed, so the
-  kernel's ABI tag changed with it. The LuCI Firmware Upgrade page is the normal path and handles
-  this; what does not work is `apk add` of a kmod on an r8 unit after r9 is published, because the
-  feed then carries only r9's kmods.
+- 🔀 **IPv6-only carriers get native IPv4 via CLAT (464XLAT).** Bearers that come up without an
+  IPv4 address now get a NAT64/IPv4 translation path, so IPv4-only apps keep working.
 
-- 🧰 **Also**: filesystem, netfilter, QoS, storage, misc and sound kmods are enabled; Israeli APNs
-  added; the firmware-upgrade page clears its hotfix banner after installing; one hotfix entry per
-  package; CI moved off Node 20 onto `ubuntu-24.04` and keeps board-build images as a 7-day
-  artifact; redundant BFQ settings dropped from the target config.
+- 📡 **The VoLTE/IMS stack ships on `jz0145` too**, alongside the main-stack improvements: the
+  IMS service is published before LTE attach and IMS bearers are preserved across modem
+  handoffs.
+
+- 🗂️ **Carrier provisioning provisions the modem's default profile and refreshes the LTE attach
+  context**, and activates the carrier MCFG so the modem runs its IMS stack.
+
+- 🧰 **Also**: the publish-kmod workflow now resolves and bumps the package that actually owns
+  each kmod (so published kmod versions no longer go stale); a stale modem index is re-resolved
+  in `msm89xx-scripts`; the new-board generator produces correct DTS nodes and registration; a
+  per-unit baseband identity recorder and manifests are added; and the shared LCD base-files
+  changes carry board markers so the board-profile gate stays accurate.

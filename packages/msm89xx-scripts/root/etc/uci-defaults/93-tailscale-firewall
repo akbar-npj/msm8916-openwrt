@@ -1,0 +1,38 @@
+#!/bin/sh
+# BOARDS: hmuf02v5, jz02, mf800b, mifib-v12, uf02, uf896, ufi001b, ufi003, uz801
+#
+# Let Tailscale route: put tailscale0 in the LAN firewall zone.
+#
+# Tailscale installs its own nftables table (ip filter/ip nat, chain
+# ts-forward) which marks and accepts peer traffic arriving on tailscale0.
+# But fw4's "inet fw4" forward chain has "policy drop" and only knows about
+# br-lan and the wan devices.  In nftables a drop in ANY hook chain wins, so
+# with no matching zone fw4 drops every forwarded exit-node / subnet-router
+# packet before it can reach the uplink -- tailscale status says "offers exit
+# node" and routes are approved, but no traffic passes.
+#
+# Adding tailscale0 to the LAN zone makes fw4 generate:
+#   iifname {"br-lan","tailscale0"} jump forward_lan -> accept_to_wan
+#   -> oifname {wwan1,phy0-sta0} accept  (+ srcnat_wan masquerade)
+# so the peer traffic is forwarded out the active uplink.
+#
+# This is harmless when Tailscale is disabled: tailscale0 simply never shows
+# up, so the extra iifname match never fires.  Runs once -- uci-defaults
+# delete themselves after a successful run -- and is idempotent anyway, so a
+# user who later removes the device from the zone is not overridden.
+
+[ -e /etc/config/firewall ] || exit 0
+
+# Locate the LAN zone by its name, not by a hard-coded @zone[N] index.
+lan_zone=$(uci -q show firewall 2>/dev/null | sed "s/'//g" | sed -n 's/^\(firewall\.[^.]*\)\.name=lan$/\1/p' | head -1)
+[ -n "$lan_zone" ] || exit 0
+
+# Already present?  "device" is a list option; uci -q get joins it with spaces.
+for _dev in $(uci -q get "$lan_zone.device" 2>/dev/null); do
+	[ "$_dev" = "tailscale0" ] && exit 0
+done
+
+uci -q add_list "$lan_zone.device=tailscale0"
+uci commit firewall
+
+exit 0
