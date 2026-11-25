@@ -165,6 +165,10 @@ mv "$TMP" "$RUN/state"
 
 # ---- write view ----------------------------------------------------------
 {
+	# Panel orientation; renderer falls back to 0 for anything but 0/90/180/270.
+	rot=$(cfg rotation)
+	case "$rot" in 0|90|180|270) ;; *) rot=0 ;; esac
+	echo "rotation=$rot"
 	for k in color_top_bg color_top_fg color_mid_bg color_bottom_bg \
 	         color_bottom_fg color_tile_on color_tile_off color_popup_bg \
 	         color_popup_fg; do
