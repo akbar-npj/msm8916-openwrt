@@ -262,4 +262,24 @@ define Device/generic-mifid
 endef
 TARGET_DEVICES += generic-mifid
 
+define Device/generic-jz08c-v50
+	$(Device/msm8916)
+	DEVICE_VENDOR := Generic
+	DEVICE_MODEL := JZ08C V50 4G LTE MiFi
+	DEVICE_DTS := msm8916-generic-jz08c-v50
+	SUPPORTED_DEVICES := jz08c-v50,generic
+	FILESYSTEMS := squashfs
+	# 4 GB eMMC (0x748000 sectors, verified via /sys/block/mmcblk0/size).
+	GPT_TOT_SECTORS := 7634944
+	# Battery MiFi with misc + recovery partitions.
+	GPT_RECOVERY := 1
+	DEVICE_PACKAGES := msm89xx-scripts wpad-basic-wolfssl rmtfs uci-usb-gadget \
+		block-mount f2fs-tools tar \
+		msm-firmware-dumper reboot-edl qcom-carrier-autocfg \
+		464xlat kmod-nat46 \
+		diag-efs diag-logtool msm89xx-firmware-upgrade luci-app-update-notify luci-app-led-setup \
+		luci-app-battery lcd-dashboard luci-app-lcd-dashboard
+endef
+TARGET_DEVICES += generic-jz08c-v50
+
 endif

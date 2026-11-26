@@ -1,0 +1,311 @@
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8916-generic-jz08c-v50.dts
+@@ -0,0 +1,308 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * JZ08C V50 — 4G LTE battery MiFi with 1.44" 128x128 ST7735S SPI LCD,
++ * Qualcomm MSM8916.
++ *
++ * Hardware facts verified against the factory aboot (SHA-256
++ * 44ebde028025cb32271b26e8afee96edf3c53d054a97a4c3b98a9098602749a7) and
++ * live hardware:
++ *   - Panel: ST7735S (wx144), 128x128, GRAM offset x+2, y+3, MADCTL 0xc8
++ *            (matched by mainline tinydrm "okaya,rh128128t" profile)
++ *   - SPI bus: BLSP SPI4 (spi@78b8000, GPIO12..15, CS on GPIO14) — unlike
++ *              HM-MIFIB-V12/V18 which wire SPI5 (GPIO16..19). GPIO12 must
++ *              NOT be hogged as sim3_en.
++ *   - Panel control: RESET = TLMM 118, DC = TLMM 116
++ *   - Backlight: PM8916 MPP4 current sink (SPMI 0xa300, 5..40 mA, source 1)
++ *   - No discrete status LEDs populated on the housing (LCD only)
++ *   - Battery pack label: 3000 mAh, 3.8 V nominal, 11.4 Wh, 4.35 V max charge
++ *   - Baseband: MPSS.DPM.1.0 (h/w revision 10000), requires bam_dmux a2-pin
++ */
++
++/dts-v1/;
++
++#include "msm8916-ufi.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/iio/qcom,spmi-vadc.h>
++#include <dt-bindings/input/linux-event-codes.h>
++#include <dt-bindings/leds/common.h>
++
++/ {
++	model = "JZ08C V50 4G LTE MiFi";
++	compatible = "jz08c-v50,generic", "qcom,msm8916";
++
++	/*
++	 * 3000 mAh 3.8 V (11.4 Wh, 4.35 V max charge) Li-ion pack per the
++	 * physical cell label. OCV curves scaled to 4.35 V (same approach as
++	 * jz02) so voltage-mode BMS reports sensible state-of-charge.
++	 */
++	battery: battery {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion-polymer";
++
++		voltage-min-design-microvolt = <3350000>;
++		/* 4.40 V design max leaves headroom for charger tolerance;
++		 * actual charge limit stays at 4.35 V. */
++		voltage-max-design-microvolt = <4400000>;
++		charge-full-design-microamp-hours = <3000000>;
++		charge-term-current-microamp = <100000>;
++
++		constant-charge-current-max-microamp = <1000000>;
++		constant-charge-voltage-max-microvolt = <4350000>;
++
++		factory-internal-resistance-micro-ohms = <140000>;
++
++		ocv-capacity-celsius = <(-20) 0 25 40 60>;
++
++		/* -20 C */
++		ocv-capacity-table-0 =
++			<4300000 100>, <4264000 95>, <4223000 90>, <4181000 85>,
++			<4140000 80>, <4062000 75>, <4010000 70>, <3960000 65>,
++			<3915000 60>, <3895000 55>, <3882000 50>, <3869000 45>,
++			<3856000 40>, <3831000 35>, <3807000 30>, <3783000 25>,
++			<3742000 20>, <3671000 16>, <3627000 13>, <3603000 11>,
++			<3591000 10>, <3564000 9>, <3552000 8>, <3516000 7>,
++			<3481000 6>, <3457000 5>, <3421000 4>, <3398000 3>,
++			<3374000 2>, <3362000 1>, <3350000 0>;
++
++		/* 0 C */
++		ocv-capacity-table-1 =
++			<4300000 100>, <4270000 95>, <4229000 90>, <4199000 85>,
++			<4148000 80>, <4109000 75>, <4061000 70>, <4006000 65>,
++			<3976000 60>, <3928000 55>, <3896000 50>, <3871000 45>,
++			<3856000 40>, <3831000 35>, <3807000 30>, <3783000 25>,
++			<3742000 20>, <3671000 16>, <3627000 13>, <3603000 11>,
++			<3591000 10>, <3564000 9>, <3552000 8>, <3516000 7>,
++			<3481000 6>, <3457000 5>, <3421000 4>, <3398000 3>,
++			<3374000 2>, <3362000 1>, <3350000 0>;
++
++		/* 25 C */
++		ocv-capacity-table-2 =
++			<4300000 100>, <4270000 95>, <4229000 90>, <4199000 85>,
++			<4148000 80>, <4109000 75>, <4061000 70>, <4006000 65>,
++			<3976000 60>, <3928000 55>, <3896000 50>, <3871000 45>,
++			<3856000 40>, <3831000 35>, <3807000 30>, <3783000 25>,
++			<3742000 20>, <3671000 16>, <3627000 13>, <3603000 11>,
++			<3591000 10>, <3564000 9>, <3552000 8>, <3516000 7>,
++			<3481000 6>, <3457000 5>, <3421000 4>, <3398000 3>,
++			<3374000 2>, <3362000 1>, <3350000 0>;
++
++		/* 40 C */
++		ocv-capacity-table-3 =
++			<4300000 100>, <4270000 95>, <4229000 90>, <4199000 85>,
++			<4148000 80>, <4109000 75>, <4061000 70>, <4006000 65>,
++			<3976000 60>, <3928000 55>, <3896000 50>, <3871000 45>,
++			<3856000 40>, <3831000 35>, <3807000 30>, <3783000 25>,
++			<3742000 20>, <3671000 16>, <3627000 13>, <3603000 11>,
++			<3591000 10>, <3564000 9>, <3552000 8>, <3516000 7>,
++			<3481000 6>, <3457000 5>, <3421000 4>, <3398000 3>,
++			<3374000 2>, <3362000 1>, <3350000 0>;
++
++		/* 60 C */
++		ocv-capacity-table-4 =
++			<4299000 100>, <4270000 95>, <4229000 90>, <4199000 85>,
++			<4148000 80>, <4109000 75>, <4061000 70>, <4006000 65>,
++			<3976000 60>, <3928000 55>, <3896000 50>, <3871000 45>,
++			<3856000 40>, <3831000 35>, <3807000 30>, <3783000 25>,
++			<3742000 20>, <3671000 16>, <3627000 13>, <3603000 11>,
++			<3591000 10>, <3564000 9>, <3552000 8>, <3516000 7>,
++			<3481000 6>, <3457000 5>, <3421000 4>, <3398000 3>,
++			<3374000 2>, <3362000 1>, <3350000 0>;
++	};
++
++	/* Backlight on PMIC MPP4: patch 879 exposes 5..40 mA and led-backlight
++	 * maps eight sysfs levels onto /sys/class/backlight/backlight-lcd. */
++	lcd_backlight: backlight-lcd {
++		compatible = "led-backlight";
++		leds = <&lcd_wled>;
++		brightness-levels = <0 5 10 15 20 25 30 35 40>;
++		default-brightness-level = <8>;
++	};
++};
++
++/* Persistent kernel log (ramoops) -- same region as every other board. */
++&reserved_memory {
++	ramoops@8db00000 {
++		compatible = "ramoops";
++		reg = <0x0 0x8db00000 0x0 0x00100000>;
++		record-size = <0x00040000>;
++		console-size = <0x00040000>;
++		pmsg-size = <0x00040000>;
++		ecc-size = <16>;
++	};
++};
++
++/*
++ * JZ08C V50 has NO discrete status LEDs on the housing (LCD panel only).
++ * Keep only the functional SIM hotplug re-announce line so sim-hotplug
++ * can pulse /sys/class/leds/sim_hotplug/brightness.
++ */
++&{/leds} {
++	/delete-node/ led-r;
++	/delete-node/ led-g;
++	/delete-node/ led-b;
++
++	led-sim-hotplug {
++		label = "sim_hotplug";
++		gpios = <&tlmm 114 GPIO_ACTIVE_HIGH>;
++		default-state = "keep";
++	};
++};
++
++&gpio_leds_default {
++	pins = "gpio114";
++};
++
++/*
++ * SIM rail enables:
++ *   sim1_en  gpio119  HIGH  (physical SIM)
++ *   sim2_en  gpio112  LOW
++ * GPIO12 is wired to BLSP SPI4 for the ST7735S panel and must NOT be hogged.
++ */
++&tlmm {
++	sim1_en {
++		gpio-hog;
++		gpios = <119 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "sim1_en";
++	};
++
++	sim2_en {
++		gpio-hog;
++		gpios = <112 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "sim2_en";
++	};
++
++	jz08c_panel_ctrl: jz08c-panel-ctrl-state {
++		pins = "gpio118", "gpio116";
++		function = "gpio";
++		drive-strength = <8>;
++		bias-disable;
++	};
++};
++
++&button_restart {
++	gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
++};
++
++&button_default {
++	pins = "gpio102";
++	bias-pull-up;
++};
++
++&pm8916_usbin {
++	status = "disabled";
++};
++
++&pm8916_charger {
++	monitored-battery = <&battery>;
++
++	qcom,fast-charge-safe-voltage = <4350000>;
++	qcom,fast-charge-safe-current = <1000000>;
++
++	status = "okay";
++};
++
++&usb {
++	dr_mode = "peripheral";
++	extcon = <&pm8916_charger>;
++};
++
++&usb_hs_phy {
++	extcon = <&pm8916_charger>;
++};
++
++&pm8916_bms {
++	monitored-battery = <&battery>;
++	power-supplies = <&pm8916_charger>;
++
++	io-channels = <&pm8916_vadc VADC_LR_MUX1_BAT_THERM>;
++	io-channel-names = "batt-therm";
++
++	status = "okay";
++};
++
++&pm8916_vadc {
++	channel@30 {
++		reg = <VADC_LR_MUX1_BAT_THERM>;
++		qcom,pre-scaling = <1 1>;
++		qcom,ratiometric;
++		qcom,hw-settle-time = <16000>;
++	};
++};
++
++/*
++ * LCD: 1.44" 128x128 ST7735S (wx144) on BLSP SPI4 (spi@78b8000), 16 MHz.
++ *   SPI4 pins: GPIO12..15 (CS = GPIO14)
++ *   RESET:     TLMM 118 (GPIO_ACTIVE_HIGH for DRM mipi_dbi_hw_reset)
++ *   DC:        TLMM 116 (GPIO_ACTIVE_HIGH)
++ *   Profile:   mainline tinydrm "okaya,rh128128t" (128x128, left=2, top=3,
++ *              rgb=true -> MADCTL 0xc8, matching factory aboot wx144 table)
++ *   Backlight: PM8916 MPP4 current sink (SPMI 0xa300, 5..40 mA, source 1)
++ */
++&pm8916_0 {
++	lcd_wled: lcd-wled@a300 {
++		compatible = "qcom,pm8916-mpp-led";
++		reg = <0xa300>;
++		label = "lcdwled-backlight";
++		status = "okay";
++	};
++};
++
++&pm8916_rpm_regulators {
++	pm8916_l17: l17 {
++		regulator-min-microvolt = <2850000>;
++		regulator-max-microvolt = <2850000>;
++		regulator-always-on;
++	};
++};
++
++&pm8916_l6 {
++	regulator-always-on;
++};
++
++&pm8916_mpps {
++	pm8916_mpp4_sink: mpp4-sink-state {
++		pins = "mpp4";
++		function = "sink";
++		power-source = <1>;
++		drive-strength = <7>;
++		output-high;
++	};
++};
++
++&blsp_spi5 {
++	status = "disabled";
++};
++
++&blsp_spi4_default {
++	spi-pins {
++		drive-strength = <16>;
++	};
++	cs-pins {
++		drive-strength = <16>;
++	};
++};
++
++&blsp_spi4 {
++	status = "okay";
++	cs-gpios = <&tlmm 14 GPIO_ACTIVE_LOW>;
++
++	panel@0 {
++		compatible = "okaya,rh128128t";
++		reg = <0>;
++		spi-max-frequency = <16000000>;
++		reset-gpios = <&tlmm 118 GPIO_ACTIVE_HIGH>;
++		dc-gpios = <&tlmm 116 GPIO_ACTIVE_HIGH>;
++		rotation = <0>;
++		backlight = <&lcd_backlight>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&jz08c_panel_ctrl &pm8916_mpp4_sink>;
++	};
++};
++
++&bam_dmux {
++	qcom,a2-pin;
++};

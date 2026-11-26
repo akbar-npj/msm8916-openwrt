@@ -28,6 +28,7 @@ on:
           - jz02
           - jz0145
           - mifid
+          - jz08c-v50
 
 env:
   UPLOAD_FIRMWARE: true
