@@ -1,0 +1,35 @@
+--- a/drivers/net/wireless/ath/wcn36xx/txrx.c
++++ b/drivers/net/wireless/ath/wcn36xx/txrx.c
+@@ -493,6 +493,7 @@
+ 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+ 	struct ieee80211_sta *sta;
+ 	u8 *qc, tid;
++	int ret;
+ 
+ 	if (!conf_is_ht(&wcn->hw->conf))
+ 		return;
+@@ -515,7 +516,23 @@
+ 	if (sta_priv->non_agg_frame_ct++ >= WCN36XX_AMPDU_START_THRESH) {
+ 		sta_priv->ampdu_state[tid] = WCN36XX_AMPDU_START;
+ 		sta_priv->non_agg_frame_ct = 0;
+-		ieee80211_start_tx_ba_session(sta, tid, 0);
++		ret = ieee80211_start_tx_ba_session(sta, tid, 0);
++		if (ret) {
++			/*
++			 * -EBUSY means mac80211 has exhausted its own retry
++			 * budget for this TID, so keep the latch and stop
++			 * re-driving the request every 20 frames.  Any other
++			 * error is worth retrying: the first data frames can
++			 * flow before the station is authorized, and without
++			 * this the TID would stay latched in START forever
++			 * because only ampdu_action() ever clears it.
++			 */
++			if (ret != -EBUSY)
++				sta_priv->ampdu_state[tid] = WCN36XX_AMPDU_NONE;
++			wcn36xx_dbg(WCN36XX_DBG_MAC,
++				    "start_tx_ba_session tid %d refused %d\n",
++				    tid, ret);
++		}
+ 	}
+ out_unlock:
+ 	spin_unlock(&sta_priv->ampdu_lock);
