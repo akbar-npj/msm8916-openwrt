@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# BOARDS: all - software flow offloading is on by default.
+#
+# Every forwarded packet otherwise walks the whole netfilter path: ruleset,
+# conntrack, NAT, route lookup.  The flowtable lets the first packet of a
+# connection make that decision once and every later packet of the same flow
+# skip it.  The CPU still copies the bytes, but it stops re-deciding.
+#
+# On this SoC this is the only kind of offload that exists: there is no
+# forwarding engine in MSM8916 and no driver here implements ndo_setup_tc /
+# TC_SETUP_FT, so "hardware flow offloading" is a no-op (fw4 warns and falls
+# back to software).  Do not set flow_offloading_hw.
+#
+# Only set the option when it is absent, so a value already chosen -- by the
+# user or by an earlier image -- is kept.  firewall4 ships no flow_offloading
+# line in its default config, so "absent" is the normal first-boot state.
+#
+# No extra hook is needed for a late uplink: fw4 rebuilds the flowtable on
+# every reload, and /etc/hotplug.d/iface/20-firewall reloads on ifup/ifupdate
+# of any zoned interface, so wwan0 and phy0-sta0 join when they appear.
+#
+# Interactions worth knowing: it is incompatible with SQM/tc shaping, it
+# bypasses firewall counters after the first packet of a flow, and it has not
+# been exercised on a 464xlat (IPv6-only) bearer -- if CLAT is ever the uplink,
+# test before relying on it.
+
+[ -n "$(uci -q get firewall.@defaults[0].flow_offloading)" ] && exit 0
+
+uci set firewall.@defaults[0].flow_offloading='1'
+uci commit firewall
+
+exit 0
