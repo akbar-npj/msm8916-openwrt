@@ -136,6 +136,10 @@ CONFIG_PACKAGE_kmod-usb-printer=m
 CONFIG_PACKAGE_kmod-veth=m
 CONFIG_PACKAGE_kmod-video-qcom-venus=m
 CONFIG_PACKAGE_kmod-vxlan=m
+# publish-kmod.yml only rebuilds a kmod it can find as =m here.  The module is
+# already in the image through DEFAULT_PACKAGES, so this line changes nothing
+# in the build; it exists so the driver can be hotfixed without a reflash.
+CONFIG_PACKAGE_kmod-wcn36xx=m
 CONFIG_PCRE2_JIT_ENABLED=y
 CONFIG_TARGET_msm89xx=y
 CONFIG_TARGET_msm89xx_msm8916=y
