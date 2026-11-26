@@ -1,0 +1,77 @@
+--- a/drivers/net/wireless/ath/wcn36xx/debug.h
++++ b/drivers/net/wireless/ath/wcn36xx/debug.h
+@@ -30,6 +30,7 @@
+ struct wcn36xx_dfs_entry {
+ 	struct dentry *rootdir;
+ 	struct wcn36xx_dfs_file file_bmps_switcher;
++	struct wcn36xx_dfs_file file_cfgwrite;
+ 	struct wcn36xx_dfs_file file_dump;
+ 	struct wcn36xx_dfs_file file_firmware_feat_caps;
+ 	struct wcn36xx_dfs_file file_recal;
+--- a/drivers/net/wireless/ath/wcn36xx/debug.c
++++ b/drivers/net/wireless/ath/wcn36xx/debug.c
+@@ -268,6 +268,56 @@
+ 	.write = write_file_stats,
+ };
+ 
++/*
++ * Send an arbitrary firmware config value: write "<cfg_id> <value>", both in
++ * decimal or 0x hex, e.g. "226 0" or "0x4f 10000".
++ *
++ * The driver only ever sends the values in wcn36xx_cfg_vals[] and
++ * wcn3680_cfg_vals[] at start-up, so a knob that is absent from those tables
++ * cannot be tried on hardware without a new table entry and a new kmod per
++ * value.  wcn36xx_smd_update_cfg() is already generic, so this exposes it
++ * directly and turns a multi-boot A/B into a shell loop.
++ *
++ * This is a diagnostic: nothing is stored and nothing is restored.  The
++ * setting lasts until the firmware is restarted (interface down/up, reload or
++ * reboot), and a value the firmware rejects is reported in the kernel log as
++ * "update_cfg <errno>" and nowhere else.
++ */
++static ssize_t write_file_cfgwrite(struct file *file,
++				   const char __user *user_buf,
++				   size_t count, loff_t *ppos)
++{
++	struct wcn36xx *wcn = file->private_data;
++	char buf[32], *tmp, *tok;
++	u32 cfg_id, value;
++	int ret;
++
++	if (count >= sizeof(buf))
++		return -EINVAL;
++	if (copy_from_user(buf, user_buf, count))
++		return -EFAULT;
++	buf[count] = '\0';
++
++	tmp = buf;
++	tok = strsep(&tmp, " \t");
++	if (!tok || kstrtou32(tok, 0, &cfg_id))
++		return -EINVAL;
++	tok = strsep(&tmp, " \t");
++	if (!tok || kstrtou32(tok, 0, &value))
++		return -EINVAL;
++
++	ret = wcn36xx_smd_update_cfg(wcn, cfg_id, value);
++	wcn36xx_info("cfgwrite, cfg %u = %u, update_cfg %d\n",
++		     cfg_id, value, ret);
++
++	return count;
++}
++
++static const struct file_operations fops_wcn36xx_cfgwrite = {
++	.open = simple_open,
++	.write = write_file_cfgwrite,
++};
++
+ #define ADD_FILE(name, mode, fop, priv_data)		\
+ 	do {							\
+ 		struct dentry *d;				\
+@@ -294,6 +344,7 @@
+ 	}
+ 
+ 	ADD_FILE(bmps_switcher, 0600, &fops_wcn36xx_bmps, wcn);
++	ADD_FILE(cfgwrite, 0200, &fops_wcn36xx_cfgwrite, wcn);
+ 	ADD_FILE(dump, 0200, &fops_wcn36xx_dump, wcn);
+ 	ADD_FILE(firmware_feat_caps, 0200,
+ 		 &fops_wcn36xx_firmware_feat_caps, wcn);
