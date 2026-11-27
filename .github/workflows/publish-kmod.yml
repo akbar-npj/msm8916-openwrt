@@ -11,11 +11,13 @@ name: Publish Kernel Modules
 #
 #     kernel (= <version>~<vermagic>-r<release>)      include/kernel.mk:216
 #
-# and <vermagic> is the md5 of every =y/=m line in the kernel .config.  Adding
-# a `CONFIG_PACKAGE_kmod-x=m` therefore changes vermagic, and the new module
-# would be refused by every device still running the released kernel.  New
-# modules need a firmware release; this workflow only rebuilds modules the
-# release already carries (a driver fix, a repackaged .ko).
+# and <vermagic> is the md5 of every =y/=m line in the KERNEL .config
+# (kernel-defaults.mk:129).  A kmod must already be selected in the release
+# config -- either =y (installed in the image) or =m (standalone apk) -- or
+# selecting it now would change the kernel config and the new module would be
+# refused by every device still running the released kernel.  New modules need
+# a firmware release; this workflow only rebuilds modules the release already
+# carries (a driver fix, a repackaged .ko).
 #
 # ## Why a release bump is usually needed
 #
@@ -47,7 +49,7 @@ on:
   workflow_dispatch:
     inputs:
       kmods:
-        description: "Space-separated kmod names to rebuild (e.g. 'kmod-ifb kmod-sched'). Must already be =m in the board diffconfig."
+        description: "Space-separated kmod names to rebuild (e.g. 'kmod-ifb kmod-sched'). Must already be selected (=y or =m) in the release config."
         required: true
         type: string
       base:
@@ -105,7 +107,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
           sudo apt-get clean
 
-      - name: Resolve feed base and validate the kmod list
+      - name: Resolve feed base
         id: vars
         run: |
           set -euo pipefail
@@ -116,22 +118,6 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Feed base: ${BASE}   version: ${VERSION}   board: ${BOARD}"
           [ -n "$KMODS" ] || { echo "::error::Pass at least one kmod."; exit 1; }
-          # A kmod that is not already =m in the diffconfig would change the
-          # kernel vermagic, and devices on the released kernel would reject it.
-          bad=0
-          for k in $KMODS; do
-            if grep -qx "CONFIG_PACKAGE_${k}=m" "diffconfigs/${BOARD}"; then
-              echo "  ok   ${k}"
-            else
-              echo "::error::${k} is not '=m' in diffconfigs/${BOARD}."
-              bad=1
-            fi
-          done
-          if [ "$bad" = "1" ]; then
-            echo "::error::Adding a new module changes the kernel vermagic, so it cannot be hotfixed."
-            echo "::error::Add it to diffconfigs/ and cut a firmware release instead."
-            exit 1
-          fi
 
       - name: Cache OpenWrt Downloads & Toolchain
         uses: actions/cache@v5
@@ -257,6 +243,27 @@ jobs:
 
       - name: Build the kernel (populates Module.symvers and the configured tree)
         run: ./build.sh kernel "$BOARD"
+
+      - name: Verify the kmods are in the release config
+        run: |
+          set -euo pipefail
+          # ./build.sh kernel has just regenerated openwrt/.config from the
+          # board diffconfig.  =y means the module ships inside the image,
+          # =m means a standalone apk; both are part of the released config,
+          # so rebuilding either does not change the kernel vermagic.
+          bad=0
+          for k in $KMODS; do
+            state="$(sed -n "s/^CONFIG_PACKAGE_${k}=//p" openwrt/.config | head -n 1)"
+            case "$state" in
+              y|m) echo "  ok   ${k} (=${state})" ;;
+              *) echo "::error::${k} is not selected (=y or =m) in the release config."; bad=1 ;;
+            esac
+          done
+          if [ "$bad" = "1" ]; then
+            echo "::error::Adding a new module changes the kernel config and vermagic, so it cannot be hotfixed."
+            echo "::error::Add it to a firmware release instead."
+            exit 1
+          fi
 
       - name: Build the kernel modules
         run: |
