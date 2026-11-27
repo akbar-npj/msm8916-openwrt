@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=msm-firmware-dumper
 PKG_VERSION:=1.1
-PKG_RELEASE:=1
+PKG_RELEASE:=3
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_MAINTAINER:=Miguel Fuertes <hkfuertes@gmail.com>
