@@ -1,0 +1,17 @@
+#!/bin/sh /etc/rc.common
+# One-shot boot splash for LCD-equipped boards.  START=20 paints while the
+# kernel console is still quiet; lcd-dashboard (S96) repaints the same
+# framebuffer, so there is no state to hand off and nothing to stop.
+
+START=20
+STOP=90
+
+start() {
+	[ -c /dev/fb0 ] || return 0
+
+	local rot
+	rot=$(uci -q get lcd-dashboard.main.rotation 2>/dev/null)
+	case "$rot" in 0|90|180|270) ;; *) rot=0 ;; esac
+
+	/usr/sbin/lcd-dashboard --logo "$rot" >/dev/null 2>&1
+}

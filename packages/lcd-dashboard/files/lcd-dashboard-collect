@@ -123,6 +123,31 @@ ipaddr=$(ip -4 addr show dev wwan0 2>/dev/null | awk '/inet /{print $2; exit}' |
 [ -z "$ipaddr" ] && ipaddr=$(uci -q get network.lan.ipaddr 2>/dev/null)
 [ -z "$ipaddr" ] && ipaddr=NONE
 
+# VPN tunnel: any up wg/tun/tap/ovpn/ipsec interface counts as connected.
+# Presence alone is not enough -- an interface can exist while the tunnel is
+# down, which is exactly the state a user wants the dashboard to show.
+vpn=off
+for iface in $(ip -brief link 2>/dev/null | awk '{print $1}'); do
+	case "$iface" in
+		wg*|tun*|tap*|ovpn*|ipsec*)
+			ip -brief link show dev "$iface" 2>/dev/null | grep -q ' UP ' && vpn=on
+			;;
+	esac
+done
+
+# CPU temperature in degrees C (-1 when no usable thermal zone exists).
+# Prefer a cpu/soc-labelled zone; the first sane zone is a fallback for the
+# msm8916 thermal sysfs, where zone names differ between kernels.
+cpu_temp=-1
+for z in /sys/class/thermal/thermal_zone*; do
+	[ -r "$z/temp" ] || continue
+	t=$(cat "$z/temp" 2>/dev/null)
+	case "$t" in ''|*[!0-9]*) continue ;; esac
+	[ "$t" -ge 1000 ] && [ "$t" -le 150000 ] || continue
+	cpu_temp=$((t / 1000))
+	case "$(cat "$z/type" 2>/dev/null)" in *cpu*|*CPU*|*soc*|*SOC*) break ;; esac
+done
+
 # Data traffic: compare byte counters to the previous sample.
 rx_now=$(cat /sys/class/net/wwan0/statistics/rx_bytes 2>/dev/null || echo 0)
 tx_now=$(cat /sys/class/net/wwan0/statistics/tx_bytes 2>/dev/null || echo 0)
@@ -153,6 +178,8 @@ custom1=$(cfg custom1); custom2=$(cfg custom2)
 	echo "key=$key"
 	echo "battery=$battery"
 	echo "charging=$charging"
+	echo "vpn=$vpn"
+	echo "cpu_temp=$cpu_temp"
 	echo "ip=$ipaddr"
 	echo "rx_active=$rx_active"
 	echo "tx_active=$tx_active"

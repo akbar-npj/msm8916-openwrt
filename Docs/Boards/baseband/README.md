@@ -13,5 +13,6 @@ compare `modem.mdt` md5 and the MPSS build string, never the label.
 
 | board | device tree model | MPSS branch | vendor label | hw rev | mdt md5 | DMS networks | state |
 |---|---|---|---|---|---|---|---|
+| `hmuf02v5` | HMUF02-V5 4G Modem Stick | MPSS.DPM.1.0 |  |  | `1a6f9507e03d` |  | complete |
 | `mifib-v12` | HM-MIFIB-V12 4G LTE USB WiFi Dongle | MPSS.DPM.2.0.2 | HM02_MODEM_V1.2 | 10000 | `38b11d1b4ded` | umts, lte | complete |
 | `mifib-v18` | HM-MIFIB-V18 | MPSS.DPM.2.0.2 | HM02_MODEM_V1.2 | 10000 | `4a7fcf5bcd5e` | cdma20001x, evdo, umts, lte | complete |
