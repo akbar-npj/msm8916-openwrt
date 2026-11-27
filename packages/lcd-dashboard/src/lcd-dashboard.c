@@ -417,6 +417,27 @@ static void icon_phone(int x, int y, uint32_t c)
 	rect(x + 6, y + 14, 2, 2, c);
 }
 
+/* Padlock for the VPN tile: shackle above, body below, keyhole knocked out. */
+static void icon_vpn(int x, int y, uint32_t c)
+{
+	rect(x + 2, y, 10, 9, c);
+	rect(x + 5, y + 2, 4, 5, 0);
+	rect(x, y + 8, 14, 11, c);
+	rect(x + 6, y + 11, 2, 4, 0);
+}
+
+/* One-shot boot splash.  The dashboard daemon repaints the same framebuffer
+ * when it starts (S96), so no handshake or state file is needed. */
+static void draw_logo(void)
+{
+	rect(0, 0, W, H, 0x101010);
+	rect(0, 0, W, 32, 0x3fb34f);
+	draw_text_centred(0, 8, W, "OpenWrt", 2, 0xffffff);
+	draw_text_centred(0, 52, W, "booting", 2, 0xffffff);
+	rect(16, 80, 96, 8, 0x1e6fe0);
+	rect(16, 98, 96, 1, 0x3fb34f);
+}
+
 /* ---- render ------------------------------------------------------------- */
 
 static int atoi_safe(const char *s, int def)
@@ -432,7 +453,7 @@ static int atoi_safe(const char *s, int def)
 	return (int)v;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
 	struct kv view[64], state[128];
 	int nv, ns;
@@ -445,6 +466,20 @@ int main(void)
 	/* Board gate: the renderer is harmless if fb0 is missing or not ours. */
 	if (fb_open() < 0)
 		return 0;
+
+	/* --logo <rotation> is the one-shot early-boot splash.  It reads no UCI
+	 * files, so the init script passes the configured rotation directly. */
+	if (argc > 1 && !strcmp(argv[1], "--logo")) {
+		rotation = atoi_safe(argc > 2 ? argv[2] : "0", 0);
+		switch (rotation) {
+		case 0: case 90: case 180: case 270: break;
+		default: rotation = 0;
+		}
+		draw_logo();
+		ioctl(fb_fd, FBIOPAN_DISPLAY, &vinfo);
+		fb_close();
+		return 0;
+	}
 
 	nv = load_kv(VIEW_FILE, view, 64);
 	ns = load_kv(STATE_FILE, state, 128);
@@ -547,6 +582,21 @@ int main(void)
 			ic = (pct < 20) ? tile_off : tile_on;
 			icon_battery(tx + 9, 34, pct, ic);
 			snprintf(label, sizeof(label), "%d%%", pct);
+		} else if (!strcmp(src, "vpn")) {
+			on = !strcmp(S("vpn", "off"), "on");
+			ic = on ? tile_on : tile_off;
+			icon_vpn(tx + 8, 30, ic);
+			snprintf(label, sizeof(label), on ? "VPN" : "OFF");
+		} else if (!strcmp(src, "cpu_temp")) {
+			int t = atoi_safe(S("cpu_temp", "-1"), -1);
+			char val[16];
+			ic = (t >= 80) ? tile_off : tile_on;
+			if (t < 0)
+				snprintf(val, sizeof(val), "N/A");
+			else
+				snprintf(val, sizeof(val), "%dC", t);
+			draw_text_centred(tx + 1, 40, 30, val, 1, ic);
+			snprintf(label, sizeof(label), "TEMP");
 		} else if (!strcmp(src, "sms")) {
 			int n = atoi_safe(S("sms_unread", "-1"), -1);
 			ic = (n > 0) ? tile_on : tile_off;

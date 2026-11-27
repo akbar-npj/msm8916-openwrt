@@ -39,7 +39,7 @@ set_one() {
 			is_colour "$val" || { echo "bad colour for $key" >&2; return 1; } ;;
 		top_left|top_right|tile1|tile2|tile3|tile4|bottom1|bottom2)
 			case "$val" in
-				none|signal|operator|sim|wifi|traffic|battery|sms|missed|\
+				none|signal|operator|sim|wifi|traffic|battery|vpn|cpu_temp|sms|missed|\
 				ssid|key|ip|custom1|custom2) ;;
 				*) echo "unknown source for $key: $val" >&2; return 1 ;;
 			esac ;;

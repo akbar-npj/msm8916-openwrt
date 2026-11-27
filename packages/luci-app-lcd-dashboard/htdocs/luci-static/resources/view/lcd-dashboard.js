@@ -14,6 +14,8 @@ var SOURCES = [
 	{ id: 'wifi',    title: _('Wi-Fi mode') },
 	{ id: 'traffic', title: _('data activity arrows') },
 	{ id: 'battery', title: _('battery level / charging') },
+	{ id: 'vpn',     title: _('VPN tunnel up / down') },
+	{ id: 'cpu_temp',title: _('CPU temperature') },
 	{ id: 'sms',     title: _('unread SMS count') },
 	{ id: 'missed',  title: _('call status / incoming call') },
 	{ id: 'ssid',    title: _('Wi-Fi SSID') },
