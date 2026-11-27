@@ -10,9 +10,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const SRC = path.join(__dirname, '..', '..', 'packages', 'luci-app-update-notify',
-	'htdocs', 'luci-static', 'resources', 'view', 'status', 'include',
-	'98_wpa3-notice.js');
+const SRC = process.env.WPA3_NOTICE_JS ||
+	path.join(__dirname, '..', '..', 'packages', 'luci-app-update-notify',
+		'htdocs', 'luci-static', 'resources', 'view', 'status', 'include',
+		'98_wpa3-notice.js');
 
 let pass = 0, fail = 0;
 function check(cond, msg) {

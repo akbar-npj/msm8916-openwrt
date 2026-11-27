@@ -64,6 +64,9 @@ jobs:
       - name: update-notice
         run: bash tests/update-notice/run.sh --self-check
 
+      - name: wpa3-notice
+        run: bash tests/wpa3-notice/run.sh --self-check
+
       - name: apk-overlay-heal
         run: bash tests/apk-overlay-heal/run.sh --self-check
 
