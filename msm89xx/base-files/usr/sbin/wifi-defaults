@@ -1,5 +1,7 @@
 #!/bin/sh
 #
+# BOARDS: all - shared Wi-Fi defaults for every board.
+#
 # Project Wi-Fi defaults, applied to a freshly generated /etc/config/wireless.
 #
 # Called from 99-msm89xx-firstboot and again from msm-firmware-dumper after it
