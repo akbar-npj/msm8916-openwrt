@@ -1,0 +1,15 @@
+{
+  "build": "25.12.6-r10",
+  "hotfixes": [
+    {
+      "id": "2026-11-27-lcd-dashboard",
+      "package": "lcd-dashboard",
+      "version": "1.0-r6",
+      "title": "LCD dashboard gains VPN and CPU temperature tiles",
+      "restart": [
+        "lcd-dashboard"
+      ],
+      "published": "2026-11-27"
+    }
+  ]
+}

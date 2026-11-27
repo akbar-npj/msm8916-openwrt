@@ -20,7 +20,6 @@
     "coreutils-timeout": "9.9-r2",
     "coreutils-truncate": "9.9-r2",
     "dbus": "1.16.2-r4",
-    "dbus-utils": "1.16.2-r4",
     "etherwake": "1.09-r5",
     "glib2": "2.82.0-r1",
     "libattr": "2.5.2-r3",
