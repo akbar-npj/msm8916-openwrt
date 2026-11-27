@@ -118,19 +118,15 @@ BOARD="$(cut -d, -f1 /tmp/sysinfo/board_name 2>/dev/null)"
 [ -n "$BOARD" ] && uci set system.@system[0].hostname="$BOARD"
 
 ###############################################################################
-# BOARDS: all - every board's radios are capped at 20 dBm.
-# Wi-Fi TX power default
+# BOARDS: all - Wi-Fi defaults (20 dBm cap, WPA2 for a keyed AP)
 #
-# /sbin/wifi config runs just before uci-defaults and creates each radio with
-# no `txpower` option, which makes mac80211 leave it on "auto" -- the WCN3620
-# then settles at its regulatory maximum of 25 dBm.  Cap every radio at 20 dBm
-# so all units ship with the same, quieter default.  uci-defaults run once, so
-# a user who later changes txpower keeps their own value.
+# Shared with msm-firmware-dumper via /usr/sbin/wifi-defaults: uci-defaults
+# run before the WCNSS firmware is dumped, so /sbin/wifi config cannot see the
+# radio yet and the config regenerated later would lose these values.  See
+# Docs/WiFi/WPA3_PMF_AND_AGGREGATION.md for the WPA3 throughput cost.
 ###############################################################################
 
-for _radio in $(uci show wireless 2>/dev/null | sed -n 's/^\(wireless\.[^.]*\)=wifi-device$/\1/p'); do
-	uci set "$_radio.txpower=20"
-done
+[ -x /usr/sbin/wifi-defaults ] && /usr/sbin/wifi-defaults
 
 uci commit
 

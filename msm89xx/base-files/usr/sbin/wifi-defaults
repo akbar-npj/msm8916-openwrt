@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Project Wi-Fi defaults, applied to a freshly generated /etc/config/wireless.
+#
+# Called from 99-msm89xx-firstboot and again from msm-firmware-dumper after it
+# regenerates the wireless config.  The second call matters on this target:
+# uci-defaults run before the WCNSS firmware is dumped, so /sbin/wifi config
+# cannot see the radio yet and the config it generates later has no defaults.
+#
+# Only touches radios without an explicit txpower and APs that already have a
+# key.  A factory AP has no key and stays open -- psk2 without a key would
+# refuse every client, and no default password is invented.  A keyed AP is
+# normalised to WPA2 with PMF off: on the WCN3620, PMF stops the firmware
+# transmitting AP Action frames, so ADDBA never completes and downlink drops
+# from ~31.8 to ~6.6 Mbit/s (Docs/WiFi/WPA3_PMF_AND_AGGREGATION.md).
+# WPA3 stays available as a deliberate opt-in.
+#
+
+for _radio in $(uci show wireless 2>/dev/null | sed -n 's/^\(wireless\.[^.]*\)=wifi-device$/\1/p'); do
+	[ -n "$(uci -q get "$_radio.txpower")" ] && continue
+	uci set "$_radio.txpower=20"
+done
+
+for _iface in $(uci show wireless 2>/dev/null | sed -n 's/^\(wireless\.[^.]*\)=wifi-iface$/\1/p'); do
+	[ "$(uci -q get "$_iface.mode")" = "ap" ] || continue
+	[ -n "$(uci -q get "$_iface.key")" ] || continue
+	uci set "$_iface.encryption=psk2"
+	uci set "$_iface.ieee80211w=0"
+done
+
+uci commit wireless
+exit 0

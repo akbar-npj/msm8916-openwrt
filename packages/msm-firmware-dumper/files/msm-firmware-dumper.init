@@ -30,10 +30,23 @@ start() {
 		for rproc in /sys/class/remoteproc/remoteproc*; do
 			[ -d "$rproc" ] && echo start > "$rproc/state" 2>/dev/null || true
 		done
+		# WCNSS takes several seconds after the firmware dump before the
+		# wiphy is enumerable.  Without this wait `wifi config` runs too
+		# early, generates no radio, and the defaults below have nothing
+		# to apply -- observed on a fresh sysupgrade -n.
+		_wait=20
+		while [ "$_wait" -gt 0 ] && ! ls /sys/class/ieee80211/phy* >/dev/null 2>&1; do
+			sleep 1
+			_wait=$((_wait - 1))
+		done
 		if ! uci -q get wireless.radio0.path >/dev/null; then
 			rm -f /etc/config/wireless
 			/sbin/wifi config 2>/dev/null || true
 		fi
+		# This is the config that actually sticks on a fresh flash: the
+		# uci-defaults copy ran before the firmware existed, so it had no
+		# radio to configure.  Re-apply the 20 dBm / WPA2 defaults here.
+		[ -x /usr/sbin/wifi-defaults ] && /usr/sbin/wifi-defaults
 		/sbin/wifi reload 2>/dev/null || true
 	else
 		logger -t "$NAME" "Firmware dump FAILED"

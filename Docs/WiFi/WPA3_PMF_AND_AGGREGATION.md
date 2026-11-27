@@ -213,15 +213,17 @@ Two mitigations, one performance-only and one a product decision:
    `cfgwrite` A/B exercises the same firmware cfg field that the module
    parameter sets at MAC start.
 2. **Default to `psk2` / `ieee80211w=0`, keep WPA3 opt-in.** This is the only way
-   to get A-MPDU and MCS 7 (measured 31.8 Mbit/s). It is a security-vs-speed
-   decision for the product, so it has not been changed in the tree yet.
-   If WPA3 is kept as an option, LuCI should warn that it costs roughly 5x
-   downlink on the WCN3620: the firmware will not transmit any AP Action frame
-   to a keyed peer, so ADDBA never completes and the firmware RA never leaves
-   the lowest MCS.
+   to get A-MPDU and MCS 7 (measured 31.8 Mbit/s). Implemented in the firstboot
+   UCI defaults: a secured AP (one with a `key`) is normalised to WPA2 with PMF
+   off. The factory AP has no key, so it stays open — `psk2` without a key would
+   refuse every client, and no default password is invented. The LuCI dashboard
+   warns when WPA3/PMF is selected, because the firmware will not transmit any
+   AP Action frame to a keyed peer, so ADDBA never completes and the firmware
+   RA never leaves the lowest MCS.
 
 The warning matters more than the default: a user who turns WPA3 on and then
-sees 6 Mbit/s will otherwise conclude the port is broken.
+sees 6 Mbit/s will otherwise conclude the port is broken. See section 11 for
+the exact fallback and opt-in commands.
 
 ## 9. Bench state (2026-11-27)
 
@@ -290,3 +292,70 @@ farther client), which should be tested if the fleet has distant clients.
 
 Restoring client power to `auto` briefly dropped the WiFi link and the SSH
 session; it recovered on its own within seconds — no intervention needed.
+
+## 11. WPA2 fallback / WPA3 opt-in (shipped)
+
+**Fallback** — from a WPA3/PMF config, restore full downlink with:
+
+```sh
+uci set wireless.default_radio0.encryption=psk2
+uci set wireless.default_radio0.ieee80211w=0
+uci commit wireless
+wifi reload
+```
+
+The section name is `default_radio0` on a factory image; check
+`uci show wireless | grep wifi-iface` if it differs. Verify with
+`iw dev phy0-ap0 station dump`: a live BA session and MCS 6-7 on AP TX mean
+aggregation is back.
+
+**Opt-in** — WPA3 is still selectable, with the measured cost accepted:
+
+```sh
+uci set wireless.default_radio0.encryption=sae-mixed
+uci set wireless.default_radio0.ieee80211w=1
+uci commit wireless
+reboot
+```
+
+Prefer `reboot` to `wifi reload` when switching *to* SAE: on 2026-11-27 a
+`wifi reload` into `sae-mixed` hung this bench unit and needed a power cycle.
+SAE cannot run with `ieee80211w=0` — hostapd rejects it — so the PMF flag
+is unavoidable, and with it the ~5x downlink penalty.
+
+While a WPA3/PMF AP is configured, the LuCI dashboard shows a warning banner
+(`luci-app-update-notify`, `98_wpa3-notice.js`) built from live UCI state. It
+renders nothing for an open or WPA2 AP, and **Dismiss** remembers that exact
+config, so switching back to WPA3 shows it again. The banner has no one-click
+"fix" because restarting Wi-Fi from the page the client is connected through
+would drop the session.
+
+## 12. Hardware validation of the shipped fallback (2026-11-28)
+
+Image `25.12.6-r10`, sha256 `af9abfd6164f7bc80448e8492117cac3f73d842f9cb48f507ea0e880f93d30c6`,
+flashed on the mifib-v12 with `sysupgrade -n`:
+
+| check | result |
+|---|---|
+| factory AP encryption | `none` (open, no invented key) |
+| factory AP TX power | `txpower '20'` in UCI, **20.00 dBm** live |
+| RA start rate | `135` |
+| `sae-mixed` + `ieee80211w=1` + key, then `/usr/sbin/wifi-defaults` | `psk2` + `ieee80211w=0` |
+| dashboard notice | served over HTTP 200, warning string present |
+| rpcd ACL | read `update-notify` + `wireless`, write `update-notify` only |
+| restored WPA2 bench config | AP `OpenWrt`, 20 dBm, hostapd reloaded cleanly |
+
+**Ordering defect found and fixed during this validation.** The defaults did
+not reach a fresh flash at first: `uci-defaults` run before the WCNSS firmware
+is dumped, so `/sbin/wifi config` sees no radio, and `msm-firmware-dumper`
+regenerates `/etc/config/wireless` later, discarding anything set earlier. The
+dumper also ran before the wiphy was enumerable, so even its own
+`wifi config` produced no radio. The defaults now live in
+`/usr/sbin/wifi-defaults`, called from both firstboot and the dumper, and the
+dumper waits up to 20 s for `/sys/class/ieee80211/phy*` before regenerating.
+Only radios without an explicit `txpower` and APs that already have a key are
+touched.
+
+Not measured this pass: WPA2 downlink throughput. The host was attached over
+the USB gadget and the WiFi client was associated with another network; the
+32.7 Mbit/s figure from section 10 still stands for this image family.
