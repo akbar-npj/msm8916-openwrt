@@ -204,7 +204,8 @@ Two mitigations, one performance-only and one a product decision:
    safe to ship as the WCN3620 default: it gains ~40 % under PMF and costs
    nothing measurable under WPA2. Caveat: the bench client is very close; a
    weak-signal client will start at MCS 7 and fall back, so this should get one
-   attenuation sanity check before it becomes a fleet-wide default.
+   attenuation sanity check before it becomes a fleet-wide default — see the
+   flashed-image validation and weak-link proxy in section 10.
 
    Note: the earlier cold-start (`rmmod`/`insmod ra_start_rate=...`) attempts
    were interrupted by an OOM pause and wrote to the wrong debugfs PHY
@@ -229,11 +230,63 @@ The experimental module is **not** in any patch: all edits live only in
 (default), so a clean rebuild reverts them. Patches 451/464/465/466/468/469
 are the only committed driver changes.
 
-Restoring the AP from the WPA2 test config back to `sae-mixed` + `ieee80211w=1`
-hung the unit on `wifi up` (same trap as the earlier WPA3 reload) and needed a
-power cycle. As of the 2026-11-27 WPA2 A/B the unit is deliberately back in
-`psk2` / `ieee80211w=0`; the pre-A/B WPA3 config was saved on the unit as
-`/tmp/wireless.wpa3.ab` and the live `/etc/config/wireless` is WPA2. The
-`ra_start_rate=135` seen in `/sys/module/wcn36xx/parameters` came from a manual
-`insmod` and is **not** persistent — a reboot returns to the default `-1`
-(table value 133). `cfg 210` was left at 133 by the last A/B arm.
+**2026-11-27 (after validation): the bench unit is freshly flashed**
+`sysupgrade -n` with the shipping `staging-main` image (`25.12.6-r10`,
+sha256 `71551f41e8f25bcc6bee5078cdea53c2a0c808d7707b287b8920038e035087bb`)
+and is live at **192.168.8.1** (host client `wlu1u1u1` at 192.168.8.245,
+AP is `phy0-ap0`, BSSID `02:00:59:8a:3a:21`). Config was reset by `-n`, so the
+WPA2 test config was restored from the host backup at
+`/tmp/ra135-backup/wireless.wpa2.live`; `wireless.radio0.txpower=20`. The WPA3
+config was **not** restored — the unit is in `psk2` / `ieee80211w=0`.
+Crucially, `ra_start_rate=135` is now the **shipped default**, not a manual
+insmod: the loaded module hash (`535a4b9b…`) equals `/rom`, with no overlay
+shadow. `cfg 210` was left at 135 by the last validation arm.
+
+## 10. Flashed-image validation + weak-link check (2026-11-27)
+
+**Flashed-image validation — PASS.** The image was rebuilt from `staging-main`
+(`./build.sh guard` clean, `./build.sh build mifib-v12`), the sysupgrade artifact
+was extracted and checked before flashing: `DISTRIB_RELEASE='25.12.6-r10'`,
+`lib/modules/6.12.112/wcn36xx.ko` contains the
+`ra_start_rate override` log string and **no** `mgmt_dpu` / `pmf-plain`
+experimental code. After `sysupgrade -n` and first boot (LAN defaults to
+192.168.8.1, SSH host key changes — expected):
+
+```
+/sys/module/wcn36xx/parameters/ra_start_rate = 135
+dmesg: wcn36xx: rf_id 0x3620, generic cfg table (45 entries), ra_start_rate override 135
+/lib/modules/.../wcn36xx.ko md5 = 535a4b9b…  == /rom/.../wcn36xx.ko
+find /overlay/upper -iname '*wcn36xx*'  -> empty (no shadow)
+```
+
+WPA2 downlink on the freshly flashed image: **32.7 Mbit/s** (client at
+-26 dBm, `ra_start_rate=135`, A-MPDU up, AP reaches 58.5 Mbit/s). This
+confirms the durable default survives a real flash with no overlay-shadow
+regression.
+
+**Weak-link check — no regression, but attenuated-RSSI test not achievable
+on this bench.** The WCN3620 driver has **no `.set_tx_power` callback**, so
+`iw dev phy0-ap0 set txpower fixed …` returns 0 but is a no-op. Lowering the
+AP power through the firmware cfg TLVs (`cfgwrite` 66/72/64) is also accepted
+(`update_cfg 0`) but does not move RSSI. The client dongle (`wlu1u1u1`) is
+physically adjacent — its signal is pinned at -26 dBm — so distance/RSSI
+cannot be increased without moving hardware. What *could* be created was a
+degraded **uplink** (client `txpower fixed 0` → AP sees the client at MCS2-3
+instead of MCS7); under that condition an A-B-A-B of `cfg 210` gave:
+
+| arm | downlink |
+|---|---|
+| 135 | 31.6 Mbit/s |
+| 133 | 33.8 Mbit/s |
+| 135 | 33.0 Mbit/s |
+| 133 | 30.7 Mbit/s |
+
+Mean 32.3 vs 32.3 Mbit/s — no regression, and the AP's downlink still reached
+MCS6-7 (58-72 Mbit/s) in every arm while the client `rx` sat at MCS1-4. A
+sustained 32 s run at start=135 under the degraded uplink held 31.0 Mbit/s
+with no stall. So the MCS 7 start rate falls back cleanly; the one thing not
+proven is a genuinely weak *downlink* RSSI (needs a physical attenuator or a
+farther client), which should be tested if the fleet has distant clients.
+
+Restoring client power to `auto` briefly dropped the WiFi link and the SSH
+session; it recovered on its own within seconds — no intervention needed.
