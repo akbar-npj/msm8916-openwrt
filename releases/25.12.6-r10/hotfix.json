@@ -10,6 +10,14 @@
         "lcd-dashboard"
       ],
       "published": "2026-11-27"
+    },
+    {
+      "id": "2026-11-28-luci-app-lcd-dashboard",
+      "package": "luci-app-lcd-dashboard",
+      "version": "1.0-r4",
+      "title": "LuCI dashboard editor gains VPN and CPU temperature sources",
+      "restart": [],
+      "published": "2026-11-28"
     }
   ]
 }
